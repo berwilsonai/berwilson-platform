@@ -1,5 +1,7 @@
 import { createServerClient } from '@supabase/ssr'
-import { NextResponse, type NextRequest } from 'next/server'
+// Import from specific paths to avoid next/server.js loading ua-parser-js (__dirname issue on Vercel edge)
+import { NextResponse } from 'next/dist/server/web/spec-extension/response'
+import type { NextRequest } from 'next/dist/server/web/spec-extension/request'
 
 export async function middleware(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request })

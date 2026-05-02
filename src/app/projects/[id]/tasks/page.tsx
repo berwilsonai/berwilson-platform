@@ -2,6 +2,8 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import TasksTab from '@/components/projects/TasksTab'
 import type { FlatTask } from '@/components/projects/TasksTab'
 
+export const metadata = { title: 'Tasks — Ber Wilson Intelligence' }
+
 interface PageProps {
   params: Promise<{ id: string }>
 }

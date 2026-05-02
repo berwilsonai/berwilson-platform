@@ -168,7 +168,8 @@ export default async function ActivityPage({ searchParams }: PageProps) {
       {/* Log */}
       {rows.length > 0 ? (
         <div className="rounded-lg border border-border overflow-hidden">
-          <table className="w-full text-xs">
+          <div className="overflow-x-auto">
+          <table className="w-full text-xs min-w-[640px]">
             <thead>
               <tr className="border-b border-border bg-muted/50">
                 <th className="py-2 px-3 text-left font-medium text-muted-foreground whitespace-nowrap">
@@ -237,6 +238,7 @@ export default async function ActivityPage({ searchParams }: PageProps) {
               })}
             </tbody>
           </table>
+          </div>
         </div>
       ) : (
         <div className="rounded-lg border border-border bg-card flex items-center justify-center py-16">

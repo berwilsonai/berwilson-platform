@@ -3,6 +3,8 @@ import FinancingTab from '@/components/projects/FinancingTab'
 import type { FinancingWithSchedule } from '@/types/domain'
 import type { DrawScheduleEntry } from '@/types/domain'
 
+export const metadata = { title: 'Financing — Ber Wilson Intelligence' }
+
 interface PageProps {
   params: Promise<{ id: string }>
 }

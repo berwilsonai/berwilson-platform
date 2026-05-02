@@ -4,6 +4,14 @@ import { Pencil, ExternalLink } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { createAdminClient } from '@/lib/supabase/admin'
 import type { Entity, EntityProject } from '@/lib/supabase/types'
+import type { Metadata } from 'next'
+
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
+  const { id } = await params
+  const supabase = createAdminClient()
+  const { data } = await supabase.from('projects').select('name').eq('id', id).single()
+  return { title: data?.name ? `${data.name} — Ber Wilson Intelligence` : 'Project — Ber Wilson Intelligence' }
+}
 
 type EntityProjectWithEntity = EntityProject & { entity: Entity }
 

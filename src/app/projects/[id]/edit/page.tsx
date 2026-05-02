@@ -4,6 +4,8 @@ import { ChevronLeft } from 'lucide-react'
 import { createAdminClient } from '@/lib/supabase/admin'
 import ProjectForm from '@/components/projects/ProjectForm'
 
+export const metadata = { title: 'Edit Project — Ber Wilson Intelligence' }
+
 interface PageProps {
   params: Promise<{ id: string }>
 }

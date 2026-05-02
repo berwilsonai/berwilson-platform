@@ -10,6 +10,8 @@ import {
   User,
 } from 'lucide-react'
 import { createAdminClient } from '@/lib/supabase/admin'
+
+export const metadata = { title: 'Contact — Ber Wilson Intelligence' }
 import { cn } from '@/lib/utils'
 import { SECTOR_BADGE, SECTOR_LABELS } from '@/lib/utils/sectors'
 import { STAGE_LABELS } from '@/lib/utils/stages'

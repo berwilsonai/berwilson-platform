@@ -2,6 +2,8 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import EntitiesTab from '@/components/projects/EntitiesTab'
 import type { Entity, EntityProject } from '@/lib/supabase/types'
 
+export const metadata = { title: 'Entities — Ber Wilson Intelligence' }
+
 export type EntityProjectWithEntity = EntityProject & { entity: Entity }
 
 interface PageProps {

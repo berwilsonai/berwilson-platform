@@ -4,6 +4,8 @@ import { Building2, Star, User, UserPlus, Users } from 'lucide-react'
 import { createAdminClient } from '@/lib/supabase/admin'
 import EmptyState from '@/components/shared/EmptyState'
 
+export const metadata = { title: 'Team — Ber Wilson Intelligence' }
+
 interface PageProps {
   params: Promise<{ id: string }>
 }

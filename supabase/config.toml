@@ -25,8 +25,8 @@ pop3_port = 54326
 file_size_limit = "50MiB"
 
 [auth]
-site_url = "http://localhost:3000"
-additional_redirect_urls = ["https://localhost:3000"]
+site_url = "https://berwilson-platform-berwilsonais-projects.vercel.app"
+additional_redirect_urls = ["https://berwilson-platform-berwilsonais-projects.vercel.app/**", "http://localhost:3000", "https://localhost:3000"]
 jwt_expiry = 3600
 enable_refresh_token_rotation = true
 refresh_token_reuse_interval = 10

@@ -1,6 +1,8 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import MilestonesTab from '@/components/projects/MilestonesTab'
 
+export const metadata = { title: 'Milestones — Ber Wilson Intelligence' }
+
 interface PageProps {
   params: Promise<{ id: string }>
 }

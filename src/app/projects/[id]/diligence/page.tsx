@@ -2,6 +2,8 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import DiligenceTab from '@/components/projects/DiligenceTab'
 import type { Party, Document } from '@/lib/supabase/types'
 
+export const metadata = { title: 'Diligence — Ber Wilson Intelligence' }
+
 interface PageProps {
   params: Promise<{ id: string }>
 }
