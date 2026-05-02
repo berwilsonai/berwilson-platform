@@ -34,8 +34,13 @@ export async function middleware(request: NextRequest) {
 
   const { pathname } = request.nextUrl
 
-  // Allow unauthenticated access only to /login
-  if (!user && pathname !== '/login') {
+  // Public routes: /login, /auth/confirm (token exchange), /auth/set-password (invite flow)
+  const isPublicRoute =
+    pathname === '/login' ||
+    pathname.startsWith('/auth/confirm') ||
+    pathname.startsWith('/auth/set-password')
+
+  if (!user && !isPublicRoute) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
     return NextResponse.redirect(url)

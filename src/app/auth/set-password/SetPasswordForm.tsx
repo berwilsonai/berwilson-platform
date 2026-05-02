@@ -1,33 +1,36 @@
 'use client'
 
 import { useState } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { Loader2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 
-export default function LoginForm() {
+export default function SetPasswordForm() {
   const router = useRouter()
-  const searchParams = useSearchParams()
-  const linkError = searchParams.get('error') === 'invalid_link'
-
-  const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [confirm, setConfirm] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
-  async function handleLogin(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError(null)
+
+    if (password.length < 8) {
+      setError('Password must be at least 8 characters.')
+      return
+    }
+    if (password !== confirm) {
+      setError('Passwords do not match.')
+      return
+    }
+
     setLoading(true)
-
     const supabase = createClient()
-    const { error: authError } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    })
+    const { error: updateError } = await supabase.auth.updateUser({ password })
 
-    if (authError) {
-      setError(authError.message)
+    if (updateError) {
+      setError(updateError.message)
       setLoading(false)
       return
     }
@@ -45,37 +48,14 @@ export default function LoginForm() {
             Ber Wilson
           </h1>
           <p className="mt-1 text-sm text-slate-500">
-            Executive Intelligence Platform
+            Create your password
           </p>
         </div>
 
-        {linkError && (
-          <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2 text-center">
-            That link has expired or is invalid. Please sign in below.
-          </p>
-        )}
-
-        {/* Login form */}
-        <form onSubmit={handleLogin} className="space-y-4">
-          <div className="space-y-1.5">
-            <label htmlFor="email" className="text-xs font-medium text-slate-700">
-              Email
-            </label>
-            <input
-              id="email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              autoComplete="email"
-              className="w-full h-10 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900 focus:border-transparent"
-              placeholder="you@berwilson.com"
-            />
-          </div>
-
+        <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-1.5">
             <label htmlFor="password" className="text-xs font-medium text-slate-700">
-              Password
+              New password
             </label>
             <input
               id="password"
@@ -83,8 +63,26 @@ export default function LoginForm() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
-              autoComplete="current-password"
+              minLength={8}
+              autoComplete="new-password"
               className="w-full h-10 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900 focus:border-transparent"
+              placeholder="At least 8 characters"
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <label htmlFor="confirm" className="text-xs font-medium text-slate-700">
+              Confirm password
+            </label>
+            <input
+              id="confirm"
+              type="password"
+              value={confirm}
+              onChange={(e) => setConfirm(e.target.value)}
+              required
+              autoComplete="new-password"
+              className="w-full h-10 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900 focus:border-transparent"
+              placeholder="Repeat password"
             />
           </div>
 
@@ -100,7 +98,7 @@ export default function LoginForm() {
             className="w-full h-10 rounded-md bg-slate-900 text-white text-sm font-medium hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
           >
             {loading && <Loader2 size={14} className="animate-spin" />}
-            Sign In
+            Set Password & Sign In
           </button>
         </form>
 

@@ -30,7 +30,7 @@ export default async function RootLayout({
 }) {
   const headersList = await headers()
   const pathname = headersList.get('x-pathname') ?? ''
-  const isLoginPage = pathname === '/login'
+  const isLoginPage = pathname === '/login' || pathname.startsWith('/auth/')
 
   // Fetch user for the header email; the middleware already enforces auth.
   const supabase = await createClient()
