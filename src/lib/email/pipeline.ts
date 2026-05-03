@@ -24,6 +24,7 @@ import {
   buildClassificationMessage,
 } from '@/lib/ai/prompts/classification'
 import type { ExtractionResult } from '@/types/domain'
+import { resolveEmailParticipants } from '@/lib/email/participants'
 
 const SYSTEM_USER_ID = '00000000-0000-0000-0000-000000000000'
 
@@ -172,6 +173,12 @@ export async function processEmailNotification(
     })
     return { status: 'processed' }
   }
+
+  // 5a. Tier 1 contact resolution — auto-create contacts for all From/To/CC participants.
+  //     Runs in the background; never blocks the main pipeline.
+  resolveEmailParticipants(message).catch((err) =>
+    console.error('[email-pipeline] Participant resolution failed:', err)
+  )
 
   // 5. Classify — which project does this email relate to?
   const classification = await classifyEmail(message, bodyText)

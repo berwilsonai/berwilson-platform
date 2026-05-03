@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { FileText, AlertCircle, CheckCircle2, XCircle, Pencil } from 'lucide-react'
-import type { ReviewQueueItem, MentionedParty } from '@/types/domain'
+import type { ReviewQueueItem, PartyMatchResult } from '@/types/domain'
 import ConfidenceBadge from '@/components/shared/ConfidenceBadge'
 import ReviewActions from './ReviewActions'
 import MentionedPartiesPanel from './MentionedPartiesPanel'
@@ -41,11 +41,12 @@ const RESOLUTION_CONFIG: Record<string, { label: string; color: string; Icon: Re
 interface ReviewItemProps {
   item: ReviewQueueItem
   allProjects: { id: string; name: string }[]
-  mentionedParties?: MentionedParty[]
+  allParties: { id: string; full_name: string; email: string | null }[]
+  matchedParties?: PartyMatchResult[]
   showResolved?: boolean
 }
 
-export default function ReviewItem({ item, allProjects, mentionedParties = [], showResolved = false }: ReviewItemProps) {
+export default function ReviewItem({ item, allProjects, allParties, matchedParties = [], showResolved = false }: ReviewItemProps) {
   const isResolved = !!item.resolved_at
   const sourceLink = buildSourceLink(item)
   const sourceLabel = SOURCE_TABLE_LABELS[item.source_table] ?? item.source_table
@@ -93,8 +94,8 @@ export default function ReviewItem({ item, allProjects, mentionedParties = [], s
         <p className="text-sm text-foreground leading-relaxed">{item.ai_explanation}</p>
       )}
 
-      {/* Mentioned parties from AI extraction */}
-      <MentionedPartiesPanel parties={mentionedParties} />
+      {/* Mentioned parties with match status */}
+      <MentionedPartiesPanel parties={matchedParties} allParties={allParties} />
 
       {/* Source record link + actions */}
       <div className="flex items-center justify-between gap-4 pt-1">

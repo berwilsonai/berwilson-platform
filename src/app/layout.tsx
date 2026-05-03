@@ -1,4 +1,4 @@
-import type { Metadata } from "next"
+import type { Metadata, Viewport } from "next"
 import { Geist, Geist_Mono } from "next/font/google"
 import "./globals.css"
 import { headers } from "next/headers"
@@ -21,6 +21,12 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Ber Wilson Intelligence",
   description: "Executive Intelligence Platform",
+}
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  viewportFit: 'cover',
 }
 
 export default async function RootLayout({
@@ -68,7 +74,7 @@ export default async function RootLayout({
                 {children}
               </main>
             </div>
-            <MobileNav />
+            <MobileNav pendingCount={pendingReviewCount} />
           </div>
         ) : (
           // Login and other auth pages render without the app shell

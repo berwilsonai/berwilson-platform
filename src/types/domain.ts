@@ -64,6 +64,16 @@ export type MentionedParty = {
   role?: string
 }
 
+/**
+ * A mentioned party enriched with match data from the contacts database.
+ * matchedPartyId/matchedPartyName are set when the name resolves to an
+ * existing contact (exact match, first-name match, or saved alias).
+ */
+export type PartyMatchResult = MentionedParty & {
+  matchedPartyId?: string
+  matchedPartyName?: string
+}
+
 export type MentionedProject = {
   name_or_ref: string
   confidence: number  // 0–1

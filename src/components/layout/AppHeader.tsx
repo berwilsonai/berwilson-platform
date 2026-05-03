@@ -11,6 +11,7 @@ const PAGE_TITLES: Record<string, string> = {
   '/review': 'Review Queue',
   '/activity': 'Activity',
   '/intel': 'Intel',
+  '/email-log': 'Email Log',
 }
 
 function getPageTitle(pathname: string): string {
@@ -39,7 +40,7 @@ export default function AppHeader({ email }: { email: string }) {
   }
 
   return (
-    <header className="h-14 flex items-center justify-between px-6 border-b border-border bg-background shrink-0">
+    <header className="h-14 flex items-center justify-between px-4 sm:px-6 border-b border-border bg-background shrink-0">
       <h1 className="text-sm font-semibold tracking-tight">{getPageTitle(pathname)}</h1>
 
       <div className="flex items-center gap-3">

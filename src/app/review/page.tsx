@@ -1,7 +1,7 @@
 import { Suspense } from 'react'
 import { ClipboardCheck } from 'lucide-react'
 import { createAdminClient } from '@/lib/supabase/admin'
-import type { ReviewQueueItem, MentionedParty } from '@/types/domain'
+import type { ReviewQueueItem, MentionedParty, PartyMatchResult } from '@/types/domain'
 import ReviewItem from '@/components/review/ReviewItem'
 
 export const metadata = { title: 'Review Queue — Ber Wilson Intelligence' }
@@ -14,6 +14,48 @@ interface PageProps {
 
 const VALID_REASONS = ['low_confidence', 'ambiguous_project', 'unknown_party', 'conflicting_data']
 
+// ---------------------------------------------------------------------------
+// Name matching helpers
+// ---------------------------------------------------------------------------
+
+interface SimpleParty { id: string; full_name: string; email: string | null }
+interface SimpleAlias { alias: string; party_id: string }
+
+function matchMentionedParty(
+  mention: MentionedParty,
+  parties: SimpleParty[],
+  aliases: SimpleAlias[],
+): PartyMatchResult {
+  const name = mention.name.toLowerCase().trim()
+
+  // 1. Saved alias match (highest priority — user already confirmed this)
+  const aliasMatch = aliases.find((a) => a.alias === name)
+  if (aliasMatch) {
+    const party = parties.find((p) => p.id === aliasMatch.party_id)
+    if (party) return { ...mention, matchedPartyId: party.id, matchedPartyName: party.full_name }
+  }
+
+  // 2. Exact full-name match
+  const exact = parties.find((p) => p.full_name.toLowerCase() === name)
+  if (exact) return { ...mention, matchedPartyId: exact.id, matchedPartyName: exact.full_name }
+
+  // 3. Single-word (first name only) match — only if exactly one party matches
+  if (!name.includes(' ')) {
+    const firstNameMatches = parties.filter(
+      (p) => p.full_name.toLowerCase().split(' ')[0] === name
+    )
+    if (firstNameMatches.length === 1) {
+      return { ...mention, matchedPartyId: firstNameMatches[0].id, matchedPartyName: firstNameMatches[0].full_name }
+    }
+  }
+
+  return mention // no match found
+}
+
+// ---------------------------------------------------------------------------
+// Page
+// ---------------------------------------------------------------------------
+
 export default async function ReviewPage({ searchParams }: PageProps) {
   const params = await searchParams
   const projectId = params.project_id ?? ''
@@ -22,7 +64,7 @@ export default async function ReviewPage({ searchParams }: PageProps) {
 
   const supabase = createAdminClient()
 
-  // Fetch items with project join; when showResolved, include resolved items too
+  // Fetch review queue items with project join
   let query = supabase
     .from('review_queue')
     .select('*, project:projects(id, name, sector, status)')
@@ -33,12 +75,19 @@ export default async function ReviewPage({ searchParams }: PageProps) {
   if (projectId) query = query.eq('project_id', projectId)
   if (reason) query = query.eq('reason', reason)
 
-  const [{ data: items, error }, { data: allProjects }] = await Promise.all([
+  const [
+    { data: items, error },
+    { data: allProjects },
+    { data: allParties },
+    { data: allAliases },
+  ] = await Promise.all([
     query,
-    supabase
-      .from('projects')
-      .select('id, name')
-      .order('name', { ascending: true }),
+    supabase.from('projects').select('id, name').order('name', { ascending: true }),
+    supabase.from('parties').select('id, full_name, email').order('full_name', { ascending: true }),
+    // contact_aliases is a new table not yet in generated types — cast to allow the query
+    (supabase as unknown as import('@supabase/supabase-js').SupabaseClient)
+      .from('contact_aliases')
+      .select('alias, party_id'),
   ])
 
   if (error) {
@@ -47,6 +96,8 @@ export default async function ReviewPage({ searchParams }: PageProps) {
 
   const reviewItems = (items ?? []) as ReviewQueueItem[]
   const projects = allProjects ?? []
+  const parties = (allParties ?? []) as SimpleParty[]
+  const aliases = (allAliases ?? []) as unknown as SimpleAlias[]
   const pendingCount = reviewItems.filter((i) => !i.resolved_at).length
   const count = reviewItems.length
   const hasFilters = projectId || reason
@@ -56,7 +107,7 @@ export default async function ReviewPage({ searchParams }: PageProps) {
     .filter((i) => i.source_table === 'updates')
     .map((i) => i.record_id)
 
-  const mentionedPartiesMap: Record<string, MentionedParty[]> = {}
+  const matchedPartiesMap: Record<string, PartyMatchResult[]> = {}
   if (updateIds.length > 0) {
     const { data: updateData } = await supabase
       .from('updates')
@@ -64,9 +115,11 @@ export default async function ReviewPage({ searchParams }: PageProps) {
       .in('id', updateIds)
 
     for (const u of updateData ?? []) {
-      const parties = u.mentioned_parties
-      if (Array.isArray(parties) && parties.length > 0) {
-        mentionedPartiesMap[u.id] = parties as MentionedParty[]
+      const rawParties = u.mentioned_parties
+      if (Array.isArray(rawParties) && rawParties.length > 0) {
+        matchedPartiesMap[u.id] = (rawParties as MentionedParty[]).map((p) =>
+          matchMentionedParty(p, parties, aliases)
+        )
       }
     }
   }
@@ -112,7 +165,8 @@ export default async function ReviewPage({ searchParams }: PageProps) {
               key={item.id}
               item={item}
               allProjects={projects}
-              mentionedParties={mentionedPartiesMap[item.record_id] ?? []}
+              allParties={parties}
+              matchedParties={matchedPartiesMap[item.record_id] ?? []}
               showResolved={showResolved}
             />
           ))}
