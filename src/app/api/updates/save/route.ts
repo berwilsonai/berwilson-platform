@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { embedUpdate } from '@/lib/ai/embeddings'
 import type { TablesInsert } from '@/lib/supabase/types'
 
 export async function POST(request: NextRequest) {
@@ -12,6 +13,7 @@ export async function POST(request: NextRequest) {
     waiting_on,
     risks,
     decisions,
+    mentioned_parties,
     confidence,
   } = body
 
@@ -30,6 +32,7 @@ export async function POST(request: NextRequest) {
     waiting_on: waiting_on ?? [],
     risks: risks ?? [],
     decisions: decisions ?? [],
+    mentioned_parties: mentioned_parties ?? [],
     confidence: typeof confidence === 'number' ? confidence : null,
     review_state: 'approved',
   }
@@ -40,6 +43,9 @@ export async function POST(request: NextRequest) {
     console.error('Save update failed:', error)
     return Response.json({ error: error.message }, { status: 500 })
   }
+
+  // Fire-and-forget: chunk and embed in background (manual pastes auto-approve)
+  embedUpdate(data.id, project_id, raw_content).catch(console.error)
 
   return Response.json({ id: data.id })
 }

@@ -13,7 +13,7 @@ const TABS = [
   { label: 'Milestones', segment: 'milestones' },
   { label: 'Financing', segment: 'financing' },
   { label: 'Diligence', segment: 'diligence' },
-  { label: 'Entities', segment: 'entities' },
+  { label: 'Entities & Vendors', segment: 'entities' },
 ]
 
 interface ProjectTabBarProps {

@@ -1,7 +1,9 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
+import { embedUpdate } from '@/lib/ai/embeddings'
 
-const VALID_RESOLUTIONS = ['approved', 'rejected'] as const
+const VALID_RESOLUTIONS = ['approved', 'rejected', 'edited'] as const
 type Resolution = (typeof VALID_RESOLUTIONS)[number]
 
 export async function PATCH(
@@ -10,16 +12,17 @@ export async function PATCH(
 ) {
   const { id } = await params
 
-  let resolution: Resolution
+  let body: { resolution: string; project_id?: string; edit_diff?: Record<string, unknown> }
   try {
-    const body = await request.json()
-    if (!VALID_RESOLUTIONS.includes(body.resolution)) {
+    body = await request.json()
+    if (!VALID_RESOLUTIONS.includes(body.resolution as Resolution)) {
       return NextResponse.json({ error: 'Invalid resolution' }, { status: 400 })
     }
-    resolution = body.resolution
   } catch {
     return NextResponse.json({ error: 'Invalid request body' }, { status: 400 })
   }
+
+  const resolution = body.resolution as Resolution
 
   const supabase = await createClient()
   const {
@@ -30,18 +33,81 @@ export async function PATCH(
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const { error } = await supabase
-    .from('review_queue')
-    .update({
-      resolution,
-      resolved_at: new Date().toISOString(),
-      reviewed_by: user.id,
-    })
+  const admin = createAdminClient()
+
+  // If reassigning to a different project, update both the review item and the source record
+  if (body.project_id) {
+    // Get the review item to find the source record
+    const { data: reviewItem, error: fetchError } = await admin
+      .from('review_queue')
+      .select('source_table, record_id')
+      .eq('id', id)
+      .single()
+
+    if (fetchError || !reviewItem) {
+      return NextResponse.json({ error: 'Review item not found' }, { status: 404 })
+    }
+
+    // Update the source record's project_id (updates, documents, etc.)
+    if (reviewItem.source_table === 'updates' || reviewItem.source_table === 'documents') {
+      const { error: sourceError } = await admin
+        .from(reviewItem.source_table)
+        .update({ project_id: body.project_id })
+        .eq('id', reviewItem.record_id)
+
+      if (sourceError) {
+        return NextResponse.json({ error: `Failed to reassign source record: ${sourceError.message}` }, { status: 500 })
+      }
+    }
+
+    // Update the review_queue item's project_id
+    const { error: reassignError } = await admin
+      .from('review_queue')
+      .update({ project_id: body.project_id })
+      .eq('id', id)
+
+    if (reassignError) {
+      return NextResponse.json({ error: reassignError.message }, { status: 500 })
+    }
+  }
+
+  // Resolve the review item — edit_diff column is new, cast until gen-types re-run
+  const updatePayload: Record<string, unknown> = {
+    resolution,
+    resolved_at: new Date().toISOString(),
+    reviewed_by: user.id,
+  }
+  if (body.edit_diff) updatePayload.edit_diff = body.edit_diff
+
+  const { error } = await (admin as unknown as import('@supabase/supabase-js').SupabaseClient)
+    .from('review_queue' as never)
+    .update(updatePayload as never)
     .eq('id', id)
     .is('resolved_at', null)
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+
+  // When an update is approved from the review queue, trigger embedding
+  if (resolution === 'approved') {
+    const { data: reviewItem } = await admin
+      .from('review_queue')
+      .select('source_table, record_id, project_id')
+      .eq('id', id)
+      .single()
+
+    if (reviewItem?.source_table === 'updates' && reviewItem.record_id && reviewItem.project_id) {
+      const { data: update } = await admin
+        .from('updates')
+        .select('raw_content')
+        .eq('id', reviewItem.record_id)
+        .single()
+
+      if (update?.raw_content) {
+        embedUpdate(reviewItem.record_id, reviewItem.project_id, update.raw_content).catch(console.error)
+      }
+    }
   }
 
   return NextResponse.json({ ok: true })

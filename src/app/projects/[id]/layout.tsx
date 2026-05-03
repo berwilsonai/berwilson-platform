@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils'
 import { SECTOR_BADGE, SECTOR_LABELS } from '@/lib/utils/sectors'
 import { STAGE_LABELS } from '@/lib/utils/stages'
 import ProjectTabBar from '@/components/projects/ProjectTabBar'
+import AgentSidebar from '@/components/agent/AgentSidebar'
 
 const STATUS_STYLES: Record<string, string> = {
   active: 'bg-emerald-50 text-emerald-700 ring-emerald-200',
@@ -93,6 +94,9 @@ export default async function ProjectLayout({ children, params }: LayoutProps) {
 
       {/* Tab content */}
       <div className="pt-6">{children}</div>
+
+      {/* Agent chat sidebar */}
+      <AgentSidebar projectId={id} />
     </div>
   )
 }

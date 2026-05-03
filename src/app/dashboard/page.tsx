@@ -8,6 +8,7 @@ export const metadata = { title: 'Dashboard — Ber Wilson Intelligence' }
 import { SECTOR_SHORT, SECTOR_BADGE } from '@/lib/utils/sectors'
 import ProjectCard, { type ProjectCardCounts } from '@/components/dashboard/ProjectCard'
 import SortControls from '@/components/dashboard/SortControls'
+import PortfolioBriefButton from '@/components/dashboard/PortfolioBriefButton'
 import EmptyState from '@/components/shared/EmptyState'
 import type { ActionItem, WaitingOnItem, RiskItem } from '@/types/domain'
 
@@ -103,7 +104,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
   const projectIds = activeProjects.map((p) => p.id)
 
   // Fetch approved updates to compute per-project action counts
-  let updatesRaw: Array<{ project_id: string; action_items: unknown; waiting_on: unknown; risks: unknown }> = []
+  let updatesRaw: Array<{ project_id: string | null; action_items: unknown; waiting_on: unknown; risks: unknown }> = []
   if (projectIds.length > 0) {
     const { data } = await supabase
       .from('updates')
@@ -126,6 +127,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
   const countMap: Record<string, ProjectCardCounts> = {}
   for (const u of updatesRaw) {
     const pid = u.project_id
+    if (!pid) continue
     if (!countMap[pid]) {
       countMap[pid] = { actionCount: 0, waitingCount: 0, riskCount: 0, hasCriticalRisk: false }
     }
@@ -207,9 +209,12 @@ export default async function DashboardPage({ searchParams }: PageProps) {
         <div className="flex-1 min-w-0 space-y-3">
           {/* Toolbar */}
           <div className="flex items-center justify-between gap-3 flex-wrap">
-            <span className="text-xs text-muted-foreground">
-              {activeProjects.length} active project{activeProjects.length !== 1 ? 's' : ''}
-            </span>
+            <div className="flex items-center gap-3">
+              <span className="text-xs text-muted-foreground">
+                {activeProjects.length} active project{activeProjects.length !== 1 ? 's' : ''}
+              </span>
+              {activeProjects.length > 0 && <PortfolioBriefButton />}
+            </div>
             <Suspense>
               <SortControls current={sort} />
             </Suspense>

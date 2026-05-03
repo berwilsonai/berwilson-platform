@@ -13,10 +13,12 @@ import {
   Loader2,
   ChevronDown,
   ChevronRight,
+  Search,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import EmptyState from '@/components/shared/EmptyState'
-import type { Entity, EntityProject } from '@/lib/supabase/types'
+import ResearchPanel from './ResearchPanel'
+import type { Entity, EntityProject, ResearchArtifact } from '@/lib/supabase/types'
 import type { EntityType } from '@/lib/supabase/types'
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -31,6 +33,7 @@ type Mode =
   | { type: 'edit-link'; ep: EntityProjectWithEntity }
   | { type: 'create-entity' }
   | { type: 'edit-entity'; entity: Entity }
+  | { type: 'research-entity'; entity: Entity }
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -56,7 +59,7 @@ const ENTITY_TYPE_STYLES: Record<EntityType, string> = {
   other: 'bg-slate-50 text-slate-600 ring-slate-200',
 }
 
-const RELATIONSHIPS = ['owner', 'jv_partner', 'sub_entity', 'guarantor'] as const
+const RELATIONSHIPS = ['owner', 'jv_partner', 'sub_entity', 'guarantor', 'vendor', 'subcontractor', 'consultant', 'partner'] as const
 type Relationship = typeof RELATIONSHIPS[number]
 
 const RELATIONSHIP_LABELS: Record<Relationship, string> = {
@@ -64,6 +67,10 @@ const RELATIONSHIP_LABELS: Record<Relationship, string> = {
   jv_partner: 'JV Partner',
   sub_entity: 'Sub-Entity',
   guarantor: 'Guarantor',
+  vendor: 'Vendor',
+  subcontractor: 'Subcontractor',
+  consultant: 'Consultant',
+  partner: 'Partner',
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -290,12 +297,14 @@ function EntityTreeNode({
   linkedIds,
   onEdit,
   onLinkDirect,
+  onResearch,
 }: {
   node: TreeNode
   depth: number
   linkedIds: Set<string>
   onEdit: (entity: Entity) => void
   onLinkDirect: (entityId: string) => void
+  onResearch: (entity: Entity) => void
 }) {
   const [expanded, setExpanded] = useState(true)
   const isLinked = linkedIds.has(node.id)
@@ -359,6 +368,14 @@ function EntityTreeNode({
             </button>
           )}
           <button
+            onClick={() => onResearch(node)}
+            title="Research this entity"
+            className="inline-flex items-center gap-1 h-6 px-2 rounded text-[11px] text-muted-foreground hover:text-foreground hover:bg-muted border border-transparent hover:border-border transition-colors"
+          >
+            <Search size={11} />
+            Research
+          </button>
+          <button
             onClick={() => onEdit(node)}
             title="Edit entity"
             className="h-6 w-6 flex items-center justify-center rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
@@ -377,6 +394,7 @@ function EntityTreeNode({
             linkedIds={linkedIds}
             onEdit={onEdit}
             onLinkDirect={onLinkDirect}
+            onResearch={onResearch}
           />
         ))}
     </div>
@@ -389,12 +407,14 @@ interface EntitiesTabProps {
   projectId: string
   initialLinked: EntityProjectWithEntity[]
   initialAllEntities: Entity[]
+  initialResearchArtifacts?: ResearchArtifact[]
 }
 
 export default function EntitiesTab({
   projectId,
   initialLinked,
   initialAllEntities,
+  initialResearchArtifacts = [],
 }: EntitiesTabProps) {
   const [linked, setLinked] = useState<EntityProjectWithEntity[]>(initialLinked)
   const [allEntities, setAllEntities] = useState<Entity[]>(initialAllEntities)
@@ -453,6 +473,11 @@ export default function EntitiesTab({
     setEntityForm(entityToForm(entity))
     setError(null)
     setMode({ type: 'edit-entity', entity })
+  }
+
+  function openResearch(entity: Entity) {
+    setError(null)
+    setMode({ type: 'research-entity', entity })
   }
 
   function cancel() {
@@ -606,6 +631,35 @@ export default function EntitiesTab({
   const linkedIds = new Set(linked.map((ep) => ep.entity_id))
   const unlinkable = allEntities.filter((e) => !linkedIds.has(e.id))
   const tree = buildTree(allEntities)
+
+  // ── Research mode ─────────────────────────────────────────────────────────
+
+  if (mode.type === 'research-entity') {
+    const entity = (mode as { type: 'research-entity'; entity: Entity }).entity
+    return (
+      <div className="space-y-4 max-w-2xl">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-sm font-semibold">{entity.name}</h2>
+            <p className="text-xs text-muted-foreground mt-0.5">External research &amp; due diligence</p>
+          </div>
+          <button
+            onClick={cancel}
+            className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md border border-input text-xs font-medium hover:bg-accent transition-colors"
+          >
+            <X size={13} />
+            Back to Entities
+          </button>
+        </div>
+        <ResearchPanel
+          projectId={projectId}
+          projectName={entity.name}
+          clientEntity={entity.name}
+          initialArtifacts={initialResearchArtifacts}
+        />
+      </div>
+    )
+  }
 
   // ── Full-page form modes ──────────────────────────────────────────────────
 
@@ -953,6 +1007,7 @@ export default function EntitiesTab({
                 linkedIds={linkedIds}
                 onEdit={openEdit}
                 onLinkDirect={(entityId) => openLink(entityId)}
+                onResearch={openResearch}
               />
             ))}
           </div>

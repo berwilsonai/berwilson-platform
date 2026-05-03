@@ -169,3 +169,41 @@ export type StageProgress = {
   target_date: string | null
   completed_at: string | null
 }
+
+// ---------------------------------------------------------------------------
+// Phase 3: Synthesis / Hybrid Retrieval
+// ---------------------------------------------------------------------------
+
+/** Structured intent extracted from the executive's query */
+export type QueryIntent = {
+  project_name_hints: string[]
+  date_range_days: number | null
+  is_cross_project: boolean
+}
+
+/** A chunk returned from vector search, enriched for the UI */
+export type ChunkWithProject = {
+  citation_index: number    // 1-based, matches [1] [2] in answer text
+  id: string
+  project_id: string
+  project_name: string
+  update_id: string | null
+  document_id: string | null
+  content: string
+  created_at: string
+  similarity: number        // cosine similarity 0–1
+  source_confidence: number // from parent update, 0–1
+  final_score: number       // re-ranked composite score
+}
+
+/** Full response from POST /api/ai/synthesize */
+export type SynthesisResponse = {
+  answer: string            // prose with [1] [2] citation markers
+  citations: ChunkWithProject[]
+  query_intent: QueryIntent
+  ai_query_id: string | null
+  no_data: boolean
+  low_confidence: boolean
+  model_used: string
+  latency_ms: number
+}

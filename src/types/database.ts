@@ -83,6 +83,94 @@ export type Database = {
           },
         ]
       }
+      agent_conversations: {
+        Row: {
+          created_at: string | null
+          id: string
+          project_id: string | null
+          title: string | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          project_id?: string | null
+          title?: string | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          project_id?: string | null
+          title?: string | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_conversations_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      agent_messages: {
+        Row: {
+          content: string
+          conversation_id: string
+          created_at: string | null
+          id: string
+          latency_ms: number | null
+          model_used: string | null
+          rating: number | null
+          role: string
+          tokens_in: number | null
+          tokens_out: number | null
+          tool_calls: Json | null
+          tool_results: Json | null
+        }
+        Insert: {
+          content: string
+          conversation_id: string
+          created_at?: string | null
+          id?: string
+          latency_ms?: number | null
+          model_used?: string | null
+          rating?: number | null
+          role: string
+          tokens_in?: number | null
+          tokens_out?: number | null
+          tool_calls?: Json | null
+          tool_results?: Json | null
+        }
+        Update: {
+          content?: string
+          conversation_id?: string
+          created_at?: string | null
+          id?: string
+          latency_ms?: number | null
+          model_used?: string | null
+          rating?: number | null
+          role?: string
+          tokens_in?: number | null
+          tokens_out?: number | null
+          tool_calls?: Json | null
+          tool_results?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_messages_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "agent_conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ai_queries: {
         Row: {
           cited_records: Json | null
@@ -92,6 +180,7 @@ export type Database = {
           model_used: string
           prompt_version: string | null
           query_text: string
+          rating: number | null
           response_text: string
           tokens_in: number | null
           tokens_out: number | null
@@ -105,6 +194,7 @@ export type Database = {
           model_used: string
           prompt_version?: string | null
           query_text: string
+          rating?: number | null
           response_text: string
           tokens_in?: number | null
           tokens_out?: number | null
@@ -118,6 +208,7 @@ export type Database = {
           model_used?: string
           prompt_version?: string | null
           query_text?: string
+          rating?: number | null
           response_text?: string
           tokens_in?: number | null
           tokens_out?: number | null
@@ -307,6 +398,7 @@ export type Database = {
           classification: string | null
           confidence: number | null
           doc_type: string | null
+          embedding_status: string | null
           file_name: string
           file_size_bytes: number | null
           id: string
@@ -322,6 +414,7 @@ export type Database = {
           classification?: string | null
           confidence?: number | null
           doc_type?: string | null
+          embedding_status?: string | null
           file_name: string
           file_size_bytes?: number | null
           id?: string
@@ -337,6 +430,7 @@ export type Database = {
           classification?: string | null
           confidence?: number | null
           doc_type?: string | null
+          embedding_status?: string | null
           file_name?: string
           file_size_bytes?: number | null
           id?: string
@@ -356,6 +450,42 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      email_tokens: {
+        Row: {
+          access_token: string
+          created_at: string | null
+          email_address: string
+          expires_at: string
+          id: string
+          refresh_token: string
+          scopes: string[] | null
+          token_type: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          access_token: string
+          created_at?: string | null
+          email_address: string
+          expires_at: string
+          id?: string
+          refresh_token: string
+          scopes?: string[] | null
+          token_type?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          access_token?: string
+          created_at?: string | null
+          email_address?: string
+          expires_at?: string
+          id?: string
+          refresh_token?: string
+          scopes?: string[] | null
+          token_type?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
       }
       entities: {
         Row: {
@@ -514,6 +644,48 @@ export type Database = {
           },
         ]
       }
+      graph_subscriptions: {
+        Row: {
+          change_type: string
+          client_state: string
+          created_at: string | null
+          email_address: string
+          expiration_date_time: string
+          id: string
+          is_active: boolean | null
+          notification_url: string
+          resource: string
+          subscription_id: string
+          updated_at: string | null
+        }
+        Insert: {
+          change_type?: string
+          client_state: string
+          created_at?: string | null
+          email_address: string
+          expiration_date_time: string
+          id?: string
+          is_active?: boolean | null
+          notification_url: string
+          resource: string
+          subscription_id: string
+          updated_at?: string | null
+        }
+        Update: {
+          change_type?: string
+          client_state?: string
+          created_at?: string | null
+          email_address?: string
+          expiration_date_time?: string
+          id?: string
+          is_active?: boolean | null
+          notification_url?: string
+          resource?: string
+          subscription_id?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       milestones: {
         Row: {
           completed_at: string | null
@@ -561,13 +733,23 @@ export type Database = {
       parties: {
         Row: {
           avatar_url: string | null
+          background_check_completed: boolean | null
+          background_check_date: string | null
+          background_check_notes: string | null
+          background_check_provider: string | null
+          background_check_reference: string | null
           company: string | null
           created_at: string | null
           email: string | null
+          enrichment_conflicts: Json | null
+          enrichment_notes: Json | null
           full_name: string
+          government_contract_history: string | null
+          graph_enriched_at: string | null
           id: string
           is_organization: boolean | null
           linkedin_url: string | null
+          perplexity_enriched_at: string | null
           phone: string | null
           relationship_notes: string | null
           title: string | null
@@ -575,13 +757,23 @@ export type Database = {
         }
         Insert: {
           avatar_url?: string | null
+          background_check_completed?: boolean | null
+          background_check_date?: string | null
+          background_check_notes?: string | null
+          background_check_provider?: string | null
+          background_check_reference?: string | null
           company?: string | null
           created_at?: string | null
           email?: string | null
+          enrichment_conflicts?: Json | null
+          enrichment_notes?: Json | null
           full_name: string
+          government_contract_history?: string | null
+          graph_enriched_at?: string | null
           id?: string
           is_organization?: boolean | null
           linkedin_url?: string | null
+          perplexity_enriched_at?: string | null
           phone?: string | null
           relationship_notes?: string | null
           title?: string | null
@@ -589,19 +781,73 @@ export type Database = {
         }
         Update: {
           avatar_url?: string | null
+          background_check_completed?: boolean | null
+          background_check_date?: string | null
+          background_check_notes?: string | null
+          background_check_provider?: string | null
+          background_check_reference?: string | null
           company?: string | null
           created_at?: string | null
           email?: string | null
+          enrichment_conflicts?: Json | null
+          enrichment_notes?: Json | null
           full_name?: string
+          government_contract_history?: string | null
+          graph_enriched_at?: string | null
           id?: string
           is_organization?: boolean | null
           linkedin_url?: string | null
+          perplexity_enriched_at?: string | null
           phone?: string | null
           relationship_notes?: string | null
           title?: string | null
           updated_at?: string | null
         }
         Relationships: []
+      }
+      processed_emails: {
+        Row: {
+          email_address: string
+          graph_message_id: string
+          id: string
+          internet_message_id: string
+          processed_at: string | null
+          sender_email: string | null
+          status: string | null
+          subject: string | null
+          update_id: string | null
+        }
+        Insert: {
+          email_address: string
+          graph_message_id: string
+          id?: string
+          internet_message_id: string
+          processed_at?: string | null
+          sender_email?: string | null
+          status?: string | null
+          subject?: string | null
+          update_id?: string | null
+        }
+        Update: {
+          email_address?: string
+          graph_message_id?: string
+          id?: string
+          internet_message_id?: string
+          processed_at?: string | null
+          sender_email?: string | null
+          status?: string | null
+          subject?: string | null
+          update_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "processed_emails_update_id_fkey"
+            columns: ["update_id"]
+            isOneToOne: false
+            referencedRelation: "updates"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       project_players: {
         Row: {
@@ -751,6 +997,7 @@ export type Database = {
           ai_explanation: string | null
           confidence: number | null
           created_at: string | null
+          edit_diff: Json | null
           id: string
           project_id: string | null
           reason: string
@@ -764,6 +1011,7 @@ export type Database = {
           ai_explanation?: string | null
           confidence?: number | null
           created_at?: string | null
+          edit_diff?: Json | null
           id?: string
           project_id?: string | null
           reason: string
@@ -777,6 +1025,7 @@ export type Database = {
           ai_explanation?: string | null
           confidence?: number | null
           created_at?: string | null
+          edit_diff?: Json | null
           id?: string
           project_id?: string | null
           reason?: string
@@ -802,8 +1051,10 @@ export type Database = {
           confidence: number | null
           created_at: string | null
           decisions: Json | null
+          embedding_status: string | null
           id: string
-          project_id: string
+          mentioned_parties: Json
+          project_id: string | null
           raw_content: string
           review_state: Database["public"]["Enums"]["review_state"] | null
           reviewed_at: string | null
@@ -819,8 +1070,10 @@ export type Database = {
           confidence?: number | null
           created_at?: string | null
           decisions?: Json | null
+          embedding_status?: string | null
           id?: string
-          project_id: string
+          mentioned_parties?: Json
+          project_id?: string | null
           raw_content: string
           review_state?: Database["public"]["Enums"]["review_state"] | null
           reviewed_at?: string | null
@@ -836,8 +1089,10 @@ export type Database = {
           confidence?: number | null
           created_at?: string | null
           decisions?: Json | null
+          embedding_status?: string | null
           id?: string
-          project_id?: string
+          mentioned_parties?: Json
+          project_id?: string | null
           raw_content?: string
           review_state?: Database["public"]["Enums"]["review_state"] | null
           reviewed_at?: string | null
@@ -863,7 +1118,27 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      match_chunks: {
+        Args: {
+          filter_after: string
+          filter_project_ids: string[]
+          match_count?: number
+          query_embedding: string
+        }
+        Returns: {
+          chunk_index: number
+          content: string
+          created_at: string
+          document_id: string
+          id: string
+          project_id: string
+          similarity: number
+          source_confidence: number
+          token_count: number
+          update_id: string
+        }[]
+      }
+      wipe_all_data: { Args: never; Returns: undefined }
     }
     Enums: {
       compliance_status:

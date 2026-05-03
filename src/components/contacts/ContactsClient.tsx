@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from 'react'
 import Link from 'next/link'
-import { Building2, Mail, Phone, Search, User, X } from 'lucide-react'
+import { Building2, Mail, Phone, Search, Sparkles, User, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 export interface ContactWithStats {
@@ -158,7 +158,7 @@ function ContactCard({ contact }: { contact: ContactWithStats }) {
             <User size={16} className="text-muted-foreground" />
           )}
         </div>
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <p className="text-sm font-medium leading-tight truncate">{contact.full_name}</p>
           {contact.title && (
             <p className="text-xs text-muted-foreground truncate">{contact.title}</p>
@@ -167,6 +167,16 @@ function ContactCard({ contact }: { contact: ContactWithStats }) {
             <p className="text-xs text-muted-foreground truncate">{contact.company}</p>
           )}
         </div>
+        <span
+          title="Enrich profile"
+          className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity text-purple-400 hover:text-purple-600 mt-0.5"
+          onClick={(e) => {
+            e.preventDefault()
+            window.location.href = `/contacts/${contact.id}?tab=overview`
+          }}
+        >
+          <Sparkles size={14} />
+        </span>
       </div>
 
       {/* Contact info */}

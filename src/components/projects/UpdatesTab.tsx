@@ -6,6 +6,7 @@ import EmptyState from '@/components/shared/EmptyState'
 import SourceTag from '@/components/shared/SourceTag'
 import ConfidenceBadge from '@/components/shared/ConfidenceBadge'
 import PasteInput from '@/components/shared/PasteInput'
+import UpdateEditModal from '@/components/projects/UpdateEditModal'
 import type { Update } from '@/lib/supabase/types'
 import type {
   ActionItem,
@@ -40,7 +41,7 @@ function safeArray<T>(val: unknown): T[] {
   return []
 }
 
-function UpdateCard({ update }: { update: Update }) {
+function UpdateCard({ update, onSaved }: { update: Update; onSaved: () => void }) {
   const [expanded, setExpanded] = useState(false)
   const [actionItems, setActionItems] = useState<ActionItem[]>(
     safeArray<ActionItem>(update.action_items)
@@ -93,6 +94,7 @@ function UpdateCard({ update }: { update: Update }) {
             {formatTimestamp(update.created_at)}
           </span>
         </div>
+        <UpdateEditModal updateId={update.id} onSaved={onSaved} />
       </div>
 
       {/* Summary */}
@@ -275,7 +277,7 @@ export default function UpdatesTab({ projectId, initialUpdates }: UpdatesTabProp
       ) : (
         <div className="space-y-4">
           {updates.map((update) => (
-            <UpdateCard key={update.id} update={update} />
+            <UpdateCard key={update.id} update={update} onSaved={handleSaved} />
           ))}
         </div>
       )}

@@ -34,11 +34,14 @@ export async function middleware(request: NextRequest) {
 
   const { pathname } = request.nextUrl
 
-  // Public routes: /login, /auth/confirm (token exchange), /auth/set-password (invite flow)
+  // Public routes that don't require authentication
   const isPublicRoute =
     pathname === '/login' ||
     pathname.startsWith('/auth/confirm') ||
-    pathname.startsWith('/auth/set-password')
+    pathname.startsWith('/auth/set-password') ||
+    pathname === '/api/email/webhook' ||           // Microsoft Graph webhook (validation + notifications)
+    pathname === '/api/cron/renew-subscriptions' || // Vercel cron job
+    pathname.startsWith('/api/email/oauth/callback') // OAuth redirect from Microsoft
 
   if (!user && !isPublicRoute) {
     const url = request.nextUrl.clone()

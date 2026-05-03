@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { Pencil, ExternalLink } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { createAdminClient } from '@/lib/supabase/admin'
+import GenerateBriefButton from '@/components/projects/GenerateBriefButton'
 import type { Entity, EntityProject } from '@/lib/supabase/types'
 import type { Metadata } from 'next'
 
@@ -157,8 +158,9 @@ export default async function ProjectOverviewPage({ params }: PageProps) {
 
   return (
     <div className="space-y-8 max-w-2xl">
-      {/* Edit action */}
-      <div className="flex justify-end">
+      {/* Actions */}
+      <div className="flex justify-end gap-2">
+        <GenerateBriefButton projectId={id} projectName={project.name} />
         <Link
           href={`/projects/${id}/edit`}
           className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md border border-input bg-background text-xs font-medium hover:bg-accent transition-colors"

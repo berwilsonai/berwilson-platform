@@ -20,6 +20,8 @@ import ContactTabBar from '@/components/contacts/ContactTabBar'
 import RelationshipNotesEditor from '@/components/contacts/RelationshipNotesEditor'
 import AvatarUpload from '@/components/contacts/AvatarUpload'
 import LinkedInEditor from '@/components/contacts/LinkedInEditor'
+import EnrichProfileButton from '@/components/contacts/EnrichProfileButton'
+import BackgroundCheckStatus from '@/components/contacts/BackgroundCheckStatus'
 
 interface PageProps {
   params: Promise<{ id: string }>
@@ -368,6 +370,50 @@ export default async function ContactDetailPage({ params, searchParams }: PagePr
               >
                 View all {projectCount} project{projectCount !== 1 ? 's' : ''} →
               </Link>
+
+              {/* Enrich Profile */}
+              <section>
+                <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
+                  Intelligence
+                </h2>
+                <div className="rounded-lg border border-border bg-card p-4">
+                  <EnrichProfileButton
+                    partyId={id}
+                    lastEnrichedAt={party.perplexity_enriched_at ?? null}
+                  />
+                </div>
+              </section>
+
+              {/* Enrichment notes (if available) */}
+              {party.enrichment_notes && (
+                <section>
+                  <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
+                    Enrichment Notes
+                  </h2>
+                  <div className="rounded-lg border border-border bg-card p-4">
+                    <pre className="text-xs text-muted-foreground whitespace-pre-wrap font-mono">
+                      {JSON.stringify(party.enrichment_notes, null, 2)}
+                    </pre>
+                  </div>
+                </section>
+              )}
+
+              {/* Background Check */}
+              <section>
+                <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
+                  Background Check
+                </h2>
+                <div className="rounded-lg border border-border bg-card p-4">
+                  <BackgroundCheckStatus
+                    partyId={id}
+                    completed={party.background_check_completed ?? null}
+                    checkDate={party.background_check_date ?? null}
+                    reference={party.background_check_reference ?? null}
+                    provider={party.background_check_provider ?? null}
+                    notes={party.background_check_notes ?? null}
+                  />
+                </div>
+              </section>
             </div>
           </div>
         )}

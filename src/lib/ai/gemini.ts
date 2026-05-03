@@ -19,6 +19,8 @@ export interface GeminiCallOptions {
   userId: string
   promptVersion?: string
   maxTokens?: number
+  /** Set false for prose/synthesis tasks — default true for structured JSON tasks */
+  jsonMode?: boolean
 }
 
 export interface GeminiCallResult<T = unknown> {
@@ -48,6 +50,7 @@ export async function callGemini<T = unknown>(
     userMessage,
     userId,
     promptVersion,
+    jsonMode = true,
   } = options
 
   const client = getClient()
@@ -60,6 +63,7 @@ export async function callGemini<T = unknown>(
 
   const response = await model.generateContent({
     contents: [{ role: 'user', parts: [{ text: userMessage }] }],
+    generationConfig: jsonMode ? { responseMimeType: 'application/json' } : {},
   })
 
   const latencyMs = Date.now() - start

@@ -11,9 +11,11 @@ import {
   FileCheck,
   FileText,
   Trash2,
+  Search,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import type { DdItem, ComplianceItem, Party, Document, DdSeverity, ComplianceStatus } from '@/lib/supabase/types'
+import type { DdItem, ComplianceItem, Party, Document, DdSeverity, ComplianceStatus, ResearchArtifact } from '@/lib/supabase/types'
+import ResearchPanel from './ResearchPanel'
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
@@ -1104,20 +1106,28 @@ function ComplianceSection({
 
 export interface DiligenceTabProps {
   projectId: string
+  projectName: string
+  clientEntity?: string | null
+  solicitationNumber?: string | null
   initialDdItems: DdItem[]
   initialComplianceItems: ComplianceItem[]
+  initialResearchArtifacts: ResearchArtifact[]
   parties: Party[]
   documents: Document[]
 }
 
 export default function DiligenceTab({
   projectId,
+  projectName,
+  clientEntity,
+  solicitationNumber,
   initialDdItems,
   initialComplianceItems,
+  initialResearchArtifacts,
   parties,
   documents,
 }: DiligenceTabProps) {
-  const [section, setSection] = useState<'dd' | 'compliance'>('dd')
+  const [section, setSection] = useState<'dd' | 'compliance' | 'research'>('dd')
 
   // Static counts from initial data — shows totals on section switcher
   const openDdCount = initialDdItems.filter(
@@ -1165,6 +1175,23 @@ export default function DiligenceTab({
             </span>
           )}
         </button>
+        <button
+          onClick={() => setSection('research')}
+          className={cn(
+            'inline-flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors',
+            section === 'research'
+              ? 'border-foreground text-foreground'
+              : 'border-transparent text-muted-foreground hover:text-foreground hover:border-border'
+          )}
+        >
+          <Search size={15} />
+          Research
+          {initialResearchArtifacts.length > 0 && (
+            <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-blue-100 text-blue-700 text-[10px] font-bold">
+              {initialResearchArtifacts.length}
+            </span>
+          )}
+        </button>
       </div>
 
       {section === 'dd' && (
@@ -1181,6 +1208,16 @@ export default function DiligenceTab({
           initialItems={initialComplianceItems}
           parties={parties}
           documents={documents}
+        />
+      )}
+
+      {section === 'research' && (
+        <ResearchPanel
+          projectId={projectId}
+          projectName={projectName}
+          clientEntity={clientEntity}
+          solicitationNumber={solicitationNumber}
+          initialArtifacts={initialResearchArtifacts}
         />
       )}
     </div>

@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { embedDocument } from '@/lib/ai/embeddings'
 import Anthropic from '@anthropic-ai/sdk'
 import type { ContentBlockParam } from '@anthropic-ai/sdk/resources/messages'
 
@@ -78,6 +79,7 @@ export async function POST(request: NextRequest) {
         const model = 'claude-haiku-4-5-20251001'
 
         let rawText = ''
+        let fullTextContent: string | null = null  // captured for text file embedding
         const start = Date.now()
 
         if (mime_type === PDF_MIME_TYPE) {
@@ -126,6 +128,7 @@ export async function POST(request: NextRequest) {
         } else {
           // Text file — read as string
           const text = await fileBlob.text()
+          fullTextContent = text  // capture for embedding (full content, not truncated)
           const truncated = text.slice(0, 30000) // stay within token budget
 
           const response = await client.messages.create({
@@ -155,6 +158,7 @@ export async function POST(request: NextRequest) {
         }
 
         // Parse and update document record
+        let embedText: string | null = null
         try {
           const parsed = JSON.parse(rawText) as { summary: string; confidence: number }
           await supabase
@@ -167,6 +171,12 @@ export async function POST(request: NextRequest) {
 
           doc.ai_summary = parsed.summary ?? null
           doc.confidence = parsed.confidence ?? null
+          // Text files: embed full content. PDFs: embed AI summary.
+          if (fullTextContent) {
+            embedText = fullTextContent
+          } else if (mime_type === PDF_MIME_TYPE && parsed.summary) {
+            embedText = parsed.summary
+          }
         } catch {
           // AI returned non-JSON — store raw text as summary
           await supabase
@@ -174,6 +184,12 @@ export async function POST(request: NextRequest) {
             .update({ ai_summary: rawText.slice(0, 1000) })
             .eq('id', doc.id)
           doc.ai_summary = rawText.slice(0, 1000)
+          // Still embed whatever text we have for text files
+          if (fullTextContent) embedText = fullTextContent
+        }
+
+        if (embedText) {
+          embedDocument(doc.id, project_id, embedText).catch(console.error)
         }
       }
     } catch {
