@@ -7,7 +7,7 @@ import {
   FolderKanban,
   Users,
   ClipboardCheck,
-  Activity,
+  Mail,
 } from 'lucide-react'
 
 const NAV_ITEMS = [
@@ -15,7 +15,7 @@ const NAV_ITEMS = [
   { href: '/projects', label: 'Projects', icon: FolderKanban },
   { href: '/contacts', label: 'Contacts', icon: Users },
   { href: '/review', label: 'Review', icon: ClipboardCheck },
-  { href: '/activity', label: 'Activity', icon: Activity },
+  { href: '/email-log', label: 'Email Log', icon: Mail },
 ] as const
 
 export default function MobileNav() {

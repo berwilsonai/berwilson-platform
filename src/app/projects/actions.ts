@@ -65,7 +65,8 @@ export async function createProject(
 
   if (error) return { error: `Failed to create project: ${error.message}` }
 
-  redirect(`/projects/${data.id}`)
+  const redirectAfterCreate = (formData.get('redirect_after_create') as string | null) ?? ''
+  redirect(redirectAfterCreate || `/projects/${data.id}`)
 }
 
 export async function updateProject(

@@ -37,9 +37,10 @@ const labelClass = 'block text-xs font-medium text-foreground mb-1'
 interface ProjectFormProps {
   mode: 'create' | 'edit'
   project?: Project
+  redirectAfterCreate?: string
 }
 
-export default function ProjectForm({ mode, project }: ProjectFormProps) {
+export default function ProjectForm({ mode, project, redirectAfterCreate }: ProjectFormProps) {
   const action =
     mode === 'edit' && project
       ? updateProject.bind(null, project.id)
@@ -55,6 +56,9 @@ export default function ProjectForm({ mode, project }: ProjectFormProps) {
 
   return (
     <form action={formAction} className="space-y-6 max-w-2xl">
+      {redirectAfterCreate && (
+        <input type="hidden" name="redirect_after_create" value={redirectAfterCreate} />
+      )}
       {/* Error banner */}
       {state?.error && (
         <div className="flex items-center gap-2 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2.5 text-sm text-destructive">

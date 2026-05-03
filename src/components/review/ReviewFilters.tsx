@@ -21,9 +21,10 @@ interface ReviewFiltersProps {
   projects: FilterProject[]
   projectId: string
   reason: string
+  showResolved: boolean
 }
 
-export default function ReviewFilters({ projects, projectId, reason }: ReviewFiltersProps) {
+export default function ReviewFilters({ projects, projectId, reason, showResolved }: ReviewFiltersProps) {
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
@@ -42,6 +43,16 @@ export default function ReviewFilters({ projects, projectId, reason }: ReviewFil
   )
 
   const hasFilters = projectId || reason
+
+  function toggleResolved() {
+    const params = new URLSearchParams(searchParams.toString())
+    if (showResolved) {
+      params.delete('show_resolved')
+    } else {
+      params.set('show_resolved', '1')
+    }
+    router.push(`${pathname}?${params.toString()}`)
+  }
 
   return (
     <div className="flex items-center gap-2 flex-wrap">
@@ -70,6 +81,17 @@ export default function ReviewFilters({ projects, projectId, reason }: ReviewFil
           </option>
         ))}
       </select>
+
+      <button
+        onClick={toggleResolved}
+        className={`h-8 flex items-center gap-1 px-2.5 rounded-md text-xs font-medium transition-colors ${
+          showResolved
+            ? 'bg-muted text-foreground'
+            : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+        }`}
+      >
+        {showResolved ? 'Hide Resolved' : 'Show Resolved'}
+      </button>
 
       {hasFilters && (
         <button

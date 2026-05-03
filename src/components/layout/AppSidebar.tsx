@@ -10,6 +10,7 @@ import {
   ClipboardCheck,
   Activity,
   Brain,
+  Mail,
   ChevronLeft,
   ChevronRight,
 } from 'lucide-react'
@@ -19,11 +20,9 @@ const NAV_ITEMS = [
   { href: '/projects', label: 'Projects', icon: FolderKanban },
   { href: '/contacts', label: 'Contacts', icon: Users },
   { href: '/review', label: 'Review Queue', icon: ClipboardCheck },
+  { href: '/email-log', label: 'Email Log', icon: Mail },
   { href: '/activity', label: 'Activity', icon: Activity },
-] as const
-
-const DISABLED_ITEMS = [
-  { href: '/intel', label: 'Intel', icon: Brain, badge: 'Phase 3' },
+  { href: '/intel', label: 'Intel', icon: Brain },
 ] as const
 
 interface AppSidebarProps {
@@ -97,28 +96,6 @@ export default function AppSidebar({ pendingReviewCount = 0 }: AppSidebarProps) 
           )
         })}
 
-        <div className="py-2 px-2.5">
-          <div className="h-px bg-slate-800" />
-        </div>
-
-        {/* Disabled items */}
-        {DISABLED_ITEMS.map(({ label, icon: Icon, badge }) => (
-          <div
-            key={label}
-            title={collapsed ? `${label} — ${badge}` : badge}
-            className="flex items-center gap-3 px-2.5 py-2 rounded text-sm font-medium text-slate-600 cursor-not-allowed select-none"
-          >
-            <Icon size={15} className="shrink-0" />
-            {!collapsed && (
-              <>
-                <span className="truncate flex-1">{label}</span>
-                <span className="text-[10px] font-mono bg-slate-800 text-slate-500 px-1.5 py-0.5 rounded">
-                  {badge}
-                </span>
-              </>
-            )}
-          </div>
-        ))}
       </nav>
     </aside>
   )
