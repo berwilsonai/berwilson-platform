@@ -71,36 +71,6 @@ export default function ProjectForm({ mode, project, redirectAfterCreate, availa
         </div>
       )}
 
-      {/* Program Association */}
-      {availableParents.length > 0 && (
-        <section className="space-y-4">
-          <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            Program Association
-          </h2>
-          <div>
-            <label htmlFor="parent_project_id" className={labelClass}>
-              Parent Program
-            </label>
-            <select
-              id="parent_project_id"
-              name="parent_project_id"
-              defaultValue={project?.parent_project_id ?? defaultParentId ?? ''}
-              className={inputClass}
-            >
-              <option value="">None (standalone project)</option>
-              {availableParents.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
-            <p className="text-xs text-muted-foreground mt-1">
-              Link this project as a sub-project under a parent program.
-            </p>
-          </div>
-        </section>
-      )}
-
       {/* Core info */}
       <section className="space-y-4">
         <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
@@ -121,6 +91,34 @@ export default function ProjectForm({ mode, project, redirectAfterCreate, availa
             placeholder="e.g. Metro Substation Upgrade"
             className={inputClass}
           />
+        </div>
+
+        {/* Parent Program — always visible */}
+        <div>
+          <label htmlFor="parent_project_id" className={labelClass}>
+            Parent Program <span className="font-normal text-muted-foreground">(optional)</span>
+          </label>
+          <select
+            id="parent_project_id"
+            name="parent_project_id"
+            defaultValue={project?.parent_project_id ?? defaultParentId ?? ''}
+            className={inputClass}
+            disabled={availableParents.length === 0 && !project?.parent_project_id && !defaultParentId}
+          >
+            <option value="">
+              {availableParents.length === 0 ? 'No programs exist yet' : 'None (standalone project)'}
+            </option>
+            {availableParents.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+          </select>
+          {availableParents.length === 0 && (
+            <p className="text-xs text-muted-foreground mt-1">
+              Save this project first, then future projects can be linked to it as sub-projects.
+            </p>
+          )}
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
