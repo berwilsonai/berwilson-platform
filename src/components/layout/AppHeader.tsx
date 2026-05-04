@@ -1,5 +1,6 @@
 'use client'
 
+import Image from 'next/image'
 import { usePathname, useRouter } from 'next/navigation'
 import { LogOut } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
@@ -41,7 +42,18 @@ export default function AppHeader({ email }: { email: string }) {
 
   return (
     <header className="h-14 flex items-center justify-between px-4 sm:px-6 border-b border-border bg-background shrink-0">
-      <h1 className="text-sm font-semibold tracking-tight">{getPageTitle(pathname)}</h1>
+      {/* Logo visible on mobile (sidebar is hidden); page title on desktop */}
+      <div className="flex items-center gap-3">
+        <Image
+          src="/logo.png"
+          alt="Ber Wilson"
+          width={100}
+          height={54}
+          className="object-contain h-7 w-auto md:hidden"
+          priority
+        />
+        <h1 className="text-sm font-semibold tracking-tight hidden md:block">{getPageTitle(pathname)}</h1>
+      </div>
 
       <div className="flex items-center gap-3">
         <div className="flex items-center gap-2.5">
