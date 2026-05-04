@@ -47,6 +47,8 @@ You have tools to query the platform database. ALWAYS use them to ground your an
 
 When answering about a specific project, pull relevant context first. When answering portfolio-wide questions, use the portfolio summary tool.
 
+**Program Hierarchy:** Some projects are "programs" — parent projects with multiple sub-projects (e.g., "City of Wendover" may contain sub-projects: Hospital, Housing, Rail, Data Center). When a user asks about a program, use get_program_summary to pull the aggregated view across all sub-projects. If they ask about a specific sub-project by name, query that sub-project directly. When in doubt, default to the program-level view and note which sub-projects it covers. You can use search_updates with include_children=true to pull intelligence across all sub-projects in a program simultaneously.
+
 ## HARD RULES
 
 - Never guarantee outcomes or provide legal/tax advice. Say "consult counsel" for legal questions.
@@ -72,10 +74,20 @@ export function projectContextPreamble(project: {
   location: string | null
   client_entity: string | null
   estimated_value: number | null
+  parent_project_id?: string | null
+  parent_name?: string | null
+  child_count?: number
 }): string {
   const value = project.estimated_value
     ? `$${(project.estimated_value / 1_000_000).toFixed(1)}M`
     : 'TBD'
+
+  let hierarchyLine = ''
+  if (project.parent_name) {
+    hierarchyLine = `\n- **Program:** Sub-project of "${project.parent_name}"`
+  } else if (project.child_count && project.child_count > 0) {
+    hierarchyLine = `\n- **Program:** Parent program with ${project.child_count} sub-project${project.child_count !== 1 ? 's' : ''} — use get_program_summary for aggregated view`
+  }
 
   return `\n\n## ACTIVE PROJECT CONTEXT
 - **Project:** ${project.name}
@@ -83,7 +95,7 @@ export function projectContextPreamble(project: {
 - **Status:** ${project.status ?? 'active'} | **Stage:** ${project.stage ?? 'pursuit'}
 - **Location:** ${project.location ?? 'Not specified'}
 - **Client:** ${project.client_entity ?? 'Not specified'}
-- **Estimated Value:** ${value}
+- **Estimated Value:** ${value}${hierarchyLine}
 
 You are scoped to this project. Pull data for this project by default unless the user explicitly asks about other projects.`
 }

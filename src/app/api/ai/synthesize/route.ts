@@ -164,6 +164,21 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  // 3b. Expand filterProjectIds to include children of any matched parent projects
+  if (filterProjectIds.length > 0) {
+    const { data: childRows } = await admin
+      .from('projects')
+      .select('id, name')
+      .in('parent_project_id', filterProjectIds)
+
+    for (const child of childRows ?? []) {
+      if (!filterProjectIds.includes(child.id)) {
+        filterProjectIds.push(child.id)
+        projectMap[child.id] = child.name
+      }
+    }
+  }
+
   // 4. Embed the query
   let queryEmbedding: number[]
   try {

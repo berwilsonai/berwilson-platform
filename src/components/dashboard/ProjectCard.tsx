@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { CheckSquare, Clock, AlertTriangle } from 'lucide-react'
+import { CheckSquare, Clock, AlertTriangle, Layers } from 'lucide-react'
 import type { Project } from '@/lib/supabase/types'
 import { cn } from '@/lib/utils'
 import { SECTOR_BADGE, SECTOR_SHORT } from '@/lib/utils/sectors'
@@ -50,9 +50,11 @@ function timeAgo(dateStr: string | null): string {
 interface ProjectCardProps {
   project: Project
   counts?: ProjectCardCounts
+  isProgram?: boolean
+  parentName?: string
 }
 
-export default function ProjectCard({ project, counts }: ProjectCardProps) {
+export default function ProjectCard({ project, counts, isProgram, parentName }: ProjectCardProps) {
   const status = project.status ?? 'active'
   const stage = project.stage ?? 'pursuit'
 
@@ -80,6 +82,12 @@ export default function ProjectCard({ project, counts }: ProjectCardProps) {
           >
             {STATUS_LABELS[status]}
           </span>
+          {isProgram && (
+            <span className="inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[11px] font-medium ring-1 ring-inset bg-violet-50 text-violet-700 ring-violet-200">
+              <Layers size={10} />
+              Program
+            </span>
+          )}
           <span className="ml-auto text-sm font-semibold tabular-nums text-foreground">
             {formatValue(project.estimated_value)}
           </span>
@@ -130,7 +138,7 @@ export default function ProjectCard({ project, counts }: ProjectCardProps) {
         {/* Footer: location + last updated */}
         <div className="flex items-center justify-between pt-1 border-t border-border">
           <span className="text-[11px] text-muted-foreground truncate max-w-[60%]">
-            {project.location ?? 'No location'}
+            {parentName ? `Sub-project of ${parentName}` : (project.location ?? 'No location')}
           </span>
           <span className="text-[11px] text-muted-foreground shrink-0">
             {timeAgo(project.updated_at)}

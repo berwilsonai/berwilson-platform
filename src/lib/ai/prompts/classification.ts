@@ -23,6 +23,12 @@ CLASSIFICATION RULES:
 - If multiple projects could match, pick the one with highest confidence. If truly ambiguous between two, choose the more specific match and note the ambiguity in reasoning.
 - Internal admin emails (IT, HR, general company) that don't relate to any project = confidence 0.0
 
+PROGRAM HIERARCHY RULES:
+- Some projects are "sub-projects" under a parent program (e.g., "City of Wendover — Hospital" is a sub-project of "City of Wendover").
+- If the email content clearly refers to a specific sub-project (mentions the sub-project name, its location, its contract, or its specific scope), classify to the sub-project, not the parent.
+- If the email is a general program-level communication (refers to the parent program name broadly, covers multiple sub-projects, or is from the program owner), classify to the parent program.
+- Sub-projects are marked with "Sub-project of: [Parent Name]" in the project list below.
+
 Return ONLY valid JSON matching this exact schema:
 {
   "project_id": "uuid of the matched project or null if no match",
@@ -53,16 +59,22 @@ export function buildClassificationMessage(
     client_entity: string | null
     sector: string
     players: string[] // "Name (role)" format
+    parent_project_id?: string | null
+    parent_name?: string | null
+    child_names?: string[]
   }[]
 ): string {
   const projectList = projects
     .map(
-      (p) =>
-        `- ID: ${p.id}\n  Name: ${p.name}\n  Sector: ${p.sector}${
-          p.solicitation_number ? `\n  Solicitation: ${p.solicitation_number}` : ''
-        }${p.client_entity ? `\n  Client: ${p.client_entity}` : ''}${
-          p.players.length > 0 ? `\n  Key Players: ${p.players.join(', ')}` : ''
-        }`
+      (p) => {
+        let entry = `- ID: ${p.id}\n  Name: ${p.name}\n  Sector: ${p.sector}`
+        if (p.parent_name) entry += `\n  Sub-project of: ${p.parent_name}`
+        if (p.child_names && p.child_names.length > 0) entry += `\n  Program with sub-projects: ${p.child_names.join(', ')}`
+        if (p.solicitation_number) entry += `\n  Solicitation: ${p.solicitation_number}`
+        if (p.client_entity) entry += `\n  Client: ${p.client_entity}`
+        if (p.players.length > 0) entry += `\n  Key Players: ${p.players.join(', ')}`
+        return entry
+      }
     )
     .join('\n\n')
 

@@ -34,13 +34,17 @@ const textareaClass = cn(
 )
 const labelClass = 'block text-xs font-medium text-foreground mb-1'
 
+type ParentOption = Pick<Project, 'id' | 'name'>
+
 interface ProjectFormProps {
   mode: 'create' | 'edit'
   project?: Project
   redirectAfterCreate?: string
+  availableParents?: ParentOption[]
+  defaultParentId?: string
 }
 
-export default function ProjectForm({ mode, project, redirectAfterCreate }: ProjectFormProps) {
+export default function ProjectForm({ mode, project, redirectAfterCreate, availableParents = [], defaultParentId }: ProjectFormProps) {
   const action =
     mode === 'edit' && project
       ? updateProject.bind(null, project.id)
@@ -65,6 +69,36 @@ export default function ProjectForm({ mode, project, redirectAfterCreate }: Proj
           <AlertCircle size={14} className="shrink-0" />
           {state.error}
         </div>
+      )}
+
+      {/* Program Association */}
+      {availableParents.length > 0 && (
+        <section className="space-y-4">
+          <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            Program Association
+          </h2>
+          <div>
+            <label htmlFor="parent_project_id" className={labelClass}>
+              Parent Program
+            </label>
+            <select
+              id="parent_project_id"
+              name="parent_project_id"
+              defaultValue={project?.parent_project_id ?? defaultParentId ?? ''}
+              className={inputClass}
+            >
+              <option value="">None (standalone project)</option>
+              {availableParents.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+            <p className="text-xs text-muted-foreground mt-1">
+              Link this project as a sub-project under a parent program.
+            </p>
+          </div>
+        </section>
       )}
 
       {/* Core info */}

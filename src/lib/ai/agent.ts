@@ -51,12 +51,30 @@ export async function runAgent(
   if (context.projectId) {
     const { data: project } = await supabase
       .from('projects')
-      .select('name, sector, status, stage, location, client_entity, estimated_value')
+      .select('name, sector, status, stage, location, client_entity, estimated_value, parent_project_id')
       .eq('id', context.projectId)
       .single()
 
     if (project) {
-      systemPrompt += projectContextPreamble(project)
+      // Resolve parent name and child count for hierarchy context
+      let parentName: string | null = null
+      let childCount = 0
+
+      const [parentResult, childCountResult] = await Promise.all([
+        project.parent_project_id
+          ? supabase.from('projects').select('name').eq('id', project.parent_project_id).single()
+          : Promise.resolve({ data: null }),
+        supabase.from('projects').select('id', { count: 'exact', head: true }).eq('parent_project_id', context.projectId!),
+      ])
+
+      if (parentResult.data) parentName = (parentResult.data as { name: string }).name
+      childCount = childCountResult.count ?? 0
+
+      systemPrompt += projectContextPreamble({
+        ...project,
+        parent_name: parentName,
+        child_count: childCount,
+      })
     }
   }
 

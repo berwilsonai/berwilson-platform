@@ -285,21 +285,36 @@ async function classifyEmail(
 ): Promise<ClassificationResult> {
   const supabase = createAdminClient()
 
-  // Fetch all active projects with their players for classification context
+  // Fetch all active projects with their players and hierarchy info for classification context
   const { data: projects } = await supabase
     .from('projects')
     .select(`
-      id, name, solicitation_number, client_entity, sector,
+      id, name, solicitation_number, client_entity, sector, parent_project_id,
       project_players ( role, party:parties ( full_name ) )
     `)
     .eq('status', 'active')
 
-  const projectList = (projects ?? []).map((p) => ({
+  const allProjects = projects ?? []
+  // Build parent name lookup and child names lookup
+  const idToName = new Map(allProjects.map((p) => [p.id, p.name]))
+  const childNamesOf = new Map<string, string[]>()
+  for (const p of allProjects) {
+    if (p.parent_project_id) {
+      const siblings = childNamesOf.get(p.parent_project_id) ?? []
+      siblings.push(p.name)
+      childNamesOf.set(p.parent_project_id, siblings)
+    }
+  }
+
+  const projectList = allProjects.map((p) => ({
     id: p.id,
     name: p.name,
     solicitation_number: p.solicitation_number,
     client_entity: p.client_entity,
     sector: p.sector,
+    parent_project_id: p.parent_project_id,
+    parent_name: p.parent_project_id ? (idToName.get(p.parent_project_id) ?? null) : null,
+    child_names: childNamesOf.get(p.id) ?? [],
     players: (p.project_players ?? [])
       .filter((pp: { party: { full_name: string } | null }) => pp.party)
       .map((pp: { role: string; party: { full_name: string } | null }) =>

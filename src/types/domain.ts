@@ -159,6 +159,23 @@ export type ReviewQueueItem = ReviewQueueRow & {
 }
 
 // ---------------------------------------------------------------------------
+// Project hierarchy types
+// ---------------------------------------------------------------------------
+
+/** A project with its parent and/or children resolved */
+export type ProjectWithHierarchy = Project & {
+  parent_project?: Pick<Project, 'id' | 'name'> | null
+  child_projects?: Pick<Project, 'id' | 'name' | 'sector' | 'status' | 'stage' | 'estimated_value' | 'location'>[]
+}
+
+/** Summary for a program (parent project) with aggregated child data */
+export type ProgramSummary = ProjectSummary & {
+  child_count: number
+  children: Pick<Project, 'id' | 'name' | 'stage' | 'estimated_value'>[]
+  aggregated_value: number
+}
+
+// ---------------------------------------------------------------------------
 // Dashboard summary types
 // ---------------------------------------------------------------------------
 

@@ -907,6 +907,7 @@ export type Database = {
           location: string | null
           name: string
           ntp_date: string | null
+          parent_project_id: string | null
           sector: Database["public"]["Enums"]["project_sector"]
           solicitation_number: string | null
           stage: Database["public"]["Enums"]["project_stage"] | null
@@ -926,6 +927,7 @@ export type Database = {
           location?: string | null
           name: string
           ntp_date?: string | null
+          parent_project_id?: string | null
           sector: Database["public"]["Enums"]["project_sector"]
           solicitation_number?: string | null
           stage?: Database["public"]["Enums"]["project_stage"] | null
@@ -945,6 +947,7 @@ export type Database = {
           location?: string | null
           name?: string
           ntp_date?: string | null
+          parent_project_id?: string | null
           sector?: Database["public"]["Enums"]["project_sector"]
           solicitation_number?: string | null
           stage?: Database["public"]["Enums"]["project_stage"] | null
@@ -952,7 +955,15 @@ export type Database = {
           substantial_completion_date?: string | null
           updated_at?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "projects_parent_project_id_fkey"
+            columns: ["parent_project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       research_artifacts: {
         Row: {

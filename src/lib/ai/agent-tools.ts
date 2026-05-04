@@ -35,6 +35,7 @@ export const agentTools = [
       properties: {
         query: { type: 'string', description: 'Natural language search query' },
         project_id: { type: 'string', description: 'Optional: limit to a specific project' },
+        include_children: { type: 'boolean', description: 'If true and project_id is a program, also search updates from all sub-projects' },
         date_range: {
           type: 'object',
           properties: {
@@ -69,8 +70,19 @@ export const agentTools = [
     },
   },
   {
+    name: 'get_program_summary',
+    description: 'Get a full summary of a program (parent project) and all its sub-projects. Returns aggregated value, per-child status, combined risks, action items, and open DD items across all sub-projects. Use this whenever the user asks about a project that has sub-projects.',
+    parameters: {
+      type: 'object',
+      properties: {
+        project_id: { type: 'string', description: 'UUID of the parent/program project' },
+      },
+      required: ['project_id'],
+    },
+  },
+  {
     name: 'get_portfolio_summary',
-    description: 'Get a cross-project portfolio overview: project counts by status/stage/sector, total estimated value, upcoming milestones, and open risks.',
+    description: 'Get a cross-project portfolio overview: project counts by status/stage/sector, total estimated value, upcoming milestones, open risks, and program counts.',
     parameters: {
       type: 'object',
       properties: {},
@@ -109,7 +121,7 @@ export async function executeToolCall(
         'id', 'name', 'sector', 'status', 'stage', 'description', 'location',
         'client_entity', 'estimated_value', 'contract_type', 'delivery_method',
         'solicitation_number', 'award_date', 'ntp_date', 'substantial_completion_date',
-        'created_at', 'updated_at',
+        'created_at', 'updated_at', 'parent_project_id',
       ]
       const safeFields = fields.filter(f => validFields.includes(f))
       if (safeFields.length === 0) return { error: 'No valid fields requested' }
@@ -127,6 +139,7 @@ export async function executeToolCall(
     case 'search_updates': {
       const query = args.query as string
       const projectId = (args.project_id as string) || context.projectId
+      const includeChildren = args.include_children as boolean | undefined
       const dateRange = args.date_range as { after?: string; before?: string } | undefined
 
       let q = supabase
@@ -136,7 +149,19 @@ export async function executeToolCall(
         .order('created_at', { ascending: false })
         .limit(10)
 
-      if (projectId) q = q.eq('project_id', projectId)
+      if (projectId) {
+        if (includeChildren) {
+          // Expand to include child project IDs
+          const { data: children } = await supabase
+            .from('projects')
+            .select('id')
+            .eq('parent_project_id', projectId)
+          const allIds = [projectId, ...(children ?? []).map((c) => c.id)]
+          q = q.in('project_id', allIds)
+        } else {
+          q = q.eq('project_id', projectId)
+        }
+      }
       if (dateRange?.after) q = q.gte('created_at', dateRange.after)
       if (dateRange?.before) q = q.lte('created_at', dateRange.before)
 
@@ -197,9 +222,71 @@ export async function executeToolCall(
       }
     }
 
+    case 'get_program_summary': {
+      const programId = (args.project_id as string) || context.projectId
+      if (!programId) return { error: 'No project_id provided' }
+
+      const [{ data: parent }, { data: children }] = await Promise.all([
+        supabase.from('projects').select('*').eq('id', programId).single(),
+        supabase.from('projects').select('id, name, sector, status, stage, estimated_value, location').eq('parent_project_id', programId).order('name'),
+      ])
+
+      if (!parent) return { error: 'Program project not found' }
+
+      const childList = children ?? []
+      const allIds = [programId, ...childList.map((c) => c.id)]
+
+      const [{ data: recentUpdates }, { data: openDdItems }, { data: openCompliance }] = await Promise.all([
+        supabase
+          .from('updates')
+          .select('id, project_id, summary, action_items, risks, decisions, created_at')
+          .eq('review_state', 'approved')
+          .in('project_id', allIds)
+          .order('created_at', { ascending: false })
+          .limit(10),
+        supabase
+          .from('dd_items')
+          .select('id, category, item, severity, status, project_id')
+          .in('project_id', allIds)
+          .neq('status', 'resolved'),
+        supabase
+          .from('compliance_items')
+          .select('id, framework, requirement, status, due_date, project_id')
+          .in('project_id', allIds)
+          .not('status', 'in', '("compliant","waived")'),
+      ])
+
+      const aggregatedValue =
+        (parent.estimated_value ?? 0) +
+        childList.reduce((sum, c) => sum + (c.estimated_value ?? 0), 0)
+
+      return {
+        program: {
+          id: parent.id,
+          name: parent.name,
+          status: parent.status,
+          stage: parent.stage,
+          estimated_value: parent.estimated_value,
+        },
+        sub_projects: childList.map((c) => ({
+          id: c.id,
+          name: c.name,
+          status: c.status,
+          stage: c.stage,
+          estimated_value: c.estimated_value,
+          location: c.location,
+        })),
+        aggregated_value: aggregatedValue,
+        sub_project_count: childList.length,
+        recent_updates: recentUpdates ?? [],
+        open_dd_items: openDdItems ?? [],
+        open_compliance_items: openCompliance ?? [],
+      }
+    }
+
     case 'get_portfolio_summary': {
       const [projects, milestones, ddItems] = await Promise.all([
-        supabase.from('projects').select('id, name, sector, status, stage, estimated_value'),
+        supabase.from('projects').select('id, name, sector, status, stage, estimated_value, parent_project_id'),
         supabase
           .from('milestones')
           .select('id, label, target_date, stage, project_id, projects(name)')
@@ -217,6 +304,11 @@ export async function executeToolCall(
       const allProjects = projects.data ?? []
       const totalValue = allProjects.reduce((sum, p) => sum + (p.estimated_value ?? 0), 0)
 
+      // Identify programs (projects that have children)
+      const parentIds = new Set(allProjects.map((p) => p.parent_project_id).filter(Boolean))
+      const programs = allProjects.filter((p) => parentIds.has(p.id))
+      const standaloneCount = allProjects.filter((p) => !p.parent_project_id && !parentIds.has(p.id)).length
+
       const byStatus: Record<string, number> = {}
       const byStage: Record<string, number> = {}
       const bySector: Record<string, number> = {}
@@ -228,6 +320,8 @@ export async function executeToolCall(
 
       return {
         project_count: allProjects.length,
+        program_count: programs.length,
+        standalone_count: standaloneCount,
         total_estimated_value: totalValue,
         by_status: byStatus,
         by_stage: byStage,

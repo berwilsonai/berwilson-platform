@@ -22,6 +22,24 @@ export default async function EditProjectPage({ params }: PageProps) {
 
   if (!project) notFound()
 
+  // Fetch available parents: top-level projects that aren't this project
+  // and aren't already children of this project
+  const { data: topLevel } = await supabase
+    .from('projects')
+    .select('id, name')
+    .is('parent_project_id', null)
+    .neq('id', id)
+    .order('name')
+
+  // Exclude projects that are children of the current project (can't make a parent into a child of itself)
+  const { data: children } = await supabase
+    .from('projects')
+    .select('id')
+    .eq('parent_project_id', id)
+
+  const childIds = new Set((children ?? []).map((c) => c.id))
+  const availableParents = (topLevel ?? []).filter((p) => !childIds.has(p.id))
+
   return (
     <div className="space-y-5">
       <div className="flex items-center gap-2">
@@ -38,7 +56,7 @@ export default async function EditProjectPage({ params }: PageProps) {
         <h1 className="text-lg font-semibold">Edit Project</h1>
       </div>
 
-      <ProjectForm mode="edit" project={project} />
+      <ProjectForm mode="edit" project={project} availableParents={availableParents} />
     </div>
   )
 }

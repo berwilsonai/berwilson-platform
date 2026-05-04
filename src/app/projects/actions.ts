@@ -45,6 +45,7 @@ function parseFields(formData: FormData): ParseResult {
       award_date: str('award_date'),
       ntp_date: str('ntp_date'),
       substantial_completion_date: str('substantial_completion_date'),
+      parent_project_id: str('parent_project_id'),
     },
   }
 }
