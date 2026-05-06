@@ -12,7 +12,7 @@ interface PageProps {
   searchParams: Promise<{ project_id?: string; reason?: string; show_resolved?: string }>
 }
 
-const VALID_REASONS = ['low_confidence', 'ambiguous_project', 'unknown_party', 'conflicting_data']
+const VALID_REASONS = ['low_confidence', 'ambiguous_project', 'unknown_party', 'conflicting_data', 'new_contact']
 
 // ---------------------------------------------------------------------------
 // Name matching helpers

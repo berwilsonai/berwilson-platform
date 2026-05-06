@@ -127,8 +127,10 @@ export default function ResearchPanel({
   const [panelOpen, setPanelOpen] = useState(false)
   const [query, setQuery] = useState('')
   const [loading, setLoading] = useState(false)
+  const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [result, setResult] = useState<ResearchResult | null>(null)
+  const [pendingQuery, setPendingQuery] = useState<string>('')
   const [artifacts, setArtifacts] = useState<ResearchArtifact[]>(initialArtifacts)
   const [savedId, setSavedId] = useState<string | null>(null)
 
@@ -139,27 +141,49 @@ export default function ResearchPanel({
     setResult(null)
     setSavedId(null)
 
+    const submittedQuery = query.trim()
     try {
       const res = await fetch('/api/ai/research', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query: query.trim(), project_id: projectId }),
+        body: JSON.stringify({ query: submittedQuery, project_id: projectId }),
       })
 
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? 'Research failed')
 
       setResult(data.result)
-
-      // Artifact is saved automatically by the API — add to list
-      if (data.artifact) {
-        setArtifacts((prev) => [data.artifact, ...prev])
-        setSavedId(data.artifact.id)
-      }
+      setPendingQuery(submittedQuery)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Research failed')
     } finally {
       setLoading(false)
+    }
+  }
+
+  async function saveArtifact() {
+    if (!result || !pendingQuery || saving || savedId) return
+    setSaving(true)
+    try {
+      const res = await fetch('/api/ai/research/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          project_id: projectId,
+          query_text: pendingQuery,
+          response_text: result.text,
+          source_urls: result.sources,
+          model_used: result.model,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? 'Save failed')
+      setArtifacts((prev) => [data.artifact, ...prev])
+      setSavedId(data.artifact.id)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Save failed')
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -174,6 +198,7 @@ export default function ResearchPanel({
     setResult(null)
     setError(null)
     setSavedId(null)
+    setPendingQuery('')
   }
 
   return (
@@ -287,16 +312,29 @@ export default function ResearchPanel({
           {/* Results */}
           {result && (
             <div className="space-y-3 border-t border-border pt-4">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-2">
                 <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
                   Result
-                  {savedId && (
-                    <span className="ml-2 inline-flex items-center gap-1 text-emerald-600 normal-case">
-                      <Save size={10} />
-                      Saved to artifacts
-                    </span>
-                  )}
                 </p>
+                {savedId ? (
+                  <span className="inline-flex items-center gap-1 text-xs text-emerald-600 font-medium">
+                    <Save size={11} />
+                    Saved to Research
+                  </span>
+                ) : (
+                  <button
+                    onClick={saveArtifact}
+                    disabled={saving}
+                    className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md border border-input text-xs font-medium hover:bg-accent disabled:opacity-50 transition-colors"
+                  >
+                    {saving ? (
+                      <Loader2 size={11} className="animate-spin" />
+                    ) : (
+                      <Save size={11} />
+                    )}
+                    Save to Research
+                  </button>
+                )}
               </div>
 
               <div className="rounded-md bg-muted/40 px-4 py-3">
@@ -332,6 +370,7 @@ export default function ResearchPanel({
                   setResult(null)
                   setQuery('')
                   setSavedId(null)
+                  setPendingQuery('')
                 }}
                 className="text-xs text-muted-foreground hover:text-foreground transition-colors"
               >

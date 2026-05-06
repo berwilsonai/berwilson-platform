@@ -6,6 +6,7 @@ import {
   LayoutDashboard,
   FolderKanban,
   Users,
+  Building2,
   ClipboardCheck,
   Brain,
 } from 'lucide-react'
@@ -14,8 +15,8 @@ const NAV_ITEMS = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/projects', label: 'Projects', icon: FolderKanban },
   { href: '/contacts', label: 'Contacts', icon: Users },
+  { href: '/vendors', label: 'Vendors', icon: Building2 },
   { href: '/review', label: 'Review', icon: ClipboardCheck, hasBadge: true },
-  { href: '/intel', label: 'Intel', icon: Brain },
 ] as const
 
 interface MobileNavProps {

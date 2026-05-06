@@ -10,18 +10,33 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
   const body = await request.json()
   const supabase = createAdminClient()
 
+  // Build update payload — only include fields that were sent
+  const updates: Record<string, unknown> = {}
+
+  if ('name' in body) updates.name = body.name?.trim()
+  if ('entity_type' in body) updates.entity_type = body.entity_type
+  if ('jurisdiction' in body) updates.jurisdiction = body.jurisdiction?.trim() || null
+  if ('parent_entity_id' in body) updates.parent_entity_id = body.parent_entity_id || null
+  if ('ownership_pct' in body) updates.ownership_pct = body.ownership_pct != null && body.ownership_pct !== '' ? Number(body.ownership_pct) : null
+  if ('formation_date' in body) updates.formation_date = body.formation_date || null
+  if ('ein' in body) updates.ein = body.ein?.trim() || null
+  if ('notes' in body) updates.notes = body.notes?.trim() || null
+
+  // Vendor profile fields
+  if ('website_url' in body) updates.website_url = body.website_url?.trim() || null
+  if ('description' in body) updates.description = body.description?.trim() || null
+  if ('specialties' in body) updates.specialties = Array.isArray(body.specialties) ? body.specialties : []
+  if ('quality_score' in body) updates.quality_score = body.quality_score != null && body.quality_score !== '' ? Number(body.quality_score) : null
+  if ('confidence_score' in body) updates.confidence_score = body.confidence_score != null && body.confidence_score !== '' ? Number(body.confidence_score) : null
+  if ('headquarters' in body) updates.headquarters = body.headquarters?.trim() || null
+  if ('logo_url' in body) updates.logo_url = body.logo_url?.trim() || null
+  if ('primary_contact_id' in body) updates.primary_contact_id = body.primary_contact_id || null
+  if ('enrichment_data' in body) updates.enrichment_data = body.enrichment_data
+  if ('enriched_at' in body) updates.enriched_at = body.enriched_at
+
   const { data, error } = await supabase
     .from('entities')
-    .update({
-      name: body.name?.trim(),
-      entity_type: body.entity_type,
-      jurisdiction: body.jurisdiction?.trim() || null,
-      parent_entity_id: body.parent_entity_id || null,
-      ownership_pct: body.ownership_pct != null && body.ownership_pct !== '' ? Number(body.ownership_pct) : null,
-      formation_date: body.formation_date || null,
-      ein: body.ein?.trim() || null,
-      notes: body.notes?.trim() || null,
-    })
+    .update(updates)
     .eq('id', id)
     .select()
     .single()

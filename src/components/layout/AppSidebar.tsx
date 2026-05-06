@@ -1,5 +1,6 @@
 'use client'
 
+import Image from 'next/image'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useState } from 'react'
@@ -7,6 +8,7 @@ import {
   LayoutDashboard,
   FolderKanban,
   Users,
+  Building2,
   ClipboardCheck,
   Activity,
   Brain,
@@ -19,6 +21,7 @@ const NAV_ITEMS = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/projects', label: 'Projects', icon: FolderKanban },
   { href: '/contacts', label: 'Contacts', icon: Users },
+  { href: '/vendors', label: 'Vendors', icon: Building2 },
   { href: '/review', label: 'Review Queue', icon: ClipboardCheck },
   { href: '/email-log', label: 'Email Log', icon: Mail },
   { href: '/activity', label: 'Activity', icon: Activity },
@@ -45,10 +48,10 @@ export default function AppSidebar({ pendingReviewCount = 0 }: AppSidebarProps) 
           collapsed ? 'justify-center' : 'justify-between'
         }`}
       >
-        {!collapsed && (
-          <span className="text-white font-semibold text-xs tracking-widest uppercase truncate">
-            Ber Wilson
-          </span>
+        {!collapsed ? (
+          <Image src="/logo.png" alt="Ber Wilson" width={120} height={65} className="object-contain h-8 w-auto" priority />
+        ) : (
+          <Image src="/logo.png" alt="Ber Wilson" width={28} height={28} className="object-contain h-6 w-auto" priority />
         )}
         <button
           onClick={() => setCollapsed(!collapsed)}

@@ -12,17 +12,21 @@ export async function PATCH(
 ) {
   const { id } = await params
 
-  let body: { resolution: string; project_id?: string; edit_diff?: Record<string, unknown> }
+  let body: { resolution?: string; project_id?: string; edit_diff?: Record<string, unknown> }
   try {
     body = await request.json()
-    if (!VALID_RESOLUTIONS.includes(body.resolution as Resolution)) {
+    // resolution is optional when only reassigning project
+    if (body.resolution !== undefined && !VALID_RESOLUTIONS.includes(body.resolution as Resolution)) {
       return NextResponse.json({ error: 'Invalid resolution' }, { status: 400 })
+    }
+    if (!body.resolution && !body.project_id) {
+      return NextResponse.json({ error: 'resolution or project_id required' }, { status: 400 })
     }
   } catch {
     return NextResponse.json({ error: 'Invalid request body' }, { status: 400 })
   }
 
-  const resolution = body.resolution as Resolution
+  const resolution = body.resolution as Resolution | undefined
 
   const supabase = await createClient()
   const {
@@ -71,6 +75,11 @@ export async function PATCH(
     }
   }
 
+  // If this is a project-only reassign (no resolution), we're done
+  if (!resolution) {
+    return NextResponse.json({ ok: true })
+  }
+
   // Resolve the review item — edit_diff column is new, cast until gen-types re-run
   const updatePayload: Record<string, unknown> = {
     resolution,
@@ -89,23 +98,37 @@ export async function PATCH(
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
-  // When an update is approved from the review queue, trigger embedding
-  if (resolution === 'approved') {
-    const { data: reviewItem } = await admin
-      .from('review_queue')
-      .select('source_table, record_id, project_id')
-      .eq('id', id)
-      .single()
+  // Post-resolution actions based on source type
+  const { data: reviewItem } = await admin
+    .from('review_queue')
+    .select('source_table, record_id, project_id')
+    .eq('id', id)
+    .single()
 
-    if (reviewItem?.source_table === 'updates' && reviewItem.record_id && reviewItem.project_id) {
-      const { data: update } = await admin
-        .from('updates')
-        .select('raw_content')
-        .eq('id', reviewItem.record_id)
-        .single()
+  if (reviewItem) {
+    const db = admin as unknown as import('@supabase/supabase-js').SupabaseClient
 
-      if (update?.raw_content) {
-        embedUpdate(reviewItem.record_id, reviewItem.project_id, update.raw_content).catch(console.error)
+    if (reviewItem.source_table === 'parties') {
+      // Approved contact → promote to active (appears in CRM)
+      // Rejected contact → stays pending_review (permanently hidden)
+      if (resolution === 'approved' || resolution === 'edited') {
+        await db
+          .from('parties')
+          .update({ status: 'active' })
+          .eq('id', reviewItem.record_id)
+      }
+    } else if (reviewItem.source_table === 'updates' && resolution === 'approved') {
+      // Trigger embedding for approved email updates
+      if (reviewItem.record_id && reviewItem.project_id) {
+        const { data: update } = await admin
+          .from('updates')
+          .select('raw_content')
+          .eq('id', reviewItem.record_id)
+          .single()
+
+        if (update?.raw_content) {
+          embedUpdate(reviewItem.record_id, reviewItem.project_id, update.raw_content).catch(console.error)
+        }
       }
     }
   }

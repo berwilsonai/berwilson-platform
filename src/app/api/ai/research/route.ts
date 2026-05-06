@@ -1,6 +1,5 @@
 import { NextRequest } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { createAdminClient } from '@/lib/supabase/admin'
 import { researchQuery } from '@/lib/ai/perplexity'
 
 export async function POST(request: NextRequest) {
@@ -25,28 +24,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const result = await researchQuery(query.trim())
-
-    // Store in research_artifacts
-    const admin = createAdminClient()
-    const { data: artifact, error: insertError } = await admin
-      .from('research_artifacts')
-      .insert({
-        project_id: project_id ?? null,
-        query_text: query.trim(),
-        response_text: result.text,
-        source_urls: result.sources as unknown as import('@/lib/supabase/types').Json,
-        model_used: result.model,
-      })
-      .select()
-      .single()
-
-    if (insertError) {
-      console.error('[research] insert error', insertError)
-      // Return the result even if save fails — better than a hard error
-      return Response.json({ result, artifact: null })
-    }
-
-    return Response.json({ result, artifact })
+    return Response.json({ result })
   } catch (err) {
     console.error('[research] error', err)
     return Response.json(

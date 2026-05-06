@@ -21,6 +21,16 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Ber Wilson Intelligence",
   description: "Executive Intelligence Platform",
+  manifest: "/site.webmanifest",
+  icons: {
+    icon: "/icon-192x192.png",
+    apple: "/apple-touch-icon.png",
+  },
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "Ber Wilson",
+  },
 }
 
 export const viewport: Viewport = {

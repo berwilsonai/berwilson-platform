@@ -5,6 +5,7 @@ import { useCallback } from 'react'
 import { X } from 'lucide-react'
 
 const REASON_LABELS: Record<string, string> = {
+  new_contact: 'New Contact',
   low_confidence: 'Low Confidence',
   ambiguous_project: 'Ambiguous Project',
   unknown_party: 'Unknown Party',

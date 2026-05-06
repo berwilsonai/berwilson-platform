@@ -10,6 +10,7 @@ const REASON_LABELS: Record<string, string> = {
   ambiguous_project: 'Ambiguous Project',
   unknown_party: 'Unknown Party',
   conflicting_data: 'Conflicting Data',
+  new_contact: 'New Contact',
 }
 
 const SOURCE_TABLE_LABELS: Record<string, string> = {

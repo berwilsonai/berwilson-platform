@@ -252,48 +252,23 @@ function UploadZone({
   }
 
   async function processFile(upload: UploadState, index: number) {
-    const supabase = createClient()
     updateUpload(index, { status: 'uploading', progress: 0 })
 
-    // Deduplicate filename
-    const timestamp = Date.now()
-    const safeName = upload.file.name.replace(/[^a-zA-Z0-9._-]/g, '_')
-    const storagePath = `projects/${projectId}/${timestamp}_${safeName}`
-
-    // Upload to Supabase Storage
-    const { error: storageError } = await supabase.storage
-      .from('documents')
-      .upload(storagePath, upload.file, {
-        cacheControl: '3600',
-        upsert: false,
-      })
-
-    if (storageError) {
-      updateUpload(index, {
-        status: 'error',
-        error: storageError.message,
-      })
-      return
-    }
+    // Send file + metadata to server — admin client handles storage (bypasses RLS)
+    const formData = new FormData()
+    formData.append('file', upload.file)
+    formData.append('project_id', projectId)
+    formData.append('doc_type', upload.docType)
+    formData.append('extract_ai', String(upload.extractAi && AI_ELIGIBLE_MIMES.has(upload.file.type)))
 
     updateUpload(index, {
       status: upload.extractAi ? 'processing' : 'uploading',
-      progress: 80,
+      progress: 50,
     })
 
-    // Insert DB record + optional AI extraction
-    const res = await fetch('/api/documents', {
+    const res = await fetch('/api/documents/upload', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        project_id: projectId,
-        storage_path: storagePath,
-        file_name: upload.file.name,
-        file_size_bytes: upload.file.size,
-        mime_type: upload.file.type || null,
-        doc_type: upload.docType,
-        extract_ai: upload.extractAi && AI_ELIGIBLE_MIMES.has(upload.file.type),
-      }),
+      body: formData,
     })
 
     if (!res.ok) {

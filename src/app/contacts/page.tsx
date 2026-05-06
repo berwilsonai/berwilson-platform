@@ -1,6 +1,6 @@
 import { Suspense } from 'react'
 import Link from 'next/link'
-import { Plus, Users } from 'lucide-react'
+import { Plus, Users, Clock } from 'lucide-react'
 import { createAdminClient } from '@/lib/supabase/admin'
 import ContactsClient from '@/components/contacts/ContactsClient'
 import type { ContactWithStats } from '@/components/contacts/ContactsClient'
@@ -10,14 +10,23 @@ export const metadata = { title: 'Contacts — Ber Wilson Intelligence' }
 
 export default async function ContactsPage() {
   const supabase = createAdminClient()
+  // Cast to bypass generated types — status column added via migration
+  const db = supabase as unknown as import('@supabase/supabase-js').SupabaseClient
 
-  const { data: parties, error } = await supabase
-    .from('parties')
-    .select(`
-      id, full_name, company, title, email, phone, is_organization, avatar_url,
-      project_players(project_id, role, projects(updated_at))
-    `)
-    .order('full_name')
+  const [{ data: parties, error }, { count: pendingCount }] = await Promise.all([
+    db
+      .from('parties')
+      .select(`
+        id, full_name, company, title, email, phone, is_organization, avatar_url,
+        project_players(project_id, role, projects(updated_at))
+      `)
+      .eq('status', 'active')
+      .order('full_name'),
+    db
+      .from('parties')
+      .select('id', { count: 'exact', head: true })
+      .eq('status', 'pending_review'),
+  ])
 
   if (error) throw new Error(`Failed to load contacts: ${error.message}`)
 
@@ -60,6 +69,21 @@ export default async function ContactsPage() {
           Add Contact
         </Link>
       </div>
+
+      {/* Pending contacts banner */}
+      {(pendingCount ?? 0) > 0 && (
+        <Link
+          href="/review?reason=new_contact"
+          className="flex items-center gap-2.5 px-4 py-3 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-sm hover:bg-amber-100 transition-colors"
+        >
+          <Clock size={15} className="shrink-0" />
+          <span>
+            <span className="font-semibold">{pendingCount} contact{pendingCount !== 1 ? 's' : ''} waiting for review</span>
+            {' '}— auto-detected from email. Confirm they're real project contacts before they appear here.
+          </span>
+          <span className="ml-auto text-xs font-medium shrink-0">Review →</span>
+        </Link>
+      )}
 
       {contacts.length === 0 ? (
         <EmptyState

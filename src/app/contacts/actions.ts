@@ -20,7 +20,7 @@ export async function createContact(
 
   const is_organization = formData.get('is_organization') === 'true'
 
-  const fields: TablesInsert<'parties'> = {
+  const fields = {
     full_name,
     company: str(formData, 'company'),
     title: str(formData, 'title'),
@@ -28,10 +28,13 @@ export async function createContact(
     phone: str(formData, 'phone'),
     relationship_notes: str(formData, 'relationship_notes'),
     is_organization,
+    status: 'active', // manually-added contacts go straight into the CRM
   }
 
   const supabase = createAdminClient()
-  const { data, error } = await supabase
+  // Cast to bypass generated types — status column added via migration
+  const db = supabase as unknown as import('@supabase/supabase-js').SupabaseClient
+  const { data, error } = await db
     .from('parties')
     .insert(fields)
     .select('id')

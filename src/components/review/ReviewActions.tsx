@@ -50,17 +50,16 @@ export default function ReviewActions({
     const res = await fetch(`/api/review/${reviewId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ resolution: 'approved', project_id: projectId }),
+      body: JSON.stringify({ project_id: projectId }),
     })
     setLoading(null)
-    if (res.ok) {
-      setResolved('reassigned')
-      setShowReassign(false)
-      router.refresh()
-    } else {
+    setShowReassign(false)
+    if (!res.ok) {
       const data = await res.json().catch(() => ({}))
       setReassignError(data.error ?? 'Reassign failed — please try again')
-      setShowReassign(false)
+    } else {
+      // Refresh so the note reloads with the new project — stay in queue for approval
+      router.refresh()
     }
   }
 
@@ -73,7 +72,6 @@ export default function ReviewActions({
       approved: { text: 'Approved', color: 'text-emerald-600' },
       rejected: { text: 'Rejected', color: 'text-red-600' },
       edited: { text: 'Edited & Approved', color: 'text-blue-600' },
-      reassigned: { text: 'Reassigned & Approved', color: 'text-violet-600' },
     }
     const label = labels[resolved] ?? labels.approved
     return (
