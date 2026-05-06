@@ -2,68 +2,12 @@ import { Suspense } from 'react'
 import Link from 'next/link'
 import { Plus, FolderKanban } from 'lucide-react'
 import { createAdminClient } from '@/lib/supabase/admin'
-import type { Project, ProjectSector, ProjectStatus, ProjectStage } from '@/lib/supabase/types'
+import type { ProjectSector, ProjectStatus, ProjectStage } from '@/lib/supabase/types'
 
 export const metadata = { title: 'Projects — Ber Wilson Intelligence' }
-import ProjectCard from '@/components/dashboard/ProjectCard'
 import EmptyState from '@/components/shared/EmptyState'
 import ProjectFilters from '@/components/projects/ProjectFilters'
-
-function ProjectHierarchyGrid({ projects }: { projects: Project[] }) {
-  // Build lookup maps
-  const byId = new Map(projects.map((p) => [p.id, p]))
-  const childrenOf = new Map<string, Project[]>()
-  const standalone: Project[] = []
-  const parentIds = new Set<string>()
-
-  // Identify which projects are parents (have children in this list)
-  for (const p of projects) {
-    if (p.parent_project_id) {
-      const siblings = childrenOf.get(p.parent_project_id) ?? []
-      siblings.push(p)
-      childrenOf.set(p.parent_project_id, siblings)
-      parentIds.add(p.parent_project_id)
-    }
-  }
-
-  // Group: programs first, then standalone, skip children (rendered under parents)
-  const programs: Project[] = []
-  for (const p of projects) {
-    if (p.parent_project_id) continue // rendered as child
-    if (parentIds.has(p.id)) {
-      programs.push(p)
-    } else {
-      standalone.push(p)
-    }
-  }
-
-  return (
-    <div className="space-y-6">
-      {/* Programs with children */}
-      {programs.map((parent) => (
-        <div key={parent.id} className="space-y-2">
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
-            <ProjectCard project={parent} isProgram />
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 pl-6 border-l-2 border-violet-200 ml-3">
-            {(childrenOf.get(parent.id) ?? []).map((child) => (
-              <ProjectCard key={child.id} project={child} parentName={parent.name} />
-            ))}
-          </div>
-        </div>
-      ))}
-
-      {/* Standalone projects */}
-      {standalone.length > 0 && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
-          {standalone.map((project) => (
-            <ProjectCard key={project.id} project={project} />
-          ))}
-        </div>
-      )}
-    </div>
-  )
-}
+import ProjectsClient from '@/components/projects/ProjectsClient'
 
 interface PageProps {
   searchParams: Promise<{ sector?: string; status?: string; stage?: string }>
@@ -156,7 +100,7 @@ export default async function ProjectsPage({ searchParams }: PageProps) {
           }
         />
       ) : (
-        <ProjectHierarchyGrid projects={projects} />
+        <ProjectsClient projects={projects} />
       )}
     </div>
   )
