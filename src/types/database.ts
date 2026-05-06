@@ -1,3 +1,4 @@
+Initialising login role...
 export type Json =
   | string
   | number
@@ -338,6 +339,35 @@ export type Database = {
           },
         ]
       }
+      contact_aliases: {
+        Row: {
+          alias: string
+          created_at: string | null
+          id: string
+          party_id: string
+        }
+        Insert: {
+          alias: string
+          created_at?: string | null
+          id?: string
+          party_id: string
+        }
+        Update: {
+          alias?: string
+          created_at?: string | null
+          id?: string
+          party_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contact_aliases_party_id_fkey"
+            columns: ["party_id"]
+            isOneToOne: false
+            referencedRelation: "parties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       dd_items: {
         Row: {
           assigned_to: string | null
@@ -489,40 +519,70 @@ export type Database = {
       }
       entities: {
         Row: {
+          confidence_score: number | null
           created_at: string | null
+          description: string | null
           ein: string | null
+          enriched_at: string | null
+          enrichment_data: Json | null
           entity_type: Database["public"]["Enums"]["entity_type"]
           formation_date: string | null
+          headquarters: string | null
           id: string
           jurisdiction: string | null
+          logo_url: string | null
           name: string
           notes: string | null
           ownership_pct: number | null
           parent_entity_id: string | null
+          primary_contact_id: string | null
+          quality_score: number | null
+          specialties: string[] | null
+          website_url: string | null
         }
         Insert: {
+          confidence_score?: number | null
           created_at?: string | null
+          description?: string | null
           ein?: string | null
+          enriched_at?: string | null
+          enrichment_data?: Json | null
           entity_type: Database["public"]["Enums"]["entity_type"]
           formation_date?: string | null
+          headquarters?: string | null
           id?: string
           jurisdiction?: string | null
+          logo_url?: string | null
           name: string
           notes?: string | null
           ownership_pct?: number | null
           parent_entity_id?: string | null
+          primary_contact_id?: string | null
+          quality_score?: number | null
+          specialties?: string[] | null
+          website_url?: string | null
         }
         Update: {
+          confidence_score?: number | null
           created_at?: string | null
+          description?: string | null
           ein?: string | null
+          enriched_at?: string | null
+          enrichment_data?: Json | null
           entity_type?: Database["public"]["Enums"]["entity_type"]
           formation_date?: string | null
+          headquarters?: string | null
           id?: string
           jurisdiction?: string | null
+          logo_url?: string | null
           name?: string
           notes?: string | null
           ownership_pct?: number | null
           parent_entity_id?: string | null
+          primary_contact_id?: string | null
+          quality_score?: number | null
+          specialties?: string[] | null
+          website_url?: string | null
         }
         Relationships: [
           {
@@ -530,6 +590,13 @@ export type Database = {
             columns: ["parent_entity_id"]
             isOneToOne: false
             referencedRelation: "entities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "entities_primary_contact_id_fkey"
+            columns: ["primary_contact_id"]
+            isOneToOne: false
+            referencedRelation: "parties"
             referencedColumns: ["id"]
           },
         ]
@@ -572,6 +639,63 @@ export type Database = {
           },
           {
             foreignKeyName: "entity_projects_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      entity_reviews: {
+        Row: {
+          created_at: string | null
+          entity_id: string
+          id: string
+          notes: string | null
+          on_budget: boolean | null
+          on_time: boolean | null
+          project_id: string | null
+          rating: number
+          reviewed_at: string | null
+          reviewed_by: string | null
+          would_rehire: boolean | null
+        }
+        Insert: {
+          created_at?: string | null
+          entity_id: string
+          id?: string
+          notes?: string | null
+          on_budget?: boolean | null
+          on_time?: boolean | null
+          project_id?: string | null
+          rating: number
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          would_rehire?: boolean | null
+        }
+        Update: {
+          created_at?: string | null
+          entity_id?: string
+          id?: string
+          notes?: string | null
+          on_budget?: boolean | null
+          on_time?: boolean | null
+          project_id?: string | null
+          rating?: number
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          would_rehire?: boolean | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "entity_reviews_entity_id_fkey"
+            columns: ["entity_id"]
+            isOneToOne: false
+            referencedRelation: "entities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "entity_reviews_project_id_fkey"
             columns: ["project_id"]
             isOneToOne: false
             referencedRelation: "projects"
@@ -752,6 +876,7 @@ export type Database = {
           perplexity_enriched_at: string | null
           phone: string | null
           relationship_notes: string | null
+          status: string
           title: string | null
           updated_at: string | null
         }
@@ -776,6 +901,7 @@ export type Database = {
           perplexity_enriched_at?: string | null
           phone?: string | null
           relationship_notes?: string | null
+          status?: string
           title?: string | null
           updated_at?: string | null
         }
@@ -800,6 +926,7 @@ export type Database = {
           perplexity_enriched_at?: string | null
           phone?: string | null
           relationship_notes?: string | null
+          status?: string
           title?: string | null
           updated_at?: string | null
         }
@@ -1808,3 +1935,5 @@ export const Constants = {
     },
   },
 } as const
+A new version of Supabase CLI is available: v2.98.1 (currently installed v2.84.2)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli

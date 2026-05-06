@@ -101,11 +101,9 @@ export async function POST(
 
   const { id } = await params
   const admin = createAdminClient()
-  // Cast to bypass generated types — new columns added via migration
-  const db = admin as unknown as import('@supabase/supabase-js').SupabaseClient
 
   // Load current entity record
-  const { data: entity } = await db
+  const { data: entity } = await admin
     .from('entities')
     .select('id, name, website_url, description, specialties, headquarters, enrichment_data, enriched_at')
     .eq('id', id)
@@ -159,7 +157,7 @@ export async function POST(
 
     updates.enriched_at = new Date().toISOString()
 
-    const { error } = await db
+    const { error } = await admin
       .from('entities')
       .update(updates)
       .eq('id', id)

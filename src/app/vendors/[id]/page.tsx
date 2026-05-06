@@ -3,18 +3,14 @@ import Link from 'next/link'
 import {
   Building2,
   ChevronLeft,
+  CheckCircle2,
   ExternalLink,
   Globe,
   MapPin,
   Star,
   Tag,
-  User,
-  CheckCircle2,
-  XCircle,
-  Clock,
 } from 'lucide-react'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { cn } from '@/lib/utils'
 import VendorProfileClient from '@/components/vendors/VendorProfileClient'
 
 export const metadata = { title: 'Vendor Profile — Ber Wilson Intelligence' }
@@ -26,10 +22,8 @@ interface PageProps {
 export default async function VendorDetailPage({ params }: PageProps) {
   const { id } = await params
   const supabase = createAdminClient()
-  // Cast to bypass generated types — new columns added via migration
-  const db = supabase as unknown as import('@supabase/supabase-js').SupabaseClient
 
-  const { data: entity } = await db
+  const { data: entity } = await supabase
     .from('entities')
     .select('*')
     .eq('id', id)
@@ -38,14 +32,14 @@ export default async function VendorDetailPage({ params }: PageProps) {
   if (!entity) notFound()
 
   // Fetch project links with project names
-  const { data: projectLinks } = await db
+  const { data: projectLinks } = await supabase
     .from('entity_projects')
     .select('id, relationship, equity_pct, notes, projects(id, name, status, sector)')
     .eq('entity_id', id)
     .order('created_at', { ascending: false })
 
   // Fetch reviews
-  const { data: reviews } = await db
+  const { data: reviews } = await supabase
     .from('entity_reviews')
     .select('*, projects(id, name)')
     .eq('entity_id', id)
@@ -54,7 +48,7 @@ export default async function VendorDetailPage({ params }: PageProps) {
   // Fetch primary contact if set
   let primaryContact: { id: string; full_name: string; email: string | null; phone: string | null; title: string | null } | null = null
   if (entity.primary_contact_id) {
-    const { data } = await db
+    const { data } = await supabase
       .from('parties')
       .select('id, full_name, email, phone, title')
       .eq('id', entity.primary_contact_id)
@@ -63,7 +57,7 @@ export default async function VendorDetailPage({ params }: PageProps) {
   }
 
   // Fetch all projects for the review form dropdown
-  const { data: allProjects } = await db
+  const { data: allProjects } = await supabase
     .from('projects')
     .select('id, name')
     .order('name')

@@ -9,8 +9,6 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
   const { id } = await params
   const body = await request.json()
   const supabase = createAdminClient()
-  // Cast to bypass generated types — new vendor columns added via migration
-  const db = supabase as unknown as import('@supabase/supabase-js').SupabaseClient
 
   // Build update payload — only include fields that were sent
   const updates: Record<string, unknown> = {}
@@ -36,7 +34,7 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
   if ('enrichment_data' in body) updates.enrichment_data = body.enrichment_data
   if ('enriched_at' in body) updates.enriched_at = body.enriched_at
 
-  const { data, error } = await db
+  const { data, error } = await supabase
     .from('entities')
     .update(updates)
     .eq('id', id)

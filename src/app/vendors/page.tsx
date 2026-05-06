@@ -10,11 +10,9 @@ export const metadata = { title: 'Vendors & Partners — Ber Wilson Intelligence
 
 export default async function VendorsPage() {
   const supabase = createAdminClient()
-  // Cast to bypass generated types — new columns added via migration
-  const db = supabase as unknown as import('@supabase/supabase-js').SupabaseClient
 
   // Fetch all entities with their project relationships and reviews
-  const { data: entities, error } = await db
+  const { data: entities, error } = await supabase
     .from('entities')
     .select(`
       id, name, entity_type, jurisdiction, website_url, description,
