@@ -28,6 +28,7 @@ export async function PATCH(
 
   const resolution = body.resolution as Resolution | undefined
 
+  // Use the user session client for all table writes so auth.uid() is captured by the trigger
   const supabase = await createClient()
   const {
     data: { user },
@@ -37,12 +38,13 @@ export async function PATCH(
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
+  // Keep admin client only for embedUpdate (needs service role for chunks table)
   const admin = createAdminClient()
 
   // If reassigning to a different project, update both the review item and the source record
   if (body.project_id) {
     // Get the review item to find the source record
-    const { data: reviewItem, error: fetchError } = await admin
+    const { data: reviewItem, error: fetchError } = await supabase
       .from('review_queue')
       .select('source_table, record_id')
       .eq('id', id)
@@ -54,10 +56,10 @@ export async function PATCH(
 
     // Update the source record's project_id (updates, documents, etc.)
     if (reviewItem.source_table === 'updates' || reviewItem.source_table === 'documents') {
-      const { error: sourceError } = await admin
-        .from(reviewItem.source_table)
+      const { error: sourceError } = await supabase
+        .from(reviewItem.source_table as 'updates' | 'documents')
         .update({ project_id: body.project_id })
-        .eq('id', reviewItem.record_id)
+        .eq('id', reviewItem.record_id as string)
 
       if (sourceError) {
         return NextResponse.json({ error: `Failed to reassign source record: ${sourceError.message}` }, { status: 500 })
@@ -65,7 +67,7 @@ export async function PATCH(
     }
 
     // Update the review_queue item's project_id
-    const { error: reassignError } = await admin
+    const { error: reassignError } = await supabase
       .from('review_queue')
       .update({ project_id: body.project_id })
       .eq('id', id)
@@ -88,7 +90,7 @@ export async function PATCH(
   }
   if (body.edit_diff) updatePayload.edit_diff = body.edit_diff
 
-  const { error } = await (admin as unknown as import('@supabase/supabase-js').SupabaseClient)
+  const { error } = await (supabase as unknown as import('@supabase/supabase-js').SupabaseClient)
     .from('review_queue' as never)
     .update(updatePayload as never)
     .eq('id', id)
@@ -99,26 +101,24 @@ export async function PATCH(
   }
 
   // Post-resolution actions based on source type
-  const { data: reviewItem } = await admin
+  const { data: reviewItem } = await supabase
     .from('review_queue')
     .select('source_table, record_id, project_id')
     .eq('id', id)
     .single()
 
   if (reviewItem) {
-    const db = admin as unknown as import('@supabase/supabase-js').SupabaseClient
-
     if (reviewItem.source_table === 'parties') {
       // Approved contact → promote to active (appears in CRM)
       // Rejected contact → stays pending_review (permanently hidden)
       if (resolution === 'approved' || resolution === 'edited') {
-        await db
+        await supabase
           .from('parties')
           .update({ status: 'active' })
-          .eq('id', reviewItem.record_id)
+          .eq('id', reviewItem.record_id as string)
       }
     } else if (reviewItem.source_table === 'updates' && resolution === 'approved') {
-      // Trigger embedding for approved email updates
+      // Trigger embedding for approved email updates (admin needed for chunks table)
       if (reviewItem.record_id && reviewItem.project_id) {
         const { data: update } = await admin
           .from('updates')

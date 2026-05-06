@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from 'react'
 import Link from 'next/link'
-import { Building2, Mail, Phone, Search, Sparkles, User, X } from 'lucide-react'
+import { Building2, Mail, Phone, Search, Sparkles, Trash2, User, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 export interface ContactWithStats {
@@ -26,10 +26,15 @@ interface ContactsClientProps {
   contacts: ContactWithStats[]
 }
 
-export default function ContactsClient({ contacts }: ContactsClientProps) {
+export default function ContactsClient({ contacts: initialContacts }: ContactsClientProps) {
+  const [contacts, setContacts] = useState(initialContacts)
   const [search, setSearch] = useState('')
   const [sort, setSort] = useState<SortKey>('name')
   const [view, setView] = useState<ViewMode>('all')
+
+  function handleDelete(id: string) {
+    setContacts(prev => prev.filter(c => c.id !== id))
+  }
 
   const filtered = useMemo(() => {
     let list = contacts
@@ -133,7 +138,7 @@ export default function ContactsClient({ contacts }: ContactsClientProps) {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
           {filtered.map(contact => (
-            <ContactCard key={contact.id} contact={contact} />
+            <ContactCard key={contact.id} contact={contact} onDelete={handleDelete} />
           ))}
         </div>
       )}
@@ -141,85 +146,151 @@ export default function ContactsClient({ contacts }: ContactsClientProps) {
   )
 }
 
-function ContactCard({ contact }: { contact: ContactWithStats }) {
-  return (
-    <Link
-      href={`/contacts/${contact.id}`}
-      className="group block rounded-lg border border-border bg-card p-4 hover:border-foreground/20 hover:shadow-sm transition-all"
-    >
-      {/* Header */}
-      <div className="flex items-start gap-3 mb-3">
-        <div className="size-9 rounded-full bg-muted flex items-center justify-center shrink-0 overflow-hidden">
-          {contact.avatar_url ? (
-            <img src={contact.avatar_url} alt={contact.full_name} className="size-9 object-cover" />
-          ) : contact.is_organization ? (
-            <Building2 size={16} className="text-muted-foreground" />
-          ) : (
-            <User size={16} className="text-muted-foreground" />
-          )}
-        </div>
-        <div className="min-w-0 flex-1">
-          <p className="text-sm font-medium leading-tight truncate">{contact.full_name}</p>
-          {contact.title && (
-            <p className="text-xs text-muted-foreground truncate">{contact.title}</p>
-          )}
-          {contact.company && (
-            <p className="text-xs text-muted-foreground truncate">{contact.company}</p>
-          )}
-        </div>
-        <span
-          title="Enrich profile"
-          className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity text-purple-400 hover:text-purple-600 mt-0.5"
-          onClick={(e) => {
-            e.preventDefault()
-            window.location.href = `/contacts/${contact.id}?tab=overview`
-          }}
-        >
-          <Sparkles size={14} />
-        </span>
-      </div>
+function ContactCard({
+  contact,
+  onDelete,
+}: {
+  contact: ContactWithStats
+  onDelete: (id: string) => void
+}) {
+  const [confirming, setConfirming] = useState(false)
+  const [deleting, setDeleting] = useState(false)
 
-      {/* Contact info */}
-      {(contact.email || contact.phone) && (
-        <div className="space-y-1 mb-3">
-          {contact.email && (
-            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-              <Mail size={11} className="shrink-0" />
-              <span className="truncate">{contact.email}</span>
-            </div>
-          )}
-          {contact.phone && (
-            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-              <Phone size={11} className="shrink-0" />
-              {contact.phone}
-            </div>
-          )}
+  async function handleDelete(e: React.MouseEvent) {
+    e.preventDefault()
+    e.stopPropagation()
+    setDeleting(true)
+    try {
+      const res = await fetch(`/api/parties/${contact.id}`, { method: 'DELETE' })
+      if (res.ok) {
+        onDelete(contact.id)
+      } else {
+        setDeleting(false)
+        setConfirming(false)
+      }
+    } catch {
+      setDeleting(false)
+      setConfirming(false)
+    }
+  }
+
+  return (
+    <div className="relative group">
+      {/* Confirmation overlay */}
+      {confirming && (
+        <div
+          className="absolute inset-0 z-10 rounded-lg bg-background/97 border border-destructive/40 flex flex-col items-center justify-center gap-2 p-4"
+          onClick={e => { e.preventDefault(); e.stopPropagation() }}
+        >
+          <p className="text-xs font-medium text-center">Delete {contact.full_name}?</p>
+          <p className="text-[10px] text-muted-foreground text-center">
+            This contact will be archived and removed from your list.
+          </p>
+          <div className="flex gap-2 mt-1">
+            <button
+              onClick={e => { e.preventDefault(); e.stopPropagation(); setConfirming(false) }}
+              className="h-7 px-3 rounded text-xs border border-input hover:bg-muted transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleDelete}
+              disabled={deleting}
+              className="h-7 px-3 rounded text-xs bg-destructive text-destructive-foreground hover:bg-destructive/90 transition-colors disabled:opacity-60"
+            >
+              {deleting ? 'Deleting…' : 'Delete'}
+            </button>
+          </div>
         </div>
       )}
 
-      {/* Footer: roles + project count */}
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex flex-wrap gap-1 min-w-0">
-          {contact.roles.slice(0, 3).map(role => (
+      <Link
+        href={`/contacts/${contact.id}`}
+        className="block rounded-lg border border-border bg-card p-4 hover:border-foreground/20 hover:shadow-sm transition-all"
+      >
+        {/* Header */}
+        <div className="flex items-start gap-3 mb-3">
+          <div className="size-9 rounded-full bg-muted flex items-center justify-center shrink-0 overflow-hidden">
+            {contact.avatar_url ? (
+              <img src={contact.avatar_url} alt={contact.full_name} className="size-9 object-cover" />
+            ) : contact.is_organization ? (
+              <Building2 size={16} className="text-muted-foreground" />
+            ) : (
+              <User size={16} className="text-muted-foreground" />
+            )}
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-medium leading-tight truncate">{contact.full_name}</p>
+            {contact.title && (
+              <p className="text-xs text-muted-foreground truncate">{contact.title}</p>
+            )}
+            {contact.company && (
+              <p className="text-xs text-muted-foreground truncate">{contact.company}</p>
+            )}
+          </div>
+          <div className="flex items-center gap-1 shrink-0 mt-0.5">
             <span
-              key={role}
-              className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium bg-muted text-muted-foreground"
+              title="Enrich profile"
+              className="opacity-0 group-hover:opacity-100 transition-opacity text-purple-400 hover:text-purple-600"
+              onClick={e => {
+                e.preventDefault()
+                window.location.href = `/contacts/${contact.id}?tab=overview`
+              }}
             >
-              {role}
+              <Sparkles size={14} />
             </span>
-          ))}
-          {contact.roles.length > 3 && (
-            <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium bg-muted text-muted-foreground">
-              +{contact.roles.length - 3}
+            <button
+              title="Delete contact"
+              onClick={e => { e.preventDefault(); e.stopPropagation(); setConfirming(true) }}
+              className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
+            >
+              <Trash2 size={14} />
+            </button>
+          </div>
+        </div>
+
+        {/* Contact info */}
+        {(contact.email || contact.phone) && (
+          <div className="space-y-1 mb-3">
+            {contact.email && (
+              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <Mail size={11} className="shrink-0" />
+                <span className="truncate">{contact.email}</span>
+              </div>
+            )}
+            {contact.phone && (
+              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <Phone size={11} className="shrink-0" />
+                {contact.phone}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Footer: roles + project count */}
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex flex-wrap gap-1 min-w-0">
+            {contact.roles.slice(0, 3).map(role => (
+              <span
+                key={role}
+                className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium bg-muted text-muted-foreground"
+              >
+                {role}
+              </span>
+            ))}
+            {contact.roles.length > 3 && (
+              <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium bg-muted text-muted-foreground">
+                +{contact.roles.length - 3}
+              </span>
+            )}
+          </div>
+          {contact.project_count > 0 && (
+            <span className="text-[10px] text-muted-foreground shrink-0">
+              {contact.project_count} project{contact.project_count !== 1 ? 's' : ''}
             </span>
           )}
         </div>
-        {contact.project_count > 0 && (
-          <span className="text-[10px] text-muted-foreground shrink-0">
-            {contact.project_count} project{contact.project_count !== 1 ? 's' : ''}
-          </span>
-        )}
-      </div>
-    </Link>
+      </Link>
+    </div>
   )
 }

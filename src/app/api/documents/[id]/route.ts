@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server'
+import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 
 interface RouteContext {
@@ -6,8 +7,11 @@ interface RouteContext {
 }
 
 export async function DELETE(_request: NextRequest, { params }: RouteContext) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 })
+
   const { id } = await params
-  const supabase = createAdminClient()
 
   // Fetch the document to get its storage path
   const { data: doc, error: fetchError } = await supabase
@@ -20,8 +24,9 @@ export async function DELETE(_request: NextRequest, { params }: RouteContext) {
     return Response.json({ error: 'Document not found' }, { status: 404 })
   }
 
-  // Remove from Supabase Storage
-  const { error: storageError } = await supabase.storage
+  // Remove from Supabase Storage (admin needed to bypass storage RLS)
+  const admin = createAdminClient()
+  const { error: storageError } = await admin.storage
     .from('documents')
     .remove([doc.storage_path])
 
@@ -30,7 +35,7 @@ export async function DELETE(_request: NextRequest, { params }: RouteContext) {
     console.error('Storage delete failed:', storageError.message)
   }
 
-  // Delete DB record (triggers activity_log via trigger)
+  // Delete DB record via user client so activity_log captures the real user
   const { error: dbError } = await supabase
     .from('documents')
     .delete()

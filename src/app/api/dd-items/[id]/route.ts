@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server'
-import { createAdminClient } from '@/lib/supabase/admin'
+import { createClient } from '@/lib/supabase/server'
 import type { TablesUpdate } from '@/lib/supabase/types'
 
 interface RouteContext {
@@ -7,6 +7,10 @@ interface RouteContext {
 }
 
 export async function PATCH(request: NextRequest, { params }: RouteContext) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 })
+
   const { id } = await params
   const body = await request.json()
 
@@ -28,8 +32,6 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
     update.resolved_at = null
   }
 
-  const supabase = createAdminClient()
-
   const { data, error } = await supabase
     .from('dd_items')
     .update(update)
@@ -46,8 +48,11 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
 }
 
 export async function DELETE(_request: NextRequest, { params }: RouteContext) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 })
+
   const { id } = await params
-  const supabase = createAdminClient()
 
   const { error } = await supabase.from('dd_items').delete().eq('id', id)
 

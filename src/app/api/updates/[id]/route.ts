@@ -1,5 +1,4 @@
 import { NextRequest } from 'next/server'
-import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import type { Json } from '@/lib/supabase/types'
 
@@ -9,6 +8,10 @@ interface RouteContext {
 
 /** PATCH — toggle a single action item's completed flag */
 export async function PATCH(request: NextRequest, { params }: RouteContext) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 })
+
   const { id } = await params
   const body = await request.json()
   const { index, completed } = body
@@ -19,8 +22,6 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
       { status: 400 }
     )
   }
-
-  const supabase = createAdminClient()
 
   // Fetch current action_items
   const { data: update, error: fetchError } = await supabase
@@ -83,8 +84,6 @@ export async function PUT(request: NextRequest, { params }: RouteContext) {
     return Response.json({ error: 'Invalid request body' }, { status: 400 })
   }
 
-  const admin = createAdminClient()
-
   // Build the update payload — only include fields that were sent
   const payload: {
     summary?: string
@@ -105,7 +104,7 @@ export async function PUT(request: NextRequest, { params }: RouteContext) {
     return Response.json({ error: 'No fields to update' }, { status: 400 })
   }
 
-  const { error } = await admin
+  const { error } = await supabase
     .from('updates')
     .update(payload)
     .eq('id', id)
@@ -130,8 +129,7 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
     return Response.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const admin = createAdminClient()
-  const { data, error } = await admin
+  const { data, error } = await supabase
     .from('updates')
     .select('*')
     .eq('id', id)

@@ -1,16 +1,18 @@
 import { NextRequest } from 'next/server'
-import { createAdminClient } from '@/lib/supabase/admin'
+import { createClient } from '@/lib/supabase/server'
 import type { TablesInsert } from '@/lib/supabase/types'
 
 export async function POST(request: NextRequest) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 })
+
   const body = await request.json()
   const { project_id, ...fields } = body
 
   if (!project_id) {
     return Response.json({ error: 'project_id is required' }, { status: 400 })
   }
-
-  const supabase = createAdminClient()
 
   const row: TablesInsert<'financing_structures'> = {
     project_id,

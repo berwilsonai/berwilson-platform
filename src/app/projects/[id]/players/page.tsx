@@ -1,8 +1,9 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { Building2, Star, User, UserPlus, Users } from 'lucide-react'
+import { Building2, Star, User, Users } from 'lucide-react'
 import { createAdminClient } from '@/lib/supabase/admin'
 import EmptyState from '@/components/shared/EmptyState'
+import AddPlayerModal from '@/components/projects/AddPlayerModal'
 
 export const metadata = { title: 'Team — Ber Wilson Intelligence' }
 
@@ -59,13 +60,15 @@ export default async function PlayersPage({ params }: PageProps) {
         title="No players yet"
         description="Add the key people and organizations involved in this project."
         action={
-          <Link
-            href={`/contacts/new`}
-            className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors"
-          >
-            <UserPlus size={14} />
-            Add Contact
-          </Link>
+          <div className="flex items-center gap-2">
+            <AddPlayerModal projectId={projectId} />
+            <Link
+              href={`/contacts/new`}
+              className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md border border-input text-xs font-medium hover:bg-accent transition-colors"
+            >
+              Create New Contact
+            </Link>
+          </div>
         }
       />
     )
@@ -77,6 +80,7 @@ export default async function PlayersPage({ params }: PageProps) {
         <p className="text-xs text-muted-foreground">
           {players.length} player{players.length !== 1 ? 's' : ''} on this project
         </p>
+        <AddPlayerModal projectId={projectId} />
       </div>
 
       <div className="rounded-lg border border-border overflow-hidden">

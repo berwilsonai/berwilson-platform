@@ -1,11 +1,15 @@
 import { NextRequest } from 'next/server'
-import { createAdminClient } from '@/lib/supabase/admin'
+import { createClient } from '@/lib/supabase/server'
 
 interface RouteContext {
   params: Promise<{ id: string }>
 }
 
 export async function PATCH(request: NextRequest, { params }: RouteContext) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 })
+
   const { id } = await params
   const body = await request.json()
   const { stage } = body
@@ -13,8 +17,6 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
   if (!stage) {
     return Response.json({ error: 'stage is required' }, { status: 400 })
   }
-
-  const supabase = createAdminClient()
 
   const { data, error } = await supabase
     .from('projects')

@@ -49,3 +49,20 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
 
   return Response.json({ party: data })
 }
+
+export async function DELETE(_request: NextRequest, { params }: RouteContext) {
+  const { id } = await params
+  const supabase = createAdminClient()
+
+  // Soft-delete: archive so data is preserved but contact disappears from active lists
+  const { error } = await supabase
+    .from('parties')
+    .update({ status: 'archived' })
+    .eq('id', id)
+
+  if (error) {
+    return Response.json({ error: error.message }, { status: 500 })
+  }
+
+  return Response.json({ ok: true })
+}
