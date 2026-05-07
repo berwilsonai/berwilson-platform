@@ -149,7 +149,7 @@ export default function ReviewActions({
               className="fixed inset-0 z-40"
               onClick={() => setShowReassign(false)}
             />
-            <div className="absolute right-0 top-full mt-1 z-50 w-64 rounded-lg border border-border bg-popover shadow-lg">
+            <div className="absolute right-0 bottom-full mb-1 z-50 w-64 rounded-lg border border-border bg-popover shadow-lg">
               <div className="p-2 border-b border-border">
                 <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
                   Move to project

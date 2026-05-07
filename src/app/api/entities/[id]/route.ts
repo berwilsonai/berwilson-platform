@@ -11,7 +11,7 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
   const supabase = createAdminClient()
 
   // Build update payload — only include fields that were sent
-  const updates: Record<string, unknown> = {}
+  const updates: import('@/lib/supabase/types').TablesUpdate<'entities'> = {}
 
   if ('name' in body) updates.name = body.name?.trim()
   if ('entity_type' in body) updates.entity_type = body.entity_type

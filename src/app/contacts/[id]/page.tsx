@@ -21,6 +21,7 @@ import RelationshipNotesEditor from '@/components/contacts/RelationshipNotesEdit
 import AvatarUpload from '@/components/contacts/AvatarUpload'
 import LinkedInEditor from '@/components/contacts/LinkedInEditor'
 import EnrichProfileButton from '@/components/contacts/EnrichProfileButton'
+import ContactEnrichmentDisplay from '@/components/contacts/ContactEnrichmentDisplay'
 import BackgroundCheckStatus from '@/components/contacts/BackgroundCheckStatus'
 
 interface PageProps {
@@ -388,12 +389,14 @@ export default async function ContactDetailPage({ params, searchParams }: PagePr
               {party.enrichment_notes && (
                 <section>
                   <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
-                    Enrichment Notes
+                    Research Notes
                   </h2>
                   <div className="rounded-lg border border-border bg-card p-4">
-                    <pre className="text-xs text-muted-foreground whitespace-pre-wrap font-mono">
-                      {JSON.stringify(party.enrichment_notes, null, 2)}
-                    </pre>
+                    <ContactEnrichmentDisplay
+                      data={party.enrichment_notes as Record<string, unknown>}
+                      enrichedAt={party.perplexity_enriched_at ?? null}
+                      conflicts={party.enrichment_conflicts as Array<{ field: string; current: string; enriched: string }> | null}
+                    />
                   </div>
                 </section>
               )}

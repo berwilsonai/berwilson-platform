@@ -20,13 +20,15 @@ import { cn } from '@/lib/utils'
 import ReviewForm from './ReviewForm'
 import EnrichEntityButton from './EnrichEntityButton'
 import VendorEditForm from './VendorEditForm'
+import VendorDocuments from './VendorDocuments'
+import type { Document as DocRecord } from '@/lib/supabase/types'
 
 interface ProjectLink {
   id: string
   relationship: string
   equity_pct: number | null
   notes: string | null
-  projects: { id: string; name: string; status: string; sector: string } | null
+  projects: { id: string; name: string; status: string | null; sector: string } | null
 }
 
 interface Review {
@@ -39,7 +41,7 @@ interface Review {
   would_rehire: boolean | null
   notes: string | null
   reviewed_by: string | null
-  reviewed_at: string
+  reviewed_at: string | null
   projects: { id: string; name: string } | null
 }
 
@@ -57,6 +59,7 @@ interface VendorProfileClientProps {
   reviews: Review[]
   primaryContact: PrimaryContact | null
   allProjects: Array<{ id: string; name: string }>
+  entityDocuments: DocRecord[]
 }
 
 const RELATIONSHIP_LABELS: Record<string, string> = {
@@ -70,12 +73,50 @@ const RELATIONSHIP_LABELS: Record<string, string> = {
   guarantor: 'Guarantor',
 }
 
+function PrimaryContactSection({ contact }: { contact: PrimaryContact | null }) {
+  if (!contact) return null
+  return (
+    <section className="rounded-lg border border-border p-3">
+      <h3 className="text-xs font-semibold mb-2">Primary Contact</h3>
+      <Link
+        href={`/contacts/${contact.id}`}
+        className="flex items-center gap-2 hover:bg-muted/50 p-1.5 rounded -mx-1.5 transition-colors"
+      >
+        <div className="w-7 h-7 rounded-full bg-muted flex items-center justify-center shrink-0">
+          <User size={12} className="text-muted-foreground" />
+        </div>
+        <div className="min-w-0">
+          <p className="text-xs font-medium truncate">{contact.full_name}</p>
+          {contact.title && (
+            <p className="text-[10px] text-muted-foreground truncate">{contact.title}</p>
+          )}
+        </div>
+      </Link>
+      <div className="mt-2 space-y-1">
+        {contact.email && (
+          <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+            <Mail size={10} className="shrink-0" />
+            <span className="truncate">{contact.email}</span>
+          </div>
+        )}
+        {contact.phone && (
+          <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+            <Phone size={10} className="shrink-0" />
+            <span>{contact.phone}</span>
+          </div>
+        )}
+      </div>
+    </section>
+  )
+}
+
 export default function VendorProfileClient({
   entity,
   projectLinks,
   reviews: initialReviews,
   primaryContact,
   allProjects,
+  entityDocuments,
 }: VendorProfileClientProps) {
   const [reviews, setReviews] = useState(initialReviews)
   const [showReviewForm, setShowReviewForm] = useState(false)
@@ -145,13 +186,13 @@ export default function VendorProfileClient({
                               <span>{Number(review.rating).toFixed(1)}</span>
                               {review.on_time !== null && (
                                 review.on_time
-                                  ? <CheckCircle2 size={10} className="text-green-500 ml-1" title="On time" />
-                                  : <XCircle size={10} className="text-red-400 ml-1" title="Late" />
+                                  ? <CheckCircle2 size={10} className="text-green-500 ml-1" />
+                                  : <XCircle size={10} className="text-red-400 ml-1" />
                               )}
                               {review.on_budget !== null && (
                                 review.on_budget
-                                  ? <CheckCircle2 size={10} className="text-green-500" title="On budget" />
-                                  : <XCircle size={10} className="text-red-400" title="Over budget" />
+                                  ? <CheckCircle2 size={10} className="text-green-500" />
+                                  : <XCircle size={10} className="text-red-400" />
                               )}
                             </div>
                           ) : (
@@ -221,7 +262,7 @@ export default function VendorProfileClient({
                     </div>
                     <div className="flex items-center gap-2">
                       <span className="text-[10px] text-muted-foreground">
-                        {new Date(review.reviewed_at).toLocaleDateString()}
+                        {review.reviewed_at ? new Date(review.reviewed_at).toLocaleDateString() : '—'}
                       </span>
                       <button
                         onClick={() => handleReviewDeleted(review.id)}
@@ -292,39 +333,7 @@ export default function VendorProfileClient({
         )}
 
         {/* Primary Contact */}
-        {primaryContact && (
-          <section className="rounded-lg border border-border p-3">
-            <h3 className="text-xs font-semibold mb-2">Primary Contact</h3>
-            <Link
-              href={`/contacts/${primaryContact.id}`}
-              className="flex items-center gap-2 hover:bg-muted/50 p-1.5 rounded -mx-1.5 transition-colors"
-            >
-              <div className="w-7 h-7 rounded-full bg-muted flex items-center justify-center shrink-0">
-                <User size={12} className="text-muted-foreground" />
-              </div>
-              <div className="min-w-0">
-                <p className="text-xs font-medium truncate">{primaryContact.full_name}</p>
-                {primaryContact.title && (
-                  <p className="text-[10px] text-muted-foreground truncate">{primaryContact.title}</p>
-                )}
-              </div>
-            </Link>
-            <div className="mt-2 space-y-1">
-              {primaryContact.email && (
-                <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                  <Mail size={10} className="shrink-0" />
-                  <span className="truncate">{primaryContact.email}</span>
-                </div>
-              )}
-              {primaryContact.phone && (
-                <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                  <Phone size={10} className="shrink-0" />
-                  <span>{primaryContact.phone}</span>
-                </div>
-              )}
-            </div>
-          </section>
-        )}
+        <PrimaryContactSection contact={primaryContact} />
 
         {/* Entity Details */}
         <section className="rounded-lg border border-border p-3">
@@ -334,34 +343,40 @@ export default function VendorProfileClient({
               <dt className="text-muted-foreground">Type</dt>
               <dd className="font-medium uppercase">{entity.entity_type as string}</dd>
             </div>
-            {entity.jurisdiction && (
+            {entity.jurisdiction ? (
               <div>
                 <dt className="text-muted-foreground">Jurisdiction</dt>
                 <dd className="font-medium">{entity.jurisdiction as string}</dd>
               </div>
-            )}
-            {entity.ein && (
+            ) : null}
+            {entity.ein ? (
               <div>
                 <dt className="text-muted-foreground">EIN</dt>
                 <dd className="font-medium">{entity.ein as string}</dd>
               </div>
-            )}
-            {entity.formation_date && (
+            ) : null}
+            {entity.formation_date ? (
               <div>
                 <dt className="text-muted-foreground">Formed</dt>
                 <dd className="font-medium">{new Date(entity.formation_date as string).toLocaleDateString()}</dd>
               </div>
-            )}
+            ) : null}
           </dl>
         </section>
 
         {/* Enrichment Data */}
-        {entity.enrichment_data && (
+        {entity.enrichment_data ? (
           <section className="rounded-lg border border-border p-3">
             <h3 className="text-xs font-semibold mb-2">Research Notes</h3>
             <EnrichmentNotesDisplay data={entity.enrichment_data as Record<string, unknown>} />
           </section>
-        )}
+        ) : null}
+
+        {/* Vendor Documents */}
+        <VendorDocuments
+          entityId={entity.id as string}
+          initialDocuments={entityDocuments}
+        />
       </div>
     </div>
   )
@@ -378,12 +393,12 @@ function EnrichmentNotesDisplay({ data }: { data: Record<string, unknown> }) {
 
   return (
     <div className="space-y-2">
-      {data.founded_year && (
+      {data.founded_year ? (
         <p className="text-[11px] text-muted-foreground">Founded: {data.founded_year as string}</p>
-      )}
-      {data.employee_count && (
+      ) : null}
+      {data.employee_count ? (
         <p className="text-[11px] text-muted-foreground">Employees: {data.employee_count as string}</p>
-      )}
+      ) : null}
       {sections.map(({ key, label }) => {
         const val = data[key]
         if (!val) return null

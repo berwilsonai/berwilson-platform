@@ -12,8 +12,9 @@
 import { NextRequest } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { researchQuery } from '@/lib/ai/perplexity'
+import { researchQuery } from '@/lib/ai/research'
 import { callGemini } from '@/lib/ai/gemini'
+import { embedEntityEnrichment } from '@/lib/ai/embeddings'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -124,7 +125,7 @@ export async function POST(
   // ── CONFIRM: save enriched data ──────────────────────────────────────────
   if (body.confirm && body.enriched) {
     const { enriched } = body
-    const updates: Record<string, unknown> = {}
+    const updates: import('@/lib/supabase/types').TablesUpdate<'entities'> = {}
     const conflicts: EntityEnrichmentConflict[] = []
 
     // Scalar fields — only set if entity field is currently empty
@@ -152,7 +153,7 @@ export async function POST(
     }
 
     if (enriched.enrichment_notes) {
-      updates.enrichment_data = enriched.enrichment_notes
+      updates.enrichment_data = enriched.enrichment_notes as import('@/lib/supabase/types').Json
     }
 
     updates.enriched_at = new Date().toISOString()
@@ -165,6 +166,9 @@ export async function POST(
     if (error) {
       return Response.json({ error: error.message }, { status: 500 })
     }
+
+    // Embed enrichment data into vector store for intelligence queries
+    embedEntityEnrichment(id).catch(console.error)
 
     return Response.json({ saved: true, conflicts })
   }

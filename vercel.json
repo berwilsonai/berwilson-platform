@@ -3,6 +3,10 @@
     {
       "path": "/api/cron/renew-subscriptions",
       "schedule": "0 6 */2 * *"
+    },
+    {
+      "path": "/api/cron/risk-scores",
+      "schedule": "0 7 * * *"
     }
   ]
 }

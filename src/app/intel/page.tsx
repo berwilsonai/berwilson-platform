@@ -14,7 +14,7 @@ export default function IntelPage() {
         <div>
           <h1 className="text-lg font-semibold text-foreground">Intelligence</h1>
           <p className="text-xs text-muted-foreground">
-            Query your data or chat with the Executive Agent across your full portfolio
+            Ask anything — the agent searches your portfolio data, documents, and the web automatically
           </p>
         </div>
       </div>

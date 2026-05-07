@@ -68,9 +68,9 @@ export async function POST(request: NextRequest) {
     }
 
     // Extract email address from the resource path:
-    // "users/info@berwilson.com/mailFolders/inbox/messages"
+    // "users/tuaone@berwilson.com/mailFolders/inbox/messages"
     const emailMatch = notification.resource.match(/users\/([^/]+)\//)
-    const emailAddress = emailMatch?.[1] ?? 'info@berwilson.com'
+    const emailAddress = emailMatch?.[1] ?? 'tuaone@berwilson.com'
 
     try {
       const result = await processEmailNotification(messageId, emailAddress)

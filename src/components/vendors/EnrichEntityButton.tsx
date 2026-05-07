@@ -96,7 +96,7 @@ export default function EnrichEntityButton({
     )
   }
 
-  if (state === 'review' && preview) {
+  if ((state === 'review' || state === 'saving') && preview) {
     return (
       <div className="rounded-lg border border-border p-3 space-y-3 bg-muted/30">
         <h4 className="text-xs font-semibold">Research Results for {entityName}</h4>

@@ -41,6 +41,7 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith('/auth/set-password') ||
     pathname === '/api/email/webhook' ||           // Microsoft Graph webhook (validation + notifications)
     pathname === '/api/cron/renew-subscriptions' || // Vercel cron job
+    pathname === '/api/cron/risk-scores' ||         // Risk scoring cron job
     pathname.startsWith('/api/email/oauth/callback') // OAuth redirect from Microsoft
 
   if (!user && !isPublicRoute) {

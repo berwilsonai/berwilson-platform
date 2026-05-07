@@ -49,7 +49,7 @@ export async function GET(request: NextRequest) {
 
     return new Response(html(`
       <h2 style="color:#16a34a">✓ Microsoft connected successfully</h2>
-      <p>Access tokens stored. <strong>info@berwilson.com</strong> is authorized.</p>
+      <p>Access tokens stored. <strong>tuaone@berwilson.com</strong> is authorized.</p>
       <p>Next step: create the inbox subscription so emails start flowing.</p>
       <br/>
       <p>Run this in your browser console on the platform, or ask Claude to call <code>POST /api/email/subscribe</code>:</p>

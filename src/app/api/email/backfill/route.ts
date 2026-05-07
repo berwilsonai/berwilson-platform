@@ -4,7 +4,7 @@ import { processEmailNotification } from '@/lib/email/pipeline'
 
 export const maxDuration = 300 // 5 minutes
 
-const TARGET_EMAIL = 'info@berwilson.com'
+const TARGET_EMAIL = 'tuaone@berwilson.com'
 const GRAPH_BASE = 'https://graph.microsoft.com/v1.0'
 const MAX_WEEKS = 8
 

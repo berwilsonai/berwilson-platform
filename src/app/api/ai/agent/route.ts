@@ -9,16 +9,22 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { runAgent } from '@/lib/ai/agent'
+import { checkRateLimit } from '@/lib/rate-limit'
 import type { Content } from '@google/generative-ai'
-import type { SupabaseClient } from '@supabase/supabase-js'
-
-// The agent_conversations and agent_messages tables are new and not yet in
-// the generated Database type. Queries use `as never` casts until `npm run gen-types`.
 
 export async function POST(request: NextRequest) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  // Rate limit: 20 requests per minute per user
+  const rl = checkRateLimit(`agent:${user.id}`, 20, 60_000)
+  if (!rl.allowed) {
+    return NextResponse.json(
+      { error: 'Rate limit exceeded. Please wait before sending another message.' },
+      { status: 429, headers: { 'Retry-After': String(Math.ceil(rl.retryAfterMs / 1000)) } }
+    )
+  }
 
   const body = await request.json() as {
     message?: string
@@ -35,25 +41,25 @@ export async function POST(request: NextRequest) {
 
   // Create or verify conversation
   if (!conversationId) {
-    const { data: conv, error } = await (admin as unknown as SupabaseClient)
-      .from('agent_conversations' as never)
+    const { data: conv, error } = await admin
+      .from('agent_conversations')
       .insert({
         user_id: user.id,
         project_id: body.projectId ?? null,
         title: body.message.slice(0, 100),
-      } as never)
+      })
       .select('id')
       .single()
 
     if (error || !conv) {
       return NextResponse.json({ error: 'Failed to create conversation' }, { status: 500 })
     }
-    conversationId = (conv as { id: string }).id
+    conversationId = conv.id
   }
 
   // Load conversation history (last 20 messages for context)
-  const { data: messages } = await (admin as unknown as SupabaseClient)
-    .from('agent_messages' as never)
+  const { data: messages } = await admin
+    .from('agent_messages')
     .select('role, content, tool_calls, tool_results')
     .eq('conversation_id', conversationId as string)
     .order('created_at', { ascending: true })
@@ -70,13 +76,13 @@ export async function POST(request: NextRequest) {
     }))
 
   // Save user message
-  await (admin as unknown as SupabaseClient)
-    .from('agent_messages' as never)
+  await admin
+    .from('agent_messages')
     .insert({
       conversation_id: conversationId,
       role: 'user',
       content: body.message,
-    } as never)
+    })
 
   // Run agent
   try {
@@ -87,8 +93,8 @@ export async function POST(request: NextRequest) {
     }, history)
 
     // Save assistant message — capture the returned ID for ratings
-    const { data: savedMsg } = await (admin as unknown as SupabaseClient)
-      .from('agent_messages' as never)
+    const { data: savedMsg } = await admin
+      .from('agent_messages')
       .insert({
         conversation_id: conversationId,
         role: 'assistant',
@@ -98,16 +104,16 @@ export async function POST(request: NextRequest) {
         tokens_in: result.tokensIn,
         tokens_out: result.tokensOut,
         latency_ms: result.latencyMs,
-      } as never)
+      })
       .select('id')
       .single()
 
-    const messageId = (savedMsg as { id?: string } | null)?.id ?? null
+    const messageId = savedMsg?.id ?? null
 
     // Update conversation timestamp
-    await (admin as unknown as SupabaseClient)
-      .from('agent_conversations' as never)
-      .update({ updated_at: new Date().toISOString() } as never)
+    await admin
+      .from('agent_conversations')
+      .update({ updated_at: new Date().toISOString() })
       .eq('id', conversationId as string)
 
     return NextResponse.json({
@@ -142,8 +148,8 @@ export async function GET(request: NextRequest) {
 
   // If conversationId given, load messages
   if (conversationId) {
-    const { data: messages, error } = await (admin as unknown as SupabaseClient)
-      .from('agent_messages' as never)
+    const { data: messages, error } = await admin
+      .from('agent_messages')
       .select('id, role, content, tool_calls, model_used, latency_ms, created_at')
       .eq('conversation_id', conversationId)
       .order('created_at', { ascending: true })
@@ -153,8 +159,8 @@ export async function GET(request: NextRequest) {
   }
 
   // Otherwise list conversations for this user/project
-  let q = (admin as unknown as SupabaseClient)
-    .from('agent_conversations' as never)
+  let q = admin
+    .from('agent_conversations')
     .select('id, title, project_id, created_at, updated_at')
     .eq('user_id', user.id)
     .order('updated_at', { ascending: false })

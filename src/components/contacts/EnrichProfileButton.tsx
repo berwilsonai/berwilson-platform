@@ -10,8 +10,11 @@ interface EnrichmentNotes {
   years_of_experience?: string | null
   past_projects?: string[] | null
   certifications?: string[] | null
+  personal_credentials?: string[] | null
+  litigation_history?: string[] | null
   news_mentions?: string[] | null
   notable_affiliations?: string[] | null
+  address?: string | null
 }
 
 interface EnrichmentPreview {
@@ -19,6 +22,7 @@ interface EnrichmentPreview {
   title: string | null
   company: string | null
   full_name: string | null
+  phone: string | null
   government_contract_history: string | null
   enrichment_notes: EnrichmentNotes
   sources: Array<{ url: string; title?: string }>
@@ -35,6 +39,7 @@ interface CurrentState {
   full_name: string
   title: string | null
   company: string | null
+  phone: string | null
   linkedin_url: string | null
   government_contract_history: string | null
 }
@@ -51,6 +56,7 @@ const FIELD_LABELS: Record<string, string> = {
   full_name: 'Full Name',
   title: 'Title',
   company: 'Company',
+  phone: 'Phone',
   linkedin_url: 'LinkedIn URL',
   government_contract_history: 'Contract History',
 }
@@ -123,6 +129,15 @@ function NotesPreview({ notes }: { notes: EnrichmentNotes }) {
   const hasAny = Object.values(notes).some((v) => v !== null && v !== undefined && (Array.isArray(v) ? v.length > 0 : true))
   if (!hasAny) return null
 
+  const arrayFields: Array<{ key: keyof EnrichmentNotes; label: string }> = [
+    { key: 'past_projects', label: 'Past Projects' },
+    { key: 'certifications', label: 'Certifications' },
+    { key: 'personal_credentials', label: 'Licenses & Credentials' },
+    { key: 'litigation_history', label: 'Litigation History' },
+    { key: 'news_mentions', label: 'News Mentions' },
+    { key: 'notable_affiliations', label: 'Notable Affiliations' },
+  ]
+
   return (
     <div className="rounded-md border border-blue-200 bg-blue-50/40 px-3 py-2.5 space-y-2">
       <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
@@ -136,38 +151,24 @@ function NotesPreview({ notes }: { notes: EnrichmentNotes }) {
           <p className="text-sm">{notes.years_of_experience}</p>
         </div>
       )}
-      {notes.past_projects && notes.past_projects.length > 0 && (
+      {notes.address && (
         <div>
-          <p className="text-[10px] text-muted-foreground">Past Projects</p>
-          <ul className="text-sm list-disc pl-4 space-y-0.5">
-            {notes.past_projects.map((p, i) => <li key={i}>{p}</li>)}
-          </ul>
+          <p className="text-[10px] text-muted-foreground">Address</p>
+          <p className="text-sm">{notes.address}</p>
         </div>
       )}
-      {notes.certifications && notes.certifications.length > 0 && (
-        <div>
-          <p className="text-[10px] text-muted-foreground">Certifications</p>
-          <ul className="text-sm list-disc pl-4 space-y-0.5">
-            {notes.certifications.map((c, i) => <li key={i}>{c}</li>)}
-          </ul>
-        </div>
-      )}
-      {notes.news_mentions && notes.news_mentions.length > 0 && (
-        <div>
-          <p className="text-[10px] text-muted-foreground">News Mentions</p>
-          <ul className="text-sm list-disc pl-4 space-y-0.5">
-            {notes.news_mentions.map((n, i) => <li key={i}>{n}</li>)}
-          </ul>
-        </div>
-      )}
-      {notes.notable_affiliations && notes.notable_affiliations.length > 0 && (
-        <div>
-          <p className="text-[10px] text-muted-foreground">Notable Affiliations</p>
-          <ul className="text-sm list-disc pl-4 space-y-0.5">
-            {notes.notable_affiliations.map((a, i) => <li key={i}>{a}</li>)}
-          </ul>
-        </div>
-      )}
+      {arrayFields.map(({ key, label }) => {
+        const arr = notes[key]
+        if (!Array.isArray(arr) || arr.length === 0) return null
+        return (
+          <div key={key}>
+            <p className="text-[10px] text-muted-foreground">{label}</p>
+            <ul className="text-sm list-disc pl-4 space-y-0.5">
+              {(arr as string[]).map((item, i) => <li key={i}>{item}</li>)}
+            </ul>
+          </div>
+        )
+      })}
     </div>
   )
 }
@@ -285,7 +286,7 @@ export default function EnrichProfileButton({
     const { preview, conflicts, current } = data
     const conflictFields = new Set(conflicts.map((c) => c.field))
 
-    const scalarFields: Array<keyof typeof current> = ['full_name', 'title', 'company', 'linkedin_url', 'government_contract_history']
+    const scalarFields: Array<keyof typeof current> = ['full_name', 'title', 'company', 'phone', 'linkedin_url', 'government_contract_history']
     const hasAnyScalar = scalarFields.some(
       (f) => preview[f as keyof EnrichmentPreview] !== null
     )

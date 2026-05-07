@@ -6,7 +6,7 @@ import {
   LayoutDashboard,
   FolderKanban,
   Users,
-  Building2,
+  CalendarDays,
   ClipboardCheck,
   Brain,
 } from 'lucide-react'
@@ -14,8 +14,8 @@ import {
 const NAV_ITEMS = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/projects', label: 'Projects', icon: FolderKanban },
-  { href: '/contacts', label: 'Contacts', icon: Users },
-  { href: '/vendors', label: 'Vendors', icon: Building2 },
+  { href: '/calendar', label: 'Calendar', icon: CalendarDays },
+  { href: '/intel', label: 'Intel', icon: Brain },
   { href: '/review', label: 'Review', icon: ClipboardCheck, hasBadge: true },
 ] as const
 

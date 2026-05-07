@@ -117,17 +117,26 @@ export async function PATCH(
           .update({ status: 'active' })
           .eq('id', reviewItem.record_id as string)
       }
-    } else if (reviewItem.source_table === 'updates' && resolution === 'approved') {
-      // Trigger embedding for approved email updates (admin needed for chunks table)
+    } else if (reviewItem.source_table === 'updates' && (resolution === 'approved' || resolution === 'edited')) {
       if (reviewItem.record_id && reviewItem.project_id) {
         const { data: update } = await admin
           .from('updates')
-          .select('raw_content')
+          .select('raw_content, source')
           .eq('id', reviewItem.record_id)
           .single()
 
+        // Trigger embedding for approved updates (admin needed for chunks table)
         if (update?.raw_content) {
           embedUpdate(reviewItem.record_id, reviewItem.project_id, update.raw_content).catch(console.error)
+        }
+
+        // Purge email body after approval — the summary is the permanent record,
+        // and the Outlook web link is preserved for viewing the original.
+        if (update?.source === 'email') {
+          await admin
+            .from('updates')
+            .update({ raw_content: null })
+            .eq('id', reviewItem.record_id)
         }
       }
     }

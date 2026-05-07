@@ -11,7 +11,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 
 const GRAPH_BASE = 'https://graph.microsoft.com/v1.0'
 const OAUTH_BASE = 'https://login.microsoftonline.com'
-const TARGET_EMAIL = 'info@berwilson.com'
+const TARGET_EMAIL = 'tuaone@berwilson.com'
 
 // Scopes needed for reading mail via OAuth2 auth code flow
 const SCOPES = ['https://graph.microsoft.com/Mail.Read', 'offline_access']
@@ -41,6 +41,7 @@ export interface GraphMessage {
   receivedDateTime: string
   hasAttachments: boolean
   isRead: boolean
+  webLink: string
 }
 
 export interface GraphAttachment {
@@ -242,7 +243,7 @@ export async function fetchMessage(
 ): Promise<GraphMessage> {
   const token = await getValidAccessToken(email)
   return graphFetch<GraphMessage>(
-    `/users/${email}/messages/${messageId}?$select=id,internetMessageId,conversationId,subject,bodyPreview,body,from,toRecipients,ccRecipients,receivedDateTime,hasAttachments,isRead`,
+    `/users/${email}/messages/${messageId}?$select=id,internetMessageId,conversationId,subject,bodyPreview,body,from,toRecipients,ccRecipients,receivedDateTime,hasAttachments,isRead,webLink`,
     token
   )
 }
@@ -417,6 +418,7 @@ export async function markEmailProcessed(params: {
   senderEmail: string
   updateId: string | null
   status?: string
+  outlookWebLink?: string
 }) {
   const supabase = createAdminClient()
   await supabase.from('processed_emails').insert({
@@ -427,6 +429,7 @@ export async function markEmailProcessed(params: {
     sender_email: params.senderEmail,
     update_id: params.updateId,
     status: params.status ?? 'processed',
+    outlook_web_link: params.outlookWebLink ?? null,
   })
 }
 

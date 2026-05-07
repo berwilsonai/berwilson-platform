@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { Plus, FolderKanban } from 'lucide-react'
 import { createAdminClient } from '@/lib/supabase/admin'
 import type { ProjectSector, ProjectStatus, ProjectStage } from '@/lib/supabase/types'
+import { SECTORS, STATUSES, STAGES } from '@/lib/utils/constants'
 
 export const metadata = { title: 'Projects — Ber Wilson Intelligence' }
 import EmptyState from '@/components/shared/EmptyState'
@@ -13,23 +14,15 @@ interface PageProps {
   searchParams: Promise<{ sector?: string; status?: string; stage?: string }>
 }
 
-const VALID_SECTORS: ProjectSector[] = [
-  'government', 'infrastructure', 'real_estate', 'prefab', 'institutional',
-]
-const VALID_STATUSES: ProjectStatus[] = ['active', 'on_hold', 'won', 'lost', 'closed']
-const VALID_STAGES: ProjectStage[] = [
-  'pursuit', 'capture', 'bid', 'award', 'mobilization', 'execution', 'closeout',
-]
-
 export default async function ProjectsPage({ searchParams }: PageProps) {
   const params = await searchParams
-  const sector = VALID_SECTORS.includes(params.sector as ProjectSector)
+  const sector = SECTORS.includes(params.sector as ProjectSector)
     ? (params.sector as ProjectSector)
     : ''
-  const status = VALID_STATUSES.includes(params.status as ProjectStatus)
+  const status = STATUSES.includes(params.status as ProjectStatus)
     ? (params.status as ProjectStatus)
     : ''
-  const stage = VALID_STAGES.includes(params.stage as ProjectStage)
+  const stage = STAGES.includes(params.stage as ProjectStage)
     ? (params.stage as ProjectStage)
     : ''
 

@@ -3,7 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createSubscription } from '@/lib/integrations/microsoft-graph'
 
-const TARGET_EMAIL = 'info@berwilson.com'
+const TARGET_EMAIL = 'tuaone@berwilson.com'
 
 async function runSubscription(origin: string) {
   const notificationUrl = `${origin}/api/email/webhook`

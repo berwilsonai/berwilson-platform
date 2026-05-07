@@ -1,44 +1,34 @@
 'use client'
 
 import { useState } from 'react'
-import { Search, Bot } from 'lucide-react'
-import IntelClient from './IntelClient'
-import AgentTab from './AgentTab'
+import AgentChat from '@/components/agent/AgentChat'
+import ConversationList from './ConversationList'
 
+/**
+ * Unified Intelligence interface — single agent that handles both
+ * internal knowledge base queries and external web research.
+ * The agent decides which tools to use based on the question.
+ */
 export default function IntelTabs() {
-  const [tab, setTab] = useState<'queries' | 'agent'>('agent')
+  const [conversationId, setConversationId] = useState<string | null>(null)
 
   return (
-    <div className="space-y-4">
-      {/* Tab bar */}
-      <div className="flex items-center gap-1 border-b">
-        <button
-          onClick={() => setTab('agent')}
-          className={`flex items-center gap-1.5 px-3 py-2 text-sm font-medium border-b-2 transition-colors ${
-            tab === 'agent'
-              ? 'border-primary text-primary'
-              : 'border-transparent text-muted-foreground hover:text-foreground'
-          }`}
-        >
-          <Bot size={14} />
-          Agent
-        </button>
-        <button
-          onClick={() => setTab('queries')}
-          className={`flex items-center gap-1.5 px-3 py-2 text-sm font-medium border-b-2 transition-colors ${
-            tab === 'queries'
-              ? 'border-primary text-primary'
-              : 'border-transparent text-muted-foreground hover:text-foreground'
-          }`}
-        >
-          <Search size={14} />
-          Queries
-        </button>
-      </div>
+    <div className="flex gap-4 h-[650px]">
+      {/* Conversation history sidebar */}
+      <aside className="hidden lg:block w-56 shrink-0">
+        <ConversationList
+          activeConversationId={conversationId}
+          onSelectConversation={setConversationId}
+        />
+      </aside>
 
-      {/* Tab content */}
-      {tab === 'queries' && <IntelClient />}
-      {tab === 'agent' && <AgentTab />}
+      {/* Main chat */}
+      <div className="flex-1 min-w-0 border rounded-xl bg-background shadow-sm flex flex-col overflow-hidden">
+        <AgentChat
+          key={conversationId ?? 'new'}
+          className="flex-1 min-h-0"
+        />
+      </div>
     </div>
   )
 }

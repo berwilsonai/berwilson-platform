@@ -25,6 +25,7 @@ import {
 } from '@/lib/ai/prompts/classification'
 import type { ExtractionResult } from '@/types/domain'
 import { resolveEmailParticipants } from '@/lib/email/participants'
+import { embedUpdate } from '@/lib/ai/embeddings'
 
 const SYSTEM_USER_ID = '00000000-0000-0000-0000-000000000000'
 
@@ -155,6 +156,7 @@ export async function processEmailNotification(
       senderEmail: senderAddr,
       updateId: null,
       status: 'skipped',
+      outlookWebLink: message.webLink,
     })
     return { status: 'junk' }
   }
@@ -170,6 +172,7 @@ export async function processEmailNotification(
       senderEmail: senderAddr,
       updateId: null,
       status: 'skipped',
+      outlookWebLink: message.webLink,
     })
     return { status: 'processed' }
   }
@@ -218,6 +221,7 @@ export async function processEmailNotification(
       mentioned_parties: extraction.mentioned_parties ?? [],
       confidence: extraction.confidence,
       review_state: reviewState,
+      outlook_web_link: message.webLink,
     })
     .select('id')
     .single()
@@ -232,6 +236,7 @@ export async function processEmailNotification(
       senderEmail: message.from.emailAddress.address,
       updateId: null,
       status: 'failed',
+      outlookWebLink: message.webLink,
     })
     return { status: 'failed', error: `DB insert failed: ${updateError?.message}` }
   }
@@ -253,6 +258,18 @@ export async function processEmailNotification(
     await processAttachments(message.id, emailAddress, update.id, classification.project_id)
   }
 
+  // 9b. Auto-approved emails: embed, then purge body (saves storage).
+  //     Review-queue items get embedded + purged on approval instead.
+  if (reviewState === 'approved' && classification.project_id) {
+    const rawForEmbed = buildRawContent(message, bodyText)
+    embedUpdate(update.id, classification.project_id, rawForEmbed).catch(console.error)
+
+    await supabase
+      .from('updates')
+      .update({ raw_content: null })
+      .eq('id', update.id)
+  }
+
   // 10. Mark as processed for idempotency
   await markEmailProcessed({
     internetMessageId: message.internetMessageId,
@@ -261,6 +278,7 @@ export async function processEmailNotification(
     subject: message.subject,
     senderEmail: message.from.emailAddress.address,
     updateId: update.id,
+    outlookWebLink: message.webLink,
   })
 
   console.log(

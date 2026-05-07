@@ -12,8 +12,9 @@
 import { NextRequest } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { researchQuery } from '@/lib/ai/perplexity'
+import { researchQuery } from '@/lib/ai/research'
 import { callGemini } from '@/lib/ai/gemini'
+import { embedPartyEnrichment } from '@/lib/ai/embeddings'
 import type { TablesUpdate } from '@/lib/supabase/types'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -23,13 +24,17 @@ export interface EnrichmentPreview {
   title: string | null
   company: string | null
   full_name: string | null
+  phone: string | null
   government_contract_history: string | null
   enrichment_notes: {
     years_of_experience?: string | null
     past_projects?: string[] | null
     certifications?: string[] | null
+    personal_credentials?: string[] | null
+    litigation_history?: string[] | null
     news_mentions?: string[] | null
     notable_affiliations?: string[] | null
+    address?: string | null
     raw_text?: string
   }
   sources: Array<{ url: string; title?: string }>
@@ -49,6 +54,7 @@ export interface EnrichPreviewResponse {
     full_name: string
     title: string | null
     company: string | null
+    phone: string | null
     linkedin_url: string | null
     government_contract_history: string | null
   }
@@ -98,20 +104,35 @@ interface StructuredEnrichment {
   certifications?: string[] | null
   news_mentions?: string[] | null
   notable_affiliations?: string[] | null
+  phone?: string | null
+  address?: string | null
+  litigation_history?: string[] | null
+  personal_credentials?: string[] | null
 }
 
 async function structureWithGemini(
-  rawTexts: string[],
+  personTexts: string[],
+  companyTexts: string[],
   userId: string
 ): Promise<StructuredEnrichment> {
-  const combined = rawTexts.join('\n\n---\n\n')
+  const personSection = personTexts.length > 0
+    ? `=== PERSON SEARCH RESULTS (PRIMARY) ===\n${personTexts.join('\n\n---\n\n').slice(0, 6000)}`
+    : ''
+  const companySection = companyTexts.length > 0
+    ? `\n\n=== COMPANY CONTEXT (SECONDARY — use only to fill gaps about the person's role) ===\n${companyTexts.join('\n\n---\n\n').slice(0, 2000)}`
+    : ''
+  const combined = personSection + companySection
+
   const result = await callGemini<StructuredEnrichment>({
     task: 'extract',
     systemPrompt:
-      'You are a data extraction engine. Given raw web search results about a person or company, extract structured fields as JSON. Return ONLY valid JSON. No explanation. No markdown fences.',
-    userMessage: `Extract and structure the following fields if present from the text below. Return as JSON with these keys: linkedin_url, years_of_experience, past_projects (array), government_contract_history, certifications (array), news_mentions (array), notable_affiliations (array). If a field is not found, set it to null.\n\nText:\n${combined.slice(0, 8000)}`,
+      'You are a data extraction engine focused on extracting information about a SPECIFIC PERSON — not their company. ' +
+      'Prioritize personal details: their individual phone number, address, professional licenses, certifications they personally hold, litigation they are personally named in, and their career history. ' +
+      'Company information should only be included to contextualize the person\'s role or tenure. ' +
+      'Return ONLY valid JSON. No explanation. No markdown fences.',
+    userMessage: `Extract information about this specific person from the text below. Prioritize the PERSON SEARCH RESULTS section. Use COMPANY CONTEXT only to fill gaps about the person's role.\n\nReturn as JSON with these keys:\n- linkedin_url (string)\n- years_of_experience (string)\n- past_projects (array of project names they personally worked on)\n- government_contract_history (string — their personal involvement)\n- certifications (array — professional certs like PE, PMP, LEED AP, etc.)\n- personal_credentials (array — licenses, security clearances, degrees)\n- litigation_history (array — lawsuits, liens, court cases they are named in)\n- phone (string — personal or direct phone number)\n- address (string — personal or business address)\n- news_mentions (array)\n- notable_affiliations (array — boards, associations, memberships)\n\nIf a field is not found, set it to null.\n\nText:\n${combined}`,
     userId,
-    promptVersion: 'enrich-v1',
+    promptVersion: 'enrich-v2',
   })
   return (result.data ?? {}) as StructuredEnrichment
 }
@@ -150,7 +171,7 @@ export async function POST(
   // Load current party record
   const { data: party } = await admin
     .from('parties')
-    .select('id, full_name, title, company, email, linkedin_url, government_contract_history, enrichment_notes, enrichment_conflicts')
+    .select('id, full_name, title, company, email, phone, linkedin_url, government_contract_history, enrichment_notes, enrichment_conflicts')
     .eq('id', id)
     .single()
 
@@ -174,7 +195,7 @@ export async function POST(
     const conflicts: EnrichmentConflict[] = []
 
     // Simple scalar fields — only set if party field is currently empty
-    const scalarFields = ['linkedin_url', 'title', 'company', 'full_name', 'government_contract_history'] as const
+    const scalarFields = ['linkedin_url', 'title', 'company', 'full_name', 'phone', 'government_contract_history'] as const
     for (const field of scalarFields) {
       const newVal = enriched[field as keyof typeof enriched] as string | null
       const currentVal = party[field] as string | null
@@ -211,6 +232,9 @@ export async function POST(
       }
     }
 
+    // Embed enrichment data into vector store for intelligence queries
+    embedPartyEnrichment(id).catch(console.error)
+
     return Response.json({ saved: true, conflicts })
   }
 
@@ -223,60 +247,80 @@ export async function POST(
     graphDone = graphResult !== null
   }
 
-  // Build research queries from available data
+  // Build person-focused research queries
   const namePart = party.full_name
   const companyPart = graphResult?.companyName ?? party.company ?? ''
   const titlePart = graphResult?.jobTitle ?? party.title ?? ''
 
-  const personQuery = `${namePart}${companyPart ? ' ' + companyPart : ''}${titlePart ? ' ' + titlePart : ''} site:linkedin.com OR site:usaspending.gov OR site:sam.gov`
+  // Person queries (primary — these results get priority in extraction)
+  const personQueries = [
+    // LinkedIn + professional profile
+    `"${namePart}"${companyPart ? ` "${companyPart}"` : ''} site:linkedin.com OR site:usaspending.gov OR site:sam.gov`,
+    // Contact info + credentials
+    `"${namePart}"${companyPart ? ` "${companyPart}"` : ''} phone address license credentials certification`,
+    // Litigation + court records
+    `"${namePart}"${companyPart ? ` ${companyPart}` : ''} litigation lawsuit lien court records`,
+  ]
+  // Company query (secondary context only)
   const companyQuery = companyPart
     ? `${companyPart} government contracts construction history`
     : null
 
   const allSources: Array<{ url: string; title?: string }> = []
-  const rawTexts: string[] = []
+  const personTexts: string[] = []
+  const companyTexts: string[] = []
 
-  try {
-    const personRes = await researchQuery(personQuery)
-    rawTexts.push(personRes.text)
-    allSources.push(...personRes.sources)
-  } catch (err) {
-    console.error('[enrich] person query failed', err)
+  // Run person queries in parallel
+  const personResults = await Promise.allSettled(
+    personQueries.map((q) => researchQuery(q))
+  )
+  for (const result of personResults) {
+    if (result.status === 'fulfilled') {
+      personTexts.push(result.value.text)
+      allSources.push(...result.value.sources)
+    } else {
+      console.error('[enrich] person query failed', result.reason)
+    }
   }
 
   if (companyQuery) {
     try {
       const companyRes = await researchQuery(companyQuery)
-      rawTexts.push(companyRes.text)
+      companyTexts.push(companyRes.text)
       allSources.push(...companyRes.sources)
     } catch (err) {
       console.error('[enrich] company query failed', err)
     }
   }
 
-  // Structure the results
+  // Structure the results — person texts get priority
   let structured: StructuredEnrichment = {}
-  if (rawTexts.length > 0) {
+  if (personTexts.length > 0 || companyTexts.length > 0) {
     try {
-      structured = await structureWithGemini(rawTexts, user.id)
+      structured = await structureWithGemini(personTexts, companyTexts, user.id)
     } catch (err) {
       console.error('[enrich] structuring failed', err)
     }
   }
 
   // Build preview
+  const graphPhone = graphResult?.mobilePhone ?? graphResult?.businessPhones?.[0] ?? null
   const preview: EnrichmentPreview = {
     linkedin_url: structured.linkedin_url ?? null,
     title: graphResult?.jobTitle ?? null,
     company: graphResult?.companyName ?? null,
     full_name: graphResult?.displayName ?? null,
+    phone: graphPhone ?? structured.phone ?? null,
     government_contract_history: structured.government_contract_history ?? null,
     enrichment_notes: {
       years_of_experience: structured.years_of_experience ?? null,
       past_projects: structured.past_projects ?? null,
       certifications: structured.certifications ?? null,
+      personal_credentials: structured.personal_credentials ?? null,
+      litigation_history: structured.litigation_history ?? null,
       news_mentions: structured.news_mentions ?? null,
       notable_affiliations: structured.notable_affiliations ?? null,
+      address: structured.address ?? null,
     },
     sources: allSources.filter((s, i, arr) => arr.findIndex((x) => x.url === s.url) === i).slice(0, 20),
     graph_done: graphDone,
@@ -288,6 +332,7 @@ export async function POST(
     title: party.title ?? null,
     company: party.company ?? null,
     full_name: party.full_name ?? null,
+    phone: party.phone ?? null,
     government_contract_history: party.government_contract_history ?? null,
   }
   const previewScalars: Record<string, string | null> = {
@@ -295,6 +340,7 @@ export async function POST(
     title: preview.title,
     company: preview.company,
     full_name: preview.full_name,
+    phone: preview.phone,
     government_contract_history: preview.government_contract_history,
   }
   const conflicts = detectConflicts(currentScalars, previewScalars)
@@ -306,6 +352,7 @@ export async function POST(
       full_name: party.full_name,
       title: party.title ?? null,
       company: party.company ?? null,
+      phone: party.phone ?? null,
       linkedin_url: party.linkedin_url ?? null,
       government_contract_history: party.government_contract_history ?? null,
     },

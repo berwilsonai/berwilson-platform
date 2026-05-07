@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { MessageSquare, Plus, ChevronDown, ChevronRight, Square, CheckSquare } from 'lucide-react'
+import { MessageSquare, Plus, ChevronDown, ChevronRight, Square, CheckSquare, ExternalLink } from 'lucide-react'
 import EmptyState from '@/components/shared/EmptyState'
 import SourceTag from '@/components/shared/SourceTag'
 import ConfidenceBadge from '@/components/shared/ConfidenceBadge'
@@ -14,6 +14,48 @@ import type {
   RiskItem,
   DecisionItem,
 } from '@/types/domain'
+
+/** Renders a stored email (raw_content) as a styled email view with headers and body. */
+function EmailBody({ raw }: { raw: string }) {
+  // Split into header lines and body at the first blank line
+  const lines = raw.split('\n')
+  const headers: { label: string; value: string }[] = []
+  let bodyStart = 0
+
+  for (let i = 0; i < lines.length; i++) {
+    const match = lines[i].match(/^(Subject|From|To|CC|Date|Message-ID|Conversation-ID):\s*(.*)$/i)
+    if (match) {
+      headers.push({ label: match[1], value: match[2] })
+    } else if (lines[i].trim() === '') {
+      bodyStart = i + 1
+      break
+    }
+  }
+
+  const body = lines.slice(bodyStart).join('\n').trim()
+
+  return (
+    <div className="mt-2 rounded-md border border-border bg-muted/40 overflow-hidden">
+      {/* Email headers */}
+      {headers.length > 0 && (
+        <div className="border-b border-border px-3 py-2 space-y-0.5">
+          {headers
+            .filter((h) => ['Subject', 'From', 'To', 'CC', 'Date'].includes(h.label))
+            .map((h, i) => (
+              <div key={i} className="flex gap-2 text-xs">
+                <span className="font-medium text-muted-foreground w-14 shrink-0">{h.label}</span>
+                <span className="text-foreground break-all">{h.value}</span>
+              </div>
+            ))}
+        </div>
+      )}
+      {/* Email body */}
+      <pre className="px-3 py-2 text-xs max-h-64 overflow-y-auto whitespace-pre-wrap text-foreground leading-relaxed">
+        {body}
+      </pre>
+    </div>
+  )
+}
 
 const SEVERITY_COLORS: Record<string, string> = {
   info: 'bg-slate-100 text-slate-600',
@@ -93,6 +135,18 @@ function UpdateCard({ update, onSaved }: { update: Update; onSaved: () => void }
           <span className="text-xs text-muted-foreground">
             {formatTimestamp(update.created_at)}
           </span>
+          {update.source === 'email' && update.outlook_web_link && (
+            <a
+              href={update.outlook_web_link as string}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-medium text-blue-600 hover:text-blue-800 hover:bg-blue-50 transition-colors"
+              title="Open in Outlook"
+            >
+              <ExternalLink size={11} />
+              Outlook
+            </a>
+          )}
         </div>
         <UpdateEditModal updateId={update.id} onSaved={onSaved} />
       </div>
@@ -202,21 +256,39 @@ function UpdateCard({ update, onSaved }: { update: Update; onSaved: () => void }
         </div>
       )}
 
-      {/* Expandable raw content */}
-      <div className="border-t border-border px-4 py-2">
-        <button
-          onClick={() => setExpanded(!expanded)}
-          className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
-        >
-          {expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-          Raw content
-        </button>
-        {expanded && (
-          <pre className="mt-2 rounded-md bg-muted p-3 text-xs overflow-x-auto max-h-48 overflow-y-auto whitespace-pre-wrap">
-            {update.raw_content}
-          </pre>
-        )}
-      </div>
+      {/* Expandable raw content / email view */}
+      {update.raw_content ? (
+        <div className="border-t border-border px-4 py-2">
+          <button
+            onClick={() => setExpanded(!expanded)}
+            className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+          >
+            {expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+            {update.source === 'email' ? 'View original email' : 'Raw content'}
+          </button>
+          {expanded && update.source === 'email' ? (
+            <EmailBody raw={update.raw_content} />
+          ) : expanded ? (
+            <pre className="mt-2 rounded-md bg-muted p-3 text-xs overflow-x-auto max-h-48 overflow-y-auto whitespace-pre-wrap">
+              {update.raw_content}
+            </pre>
+          ) : null}
+        </div>
+      ) : update.source === 'email' && update.outlook_web_link ? (
+        <div className="border-t border-border px-4 py-2">
+          <span className="text-xs text-muted-foreground">
+            Email body purged after review.{' '}
+            <a
+              href={update.outlook_web_link as string}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-600 hover:text-blue-800 underline"
+            >
+              View in Outlook
+            </a>
+          </span>
+        </div>
+      ) : null}
     </div>
   )
 }

@@ -31,7 +31,7 @@ export default async function ContactsPage() {
   if (error) throw new Error(`Failed to load contacts: ${error.message}`)
 
   const contacts: ContactWithStats[] = (parties ?? []).map(p => {
-    const players = (p.project_players as Array<{
+    const players = (p.project_players as unknown as Array<{
       project_id: string
       role: string
       projects: { updated_at: string | null } | null

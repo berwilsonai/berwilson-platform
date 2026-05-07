@@ -10,7 +10,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import type { GraphMessage } from '@/lib/integrations/microsoft-graph'
 
 /** Inbox addresses we own — never create a contact for these */
-const OWN_ADDRESSES = new Set(['info@berwilson.com'])
+const OWN_ADDRESSES = new Set(['tuaone@berwilson.com'])
 
 interface Participant {
   name: string

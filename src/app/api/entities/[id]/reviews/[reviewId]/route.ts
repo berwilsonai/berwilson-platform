@@ -10,7 +10,7 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
   const body = await request.json()
   const supabase = createAdminClient()
 
-  const updates: Record<string, unknown> = {}
+  const updates: import('@/lib/supabase/types').TablesUpdate<'entity_reviews'> = {}
   if ('rating' in body) updates.rating = Number(body.rating)
   if ('on_time' in body) updates.on_time = body.on_time
   if ('on_budget' in body) updates.on_budget = body.on_budget

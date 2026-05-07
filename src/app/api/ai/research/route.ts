@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { researchQuery } from '@/lib/ai/perplexity'
+import { researchQuery } from '@/lib/ai/research'
+import { checkRateLimit } from '@/lib/rate-limit'
 
 export async function POST(request: NextRequest) {
   // Auth check
@@ -8,6 +9,14 @@ export async function POST(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) {
     return Response.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  const rl = checkRateLimit(`research:${user.id}`, 15, 60_000)
+  if (!rl.allowed) {
+    return Response.json(
+      { error: 'Rate limit exceeded. Please wait.' },
+      { status: 429, headers: { 'Retry-After': String(Math.ceil(rl.retryAfterMs / 1000)) } }
+    )
   }
 
   let body: { query?: string; project_id?: string }

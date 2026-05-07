@@ -204,8 +204,10 @@ export type StageProgress = {
 /** Structured intent extracted from the executive's query */
 export type QueryIntent = {
   project_name_hints: string[]
+  entity_name_hints?: string[]
   date_range_days: number | null
   is_cross_project: boolean
+  is_vendor_query?: boolean
 }
 
 /** A chunk returned from vector search, enriched for the UI */
@@ -216,6 +218,8 @@ export type ChunkWithProject = {
   project_name: string
   update_id: string | null
   document_id: string | null
+  entity_id?: string | null
+  party_id?: string | null
   content: string
   created_at: string
   similarity: number        // cosine similarity 0–1
