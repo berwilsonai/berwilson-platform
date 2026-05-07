@@ -145,7 +145,7 @@ export async function POST(request: NextRequest) {
         doc.ai_summary = parsed.summary ?? null
 
         // Embed for AI search
-        embedDocument(doc.id, null, parsed.summary, null).catch(console.error)
+        embedDocument(doc.id, null, parsed.summary).catch(console.error)
       } catch {
         await supabase.from('documents').update({ ai_summary: rawText.slice(0, 1000) }).eq('id', doc.id)
       }
