@@ -128,8 +128,9 @@ export async function embedUpdate(
 
 export async function embedDocument(
   documentId: string,
-  projectId: string,
-  textContent: string
+  projectId: string | null,
+  textContent: string,
+  entityId?: string | null
 ): Promise<void> {
   const supabase = createAdminClient()
 
@@ -146,6 +147,7 @@ export async function embedDocument(
       const { error: insertErr } = await supabase.from('chunks').insert({
         project_id: projectId,
         document_id: documentId,
+        entity_id: entityId ?? null,
         content: chunk.content,
         embedding: toVectorLiteral(values),
         chunk_index: chunk.chunkIndex,
@@ -164,5 +166,129 @@ export async function embedDocument(
       .from('documents')
       .update({ embedding_status: 'error' })
       .eq('id', documentId)
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Public: embed enrichment data for an entity (vendor)
+// ---------------------------------------------------------------------------
+
+export async function embedEntityEnrichment(
+  entityId: string
+): Promise<void> {
+  const supabase = createAdminClient()
+
+  // Delete any existing enrichment chunks for this entity
+  await supabase
+    .from('chunks')
+    .delete()
+    .eq('entity_id', entityId)
+    .is('document_id', null)
+    .is('update_id', null)
+
+  // Load enrichment data
+  const { data: entity } = await supabase
+    .from('entities')
+    .select('name, description, specialties, enrichment_data')
+    .eq('id', entityId)
+    .single()
+
+  if (!entity) return
+
+  // Serialize to readable text
+  const parts: string[] = [`Company: ${entity.name}`]
+  if (entity.description) parts.push(`Description: ${entity.description}`)
+  if (entity.specialties?.length) parts.push(`Specialties: ${entity.specialties.join(', ')}`)
+
+  const ed = entity.enrichment_data as Record<string, unknown> | null
+  if (ed) {
+    if (ed.services && Array.isArray(ed.services)) parts.push(`Services: ${ed.services.join(', ')}`)
+    if (ed.certifications && Array.isArray(ed.certifications)) parts.push(`Certifications: ${ed.certifications.join(', ')}`)
+    if (ed.key_clients && Array.isArray(ed.key_clients)) parts.push(`Key Clients: ${ed.key_clients.join(', ')}`)
+    if (ed.notable_projects && Array.isArray(ed.notable_projects)) parts.push(`Notable Projects: ${ed.notable_projects.join(', ')}`)
+    if (ed.government_contract_history) parts.push(`Government Contract History: ${ed.government_contract_history}`)
+    if (ed.founded_year) parts.push(`Founded: ${ed.founded_year}`)
+    if (ed.employee_count) parts.push(`Employee Count: ${ed.employee_count}`)
+  }
+
+  const text = parts.join('\n')
+  if (text.length < 20) return
+
+  try {
+    const chunks = chunkText(text)
+    for (const chunk of chunks) {
+      const values = await generateEmbedding(chunk.content)
+      await supabase.from('chunks').insert({
+        entity_id: entityId,
+        content: chunk.content,
+        embedding: toVectorLiteral(values),
+        chunk_index: chunk.chunkIndex,
+        token_count: chunk.tokenCount,
+      })
+    }
+  } catch (err) {
+    console.error('[embeddings] embedEntityEnrichment failed:', err)
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Public: embed enrichment data for a party (contact)
+// ---------------------------------------------------------------------------
+
+export async function embedPartyEnrichment(
+  partyId: string
+): Promise<void> {
+  const supabase = createAdminClient()
+
+  // Delete any existing enrichment chunks for this party
+  await supabase
+    .from('chunks')
+    .delete()
+    .eq('party_id', partyId)
+    .is('document_id', null)
+    .is('update_id', null)
+
+  // Load enrichment data
+  const { data: party } = await supabase
+    .from('parties')
+    .select('full_name, title, company, enrichment_notes, government_contract_history')
+    .eq('id', partyId)
+    .single()
+
+  if (!party) return
+
+  // Serialize to readable text
+  const parts: string[] = [`Person: ${party.full_name}`]
+  if (party.title) parts.push(`Title: ${party.title}`)
+  if (party.company) parts.push(`Company: ${party.company}`)
+  if (party.government_contract_history) parts.push(`Government Contract History: ${party.government_contract_history}`)
+
+  const en = party.enrichment_notes as Record<string, unknown> | null
+  if (en) {
+    if (en.years_of_experience) parts.push(`Experience: ${en.years_of_experience}`)
+    if (en.certifications && Array.isArray(en.certifications)) parts.push(`Certifications: ${en.certifications.join(', ')}`)
+    if (en.personal_credentials && Array.isArray(en.personal_credentials)) parts.push(`Credentials: ${en.personal_credentials.join(', ')}`)
+    if (en.past_projects && Array.isArray(en.past_projects)) parts.push(`Past Projects: ${en.past_projects.join(', ')}`)
+    if (en.litigation_history && Array.isArray(en.litigation_history)) parts.push(`Litigation: ${en.litigation_history.join(', ')}`)
+    if (en.notable_affiliations && Array.isArray(en.notable_affiliations)) parts.push(`Affiliations: ${en.notable_affiliations.join(', ')}`)
+  }
+
+  const text = parts.join('\n')
+  if (text.length < 20) return
+
+  try {
+    const chunks = chunkText(text)
+    for (const chunk of chunks) {
+      const values = await generateEmbedding(chunk.content)
+      await supabase.from('chunks').insert({
+        party_id: partyId,
+        content: chunk.content,
+        embedding: toVectorLiteral(values),
+        chunk_index: chunk.chunkIndex,
+        token_count: chunk.tokenCount,
+      })
+    }
+  } catch (err) {
+    console.error('[embeddings] embedPartyEnrichment failed:', err)
   }
 }
