@@ -1,4 +1,3 @@
-Initialising login role...
 export type Json =
   | string
   | number
@@ -224,8 +223,10 @@ export type Database = {
           created_at: string | null
           document_id: string | null
           embedding: string | null
+          entity_id: string | null
           id: string
-          project_id: string
+          party_id: string | null
+          project_id: string | null
           token_count: number | null
           update_id: string | null
         }
@@ -235,8 +236,10 @@ export type Database = {
           created_at?: string | null
           document_id?: string | null
           embedding?: string | null
+          entity_id?: string | null
           id?: string
-          project_id: string
+          party_id?: string | null
+          project_id?: string | null
           token_count?: number | null
           update_id?: string | null
         }
@@ -246,8 +249,10 @@ export type Database = {
           created_at?: string | null
           document_id?: string | null
           embedding?: string | null
+          entity_id?: string | null
           id?: string
-          project_id?: string
+          party_id?: string | null
+          project_id?: string | null
           token_count?: number | null
           update_id?: string | null
         }
@@ -271,6 +276,20 @@ export type Database = {
             columns: ["update_id"]
             isOneToOne: false
             referencedRelation: "updates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chunks_entity_id_fkey"
+            columns: ["entity_id"]
+            isOneToOne: false
+            referencedRelation: "entities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chunks_party_id_fkey"
+            columns: ["party_id"]
+            isOneToOne: false
+            referencedRelation: "parties"
             referencedColumns: ["id"]
           },
         ]
@@ -429,11 +448,12 @@ export type Database = {
           confidence: number | null
           doc_type: string | null
           embedding_status: string | null
+          entity_id: string | null
           file_name: string
           file_size_bytes: number | null
           id: string
           mime_type: string | null
-          project_id: string
+          project_id: string | null
           source: Database["public"]["Enums"]["update_source"] | null
           storage_path: string
           uploaded_at: string | null
@@ -445,11 +465,12 @@ export type Database = {
           confidence?: number | null
           doc_type?: string | null
           embedding_status?: string | null
+          entity_id?: string | null
           file_name: string
           file_size_bytes?: number | null
           id?: string
           mime_type?: string | null
-          project_id: string
+          project_id?: string | null
           source?: Database["public"]["Enums"]["update_source"] | null
           storage_path: string
           uploaded_at?: string | null
@@ -461,11 +482,12 @@ export type Database = {
           confidence?: number | null
           doc_type?: string | null
           embedding_status?: string | null
+          entity_id?: string | null
           file_name?: string
           file_size_bytes?: number | null
           id?: string
           mime_type?: string | null
-          project_id?: string
+          project_id?: string | null
           source?: Database["public"]["Enums"]["update_source"] | null
           storage_path?: string
           uploaded_at?: string | null
@@ -477,6 +499,13 @@ export type Database = {
             columns: ["project_id"]
             isOneToOne: false
             referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "documents_entity_id_fkey"
+            columns: ["entity_id"]
+            isOneToOne: false
+            referencedRelation: "entities"
             referencedColumns: ["id"]
           },
         ]
@@ -938,6 +967,7 @@ export type Database = {
           graph_message_id: string
           id: string
           internet_message_id: string
+          outlook_web_link: string | null
           processed_at: string | null
           sender_email: string | null
           status: string | null
@@ -949,6 +979,7 @@ export type Database = {
           graph_message_id: string
           id?: string
           internet_message_id: string
+          outlook_web_link?: string | null
           processed_at?: string | null
           sender_email?: string | null
           status?: string | null
@@ -960,6 +991,7 @@ export type Database = {
           graph_message_id?: string
           id?: string
           internet_message_id?: string
+          outlook_web_link?: string | null
           processed_at?: string | null
           sender_email?: string | null
           status?: string | null
@@ -1192,8 +1224,9 @@ export type Database = {
           embedding_status: string | null
           id: string
           mentioned_parties: Json
+          outlook_web_link: string | null
           project_id: string | null
-          raw_content: string
+          raw_content: string | null
           review_state: Database["public"]["Enums"]["review_state"] | null
           reviewed_at: string | null
           reviewed_by: string | null
@@ -1211,8 +1244,9 @@ export type Database = {
           embedding_status?: string | null
           id?: string
           mentioned_parties?: Json
+          outlook_web_link?: string | null
           project_id?: string | null
-          raw_content: string
+          raw_content?: string | null
           review_state?: Database["public"]["Enums"]["review_state"] | null
           reviewed_at?: string | null
           reviewed_by?: string | null
@@ -1230,8 +1264,9 @@ export type Database = {
           embedding_status?: string | null
           id?: string
           mentioned_parties?: Json
+          outlook_web_link?: string | null
           project_id?: string | null
-          raw_content?: string
+          raw_content?: string | null
           review_state?: Database["public"]["Enums"]["review_state"] | null
           reviewed_at?: string | null
           reviewed_by?: string | null
@@ -1251,6 +1286,208 @@ export type Database = {
           },
         ]
       }
+      certifications: {
+        Row: {
+          cert_number: string | null
+          created_at: string
+          document_id: string | null
+          expiration_date: string | null
+          id: string
+          is_active: boolean
+          issued_date: string | null
+          issuing_body: string | null
+          name: string
+          notes: string | null
+          updated_at: string
+        }
+        Insert: {
+          cert_number?: string | null
+          created_at?: string
+          document_id?: string | null
+          expiration_date?: string | null
+          id?: string
+          is_active?: boolean
+          issued_date?: string | null
+          issuing_body?: string | null
+          name: string
+          notes?: string | null
+          updated_at?: string
+        }
+        Update: {
+          cert_number?: string | null
+          created_at?: string
+          document_id?: string | null
+          expiration_date?: string | null
+          id?: string
+          is_active?: boolean
+          issued_date?: string | null
+          issuing_body?: string | null
+          name?: string
+          notes?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "certifications_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      company_profile: {
+        Row: {
+          about: string | null
+          aggregate_bonding: number | null
+          bonding_capacity: number | null
+          bonding_company: string | null
+          capabilities: string | null
+          dba_name: string | null
+          dbe_certified: boolean
+          email: string | null
+          founded_year: number | null
+          hq_address: string | null
+          id: string
+          legal_name: string
+          logo_url: string | null
+          mbe_certified: boolean
+          naics_codes: string[]
+          phone: string | null
+          sbe_certified: boolean
+          sic_codes: string[]
+          updated_at: string
+          wbe_certified: boolean
+          website: string | null
+        }
+        Insert: {
+          about?: string | null
+          aggregate_bonding?: number | null
+          bonding_capacity?: number | null
+          bonding_company?: string | null
+          capabilities?: string | null
+          dba_name?: string | null
+          dbe_certified?: boolean
+          email?: string | null
+          founded_year?: number | null
+          hq_address?: string | null
+          id?: string
+          legal_name?: string
+          logo_url?: string | null
+          mbe_certified?: boolean
+          naics_codes?: string[]
+          phone?: string | null
+          sbe_certified?: boolean
+          sic_codes?: string[]
+          updated_at?: string
+          wbe_certified?: boolean
+          website?: string | null
+        }
+        Update: {
+          about?: string | null
+          aggregate_bonding?: number | null
+          bonding_capacity?: number | null
+          bonding_company?: string | null
+          capabilities?: string | null
+          dba_name?: string | null
+          dbe_certified?: boolean
+          email?: string | null
+          founded_year?: number | null
+          hq_address?: string | null
+          id?: string
+          legal_name?: string
+          logo_url?: string | null
+          mbe_certified?: boolean
+          naics_codes?: string[]
+          phone?: string | null
+          sbe_certified?: boolean
+          sic_codes?: string[]
+          updated_at?: string
+          wbe_certified?: boolean
+          website?: string | null
+        }
+        Relationships: []
+      }
+      media: {
+        Row: {
+          caption: string | null
+          created_at: string
+          entity_id: string | null
+          file_name: string
+          file_size_bytes: number | null
+          id: string
+          is_company: boolean
+          is_primary: boolean
+          mime_type: string
+          party_id: string | null
+          project_id: string | null
+          sort_order: number
+          storage_path: string
+          uploaded_by: string | null
+        }
+        Insert: {
+          caption?: string | null
+          created_at?: string
+          entity_id?: string | null
+          file_name: string
+          file_size_bytes?: number | null
+          id?: string
+          is_company?: boolean
+          is_primary?: boolean
+          mime_type: string
+          party_id?: string | null
+          project_id?: string | null
+          sort_order?: number
+          storage_path: string
+          uploaded_by?: string | null
+        }
+        Update: {
+          caption?: string | null
+          created_at?: string
+          entity_id?: string | null
+          file_name?: string
+          file_size_bytes?: number | null
+          id?: string
+          is_company?: boolean
+          is_primary?: boolean
+          mime_type?: string
+          party_id?: string | null
+          project_id?: string | null
+          sort_order?: number
+          storage_path?: string
+          uploaded_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "media_entity_id_fkey"
+            columns: ["entity_id"]
+            isOneToOne: false
+            referencedRelation: "entities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "media_party_id_fkey"
+            columns: ["party_id"]
+            isOneToOne: false
+            referencedRelation: "parties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "media_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "media_uploaded_by_fkey"
+            columns: ["uploaded_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -1258,8 +1495,9 @@ export type Database = {
     Functions: {
       match_chunks: {
         Args: {
-          filter_after: string
-          filter_project_ids: string[]
+          filter_after?: string
+          filter_project_ids?: string[]
+          filter_entity_ids?: string[]
           match_count?: number
           query_embedding: string
         }
@@ -1267,13 +1505,15 @@ export type Database = {
           chunk_index: number
           content: string
           created_at: string
-          document_id: string
+          document_id: string | null
+          entity_id: string | null
           id: string
-          project_id: string
+          party_id: string | null
+          project_id: string | null
           similarity: number
           source_confidence: number
           token_count: number
-          update_id: string
+          update_id: string | null
         }[]
       }
       wipe_all_data: { Args: never; Returns: undefined }
@@ -1935,5 +2175,3 @@ export const Constants = {
     },
   },
 } as const
-A new version of Supabase CLI is available: v2.98.1 (currently installed v2.84.2)
-We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli

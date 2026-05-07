@@ -3,7 +3,7 @@
  */
 
 import { createAdminClient } from '@/lib/supabase/admin'
-import { researchQuery } from './perplexity'
+import { researchQuery } from './research'
 import type { AgentContext } from './agent'
 
 // ---------------------------------------------------------------------------
@@ -96,6 +96,26 @@ export const agentTools = [
       properties: {
         project_id: { type: 'string', description: 'Optional: limit to a specific project. Omit for portfolio-wide view.' },
       },
+    },
+  },
+  {
+    name: 'search_knowledge_base',
+    description: 'Semantic search across all indexed content — updates, documents, vendor data, and contact enrichment. Use for questions about specific facts, meeting notes, document content, or historical information that might be in the knowledge base. Returns the most relevant passages with source attribution.',
+    parameters: {
+      type: 'object',
+      properties: {
+        query: { type: 'string', description: 'Natural language search query' },
+        project_id: { type: 'string', description: 'Optional: limit to a specific project' },
+      },
+      required: ['query'],
+    },
+  },
+  {
+    name: 'get_company_qualifications',
+    description: 'Get Ber Wilson company profile, certifications, licenses, bonding capacity, diversity status, and capabilities. Use this when asked: (1) what certifications or licenses Ber Wilson holds, (2) whether Ber Wilson qualifies for a specific RFP or contract requirement, (3) Ber Wilson\'s bonding capacity, DBE/MBE/WBE/SBE status, NAICS codes, or trade capabilities, (4) due diligence questions about Ber Wilson itself.',
+    parameters: {
+      type: 'object',
+      properties: {},
     },
   },
 ]
@@ -376,6 +396,120 @@ export async function executeToolCall(
             return acc
           }, {} as Record<string, number>),
           critical_items: (dd.data ?? []).filter(d => d.severity === 'critical' || d.severity === 'blocker'),
+        },
+      }
+    }
+
+    case 'search_knowledge_base': {
+      const query = args.query as string
+      const projectId = (args.project_id as string) || context.projectId
+
+      // Embed the query
+      const EMBEDDING_API = `https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent`
+      try {
+        const embedRes = await fetch(`${EMBEDDING_API}?key=${process.env.GEMINI_API_KEY!}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            content: { parts: [{ text: query }] },
+            outputDimensionality: 768,
+          }),
+        })
+
+        if (!embedRes.ok) return { error: 'Failed to embed query' }
+
+        const embedData = await embedRes.json() as { embedding: { values: number[] } }
+        const queryEmbedding = embedData.embedding.values
+
+        // Vector search via RPC
+        const { data: chunks, error: rpcError } = await supabase.rpc('match_chunks', {
+          query_embedding: `[${queryEmbedding.join(',')}]`,
+          filter_project_ids: projectId ? [projectId] : [],
+          filter_after: '2000-01-01T00:00:00.000Z',
+          match_count: 8,
+          filter_entity_ids: [],
+        })
+
+        if (rpcError) return { error: rpcError.message }
+
+        // Get project names for context
+        const projectIds = [...new Set((chunks ?? []).map((c: { project_id: string | null }) => c.project_id).filter(Boolean))]
+        let projectNames: Record<string, string> = {}
+        if (projectIds.length > 0) {
+          const { data: projects } = await supabase.from('projects').select('id, name').in('id', projectIds as string[])
+          for (const p of projects ?? []) projectNames[p.id] = p.name
+        }
+
+        return {
+          results: (chunks ?? []).slice(0, 8).map((c: { content: string; project_id: string | null; similarity: number; created_at: string }, i: number) => ({
+            index: i + 1,
+            content: c.content.slice(0, 500),
+            project: c.project_id ? projectNames[c.project_id] ?? 'Unknown' : 'General',
+            similarity: c.similarity,
+            date: c.created_at,
+          })),
+        }
+      } catch (err) {
+        return { error: `Knowledge base search failed: ${err instanceof Error ? err.message : 'unknown'}` }
+      }
+    }
+
+    case 'get_company_qualifications': {
+      const [profileRes, certsRes] = await Promise.all([
+        supabase.from('company_profile').select('*').limit(1).single(),
+        supabase.from('certifications').select('*').order('is_active', { ascending: false }).order('expiration_date', { ascending: true, nullsFirst: false }).order('name'),
+      ])
+
+      if (!profileRes.data) return { error: 'Company profile not found — populate /company first' }
+      const profile = profileRes.data
+      const today = new Date().toISOString().split('T')[0]
+
+      const certs = (certsRes.data ?? []).map(c => {
+        const daysUntilExpiry = c.expiration_date
+          ? Math.ceil((new Date(c.expiration_date).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+          : null
+        const status = !c.is_active ? 'inactive'
+          : !c.expiration_date ? 'active (no expiry)'
+          : c.expiration_date < today ? 'EXPIRED'
+          : daysUntilExpiry !== null && daysUntilExpiry <= 90 ? `active — EXPIRING IN ${daysUntilExpiry} DAYS`
+          : 'active'
+        return {
+          name: c.name,
+          issuing_body: c.issuing_body,
+          cert_number: c.cert_number,
+          issued_date: c.issued_date,
+          expiration_date: c.expiration_date,
+          status,
+          has_document_scan: !!c.document_id,
+          notes: c.notes,
+        }
+      })
+
+      return {
+        company: {
+          legal_name: profile.legal_name,
+          dba_name: profile.dba_name,
+          founded_year: profile.founded_year,
+          hq_address: profile.hq_address,
+          about: profile.about,
+          capabilities: profile.capabilities,
+          naics_codes: profile.naics_codes,
+          sic_codes: profile.sic_codes,
+          dbe_certified: profile.dbe_certified,
+          mbe_certified: profile.mbe_certified,
+          wbe_certified: profile.wbe_certified,
+          sbe_certified: profile.sbe_certified,
+          bonding_single_project: profile.bonding_capacity,
+          bonding_aggregate: profile.aggregate_bonding,
+          bonding_company: profile.bonding_company,
+        },
+        certifications: certs,
+        summary: {
+          total_certs: certs.length,
+          active: certs.filter(c => c.status.startsWith('active')).length,
+          expired: certs.filter(c => c.status === 'EXPIRED').length,
+          expiring_within_90_days: certs.filter(c => c.status.includes('EXPIRING')).length,
+          inactive: certs.filter(c => c.status === 'inactive').length,
         },
       }
     }

@@ -12,6 +12,7 @@ import {
 } from 'lucide-react'
 import { createAdminClient } from '@/lib/supabase/admin'
 import VendorProfileClient from '@/components/vendors/VendorProfileClient'
+import MediaGallery from '@/components/shared/MediaGallery'
 
 export const metadata = { title: 'Vendor Profile — Ber Wilson Intelligence' }
 
@@ -56,11 +57,27 @@ export default async function VendorDetailPage({ params }: PageProps) {
     primaryContact = data
   }
 
+  // Fetch entity-scoped documents
+  const { data: entityDocs } = await supabase
+    .from('documents')
+    .select('*')
+    .eq('entity_id', id)
+    .order('uploaded_at', { ascending: false })
+
   // Fetch all projects for the review form dropdown
   const { data: allProjects } = await supabase
     .from('projects')
     .select('id, name')
     .order('name')
+
+  // Fetch vendor photos
+  const { data: entityPhotos } = await supabase
+    .from('media')
+    .select('*')
+    .eq('entity_id', id)
+    .order('is_primary', { ascending: false })
+    .order('sort_order')
+    .order('created_at')
 
   // Calculate average rating
   const avgRating = reviews && reviews.length > 0
@@ -172,13 +189,20 @@ export default async function VendorDetailPage({ params }: PageProps) {
         </div>
       )}
 
+      {/* Photo gallery */}
+      <MediaGallery
+        initialPhotos={entityPhotos ?? []}
+        scope={{ entityId: id }}
+      />
+
       {/* Client-side interactive sections */}
       <VendorProfileClient
         entity={entity}
         projectLinks={projectLinks ?? []}
         reviews={reviews ?? []}
-        primaryContact={primaryContact}
+        primaryContact={primaryContact as { id: string; full_name: string; email: string | null; phone: string | null; title: string | null } | null}
         allProjects={allProjects ?? []}
+        entityDocuments={entityDocs ?? []}
       />
     </div>
   )

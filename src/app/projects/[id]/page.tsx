@@ -4,10 +4,16 @@ import { Pencil, ExternalLink, Layers, ChevronRight, Plus } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { createAdminClient } from '@/lib/supabase/admin'
 import GenerateBriefButton from '@/components/projects/GenerateBriefButton'
+import ProjectNarrativeBrief from '@/components/projects/ProjectNarrativeBrief'
+import MediaGallery from '@/components/shared/MediaGallery'
 import type { Entity, EntityProject, Project } from '@/lib/supabase/types'
 import type { Metadata } from 'next'
-import { SECTOR_BADGE, SECTOR_SHORT } from '@/lib/utils/sectors'
-import { STAGE_LABELS } from '@/lib/utils/stages'
+import {
+  SECTOR_BADGE, SECTOR_SHORT, STAGE_LABELS,
+  ENTITY_TYPE_LABELS, ENTITY_TYPE_BADGE, RELATIONSHIP_LABELS,
+  ACTIVITY_TABLE_LABELS, ACTIVITY_ACTION_STYLES,
+  formatValue, formatDate,
+} from '@/lib/utils/constants'
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params
@@ -18,42 +24,6 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
 
 type EntityProjectWithEntity = EntityProject & { entity: Entity }
 
-const ENTITY_TYPE_LABELS: Record<string, string> = {
-  llc: 'LLC', corp: 'Corp', jv: 'JV', subsidiary: 'Subsidiary',
-  trust: 'Trust', fund: 'Fund', other: 'Other',
-}
-
-const ENTITY_TYPE_STYLES: Record<string, string> = {
-  llc: 'bg-blue-50 text-blue-700 ring-blue-200',
-  corp: 'bg-violet-50 text-violet-700 ring-violet-200',
-  jv: 'bg-emerald-50 text-emerald-700 ring-emerald-200',
-  subsidiary: 'bg-amber-50 text-amber-700 ring-amber-200',
-  trust: 'bg-rose-50 text-rose-700 ring-rose-200',
-  fund: 'bg-indigo-50 text-indigo-700 ring-indigo-200',
-  other: 'bg-slate-50 text-slate-600 ring-slate-200',
-}
-
-const RELATIONSHIP_LABELS: Record<string, string> = {
-  owner: 'Owner', jv_partner: 'JV Partner', sub_entity: 'Sub-Entity', guarantor: 'Guarantor',
-}
-
-function formatValue(value: number | null): string {
-  if (value === null) return '—'
-  if (value >= 1_000_000_000) return `$${(value / 1_000_000_000).toFixed(2)}B`
-  if (value >= 1_000_000) return `$${(value / 1_000_000).toFixed(2)}M`
-  if (value >= 1_000) return `$${(value / 1_000).toFixed(0)}K`
-  return `$${value.toLocaleString()}`
-}
-
-function formatDate(dateStr: string | null): string {
-  if (!dateStr) return '—'
-  return new Date(dateStr).toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  })
-}
-
 function Field({ label, value }: { label: string; value: string | null | undefined }) {
   return (
     <div className="space-y-0.5">
@@ -63,25 +33,6 @@ function Field({ label, value }: { label: string; value: string | null | undefin
       <dd className="text-sm text-foreground">{value || '—'}</dd>
     </div>
   )
-}
-
-const ACTIVITY_TABLE_LABELS: Record<string, string> = {
-  projects: 'Projects',
-  updates: 'Updates',
-  documents: 'Documents',
-  milestones: 'Milestones',
-  dd_items: 'Diligence',
-  financing_structures: 'Financing',
-  compliance_items: 'Compliance',
-  review_queue: 'Review Queue',
-  parties: 'Parties',
-  project_players: 'Team',
-}
-
-const ACTIVITY_ACTION_STYLES: Record<string, string> = {
-  INSERT: 'bg-emerald-50 text-emerald-700 ring-emerald-200',
-  UPDATE: 'bg-blue-50 text-blue-700 ring-blue-200',
-  DELETE: 'bg-red-50 text-red-600 ring-red-200',
 }
 
 function activityRecordLink(tableName: string, recordId: string | null, projectId: string): string | null {
@@ -116,7 +67,7 @@ export default async function ProjectOverviewPage({ params }: PageProps) {
   const { id } = await params
   const supabase = createAdminClient()
 
-  const [{ data: project }, { data: activityLogs }, { data: entityLinksRaw }, { data: childProjects }] = await Promise.all([
+  const [{ data: project }, { data: activityLogs }, { data: entityLinksRaw }, { data: childProjects }, { data: projectPhotos }] = await Promise.all([
     supabase.from('projects').select('*').eq('id', id).single(),
     supabase
       .from('activity_log')
@@ -134,6 +85,13 @@ export default async function ProjectOverviewPage({ params }: PageProps) {
       .select('id, name, sector, status, stage, estimated_value, location')
       .eq('parent_project_id', id)
       .order('name'),
+    supabase
+      .from('media')
+      .select('*')
+      .eq('project_id', id)
+      .order('is_primary', { ascending: false })
+      .order('sort_order')
+      .order('created_at'),
   ])
 
   if (!project) notFound()
@@ -153,26 +111,14 @@ export default async function ProjectOverviewPage({ params }: PageProps) {
 
   const entityLinks = (entityLinksRaw ?? []) as EntityProjectWithEntity[]
 
-  // Resolve user actor IDs to emails
-  const userActorIds = [
-    ...new Set(
-      (activityLogs ?? [])
-        .filter((l) => l.actor_type === 'user' && l.actor_id)
-        .map((l) => l.actor_id!)
-    ),
-  ]
-  const actorEmails: Record<string, string> = {}
-  if (userActorIds.length > 0) {
-    const { data: usersData } = await supabase.auth.admin.listUsers()
-    for (const user of usersData?.users ?? []) {
-      if (user.email) actorEmails[user.id] = user.email
-    }
-  }
+  // Cast activity logs to include new columns (may not be in generated types until gen-types runs)
+  type ActivityLogWithExtras = typeof activityLogs extends (infer T)[] | null ? T & { actor_email?: string | null; field_changes?: Record<string, { old: unknown; new: unknown }> | null } : never
+  const typedLogs = (activityLogs ?? []) as ActivityLogWithExtras[]
 
-  function displayActor(aType: string | null, aId: string | null): string {
-    if (!aType || aType === 'system') return 'System'
-    if (aType === 'ai') return 'AI'
-    if (aType === 'user' && aId) return actorEmails[aId] ?? aId.slice(0, 8) + '…'
+  function displayActor(log: { actor_type: string | null; actor_id: string | null; actor_email?: string | null }): string {
+    if (!log.actor_type || log.actor_type === 'system') return 'System'
+    if (log.actor_type === 'ai') return 'AI'
+    if (log.actor_type === 'user') return log.actor_email ?? (log.actor_id ? log.actor_id.slice(0, 8) + '…' : 'User')
     return 'Unknown'
   }
 
@@ -192,6 +138,12 @@ export default async function ProjectOverviewPage({ params }: PageProps) {
         </div>
       )}
 
+      {/* Photo gallery */}
+      <MediaGallery
+        initialPhotos={projectPhotos ?? []}
+        scope={{ projectId: id }}
+      />
+
       {/* Actions */}
       <div className="flex justify-end gap-2">
         <GenerateBriefButton projectId={id} projectName={project.name} />
@@ -203,6 +155,9 @@ export default async function ProjectOverviewPage({ params }: PageProps) {
           Edit
         </Link>
       </div>
+
+      {/* Narrative brief — AI-generated executive summary */}
+      <ProjectNarrativeBrief projectId={id} projectName={project.name} />
 
       {/* Description */}
       {project.description && (
@@ -328,7 +283,7 @@ export default async function ProjectOverviewPage({ params }: PageProps) {
                 <span
                   className={cn(
                     'inline-flex shrink-0 items-center rounded px-1.5 py-0.5 text-[10px] font-semibold ring-1 ring-inset',
-                    ENTITY_TYPE_STYLES[ep.entity.entity_type] ?? ENTITY_TYPE_STYLES.other
+                    ENTITY_TYPE_BADGE[ep.entity.entity_type] ?? ENTITY_TYPE_BADGE.other
                   )}
                 >
                   {ENTITY_TYPE_LABELS[ep.entity.entity_type] ?? ep.entity.entity_type}
@@ -368,11 +323,11 @@ export default async function ProjectOverviewPage({ params }: PageProps) {
             View all →
           </Link>
         </div>
-        {activityLogs && activityLogs.length > 0 ? (
+        {typedLogs.length > 0 ? (
           <div className="rounded-lg border border-border overflow-hidden">
             <table className="w-full text-xs">
               <tbody className="divide-y divide-border">
-                {activityLogs.map((log) => {
+                {typedLogs.map((log) => {
                   const link = activityRecordLink(log.table_name, log.record_id, id)
                   const actionStyle = ACTIVITY_ACTION_STYLES[log.action] ?? 'bg-slate-50 text-slate-600 ring-slate-200'
                   return (
@@ -391,7 +346,16 @@ export default async function ProjectOverviewPage({ params }: PageProps) {
                         {ACTIVITY_TABLE_LABELS[log.table_name] ?? log.table_name}
                       </td>
                       <td className="py-2 px-3 text-muted-foreground">
-                        {displayActor(log.actor_type, log.actor_id)}
+                        {displayActor(log)}
+                        {log.field_changes && typeof log.field_changes === 'object' && (
+                          <div className="mt-0.5">
+                            {Object.entries(log.field_changes as Record<string, { old: unknown; new: unknown }>).map(([field, change]) => (
+                              <span key={field} className="text-[10px] text-foreground/70">
+                                {field}: <span className="line-through text-red-500/70">{String(change.old ?? '—')}</span> → <span className="text-emerald-600">{String(change.new ?? '—')}</span>
+                              </span>
+                            ))}
+                          </div>
+                        )}
                       </td>
                       <td className="py-2 px-3 w-8">
                         {link && (

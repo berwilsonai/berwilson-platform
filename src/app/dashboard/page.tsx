@@ -9,6 +9,9 @@ import { SECTOR_SHORT, SECTOR_BADGE } from '@/lib/utils/sectors'
 import ProjectCard, { type ProjectCardCounts } from '@/components/dashboard/ProjectCard'
 import SortControls from '@/components/dashboard/SortControls'
 import PortfolioBriefButton from '@/components/dashboard/PortfolioBriefButton'
+import DailyBrief from '@/components/dashboard/DailyBrief'
+import AlertsBanner from '@/components/dashboard/AlertsBanner'
+import RiskOverview from '@/components/dashboard/RiskOverview'
 import EmptyState from '@/components/shared/EmptyState'
 import type { ActionItem, WaitingOnItem, RiskItem } from '@/types/domain'
 
@@ -74,11 +77,14 @@ export default async function DashboardPage({ searchParams }: PageProps) {
   const today = new Date().toISOString().split('T')[0]
 
   // Parallel: projects + attention items
+  const in90Days = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+
   const [
     { data: projectsRaw },
     { data: reviewRaw, count: reviewCount },
     { data: overdueRaw },
     { data: ddRaw },
+    { data: expiringCerts },
   ] = await Promise.all([
     supabase.from('projects').select('*').eq('status', 'active'),
     supabase
@@ -98,6 +104,12 @@ export default async function DashboardPage({ searchParams }: PageProps) {
       .in('severity', ['critical', 'blocker'])
       .in('status', ['open', 'in_progress'])
       .order('severity', { ascending: false }),
+    supabase
+      .from('certifications')
+      .select('id, name, expiration_date, issuing_body')
+      .eq('is_active', true)
+      .lte('expiration_date', in90Days)
+      .order('expiration_date', { ascending: true }),
   ])
 
   const activeProjects = projectsRaw ?? []
@@ -163,8 +175,50 @@ export default async function DashboardPage({ searchParams }: PageProps) {
   const ddItems = (ddRaw ?? []).slice(0, 6) as DdWithProject[]
   const hasAttention = reviewItems.length > 0 || overdueItems.length > 0 || ddItems.length > 0
 
+  // Build alerts data for the banner
+  const alerts: Array<{ type: 'critical' | 'overdue' | 'review'; text: string; href: string }> = []
+  for (const dd of ddItems) {
+    alerts.push({
+      type: 'critical',
+      text: `[${dd.severity.toUpperCase()}] ${dd.project?.name}: ${dd.item.slice(0, 80)}`,
+      href: `/projects/${dd.project_id}/diligence`,
+    })
+  }
+  for (const m of overdueItems) {
+    if (m.target_date) {
+      alerts.push({
+        type: 'overdue',
+        text: `Overdue: ${m.label} (${m.project?.name}) — ${daysOverdue(m.target_date)}d past due`,
+        href: `/projects/${m.project_id}/milestones`,
+      })
+    }
+  }
+  for (const cert of expiringCerts ?? []) {
+    const days = cert.expiration_date
+      ? Math.ceil((new Date(cert.expiration_date).getTime() - Date.now()) / 86_400_000)
+      : null
+    const isExpired = days !== null && days < 0
+    alerts.push({
+      type: isExpired ? 'critical' : 'overdue',
+      text: isExpired
+        ? `Cert EXPIRED: ${cert.name}${cert.issuing_body ? ` (${cert.issuing_body})` : ''} — renew now`
+        : `Cert expiring in ${days}d: ${cert.name}${cert.issuing_body ? ` (${cert.issuing_body})` : ''}`,
+      href: '/company',
+    })
+  }
+
   return (
     <div className="space-y-5">
+
+      {/* ── Alerts banner — critical items across portfolio ──────────────── */}
+      {alerts.length > 0 && <AlertsBanner alerts={alerts} />}
+
+      {/* ── Daily intelligence brief ────────────────────────────────────── */}
+      {activeProjects.length > 0 && (
+        <Suspense>
+          <DailyBrief />
+        </Suspense>
+      )}
 
       {/* ── Summary stats ─────────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -248,7 +302,12 @@ export default async function DashboardPage({ searchParams }: PageProps) {
         </div>
 
         {/* Needs Attention — right on desktop, below cards on mobile */}
-        <div className="w-full lg:w-72 xl:w-80 shrink-0">
+        <div className="w-full lg:w-72 xl:w-80 shrink-0 space-y-3">
+          {/* Risk overview */}
+          <Suspense>
+            <RiskOverview />
+          </Suspense>
+
           <div className="rounded-lg border border-border bg-card">
             <div className="flex items-center gap-2 px-4 py-3 border-b border-border">
               <AlertTriangle size={14} className={cn(hasAttention ? 'text-amber-500' : 'text-muted-foreground')} />

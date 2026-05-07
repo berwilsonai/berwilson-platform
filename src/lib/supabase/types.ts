@@ -44,6 +44,9 @@ export type ActivityLog = Tables<'activity_log'>
 export type ReviewQueueRow = Tables<'review_queue'>
 export type AiQuery = Tables<'ai_queries'>
 export type ResearchArtifact = Tables<'research_artifacts'>
+export type Media = Tables<'media'>
+export type CompanyProfile = Tables<'company_profile'>
+export type Certification = Tables<'certifications'>
 
 // ---------------------------------------------------------------------------
 // Enum aliases — import these instead of Enums<'project_sector'> everywhere

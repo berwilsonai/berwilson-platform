@@ -46,8 +46,46 @@ export async function runAgent(
   const client = getClient()
   const supabase = createAdminClient()
 
-  // Build system prompt with project context if scoped
+  // Build system prompt: start with base, append company qualifications, then optional project context
   let systemPrompt = AGENT_SYSTEM_PROMPT
+
+  // Always inject company profile so the agent knows Ber Wilson's qualifications without needing a tool call
+  const { data: companyProfile } = await supabase
+    .from('company_profile')
+    .select('legal_name, capabilities, naics_codes, dbe_certified, mbe_certified, wbe_certified, sbe_certified, bonding_capacity, aggregate_bonding')
+    .limit(1)
+    .single()
+
+  const { data: activeCerts } = await supabase
+    .from('certifications')
+    .select('name, issuing_body, expiration_date, is_active')
+    .eq('is_active', true)
+    .order('name')
+
+  if (companyProfile) {
+    const certList = (activeCerts ?? [])
+      .map(c => `  - ${c.name}${c.issuing_body ? ` (${c.issuing_body})` : ''}${c.expiration_date ? `, expires ${c.expiration_date}` : ''}`)
+      .join('\n')
+
+    const diversityFlags = [
+      companyProfile.dbe_certified && 'DBE',
+      companyProfile.mbe_certified && 'MBE',
+      companyProfile.wbe_certified && 'WBE',
+      companyProfile.sbe_certified && 'SBE',
+    ].filter(Boolean).join(', ')
+
+    systemPrompt += `\n\n## BER WILSON COMPANY QUALIFICATIONS
+- **Legal Name:** ${companyProfile.legal_name}
+- **NAICS Codes:** ${(companyProfile.naics_codes ?? []).join(', ') || 'Not set'}
+- **Diversity Status:** ${diversityFlags || 'None certified'}
+- **Bonding:** Single project $${companyProfile.bonding_capacity ? (companyProfile.bonding_capacity / 1_000_000).toFixed(1) + 'M' : 'TBD'} | Aggregate $${companyProfile.aggregate_bonding ? (companyProfile.aggregate_bonding / 1_000_000).toFixed(1) + 'M' : 'TBD'}
+- **Capabilities:** ${companyProfile.capabilities ? companyProfile.capabilities.slice(0, 500) : 'Not set'}
+- **Active Certifications (${(activeCerts ?? []).length}):**
+${certList || '  (none on file)'}
+
+Use get_company_qualifications for the full detail including expiry dates and cert numbers.`
+  }
+
   if (context.projectId) {
     const { data: project } = await supabase
       .from('projects')

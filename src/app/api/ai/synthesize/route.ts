@@ -18,6 +18,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { checkRateLimit } from '@/lib/rate-limit'
 import { callGemini } from '@/lib/ai/gemini'
 import {
   SYNTHESIS_SYSTEM_PROMPT,
@@ -38,10 +39,12 @@ const INTENT_SYSTEM_PROMPT = `You are a query parser for a construction executiv
 
 Given an executive's question, extract:
 - project_name_hints: fragments of project names or references mentioned (e.g. "Fort Bragg", "SLC deal", "data center"). Empty array if none mentioned.
+- entity_name_hints: vendor or company names mentioned (e.g. "Turner Construction", "the HVAC vendor", "Smith & Associates"). Empty array if none mentioned.
 - date_range_days: how far back to search. Use 30 for "this month", 90 for "recent/quarter", 365 for "this year", null for "all time" or unspecified.
 - is_cross_project: true if asking about "all projects", "across the portfolio", or no specific project.
+- is_vendor_query: true if asking about vendors, subcontractors, or searching across vendor capabilities/certifications (e.g. "which vendors have...", "who is certified for...", "find a sub that...").
 
-Return ONLY valid JSON: {"project_name_hints": [], "date_range_days": null, "is_cross_project": true}`
+Return ONLY valid JSON: {"project_name_hints": [], "entity_name_hints": [], "date_range_days": null, "is_cross_project": true, "is_vendor_query": false}`
 
 // ---------------------------------------------------------------------------
 // Embedding
@@ -70,9 +73,11 @@ async function embedQuery(text: string): Promise<number[]> {
 
 interface RawChunk {
   id: string
-  project_id: string
+  project_id: string | null
   update_id: string | null
   document_id: string | null
+  entity_id: string | null
+  party_id: string | null
   content: string
   chunk_index: number
   token_count: number | null
@@ -101,6 +106,60 @@ function rerank(chunks: RawChunk[], topN = 8): (RawChunk & { final_score: number
     .slice(0, topN)
 }
 
+/**
+ * LLM-based reranker — ask Gemini to score chunk relevance to the query.
+ * Falls back to heuristic reranking if this fails.
+ */
+async function llmRerank(
+  query: string,
+  chunks: (RawChunk & { final_score: number })[],
+  userId: string,
+  topN = 8
+): Promise<(RawChunk & { final_score: number })[]> {
+  if (chunks.length <= 3) return chunks // Not worth reranking few results
+
+  try {
+    const passages = chunks.map((c, i) => `[${i + 1}] ${c.content.slice(0, 300)}`).join('\n\n')
+
+    const result = await callGemini<{ rankings: number[] }>({
+      task: 'rerank',
+      systemPrompt: `You are a relevance reranker for a construction executive intelligence platform.
+Given a query and numbered passages, return a JSON object with a "rankings" array containing the passage numbers ordered from most to least relevant to the query.
+Only include passages that are actually relevant. Omit irrelevant ones.
+Return ONLY valid JSON: {"rankings": [3, 1, 5]}`,
+      userMessage: `QUERY: ${query}\n\nPASSAGES:\n${passages}`,
+      userId,
+      maxTokens: 200,
+    })
+
+    const rankings = result.data.rankings
+    if (!Array.isArray(rankings) || rankings.length === 0) return chunks
+
+    // Reorder chunks based on LLM rankings
+    const reordered: (RawChunk & { final_score: number })[] = []
+    for (const rank of rankings) {
+      const idx = rank - 1
+      if (idx >= 0 && idx < chunks.length) {
+        // Boost final_score by position in LLM ranking
+        const boostFactor = 1 + (rankings.length - reordered.length) * 0.05
+        reordered.push({ ...chunks[idx], final_score: chunks[idx].final_score * boostFactor })
+      }
+    }
+
+    // Append any chunks the LLM didn't mention (with reduced scores)
+    for (const c of chunks) {
+      if (!reordered.find(r => r.id === c.id)) {
+        reordered.push({ ...c, final_score: c.final_score * 0.5 })
+      }
+    }
+
+    return reordered.slice(0, topN)
+  } catch {
+    // Non-fatal — fall back to heuristic ranking
+    return chunks
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Main handler
 // ---------------------------------------------------------------------------
@@ -110,6 +169,14 @@ export async function POST(request: NextRequest) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const rl = checkRateLimit(`synthesize:${user.id}`, 15, 60_000)
+  if (!rl.allowed) {
+    return NextResponse.json(
+      { error: 'Rate limit exceeded. Please wait.' },
+      { status: 429, headers: { 'Retry-After': String(Math.ceil(rl.retryAfterMs / 1000)) } }
+    )
+  }
 
   let body: { query?: string }
   try {
@@ -179,6 +246,66 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  // 3c. Resolve entity_name_hints → entity_ids
+  let filterEntityIds: string[] = []
+  const entityMap: Record<string, string> = {} // id → name
+
+  const entityHints = (intent as Record<string, unknown>).entity_name_hints as string[] | undefined
+  const isVendorQuery = (intent as Record<string, unknown>).is_vendor_query as boolean | undefined
+
+  if (entityHints && entityHints.length > 0) {
+    const { data: allEntities } = await admin.from('entities').select('id, name')
+    for (const hint of entityHints) {
+      const lowerHint = hint.toLowerCase()
+      const match = (allEntities ?? []).find((e) =>
+        e.name.toLowerCase().includes(lowerHint) ||
+        lowerHint.includes(e.name.toLowerCase().split(' ')[0])
+      )
+      if (match) {
+        filterEntityIds.push(match.id)
+        entityMap[match.id] = match.name
+      }
+    }
+  }
+
+  // For cross-vendor queries ("which vendors have X?"), load all entity names for context
+  if (isVendorQuery && filterEntityIds.length === 0) {
+    const { data: allEntities } = await admin.from('entities').select('id, name')
+    for (const e of allEntities ?? []) {
+      entityMap[e.id] = e.name
+    }
+  }
+
+  // 3d. Load company profile for qualification context (non-fatal if missing)
+  let companyContext = ''
+  try {
+    const [{ data: cp }, { data: certs }] = await Promise.all([
+      admin.from('company_profile').select('legal_name, capabilities, naics_codes, dbe_certified, mbe_certified, wbe_certified, sbe_certified, bonding_capacity, aggregate_bonding').limit(1).single(),
+      admin.from('certifications').select('name, issuing_body, expiration_date, is_active').eq('is_active', true).order('name'),
+    ])
+    if (cp) {
+      const today = new Date().toISOString().split('T')[0]
+      const certLines = (certs ?? []).map(c => {
+        const expired = c.expiration_date && c.expiration_date < today ? ' [EXPIRED]' : ''
+        return `- ${c.name}${c.issuing_body ? ` (${c.issuing_body})` : ''}${expired}`
+      }).join('\n')
+      const diversity = [cp.dbe_certified && 'DBE', cp.mbe_certified && 'MBE', cp.wbe_certified && 'WBE', cp.sbe_certified && 'SBE'].filter(Boolean).join(', ')
+      companyContext = `BER WILSON PROFILE (use when answering questions about qualifications, RFP eligibility, or due diligence):
+Legal Name: ${cp.legal_name}
+NAICS: ${(cp.naics_codes ?? []).join(', ') || 'not set'}
+Diversity: ${diversity || 'none certified'}
+Bonding: Single $${cp.bonding_capacity ? (cp.bonding_capacity / 1_000_000).toFixed(1) + 'M' : 'TBD'} | Aggregate $${cp.aggregate_bonding ? (cp.aggregate_bonding / 1_000_000).toFixed(1) + 'M' : 'TBD'}
+Capabilities: ${cp.capabilities?.slice(0, 400) ?? 'not set'}
+Active Certifications:\n${certLines || '(none on file)'}
+
+---
+
+`
+    }
+  } catch {
+    // Non-fatal — synthesis continues without company context
+  }
+
   // 4. Embed the query
   let queryEmbedding: number[]
   try {
@@ -198,6 +325,7 @@ export async function POST(request: NextRequest) {
     filter_project_ids: filterProjectIds.length > 0 ? filterProjectIds : [],
     filter_after: filterAfter ?? '2000-01-01T00:00:00.000Z',
     match_count: 20,
+    filter_entity_ids: filterEntityIds.length > 0 ? filterEntityIds : [],
   })
 
   if (rpcError) {
@@ -207,8 +335,9 @@ export async function POST(request: NextRequest) {
 
   const chunks = (rawChunks ?? []) as RawChunk[]
 
-  // 6 & 7. Re-rank and take top 8
-  const topChunks = rerank(chunks, 8)
+  // 6 & 7. Re-rank: heuristic first, then LLM reranker for precision
+  const heuristicRanked = rerank(chunks, 12)
+  const topChunks = await llmRerank(query, heuristicRanked, user.id, 8)
 
   // 8. Handle no-data case
   if (topChunks.length === 0) {
@@ -229,17 +358,25 @@ export async function POST(request: NextRequest) {
   const allLowConfidence = topChunks.every((c) => Number(c.source_confidence) < 0.5)
 
   // 9. Build context for Sonnet
-  const contextChunks = topChunks.map((c, i) => ({
-    index: i + 1,
-    projectName: projectMap[c.project_id] ?? 'Unknown Project',
-    content: c.content,
-    createdAt: new Date(c.created_at).toLocaleDateString('en-US', {
-      month: 'short', day: 'numeric', year: 'numeric',
-    }),
-    daysOld: Math.floor((Date.now() - new Date(c.created_at).getTime()) / (1000 * 60 * 60 * 24)),
-  }))
+  const contextChunks = topChunks.map((c, i) => {
+    let sourceName = c.project_id ? (projectMap[c.project_id] ?? 'Unknown Project') : ''
+    if (c.entity_id && entityMap[c.entity_id]) {
+      sourceName = `Vendor: ${entityMap[c.entity_id]}`
+    }
+    if (!sourceName) sourceName = 'Enrichment Data'
 
-  const userMessage = buildSynthesisMessage(query, contextChunks)
+    return {
+      index: i + 1,
+      projectName: sourceName,
+      content: c.content,
+      createdAt: new Date(c.created_at).toLocaleDateString('en-US', {
+        month: 'short', day: 'numeric', year: 'numeric',
+      }),
+      daysOld: Math.floor((Date.now() - new Date(c.created_at).getTime()) / (1000 * 60 * 60 * 24)),
+    }
+  })
+
+  const userMessage = companyContext + buildSynthesisMessage(query, contextChunks)
 
   // 10. Generate answer (Gemini 2.5 Flash — prose mode, no JSON)
   const startSynthesis = Date.now()
@@ -257,19 +394,29 @@ export async function POST(request: NextRequest) {
   const answer = synthesisResult.data as string
 
   // 11. Build citation objects for the UI
-  const citations: ChunkWithProject[] = topChunks.map((c, i) => ({
-    citation_index: i + 1,
-    id: c.id,
-    project_id: c.project_id,
-    project_name: projectMap[c.project_id] ?? 'Unknown Project',
-    update_id: c.update_id,
-    document_id: c.document_id,
-    content: c.content,
-    created_at: c.created_at,
-    similarity: c.similarity,
-    source_confidence: Number(c.source_confidence),
-    final_score: c.final_score,
-  }))
+  const citations: ChunkWithProject[] = topChunks.map((c, i) => {
+    let sourceName = c.project_id ? (projectMap[c.project_id] ?? 'Unknown Project') : ''
+    if (c.entity_id && entityMap[c.entity_id]) {
+      sourceName = `Vendor: ${entityMap[c.entity_id]}`
+    }
+    if (!sourceName) sourceName = 'Enrichment Data'
+
+    return {
+      citation_index: i + 1,
+      id: c.id,
+      project_id: c.project_id ?? '',
+      project_name: sourceName,
+      update_id: c.update_id,
+      document_id: c.document_id,
+      entity_id: c.entity_id,
+      party_id: c.party_id,
+      content: c.content,
+      created_at: c.created_at,
+      similarity: c.similarity,
+      source_confidence: Number(c.source_confidence),
+      final_score: c.final_score,
+    }
+  })
 
   // Log to ai_queries and return the real ID for rating
   let aiQueryId: string | null = null

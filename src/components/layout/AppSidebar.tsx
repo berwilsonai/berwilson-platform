@@ -13,15 +13,19 @@ import {
   Activity,
   Brain,
   Mail,
+  CalendarDays,
   ChevronLeft,
   ChevronRight,
+  Shield,
 } from 'lucide-react'
 
 const NAV_ITEMS = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/projects', label: 'Projects', icon: FolderKanban },
+  { href: '/calendar', label: 'Calendar', icon: CalendarDays },
   { href: '/contacts', label: 'Contacts', icon: Users },
   { href: '/vendors', label: 'Vendors', icon: Building2 },
+  { href: '/company', label: 'Ber Wilson', icon: Shield },
   { href: '/review', label: 'Review Queue', icon: ClipboardCheck },
   { href: '/email-log', label: 'Email Log', icon: Mail },
   { href: '/activity', label: 'Activity', icon: Activity },
