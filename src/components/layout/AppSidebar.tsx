@@ -17,6 +17,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Shield,
+  TrendingUp,
 } from 'lucide-react'
 
 const NAV_ITEMS = [
@@ -103,6 +104,17 @@ export default function AppSidebar({ pendingReviewCount = 0 }: AppSidebarProps) 
           )
         })}
 
+        {/* External tool link */}
+        <div className="mt-2 pt-2 border-t border-slate-800">
+          <a
+            href="/equity"
+            title={collapsed ? 'Equity & Valuation' : undefined}
+            className="flex items-center gap-3 px-2.5 py-2 rounded text-sm font-medium text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+          >
+            <TrendingUp size={15} className="shrink-0" />
+            {!collapsed && <span className="truncate">Equity & Valuation</span>}
+          </a>
+        </div>
       </nav>
     </aside>
   )
