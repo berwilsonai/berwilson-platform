@@ -42,7 +42,9 @@ export async function middleware(request: NextRequest) {
     pathname === '/api/email/webhook' ||           // Microsoft Graph webhook (validation + notifications)
     pathname === '/api/cron/renew-subscriptions' || // Vercel cron job
     pathname === '/api/cron/risk-scores' ||         // Risk scoring cron job
-    pathname.startsWith('/api/email/oauth/callback') // OAuth redirect from Microsoft
+    pathname.startsWith('/api/email/oauth/callback') || // OAuth redirect from Microsoft
+    pathname.startsWith('/equity/share/') ||            // Equity shared scenario links (token-gated)
+    pathname.startsWith('/api/equity/share/')            // Equity share API (token validation)
 
   if (!user && !isPublicRoute) {
     const url = request.nextUrl.clone()

@@ -104,16 +104,20 @@ export default function AppSidebar({ pendingReviewCount = 0 }: AppSidebarProps) 
           )
         })}
 
-        {/* External tool link */}
+        {/* Equity & Valuation */}
         <div className="mt-2 pt-2 border-t border-slate-800">
-          <a
+          <Link
             href="/equity"
             title={collapsed ? 'Equity & Valuation' : undefined}
-            className="flex items-center gap-3 px-2.5 py-2 rounded text-sm font-medium text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+            className={`flex items-center gap-3 px-2.5 py-2 rounded text-sm font-medium transition-colors ${
+              pathname === '/equity' || pathname.startsWith('/equity/')
+                ? 'bg-slate-700 text-white'
+                : 'text-slate-400 hover:text-white hover:bg-slate-800'
+            }`}
           >
             <TrendingUp size={15} className="shrink-0" />
             {!collapsed && <span className="truncate">Equity & Valuation</span>}
-          </a>
+          </Link>
         </div>
       </nav>
     </aside>

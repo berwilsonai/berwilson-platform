@@ -15,6 +15,7 @@ import {
   Shield,
   Mail,
   Activity,
+  TrendingUp,
   X,
 } from 'lucide-react'
 
@@ -27,6 +28,7 @@ const PRIMARY_NAV = [
 ] as const
 
 const MORE_NAV = [
+  { href: '/equity', label: 'Equity', icon: TrendingUp },
   { href: '/contacts', label: 'Contacts', icon: Users },
   { href: '/vendors', label: 'Vendors', icon: Building2 },
   { href: '/company', label: 'Ber Wilson', icon: Shield },
