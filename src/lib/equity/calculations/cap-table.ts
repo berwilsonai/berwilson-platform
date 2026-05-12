@@ -79,36 +79,37 @@ export function rebalanceHolders(
 
 /**
  * Simulate dilution when new equity is issued.
- * Eric (Class B) stays fixed; Class A holders dilute proportionally.
+ * All holders (including Eric) dilute proportionally to make room for new issuance.
+ * When called with just a percentage, returns diluted existing holders (preview mode).
+ * When called with a name + percentage, also appends the new holder.
  */
 export function simulateDilution(
   holders: CapTableHolder[],
-  newHolderName: string,
-  newPercentage: number
+  newPercentageOrName: number | string,
+  newPercentage?: number
 ): CapTableHolder[] {
-  if (newPercentage <= 0 || newPercentage >= 100) return holders
+  const isPreview = typeof newPercentageOrName === 'number'
+  const pct = isPreview ? newPercentageOrName : newPercentage!
+  const name = isPreview ? undefined : newPercentageOrName
 
-  const ericHolder = holders.find((h) => h.classB)
-  if (!ericHolder) return holders
+  if (pct <= 0 || pct >= 100) return holders
 
-  const ericPct = ericHolder.percentage
-  const classATotal = 100 - ericPct
-  const dilutionFactor = (classATotal - newPercentage) / classATotal
+  // All holders shrink proportionally to make room
+  const dilutionFactor = (100 - pct) / 100
 
-  const result = holders.map((h) => {
-    if (h.classB) return { ...h } // Eric stays fixed
-    return {
-      ...h,
-      percentage: h.percentage * dilutionFactor,
-    }
-  })
+  const result = holders.map((h) => ({
+    ...h,
+    percentage: h.percentage * dilutionFactor,
+  }))
 
-  result.push({
-    name: newHolderName,
-    percentage: newPercentage,
-    role: 'New',
-    classB: false,
-  })
+  if (name) {
+    result.push({
+      name,
+      percentage: pct,
+      role: 'New',
+      classB: false,
+    })
+  }
 
   return result
 }

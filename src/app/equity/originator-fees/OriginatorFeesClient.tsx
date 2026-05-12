@@ -8,6 +8,8 @@ import { formatCurrency, formatCurrencyCompact, formatPercentDisplay } from '@/l
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Slider } from '@/components/ui/slider'
 import { Label } from '@/components/ui/label'
+import { Input } from '@/components/ui/input'
+import { Button } from '@/components/ui/button'
 import {
   Table,
   TableBody,
@@ -17,14 +19,16 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
+import { Plus, Trash2, Link2 } from 'lucide-react'
 import ExportShareBar from '@/components/equity/ExportShareBar'
+import type { OriginatorFeeTier, SampleDeal } from '@/types/equity-domain'
 
 function sv(v: number | readonly number[]): number {
   return Array.isArray(v) ? v[0] : v as number
 }
 
 export default function OriginatorFeesClient() {
-  const { originatorFees, setOriginatorFees } = useScenarioStore()
+  const { originatorFees, setOriginatorFees, valuation } = useScenarioStore()
   useAutosave()
 
   const results = useMemo(
@@ -42,6 +46,66 @@ export default function OriginatorFeesClient() {
     [results]
   )
 
+  // Tier editing
+  function updateTier(index: number, partial: Partial<OriginatorFeeTier>) {
+    const updated = originatorFees.tiers.map((t, i) =>
+      i === index ? { ...t, ...partial } : t
+    )
+    setOriginatorFees({ tiers: updated })
+  }
+
+  function addTier() {
+    const lastTier = originatorFees.tiers[originatorFees.tiers.length - 1]
+    const newMin = lastTier ? lastTier.contractSizeMax : 0
+    setOriginatorFees({
+      tiers: [
+        ...originatorFees.tiers,
+        {
+          contractSizeMin: newMin === Infinity ? 1_000_000_000 : newMin,
+          contractSizeMax: Infinity,
+          netProfitPercentage: 0.01,
+          perDealCap: 5_000_000,
+        },
+      ],
+    })
+  }
+
+  function removeTier(index: number) {
+    if (originatorFees.tiers.length <= 1) return
+    setOriginatorFees({ tiers: originatorFees.tiers.filter((_, i) => i !== index) })
+  }
+
+  // Deal editing
+  function updateDeal(index: number, partial: Partial<SampleDeal>) {
+    const updated = originatorFees.sampleDeals.map((d, i) =>
+      i === index ? { ...d, ...partial } : d
+    )
+    setOriginatorFees({ sampleDeals: updated })
+  }
+
+  function addDeal() {
+    setOriginatorFees({
+      sampleDeals: [
+        ...originatorFees.sampleDeals,
+        { name: 'New Deal', contractRevenue: 50_000_000, durationYears: 5 },
+      ],
+    })
+  }
+
+  function removeDeal(index: number) {
+    setOriginatorFees({ sampleDeals: originatorFees.sampleDeals.filter((_, i) => i !== index) })
+  }
+
+  // Import contracts from Valuation Calculator
+  function importFromValuation() {
+    const deals: SampleDeal[] = valuation.contracts.map((c) => ({
+      name: c.name,
+      contractRevenue: c.value,
+      durationYears: c.termYears,
+    }))
+    setOriginatorFees({ sampleDeals: deals })
+  }
+
   return (
     <div className="max-w-5xl mx-auto space-y-6">
       <div className="flex items-start justify-between gap-4 flex-wrap">
@@ -54,7 +118,7 @@ export default function OriginatorFeesClient() {
         <ExportShareBar />
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-[300px_1fr]">
+      <div className="grid gap-6 lg:grid-cols-[340px_1fr]">
         {/* Left: Controls */}
         <div className="space-y-5">
           <Card>
@@ -70,8 +134,8 @@ export default function OriginatorFeesClient() {
                     onValueChange={(v) =>
                       setOriginatorFees({ netMarginAssumption: sv(v) / 100 })
                     }
-                    min={5}
-                    max={20}
+                    min={1}
+                    max={25}
                     step={1}
                   />
                   <span className="text-sm font-medium w-12 text-right">
@@ -90,7 +154,7 @@ export default function OriginatorFeesClient() {
                     }
                     min={0}
                     max={36}
-                    step={6}
+                    step={3}
                   />
                   <span className="text-sm font-medium w-16 text-right">
                     {originatorFees.tailMonths} mo
@@ -103,35 +167,83 @@ export default function OriginatorFeesClient() {
             </CardContent>
           </Card>
 
-          {/* Fee Tier Schedule */}
+          {/* Editable Fee Tiers */}
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-sm">Fee Tiers</CardTitle>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-sm">Fee Tiers</CardTitle>
+                <Button variant="outline" size="sm" onClick={addTier} className="h-7 text-xs gap-1">
+                  <Plus size={12} /> Add Tier
+                </Button>
+              </div>
             </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                {originatorFees.tiers.map((tier, i) => (
-                  <div
-                    key={i}
-                    className="bg-muted/30 rounded-md px-3 py-2 text-xs space-y-0.5"
-                  >
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">
-                        {formatCurrencyCompact(tier.contractSizeMin)} &ndash;{' '}
-                        {tier.contractSizeMax === Infinity
-                          ? 'Above'
-                          : formatCurrencyCompact(tier.contractSizeMax)}
-                      </span>
-                      <span className="font-medium">
-                        {(tier.netProfitPercentage * 100).toFixed(1)}% of net profit
-                      </span>
+            <CardContent className="space-y-3">
+              {originatorFees.tiers.map((tier, i) => (
+                <div
+                  key={i}
+                  className="bg-muted/30 rounded-md px-3 py-2 space-y-2"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] text-muted-foreground font-medium">Tier {i + 1}</span>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => removeTier(i)}
+                      className="h-5 w-5 p-0 text-muted-foreground hover:text-red-600"
+                      disabled={originatorFees.tiers.length <= 1}
+                    >
+                      <Trash2 size={10} />
+                    </Button>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <Label className="text-[9px] text-muted-foreground">Min Contract</Label>
+                      <Input
+                        type="number"
+                        value={tier.contractSizeMin}
+                        onChange={(e) => updateTier(i, { contractSizeMin: Number(e.target.value) || 0 })}
+                        className="h-6 text-[10px]"
+                      />
                     </div>
-                    <div className="text-[10px] text-muted-foreground">
-                      Capped at {formatCurrency(tier.perDealCap)} per deal
+                    <div>
+                      <Label className="text-[9px] text-muted-foreground">Max Contract</Label>
+                      <Input
+                        type="number"
+                        value={tier.contractSizeMax === Infinity ? '' : tier.contractSizeMax}
+                        onChange={(e) => updateTier(i, { contractSizeMax: e.target.value === '' ? Infinity : Number(e.target.value) || 0 })}
+                        className="h-6 text-[10px]"
+                        placeholder="No limit"
+                      />
                     </div>
                   </div>
-                ))}
-              </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <Label className="text-[9px] text-muted-foreground">% of Net Profit</Label>
+                      <div className="flex items-center gap-1">
+                        <Slider
+                          value={[tier.netProfitPercentage * 100]}
+                          onValueChange={(v) => updateTier(i, { netProfitPercentage: sv(v) / 100 })}
+                          min={0.5}
+                          max={15}
+                          step={0.5}
+                        />
+                        <span className="text-[10px] font-medium w-10 text-right">
+                          {(tier.netProfitPercentage * 100).toFixed(1)}%
+                        </span>
+                      </div>
+                    </div>
+                    <div>
+                      <Label className="text-[9px] text-muted-foreground">Per-Deal Cap</Label>
+                      <Input
+                        type="number"
+                        value={tier.perDealCap}
+                        onChange={(e) => updateTier(i, { perDealCap: Number(e.target.value) || 0 })}
+                        className="h-6 text-[10px]"
+                      />
+                    </div>
+                  </div>
+                </div>
+              ))}
             </CardContent>
           </Card>
 
@@ -153,9 +265,26 @@ export default function OriginatorFeesClient() {
 
         {/* Right: Deal Results */}
         <div className="space-y-5">
+          {/* Editable Deals Table */}
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm">Sample Deal Analysis</CardTitle>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-sm">Deal Portfolio</CardTitle>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={importFromValuation}
+                    className="h-7 text-[9px] gap-1"
+                    title="Import contracts from Valuation Calculator"
+                  >
+                    <Link2 size={10} /> From Valuation
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={addDeal} className="h-7 text-xs gap-1">
+                    <Plus size={12} /> Add Deal
+                  </Button>
+                </div>
+              </div>
             </CardHeader>
             <CardContent>
               <Table>
@@ -163,36 +292,70 @@ export default function OriginatorFeesClient() {
                   <TableRow>
                     <TableHead className="text-xs">Deal</TableHead>
                     <TableHead className="text-xs text-right">Contract</TableHead>
+                    <TableHead className="text-xs text-right">Duration</TableHead>
                     <TableHead className="text-xs text-right">Net Profit</TableHead>
                     <TableHead className="text-xs text-right">Originator Fee</TableHead>
                     <TableHead className="text-xs text-right">Annual</TableHead>
+                    <TableHead className="text-xs w-8" />
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {results.map((r, i) => (
-                    <TableRow key={i}>
-                      <TableCell className="text-xs font-medium">
-                        {r.dealName}
-                        {r.capApplied && (
-                          <Badge variant="secondary" className="ml-1 text-[8px] px-1 py-0">
-                            capped
-                          </Badge>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-xs text-right">
-                        {formatCurrencyCompact(r.contractRevenue)}
-                      </TableCell>
-                      <TableCell className="text-xs text-right">
-                        {formatCurrencyCompact(r.netProfit)}
-                      </TableCell>
-                      <TableCell className="text-xs text-right font-medium text-amber-700">
-                        {formatCurrency(r.originatorFee)}
-                      </TableCell>
-                      <TableCell className="text-xs text-right">
-                        {formatCurrencyCompact(r.annualFee)}/yr
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                  {results.map((r, i) => {
+                    const deal = originatorFees.sampleDeals[i]
+                    return (
+                      <TableRow key={i}>
+                        <TableCell className="text-xs p-1">
+                          <Input
+                            value={deal?.name ?? r.dealName}
+                            onChange={(e) => updateDeal(i, { name: e.target.value })}
+                            className="h-7 text-xs"
+                          />
+                        </TableCell>
+                        <TableCell className="text-xs p-1">
+                          <Input
+                            type="number"
+                            value={deal?.contractRevenue ?? r.contractRevenue}
+                            onChange={(e) => updateDeal(i, { contractRevenue: Number(e.target.value) || 0 })}
+                            className="h-7 text-xs text-right w-28"
+                          />
+                        </TableCell>
+                        <TableCell className="text-xs p-1">
+                          <Input
+                            type="number"
+                            value={deal?.durationYears ?? 5}
+                            onChange={(e) => updateDeal(i, { durationYears: Number(e.target.value) || 1 })}
+                            className="h-7 text-xs text-right w-14"
+                            min={1}
+                            max={30}
+                          />
+                        </TableCell>
+                        <TableCell className="text-xs text-right">
+                          {formatCurrencyCompact(r.netProfit)}
+                        </TableCell>
+                        <TableCell className="text-xs text-right font-medium text-amber-700">
+                          {formatCurrency(r.originatorFee)}
+                          {r.capApplied && (
+                            <Badge variant="secondary" className="ml-1 text-[8px] px-1 py-0">
+                              capped
+                            </Badge>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-xs text-right">
+                          {formatCurrencyCompact(r.annualFee)}/yr
+                        </TableCell>
+                        <TableCell className="p-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => removeDeal(i)}
+                            className="h-7 w-7 p-0 text-muted-foreground hover:text-red-600"
+                          >
+                            <Trash2 size={12} />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    )
+                  })}
                   <TableRow className="border-t-2">
                     <TableCell className="text-xs font-bold">Total</TableCell>
                     <TableCell className="text-xs text-right font-medium">
@@ -200,6 +363,7 @@ export default function OriginatorFeesClient() {
                         results.reduce((sum, r) => sum + r.contractRevenue, 0)
                       )}
                     </TableCell>
+                    <TableCell />
                     <TableCell className="text-xs text-right font-medium">
                       {formatCurrencyCompact(
                         results.reduce((sum, r) => sum + r.netProfit, 0)
@@ -208,6 +372,7 @@ export default function OriginatorFeesClient() {
                     <TableCell className="text-xs text-right font-bold text-amber-700">
                       {formatCurrency(totalLifetime)}
                     </TableCell>
+                    <TableCell />
                     <TableCell />
                   </TableRow>
                 </TableBody>

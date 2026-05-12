@@ -4,10 +4,14 @@ import { useMemo } from 'react'
 import { useScenarioStore } from '@/stores/equity-scenario-store'
 import { useAutosave } from '@/hooks/equity-use-autosave'
 import { calculateInvestorDealResult, calculateConversionEquity } from '@/lib/equity/calculations/investor-deal'
+import { calculateBlendedValuation } from '@/lib/equity/calculations/valuation'
 import { formatCurrency, formatCurrencyCompact, formatPercentDisplay } from '@/lib/equity/format'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Slider } from '@/components/ui/slider'
 import { Label } from '@/components/ui/label'
+import { Input } from '@/components/ui/input'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 import {
   Table,
   TableBody,
@@ -22,6 +26,7 @@ import {
   TabsTrigger,
 } from '@/components/ui/tabs'
 import type { NoteType } from '@/types/equity-domain'
+import { Link2, Unlink } from 'lucide-react'
 import ExportShareBar from '@/components/equity/ExportShareBar'
 
 function sv(v: number | readonly number[]): number {
@@ -29,14 +34,34 @@ function sv(v: number | readonly number[]): number {
 }
 
 export default function InvestorDealClient() {
-  const { investorDeal, setInvestorDeal } = useScenarioStore()
+  const { investorDeal, setInvestorDeal, valuation } = useScenarioStore()
   useAutosave()
+
+  const blendedValuation = useMemo(() => calculateBlendedValuation(valuation), [valuation])
 
   const equityPct = useMemo(() => calculateConversionEquity(investorDeal), [investorDeal])
   const result = useMemo(() => calculateInvestorDealResult(investorDeal), [investorDeal])
 
   const sweetSpotMax = investorDeal.valuationCap * (investorDeal.maxParentEquityFromInvestment)
   const isOverCap = investorDeal.investmentAmount > sweetSpotMax
+
+  // Dynamically generate sweet spot amounts around the current investment
+  const sweetSpotAmounts = useMemo(() => {
+    const base = investorDeal.investmentAmount
+    const candidates = new Set<number>()
+    // Always include some standard amounts
+    ;[500_000, 1_000_000, 2_000_000, 5_000_000, 10_000_000].forEach((a) => candidates.add(a))
+    // Add the current amount and nearby values
+    candidates.add(base)
+    if (base > 1_000_000) candidates.add(Math.round(base * 0.5 / 500_000) * 500_000)
+    candidates.add(Math.round(base * 1.5 / 500_000) * 500_000)
+    candidates.add(Math.round(base * 2 / 500_000) * 500_000)
+    return [...candidates].filter((a) => a >= 250_000 && a <= 50_000_000).sort((a, b) => a - b).slice(0, 8)
+  }, [investorDeal.investmentAmount])
+
+  function useBlendedValuation() {
+    setInvestorDeal({ valuationCap: Math.round(blendedValuation.blended.mid) })
+  }
 
   return (
     <div className="max-w-5xl mx-auto space-y-6">
@@ -50,9 +75,24 @@ export default function InvestorDealClient() {
         <ExportShareBar />
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-[320px_1fr]">
+      <div className="grid gap-6 lg:grid-cols-[340px_1fr]">
         {/* Left: Inputs */}
         <div className="space-y-5">
+          {/* Investor Name */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm">Investor</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Input
+                value={investorDeal.investorName}
+                onChange={(e) => setInvestorDeal({ investorName: e.target.value })}
+                placeholder="Investor name"
+                className="h-8 text-sm"
+              />
+            </CardContent>
+          </Card>
+
           {/* Instrument Type */}
           <Card>
             <CardHeader className="pb-3">
@@ -84,9 +124,9 @@ export default function InvestorDealClient() {
                   <Slider
                     value={[investorDeal.investmentAmount]}
                     onValueChange={(v) => setInvestorDeal({ investmentAmount: sv(v) })}
-                    min={500_000}
+                    min={100_000}
                     max={50_000_000}
-                    step={500_000}
+                    step={100_000}
                   />
                   <span className="text-sm font-medium w-16 text-right">
                     {formatCurrencyCompact(investorDeal.investmentAmount)}
@@ -101,14 +141,25 @@ export default function InvestorDealClient() {
               </div>
 
               <div className="space-y-2">
-                <Label className="text-xs">Valuation Cap</Label>
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs">Valuation Cap</Label>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={useBlendedValuation}
+                    className="h-6 text-[9px] gap-1 px-2"
+                    title="Use blended valuation from Valuation Calculator"
+                  >
+                    <Link2 size={10} /> Use Blended ({formatCurrencyCompact(blendedValuation.blended.mid)})
+                  </Button>
+                </div>
                 <div className="flex items-center gap-2">
                   <Slider
                     value={[investorDeal.valuationCap]}
                     onValueChange={(v) => setInvestorDeal({ valuationCap: sv(v) })}
-                    min={10_000_000}
+                    min={1_000_000}
                     max={500_000_000}
-                    step={5_000_000}
+                    step={1_000_000}
                   />
                   <span className="text-sm font-medium w-16 text-right">
                     {formatCurrencyCompact(investorDeal.valuationCap)}
@@ -133,21 +184,55 @@ export default function InvestorDealClient() {
               </div>
 
               {investorDeal.noteType === 'convertible_note' && (
-                <div className="space-y-2">
-                  <Label className="text-xs">Interest Rate</Label>
-                  <div className="flex items-center gap-2">
-                    <Slider
-                      value={[investorDeal.interestRate * 100]}
-                      onValueChange={(v) => setInvestorDeal({ interestRate: sv(v) / 100 })}
-                      min={0}
-                      max={8}
-                      step={0.5}
-                    />
-                    <span className="text-sm font-medium w-12 text-right">
-                      {(investorDeal.interestRate * 100).toFixed(1)}%
-                    </span>
+                <>
+                  <div className="space-y-2">
+                    <Label className="text-xs">Interest Rate</Label>
+                    <div className="flex items-center gap-2">
+                      <Slider
+                        value={[investorDeal.interestRate * 100]}
+                        onValueChange={(v) => setInvestorDeal({ interestRate: sv(v) / 100 })}
+                        min={0}
+                        max={10}
+                        step={0.25}
+                      />
+                      <span className="text-sm font-medium w-12 text-right">
+                        {(investorDeal.interestRate * 100).toFixed(1)}%
+                      </span>
+                    </div>
                   </div>
-                </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-xs">Maturity (Months)</Label>
+                    <div className="flex items-center gap-2">
+                      <Slider
+                        value={[investorDeal.maturityMonths]}
+                        onValueChange={(v) => setInvestorDeal({ maturityMonths: sv(v) })}
+                        min={6}
+                        max={60}
+                        step={6}
+                      />
+                      <span className="text-sm font-medium w-12 text-right">
+                        {investorDeal.maturityMonths}mo
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-xs">Months Until Conversion</Label>
+                    <div className="flex items-center gap-2">
+                      <Slider
+                        value={[investorDeal.monthsUntilConversion]}
+                        onValueChange={(v) => setInvestorDeal({ monthsUntilConversion: sv(v) })}
+                        min={3}
+                        max={investorDeal.maturityMonths}
+                        step={3}
+                      />
+                      <span className="text-sm font-medium w-12 text-right">
+                        {investorDeal.monthsUntilConversion}mo
+                      </span>
+                    </div>
+                  </div>
+                </>
               )}
 
               <div className="space-y-2">
@@ -156,7 +241,7 @@ export default function InvestorDealClient() {
                   <Slider
                     value={[investorDeal.nextRoundValuation]}
                     onValueChange={(v) => setInvestorDeal({ nextRoundValuation: sv(v) })}
-                    min={15_000_000}
+                    min={5_000_000}
                     max={1_000_000_000}
                     step={5_000_000}
                   />
@@ -167,13 +252,30 @@ export default function InvestorDealClient() {
               </div>
 
               <div className="space-y-2">
+                <Label className="text-xs">Max Parent Equity from Investment</Label>
+                <div className="flex items-center gap-2">
+                  <Slider
+                    value={[investorDeal.maxParentEquityFromInvestment * 100]}
+                    onValueChange={(v) => setInvestorDeal({ maxParentEquityFromInvestment: sv(v) / 100 })}
+                    min={1}
+                    max={49}
+                    step={1}
+                  />
+                  <span className="text-sm font-medium w-12 text-right">
+                    {(investorDeal.maxParentEquityFromInvestment * 100).toFixed(0)}%
+                  </span>
+                </div>
+                <p className="text-[10px] text-muted-foreground">Cap on parent-level equity from this investment</p>
+              </div>
+
+              <div className="space-y-2">
                 <Label className="text-xs">Advisor Grant</Label>
                 <div className="flex items-center gap-2">
                   <Slider
                     value={[investorDeal.advisorGrantPercentage]}
                     onValueChange={(v) => setInvestorDeal({ advisorGrantPercentage: sv(v) })}
                     min={0}
-                    max={2}
+                    max={3}
                     step={0.25}
                   />
                   <span className="text-sm font-medium w-12 text-right">
@@ -181,14 +283,22 @@ export default function InvestorDealClient() {
                   </span>
                 </div>
               </div>
+            </CardContent>
+          </Card>
 
+          {/* Operational Package */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm">Operational Package</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
               <div className="space-y-2">
-                <Label className="text-xs">Operational Salary</Label>
+                <Label className="text-xs">Salary</Label>
                 <div className="flex items-center gap-2">
                   <Slider
                     value={[investorDeal.operationalSalary]}
                     onValueChange={(v) => setInvestorDeal({ operationalSalary: sv(v) })}
-                    min={100_000}
+                    min={0}
                     max={500_000}
                     step={25_000}
                   />
@@ -196,6 +306,57 @@ export default function InvestorDealClient() {
                     {formatCurrencyCompact(investorDeal.operationalSalary)}
                   </span>
                 </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-xs">Annual Bonus</Label>
+                <div className="flex items-center gap-2">
+                  <Slider
+                    value={[investorDeal.operationalBonus]}
+                    onValueChange={(v) => setInvestorDeal({ operationalBonus: sv(v) })}
+                    min={0}
+                    max={200_000}
+                    step={10_000}
+                  />
+                  <span className="text-sm font-medium w-20 text-right">
+                    {formatCurrencyCompact(investorDeal.operationalBonus)}
+                  </span>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-xs">Contract Duration (Years)</Label>
+                <div className="flex items-center gap-2">
+                  <Slider
+                    value={[investorDeal.operationalContractYears]}
+                    onValueChange={(v) => setInvestorDeal({ operationalContractYears: sv(v) })}
+                    min={1}
+                    max={15}
+                    step={1}
+                  />
+                  <span className="text-sm font-medium w-12 text-right">
+                    {investorDeal.operationalContractYears}yr
+                  </span>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-xs">Severance (Months)</Label>
+                <div className="flex items-center gap-2">
+                  <Slider
+                    value={[investorDeal.operationalSeverance]}
+                    onValueChange={(v) => setInvestorDeal({ operationalSeverance: sv(v) })}
+                    min={0}
+                    max={24}
+                    step={1}
+                  />
+                  <span className="text-sm font-medium w-12 text-right">
+                    {investorDeal.operationalSeverance}mo
+                  </span>
+                </div>
+                <p className="text-[10px] text-muted-foreground">
+                  Severance value: {formatCurrency(((investorDeal.operationalSalary + investorDeal.operationalBonus) / 12) * investorDeal.operationalSeverance)}
+                </p>
               </div>
             </CardContent>
           </Card>
@@ -240,7 +401,7 @@ export default function InvestorDealClient() {
           {/* 5-Lane Summary */}
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm">5-Lane Package Summary</CardTitle>
+              <CardTitle className="text-sm">5-Lane Package Summary — {investorDeal.investorName}</CardTitle>
             </CardHeader>
             <CardContent>
               <Table>
@@ -284,23 +445,24 @@ export default function InvestorDealClient() {
             </CardContent>
           </Card>
 
-          {/* Investment Sweet Spot */}
+          {/* Investment Sweet Spot — Dynamic */}
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm">Investment vs. Equity</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-2">
-                {[500_000, 1_000_000, 2_000_000, 5_000_000, 10_000_000].map((amt) => {
+                {sweetSpotAmounts.map((amt) => {
                   const pct = calculateConversionEquity({ ...investorDeal, investmentAmount: amt })
                   const underCap = pct <= investorDeal.maxParentEquityFromInvestment * 100
                   return (
-                    <div
+                    <button
                       key={amt}
-                      className={`flex items-center justify-between px-3 py-2 rounded-md text-xs ${
+                      onClick={() => setInvestorDeal({ investmentAmount: amt })}
+                      className={`flex items-center justify-between w-full px-3 py-2 rounded-md text-xs transition-colors ${
                         amt === investorDeal.investmentAmount
                           ? 'bg-amber-50 border border-amber-200'
-                          : 'bg-muted/30'
+                          : 'bg-muted/30 hover:bg-muted/50'
                       }`}
                     >
                       <span className="font-medium">{formatCurrencyCompact(amt)}</span>
@@ -311,7 +473,7 @@ export default function InvestorDealClient() {
                       {!underCap && (
                         <span className="text-[9px] text-amber-500">exceeds cap</span>
                       )}
-                    </div>
+                    </button>
                   )
                 })}
               </div>

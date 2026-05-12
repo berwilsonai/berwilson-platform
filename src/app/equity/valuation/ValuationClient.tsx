@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useScenarioStore } from '@/stores/equity-scenario-store'
 import { useAutosave } from '@/hooks/equity-use-autosave'
 import { calculateBlendedValuation, reverseCalculation } from '@/lib/equity/calculations/valuation'
@@ -10,6 +10,9 @@ import { Slider } from '@/components/ui/slider'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
+import { Input } from '@/components/ui/input'
+import { Button } from '@/components/ui/button'
+import { Plus, Trash2 } from 'lucide-react'
 import ExportShareBar from '@/components/equity/ExportShareBar'
 import {
   Table,
@@ -19,6 +22,14 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import type { SignedContract } from '@/types/equity-domain'
 
 function sv(v: number | readonly number[]): number {
   return Array.isArray(v) ? v[0] : v as number
@@ -30,8 +41,34 @@ export default function ValuationClient() {
 
   const result = useMemo(() => calculateBlendedValuation(valuation), [valuation])
 
-  const reverseFor5Pct = reverseCalculation(1_000_000, 5)
-  const reverseFor10Pct = reverseCalculation(1_000_000, 10)
+  // Reverse calculator state
+  const [reverseInvestment, setReverseInvestment] = useState(1_000_000)
+  const [reverseEquity1, setReverseEquity1] = useState(5)
+  const [reverseEquity2, setReverseEquity2] = useState(10)
+
+  const reverseResult1 = reverseCalculation(reverseInvestment, reverseEquity1)
+  const reverseResult2 = reverseCalculation(reverseInvestment, reverseEquity2)
+
+  // Contract editing
+  function updateContract(index: number, partial: Partial<SignedContract>) {
+    const updated = valuation.contracts.map((c, i) =>
+      i === index ? { ...c, ...partial } : c
+    )
+    setValuation({ contracts: updated })
+  }
+
+  function addContract() {
+    setValuation({
+      contracts: [
+        ...valuation.contracts,
+        { name: 'New Contract', value: 10_000_000, termYears: 5, probability: 0.5, status: 'pipeline' as const },
+      ],
+    })
+  }
+
+  function removeContract(index: number) {
+    setValuation({ contracts: valuation.contracts.filter((_, i) => i !== index) })
+  }
 
   return (
     <div className="max-w-6xl mx-auto space-y-6">
@@ -71,10 +108,15 @@ export default function ValuationClient() {
         </CardContent>
       </Card>
 
-      {/* Contracts Table */}
+      {/* Editable Contracts Table */}
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-sm">Contract Portfolio</CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-sm">Contract Portfolio</CardTitle>
+            <Button variant="outline" size="sm" onClick={addContract} className="h-7 text-xs gap-1">
+              <Plus size={12} /> Add Contract
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
           <Table>
@@ -82,35 +124,78 @@ export default function ValuationClient() {
               <TableRow>
                 <TableHead className="text-xs">Contract</TableHead>
                 <TableHead className="text-xs text-right">Value</TableHead>
-                <TableHead className="text-xs text-right">Term</TableHead>
+                <TableHead className="text-xs text-right">Term (yr)</TableHead>
                 <TableHead className="text-xs text-right">Probability</TableHead>
                 <TableHead className="text-xs text-right">Weighted Value</TableHead>
                 <TableHead className="text-xs">Status</TableHead>
+                <TableHead className="text-xs w-8" />
               </TableRow>
             </TableHeader>
             <TableBody>
               {valuation.contracts.map((c, i) => (
                 <TableRow key={i}>
-                  <TableCell className="text-xs font-medium">{c.name}</TableCell>
-                  <TableCell className="text-xs text-right">{formatCurrencyCompact(c.value)}</TableCell>
-                  <TableCell className="text-xs text-right">{c.termYears}yr</TableCell>
-                  <TableCell className="text-xs text-right">{(c.probability * 100).toFixed(0)}%</TableCell>
+                  <TableCell className="text-xs p-1">
+                    <Input
+                      value={c.name}
+                      onChange={(e) => updateContract(i, { name: e.target.value })}
+                      className="h-7 text-xs"
+                    />
+                  </TableCell>
+                  <TableCell className="text-xs p-1">
+                    <Input
+                      type="number"
+                      value={c.value}
+                      onChange={(e) => updateContract(i, { value: Number(e.target.value) || 0 })}
+                      className="h-7 text-xs text-right w-28"
+                    />
+                  </TableCell>
+                  <TableCell className="text-xs p-1">
+                    <Input
+                      type="number"
+                      value={c.termYears}
+                      onChange={(e) => updateContract(i, { termYears: Number(e.target.value) || 1 })}
+                      className="h-7 text-xs text-right w-16"
+                      min={1}
+                      max={30}
+                    />
+                  </TableCell>
+                  <TableCell className="text-xs p-1">
+                    <Input
+                      type="number"
+                      value={(c.probability * 100).toFixed(0)}
+                      onChange={(e) => updateContract(i, { probability: Math.min(100, Math.max(0, Number(e.target.value) || 0)) / 100 })}
+                      className="h-7 text-xs text-right w-16"
+                      min={0}
+                      max={100}
+                    />
+                  </TableCell>
                   <TableCell className="text-xs text-right font-medium">
                     {formatCurrencyCompact(c.value * c.probability)}
                   </TableCell>
-                  <TableCell className="text-xs">
-                    <Badge
-                      variant="secondary"
-                      className={`text-[9px] px-1.5 py-0 ${
-                        c.status === 'signed'
-                          ? 'bg-emerald-100 text-emerald-700'
-                          : c.status === 'probable'
-                          ? 'bg-amber-100 text-amber-700'
-                          : 'bg-slate-100 text-slate-600'
-                      }`}
+                  <TableCell className="text-xs p-1">
+                    <Select
+                      value={c.status}
+                      onValueChange={(v) => updateContract(i, { status: v as 'signed' | 'probable' | 'pipeline' })}
                     >
-                      {c.status}
-                    </Badge>
+                      <SelectTrigger className="h-7 text-[10px] w-24">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="signed">Signed</SelectItem>
+                        <SelectItem value="probable">Probable</SelectItem>
+                        <SelectItem value="pipeline">Pipeline</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </TableCell>
+                  <TableCell className="p-1">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => removeContract(i)}
+                      className="h-7 w-7 p-0 text-muted-foreground hover:text-red-600"
+                    >
+                      <Trash2 size={12} />
+                    </Button>
                   </TableCell>
                 </TableRow>
               ))}
@@ -124,6 +209,7 @@ export default function ValuationClient() {
                 <TableCell className="text-xs text-right font-bold text-amber-700">
                   {formatCurrencyCompact(valuation.contracts.reduce((s, c) => s + c.value * c.probability, 0))}
                 </TableCell>
+                <TableCell />
                 <TableCell />
               </TableRow>
             </TableBody>
@@ -158,10 +244,51 @@ export default function ValuationClient() {
 
             <div className="space-y-3">
               <div className="space-y-1.5">
-                <Label className="text-[10px]">Net Margin Range</Label>
-                <p className="text-[10px] text-muted-foreground">
-                  {(valuation.netMarginLow * 100).toFixed(0)}% &ndash; {(valuation.netMarginHigh * 100).toFixed(0)}%
-                </p>
+                <Label className="text-[10px]">Contract Term (Years)</Label>
+                <div className="flex items-center gap-2">
+                  <Slider
+                    value={[valuation.contractTermYears]}
+                    onValueChange={(v) => setValuation({ contractTermYears: sv(v) })}
+                    min={1}
+                    max={20}
+                    step={1}
+                  />
+                  <span className="text-[10px] font-medium w-10 text-right">
+                    {valuation.contractTermYears}yr
+                  </span>
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-[10px]">Net Margin Low</Label>
+                <div className="flex items-center gap-2">
+                  <Slider
+                    value={[valuation.netMarginLow * 100]}
+                    onValueChange={(v) => setValuation({ netMarginLow: sv(v) / 100 })}
+                    min={1}
+                    max={30}
+                    step={1}
+                  />
+                  <span className="text-[10px] font-medium w-10 text-right">
+                    {(valuation.netMarginLow * 100).toFixed(0)}%
+                  </span>
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-[10px]">Net Margin High</Label>
+                <div className="flex items-center gap-2">
+                  <Slider
+                    value={[valuation.netMarginHigh * 100]}
+                    onValueChange={(v) => setValuation({ netMarginHigh: sv(v) / 100 })}
+                    min={valuation.netMarginLow * 100}
+                    max={40}
+                    step={1}
+                  />
+                  <span className="text-[10px] font-medium w-10 text-right">
+                    {(valuation.netMarginHigh * 100).toFixed(0)}%
+                  </span>
+                </div>
               </div>
 
               <div className="space-y-1.5">
@@ -208,6 +335,22 @@ export default function ValuationClient() {
                   />
                   <span className="text-[10px] font-medium w-14 text-right">
                     {formatCurrencyCompact(valuation.pipelineProbabilityWeightedValue)}
+                  </span>
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-[10px]">Pipeline Discount Years</Label>
+                <div className="flex items-center gap-2">
+                  <Slider
+                    value={[valuation.pipelineDiscountYears]}
+                    onValueChange={(v) => setValuation({ pipelineDiscountYears: sv(v) })}
+                    min={1}
+                    max={15}
+                    step={1}
+                  />
+                  <span className="text-[10px] font-medium w-10 text-right">
+                    {valuation.pipelineDiscountYears}yr
                   </span>
                 </div>
               </div>
@@ -265,7 +408,7 @@ export default function ValuationClient() {
 
             <div className="space-y-3">
               <div className="space-y-1.5">
-                <Label className="text-[10px]">Revenue Multiple Range</Label>
+                <Label className="text-[10px]">Revenue Multiple Low</Label>
                 <div className="flex items-center gap-2">
                   <Slider
                     value={[valuation.revenueMultipleLow]}
@@ -278,6 +421,10 @@ export default function ValuationClient() {
                     {valuation.revenueMultipleLow.toFixed(1)}x
                   </span>
                 </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-[10px]">Revenue Multiple High</Label>
                 <div className="flex items-center gap-2">
                   <Slider
                     value={[valuation.revenueMultipleHigh]}
@@ -288,6 +435,38 @@ export default function ValuationClient() {
                   />
                   <span className="text-[10px] font-medium w-10 text-right">
                     {valuation.revenueMultipleHigh.toFixed(1)}x
+                  </span>
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-[10px]">EBITDA Multiple Low</Label>
+                <div className="flex items-center gap-2">
+                  <Slider
+                    value={[valuation.ebitdaMultipleLow]}
+                    onValueChange={(v) => setValuation({ ebitdaMultipleLow: sv(v) })}
+                    min={1}
+                    max={15}
+                    step={0.5}
+                  />
+                  <span className="text-[10px] font-medium w-10 text-right">
+                    {valuation.ebitdaMultipleLow.toFixed(1)}x
+                  </span>
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-[10px]">EBITDA Multiple High</Label>
+                <div className="flex items-center gap-2">
+                  <Slider
+                    value={[valuation.ebitdaMultipleHigh]}
+                    onValueChange={(v) => setValuation({ ebitdaMultipleHigh: sv(v) })}
+                    min={valuation.ebitdaMultipleLow}
+                    max={25}
+                    step={0.5}
+                  />
+                  <span className="text-[10px] font-medium w-10 text-right">
+                    {valuation.ebitdaMultipleHigh.toFixed(1)}x
                   </span>
                 </div>
               </div>
@@ -379,11 +558,22 @@ export default function ValuationClient() {
             <Separator />
 
             <div className="space-y-3">
-              <div>
-                <Label className="text-[10px]">Patents ({valuation.patents.totalCount} total)</Label>
-                <p className="text-[9px] text-muted-foreground mt-0.5">
-                  Unfiled patents have minimal legal protection until provisional applications are filed (~$300 each).
-                </p>
+              <div className="space-y-1.5">
+                <Label className="text-[10px]">Total Patent Count</Label>
+                <div className="flex items-center gap-2">
+                  <Slider
+                    value={[valuation.patents.totalCount]}
+                    onValueChange={(v) =>
+                      setValuation({ patents: { ...valuation.patents, totalCount: sv(v) } })
+                    }
+                    min={0}
+                    max={500}
+                    step={1}
+                  />
+                  <span className="text-[10px] font-medium w-8 text-right">
+                    {valuation.patents.totalCount}
+                  </span>
+                </div>
               </div>
 
               <div className="space-y-1.5">
@@ -403,6 +593,17 @@ export default function ValuationClient() {
                   <span className="text-[10px] font-medium w-8 text-right">
                     {valuation.patents.provisionalFiled}
                   </span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <Label className="text-[9px] text-muted-foreground">Value each:</Label>
+                  <Input
+                    type="number"
+                    value={valuation.patents.valuePerProvisional}
+                    onChange={(e) =>
+                      setValuation({ patents: { ...valuation.patents, valuePerProvisional: Number(e.target.value) || 0 } })
+                    }
+                    className="h-5 text-[9px] w-20"
+                  />
                 </div>
               </div>
 
@@ -424,7 +625,78 @@ export default function ValuationClient() {
                     {valuation.patents.nonProvisionalFiled}
                   </span>
                 </div>
+                <div className="flex items-center gap-1">
+                  <Label className="text-[9px] text-muted-foreground">Value each:</Label>
+                  <Input
+                    type="number"
+                    value={valuation.patents.valuePerNonProvisional}
+                    onChange={(e) =>
+                      setValuation({ patents: { ...valuation.patents, valuePerNonProvisional: Number(e.target.value) || 0 } })
+                    }
+                    className="h-5 text-[9px] w-20"
+                  />
+                </div>
               </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-[10px]">Granted</Label>
+                <div className="flex items-center gap-2">
+                  <Slider
+                    value={[valuation.patents.granted]}
+                    onValueChange={(v) =>
+                      setValuation({ patents: { ...valuation.patents, granted: sv(v) } })
+                    }
+                    min={0}
+                    max={valuation.patents.nonProvisionalFiled}
+                    step={1}
+                  />
+                  <span className="text-[10px] font-medium w-8 text-right">
+                    {valuation.patents.granted}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <Label className="text-[9px] text-muted-foreground">Value each:</Label>
+                  <Input
+                    type="number"
+                    value={valuation.patents.valuePerGranted}
+                    onChange={(e) =>
+                      setValuation({ patents: { ...valuation.patents, valuePerGranted: Number(e.target.value) || 0 } })
+                    }
+                    className="h-5 text-[9px] w-20"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-[10px]">Commercially Evaluated</Label>
+                <div className="flex items-center gap-2">
+                  <Slider
+                    value={[valuation.patents.commerciallyEvaluated]}
+                    onValueChange={(v) =>
+                      setValuation({ patents: { ...valuation.patents, commerciallyEvaluated: sv(v) } })
+                    }
+                    min={0}
+                    max={valuation.patents.granted}
+                    step={1}
+                  />
+                  <span className="text-[10px] font-medium w-8 text-right">
+                    {valuation.patents.commerciallyEvaluated}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <Label className="text-[9px] text-muted-foreground">Value each:</Label>
+                  <Input
+                    type="number"
+                    value={valuation.patents.valuePerCommercial}
+                    onChange={(e) =>
+                      setValuation({ patents: { ...valuation.patents, valuePerCommercial: Number(e.target.value) || 0 } })
+                    }
+                    className="h-5 text-[9px] w-20"
+                  />
+                </div>
+              </div>
+
+              <Separator />
 
               <div className="space-y-1.5">
                 <Label className="text-[10px]">Trade Secrets Value</Label>
@@ -438,6 +710,22 @@ export default function ValuationClient() {
                   />
                   <span className="text-[10px] font-medium w-12 text-right">
                     {formatCurrencyCompact(valuation.tradeSecretsValue)}
+                  </span>
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-[10px]">Brand & Marks Value</Label>
+                <div className="flex items-center gap-2">
+                  <Slider
+                    value={[valuation.brandAndMarksValue]}
+                    onValueChange={(v) => setValuation({ brandAndMarksValue: sv(v) })}
+                    min={0}
+                    max={5_000_000}
+                    step={100_000}
+                  />
+                  <span className="text-[10px] font-medium w-12 text-right">
+                    {formatCurrencyCompact(valuation.brandAndMarksValue)}
                   </span>
                 </div>
               </div>
@@ -457,6 +745,24 @@ export default function ValuationClient() {
                   </span>
                 </div>
               </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-[10px]">Relationships Value</Label>
+                <div className="flex items-center gap-2">
+                  <Slider
+                    value={[valuation.relationshipsValue]}
+                    onValueChange={(v) => setValuation({ relationshipsValue: sv(v) })}
+                    min={0}
+                    max={10_000_000}
+                    step={250_000}
+                  />
+                  <span className="text-[10px] font-medium w-12 text-right">
+                    {formatCurrencyCompact(valuation.relationshipsValue)}
+                  </span>
+                </div>
+              </div>
+
+              <Separator />
 
               <div className="space-y-1.5">
                 <Label className="text-[10px]">Weight</Label>
@@ -487,23 +793,59 @@ export default function ValuationClient() {
         </Card>
       </div>
 
-      {/* Reverse Calculator */}
+      {/* Reverse Calculator — Fully Editable */}
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-sm">Reverse Calculator</CardTitle>
         </CardHeader>
-        <CardContent>
-          <p className="text-xs text-muted-foreground mb-3">
-            For a $1M investment to result in a given equity percentage, the post-money valuation must be:
-          </p>
-          <div className="grid gap-3 md:grid-cols-2">
-            <div className="bg-muted/30 rounded-md px-3 py-2">
-              <p className="text-xs text-muted-foreground">5% equity &rarr;</p>
-              <p className="text-sm font-bold">{formatCurrency(reverseFor5Pct)} valuation</p>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label className="text-xs">Investment Amount</Label>
+            <div className="flex items-center gap-2">
+              <Slider
+                value={[reverseInvestment]}
+                onValueChange={(v) => setReverseInvestment(sv(v))}
+                min={100_000}
+                max={50_000_000}
+                step={100_000}
+              />
+              <span className="text-sm font-medium w-16 text-right">
+                {formatCurrencyCompact(reverseInvestment)}
+              </span>
             </div>
-            <div className="bg-muted/30 rounded-md px-3 py-2">
-              <p className="text-xs text-muted-foreground">10% equity &rarr;</p>
-              <p className="text-sm font-bold">{formatCurrency(reverseFor10Pct)} valuation</p>
+          </div>
+          <div className="grid gap-3 md:grid-cols-2">
+            <div className="bg-muted/30 rounded-md px-3 py-2 space-y-2">
+              <div className="flex items-center gap-2">
+                <Label className="text-[10px]">Target Equity %</Label>
+                <Input
+                  type="number"
+                  value={reverseEquity1}
+                  onChange={(e) => setReverseEquity1(Math.max(0.1, Number(e.target.value) || 1))}
+                  className="h-6 text-xs w-16"
+                  min={0.1}
+                  max={49}
+                  step={0.5}
+                />
+              </div>
+              <p className="text-xs text-muted-foreground">{formatPercentDisplay(reverseEquity1)} equity &rarr;</p>
+              <p className="text-sm font-bold">{formatCurrency(reverseResult1)} valuation</p>
+            </div>
+            <div className="bg-muted/30 rounded-md px-3 py-2 space-y-2">
+              <div className="flex items-center gap-2">
+                <Label className="text-[10px]">Target Equity %</Label>
+                <Input
+                  type="number"
+                  value={reverseEquity2}
+                  onChange={(e) => setReverseEquity2(Math.max(0.1, Number(e.target.value) || 1))}
+                  className="h-6 text-xs w-16"
+                  min={0.1}
+                  max={49}
+                  step={0.5}
+                />
+              </div>
+              <p className="text-xs text-muted-foreground">{formatPercentDisplay(reverseEquity2)} equity &rarr;</p>
+              <p className="text-sm font-bold">{formatCurrency(reverseResult2)} valuation</p>
             </div>
           </div>
         </CardContent>

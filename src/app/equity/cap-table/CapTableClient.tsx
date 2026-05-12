@@ -3,13 +3,16 @@
 import { useMemo, useState } from 'react'
 import { useScenarioStore } from '@/stores/equity-scenario-store'
 import { useAutosave } from '@/hooks/equity-use-autosave'
-import { validateCapTable, rebalanceHolders, calculateHolderValues } from '@/lib/equity/calculations/cap-table'
+import { validateCapTable, rebalanceHolders, calculateHolderValues, simulateDilution } from '@/lib/equity/calculations/cap-table'
+import { calculateBlendedValuation } from '@/lib/equity/calculations/valuation'
 import { CAP_TABLE_STAGES, ERIC_OWNERSHIP_FLOOR } from '@/lib/equity/constants'
-import { formatCurrency, formatPercentDisplay } from '@/lib/equity/format'
+import { formatCurrency, formatCurrencyCompact, formatPercentDisplay } from '@/lib/equity/format'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Slider } from '@/components/ui/slider'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
+import { Input } from '@/components/ui/input'
+import { Button } from '@/components/ui/button'
 import {
   Select,
   SelectContent,
@@ -25,7 +28,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { AlertTriangle, Lock, Unlock } from 'lucide-react'
+import { AlertTriangle, Lock, Unlock, Plus, Trash2, Link2 } from 'lucide-react'
 import CapTablePieChart from './CapTablePieChart'
 import ExportShareBar from '@/components/equity/ExportShareBar'
 
@@ -33,16 +36,30 @@ export default function CapTableClient() {
   const { capTable, setCapTable, valuation } = useScenarioStore()
   useAutosave()
 
+  const blendedValuation = useMemo(() => calculateBlendedValuation(valuation), [valuation])
   const [companyValuation, setCompanyValuation] = useState(20_000_000)
+  const [useBlended, setUseBlended] = useState(false)
+
+  const activeValuation = useBlended ? Math.round(blendedValuation.blended.mid) : companyValuation
+
+  // Dilution simulator state
+  const [dilutionPercent, setDilutionPercent] = useState(5)
 
   const validation = useMemo(() => validateCapTable(capTable.holders), [capTable.holders])
   const holderValues = useMemo(
-    () => calculateHolderValues(capTable.holders, companyValuation),
-    [capTable.holders, companyValuation]
+    () => calculateHolderValues(capTable.holders, activeValuation),
+    [capTable.holders, activeValuation]
+  )
+
+  // Simulate dilution preview
+  const dilutedHolders = useMemo(
+    () => simulateDilution(capTable.holders, dilutionPercent),
+    [capTable.holders, dilutionPercent]
   )
 
   function handleStageChange(stageKey: string | null) {
     if (!stageKey) return
+    if (stageKey === 'custom') return // keep current holders
     const stage = CAP_TABLE_STAGES[stageKey as keyof typeof CAP_TABLE_STAGES]
     if (!stage) return
     setCapTable({
@@ -69,6 +86,52 @@ export default function CapTableClient() {
     setCapTable({ holders: updated })
   }
 
+  function updateHolderField(index: number, field: 'name' | 'role', value: string) {
+    const updated = capTable.holders.map((h, i) =>
+      i === index ? { ...h, [field]: value } : h
+    )
+    setCapTable({ holders: updated })
+  }
+
+  function updateVesting(index: number, vested: number) {
+    const updated = capTable.holders.map((h, i) =>
+      i === index ? { ...h, vested } : h
+    )
+    setCapTable({ holders: updated })
+  }
+
+  function addHolder() {
+    // Distribute some percentage from the largest non-Class-B unlocked holder
+    const newHolder = {
+      name: 'New Holder',
+      percentage: 0,
+      role: 'Advisor',
+      classB: false,
+      locked: false,
+      vested: 0,
+    }
+    setCapTable({
+      stage: 'custom',
+      holders: [...capTable.holders, newHolder],
+    })
+  }
+
+  function removeHolder(index: number) {
+    const holder = capTable.holders[index]
+    if (holder.classB) return // can't remove Eric
+    const pctToRedistribute = holder.percentage
+    const remaining = capTable.holders.filter((_, i) => i !== index)
+    // Give it back to the Class B holder (Eric)
+    const updated = remaining.map((h) =>
+      h.classB ? { ...h, percentage: h.percentage + pctToRedistribute } : h
+    )
+    setCapTable({ stage: 'custom', holders: updated })
+  }
+
+  function applyDilution() {
+    setCapTable({ stage: 'custom', holders: dilutedHolders })
+  }
+
   return (
     <div className="max-w-5xl mx-auto space-y-6">
       <div className="flex items-start justify-between gap-4 flex-wrap">
@@ -87,7 +150,12 @@ export default function CapTableClient() {
           {/* Stage Selector */}
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-sm">Stage</CardTitle>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-sm">Stage</CardTitle>
+                <Button variant="outline" size="sm" onClick={addHolder} className="h-7 text-xs gap-1">
+                  <Plus size={12} /> Add Holder
+                </Button>
+              </div>
             </CardHeader>
             <CardContent>
               <Select value={capTable.stage} onValueChange={handleStageChange}>
@@ -100,6 +168,7 @@ export default function CapTableClient() {
                       {stage.name}
                     </SelectItem>
                   ))}
+                  <SelectItem value="custom">Custom</SelectItem>
                 </SelectContent>
               </Select>
             </CardContent>
@@ -117,33 +186,52 @@ export default function CapTableClient() {
             </div>
           )}
 
-          {/* Holder Sliders */}
+          {/* Holder Sliders with Editable Names */}
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-sm">Ownership Breakdown</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               {capTable.holders.map((holder, i) => (
-                <div key={i} className="space-y-1.5">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Label className="text-xs font-medium">{holder.name}</Label>
+                <div key={i} className="space-y-1.5 pb-3 border-b border-border/50 last:border-0 last:pb-0">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                      <Input
+                        value={holder.name}
+                        onChange={(e) => updateHolderField(i, 'name', e.target.value)}
+                        className="h-6 text-xs font-medium flex-1 min-w-0"
+                        disabled={holder.classB}
+                      />
+                      <Input
+                        value={holder.role}
+                        onChange={(e) => updateHolderField(i, 'role', e.target.value)}
+                        className="h-6 text-[10px] text-muted-foreground w-20"
+                        disabled={holder.classB}
+                      />
                       {holder.classB && (
-                        <Badge variant="secondary" className="text-[9px] px-1.5 py-0">
+                        <Badge variant="secondary" className="text-[9px] px-1.5 py-0 shrink-0">
                           Class B
                         </Badge>
                       )}
-                      <span className="text-[10px] text-muted-foreground">({holder.role})</span>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1 shrink-0">
                       {!holder.classB && (
-                        <button
-                          onClick={() => toggleLock(i)}
-                          className="text-muted-foreground hover:text-foreground"
-                          title={holder.locked ? 'Unlock' : 'Lock'}
-                        >
-                          {holder.locked ? <Lock size={12} /> : <Unlock size={12} />}
-                        </button>
+                        <>
+                          <button
+                            onClick={() => toggleLock(i)}
+                            className="text-muted-foreground hover:text-foreground"
+                            title={holder.locked ? 'Unlock' : 'Lock'}
+                          >
+                            {holder.locked ? <Lock size={12} /> : <Unlock size={12} />}
+                          </button>
+                          <button
+                            onClick={() => removeHolder(i)}
+                            className="text-muted-foreground hover:text-red-600"
+                            title="Remove holder"
+                          >
+                            <Trash2 size={12} />
+                          </button>
+                        </>
                       )}
                       <span className="text-sm font-medium w-16 text-right">
                         {formatPercentDisplay(holder.percentage)}
@@ -160,6 +248,23 @@ export default function CapTableClient() {
                     step={0.1}
                     disabled={holder.locked && !holder.classB}
                   />
+                  {/* Vesting */}
+                  {!holder.classB && (
+                    <div className="flex items-center gap-2 pl-1">
+                      <Label className="text-[9px] text-muted-foreground w-10">Vested</Label>
+                      <Slider
+                        value={[holder.vested ?? 0]}
+                        onValueChange={(v) => updateVesting(i, Array.isArray(v) ? v[0] : v)}
+                        min={0}
+                        max={100}
+                        step={5}
+                        className="flex-1"
+                      />
+                      <span className="text-[9px] text-muted-foreground w-8 text-right">
+                        {holder.vested ?? 0}%
+                      </span>
+                    </div>
+                  )}
                 </div>
               ))}
 
@@ -178,26 +283,97 @@ export default function CapTableClient() {
             </CardContent>
           </Card>
 
+          {/* Dilution Simulator */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm">Dilution Simulator</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <p className="text-[10px] text-muted-foreground">
+                Preview what happens if new equity is issued. All existing holders are diluted proportionally.
+              </p>
+              <div className="space-y-2">
+                <Label className="text-xs">New Equity Issued</Label>
+                <div className="flex items-center gap-2">
+                  <Slider
+                    value={[dilutionPercent]}
+                    onValueChange={(v) => setDilutionPercent(Array.isArray(v) ? v[0] : v)}
+                    min={1}
+                    max={30}
+                    step={0.5}
+                  />
+                  <span className="text-sm font-medium w-12 text-right">
+                    {dilutionPercent.toFixed(1)}%
+                  </span>
+                </div>
+              </div>
+
+              <div className="bg-muted/30 rounded-md p-2 space-y-1">
+                {dilutedHolders.map((h, i) => {
+                  const original = capTable.holders[i]
+                  const delta = original ? h.percentage - original.percentage : 0
+                  return (
+                    <div key={i} className="flex items-center justify-between text-[10px]">
+                      <span className="text-muted-foreground">{h.name}</span>
+                      <span>
+                        <span className="font-medium">{formatPercentDisplay(h.percentage)}</span>
+                        {original && (
+                          <span className="text-red-500 ml-1">({delta.toFixed(1)}%)</span>
+                        )}
+                      </span>
+                    </div>
+                  )
+                })}
+                <div className="flex items-center justify-between text-[10px] border-t pt-1">
+                  <span className="text-muted-foreground">New Issuance</span>
+                  <span className="font-medium">{formatPercentDisplay(dilutionPercent)}</span>
+                </div>
+              </div>
+
+              {dilutedHolders.find((h) => h.classB && h.percentage < ERIC_OWNERSHIP_FLOOR) ? (
+                <p className="text-[10px] text-red-600">
+                  This dilution would bring Eric below the {ERIC_OWNERSHIP_FLOOR}% floor.
+                </p>
+              ) : (
+                <Button variant="outline" size="sm" onClick={applyDilution} className="w-full h-7 text-xs">
+                  Apply Dilution to Cap Table
+                </Button>
+              )}
+            </CardContent>
+          </Card>
+
           {/* Valuation-based dollar values */}
           <Card>
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-sm">Dollar Values</CardTitle>
                 <div className="flex items-center gap-2">
-                  <Label className="text-[10px] text-muted-foreground">at valuation</Label>
-                  <Slider
-                    value={[companyValuation]}
-                    onValueChange={(v) =>
-                      setCompanyValuation(Array.isArray(v) ? v[0] : v)
-                    }
-                    min={5_000_000}
-                    max={500_000_000}
-                    step={5_000_000}
-                    className="w-32"
-                  />
-                  <span className="text-xs font-medium w-16 text-right">
-                    ${(companyValuation / 1_000_000).toFixed(0)}M
-                  </span>
+                  <Button
+                    variant={useBlended ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setUseBlended(!useBlended)}
+                    className="h-6 text-[9px] gap-1 px-2"
+                  >
+                    <Link2 size={10} />
+                    {useBlended ? `Linked (${formatCurrencyCompact(activeValuation)})` : 'Link Valuation'}
+                  </Button>
+                  {!useBlended && (
+                    <>
+                      <Slider
+                        value={[companyValuation]}
+                        onValueChange={(v) =>
+                          setCompanyValuation(Array.isArray(v) ? v[0] : v)
+                        }
+                        min={5_000_000}
+                        max={500_000_000}
+                        step={5_000_000}
+                        className="w-28"
+                      />
+                      <span className="text-xs font-medium w-16 text-right">
+                        ${(companyValuation / 1_000_000).toFixed(0)}M
+                      </span>
+                    </>
+                  )}
                 </div>
               </div>
             </CardHeader>
@@ -207,21 +383,33 @@ export default function CapTableClient() {
                   <TableRow>
                     <TableHead className="text-xs">Holder</TableHead>
                     <TableHead className="text-xs text-right">%</TableHead>
+                    <TableHead className="text-xs text-right">Vested</TableHead>
                     <TableHead className="text-xs text-right">Value</TableHead>
+                    <TableHead className="text-xs text-right">Vested Value</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {holderValues.map((h, i) => (
-                    <TableRow key={i}>
-                      <TableCell className="text-xs">{h.name}</TableCell>
-                      <TableCell className="text-xs text-right">
-                        {formatPercentDisplay(h.percentage)}
-                      </TableCell>
-                      <TableCell className="text-xs text-right font-medium">
-                        {formatCurrency(h.value)}
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                  {holderValues.map((h, i) => {
+                    const holder = capTable.holders[i]
+                    const vestedPct = holder?.vested ?? (holder?.classB ? 100 : 0)
+                    return (
+                      <TableRow key={i}>
+                        <TableCell className="text-xs">{h.name}</TableCell>
+                        <TableCell className="text-xs text-right">
+                          {formatPercentDisplay(h.percentage)}
+                        </TableCell>
+                        <TableCell className="text-xs text-right text-muted-foreground">
+                          {vestedPct}%
+                        </TableCell>
+                        <TableCell className="text-xs text-right font-medium">
+                          {formatCurrency(h.value)}
+                        </TableCell>
+                        <TableCell className="text-xs text-right font-medium text-amber-600">
+                          {formatCurrency(h.value * (vestedPct / 100))}
+                        </TableCell>
+                      </TableRow>
+                    )
+                  })}
                 </TableBody>
               </Table>
             </CardContent>

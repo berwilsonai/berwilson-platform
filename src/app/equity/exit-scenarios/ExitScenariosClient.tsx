@@ -1,13 +1,17 @@
 'use client'
 
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useScenarioStore } from '@/stores/equity-scenario-store'
 import { useAutosave } from '@/hooks/equity-use-autosave'
 import { calculateAllExitResults, calculateBaselinePayout, generateRealityCheckText } from '@/lib/equity/calculations/exit-scenarios'
-import { formatCurrency, formatCurrencyCompact, formatMultiplier } from '@/lib/equity/format'
+import { calculateConversionEquity } from '@/lib/equity/calculations/investor-deal'
+import { formatCurrency, formatCurrencyCompact, formatMultiplier, formatPercentDisplay } from '@/lib/equity/format'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Slider } from '@/components/ui/slider'
 import { Label } from '@/components/ui/label'
+import { Input } from '@/components/ui/input'
+import { Button } from '@/components/ui/button'
+import { Plus, Trash2, Link2 } from 'lucide-react'
 import RealityCheckChart from './RealityCheckChart'
 import SensitivityTable from './SensitivityTable'
 import ExportShareBar from '@/components/equity/ExportShareBar'
@@ -17,7 +21,7 @@ function sv(v: number | readonly number[]): number {
 }
 
 export default function ExitScenariosClient() {
-  const { exitScenarios, setExitScenarios } = useScenarioStore()
+  const { exitScenarios, setExitScenarios, investorDeal } = useScenarioStore()
   useAutosave()
 
   const results = useMemo(
@@ -30,10 +34,37 @@ export default function ExitScenariosClient() {
     [exitScenarios]
   )
 
-  const primaryExitVal = exitScenarios.exitValuations[2] ?? 200_000_000
+  // Compute investor equity from Investor Deal Modeler for cross-screen link
+  const investorEquityPct = useMemo(
+    () => calculateConversionEquity(investorDeal),
+    [investorDeal]
+  )
+
+  const primaryExitVal = exitScenarios.exitValuations[2] ?? exitScenarios.exitValuations[exitScenarios.exitValuations.length - 1] ?? 200_000_000
   const primaryResult = results.find((r) => r.exitValuation === primaryExitVal) ?? results[0]
 
   const realityCheckText = primaryResult ? generateRealityCheckText(primaryResult) : ''
+
+  // Exit valuation editing
+  const [newExitVal, setNewExitVal] = useState(100_000_000)
+
+  function addExitValuation() {
+    if (exitScenarios.exitValuations.includes(newExitVal)) return
+    const updated = [...exitScenarios.exitValuations, newExitVal].sort((a, b) => a - b)
+    setExitScenarios({ exitValuations: updated })
+  }
+
+  function removeExitValuation(val: number) {
+    if (exitScenarios.exitValuations.length <= 1) return
+    setExitScenarios({ exitValuations: exitScenarios.exitValuations.filter((v) => v !== val) })
+  }
+
+  function linkFromInvestorDeal() {
+    setExitScenarios({
+      investorInvestment: investorDeal.investmentAmount,
+      ericPercentage: Math.max(51, 100 - investorEquityPct - investorDeal.advisorGrantPercentage),
+    })
+  }
 
   return (
     <div className="max-w-5xl mx-auto space-y-6">
@@ -49,12 +80,23 @@ export default function ExitScenariosClient() {
         <ExportShareBar />
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-[300px_1fr]">
+      <div className="grid gap-6 lg:grid-cols-[320px_1fr]">
         {/* Left: Input Controls */}
         <div className="space-y-5">
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-sm">Scenario Inputs</CardTitle>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-sm">Scenario Inputs</CardTitle>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={linkFromInvestorDeal}
+                  className="h-6 text-[9px] gap-1 px-2"
+                  title="Pull investment amount and equity from Investor Deal Modeler"
+                >
+                  <Link2 size={10} /> From Deal Modeler
+                </Button>
+              </div>
             </CardHeader>
             <CardContent className="space-y-5">
               <div className="space-y-2">
@@ -118,20 +160,70 @@ export default function ExitScenariosClient() {
                     className="rounded border-border"
                   />
                   <span className="text-xs text-muted-foreground">
-                    Investor gets {exitScenarios.investorPreferenceMultiple}x preference
+                    Investor gets preference
                   </span>
                 </label>
               </div>
 
+              {exitScenarios.hasLiquidationPreference && (
+                <>
+                  <div className="space-y-2">
+                    <Label className="text-xs">Preference Multiple</Label>
+                    <div className="flex items-center gap-2">
+                      <Slider
+                        value={[exitScenarios.investorPreferenceMultiple]}
+                        onValueChange={(v) => setExitScenarios({ investorPreferenceMultiple: sv(v) })}
+                        min={1}
+                        max={3}
+                        step={0.25}
+                      />
+                      <span className="text-sm font-medium w-12 text-right">
+                        {exitScenarios.investorPreferenceMultiple.toFixed(2)}x
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-xs">Participating Preferred</Label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={exitScenarios.investorParticipating}
+                        onChange={(e) =>
+                          setExitScenarios({ investorParticipating: e.target.checked })
+                        }
+                        className="rounded border-border"
+                      />
+                      <span className="text-xs text-muted-foreground">
+                        Investor participates in remaining proceeds after preference
+                      </span>
+                    </label>
+                    {exitScenarios.investorParticipating && (
+                      <p className="text-[10px] text-amber-600">
+                        Participating preferred: investor gets liquidation preference PLUS pro-rata share of remaining proceeds. More investor-friendly.
+                      </p>
+                    )}
+                  </div>
+                </>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Baseline (Unfunded) Assumptions */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm">Baseline (Unfunded) Assumptions</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
               <div className="space-y-2">
                 <Label className="text-xs">Baseline Contract Value</Label>
                 <div className="flex items-center gap-2">
                   <Slider
                     value={[exitScenarios.baselineContractValue]}
                     onValueChange={(v) => setExitScenarios({ baselineContractValue: sv(v) })}
-                    min={5_000_000}
+                    min={1_000_000}
                     max={500_000_000}
-                    step={5_000_000}
+                    step={1_000_000}
                   />
                   <span className="text-sm font-medium w-20 text-right">
                     {formatCurrencyCompact(exitScenarios.baselineContractValue)}
@@ -143,19 +235,89 @@ export default function ExitScenariosClient() {
               </div>
 
               <div className="space-y-2">
+                <Label className="text-xs">Baseline Term (Years)</Label>
+                <div className="flex items-center gap-2">
+                  <Slider
+                    value={[exitScenarios.baselineTermYears]}
+                    onValueChange={(v) => setExitScenarios({ baselineTermYears: sv(v) })}
+                    min={1}
+                    max={20}
+                    step={1}
+                  />
+                  <span className="text-sm font-medium w-14 text-right">
+                    {exitScenarios.baselineTermYears}yr
+                  </span>
+                </div>
+              </div>
+
+              <div className="space-y-2">
                 <Label className="text-xs">Baseline Net Margin</Label>
                 <div className="flex items-center gap-2">
                   <Slider
                     value={[exitScenarios.baselineNetMargin * 100]}
                     onValueChange={(v) => setExitScenarios({ baselineNetMargin: sv(v) / 100 })}
-                    min={5}
-                    max={20}
+                    min={1}
+                    max={25}
                     step={1}
                   />
                   <span className="text-sm font-medium w-14 text-right">
                     {(exitScenarios.baselineNetMargin * 100).toFixed(0)}%
                   </span>
                 </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-xs">Baseline Win Probability</Label>
+                <div className="flex items-center gap-2">
+                  <Slider
+                    value={[exitScenarios.baselineProbability * 100]}
+                    onValueChange={(v) => setExitScenarios({ baselineProbability: sv(v) / 100 })}
+                    min={10}
+                    max={100}
+                    step={5}
+                  />
+                  <span className="text-sm font-medium w-14 text-right">
+                    {(exitScenarios.baselineProbability * 100).toFixed(0)}%
+                  </span>
+                </div>
+                <p className="text-[10px] text-muted-foreground">
+                  Probability of winning the baseline contract without funding
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Editable Exit Valuations */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm">Exit Valuations to Model</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {exitScenarios.exitValuations.map((val) => (
+                <div key={val} className="flex items-center justify-between bg-muted/30 rounded-md px-3 py-1.5">
+                  <span className="text-xs font-medium">{formatCurrencyCompact(val)}</span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => removeExitValuation(val)}
+                    className="h-6 w-6 p-0 text-muted-foreground hover:text-red-600"
+                    disabled={exitScenarios.exitValuations.length <= 1}
+                  >
+                    <Trash2 size={11} />
+                  </Button>
+                </div>
+              ))}
+              <div className="flex items-center gap-2 pt-1">
+                <Input
+                  type="number"
+                  value={newExitVal}
+                  onChange={(e) => setNewExitVal(Number(e.target.value) || 0)}
+                  className="h-7 text-xs flex-1"
+                  placeholder="Exit valuation"
+                />
+                <Button variant="outline" size="sm" onClick={addExitValuation} className="h-7 text-xs gap-1">
+                  <Plus size={12} /> Add
+                </Button>
               </div>
             </CardContent>
           </Card>
