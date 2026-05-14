@@ -42,35 +42,44 @@ export type Database = {
       activity_log: {
         Row: {
           action: string
+          actor_email: string | null
           actor_id: string | null
           actor_type: string | null
           created_at: string | null
+          field_changes: Json | null
           id: string
           metadata: Json | null
           project_id: string | null
           record_id: string | null
+          site_id: string | null
           table_name: string
         }
         Insert: {
           action: string
+          actor_email?: string | null
           actor_id?: string | null
           actor_type?: string | null
           created_at?: string | null
+          field_changes?: Json | null
           id?: string
           metadata?: Json | null
           project_id?: string | null
           record_id?: string | null
+          site_id?: string | null
           table_name: string
         }
         Update: {
           action?: string
+          actor_email?: string | null
           actor_id?: string | null
           actor_type?: string | null
           created_at?: string | null
+          field_changes?: Json | null
           id?: string
           metadata?: Json | null
           project_id?: string | null
           record_id?: string | null
+          site_id?: string | null
           table_name?: string
         }
         Relationships: [
@@ -79,6 +88,13 @@ export type Database = {
             columns: ["project_id"]
             isOneToOne: false
             referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "activity_log_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "sites"
             referencedColumns: ["id"]
           },
         ]
@@ -216,6 +232,83 @@ export type Database = {
         }
         Relationships: []
       }
+      brands: {
+        Row: {
+          code: string
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      certifications: {
+        Row: {
+          cert_number: string | null
+          created_at: string
+          document_id: string | null
+          expiration_date: string | null
+          id: string
+          is_active: boolean
+          issued_date: string | null
+          issuing_body: string | null
+          name: string
+          notes: string | null
+          updated_at: string
+        }
+        Insert: {
+          cert_number?: string | null
+          created_at?: string
+          document_id?: string | null
+          expiration_date?: string | null
+          id?: string
+          is_active?: boolean
+          issued_date?: string | null
+          issuing_body?: string | null
+          name: string
+          notes?: string | null
+          updated_at?: string
+        }
+        Update: {
+          cert_number?: string | null
+          created_at?: string
+          document_id?: string | null
+          expiration_date?: string | null
+          id?: string
+          is_active?: boolean
+          issued_date?: string | null
+          issuing_body?: string | null
+          name?: string
+          notes?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "certifications_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       chunks: {
         Row: {
           chunk_index: number
@@ -265,20 +358,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "chunks_project_id_fkey"
-            columns: ["project_id"]
-            isOneToOne: false
-            referencedRelation: "projects"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "chunks_update_id_fkey"
-            columns: ["update_id"]
-            isOneToOne: false
-            referencedRelation: "updates"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "chunks_entity_id_fkey"
             columns: ["entity_id"]
             isOneToOne: false
@@ -292,10 +371,97 @@ export type Database = {
             referencedRelation: "parties"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "chunks_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chunks_update_id_fkey"
+            columns: ["update_id"]
+            isOneToOne: false
+            referencedRelation: "updates"
+            referencedColumns: ["id"]
+          },
         ]
+      }
+      company_profile: {
+        Row: {
+          about: string | null
+          aggregate_bonding: number | null
+          bonding_capacity: number | null
+          bonding_company: string | null
+          capabilities: string | null
+          dba_name: string | null
+          dbe_certified: boolean
+          email: string | null
+          founded_year: number | null
+          hq_address: string | null
+          id: string
+          legal_name: string
+          logo_url: string | null
+          mbe_certified: boolean
+          naics_codes: string[]
+          phone: string | null
+          sbe_certified: boolean
+          sic_codes: string[]
+          updated_at: string
+          wbe_certified: boolean
+          website: string | null
+        }
+        Insert: {
+          about?: string | null
+          aggregate_bonding?: number | null
+          bonding_capacity?: number | null
+          bonding_company?: string | null
+          capabilities?: string | null
+          dba_name?: string | null
+          dbe_certified?: boolean
+          email?: string | null
+          founded_year?: number | null
+          hq_address?: string | null
+          id?: string
+          legal_name?: string
+          logo_url?: string | null
+          mbe_certified?: boolean
+          naics_codes?: string[]
+          phone?: string | null
+          sbe_certified?: boolean
+          sic_codes?: string[]
+          updated_at?: string
+          wbe_certified?: boolean
+          website?: string | null
+        }
+        Update: {
+          about?: string | null
+          aggregate_bonding?: number | null
+          bonding_capacity?: number | null
+          bonding_company?: string | null
+          capabilities?: string | null
+          dba_name?: string | null
+          dbe_certified?: boolean
+          email?: string | null
+          founded_year?: number | null
+          hq_address?: string | null
+          id?: string
+          legal_name?: string
+          logo_url?: string | null
+          mbe_certified?: boolean
+          naics_codes?: string[]
+          phone?: string | null
+          sbe_certified?: boolean
+          sic_codes?: string[]
+          updated_at?: string
+          wbe_certified?: boolean
+          website?: string | null
+        }
+        Relationships: []
       }
       compliance_items: {
         Row: {
+          component_id: string | null
           created_at: string | null
           due_date: string | null
           evidence_doc_id: string | null
@@ -305,10 +471,12 @@ export type Database = {
           project_id: string | null
           requirement: string
           responsible_party: string | null
+          site_id: string | null
           status: Database["public"]["Enums"]["compliance_status"] | null
           updated_at: string | null
         }
         Insert: {
+          component_id?: string | null
           created_at?: string | null
           due_date?: string | null
           evidence_doc_id?: string | null
@@ -318,10 +486,12 @@ export type Database = {
           project_id?: string | null
           requirement: string
           responsible_party?: string | null
+          site_id?: string | null
           status?: Database["public"]["Enums"]["compliance_status"] | null
           updated_at?: string | null
         }
         Update: {
+          component_id?: string | null
           created_at?: string | null
           due_date?: string | null
           evidence_doc_id?: string | null
@@ -331,10 +501,18 @@ export type Database = {
           project_id?: string | null
           requirement?: string
           responsible_party?: string | null
+          site_id?: string | null
           status?: Database["public"]["Enums"]["compliance_status"] | null
           updated_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "compliance_items_component_id_fkey"
+            columns: ["component_id"]
+            isOneToOne: false
+            referencedRelation: "components"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "compliance_items_evidence_doc_id_fkey"
             columns: ["evidence_doc_id"]
@@ -354,6 +532,100 @@ export type Database = {
             columns: ["responsible_party"]
             isOneToOne: false
             referencedRelation: "parties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compliance_items_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "sites"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      components: {
+        Row: {
+          bw_role: Database["public"]["Enums"]["bw_role"] | null
+          capital_high: number | null
+          capital_low: number | null
+          capital_mid: number | null
+          contingency_pct: number | null
+          created_at: string
+          duration_months: number | null
+          end_date: string | null
+          id: string
+          name: string
+          notes: string | null
+          phase: string | null
+          prime_contractor: string | null
+          procore_link: string | null
+          project_id: string | null
+          site_id: string
+          specs: Json | null
+          start_date: string | null
+          status: Database["public"]["Enums"]["component_status"]
+          type: Database["public"]["Enums"]["component_type"]
+          updated_at: string
+        }
+        Insert: {
+          bw_role?: Database["public"]["Enums"]["bw_role"] | null
+          capital_high?: number | null
+          capital_low?: number | null
+          capital_mid?: number | null
+          contingency_pct?: number | null
+          created_at?: string
+          duration_months?: number | null
+          end_date?: string | null
+          id?: string
+          name: string
+          notes?: string | null
+          phase?: string | null
+          prime_contractor?: string | null
+          procore_link?: string | null
+          project_id?: string | null
+          site_id: string
+          specs?: Json | null
+          start_date?: string | null
+          status?: Database["public"]["Enums"]["component_status"]
+          type: Database["public"]["Enums"]["component_type"]
+          updated_at?: string
+        }
+        Update: {
+          bw_role?: Database["public"]["Enums"]["bw_role"] | null
+          capital_high?: number | null
+          capital_low?: number | null
+          capital_mid?: number | null
+          contingency_pct?: number | null
+          created_at?: string
+          duration_months?: number | null
+          end_date?: string | null
+          id?: string
+          name?: string
+          notes?: string | null
+          phase?: string | null
+          prime_contractor?: string | null
+          procore_link?: string | null
+          project_id?: string | null
+          site_id?: string
+          specs?: Json | null
+          start_date?: string | null
+          status?: Database["public"]["Enums"]["component_status"]
+          type?: Database["public"]["Enums"]["component_type"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "components_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "components_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "sites"
             referencedColumns: ["id"]
           },
         ]
@@ -383,6 +655,44 @@ export type Database = {
             columns: ["party_id"]
             isOneToOne: false
             referencedRelation: "parties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      corridors: {
+        Row: {
+          brand_id: string
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+          region: string | null
+          updated_at: string
+        }
+        Insert: {
+          brand_id: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+          region?: string | null
+          updated_at?: string
+        }
+        Update: {
+          brand_id?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+          region?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "corridors_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
             referencedColumns: ["id"]
           },
         ]
@@ -441,10 +751,62 @@ export type Database = {
           },
         ]
       }
+      document_distributions: {
+        Row: {
+          appendix_f_locked: boolean | null
+          created_at: string
+          distributed_at: string
+          document_id: string
+          id: string
+          method: string | null
+          notes: string | null
+          recipient_party_id: string
+          version: string | null
+        }
+        Insert: {
+          appendix_f_locked?: boolean | null
+          created_at?: string
+          distributed_at?: string
+          document_id: string
+          id?: string
+          method?: string | null
+          notes?: string | null
+          recipient_party_id: string
+          version?: string | null
+        }
+        Update: {
+          appendix_f_locked?: boolean | null
+          created_at?: string
+          distributed_at?: string
+          document_id?: string
+          id?: string
+          method?: string | null
+          notes?: string | null
+          recipient_party_id?: string
+          version?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_distributions_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_distributions_recipient_party_id_fkey"
+            columns: ["recipient_party_id"]
+            isOneToOne: false
+            referencedRelation: "parties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       documents: {
         Row: {
           ai_summary: string | null
           classification: string | null
+          component_id: string | null
           confidence: number | null
           doc_type: string | null
           embedding_status: string | null
@@ -454,6 +816,7 @@ export type Database = {
           id: string
           mime_type: string | null
           project_id: string | null
+          site_id: string | null
           source: Database["public"]["Enums"]["update_source"] | null
           storage_path: string
           uploaded_at: string | null
@@ -462,6 +825,7 @@ export type Database = {
         Insert: {
           ai_summary?: string | null
           classification?: string | null
+          component_id?: string | null
           confidence?: number | null
           doc_type?: string | null
           embedding_status?: string | null
@@ -471,6 +835,7 @@ export type Database = {
           id?: string
           mime_type?: string | null
           project_id?: string | null
+          site_id?: string | null
           source?: Database["public"]["Enums"]["update_source"] | null
           storage_path: string
           uploaded_at?: string | null
@@ -479,6 +844,7 @@ export type Database = {
         Update: {
           ai_summary?: string | null
           classification?: string | null
+          component_id?: string | null
           confidence?: number | null
           doc_type?: string | null
           embedding_status?: string | null
@@ -488,12 +854,27 @@ export type Database = {
           id?: string
           mime_type?: string | null
           project_id?: string | null
+          site_id?: string | null
           source?: Database["public"]["Enums"]["update_source"] | null
           storage_path?: string
           uploaded_at?: string | null
           uploaded_by?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "documents_component_id_fkey"
+            columns: ["component_id"]
+            isOneToOne: false
+            referencedRelation: "components"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "documents_entity_id_fkey"
+            columns: ["entity_id"]
+            isOneToOne: false
+            referencedRelation: "entities"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "documents_project_id_fkey"
             columns: ["project_id"]
@@ -502,10 +883,10 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "documents_entity_id_fkey"
-            columns: ["entity_id"]
+            foreignKeyName: "documents_site_id_fkey"
+            columns: ["site_id"]
             isOneToOne: false
-            referencedRelation: "entities"
+            referencedRelation: "sites"
             referencedColumns: ["id"]
           },
         ]
@@ -732,6 +1113,95 @@ export type Database = {
           },
         ]
       }
+      equity_scenarios: {
+        Row: {
+          cap_table_inputs: Json | null
+          created_at: string | null
+          description: string | null
+          exit_scenario_inputs: Json | null
+          id: string
+          is_baseline: boolean | null
+          name: string
+          nancy_deal_inputs: Json | null
+          originator_fee_inputs: Json | null
+          updated_at: string | null
+          user_id: string
+          valuation_inputs: Json | null
+        }
+        Insert: {
+          cap_table_inputs?: Json | null
+          created_at?: string | null
+          description?: string | null
+          exit_scenario_inputs?: Json | null
+          id?: string
+          is_baseline?: boolean | null
+          name?: string
+          nancy_deal_inputs?: Json | null
+          originator_fee_inputs?: Json | null
+          updated_at?: string | null
+          user_id: string
+          valuation_inputs?: Json | null
+        }
+        Update: {
+          cap_table_inputs?: Json | null
+          created_at?: string | null
+          description?: string | null
+          exit_scenario_inputs?: Json | null
+          id?: string
+          is_baseline?: boolean | null
+          name?: string
+          nancy_deal_inputs?: Json | null
+          originator_fee_inputs?: Json | null
+          updated_at?: string | null
+          user_id?: string
+          valuation_inputs?: Json | null
+        }
+        Relationships: []
+      }
+      equity_share_links: {
+        Row: {
+          accessed_count: number | null
+          created_at: string | null
+          created_by: string
+          expires_at: string
+          id: string
+          max_accesses: number | null
+          modules: string[] | null
+          scenario_id: string
+          token: string
+        }
+        Insert: {
+          accessed_count?: number | null
+          created_at?: string | null
+          created_by: string
+          expires_at: string
+          id?: string
+          max_accesses?: number | null
+          modules?: string[] | null
+          scenario_id: string
+          token: string
+        }
+        Update: {
+          accessed_count?: number | null
+          created_at?: string | null
+          created_by?: string
+          expires_at?: string
+          id?: string
+          max_accesses?: number | null
+          modules?: string[] | null
+          scenario_id?: string
+          token?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "equity_share_links_scenario_id_fkey"
+            columns: ["scenario_id"]
+            isOneToOne: false
+            referencedRelation: "equity_scenarios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       financing_structures: {
         Row: {
           created_at: string | null
@@ -797,6 +1267,82 @@ export type Database = {
           },
         ]
       }
+      funding_sources: {
+        Row: {
+          agency: string | null
+          amount: number | null
+          category: Database["public"]["Enums"]["funding_category"]
+          component_id: string | null
+          conditions: string | null
+          contact_party_id: string | null
+          created_at: string
+          drawdown_notes: string | null
+          id: string
+          notes: string | null
+          percent_of_stack: number | null
+          site_id: string | null
+          source_name: string
+          status: Database["public"]["Enums"]["funding_status"]
+          updated_at: string
+        }
+        Insert: {
+          agency?: string | null
+          amount?: number | null
+          category: Database["public"]["Enums"]["funding_category"]
+          component_id?: string | null
+          conditions?: string | null
+          contact_party_id?: string | null
+          created_at?: string
+          drawdown_notes?: string | null
+          id?: string
+          notes?: string | null
+          percent_of_stack?: number | null
+          site_id?: string | null
+          source_name: string
+          status?: Database["public"]["Enums"]["funding_status"]
+          updated_at?: string
+        }
+        Update: {
+          agency?: string | null
+          amount?: number | null
+          category?: Database["public"]["Enums"]["funding_category"]
+          component_id?: string | null
+          conditions?: string | null
+          contact_party_id?: string | null
+          created_at?: string
+          drawdown_notes?: string | null
+          id?: string
+          notes?: string | null
+          percent_of_stack?: number | null
+          site_id?: string | null
+          source_name?: string
+          status?: Database["public"]["Enums"]["funding_status"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "funding_sources_component_id_fkey"
+            columns: ["component_id"]
+            isOneToOne: false
+            referencedRelation: "components"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "funding_sources_contact_party_id_fkey"
+            columns: ["contact_party_id"]
+            isOneToOne: false
+            referencedRelation: "parties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "funding_sources_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "sites"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       graph_subscriptions: {
         Row: {
           change_type: string
@@ -838,6 +1384,79 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: []
+      }
+      media: {
+        Row: {
+          caption: string | null
+          created_at: string
+          entity_id: string | null
+          file_name: string
+          file_size_bytes: number | null
+          id: string
+          is_company: boolean
+          is_primary: boolean
+          mime_type: string
+          party_id: string | null
+          project_id: string | null
+          sort_order: number
+          storage_path: string
+          uploaded_by: string | null
+        }
+        Insert: {
+          caption?: string | null
+          created_at?: string
+          entity_id?: string | null
+          file_name: string
+          file_size_bytes?: number | null
+          id?: string
+          is_company?: boolean
+          is_primary?: boolean
+          mime_type: string
+          party_id?: string | null
+          project_id?: string | null
+          sort_order?: number
+          storage_path: string
+          uploaded_by?: string | null
+        }
+        Update: {
+          caption?: string | null
+          created_at?: string
+          entity_id?: string | null
+          file_name?: string
+          file_size_bytes?: number | null
+          id?: string
+          is_company?: boolean
+          is_primary?: boolean
+          mime_type?: string
+          party_id?: string | null
+          project_id?: string | null
+          sort_order?: number
+          storage_path?: string
+          uploaded_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "media_entity_id_fkey"
+            columns: ["entity_id"]
+            isOneToOne: false
+            referencedRelation: "entities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "media_party_id_fkey"
+            columns: ["party_id"]
+            isOneToOne: false
+            referencedRelation: "parties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "media_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       milestones: {
         Row: {
@@ -960,6 +1579,44 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: []
+      }
+      portfolio_briefs: {
+        Row: {
+          brief_type: string
+          content: string
+          created_at: string
+          generated_by: string
+          id: string
+          model_used: string | null
+          project_id: string | null
+        }
+        Insert: {
+          brief_type: string
+          content: string
+          created_at?: string
+          generated_by?: string
+          id?: string
+          model_used?: string | null
+          project_id?: string | null
+        }
+        Update: {
+          brief_type?: string
+          content?: string
+          created_at?: string
+          generated_by?: string
+          id?: string
+          model_used?: string | null
+          project_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "portfolio_briefs_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       processed_emails: {
         Row: {
@@ -1124,6 +1781,56 @@ export type Database = {
           },
         ]
       }
+      rail_branches: {
+        Row: {
+          brand_name: string | null
+          corridor_id: string | null
+          created_at: string
+          designation: string | null
+          id: string
+          military_connections: string | null
+          notes: string | null
+          rail_type: Database["public"]["Enums"]["rail_type"] | null
+          route_description: string | null
+          status: string | null
+          updated_at: string
+        }
+        Insert: {
+          brand_name?: string | null
+          corridor_id?: string | null
+          created_at?: string
+          designation?: string | null
+          id?: string
+          military_connections?: string | null
+          notes?: string | null
+          rail_type?: Database["public"]["Enums"]["rail_type"] | null
+          route_description?: string | null
+          status?: string | null
+          updated_at?: string
+        }
+        Update: {
+          brand_name?: string | null
+          corridor_id?: string | null
+          created_at?: string
+          designation?: string | null
+          id?: string
+          military_connections?: string | null
+          notes?: string | null
+          rail_type?: Database["public"]["Enums"]["rail_type"] | null
+          route_description?: string | null
+          status?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rail_branches_corridor_id_fkey"
+            columns: ["corridor_id"]
+            isOneToOne: false
+            referencedRelation: "corridors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       research_artifacts: {
         Row: {
           id: string
@@ -1158,6 +1865,56 @@ export type Database = {
             columns: ["project_id"]
             isOneToOne: false
             referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      revenue_share_agreements: {
+        Row: {
+          bw_pct: number | null
+          cadence: string | null
+          city_pct: number | null
+          created_at: string
+          governance_notes: string | null
+          id: string
+          notes: string | null
+          revenue_base: string | null
+          site_id: string
+          sunset_date: string | null
+          updated_at: string
+        }
+        Insert: {
+          bw_pct?: number | null
+          cadence?: string | null
+          city_pct?: number | null
+          created_at?: string
+          governance_notes?: string | null
+          id?: string
+          notes?: string | null
+          revenue_base?: string | null
+          site_id: string
+          sunset_date?: string | null
+          updated_at?: string
+        }
+        Update: {
+          bw_pct?: number | null
+          cadence?: string | null
+          city_pct?: number | null
+          created_at?: string
+          governance_notes?: string | null
+          id?: string
+          notes?: string | null
+          revenue_base?: string | null
+          site_id?: string
+          sunset_date?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "revenue_share_agreements_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: true
+            referencedRelation: "sites"
             referencedColumns: ["id"]
           },
         ]
@@ -1212,6 +1969,393 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "projects"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      risk_scores: {
+        Row: {
+          breakdown: Json
+          computed_at: string
+          id: string
+          project_id: string
+          score: number
+        }
+        Insert: {
+          breakdown?: Json
+          computed_at?: string
+          id?: string
+          project_id: string
+          score: number
+        }
+        Update: {
+          breakdown?: Json
+          computed_at?: string
+          id?: string
+          project_id?: string
+          score?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "risk_scores_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      site_dependencies: {
+        Row: {
+          created_at: string
+          dependency_type: string
+          description: string | null
+          id: string
+          source_site_id: string
+          target_site_id: string
+        }
+        Insert: {
+          created_at?: string
+          dependency_type: string
+          description?: string | null
+          id?: string
+          source_site_id: string
+          target_site_id: string
+        }
+        Update: {
+          created_at?: string
+          dependency_type?: string
+          description?: string | null
+          id?: string
+          source_site_id?: string
+          target_site_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "site_dependencies_source_site_id_fkey"
+            columns: ["source_site_id"]
+            isOneToOne: false
+            referencedRelation: "sites"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "site_dependencies_target_site_id_fkey"
+            columns: ["target_site_id"]
+            isOneToOne: false
+            referencedRelation: "sites"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sites: {
+        Row: {
+          acreage: number | null
+          anchor_partner: string | null
+          bw_role: Database["public"]["Enums"]["bw_role"] | null
+          city: string | null
+          corridor_id: string | null
+          county: string | null
+          created_at: string
+          id: string
+          is_lead_site: boolean
+          military_installations: string[] | null
+          military_nexus: string | null
+          name: string
+          notes: string | null
+          procore_link: string | null
+          site_number: number | null
+          state: string | null
+          status: Database["public"]["Enums"]["site_status"]
+          stracnet_status: string | null
+          updated_at: string
+        }
+        Insert: {
+          acreage?: number | null
+          anchor_partner?: string | null
+          bw_role?: Database["public"]["Enums"]["bw_role"] | null
+          city?: string | null
+          corridor_id?: string | null
+          county?: string | null
+          created_at?: string
+          id?: string
+          is_lead_site?: boolean
+          military_installations?: string[] | null
+          military_nexus?: string | null
+          name: string
+          notes?: string | null
+          procore_link?: string | null
+          site_number?: number | null
+          state?: string | null
+          status?: Database["public"]["Enums"]["site_status"]
+          stracnet_status?: string | null
+          updated_at?: string
+        }
+        Update: {
+          acreage?: number | null
+          anchor_partner?: string | null
+          bw_role?: Database["public"]["Enums"]["bw_role"] | null
+          city?: string | null
+          corridor_id?: string | null
+          county?: string | null
+          created_at?: string
+          id?: string
+          is_lead_site?: boolean
+          military_installations?: string[] | null
+          military_nexus?: string | null
+          name?: string
+          notes?: string | null
+          procore_link?: string | null
+          site_number?: number | null
+          state?: string | null
+          status?: Database["public"]["Enums"]["site_status"]
+          stracnet_status?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sites_corridor_id_fkey"
+            columns: ["corridor_id"]
+            isOneToOne: false
+            referencedRelation: "corridors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      stakeholder_interactions: {
+        Row: {
+          created_at: string
+          follow_up: string | null
+          id: string
+          interaction_date: string
+          logged_by: string | null
+          medium: string | null
+          relationship_id: string
+          summary: string
+        }
+        Insert: {
+          created_at?: string
+          follow_up?: string | null
+          id?: string
+          interaction_date?: string
+          logged_by?: string | null
+          medium?: string | null
+          relationship_id: string
+          summary: string
+        }
+        Update: {
+          created_at?: string
+          follow_up?: string | null
+          id?: string
+          interaction_date?: string
+          logged_by?: string | null
+          medium?: string | null
+          relationship_id?: string
+          summary?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stakeholder_interactions_relationship_id_fkey"
+            columns: ["relationship_id"]
+            isOneToOne: false
+            referencedRelation: "stakeholder_relationships"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      stakeholder_relationships: {
+        Row: {
+          created_at: string
+          id: string
+          next_scheduled: string | null
+          notes: string | null
+          party_id: string
+          role: string | null
+          site_id: string
+          temperature: Database["public"]["Enums"]["stakeholder_temperature"]
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          next_scheduled?: string | null
+          notes?: string | null
+          party_id: string
+          role?: string | null
+          site_id: string
+          temperature?: Database["public"]["Enums"]["stakeholder_temperature"]
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          next_scheduled?: string | null
+          notes?: string | null
+          party_id?: string
+          role?: string | null
+          site_id?: string
+          temperature?: Database["public"]["Enums"]["stakeholder_temperature"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stakeholder_relationships_party_id_fkey"
+            columns: ["party_id"]
+            isOneToOne: false
+            referencedRelation: "parties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stakeholder_relationships_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "sites"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sub_engagements: {
+        Row: {
+          apprenticeship_pct: number | null
+          bonding_limit: number | null
+          cba_local_hire: boolean | null
+          company: string
+          component_id: string
+          contact_email: string | null
+          contact_name: string | null
+          created_at: string
+          engagement_state: Database["public"]["Enums"]["engagement_state"]
+          federal_prequals: string[] | null
+          id: string
+          insurance_verified: boolean | null
+          mwbe_dbe_status: string | null
+          notes: string | null
+          party_id: string | null
+          prevailing_wage: boolean | null
+          scope_description: string | null
+          trade_tags: string[] | null
+          updated_at: string
+          value: number | null
+        }
+        Insert: {
+          apprenticeship_pct?: number | null
+          bonding_limit?: number | null
+          cba_local_hire?: boolean | null
+          company: string
+          component_id: string
+          contact_email?: string | null
+          contact_name?: string | null
+          created_at?: string
+          engagement_state?: Database["public"]["Enums"]["engagement_state"]
+          federal_prequals?: string[] | null
+          id?: string
+          insurance_verified?: boolean | null
+          mwbe_dbe_status?: string | null
+          notes?: string | null
+          party_id?: string | null
+          prevailing_wage?: boolean | null
+          scope_description?: string | null
+          trade_tags?: string[] | null
+          updated_at?: string
+          value?: number | null
+        }
+        Update: {
+          apprenticeship_pct?: number | null
+          bonding_limit?: number | null
+          cba_local_hire?: boolean | null
+          company?: string
+          component_id?: string
+          contact_email?: string | null
+          contact_name?: string | null
+          created_at?: string
+          engagement_state?: Database["public"]["Enums"]["engagement_state"]
+          federal_prequals?: string[] | null
+          id?: string
+          insurance_verified?: boolean | null
+          mwbe_dbe_status?: string | null
+          notes?: string | null
+          party_id?: string | null
+          prevailing_wage?: boolean | null
+          scope_description?: string | null
+          trade_tags?: string[] | null
+          updated_at?: string
+          value?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sub_engagements_component_id_fkey"
+            columns: ["component_id"]
+            isOneToOne: false
+            referencedRelation: "components"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sub_engagements_party_id_fkey"
+            columns: ["party_id"]
+            isOneToOne: false
+            referencedRelation: "parties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      trade_secrets: {
+        Row: {
+          classification: string | null
+          code: string
+          description: string | null
+          title: string
+        }
+        Insert: {
+          classification?: string | null
+          code: string
+          description?: string | null
+          title: string
+        }
+        Update: {
+          classification?: string | null
+          code?: string
+          description?: string | null
+          title?: string
+        }
+        Relationships: []
+      }
+      ts_exposure_items: {
+        Row: {
+          created_at: string
+          document_id: string
+          exposure_level: string | null
+          id: string
+          notes: string | null
+          ts_code: string
+        }
+        Insert: {
+          created_at?: string
+          document_id: string
+          exposure_level?: string | null
+          id?: string
+          notes?: string | null
+          ts_code: string
+        }
+        Update: {
+          created_at?: string
+          document_id?: string
+          exposure_level?: string | null
+          id?: string
+          notes?: string | null
+          ts_code?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ts_exposure_items_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ts_exposure_items_ts_code_fkey"
+            columns: ["ts_code"]
+            isOneToOne: false
+            referencedRelation: "trade_secrets"
+            referencedColumns: ["code"]
           },
         ]
       }
@@ -1286,246 +2430,104 @@ export type Database = {
           },
         ]
       }
-      certifications: {
-        Row: {
-          cert_number: string | null
-          created_at: string
-          document_id: string | null
-          expiration_date: string | null
-          id: string
-          is_active: boolean
-          issued_date: string | null
-          issuing_body: string | null
-          name: string
-          notes: string | null
-          updated_at: string
-        }
-        Insert: {
-          cert_number?: string | null
-          created_at?: string
-          document_id?: string | null
-          expiration_date?: string | null
-          id?: string
-          is_active?: boolean
-          issued_date?: string | null
-          issuing_body?: string | null
-          name: string
-          notes?: string | null
-          updated_at?: string
-        }
-        Update: {
-          cert_number?: string | null
-          created_at?: string
-          document_id?: string | null
-          expiration_date?: string | null
-          id?: string
-          is_active?: boolean
-          issued_date?: string | null
-          issuing_body?: string | null
-          name?: string
-          notes?: string | null
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "certifications_document_id_fkey"
-            columns: ["document_id"]
-            isOneToOne: false
-            referencedRelation: "documents"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      company_profile: {
-        Row: {
-          about: string | null
-          aggregate_bonding: number | null
-          bonding_capacity: number | null
-          bonding_company: string | null
-          capabilities: string | null
-          dba_name: string | null
-          dbe_certified: boolean
-          email: string | null
-          founded_year: number | null
-          hq_address: string | null
-          id: string
-          legal_name: string
-          logo_url: string | null
-          mbe_certified: boolean
-          naics_codes: string[]
-          phone: string | null
-          sbe_certified: boolean
-          sic_codes: string[]
-          updated_at: string
-          wbe_certified: boolean
-          website: string | null
-        }
-        Insert: {
-          about?: string | null
-          aggregate_bonding?: number | null
-          bonding_capacity?: number | null
-          bonding_company?: string | null
-          capabilities?: string | null
-          dba_name?: string | null
-          dbe_certified?: boolean
-          email?: string | null
-          founded_year?: number | null
-          hq_address?: string | null
-          id?: string
-          legal_name?: string
-          logo_url?: string | null
-          mbe_certified?: boolean
-          naics_codes?: string[]
-          phone?: string | null
-          sbe_certified?: boolean
-          sic_codes?: string[]
-          updated_at?: string
-          wbe_certified?: boolean
-          website?: string | null
-        }
-        Update: {
-          about?: string | null
-          aggregate_bonding?: number | null
-          bonding_capacity?: number | null
-          bonding_company?: string | null
-          capabilities?: string | null
-          dba_name?: string | null
-          dbe_certified?: boolean
-          email?: string | null
-          founded_year?: number | null
-          hq_address?: string | null
-          id?: string
-          legal_name?: string
-          logo_url?: string | null
-          mbe_certified?: boolean
-          naics_codes?: string[]
-          phone?: string | null
-          sbe_certified?: boolean
-          sic_codes?: string[]
-          updated_at?: string
-          wbe_certified?: boolean
-          website?: string | null
-        }
-        Relationships: []
-      }
-      media: {
-        Row: {
-          caption: string | null
-          created_at: string
-          entity_id: string | null
-          file_name: string
-          file_size_bytes: number | null
-          id: string
-          is_company: boolean
-          is_primary: boolean
-          mime_type: string
-          party_id: string | null
-          project_id: string | null
-          sort_order: number
-          storage_path: string
-          uploaded_by: string | null
-        }
-        Insert: {
-          caption?: string | null
-          created_at?: string
-          entity_id?: string | null
-          file_name: string
-          file_size_bytes?: number | null
-          id?: string
-          is_company?: boolean
-          is_primary?: boolean
-          mime_type: string
-          party_id?: string | null
-          project_id?: string | null
-          sort_order?: number
-          storage_path: string
-          uploaded_by?: string | null
-        }
-        Update: {
-          caption?: string | null
-          created_at?: string
-          entity_id?: string | null
-          file_name?: string
-          file_size_bytes?: number | null
-          id?: string
-          is_company?: boolean
-          is_primary?: boolean
-          mime_type?: string
-          party_id?: string | null
-          project_id?: string | null
-          sort_order?: number
-          storage_path?: string
-          uploaded_by?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "media_entity_id_fkey"
-            columns: ["entity_id"]
-            isOneToOne: false
-            referencedRelation: "entities"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "media_party_id_fkey"
-            columns: ["party_id"]
-            isOneToOne: false
-            referencedRelation: "parties"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "media_project_id_fkey"
-            columns: ["project_id"]
-            isOneToOne: false
-            referencedRelation: "projects"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "media_uploaded_by_fkey"
-            columns: ["uploaded_by"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      match_chunks: {
-        Args: {
-          filter_after?: string
-          filter_project_ids?: string[]
-          filter_entity_ids?: string[]
-          match_count?: number
-          query_embedding: string
-        }
-        Returns: {
-          chunk_index: number
-          content: string
-          created_at: string
-          document_id: string | null
-          entity_id: string | null
-          id: string
-          party_id: string | null
-          project_id: string | null
-          similarity: number
-          source_confidence: number
-          token_count: number
-          update_id: string | null
-        }[]
-      }
+      match_chunks:
+        | {
+            Args: {
+              filter_after?: string
+              filter_entity_ids?: string[]
+              filter_project_ids?: string[]
+              match_count?: number
+              query_embedding: string
+            }
+            Returns: {
+              chunk_index: number
+              content: string
+              created_at: string
+              document_id: string
+              entity_id: string
+              id: string
+              party_id: string
+              project_id: string
+              similarity: number
+              source_confidence: number
+              token_count: number
+              update_id: string
+            }[]
+          }
+        | {
+            Args: {
+              filter_after: string
+              filter_project_ids: string[]
+              match_count?: number
+              query_embedding: string
+            }
+            Returns: {
+              chunk_index: number
+              content: string
+              created_at: string
+              document_id: string
+              id: string
+              project_id: string
+              similarity: number
+              source_confidence: number
+              token_count: number
+              update_id: string
+            }[]
+          }
       wipe_all_data: { Args: never; Returns: undefined }
     }
     Enums: {
+      bw_role:
+        | "master_developer_gc"
+        | "developer_only"
+        | "gc_only"
+        | "cm_under_sna"
+        | "program_architect"
+        | "joint_venture"
       compliance_status:
         | "not_started"
         | "in_progress"
         | "compliant"
         | "non_compliant"
         | "waived"
+      component_status:
+        | "conceptual"
+        | "planning"
+        | "pre_development"
+        | "design"
+        | "procurement"
+        | "construction"
+        | "commissioning"
+        | "operating"
+      component_type:
+        | "quantum_data_center"
+        | "power_nexus"
+        | "hospital"
+        | "workforce_housing"
+        | "light_rail"
+        | "freight_rail"
+        | "civic_center"
+        | "police_station"
+        | "fire_station"
+        | "airport"
+        | "public_safety_complex"
+        | "urban_forestry"
+        | "cooling_infrastructure"
+        | "other"
       dd_severity: "info" | "watch" | "critical" | "blocker"
+      engagement_state:
+        | "solicited"
+        | "bidding"
+        | "awarded"
+        | "mobilized"
+        | "active"
+        | "demobilized"
+        | "complete"
       entity_type:
         | "llc"
         | "corp"
@@ -1534,6 +2536,22 @@ export type Database = {
         | "trust"
         | "fund"
         | "other"
+      funding_category:
+        | "federal_grant"
+        | "state_grant"
+        | "local"
+        | "private_equity"
+        | "debt"
+        | "ppa"
+        | "tax_credit"
+        | "revenue_share"
+      funding_status:
+        | "target"
+        | "outreach"
+        | "application_submitted"
+        | "awarded"
+        | "closed"
+        | "drawn"
       project_sector:
         | "government"
         | "infrastructure"
@@ -1549,8 +2567,27 @@ export type Database = {
         | "execution"
         | "closeout"
       project_status: "active" | "on_hold" | "won" | "lost" | "closed"
+      rail_type:
+        | "passenger"
+        | "freight"
+        | "stracnet_freight"
+        | "passenger_freight"
       review_state: "pending" | "approved" | "rejected"
-      update_source: "email" | "manual_paste" | "document" | "agent" | "procore" | "manual_task"
+      site_status: "active" | "planning" | "evaluation" | "lead_site"
+      stakeholder_temperature:
+        | "champion"
+        | "supportive"
+        | "neutral"
+        | "concerned"
+        | "opposed"
+        | "unknown"
+      update_source:
+        | "email"
+        | "manual_paste"
+        | "document"
+        | "agent"
+        | "procore"
+        | "manual_task"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -2131,6 +3168,14 @@ export const Constants = {
   },
   public: {
     Enums: {
+      bw_role: [
+        "master_developer_gc",
+        "developer_only",
+        "gc_only",
+        "cm_under_sna",
+        "program_architect",
+        "joint_venture",
+      ],
       compliance_status: [
         "not_started",
         "in_progress",
@@ -2138,7 +3183,42 @@ export const Constants = {
         "non_compliant",
         "waived",
       ],
+      component_status: [
+        "conceptual",
+        "planning",
+        "pre_development",
+        "design",
+        "procurement",
+        "construction",
+        "commissioning",
+        "operating",
+      ],
+      component_type: [
+        "quantum_data_center",
+        "power_nexus",
+        "hospital",
+        "workforce_housing",
+        "light_rail",
+        "freight_rail",
+        "civic_center",
+        "police_station",
+        "fire_station",
+        "airport",
+        "public_safety_complex",
+        "urban_forestry",
+        "cooling_infrastructure",
+        "other",
+      ],
       dd_severity: ["info", "watch", "critical", "blocker"],
+      engagement_state: [
+        "solicited",
+        "bidding",
+        "awarded",
+        "mobilized",
+        "active",
+        "demobilized",
+        "complete",
+      ],
       entity_type: [
         "llc",
         "corp",
@@ -2147,6 +3227,24 @@ export const Constants = {
         "trust",
         "fund",
         "other",
+      ],
+      funding_category: [
+        "federal_grant",
+        "state_grant",
+        "local",
+        "private_equity",
+        "debt",
+        "ppa",
+        "tax_credit",
+        "revenue_share",
+      ],
+      funding_status: [
+        "target",
+        "outreach",
+        "application_submitted",
+        "awarded",
+        "closed",
+        "drawn",
       ],
       project_sector: [
         "government",
@@ -2165,8 +3263,30 @@ export const Constants = {
         "closeout",
       ],
       project_status: ["active", "on_hold", "won", "lost", "closed"],
+      rail_type: [
+        "passenger",
+        "freight",
+        "stracnet_freight",
+        "passenger_freight",
+      ],
       review_state: ["pending", "approved", "rejected"],
-      update_source: ["email", "manual_paste", "document", "agent", "procore", "manual_task"],
+      site_status: ["active", "planning", "evaluation", "lead_site"],
+      stakeholder_temperature: [
+        "champion",
+        "supportive",
+        "neutral",
+        "concerned",
+        "opposed",
+        "unknown",
+      ],
+      update_source: [
+        "email",
+        "manual_paste",
+        "document",
+        "agent",
+        "procore",
+        "manual_task",
+      ],
     },
   },
   storage: {

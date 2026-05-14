@@ -18,6 +18,7 @@ import {
   ChevronRight,
   Shield,
   TrendingUp,
+  Globe,
 } from 'lucide-react'
 
 const NAV_ITEMS = [
@@ -103,6 +104,22 @@ export default function AppSidebar({ pendingReviewCount = 0 }: AppSidebarProps) 
             </Link>
           )
         })}
+
+        {/* Portfolio */}
+        <div className="mt-2 pt-2 border-t border-slate-800">
+          <Link
+            href="/portfolio"
+            title={collapsed ? 'Portfolio' : undefined}
+            className={`flex items-center gap-3 px-2.5 py-2 rounded text-sm font-medium transition-colors ${
+              pathname === '/portfolio' || pathname.startsWith('/portfolio/')
+                ? 'bg-slate-700 text-white'
+                : 'text-slate-400 hover:text-white hover:bg-slate-800'
+            }`}
+          >
+            <Globe size={15} className="shrink-0" />
+            {!collapsed && <span className="truncate">Portfolio</span>}
+          </Link>
+        </div>
 
         {/* Equity & Valuation */}
         <div className="mt-2 pt-2 border-t border-slate-800">

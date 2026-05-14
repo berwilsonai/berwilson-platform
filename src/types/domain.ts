@@ -238,3 +238,47 @@ export type SynthesisResponse = {
   model_used: string
   latency_ms: number
 }
+
+// ---------------------------------------------------------------------------
+// Portfolio hierarchy types
+// ---------------------------------------------------------------------------
+
+import type {
+  Brand,
+  Corridor,
+  Site,
+  Component,
+  FundingSource,
+  StakeholderRelationship,
+  RevenueShareAgreement,
+  RailBranch,
+} from '@/lib/supabase/types'
+
+/** Site summary for kanban / list views */
+export type PortfolioSiteSummary = Pick<
+  Site,
+  'id' | 'name' | 'site_number' | 'city' | 'state' | 'status' | 'bw_role' | 'is_lead_site' | 'anchor_partner'
+> & {
+  component_count: number
+  total_capital_mid: number | null
+  corridor_name: string | null
+  brand_code: string | null
+}
+
+/** Full site detail for the site detail page */
+export type SiteDetail = Site & {
+  corridor: (Pick<Corridor, 'id' | 'name'> & {
+    brand: Pick<Brand, 'id' | 'code' | 'name'> | null
+  }) | null
+  components: Component[]
+  funding_sources: FundingSource[]
+  stakeholder_relationships: (StakeholderRelationship & { party: Party })[]
+  revenue_share_agreements: RevenueShareAgreement | null
+  compliance_items: ComplianceItem[]
+  documents: Document[]
+}
+
+/** A component with its site name for cross-site views */
+export type ComponentWithSite = Component & {
+  site: Pick<Site, 'id' | 'name' | 'site_number'> | null
+}
