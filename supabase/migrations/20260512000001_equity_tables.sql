@@ -41,6 +41,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS equity_scenarios_updated ON equity_scenarios;
 CREATE TRIGGER equity_scenarios_updated
   BEFORE UPDATE ON equity_scenarios
   FOR EACH ROW EXECUTE FUNCTION equity_update_timestamp();
