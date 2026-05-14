@@ -25,6 +25,7 @@ export default function PasteInput({ projectId, onSaved }: PasteInputProps) {
   const [extraction, setExtraction] = useState<ExtractionResult | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [showRaw, setShowRaw] = useState(false)
+  const [savingRaw, setSavingRaw] = useState(false)
 
   // Editable extracted fields
   const [summary, setSummary] = useState('')
@@ -63,6 +64,43 @@ export default function PasteInput({ projectId, onSaved }: PasteInputProps) {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Extraction failed')
       setPhase('input')
+    }
+  }
+
+  async function handleSaveRaw() {
+    if (!rawText.trim()) return
+    setError(null)
+    setSavingRaw(true)
+
+    try {
+      const res = await fetch('/api/updates/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          project_id: projectId,
+          raw_content: rawText,
+          summary: null,
+          action_items: [],
+          waiting_on: [],
+          risks: [],
+          decisions: [],
+        }),
+      })
+
+      if (!res.ok) {
+        const data = await res.json()
+        throw new Error(data.error ?? 'Save failed')
+      }
+
+      setPhase('done')
+      setRawText('')
+      setSavingRaw(false)
+      onSaved?.()
+
+      setTimeout(() => setPhase('input'), 2000)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Save failed')
+      setSavingRaw(false)
     }
   }
 
@@ -137,7 +175,7 @@ export default function PasteInput({ projectId, onSaved }: PasteInputProps) {
           onChange={(e) => setRawText(e.target.value)}
           placeholder="Paste an email, meeting notes, or project update here..."
           rows={6}
-          disabled={phase === 'loading'}
+          disabled={phase === 'loading' || savingRaw}
           className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50 resize-y"
         />
         {error && (
@@ -146,7 +184,7 @@ export default function PasteInput({ projectId, onSaved }: PasteInputProps) {
         <div className="flex items-center gap-2">
           <button
             onClick={handleExtract}
-            disabled={!rawText.trim() || phase === 'loading'}
+            disabled={!rawText.trim() || phase === 'loading' || savingRaw}
             className="inline-flex items-center gap-1.5 h-9 px-4 rounded-md bg-foreground text-background text-sm font-medium hover:bg-foreground/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {phase === 'loading' ? (
@@ -158,6 +196,23 @@ export default function PasteInput({ projectId, onSaved }: PasteInputProps) {
               <>
                 <Sparkles size={14} />
                 Extract with AI
+              </>
+            )}
+          </button>
+          <button
+            onClick={handleSaveRaw}
+            disabled={!rawText.trim() || phase === 'loading' || savingRaw}
+            className="inline-flex items-center gap-1.5 h-9 px-4 rounded-md border border-input bg-background text-sm font-medium hover:bg-accent disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            {savingRaw ? (
+              <>
+                <Loader2 size={14} className="animate-spin" />
+                Saving...
+              </>
+            ) : (
+              <>
+                <Check size={14} />
+                Save as-is
               </>
             )}
           </button>

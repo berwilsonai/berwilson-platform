@@ -1,4 +1,4 @@
-import { Mail, ClipboardPaste, FileText, Bot, HardHat } from 'lucide-react'
+import { Mail, ClipboardPaste, FileText, Bot, HardHat, ListChecks } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { UpdateSource } from '@/lib/supabase/types'
 
@@ -30,6 +30,11 @@ const SOURCE_CONFIG: Record<
     label: 'Procore',
     icon: HardHat,
     style: 'bg-orange-50 text-orange-700 ring-orange-200',
+  },
+  manual_task: {
+    label: 'Task',
+    icon: ListChecks,
+    style: 'bg-emerald-50 text-emerald-700 ring-emerald-200',
   },
 }
 

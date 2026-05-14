@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { CheckSquare, Square, ListChecks } from 'lucide-react'
+import { CheckSquare, Square, ListChecks, Plus, Loader2 } from 'lucide-react'
 import EmptyState from '@/components/shared/EmptyState'
 
 export interface FlatTask {
@@ -28,8 +28,61 @@ interface TasksTabProps {
 export default function TasksTab({ projectId, initialTasks }: TasksTabProps) {
   const [tasks, setTasks] = useState(initialTasks)
   const [toggling, setToggling] = useState<string | null>(null)
+  const [showAddForm, setShowAddForm] = useState(false)
+  const [newText, setNewText] = useState('')
+  const [newAssignee, setNewAssignee] = useState('')
+  const [newDueDate, setNewDueDate] = useState('')
+  const [adding, setAdding] = useState(false)
+  const [addError, setAddError] = useState<string | null>(null)
 
   const openCount = tasks.filter(t => !t.completed).length
+
+  async function handleAddTask() {
+    if (!newText.trim()) return
+    setAdding(true)
+    setAddError(null)
+
+    try {
+      const res = await fetch('/api/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          project_id: projectId,
+          text: newText.trim(),
+          assignee: newAssignee.trim() || undefined,
+          due_date: newDueDate || undefined,
+        }),
+      })
+
+      if (!res.ok) {
+        const data = await res.json()
+        throw new Error(data.error ?? 'Failed to create task')
+      }
+
+      const data = await res.json()
+      setTasks(prev => [
+        ...prev,
+        {
+          updateId: data.id,
+          index: 0,
+          text: newText.trim(),
+          assignee: newAssignee.trim() || undefined,
+          due_date: newDueDate || undefined,
+          completed: false,
+          updateDate: new Date().toISOString(),
+          updateSource: 'manual_task',
+        },
+      ])
+      setNewText('')
+      setNewAssignee('')
+      setNewDueDate('')
+      setShowAddForm(false)
+    } catch (err) {
+      setAddError(err instanceof Error ? err.message : 'Failed to create task')
+    } finally {
+      setAdding(false)
+    }
+  }
 
   async function handleToggle(task: FlatTask) {
     const key = `${task.updateId}-${task.index}`
@@ -85,21 +138,92 @@ export default function TasksTab({ projectId, initialTasks }: TasksTabProps) {
     return 0
   })
 
-  if (tasks.length === 0) {
+  const addTaskForm = (
+    <div className="rounded-lg border border-border bg-card p-4 space-y-3">
+      <div>
+        <input
+          type="text"
+          value={newText}
+          onChange={(e) => setNewText(e.target.value)}
+          placeholder="What needs to be done?"
+          className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+          onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleAddTask() } }}
+          autoFocus
+        />
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <input
+          type="text"
+          value={newAssignee}
+          onChange={(e) => setNewAssignee(e.target.value)}
+          placeholder="Assignee (optional)"
+          className="h-9 rounded-md border border-input bg-background px-3 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+        />
+        <input
+          type="date"
+          value={newDueDate}
+          onChange={(e) => setNewDueDate(e.target.value)}
+          className="h-9 rounded-md border border-input bg-background px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+        />
+      </div>
+      {addError && <p className="text-sm text-red-600">{addError}</p>}
+      <div className="flex items-center gap-2">
+        <button
+          onClick={handleAddTask}
+          disabled={!newText.trim() || adding}
+          className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md bg-foreground text-background text-xs font-medium hover:bg-foreground/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        >
+          {adding ? <Loader2 size={12} className="animate-spin" /> : <Plus size={12} />}
+          Add Task
+        </button>
+        <button
+          onClick={() => { setShowAddForm(false); setAddError(null) }}
+          className="h-8 px-3 rounded-md border border-input text-xs font-medium hover:bg-accent transition-colors"
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  )
+
+  if (tasks.length === 0 && !showAddForm) {
     return (
-      <EmptyState
-        icon={ListChecks}
-        title="No tasks yet"
-        description="Tasks are extracted automatically when you paste updates. Go to the Updates tab to paste project correspondence."
-      />
+      <div className="space-y-4 max-w-3xl">
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-semibold text-foreground">Tasks</h2>
+          <button
+            onClick={() => setShowAddForm(true)}
+            className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md border border-input bg-background text-xs font-medium hover:bg-accent transition-colors"
+          >
+            <Plus size={12} />
+            Add Task
+          </button>
+        </div>
+        <EmptyState
+          icon={ListChecks}
+          title="No tasks yet"
+          description="Add a task manually or paste an update on the Updates tab to extract action items."
+        />
+      </div>
     )
   }
 
   return (
     <div className="space-y-4 max-w-3xl">
-      <h2 className="text-sm font-semibold text-foreground">
-        Tasks ({openCount} open)
-      </h2>
+      <div className="flex items-center justify-between">
+        <h2 className="text-sm font-semibold text-foreground">
+          Tasks ({openCount} open)
+        </h2>
+        <button
+          onClick={() => setShowAddForm(!showAddForm)}
+          className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md border border-input bg-background text-xs font-medium hover:bg-accent transition-colors"
+        >
+          <Plus size={12} />
+          Add Task
+        </button>
+      </div>
+
+      {showAddForm && addTaskForm}
 
       <div className="rounded-lg border border-border bg-card divide-y divide-border">
         {sorted.map((task) => {

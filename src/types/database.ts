@@ -1550,7 +1550,7 @@ export type Database = {
         | "closeout"
       project_status: "active" | "on_hold" | "won" | "lost" | "closed"
       review_state: "pending" | "approved" | "rejected"
-      update_source: "email" | "manual_paste" | "document" | "agent" | "procore"
+      update_source: "email" | "manual_paste" | "document" | "agent" | "procore" | "manual_task"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -2166,7 +2166,7 @@ export const Constants = {
       ],
       project_status: ["active", "on_hold", "won", "lost", "closed"],
       review_state: ["pending", "approved", "rejected"],
-      update_source: ["email", "manual_paste", "document", "agent", "procore"],
+      update_source: ["email", "manual_paste", "document", "agent", "procore", "manual_task"],
     },
   },
   storage: {
