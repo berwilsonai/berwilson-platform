@@ -51,35 +51,41 @@ ALTER TABLE equity_scenarios ENABLE ROW LEVEL SECURITY;
 ALTER TABLE equity_share_links ENABLE ROW LEVEL SECURITY;
 
 -- Both partners can view all scenarios
+DROP POLICY IF EXISTS "Users can view all scenarios" ON equity_scenarios;
 CREATE POLICY "Users can view all scenarios"
   ON equity_scenarios FOR SELECT
   USING (auth.uid() IS NOT NULL);
 
 -- Users can insert/update/delete their own scenarios
+DROP POLICY IF EXISTS "Users can insert own scenarios" ON equity_scenarios;
 CREATE POLICY "Users can insert own scenarios"
   ON equity_scenarios FOR INSERT
   WITH CHECK (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can update own scenarios" ON equity_scenarios;
 CREATE POLICY "Users can update own scenarios"
   ON equity_scenarios FOR UPDATE
   USING (auth.uid() = user_id)
   WITH CHECK (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can delete own scenarios" ON equity_scenarios;
 CREATE POLICY "Users can delete own scenarios"
   ON equity_scenarios FOR DELETE
   USING (auth.uid() = user_id);
 
 -- Share links
+DROP POLICY IF EXISTS "Users can manage own share links" ON equity_share_links;
 CREATE POLICY "Users can manage own share links"
   ON equity_share_links FOR ALL
   USING (auth.uid() = created_by)
   WITH CHECK (auth.uid() = created_by);
 
 -- Public access to share links by token (for unauthenticated share views)
+DROP POLICY IF EXISTS "Anyone can read valid share links" ON equity_share_links;
 CREATE POLICY "Anyone can read valid share links"
   ON equity_share_links FOR SELECT
   USING (TRUE);
 
 -- Indexes
-CREATE INDEX idx_equity_scenarios_user ON equity_scenarios(user_id);
-CREATE INDEX idx_equity_share_links_token ON equity_share_links(token);
+CREATE INDEX IF NOT EXISTS idx_equity_scenarios_user ON equity_scenarios(user_id);
+CREATE INDEX IF NOT EXISTS idx_equity_share_links_token ON equity_share_links(token);
