@@ -19,10 +19,12 @@ export async function createContact(
   if (!full_name) return { error: 'Full name is required.' }
 
   const is_organization = formData.get('is_organization') === 'true'
+  const companyName = str(formData, 'company')
+  const entityId = str(formData, 'entity_id') // set when user picks from autocomplete
 
   const fields = {
     full_name,
-    company: str(formData, 'company'),
+    company: companyName,
     title: str(formData, 'title'),
     email: str(formData, 'email'),
     phone: str(formData, 'phone'),
@@ -34,6 +36,8 @@ export async function createContact(
   const supabase = createAdminClient()
   // Cast to bypass generated types — status column added via migration
   const db = supabase as unknown as import('@supabase/supabase-js').SupabaseClient
+
+  // 1. Create the contact
   const { data, error } = await db
     .from('parties')
     .insert(fields)
@@ -41,6 +45,40 @@ export async function createContact(
     .single()
 
   if (error) return { error: error.message }
+
+  // 2. Link to company entity (find-or-create)
+  if (companyName && !is_organization) {
+    let linkedEntityId = entityId
+
+    if (!linkedEntityId) {
+      // No entity selected from autocomplete — check for exact match or create new
+      const { data: existing } = await supabase
+        .from('entities')
+        .select('id')
+        .ilike('name', companyName)
+        .limit(1)
+        .single()
+
+      if (existing) {
+        linkedEntityId = existing.id
+      } else {
+        // Auto-create a new entity with sensible defaults
+        const { data: newEntity } = await supabase
+          .from('entities')
+          .insert({ name: companyName, entity_type: 'other' as const })
+          .select('id')
+          .single()
+        linkedEntityId = newEntity?.id ?? null
+      }
+    }
+
+    if (linkedEntityId) {
+      // party_entities not yet in generated types
+      await db
+        .from('party_entities' as string)
+        .insert({ party_id: data.id, entity_id: linkedEntityId, role: 'employee', is_primary: true })
+    }
+  }
 
   redirect(`/contacts/${data.id}`)
 }

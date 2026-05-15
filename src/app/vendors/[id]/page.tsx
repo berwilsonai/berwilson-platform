@@ -46,7 +46,7 @@ export default async function VendorDetailPage({ params }: PageProps) {
     .eq('entity_id', id)
     .order('reviewed_at', { ascending: false })
 
-  // Fetch primary contact if set
+  // Fetch primary contact if set (legacy)
   let primaryContact: { id: string; full_name: string; email: string | null; phone: string | null; title: string | null } | null = null
   if (entity.primary_contact_id) {
     const { data } = await supabase
@@ -56,6 +56,15 @@ export default async function VendorDetailPage({ params }: PageProps) {
       .single()
     primaryContact = data
   }
+
+  // Fetch all linked contacts from party_entities (not yet in generated types)
+  const db = supabase as unknown as import('@supabase/supabase-js').SupabaseClient
+  const { data: linkedContacts } = await db
+    .from('party_entities')
+    .select('role, is_primary, parties(id, full_name, email, phone, title)')
+    .eq('entity_id', id)
+    .order('is_primary', { ascending: false })
+    .order('created_at', { ascending: false })
 
   // Fetch entity-scoped documents
   const { data: entityDocs } = await supabase
@@ -201,6 +210,7 @@ export default async function VendorDetailPage({ params }: PageProps) {
         projectLinks={projectLinks ?? []}
         reviews={reviews ?? []}
         primaryContact={primaryContact as { id: string; full_name: string; email: string | null; phone: string | null; title: string | null } | null}
+        linkedContacts={(linkedContacts ?? []) as unknown as Array<{ role: string | null; is_primary: boolean | null; parties: { id: string; full_name: string; email: string | null; phone: string | null; title: string | null } | null }>}
         allProjects={allProjects ?? []}
         entityDocuments={entityDocs ?? []}
       />

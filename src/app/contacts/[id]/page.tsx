@@ -46,6 +46,24 @@ export default async function ContactDetailPage({ params, searchParams }: PagePr
 
   if (!party) notFound()
 
+  // ─── Linked company entity ───────────────────────────────────────────────
+  type LinkedEntity = { id: string; name: string; entity_type: string; headquarters: string | null }
+  let linkedEntity: LinkedEntity | null = null
+  {
+    // party_entities not yet in generated types — cast through unknown
+    const db = supabase as unknown as import('@supabase/supabase-js').SupabaseClient
+    const { data: pe } = await db
+      .from('party_entities')
+      .select('entity_id, entities(id, name, entity_type, headquarters)')
+      .eq('party_id', id)
+      .eq('is_primary', true)
+      .limit(1)
+      .single()
+    if (pe?.entities) {
+      linkedEntity = pe.entities as unknown as LinkedEntity
+    }
+  }
+
   // ─── Overview tab data ────────────────────────────────────────────────────
   let projectCount = 0
   let lastActive: string | null = null
@@ -206,10 +224,7 @@ export default async function ContactDetailPage({ params, searchParams }: PagePr
   }
 
   // ─── Render ───────────────────────────────────────────────────────────────
-  const displayTitle =
-    party.title && party.company
-      ? `${party.title} · ${party.company}`
-      : party.title ?? party.company ?? null
+  const displayTitle = party.title ?? null
 
   return (
     <div className="space-y-0">
@@ -233,9 +248,28 @@ export default async function ContactDetailPage({ params, searchParams }: PagePr
           </div>
           <div className="min-w-0">
             <h1 className="text-xl font-semibold leading-tight">{party.full_name}</h1>
-            {displayTitle && (
-              <p className="text-sm text-muted-foreground mt-0.5">{displayTitle}</p>
-            )}
+            <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+              {displayTitle && (
+                <span className="text-sm text-muted-foreground">{displayTitle}</span>
+              )}
+              {displayTitle && (linkedEntity || party.company) && (
+                <span className="text-sm text-muted-foreground">·</span>
+              )}
+              {linkedEntity ? (
+                <Link
+                  href={`/vendors/${linkedEntity.id}`}
+                  className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
+                >
+                  <Building2 size={12} />
+                  {linkedEntity.name}
+                </Link>
+              ) : party.company ? (
+                <span className="text-sm text-muted-foreground flex items-center gap-1">
+                  <Building2 size={12} />
+                  {party.company}
+                </span>
+              ) : null}
+            </div>
           </div>
         </div>
       </div>

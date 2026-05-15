@@ -40,6 +40,7 @@ export async function POST(request: NextRequest) {
     phone?: string
     relationship_notes?: string
     is_organization?: boolean
+    entity_id?: string  // link to existing entity
   }
 
   try {
@@ -53,23 +54,59 @@ export async function POST(request: NextRequest) {
   }
 
   const admin = createAdminClient()
+  const companyName = body.company?.trim() ?? null
+  const isOrg = body.is_organization ?? false
 
   const { data, error } = await admin
     .from('parties')
     .insert({
       full_name: body.full_name.trim(),
       email: body.email?.trim() ?? null,
-      company: body.company?.trim() ?? null,
+      company: companyName,
       title: body.title?.trim() ?? null,
       phone: body.phone?.trim() ?? null,
       relationship_notes: body.relationship_notes?.trim() ?? null,
-      is_organization: body.is_organization ?? false,
+      is_organization: isOrg,
     })
     .select('id, full_name, email, company, title')
     .single()
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+
+  // Auto-link to company entity (find-or-create)
+  if (companyName && !isOrg) {
+    let linkedEntityId = body.entity_id ?? null
+
+    if (!linkedEntityId) {
+      // Check for existing entity by name
+      const { data: existing } = await admin
+        .from('entities')
+        .select('id')
+        .ilike('name', companyName)
+        .limit(1)
+        .single()
+
+      if (existing) {
+        linkedEntityId = existing.id
+      } else {
+        // Auto-create entity
+        const { data: newEntity } = await admin
+          .from('entities')
+          .insert({ name: companyName, entity_type: 'other' as const })
+          .select('id')
+          .single()
+        linkedEntityId = newEntity?.id ?? null
+      }
+    }
+
+    if (linkedEntityId) {
+      const adminDb = admin as unknown as import('@supabase/supabase-js').SupabaseClient
+      await adminDb
+        .from('party_entities')
+        .insert({ party_id: data.id, entity_id: linkedEntityId, role: 'employee', is_primary: true })
+    }
   }
 
   return NextResponse.json(data, { status: 201 })

@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { createContact } from '@/app/contacts/actions'
 import type { ContactFormState } from '@/app/contacts/actions'
+import CompanyAutocomplete from './CompanyAutocomplete'
 
 const inputClass = cn(
   'h-9 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground',
@@ -75,14 +76,8 @@ export default function ContactForm() {
           />
         </div>
         <div>
-          <label htmlFor="company" className={labelClass}>Company / Firm</label>
-          <input
-            id="company"
-            name="company"
-            type="text"
-            placeholder="Acme Construction"
-            className={inputClass}
-          />
+          <label className={labelClass}>Company / Firm</label>
+          <CompanyAutocomplete inputClass={inputClass} />
         </div>
         <div>
           <label htmlFor="title" className={labelClass}>Title / Role</label>

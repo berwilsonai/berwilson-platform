@@ -53,11 +53,18 @@ interface PrimaryContact {
   title: string | null
 }
 
+interface LinkedContact {
+  role: string | null
+  is_primary: boolean | null
+  parties: { id: string; full_name: string; email: string | null; phone: string | null; title: string | null } | null
+}
+
 interface VendorProfileClientProps {
   entity: Record<string, unknown>
   projectLinks: ProjectLink[]
   reviews: Review[]
   primaryContact: PrimaryContact | null
+  linkedContacts: LinkedContact[]
   allProjects: Array<{ id: string; name: string }>
   entityDocuments: DocRecord[]
 }
@@ -73,38 +80,47 @@ const RELATIONSHIP_LABELS: Record<string, string> = {
   guarantor: 'Guarantor',
 }
 
-function PrimaryContactSection({ contact }: { contact: PrimaryContact | null }) {
-  if (!contact) return null
+function ContactsSection({ linkedContacts, primaryContact }: { linkedContacts: LinkedContact[]; primaryContact: PrimaryContact | null }) {
+  // Merge: show linked contacts, fall back to legacy primary contact
+  const contacts = linkedContacts
+    .filter(lc => lc.parties)
+    .map(lc => ({ ...lc.parties!, role: lc.role, isPrimary: lc.is_primary }))
+
+  // If legacy primary contact exists but isn't in the linked list, add it
+  if (primaryContact && !contacts.some(c => c.id === primaryContact.id)) {
+    contacts.unshift({ ...primaryContact, role: 'primary', isPrimary: true })
+  }
+
+  if (contacts.length === 0) return null
+
   return (
     <section className="rounded-lg border border-border p-3">
-      <h3 className="text-xs font-semibold mb-2">Primary Contact</h3>
-      <Link
-        href={`/contacts/${contact.id}`}
-        className="flex items-center gap-2 hover:bg-muted/50 p-1.5 rounded -mx-1.5 transition-colors"
-      >
-        <div className="w-7 h-7 rounded-full bg-muted flex items-center justify-center shrink-0">
-          <User size={12} className="text-muted-foreground" />
-        </div>
-        <div className="min-w-0">
-          <p className="text-xs font-medium truncate">{contact.full_name}</p>
-          {contact.title && (
-            <p className="text-[10px] text-muted-foreground truncate">{contact.title}</p>
-          )}
-        </div>
-      </Link>
-      <div className="mt-2 space-y-1">
-        {contact.email && (
-          <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-            <Mail size={10} className="shrink-0" />
-            <span className="truncate">{contact.email}</span>
-          </div>
-        )}
-        {contact.phone && (
-          <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-            <Phone size={10} className="shrink-0" />
-            <span>{contact.phone}</span>
-          </div>
-        )}
+      <h3 className="text-xs font-semibold mb-2">
+        People ({contacts.length})
+      </h3>
+      <div className="space-y-1">
+        {contacts.map(contact => (
+          <Link
+            key={contact.id}
+            href={`/contacts/${contact.id}`}
+            className="flex items-center gap-2 hover:bg-muted/50 p-1.5 rounded -mx-1.5 transition-colors"
+          >
+            <div className="w-7 h-7 rounded-full bg-muted flex items-center justify-center shrink-0">
+              <User size={12} className="text-muted-foreground" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-medium truncate">{contact.full_name}</p>
+              <p className="text-[10px] text-muted-foreground truncate">
+                {[contact.title, contact.role].filter(Boolean).join(' · ')}
+              </p>
+            </div>
+            {contact.email && (
+              <span className="text-[10px] text-muted-foreground truncate hidden sm:block max-w-[140px]">
+                {contact.email}
+              </span>
+            )}
+          </Link>
+        ))}
       </div>
     </section>
   )
@@ -115,6 +131,7 @@ export default function VendorProfileClient({
   projectLinks,
   reviews: initialReviews,
   primaryContact,
+  linkedContacts,
   allProjects,
   entityDocuments,
 }: VendorProfileClientProps) {
@@ -332,8 +349,8 @@ export default function VendorProfileClient({
           <VendorEditForm entity={entity} onClose={() => setShowEditForm(false)} />
         )}
 
-        {/* Primary Contact */}
-        <PrimaryContactSection contact={primaryContact} />
+        {/* People at this company */}
+        <ContactsSection linkedContacts={linkedContacts} primaryContact={primaryContact} />
 
         {/* Entity Details */}
         <section className="rounded-lg border border-border p-3">
