@@ -194,6 +194,7 @@ export type Database = {
           id: string
           latency_ms: number | null
           model_used: string
+          project_id: string | null
           prompt_version: string | null
           query_text: string
           rating: number | null
@@ -208,6 +209,7 @@ export type Database = {
           id?: string
           latency_ms?: number | null
           model_used: string
+          project_id?: string | null
           prompt_version?: string | null
           query_text: string
           rating?: number | null
@@ -222,6 +224,7 @@ export type Database = {
           id?: string
           latency_ms?: number | null
           model_used?: string
+          project_id?: string | null
           prompt_version?: string | null
           query_text?: string
           rating?: number | null
@@ -230,7 +233,15 @@ export type Database = {
           tokens_out?: number | null
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "ai_queries_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       brands: {
         Row: {
@@ -320,6 +331,7 @@ export type Database = {
           id: string
           party_id: string | null
           project_id: string | null
+          site_id: string | null
           token_count: number | null
           update_id: string | null
         }
@@ -333,6 +345,7 @@ export type Database = {
           id?: string
           party_id?: string | null
           project_id?: string | null
+          site_id?: string | null
           token_count?: number | null
           update_id?: string | null
         }
@@ -346,6 +359,7 @@ export type Database = {
           id?: string
           party_id?: string | null
           project_id?: string | null
+          site_id?: string | null
           token_count?: number | null
           update_id?: string | null
         }
@@ -376,6 +390,13 @@ export type Database = {
             columns: ["project_id"]
             isOneToOne: false
             referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chunks_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "sites"
             referencedColumns: ["id"]
           },
           {
@@ -2368,6 +2389,7 @@ export type Database = {
           embedding_status: string | null
           id: string
           mentioned_parties: Json
+          mentioned_projects: Json
           outlook_web_link: string | null
           project_id: string | null
           raw_content: string | null
@@ -2388,6 +2410,7 @@ export type Database = {
           embedding_status?: string | null
           id?: string
           mentioned_parties?: Json
+          mentioned_projects?: Json
           outlook_web_link?: string | null
           project_id?: string | null
           raw_content?: string | null
@@ -2408,6 +2431,7 @@ export type Database = {
           embedding_status?: string | null
           id?: string
           mentioned_parties?: Json
+          mentioned_projects?: Json
           outlook_web_link?: string | null
           project_id?: string | null
           raw_content?: string | null

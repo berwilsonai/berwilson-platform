@@ -11,6 +11,7 @@ import SortControls from '@/components/dashboard/SortControls'
 import PortfolioBriefButton from '@/components/dashboard/PortfolioBriefButton'
 import DailyBrief from '@/components/dashboard/DailyBrief'
 import AlertsBanner from '@/components/dashboard/AlertsBanner'
+import HealthPanel from '@/components/dashboard/HealthPanel'
 import RiskOverview from '@/components/dashboard/RiskOverview'
 import EmptyState from '@/components/shared/EmptyState'
 import type { ActionItem, WaitingOnItem, RiskItem } from '@/types/domain'
@@ -209,6 +210,16 @@ export default async function DashboardPage({ searchParams }: PageProps) {
 
   return (
     <div className="space-y-5">
+
+      {/* ── Portfolio health overview ─────────────────────────────────────── */}
+      <HealthPanel
+        activeProjects={activeProjects.length}
+        pipelineValue={pipelineValue}
+        pendingReview={pendingReview}
+        overdueCount={overdueCount}
+        criticalDdCount={ddRaw?.length ?? 0}
+        expiringCertsCount={expiringCerts?.length ?? 0}
+      />
 
       {/* ── Alerts banner — critical items across portfolio ──────────────── */}
       {alerts.length > 0 && <AlertsBanner alerts={alerts} />}

@@ -98,7 +98,7 @@ export default function DailyBrief() {
 
       {/* Content */}
       {expanded && (
-        <div className="px-4 pb-4 border-t border-primary/10">
+        <div className="px-4 pb-4 border-t border-primary/10 max-h-52 overflow-y-auto scrollbar-thin scrollbar-thumb-muted scrollbar-track-transparent">
           {loading && !brief && (
             <div className="space-y-2 pt-3 animate-pulse">
               <div className="h-3 bg-muted rounded w-full" />

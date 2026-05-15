@@ -219,6 +219,7 @@ export async function processEmailNotification(
       risks: extraction.risks,
       decisions: extraction.decisions,
       mentioned_parties: extraction.mentioned_parties ?? [],
+      mentioned_projects: extraction.mentioned_projects ?? [],
       confidence: extraction.confidence,
       review_state: reviewState,
       outlook_web_link: message.webLink,

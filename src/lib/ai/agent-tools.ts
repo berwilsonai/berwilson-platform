@@ -12,6 +12,96 @@ import type { AgentContext } from './agent'
 
 export const agentTools = [
   {
+    name: 'list_projects',
+    description: 'List projects with optional filters. Use when the user asks "which projects are...", "show me all projects in X stage/sector/status", or needs to find or compare projects by characteristics. Returns project names, values, stages, statuses, sectors, and locations.',
+    parameters: {
+      type: 'object',
+      properties: {
+        sector: {
+          type: 'string',
+          enum: ['government', 'infrastructure', 'real_estate', 'prefab', 'institutional'],
+          description: 'Filter by sector',
+        },
+        stage: {
+          type: 'string',
+          enum: ['pursuit', 'capture', 'bid', 'award', 'mobilization', 'execution', 'closeout'],
+          description: 'Filter by project stage',
+        },
+        status: {
+          type: 'string',
+          enum: ['active', 'on_hold', 'won', 'lost', 'closed'],
+          description: 'Filter by project status (default: all statuses)',
+        },
+        programs_only: {
+          type: 'boolean',
+          description: 'If true, return only parent-level programs (projects with sub-projects)',
+        },
+      },
+    },
+  },
+  {
+    name: 'get_financing_overview',
+    description: 'Get the capital stack and financing details for a specific project. Returns senior debt, equity, mezzanine, LTV, interest rates, lender names, PE partners, draw schedule, and waterfall notes. Use whenever asked about how a project is financed, the capital stack, who is lending, or draw status.',
+    parameters: {
+      type: 'object',
+      properties: {
+        project_id: { type: 'string', description: 'UUID of the project' },
+      },
+      required: ['project_id'],
+    },
+  },
+  {
+    name: 'get_open_items',
+    description: 'Get open action items, waiting-on blockers, and active risks from approved project updates. Use when asked: "what are our open action items", "what are we waiting on", "what are the active risks", "who owes us a response", or "what needs to happen next". Can scope to one project or pull portfolio-wide.',
+    parameters: {
+      type: 'object',
+      properties: {
+        project_id: { type: 'string', description: 'Optional: limit to a specific project. Omit for portfolio-wide.' },
+        item_type: {
+          type: 'string',
+          enum: ['action_items', 'waiting_on', 'risks', 'decisions', 'all'],
+          description: 'Which type of items to return (default: all)',
+        },
+        min_severity: {
+          type: 'string',
+          enum: ['info', 'watch', 'critical', 'blocker'],
+          description: 'For risks: minimum severity to include (default: info = all)',
+        },
+        days_back: {
+          type: 'number',
+          description: 'How many days of history to scan (default: 30)',
+        },
+      },
+    },
+  },
+  {
+    name: 'get_stakeholders',
+    description: 'Get stakeholder relationships and their political temperature for a portfolio site. Returns stakeholder names, roles, temperature (champion/supportive/neutral/concerned/opposed), last interaction summary, and next scheduled contact. Use when asked about political landscape, community support, who is a champion or opponent, or stakeholder engagement.',
+    parameters: {
+      type: 'object',
+      properties: {
+        site_id: { type: 'string', description: 'UUID of the portfolio site' },
+        temperature: {
+          type: 'string',
+          enum: ['champion', 'supportive', 'neutral', 'concerned', 'opposed', 'unknown'],
+          description: 'Optional: filter by stakeholder temperature',
+        },
+      },
+      required: ['site_id'],
+    },
+  },
+  {
+    name: 'get_funding_sources',
+    description: 'Get the funding stack for a portfolio site — federal grants, state grants, local funding, private equity, debt, tax credits, revenue share, etc. Returns source names, amounts, categories, status, agency contacts, and drawdown notes. Use when asked about how a site is funded, grant status, or capital sourcing.',
+    parameters: {
+      type: 'object',
+      properties: {
+        site_id: { type: 'string', description: 'UUID of the portfolio site' },
+      },
+      required: ['site_id'],
+    },
+  },
+  {
     name: 'query_project_data',
     description: 'Fetch specific fields from a project record. Use this to get project details like value, dates, status, stage, contract type, delivery method, etc.',
     parameters: {
@@ -185,10 +275,14 @@ export async function executeToolCall(
       if (dateRange?.after) q = q.gte('created_at', dateRange.after)
       if (dateRange?.before) q = q.lte('created_at', dateRange.before)
 
-      // Text search via ilike on summary (simple but effective for now)
+      // Text search via ilike across summary and raw_content (raw_content has full email body)
       const keywords = query.split(/\s+/).slice(0, 3).map(k => `%${k}%`)
       if (keywords.length > 0) {
-        q = q.or(keywords.map(k => `summary.ilike.${k}`).join(','))
+        const conditions = keywords.flatMap(k => [
+          `summary.ilike.${k}`,
+          `raw_content.ilike.${k}`,
+        ])
+        q = q.or(conditions.join(','))
       }
 
       const { data, error } = await q
@@ -511,6 +605,316 @@ export async function executeToolCall(
           expiring_within_90_days: certs.filter(c => c.status.includes('EXPIRING')).length,
           inactive: certs.filter(c => c.status === 'inactive').length,
         },
+      }
+    }
+
+    case 'list_projects': {
+      let q = supabase
+        .from('projects')
+        .select('id, name, sector, status, stage, estimated_value, location, client_entity, parent_project_id, solicitation_number')
+        .order('name')
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      if (args.sector) q = q.eq('sector', args.sector as any)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      if (args.stage) q = q.eq('stage', args.stage as any)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      if (args.status) q = q.eq('status', args.status as any)
+
+      const { data: allProjects, error } = await q
+      if (error) return { error: error.message }
+
+      let projects = allProjects ?? []
+
+      if (args.programs_only) {
+        const parentIds = new Set(projects.map(p => p.parent_project_id).filter(Boolean))
+        projects = projects.filter(p => parentIds.has(p.id))
+      }
+
+      const totalValue = projects.reduce((sum, p) => sum + (p.estimated_value ?? 0), 0)
+
+      return {
+        count: projects.length,
+        total_estimated_value: totalValue,
+        projects: projects.map(p => ({
+          id: p.id,
+          name: p.name,
+          sector: p.sector,
+          status: p.status,
+          stage: p.stage,
+          estimated_value: p.estimated_value,
+          location: p.location,
+          client_entity: p.client_entity,
+          solicitation_number: p.solicitation_number,
+          is_sub_project: !!p.parent_project_id,
+        })),
+      }
+    }
+
+    case 'get_financing_overview': {
+      const projectId = (args.project_id as string) || context.projectId
+      if (!projectId) return { error: 'No project_id provided' }
+
+      const [{ data: project }, { data: financing }] = await Promise.all([
+        supabase.from('projects').select('name, estimated_value').eq('id', projectId).single(),
+        supabase
+          .from('financing_structures')
+          .select('*')
+          .eq('project_id', projectId)
+          .order('created_at', { ascending: false }),
+      ])
+
+      if (!financing || financing.length === 0) {
+        return { project: project?.name ?? 'Unknown', message: 'No financing structures recorded for this project.' }
+      }
+
+      return {
+        project: project?.name ?? 'Unknown',
+        estimated_value: project?.estimated_value ?? null,
+        structures: financing.map(f => {
+          const total = (f.senior_debt ?? 0) + (f.mezzanine ?? 0) + (f.equity_amount ?? 0)
+          return {
+            structure_type: f.structure_type,
+            senior_debt: f.senior_debt,
+            mezzanine: f.mezzanine,
+            equity_amount: f.equity_amount,
+            equity_pct: f.equity_pct,
+            ltv: f.ltv,
+            interest_rate: f.interest_rate,
+            lender: f.lender,
+            pe_partner: f.pe_partner,
+            total_structured: total,
+            draw_schedule: f.draw_schedule,
+            waterfall_notes: f.waterfall_notes,
+            notes: f.notes,
+          }
+        }),
+      }
+    }
+
+    case 'get_open_items': {
+      const projectId = (args.project_id as string) || context.projectId
+      const itemType = (args.item_type as string) || 'all'
+      const daysBack = (args.days_back as number) || 30
+      const minSeverity = args.min_severity as string | undefined
+
+      const severityRank: Record<string, number> = { info: 0, watch: 1, critical: 2, blocker: 3 }
+      const minRank = minSeverity ? (severityRank[minSeverity] ?? 0) : 0
+
+      const since = new Date(Date.now() - daysBack * 24 * 60 * 60 * 1000).toISOString()
+
+      let q = supabase
+        .from('updates')
+        .select('id, project_id, summary, action_items, waiting_on, risks, decisions, created_at, projects(name)')
+        .eq('review_state', 'approved')
+        .gte('created_at', since)
+        .order('created_at', { ascending: false })
+        .limit(50)
+
+      if (projectId) q = q.eq('project_id', projectId)
+
+      const { data: updates, error } = await q
+      if (error) return { error: error.message }
+
+      const rows = updates ?? []
+      const result: Record<string, unknown[]> = {}
+
+      type JsonObj = Record<string, unknown>
+      const projectName = (u: { projects: unknown }) =>
+        (u.projects as { name: string } | null)?.name ?? 'Unknown'
+
+      if (itemType === 'all' || itemType === 'action_items') {
+        result.action_items = rows.flatMap(u => {
+          const items = Array.isArray(u.action_items) ? (u.action_items as JsonObj[]) : []
+          return items.map(item => ({
+            ...item,
+            project: projectName(u),
+            update_id: u.id,
+            update_date: u.created_at,
+          }))
+        })
+      }
+
+      if (itemType === 'all' || itemType === 'waiting_on') {
+        result.waiting_on = rows.flatMap(u => {
+          const items = Array.isArray(u.waiting_on) ? (u.waiting_on as JsonObj[]) : []
+          return items.map(item => ({
+            ...item,
+            project: projectName(u),
+            update_id: u.id,
+            update_date: u.created_at,
+          }))
+        })
+      }
+
+      if (itemType === 'all' || itemType === 'risks') {
+        result.risks = rows.flatMap(u => {
+          const items = Array.isArray(u.risks) ? (u.risks as JsonObj[]) : []
+          return items
+            .filter(item => (severityRank[item.severity as string] ?? 0) >= minRank)
+            .map(item => ({
+              ...item,
+              project: projectName(u),
+              update_id: u.id,
+              update_date: u.created_at,
+            }))
+        })
+      }
+
+      if (itemType === 'all' || itemType === 'decisions') {
+        result.decisions = rows.flatMap(u => {
+          const items = Array.isArray(u.decisions) ? (u.decisions as JsonObj[]) : []
+          return items.map(item => ({
+            ...item,
+            project: projectName(u),
+            update_id: u.id,
+            update_date: u.created_at,
+          }))
+        })
+      }
+
+      return {
+        scoped_to: projectId ? 'single project' : 'portfolio',
+        days_scanned: daysBack,
+        updates_scanned: rows.length,
+        ...result,
+      }
+    }
+
+    case 'get_stakeholders': {
+      const siteId = args.site_id as string
+      if (!siteId) return { error: 'site_id is required' }
+
+      const [{ data: site }, { data: relationships }] = await Promise.all([
+        supabase.from('sites').select('name, city, state').eq('id', siteId).single(),
+        supabase
+          .from('stakeholder_relationships')
+          .select(`
+            id, role, temperature, notes, next_scheduled, updated_at,
+            party:parties ( id, full_name, company, title, email, phone )
+          `)
+          .eq('site_id', siteId)
+          .order('temperature'),
+      ])
+
+      if (!relationships || relationships.length === 0) {
+        return { site: site?.name ?? 'Unknown', message: 'No stakeholders recorded for this site.' }
+      }
+
+      // Filter by temperature if requested
+      const filtered = args.temperature
+        ? relationships.filter(r => r.temperature === args.temperature)
+        : relationships
+
+      // Fetch most recent interaction per relationship
+      const relIds = filtered.map(r => r.id)
+      type InteractionRow = { relationship_id: string; summary: string; interaction_date: string; medium: string | null; follow_up: string | null }
+      let interactions: InteractionRow[] = []
+      if (relIds.length > 0) {
+        const { data } = await supabase
+          .from('stakeholder_interactions')
+          .select('relationship_id, summary, interaction_date, medium, follow_up')
+          .in('relationship_id', relIds)
+          .order('interaction_date', { ascending: false })
+        interactions = (data ?? []) as InteractionRow[]
+      }
+
+      const latestInteraction = new Map<string, InteractionRow>()
+      for (const i of interactions) {
+        if (!latestInteraction.has(i.relationship_id)) latestInteraction.set(i.relationship_id, i)
+      }
+
+      // Summarize by temperature
+      const byTemp: Record<string, number> = {}
+      for (const r of filtered) {
+        byTemp[r.temperature] = (byTemp[r.temperature] ?? 0) + 1
+      }
+
+      return {
+        site: site ? `${site.name}${site.city ? `, ${site.city}` : ''}${site.state ? `, ${site.state}` : ''}` : 'Unknown',
+        stakeholder_count: filtered.length,
+        by_temperature: byTemp,
+        stakeholders: filtered.map(r => {
+          const party = r.party as { full_name: string; company: string | null; title: string | null; email: string | null; phone: string | null } | null
+          const latest = latestInteraction.get(r.id)
+          return {
+            name: party?.full_name ?? 'Unknown',
+            company: party?.company,
+            title: party?.title,
+            role: r.role,
+            temperature: r.temperature,
+            notes: r.notes,
+            next_scheduled: r.next_scheduled,
+            last_interaction: latest ? {
+              date: latest.interaction_date,
+              summary: latest.summary,
+              medium: latest.medium,
+              follow_up: latest.follow_up,
+            } : null,
+          }
+        }),
+      }
+    }
+
+    case 'get_funding_sources': {
+      const siteId = args.site_id as string
+      if (!siteId) return { error: 'site_id is required' }
+
+      const [{ data: site }, { data: funding }] = await Promise.all([
+        supabase.from('sites').select('name, city, state').eq('id', siteId).single(),
+        supabase
+          .from('funding_sources')
+          .select(`
+            id, source_name, category, status, amount, percent_of_stack,
+            agency, conditions, drawdown_notes, notes,
+            contact_party:parties ( full_name, email, phone )
+          `)
+          .eq('site_id', siteId)
+          .order('category'),
+      ])
+
+      if (!funding || funding.length === 0) {
+        return { site: site?.name ?? 'Unknown', message: 'No funding sources recorded for this site.' }
+      }
+
+      const totalFunded = funding.reduce((sum, f) => sum + (f.amount ?? 0), 0)
+
+      // Summary by category
+      const byCategory: Record<string, { count: number; total: number }> = {}
+      for (const f of funding) {
+        const cat = f.category
+        if (!byCategory[cat]) byCategory[cat] = { count: 0, total: 0 }
+        byCategory[cat].count++
+        byCategory[cat].total += f.amount ?? 0
+      }
+
+      // Summary by status
+      const byStatus: Record<string, number> = {}
+      for (const f of funding) {
+        byStatus[f.status] = (byStatus[f.status] ?? 0) + 1
+      }
+
+      return {
+        site: site ? `${site.name}${site.city ? `, ${site.city}` : ''}` : 'Unknown',
+        total_funded: totalFunded,
+        source_count: funding.length,
+        by_category: byCategory,
+        by_status: byStatus,
+        sources: funding.map(f => {
+          const contact = f.contact_party as { full_name: string; email: string | null; phone: string | null } | null
+          return {
+            source_name: f.source_name,
+            category: f.category,
+            status: f.status,
+            amount: f.amount,
+            percent_of_stack: f.percent_of_stack,
+            agency: f.agency,
+            conditions: f.conditions,
+            drawdown_notes: f.drawdown_notes,
+            notes: f.notes,
+            contact: contact ? `${contact.full_name}${contact.email ? ` <${contact.email}>` : ''}` : null,
+          }
+        }),
       }
     }
 
