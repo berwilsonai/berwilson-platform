@@ -34,17 +34,20 @@ export async function POST(request: NextRequest) {
   const file = formData.get('file') as File | null
   const project_id = formData.get('project_id') as string | null
   const entity_id = formData.get('entity_id') as string | null
+  const site_id = formData.get('site_id') as string | null
   const doc_type = (formData.get('doc_type') as string) ?? 'other'
   const extract_ai = formData.get('extract_ai') === 'true'
 
-  if (!file || (!project_id && !entity_id)) {
-    return Response.json({ error: 'file and either project_id or entity_id are required' }, { status: 400 })
+  if (!file || (!project_id && !entity_id && !site_id)) {
+    return Response.json({ error: 'file and one of project_id, entity_id, or site_id are required' }, { status: 400 })
   }
 
   // Build storage path
   const timestamp = Date.now()
   const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_')
-  const storagePath = entity_id && !project_id
+  const storagePath = site_id && !project_id && !entity_id
+    ? `sites/${site_id}/${timestamp}_${safeName}`
+    : entity_id && !project_id
     ? `entities/${entity_id}/${timestamp}_${safeName}`
     : `projects/${project_id}/${timestamp}_${safeName}`
 
@@ -68,6 +71,7 @@ export async function POST(request: NextRequest) {
     .insert({
       project_id: project_id || null,
       entity_id: entity_id || null,
+      site_id: site_id || null,
       storage_path: storagePath,
       file_name: file.name,
       file_size_bytes: file.size,
