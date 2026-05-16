@@ -6,18 +6,22 @@ import type { ContentBlockParam } from '@anthropic-ai/sdk/resources/messages'
 import { PROPOSAL_INTAKE_SYSTEM_PROMPT, PROPOSAL_INTAKE_PROMPT_VERSION } from '@/lib/ai/prompts/proposal-intake'
 import { findMatchingProjects, matchExtractedParties, type ProposalExtraction } from '@/lib/ai/proposal-matching'
 
+const SYSTEM_USER_ID = '00000000-0000-0000-0000-000000000000'
 const PDF_MIME_TYPE = 'application/pdf'
 const TEXT_MIME_TYPES = new Set(['text/plain', 'text/markdown', 'text/csv', 'text/html'])
 
 export async function POST(request: NextRequest) {
-  // Auth check
-  const userSupabase = await createClient()
-  const { data: { user } } = await userSupabase.auth.getUser()
-  if (!user) {
-    return Response.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-
   const supabase = createAdminClient()
+
+  // Get user if logged in — not a hard gate (matches upload route pattern)
+  let userId = SYSTEM_USER_ID
+  try {
+    const userSupabase = await createClient()
+    const { data: { user } } = await userSupabase.auth.getUser()
+    if (user?.id) userId = user.id
+  } catch {
+    // continue as system user
+  }
 
   let formData: FormData
   try {
@@ -28,15 +32,11 @@ export async function POST(request: NextRequest) {
 
   // Collect files
   const files: File[] = []
-  const entries = formData.getAll('files')
-  for (const entry of entries) {
+  for (const entry of formData.getAll('files')) {
     if (entry instanceof File) files.push(entry)
   }
-  // Also support single 'file' field
   const singleFile = formData.get('file')
-  if (singleFile instanceof File && !files.length) {
-    files.push(singleFile)
-  }
+  if (singleFile instanceof File && !files.length) files.push(singleFile)
 
   if (!files.length) {
     return Response.json({ error: 'At least one file is required' }, { status: 400 })
@@ -85,7 +85,8 @@ export async function POST(request: NextRequest) {
   let extraction: ProposalExtraction
   try {
     const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! })
-    const model = 'claude-haiku-4-5-20251001'
+    // Use Sonnet for complex multi-project portfolios — better at extracting many items accurately
+    const model = 'claude-sonnet-4-6-20250514'
     const start = Date.now()
 
     const primaryBuffer = await primaryFile.arrayBuffer()
@@ -99,24 +100,18 @@ export async function POST(request: NextRequest) {
           source: { type: 'base64', media_type: 'application/pdf', data: base64 },
           title: primaryFile.name,
         },
-        { type: 'text', text: 'Extract all project metadata from this proposal document.' },
-      ]
-    } else if (TEXT_MIME_TYPES.has(primaryFile.type)) {
-      const text = new TextDecoder().decode(primaryBuffer)
-      content = [
-        { type: 'text', text: `Extract all project metadata from this proposal document:\n\n${text.slice(0, 50000)}` },
+        { type: 'text', text: 'Analyze this document and extract all project and company information.' },
       ]
     } else {
-      // Attempt text extraction for other types
       const text = new TextDecoder().decode(primaryBuffer)
       content = [
-        { type: 'text', text: `Extract all project metadata from this proposal document:\n\n${text.slice(0, 50000)}` },
+        { type: 'text', text: `Analyze this document and extract all project and company information:\n\n${text.slice(0, 50000)}` },
       ]
     }
 
     const response = await client.messages.create({
       model,
-      max_tokens: 4096,
+      max_tokens: 8192,
       system: PROPOSAL_INTAKE_SYSTEM_PROMPT,
       messages: [{ role: 'user', content }],
     })
@@ -125,9 +120,8 @@ export async function POST(request: NextRequest) {
     const textBlock = response.content.find((b) => b.type === 'text')
     const rawText = textBlock && 'text' in textBlock ? textBlock.text : ''
 
-    // Log AI call
     supabase.from('ai_queries').insert({
-      user_id: user.id,
+      user_id: userId,
       query_text: `Proposal intake: ${primaryFile.name}`,
       response_text: rawText.slice(0, 10000),
       model_used: model,
@@ -141,7 +135,7 @@ export async function POST(request: NextRequest) {
       extraction = JSON.parse(rawText) as ProposalExtraction
     } catch {
       return Response.json({
-        error: 'AI extraction returned invalid JSON. The document may not be a recognizable proposal.',
+        error: 'AI extraction returned invalid JSON. The document may be unreadable or contain only images.',
         raw_response: rawText.slice(0, 500),
       }, { status: 422 })
     }
@@ -150,8 +144,10 @@ export async function POST(request: NextRequest) {
     return Response.json({ error: `AI extraction failed: ${message}` }, { status: 500 })
   }
 
-  // Find matching projects
-  const matchCandidates = await findMatchingProjects(extraction)
+  // Find matching projects for each extracted project
+  const matchCandidates = extraction.projects?.length
+    ? await findMatchingProjects(extraction.projects)
+    : []
 
   // Match extracted parties to existing contacts
   const partyMatches = extraction.parties?.length
@@ -161,12 +157,14 @@ export async function POST(request: NextRequest) {
   // Create intake session
   const { data: session, error: sessionError } = await supabase
     .from('proposal_intake_sessions')
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     .insert({
-      user_id: user.id,
+      user_id: userId,
       status: 'pending',
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       extraction_result: extraction as any,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       match_candidates: matchCandidates as any,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       uploaded_files: uploadedFiles as any,
     })
     .select()
