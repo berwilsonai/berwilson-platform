@@ -21,11 +21,13 @@ import {
   Globe,
   AlertTriangle,
   Sparkles,
+  FileUp,
 } from 'lucide-react'
 
 const NAV_ITEMS = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/attention', label: 'Attention', icon: AlertTriangle },
+  { href: '/proposals/intake', label: 'Intake Proposal', icon: FileUp },
   { href: '/projects', label: 'Projects', icon: FolderKanban },
   { href: '/calendar', label: 'Calendar', icon: CalendarDays },
   { href: '/briefs', label: 'Briefs', icon: Sparkles },
