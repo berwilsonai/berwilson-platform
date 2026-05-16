@@ -9,7 +9,7 @@ interface AvatarUploadProps {
   partyId: string
   avatarUrl: string | null
   isOrganization?: boolean | null
-  size?: 'sm' | 'md'
+  size?: 'sm' | 'md' | 'lg'
 }
 
 export default function AvatarUpload({
@@ -24,8 +24,8 @@ export default function AvatarUpload({
   const inputRef = useRef<HTMLInputElement>(null)
   const router = useRouter()
 
-  const sizeClasses = size === 'md' ? 'size-14' : 'size-10'
-  const iconSize = size === 'md' ? 24 : 18
+  const sizeClasses = size === 'lg' ? 'size-32' : size === 'md' ? 'size-14' : 'size-10'
+  const iconSize = size === 'lg' ? 48 : size === 'md' ? 24 : 18
 
   async function handleFile(file: File) {
     if (file.size > 2 * 1024 * 1024) {

@@ -206,91 +206,97 @@ function ContactCard({
 
       <Link
         href={`/contacts/${contact.id}`}
-        className="block rounded-lg border border-border bg-card p-4 hover:border-foreground/20 hover:shadow-sm transition-all"
+        className="block rounded-lg border border-border bg-card hover:border-foreground/20 hover:shadow-sm transition-all overflow-hidden"
       >
-        {/* Header */}
-        <div className="flex items-start gap-3 mb-3">
-          <div className="size-9 rounded-full bg-muted flex items-center justify-center shrink-0 overflow-hidden">
+        {/* Photo area */}
+        <div className="flex flex-col items-center pt-6 pb-4 px-4 gap-3">
+          <div className="size-20 rounded-full bg-muted flex items-center justify-center shrink-0 overflow-hidden ring-2 ring-border">
             {contact.avatar_url ? (
-              <img src={contact.avatar_url} alt={contact.full_name} className="size-9 object-cover" />
+              <img src={contact.avatar_url} alt={contact.full_name} className="size-20 object-cover" />
             ) : contact.is_organization ? (
-              <Building2 size={16} className="text-muted-foreground" />
+              <Building2 size={30} className="text-muted-foreground" />
             ) : (
-              <User size={16} className="text-muted-foreground" />
+              <User size={30} className="text-muted-foreground" />
             )}
           </div>
-          <div className="min-w-0 flex-1">
-            <p className="text-sm font-medium leading-tight truncate">{contact.full_name}</p>
+          <div className="text-center min-w-0 w-full">
+            <p className="text-sm font-semibold leading-tight truncate">{contact.full_name}</p>
             {contact.title && (
-              <p className="text-xs text-muted-foreground truncate">{contact.title}</p>
+              <p className="text-xs text-muted-foreground truncate mt-0.5">{contact.title}</p>
             )}
             {contact.company && (
               <p className="text-xs text-muted-foreground truncate">{contact.company}</p>
             )}
           </div>
-          <div className="flex items-center gap-1 shrink-0 mt-0.5">
-            <span
-              title="Enrich profile"
-              className="opacity-0 group-hover:opacity-100 transition-opacity text-purple-400 hover:text-purple-600"
-              onClick={e => {
-                e.preventDefault()
-                window.location.href = `/contacts/${contact.id}?tab=overview`
-              }}
-            >
-              <Sparkles size={14} />
-            </span>
-            <button
-              title="Delete contact"
-              onClick={e => { e.preventDefault(); e.stopPropagation(); setConfirming(true) }}
-              className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
-            >
-              <Trash2 size={14} />
-            </button>
-          </div>
         </div>
 
-        {/* Contact info */}
-        {(contact.email || contact.phone) && (
-          <div className="space-y-1 mb-3">
-            {contact.email && (
-              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                <Mail size={11} className="shrink-0" />
-                <span className="truncate">{contact.email}</span>
-              </div>
-            )}
-            {contact.phone && (
-              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                <Phone size={11} className="shrink-0" />
-                {contact.phone}
-              </div>
-            )}
-          </div>
-        )}
+        {/* Divider */}
+        <div className="border-t border-border mx-4" />
 
-        {/* Footer: roles + project count */}
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex flex-wrap gap-1 min-w-0">
-            {contact.roles.slice(0, 3).map(role => (
-              <span
-                key={role}
-                className="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium bg-muted text-muted-foreground"
-              >
-                {role}
-              </span>
-            ))}
-            {contact.roles.length > 3 && (
-              <span className="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium bg-muted text-muted-foreground">
-                +{contact.roles.length - 3}
+        {/* Contact info + footer */}
+        <div className="px-4 py-3 space-y-2">
+          {(contact.email || contact.phone) && (
+            <div className="space-y-1">
+              {contact.email && (
+                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <Mail size={11} className="shrink-0" />
+                  <span className="truncate">{contact.email}</span>
+                </div>
+              )}
+              {contact.phone && (
+                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <Phone size={11} className="shrink-0" />
+                  {contact.phone}
+                </div>
+              )}
+            </div>
+          )}
+
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex flex-wrap gap-1 min-w-0">
+              {contact.roles.slice(0, 3).map(role => (
+                <span
+                  key={role}
+                  className="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium bg-muted text-muted-foreground"
+                >
+                  {role}
+                </span>
+              ))}
+              {contact.roles.length > 3 && (
+                <span className="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium bg-muted text-muted-foreground">
+                  +{contact.roles.length - 3}
+                </span>
+              )}
+            </div>
+            {contact.project_count > 0 && (
+              <span className="text-xs text-muted-foreground shrink-0">
+                {contact.project_count} project{contact.project_count !== 1 ? 's' : ''}
               </span>
             )}
           </div>
-          {contact.project_count > 0 && (
-            <span className="text-xs text-muted-foreground shrink-0">
-              {contact.project_count} project{contact.project_count !== 1 ? 's' : ''}
-            </span>
-          )}
         </div>
       </Link>
+
+      {/* Action buttons — outside the link */}
+      <div className="absolute top-2 right-2 flex items-center gap-1">
+        <span
+          title="Enrich profile"
+          className="opacity-0 group-hover:opacity-100 transition-opacity text-purple-400 hover:text-purple-600 cursor-pointer"
+          onClick={e => {
+            e.preventDefault()
+            window.location.href = `/contacts/${contact.id}?tab=overview`
+          }}
+        >
+          <Sparkles size={14} />
+        </span>
+        <button
+          title="Delete contact"
+          onClick={e => { e.preventDefault(); e.stopPropagation(); setConfirming(true) }}
+          className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
+        >
+          <Trash2 size={14} />
+        </button>
+      </div>
     </div>
   )
 }

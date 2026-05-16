@@ -238,17 +238,18 @@ export default async function ContactDetailPage({ params, searchParams }: PagePr
           Contacts
         </Link>
 
-        <div className="flex items-start gap-3">
-          <div className="shrink-0 mt-0.5">
+        <div className="flex items-center gap-5">
+          <div className="shrink-0">
             <AvatarUpload
               partyId={id}
               avatarUrl={party.avatar_url}
               isOrganization={party.is_organization}
+              size="lg"
             />
           </div>
           <div className="min-w-0">
-            <h1 className="text-xl font-semibold leading-tight">{party.full_name}</h1>
-            <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+            <h1 className="text-2xl font-semibold leading-tight">{party.full_name}</h1>
+            <div className="flex items-center gap-1.5 mt-1 flex-wrap">
               {displayTitle && (
                 <span className="text-sm text-muted-foreground">{displayTitle}</span>
               )}
