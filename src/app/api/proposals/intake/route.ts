@@ -1,14 +1,13 @@
 import { NextRequest } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
-import Anthropic from '@anthropic-ai/sdk'
-import type { ContentBlockParam } from '@anthropic-ai/sdk/resources/messages'
+import { GoogleGenerativeAI } from '@google/generative-ai'
 import { PROPOSAL_INTAKE_SYSTEM_PROMPT, PROPOSAL_INTAKE_PROMPT_VERSION } from '@/lib/ai/prompts/proposal-intake'
 import { findMatchingProjects, matchExtractedParties, type ProposalExtraction } from '@/lib/ai/proposal-matching'
 
 const SYSTEM_USER_ID = '00000000-0000-0000-0000-000000000000'
+const GEMINI_MODEL = 'gemini-2.5-flash'
 const PDF_MIME_TYPE = 'application/pdf'
-const TEXT_MIME_TYPES = new Set(['text/plain', 'text/markdown', 'text/csv', 'text/html'])
 
 export async function POST(request: NextRequest) {
   const supabase = createAdminClient()
@@ -81,58 +80,53 @@ export async function POST(request: NextRequest) {
     })
   }
 
-  // Run AI extraction on primary file
+  // Run AI extraction on primary file using Gemini (supports inline PDF)
   let extraction: ProposalExtraction
   try {
-    const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! })
-    // Use Sonnet for complex multi-project portfolios — better at extracting many items accurately
-    const model = 'claude-sonnet-4-6-20250514'
+    const gemini = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!)
+    const model = gemini.getGenerativeModel({
+      model: GEMINI_MODEL,
+      systemInstruction: PROPOSAL_INTAKE_SYSTEM_PROMPT,
+    })
     const start = Date.now()
 
     const primaryBuffer = await primaryFile.arrayBuffer()
-    let content: ContentBlockParam[]
+    const base64 = Buffer.from(primaryBuffer).toString('base64')
+    const mimeType = primaryFile.type || 'application/octet-stream'
 
-    if (primaryFile.type === PDF_MIME_TYPE) {
-      const base64 = Buffer.from(primaryBuffer).toString('base64')
-      content = [
-        {
-          type: 'document',
-          source: { type: 'base64', media_type: 'application/pdf', data: base64 },
-          title: primaryFile.name,
-        },
-        { type: 'text', text: 'Analyze this document and extract all project and company information.' },
-      ]
-    } else {
-      const text = new TextDecoder().decode(primaryBuffer)
-      content = [
-        { type: 'text', text: `Analyze this document and extract all project and company information:\n\n${text.slice(0, 50000)}` },
-      ]
-    }
+    // Gemini supports PDF and common text/image types as inline data
+    const parts = primaryFile.type === PDF_MIME_TYPE || mimeType.startsWith('image/')
+      ? [
+          { inlineData: { mimeType, data: base64 } },
+          { text: 'Analyze this document and extract all project and company information.' },
+        ]
+      : [
+          { text: `Analyze this document and extract all project and company information:\n\n${new TextDecoder().decode(primaryBuffer).slice(0, 50000)}` },
+        ]
 
-    const response = await client.messages.create({
-      model,
-      max_tokens: 8192,
-      system: PROPOSAL_INTAKE_SYSTEM_PROMPT,
-      messages: [{ role: 'user', content }],
+    const response = await model.generateContent({
+      contents: [{ role: 'user', parts }],
+      generationConfig: { responseMimeType: 'application/json' },
     })
 
     const latencyMs = Date.now() - start
-    const textBlock = response.content.find((b) => b.type === 'text')
-    const rawText = textBlock && 'text' in textBlock ? textBlock.text : ''
+    const rawText = response.response.text()
 
     supabase.from('ai_queries').insert({
       user_id: userId,
       query_text: `Proposal intake: ${primaryFile.name}`,
       response_text: rawText.slice(0, 10000),
-      model_used: model,
+      model_used: GEMINI_MODEL,
       prompt_version: PROPOSAL_INTAKE_PROMPT_VERSION,
-      tokens_in: response.usage.input_tokens,
-      tokens_out: response.usage.output_tokens,
+      tokens_in: response.response.usageMetadata?.promptTokenCount ?? 0,
+      tokens_out: response.response.usageMetadata?.candidatesTokenCount ?? 0,
       latency_ms: latencyMs,
     }).then(() => {})
 
+    // Strip markdown fences if present
+    const cleanedText = rawText.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim()
     try {
-      extraction = JSON.parse(rawText) as ProposalExtraction
+      extraction = JSON.parse(cleanedText) as ProposalExtraction
     } catch {
       return Response.json({
         error: 'AI extraction returned invalid JSON. The document may be unreadable or contain only images.',
