@@ -208,6 +208,76 @@ export const agentTools = [
       properties: {},
     },
   },
+  {
+    name: 'draft_email',
+    description: 'Draft a professional email on behalf of the executive. Use when asked to "draft an email", "write a follow-up", "send a message to", or "compose a response". Returns a ready-to-send email with subject line and body.',
+    parameters: {
+      type: 'object',
+      properties: {
+        instructions: { type: 'string', description: 'What the email should say or accomplish (e.g. "follow up with Turner about the schedule slip and reference the Davis-Bacon delay")' },
+        project_id: { type: 'string', description: 'Optional: project ID for context' },
+        recipients: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Names or emails of recipients',
+        },
+      },
+      required: ['instructions'],
+    },
+  },
+  {
+    name: 'draft_agenda',
+    description: 'Draft a meeting agenda. Use when asked to "create an agenda", "prep for a meeting", or "outline talking points". Returns a structured agenda with topics, time allocations, and discussion points.',
+    parameters: {
+      type: 'object',
+      properties: {
+        instructions: { type: 'string', description: 'Meeting topic and any specific items to cover' },
+        project_id: { type: 'string', description: 'Optional: project ID for context' },
+        attendees: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Names of attendees',
+        },
+      },
+      required: ['instructions'],
+    },
+  },
+  {
+    name: 'draft_status_report',
+    description: 'Draft a status report for stakeholders, board members, or partners. Use when asked to "write a status update", "generate a report", or "summarize progress". Returns a formatted report with project summaries, risks, and upcoming milestones.',
+    parameters: {
+      type: 'object',
+      properties: {
+        instructions: { type: 'string', description: 'Who the report is for and what it should cover' },
+        project_id: { type: 'string', description: 'Optional: scope to a specific project. Omit for portfolio-wide report.' },
+      },
+      required: ['instructions'],
+    },
+  },
+  {
+    name: 'get_attention_items',
+    description: 'Get items falling through the cracks — overdue action items, stale waiting-on blockers, approaching milestones, critical DD items, expiring compliance, unfollowed decisions, and cross-project dependency risks. Use when asked: "what am I forgetting", "what\'s falling through the cracks", "what needs attention", "what\'s overdue".',
+    parameters: {
+      type: 'object',
+      properties: {
+        category: {
+          type: 'string',
+          enum: ['all', 'overdue_action', 'stale_waiting', 'approaching_milestone', 'critical_dd', 'expiring_compliance', 'stale_decision', 'dependency_risk'],
+          description: 'Filter by category (default: all)',
+        },
+      },
+    },
+  },
+  {
+    name: 'get_cross_project_dependencies',
+    description: 'Get active cross-project dependencies and risks. Use when asked about project interdependencies, blocking relationships, or how delays in one project affect others.',
+    parameters: {
+      type: 'object',
+      properties: {
+        project_id: { type: 'string', description: 'Optional: show dependencies for a specific project (both upstream and downstream)' },
+      },
+    },
+  },
 ]
 
 // ---------------------------------------------------------------------------
@@ -915,6 +985,117 @@ export async function executeToolCall(
             contact: contact ? `${contact.full_name}${contact.email ? ` <${contact.email}>` : ''}` : null,
           }
         }),
+      }
+    }
+
+    case 'draft_email':
+    case 'draft_agenda':
+    case 'draft_status_report': {
+      const typeMap: Record<string, string> = {
+        draft_email: 'email',
+        draft_agenda: 'agenda',
+        draft_status_report: 'report',
+      }
+      const draftType = typeMap[toolName]
+      const instructions = args.instructions as string
+      const projectId = (args.project_id as string) || context.projectId
+      const recipients = args.recipients as string[] | undefined
+      const attendees = args.attendees as string[] | undefined
+
+      try {
+        const res = await fetch(`${process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000'}/api/ai/draft`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            type: draftType,
+            context: instructions,
+            project_id: projectId,
+            recipients: recipients ?? attendees,
+          }),
+        })
+
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({})) as { error?: string }
+          return { error: err.error ?? `Draft failed (${res.status})` }
+        }
+
+        const data = await res.json() as { draft: string }
+        return { draft: data.draft, type: draftType }
+      } catch (err) {
+        return { error: `Draft failed: ${err instanceof Error ? err.message : 'unknown'}` }
+      }
+    }
+
+    case 'get_attention_items': {
+      const category = args.category as string | undefined
+
+      try {
+        const res = await fetch(`${process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000'}/api/attention`)
+        if (!res.ok) return { error: 'Failed to fetch attention items' }
+
+        const data = await res.json() as { items: Record<string, unknown>[]; summary: Record<string, number> }
+
+        let items = data.items
+        if (category && category !== 'all') {
+          items = items.filter(i => i.category === category)
+        }
+
+        return {
+          summary: data.summary,
+          total_items: items.length,
+          items: items.slice(0, 15).map(i => ({
+            category: i.category,
+            urgency: i.urgency,
+            title: i.title,
+            detail: i.detail,
+            project_name: i.project_name,
+          })),
+        }
+      } catch {
+        return { error: 'Failed to fetch attention items' }
+      }
+    }
+
+    case 'get_cross_project_dependencies': {
+      const projectId = (args.project_id as string) || context.projectId
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      let q = (supabase as any)
+        .from('project_dependencies')
+        .select('id, upstream_project_id, downstream_project_id, dependency_type, description, severity, status, created_at, resolved_at')
+        .eq('status', 'active')
+        .order('severity')
+
+      if (projectId) {
+        q = q.or(`upstream_project_id.eq.${projectId},downstream_project_id.eq.${projectId}`)
+      }
+
+      const { data: deps, error: depError } = await q
+
+      if (depError) return { error: depError.message }
+
+      if (!deps || deps.length === 0) {
+        return { message: projectId ? 'No active dependencies for this project.' : 'No active cross-project dependencies.' }
+      }
+
+      // Get project names
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const ids = [...new Set(deps.flatMap((d: any) => [d.upstream_project_id, d.downstream_project_id]))] as string[]
+      const { data: projects } = await supabase.from('projects').select('id, name').in('id', ids)
+      const nameMap: Record<string, string> = {}
+      for (const p of projects ?? []) nameMap[p.id] = p.name
+
+      return {
+        count: deps.length,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        dependencies: deps.map((d: any) => ({
+          upstream: nameMap[d.upstream_project_id] ?? 'Unknown',
+          downstream: nameMap[d.downstream_project_id] ?? 'Unknown',
+          type: d.dependency_type,
+          description: d.description,
+          severity: d.severity,
+          age_days: Math.floor((Date.now() - new Date(d.created_at).getTime()) / 86_400_000),
+        })),
       }
     }
 

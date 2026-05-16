@@ -13,8 +13,8 @@ const GRAPH_BASE = 'https://graph.microsoft.com/v1.0'
 const OAUTH_BASE = 'https://login.microsoftonline.com'
 const TARGET_EMAIL = 'tuaone@berwilson.com'
 
-// Scopes needed for reading mail via OAuth2 auth code flow
-const SCOPES = ['https://graph.microsoft.com/Mail.Read', 'offline_access']
+// Scopes needed for reading mail + calendar via OAuth2 auth code flow
+const SCOPES = ['https://graph.microsoft.com/Mail.Read', 'https://graph.microsoft.com/Calendars.Read', 'offline_access']
 
 // ---------------------------------------------------------------------------
 // Types
@@ -431,6 +431,54 @@ export async function markEmailProcessed(params: {
     status: params.status ?? 'processed',
     outlook_web_link: params.outlookWebLink ?? null,
   })
+}
+
+// ---------------------------------------------------------------------------
+// Graph API: Calendar
+// ---------------------------------------------------------------------------
+
+export interface GraphCalendarEvent {
+  id: string
+  subject: string
+  bodyPreview: string
+  start: { dateTime: string; timeZone: string }
+  end: { dateTime: string; timeZone: string }
+  location: { displayName: string } | null
+  organizer: { emailAddress: { name: string; address: string } }
+  attendees: {
+    emailAddress: { name: string; address: string }
+    status: { response: string }
+    type: string
+  }[]
+  isAllDay: boolean
+  isCancelled: boolean
+  webLink: string
+  onlineMeeting: { joinUrl: string } | null
+}
+
+/**
+ * Fetch calendar events in a time range.
+ */
+export async function fetchCalendarEvents(
+  startDateTime: string,
+  endDateTime: string,
+  email: string = TARGET_EMAIL
+): Promise<GraphCalendarEvent[]> {
+  const token = await getValidAccessToken(email)
+  const params = new URLSearchParams({
+    startDateTime,
+    endDateTime,
+    $select: 'id,subject,bodyPreview,start,end,location,organizer,attendees,isAllDay,isCancelled,webLink,onlineMeeting',
+    $orderby: 'start/dateTime',
+    $top: '50',
+  })
+
+  const result = await graphFetch<{ value: GraphCalendarEvent[] }>(
+    `/users/${email}/calendarView?${params}`,
+    token
+  )
+  // Filter out cancelled events
+  return result.value.filter(e => !e.isCancelled)
 }
 
 // ---------------------------------------------------------------------------
