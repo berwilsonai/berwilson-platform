@@ -62,14 +62,21 @@ Return ONLY valid JSON matching this exact schema:
   ],
   "parties": [
     {
-      "name": "person or organization name",
-      "company": "company if person, or null",
+      "name": "individual person's full name OR company/firm name",
+      "company": "the company this person works at (only for individuals, null for organizations)",
       "role": "client|owner_rep|architect|engineer|developer|sub_gc|consultant|surety|pe_partner|legal|other",
       "email": "if found or null",
       "phone": "if found or null",
       "is_organization": false
     }
   ],
+
+PARTY CLASSIFICATION RULES:
+- Individual people (Mr. Sitaram Vamanrav, John Smith, J.L. Ewell) → is_organization: false. Set "company" to their employer if known.
+- Companies and firms (Architecture by Langston, Filbert Development LLC, Valencia Land Surveying) → is_organization: true. Set "company" to null.
+- The developer_company field captures the primary company/developer. Still list their individual representatives in parties with is_organization: false.
+- Architects, engineers, and consultants: extract BOTH the firm (is_organization: true) and any named individuals (is_organization: false with company set to the firm name).
+
   "entities": [
     {
       "name": "legal entity name",
@@ -91,4 +98,4 @@ If developer_company cannot be determined, set it to null.
 If no projects can be identified, return projects as an empty array.
 Return ONLY valid JSON. No explanation. No markdown fences. No commentary.`
 
-export const PROPOSAL_INTAKE_PROMPT_VERSION = '2.0'
+export const PROPOSAL_INTAKE_PROMPT_VERSION = '3.0'

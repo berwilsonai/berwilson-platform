@@ -206,7 +206,8 @@ export async function processEmailNotification(
   const supabase = createAdminClient()
 
   // 7. Create the update record
-  const { data: update, error: updateError } = await supabase
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: update, error: updateError } = await (supabase
     .from('updates')
     .insert({
       project_id: classification.project_id,
@@ -223,7 +224,7 @@ export async function processEmailNotification(
       confidence: extraction.confidence,
       review_state: reviewState,
       outlook_web_link: message.webLink,
-    })
+    } as any))
     .select('id')
     .single()
 

@@ -22,6 +22,8 @@ interface ProjectToCreate {
   award_date?: string | null
   ntp_date?: string | null
   substantial_completion_date?: string | null
+  parent_project_id?: string | null
+  attach_to_existing_id?: string | null
 }
 
 interface ConfirmBody {
@@ -85,10 +87,24 @@ export async function POST(request: NextRequest) {
   }>
 
   const createdProjects: Array<{ id: string; name: string }> = []
+  const attachedProjects: Array<{ id: string; name: string }> = []
 
-  // Create all selected projects
+  // Create or attach all selected projects
   for (const projectFields of projects_to_create) {
     if (!projectFields.name || !projectFields.sector) continue
+
+    // If attaching to an existing project, skip creation
+    if (projectFields.attach_to_existing_id) {
+      const { data: existing } = await supabase
+        .from('projects')
+        .select('id, name')
+        .eq('id', projectFields.attach_to_existing_id)
+        .single()
+      if (existing) {
+        attachedProjects.push({ id: existing.id, name: existing.name })
+      }
+      continue
+    }
 
     const { data: project } = await supabase
       .from('projects')
@@ -107,6 +123,7 @@ export async function POST(request: NextRequest) {
         award_date: projectFields.award_date || null,
         ntp_date: projectFields.ntp_date || null,
         substantial_completion_date: projectFields.substantial_completion_date || null,
+        parent_project_id: projectFields.parent_project_id || null,
       })
       .select()
       .single()
@@ -116,45 +133,108 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  // Create developer company contact if requested
-  let developerPartyId: string | null = null
-  const developerCompany = extraction.developer_company as { name: string; description: string | null; location: string | null } | null
+  // All projects that documents/parties should be linked to (created + attached)
+  const allTargetProjects = [...createdProjects, ...attachedProjects]
+
+  // Create developer company as vendor/entity (not a contact)
+  let developerEntityId: string | null = null
+  const developerCompany = extraction.developer_company as { name: string; description: string | null; location: string | null; website: string | null } | null
   if (create_developer_contact && developerCompany?.name) {
-    const { data: devParty } = await supabase
-      .from('parties')
-      .insert({
-        full_name: developerCompany.name,
-        company: null,
-        is_organization: true,
-        relationship_notes: developerCompany.description || null,
-      })
-      .select()
+    // Check for existing entity with same name first
+    const { data: existingEntity } = await supabase
+      .from('entities')
+      .select('id')
+      .ilike('name', developerCompany.name)
+      .limit(1)
       .single()
 
-    if (devParty) {
-      developerPartyId = devParty.id
-      // Link developer to all created projects as client/developer
-      for (const proj of createdProjects) {
-        await supabase.from('project_players').upsert(
-          { project_id: proj.id, party_id: devParty.id, role: 'developer', is_primary: true },
-          { onConflict: 'project_id,party_id,role' }
+    if (existingEntity) {
+      developerEntityId = existingEntity.id
+    } else {
+      const { data: newEntity } = await supabase
+        .from('entities')
+        .insert({
+          name: developerCompany.name,
+          entity_type: 'corp' as const,
+          description: developerCompany.description || null,
+          headquarters: developerCompany.location || null,
+          website_url: developerCompany.website || null,
+        })
+        .select()
+        .single()
+
+      if (newEntity) {
+        developerEntityId = newEntity.id
+      }
+    }
+
+    // Link developer entity to all target projects
+    if (developerEntityId) {
+      for (const proj of allTargetProjects) {
+        await supabase.from('entity_projects').upsert(
+          { entity_id: developerEntityId, project_id: proj.id, relationship: 'owner' },
+          { onConflict: 'entity_id,project_id,relationship' }
         )
       }
     }
   }
 
-  // Process parties
+  // Process parties — route organizations to entities, individuals to parties
   const extractedParties = (extraction.parties || []) as Array<{
     name: string; company: string | null; role: string; email: string | null; phone: string | null; is_organization: boolean
   }>
   let partiesCreated = 0
   let partiesLinked = 0
+  let orgEntitiesCreated = 0
 
   for (const partyAction of party_actions || []) {
     if (partyAction.action === 'skip') continue
     const extracted = extractedParties[partyAction.extracted_index]
     if (!extracted) continue
 
+    // Organizations → entities table (vendors/partners)
+    if (extracted.is_organization) {
+      const roleToRelationship: Record<string, string> = {
+        developer: 'owner', client: 'owner', architect: 'sub_entity',
+        engineer: 'sub_entity', sub_gc: 'sub_entity', consultant: 'sub_entity',
+        pe_partner: 'jv_partner', surety: 'sub_entity', legal: 'sub_entity',
+      }
+      const relationship = roleToRelationship[extracted.role] || 'sub_entity'
+
+      // Check for existing entity
+      const { data: existingEnt } = await supabase
+        .from('entities')
+        .select('id')
+        .ilike('name', extracted.name)
+        .limit(1)
+        .single()
+
+      const entityId = existingEnt?.id || (await supabase
+        .from('entities')
+        .insert({
+          name: extracted.name,
+          entity_type: 'corp' as const,
+          description: null,
+          headquarters: null,
+          website_url: null,
+        })
+        .select('id')
+        .single()
+        .then(r => r.data?.id)) || null
+
+      if (entityId) {
+        if (!existingEnt) orgEntitiesCreated++
+        for (const proj of allTargetProjects) {
+          await supabase.from('entity_projects').upsert(
+            { entity_id: entityId, project_id: proj.id, relationship },
+            { onConflict: 'entity_id,project_id,relationship' }
+          )
+        }
+      }
+      continue
+    }
+
+    // Individuals → parties table (contacts)
     let partyId: string
     if (partyAction.action === 'link_existing' && partyAction.existing_party_id) {
       partyId = partyAction.existing_party_id
@@ -167,7 +247,7 @@ export async function POST(request: NextRequest) {
           company: extracted.company || null,
           email: extracted.email || null,
           phone: extracted.phone || null,
-          is_organization: extracted.is_organization || false,
+          is_organization: false,
         })
         .select()
         .single()
@@ -176,8 +256,8 @@ export async function POST(request: NextRequest) {
       partiesCreated++
     }
 
-    // Link to all created projects
-    for (const proj of createdProjects) {
+    // Link individual to all target projects
+    for (const proj of allTargetProjects) {
       await supabase.from('project_players').upsert(
         { project_id: proj.id, party_id: partyId, role: partyAction.role || extracted.role || 'other', is_primary: false },
         { onConflict: 'project_id,party_id,role' }
@@ -211,7 +291,7 @@ export async function POST(request: NextRequest) {
       entitiesCreated++
     }
 
-    for (const proj of createdProjects) {
+    for (const proj of allTargetProjects) {
       await supabase.from('entity_projects').upsert(
         { entity_id: entityId, project_id: proj.id, relationship: extracted.relationship || 'owner' },
         { onConflict: 'entity_id,project_id,relationship' }
@@ -220,7 +300,7 @@ export async function POST(request: NextRequest) {
   }
 
   // Move files from temp to first project (or keep generic if multi-project)
-  const primaryProjectId = createdProjects[0]?.id || null
+  const primaryProjectId = allTargetProjects[0]?.id || null
   const documentIds: string[] = []
 
   for (const file of uploadedFiles) {
@@ -267,12 +347,11 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  // If multi-project, also attach the doc to all other created projects as a reference
-  if (createdProjects.length > 1 && documentIds.length > 0) {
-    for (const proj of createdProjects.slice(1)) {
+  // If multi-project, also attach the doc to all other target projects as a reference
+  if (allTargetProjects.length > 1 && documentIds.length > 0) {
+    for (const proj of allTargetProjects.slice(1)) {
       await supabase.from('documents').update({ project_id: proj.id }).eq('id', documentIds[0])
-      // Actually we shouldn't move the doc — just leave it on the primary project
-      // This is a known limitation: the source doc lives on project 1
+      // Known limitation: the source doc lives on project 1
     }
   }
 
@@ -289,10 +368,11 @@ export async function POST(request: NextRequest) {
 
   return Response.json({
     created_projects: createdProjects,
-    developer_party_id: developerPartyId,
+    attached_projects: attachedProjects,
+    developer_entity_id: developerEntityId,
     documents_created: documentIds.length,
     parties_created: partiesCreated,
     parties_linked: partiesLinked,
-    entities_created: entitiesCreated,
+    entities_created: entitiesCreated + orgEntitiesCreated,
   })
 }

@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { Upload, FileText, CheckCircle2, AlertTriangle, Loader2, X, Building2, ChevronRight, ExternalLink, Users } from 'lucide-react'
+import { Upload, FileText, CheckCircle2, AlertTriangle, Loader2, X, Building2, ChevronRight, ExternalLink, Users, Layers } from 'lucide-react'
 
 type Step = 'upload' | 'review' | 'parties' | 'confirm' | 'done'
 
@@ -55,9 +55,18 @@ interface PartyMatch {
 
 interface UploadedFile { temp_path: string; file_name: string; file_size_bytes: number; mime_type: string; is_primary: boolean }
 
+interface MatchCandidate {
+  project_id: string
+  project_name: string
+  score: number
+  match_reasons: string[]
+  extracted_project_index: number
+}
+
 interface DoneResult {
   created_projects: Array<{ id: string; name: string }>
-  developer_party_id: string | null
+  attached_projects: Array<{ id: string; name: string }>
+  developer_entity_id: string | null
   documents_created: number
   parties_created: number
   parties_linked: number
@@ -76,7 +85,11 @@ const DOC_TYPE_LABELS: Record<string, string> = {
   other: 'Document',
 }
 
-export default function ProposalIntakeWizard() {
+interface WizardProps {
+  availableParents?: Array<{ id: string; name: string }>
+}
+
+export default function ProposalIntakeWizard({ availableParents: initialParents }: WizardProps = {}) {
   const router = useRouter()
   const [step, setStep] = useState<Step>('upload')
   const [loading, setLoading] = useState(false)
@@ -89,14 +102,31 @@ export default function ProposalIntakeWizard() {
   const [extraction, setExtraction] = useState<Extraction | null>(null)
   const [partyMatches, setPartyMatches] = useState<PartyMatch[]>([])
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([])
+  const [matchCandidates, setMatchCandidates] = useState<MatchCandidate[]>([])
+  const [availableParents, setAvailableParents] = useState<Array<{ id: string; name: string }>>([])
 
   // User selections
   const [selectedProjectIndices, setSelectedProjectIndices] = useState<number[]>([])
   const [editedProjects, setEditedProjects] = useState<Record<number, Partial<ExtractedProject>>>({})
-  const [createDeveloperContact, setCreateDeveloperContact] = useState(true)
+  const [createDeveloperVendor, setCreateDeveloperVendor] = useState(true)
+  const [parentProjectId, setParentProjectId] = useState<string>('')
+  // Per-project: attach to existing or create new
+  const [projectAttachments, setProjectAttachments] = useState<Record<number, string | null>>({})
   const [partyActions, setPartyActions] = useState<Array<{ extracted_index: number; action: string; existing_party_id?: string; role?: string }>>([])
 
   const [doneResult, setDoneResult] = useState<DoneResult | null>(null)
+
+  // Set initial parents if provided, otherwise fetch on mount
+  useEffect(() => {
+    if (initialParents?.length) {
+      setAvailableParents(initialParents)
+    } else {
+      fetch('/api/projects/parents')
+        .then(r => r.ok ? r.json() : [])
+        .then(data => setAvailableParents(Array.isArray(data) ? data : []))
+        .catch(() => {})
+    }
+  }, [initialParents])
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault()
@@ -131,9 +161,19 @@ export default function ProposalIntakeWizard() {
       setExtraction(data.extraction)
       setPartyMatches(data.party_matches || [])
       setUploadedFiles(data.uploaded_files || [])
+      setMatchCandidates(data.match_candidates || [])
 
       // Default: select all projects
       setSelectedProjectIndices((data.extraction.projects || []).map((_: unknown, i: number) => i))
+
+      // Pre-fill attachments for high-confidence matches
+      const attachments: Record<number, string | null> = {}
+      for (const mc of (data.match_candidates || []) as MatchCandidate[]) {
+        if (mc.score >= 0.7) {
+          attachments[mc.extracted_project_index] = mc.project_id
+        }
+      }
+      setProjectAttachments(attachments)
 
       // Init party actions
       setPartyActions((data.party_matches || []).map((pm: PartyMatch) => ({
@@ -171,6 +211,7 @@ export default function ProposalIntakeWizard() {
 
     const projectsToCreate = selectedProjectIndices.map((i) => {
       const p = getProject(i)
+      const attachId = projectAttachments[i] || null
       return {
         name: p.name || `Project ${i + 1}`,
         sector: p.sector || 'real_estate',
@@ -185,6 +226,8 @@ export default function ProposalIntakeWizard() {
         award_date: p.award_date || null,
         ntp_date: p.ntp_date || null,
         substantial_completion_date: p.substantial_completion_date || null,
+        parent_project_id: parentProjectId || null,
+        attach_to_existing_id: attachId,
       }
     })
 
@@ -195,7 +238,7 @@ export default function ProposalIntakeWizard() {
         body: JSON.stringify({
           session_id: sessionId,
           projects_to_create: projectsToCreate,
-          create_developer_contact: createDeveloperContact,
+          create_developer_contact: createDeveloperVendor,
           party_actions: partyActions,
           entity_actions: (extraction.entities || []).map((_, i) => ({ extracted_index: i, action: 'create_new' })),
         }),
@@ -287,10 +330,32 @@ export default function ProposalIntakeWizard() {
                 </div>
               </div>
               <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer">
-                <input type="checkbox" checked={createDeveloperContact} onChange={(e) => setCreateDeveloperContact(e.target.checked)} />
-                Add to contacts
+                <input type="checkbox" checked={createDeveloperVendor} onChange={(e) => setCreateDeveloperVendor(e.target.checked)} />
+                Add to vendors
               </label>
             </div>
+          </div>
+        )}
+
+        {/* Parent Program Picker */}
+        {availableParents.length > 0 && (
+          <div className="p-4 rounded-lg border border-border bg-card">
+            <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+              Assign to Parent Program <span className="font-normal">(optional)</span>
+            </label>
+            <select
+              value={parentProjectId}
+              onChange={(e) => setParentProjectId(e.target.value)}
+              className="w-full px-2 py-1.5 rounded border border-input bg-background text-sm"
+            >
+              <option value="">None (standalone project{extraction.projects.length > 1 ? 's' : ''})</option>
+              {availableParents.map((p) => (
+                <option key={p.id} value={p.id}>{p.name}</option>
+              ))}
+            </select>
+            <p className="text-xs text-muted-foreground mt-1">
+              Group these under an existing program like a master development or developer pipeline.
+            </p>
           </div>
         )}
 
@@ -376,6 +441,40 @@ export default function ProposalIntakeWizard() {
                           </ul>
                         </div>
                       )}
+                      {/* Existing project match */}
+                      {(() => {
+                        const matches = matchCandidates.filter(mc => mc.extracted_project_index === i && mc.score > 0.3)
+                        if (!matches.length) return null
+                        const attached = projectAttachments[i]
+                        return (
+                          <div className="col-span-2 p-2.5 rounded-md border border-amber-200 bg-amber-50/50 dark:border-amber-900 dark:bg-amber-950/20">
+                            <p className="text-xs font-medium text-amber-800 dark:text-amber-300 mb-1.5">Possible existing match</p>
+                            {matches.map(mc => (
+                              <div key={mc.project_id} className="flex items-center gap-2 text-sm">
+                                <input
+                                  type="radio"
+                                  name={`attach_${i}`}
+                                  checked={attached === mc.project_id}
+                                  onChange={() => setProjectAttachments(prev => ({ ...prev, [i]: mc.project_id }))}
+                                />
+                                <span className="flex-1">
+                                  <strong>{mc.project_name}</strong>
+                                  <span className="text-xs text-muted-foreground ml-1">({Math.round(mc.score * 100)}% match — {mc.match_reasons.join(', ')})</span>
+                                </span>
+                              </div>
+                            ))}
+                            <div className="flex items-center gap-2 text-sm mt-1">
+                              <input
+                                type="radio"
+                                name={`attach_${i}`}
+                                checked={!attached}
+                                onChange={() => setProjectAttachments(prev => ({ ...prev, [i]: null }))}
+                              />
+                              <span>Create as new project</span>
+                            </div>
+                          </div>
+                        )
+                      })()}
                     </div>
                   )}
                 </div>
@@ -414,51 +513,74 @@ export default function ProposalIntakeWizard() {
 
   // --- STEP: PARTIES ---
   if (step === 'parties' && extraction) {
+    const orgParties = extraction.parties.filter(p => p.is_organization)
+    const individualMatches = partyMatches.filter(pm => !extraction.parties[pm.extracted_index]?.is_organization)
+
     return (
       <div className="space-y-6">
-        <h2 className="text-base font-semibold">Contacts & Parties</h2>
-        <p className="text-sm text-muted-foreground">Matched contacts link to existing records. New ones will be created.</p>
+        <h2 className="text-base font-semibold">Contacts & Companies</h2>
+        <p className="text-sm text-muted-foreground">Individuals go to Contacts. Companies go to Vendors & Partners.</p>
 
-        {partyMatches.length === 0 && (
-          <div className="flex items-center gap-2 p-4 rounded-md border border-border text-sm text-muted-foreground">
-            <Users size={14} /> No individual contacts were extracted from this document.
+        {/* Organizations → Vendors */}
+        {orgParties.length > 0 && (
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Companies → Vendors & Partners</p>
+            <div className="space-y-1.5">
+              {orgParties.map((org, i) => (
+                <div key={`org-${i}`} className="p-2.5 rounded-md border border-blue-200 bg-blue-50/30 dark:border-blue-900 dark:bg-blue-950/20 flex items-center gap-2">
+                  <Building2 size={14} className="text-blue-600 shrink-0" />
+                  <span className="text-sm font-medium flex-1">{org.name}</span>
+                  <span className="text-xs bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300 px-2 py-0.5 rounded">{org.role}</span>
+                </div>
+              ))}
+            </div>
           </div>
         )}
 
-        <div className="space-y-2">
-          {partyMatches.map((pm) => {
-            const party = extraction.parties[pm.extracted_index]
-            const action = partyActions.find((a) => a.extracted_index === pm.extracted_index)
-            return (
-              <div key={pm.extracted_index} className="p-3 rounded-md border border-border flex items-center gap-3">
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium">{pm.extracted_name}</p>
-                  <p className="text-xs text-muted-foreground truncate">
-                    {party?.company && `${party.company} · `}{party?.role}
-                    {party?.email && ` · ${party.email}`}
-                  </p>
-                </div>
-                {pm.match_type !== 'none' ? (
-                  <div className="flex items-center gap-2 shrink-0">
-                    <CheckCircle2 size={14} className="text-green-600" />
-                    <span className="text-xs text-green-700">{pm.match_type === 'fuzzy_name' ? '~' : ''}{pm.matched_party_name}</span>
-                    <button onClick={() => setPartyActions((prev) => prev.map((a) => a.extracted_index === pm.extracted_index
-                      ? { ...a, action: a.action === 'link_existing' ? 'create_new' : 'link_existing', existing_party_id: pm.matched_party_id || undefined }
-                      : a))} className="text-xs underline text-muted-foreground">
-                      {action?.action === 'link_existing' ? 'Create new' : 'Use match'}
-                    </button>
+        {/* Individuals → Contacts */}
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Individuals → Contacts</p>
+          {individualMatches.length === 0 ? (
+            <div className="flex items-center gap-2 p-4 rounded-md border border-border text-sm text-muted-foreground">
+              <Users size={14} /> No individual contacts were extracted from this document.
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {individualMatches.map((pm) => {
+                const party = extraction.parties[pm.extracted_index]
+                const action = partyActions.find((a) => a.extracted_index === pm.extracted_index)
+                return (
+                  <div key={pm.extracted_index} className="p-3 rounded-md border border-border flex items-center gap-3">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium">{pm.extracted_name}</p>
+                      <p className="text-xs text-muted-foreground truncate">
+                        {party?.company && `${party.company} · `}{party?.role}
+                        {party?.email && ` · ${party.email}`}
+                      </p>
+                    </div>
+                    {pm.match_type !== 'none' ? (
+                      <div className="flex items-center gap-2 shrink-0">
+                        <CheckCircle2 size={14} className="text-green-600" />
+                        <span className="text-xs text-green-700">{pm.match_type === 'fuzzy_name' ? '~' : ''}{pm.matched_party_name}</span>
+                        <button onClick={() => setPartyActions((prev) => prev.map((a) => a.extracted_index === pm.extracted_index
+                          ? { ...a, action: a.action === 'link_existing' ? 'create_new' : 'link_existing', existing_party_id: pm.matched_party_id || undefined }
+                          : a))} className="text-xs underline text-muted-foreground">
+                          {action?.action === 'link_existing' ? 'Create new' : 'Use match'}
+                        </button>
+                      </div>
+                    ) : (
+                      <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded shrink-0">New contact</span>
+                    )}
                   </div>
-                ) : (
-                  <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded shrink-0">New contact</span>
-                )}
-              </div>
-            )
-          })}
+                )
+              })}
+            </div>
+          )}
         </div>
 
         {extraction.entities && extraction.entities.length > 0 && (
           <div>
-            <p className="text-xs font-medium text-muted-foreground mb-2">Legal Entities (will be created)</p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Legal Entities → Vendors</p>
             {extraction.entities.map((e, i) => (
               <div key={i} className="flex items-center gap-2 text-sm p-2 rounded border border-border mb-1">
                 <span className="font-medium">{e.name}</span>
@@ -489,20 +611,34 @@ export default function ProposalIntakeWizard() {
         <h2 className="text-base font-semibold">Confirm & Ingest</h2>
 
         <div className="p-4 rounded-lg border border-border bg-card space-y-3">
+          {parentProjectId && (
+            <div className="flex items-center gap-2">
+              <Layers size={14} className="text-purple-600 shrink-0" />
+              <span className="text-sm">Under program: <strong>{availableParents.find(p => p.id === parentProjectId)?.name}</strong></span>
+            </div>
+          )}
+
           {selectedProjectIndices.map((i) => {
             const p = getProject(i)
+            const attachId = projectAttachments[i]
+            const matchName = attachId ? matchCandidates.find(mc => mc.project_id === attachId)?.project_name : null
             return (
               <div key={i} className="flex items-center gap-2">
-                <CheckCircle2 size={14} className="text-green-600 shrink-0" />
-                <span className="text-sm">Create project: <strong>{p.name}</strong>{p.location ? ` — ${p.location}` : ''}</span>
+                <CheckCircle2 size={14} className={attachId ? 'text-amber-600 shrink-0' : 'text-green-600 shrink-0'} />
+                <span className="text-sm">
+                  {attachId
+                    ? <>Attach docs to existing: <strong>{matchName}</strong></>
+                    : <>Create project: <strong>{p.name}</strong>{p.location ? ` — ${p.location}` : ''}</>
+                  }
+                </span>
               </div>
             )
           })}
 
-          {createDeveloperContact && extraction.developer_company && (
+          {createDeveloperVendor && extraction.developer_company && (
             <div className="flex items-center gap-2">
               <Building2 size={14} className="text-blue-600 shrink-0" />
-              <span className="text-sm">Add contact: <strong>{extraction.developer_company.name}</strong> (organization)</span>
+              <span className="text-sm">Add to vendors: <strong>{extraction.developer_company.name}</strong></span>
             </div>
           )}
 
@@ -556,7 +692,7 @@ export default function ProposalIntakeWizard() {
             <div key={proj.id} className="flex items-center justify-between p-3">
               <div className="flex items-center gap-2">
                 <CheckCircle2 size={14} className="text-green-600" />
-                <span className="text-sm font-medium">{proj.name}</span>
+                <span className="text-sm font-medium">Created: {proj.name}</span>
               </div>
               <button onClick={() => router.push(`/projects/${proj.id}`)}
                 className="flex items-center gap-1 text-xs text-primary hover:underline">
@@ -565,10 +701,23 @@ export default function ProposalIntakeWizard() {
             </div>
           ))}
 
-          {doneResult.developer_party_id && (
+          {(doneResult.attached_projects || []).map((proj) => (
+            <div key={proj.id} className="flex items-center justify-between p-3">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 size={14} className="text-amber-600" />
+                <span className="text-sm font-medium">Updated: {proj.name}</span>
+              </div>
+              <button onClick={() => router.push(`/projects/${proj.id}`)}
+                className="flex items-center gap-1 text-xs text-primary hover:underline">
+                Open <ExternalLink size={11} />
+              </button>
+            </div>
+          ))}
+
+          {doneResult.developer_entity_id && (
             <div className="flex items-center gap-2 p-3">
               <Building2 size={14} className="text-blue-600" />
-              <span className="text-sm">{extraction.developer_company?.name} added to contacts</span>
+              <span className="text-sm">{extraction.developer_company?.name} added to vendors</span>
             </div>
           )}
 
@@ -597,16 +746,19 @@ export default function ProposalIntakeWizard() {
         </div>
 
         <div className="flex gap-3">
-          <button onClick={() => { setStep('upload'); setFiles([]); setExtraction(null); setDoneResult(null); setSelectedProjectIndices([]); }}
+          <button onClick={() => { setStep('upload'); setFiles([]); setExtraction(null); setDoneResult(null); setSelectedProjectIndices([]); setProjectAttachments({}); setParentProjectId(''); }}
             className="flex-1 py-2 rounded-md border border-input text-sm hover:bg-muted">
             Ingest Another Document
           </button>
-          {doneResult.created_projects.length === 1 && (
-            <button onClick={() => router.push(`/projects/${doneResult.created_projects[0].id}`)}
-              className="flex-1 py-2 rounded-md bg-primary text-primary-foreground text-sm font-medium">
-              Open Project
-            </button>
-          )}
+          {(() => {
+            const allProjects = [...doneResult.created_projects, ...(doneResult.attached_projects || [])]
+            return allProjects.length === 1 ? (
+              <button onClick={() => router.push(`/projects/${allProjects[0].id}`)}
+                className="flex-1 py-2 rounded-md bg-primary text-primary-foreground text-sm font-medium">
+                Open Project
+              </button>
+            ) : null
+          })()}
         </div>
       </div>
     )
