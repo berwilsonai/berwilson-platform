@@ -178,13 +178,13 @@ export default function AgentChat({ projectId, className = '' }: AgentChatProps)
               )}
               {msg.toolCalls && msg.toolCalls.length > 0 && (
                 <div className="mt-2 pt-2 border-t border-border/40">
-                  <p className="text-[10px] text-muted-foreground uppercase tracking-wide">
+                  <p className="text-xs text-muted-foreground uppercase tracking-wide">
                     Data sources: {msg.toolCalls.map(t => t.name.replace(/_/g, ' ')).join(', ')}
                   </p>
                 </div>
               )}
               {msg.latencyMs && (
-                <p className="text-[10px] text-muted-foreground mt-1">
+                <p className="text-xs text-muted-foreground mt-1">
                   {(msg.latencyMs / 1000).toFixed(1)}s
                 </p>
               )}

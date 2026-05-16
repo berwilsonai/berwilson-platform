@@ -174,13 +174,13 @@ function SiteCard({ site }: { site: SiteSummary }) {
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           {site.site_number && (
-            <span className="text-[10px] font-mono text-slate-400 uppercase">Site {site.site_number}</span>
+            <span className="text-xs font-mono text-slate-400 uppercase">Site {site.site_number}</span>
           )}
           <h3 className="text-sm font-semibold text-slate-900 truncate leading-tight mt-0.5">{site.name}</h3>
           <p className="text-xs text-slate-500 mt-0.5">{[site.city, site.state].filter(Boolean).join(', ')}</p>
         </div>
         {site.is_lead_site && (
-          <span className="shrink-0 text-[9px] font-bold uppercase bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded">
+          <span className="shrink-0 text-xs font-bold uppercase bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded">
             Lead
           </span>
         )}
@@ -188,7 +188,7 @@ function SiteCard({ site }: { site: SiteSummary }) {
 
       {site.bw_role && (
         <div className="mt-2">
-          <span className={`inline-flex items-center rounded-md px-1.5 py-0.5 text-[10px] font-medium ring-1 ring-inset ${BW_ROLE_BADGE[site.bw_role as keyof typeof BW_ROLE_BADGE]}`}>
+          <span className={`inline-flex items-center rounded-md px-1.5 py-0.5 text-xs font-medium ring-1 ring-inset ${BW_ROLE_BADGE[site.bw_role as keyof typeof BW_ROLE_BADGE]}`}>
             {BW_ROLE_LABELS[site.bw_role as keyof typeof BW_ROLE_LABELS]}
           </span>
         </div>
@@ -202,7 +202,7 @@ function SiteCard({ site }: { site: SiteSummary }) {
       </div>
 
       {site.corridor_name && (
-        <div className="mt-1.5 text-[10px] text-slate-400 truncate">
+        <div className="mt-1.5 text-xs text-slate-400 truncate">
           {site.brand_code ? `${site.brand_code} / ` : ''}{site.corridor_name}
         </div>
       )}

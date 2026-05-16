@@ -69,7 +69,7 @@ export default function ReviewForm({ entityId, projects, onSaved, onCancel }: Re
 
       {/* Star rating */}
       <div>
-        <label className="text-[11px] text-muted-foreground block mb-1">Rating *</label>
+        <label className="text-xs text-muted-foreground block mb-1">Rating *</label>
         <div className="flex items-center gap-0.5">
           {[1, 2, 3, 4, 5].map(i => (
             <button
@@ -97,7 +97,7 @@ export default function ReviewForm({ entityId, projects, onSaved, onCancel }: Re
 
       {/* Project */}
       <div>
-        <label className="text-[11px] text-muted-foreground block mb-1">Project (optional)</label>
+        <label className="text-xs text-muted-foreground block mb-1">Project (optional)</label>
         <select
           value={projectId}
           onChange={e => setProjectId(e.target.value)}
@@ -119,7 +119,7 @@ export default function ReviewForm({ entityId, projects, onSaved, onCancel }: Re
 
       {/* Notes */}
       <div>
-        <label className="text-[11px] text-muted-foreground block mb-1">Notes</label>
+        <label className="text-xs text-muted-foreground block mb-1">Notes</label>
         <textarea
           value={notes}
           onChange={e => setNotes(e.target.value)}
@@ -131,7 +131,7 @@ export default function ReviewForm({ entityId, projects, onSaved, onCancel }: Re
 
       {/* Reviewed by */}
       <div>
-        <label className="text-[11px] text-muted-foreground block mb-1">Reviewed by</label>
+        <label className="text-xs text-muted-foreground block mb-1">Reviewed by</label>
         <input
           type="text"
           value={reviewedBy}
@@ -174,13 +174,13 @@ function TriToggle({
 }) {
   return (
     <div className="space-y-1">
-      <span className="text-[10px] text-muted-foreground">{label}</span>
+      <span className="text-xs text-muted-foreground">{label}</span>
       <div className="flex items-center gap-1">
         <button
           type="button"
           onClick={() => onChange(value === true ? null : true)}
           className={cn(
-            'px-2 py-1 rounded text-[10px] font-medium transition-colors',
+            'px-2 py-1 rounded text-xs font-medium transition-colors',
             value === true ? 'bg-green-100 text-green-700 border border-green-300' : 'bg-muted text-muted-foreground'
           )}
         >
@@ -190,7 +190,7 @@ function TriToggle({
           type="button"
           onClick={() => onChange(value === false ? null : false)}
           className={cn(
-            'px-2 py-1 rounded text-[10px] font-medium transition-colors',
+            'px-2 py-1 rounded text-xs font-medium transition-colors',
             value === false ? 'bg-red-100 text-red-700 border border-red-300' : 'bg-muted text-muted-foreground'
           )}
         >

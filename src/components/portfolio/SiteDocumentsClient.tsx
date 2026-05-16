@@ -258,7 +258,7 @@ export default function SiteDocumentsClient({ siteId, initialDocuments }: SiteDo
                     </td>
                     <td className="px-4 py-2.5">
                       {doc.doc_type ? (
-                        <span className={`inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium ring-1 ring-inset ${DOC_TYPE_BADGE[docType] ?? DOC_TYPE_BADGE.other}`}>
+                        <span className={`inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium ring-1 ring-inset ${DOC_TYPE_BADGE[docType] ?? DOC_TYPE_BADGE.other}`}>
                           {doc.doc_type}
                         </span>
                       ) : <span className="text-xs text-slate-400">—</span>}

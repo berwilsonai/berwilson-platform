@@ -1,11 +1,10 @@
 import { Suspense } from 'react'
 import Link from 'next/link'
-import { AlertTriangle, CalendarClock, ClipboardCheck, FolderKanban, TrendingUp } from 'lucide-react'
+import { FolderKanban } from 'lucide-react'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { cn } from '@/lib/utils'
 
 export const metadata = { title: 'Dashboard — Ber Wilson Intelligence' }
-import { SECTOR_SHORT, SECTOR_BADGE } from '@/lib/utils/sectors'
 import ProjectCard, { type ProjectCardCounts } from '@/components/dashboard/ProjectCard'
 import SortControls from '@/components/dashboard/SortControls'
 import PortfolioBriefButton from '@/components/dashboard/PortfolioBriefButton'
@@ -13,6 +12,7 @@ import DailyBrief from '@/components/dashboard/DailyBrief'
 import AlertsBanner from '@/components/dashboard/AlertsBanner'
 import HealthPanel from '@/components/dashboard/HealthPanel'
 import RiskOverview from '@/components/dashboard/RiskOverview'
+import NeedsAttention from '@/components/dashboard/NeedsAttention'
 import EmptyState from '@/components/shared/EmptyState'
 import type { ActionItem, WaitingOnItem, RiskItem } from '@/types/domain'
 
@@ -174,8 +174,6 @@ export default async function DashboardPage({ searchParams }: PageProps) {
   const reviewItems = (reviewRaw ?? []).slice(0, 6) as ReviewWithProject[]
   const overdueItems = (overdueRaw ?? []).slice(0, 6) as MilestoneWithProject[]
   const ddItems = (ddRaw ?? []).slice(0, 6) as DdWithProject[]
-  const hasAttention = reviewItems.length > 0 || overdueItems.length > 0 || ddItems.length > 0
-
   // Build alerts data for the banner
   const alerts: Array<{ type: 'critical' | 'overdue' | 'review'; text: string; href: string }> = []
   for (const dd of ddItems) {
@@ -212,63 +210,71 @@ export default async function DashboardPage({ searchParams }: PageProps) {
     <div className="space-y-5">
 
       {/* ── Portfolio health overview ─────────────────────────────────────── */}
-      <HealthPanel
-        activeProjects={activeProjects.length}
-        pipelineValue={pipelineValue}
-        pendingReview={pendingReview}
-        overdueCount={overdueCount}
-        criticalDdCount={ddRaw?.length ?? 0}
-        expiringCertsCount={expiringCerts?.length ?? 0}
-      />
+      <div className="animate-fade-in-up">
+        <HealthPanel
+          activeProjects={activeProjects.length}
+          pipelineValue={pipelineValue}
+          pendingReview={pendingReview}
+          overdueCount={overdueCount}
+          criticalDdCount={ddRaw?.length ?? 0}
+          expiringCertsCount={expiringCerts?.length ?? 0}
+        />
+      </div>
 
       {/* ── Alerts banner — critical items across portfolio ──────────────── */}
-      {alerts.length > 0 && <AlertsBanner alerts={alerts} />}
+      {alerts.length > 0 && (
+        <div className="animate-fade-in-up" style={{ animationDelay: '50ms' }}>
+          <AlertsBanner alerts={alerts} />
+        </div>
+      )}
 
       {/* ── Daily intelligence brief ────────────────────────────────────── */}
       {activeProjects.length > 0 && (
-        <Suspense>
-          <DailyBrief />
-        </Suspense>
+        <div className="animate-fade-in-up" style={{ animationDelay: '100ms' }}>
+          <Suspense>
+            <DailyBrief />
+          </Suspense>
+        </div>
       )}
 
       {/* ── Summary stats ─────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <div className="rounded-lg border border-border bg-card p-4">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 animate-fade-in-up" style={{ animationDelay: '150ms' }}>
+        <div className="rounded-lg border border-border border-l-2 border-l-primary bg-card p-4 shadow-sm">
           <p className="text-xs text-muted-foreground">Active Projects</p>
-          <p className="text-2xl font-bold mt-1 text-foreground">{activeProjects.length}</p>
+          <p className="text-3xl font-bold font-mono tabular-nums tracking-tight mt-1 text-foreground">{activeProjects.length}</p>
         </div>
-        <div className="rounded-lg border border-border bg-card p-4">
+        <div className="rounded-lg border border-border border-l-2 border-l-primary bg-card p-4 shadow-sm">
           <p className="text-xs text-muted-foreground">Pipeline Value</p>
-          <p className="text-2xl font-bold mt-1 text-foreground">
+          <p className="text-3xl font-bold font-mono tabular-nums tracking-tight mt-1 text-foreground">
             {pipelineValue > 0 ? formatValue(pipelineValue) : '—'}
           </p>
         </div>
         <div className={cn(
-          'rounded-lg border p-4',
-          pendingReview > 0 ? 'border-amber-200 bg-amber-50' : 'border-border bg-card'
+          'rounded-lg border p-4 shadow-sm',
+          pendingReview > 0 ? 'border-amber-200 border-l-2 border-l-amber-400 bg-amber-50' : 'border-border border-l-2 border-l-primary bg-card'
         )}>
           <p className={cn('text-xs', pendingReview > 0 ? 'text-amber-700' : 'text-muted-foreground')}>
             In Review
           </p>
-          <p className={cn('text-2xl font-bold mt-1', pendingReview > 0 ? 'text-amber-800' : 'text-foreground')}>
+          <p className={cn('text-3xl font-bold font-mono tabular-nums tracking-tight mt-1', pendingReview > 0 ? 'text-amber-800' : 'text-foreground')}>
             {pendingReview}
           </p>
         </div>
         <div className={cn(
-          'rounded-lg border p-4',
-          overdueCount > 0 ? 'border-red-200 bg-red-50' : 'border-border bg-card'
+          'rounded-lg border p-4 shadow-sm',
+          overdueCount > 0 ? 'border-red-200 border-l-2 border-l-red-400 bg-red-50' : 'border-border border-l-2 border-l-primary bg-card'
         )}>
           <p className={cn('text-xs', overdueCount > 0 ? 'text-red-700' : 'text-muted-foreground')}>
             Overdue Milestones
           </p>
-          <p className={cn('text-2xl font-bold mt-1', overdueCount > 0 ? 'text-red-700' : 'text-foreground')}>
+          <p className={cn('text-3xl font-bold font-mono tabular-nums tracking-tight mt-1', overdueCount > 0 ? 'text-red-700' : 'text-foreground')}>
             {overdueCount}
           </p>
         </div>
       </div>
 
       {/* ── Main content ──────────────────────────────────────────────────── */}
-      <div className="flex flex-col lg:flex-row gap-5">
+      <div className="flex flex-col lg:flex-row gap-5 animate-fade-in-up" style={{ animationDelay: '200ms' }}>
 
         {/* Cards grid — left on desktop, first on mobile */}
         <div className="flex-1 min-w-0 space-y-3">
@@ -301,11 +307,13 @@ export default async function DashboardPage({ searchParams }: PageProps) {
             />
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {sorted.map((project) => (
+              {sorted.map((project, i) => (
                 <ProjectCard
                   key={project.id}
                   project={project}
                   counts={countMap[project.id]}
+                  className="animate-fade-in-up"
+                  style={{ animationDelay: `${250 + i * 50}ms` }}
                 />
               ))}
             </div>
@@ -319,145 +327,12 @@ export default async function DashboardPage({ searchParams }: PageProps) {
             <RiskOverview />
           </Suspense>
 
-          <div className="rounded-lg border border-border bg-card">
-            <div className="flex items-center gap-2 px-4 py-3 border-b border-border">
-              <AlertTriangle size={14} className={cn(hasAttention ? 'text-amber-500' : 'text-muted-foreground')} />
-              <h2 className="text-sm font-semibold text-foreground">Needs Attention</h2>
-              {hasAttention && (
-                <span className="ml-auto text-xs font-medium tabular-nums bg-amber-100 text-amber-700 rounded px-1.5 py-0.5">
-                  {reviewItems.length + overdueItems.length + ddItems.length}
-                </span>
-              )}
-            </div>
-
-            {!hasAttention ? (
-              <div className="px-4 py-6 text-center">
-                <p className="text-sm text-muted-foreground">All clear</p>
-                <p className="text-xs text-muted-foreground/70 mt-1">No items require immediate attention.</p>
-              </div>
-            ) : (
-              <div className="divide-y divide-border">
-
-                {/* Review queue items */}
-                {reviewItems.length > 0 && (
-                  <div>
-                    <div className="flex items-center gap-1.5 px-4 py-2 bg-muted/40">
-                      <ClipboardCheck size={11} className="text-muted-foreground shrink-0" />
-                      <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">
-                        Review Queue
-                      </span>
-                      <span className="ml-auto text-[11px] text-muted-foreground">{reviewItems.length}</span>
-                    </div>
-                    {reviewItems.map((item) => (
-                      <Link
-                        key={item.id}
-                        href="/review"
-                        className="flex items-start gap-2 px-4 py-2.5 hover:bg-muted/50 transition-colors"
-                      >
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs font-medium text-foreground truncate">
-                            {item.project?.name ?? 'Unknown project'}
-                          </p>
-                          <p className="text-[11px] text-muted-foreground mt-0.5 capitalize">
-                            {item.reason.replace(/_/g, ' ')}
-                            {item.confidence != null && (
-                              <span className="ml-1 text-amber-600">
-                                {Math.round(item.confidence * 100)}% confidence
-                              </span>
-                            )}
-                          </p>
-                        </div>
-                        {item.project?.sector && (
-                          <span className={cn(
-                            'shrink-0 inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium ring-1 ring-inset',
-                            SECTOR_BADGE[item.project.sector as keyof typeof SECTOR_BADGE]
-                          )}>
-                            {SECTOR_SHORT[item.project.sector as keyof typeof SECTOR_SHORT]}
-                          </span>
-                        )}
-                      </Link>
-                    ))}
-                    {(reviewCount ?? 0) > 6 && (
-                      <Link
-                        href="/review"
-                        className="block px-4 py-2 text-[11px] text-blue-600 hover:underline"
-                      >
-                        +{(reviewCount ?? 0) - 6} more in review queue →
-                      </Link>
-                    )}
-                  </div>
-                )}
-
-                {/* Overdue milestones */}
-                {overdueItems.length > 0 && (
-                  <div>
-                    <div className="flex items-center gap-1.5 px-4 py-2 bg-muted/40">
-                      <CalendarClock size={11} className="text-red-500 shrink-0" />
-                      <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">
-                        Overdue Milestones
-                      </span>
-                      <span className="ml-auto text-[11px] text-muted-foreground">{overdueItems.length}</span>
-                    </div>
-                    {overdueItems.map((m) => (
-                      <Link
-                        key={m.id}
-                        href={`/projects/${m.project_id}/milestones`}
-                        className="flex items-start gap-2 px-4 py-2.5 hover:bg-muted/50 transition-colors"
-                      >
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs font-medium text-foreground truncate">{m.label}</p>
-                          <p className="text-[11px] text-muted-foreground mt-0.5 truncate">
-                            {m.project?.name ?? 'Unknown project'}
-                          </p>
-                        </div>
-                        {m.target_date && (
-                          <span className="shrink-0 text-[11px] font-medium text-red-600 tabular-nums">
-                            {daysOverdue(m.target_date)}d
-                          </span>
-                        )}
-                      </Link>
-                    ))}
-                  </div>
-                )}
-
-                {/* Critical / blocker DD items */}
-                {ddItems.length > 0 && (
-                  <div>
-                    <div className="flex items-center gap-1.5 px-4 py-2 bg-muted/40">
-                      <TrendingUp size={11} className="text-red-500 shrink-0" />
-                      <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">
-                        Due Diligence
-                      </span>
-                      <span className="ml-auto text-[11px] text-muted-foreground">{ddItems.length}</span>
-                    </div>
-                    {ddItems.map((dd) => (
-                      <Link
-                        key={dd.id}
-                        href={`/projects/${dd.project_id}/diligence`}
-                        className="flex items-start gap-2 px-4 py-2.5 hover:bg-muted/50 transition-colors"
-                      >
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs font-medium text-foreground line-clamp-2">{dd.item}</p>
-                          <p className="text-[11px] text-muted-foreground mt-0.5 truncate">
-                            {dd.project?.name ?? 'Unknown project'}
-                          </p>
-                        </div>
-                        <span className={cn(
-                          'shrink-0 inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium ring-1 ring-inset',
-                          dd.severity === 'blocker'
-                            ? 'bg-red-100 text-red-700 ring-red-200'
-                            : 'bg-orange-50 text-orange-700 ring-orange-200'
-                        )}>
-                          {dd.severity}
-                        </span>
-                      </Link>
-                    ))}
-                  </div>
-                )}
-
-              </div>
-            )}
-          </div>
+          <NeedsAttention
+            reviewItems={reviewItems}
+            overdueItems={overdueItems}
+            ddItems={ddItems}
+            reviewCount={reviewCount ?? 0}
+          />
         </div>
 
       </div>

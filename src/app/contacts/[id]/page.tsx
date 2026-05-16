@@ -498,7 +498,7 @@ export default async function ContactDetailPage({ params, searchParams }: PagePr
                           <td className="px-4 py-3 hidden sm:table-cell">
                             <span
                               className={cn(
-                                'inline-flex items-center rounded px-1.5 py-0.5 text-[11px] font-medium ring-1 ring-inset',
+                                'inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium ring-1 ring-inset',
                                 SECTOR_BADGE[project.sector as ProjectSector]
                               )}
                             >
@@ -512,7 +512,7 @@ export default async function ContactDetailPage({ params, searchParams }: PagePr
                           </td>
                           <td className="px-4 py-3">
                             <div className="flex items-center gap-1.5">
-                              <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium bg-muted text-muted-foreground">
+                              <span className="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium bg-muted text-muted-foreground">
                                 {row.role}
                               </span>
                               {row.is_primary && (
@@ -552,12 +552,12 @@ export default async function ContactDetailPage({ params, searchParams }: PagePr
                       <div key={u.id} className="px-4 py-3 space-y-1">
                         <div className="flex items-center justify-between gap-2">
                           {proj && (
-                            <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
+                            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
                               {proj.name}
                             </span>
                           )}
                           {u.created_at && (
-                            <span className="text-[10px] text-muted-foreground ml-auto">
+                            <span className="text-xs text-muted-foreground ml-auto">
                               {new Date(u.created_at).toLocaleDateString('en-US', {
                                 month: 'short',
                                 day: 'numeric',
@@ -590,13 +590,13 @@ export default async function ContactDetailPage({ params, searchParams }: PagePr
                         <div className="min-w-0 flex-1">
                           <p className="text-sm">{item.item}</p>
                           <div className="flex items-center gap-2 mt-1">
-                            <span className="text-[10px] text-muted-foreground">{item.category}</span>
+                            <span className="text-xs text-muted-foreground">{item.category}</span>
                             {proj && (
-                              <span className="text-[10px] text-muted-foreground">· {proj.name}</span>
+                              <span className="text-xs text-muted-foreground">· {proj.name}</span>
                             )}
                           </div>
                         </div>
-                        <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-muted text-muted-foreground shrink-0">
+                        <span className="text-xs font-medium px-1.5 py-0.5 rounded bg-muted text-muted-foreground shrink-0">
                           {item.status}
                         </span>
                       </div>
@@ -620,18 +620,18 @@ export default async function ContactDetailPage({ params, searchParams }: PagePr
                         <div className="min-w-0 flex-1">
                           <p className="text-sm">{item.requirement}</p>
                           <div className="flex items-center gap-2 mt-1">
-                            <span className="text-[10px] text-muted-foreground">{item.framework}</span>
+                            <span className="text-xs text-muted-foreground">{item.framework}</span>
                             {proj && (
-                              <span className="text-[10px] text-muted-foreground">· {proj.name}</span>
+                              <span className="text-xs text-muted-foreground">· {proj.name}</span>
                             )}
                             {item.due_date && (
-                              <span className="text-[10px] text-muted-foreground">
+                              <span className="text-xs text-muted-foreground">
                                 · Due {new Date(item.due_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                               </span>
                             )}
                           </div>
                         </div>
-                        <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-muted text-muted-foreground shrink-0">
+                        <span className="text-xs font-medium px-1.5 py-0.5 rounded bg-muted text-muted-foreground shrink-0">
                           {item.status.replace(/_/g, ' ')}
                         </span>
                       </div>
@@ -678,7 +678,7 @@ export default async function ContactDetailPage({ params, searchParams }: PagePr
                         <div className="flex items-center justify-between gap-2">
                           <span className="text-xs font-medium capitalize">{entry.action.toLowerCase()}</span>
                           {entry.created_at && (
-                            <span className="text-[10px] text-muted-foreground">
+                            <span className="text-xs text-muted-foreground">
                               {new Date(entry.created_at).toLocaleDateString('en-US', {
                                 month: 'short',
                                 day: 'numeric',
@@ -687,7 +687,7 @@ export default async function ContactDetailPage({ params, searchParams }: PagePr
                             </span>
                           )}
                         </div>
-                        <p className="text-[10px] text-muted-foreground mt-0.5 capitalize">
+                        <p className="text-xs text-muted-foreground mt-0.5 capitalize">
                           {entry.actor_type ?? 'user'}
                         </p>
                       </div>

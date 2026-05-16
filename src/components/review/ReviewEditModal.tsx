@@ -207,7 +207,7 @@ export default function ReviewEditModal({
 
             {/* Summary */}
             <div className="space-y-1.5">
-              <label className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+              <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                 Summary
               </label>
               <textarea
@@ -222,7 +222,7 @@ export default function ReviewEditModal({
             {/* Action Items */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <label className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                   Action Items ({actionItems.length})
                 </label>
                 <button
@@ -274,7 +274,7 @@ export default function ReviewEditModal({
             {/* Waiting On */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <label className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                   Waiting On ({waitingOn.length})
                 </label>
                 <button
@@ -317,7 +317,7 @@ export default function ReviewEditModal({
             {/* Risks */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <label className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                   Risks ({risks.length})
                 </label>
                 <button
@@ -372,7 +372,7 @@ export default function ReviewEditModal({
             {/* Decisions */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <label className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                   Decisions ({decisions.length})
                 </label>
                 <button

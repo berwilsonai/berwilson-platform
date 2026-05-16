@@ -42,7 +42,7 @@ export default function ContactEnrichmentDisplay({
   return (
     <div className="space-y-3">
       {enrichedAt && (
-        <p className="text-[10px] text-muted-foreground">
+        <p className="text-xs text-muted-foreground">
           Enriched{' '}
           {new Date(enrichedAt).toLocaleDateString('en-US', {
             month: 'short',
@@ -60,8 +60,8 @@ export default function ContactEnrichmentDisplay({
           if (typeof val === 'string') {
             return (
               <div key={key}>
-                <p className="text-[10px] font-medium text-muted-foreground">{label}</p>
-                <p className="text-[11px]">{val}</p>
+                <p className="text-xs font-medium text-muted-foreground">{label}</p>
+                <p className="text-xs">{val}</p>
               </div>
             )
           }
@@ -69,8 +69,8 @@ export default function ContactEnrichmentDisplay({
           if (Array.isArray(val) && val.length > 0) {
             return (
               <div key={key}>
-                <p className="text-[10px] font-medium text-muted-foreground">{label}</p>
-                <ul className="list-disc list-inside text-[11px] space-y-0.5">
+                <p className="text-xs font-medium text-muted-foreground">{label}</p>
+                <ul className="list-disc list-inside text-xs space-y-0.5">
                   {val.slice(0, 8).map((item, i) => (
                     <li key={i}>{item}</li>
                   ))}
@@ -86,7 +86,7 @@ export default function ContactEnrichmentDisplay({
       {/* Sources */}
       {sources && sources.length > 0 && (
         <div className="space-y-1 pt-2 border-t border-border">
-          <p className="text-[10px] font-medium text-muted-foreground">Sources</p>
+          <p className="text-xs font-medium text-muted-foreground">Sources</p>
           <div className="space-y-0.5 max-h-20 overflow-y-auto">
             {sources.map((s, i) => (
               <a
@@ -94,7 +94,7 @@ export default function ContactEnrichmentDisplay({
                 href={s.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center gap-1 text-[11px] text-blue-600 hover:underline truncate"
+                className="flex items-center gap-1 text-xs text-blue-600 hover:underline truncate"
               >
                 <ExternalLink size={9} className="shrink-0" />
                 <span className="truncate">{s.title ?? s.url}</span>
@@ -109,12 +109,12 @@ export default function ContactEnrichmentDisplay({
         <div className="rounded-md border border-amber-200 bg-amber-50 px-2.5 py-2 space-y-1">
           <div className="flex items-center gap-1">
             <AlertTriangle size={10} className="text-amber-600" />
-            <p className="text-[10px] font-semibold text-amber-800">
+            <p className="text-xs font-semibold text-amber-800">
               {conflicts.length} conflict{conflicts.length !== 1 ? 's' : ''} — existing values preserved
             </p>
           </div>
           {conflicts.map((c) => (
-            <p key={c.field} className="text-[10px] text-amber-700">
+            <p key={c.field} className="text-xs text-amber-700">
               {c.field}: found &ldquo;{c.enriched}&rdquo; but kept &ldquo;{c.current}&rdquo;
             </p>
           ))}

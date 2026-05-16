@@ -198,7 +198,7 @@ export default function MentionedPartiesPanel({ parties, allParties }: Props) {
 
   return (
     <div className="pt-2 border-t border-border">
-      <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground mb-2">
+      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-2">
         People mentioned
       </p>
       <div className="flex flex-wrap gap-2">

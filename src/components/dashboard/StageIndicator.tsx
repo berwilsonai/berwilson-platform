@@ -33,7 +33,7 @@ export default function StageIndicator({
             />
           ))}
         </div>
-        <span className="text-[11px] font-medium text-muted-foreground tabular-nums">
+        <span className="text-xs font-medium text-muted-foreground tabular-nums">
           {STAGE_LABELS[stage]}
         </span>
       </div>
@@ -63,7 +63,7 @@ export default function StageIndicator({
           <span
             key={s}
             className={cn(
-              'text-[10px] font-medium',
+              'text-xs font-medium',
               i === currentIndex
                 ? 'text-blue-600'
                 : i < currentIndex

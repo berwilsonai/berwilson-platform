@@ -102,15 +102,15 @@ export default function SharePageClient() {
             <CardContent>
               <div className="grid gap-4 md:grid-cols-3 mb-4">
                 <div className="text-center p-3 bg-amber-50 rounded-md">
-                  <p className="text-[10px] uppercase text-muted-foreground mb-1">Eric&apos;s Ownership</p>
+                  <p className="text-xs uppercase text-muted-foreground mb-1">Eric&apos;s Ownership</p>
                   <p className="text-lg font-bold">{formatPercentDisplay(exitInputs.ericPercentage)}</p>
                 </div>
                 <div className="text-center p-3 bg-slate-50 rounded-md">
-                  <p className="text-[10px] uppercase text-muted-foreground mb-1">Unfunded Baseline</p>
+                  <p className="text-xs uppercase text-muted-foreground mb-1">Unfunded Baseline</p>
                   <p className="text-lg font-bold text-slate-400">{formatCurrencyCompact(baseline)}</p>
                 </div>
                 <div className="text-center p-3 bg-emerald-50 rounded-md">
-                  <p className="text-[10px] uppercase text-muted-foreground mb-1">Best Exit Multiplier</p>
+                  <p className="text-xs uppercase text-muted-foreground mb-1">Best Exit Multiplier</p>
                   <p className="text-lg font-bold text-emerald-600">
                     {formatMultiplier(Math.max(...results.map(r => r.multiplier)))}
                   </p>
@@ -167,7 +167,7 @@ export default function SharePageClient() {
                     <TableCell className="text-xs text-muted-foreground">{h.role}</TableCell>
                     <TableCell className="text-xs text-right font-medium">{formatPercentDisplay(h.percentage)}</TableCell>
                     <TableCell className="text-xs">
-                      <Badge variant="secondary" className="text-[9px] px-1.5 py-0">
+                      <Badge variant="secondary" className="text-xs px-1.5 py-0">
                         {h.classB ? 'Class B' : 'Class A'}
                       </Badge>
                     </TableCell>
@@ -190,15 +190,15 @@ export default function SharePageClient() {
             <CardContent>
               <div className="grid gap-4 md:grid-cols-3 mb-4">
                 <div className="text-center p-3 bg-slate-50 rounded-md">
-                  <p className="text-[10px] uppercase text-muted-foreground mb-1">Conservative</p>
+                  <p className="text-xs uppercase text-muted-foreground mb-1">Conservative</p>
                   <p className="text-lg font-bold">{formatCurrencyCompact(result.blended.low)}</p>
                 </div>
                 <div className="text-center p-3 bg-amber-50 rounded-md">
-                  <p className="text-[10px] uppercase text-amber-600 mb-1">Blended Mid</p>
+                  <p className="text-xs uppercase text-amber-600 mb-1">Blended Mid</p>
                   <p className="text-xl font-bold text-amber-700">{formatCurrencyCompact(result.blended.mid)}</p>
                 </div>
                 <div className="text-center p-3 bg-slate-50 rounded-md">
-                  <p className="text-[10px] uppercase text-muted-foreground mb-1">Optimistic</p>
+                  <p className="text-xs uppercase text-muted-foreground mb-1">Optimistic</p>
                   <p className="text-lg font-bold">{formatCurrencyCompact(result.blended.high)}</p>
                 </div>
               </div>
@@ -239,7 +239,7 @@ export default function SharePageClient() {
 
       {/* Footer */}
       <div className="border-t pt-4">
-        <p className="text-[9px] text-muted-foreground/60 leading-tight text-center">
+        <p className="text-xs text-muted-foreground/60 leading-tight text-center">
           {LEGAL_DISCLAIMER}
         </p>
       </div>

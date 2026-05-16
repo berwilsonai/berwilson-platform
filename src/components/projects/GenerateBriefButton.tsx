@@ -111,7 +111,7 @@ export default function GenerateBriefButton({ projectId, projectName }: Props) {
                   Executive Brief — {projectName}
                 </h3>
                 {modelInfo && (
-                  <p className="text-[11px] text-muted-foreground mt-0.5">
+                  <p className="text-xs text-muted-foreground mt-0.5">
                     {modelInfo.model} · {modelInfo.latency < 1000 ? `${modelInfo.latency}ms` : `${(modelInfo.latency / 1000).toFixed(1)}s`}
                   </p>
                 )}

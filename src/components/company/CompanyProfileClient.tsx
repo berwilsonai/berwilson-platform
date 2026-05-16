@@ -47,7 +47,7 @@ function BooleanBadge({ label, active }: { label: string; active: boolean }) {
 function Field({ label, value }: { label: string; value: string | null | undefined }) {
   return (
     <div className="space-y-0.5">
-      <dt className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{label}</dt>
+      <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</dt>
       <dd className="text-sm text-foreground">{value || '—'}</dd>
     </div>
   )
@@ -67,7 +67,7 @@ function InputRow({ label, name, defaultValue, type = 'text', placeholder }: {
 }) {
   return (
     <div className="space-y-1">
-      <label className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{label}</label>
+      <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</label>
       <input
         name={name}
         type={type}
@@ -84,7 +84,7 @@ function TextAreaRow({ label, name, defaultValue, rows = 4, placeholder }: {
 }) {
   return (
     <div className="space-y-1">
-      <label className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{label}</label>
+      <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</label>
       <textarea
         name={name}
         rows={rows}
@@ -184,15 +184,15 @@ function CertCard({
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-sm font-medium">{cert.name}</span>
             {!cert.is_active && (
-              <span className="text-[10px] bg-muted text-muted-foreground px-1.5 py-0.5 rounded font-medium">Inactive</span>
+              <span className="text-xs bg-muted text-muted-foreground px-1.5 py-0.5 rounded font-medium">Inactive</span>
             )}
             {expired && (
-              <span className="text-[10px] bg-red-100 text-red-700 px-1.5 py-0.5 rounded font-medium flex items-center gap-1">
+              <span className="text-xs bg-red-100 text-red-700 px-1.5 py-0.5 rounded font-medium flex items-center gap-1">
                 <AlertTriangle size={9} /> Expired
               </span>
             )}
             {expiringSoon && (
-              <span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-medium flex items-center gap-1">
+              <span className="text-xs bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-medium flex items-center gap-1">
                 <AlertTriangle size={9} /> Expires in {days}d
               </span>
             )}
@@ -468,7 +468,7 @@ export default function CompanyProfileClient({ profile, certifications: initialC
               <Field label="Email" value={profile.email} />
               {profile.website && (
                 <div className="space-y-0.5">
-                  <dt className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Website</dt>
+                  <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Website</dt>
                   <dd>
                     <a href={profile.website} target="_blank" rel="noopener noreferrer" className="text-sm text-primary hover:underline">
                       {profile.website.replace(/^https?:\/\//, '').replace(/\/$/, '')}

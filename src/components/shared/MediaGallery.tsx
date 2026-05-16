@@ -156,7 +156,7 @@ export default function MediaGallery({ initialPhotos, scope }: Props) {
             className="w-full h-full object-cover"
           />
           {/* Primary badge */}
-          <div className="absolute top-2 left-2 flex items-center gap-1 bg-black/60 text-white rounded-full px-2 py-0.5 text-[10px] font-medium">
+          <div className="absolute top-2 left-2 flex items-center gap-1 bg-black/60 text-white rounded-full px-2 py-0.5 text-xs font-medium">
             <Star size={9} className="fill-amber-400 text-amber-400" />
             Cover
           </div>
@@ -239,7 +239,7 @@ export default function MediaGallery({ initialPhotos, scope }: Props) {
             ) : (
               <Camera size={16} />
             )}
-            <span className="text-[10px]">{photos.length}/{MAX_PHOTOS}</span>
+            <span className="text-xs">{photos.length}/{MAX_PHOTOS}</span>
           </button>
         )}
 

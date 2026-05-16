@@ -160,7 +160,7 @@ export default function OriginatorFeesClient() {
                     {originatorFees.tailMonths} mo
                   </span>
                 </div>
-                <p className="text-[10px] text-muted-foreground">
+                <p className="text-xs text-muted-foreground">
                   Period after intro within which a signed contract qualifies
                 </p>
               </div>
@@ -184,7 +184,7 @@ export default function OriginatorFeesClient() {
                   className="bg-muted/30 rounded-md px-3 py-2 space-y-2"
                 >
                   <div className="flex items-center justify-between">
-                    <span className="text-[10px] text-muted-foreground font-medium">Tier {i + 1}</span>
+                    <span className="text-xs text-muted-foreground font-medium">Tier {i + 1}</span>
                     <Button
                       variant="ghost"
                       size="sm"
@@ -197,28 +197,28 @@ export default function OriginatorFeesClient() {
                   </div>
                   <div className="grid grid-cols-2 gap-2">
                     <div>
-                      <Label className="text-[9px] text-muted-foreground">Min Contract</Label>
+                      <Label className="text-xs text-muted-foreground">Min Contract</Label>
                       <Input
                         type="number"
                         value={tier.contractSizeMin}
                         onChange={(e) => updateTier(i, { contractSizeMin: Number(e.target.value) || 0 })}
-                        className="h-6 text-[10px]"
+                        className="h-6 text-xs"
                       />
                     </div>
                     <div>
-                      <Label className="text-[9px] text-muted-foreground">Max Contract</Label>
+                      <Label className="text-xs text-muted-foreground">Max Contract</Label>
                       <Input
                         type="number"
                         value={tier.contractSizeMax === Infinity ? '' : tier.contractSizeMax}
                         onChange={(e) => updateTier(i, { contractSizeMax: e.target.value === '' ? Infinity : Number(e.target.value) || 0 })}
-                        className="h-6 text-[10px]"
+                        className="h-6 text-xs"
                         placeholder="No limit"
                       />
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-2">
                     <div>
-                      <Label className="text-[9px] text-muted-foreground">% of Net Profit</Label>
+                      <Label className="text-xs text-muted-foreground">% of Net Profit</Label>
                       <div className="flex items-center gap-1">
                         <Slider
                           value={[tier.netProfitPercentage * 100]}
@@ -227,18 +227,18 @@ export default function OriginatorFeesClient() {
                           max={15}
                           step={0.5}
                         />
-                        <span className="text-[10px] font-medium w-10 text-right">
+                        <span className="text-xs font-medium w-10 text-right">
                           {(tier.netProfitPercentage * 100).toFixed(1)}%
                         </span>
                       </div>
                     </div>
                     <div>
-                      <Label className="text-[9px] text-muted-foreground">Per-Deal Cap</Label>
+                      <Label className="text-xs text-muted-foreground">Per-Deal Cap</Label>
                       <Input
                         type="number"
                         value={tier.perDealCap}
                         onChange={(e) => updateTier(i, { perDealCap: Number(e.target.value) || 0 })}
-                        className="h-6 text-[10px]"
+                        className="h-6 text-xs"
                       />
                     </div>
                   </div>
@@ -250,13 +250,13 @@ export default function OriginatorFeesClient() {
           {/* Total */}
           <Card className="border-amber-300 bg-amber-50/30">
             <CardContent className="pt-4 text-center">
-              <p className="text-[10px] uppercase tracking-wide text-muted-foreground mb-1">
+              <p className="text-xs uppercase tracking-wide text-muted-foreground mb-1">
                 Total Lifetime Originator Fees
               </p>
               <p className="text-2xl font-bold text-amber-700">
                 {formatCurrency(totalLifetime)}
               </p>
-              <p className="text-[10px] text-muted-foreground mt-1">
+              <p className="text-xs text-muted-foreground mt-1">
                 Across {results.length} deals
               </p>
             </CardContent>
@@ -275,7 +275,7 @@ export default function OriginatorFeesClient() {
                     variant="outline"
                     size="sm"
                     onClick={importFromValuation}
-                    className="h-7 text-[9px] gap-1"
+                    className="h-7 text-xs gap-1"
                     title="Import contracts from Valuation Calculator"
                   >
                     <Link2 size={10} /> From Valuation

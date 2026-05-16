@@ -95,14 +95,14 @@ export default async function SiteOverviewPage({ params }: { params: Promise<{ i
               {(components ?? []).map(c => (
                 <div key={c.id} className="flex items-center justify-between py-2 border-b border-slate-50 last:border-0">
                   <div className="min-w-0">
-                    <span className={`inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium ring-1 ring-inset mr-2 ${COMPONENT_TYPE_BADGE[c.type as keyof typeof COMPONENT_TYPE_BADGE]}`}>
+                    <span className={`inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium ring-1 ring-inset mr-2 ${COMPONENT_TYPE_BADGE[c.type as keyof typeof COMPONENT_TYPE_BADGE]}`}>
                       {COMPONENT_TYPE_LABELS[c.type as keyof typeof COMPONENT_TYPE_LABELS]}
                     </span>
                     <span className="text-sm text-slate-900">{c.name}</span>
                     {c.phase && <span className="text-xs text-slate-400 ml-2">{c.phase}</span>}
                   </div>
                   <div className="flex items-center gap-3 shrink-0">
-                    <span className={`inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium ring-1 ring-inset ${COMPONENT_STATUS_BADGE[c.status as keyof typeof COMPONENT_STATUS_BADGE]}`}>
+                    <span className={`inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium ring-1 ring-inset ${COMPONENT_STATUS_BADGE[c.status as keyof typeof COMPONENT_STATUS_BADGE]}`}>
                       {COMPONENT_STATUS_LABELS[c.status as keyof typeof COMPONENT_STATUS_LABELS]}
                     </span>
                     {c.capital_mid && (
@@ -184,7 +184,7 @@ export default async function SiteOverviewPage({ params }: { params: Promise<{ i
                       <p className="text-sm font-medium text-slate-900 truncate">{party?.full_name ?? 'Unknown'}</p>
                       <p className="text-xs text-slate-500 truncate">{[party?.title, party?.company].filter(Boolean).join(', ')}</p>
                     </div>
-                    <span className={`shrink-0 inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium ring-1 ring-inset ${TEMPERATURE_BADGE[sr.temperature as keyof typeof TEMPERATURE_BADGE]}`}>
+                    <span className={`shrink-0 inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium ring-1 ring-inset ${TEMPERATURE_BADGE[sr.temperature as keyof typeof TEMPERATURE_BADGE]}`}>
                       {TEMPERATURE_LABELS[sr.temperature as keyof typeof TEMPERATURE_LABELS]}
                     </span>
                   </div>
@@ -209,7 +209,7 @@ export default async function SiteOverviewPage({ params }: { params: Promise<{ i
               {(complianceItems ?? []).map(ci => (
                 <div key={ci.id} className="flex items-center justify-between py-1">
                   <span className="text-xs text-slate-700 truncate">{ci.framework}</span>
-                  <span className="text-[10px] text-slate-500 capitalize">{ci.status?.replace(/_/g, ' ')}</span>
+                  <span className="text-xs text-slate-500 capitalize">{ci.status?.replace(/_/g, ' ')}</span>
                 </div>
               ))}
             </div>

@@ -277,7 +277,7 @@ export default function PasteInput({ projectId, onSaved }: PasteInputProps) {
 
       {/* Summary */}
       <div className="space-y-1.5">
-        <label className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+        <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
           Summary
         </label>
         <textarea
@@ -291,7 +291,7 @@ export default function PasteInput({ projectId, onSaved }: PasteInputProps) {
       {/* Action Items */}
       {actionItems.length > 0 && (
         <div className="space-y-2">
-          <label className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+          <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
             Action Items ({actionItems.length})
           </label>
           <div className="space-y-1.5">
@@ -319,7 +319,7 @@ export default function PasteInput({ projectId, onSaved }: PasteInputProps) {
       {/* Waiting On */}
       {waitingOn.length > 0 && (
         <div className="space-y-2">
-          <label className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+          <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
             Waiting On ({waitingOn.length})
           </label>
           <div className="space-y-1.5">
@@ -347,14 +347,14 @@ export default function PasteInput({ projectId, onSaved }: PasteInputProps) {
       {/* Risks */}
       {risks.length > 0 && (
         <div className="space-y-2">
-          <label className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+          <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
             Risks ({risks.length})
           </label>
           <div className="space-y-1.5">
             {risks.map((item, idx) => (
               <div key={idx} className="flex items-start gap-2 rounded-md border border-input px-3 py-2 text-sm">
                 <span
-                  className={`shrink-0 mt-0.5 inline-flex rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase ${SEVERITY_COLORS[item.severity] ?? SEVERITY_COLORS.info}`}
+                  className={`shrink-0 mt-0.5 inline-flex rounded px-1.5 py-0.5 text-xs font-semibold uppercase ${SEVERITY_COLORS[item.severity] ?? SEVERITY_COLORS.info}`}
                 >
                   {item.severity}
                 </span>
@@ -381,7 +381,7 @@ export default function PasteInput({ projectId, onSaved }: PasteInputProps) {
       {/* Decisions */}
       {decisions.length > 0 && (
         <div className="space-y-2">
-          <label className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+          <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
             Decisions ({decisions.length})
           </label>
           <div className="space-y-1.5">

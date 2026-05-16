@@ -286,7 +286,7 @@ export default function CapitalStackClient({
                     <div className="h-full bg-blue-500 rounded-full transition-all" style={{ width: `${pct}%` }} />
                   </div>
                   <div className="w-20 text-right text-xs font-mono text-slate-600 shrink-0">{formatValue(mid)}</div>
-                  <div className="w-12 text-right text-[10px] text-slate-400 shrink-0">{pct.toFixed(1)}%</div>
+                  <div className="w-12 text-right text-xs text-slate-400 shrink-0">{pct.toFixed(1)}%</div>
                 </div>
               )
             })}
@@ -332,7 +332,7 @@ export default function CapitalStackClient({
                     <tr key={f.id} className="border-b border-slate-50 hover:bg-slate-50">
                       <td className="px-3 py-2 font-medium text-slate-900">{f.source_name}</td>
                       <td className="px-3 py-2">
-                        <span className={`inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium ring-1 ring-inset ${FUNDING_CATEGORY_BADGE[f.category as keyof typeof FUNDING_CATEGORY_BADGE]}`}>
+                        <span className={`inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium ring-1 ring-inset ${FUNDING_CATEGORY_BADGE[f.category as keyof typeof FUNDING_CATEGORY_BADGE]}`}>
                           {FUNDING_CATEGORY_LABELS[f.category as keyof typeof FUNDING_CATEGORY_LABELS]}
                         </span>
                       </td>
@@ -451,7 +451,7 @@ export default function CapitalStackClient({
             {fundingError && <p className="text-sm text-red-600">{fundingError}</p>}
 
             <div className="space-y-1.5">
-              <label className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+              <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                 Source Name <span className="text-red-500">*</span>
               </label>
               <input
@@ -466,7 +466,7 @@ export default function CapitalStackClient({
 
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <label className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                   Category <span className="text-red-500">*</span>
                 </label>
                 <select
@@ -482,7 +482,7 @@ export default function CapitalStackClient({
                 </select>
               </div>
               <div className="space-y-1.5">
-                <label className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Status</label>
+                <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Status</label>
                 <select
                   value={fundingForm.status}
                   onChange={e => fundingField('status', e.target.value)}
@@ -498,7 +498,7 @@ export default function CapitalStackClient({
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Amount ($)</label>
+              <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Amount ($)</label>
               <input
                 type="number"
                 value={fundingForm.amount}
@@ -510,7 +510,7 @@ export default function CapitalStackClient({
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Notes</label>
+              <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Notes</label>
               <textarea
                 value={fundingForm.notes}
                 onChange={e => fundingField('notes', e.target.value)}
@@ -547,33 +547,33 @@ export default function CapitalStackClient({
 
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <label className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">City %</label>
+                <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">City %</label>
                 <input type="number" min="0" max="100" value={rsForm.city_pct} onChange={e => rsField('city_pct', e.target.value)} placeholder="60" disabled={rsSaving} className={inputClass} />
               </div>
               <div className="space-y-1.5">
-                <label className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">BW %</label>
+                <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">BW %</label>
                 <input type="number" min="0" max="100" value={rsForm.bw_pct} onChange={e => rsField('bw_pct', e.target.value)} placeholder="40" disabled={rsSaving} className={inputClass} />
               </div>
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Revenue Base</label>
+              <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Revenue Base</label>
               <input value={rsForm.revenue_base} onChange={e => rsField('revenue_base', e.target.value)} placeholder="e.g. Net energy revenue" disabled={rsSaving} className={inputClass} />
             </div>
 
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <label className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Cadence</label>
+                <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Cadence</label>
                 <input value={rsForm.cadence} onChange={e => rsField('cadence', e.target.value)} placeholder="e.g. Quarterly" disabled={rsSaving} className={inputClass} />
               </div>
               <div className="space-y-1.5">
-                <label className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Sunset Date</label>
+                <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Sunset Date</label>
                 <input type="date" value={rsForm.sunset_date} onChange={e => rsField('sunset_date', e.target.value)} disabled={rsSaving} className={inputClass} />
               </div>
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Notes</label>
+              <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Notes</label>
               <textarea value={rsForm.notes} onChange={e => rsField('notes', e.target.value)} rows={2} disabled={rsSaving} className={`${inputClass} resize-none`} />
             </div>
           </div>

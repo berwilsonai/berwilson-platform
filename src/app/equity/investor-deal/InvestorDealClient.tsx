@@ -104,9 +104,9 @@ export default function InvestorDealClient() {
                 onValueChange={(v) => setInvestorDeal({ noteType: v as NoteType })}
               >
                 <TabsList className="w-full">
-                  <TabsTrigger value="convertible_note" className="text-[10px] flex-1">Note</TabsTrigger>
-                  <TabsTrigger value="safe" className="text-[10px] flex-1">SAFE</TabsTrigger>
-                  <TabsTrigger value="preferred_equity_subsidiary" className="text-[10px] flex-1">Preferred</TabsTrigger>
+                  <TabsTrigger value="convertible_note" className="text-xs flex-1">Note</TabsTrigger>
+                  <TabsTrigger value="safe" className="text-xs flex-1">SAFE</TabsTrigger>
+                  <TabsTrigger value="preferred_equity_subsidiary" className="text-xs flex-1">Preferred</TabsTrigger>
                 </TabsList>
               </Tabs>
             </CardContent>
@@ -133,7 +133,7 @@ export default function InvestorDealClient() {
                   </span>
                 </div>
                 {isOverCap && (
-                  <p className="text-[10px] text-amber-600">
+                  <p className="text-xs text-amber-600">
                     Above {formatCurrencyCompact(sweetSpotMax)} exceeds {(investorDeal.maxParentEquityFromInvestment * 100).toFixed(0)}% parent cap.
                     Excess would come in as subsidiary-level preferred equity.
                   </p>
@@ -147,7 +147,7 @@ export default function InvestorDealClient() {
                     variant="outline"
                     size="sm"
                     onClick={useBlendedValuation}
-                    className="h-6 text-[9px] gap-1 px-2"
+                    className="h-6 text-xs gap-1 px-2"
                     title="Use blended valuation from Valuation Calculator"
                   >
                     <Link2 size={10} /> Use Blended ({formatCurrencyCompact(blendedValuation.blended.mid)})
@@ -265,7 +265,7 @@ export default function InvestorDealClient() {
                     {(investorDeal.maxParentEquityFromInvestment * 100).toFixed(0)}%
                   </span>
                 </div>
-                <p className="text-[10px] text-muted-foreground">Cap on parent-level equity from this investment</p>
+                <p className="text-xs text-muted-foreground">Cap on parent-level equity from this investment</p>
               </div>
 
               <div className="space-y-2">
@@ -354,7 +354,7 @@ export default function InvestorDealClient() {
                     {investorDeal.operationalSeverance}mo
                   </span>
                 </div>
-                <p className="text-[10px] text-muted-foreground">
+                <p className="text-xs text-muted-foreground">
                   Severance value: {formatCurrency(((investorDeal.operationalSalary + investorDeal.operationalBonus) / 12) * investorDeal.operationalSeverance)}
                 </p>
               </div>
@@ -368,7 +368,7 @@ export default function InvestorDealClient() {
           <div className="grid gap-4 md:grid-cols-3">
             <Card>
               <CardContent className="pt-4 text-center">
-                <p className="text-[10px] uppercase tracking-wide text-muted-foreground mb-1">
+                <p className="text-xs uppercase tracking-wide text-muted-foreground mb-1">
                   Investor Equity at Conversion
                 </p>
                 <p className="text-2xl font-bold text-foreground">
@@ -378,7 +378,7 @@ export default function InvestorDealClient() {
             </Card>
             <Card>
               <CardContent className="pt-4 text-center">
-                <p className="text-[10px] uppercase tracking-wide text-muted-foreground mb-1">
+                <p className="text-xs uppercase tracking-wide text-muted-foreground mb-1">
                   Total Package (Year 5)
                 </p>
                 <p className="text-2xl font-bold text-amber-600">
@@ -388,7 +388,7 @@ export default function InvestorDealClient() {
             </Card>
             <Card>
               <CardContent className="pt-4 text-center">
-                <p className="text-[10px] uppercase tracking-wide text-muted-foreground mb-1">
+                <p className="text-xs uppercase tracking-wide text-muted-foreground mb-1">
                   Total Dilution
                 </p>
                 <p className="text-2xl font-bold text-foreground">
@@ -471,7 +471,7 @@ export default function InvestorDealClient() {
                         {formatPercentDisplay(pct)} equity
                       </span>
                       {!underCap && (
-                        <span className="text-[9px] text-amber-500">exceeds cap</span>
+                        <span className="text-xs text-amber-500">exceeds cap</span>
                       )}
                     </button>
                   )

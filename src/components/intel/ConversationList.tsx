@@ -67,7 +67,7 @@ export default function ConversationList({ activeConversationId, onSelectConvers
               }`}
             >
               <p className="text-xs font-medium text-foreground truncate">{conv.title}</p>
-              <p className="text-[10px] text-muted-foreground mt-0.5">{formatDate(conv.updated_at)}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">{formatDate(conv.updated_at)}</p>
             </button>
           ))
         )}

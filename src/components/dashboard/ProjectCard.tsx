@@ -52,23 +52,29 @@ interface ProjectCardProps {
   counts?: ProjectCardCounts
   isProgram?: boolean
   parentName?: string
+  className?: string
+  style?: React.CSSProperties
 }
 
-export default function ProjectCard({ project, counts, isProgram, parentName }: ProjectCardProps) {
+export default function ProjectCard({ project, counts, isProgram, parentName, className, style }: ProjectCardProps) {
   const status = project.status ?? 'active'
   const stage = project.stage ?? 'pursuit'
 
   return (
     <Link
       href={`/projects/${project.id}`}
-      className="group block rounded-lg border border-border bg-card hover:border-slate-300 hover:shadow-sm transition-all"
+      className={cn(
+        'group block rounded-lg border border-border bg-card shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200',
+        className
+      )}
+      style={style}
     >
-      <div className="p-4 space-y-3">
-        {/* Top row: sector badge, status badge, value */}
+      <div className="p-4 sm:p-5 space-y-3">
+        {/* Top row: sector badge, status badge */}
         <div className="flex items-center gap-2">
           <span
             className={cn(
-              'inline-flex items-center rounded px-1.5 py-0.5 text-[11px] font-medium ring-1 ring-inset',
+              'inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium ring-1 ring-inset',
               SECTOR_BADGE[project.sector]
             )}
           >
@@ -76,33 +82,35 @@ export default function ProjectCard({ project, counts, isProgram, parentName }: 
           </span>
           <span
             className={cn(
-              'inline-flex items-center rounded px-1.5 py-0.5 text-[11px] font-medium ring-1 ring-inset',
+              'inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium ring-1 ring-inset',
               STATUS_STYLES[status]
             )}
           >
             {STATUS_LABELS[status]}
           </span>
           {isProgram && (
-            <span className="inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[11px] font-medium ring-1 ring-inset bg-violet-50 text-violet-700 ring-violet-200">
+            <span className="inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-xs font-medium ring-1 ring-inset bg-violet-50 text-violet-700 ring-violet-200">
               <Layers size={10} />
               Program
             </span>
           )}
-          <span className="ml-auto text-sm font-semibold tabular-nums text-foreground">
-            {formatValue(project.estimated_value)}
-          </span>
         </div>
 
-        {/* Project name */}
-        <div>
-          <h3 className="text-sm font-semibold text-foreground leading-snug group-hover:text-blue-600 transition-colors line-clamp-2">
-            {project.name}
-          </h3>
-          {project.client_entity && (
-            <p className="text-[11px] text-muted-foreground mt-0.5 truncate">
-              {project.client_entity}
-            </p>
-          )}
+        {/* Project name + value */}
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h3 className="text-[15px] font-semibold text-foreground leading-snug group-hover:text-primary transition-colors line-clamp-2">
+              {project.name}
+            </h3>
+            {project.client_entity && (
+              <p className="text-xs text-muted-foreground mt-0.5 truncate">
+                {project.client_entity}
+              </p>
+            )}
+          </div>
+          <span className="text-sm font-bold tabular-nums text-foreground shrink-0">
+            {formatValue(project.estimated_value)}
+          </span>
         </div>
 
         {/* Stage progress bar */}
@@ -112,20 +120,20 @@ export default function ProjectCard({ project, counts, isProgram, parentName }: 
         {counts && (counts.actionCount > 0 || counts.waitingCount > 0 || counts.riskCount > 0) && (
           <div className="flex items-center gap-3">
             {counts.actionCount > 0 && (
-              <span className="flex items-center gap-1 text-[11px] text-slate-600">
+              <span className="flex items-center gap-1 text-xs text-slate-600">
                 <CheckSquare size={11} className="shrink-0" />
                 {counts.actionCount} action{counts.actionCount !== 1 ? 's' : ''}
               </span>
             )}
             {counts.waitingCount > 0 && (
-              <span className="flex items-center gap-1 text-[11px] text-amber-600">
+              <span className="flex items-center gap-1 text-xs text-amber-600">
                 <Clock size={11} className="shrink-0" />
                 {counts.waitingCount} waiting
               </span>
             )}
             {counts.riskCount > 0 && (
               <span className={cn(
-                'flex items-center gap-1 text-[11px] font-medium',
+                'flex items-center gap-1 text-xs font-medium',
                 counts.hasCriticalRisk ? 'text-red-600' : 'text-amber-600'
               )}>
                 <AlertTriangle size={11} className="shrink-0" />
@@ -137,10 +145,10 @@ export default function ProjectCard({ project, counts, isProgram, parentName }: 
 
         {/* Footer: location + last updated */}
         <div className="flex items-center justify-between pt-1 border-t border-border">
-          <span className="text-[11px] text-muted-foreground truncate max-w-[60%]">
+          <span className="text-xs text-muted-foreground truncate max-w-[60%]">
             {parentName ? `Sub-project of ${parentName}` : (project.location ?? 'No location')}
           </span>
-          <span className="text-[11px] text-muted-foreground shrink-0">
+          <span className="text-xs text-muted-foreground shrink-0">
             {timeAgo(project.updated_at)}
           </span>
         </div>

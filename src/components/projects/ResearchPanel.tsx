@@ -69,7 +69,7 @@ function ArtifactCard({ artifact }: { artifact: ResearchArtifact }) {
           <p className="text-sm font-medium text-foreground leading-snug truncate">
             {artifact.query_text}
           </p>
-          <p className="text-[10px] text-muted-foreground mt-0.5">
+          <p className="text-xs text-muted-foreground mt-0.5">
             {formatDate(artifact.retrieved_at)}
             {sources.length > 0 && ` · ${sources.length} source${sources.length !== 1 ? 's' : ''}`}
           </p>
@@ -88,7 +88,7 @@ function ArtifactCard({ artifact }: { artifact: ResearchArtifact }) {
           </p>
           {sources.length > 0 && (
             <div className="space-y-1">
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 Sources
               </p>
               <div className="space-y-1">
@@ -225,7 +225,7 @@ export default function ResearchPanel({
       {/* Query suggestions */}
       {!panelOpen && suggestions.length > 0 && (
         <div className="space-y-2">
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             Suggested Queries
           </p>
           <div className="flex flex-wrap gap-2">
@@ -263,7 +263,7 @@ export default function ResearchPanel({
                 key={s}
                 onClick={() => setQuery(s)}
                 className={cn(
-                  'h-6 px-2 rounded text-[11px] transition-colors',
+                  'h-6 px-2 rounded text-xs transition-colors',
                   query === s
                     ? 'bg-foreground text-background'
                     : 'bg-muted text-muted-foreground hover:text-foreground'
@@ -306,14 +306,14 @@ export default function ResearchPanel({
                 </>
               )}
             </button>
-            <span className="text-[10px] text-muted-foreground">⌘↵ to submit</span>
+            <span className="text-xs text-muted-foreground">⌘↵ to submit</span>
           </div>
 
           {/* Results */}
           {result && (
             <div className="space-y-3 border-t border-border pt-4">
               <div className="flex items-center justify-between gap-2">
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                   Result
                 </p>
                 {savedId ? (
@@ -345,7 +345,7 @@ export default function ResearchPanel({
 
               {result.sources.length > 0 && (
                 <div className="space-y-1">
-                  <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                     Sources ({result.sources.length})
                   </p>
                   <div className="space-y-1">
@@ -384,7 +384,7 @@ export default function ResearchPanel({
       {/* Saved artifacts */}
       {artifacts.length > 0 && (
         <div className="space-y-2">
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             Saved Research ({artifacts.length})
           </p>
           <div className="space-y-2">

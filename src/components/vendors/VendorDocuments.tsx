@@ -167,7 +167,7 @@ export default function VendorDocuments({ entityId, initialDocuments }: VendorDo
         </h3>
         <button
           onClick={() => setShowUpload(!showUpload)}
-          className="inline-flex items-center gap-1 h-7 px-2 rounded-md border border-input text-[11px] font-medium hover:bg-accent transition-colors"
+          className="inline-flex items-center gap-1 h-7 px-2 rounded-md border border-input text-xs font-medium hover:bg-accent transition-colors"
         >
           <Upload size={11} />
           Upload
@@ -195,7 +195,7 @@ export default function VendorDocuments({ entityId, initialDocuments }: VendorDo
             <p className="text-xs font-medium">
               Drop files or <span className="underline">browse</span>
             </p>
-            <p className="text-[10px] text-muted-foreground mt-0.5">
+            <p className="text-xs text-muted-foreground mt-0.5">
               Certifications, insurance, W-9, capability statements
             </p>
             <input
@@ -224,14 +224,14 @@ export default function VendorDocuments({ entityId, initialDocuments }: VendorDo
                           )
                         )
                       }
-                      className="h-6 rounded border border-input bg-background px-1.5 text-[10px]"
+                      className="h-6 rounded border border-input bg-background px-1.5 text-xs"
                     >
                       {DOC_TYPES.map((t) => (
                         <option key={t} value={t}>{t}</option>
                       ))}
                     </select>
                     {AI_ELIGIBLE_MIMES.has(upload.file.type) && (
-                      <label className="flex items-center gap-1 text-[10px] text-muted-foreground shrink-0">
+                      <label className="flex items-center gap-1 text-xs text-muted-foreground shrink-0">
                         <input
                           type="checkbox"
                           checked={upload.extractAi}
@@ -255,7 +255,7 @@ export default function VendorDocuments({ entityId, initialDocuments }: VendorDo
               })}
               <button
                 onClick={handleUploadAll}
-                className="inline-flex items-center gap-1 h-7 px-3 rounded-md bg-foreground text-background text-[11px] font-medium hover:bg-foreground/90 transition-colors"
+                className="inline-flex items-center gap-1 h-7 px-3 rounded-md bg-foreground text-background text-xs font-medium hover:bg-foreground/90 transition-colors"
               >
                 <Upload size={11} />
                 Upload all
@@ -272,10 +272,10 @@ export default function VendorDocuments({ entityId, initialDocuments }: VendorDo
                 <Loader2 size={12} className="animate-spin text-muted-foreground" />
               )}
               {upload.status === 'done' && (
-                <span className="text-[10px] text-emerald-600">Done</span>
+                <span className="text-xs text-emerald-600">Done</span>
               )}
               {upload.status === 'error' && (
-                <span className="text-[10px] text-red-600">{upload.error}</span>
+                <span className="text-xs text-red-600">{upload.error}</span>
               )}
             </div>
           ))}
@@ -284,7 +284,7 @@ export default function VendorDocuments({ entityId, initialDocuments }: VendorDo
 
       {/* Document list */}
       {documents.length === 0 && !showUpload ? (
-        <p className="text-[11px] text-muted-foreground py-2">
+        <p className="text-xs text-muted-foreground py-2">
           No documents uploaded. Add certifications, insurance, capability statements, and more.
         </p>
       ) : (
@@ -295,16 +295,16 @@ export default function VendorDocuments({ entityId, initialDocuments }: VendorDo
               <div key={doc.id} className="flex items-start gap-2 rounded-md border border-border bg-card px-3 py-2">
                 <File size={14} className="shrink-0 text-muted-foreground mt-0.5" />
                 <div className="flex-1 min-w-0">
-                  <p className="text-[11px] font-medium truncate">{doc.file_name}</p>
+                  <p className="text-xs font-medium truncate">{doc.file_name}</p>
                   <div className="flex items-center gap-1.5 mt-0.5">
-                    <span className={`inline-flex rounded px-1 py-0.5 text-[9px] font-medium ring-1 ring-inset capitalize ${DOC_TYPE_COLORS[docType] ?? DOC_TYPE_COLORS.other}`}>
+                    <span className={`inline-flex rounded px-1 py-0.5 text-xs font-medium ring-1 ring-inset capitalize ${DOC_TYPE_COLORS[docType] ?? DOC_TYPE_COLORS.other}`}>
                       {docType}
                     </span>
-                    <span className="text-[10px] text-muted-foreground">{formatBytes(doc.file_size_bytes)}</span>
-                    <span className="text-[10px] text-muted-foreground">{formatDate(doc.uploaded_at)}</span>
+                    <span className="text-xs text-muted-foreground">{formatBytes(doc.file_size_bytes)}</span>
+                    <span className="text-xs text-muted-foreground">{formatDate(doc.uploaded_at)}</span>
                   </div>
                   {doc.ai_summary && (
-                    <p className="text-[10px] text-muted-foreground mt-1 line-clamp-2">{doc.ai_summary}</p>
+                    <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{doc.ai_summary}</p>
                   )}
                 </div>
                 <div className="flex items-center gap-0.5 shrink-0">

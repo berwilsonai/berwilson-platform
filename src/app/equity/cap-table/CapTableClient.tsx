@@ -205,11 +205,11 @@ export default function CapTableClient() {
                       <Input
                         value={holder.role}
                         onChange={(e) => updateHolderField(i, 'role', e.target.value)}
-                        className="h-6 text-[10px] text-muted-foreground w-20"
+                        className="h-6 text-xs text-muted-foreground w-20"
                         disabled={holder.classB}
                       />
                       {holder.classB && (
-                        <Badge variant="secondary" className="text-[9px] px-1.5 py-0 shrink-0">
+                        <Badge variant="secondary" className="text-xs px-1.5 py-0 shrink-0">
                           Class B
                         </Badge>
                       )}
@@ -251,7 +251,7 @@ export default function CapTableClient() {
                   {/* Vesting */}
                   {!holder.classB && (
                     <div className="flex items-center gap-2 pl-1">
-                      <Label className="text-[9px] text-muted-foreground w-10">Vested</Label>
+                      <Label className="text-xs text-muted-foreground w-10">Vested</Label>
                       <Slider
                         value={[holder.vested ?? 0]}
                         onValueChange={(v) => updateVesting(i, Array.isArray(v) ? v[0] : v)}
@@ -260,7 +260,7 @@ export default function CapTableClient() {
                         step={5}
                         className="flex-1"
                       />
-                      <span className="text-[9px] text-muted-foreground w-8 text-right">
+                      <span className="text-xs text-muted-foreground w-8 text-right">
                         {holder.vested ?? 0}%
                       </span>
                     </div>
@@ -289,7 +289,7 @@ export default function CapTableClient() {
               <CardTitle className="text-sm">Dilution Simulator</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              <p className="text-[10px] text-muted-foreground">
+              <p className="text-xs text-muted-foreground">
                 Preview what happens if new equity is issued. All existing holders are diluted proportionally.
               </p>
               <div className="space-y-2">
@@ -313,7 +313,7 @@ export default function CapTableClient() {
                   const original = capTable.holders[i]
                   const delta = original ? h.percentage - original.percentage : 0
                   return (
-                    <div key={i} className="flex items-center justify-between text-[10px]">
+                    <div key={i} className="flex items-center justify-between text-xs">
                       <span className="text-muted-foreground">{h.name}</span>
                       <span>
                         <span className="font-medium">{formatPercentDisplay(h.percentage)}</span>
@@ -324,14 +324,14 @@ export default function CapTableClient() {
                     </div>
                   )
                 })}
-                <div className="flex items-center justify-between text-[10px] border-t pt-1">
+                <div className="flex items-center justify-between text-xs border-t pt-1">
                   <span className="text-muted-foreground">New Issuance</span>
                   <span className="font-medium">{formatPercentDisplay(dilutionPercent)}</span>
                 </div>
               </div>
 
               {dilutedHolders.find((h) => h.classB && h.percentage < ERIC_OWNERSHIP_FLOOR) ? (
-                <p className="text-[10px] text-red-600">
+                <p className="text-xs text-red-600">
                   This dilution would bring Eric below the {ERIC_OWNERSHIP_FLOOR}% floor.
                 </p>
               ) : (
@@ -352,7 +352,7 @@ export default function CapTableClient() {
                     variant={useBlended ? 'default' : 'outline'}
                     size="sm"
                     onClick={() => setUseBlended(!useBlended)}
-                    className="h-6 text-[9px] gap-1 px-2"
+                    className="h-6 text-xs gap-1 px-2"
                   >
                     <Link2 size={10} />
                     {useBlended ? `Linked (${formatCurrencyCompact(activeValuation)})` : 'Link Valuation'}

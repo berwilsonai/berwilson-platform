@@ -35,7 +35,7 @@ export default function AgentSidebar({ projectId }: AgentSidebarProps) {
               </div>
               <div>
                 <p className="text-sm font-medium">Executive Agent</p>
-                <p className="text-[10px] text-muted-foreground">Project-scoped intelligence</p>
+                <p className="text-xs text-muted-foreground">Project-scoped intelligence</p>
               </div>
             </div>
             <button

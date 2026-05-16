@@ -46,7 +46,7 @@ function ScoreDisplay({ score, label }: { score: number | null; label: string })
   return (
     <div className="flex items-center gap-1" title={`${label}: ${score.toFixed(1)}/5`}>
       <Star size={11} className="text-amber-500 fill-amber-500" />
-      <span className="text-[11px] text-muted-foreground">{score.toFixed(1)}</span>
+      <span className="text-xs text-muted-foreground">{score.toFixed(1)}</span>
     </div>
   )
 }
@@ -236,7 +236,7 @@ function VendorCard({ vendor }: { vendor: VendorWithStats }) {
           {vendor.headquarters && (
             <div className="flex items-center gap-1 mt-0.5">
               <MapPin size={10} className="text-muted-foreground shrink-0" />
-              <span className="text-[11px] text-muted-foreground truncate">{vendor.headquarters}</span>
+              <span className="text-xs text-muted-foreground truncate">{vendor.headquarters}</span>
             </div>
           )}
         </div>
@@ -250,7 +250,7 @@ function VendorCard({ vendor }: { vendor: VendorWithStats }) {
 
       {/* Description */}
       {vendor.description && (
-        <p className="mt-2 text-[11px] text-muted-foreground line-clamp-2">
+        <p className="mt-2 text-xs text-muted-foreground line-clamp-2">
           {vendor.description}
         </p>
       )}
@@ -261,14 +261,14 @@ function VendorCard({ vendor }: { vendor: VendorWithStats }) {
           {vendor.specialties.slice(0, 4).map(s => (
             <span
               key={s}
-              className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-muted text-[10px] text-muted-foreground"
+              className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-muted text-xs text-muted-foreground"
             >
               <Tag size={8} className="shrink-0" />
               {s}
             </span>
           ))}
           {vendor.specialties.length > 4 && (
-            <span className="text-[10px] text-muted-foreground">
+            <span className="text-xs text-muted-foreground">
               +{vendor.specialties.length - 4} more
             </span>
           )}
@@ -276,7 +276,7 @@ function VendorCard({ vendor }: { vendor: VendorWithStats }) {
       )}
 
       {/* Footer */}
-      <div className="mt-3 pt-2.5 border-t border-border/60 flex items-center gap-3 text-[11px] text-muted-foreground">
+      <div className="mt-3 pt-2.5 border-t border-border/60 flex items-center gap-3 text-xs text-muted-foreground">
         <span>{vendor.project_count} project{vendor.project_count !== 1 ? 's' : ''}</span>
         {vendor.review_count > 0 && (
           <span>{vendor.review_count} review{vendor.review_count !== 1 ? 's' : ''}</span>

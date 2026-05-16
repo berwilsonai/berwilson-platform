@@ -140,7 +140,7 @@ function UpdateCard({ update, onSaved }: { update: Update; onSaved: () => void }
               href={update.outlook_web_link as string}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-medium text-blue-600 hover:text-blue-800 hover:bg-blue-50 transition-colors"
+              className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs font-medium text-blue-600 hover:text-blue-800 hover:bg-blue-50 transition-colors"
               title="Open in Outlook"
             >
               <ExternalLink size={11} />
@@ -164,7 +164,7 @@ function UpdateCard({ update, onSaved }: { update: Update; onSaved: () => void }
           {/* Action Items */}
           {actionItems.length > 0 && (
             <div className="space-y-1">
-              <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                 Action Items
               </p>
               {actionItems.map((item, idx) => (
@@ -200,7 +200,7 @@ function UpdateCard({ update, onSaved }: { update: Update; onSaved: () => void }
           {/* Waiting On */}
           {waitingOn.length > 0 && (
             <div className="space-y-1">
-              <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                 Waiting On
               </p>
               {waitingOn.map((item, idx) => (
@@ -219,13 +219,13 @@ function UpdateCard({ update, onSaved }: { update: Update; onSaved: () => void }
           {/* Risks */}
           {risks.length > 0 && (
             <div className="space-y-1">
-              <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                 Risks
               </p>
               {risks.map((item, idx) => (
                 <div key={idx} className="flex items-start gap-2 text-sm">
                   <span
-                    className={`shrink-0 mt-0.5 inline-flex rounded px-1 py-0.5 text-[10px] font-semibold uppercase ${SEVERITY_COLORS[item.severity] ?? SEVERITY_COLORS.info}`}
+                    className={`shrink-0 mt-0.5 inline-flex rounded px-1 py-0.5 text-xs font-semibold uppercase ${SEVERITY_COLORS[item.severity] ?? SEVERITY_COLORS.info}`}
                   >
                     {item.severity}
                   </span>
@@ -238,7 +238,7 @@ function UpdateCard({ update, onSaved }: { update: Update; onSaved: () => void }
           {/* Decisions */}
           {decisions.length > 0 && (
             <div className="space-y-1">
-              <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                 Decisions
               </p>
               {decisions.map((item, idx) => (

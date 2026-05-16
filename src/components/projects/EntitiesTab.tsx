@@ -112,7 +112,7 @@ const inputCls =
 function FormField({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-1">
-      <label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+      <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
         {label}
       </label>
       {children}
@@ -124,7 +124,7 @@ function EntityTypeBadge({ type }: { type: EntityType }) {
   return (
     <span
       className={cn(
-        'inline-flex shrink-0 items-center rounded px-1.5 py-0.5 text-[10px] font-semibold ring-1 ring-inset',
+        'inline-flex shrink-0 items-center rounded px-1.5 py-0.5 text-xs font-semibold ring-1 ring-inset',
         ENTITY_TYPE_STYLES[type]
       )}
     >
@@ -338,19 +338,19 @@ function EntityTreeNode({
         </span>
 
         {node.jurisdiction && (
-          <span className="text-[11px] text-muted-foreground hidden sm:block shrink-0">
+          <span className="text-xs text-muted-foreground hidden sm:block shrink-0">
             {node.jurisdiction}
           </span>
         )}
 
         {node.ownership_pct != null && (
-          <span className="text-[11px] text-muted-foreground shrink-0">
+          <span className="text-xs text-muted-foreground shrink-0">
             {node.ownership_pct}%
           </span>
         )}
 
         {isLinked && (
-          <span className="shrink-0 inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium ring-1 ring-inset bg-emerald-50 text-emerald-700 ring-emerald-200">
+          <span className="shrink-0 inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium ring-1 ring-inset bg-emerald-50 text-emerald-700 ring-emerald-200">
             On project
           </span>
         )}
@@ -361,7 +361,7 @@ function EntityTreeNode({
             <button
               onClick={() => onLinkDirect(node.id)}
               title="Link to this project"
-              className="inline-flex items-center gap-1 h-6 px-2 rounded text-[11px] text-muted-foreground hover:text-foreground hover:bg-muted border border-transparent hover:border-border transition-colors"
+              className="inline-flex items-center gap-1 h-6 px-2 rounded text-xs text-muted-foreground hover:text-foreground hover:bg-muted border border-transparent hover:border-border transition-colors"
             >
               <Link2 size={11} />
               Link
@@ -370,7 +370,7 @@ function EntityTreeNode({
           <button
             onClick={() => onResearch(node)}
             title="Research this entity"
-            className="inline-flex items-center gap-1 h-6 px-2 rounded text-[11px] text-muted-foreground hover:text-foreground hover:bg-muted border border-transparent hover:border-border transition-colors"
+            className="inline-flex items-center gap-1 h-6 px-2 rounded text-xs text-muted-foreground hover:text-foreground hover:bg-muted border border-transparent hover:border-border transition-colors"
           >
             <Search size={11} />
             Research
@@ -928,7 +928,7 @@ export default function EntitiesTab({
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-foreground truncate">{ep.entity.name}</p>
                         {ep.entity.jurisdiction && (
-                          <p className="text-[11px] text-muted-foreground">{ep.entity.jurisdiction}</p>
+                          <p className="text-xs text-muted-foreground">{ep.entity.jurisdiction}</p>
                         )}
                       </div>
                       <span className="text-xs text-muted-foreground shrink-0">
@@ -940,7 +940,7 @@ export default function EntitiesTab({
                         </span>
                       )}
                       {ep.notes && (
-                        <span className="text-[11px] text-muted-foreground truncate max-w-[120px] hidden sm:block">
+                        <span className="text-xs text-muted-foreground truncate max-w-[120px] hidden sm:block">
                           {ep.notes}
                         </span>
                       )}

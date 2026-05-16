@@ -92,7 +92,7 @@ export default function ExportShareBar() {
         </Button>
       ) : (
         <div className="flex items-center gap-1.5 bg-muted rounded-md px-2 py-1">
-          <span className="text-[10px] text-muted-foreground truncate max-w-48">
+          <span className="text-xs text-muted-foreground truncate max-w-48">
             {shareUrl}
           </span>
           <button onClick={handleCopy} className="text-muted-foreground hover:text-foreground">

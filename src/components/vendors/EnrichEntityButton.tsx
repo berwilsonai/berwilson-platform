@@ -103,17 +103,17 @@ export default function EnrichEntityButton({
 
         {preview.description && (
           <div>
-            <p className="text-[10px] text-muted-foreground font-medium">Description</p>
-            <p className="text-[11px]">{preview.description}</p>
+            <p className="text-xs text-muted-foreground font-medium">Description</p>
+            <p className="text-xs">{preview.description}</p>
           </div>
         )}
 
         {preview.specialties && preview.specialties.length > 0 && (
           <div>
-            <p className="text-[10px] text-muted-foreground font-medium">Specialties</p>
+            <p className="text-xs text-muted-foreground font-medium">Specialties</p>
             <div className="flex flex-wrap gap-1 mt-0.5">
               {preview.specialties.map(s => (
-                <span key={s} className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-blue-50 text-[10px] text-blue-700 border border-blue-200">
+                <span key={s} className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-blue-50 text-xs text-blue-700 border border-blue-200">
                   <Tag size={8} />
                   {s}
                 </span>
@@ -124,16 +124,16 @@ export default function EnrichEntityButton({
 
         {preview.headquarters && (
           <div>
-            <p className="text-[10px] text-muted-foreground font-medium">Headquarters</p>
-            <p className="text-[11px]">{preview.headquarters}</p>
+            <p className="text-xs text-muted-foreground font-medium">Headquarters</p>
+            <p className="text-xs">{preview.headquarters}</p>
           </div>
         )}
 
         {conflicts.length > 0 && (
           <div className="rounded bg-amber-50 border border-amber-200 p-2">
-            <p className="text-[10px] font-medium text-amber-800 mb-1">Conflicts (won&apos;t overwrite):</p>
+            <p className="text-xs font-medium text-amber-800 mb-1">Conflicts (won&apos;t overwrite):</p>
             {conflicts.map(c => (
-              <p key={c.field} className="text-[10px] text-amber-700">
+              <p key={c.field} className="text-xs text-amber-700">
                 {c.field}: &quot;{c.current}&quot; → &quot;{c.enriched}&quot;
               </p>
             ))}
@@ -142,7 +142,7 @@ export default function EnrichEntityButton({
 
         {preview.sources.length > 0 && (
           <div>
-            <p className="text-[10px] text-muted-foreground font-medium">Sources ({preview.sources.length})</p>
+            <p className="text-xs text-muted-foreground font-medium">Sources ({preview.sources.length})</p>
             <div className="max-h-20 overflow-y-auto space-y-0.5 mt-0.5">
               {preview.sources.map((s, i) => (
                 <a
@@ -150,7 +150,7 @@ export default function EnrichEntityButton({
                   href={s.url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="block text-[10px] text-primary hover:underline truncate"
+                  className="block text-xs text-primary hover:underline truncate"
                 >
                   {s.title || s.url}
                 </a>
@@ -165,13 +165,13 @@ export default function EnrichEntityButton({
           <button
             onClick={handleConfirm}
             disabled={state === 'saving'}
-            className="h-7 px-3 rounded-md bg-primary text-primary-foreground text-[11px] font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
+            className="h-7 px-3 rounded-md bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
           >
             {state === 'saving' ? 'Saving…' : 'Confirm & Save'}
           </button>
           <button
             onClick={() => { setState('idle'); setPreview(null) }}
-            className="h-7 px-3 rounded-md border border-input text-[11px] font-medium hover:bg-muted transition-colors"
+            className="h-7 px-3 rounded-md border border-input text-xs font-medium hover:bg-muted transition-colors"
           >
             Discard
           </button>
@@ -200,12 +200,12 @@ export default function EnrichEntityButton({
         )}
       </button>
       {enrichedAt && state === 'idle' && (
-        <p className="text-[10px] text-muted-foreground text-center mt-1">
+        <p className="text-xs text-muted-foreground text-center mt-1">
           Last enriched {new Date(enrichedAt).toLocaleDateString()}
         </p>
       )}
       {error && state === 'idle' && (
-        <p className="text-[10px] text-destructive text-center mt-1">{error}</p>
+        <p className="text-xs text-destructive text-center mt-1">{error}</p>
       )}
     </div>
   )

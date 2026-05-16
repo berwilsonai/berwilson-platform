@@ -183,7 +183,7 @@ function ContactCard({
           onClick={e => { e.preventDefault(); e.stopPropagation() }}
         >
           <p className="text-xs font-medium text-center">Delete {contact.full_name}?</p>
-          <p className="text-[10px] text-muted-foreground text-center">
+          <p className="text-xs text-muted-foreground text-center">
             This contact will be archived and removed from your list.
           </p>
           <div className="flex gap-2 mt-1">
@@ -273,19 +273,19 @@ function ContactCard({
             {contact.roles.slice(0, 3).map(role => (
               <span
                 key={role}
-                className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium bg-muted text-muted-foreground"
+                className="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium bg-muted text-muted-foreground"
               >
                 {role}
               </span>
             ))}
             {contact.roles.length > 3 && (
-              <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium bg-muted text-muted-foreground">
+              <span className="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium bg-muted text-muted-foreground">
                 +{contact.roles.length - 3}
               </span>
             )}
           </div>
           {contact.project_count > 0 && (
-            <span className="text-[10px] text-muted-foreground shrink-0">
+            <span className="text-xs text-muted-foreground shrink-0">
               {contact.project_count} project{contact.project_count !== 1 ? 's' : ''}
             </span>
           )}

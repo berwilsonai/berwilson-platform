@@ -120,7 +120,7 @@ export default function UpdateEditModal({ updateId, onSaved }: UpdateEditModalPr
     <Dialog open={open} onOpenChange={setOpen}>
       <button
         onClick={() => setOpen(true)}
-        className="inline-flex items-center gap-1 h-6 px-2 rounded text-[11px] font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+        className="inline-flex items-center gap-1 h-6 px-2 rounded text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
       >
         <Pencil size={11} />
         Edit
@@ -151,7 +151,7 @@ export default function UpdateEditModal({ updateId, onSaved }: UpdateEditModalPr
 
             {/* Summary */}
             <div className="space-y-1.5">
-              <label className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+              <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                 Summary
               </label>
               <textarea
@@ -166,7 +166,7 @@ export default function UpdateEditModal({ updateId, onSaved }: UpdateEditModalPr
             {/* Action Items */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <label className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                   Action Items ({actionItems.length})
                 </label>
                 <button
@@ -218,7 +218,7 @@ export default function UpdateEditModal({ updateId, onSaved }: UpdateEditModalPr
             {/* Waiting On */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <label className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                   Waiting On ({waitingOn.length})
                 </label>
                 <button
@@ -261,7 +261,7 @@ export default function UpdateEditModal({ updateId, onSaved }: UpdateEditModalPr
             {/* Risks */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <label className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                   Risks ({risks.length})
                 </label>
                 <button
@@ -316,7 +316,7 @@ export default function UpdateEditModal({ updateId, onSaved }: UpdateEditModalPr
             {/* Decisions */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <label className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                   Decisions ({decisions.length})
                 </label>
                 <button

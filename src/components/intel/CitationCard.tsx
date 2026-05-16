@@ -37,22 +37,22 @@ export default function CitationCard({ chunk }: Props) {
         className="w-full flex items-start gap-3 p-3 text-left hover:bg-muted/50 transition-colors"
       >
         {/* Citation number badge */}
-        <span className="shrink-0 inline-flex items-center justify-center w-5 h-5 rounded bg-primary/10 text-primary text-[11px] font-bold mt-0.5">
+        <span className="shrink-0 inline-flex items-center justify-center w-5 h-5 rounded bg-primary/10 text-primary text-xs font-bold mt-0.5">
           {chunk.citation_index}
         </span>
 
         <div className="flex-1 min-w-0">
           {/* Project + date */}
           <div className="flex items-center gap-2 flex-wrap mb-0.5">
-            <span className="inline-flex items-center gap-1 text-[11px] font-medium text-foreground">
+            <span className="inline-flex items-center gap-1 text-xs font-medium text-foreground">
               <Building2 size={10} className="text-muted-foreground" />
               {chunk.project_name}
             </span>
-            <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
+            <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
               <Calendar size={10} />
               {date}
             </span>
-            <span className={`text-[11px] font-medium ${confidenceColor}`}>
+            <span className={`text-xs font-medium ${confidenceColor}`}>
               {confidencePct}% confidence
             </span>
           </div>

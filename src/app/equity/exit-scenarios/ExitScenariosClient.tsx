@@ -91,7 +91,7 @@ export default function ExitScenariosClient() {
                   variant="outline"
                   size="sm"
                   onClick={linkFromInvestorDeal}
-                  className="h-6 text-[9px] gap-1 px-2"
+                  className="h-6 text-xs gap-1 px-2"
                   title="Pull investment amount and equity from Investor Deal Modeler"
                 >
                   <Link2 size={10} /> From Deal Modeler
@@ -113,7 +113,7 @@ export default function ExitScenariosClient() {
                     {exitScenarios.ericPercentage.toFixed(1)}%
                   </span>
                 </div>
-                <p className="text-[10px] text-muted-foreground">Minimum 51% (regulatory requirement)</p>
+                <p className="text-xs text-muted-foreground">Minimum 51% (regulatory requirement)</p>
               </div>
 
               <div className="space-y-2">
@@ -199,7 +199,7 @@ export default function ExitScenariosClient() {
                       </span>
                     </label>
                     {exitScenarios.investorParticipating && (
-                      <p className="text-[10px] text-amber-600">
+                      <p className="text-xs text-amber-600">
                         Participating preferred: investor gets liquidation preference PLUS pro-rata share of remaining proceeds. More investor-friendly.
                       </p>
                     )}
@@ -229,7 +229,7 @@ export default function ExitScenariosClient() {
                     {formatCurrencyCompact(exitScenarios.baselineContractValue)}
                   </span>
                 </div>
-                <p className="text-[10px] text-muted-foreground">
+                <p className="text-xs text-muted-foreground">
                   The &ldquo;100% of nothing&rdquo; case: what Eric earns if he never gives up equity
                 </p>
               </div>
@@ -280,7 +280,7 @@ export default function ExitScenariosClient() {
                     {(exitScenarios.baselineProbability * 100).toFixed(0)}%
                   </span>
                 </div>
-                <p className="text-[10px] text-muted-foreground">
+                <p className="text-xs text-muted-foreground">
                   Probability of winning the baseline contract without funding
                 </p>
               </div>
@@ -331,7 +331,7 @@ export default function ExitScenariosClient() {
               <CardContent className="pt-6">
                 <div className="grid gap-4 md:grid-cols-3">
                   <div className="text-center">
-                    <p className="text-[10px] uppercase tracking-wide text-muted-foreground mb-1">
+                    <p className="text-xs uppercase tracking-wide text-muted-foreground mb-1">
                       Eric&apos;s {exitScenarios.ericPercentage.toFixed(0)}% at{' '}
                       {formatCurrencyCompact(primaryResult.exitValuation)} Exit
                     </p>
@@ -340,7 +340,7 @@ export default function ExitScenariosClient() {
                     </p>
                   </div>
                   <div className="text-center">
-                    <p className="text-[10px] uppercase tracking-wide text-muted-foreground mb-1">
+                    <p className="text-xs uppercase tracking-wide text-muted-foreground mb-1">
                       100% Unfunded (Lifetime Profit)
                     </p>
                     <p className="text-2xl font-bold text-slate-400">
@@ -348,7 +348,7 @@ export default function ExitScenariosClient() {
                     </p>
                   </div>
                   <div className="text-center">
-                    <p className="text-[10px] uppercase tracking-wide text-muted-foreground mb-1">
+                    <p className="text-xs uppercase tracking-wide text-muted-foreground mb-1">
                       Eric Is Better Off By
                     </p>
                     <p className="text-2xl font-bold text-emerald-600">

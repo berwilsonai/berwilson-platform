@@ -102,7 +102,7 @@ export default function QueryHistory({ onSelectQuery }: Props) {
       {tab === 'saved' && (
         <div className="space-y-1">
           {savedQueries.length === 0 && (
-            <p className="text-[11px] text-muted-foreground py-2">
+            <p className="text-xs text-muted-foreground py-2">
               No saved queries yet. Bookmark a query after running it.
             </p>
           )}
@@ -137,7 +137,7 @@ export default function QueryHistory({ onSelectQuery }: Props) {
             </div>
           )}
           {!loading && uniqueHistory.length === 0 && (
-            <p className="text-[11px] text-muted-foreground py-2">
+            <p className="text-xs text-muted-foreground py-2">
               No queries yet. Ask your first question above.
             </p>
           )}
@@ -158,7 +158,7 @@ export default function QueryHistory({ onSelectQuery }: Props) {
                       : h.query_text}
                   </button>
                   <div className="flex items-center gap-1 shrink-0">
-                    <span className="text-[10px] text-muted-foreground">{timeStr}</span>
+                    <span className="text-xs text-muted-foreground">{timeStr}</span>
                     <button
                       onClick={() => toggleSave(h.query_text)}
                       className="p-0.5 text-muted-foreground hover:text-primary transition-colors"

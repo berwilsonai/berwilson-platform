@@ -32,7 +32,7 @@ function renderWithCitations(text: string): React.ReactNode[] {
             e.preventDefault()
             document.getElementById(`citation-${num}`)?.scrollIntoView({ behavior: 'smooth' })
           }}
-          className="inline-flex items-center justify-center w-4 h-4 rounded bg-primary/15 text-primary text-[10px] font-bold mx-0.5 align-super hover:bg-primary/25 transition-colors cursor-pointer no-underline"
+          className="inline-flex items-center justify-center w-4 h-4 rounded bg-primary/15 text-primary text-xs font-bold mx-0.5 align-super hover:bg-primary/25 transition-colors cursor-pointer no-underline"
           title={`Source [${num}]`}
         >
           {num}
@@ -114,7 +114,7 @@ export default function GroundedAnswer({ answer, citations, low_confidence, no_d
       {/* Citations */}
       {citations.length > 0 && (
         <div className="space-y-2">
-          <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
             Sources ({citations.length})
           </p>
           <div className="space-y-1.5">
@@ -128,12 +128,12 @@ export default function GroundedAnswer({ answer, citations, low_confidence, no_d
       {/* Model & latency footer */}
       {model_used && model_used !== 'n/a' && (
         <div className="flex items-center gap-4 pt-2 border-t border-border">
-          <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
+          <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
             <Cpu size={10} />
             {model_used}
           </span>
           {latency_ms != null && latency_ms > 0 && (
-            <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
+            <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
               <Clock size={10} />
               {latency_ms < 1000
                 ? `${latency_ms}ms`

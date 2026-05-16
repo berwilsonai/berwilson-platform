@@ -124,7 +124,7 @@ export default async function PlayersPage({ params }: PageProps) {
                           {party.full_name}
                         </Link>
                         {party.title && (
-                          <p className="text-[11px] text-muted-foreground truncate sm:hidden">
+                          <p className="text-xs text-muted-foreground truncate sm:hidden">
                             {party.title}
                           </p>
                         )}
@@ -140,7 +140,7 @@ export default async function PlayersPage({ params }: PageProps) {
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-1.5">
-                      <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium bg-muted text-muted-foreground">
+                      <span className="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium bg-muted text-muted-foreground">
                         {player.role}
                       </span>
                       {player.is_primary && (

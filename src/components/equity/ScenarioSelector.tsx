@@ -84,7 +84,7 @@ export default function ScenarioSelector() {
               <div className="flex items-center justify-between">
                 <span className="text-sm font-medium text-foreground">{s.name}</span>
                 {store.activeScenarioId === s.id && (
-                  <span className="flex items-center gap-1 text-[10px] text-amber-600">
+                  <span className="flex items-center gap-1 text-xs text-amber-600">
                     {store.isDirty ? (
                       <><Save size={10} /> Unsaved</>
                     ) : (
@@ -93,7 +93,7 @@ export default function ScenarioSelector() {
                   </span>
                 )}
               </div>
-              <p className="text-[10px] text-muted-foreground mt-0.5">
+              <p className="text-xs text-muted-foreground mt-0.5">
                 Updated {new Date(s.updated_at).toLocaleDateString()}
               </p>
             </button>

@@ -102,7 +102,7 @@ export default function CompanyAutocomplete({ inputClass }: CompanyAutocompleteP
           <button
             type="button"
             onClick={clearSelection}
-            className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground hover:text-foreground bg-muted px-1.5 py-0.5 rounded"
+            className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground hover:text-foreground bg-muted px-1.5 py-0.5 rounded"
           >
             Clear
           </button>
@@ -130,7 +130,7 @@ export default function CompanyAutocomplete({ inputClass }: CompanyAutocompleteP
               <Building2 size={14} className="text-muted-foreground shrink-0" />
               <div className="min-w-0">
                 <p className="text-sm font-medium truncate">{entity.name}</p>
-                <p className="text-[10px] text-muted-foreground">
+                <p className="text-xs text-muted-foreground">
                   {entity.entity_type.toUpperCase()}
                   {entity.headquarters && ` · ${entity.headquarters}`}
                 </p>
@@ -153,7 +153,7 @@ export default function CompanyAutocomplete({ inputClass }: CompanyAutocompleteP
                 <Plus size={14} className="shrink-0" />
                 <div className="min-w-0">
                   <p className="text-sm font-medium">Create &ldquo;{query.trim()}&rdquo;</p>
-                  <p className="text-[10px] text-muted-foreground">Add as new company</p>
+                  <p className="text-xs text-muted-foreground">Add as new company</p>
                 </div>
               </button>
             </>
@@ -163,7 +163,7 @@ export default function CompanyAutocomplete({ inputClass }: CompanyAutocompleteP
 
       {/* Visual indicator when linked to existing entity */}
       {selectedEntity && (
-        <p className="mt-1 text-[10px] text-green-600 flex items-center gap-1">
+        <p className="mt-1 text-xs text-green-600 flex items-center gap-1">
           <Building2 size={10} />
           Linked to existing vendor record
         </p>

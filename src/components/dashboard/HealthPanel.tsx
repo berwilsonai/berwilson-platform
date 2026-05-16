@@ -60,10 +60,10 @@ function HealthRing({ score }: { score: number }) {
         </svg>
         <div className="flex flex-col items-center leading-none">
           <span className={`text-2xl font-bold ${colors.text}`}>{score}</span>
-          <span className="text-[9px] text-muted-foreground mt-0.5">/ 100</span>
+          <span className="text-xs text-muted-foreground mt-0.5">/ 100</span>
         </div>
       </div>
-      <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${colors.bg} ${colors.text}`}>
+      <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${colors.bg} ${colors.text}`}>
         {colors.label}
       </span>
     </div>
@@ -92,7 +92,7 @@ function AlertRow({
   return (
     <div className="flex items-center gap-2">
       <Icon size={11} className={count > 0 ? textColor : 'text-muted-foreground/50'} />
-      <span className={`text-[11px] w-24 shrink-0 ${count > 0 ? 'text-foreground' : 'text-muted-foreground/60'}`}>
+      <span className={`text-xs w-24 shrink-0 ${count > 0 ? 'text-foreground' : 'text-muted-foreground/60'}`}>
         {label}
       </span>
       <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
@@ -101,7 +101,7 @@ function AlertRow({
           style={{ width: count > 0 ? `${barWidth}%` : '0%' }}
         />
       </div>
-      <span className={`text-[11px] font-semibold tabular-nums w-4 text-right ${count > 0 ? textColor : 'text-muted-foreground/50'}`}>
+      <span className={`text-xs font-semibold tabular-nums w-4 text-right ${count > 0 ? textColor : 'text-muted-foreground/50'}`}>
         {count}
       </span>
     </div>
@@ -129,7 +129,7 @@ export default function HealthPanel({
   ].filter((s) => s.value > 0)
 
   return (
-    <div className="rounded-lg border border-border bg-card overflow-hidden">
+    <div className="rounded-lg border border-border bg-card shadow-sm overflow-hidden">
       {/* Header */}
       <div className="flex items-center gap-2 px-4 py-2.5 border-b border-border bg-muted/30">
         <TrendingUp size={13} className="text-muted-foreground" />
@@ -137,13 +137,13 @@ export default function HealthPanel({
           Portfolio Health
         </span>
         {totalAlerts === 0 && (
-          <span className="ml-auto flex items-center gap-1 text-[11px] text-emerald-600 font-medium">
+          <span className="ml-auto flex items-center gap-1 text-xs text-emerald-600 font-medium">
             <CheckCircle2 size={11} />
             All Clear
           </span>
         )}
         {totalAlerts > 0 && (
-          <span className="ml-auto text-[11px] text-amber-600 font-medium">
+          <span className="ml-auto text-xs text-amber-600 font-medium">
             {totalAlerts} item{totalAlerts !== 1 ? 's' : ''} need attention
           </span>
         )}
@@ -159,7 +159,7 @@ export default function HealthPanel({
 
         {/* Alert breakdown */}
         <div className="space-y-2 min-w-[200px]">
-          <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-3">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">
             Alert Breakdown
           </p>
           <AlertRow
@@ -223,7 +223,7 @@ export default function HealthPanel({
         {/* Pipeline value + project count */}
         <div className="flex flex-col gap-3 min-w-[110px]">
           <div>
-            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
               Pipeline Value
             </p>
             <p className="text-3xl font-bold text-foreground mt-1">
@@ -231,7 +231,7 @@ export default function HealthPanel({
             </p>
           </div>
           <div>
-            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
               Active Projects
             </p>
             <p className="text-3xl font-bold text-foreground mt-1">{activeProjects}</p>

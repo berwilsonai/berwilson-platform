@@ -204,7 +204,7 @@ export default function ComponentsClient({ siteId, initialComponents }: Componen
               {components.map(c => (
                 <tr key={c.id} className="border-b border-slate-50 hover:bg-slate-50">
                   <td className="px-4 py-2.5">
-                    <span className={`inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium ring-1 ring-inset ${COMPONENT_TYPE_BADGE[c.type as keyof typeof COMPONENT_TYPE_BADGE]}`}>
+                    <span className={`inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium ring-1 ring-inset ${COMPONENT_TYPE_BADGE[c.type as keyof typeof COMPONENT_TYPE_BADGE]}`}>
                       {COMPONENT_TYPE_LABELS[c.type as keyof typeof COMPONENT_TYPE_LABELS]}
                     </span>
                   </td>
@@ -212,7 +212,7 @@ export default function ComponentsClient({ siteId, initialComponents }: Componen
                   <td className="px-4 py-2.5 text-slate-500 text-xs">{c.phase ?? '—'}</td>
                   <td className="px-4 py-2.5">
                     {c.status ? (
-                      <span className={`inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium ring-1 ring-inset ${COMPONENT_STATUS_BADGE[c.status as keyof typeof COMPONENT_STATUS_BADGE]}`}>
+                      <span className={`inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium ring-1 ring-inset ${COMPONENT_STATUS_BADGE[c.status as keyof typeof COMPONENT_STATUS_BADGE]}`}>
                         {COMPONENT_STATUS_LABELS[c.status as keyof typeof COMPONENT_STATUS_LABELS]}
                       </span>
                     ) : <span className="text-slate-400">—</span>}
@@ -287,7 +287,7 @@ export default function ComponentsClient({ siteId, initialComponents }: Componen
 
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <label className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                   Type <span className="text-red-500">*</span>
                 </label>
                 <select
@@ -303,7 +303,7 @@ export default function ComponentsClient({ siteId, initialComponents }: Componen
                 </select>
               </div>
               <div className="space-y-1.5">
-                <label className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                   Status
                 </label>
                 <select
@@ -321,7 +321,7 @@ export default function ComponentsClient({ siteId, initialComponents }: Componen
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+              <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                 Name <span className="text-red-500">*</span>
               </label>
               <input
@@ -334,7 +334,7 @@ export default function ComponentsClient({ siteId, initialComponents }: Componen
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+              <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                 Phase
               </label>
               <input
@@ -349,7 +349,7 @@ export default function ComponentsClient({ siteId, initialComponents }: Componen
             <div className="grid grid-cols-3 gap-3">
               {(['capital_low', 'capital_mid', 'capital_high'] as const).map((k, i) => (
                 <div key={k} className="space-y-1.5">
-                  <label className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                  <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                     Capital {['Low', 'Mid', 'High'][i]}
                   </label>
                   <input
@@ -365,7 +365,7 @@ export default function ComponentsClient({ siteId, initialComponents }: Componen
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+              <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                 Notes
               </label>
               <textarea

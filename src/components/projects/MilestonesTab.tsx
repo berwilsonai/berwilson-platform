@@ -282,7 +282,7 @@ export default function MilestonesTab({
                   <div className="flex items-center gap-2 min-w-0">
                     <span
                       className={cn(
-                        'inline-flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-bold shrink-0',
+                        'inline-flex items-center justify-center w-5 h-5 rounded-full text-xs font-bold shrink-0',
                         isCurrent && 'bg-emerald-600 text-white',
                         isPast && 'bg-emerald-100 text-emerald-700',
                         isFuture && 'bg-muted-foreground/20 text-muted-foreground'
@@ -304,7 +304,7 @@ export default function MilestonesTab({
                   {total > 0 && (
                     <span
                       className={cn(
-                        'text-[11px] shrink-0 tabular-nums',
+                        'text-xs shrink-0 tabular-nums',
                         completed === total
                           ? 'text-emerald-600 font-semibold'
                           : 'text-muted-foreground'
@@ -318,7 +318,7 @@ export default function MilestonesTab({
                 {/* Milestones list */}
                 <div className="flex-1 p-2 space-y-0.5 min-h-[72px]">
                   {stageMilestones.length === 0 && !isAdding && (
-                    <p className="text-[11px] text-muted-foreground/60 italic px-1 pt-1">
+                    <p className="text-xs text-muted-foreground/60 italic px-1 pt-1">
                       No milestones
                     </p>
                   )}
@@ -359,7 +359,7 @@ export default function MilestonesTab({
                           {m.label}
                         </p>
                         {m.target_date && (
-                          <p className="flex items-center gap-0.5 mt-0.5 text-[10px] text-muted-foreground">
+                          <p className="flex items-center gap-0.5 mt-0.5 text-xs text-muted-foreground">
                             <Calendar size={9} />
                             {formatDate(m.target_date)}
                           </p>
@@ -392,7 +392,7 @@ export default function MilestonesTab({
                         <button
                           onClick={() => addMilestone(stage)}
                           disabled={!newLabel.trim() || savingAdd}
-                          className="flex-1 inline-flex items-center justify-center gap-1 h-6 rounded bg-foreground text-background text-[11px] font-medium hover:bg-foreground/90 disabled:opacity-50 transition-colors"
+                          className="flex-1 inline-flex items-center justify-center gap-1 h-6 rounded bg-foreground text-background text-xs font-medium hover:bg-foreground/90 disabled:opacity-50 transition-colors"
                         >
                           {savingAdd ? (
                             <Loader2 size={10} className="animate-spin" />
@@ -417,7 +417,7 @@ export default function MilestonesTab({
                   <div className="px-2 pb-2">
                     <button
                       onClick={() => openAddForm(stage)}
-                      className="w-full flex items-center gap-1.5 px-2 py-1.5 rounded-md text-[11px] text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                      className="w-full flex items-center gap-1.5 px-2 py-1.5 rounded-md text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
                     >
                       <Plus size={11} />
                       Add milestone

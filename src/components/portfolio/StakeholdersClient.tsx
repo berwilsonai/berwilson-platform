@@ -340,7 +340,7 @@ export default function StakeholdersClient({
 
                 {srInteractions.length > 0 && (
                   <div className="mt-3 border-t border-slate-100 pt-2.5">
-                    <p className="text-[10px] uppercase tracking-wider text-slate-400 font-medium mb-1.5">Recent Interactions</p>
+                    <p className="text-xs uppercase tracking-wider text-slate-400 font-medium mb-1.5">Recent Interactions</p>
                     <div className="space-y-1.5">
                       {srInteractions.slice(0, 3).map(i => (
                         <div key={i.id} className="flex items-start gap-2 text-xs">
@@ -350,7 +350,7 @@ export default function StakeholdersClient({
                         </div>
                       ))}
                       {srInteractions.length > 3 && (
-                        <p className="text-[10px] text-slate-400">+ {srInteractions.length - 3} more</p>
+                        <p className="text-xs text-slate-400">+ {srInteractions.length - 3} more</p>
                       )}
                     </div>
                   </div>
@@ -371,7 +371,7 @@ export default function StakeholdersClient({
             {addError && <p className="text-sm text-red-600">{addError}</p>}
 
             <div className="space-y-1.5">
-              <label className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+              <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                 Contact <span className="text-red-500">*</span>
               </label>
               {selected ? (
@@ -425,11 +425,11 @@ export default function StakeholdersClient({
 
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <label className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Role</label>
+                <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Role</label>
                 <input value={addRole} onChange={e => setAddRole(e.target.value)} placeholder="e.g. City Council Member" disabled={addSaving} className={inputClass} />
               </div>
               <div className="space-y-1.5">
-                <label className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Temperature</label>
+                <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Temperature</label>
                 <select value={addTemp} onChange={e => setAddTemp(e.target.value)} disabled={addSaving} className={inputClass}>
                   {TEMPERATURES.map(t => (
                     <option key={t} value={t}>{TEMPERATURE_LABELS[t]}</option>
@@ -439,7 +439,7 @@ export default function StakeholdersClient({
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Notes</label>
+              <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Notes</label>
               <textarea value={addNotes} onChange={e => setAddNotes(e.target.value)} rows={2} disabled={addSaving} className={`${inputClass} resize-none`} />
             </div>
           </div>
@@ -470,11 +470,11 @@ export default function StakeholdersClient({
 
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <label className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Role</label>
+                <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Role</label>
                 <input value={editRole} onChange={e => setEditRole(e.target.value)} placeholder="e.g. City Council Member" disabled={editSaving} className={inputClass} />
               </div>
               <div className="space-y-1.5">
-                <label className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Temperature</label>
+                <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Temperature</label>
                 <select value={editTemp} onChange={e => setEditTemp(e.target.value)} disabled={editSaving} className={inputClass}>
                   {TEMPERATURES.map(t => (
                     <option key={t} value={t}>{TEMPERATURE_LABELS[t]}</option>
@@ -484,12 +484,12 @@ export default function StakeholdersClient({
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Next Scheduled</label>
+              <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Next Scheduled</label>
               <input type="date" value={editNextScheduled} onChange={e => setEditNextScheduled(e.target.value)} disabled={editSaving} className={inputClass} />
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Notes</label>
+              <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Notes</label>
               <textarea value={editNotes} onChange={e => setEditNotes(e.target.value)} rows={3} disabled={editSaving} className={`${inputClass} resize-none`} />
             </div>
           </div>
@@ -516,11 +516,11 @@ export default function StakeholdersClient({
 
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <label className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Date</label>
+                <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Date</label>
                 <input type="date" value={logDate} onChange={e => setLogDate(e.target.value)} disabled={logSaving} className={inputClass} />
               </div>
               <div className="space-y-1.5">
-                <label className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Medium</label>
+                <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Medium</label>
                 <select value={logMedium} onChange={e => setLogMedium(e.target.value)} disabled={logSaving} className={inputClass}>
                   {INTERACTION_MEDIUMS.map(m => (
                     <option key={m} value={m}>{m.replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase())}</option>
@@ -530,7 +530,7 @@ export default function StakeholdersClient({
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+              <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                 Summary <span className="text-red-500">*</span>
               </label>
               <textarea
@@ -545,7 +545,7 @@ export default function StakeholdersClient({
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Follow-up</label>
+              <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Follow-up</label>
               <textarea value={logFollowUp} onChange={e => setLogFollowUp(e.target.value)} rows={2} placeholder="Any follow-up actions needed?" disabled={logSaving} className={`${inputClass} resize-none`} />
             </div>
           </div>

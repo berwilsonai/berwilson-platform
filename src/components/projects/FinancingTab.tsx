@@ -166,7 +166,7 @@ function CapitalStackBar({
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           Capital Stack
         </p>
         <p className="text-xs text-muted-foreground">
@@ -178,7 +178,7 @@ function CapitalStackBar({
       <div className="flex h-9 rounded-md overflow-hidden ring-1 ring-border">
         {debt > 0 && (
           <div
-            className="bg-blue-600 flex items-center justify-center text-white text-[11px] font-semibold transition-all"
+            className="bg-blue-600 flex items-center justify-center text-white text-xs font-semibold transition-all"
             style={{ width: `${debtPct}%` }}
           >
             {debtPct >= 12 && `${debtPct.toFixed(0)}%`}
@@ -186,7 +186,7 @@ function CapitalStackBar({
         )}
         {mezz > 0 && (
           <div
-            className="bg-amber-500 flex items-center justify-center text-white text-[11px] font-semibold border-l-2 border-white/30 transition-all"
+            className="bg-amber-500 flex items-center justify-center text-white text-xs font-semibold border-l-2 border-white/30 transition-all"
             style={{ width: `${mezzPct}%` }}
           >
             {mezzPct >= 12 && `${mezzPct.toFixed(0)}%`}
@@ -194,7 +194,7 @@ function CapitalStackBar({
         )}
         {equity > 0 && (
           <div
-            className="bg-emerald-600 flex items-center justify-center text-white text-[11px] font-semibold border-l-2 border-white/30 transition-all"
+            className="bg-emerald-600 flex items-center justify-center text-white text-xs font-semibold border-l-2 border-white/30 transition-all"
             style={{ width: `${equityPct}%` }}
           >
             {equityPct >= 12 && `${equityPct.toFixed(0)}%`}
@@ -240,7 +240,7 @@ function CapitalStackBar({
 function FieldRow({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-0.5">
-      <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
         {label}
       </p>
       <p className="text-sm text-foreground">{value}</p>
@@ -250,7 +250,7 @@ function FieldRow({ label, value }: { label: string; value: React.ReactNode }) {
 
 function SectionHeader({ children }: { children: React.ReactNode }) {
   return (
-    <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground mt-6 mb-3 border-t border-border pt-5">
+    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mt-6 mb-3 border-t border-border pt-5">
       {children}
     </p>
   )
@@ -269,7 +269,7 @@ function FormField({
 }) {
   return (
     <div className="flex flex-col gap-1">
-      <label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+      <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
         {label}
       </label>
       {children}
@@ -382,7 +382,7 @@ function DrawScheduleEditor({
               (h, i) => (
                 <div
                   key={i}
-                  className="px-2 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground border-r last:border-r-0 border-border"
+                  className="px-2 py-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground border-r last:border-r-0 border-border"
                 >
                   {h}
                 </div>
@@ -584,7 +584,7 @@ export default function FinancingTab({
 
         {/* Structure details */}
         <div className="space-y-4">
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             Structure Details
           </p>
           <div className="grid grid-cols-2 gap-4">
@@ -632,7 +632,7 @@ export default function FinancingTab({
 
         {/* Capital stack */}
         <div className="space-y-4">
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground border-t border-border pt-5">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground border-t border-border pt-5">
             Capital Stack
           </p>
           <div className="grid grid-cols-2 gap-4">
@@ -672,7 +672,7 @@ export default function FinancingTab({
 
         {/* Draw schedule */}
         <div className="space-y-3">
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground border-t border-border pt-5">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground border-t border-border pt-5">
             Draw Schedule
           </p>
           <DrawScheduleEditor
@@ -747,7 +747,7 @@ export default function FinancingTab({
       <div className="flex items-start justify-between gap-4">
         <div className="flex items-center gap-2">
           <h2 className="text-sm font-semibold">Financing Structure</h2>
-          <span className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide bg-amber-100 text-amber-800 ring-1 ring-inset ring-amber-300">
+          <span className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs font-semibold uppercase tracking-wide bg-amber-100 text-amber-800 ring-1 ring-inset ring-amber-300">
             <Lock size={9} />
             Confidential
           </span>
@@ -853,7 +853,7 @@ export default function FinancingTab({
               {(['Milestone', 'Amount', 'Status', 'Date'] as const).map((h, i) => (
                 <div
                   key={i}
-                  className="px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground border-r last:border-r-0 border-border"
+                  className="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground border-r last:border-r-0 border-border"
                 >
                   {h}
                 </div>
@@ -877,12 +877,12 @@ export default function FinancingTab({
                 </div>
                 <div className="px-3 py-2.5 border-r border-border">
                   {entry.drawn > 0 ? (
-                    <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-700">
+                    <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-700">
                       <Check size={11} />
                       Drawn
                     </span>
                   ) : (
-                    <span className="text-[11px] text-muted-foreground">Pending</span>
+                    <span className="text-xs text-muted-foreground">Pending</span>
                   )}
                 </div>
                 <div className="px-3 py-2.5 text-sm text-muted-foreground">

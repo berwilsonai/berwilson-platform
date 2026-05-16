@@ -120,7 +120,7 @@ function DeletableCard({
           onClick={e => { e.preventDefault(); e.stopPropagation() }}
         >
           <p className="text-xs font-medium text-center line-clamp-2">{project.name}</p>
-          <p className="text-[10px] text-muted-foreground text-center">
+          <p className="text-xs text-muted-foreground text-center">
             Permanently delete this project and all its data?
           </p>
           <div className="flex gap-2 mt-1">

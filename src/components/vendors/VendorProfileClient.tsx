@@ -110,12 +110,12 @@ function ContactsSection({ linkedContacts, primaryContact }: { linkedContacts: L
             </div>
             <div className="min-w-0 flex-1">
               <p className="text-xs font-medium truncate">{contact.full_name}</p>
-              <p className="text-[10px] text-muted-foreground truncate">
+              <p className="text-xs text-muted-foreground truncate">
                 {[contact.title, contact.role].filter(Boolean).join(' · ')}
               </p>
             </div>
             {contact.email && (
-              <span className="text-[10px] text-muted-foreground truncate hidden sm:block max-w-[140px]">
+              <span className="text-xs text-muted-foreground truncate hidden sm:block max-w-[140px]">
                 {contact.email}
               </span>
             )}
@@ -192,7 +192,7 @@ export default function VendorProfileClient({
                           {RELATIONSHIP_LABELS[link.relationship] ?? link.relationship}
                         </td>
                         <td className="px-3 py-2">
-                          <span className="px-1.5 py-0.5 rounded bg-muted text-[10px] text-muted-foreground">
+                          <span className="px-1.5 py-0.5 rounded bg-muted text-xs text-muted-foreground">
                             {link.projects?.status ?? '—'}
                           </span>
                         </td>
@@ -231,7 +231,7 @@ export default function VendorProfileClient({
             <h2 className="text-sm font-semibold">Reviews ({reviews.length})</h2>
             <button
               onClick={() => setShowReviewForm(true)}
-              className="inline-flex items-center gap-1 h-7 px-2.5 rounded-md bg-primary text-primary-foreground text-[11px] font-medium hover:bg-primary/90 transition-colors"
+              className="inline-flex items-center gap-1 h-7 px-2.5 rounded-md bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors"
             >
               <Plus size={12} />
               Add Review
@@ -271,14 +271,14 @@ export default function VendorProfileClient({
                       {review.projects && (
                         <Link
                           href={`/projects/${review.projects.id}`}
-                          className="text-[11px] text-primary hover:underline"
+                          className="text-xs text-primary hover:underline"
                         >
                           {review.projects.name}
                         </Link>
                       )}
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="text-[10px] text-muted-foreground">
+                      <span className="text-xs text-muted-foreground">
                         {review.reviewed_at ? new Date(review.reviewed_at).toLocaleDateString() : '—'}
                       </span>
                       <button
@@ -294,19 +294,19 @@ export default function VendorProfileClient({
                   {/* Indicators */}
                   <div className="flex items-center gap-3 mt-2">
                     {review.on_time !== null && (
-                      <span className={cn('inline-flex items-center gap-1 text-[10px]', review.on_time ? 'text-green-600' : 'text-red-500')}>
+                      <span className={cn('inline-flex items-center gap-1 text-xs', review.on_time ? 'text-green-600' : 'text-red-500')}>
                         {review.on_time ? <CheckCircle2 size={10} /> : <XCircle size={10} />}
                         {review.on_time ? 'On time' : 'Late'}
                       </span>
                     )}
                     {review.on_budget !== null && (
-                      <span className={cn('inline-flex items-center gap-1 text-[10px]', review.on_budget ? 'text-green-600' : 'text-red-500')}>
+                      <span className={cn('inline-flex items-center gap-1 text-xs', review.on_budget ? 'text-green-600' : 'text-red-500')}>
                         {review.on_budget ? <CheckCircle2 size={10} /> : <XCircle size={10} />}
                         {review.on_budget ? 'On budget' : 'Over budget'}
                       </span>
                     )}
                     {review.would_rehire !== null && (
-                      <span className={cn('inline-flex items-center gap-1 text-[10px]', review.would_rehire ? 'text-green-600' : 'text-red-500')}>
+                      <span className={cn('inline-flex items-center gap-1 text-xs', review.would_rehire ? 'text-green-600' : 'text-red-500')}>
                         {review.would_rehire ? <CheckCircle2 size={10} /> : <XCircle size={10} />}
                         {review.would_rehire ? 'Would rehire' : 'Would not rehire'}
                       </span>
@@ -317,7 +317,7 @@ export default function VendorProfileClient({
                     <p className="mt-2 text-xs text-muted-foreground">{review.notes}</p>
                   )}
                   {review.reviewed_by && (
-                    <p className="mt-1 text-[10px] text-muted-foreground/70">— {review.reviewed_by}</p>
+                    <p className="mt-1 text-xs text-muted-foreground/70">— {review.reviewed_by}</p>
                   )}
                 </div>
               ))}
@@ -355,7 +355,7 @@ export default function VendorProfileClient({
         {/* Entity Details */}
         <section className="rounded-lg border border-border p-3">
           <h3 className="text-xs font-semibold mb-2">Details</h3>
-          <dl className="space-y-2 text-[11px]">
+          <dl className="space-y-2 text-xs">
             <div>
               <dt className="text-muted-foreground">Type</dt>
               <dd className="font-medium uppercase">{entity.entity_type as string}</dd>
@@ -411,10 +411,10 @@ function EnrichmentNotesDisplay({ data }: { data: Record<string, unknown> }) {
   return (
     <div className="space-y-2">
       {data.founded_year ? (
-        <p className="text-[11px] text-muted-foreground">Founded: {data.founded_year as string}</p>
+        <p className="text-xs text-muted-foreground">Founded: {data.founded_year as string}</p>
       ) : null}
       {data.employee_count ? (
-        <p className="text-[11px] text-muted-foreground">Employees: {data.employee_count as string}</p>
+        <p className="text-xs text-muted-foreground">Employees: {data.employee_count as string}</p>
       ) : null}
       {sections.map(({ key, label }) => {
         const val = data[key]
@@ -422,16 +422,16 @@ function EnrichmentNotesDisplay({ data }: { data: Record<string, unknown> }) {
         if (typeof val === 'string') {
           return (
             <div key={key}>
-              <p className="text-[10px] font-medium text-muted-foreground">{label}</p>
-              <p className="text-[11px]">{val}</p>
+              <p className="text-xs font-medium text-muted-foreground">{label}</p>
+              <p className="text-xs">{val}</p>
             </div>
           )
         }
         if (Array.isArray(val) && val.length > 0) {
           return (
             <div key={key}>
-              <p className="text-[10px] font-medium text-muted-foreground">{label}</p>
-              <ul className="list-disc list-inside text-[11px] space-y-0.5">
+              <p className="text-xs font-medium text-muted-foreground">{label}</p>
+              <ul className="list-disc list-inside text-xs space-y-0.5">
                 {val.slice(0, 5).map((item, i) => (
                   <li key={i}>{item}</li>
                 ))}

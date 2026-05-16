@@ -88,17 +88,17 @@ function DiffRow({
       )}
     >
       <div className="flex items-center gap-1.5">
-        <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+        <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           {FIELD_LABELS[field] ?? field}
         </span>
         {isConflict && (
-          <span className="inline-flex items-center gap-1 text-[10px] text-amber-700 font-medium">
+          <span className="inline-flex items-center gap-1 text-xs text-amber-700 font-medium">
             <AlertTriangle size={10} />
             Conflict — will not overwrite
           </span>
         )}
         {!isConflict && !current && (
-          <span className="text-[10px] text-emerald-700 font-medium">New</span>
+          <span className="text-xs text-emerald-700 font-medium">New</span>
         )}
       </div>
 
@@ -140,20 +140,20 @@ function NotesPreview({ notes }: { notes: EnrichmentNotes }) {
 
   return (
     <div className="rounded-md border border-blue-200 bg-blue-50/40 px-3 py-2.5 space-y-2">
-      <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+      <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
         Enrichment Notes
         <span className="ml-1.5 text-blue-700 font-medium normal-case">Will be saved to profile</span>
       </span>
 
       {notes.years_of_experience && (
         <div>
-          <p className="text-[10px] text-muted-foreground">Experience</p>
+          <p className="text-xs text-muted-foreground">Experience</p>
           <p className="text-sm">{notes.years_of_experience}</p>
         </div>
       )}
       {notes.address && (
         <div>
-          <p className="text-[10px] text-muted-foreground">Address</p>
+          <p className="text-xs text-muted-foreground">Address</p>
           <p className="text-sm">{notes.address}</p>
         </div>
       )}
@@ -162,7 +162,7 @@ function NotesPreview({ notes }: { notes: EnrichmentNotes }) {
         if (!Array.isArray(arr) || arr.length === 0) return null
         return (
           <div key={key}>
-            <p className="text-[10px] text-muted-foreground">{label}</p>
+            <p className="text-xs text-muted-foreground">{label}</p>
             <ul className="text-sm list-disc pl-4 space-y-0.5">
               {(arr as string[]).map((item, i) => <li key={i}>{item}</li>)}
             </ul>
@@ -250,7 +250,7 @@ export default function EnrichProfileButton({
           Enrich Profile
         </button>
         {lastEnrichedAt && (
-          <p className="text-[10px] text-muted-foreground text-center">
+          <p className="text-xs text-muted-foreground text-center">
             Last enriched{' '}
             {new Date(lastEnrichedAt).toLocaleDateString('en-US', {
               month: 'short',
@@ -307,7 +307,7 @@ export default function EnrichProfileButton({
         </div>
 
         {preview.graph_done && (
-          <p className="text-[10px] text-emerald-700 bg-emerald-50 border border-emerald-200 rounded px-2 py-1">
+          <p className="text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 rounded px-2 py-1">
             Microsoft Graph: contact found in Outlook
           </p>
         )}
@@ -337,7 +337,7 @@ export default function EnrichProfileButton({
         {/* Sources */}
         {preview.sources.length > 0 && (
           <div className="space-y-1 pt-1 border-t border-border">
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               Sources
             </p>
             <div className="space-y-0.5 max-h-24 overflow-y-auto">
@@ -401,11 +401,11 @@ export default function EnrichProfileButton({
       </div>
       {conflicts.length > 0 && (
         <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 space-y-1">
-          <p className="text-[10px] font-semibold text-amber-800">
+          <p className="text-xs font-semibold text-amber-800">
             {conflicts.length} conflict{conflicts.length !== 1 ? 's' : ''} logged — existing values preserved
           </p>
           {conflicts.map((c) => (
-            <p key={c.field} className="text-[11px] text-amber-700">
+            <p key={c.field} className="text-xs text-amber-700">
               {FIELD_LABELS[c.field] ?? c.field}: kept &ldquo;{c.current}&rdquo;
             </p>
           ))}

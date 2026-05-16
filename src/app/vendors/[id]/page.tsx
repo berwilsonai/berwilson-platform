@@ -120,7 +120,7 @@ export default async function VendorDetailPage({ params }: PageProps) {
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <h1 className="text-xl font-semibold">{entity.name}</h1>
-            <span className="px-2 py-0.5 rounded bg-muted text-[10px] font-medium text-muted-foreground uppercase">
+            <span className="px-2 py-0.5 rounded bg-muted text-xs font-medium text-muted-foreground uppercase">
               {entity.entity_type}
             </span>
           </div>
@@ -152,7 +152,7 @@ export default async function VendorDetailPage({ params }: PageProps) {
                 <Star size={14} className="text-amber-500 fill-amber-500" />
                 <span className="text-lg font-semibold">{Number(entity.quality_score).toFixed(1)}</span>
               </div>
-              <span className="text-[10px] text-muted-foreground">Your Rating</span>
+              <span className="text-xs text-muted-foreground">Your Rating</span>
             </div>
           )}
           {avgRating !== null && (
@@ -161,7 +161,7 @@ export default async function VendorDetailPage({ params }: PageProps) {
                 <Star size={14} className="text-blue-500 fill-blue-500" />
                 <span className="text-lg font-semibold">{avgRating.toFixed(1)}</span>
               </div>
-              <span className="text-[10px] text-muted-foreground">
+              <span className="text-xs text-muted-foreground">
                 Track Record ({reviews?.length ?? 0})
               </span>
             </div>
@@ -172,7 +172,7 @@ export default async function VendorDetailPage({ params }: PageProps) {
                 <CheckCircle2 size={14} className="text-green-500" />
                 <span className="text-lg font-semibold">{Number(entity.confidence_score).toFixed(1)}</span>
               </div>
-              <span className="text-[10px] text-muted-foreground">Confidence</span>
+              <span className="text-xs text-muted-foreground">Confidence</span>
             </div>
           )}
         </div>

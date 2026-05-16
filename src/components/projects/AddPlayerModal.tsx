@@ -126,7 +126,7 @@ export default function AddPlayerModal({ projectId }: AddPlayerModalProps) {
 
           {/* Contact search */}
           <div className="space-y-1.5">
-            <label className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+            <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
               Contact
             </label>
             {selected ? (
@@ -187,7 +187,7 @@ export default function AddPlayerModal({ projectId }: AddPlayerModalProps) {
 
           {/* Role */}
           <div className="space-y-1.5">
-            <label className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+            <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
               Role <span className="text-red-500">*</span>
             </label>
             <input
@@ -216,7 +216,7 @@ export default function AddPlayerModal({ projectId }: AddPlayerModalProps) {
 
           {/* Notes */}
           <div className="space-y-1.5">
-            <label className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+            <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
               Notes (optional)
             </label>
             <textarea

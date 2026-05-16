@@ -168,7 +168,7 @@ export default function VendorEditForm({ entity, onClose }: VendorEditFormProps)
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <label className="text-[11px] text-muted-foreground block mb-1">{label}</label>
+      <label className="text-xs text-muted-foreground block mb-1">{label}</label>
       {children}
     </div>
   )

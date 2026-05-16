@@ -66,7 +66,7 @@ export default function RiskOverview() {
   if (notableScores.length === 0) return null
 
   return (
-    <div className="rounded-lg border border-border bg-card overflow-hidden">
+    <div className="rounded-lg border border-border bg-card shadow-sm overflow-hidden">
       <div className="flex items-center gap-2 px-4 py-3 border-b border-border">
         <Shield size={14} className="text-muted-foreground" />
         <h2 className="text-sm font-semibold text-foreground">Portfolio Risk</h2>
@@ -79,12 +79,12 @@ export default function RiskOverview() {
             href={`/projects/${s.project_id}`}
             className="flex items-center gap-3 px-4 py-2.5 hover:bg-muted/30 transition-colors"
           >
-            <span className={`shrink-0 inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-semibold ring-1 ring-inset ${scoreBg(s.score)} ${scoreColor(s.score)}`}>
+            <span className={`shrink-0 inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold ring-1 ring-inset ${scoreBg(s.score)} ${scoreColor(s.score)}`}>
               {s.score}
             </span>
             <div className="flex-1 min-w-0">
               <p className="text-xs font-medium text-foreground truncate">{s.project_name}</p>
-              <p className="text-[10px] text-muted-foreground mt-0.5">
+              <p className="text-xs text-muted-foreground mt-0.5">
                 {scoreLabel(s.score)} risk
                 {s.breakdown.critical_risks > 0 && ` · ${s.breakdown.critical_risks} critical`}
                 {s.breakdown.overdue_milestones > 0 && ` · ${s.breakdown.overdue_milestones} overdue`}

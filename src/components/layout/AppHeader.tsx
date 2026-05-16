@@ -7,12 +7,19 @@ import { createClient } from '@/lib/supabase/client'
 
 const PAGE_TITLES: Record<string, string> = {
   '/dashboard': 'Dashboard',
+  '/attention': 'Attention',
   '/projects': 'Projects',
+  '/calendar': 'Calendar',
+  '/briefs': 'Briefs',
   '/contacts': 'Contacts',
+  '/vendors': 'Vendors',
+  '/company': 'Ber Wilson',
   '/review': 'Review Queue',
+  '/email-log': 'Email Log',
   '/activity': 'Activity',
   '/intel': 'Intel',
-  '/email-log': 'Email Log',
+  '/portfolio': 'Portfolio',
+  '/equity': 'Equity & Valuation',
 }
 
 function getPageTitle(pathname: string): string {
@@ -42,22 +49,23 @@ export default function AppHeader({ email }: { email: string }) {
 
   return (
     <header className="h-14 flex items-center justify-between px-4 sm:px-6 border-b border-border bg-background shrink-0">
-      {/* Logo visible on mobile (sidebar is hidden); page title on desktop */}
-      <div className="flex items-center gap-3">
+      {/* Logo + page title */}
+      <div className="flex items-center gap-2.5">
         <Image
           src="/logo.png"
           alt="Ber Wilson"
           width={100}
           height={54}
-          className="object-contain h-7 w-auto md:hidden"
+          className="object-contain h-5 w-auto md:hidden"
           priority
         />
-        <h1 className="text-sm font-semibold tracking-tight hidden md:block">{getPageTitle(pathname)}</h1>
+        <div className="hidden md:hidden w-px h-4 bg-border" />
+        <h1 className="text-sm font-semibold tracking-tight">{getPageTitle(pathname)}</h1>
       </div>
 
       <div className="flex items-center gap-3">
         <div className="flex items-center gap-2.5">
-          <div className="size-7 rounded-full bg-slate-700 text-white text-[11px] font-semibold flex items-center justify-center shrink-0">
+          <div className="size-7 rounded-full bg-primary text-primary-foreground text-xs font-semibold flex items-center justify-center shrink-0">
             {initials(email)}
           </div>
           <span className="text-xs text-muted-foreground hidden sm:block max-w-[160px] truncate">

@@ -23,7 +23,7 @@ export default function AlertsBanner({ alerts }: { alerts: Alert[] }) {
   const hasMore = alerts.length > 3
 
   return (
-    <div className="rounded-lg border border-red-200 bg-red-50 overflow-hidden">
+    <div className="rounded-lg border border-red-200 bg-red-50 shadow-sm overflow-hidden">
       {/* Header */}
       <div className="flex items-center gap-2 px-4 py-2.5">
         <AlertTriangle size={14} className="text-red-600 shrink-0" />
@@ -58,7 +58,7 @@ export default function AlertsBanner({ alerts }: { alerts: Alert[] }) {
       {hasMore && (
         <button
           onClick={() => setExpanded(!expanded)}
-          className="flex items-center gap-1 w-full px-4 py-1.5 text-[11px] text-red-600 hover:bg-red-100 transition-colors border-t border-red-200"
+          className="flex items-center gap-1 w-full px-4 py-1.5 text-xs text-red-600 hover:bg-red-100 transition-colors border-t border-red-200"
         >
           {expanded ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
           {expanded ? 'Show less' : `+${alerts.length - 3} more items`}

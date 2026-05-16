@@ -50,7 +50,7 @@ export default function SourceTag({ source, className }: SourceTagProps) {
   return (
     <span
       className={cn(
-        'inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-medium ring-1 ring-inset',
+        'inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs font-medium ring-1 ring-inset',
         config.style,
         className
       )}

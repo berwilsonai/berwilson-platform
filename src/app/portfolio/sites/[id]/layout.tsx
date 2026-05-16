@@ -56,7 +56,7 @@ export default async function SiteLayout({
         </div>
         <div className="flex items-center gap-2 shrink-0">
           {site.is_lead_site && (
-            <span className="text-[10px] font-bold uppercase bg-indigo-100 text-indigo-700 px-2 py-1 rounded">
+            <span className="text-xs font-bold uppercase bg-indigo-100 text-indigo-700 px-2 py-1 rounded">
               Lead Site
             </span>
           )}

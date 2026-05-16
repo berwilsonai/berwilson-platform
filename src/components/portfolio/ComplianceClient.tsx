@@ -207,7 +207,7 @@ export default function ComplianceClient({ siteId, initialItems }: ComplianceCli
                         <td className="px-3 py-2 font-medium text-slate-900">{ci.requirement ?? ci.framework}</td>
                         <td className="px-3 py-2">
                           {ci.status ? (
-                            <span className={`inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium ring-1 ring-inset ${COMPLIANCE_STATUS_BADGE[ci.status as string] ?? 'bg-slate-100 text-slate-600 ring-slate-200'}`}>
+                            <span className={`inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium ring-1 ring-inset ${COMPLIANCE_STATUS_BADGE[ci.status as string] ?? 'bg-slate-100 text-slate-600 ring-slate-200'}`}>
                               {COMPLIANCE_STATUS_LABELS[ci.status as keyof typeof COMPLIANCE_STATUS_LABELS] ?? ci.status}
                             </span>
                           ) : <span className="text-slate-400 text-xs">—</span>}
@@ -259,14 +259,14 @@ export default function ComplianceClient({ siteId, initialItems }: ComplianceCli
             {error && <p className="text-sm text-red-600">{error}</p>}
 
             <div className="space-y-1.5">
-              <label className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+              <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                 Framework <span className="text-red-500">*</span>
               </label>
               <input value={form.framework} onChange={e => field('framework', e.target.value)} placeholder="e.g. NEPA, OSHA, Local Permitting" disabled={saving} className={inputClass} autoFocus />
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+              <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                 Requirement <span className="text-red-500">*</span>
               </label>
               <input value={form.requirement} onChange={e => field('requirement', e.target.value)} placeholder="e.g. Environmental Impact Statement" disabled={saving} className={inputClass} />
@@ -274,7 +274,7 @@ export default function ComplianceClient({ siteId, initialItems }: ComplianceCli
 
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <label className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Status</label>
+                <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Status</label>
                 <select value={form.status ?? ''} onChange={e => field('status', e.target.value)} disabled={saving} className={inputClass}>
                   <option value="">Select…</option>
                   {COMPLIANCE_STATUSES.map(s => (
@@ -283,13 +283,13 @@ export default function ComplianceClient({ siteId, initialItems }: ComplianceCli
                 </select>
               </div>
               <div className="space-y-1.5">
-                <label className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Due Date</label>
+                <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Due Date</label>
                 <input type="date" value={form.due_date} onChange={e => field('due_date', e.target.value)} disabled={saving} className={inputClass} />
               </div>
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Notes</label>
+              <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Notes</label>
               <textarea value={form.notes} onChange={e => field('notes', e.target.value)} rows={2} disabled={saving} className={`${inputClass} resize-none`} />
             </div>
           </div>

@@ -137,7 +137,7 @@ export default function IntelClient() {
             <div className="flex items-center justify-between">
               {result.ai_query_id && !result.no_data ? (
                 <div className="flex items-center gap-1">
-                  <span className="text-[11px] text-muted-foreground mr-1">Helpful?</span>
+                  <span className="text-xs text-muted-foreground mr-1">Helpful?</span>
                   <button
                     onClick={() => handleRate(1)}
                     title="Thumbs up"

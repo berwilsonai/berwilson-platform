@@ -66,7 +66,7 @@ export default function QueryInput({ onSubmit, loading }: Props) {
             )}
           </button>
         </div>
-        <p className="text-[11px] text-muted-foreground mt-1.5">
+        <p className="text-xs text-muted-foreground mt-1.5">
           Enter to submit · Shift+Enter for new line
         </p>
       </form>
@@ -74,7 +74,7 @@ export default function QueryInput({ onSubmit, loading }: Props) {
       {/* Suggested queries — hide while loading */}
       {!loading && !query && (
         <div className="space-y-1.5">
-          <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
             Try asking
           </p>
           <div className="flex flex-wrap gap-2">

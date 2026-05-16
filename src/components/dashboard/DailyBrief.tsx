@@ -70,7 +70,7 @@ export default function DailyBrief() {
   if (!brief && !loading && !error) return null
 
   return (
-    <div className="rounded-lg border border-primary/20 bg-primary/[0.03] overflow-hidden">
+    <div className="rounded-lg border border-primary/20 bg-primary/[0.03] shadow-sm overflow-hidden">
       {/* Header */}
       <button
         onClick={() => setExpanded(!expanded)}
@@ -81,7 +81,7 @@ export default function DailyBrief() {
           Daily Intelligence Brief
         </span>
         {stale && !loading && (
-          <span className="text-[10px] text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded">
+          <span className="text-xs text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded">
             Yesterday
           </span>
         )}

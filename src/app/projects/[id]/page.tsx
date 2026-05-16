@@ -6,6 +6,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import GenerateBriefButton from '@/components/projects/GenerateBriefButton'
 import ProjectNarrativeBrief from '@/components/projects/ProjectNarrativeBrief'
 import MediaGallery from '@/components/shared/MediaGallery'
+import DependenciesTab from '@/components/projects/DependenciesTab'
 import type { Entity, EntityProject, Project } from '@/lib/supabase/types'
 import type { Metadata } from 'next'
 import {
@@ -27,7 +28,7 @@ type EntityProjectWithEntity = EntityProject & { entity: Entity }
 function Field({ label, value }: { label: string; value: string | null | undefined }) {
   return (
     <div className="space-y-0.5">
-      <dt className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+      <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
         {label}
       </dt>
       <dd className="text-sm text-foreground">{value || '—'}</dd>
@@ -67,7 +68,7 @@ export default async function ProjectOverviewPage({ params }: PageProps) {
   const { id } = await params
   const supabase = createAdminClient()
 
-  const [{ data: project }, { data: activityLogs }, { data: entityLinksRaw }, { data: childProjects }, { data: projectPhotos }] = await Promise.all([
+  const [{ data: project }, { data: activityLogs }, { data: entityLinksRaw }, { data: childProjects }, { data: projectPhotos }, { data: allProjectsRaw }] = await Promise.all([
     supabase.from('projects').select('*').eq('id', id).single(),
     supabase
       .from('activity_log')
@@ -92,6 +93,11 @@ export default async function ProjectOverviewPage({ params }: PageProps) {
       .order('is_primary', { ascending: false })
       .order('sort_order')
       .order('created_at'),
+    supabase
+      .from('projects')
+      .select('id, name')
+      .eq('status', 'active')
+      .order('name'),
   ])
 
   if (!project) notFound()
@@ -196,7 +202,7 @@ export default async function ProjectOverviewPage({ params }: PageProps) {
               >
                 <span
                   className={cn(
-                    'inline-flex shrink-0 items-center rounded px-1.5 py-0.5 text-[10px] font-semibold ring-1 ring-inset',
+                    'inline-flex shrink-0 items-center rounded px-1.5 py-0.5 text-xs font-semibold ring-1 ring-inset',
                     SECTOR_BADGE[child.sector]
                   )}
                 >
@@ -282,7 +288,7 @@ export default async function ProjectOverviewPage({ params }: PageProps) {
               >
                 <span
                   className={cn(
-                    'inline-flex shrink-0 items-center rounded px-1.5 py-0.5 text-[10px] font-semibold ring-1 ring-inset',
+                    'inline-flex shrink-0 items-center rounded px-1.5 py-0.5 text-xs font-semibold ring-1 ring-inset',
                     ENTITY_TYPE_BADGE[ep.entity.entity_type] ?? ENTITY_TYPE_BADGE.other
                   )}
                 >
@@ -309,6 +315,15 @@ export default async function ProjectOverviewPage({ params }: PageProps) {
           </div>
         </section>
       )}
+
+      {/* Cross-Project Dependencies */}
+      <section className="space-y-3">
+        <DependenciesTab
+          projectId={id}
+          projectName={project.name}
+          allProjects={(allProjectsRaw ?? []).map(p => ({ id: p.id, name: p.name }))}
+        />
+      </section>
 
       {/* Activity feed */}
       <section className="space-y-3">
@@ -337,7 +352,7 @@ export default async function ProjectOverviewPage({ params }: PageProps) {
                       </td>
                       <td className="py-2 px-3 whitespace-nowrap w-20">
                         <span
-                          className={`inline-flex rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase ring-1 ring-inset ${actionStyle}`}
+                          className={`inline-flex rounded px-1.5 py-0.5 text-xs font-semibold uppercase ring-1 ring-inset ${actionStyle}`}
                         >
                           {log.action}
                         </span>
@@ -350,7 +365,7 @@ export default async function ProjectOverviewPage({ params }: PageProps) {
                         {log.field_changes && typeof log.field_changes === 'object' && (
                           <div className="mt-0.5">
                             {Object.entries(log.field_changes as Record<string, { old: unknown; new: unknown }>).map(([field, change]) => (
-                              <span key={field} className="text-[10px] text-foreground/70">
+                              <span key={field} className="text-xs text-foreground/70">
                                 {field}: <span className="line-through text-red-500/70">{String(change.old ?? '—')}</span> → <span className="text-emerald-600">{String(change.new ?? '—')}</span>
                               </span>
                             ))}

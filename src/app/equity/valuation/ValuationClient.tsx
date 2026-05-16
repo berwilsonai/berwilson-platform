@@ -87,19 +87,19 @@ export default function ValuationClient() {
         <CardContent className="pt-6">
           <div className="grid gap-4 md:grid-cols-4">
             <div className="text-center">
-              <p className="text-[10px] uppercase tracking-wide text-muted-foreground mb-1">Conservative</p>
+              <p className="text-xs uppercase tracking-wide text-muted-foreground mb-1">Conservative</p>
               <p className="text-xl font-bold text-foreground">{formatCurrencyCompact(result.blended.low)}</p>
             </div>
             <div className="text-center">
-              <p className="text-[10px] uppercase tracking-wide text-amber-600 mb-1">Blended Mid</p>
+              <p className="text-xs uppercase tracking-wide text-amber-600 mb-1">Blended Mid</p>
               <p className="text-2xl font-bold text-amber-700">{formatCurrencyCompact(result.blended.mid)}</p>
             </div>
             <div className="text-center">
-              <p className="text-[10px] uppercase tracking-wide text-muted-foreground mb-1">Optimistic</p>
+              <p className="text-xs uppercase tracking-wide text-muted-foreground mb-1">Optimistic</p>
               <p className="text-xl font-bold text-foreground">{formatCurrencyCompact(result.blended.high)}</p>
             </div>
             <div className="text-center">
-              <p className="text-[10px] uppercase tracking-wide text-muted-foreground mb-1">Weights</p>
+              <p className="text-xs uppercase tracking-wide text-muted-foreground mb-1">Weights</p>
               <p className="text-xs text-muted-foreground">
                 DCF {(valuation.weightDCF * 100).toFixed(0)}% / Mult {(valuation.weightMultiples * 100).toFixed(0)}% / Assets {(valuation.weightAssets * 100).toFixed(0)}%
               </p>
@@ -177,7 +177,7 @@ export default function ValuationClient() {
                       value={c.status}
                       onValueChange={(v) => updateContract(i, { status: v as 'signed' | 'probable' | 'pipeline' })}
                     >
-                      <SelectTrigger className="h-7 text-[10px] w-24">
+                      <SelectTrigger className="h-7 text-xs w-24">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -227,15 +227,15 @@ export default function ValuationClient() {
           <CardContent className="space-y-4">
             <div className="grid grid-cols-3 gap-2 text-center">
               <div>
-                <p className="text-[9px] text-muted-foreground">Low</p>
+                <p className="text-xs text-muted-foreground">Low</p>
                 <p className="text-sm font-medium">{formatCurrencyCompact(result.dcf.low)}</p>
               </div>
               <div>
-                <p className="text-[9px] text-amber-600">Mid</p>
+                <p className="text-xs text-amber-600">Mid</p>
                 <p className="text-sm font-bold">{formatCurrencyCompact(result.dcf.mid)}</p>
               </div>
               <div>
-                <p className="text-[9px] text-muted-foreground">High</p>
+                <p className="text-xs text-muted-foreground">High</p>
                 <p className="text-sm font-medium">{formatCurrencyCompact(result.dcf.high)}</p>
               </div>
             </div>
@@ -244,7 +244,7 @@ export default function ValuationClient() {
 
             <div className="space-y-3">
               <div className="space-y-1.5">
-                <Label className="text-[10px]">Contract Term (Years)</Label>
+                <Label className="text-xs">Contract Term (Years)</Label>
                 <div className="flex items-center gap-2">
                   <Slider
                     value={[valuation.contractTermYears]}
@@ -253,14 +253,14 @@ export default function ValuationClient() {
                     max={20}
                     step={1}
                   />
-                  <span className="text-[10px] font-medium w-10 text-right">
+                  <span className="text-xs font-medium w-10 text-right">
                     {valuation.contractTermYears}yr
                   </span>
                 </div>
               </div>
 
               <div className="space-y-1.5">
-                <Label className="text-[10px]">Net Margin Low</Label>
+                <Label className="text-xs">Net Margin Low</Label>
                 <div className="flex items-center gap-2">
                   <Slider
                     value={[valuation.netMarginLow * 100]}
@@ -269,14 +269,14 @@ export default function ValuationClient() {
                     max={30}
                     step={1}
                   />
-                  <span className="text-[10px] font-medium w-10 text-right">
+                  <span className="text-xs font-medium w-10 text-right">
                     {(valuation.netMarginLow * 100).toFixed(0)}%
                   </span>
                 </div>
               </div>
 
               <div className="space-y-1.5">
-                <Label className="text-[10px]">Net Margin High</Label>
+                <Label className="text-xs">Net Margin High</Label>
                 <div className="flex items-center gap-2">
                   <Slider
                     value={[valuation.netMarginHigh * 100]}
@@ -285,14 +285,14 @@ export default function ValuationClient() {
                     max={40}
                     step={1}
                   />
-                  <span className="text-[10px] font-medium w-10 text-right">
+                  <span className="text-xs font-medium w-10 text-right">
                     {(valuation.netMarginHigh * 100).toFixed(0)}%
                   </span>
                 </div>
               </div>
 
               <div className="space-y-1.5">
-                <Label className="text-[10px]">Execution Probability</Label>
+                <Label className="text-xs">Execution Probability</Label>
                 <div className="flex items-center gap-2">
                   <Slider
                     value={[valuation.executionProbability * 100]}
@@ -301,14 +301,14 @@ export default function ValuationClient() {
                     max={100}
                     step={5}
                   />
-                  <span className="text-[10px] font-medium w-10 text-right">
+                  <span className="text-xs font-medium w-10 text-right">
                     {(valuation.executionProbability * 100).toFixed(0)}%
                   </span>
                 </div>
               </div>
 
               <div className="space-y-1.5">
-                <Label className="text-[10px]">Discount Rate</Label>
+                <Label className="text-xs">Discount Rate</Label>
                 <div className="flex items-center gap-2">
                   <Slider
                     value={[valuation.discountRate * 100]}
@@ -317,14 +317,14 @@ export default function ValuationClient() {
                     max={40}
                     step={1}
                   />
-                  <span className="text-[10px] font-medium w-10 text-right">
+                  <span className="text-xs font-medium w-10 text-right">
                     {(valuation.discountRate * 100).toFixed(0)}%
                   </span>
                 </div>
               </div>
 
               <div className="space-y-1.5">
-                <Label className="text-[10px]">Pipeline Value (Probability-Weighted)</Label>
+                <Label className="text-xs">Pipeline Value (Probability-Weighted)</Label>
                 <div className="flex items-center gap-2">
                   <Slider
                     value={[valuation.pipelineProbabilityWeightedValue]}
@@ -333,14 +333,14 @@ export default function ValuationClient() {
                     max={500_000_000}
                     step={5_000_000}
                   />
-                  <span className="text-[10px] font-medium w-14 text-right">
+                  <span className="text-xs font-medium w-14 text-right">
                     {formatCurrencyCompact(valuation.pipelineProbabilityWeightedValue)}
                   </span>
                 </div>
               </div>
 
               <div className="space-y-1.5">
-                <Label className="text-[10px]">Pipeline Discount Years</Label>
+                <Label className="text-xs">Pipeline Discount Years</Label>
                 <div className="flex items-center gap-2">
                   <Slider
                     value={[valuation.pipelineDiscountYears]}
@@ -349,14 +349,14 @@ export default function ValuationClient() {
                     max={15}
                     step={1}
                   />
-                  <span className="text-[10px] font-medium w-10 text-right">
+                  <span className="text-xs font-medium w-10 text-right">
                     {valuation.pipelineDiscountYears}yr
                   </span>
                 </div>
               </div>
 
               <div className="space-y-1.5">
-                <Label className="text-[10px]">Weight</Label>
+                <Label className="text-xs">Weight</Label>
                 <div className="flex items-center gap-2">
                   <Slider
                     value={[valuation.weightDCF * 100]}
@@ -374,7 +374,7 @@ export default function ValuationClient() {
                     max={100}
                     step={5}
                   />
-                  <span className="text-[10px] font-medium w-10 text-right">
+                  <span className="text-xs font-medium w-10 text-right">
                     {(valuation.weightDCF * 100).toFixed(0)}%
                   </span>
                 </div>
@@ -391,15 +391,15 @@ export default function ValuationClient() {
           <CardContent className="space-y-4">
             <div className="grid grid-cols-3 gap-2 text-center">
               <div>
-                <p className="text-[9px] text-muted-foreground">Low</p>
+                <p className="text-xs text-muted-foreground">Low</p>
                 <p className="text-sm font-medium">{formatCurrencyCompact(result.multiples.low)}</p>
               </div>
               <div>
-                <p className="text-[9px] text-amber-600">Mid</p>
+                <p className="text-xs text-amber-600">Mid</p>
                 <p className="text-sm font-bold">{formatCurrencyCompact(result.multiples.mid)}</p>
               </div>
               <div>
-                <p className="text-[9px] text-muted-foreground">High</p>
+                <p className="text-xs text-muted-foreground">High</p>
                 <p className="text-sm font-medium">{formatCurrencyCompact(result.multiples.high)}</p>
               </div>
             </div>
@@ -408,7 +408,7 @@ export default function ValuationClient() {
 
             <div className="space-y-3">
               <div className="space-y-1.5">
-                <Label className="text-[10px]">Revenue Multiple Low</Label>
+                <Label className="text-xs">Revenue Multiple Low</Label>
                 <div className="flex items-center gap-2">
                   <Slider
                     value={[valuation.revenueMultipleLow]}
@@ -417,14 +417,14 @@ export default function ValuationClient() {
                     max={3}
                     step={0.1}
                   />
-                  <span className="text-[10px] font-medium w-10 text-right">
+                  <span className="text-xs font-medium w-10 text-right">
                     {valuation.revenueMultipleLow.toFixed(1)}x
                   </span>
                 </div>
               </div>
 
               <div className="space-y-1.5">
-                <Label className="text-[10px]">Revenue Multiple High</Label>
+                <Label className="text-xs">Revenue Multiple High</Label>
                 <div className="flex items-center gap-2">
                   <Slider
                     value={[valuation.revenueMultipleHigh]}
@@ -433,14 +433,14 @@ export default function ValuationClient() {
                     max={5}
                     step={0.1}
                   />
-                  <span className="text-[10px] font-medium w-10 text-right">
+                  <span className="text-xs font-medium w-10 text-right">
                     {valuation.revenueMultipleHigh.toFixed(1)}x
                   </span>
                 </div>
               </div>
 
               <div className="space-y-1.5">
-                <Label className="text-[10px]">EBITDA Multiple Low</Label>
+                <Label className="text-xs">EBITDA Multiple Low</Label>
                 <div className="flex items-center gap-2">
                   <Slider
                     value={[valuation.ebitdaMultipleLow]}
@@ -449,14 +449,14 @@ export default function ValuationClient() {
                     max={15}
                     step={0.5}
                   />
-                  <span className="text-[10px] font-medium w-10 text-right">
+                  <span className="text-xs font-medium w-10 text-right">
                     {valuation.ebitdaMultipleLow.toFixed(1)}x
                   </span>
                 </div>
               </div>
 
               <div className="space-y-1.5">
-                <Label className="text-[10px]">EBITDA Multiple High</Label>
+                <Label className="text-xs">EBITDA Multiple High</Label>
                 <div className="flex items-center gap-2">
                   <Slider
                     value={[valuation.ebitdaMultipleHigh]}
@@ -465,14 +465,14 @@ export default function ValuationClient() {
                     max={25}
                     step={0.5}
                   />
-                  <span className="text-[10px] font-medium w-10 text-right">
+                  <span className="text-xs font-medium w-10 text-right">
                     {valuation.ebitdaMultipleHigh.toFixed(1)}x
                   </span>
                 </div>
               </div>
 
               <div className="space-y-1.5">
-                <Label className="text-[10px]">Stage Discount</Label>
+                <Label className="text-xs">Stage Discount</Label>
                 <div className="flex items-center gap-2">
                   <Slider
                     value={[valuation.stageDiscount * 100]}
@@ -481,14 +481,14 @@ export default function ValuationClient() {
                     max={70}
                     step={5}
                   />
-                  <span className="text-[10px] font-medium w-10 text-right">
+                  <span className="text-xs font-medium w-10 text-right">
                     {(valuation.stageDiscount * 100).toFixed(0)}%
                   </span>
                 </div>
               </div>
 
               <div className="space-y-1.5">
-                <Label className="text-[10px]">Strategic Premium</Label>
+                <Label className="text-xs">Strategic Premium</Label>
                 <div className="flex items-center gap-2">
                   <Slider
                     value={[valuation.strategicPremium]}
@@ -497,17 +497,17 @@ export default function ValuationClient() {
                     max={5}
                     step={0.1}
                   />
-                  <span className="text-[10px] font-medium w-10 text-right">
+                  <span className="text-xs font-medium w-10 text-right">
                     {valuation.strategicPremium.toFixed(1)}x
                   </span>
                 </div>
-                <p className="text-[9px] text-muted-foreground">
+                <p className="text-xs text-muted-foreground">
                   Certifications, IP, tribal preference
                 </p>
               </div>
 
               <div className="space-y-1.5">
-                <Label className="text-[10px]">Weight</Label>
+                <Label className="text-xs">Weight</Label>
                 <div className="flex items-center gap-2">
                   <Slider
                     value={[valuation.weightMultiples * 100]}
@@ -525,7 +525,7 @@ export default function ValuationClient() {
                     max={100}
                     step={5}
                   />
-                  <span className="text-[10px] font-medium w-10 text-right">
+                  <span className="text-xs font-medium w-10 text-right">
                     {(valuation.weightMultiples * 100).toFixed(0)}%
                   </span>
                 </div>
@@ -542,15 +542,15 @@ export default function ValuationClient() {
           <CardContent className="space-y-4">
             <div className="grid grid-cols-3 gap-2 text-center">
               <div>
-                <p className="text-[9px] text-muted-foreground">Low</p>
+                <p className="text-xs text-muted-foreground">Low</p>
                 <p className="text-sm font-medium">{formatCurrencyCompact(result.assets.low)}</p>
               </div>
               <div>
-                <p className="text-[9px] text-amber-600">Mid</p>
+                <p className="text-xs text-amber-600">Mid</p>
                 <p className="text-sm font-bold">{formatCurrencyCompact(result.assets.mid)}</p>
               </div>
               <div>
-                <p className="text-[9px] text-muted-foreground">High</p>
+                <p className="text-xs text-muted-foreground">High</p>
                 <p className="text-sm font-medium">{formatCurrencyCompact(result.assets.high)}</p>
               </div>
             </div>
@@ -559,7 +559,7 @@ export default function ValuationClient() {
 
             <div className="space-y-3">
               <div className="space-y-1.5">
-                <Label className="text-[10px]">Total Patent Count</Label>
+                <Label className="text-xs">Total Patent Count</Label>
                 <div className="flex items-center gap-2">
                   <Slider
                     value={[valuation.patents.totalCount]}
@@ -570,14 +570,14 @@ export default function ValuationClient() {
                     max={500}
                     step={1}
                   />
-                  <span className="text-[10px] font-medium w-8 text-right">
+                  <span className="text-xs font-medium w-8 text-right">
                     {valuation.patents.totalCount}
                   </span>
                 </div>
               </div>
 
               <div className="space-y-1.5">
-                <Label className="text-[10px]">Provisional Filed</Label>
+                <Label className="text-xs">Provisional Filed</Label>
                 <div className="flex items-center gap-2">
                   <Slider
                     value={[valuation.patents.provisionalFiled]}
@@ -590,25 +590,25 @@ export default function ValuationClient() {
                     max={valuation.patents.totalCount}
                     step={1}
                   />
-                  <span className="text-[10px] font-medium w-8 text-right">
+                  <span className="text-xs font-medium w-8 text-right">
                     {valuation.patents.provisionalFiled}
                   </span>
                 </div>
                 <div className="flex items-center gap-1">
-                  <Label className="text-[9px] text-muted-foreground">Value each:</Label>
+                  <Label className="text-xs text-muted-foreground">Value each:</Label>
                   <Input
                     type="number"
                     value={valuation.patents.valuePerProvisional}
                     onChange={(e) =>
                       setValuation({ patents: { ...valuation.patents, valuePerProvisional: Number(e.target.value) || 0 } })
                     }
-                    className="h-5 text-[9px] w-20"
+                    className="h-5 text-xs w-20"
                   />
                 </div>
               </div>
 
               <div className="space-y-1.5">
-                <Label className="text-[10px]">Non-Provisional Filed</Label>
+                <Label className="text-xs">Non-Provisional Filed</Label>
                 <div className="flex items-center gap-2">
                   <Slider
                     value={[valuation.patents.nonProvisionalFiled]}
@@ -621,25 +621,25 @@ export default function ValuationClient() {
                     max={valuation.patents.provisionalFiled}
                     step={1}
                   />
-                  <span className="text-[10px] font-medium w-8 text-right">
+                  <span className="text-xs font-medium w-8 text-right">
                     {valuation.patents.nonProvisionalFiled}
                   </span>
                 </div>
                 <div className="flex items-center gap-1">
-                  <Label className="text-[9px] text-muted-foreground">Value each:</Label>
+                  <Label className="text-xs text-muted-foreground">Value each:</Label>
                   <Input
                     type="number"
                     value={valuation.patents.valuePerNonProvisional}
                     onChange={(e) =>
                       setValuation({ patents: { ...valuation.patents, valuePerNonProvisional: Number(e.target.value) || 0 } })
                     }
-                    className="h-5 text-[9px] w-20"
+                    className="h-5 text-xs w-20"
                   />
                 </div>
               </div>
 
               <div className="space-y-1.5">
-                <Label className="text-[10px]">Granted</Label>
+                <Label className="text-xs">Granted</Label>
                 <div className="flex items-center gap-2">
                   <Slider
                     value={[valuation.patents.granted]}
@@ -650,25 +650,25 @@ export default function ValuationClient() {
                     max={valuation.patents.nonProvisionalFiled}
                     step={1}
                   />
-                  <span className="text-[10px] font-medium w-8 text-right">
+                  <span className="text-xs font-medium w-8 text-right">
                     {valuation.patents.granted}
                   </span>
                 </div>
                 <div className="flex items-center gap-1">
-                  <Label className="text-[9px] text-muted-foreground">Value each:</Label>
+                  <Label className="text-xs text-muted-foreground">Value each:</Label>
                   <Input
                     type="number"
                     value={valuation.patents.valuePerGranted}
                     onChange={(e) =>
                       setValuation({ patents: { ...valuation.patents, valuePerGranted: Number(e.target.value) || 0 } })
                     }
-                    className="h-5 text-[9px] w-20"
+                    className="h-5 text-xs w-20"
                   />
                 </div>
               </div>
 
               <div className="space-y-1.5">
-                <Label className="text-[10px]">Commercially Evaluated</Label>
+                <Label className="text-xs">Commercially Evaluated</Label>
                 <div className="flex items-center gap-2">
                   <Slider
                     value={[valuation.patents.commerciallyEvaluated]}
@@ -679,19 +679,19 @@ export default function ValuationClient() {
                     max={valuation.patents.granted}
                     step={1}
                   />
-                  <span className="text-[10px] font-medium w-8 text-right">
+                  <span className="text-xs font-medium w-8 text-right">
                     {valuation.patents.commerciallyEvaluated}
                   </span>
                 </div>
                 <div className="flex items-center gap-1">
-                  <Label className="text-[9px] text-muted-foreground">Value each:</Label>
+                  <Label className="text-xs text-muted-foreground">Value each:</Label>
                   <Input
                     type="number"
                     value={valuation.patents.valuePerCommercial}
                     onChange={(e) =>
                       setValuation({ patents: { ...valuation.patents, valuePerCommercial: Number(e.target.value) || 0 } })
                     }
-                    className="h-5 text-[9px] w-20"
+                    className="h-5 text-xs w-20"
                   />
                 </div>
               </div>
@@ -699,7 +699,7 @@ export default function ValuationClient() {
               <Separator />
 
               <div className="space-y-1.5">
-                <Label className="text-[10px]">Trade Secrets Value</Label>
+                <Label className="text-xs">Trade Secrets Value</Label>
                 <div className="flex items-center gap-2">
                   <Slider
                     value={[valuation.tradeSecretsValue]}
@@ -708,14 +708,14 @@ export default function ValuationClient() {
                     max={10_000_000}
                     step={250_000}
                   />
-                  <span className="text-[10px] font-medium w-12 text-right">
+                  <span className="text-xs font-medium w-12 text-right">
                     {formatCurrencyCompact(valuation.tradeSecretsValue)}
                   </span>
                 </div>
               </div>
 
               <div className="space-y-1.5">
-                <Label className="text-[10px]">Brand & Marks Value</Label>
+                <Label className="text-xs">Brand & Marks Value</Label>
                 <div className="flex items-center gap-2">
                   <Slider
                     value={[valuation.brandAndMarksValue]}
@@ -724,14 +724,14 @@ export default function ValuationClient() {
                     max={5_000_000}
                     step={100_000}
                   />
-                  <span className="text-[10px] font-medium w-12 text-right">
+                  <span className="text-xs font-medium w-12 text-right">
                     {formatCurrencyCompact(valuation.brandAndMarksValue)}
                   </span>
                 </div>
               </div>
 
               <div className="space-y-1.5">
-                <Label className="text-[10px]">Certifications Value</Label>
+                <Label className="text-xs">Certifications Value</Label>
                 <div className="flex items-center gap-2">
                   <Slider
                     value={[valuation.certificationsValue]}
@@ -740,14 +740,14 @@ export default function ValuationClient() {
                     max={5_000_000}
                     step={100_000}
                   />
-                  <span className="text-[10px] font-medium w-12 text-right">
+                  <span className="text-xs font-medium w-12 text-right">
                     {formatCurrencyCompact(valuation.certificationsValue)}
                   </span>
                 </div>
               </div>
 
               <div className="space-y-1.5">
-                <Label className="text-[10px]">Relationships Value</Label>
+                <Label className="text-xs">Relationships Value</Label>
                 <div className="flex items-center gap-2">
                   <Slider
                     value={[valuation.relationshipsValue]}
@@ -756,7 +756,7 @@ export default function ValuationClient() {
                     max={10_000_000}
                     step={250_000}
                   />
-                  <span className="text-[10px] font-medium w-12 text-right">
+                  <span className="text-xs font-medium w-12 text-right">
                     {formatCurrencyCompact(valuation.relationshipsValue)}
                   </span>
                 </div>
@@ -765,7 +765,7 @@ export default function ValuationClient() {
               <Separator />
 
               <div className="space-y-1.5">
-                <Label className="text-[10px]">Weight</Label>
+                <Label className="text-xs">Weight</Label>
                 <div className="flex items-center gap-2">
                   <Slider
                     value={[valuation.weightAssets * 100]}
@@ -783,7 +783,7 @@ export default function ValuationClient() {
                     max={100}
                     step={5}
                   />
-                  <span className="text-[10px] font-medium w-10 text-right">
+                  <span className="text-xs font-medium w-10 text-right">
                     {(valuation.weightAssets * 100).toFixed(0)}%
                   </span>
                 </div>
@@ -817,7 +817,7 @@ export default function ValuationClient() {
           <div className="grid gap-3 md:grid-cols-2">
             <div className="bg-muted/30 rounded-md px-3 py-2 space-y-2">
               <div className="flex items-center gap-2">
-                <Label className="text-[10px]">Target Equity %</Label>
+                <Label className="text-xs">Target Equity %</Label>
                 <Input
                   type="number"
                   value={reverseEquity1}
@@ -833,7 +833,7 @@ export default function ValuationClient() {
             </div>
             <div className="bg-muted/30 rounded-md px-3 py-2 space-y-2">
               <div className="flex items-center gap-2">
-                <Label className="text-[10px]">Target Equity %</Label>
+                <Label className="text-xs">Target Equity %</Label>
                 <Input
                   type="number"
                   value={reverseEquity2}

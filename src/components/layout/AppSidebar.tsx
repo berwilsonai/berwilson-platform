@@ -19,12 +19,16 @@ import {
   Shield,
   TrendingUp,
   Globe,
+  AlertTriangle,
+  Sparkles,
 } from 'lucide-react'
 
 const NAV_ITEMS = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/attention', label: 'Attention', icon: AlertTriangle },
   { href: '/projects', label: 'Projects', icon: FolderKanban },
   { href: '/calendar', label: 'Calendar', icon: CalendarDays },
+  { href: '/briefs', label: 'Briefs', icon: Sparkles },
   { href: '/contacts', label: 'Contacts', icon: Users },
   { href: '/vendors', label: 'Vendors', icon: Building2 },
   { href: '/company', label: 'Ber Wilson', icon: Shield },
@@ -36,21 +40,22 @@ const NAV_ITEMS = [
 
 interface AppSidebarProps {
   pendingReviewCount?: number
+  attentionCount?: number
 }
 
-export default function AppSidebar({ pendingReviewCount = 0 }: AppSidebarProps) {
+export default function AppSidebar({ pendingReviewCount = 0, attentionCount = 0 }: AppSidebarProps) {
   const pathname = usePathname()
   const [collapsed, setCollapsed] = useState(false)
 
   return (
     <aside
-      className={`hidden md:flex flex-col bg-slate-900 shrink-0 transition-[width] duration-200 ease-in-out ${
+      className={`hidden md:flex flex-col bg-sidebar shrink-0 transition-[width] duration-200 ease-in-out ${
         collapsed ? 'w-14' : 'w-56'
       }`}
     >
       {/* Brand */}
       <div
-        className={`flex items-center h-14 px-3 border-b border-slate-800 ${
+        className={`flex items-center h-14 px-3 border-b border-sidebar-border ${
           collapsed ? 'justify-center' : 'justify-between'
         }`}
       >
@@ -61,7 +66,7 @@ export default function AppSidebar({ pendingReviewCount = 0 }: AppSidebarProps) 
         )}
         <button
           onClick={() => setCollapsed(!collapsed)}
-          className="p-1.5 rounded text-slate-500 hover:text-white hover:bg-slate-800 transition-colors"
+          className="p-1.5 rounded text-sidebar-foreground/50 hover:text-sidebar-foreground hover:bg-sidebar-accent transition-colors"
           aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
         >
           {collapsed ? <ChevronRight size={15} /> : <ChevronLeft size={15} />}
@@ -69,20 +74,22 @@ export default function AppSidebar({ pendingReviewCount = 0 }: AppSidebarProps) 
       </div>
 
       {/* Nav items */}
-      <nav className="flex-1 py-3 px-2 space-y-0.5 overflow-y-auto">
+      <nav className="flex-1 py-3 px-2 space-y-1 overflow-y-auto">
         {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
           const active = pathname === href || pathname.startsWith(href + '/')
           const isReview = href === '/review'
-          const showBadge = isReview && pendingReviewCount > 0
+          const isAttention = href === '/attention'
+          const badgeCount = isReview ? pendingReviewCount : isAttention ? attentionCount : 0
+          const showBadge = badgeCount > 0
           return (
             <Link
               key={href}
               href={href}
-              title={collapsed ? (showBadge ? `${label} (${pendingReviewCount})` : label) : undefined}
-              className={`flex items-center gap-3 px-2.5 py-2 rounded text-sm font-medium transition-colors ${
+              title={collapsed ? (showBadge ? `${label} (${badgeCount})` : label) : undefined}
+              className={`flex items-center gap-3 px-2.5 py-2.5 rounded text-sm font-medium transition-colors ${
                 active
-                  ? 'bg-slate-700 text-white'
-                  : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                  ? 'bg-sidebar-accent text-sidebar-foreground'
+                  : 'text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent'
               }`}
             >
               <span className="relative shrink-0">
@@ -95,8 +102,10 @@ export default function AppSidebar({ pendingReviewCount = 0 }: AppSidebarProps) 
                 <>
                   <span className="truncate flex-1">{label}</span>
                   {showBadge && (
-                    <span className="ml-auto text-[10px] font-mono font-semibold bg-amber-400 text-slate-900 px-1.5 py-0.5 rounded-full leading-none">
-                      {pendingReviewCount > 99 ? '99+' : pendingReviewCount}
+                    <span className={`ml-auto text-xs font-mono font-semibold px-1.5 py-0.5 rounded-full leading-none ${
+                      isAttention ? 'bg-red-500 text-white' : 'bg-amber-400 text-sidebar'
+                    }`}>
+                      {badgeCount > 99 ? '99+' : badgeCount}
                     </span>
                   )}
                 </>
@@ -106,14 +115,14 @@ export default function AppSidebar({ pendingReviewCount = 0 }: AppSidebarProps) 
         })}
 
         {/* Portfolio */}
-        <div className="mt-2 pt-2 border-t border-slate-800">
+        <div className="mt-2 pt-2 border-t border-sidebar-border">
           <Link
             href="/portfolio"
             title={collapsed ? 'Portfolio' : undefined}
-            className={`flex items-center gap-3 px-2.5 py-2 rounded text-sm font-medium transition-colors ${
+            className={`flex items-center gap-3 px-2.5 py-2.5 rounded text-sm font-medium transition-colors ${
               pathname === '/portfolio' || pathname.startsWith('/portfolio/')
-                ? 'bg-slate-700 text-white'
-                : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                ? 'bg-sidebar-accent text-sidebar-foreground'
+                : 'text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent'
             }`}
           >
             <Globe size={15} className="shrink-0" />
@@ -122,14 +131,14 @@ export default function AppSidebar({ pendingReviewCount = 0 }: AppSidebarProps) 
         </div>
 
         {/* Equity & Valuation */}
-        <div className="mt-2 pt-2 border-t border-slate-800">
+        <div className="mt-2 pt-2 border-t border-sidebar-border">
           <Link
             href="/equity"
             title={collapsed ? 'Equity & Valuation' : undefined}
-            className={`flex items-center gap-3 px-2.5 py-2 rounded text-sm font-medium transition-colors ${
+            className={`flex items-center gap-3 px-2.5 py-2.5 rounded text-sm font-medium transition-colors ${
               pathname === '/equity' || pathname.startsWith('/equity/')
-                ? 'bg-slate-700 text-white'
-                : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                ? 'bg-sidebar-accent text-sidebar-foreground'
+                : 'text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent'
             }`}
           >
             <TrendingUp size={15} className="shrink-0" />

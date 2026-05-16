@@ -79,7 +79,7 @@ export default function DashboardPage() {
                     {description}
                   </CardDescription>
                   {priority && (
-                    <p className="text-[10px] text-amber-600 font-medium mt-2 uppercase tracking-wide">
+                    <p className="text-xs text-amber-600 font-medium mt-2 uppercase tracking-wide">
                       Start here
                     </p>
                   )}

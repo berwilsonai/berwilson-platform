@@ -17,18 +17,22 @@ import {
   Activity,
   TrendingUp,
   Globe,
+  AlertTriangle,
+  Sparkles,
   X,
 } from 'lucide-react'
 
 const PRIMARY_NAV = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/attention', label: 'Attention', icon: AlertTriangle, hasBadge: true },
   { href: '/projects', label: 'Projects', icon: FolderKanban },
-  { href: '/calendar', label: 'Calendar', icon: CalendarDays },
   { href: '/intel', label: 'Intel', icon: Brain },
   { href: '/review', label: 'Review', icon: ClipboardCheck, hasBadge: true },
 ] as const
 
 const MORE_NAV = [
+  { href: '/calendar', label: 'Calendar', icon: CalendarDays },
+  { href: '/briefs', label: 'Briefs', icon: Sparkles },
   { href: '/portfolio', label: 'Portfolio', icon: Globe },
   { href: '/equity', label: 'Equity', icon: TrendingUp },
   { href: '/contacts', label: 'Contacts', icon: Users },
@@ -62,26 +66,26 @@ export default function MobileNav({ pendingCount = 0 }: MobileNavProps) {
 
       {/* More drawer */}
       <div
-        className={`md:hidden fixed inset-x-0 z-50 bg-slate-900 border-t border-slate-700 transition-transform duration-200 ease-in-out ${
+        className={`md:hidden fixed inset-x-0 z-50 bg-sidebar border-t border-sidebar-border transition-transform duration-200 ease-in-out ${
           moreOpen ? 'translate-y-0' : 'translate-y-full'
         }`}
         style={{
           bottom: 'calc(56px + env(safe-area-inset-bottom, 0px))',
         }}
       >
-        <div className="flex items-center justify-between px-4 py-3 border-b border-slate-800">
-          <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-sidebar-border">
+          <span className="text-xs font-semibold text-sidebar-foreground/60 uppercase tracking-wider">
             More
           </span>
           <button
             onClick={() => setMoreOpen(false)}
-            className="p-1 rounded text-slate-500 hover:text-white"
+            className="p-1 rounded text-sidebar-foreground/50 hover:text-sidebar-foreground"
             aria-label="Close"
           >
             <X size={16} />
           </button>
         </div>
-        <div className="grid grid-cols-3 gap-px bg-slate-800">
+        <div className="grid grid-cols-3 gap-px bg-sidebar-border">
           {MORE_NAV.map(({ href, label, icon: Icon }) => {
             const active = pathname === href || pathname.startsWith(href + '/')
             return (
@@ -89,11 +93,11 @@ export default function MobileNav({ pendingCount = 0 }: MobileNavProps) {
                 key={href}
                 href={href}
                 onClick={() => setMoreOpen(false)}
-                className={`flex flex-col items-center gap-1.5 py-4 text-[11px] font-medium transition-colors bg-slate-900 ${
-                  active ? 'text-white' : 'text-slate-400 hover:text-white'
+                className={`flex flex-col items-center gap-1.5 py-4 text-xs font-medium transition-colors bg-sidebar ${
+                  active ? 'text-sidebar-foreground' : 'text-sidebar-foreground/60 hover:text-sidebar-foreground'
                 }`}
               >
-                <Icon size={22} className={active ? 'text-white' : 'text-slate-500'} />
+                <Icon size={22} className={active ? 'text-sidebar-foreground' : 'text-sidebar-foreground/50'} />
                 {label}
               </Link>
             )
@@ -103,7 +107,7 @@ export default function MobileNav({ pendingCount = 0 }: MobileNavProps) {
 
       {/* Bottom tab bar */}
       <nav
-        className="md:hidden fixed bottom-0 inset-x-0 z-50 bg-slate-900 border-t border-slate-800"
+        className="md:hidden fixed bottom-0 inset-x-0 z-50 bg-sidebar border-t border-sidebar-border"
         style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
       >
         <div className="flex">
@@ -114,19 +118,19 @@ export default function MobileNav({ pendingCount = 0 }: MobileNavProps) {
               <Link
                 key={href}
                 href={href}
-                className={`flex-1 flex flex-col items-center gap-1 py-3 text-[10px] font-medium transition-colors ${
+                className={`flex-1 flex flex-col items-center gap-1 py-3 text-xs font-medium transition-colors ${
                   active
-                    ? 'text-white bg-slate-800'
-                    : 'text-slate-500 hover:text-slate-300'
+                    ? 'text-sidebar-foreground bg-sidebar-accent'
+                    : 'text-sidebar-foreground/50 hover:text-sidebar-foreground/70'
                 }`}
               >
                 <span className="relative">
                   <Icon
                     size={20}
-                    className={active ? 'text-white' : 'text-slate-500'}
+                    className={active ? 'text-sidebar-foreground' : 'text-sidebar-foreground/50'}
                   />
                   {showBadge && (
-                    <span className="absolute -top-1 -right-1.5 min-w-[16px] h-4 px-1 flex items-center justify-center rounded-full bg-amber-400 text-[9px] font-bold text-slate-900 leading-none">
+                    <span className="absolute -top-1 -right-1.5 min-w-[16px] h-4 px-1 flex items-center justify-center rounded-full bg-amber-400 text-xs font-bold text-sidebar leading-none">
                       {pendingCount > 99 ? '99+' : pendingCount}
                     </span>
                   )}
@@ -139,15 +143,15 @@ export default function MobileNav({ pendingCount = 0 }: MobileNavProps) {
           {/* More button */}
           <button
             onClick={() => setMoreOpen(!moreOpen)}
-            className={`flex-1 flex flex-col items-center gap-1 py-3 text-[10px] font-medium transition-colors ${
+            className={`flex-1 flex flex-col items-center gap-1 py-3 text-xs font-medium transition-colors ${
               moreOpen || moreActive
-                ? 'text-white bg-slate-800'
-                : 'text-slate-500 hover:text-slate-300'
+                ? 'text-sidebar-foreground bg-sidebar-accent'
+                : 'text-sidebar-foreground/50 hover:text-sidebar-foreground/70'
             }`}
           >
             <MoreHorizontal
               size={20}
-              className={moreOpen || moreActive ? 'text-white' : 'text-slate-500'}
+              className={moreOpen || moreActive ? 'text-sidebar-foreground' : 'text-sidebar-foreground/50'}
             />
             More
           </button>

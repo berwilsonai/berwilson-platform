@@ -94,7 +94,7 @@ function SeverityBadge({ severity }: { severity: DdSeverity }) {
   return (
     <span
       className={cn(
-        'inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ring-1 ring-inset',
+        'inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold uppercase tracking-wide ring-1 ring-inset',
         cls
       )}
     >
@@ -136,7 +136,7 @@ const inputCls =
 function FormField({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-1">
-      <label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+      <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
         {label}
       </label>
       {children}
@@ -499,7 +499,7 @@ function DdSection({ projectId, initialItems, parties }: DdSectionProps) {
             {['Category', 'Item', 'Severity', 'Status', 'Assigned To', ''].map((h, i) => (
               <div
                 key={i}
-                className="px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground border-r last:border-r-0 border-border"
+                className="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground border-r last:border-r-0 border-border"
               >
                 {h}
               </div>
@@ -553,7 +553,7 @@ function DdSection({ projectId, initialItems, parties }: DdSectionProps) {
                       value={item.status ?? 'open'}
                       onChange={(e) => updateStatus(item, e.target.value)}
                       className={cn(
-                        'rounded px-1.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide cursor-pointer border focus:outline-none focus:ring-1 focus:ring-ring',
+                        'rounded px-1.5 py-0.5 text-xs font-semibold uppercase tracking-wide cursor-pointer border focus:outline-none focus:ring-1 focus:ring-ring',
                         DD_STATUS_SELECT_CLS[item.status ?? 'open']
                       )}
                     >
@@ -572,7 +572,7 @@ function DdSection({ projectId, initialItems, parties }: DdSectionProps) {
                     <div>
                       <p className="text-xs font-medium text-foreground">{assignee.full_name}</p>
                       {assignee.company && (
-                        <p className="text-[10px] text-muted-foreground">{assignee.company}</p>
+                        <p className="text-xs text-muted-foreground">{assignee.company}</p>
                       )}
                     </div>
                   ) : (
@@ -994,7 +994,7 @@ function ComplianceSection({
                 ].map((h, i) => (
                   <th
                     key={i}
-                    className="px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-muted-foreground border-r last:border-r-0 border-border whitespace-nowrap"
+                    className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground border-r last:border-r-0 border-border whitespace-nowrap"
                   >
                     {h}
                   </th>
@@ -1034,7 +1034,7 @@ function ComplianceSection({
                             updateStatus(item, e.target.value as ComplianceStatus)
                           }
                           className={cn(
-                            'rounded px-1.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide cursor-pointer border focus:outline-none focus:ring-1 focus:ring-ring',
+                            'rounded px-1.5 py-0.5 text-xs font-semibold uppercase tracking-wide cursor-pointer border focus:outline-none focus:ring-1 focus:ring-ring',
                             COMPLIANCE_STATUS_SELECT_CLS[item.status ?? 'not_started']
                           )}
                         >
@@ -1063,7 +1063,7 @@ function ComplianceSection({
                             {responsible.full_name}
                           </p>
                           {responsible.company && (
-                            <p className="text-[10px] text-muted-foreground">
+                            <p className="text-xs text-muted-foreground">
                               {responsible.company}
                             </p>
                           )}
@@ -1153,7 +1153,7 @@ export default function DiligenceTab({
           <ShieldCheck size={15} />
           Due Diligence
           {openDdCount > 0 && (
-            <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-orange-100 text-orange-700 text-[10px] font-bold">
+            <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-orange-100 text-orange-700 text-xs font-bold">
               {openDdCount}
             </span>
           )}
@@ -1170,7 +1170,7 @@ export default function DiligenceTab({
           <FileCheck size={15} />
           Compliance
           {nonCompliantCount > 0 && (
-            <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-red-100 text-red-700 text-[10px] font-bold">
+            <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-red-100 text-red-700 text-xs font-bold">
               {nonCompliantCount}
             </span>
           )}
@@ -1187,7 +1187,7 @@ export default function DiligenceTab({
           <Search size={15} />
           Research
           {initialResearchArtifacts.length > 0 && (
-            <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-blue-100 text-blue-700 text-[10px] font-bold">
+            <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-blue-100 text-blue-700 text-xs font-bold">
               {initialResearchArtifacts.length}
             </span>
           )}

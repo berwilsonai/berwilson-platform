@@ -160,7 +160,7 @@ export default function BackgroundCheckStatus({
         {form.background_check_completed && (
           <div className="space-y-3 pl-1">
             <div className="space-y-1">
-              <label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+              <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 Completion Date
               </label>
               <input
@@ -171,7 +171,7 @@ export default function BackgroundCheckStatus({
               />
             </div>
             <div className="space-y-1">
-              <label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+              <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 File / Reference #
               </label>
               <input
@@ -183,7 +183,7 @@ export default function BackgroundCheckStatus({
               />
             </div>
             <div className="space-y-1">
-              <label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+              <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 Provider
               </label>
               <input
@@ -195,7 +195,7 @@ export default function BackgroundCheckStatus({
               />
             </div>
             <div className="space-y-1">
-              <label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+              <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 Notes
               </label>
               <textarea
@@ -266,13 +266,13 @@ export default function BackgroundCheckStatus({
             )}
           </div>
           {data.provider && (
-            <p className="text-[11px] text-muted-foreground">Provider: {data.provider}</p>
+            <p className="text-xs text-muted-foreground">Provider: {data.provider}</p>
           )}
           {data.reference && (
-            <p className="text-[11px] text-muted-foreground">Ref #: {data.reference}</p>
+            <p className="text-xs text-muted-foreground">Ref #: {data.reference}</p>
           )}
           {data.notes && (
-            <p className="text-[11px] text-muted-foreground italic">{data.notes}</p>
+            <p className="text-xs text-muted-foreground italic">{data.notes}</p>
           )}
         </div>
       ) : (

@@ -157,7 +157,7 @@ function DocumentRow({
           <div className="flex flex-wrap items-center gap-2 mt-1">
             {/* doc_type badge */}
             <span
-              className={`inline-flex items-center rounded px-1.5 py-0.5 text-[11px] font-medium ring-1 ring-inset capitalize ${badgeColor}`}
+              className={`inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium ring-1 ring-inset capitalize ${badgeColor}`}
             >
               {docType}
             </span>

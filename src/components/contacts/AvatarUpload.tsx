@@ -116,7 +116,7 @@ export default function AvatarUpload({
       />
 
       {error && (
-        <p className="absolute top-full mt-1 text-[10px] text-destructive whitespace-nowrap">
+        <p className="absolute top-full mt-1 text-xs text-destructive whitespace-nowrap">
           {error}
         </p>
       )}

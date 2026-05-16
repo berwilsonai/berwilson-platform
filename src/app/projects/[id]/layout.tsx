@@ -1,6 +1,5 @@
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
-import { ChevronLeft } from 'lucide-react'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { cn } from '@/lib/utils'
 import { SECTOR_BADGE, SECTOR_LABELS } from '@/lib/utils/sectors'
@@ -48,13 +47,16 @@ export default async function ProjectLayout({ children, params }: LayoutProps) {
     <div className="space-y-0">
       {/* Breadcrumb + project header */}
       <div className="pb-5 space-y-3">
-        <Link
-          href="/projects"
-          className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
-        >
-          <ChevronLeft size={13} />
-          Projects
-        </Link>
+        <nav className="flex items-center gap-1.5 text-sm">
+          <Link
+            href="/projects"
+            className="text-muted-foreground hover:text-foreground transition-colors"
+          >
+            Projects
+          </Link>
+          <span className="text-muted-foreground/50">/</span>
+          <span className="text-foreground font-medium truncate max-w-[300px]">{project.name}</span>
+        </nav>
 
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div className="min-w-0">
@@ -68,7 +70,7 @@ export default async function ProjectLayout({ children, params }: LayoutProps) {
           <div className="flex items-center gap-2 flex-wrap shrink-0">
             <span
               className={cn(
-                'inline-flex items-center rounded px-1.5 py-0.5 text-[11px] font-medium ring-1 ring-inset',
+                'inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium ring-1 ring-inset',
                 SECTOR_BADGE[project.sector]
               )}
             >
@@ -76,13 +78,13 @@ export default async function ProjectLayout({ children, params }: LayoutProps) {
             </span>
             <span
               className={cn(
-                'inline-flex items-center rounded px-1.5 py-0.5 text-[11px] font-medium ring-1 ring-inset',
+                'inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium ring-1 ring-inset',
                 STATUS_STYLES[status]
               )}
             >
               {STATUS_LABELS[status]}
             </span>
-            <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[11px] font-medium ring-1 ring-inset bg-slate-50 text-slate-600 ring-slate-200">
+            <span className="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium ring-1 ring-inset bg-slate-50 text-slate-600 ring-slate-200">
               {STAGE_LABELS[stage]}
             </span>
           </div>
