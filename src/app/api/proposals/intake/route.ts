@@ -5,6 +5,8 @@ import { GoogleGenerativeAI } from '@google/generative-ai'
 import { PROPOSAL_INTAKE_SYSTEM_PROMPT, PROPOSAL_INTAKE_PROMPT_VERSION } from '@/lib/ai/prompts/proposal-intake'
 import { findMatchingProjects, matchExtractedParties, type ProposalExtraction } from '@/lib/ai/proposal-matching'
 
+export const maxDuration = 120
+
 const SYSTEM_USER_ID = '00000000-0000-0000-0000-000000000000'
 const GEMINI_MODEL = 'gemini-2.5-flash'
 const PDF_MIME_TYPE = 'application/pdf'
