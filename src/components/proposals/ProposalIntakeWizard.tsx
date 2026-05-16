@@ -152,23 +152,39 @@ export default function ProposalIntakeWizard({ availableParents: initialParents 
     files.forEach((f) => formData.append('files', f))
     formData.append('primary_file_index', primaryIndex.toString())
 
+    let res: Response
     try {
-      const res = await fetch('/api/proposals/intake', { method: 'POST', body: formData })
-      const data = await res.json()
-      if (!res.ok) { setError(data.error || 'Extraction failed'); setLoading(false); return }
+      res = await fetch('/api/proposals/intake', { method: 'POST', body: formData })
+    } catch {
+      setError('Could not reach the server — check your connection and try again.')
+      setLoading(false)
+      return
+    }
 
-      setSessionId(data.session_id)
-      setExtraction(data.extraction)
-      setPartyMatches(data.party_matches || [])
-      setUploadedFiles(data.uploaded_files || [])
-      setMatchCandidates(data.match_candidates || [])
+    let data: Record<string, unknown>
+    try {
+      data = await res.json()
+    } catch {
+      setError(res.status >= 500 ? 'The server timed out or crashed — try a smaller file or try again.' : `Server error (${res.status}) — please try again.`)
+      setLoading(false)
+      return
+    }
+
+    try {
+      if (!res.ok) { setError((data.error as string) || 'Extraction failed'); setLoading(false); return }
+
+      setSessionId(data.session_id as string)
+      setExtraction(data.extraction as Extraction)
+      setPartyMatches((data.party_matches as PartyMatch[]) || [])
+      setUploadedFiles((data.uploaded_files as UploadedFile[]) || [])
+      setMatchCandidates((data.match_candidates as MatchCandidate[]) || [])
 
       // Default: select all projects
-      setSelectedProjectIndices((data.extraction.projects || []).map((_: unknown, i: number) => i))
+      setSelectedProjectIndices(((data.extraction as Extraction).projects || []).map((_: unknown, i: number) => i))
 
       // Pre-fill attachments for high-confidence matches
       const attachments: Record<number, string | null> = {}
-      for (const mc of (data.match_candidates || []) as MatchCandidate[]) {
+      for (const mc of ((data.match_candidates as MatchCandidate[]) || [])) {
         if (mc.score >= 0.7) {
           attachments[mc.extracted_project_index] = mc.project_id
         }
@@ -176,15 +192,15 @@ export default function ProposalIntakeWizard({ availableParents: initialParents 
       setProjectAttachments(attachments)
 
       // Init party actions
-      setPartyActions((data.party_matches || []).map((pm: PartyMatch) => ({
+      setPartyActions(((data.party_matches as PartyMatch[]) || []).map((pm: PartyMatch) => ({
         extracted_index: pm.extracted_index,
         action: pm.match_type === 'none' ? 'create_new' : 'link_existing',
         existing_party_id: pm.matched_party_id || undefined,
-        role: data.extraction.parties[pm.extracted_index]?.role || 'other',
+        role: (data.extraction as Extraction).parties[pm.extracted_index]?.role || 'other',
       })))
 
       setStep('review')
-    } catch { setError('Network error — please try again.') }
+    } catch (e) { setError('Unexpected error: ' + (e instanceof Error ? e.message : String(e))) }
     finally { setLoading(false) }
   }
 
@@ -231,8 +247,9 @@ export default function ProposalIntakeWizard({ availableParents: initialParents 
       }
     })
 
+    let res: Response
     try {
-      const res = await fetch('/api/proposals/confirm', {
+      res = await fetch('/api/proposals/confirm', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -243,12 +260,25 @@ export default function ProposalIntakeWizard({ availableParents: initialParents 
           entity_actions: (extraction.entities || []).map((_, i) => ({ extracted_index: i, action: 'create_new' })),
         }),
       })
-      const data = await res.json()
-      if (!res.ok) { setError(data.error || 'Confirmation failed'); setLoading(false); return }
-      setDoneResult(data)
-      setStep('done')
-    } catch { setError('Network error — please try again.') }
-    finally { setLoading(false) }
+    } catch {
+      setError('Could not reach the server — check your connection and try again.')
+      setLoading(false)
+      return
+    }
+
+    let data: Record<string, unknown>
+    try {
+      data = await res.json()
+    } catch {
+      setError(res.status >= 500 ? 'The server timed out or crashed — please try again.' : `Server error (${res.status}) — please try again.`)
+      setLoading(false)
+      return
+    }
+
+    if (!res.ok) { setError((data.error as string) || 'Confirmation failed'); setLoading(false); return }
+    setDoneResult(data as unknown as DoneResult)
+    setStep('done')
+    setLoading(false)
   }
 
   // --- STEP: UPLOAD ---

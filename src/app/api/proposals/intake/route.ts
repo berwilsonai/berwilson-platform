@@ -12,6 +12,7 @@ const GEMINI_MODEL = 'gemini-2.5-flash'
 const PDF_MIME_TYPE = 'application/pdf'
 
 export async function POST(request: NextRequest) {
+  try {
   const supabase = createAdminClient()
 
   // Get user if logged in — not a hard gate (matches upload route pattern)
@@ -140,15 +141,19 @@ export async function POST(request: NextRequest) {
     return Response.json({ error: `AI extraction failed: ${message}` }, { status: 500 })
   }
 
-  // Find matching projects for each extracted project
-  const matchCandidates = extraction.projects?.length
-    ? await findMatchingProjects(extraction.projects)
-    : []
-
-  // Match extracted parties to existing contacts
-  const partyMatches = extraction.parties?.length
-    ? await matchExtractedParties(extraction.parties)
-    : []
+  // Find matching projects for each extracted project (non-fatal)
+  let matchCandidates: Awaited<ReturnType<typeof findMatchingProjects>> = []
+  let partyMatches: Awaited<ReturnType<typeof matchExtractedParties>> = []
+  try {
+    if (extraction.projects?.length) {
+      matchCandidates = await findMatchingProjects(extraction.projects)
+    }
+    if (extraction.parties?.length) {
+      partyMatches = await matchExtractedParties(extraction.parties)
+    }
+  } catch {
+    // matching failures are non-fatal — continue without match candidates
+  }
 
   // Create intake session
   const { data: session, error: sessionError } = await supabase
@@ -177,4 +182,8 @@ export async function POST(request: NextRequest) {
     party_matches: partyMatches,
     uploaded_files: uploadedFiles,
   })
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Unknown error'
+    return Response.json({ error: `Intake failed: ${message}` }, { status: 500 })
+  }
 }

@@ -43,7 +43,10 @@ interface ConfirmBody {
   }>
 }
 
+export const maxDuration = 60
+
 export async function POST(request: NextRequest) {
+  try {
   const supabase = createAdminClient()
 
   // Get user if logged in — not a hard gate
@@ -375,4 +378,8 @@ export async function POST(request: NextRequest) {
     parties_linked: partiesLinked,
     entities_created: entitiesCreated + orgEntitiesCreated,
   })
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Unknown error'
+    return Response.json({ error: `Confirmation failed: ${message}` }, { status: 500 })
+  }
 }
