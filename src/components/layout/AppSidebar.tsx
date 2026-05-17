@@ -20,7 +20,6 @@ import {
   TrendingUp,
   Globe,
   AlertTriangle,
-  Sparkles,
   FileUp,
 } from 'lucide-react'
 
@@ -37,7 +36,6 @@ const NAV_GROUPS = [
     label: 'Intelligence',
     items: [
       { href: '/proposals/intake', label: 'Intake Proposal', icon: FileUp },
-      { href: '/briefs', label: 'Briefs', icon: Sparkles },
       { href: '/intel', label: 'Intel', icon: Brain },
       { href: '/calendar', label: 'Calendar', icon: CalendarDays },
     ],

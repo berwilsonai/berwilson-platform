@@ -1,6 +1,7 @@
 'use client'
 
-import { useActionState, useState, useRef } from 'react'
+import { useActionState, useState, useRef, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import {
   Pencil, X, Plus, Trash2, Upload, CheckCircle2, AlertTriangle,
   FileText, Loader2, ShieldCheck,
@@ -249,8 +250,12 @@ function CertCard({
 
 // ─── Add Cert Form ────────────────────────────────────────────────────────────
 
-function AddCertForm({ onCancel }: { onCancel: () => void }) {
+function AddCertForm({ onCancel, onSuccess }: { onCancel: () => void; onSuccess: () => void }) {
   const [state, action, pending] = useActionState<CertFormState, FormData>(createCertification, null)
+
+  useEffect(() => {
+    if (state && 'ok' in state) onSuccess()
+  }, [state])
 
   return (
     <div className="rounded-lg border border-border p-4 space-y-3 bg-muted/20">
@@ -298,10 +303,19 @@ interface Props {
 }
 
 export default function CompanyProfileClient({ profile, certifications: initialCerts }: Props) {
+  const router = useRouter()
   const [editing, setEditing] = useState(false)
   const [addingCert, setAddingCert] = useState(false)
+  const [addCertKey, setAddCertKey] = useState(0)
   const [certs, setCerts] = useState<Certification[]>(initialCerts)
   const [deletingCertId, setDeletingCertId] = useState<string | null>(null)
+
+  useEffect(() => { setCerts(initialCerts) }, [initialCerts])
+
+  function handleCertAdded() {
+    setAddCertKey(k => k + 1)
+    router.refresh()
+  }
 
   const [saveState, saveAction, savePending] = useActionState<CompanyFormState, FormData>(
     updateCompanyProfile,
@@ -544,7 +558,9 @@ export default function CompanyProfileClient({ profile, certifications: initialC
 
         {addingCert && (
           <AddCertForm
+            key={addCertKey}
             onCancel={() => setAddingCert(false)}
+            onSuccess={handleCertAdded}
           />
         )}
 
