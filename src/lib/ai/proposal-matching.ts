@@ -20,8 +20,10 @@ export interface ExtractedProject {
 }
 
 export interface ProposalExtraction {
-  document_type: 'single_project_proposal' | 'developer_portfolio' | 'plans_drawings' | 'market_research' | 'investment_pitch' | 'other'
+  document_type: 'single_project_proposal' | 'developer_portfolio' | 'master_plan' | 'plans_drawings' | 'market_research' | 'investment_pitch' | 'other'
   intake_summary: string
+  is_master_plan?: boolean
+  master_plan_name?: string | null
   developer_company: {
     name: string
     description: string | null

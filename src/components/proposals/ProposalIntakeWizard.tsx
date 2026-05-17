@@ -3,6 +3,7 @@
 import { useState, useCallback, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Upload, FileText, CheckCircle2, AlertTriangle, Loader2, X, Building2, ChevronRight, ExternalLink, Users, Layers } from 'lucide-react'
+import { createClient } from '@/lib/supabase/client'
 
 type Step = 'upload' | 'review' | 'parties' | 'confirm' | 'done'
 
@@ -35,6 +36,8 @@ interface DeveloperCompany {
 interface Extraction {
   document_type: string
   intake_summary: string
+  is_master_plan?: boolean
+  master_plan_name?: string | null
   developer_company: DeveloperCompany | null
   projects: ExtractedProject[]
   parties: Array<{ name: string; company: string | null; role: string; email: string | null; phone: string | null; is_organization: boolean }>
@@ -79,6 +82,7 @@ const STAGES = ['pursuit', 'capture', 'bid', 'award', 'mobilization', 'execution
 const DOC_TYPE_LABELS: Record<string, string> = {
   single_project_proposal: 'Single Project Proposal',
   developer_portfolio: 'Developer Portfolio Deck',
+  master_plan: 'Master Plan / Multi-Phase Development',
   plans_drawings: 'Plans / Drawings',
   market_research: 'Market Research',
   investment_pitch: 'Investment Pitch',
@@ -148,13 +152,45 @@ export default function ProposalIntakeWizard({ availableParents: initialParents 
     setLoading(true)
     setError(null)
 
-    const formData = new FormData()
-    files.forEach((f) => formData.append('files', f))
-    formData.append('primary_file_index', primaryIndex.toString())
+    // Upload files directly to Supabase Storage (bypasses Vercel body size limit)
+    const supabase = createClient()
+    const storedFiles: Array<{ storage_path: string; file_name: string; file_size_bytes: number; mime_type: string }> = []
 
+    for (const file of files) {
+      const timestamp = Date.now()
+      const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_')
+      const storagePath = `proposals/pending/${timestamp}_${safeName}`
+
+      const { error: uploadError } = await supabase.storage
+        .from('documents')
+        .upload(storagePath, file, {
+          contentType: file.type || 'application/octet-stream',
+          cacheControl: '3600',
+          upsert: false,
+        })
+
+      if (uploadError) {
+        setError(`Failed to upload ${file.name}: ${uploadError.message}`)
+        setLoading(false)
+        return
+      }
+
+      storedFiles.push({
+        storage_path: storagePath,
+        file_name: file.name,
+        file_size_bytes: file.size,
+        mime_type: file.type || 'application/octet-stream',
+      })
+    }
+
+    // Call API with file paths (small JSON body — no size limit issues)
     let res: Response
     try {
-      res = await fetch('/api/proposals/intake', { method: 'POST', body: formData })
+      res = await fetch('/api/proposals/intake', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ files: storedFiles, primary_file_index: primaryIndex }),
+      })
     } catch {
       setError('Could not reach the server — check your connection and try again.')
       setLoading(false)
@@ -165,7 +201,7 @@ export default function ProposalIntakeWizard({ availableParents: initialParents 
     try {
       data = await res.json()
     } catch {
-      setError(res.status >= 500 ? 'The server timed out or crashed — try a smaller file or try again.' : `Server error (${res.status}) — please try again.`)
+      setError(res.status >= 500 ? 'The server timed out — try again in a moment.' : `Server error (${res.status}) — please try again.`)
       setLoading(false)
       return
     }
@@ -346,6 +382,21 @@ export default function ProposalIntakeWizard({ availableParents: initialParents 
             </div>
           </div>
         </div>
+
+        {/* Master Plan Indicator */}
+        {extraction.is_master_plan && extraction.master_plan_name && (
+          <div className="p-4 rounded-lg border border-purple-200 bg-purple-50/50 dark:border-purple-900 dark:bg-purple-950/20">
+            <div className="flex items-center gap-3">
+              <Layers size={18} className="text-purple-600 shrink-0" />
+              <div>
+                <p className="text-sm font-semibold text-foreground">Master Plan: {extraction.master_plan_name}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {extraction.projects.length} sub-project{extraction.projects.length !== 1 ? 's' : ''} detected — these will be grouped under a parent program.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Developer Company Card */}
         {extraction.developer_company && (

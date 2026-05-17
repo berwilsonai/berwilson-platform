@@ -92,6 +92,47 @@ export async function POST(request: NextRequest) {
   const createdProjects: Array<{ id: string; name: string }> = []
   const attachedProjects: Array<{ id: string; name: string }> = []
 
+  // Auto-create a parent program for master plans with multiple sub-projects
+  let masterPlanParentId: string | null = null
+  const isMasterPlan = extraction.is_master_plan as boolean | undefined
+  const masterPlanName = extraction.master_plan_name as string | undefined
+  const hasExplicitParent = projects_to_create.some(p => p.parent_project_id)
+
+  if (isMasterPlan && masterPlanName && projects_to_create.length > 1 && !hasExplicitParent) {
+    // Check if a parent program already exists with this name
+    const { data: existingParent } = await supabase
+      .from('projects')
+      .select('id')
+      .ilike('name', masterPlanName)
+      .is('parent_project_id', null)
+      .limit(1)
+      .single()
+
+    if (existingParent) {
+      masterPlanParentId = existingParent.id
+    } else {
+      const primarySector = projects_to_create[0]?.sector || 'real_estate'
+      const { data: parentProject } = await supabase
+        .from('projects')
+        .insert({
+          name: masterPlanName,
+          sector: primarySector as 'government' | 'infrastructure' | 'real_estate' | 'prefab' | 'institutional',
+          status: 'active',
+          stage: 'pursuit' as const,
+          description: `Master plan / parent program for ${projects_to_create.length} sub-projects`,
+          location: projects_to_create[0]?.location || null,
+          client_entity: projects_to_create[0]?.client_entity || null,
+        })
+        .select()
+        .single()
+
+      if (parentProject) {
+        masterPlanParentId = parentProject.id
+        createdProjects.push({ id: parentProject.id, name: parentProject.name })
+      }
+    }
+  }
+
   // Create or attach all selected projects
   for (const projectFields of projects_to_create) {
     if (!projectFields.name || !projectFields.sector) continue
@@ -108,6 +149,9 @@ export async function POST(request: NextRequest) {
       }
       continue
     }
+
+    // Use master plan parent if no explicit parent is set
+    const parentId = projectFields.parent_project_id || masterPlanParentId || null
 
     const { data: project } = await supabase
       .from('projects')
@@ -126,7 +170,7 @@ export async function POST(request: NextRequest) {
         award_date: projectFields.award_date || null,
         ntp_date: projectFields.ntp_date || null,
         substantial_completion_date: projectFields.substantial_completion_date || null,
-        parent_project_id: projectFields.parent_project_id || null,
+        parent_project_id: parentId,
       })
       .select()
       .single()
@@ -198,11 +242,27 @@ export async function POST(request: NextRequest) {
     // Organizations → entities table (vendors/partners)
     if (extracted.is_organization) {
       const roleToRelationship: Record<string, string> = {
-        developer: 'owner', client: 'owner', architect: 'sub_entity',
-        engineer: 'sub_entity', sub_gc: 'sub_entity', consultant: 'sub_entity',
-        pe_partner: 'jv_partner', surety: 'sub_entity', legal: 'sub_entity',
+        developer: 'developer',
+        client: 'owner',
+        owner_rep: 'owner',
+        general_contractor: 'general_contractor',
+        subcontractor: 'subcontractor',
+        architect: 'design_team',
+        engineer: 'design_team',
+        landscape_architect: 'design_team',
+        surveyor: 'design_team',
+        consultant: 'consultant',
+        legal: 'consultant',
+        surety: 'surety',
+        lender: 'lender',
+        pe_partner: 'jv_partner',
+        government_agency: 'government_client',
+        utility: 'consultant',
+        supplier: 'supplier',
+        broker: 'consultant',
+        sub_gc: 'subcontractor',
       }
-      const relationship = roleToRelationship[extracted.role] || 'sub_entity'
+      const relationship = roleToRelationship[extracted.role] || 'other'
 
       // Check for existing entity
       const { data: existingEnt } = await supabase

@@ -11,11 +11,21 @@ const SYSTEM_USER_ID = '00000000-0000-0000-0000-000000000000'
 const GEMINI_MODEL = 'gemini-2.5-flash'
 const PDF_MIME_TYPE = 'application/pdf'
 
+interface IntakeRequestBody {
+  files: Array<{
+    storage_path: string
+    file_name: string
+    file_size_bytes: number
+    mime_type: string
+  }>
+  primary_file_index: number
+}
+
 export async function POST(request: NextRequest) {
   try {
   const supabase = createAdminClient()
 
-  // Get user if logged in — not a hard gate (matches upload route pattern)
+  // Get user if logged in — not a hard gate
   let userId = SYSTEM_USER_ID
   try {
     const userSupabase = await createClient()
@@ -25,65 +35,42 @@ export async function POST(request: NextRequest) {
     // continue as system user
   }
 
-  let formData: FormData
+  // Accept JSON body with pre-uploaded file paths (client uploads directly to Supabase)
+  let body: IntakeRequestBody
   try {
-    formData = await request.formData()
+    body = await request.json()
   } catch {
-    return Response.json({ error: 'Invalid form data' }, { status: 400 })
+    return Response.json({ error: 'Invalid request body' }, { status: 400 })
   }
 
-  // Collect files
-  const files: File[] = []
-  for (const entry of formData.getAll('files')) {
-    if (entry instanceof File) files.push(entry)
-  }
-  const singleFile = formData.get('file')
-  if (singleFile instanceof File && !files.length) files.push(singleFile)
+  const { files, primary_file_index } = body
 
-  if (!files.length) {
+  if (!files?.length) {
     return Response.json({ error: 'At least one file is required' }, { status: 400 })
   }
 
-  const primaryIndex = parseInt(formData.get('primary_file_index') as string || '0', 10)
-  const primaryFile = files[primaryIndex] || files[0]
+  const primaryIndex = primary_file_index || 0
+  const primaryFileInfo = files[primaryIndex] || files[0]
 
-  // Upload all files to temp storage
-  const uploadedFiles: Array<{
-    temp_path: string
-    file_name: string
-    file_size_bytes: number
-    mime_type: string
-    is_primary: boolean
-  }> = []
+  // Build uploaded files metadata
+  const uploadedFiles = files.map((f, i) => ({
+    temp_path: f.storage_path,
+    file_name: f.file_name,
+    file_size_bytes: f.file_size_bytes,
+    mime_type: f.mime_type,
+    is_primary: i === primaryIndex,
+  }))
 
-  for (const file of files) {
-    const timestamp = Date.now()
-    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_')
-    const tempPath = `proposals/pending/${timestamp}_${safeName}`
+  // Download primary file from Supabase Storage for AI processing
+  const { data: fileData, error: downloadError } = await supabase.storage
+    .from('documents')
+    .download(primaryFileInfo.storage_path)
 
-    const fileBuffer = await file.arrayBuffer()
-    const { error: storageError } = await supabase.storage
-      .from('documents')
-      .upload(tempPath, fileBuffer, {
-        contentType: file.type || 'application/octet-stream',
-        cacheControl: '3600',
-        upsert: false,
-      })
-
-    if (storageError) {
-      return Response.json({ error: `Failed to upload ${file.name}: ${storageError.message}` }, { status: 500 })
-    }
-
-    uploadedFiles.push({
-      temp_path: tempPath,
-      file_name: file.name,
-      file_size_bytes: file.size,
-      mime_type: file.type || 'application/octet-stream',
-      is_primary: file === primaryFile,
-    })
+  if (downloadError || !fileData) {
+    return Response.json({ error: `Failed to read uploaded file: ${downloadError?.message || 'File not found'}` }, { status: 500 })
   }
 
-  // Run AI extraction on primary file using Gemini (supports inline PDF)
+  // Run AI extraction on primary file using Gemini
   let extraction: ProposalExtraction
   try {
     const gemini = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!)
@@ -93,12 +80,12 @@ export async function POST(request: NextRequest) {
     })
     const start = Date.now()
 
-    const primaryBuffer = await primaryFile.arrayBuffer()
+    const primaryBuffer = await fileData.arrayBuffer()
     const base64 = Buffer.from(primaryBuffer).toString('base64')
-    const mimeType = primaryFile.type || 'application/octet-stream'
+    const mimeType = primaryFileInfo.mime_type || 'application/octet-stream'
 
     // Gemini supports PDF and common text/image types as inline data
-    const parts = primaryFile.type === PDF_MIME_TYPE || mimeType.startsWith('image/')
+    const parts = mimeType === PDF_MIME_TYPE || mimeType.startsWith('image/')
       ? [
           { inlineData: { mimeType, data: base64 } },
           { text: 'Analyze this document and extract all project and company information.' },
@@ -117,7 +104,7 @@ export async function POST(request: NextRequest) {
 
     supabase.from('ai_queries').insert({
       user_id: userId,
-      query_text: `Proposal intake: ${primaryFile.name}`,
+      query_text: `Proposal intake: ${primaryFileInfo.file_name}`,
       response_text: rawText.slice(0, 10000),
       model_used: GEMINI_MODEL,
       prompt_version: PROPOSAL_INTAKE_PROMPT_VERSION,
