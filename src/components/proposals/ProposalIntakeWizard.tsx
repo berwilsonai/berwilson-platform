@@ -147,64 +147,116 @@ export default function ProposalIntakeWizard({ availableParents: initialParents 
     else if (primaryIndex > index) setPrimaryIndex((p) => p - 1)
   }
 
+  // Upload a single file using 3MB chunks (for files that exceed Supabase's direct upload limit)
+  const uploadChunked = async (file: File, supabase: ReturnType<typeof createClient>): Promise<{ chunk_session: string; total_chunks: number }> => {
+    const CHUNK_SIZE = 3 * 1024 * 1024 // 3MB — safely under Vercel's 4.5MB body limit
+    const totalChunks = Math.ceil(file.size / CHUNK_SIZE)
+    const sessionId = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
+
+    for (let i = 0; i < totalChunks; i++) {
+      const start = i * CHUNK_SIZE
+      const end = Math.min(start + CHUNK_SIZE, file.size)
+      const chunkBlob = file.slice(start, end)
+
+      const form = new FormData()
+      form.append('chunk', chunkBlob, `chunk_${i}`)
+      form.append('session_id', sessionId)
+      form.append('chunk_index', String(i))
+      form.append('total_chunks', String(totalChunks))
+      form.append('file_name', file.name)
+      form.append('mime_type', file.type || 'application/octet-stream')
+
+      const res = await fetch('/api/proposals/upload-chunk', { method: 'POST', body: form })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error || `Chunk ${i + 1}/${totalChunks} failed`)
+      }
+    }
+
+    return { chunk_session: sessionId, total_chunks: totalChunks }
+  }
+
   const handleAnalyze = async () => {
     if (!files.length) return
     setLoading(true)
     setError(null)
 
-    // Safety cap: 200MB per file to prevent runaway token costs on Gemini
+    // Safety cap: 200MB per file to prevent runaway Gemini token costs
     const MAX_FILE_BYTES = 200 * 1024 * 1024
     for (const file of files) {
       if (file.size > MAX_FILE_BYTES) {
-        setError(`${file.name} is ${Math.round(file.size / 1024 / 1024)}MB — max is 200MB per file. Try splitting large drawing sets into sections.`)
+        setError(`${file.name} is ${Math.round(file.size / 1024 / 1024)}MB — max is 200MB per file. Split large drawing sets into sections.`)
         setLoading(false)
         return
       }
     }
 
-    // Upload files directly to Supabase Storage (bypasses Vercel body size limit)
     const supabase = createClient()
-    const storedFiles: Array<{ storage_path: string; file_name: string; file_size_bytes: number; mime_type: string }> = []
 
-    for (const file of files) {
-      const timestamp = Date.now()
-      const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_')
-      const storagePath = `proposals/pending/${timestamp}_${safeName}`
+    // For large files (primary file only), use chunked upload
+    // For all other files, try direct Supabase upload
+    const primaryFile = files[primaryIndex] || files[0]
+    const SUPABASE_LIMIT = 48 * 1024 * 1024 // 48MB — just under the 50MB free tier cap
 
-      const { error: uploadError } = await supabase.storage
-        .from('documents')
-        .upload(storagePath, file, {
-          contentType: file.type || 'application/octet-stream',
-          cacheControl: '3600',
-          upsert: false,
-        })
+    let intakeBody: Record<string, unknown>
 
-      if (uploadError) {
-        // Detect storage size limit errors
-        if (uploadError.message?.toLowerCase().includes('size') || uploadError.message?.toLowerCase().includes('too large') || uploadError.message?.toLowerCase().includes('exceeded')) {
-          setError(`${file.name} (${Math.round(file.size / 1024 / 1024)}MB) exceeds the storage limit. Run "npx tsx scripts/configure-storage.ts" after upgrading Supabase to Pro to increase the limit.`)
-        } else {
-          setError(`Failed to upload ${file.name}: ${uploadError.message}`)
+    if (primaryFile.size > SUPABASE_LIMIT) {
+      // Large primary file: use chunked upload (auto-splits into 3MB pieces)
+      try {
+        const { chunk_session, total_chunks } = await uploadChunked(primaryFile, supabase)
+        intakeBody = {
+          chunk_session,
+          total_chunks,
+          file_name: primaryFile.name,
+          mime_type: primaryFile.type || 'application/octet-stream',
+          file_size_bytes: primaryFile.size,
         }
+      } catch (e) {
+        setError(e instanceof Error ? e.message : 'Upload failed')
         setLoading(false)
         return
       }
+    } else {
+      // Small files: direct Supabase upload
+      const storedFiles: Array<{ storage_path: string; file_name: string; file_size_bytes: number; mime_type: string }> = []
 
-      storedFiles.push({
-        storage_path: storagePath,
-        file_name: file.name,
-        file_size_bytes: file.size,
-        mime_type: file.type || 'application/octet-stream',
-      })
+      for (const file of files) {
+        const timestamp = Date.now()
+        const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_')
+        const storagePath = `proposals/pending/${timestamp}_${safeName}`
+
+        const { error: uploadError } = await supabase.storage
+          .from('documents')
+          .upload(storagePath, file, {
+            contentType: file.type || 'application/octet-stream',
+            cacheControl: '3600',
+            upsert: false,
+          })
+
+        if (uploadError) {
+          setError(`Failed to upload ${file.name}: ${uploadError.message}`)
+          setLoading(false)
+          return
+        }
+
+        storedFiles.push({
+          storage_path: storagePath,
+          file_name: file.name,
+          file_size_bytes: file.size,
+          mime_type: file.type || 'application/octet-stream',
+        })
+      }
+
+      intakeBody = { files: storedFiles, primary_file_index: primaryIndex }
     }
 
-    // Call API with file paths (small JSON body — no size limit issues)
+    // Call intake API with file references (tiny JSON body)
     let res: Response
     try {
       res = await fetch('/api/proposals/intake', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ files: storedFiles, primary_file_index: primaryIndex }),
+        body: JSON.stringify(intakeBody),
       })
     } catch {
       setError('Could not reach the server — check your connection and try again.')
