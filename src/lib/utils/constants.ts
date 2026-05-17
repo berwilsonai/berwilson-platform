@@ -99,6 +99,36 @@ export const STAGE_INDEX: Record<ProjectStage, number> = {
   closeout: 6,
 }
 
+export const STAGE_BADGE: Record<ProjectStage, string> = {
+  pursuit: 'bg-slate-100 text-slate-600 ring-slate-200',
+  capture: 'bg-violet-50 text-violet-700 ring-violet-200',
+  bid: 'bg-amber-50 text-amber-700 ring-amber-200',
+  award: 'bg-blue-50 text-blue-700 ring-blue-200',
+  mobilization: 'bg-cyan-50 text-cyan-700 ring-cyan-200',
+  execution: 'bg-emerald-50 text-emerald-700 ring-emerald-200',
+  closeout: 'bg-indigo-50 text-indigo-700 ring-indigo-200',
+}
+
+export const STAGE_COLOR: Record<ProjectStage, string> = {
+  pursuit: 'bg-slate-400',
+  capture: 'bg-violet-500',
+  bid: 'bg-amber-500',
+  award: 'bg-blue-500',
+  mobilization: 'bg-cyan-500',
+  execution: 'bg-emerald-500',
+  closeout: 'bg-indigo-500',
+}
+
+export const STAGE_BORDER: Record<ProjectStage, string> = {
+  pursuit: 'border-l-slate-300 [--card-glow-color:oklch(0.60_0_0)]',
+  capture: 'border-l-violet-400 [--card-glow-color:oklch(0.55_0.18_290)]',
+  bid: 'border-l-amber-400 [--card-glow-color:oklch(0.70_0.12_85)]',
+  award: 'border-l-blue-400 [--card-glow-color:oklch(0.55_0.15_260)]',
+  mobilization: 'border-l-cyan-400 [--card-glow-color:oklch(0.60_0.12_200)]',
+  execution: 'border-l-emerald-400 [--card-glow-color:oklch(0.55_0.15_145)]',
+  closeout: 'border-l-indigo-400 [--card-glow-color:oklch(0.50_0.15_275)]',
+}
+
 // ─── DD Severity ─────────────────────────────────────────────────────────────
 
 export const SEVERITIES: DdSeverity[] = ['info', 'watch', 'critical', 'blocker']

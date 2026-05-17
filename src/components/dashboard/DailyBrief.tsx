@@ -85,14 +85,17 @@ export default function DailyBrief() {
             Yesterday
           </span>
         )}
-        <button
-          onClick={(e) => { e.stopPropagation(); generateBrief() }}
-          disabled={loading}
-          className="p-1 text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+        <div
+          role="button"
+          tabIndex={0}
+          onClick={(e) => { e.stopPropagation(); if (!loading) generateBrief() }}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.stopPropagation(); if (!loading) generateBrief() } }}
+          aria-disabled={loading}
+          className={`p-1 text-muted-foreground hover:text-foreground transition-colors ${loading ? 'opacity-50 pointer-events-none' : 'cursor-pointer'}`}
           title="Refresh brief"
         >
           <RefreshCw size={12} className={loading ? 'animate-spin' : ''} />
-        </button>
+        </div>
         {expanded ? <ChevronUp size={14} className="text-muted-foreground" /> : <ChevronDown size={14} className="text-muted-foreground" />}
       </button>
 

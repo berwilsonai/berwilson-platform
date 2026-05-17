@@ -7,33 +7,10 @@ import ProjectCard, { type ProjectCardCounts } from '@/components/dashboard/Proj
 import type { Project } from '@/lib/supabase/types'
 import { cn } from '@/lib/utils'
 import { SECTOR_BADGE, SECTOR_SHORT } from '@/lib/utils/sectors'
+import { STATUS_BADGE, STATUS_LABELS, formatValue } from '@/lib/utils/constants'
 
 interface ProjectsClientProps {
   projects: Project[]
-}
-
-const STATUS_STYLES: Record<string, string> = {
-  active: 'bg-emerald-50 text-emerald-700 ring-emerald-200',
-  on_hold: 'bg-amber-50 text-amber-700 ring-amber-200',
-  won: 'bg-blue-50 text-blue-700 ring-blue-200',
-  lost: 'bg-red-50 text-red-600 ring-red-200',
-  closed: 'bg-slate-100 text-slate-500 ring-slate-200',
-}
-
-const STATUS_LABELS: Record<string, string> = {
-  active: 'Active',
-  on_hold: 'On Hold',
-  won: 'Won',
-  lost: 'Lost',
-  closed: 'Closed',
-}
-
-function formatValue(value: number | null): string {
-  if (value === null) return '—'
-  if (value >= 1_000_000_000) return `$${(value / 1_000_000_000).toFixed(1)}B`
-  if (value >= 1_000_000) return `$${(value / 1_000_000).toFixed(1)}M`
-  if (value >= 1_000) return `$${(value / 1_000).toFixed(0)}K`
-  return `$${value.toLocaleString()}`
 }
 
 function ProgramBanner({ program, childCount }: { program: Project; childCount: number }) {
@@ -76,7 +53,7 @@ function ProgramBanner({ program, childCount }: { program: Project; childCount: 
           <span
             className={cn(
               'inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium ring-1 ring-inset',
-              STATUS_STYLES[status]
+              STATUS_BADGE[status]
             )}
           >
             {STATUS_LABELS[status]}

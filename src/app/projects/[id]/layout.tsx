@@ -3,25 +3,10 @@ import Link from 'next/link'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { cn } from '@/lib/utils'
 import { SECTOR_BADGE, SECTOR_LABELS } from '@/lib/utils/sectors'
-import { STAGE_LABELS } from '@/lib/utils/stages'
+import { STAGE_LABELS, STAGE_BADGE } from '@/lib/utils/stages'
+import { STATUS_BADGE, STATUS_LABELS } from '@/lib/utils/constants'
 import ProjectTabBar from '@/components/projects/ProjectTabBar'
 import AgentSidebar from '@/components/agent/AgentSidebar'
-
-const STATUS_STYLES: Record<string, string> = {
-  active: 'bg-emerald-50 text-emerald-700 ring-emerald-200',
-  on_hold: 'bg-amber-50 text-amber-700 ring-amber-200',
-  won: 'bg-blue-50 text-blue-700 ring-blue-200',
-  lost: 'bg-red-50 text-red-600 ring-red-200',
-  closed: 'bg-slate-100 text-slate-500 ring-slate-200',
-}
-
-const STATUS_LABELS: Record<string, string> = {
-  active: 'Active',
-  on_hold: 'On Hold',
-  won: 'Won',
-  lost: 'Lost',
-  closed: 'Closed',
-}
 
 interface LayoutProps {
   children: React.ReactNode
@@ -66,8 +51,16 @@ export default async function ProjectLayout({ children, params }: LayoutProps) {
             )}
           </div>
 
-          {/* Status / sector / stage badges */}
+          {/* Stage / sector / status badges */}
           <div className="flex items-center gap-2 flex-wrap shrink-0">
+            <span
+              className={cn(
+                'inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium ring-1 ring-inset',
+                STAGE_BADGE[stage]
+              )}
+            >
+              {STAGE_LABELS[stage]}
+            </span>
             <span
               className={cn(
                 'inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium ring-1 ring-inset',
@@ -76,17 +69,16 @@ export default async function ProjectLayout({ children, params }: LayoutProps) {
             >
               {SECTOR_LABELS[project.sector]}
             </span>
-            <span
-              className={cn(
-                'inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium ring-1 ring-inset',
-                STATUS_STYLES[status]
-              )}
-            >
-              {STATUS_LABELS[status]}
-            </span>
-            <span className="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium ring-1 ring-inset bg-slate-50 text-slate-600 ring-slate-200">
-              {STAGE_LABELS[stage]}
-            </span>
+            {status !== 'active' && (
+              <span
+                className={cn(
+                  'inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium ring-1 ring-inset',
+                  STATUS_BADGE[status]
+                )}
+              >
+                {STATUS_LABELS[status]}
+              </span>
+            )}
           </div>
         </div>
       </div>

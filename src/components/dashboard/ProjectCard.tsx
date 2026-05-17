@@ -1,8 +1,14 @@
 import Link from 'next/link'
-import { CheckSquare, Clock, AlertTriangle, Layers } from 'lucide-react'
+import {
+  CheckSquare, Clock, AlertTriangle, Layers,
+  Search, Target, Gavel, Award, Truck, HardHat, FlagTriangleRight,
+} from 'lucide-react'
 import type { Project } from '@/lib/supabase/types'
+import type { ProjectStage } from '@/lib/supabase/types'
 import { cn } from '@/lib/utils'
 import { SECTOR_BADGE, SECTOR_SHORT } from '@/lib/utils/sectors'
+import { STATUS_BADGE, STATUS_LABELS } from '@/lib/utils/constants'
+import { STAGE_BADGE, STAGE_LABELS, STAGE_BORDER } from '@/lib/utils/stages'
 import StageIndicator from './StageIndicator'
 
 export interface ProjectCardCounts {
@@ -12,28 +18,14 @@ export interface ProjectCardCounts {
   hasCriticalRisk: boolean
 }
 
-const STATUS_STYLES: Record<string, string> = {
-  active: 'bg-emerald-50 text-emerald-700 ring-emerald-200',
-  on_hold: 'bg-amber-50 text-amber-700 ring-amber-200',
-  won: 'bg-blue-50 text-blue-700 ring-blue-200',
-  lost: 'bg-red-50 text-red-600 ring-red-200',
-  closed: 'bg-slate-100 text-slate-500 ring-slate-200',
-}
-
-const STATUS_BORDER: Record<string, string> = {
-  active: 'border-l-emerald-400 [--card-glow-color:oklch(0.55_0.15_145)]',
-  on_hold: 'border-l-amber-400 [--card-glow-color:oklch(0.70_0.12_85)]',
-  won: 'border-l-blue-400 [--card-glow-color:oklch(0.55_0.15_260)]',
-  lost: 'border-l-red-400 [--card-glow-color:oklch(0.55_0.20_25)]',
-  closed: 'border-l-slate-300 [--card-glow-color:oklch(0.60_0_0)]',
-}
-
-const STATUS_LABELS: Record<string, string> = {
-  active: 'Active',
-  on_hold: 'On Hold',
-  won: 'Won',
-  lost: 'Lost',
-  closed: 'Closed',
+const STAGE_ICON: Record<ProjectStage, typeof Search> = {
+  pursuit: Search,
+  capture: Target,
+  bid: Gavel,
+  award: Award,
+  mobilization: Truck,
+  execution: HardHat,
+  closeout: FlagTriangleRight,
 }
 
 function formatValue(value: number | null): string {
@@ -66,21 +58,31 @@ interface ProjectCardProps {
 
 export default function ProjectCard({ project, counts, isProgram, parentName, className, style }: ProjectCardProps) {
   const status = project.status ?? 'active'
-  const stage = project.stage ?? 'pursuit'
+  const stage = (project.stage ?? 'pursuit') as ProjectStage
+  const StageIcon = STAGE_ICON[stage]
 
   return (
     <Link
       href={`/projects/${project.id}`}
       className={cn(
         'group block rounded-lg border border-border border-l-[3px] bg-card shadow-sm card-hover-glow',
-        STATUS_BORDER[status],
+        STAGE_BORDER[stage],
         className
       )}
       style={style}
     >
       <div className="p-4 sm:p-5 space-y-3">
-        {/* Top row: sector badge, status badge */}
+        {/* Top row: stage badge (primary), sector badge, status badge */}
         <div className="flex items-center gap-2">
+          <span
+            className={cn(
+              'inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs font-medium ring-1 ring-inset',
+              STAGE_BADGE[stage]
+            )}
+          >
+            <StageIcon size={11} className="shrink-0" />
+            {STAGE_LABELS[stage]}
+          </span>
           <span
             className={cn(
               'inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium ring-1 ring-inset',
@@ -89,14 +91,16 @@ export default function ProjectCard({ project, counts, isProgram, parentName, cl
           >
             {SECTOR_SHORT[project.sector]}
           </span>
-          <span
-            className={cn(
-              'inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium ring-1 ring-inset',
-              STATUS_STYLES[status]
-            )}
-          >
-            {STATUS_LABELS[status]}
-          </span>
+          {status !== 'active' && (
+            <span
+              className={cn(
+                'inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium ring-1 ring-inset',
+                STATUS_BADGE[status]
+              )}
+            >
+              {STATUS_LABELS[status]}
+            </span>
+          )}
           {isProgram && (
             <span className="inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-xs font-medium ring-1 ring-inset bg-violet-50 text-violet-700 ring-violet-200">
               <Layers size={10} />

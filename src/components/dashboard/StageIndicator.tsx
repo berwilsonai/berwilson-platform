@@ -1,6 +1,17 @@
 import type { ProjectStage } from '@/lib/supabase/types'
-import { STAGES, STAGE_LABELS, STAGE_INDEX } from '@/lib/utils/stages'
+import { STAGES, STAGE_LABELS, STAGE_INDEX, STAGE_COLOR, STAGE_BADGE } from '@/lib/utils/stages'
 import { cn } from '@/lib/utils'
+
+/** Text color to match each stage's identity — used for labels */
+const STAGE_TEXT: Record<ProjectStage, string> = {
+  pursuit: 'text-slate-500',
+  capture: 'text-violet-600',
+  bid: 'text-amber-600',
+  award: 'text-blue-600',
+  mobilization: 'text-cyan-600',
+  execution: 'text-emerald-600',
+  closeout: 'text-indigo-600',
+}
 
 interface StageIndicatorProps {
   stage: ProjectStage
@@ -24,16 +35,15 @@ export default function StageIndicator({
               title={STAGE_LABELS[s]}
               className={cn(
                 'h-1.5 rounded-full transition-all',
-                i < currentIndex
-                  ? 'w-3 bg-emerald-500'
-                  : i === currentIndex
-                    ? 'w-4 bg-blue-500'
-                    : 'w-3 bg-slate-200'
+                i <= currentIndex
+                  ? cn('w-3', STAGE_COLOR[s])
+                  : 'w-3 bg-slate-200',
+                i === currentIndex && 'w-4'
               )}
             />
           ))}
         </div>
-        <span className="text-xs font-medium text-muted-foreground tabular-nums">
+        <span className={cn('text-xs font-medium tabular-nums', STAGE_TEXT[stage])}>
           {STAGE_LABELS[stage]}
         </span>
       </div>
@@ -49,11 +59,9 @@ export default function StageIndicator({
             key={s}
             className={cn(
               'h-2 flex-1 rounded-sm',
-              i < currentIndex
-                ? 'bg-emerald-500'
-                : i === currentIndex
-                  ? 'bg-blue-500'
-                  : 'bg-slate-200'
+              i <= currentIndex
+                ? STAGE_COLOR[s]
+                : 'bg-slate-200'
             )}
           />
         ))}
@@ -64,11 +72,9 @@ export default function StageIndicator({
             key={s}
             className={cn(
               'text-xs font-medium',
-              i === currentIndex
-                ? 'text-blue-600'
-                : i < currentIndex
-                  ? 'text-emerald-600'
-                  : 'text-muted-foreground/60'
+              i <= currentIndex
+                ? STAGE_TEXT[s]
+                : 'text-muted-foreground/60'
             )}
           >
             {STAGE_LABELS[s]}
