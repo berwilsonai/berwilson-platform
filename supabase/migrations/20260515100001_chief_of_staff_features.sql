@@ -23,18 +23,22 @@ create table if not exists project_dependencies (
 );
 
 -- Index for querying dependencies by project
-create index idx_deps_upstream on project_dependencies(upstream_project_id) where status = 'active';
-create index idx_deps_downstream on project_dependencies(downstream_project_id) where status = 'active';
+create index if not exists idx_deps_upstream on project_dependencies(upstream_project_id) where status = 'active';
+create index if not exists idx_deps_downstream on project_dependencies(downstream_project_id) where status = 'active';
 
 -- RLS
 alter table project_dependencies enable row level security;
 
+drop policy if exists "Authenticated users can read project_dependencies" on project_dependencies;
 create policy "Authenticated users can read project_dependencies"
   on project_dependencies for select to authenticated using (true);
+drop policy if exists "Authenticated users can insert project_dependencies" on project_dependencies;
 create policy "Authenticated users can insert project_dependencies"
   on project_dependencies for insert to authenticated with check (true);
+drop policy if exists "Authenticated users can update project_dependencies" on project_dependencies;
 create policy "Authenticated users can update project_dependencies"
   on project_dependencies for update to authenticated using (true);
+drop policy if exists "Authenticated users can delete project_dependencies" on project_dependencies;
 create policy "Authenticated users can delete project_dependencies"
   on project_dependencies for delete to authenticated using (true);
 
@@ -55,15 +59,18 @@ create table if not exists stored_briefs (
   created_at timestamptz not null default now()
 );
 
-create index idx_briefs_type_date on stored_briefs(brief_type, created_at desc);
-create index idx_briefs_project on stored_briefs(project_id) where project_id is not null;
+create index if not exists idx_briefs_type_date on stored_briefs(brief_type, created_at desc);
+create index if not exists idx_briefs_project on stored_briefs(project_id) where project_id is not null;
 
 -- RLS
 alter table stored_briefs enable row level security;
 
+drop policy if exists "Authenticated users can read stored_briefs" on stored_briefs;
 create policy "Authenticated users can read stored_briefs"
   on stored_briefs for select to authenticated using (true);
+drop policy if exists "Authenticated users can insert stored_briefs" on stored_briefs;
 create policy "Authenticated users can insert stored_briefs"
   on stored_briefs for insert to authenticated with check (true);
+drop policy if exists "Authenticated users can delete stored_briefs" on stored_briefs;
 create policy "Authenticated users can delete stored_briefs"
   on stored_briefs for delete to authenticated using (true);

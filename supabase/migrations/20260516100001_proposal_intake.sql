@@ -7,7 +7,7 @@ create extension if not exists pg_trgm;
 create index if not exists idx_projects_name_trgm on projects using gin (name gin_trgm_ops);
 create index if not exists idx_parties_name_trgm on parties using gin (full_name gin_trgm_ops);
 
-create table proposal_intake_sessions (
+create table if not exists proposal_intake_sessions (
   id uuid default gen_random_uuid() primary key,
   user_id uuid not null,
   status text not null default 'pending',  -- pending, confirmed, cancelled, expired
@@ -21,12 +21,15 @@ create table proposal_intake_sessions (
   expires_at timestamptz default now() + interval '24 hours'
 );
 
-create index idx_intake_sessions_user on proposal_intake_sessions(user_id, status);
-create index idx_intake_sessions_expires on proposal_intake_sessions(expires_at) where status = 'pending';
+create index if not exists idx_intake_sessions_user on proposal_intake_sessions(user_id, status);
+create index if not exists idx_intake_sessions_expires on proposal_intake_sessions(expires_at) where status = 'pending';
 
 alter table proposal_intake_sessions enable row level security;
+drop policy if exists "intake_select" on proposal_intake_sessions;
 create policy "intake_select" on proposal_intake_sessions for select using (auth.role() = 'authenticated');
+drop policy if exists "intake_insert" on proposal_intake_sessions;
 create policy "intake_insert" on proposal_intake_sessions for insert with check (auth.role() = 'authenticated');
+drop policy if exists "intake_update" on proposal_intake_sessions;
 create policy "intake_update" on proposal_intake_sessions for update using (auth.role() = 'authenticated');
 
 -- RPC functions for trigram matching
