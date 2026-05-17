@@ -27,19 +27,21 @@ export default function RealityCheckChart({ results, baselinePayout }: Props) {
   }))
 
   return (
-    <div className="h-72 w-full">
+    <div className="h-56 sm:h-72 w-full">
       <ResponsiveContainer width="100%" height="100%">
-        <BarChart data={data} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
+        <BarChart data={data} margin={{ top: 10, right: 5, left: 0, bottom: 0 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
           <XAxis
             dataKey="label"
-            tick={{ fontSize: 11, fill: '#64748b' }}
+            tick={{ fontSize: 10, fill: '#64748b' }}
             axisLine={{ stroke: '#e2e8f0' }}
+            interval="preserveStartEnd"
           />
           <YAxis
             tickFormatter={(v: number) => formatCurrencyCompact(v)}
-            tick={{ fontSize: 11, fill: '#64748b' }}
+            tick={{ fontSize: 10, fill: '#64748b' }}
             axisLine={{ stroke: '#e2e8f0' }}
+            width={55}
           />
           <Tooltip
             formatter={(value) => [formatCurrency(Number(value)), "Eric's Payout"]}

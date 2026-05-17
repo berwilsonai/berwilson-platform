@@ -28,19 +28,19 @@ export default function CapTablePieChart({ holders }: Props) {
     }))
 
   return (
-    <div className="h-64 w-full">
+    <div className="h-48 sm:h-64 w-full">
       <ResponsiveContainer width="100%" height="100%">
         <PieChart>
           <Pie
             data={data}
             cx="50%"
             cy="50%"
-            innerRadius={50}
-            outerRadius={90}
+            innerRadius="35%"
+            outerRadius="65%"
             paddingAngle={2}
             dataKey="value"
-            label={({ name, value }) =>
-              value > 3 ? `${formatPercentDisplay(value)}` : ''
+            label={({ value }) =>
+              value > 5 ? `${formatPercentDisplay(value)}` : ''
             }
             labelLine={false}
           >

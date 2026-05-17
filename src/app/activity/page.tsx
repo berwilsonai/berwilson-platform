@@ -167,79 +167,128 @@ export default async function ActivityPage({ searchParams }: PageProps) {
 
       {/* Log */}
       {rows.length > 0 ? (
-        <div className="rounded-lg border border-border overflow-hidden">
-          <div className="overflow-x-auto">
-          <table className="w-full text-xs min-w-[640px]">
-            <thead>
-              <tr className="border-b border-border bg-muted/50">
-                <th className="py-2 px-3 text-left font-medium text-muted-foreground whitespace-nowrap">
-                  Time
-                </th>
-                <th className="py-2 px-3 text-left font-medium text-muted-foreground whitespace-nowrap">
-                  Action
-                </th>
-                <th className="py-2 px-3 text-left font-medium text-muted-foreground whitespace-nowrap">
-                  Table
-                </th>
-                <th className="py-2 px-3 text-left font-medium text-muted-foreground whitespace-nowrap">
-                  Project
-                </th>
-                <th className="py-2 px-3 text-left font-medium text-muted-foreground whitespace-nowrap">
-                  Actor
-                </th>
-                <th className="py-2 px-3 w-8" />
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {rows.map((log) => {
-                const proj = log.projects as { id: string; name: string } | null
-                const link = recordLink(log.table_name, log.record_id, log.project_id)
-                const actionStyle = ACTION_STYLES[log.action] ?? 'bg-slate-50 text-slate-600 ring-slate-200'
-                return (
-                  <tr key={log.id} className="hover:bg-muted/30 transition-colors">
-                    <td className="py-2 px-3 font-mono text-muted-foreground whitespace-nowrap">
+        <>
+          {/* Mobile: stacked cards */}
+          <div className="md:hidden space-y-2">
+            {rows.map((log) => {
+              const proj = log.projects as { id: string; name: string } | null
+              const link = recordLink(log.table_name, log.record_id, log.project_id)
+              const actionStyle = ACTION_STYLES[log.action] ?? 'bg-slate-50 text-slate-600 ring-slate-200'
+              return (
+                <div key={log.id} className="rounded-lg border border-border bg-card p-3 space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <span
+                      className={`inline-flex rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase ring-1 ring-inset ${actionStyle}`}
+                    >
+                      {log.action}
+                    </span>
+                    <span className="text-[10px] font-mono text-muted-foreground">
                       {formatTs(log.created_at)}
-                    </td>
-                    <td className="py-2 px-3 whitespace-nowrap">
-                      <span
-                        className={`inline-flex rounded px-1.5 py-0.5 text-xs font-semibold uppercase ring-1 ring-inset ${actionStyle}`}
-                      >
-                        {log.action}
-                      </span>
-                    </td>
-                    <td className="py-2 px-3 text-foreground whitespace-nowrap">
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs font-medium text-foreground">
                       {TABLE_LABELS[log.table_name] ?? log.table_name}
-                    </td>
-                    <td className="py-2 px-3 text-foreground max-w-[180px] truncate">
-                      {proj ? (
-                        <Link href={`/projects/${proj.id}`} className="hover:underline">
-                          {proj.name}
-                        </Link>
-                      ) : (
-                        '—'
-                      )}
-                    </td>
-                    <td className="py-2 px-3 text-muted-foreground max-w-[160px] truncate">
+                    </span>
+                    {proj && (
+                      <Link href={`/projects/${proj.id}`} className="text-xs text-foreground/70 hover:underline truncate max-w-[50%] text-right">
+                        {proj.name}
+                      </Link>
+                    )}
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] text-muted-foreground">
                       {displayActor(log.actor_type, log.actor_id)}
-                    </td>
-                    <td className="py-2 px-3">
-                      {link && (
-                        <Link
-                          href={link}
-                          className="text-muted-foreground hover:text-foreground transition-colors"
-                          title="View record"
-                        >
-                          <ExternalLink size={12} />
-                        </Link>
-                      )}
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
+                    </span>
+                    {link && (
+                      <Link
+                        href={link}
+                        className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                      >
+                        View →
+                      </Link>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
           </div>
-        </div>
+
+          {/* Desktop: table */}
+          <div className="hidden md:block rounded-lg border border-border overflow-hidden">
+            <div className="overflow-x-auto">
+            <table className="w-full text-xs min-w-[640px]">
+              <thead>
+                <tr className="border-b border-border bg-muted/50">
+                  <th className="py-2 px-3 text-left font-medium text-muted-foreground whitespace-nowrap">
+                    Time
+                  </th>
+                  <th className="py-2 px-3 text-left font-medium text-muted-foreground whitespace-nowrap">
+                    Action
+                  </th>
+                  <th className="py-2 px-3 text-left font-medium text-muted-foreground whitespace-nowrap">
+                    Table
+                  </th>
+                  <th className="py-2 px-3 text-left font-medium text-muted-foreground whitespace-nowrap">
+                    Project
+                  </th>
+                  <th className="py-2 px-3 text-left font-medium text-muted-foreground whitespace-nowrap">
+                    Actor
+                  </th>
+                  <th className="py-2 px-3 w-8" />
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {rows.map((log) => {
+                  const proj = log.projects as { id: string; name: string } | null
+                  const link = recordLink(log.table_name, log.record_id, log.project_id)
+                  const actionStyle = ACTION_STYLES[log.action] ?? 'bg-slate-50 text-slate-600 ring-slate-200'
+                  return (
+                    <tr key={log.id} className="hover:bg-muted/30 transition-colors">
+                      <td className="py-2 px-3 font-mono text-muted-foreground whitespace-nowrap">
+                        {formatTs(log.created_at)}
+                      </td>
+                      <td className="py-2 px-3 whitespace-nowrap">
+                        <span
+                          className={`inline-flex rounded px-1.5 py-0.5 text-xs font-semibold uppercase ring-1 ring-inset ${actionStyle}`}
+                        >
+                          {log.action}
+                        </span>
+                      </td>
+                      <td className="py-2 px-3 text-foreground whitespace-nowrap">
+                        {TABLE_LABELS[log.table_name] ?? log.table_name}
+                      </td>
+                      <td className="py-2 px-3 text-foreground max-w-[180px] truncate">
+                        {proj ? (
+                          <Link href={`/projects/${proj.id}`} className="hover:underline">
+                            {proj.name}
+                          </Link>
+                        ) : (
+                          '—'
+                        )}
+                      </td>
+                      <td className="py-2 px-3 text-muted-foreground max-w-[160px] truncate">
+                        {displayActor(log.actor_type, log.actor_id)}
+                      </td>
+                      <td className="py-2 px-3">
+                        {link && (
+                          <Link
+                            href={link}
+                            className="text-muted-foreground hover:text-foreground transition-colors"
+                            title="View record"
+                          >
+                            <ExternalLink size={12} />
+                          </Link>
+                        )}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+            </div>
+          </div>
+        </>
       ) : (
         <div className="rounded-lg border border-border bg-card flex items-center justify-center py-16">
           <p className="text-sm text-muted-foreground">

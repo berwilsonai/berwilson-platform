@@ -8,6 +8,7 @@ import { Toaster } from "sonner"
 import AppSidebar from "@/components/layout/AppSidebar"
 import AppHeader from "@/components/layout/AppHeader"
 import MobileNav from "@/components/layout/MobileNav"
+import MobileQuickUpload from "@/components/layout/MobileQuickUpload"
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -96,11 +97,18 @@ export default async function RootLayout({
             <AppSidebar pendingReviewCount={pendingReviewCount} attentionCount={attentionCount} />
             <div className="flex flex-1 flex-col min-w-0">
               <AppHeader email={user?.email ?? ""} />
-              <main className="flex-1 overflow-y-auto p-5 sm:p-6 pb-20 md:pb-6 scrollbar-thin animate-fade-in-up">
+              <main className="flex-1 overflow-y-auto p-5 sm:p-6 pb-24 md:pb-6 scrollbar-thin animate-fade-in-up">
                 {children}
+                {/* Mobile footer disclaimer */}
+                <footer className="md:hidden mt-10 mb-2 pt-4 border-t border-border text-center">
+                  <p className="text-[10px] text-muted-foreground leading-relaxed">
+                    Ber Wilson Intelligence — Confidential & Proprietary
+                  </p>
+                </footer>
               </main>
             </div>
             <MobileNav pendingCount={pendingReviewCount} />
+            <MobileQuickUpload />
           </div>
         ) : (
           children
