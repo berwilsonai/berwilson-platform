@@ -134,6 +134,12 @@
   }
 }
 
+/* Scrollbar styling */
+.scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: oklch(0.7 0 0 / 30%) transparent;
+}
+
 /* Entrance animation */
 @keyframes fade-in-up {
   from {
@@ -147,5 +153,5 @@
 }
 
 .animate-fade-in-up {
-  animation: fade-in-up 0.4s ease-out both;
+  animation: fade-in-up 0.35s ease-out both;
 }

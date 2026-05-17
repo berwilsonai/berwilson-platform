@@ -39,7 +39,7 @@ export default function ProjectTabBar({ projectId }: ProjectTabBarProps) {
               className={cn(
                 'px-4 py-2.5 text-sm font-medium whitespace-nowrap border-b-2 transition-colors',
                 isActive
-                  ? 'border-foreground text-foreground'
+                  ? 'border-primary text-foreground'
                   : 'border-transparent text-muted-foreground hover:text-foreground hover:border-border'
               )}
             >

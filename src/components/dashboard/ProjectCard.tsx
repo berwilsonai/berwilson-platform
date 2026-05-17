@@ -20,6 +20,14 @@ const STATUS_STYLES: Record<string, string> = {
   closed: 'bg-slate-100 text-slate-500 ring-slate-200',
 }
 
+const STATUS_BORDER: Record<string, string> = {
+  active: 'border-l-emerald-400',
+  on_hold: 'border-l-amber-400',
+  won: 'border-l-blue-400',
+  lost: 'border-l-red-400',
+  closed: 'border-l-slate-300',
+}
+
 const STATUS_LABELS: Record<string, string> = {
   active: 'Active',
   on_hold: 'On Hold',
@@ -64,7 +72,8 @@ export default function ProjectCard({ project, counts, isProgram, parentName, cl
     <Link
       href={`/projects/${project.id}`}
       className={cn(
-        'group block rounded-lg border border-border bg-card shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200',
+        'group block rounded-lg border border-border border-l-[3px] bg-card shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200',
+        STATUS_BORDER[status],
         className
       )}
       style={style}
@@ -144,11 +153,11 @@ export default function ProjectCard({ project, counts, isProgram, parentName, cl
         )}
 
         {/* Footer: location + last updated */}
-        <div className="flex items-center justify-between pt-1 border-t border-border">
-          <span className="text-xs text-muted-foreground truncate max-w-[60%]">
+        <div className="flex items-center justify-between pt-2 mt-1 border-t border-border/60">
+          <span className="text-[11px] text-muted-foreground truncate max-w-[60%]">
             {parentName ? `Sub-project of ${parentName}` : (project.location ?? 'No location')}
           </span>
-          <span className="text-xs text-muted-foreground shrink-0">
+          <span className="text-[11px] text-muted-foreground/70 shrink-0">
             {timeAgo(project.updated_at)}
           </span>
         </div>

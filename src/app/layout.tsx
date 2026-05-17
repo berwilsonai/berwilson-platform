@@ -96,7 +96,7 @@ export default async function RootLayout({
             <AppSidebar pendingReviewCount={pendingReviewCount} attentionCount={attentionCount} />
             <div className="flex flex-1 flex-col min-w-0">
               <AppHeader email={user?.email ?? ""} />
-              <main className="flex-1 overflow-y-auto p-6 pb-20 md:pb-6 animate-fade-in-up">
+              <main className="flex-1 overflow-y-auto p-5 sm:p-6 pb-20 md:pb-6 scrollbar-thin animate-fade-in-up">
                 {children}
               </main>
             </div>

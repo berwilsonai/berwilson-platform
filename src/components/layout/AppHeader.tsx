@@ -48,9 +48,9 @@ export default function AppHeader({ email }: { email: string }) {
   }
 
   return (
-    <header className="h-14 flex items-center justify-between px-4 sm:px-6 border-b border-border bg-background shrink-0">
+    <header className="h-14 flex items-center justify-between px-4 sm:px-6 border-b border-border bg-background/80 backdrop-blur-sm shrink-0 sticky top-0 z-10">
       {/* Logo + page title */}
-      <div className="flex items-center gap-2.5">
+      <div className="flex items-center gap-3">
         <Image
           src="/logo.png"
           alt="Ber Wilson"
@@ -59,13 +59,12 @@ export default function AppHeader({ email }: { email: string }) {
           className="object-contain h-5 w-auto md:hidden"
           priority
         />
-        <div className="hidden md:hidden w-px h-4 bg-border" />
-        <h1 className="text-sm font-semibold tracking-tight">{getPageTitle(pathname)}</h1>
+        <h1 className="text-base font-semibold tracking-tight text-foreground">{getPageTitle(pathname)}</h1>
       </div>
 
-      <div className="flex items-center gap-3">
-        <div className="flex items-center gap-2.5">
-          <div className="size-7 rounded-full bg-primary text-primary-foreground text-xs font-semibold flex items-center justify-center shrink-0">
+      <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2.5 px-2 py-1.5 rounded-md hover:bg-muted/50 transition-colors">
+          <div className="size-7 rounded-full bg-primary text-primary-foreground text-[11px] font-semibold flex items-center justify-center shrink-0">
             {initials(email)}
           </div>
           <span className="text-xs text-muted-foreground hidden sm:block max-w-[160px] truncate">
@@ -75,7 +74,7 @@ export default function AppHeader({ email }: { email: string }) {
 
         <button
           onClick={handleSignOut}
-          className="p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+          className="p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
           aria-label="Sign out"
           title="Sign out"
         >

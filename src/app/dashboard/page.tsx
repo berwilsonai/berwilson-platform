@@ -2,7 +2,6 @@ import { Suspense } from 'react'
 import Link from 'next/link'
 import { FolderKanban } from 'lucide-react'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { cn } from '@/lib/utils'
 
 export const metadata = { title: 'Dashboard — Ber Wilson Intelligence' }
 import ProjectCard, { type ProjectCardCounts } from '@/components/dashboard/ProjectCard'
@@ -207,7 +206,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
   }
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
 
       {/* ── Portfolio health overview ─────────────────────────────────────── */}
       <div className="animate-fade-in-up">
@@ -237,44 +236,8 @@ export default async function DashboardPage({ searchParams }: PageProps) {
         </div>
       )}
 
-      {/* ── Summary stats ─────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 animate-fade-in-up" style={{ animationDelay: '150ms' }}>
-        <div className="rounded-lg border border-border border-l-2 border-l-primary bg-card p-4 shadow-sm">
-          <p className="text-xs text-muted-foreground">Active Projects</p>
-          <p className="text-3xl font-bold font-mono tabular-nums tracking-tight mt-1 text-foreground">{activeProjects.length}</p>
-        </div>
-        <div className="rounded-lg border border-border border-l-2 border-l-primary bg-card p-4 shadow-sm">
-          <p className="text-xs text-muted-foreground">Pipeline Value</p>
-          <p className="text-3xl font-bold font-mono tabular-nums tracking-tight mt-1 text-foreground">
-            {pipelineValue > 0 ? formatValue(pipelineValue) : '—'}
-          </p>
-        </div>
-        <div className={cn(
-          'rounded-lg border p-4 shadow-sm',
-          pendingReview > 0 ? 'border-amber-200 border-l-2 border-l-amber-400 bg-amber-50' : 'border-border border-l-2 border-l-primary bg-card'
-        )}>
-          <p className={cn('text-xs', pendingReview > 0 ? 'text-amber-700' : 'text-muted-foreground')}>
-            In Review
-          </p>
-          <p className={cn('text-3xl font-bold font-mono tabular-nums tracking-tight mt-1', pendingReview > 0 ? 'text-amber-800' : 'text-foreground')}>
-            {pendingReview}
-          </p>
-        </div>
-        <div className={cn(
-          'rounded-lg border p-4 shadow-sm',
-          overdueCount > 0 ? 'border-red-200 border-l-2 border-l-red-400 bg-red-50' : 'border-border border-l-2 border-l-primary bg-card'
-        )}>
-          <p className={cn('text-xs', overdueCount > 0 ? 'text-red-700' : 'text-muted-foreground')}>
-            Overdue Milestones
-          </p>
-          <p className={cn('text-3xl font-bold font-mono tabular-nums tracking-tight mt-1', overdueCount > 0 ? 'text-red-700' : 'text-foreground')}>
-            {overdueCount}
-          </p>
-        </div>
-      </div>
-
       {/* ── Main content ──────────────────────────────────────────────────── */}
-      <div className="flex flex-col lg:flex-row gap-5 animate-fade-in-up" style={{ animationDelay: '200ms' }}>
+      <div className="flex flex-col lg:flex-row gap-6 animate-fade-in-up" style={{ animationDelay: '150ms' }}>
 
         {/* Cards grid — left on desktop, first on mobile */}
         <div className="flex-1 min-w-0 space-y-3">
@@ -313,7 +276,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
                   project={project}
                   counts={countMap[project.id]}
                   className="animate-fade-in-up"
-                  style={{ animationDelay: `${250 + i * 50}ms` }}
+                  style={{ animationDelay: `${200 + i * 50}ms` }}
                 />
               ))}
             </div>
