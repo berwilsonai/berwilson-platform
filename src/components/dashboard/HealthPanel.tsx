@@ -1,7 +1,8 @@
 'use client'
 
 import { useEffect, useState, useRef } from 'react'
-import { CheckCircle2, AlertTriangle, Clock, ClipboardList, ShieldAlert, TrendingUp } from 'lucide-react'
+import { CheckCircle2, AlertTriangle, Clock, ClipboardList, ShieldAlert, TrendingUp, HelpCircle } from 'lucide-react'
+import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
 
 // ─── Animated counter component ──────────────────────────────────────────────
 function AnimatedNumber({ value, duration = 800, prefix = '', suffix = '' }: { value: number; duration?: number; prefix?: string; suffix?: string }) {
@@ -92,7 +93,8 @@ function HealthRing({ score }: { score: number }) {
   return (
     <div className="flex flex-col items-center gap-1.5">
       <div className="relative w-[84px] h-[84px] flex items-center justify-center">
-        <svg viewBox="0 0 80 80" className="absolute inset-0 w-full h-full -rotate-90">
+        <svg viewBox="0 0 80 80" className="absolute inset-0 w-full h-full -rotate-90" role="img" aria-label={`Portfolio health score: ${score} out of 100 — ${colors.label}`}>
+          <title>Health Score: {score}/100</title>
           <defs>
             <linearGradient id="health-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
               <stop offset="0%" stopColor={colors.stroke} />
@@ -176,10 +178,10 @@ export default function HealthPanel({
 
   // Stacked bar segments (proportional widths)
   const segments = [
-    { value: criticalDdCount, color: 'bg-red-500' },
-    { value: overdueCount, color: 'bg-orange-400' },
-    { value: pendingReview, color: 'bg-amber-300' },
-    { value: expiringCertsCount, color: 'bg-yellow-300' },
+    { value: criticalDdCount, color: 'bg-red-500', label: 'Critical DD' },
+    { value: overdueCount, color: 'bg-orange-400', label: 'Overdue' },
+    { value: pendingReview, color: 'bg-amber-300', label: 'In Review' },
+    { value: expiringCertsCount, color: 'bg-yellow-300', label: 'Cert Expiry' },
   ].filter((s) => s.value > 0)
 
   return (
@@ -190,6 +192,14 @@ export default function HealthPanel({
         <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
           Portfolio Health
         </span>
+        <Tooltip>
+          <TooltipTrigger className="text-muted-foreground/50 hover:text-muted-foreground cursor-help">
+            <HelpCircle size={11} />
+          </TooltipTrigger>
+          <TooltipContent>
+            Score based on critical DD items, overdue milestones, pending reviews, and expiring certifications. 85+ is excellent, 70+ good, 50+ at risk.
+          </TooltipContent>
+        </Tooltip>
         {totalAlerts === 0 && (
           <span className="ml-auto flex items-center gap-1 text-xs text-emerald-600 font-medium">
             <CheckCircle2 size={11} />
@@ -254,7 +264,7 @@ export default function HealthPanel({
           />
 
           {/* Stacked bar summary */}
-          <div className="pt-1">
+          <div className="pt-1" role="img" aria-label={segments.length === 0 ? 'No alerts' : segments.map(s => `${s.label}: ${s.value}`).join(', ')}>
             <div className="flex h-2 rounded-full overflow-hidden gap-px">
               {segments.length === 0 ? (
                 <div className="flex-1 bg-emerald-400 rounded-full" />
@@ -264,6 +274,7 @@ export default function HealthPanel({
                     key={i}
                     className={`${s.color} transition-all duration-500`}
                     style={{ flex: s.value }}
+                    title={`${s.label}: ${s.value}`}
                   />
                 ))
               )}

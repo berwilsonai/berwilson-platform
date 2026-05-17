@@ -1,7 +1,9 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { toast } from 'sonner'
 import { Sparkles, RefreshCw, ChevronDown, ChevronUp } from 'lucide-react'
+import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
 
 export default function DailyBrief() {
   const [brief, setBrief] = useState<string | null>(null)
@@ -61,7 +63,9 @@ export default function DailyBrief() {
         date: new Date().toISOString().split('T')[0],
       }))
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to generate brief')
+      const msg = err instanceof Error ? err.message : 'Failed to generate brief'
+      setError(msg)
+      toast.error(msg)
     } finally {
       setLoading(false)
     }
@@ -81,21 +85,24 @@ export default function DailyBrief() {
           Daily Intelligence Brief
         </span>
         {stale && !loading && (
-          <span className="text-xs text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded">
-            Yesterday
-          </span>
+          <Tooltip>
+            <TooltipTrigger className="text-xs text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded cursor-help">
+              Yesterday
+            </TooltipTrigger>
+            <TooltipContent>
+              This brief is from yesterday. Click the refresh button to generate a fresh one.
+            </TooltipContent>
+          </Tooltip>
         )}
-        <div
-          role="button"
-          tabIndex={0}
+        <button
+          type="button"
           onClick={(e) => { e.stopPropagation(); if (!loading) generateBrief() }}
-          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.stopPropagation(); if (!loading) generateBrief() } }}
-          aria-disabled={loading}
-          className={`p-1 text-muted-foreground hover:text-foreground transition-colors ${loading ? 'opacity-50 pointer-events-none' : 'cursor-pointer'}`}
-          title="Refresh brief"
+          disabled={loading}
+          className="p-1 text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50 disabled:pointer-events-none"
+          aria-label="Refresh brief"
         >
           <RefreshCw size={12} className={loading ? 'animate-spin' : ''} />
-        </div>
+        </button>
         {expanded ? <ChevronUp size={14} className="text-muted-foreground" /> : <ChevronDown size={14} className="text-muted-foreground" />}
       </button>
 

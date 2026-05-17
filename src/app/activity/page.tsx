@@ -299,23 +299,26 @@ export default async function ActivityPage({ searchParams }: PageProps) {
 
       {/* Pagination */}
       {totalPages > 1 && (
-        <div className="flex items-center justify-between text-xs text-muted-foreground">
+        <div className="flex items-center justify-between text-xs text-muted-foreground flex-wrap gap-2">
           <span>
-            Page {page} of {totalPages}
+            Showing {((page - 1) * PAGE_SIZE + 1).toLocaleString()}–{Math.min(page * PAGE_SIZE, totalCount).toLocaleString()} of {totalCount.toLocaleString()} events
           </span>
           <div className="flex items-center gap-2">
             {page > 1 && (
               <Link
                 href={pageUrl(page - 1)}
-                className="h-7 px-3 rounded-md border border-input bg-background hover:bg-accent transition-colors inline-flex items-center"
+                className="h-8 px-3 rounded-md border border-input bg-background hover:bg-accent transition-colors inline-flex items-center text-xs font-medium"
               >
-                ← Prev
+                ← Previous
               </Link>
             )}
+            <span className="px-2 tabular-nums">
+              {page} / {totalPages}
+            </span>
             {page < totalPages && (
               <Link
                 href={pageUrl(page + 1)}
-                className="h-7 px-3 rounded-md border border-input bg-background hover:bg-accent transition-colors inline-flex items-center"
+                className="h-8 px-3 rounded-md border border-input bg-background hover:bg-accent transition-colors inline-flex items-center text-xs font-medium"
               >
                 Next →
               </Link>

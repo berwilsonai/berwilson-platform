@@ -13,6 +13,7 @@ interface Alert {
 export default function AlertsBanner({ alerts }: { alerts: Alert[] }) {
   const [dismissed, setDismissed] = useState(false)
   const [expanded, setExpanded] = useState(false)
+  const [confirmDismiss, setConfirmDismiss] = useState(false)
 
   if (dismissed || alerts.length === 0) return null
 
@@ -24,18 +25,39 @@ export default function AlertsBanner({ alerts }: { alerts: Alert[] }) {
 
   return (
     <div className="rounded-lg border border-red-200 bg-red-50 shadow-sm overflow-hidden">
+      {/* Dismiss confirmation */}
+      {confirmDismiss && (
+        <div className="flex items-center gap-2 px-4 py-2.5 bg-red-100 border-b border-red-200">
+          <span className="text-xs text-red-800 flex-1">
+            Dismiss all {alerts.length} alerts for this session?
+          </span>
+          <button
+            onClick={() => setConfirmDismiss(false)}
+            className="h-6 px-2 rounded text-xs font-medium text-red-700 hover:bg-red-200 transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={() => setDismissed(true)}
+            className="h-6 px-2 rounded text-xs font-medium bg-red-600 text-white hover:bg-red-700 transition-colors"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-center gap-2 px-4 py-2.5">
-        <AlertTriangle size={14} className="text-red-600 shrink-0" />
+        <AlertTriangle size={14} className="text-red-600 shrink-0" aria-hidden="true" />
         <span className="text-xs font-semibold text-red-800 flex-1">
           {criticalCount > 0 && `${criticalCount} critical item${criticalCount !== 1 ? 's' : ''}`}
           {criticalCount > 0 && overdueCount > 0 && ' · '}
           {overdueCount > 0 && `${overdueCount} overdue milestone${overdueCount !== 1 ? 's' : ''}`}
         </span>
         <button
-          onClick={() => setDismissed(true)}
+          onClick={() => setConfirmDismiss(true)}
           className="p-1 text-red-400 hover:text-red-600 transition-colors"
-          title="Dismiss"
+          aria-label="Dismiss alerts"
         >
           <X size={12} />
         </button>

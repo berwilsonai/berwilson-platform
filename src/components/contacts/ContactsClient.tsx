@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from 'react'
 import Link from 'next/link'
+import { toast } from 'sonner'
 import { Building2, Mail, Phone, Search, Sparkles, Trash2, User, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -164,11 +165,14 @@ function ContactCard({
       const res = await fetch(`/api/parties/${contact.id}`, { method: 'DELETE' })
       if (res.ok) {
         onDelete(contact.id)
+        toast.success(`${contact.full_name} deleted`)
       } else {
+        toast.error('Failed to delete contact')
         setDeleting(false)
         setConfirming(false)
       }
     } catch {
+      toast.error('Failed to delete contact')
       setDeleting(false)
       setConfirming(false)
     }
@@ -279,16 +283,17 @@ function ContactCard({
 
       {/* Action buttons — outside the link */}
       <div className="absolute top-2 right-2 flex items-center gap-1">
-        <span
+        <button
           title="Enrich profile"
-          className="opacity-0 group-hover:opacity-100 transition-opacity text-purple-400 hover:text-purple-600 cursor-pointer"
+          aria-label={`Enrich ${contact.full_name} profile`}
+          className="opacity-0 group-hover:opacity-100 transition-opacity text-purple-400 hover:text-purple-600"
           onClick={e => {
             e.preventDefault()
             window.location.href = `/contacts/${contact.id}?tab=overview`
           }}
         >
           <Sparkles size={14} />
-        </span>
+        </button>
         <button
           title="Delete contact"
           onClick={e => { e.preventDefault(); e.stopPropagation(); setConfirming(true) }}

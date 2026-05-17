@@ -1,8 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import Link from 'next/link'
-import { Trash2, Layers, FolderOpen } from 'lucide-react'
+import { toast } from 'sonner'
+import { Trash2, Layers, FolderOpen, Search, X } from 'lucide-react'
 import ProjectCard, { type ProjectCardCounts } from '@/components/dashboard/ProjectCard'
 import type { Project } from '@/lib/supabase/types'
 import { cn } from '@/lib/utils'
@@ -73,16 +74,30 @@ function ProgramBanner({ program, childCount }: { program: Project; childCount: 
 
 export default function ProjectsClient({ projects: initialProjects }: ProjectsClientProps) {
   const [projects, setProjects] = useState(initialProjects)
+  const [search, setSearch] = useState('')
 
   function handleDelete(id: string) {
     setProjects(prev => prev.filter(p => p.id !== id))
   }
 
+  // Filter by search
+  const filtered = useMemo(() => {
+    if (!search.trim()) return projects
+    const q = search.toLowerCase()
+    return projects.filter(
+      p =>
+        p.name.toLowerCase().includes(q) ||
+        (p.location ?? '').toLowerCase().includes(q) ||
+        (p.client_entity ?? '').toLowerCase().includes(q) ||
+        (p.solicitation_number ?? '').toLowerCase().includes(q)
+    )
+  }, [projects, search])
+
   // Build hierarchy
   const childrenOf = new Map<string, Project[]>()
   const parentIds = new Set<string>()
 
-  for (const p of projects) {
+  for (const p of filtered) {
     if (p.parent_project_id) {
       const siblings = childrenOf.get(p.parent_project_id) ?? []
       siblings.push(p)
@@ -93,7 +108,7 @@ export default function ProjectsClient({ projects: initialProjects }: ProjectsCl
 
   const programs: Project[] = []
   const standalone: Project[] = []
-  for (const p of projects) {
+  for (const p of filtered) {
     if (p.parent_project_id) continue
     if (parentIds.has(p.id)) {
       programs.push(p)
@@ -104,6 +119,36 @@ export default function ProjectsClient({ projects: initialProjects }: ProjectsCl
 
   return (
     <div className="space-y-6">
+      {/* Search */}
+      <div className="relative">
+        <Search
+          size={13}
+          className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none"
+        />
+        <input
+          type="text"
+          placeholder="Search projects by name, location, client…"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          className="h-8 pl-8 pr-8 w-full sm:w-72 rounded-md border border-input bg-background text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+        />
+        {search && (
+          <button
+            onClick={() => setSearch('')}
+            className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+            aria-label="Clear search"
+          >
+            <X size={12} />
+          </button>
+        )}
+      </div>
+
+      {filtered.length === 0 && search && (
+        <div className="py-12 text-center text-sm text-muted-foreground">
+          No projects match &ldquo;{search}&rdquo;
+        </div>
+      )}
+
       {/* Programs with children */}
       {programs.map(parent => {
         const children = childrenOf.get(parent.id) ?? []
@@ -173,11 +218,14 @@ function DeletableCard({
       const res = await fetch(`/api/projects/${project.id}`, { method: 'DELETE' })
       if (res.ok) {
         onDeleted()
+        toast.success(`${project.name} deleted`)
       } else {
+        toast.error('Failed to delete project')
         setDeleting(false)
         setConfirming(false)
       }
     } catch {
+      toast.error('Failed to delete project')
       setDeleting(false)
       setConfirming(false)
     }

@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { toast } from 'sonner'
 import { CheckCircle, XCircle, ArrowRightLeft, Loader2, FolderPlus } from 'lucide-react'
 import Link from 'next/link'
 import ReviewEditModal from './ReviewEditModal'
@@ -40,7 +41,10 @@ export default function ReviewActions({
     setLoading(null)
     if (res.ok) {
       setResolved(resolution)
+      toast.success(resolution === 'approved' ? 'Item approved' : 'Item rejected')
       router.refresh()
+    } else {
+      toast.error('Failed to resolve item')
     }
   }
 
@@ -56,9 +60,11 @@ export default function ReviewActions({
     setShowReassign(false)
     if (!res.ok) {
       const data = await res.json().catch(() => ({}))
-      setReassignError(data.error ?? 'Reassign failed — please try again')
+      const msg = data.error ?? 'Reassign failed — please try again'
+      setReassignError(msg)
+      toast.error(msg)
     } else {
-      // Refresh so the note reloads with the new project — stay in queue for approval
+      toast.success('Item reassigned to project')
       router.refresh()
     }
   }

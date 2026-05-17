@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { toast } from 'sonner'
 import { Loader2, Sparkles, Check, X, ChevronDown, ChevronRight } from 'lucide-react'
 import ConfidenceBadge from './ConfidenceBadge'
 import type { ExtractionResult, ActionItem, WaitingOnItem, RiskItem, DecisionItem } from '@/types/domain'
@@ -62,7 +63,9 @@ export default function PasteInput({ projectId, onSaved }: PasteInputProps) {
       setDecisions(ext.decisions ?? [])
       setPhase('review')
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Extraction failed')
+      const msg = err instanceof Error ? err.message : 'Extraction failed'
+      setError(msg)
+      toast.error(msg)
       setPhase('input')
     }
   }
@@ -96,10 +99,13 @@ export default function PasteInput({ projectId, onSaved }: PasteInputProps) {
       setRawText('')
       setSavingRaw(false)
       onSaved?.()
+      toast.success('Update saved as-is')
 
       setTimeout(() => setPhase('input'), 2000)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Save failed')
+      const msg = err instanceof Error ? err.message : 'Save failed'
+      setError(msg)
+      toast.error(msg)
       setSavingRaw(false)
     }
   }
@@ -133,11 +139,14 @@ export default function PasteInput({ projectId, onSaved }: PasteInputProps) {
       setRawText('')
       setExtraction(null)
       onSaved?.()
+      toast.success('Update saved successfully')
 
       // Reset after brief success message
       setTimeout(() => setPhase('input'), 2000)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Save failed')
+      const msg = err instanceof Error ? err.message : 'Save failed'
+      setError(msg)
+      toast.error(msg)
       setPhase('review')
     }
   }
