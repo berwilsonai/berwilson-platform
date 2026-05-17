@@ -41,18 +41,19 @@ async function downloadFileFromSupabase(supabase: ReturnType<typeof createAdminC
   return Buffer.from(await data.arrayBuffer())
 }
 
-async function assembleChuks(
+async function assembleChunks(
   supabase: ReturnType<typeof createAdminClient>,
   sessionId: string,
   totalChunks: number
 ): Promise<Buffer> {
-  const chunks: Buffer[] = []
-  for (let i = 0; i < totalChunks; i++) {
-    const chunkPath = `proposals/chunks/${sessionId}/chunk_${String(i).padStart(5, '0')}`
-    const buf = await downloadFileFromSupabase(supabase, chunkPath)
-    chunks.push(buf)
-  }
-  return Buffer.concat(chunks)
+  // Download all chunks in parallel — sequential downloads time out on large files
+  const chunkPaths = Array.from({ length: totalChunks }, (_, i) =>
+    `proposals/chunks/${sessionId}/chunk_${String(i).padStart(5, '0')}`
+  )
+  const buffers = await Promise.all(
+    chunkPaths.map(path => downloadFileFromSupabase(supabase, path))
+  )
+  return Buffer.concat(buffers)
 }
 
 async function cleanupChunks(
@@ -102,7 +103,7 @@ export async function POST(request: NextRequest) {
 
     if (body.chunk_session && body.total_chunks && body.file_name) {
       // Mode B: large file assembled from chunks
-      primaryBuffer = await assembleChuks(supabase, body.chunk_session, body.total_chunks)
+      primaryBuffer = await assembleChunks(supabase, body.chunk_session, body.total_chunks)
       primaryFileName = body.file_name
       primaryMimeType = body.mime_type || 'application/octet-stream'
       primaryFileSizeBytes = body.file_size_bytes || primaryBuffer.byteLength
