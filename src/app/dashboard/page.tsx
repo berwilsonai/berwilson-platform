@@ -236,6 +236,9 @@ export default async function DashboardPage({ searchParams }: PageProps) {
         </div>
       )}
 
+      {/* ── Section divider ───────────────────────────────────────────────── */}
+      <div className="divider-fade" />
+
       {/* ── Main content ──────────────────────────────────────────────────── */}
       <div className="flex flex-col lg:flex-row gap-6 animate-fade-in-up" style={{ animationDelay: '150ms' }}>
 

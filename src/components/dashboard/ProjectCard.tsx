@@ -21,11 +21,11 @@ const STATUS_STYLES: Record<string, string> = {
 }
 
 const STATUS_BORDER: Record<string, string> = {
-  active: 'border-l-emerald-400',
-  on_hold: 'border-l-amber-400',
-  won: 'border-l-blue-400',
-  lost: 'border-l-red-400',
-  closed: 'border-l-slate-300',
+  active: 'border-l-emerald-400 [--card-glow-color:oklch(0.55_0.15_145)]',
+  on_hold: 'border-l-amber-400 [--card-glow-color:oklch(0.70_0.12_85)]',
+  won: 'border-l-blue-400 [--card-glow-color:oklch(0.55_0.15_260)]',
+  lost: 'border-l-red-400 [--card-glow-color:oklch(0.55_0.20_25)]',
+  closed: 'border-l-slate-300 [--card-glow-color:oklch(0.60_0_0)]',
 }
 
 const STATUS_LABELS: Record<string, string> = {
@@ -72,7 +72,7 @@ export default function ProjectCard({ project, counts, isProgram, parentName, cl
     <Link
       href={`/projects/${project.id}`}
       className={cn(
-        'group block rounded-lg border border-border border-l-[3px] bg-card shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200',
+        'group block rounded-lg border border-border border-l-[3px] bg-card shadow-sm card-hover-glow',
         STATUS_BORDER[status],
         className
       )}
@@ -108,7 +108,7 @@ export default function ProjectCard({ project, counts, isProgram, parentName, cl
         {/* Project name + value */}
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <h3 className="text-[15px] font-semibold text-foreground leading-snug group-hover:text-primary transition-colors line-clamp-2">
+            <h3 className="text-[15px] font-semibold text-foreground leading-snug group-hover:text-primary transition-colors line-clamp-2 heading-tight">
               {project.name}
             </h3>
             {project.client_entity && (

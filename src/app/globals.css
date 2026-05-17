@@ -155,3 +155,92 @@
 .animate-fade-in-up {
   animation: fade-in-up 0.35s ease-out both;
 }
+
+/* ─── Glassmorphism panels ─────────────────────────────────────────────────── */
+.glass-panel {
+  background: oklch(1 0 0 / 0.7);
+  backdrop-filter: blur(12px) saturate(1.2);
+  border: 1px solid oklch(0.9 0 0 / 0.5);
+}
+.dark .glass-panel {
+  background: oklch(0.18 0.01 260 / 0.7);
+  border: 1px solid oklch(1 0 0 / 0.08);
+}
+
+/* ─── Animated number counter ──────────────────────────────────────────────── */
+@keyframes count-up {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-count-up {
+  animation: count-up 0.5s ease-out both;
+}
+
+/* ─── Gradient sidebar ─────────────────────────────────────────────────────── */
+.sidebar-gradient {
+  background: linear-gradient(180deg, oklch(0.20 0.03 260) 0%, oklch(0.14 0.02 260) 100%);
+}
+.sidebar-nav-active {
+  background: linear-gradient(90deg, oklch(0.30 0.04 260) 0%, oklch(0.25 0.03 265) 100%);
+}
+
+/* ─── Enhanced card hover glow ─────────────────────────────────────────────── */
+.card-hover-glow {
+  transition: all 0.2s ease;
+}
+.card-hover-glow:hover {
+  box-shadow:
+    inset 3px 0 0 var(--card-glow-color, oklch(0.55 0.15 145)),
+    0 4px 16px oklch(0 0 0 / 0.08);
+  transform: translateY(-2px);
+}
+
+/* ─── Background depth gradient ────────────────────────────────────────────── */
+.bg-depth {
+  background:
+    radial-gradient(ellipse 80% 60% at 10% 20%, oklch(0.96 0.015 260 / 0.5) 0%, transparent 60%),
+    radial-gradient(ellipse 50% 40% at 90% 80%, oklch(0.97 0.01 145 / 0.3) 0%, transparent 50%),
+    var(--background);
+}
+.dark .bg-depth {
+  background:
+    radial-gradient(ellipse 80% 60% at 10% 20%, oklch(0.18 0.03 260 / 0.4) 0%, transparent 60%),
+    radial-gradient(ellipse 50% 40% at 90% 80%, oklch(0.16 0.02 145 / 0.3) 0%, transparent 50%),
+    var(--background);
+}
+
+/* ─── Section dividers with fade ───────────────────────────────────────────── */
+.divider-fade {
+  height: 1px;
+  background: linear-gradient(90deg, transparent 0%, oklch(0.8 0 0 / 0.5) 20%, oklch(0.8 0 0 / 0.5) 80%, transparent 100%);
+}
+.dark .divider-fade {
+  background: linear-gradient(90deg, transparent 0%, oklch(0.4 0 0 / 0.4) 20%, oklch(0.4 0 0 / 0.4) 80%, transparent 100%);
+}
+
+/* ─── Typography refinements ───────────────────────────────────────────────── */
+.heading-tight {
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+}
+
+/* ─── Skeleton shimmer (richer loading) ────────────────────────────────────── */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.skeleton-shimmer {
+  background: linear-gradient(90deg, oklch(0.95 0 0) 25%, oklch(0.90 0 0) 50%, oklch(0.95 0 0) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+}
+.dark .skeleton-shimmer {
+  background: linear-gradient(90deg, oklch(0.22 0 0) 25%, oklch(0.28 0 0) 50%, oklch(0.22 0 0) 75%);
+  background-size: 200% 100%;
+}
+
+/* ─── Chart area gradient fills ────────────────────────────────────────────── */
+.chart-gradient-fill {
+  opacity: 0;
+  animation: fade-in-up 0.6s ease-out 0.3s both;
+}

@@ -1,6 +1,31 @@
 'use client'
 
+import { useEffect, useState, useRef } from 'react'
 import { CheckCircle2, AlertTriangle, Clock, ClipboardList, ShieldAlert, TrendingUp } from 'lucide-react'
+
+// ─── Animated counter component ──────────────────────────────────────────────
+function AnimatedNumber({ value, duration = 800, prefix = '', suffix = '' }: { value: number; duration?: number; prefix?: string; suffix?: string }) {
+  const [display, setDisplay] = useState(0)
+  const ref = useRef<HTMLSpanElement>(null)
+  const hasAnimated = useRef(false)
+
+  useEffect(() => {
+    if (hasAnimated.current) return
+    hasAnimated.current = true
+    const start = performance.now()
+    const animate = (now: number) => {
+      const elapsed = now - start
+      const progress = Math.min(elapsed / duration, 1)
+      // Ease-out cubic
+      const eased = 1 - Math.pow(1 - progress, 3)
+      setDisplay(Math.round(eased * value))
+      if (progress < 1) requestAnimationFrame(animate)
+    }
+    requestAnimationFrame(animate)
+  }, [value, duration])
+
+  return <span ref={ref} className="animate-count-up">{prefix}{display.toLocaleString()}{suffix}</span>
+}
 
 interface HealthPanelProps {
   activeProjects: number
@@ -18,6 +43,29 @@ function formatValue(value: number): string {
   return `$${value.toLocaleString()}`
 }
 
+// Animated value that counts up to the formatted dollar amount
+function AnimatedValue({ value }: { value: number }) {
+  const [display, setDisplay] = useState(0)
+  const hasAnimated = useRef(false)
+
+  useEffect(() => {
+    if (hasAnimated.current) return
+    hasAnimated.current = true
+    const start = performance.now()
+    const duration = 1000
+    const animate = (now: number) => {
+      const elapsed = now - start
+      const progress = Math.min(elapsed / duration, 1)
+      const eased = 1 - Math.pow(1 - progress, 3)
+      setDisplay(Math.round(eased * value))
+      if (progress < 1) requestAnimationFrame(animate)
+    }
+    requestAnimationFrame(animate)
+  }, [value])
+
+  return <span className="animate-count-up tabular-nums">{formatValue(display)}</span>
+}
+
 function computeHealthScore(critical: number, overdue: number, review: number, expiring: number): number {
   const score =
     100 -
@@ -29,10 +77,10 @@ function computeHealthScore(critical: number, overdue: number, review: number, e
 }
 
 function scoreColor(score: number) {
-  if (score >= 85) return { stroke: '#10b981', text: 'text-emerald-600', bg: 'bg-emerald-50', label: 'Excellent' }
-  if (score >= 70) return { stroke: '#3b82f6', text: 'text-blue-600', bg: 'bg-blue-50', label: 'Good' }
-  if (score >= 50) return { stroke: '#f59e0b', text: 'text-amber-600', bg: 'bg-amber-50', label: 'At Risk' }
-  return { stroke: '#ef4444', text: 'text-red-600', bg: 'bg-red-50', label: 'Critical' }
+  if (score >= 85) return { stroke: '#10b981', strokeEnd: '#34d399', text: 'text-emerald-600', bg: 'bg-emerald-50', label: 'Excellent' }
+  if (score >= 70) return { stroke: '#3b82f6', strokeEnd: '#60a5fa', text: 'text-blue-600', bg: 'bg-blue-50', label: 'Good' }
+  if (score >= 50) return { stroke: '#f59e0b', strokeEnd: '#fbbf24', text: 'text-amber-600', bg: 'bg-amber-50', label: 'At Risk' }
+  return { stroke: '#ef4444', strokeEnd: '#f87171', text: 'text-red-600', bg: 'bg-red-50', label: 'Critical' }
 }
 
 function HealthRing({ score }: { score: number }) {
@@ -45,13 +93,19 @@ function HealthRing({ score }: { score: number }) {
     <div className="flex flex-col items-center gap-1.5">
       <div className="relative w-[84px] h-[84px] flex items-center justify-center">
         <svg viewBox="0 0 80 80" className="absolute inset-0 w-full h-full -rotate-90">
-          <circle cx="40" cy="40" r={r} fill="none" stroke="#e5e7eb" strokeWidth="7" />
+          <defs>
+            <linearGradient id="health-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stopColor={colors.stroke} />
+              <stop offset="100%" stopColor={colors.strokeEnd} />
+            </linearGradient>
+          </defs>
+          <circle cx="40" cy="40" r={r} fill="none" stroke="#e5e7eb" strokeWidth="7" opacity="0.4" />
           <circle
             cx="40"
             cy="40"
             r={r}
             fill="none"
-            stroke={colors.stroke}
+            stroke="url(#health-gradient)"
             strokeWidth="7"
             strokeDasharray={`${progress} ${circumference - progress}`}
             strokeLinecap="round"
@@ -59,7 +113,7 @@ function HealthRing({ score }: { score: number }) {
           />
         </svg>
         <div className="flex flex-col items-center leading-none">
-          <span className={`text-2xl font-bold ${colors.text}`}>{score}</span>
+          <span className={`text-2xl font-bold ${colors.text}`}><AnimatedNumber value={score} duration={1000} /></span>
           <span className="text-xs text-muted-foreground mt-0.5">/ 100</span>
         </div>
       </div>
@@ -129,7 +183,7 @@ export default function HealthPanel({
   ].filter((s) => s.value > 0)
 
   return (
-    <div className="rounded-lg border border-border bg-card shadow-sm overflow-hidden">
+    <div className="rounded-lg glass-panel shadow-sm overflow-hidden">
       {/* Header */}
       <div className="flex items-center gap-2 px-4 py-2.5 border-b border-border bg-muted/30">
         <TrendingUp size={13} className="text-muted-foreground" />
@@ -226,15 +280,15 @@ export default function HealthPanel({
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
               Pipeline Value
             </p>
-            <p className="text-3xl font-bold text-foreground mt-1">
-              {pipelineValue > 0 ? formatValue(pipelineValue) : '—'}
+            <p className="text-3xl font-bold text-foreground mt-1 heading-tight">
+              {pipelineValue > 0 ? <AnimatedValue value={pipelineValue} /> : '—'}
             </p>
           </div>
           <div>
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
               Active Projects
             </p>
-            <p className="text-3xl font-bold text-foreground mt-1">{activeProjects}</p>
+            <p className="text-3xl font-bold text-foreground mt-1 heading-tight"><AnimatedNumber value={activeProjects} duration={600} /></p>
           </div>
         </div>
 

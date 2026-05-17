@@ -71,7 +71,7 @@ export default function AppSidebar({ pendingReviewCount = 0, attentionCount = 0 
 
   return (
     <aside
-      className={`hidden md:flex flex-col bg-sidebar shrink-0 transition-[width] duration-200 ease-in-out ${
+      className={`hidden md:flex flex-col sidebar-gradient shrink-0 transition-[width] duration-200 ease-in-out ${
         collapsed ? 'w-14' : 'w-56'
       }`}
     >
@@ -118,7 +118,7 @@ export default function AppSidebar({ pendingReviewCount = 0, attentionCount = 0 
                     title={collapsed ? (showBadge ? `${label} (${badgeCount})` : label) : undefined}
                     className={`flex items-center gap-3 px-2.5 py-2 rounded text-sm font-medium transition-colors ${
                       active
-                        ? 'bg-sidebar-accent text-sidebar-foreground'
+                        ? 'sidebar-nav-active text-sidebar-foreground'
                         : 'text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent'
                     }`}
                   >

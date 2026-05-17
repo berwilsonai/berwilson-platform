@@ -107,7 +107,7 @@ export default function AppHeader({ email }: { email: string }) {
             className="object-contain h-5 w-auto md:hidden shrink-0"
             priority
           />
-          <h1 className="text-base font-semibold tracking-tight text-foreground truncate">{getPageTitle(pathname)}</h1>
+          <h1 className="text-base font-semibold text-foreground truncate heading-tight">{getPageTitle(pathname)}</h1>
         </div>
 
         <div className="flex items-center gap-1.5 shrink-0">
