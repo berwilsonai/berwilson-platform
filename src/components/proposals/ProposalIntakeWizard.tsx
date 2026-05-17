@@ -152,6 +152,16 @@ export default function ProposalIntakeWizard({ availableParents: initialParents 
     setLoading(true)
     setError(null)
 
+    // Safety cap: 200MB per file to prevent runaway token costs on Gemini
+    const MAX_FILE_BYTES = 200 * 1024 * 1024
+    for (const file of files) {
+      if (file.size > MAX_FILE_BYTES) {
+        setError(`${file.name} is ${Math.round(file.size / 1024 / 1024)}MB — max is 200MB per file. Try splitting large drawing sets into sections.`)
+        setLoading(false)
+        return
+      }
+    }
+
     // Upload files directly to Supabase Storage (bypasses Vercel body size limit)
     const supabase = createClient()
     const storedFiles: Array<{ storage_path: string; file_name: string; file_size_bytes: number; mime_type: string }> = []
@@ -170,7 +180,12 @@ export default function ProposalIntakeWizard({ availableParents: initialParents 
         })
 
       if (uploadError) {
-        setError(`Failed to upload ${file.name}: ${uploadError.message}`)
+        // Detect storage size limit errors
+        if (uploadError.message?.toLowerCase().includes('size') || uploadError.message?.toLowerCase().includes('too large') || uploadError.message?.toLowerCase().includes('exceeded')) {
+          setError(`${file.name} (${Math.round(file.size / 1024 / 1024)}MB) exceeds the storage limit. Run "npx tsx scripts/configure-storage.ts" after upgrading Supabase to Pro to increase the limit.`)
+        } else {
+          setError(`Failed to upload ${file.name}: ${uploadError.message}`)
+        }
         setLoading(false)
         return
       }
