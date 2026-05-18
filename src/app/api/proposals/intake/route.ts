@@ -8,7 +8,7 @@ import { findMatchingProjects, matchExtractedParties, type ProposalExtraction } 
 import { writeFile, unlink } from 'fs/promises'
 import { join } from 'path'
 
-export const maxDuration = 360
+export const maxDuration = 300
 
 const SYSTEM_USER_ID = '00000000-0000-0000-0000-000000000000'
 const GEMINI_MODEL = 'gemini-2.5-flash'
