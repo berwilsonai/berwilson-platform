@@ -19,6 +19,7 @@ import {
   Globe,
   AlertTriangle,
   FileUp,
+  ListTodo,
   X,
 } from 'lucide-react'
 
@@ -32,11 +33,12 @@ const PRIMARY_NAV = [
 
 const MORE_NAV = [
   { href: '/proposals/intake', label: 'Ingest', icon: FileUp },
+  { href: '/tasks', label: 'Tasks', icon: ListTodo },
   { href: '/calendar', label: 'Calendar', icon: CalendarDays },
   { href: '/portfolio', label: 'Portfolio', icon: Globe },
   { href: '/equity', label: 'Equity', icon: TrendingUp },
   { href: '/contacts', label: 'Contacts', icon: Users },
-  { href: '/vendors', label: 'Vendors', icon: Building2 },
+  { href: '/vendors', label: 'Vendors & Contractors', icon: Building2 },
   { href: '/company', label: 'Ber Wilson', icon: Shield },
   { href: '/email-log', label: 'Email Log', icon: Mail },
   { href: '/activity', label: 'Activity', icon: Activity },
