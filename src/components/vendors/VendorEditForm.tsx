@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { X } from 'lucide-react'
+import { ENTITY_CATEGORIES, ENTITY_CATEGORY_LABELS, type EntityCategory } from '@/lib/utils/constants'
 
 interface VendorEditFormProps {
   entity: Record<string, unknown>
@@ -9,6 +10,7 @@ interface VendorEditFormProps {
 }
 
 export default function VendorEditForm({ entity, onClose }: VendorEditFormProps) {
+  const [category, setCategory] = useState<EntityCategory>((entity.category as EntityCategory) ?? 'vendor')
   const [websiteUrl, setWebsiteUrl] = useState((entity.website_url as string) ?? '')
   const [description, setDescription] = useState((entity.description as string) ?? '')
   const [specialties, setSpecialties] = useState(
@@ -34,6 +36,7 @@ export default function VendorEditForm({ entity, onClose }: VendorEditFormProps)
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
+        category,
         website_url: websiteUrl.trim() || null,
         description: description.trim() || null,
         specialties: specialties
@@ -65,6 +68,18 @@ export default function VendorEditForm({ entity, onClose }: VendorEditFormProps)
           <X size={14} />
         </button>
       </div>
+
+      <Field label="Category">
+        <select
+          value={category}
+          onChange={e => setCategory(e.target.value as EntityCategory)}
+          className="h-8 w-full rounded-md border border-input bg-background px-2 text-xs focus:outline-none focus:ring-2 focus:ring-ring"
+        >
+          {ENTITY_CATEGORIES.map(c => (
+            <option key={c} value={c}>{ENTITY_CATEGORY_LABELS[c]}</option>
+          ))}
+        </select>
+      </Field>
 
       <Field label="Website URL">
         <input

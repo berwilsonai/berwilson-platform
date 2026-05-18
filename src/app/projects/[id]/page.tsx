@@ -13,7 +13,9 @@ import {
   SECTOR_BADGE, SECTOR_SHORT, STAGE_LABELS,
   ENTITY_TYPE_LABELS, ENTITY_TYPE_BADGE, RELATIONSHIP_LABELS,
   ACTIVITY_TABLE_LABELS, ACTIVITY_ACTION_STYLES,
+  FEDERAL_STANDARD_LABELS, FEDERAL_STANDARD_DESCRIPTIONS, FEDERAL_STANDARD_BADGE,
   formatValue, formatDate,
+  type FederalStandard,
 } from '@/lib/utils/constants'
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
@@ -265,6 +267,45 @@ export default async function ProjectOverviewPage({ params }: PageProps) {
           />
         </dl>
       </section>
+
+      {/* Federal Standards */}
+      {(() => {
+        const standards = ((project as any).applicable_standards ?? ['usace_qm', 'dod_385']) as FederalStandard[]
+        if (!standards || standards.length === 0) return null
+        return (
+          <section className="space-y-3">
+            <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Applicable Federal Standards
+            </h2>
+            <div className="space-y-2">
+              {standards.map((std) => (
+                <div
+                  key={std}
+                  className="flex items-start gap-3 rounded-lg border border-border p-3"
+                >
+                  <span
+                    className={cn(
+                      'inline-flex shrink-0 items-center rounded px-1.5 py-0.5 text-xs font-semibold ring-1 ring-inset mt-0.5',
+                      FEDERAL_STANDARD_BADGE[std] ?? 'bg-slate-100 text-slate-600 ring-slate-200'
+                    )}
+                  >
+                    {std === 'usace_qm' ? 'USACE QM' : 'DoD 385'}
+                  </span>
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium">{FEDERAL_STANDARD_LABELS[std]}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {FEDERAL_STANDARD_DESCRIPTIONS[std]}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              All vendors and contractors on this project will be scored against these standards.
+            </p>
+          </section>
+        )
+      })()}
 
       {/* Corporate entities */}
       {entityLinks.length > 0 && (

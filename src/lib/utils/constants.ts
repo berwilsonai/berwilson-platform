@@ -485,3 +485,85 @@ export const ENGAGEMENT_STATE_LABELS: Record<EngagementState, string> = {
   demobilized: 'Demobilized',
   complete: 'Complete',
 }
+
+// ─── Entity Categories ────────────────────────────────────────────────────
+
+export type EntityCategory = 'vendor' | 'partner' | 'contractor'
+
+export const ENTITY_CATEGORIES: EntityCategory[] = ['vendor', 'partner', 'contractor']
+
+export const ENTITY_CATEGORY_LABELS: Record<EntityCategory, string> = {
+  vendor: 'Vendor',
+  partner: 'Partner',
+  contractor: 'Contractor',
+}
+
+export const ENTITY_CATEGORY_BADGE: Record<EntityCategory, string> = {
+  vendor: 'bg-blue-50 text-blue-700 ring-blue-200',
+  partner: 'bg-emerald-50 text-emerald-700 ring-emerald-200',
+  contractor: 'bg-amber-50 text-amber-700 ring-amber-200',
+}
+
+// ─── Federal Standards ──────────────────────────────────────────────────────
+
+export type FederalStandard = 'usace_qm' | 'dod_385'
+
+export const FEDERAL_STANDARDS: FederalStandard[] = ['usace_qm', 'dod_385']
+
+export const FEDERAL_STANDARD_LABELS: Record<FederalStandard, string> = {
+  usace_qm: 'USACE Quality Management',
+  dod_385: 'DoD 385-1-1 Safety & Health',
+}
+
+export const FEDERAL_STANDARD_DESCRIPTIONS: Record<FederalStandard, string> = {
+  usace_qm: 'U.S. Army Corps of Engineers Quality Management System (ER 1180-1-6 / EP 715-1-7) — Contractor Quality Control requirements for federal construction',
+  dod_385: 'Department of Defense Instruction 385-1-1 — Safety and Occupational Health program requirements for DoD construction operations',
+}
+
+export const FEDERAL_STANDARD_BADGE: Record<FederalStandard, string> = {
+  usace_qm: 'bg-blue-50 text-blue-700 ring-blue-200',
+  dod_385: 'bg-orange-50 text-orange-700 ring-orange-200',
+}
+
+// USACE Quality Management scorecard criteria
+export const USACE_QM_CRITERIA = [
+  { key: 'qm_qc_plan', label: 'Quality Control Plan', description: 'Adequacy and implementation of the Contractor Quality Control (CQC) plan per ER 1180-1-6' },
+  { key: 'qm_three_phase_inspection', label: 'Three-Phase Inspection', description: 'Compliance with preparatory, initial, and follow-up inspection phases' },
+  { key: 'qm_testing_compliance', label: 'Testing Compliance', description: 'Required testing performed per specifications and accepted standards' },
+  { key: 'qm_deficiency_tracking', label: 'Deficiency Tracking', description: 'Timely identification, documentation, and resolution of deficiencies' },
+  { key: 'qm_documentation', label: 'Documentation', description: 'Completeness of daily reports, test results, and QC records' },
+  { key: 'qm_rework_rate', label: 'Rework Rate', description: 'Volume and impact of rework relative to contract value' },
+  { key: 'qm_material_compliance', label: 'Material Compliance', description: 'Material certifications, approved sources, and specification conformance' },
+  { key: 'qm_submittal_timeliness', label: 'Submittal Timeliness', description: 'On-time submission and quality of submittals and shop drawings' },
+] as const
+
+// DoD 385-1-1 Safety & Health scorecard criteria
+export const DOD_385_CRITERIA = [
+  { key: 'sh_accident_prevention_plan', label: 'Accident Prevention Plan', description: 'Adequacy and implementation of the APP per EM 385-1-1' },
+  { key: 'sh_activity_hazard_analysis', label: 'Activity Hazard Analysis', description: 'Completion and quality of AHAs for each definable feature of work' },
+  { key: 'sh_safety_training', label: 'Safety Training', description: 'Required safety training, toolbox talks, and competent person certifications' },
+  { key: 'sh_ppe_compliance', label: 'PPE Compliance', description: 'Proper personal protective equipment use and enforcement' },
+  { key: 'sh_incident_rate', label: 'Incident Rate', description: 'DART rate, TRIR, and severity of recordable incidents' },
+  { key: 'sh_site_inspections', label: 'Site Safety Inspections', description: 'Frequency and thoroughness of daily and weekly safety inspections' },
+  { key: 'sh_osha_compliance', label: 'OSHA Compliance', description: 'Compliance with OSHA 300 log, reporting requirements, and citations' },
+  { key: 'sh_corrective_actions', label: 'Corrective Actions', description: 'Timeliness and effectiveness of corrective actions for safety deficiencies' },
+] as const
+
+// Scorecard rating scale labels
+export const SCORECARD_RATING_LABELS: Record<number, string> = {
+  0: 'Not Evaluated',
+  1: 'Unsatisfactory',
+  2: 'Below Standard',
+  3: 'Satisfactory',
+  4: 'Above Standard',
+  5: 'Exceptional',
+}
+
+export const SCORECARD_RATING_COLORS: Record<number, string> = {
+  0: 'text-slate-400',
+  1: 'text-red-600',
+  2: 'text-orange-500',
+  3: 'text-amber-500',
+  4: 'text-emerald-500',
+  5: 'text-green-600',
+}

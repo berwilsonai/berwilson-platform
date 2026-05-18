@@ -6,16 +6,18 @@ import VendorsClient from '@/components/vendors/VendorsClient'
 import type { VendorWithStats } from '@/components/vendors/VendorsClient'
 import EmptyState from '@/components/shared/EmptyState'
 
-export const metadata = { title: 'Vendors & Partners — Ber Wilson Intelligence' }
+export const metadata = { title: 'Vendors, Contractors & Partners — Ber Wilson Intelligence' }
 
 export default async function VendorsPage() {
   const supabase = createAdminClient()
 
   // Fetch all entities with their project relationships and reviews
-  const { data: entities, error } = await supabase
+  // Cast to bypass generated types not yet including 'category' column
+  const db = supabase as unknown as import('@supabase/supabase-js').SupabaseClient
+  const { data: entities, error } = await db
     .from('entities')
     .select(`
-      id, name, entity_type, jurisdiction, website_url, description,
+      id, name, entity_type, category, jurisdiction, website_url, description,
       specialties, quality_score, confidence_score, headquarters,
       logo_url, enriched_at,
       entity_projects(id, project_id, relationship),
@@ -44,6 +46,7 @@ export default async function VendorsPage() {
       id: e.id,
       name: e.name,
       entity_type: e.entity_type,
+      category: (e as any).category ?? 'vendor',
       jurisdiction: e.jurisdiction,
       website_url: e.website_url,
       description: e.description,
@@ -64,7 +67,7 @@ export default async function VendorsPage() {
     <div className="space-y-5">
       {/* Header */}
       <div className="flex items-center justify-between gap-4 flex-wrap">
-        <h1 className="text-lg font-semibold">Vendors & Partners</h1>
+        <h1 className="text-lg font-semibold">Vendors, Contractors & Partners</h1>
         <Link
           href="/vendors/new"
           className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors shrink-0"

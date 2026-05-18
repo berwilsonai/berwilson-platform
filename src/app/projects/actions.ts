@@ -28,6 +28,17 @@ function parseFields(formData: FormData): ParseResult {
 
   const str = (key: string) => (formData.get(key) as string | null)?.trim() || null
 
+  // Parse applicable standards JSON
+  const standardsRaw = str('applicable_standards')
+  let applicable_standards: string[] | null = null
+  if (standardsRaw) {
+    try {
+      applicable_standards = JSON.parse(standardsRaw)
+    } catch {
+      applicable_standards = ['usace_qm', 'dod_385']
+    }
+  }
+
   return {
     ok: true,
     fields: {
@@ -46,7 +57,8 @@ function parseFields(formData: FormData): ParseResult {
       ntp_date: str('ntp_date'),
       substantial_completion_date: str('substantial_completion_date'),
       parent_project_id: str('parent_project_id'),
-    },
+      ...(applicable_standards ? { applicable_standards } : {}),
+    } as ParsedFields,
   }
 }
 

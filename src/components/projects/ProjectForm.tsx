@@ -10,6 +10,12 @@ import type { ProjectFormState } from '@/app/projects/actions'
 import type { Project, ProjectSector, ProjectStatus, ProjectStage } from '@/lib/supabase/types'
 import { SECTOR_LABELS } from '@/lib/utils/sectors'
 import { STAGE_LABELS, STAGES } from '@/lib/utils/stages'
+import {
+  FEDERAL_STANDARDS,
+  FEDERAL_STANDARD_LABELS,
+  FEDERAL_STANDARD_DESCRIPTIONS,
+  type FederalStandard,
+} from '@/lib/utils/constants'
 
 const SECTORS: ProjectSector[] = ['government', 'infrastructure', 'real_estate', 'prefab', 'institutional']
 const STATUSES: ProjectStatus[] = ['active', 'on_hold', 'won', 'lost', 'closed']
@@ -55,6 +61,18 @@ export default function ProjectForm({ mode, project, redirectAfterCreate, availa
   const [sector, setSector] = useState<ProjectSector | ''>(
     (project?.sector as ProjectSector) ?? ''
   )
+
+  // Federal standards default to both enabled
+  const existingStandards = (project as any)?.applicable_standards as FederalStandard[] | null
+  const [selectedStandards, setSelectedStandards] = useState<FederalStandard[]>(
+    existingStandards ?? ['usace_qm', 'dod_385']
+  )
+
+  const toggleStandard = (std: FederalStandard) => {
+    setSelectedStandards(prev =>
+      prev.includes(std) ? prev.filter(s => s !== std) : [...prev, std]
+    )
+  }
 
   const cancelHref = mode === 'edit' && project ? `/projects/${project.id}` : '/projects'
 
@@ -318,6 +336,41 @@ export default function ProjectForm({ mode, project, redirectAfterCreate, availa
             />
           </div>
         )}
+      </section>
+
+      {/* Federal Standards */}
+      <section className="space-y-4">
+        <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          Federal Standards
+        </h2>
+        <p className="text-xs text-muted-foreground -mt-2">
+          Select which federal standards apply to this project. Vendors and contractors will be scored against these.
+        </p>
+        <input type="hidden" name="applicable_standards" value={JSON.stringify(selectedStandards)} />
+        <div className="space-y-2">
+          {FEDERAL_STANDARDS.map(std => (
+            <label
+              key={std}
+              className={cn(
+                'flex items-start gap-3 rounded-lg border p-3 cursor-pointer transition-colors',
+                selectedStandards.includes(std)
+                  ? 'border-primary/40 bg-primary/5'
+                  : 'border-border hover:border-border/80'
+              )}
+            >
+              <input
+                type="checkbox"
+                checked={selectedStandards.includes(std)}
+                onChange={() => toggleStandard(std)}
+                className="mt-0.5 rounded border-input"
+              />
+              <div>
+                <p className="text-sm font-medium">{FEDERAL_STANDARD_LABELS[std]}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">{FEDERAL_STANDARD_DESCRIPTIONS[std]}</p>
+              </div>
+            </label>
+          ))}
+        </div>
       </section>
 
       {/* Key Dates */}

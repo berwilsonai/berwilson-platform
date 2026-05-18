@@ -2,13 +2,19 @@
 
 import { useState, useMemo } from 'react'
 import Link from 'next/link'
-import { Building2, Globe, MapPin, Search, Star, Tag, X } from 'lucide-react'
+import { Building2, Globe, HardHat, Handshake, MapPin, Search, Star, Tag, Truck, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import {
+  ENTITY_CATEGORY_LABELS,
+  ENTITY_CATEGORY_BADGE,
+  type EntityCategory,
+} from '@/lib/utils/constants'
 
 export interface VendorWithStats {
   id: string
   name: string
   entity_type: string
+  category: EntityCategory
   jurisdiction: string | null
   website_url: string | null
   description: string | null
@@ -25,6 +31,7 @@ export interface VendorWithStats {
 }
 
 type SortKey = 'name' | 'quality_score' | 'project_count' | 'avg_rating'
+type CategoryTab = 'all' | EntityCategory
 
 interface VendorsClientProps {
   vendors: VendorWithStats[]
@@ -39,6 +46,12 @@ const RELATIONSHIP_LABELS: Record<string, string> = {
   jv_partner: 'JV Partner',
   sub_entity: 'Sub-Entity',
   guarantor: 'Guarantor',
+}
+
+const CATEGORY_ICONS: Record<EntityCategory, typeof Building2> = {
+  vendor: Truck,
+  partner: Handshake,
+  contractor: HardHat,
 }
 
 function ScoreDisplay({ score, label }: { score: number | null; label: string }) {
@@ -56,6 +69,14 @@ export default function VendorsClient({ vendors }: VendorsClientProps) {
   const [sort, setSort] = useState<SortKey>('name')
   const [filterRelationship, setFilterRelationship] = useState<string>('')
   const [filterSpecialty, setFilterSpecialty] = useState<string>('')
+  const [categoryTab, setCategoryTab] = useState<CategoryTab>('all')
+
+  // Category counts
+  const categoryCounts = useMemo(() => {
+    const counts: Record<string, number> = { all: vendors.length, vendor: 0, partner: 0, contractor: 0 }
+    vendors.forEach(v => { counts[v.category] = (counts[v.category] || 0) + 1 })
+    return counts
+  }, [vendors])
 
   // Collect all unique specialties for the filter dropdown
   const allSpecialties = useMemo(() => {
@@ -73,6 +94,11 @@ export default function VendorsClient({ vendors }: VendorsClientProps) {
 
   const filtered = useMemo(() => {
     let list = vendors
+
+    // Category tab filter
+    if (categoryTab !== 'all') {
+      list = list.filter(v => v.category === categoryTab)
+    }
 
     if (filterRelationship) {
       list = list.filter(v => v.relationships.includes(filterRelationship))
@@ -105,12 +131,45 @@ export default function VendorsClient({ vendors }: VendorsClientProps) {
           return (b.avg_rating ?? 0) - (a.avg_rating ?? 0)
       }
     })
-  }, [vendors, search, sort, filterRelationship, filterSpecialty])
+  }, [vendors, search, sort, filterRelationship, filterSpecialty, categoryTab])
 
-  const hasFilters = !!search || !!filterRelationship || !!filterSpecialty
+  const hasFilters = !!search || !!filterRelationship || !!filterSpecialty || categoryTab !== 'all'
 
   return (
     <div className="space-y-4">
+      {/* Category tabs */}
+      <div className="flex items-center gap-1 border-b border-border">
+        <button
+          onClick={() => setCategoryTab('all')}
+          className={cn(
+            'px-3 py-2 text-xs font-medium border-b-2 transition-colors -mb-px',
+            categoryTab === 'all'
+              ? 'border-primary text-foreground'
+              : 'border-transparent text-muted-foreground hover:text-foreground'
+          )}
+        >
+          All ({categoryCounts.all})
+        </button>
+        {(['vendor', 'contractor', 'partner'] as EntityCategory[]).map(cat => {
+          const Icon = CATEGORY_ICONS[cat]
+          return (
+            <button
+              key={cat}
+              onClick={() => setCategoryTab(cat)}
+              className={cn(
+                'inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium border-b-2 transition-colors -mb-px',
+                categoryTab === cat
+                  ? 'border-primary text-foreground'
+                  : 'border-transparent text-muted-foreground hover:text-foreground'
+              )}
+            >
+              <Icon size={12} />
+              {ENTITY_CATEGORY_LABELS[cat]}s ({categoryCounts[cat] || 0})
+            </button>
+          )
+        })}
+      </div>
+
       {/* Toolbar */}
       <div className="flex items-center gap-2 flex-wrap">
         {/* Search */}
@@ -178,7 +237,7 @@ export default function VendorsClient({ vendors }: VendorsClientProps) {
 
         {hasFilters && (
           <button
-            onClick={() => { setSearch(''); setFilterRelationship(''); setFilterSpecialty('') }}
+            onClick={() => { setSearch(''); setFilterRelationship(''); setFilterSpecialty(''); setCategoryTab('all') }}
             className="h-8 px-2 rounded-md text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
           >
             Clear
@@ -277,6 +336,12 @@ function VendorCard({ vendor }: { vendor: VendorWithStats }) {
 
       {/* Footer */}
       <div className="mt-3 pt-2.5 border-t border-border/60 flex items-center gap-3 text-xs text-muted-foreground">
+        <span className={cn(
+          'inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold ring-1 ring-inset',
+          ENTITY_CATEGORY_BADGE[vendor.category]
+        )}>
+          {ENTITY_CATEGORY_LABELS[vendor.category]}
+        </span>
         <span>{vendor.project_count} project{vendor.project_count !== 1 ? 's' : ''}</span>
         {vendor.review_count > 0 && (
           <span>{vendor.review_count} review{vendor.review_count !== 1 ? 's' : ''}</span>

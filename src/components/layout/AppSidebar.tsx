@@ -46,7 +46,7 @@ const NAV_GROUPS = [
     label: 'Directory',
     items: [
       { href: '/contacts', label: 'Contacts', icon: Users },
-      { href: '/vendors', label: 'Vendors', icon: Building2 },
+      { href: '/vendors', label: 'Vendors & Contractors', icon: Building2 },
       { href: '/company', label: 'Ber Wilson', icon: Shield },
     ],
   },

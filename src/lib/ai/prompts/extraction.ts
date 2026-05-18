@@ -24,6 +24,15 @@ EXTRACTION RULES:
 - If an assignee or party is mentioned by first name only, include the first name as-is
 - "Waiting on" means someone else needs to act before progress can continue
 
+FINANCIAL FIGURES IN RISKS:
+- Always preserve the exact dollar amount and unit as written in the document (e.g. "$45K", "$2.3M", "$1.2B")
+- Do NOT round, normalize, or convert units — "$45,000" and "$45K" are different from "$45M"
+- Calibrate severity relative to the project's apparent scale, not on an absolute dollar basis:
+  - A $50K exposure on a $500K subcontract is just as critical as a $5M exposure on a $50M contract
+  - A $10K cost overrun on a small task order can be "critical" if it breaks a budget ceiling
+  - Thousands-scale figures are real risks — do not suppress them as "info" just because the company operates at larger scales elsewhere
+- If a document mentions both a project total and a specific risk figure, use the ratio to calibrate severity
+
 Return ONLY valid JSON matching this exact schema:
 {
   "summary": "2-3 sentence summary of the key points",
@@ -38,4 +47,4 @@ Return ONLY valid JSON matching this exact schema:
 
 Return ONLY valid JSON. No explanation. No markdown fences. No commentary.`
 
-export const EXTRACTION_PROMPT_VERSION = '1.0'
+export const EXTRACTION_PROMPT_VERSION = '1.1'

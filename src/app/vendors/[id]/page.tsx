@@ -10,8 +10,11 @@ import {
   Star,
   Tag,
 } from 'lucide-react'
+import { cn } from '@/lib/utils'
+import { ENTITY_CATEGORY_LABELS, ENTITY_CATEGORY_BADGE, type EntityCategory } from '@/lib/utils/constants'
 import { createAdminClient } from '@/lib/supabase/admin'
 import VendorProfileClient from '@/components/vendors/VendorProfileClient'
+import FederalScorecardSection from '@/components/vendors/FederalScorecardSection'
 import MediaGallery from '@/components/shared/MediaGallery'
 
 export const metadata = { title: 'Vendor Profile — Ber Wilson Intelligence' }
@@ -88,6 +91,13 @@ export default async function VendorDetailPage({ params }: PageProps) {
     .order('sort_order')
     .order('created_at')
 
+  // Fetch federal scorecards
+  const { data: federalScorecards } = await (supabase as any)
+    .from('federal_scorecards')
+    .select('*, projects(id, name)')
+    .eq('entity_id', id)
+    .order('created_at', { ascending: false })
+
   // Calculate average rating
   const avgRating = reviews && reviews.length > 0
     ? reviews.reduce((sum, r) => sum + Number(r.rating), 0) / reviews.length
@@ -120,6 +130,12 @@ export default async function VendorDetailPage({ params }: PageProps) {
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <h1 className="text-xl font-semibold">{entity.name}</h1>
+            <span className={cn(
+              'inline-flex items-center rounded px-2 py-0.5 text-xs font-semibold ring-1 ring-inset',
+              ENTITY_CATEGORY_BADGE[((entity as any).category ?? 'vendor') as EntityCategory]
+            )}>
+              {ENTITY_CATEGORY_LABELS[((entity as any).category ?? 'vendor') as EntityCategory]}
+            </span>
             <span className="px-2 py-0.5 rounded bg-muted text-xs font-medium text-muted-foreground uppercase">
               {entity.entity_type}
             </span>
@@ -202,6 +218,14 @@ export default async function VendorDetailPage({ params }: PageProps) {
       <MediaGallery
         initialPhotos={entityPhotos ?? []}
         scope={{ entityId: id }}
+      />
+
+      {/* Federal Scorecards — Vendors & Contractors only */}
+      <FederalScorecardSection
+        entityId={id}
+        entityCategory={((entity as any).category ?? 'vendor') as string}
+        initialScorecards={federalScorecards ?? []}
+        allProjects={allProjects ?? []}
       />
 
       {/* Client-side interactive sections */}

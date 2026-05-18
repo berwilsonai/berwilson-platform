@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { ChevronLeft } from 'lucide-react'
+import { ENTITY_CATEGORIES, ENTITY_CATEGORY_LABELS, type EntityCategory } from '@/lib/utils/constants'
 
 const ENTITY_TYPES = [
   { value: 'llc', label: 'LLC' },
@@ -16,6 +17,7 @@ const ENTITY_TYPES = [
 export default function NewVendorPage() {
   const router = useRouter()
   const [name, setName] = useState('')
+  const [category, setCategory] = useState<EntityCategory>('vendor')
   const [entityType, setEntityType] = useState('llc')
   const [websiteUrl, setWebsiteUrl] = useState('')
   const [description, setDescription] = useState('')
@@ -41,6 +43,7 @@ export default function NewVendorPage() {
       body: JSON.stringify({
         name: name.trim(),
         entity_type: entityType,
+        category,
       }),
     })
 
@@ -83,7 +86,7 @@ export default function NewVendorPage() {
         All Vendors
       </Link>
 
-      <h1 className="text-lg font-semibold">Add Vendor</h1>
+      <h1 className="text-lg font-semibold">Add Vendor / Contractor / Partner</h1>
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <Field label="Company Name *">
@@ -95,6 +98,21 @@ export default function NewVendorPage() {
             className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
             autoFocus
           />
+        </Field>
+
+        <Field label="Category *">
+          <select
+            value={category}
+            onChange={e => setCategory(e.target.value as EntityCategory)}
+            className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+          >
+            {ENTITY_CATEGORIES.map(c => (
+              <option key={c} value={c}>{ENTITY_CATEGORY_LABELS[c]}</option>
+            ))}
+          </select>
+          <p className="text-xs text-muted-foreground mt-1">
+            Vendors and Contractors are scored against USACE QM and DoD 385-1-1 federal standards. Partners are not.
+          </p>
         </Field>
 
         <Field label="Entity Type">
@@ -157,7 +175,7 @@ export default function NewVendorPage() {
             disabled={saving}
             className="h-9 px-4 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
           >
-            {saving ? 'Creating…' : 'Create Vendor'}
+            {saving ? 'Creating…' : `Create ${ENTITY_CATEGORY_LABELS[category]}`}
           </button>
           <Link
             href="/vendors"
