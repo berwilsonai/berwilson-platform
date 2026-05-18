@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 
-export const maxDuration = 30
+export const maxDuration = 90
 
 // Accepts a single file chunk (≤4MB) and stores it in Supabase.
 // The client splits large files into chunks and calls this repeatedly,
