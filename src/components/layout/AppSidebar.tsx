@@ -9,6 +9,7 @@ import {
   FolderKanban,
   Users,
   Building2,
+  ListChecks,
   ClipboardCheck,
   Activity,
   Brain,
@@ -30,6 +31,7 @@ const NAV_GROUPS = [
       { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
       { href: '/attention', label: 'Attention', icon: AlertTriangle },
       { href: '/projects', label: 'Projects', icon: FolderKanban },
+      { href: '/tasks', label: 'Tasks', icon: ListChecks },
     ],
   },
   {

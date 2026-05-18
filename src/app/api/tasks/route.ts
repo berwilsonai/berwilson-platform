@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import type { TablesInsert } from '@/lib/supabase/types'
+import type { TablesInsert, Json } from '@/lib/supabase/types'
 
 /** POST — create a manual task by inserting a lightweight update with a single action_item */
 export async function POST(request: NextRequest) {
@@ -41,4 +41,57 @@ export async function POST(request: NextRequest) {
   }
 
   return Response.json({ id: data.id, task: actionItem })
+}
+
+/** DELETE — remove a single action_item from an update.
+ *  If it's the only item, delete the entire update row. */
+export async function DELETE(request: NextRequest) {
+  const body = await request.json()
+  const { update_id, index } = body
+
+  if (!update_id || typeof index !== 'number' || index < 0) {
+    return Response.json({ error: 'update_id and index (non-negative number) are required' }, { status: 400 })
+  }
+
+  const supabase = createAdminClient()
+
+  const { data: update, error: fetchError } = await supabase
+    .from('updates')
+    .select('action_items')
+    .eq('id', update_id)
+    .single()
+
+  if (fetchError || !update) {
+    return Response.json({ error: 'Update not found' }, { status: 404 })
+  }
+
+  const items: Record<string, unknown>[] = Array.isArray(update.action_items)
+    ? (update.action_items as Record<string, unknown>[])
+    : []
+
+  if (index >= items.length) {
+    return Response.json({ error: 'Index out of bounds' }, { status: 400 })
+  }
+
+  // If only one action_item, delete the entire update row
+  if (items.length === 1) {
+    const { error } = await supabase.from('updates').delete().eq('id', update_id)
+    if (error) {
+      return Response.json({ error: 'Failed to delete task' }, { status: 500 })
+    }
+    return Response.json({ deleted: 'update' })
+  }
+
+  // Otherwise, splice out the item and update
+  const newItems = items.filter((_, i) => i !== index)
+  const { error: updateError } = await supabase
+    .from('updates')
+    .update({ action_items: newItems as unknown as Json })
+    .eq('id', update_id)
+
+  if (updateError) {
+    return Response.json({ error: 'Failed to remove task' }, { status: 500 })
+  }
+
+  return Response.json({ deleted: 'item', action_items: newItems })
 }
