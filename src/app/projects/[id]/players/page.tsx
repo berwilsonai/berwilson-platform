@@ -4,6 +4,7 @@ import { Building2, Star, User, Users } from 'lucide-react'
 import { createAdminClient } from '@/lib/supabase/admin'
 import EmptyState from '@/components/shared/EmptyState'
 import AddPlayerModal from '@/components/projects/AddPlayerModal'
+import RemovePlayerButton from '@/components/projects/RemovePlayerButton'
 
 export const metadata = { title: 'Team — Ber Wilson Intelligence' }
 
@@ -99,6 +100,7 @@ export default async function PlayersPage({ params }: PageProps) {
               <th className="text-left px-4 py-2.5 text-xs font-medium text-muted-foreground hidden md:table-cell">
                 Contact
               </th>
+              <th className="px-4 py-2.5" />
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
@@ -106,7 +108,7 @@ export default async function PlayersPage({ params }: PageProps) {
               const party = player.parties
               if (!party) return null
               return (
-                <tr key={player.id} className="hover:bg-muted/30 transition-colors">
+                <tr key={player.id} className="group hover:bg-muted/30 transition-colors">
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2.5">
                       <div className="size-7 rounded-full bg-muted flex items-center justify-center shrink-0">
@@ -170,6 +172,9 @@ export default async function PlayersPage({ params }: PageProps) {
                     ) : (
                       <span className="text-muted-foreground text-xs">—</span>
                     )}
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    <RemovePlayerButton playerId={player.id} playerName={party.full_name} />
                   </td>
                 </tr>
               )
