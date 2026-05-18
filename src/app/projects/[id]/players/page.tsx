@@ -5,6 +5,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import EmptyState from '@/components/shared/EmptyState'
 import AddPlayerModal from '@/components/projects/AddPlayerModal'
 import RemovePlayerButton from '@/components/projects/RemovePlayerButton'
+import EditRoleButton from '@/components/projects/EditRoleButton'
 
 export const metadata = { title: 'Team — Ber Wilson Intelligence' }
 
@@ -152,6 +153,11 @@ export default async function PlayersPage({ params }: PageProps) {
                           aria-label="Primary contact"
                         />
                       )}
+                      <EditRoleButton
+                        playerId={player.id}
+                        currentRole={player.role}
+                        playerName={party.full_name}
+                      />
                     </div>
                   </td>
                   <td className="px-4 py-3 hidden md:table-cell">

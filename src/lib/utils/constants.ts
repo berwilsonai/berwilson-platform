@@ -417,6 +417,59 @@ export const FUNDING_STATUS_LABELS: Record<FundingStatusEnum, string> = {
   drawn: 'Drawn',
 }
 
+// ─── Project Player Roles ────────────────────────────────────────────────────
+
+export const PROJECT_PLAYER_ROLES: { value: string; group: string }[] = [
+  // Ownership & Development
+  { value: 'Owner', group: 'Ownership & Development' },
+  { value: "Owner's Rep", group: 'Ownership & Development' },
+  { value: 'Developer', group: 'Ownership & Development' },
+  { value: 'Co-Developer', group: 'Ownership & Development' },
+  { value: 'JV Partner', group: 'Ownership & Development' },
+  { value: 'PE Partner', group: 'Ownership & Development' },
+  { value: 'Equity Investor', group: 'Ownership & Development' },
+  // Construction
+  { value: 'General Contractor (GC)', group: 'Construction' },
+  { value: 'Construction Manager (CM)', group: 'Construction' },
+  { value: 'Subcontractor', group: 'Construction' },
+  { value: 'Project Manager', group: 'Construction' },
+  { value: 'Superintendent', group: 'Construction' },
+  // Design
+  { value: 'Architect', group: 'Design' },
+  { value: 'Structural Engineer', group: 'Design' },
+  { value: 'Civil Engineer', group: 'Design' },
+  { value: 'MEP Engineer', group: 'Design' },
+  { value: 'Geotechnical Engineer', group: 'Design' },
+  // Finance & Legal
+  { value: 'Lender', group: 'Finance & Legal' },
+  { value: 'Senior Lender', group: 'Finance & Legal' },
+  { value: 'Mezzanine Lender', group: 'Finance & Legal' },
+  { value: 'Legal Counsel', group: 'Finance & Legal' },
+  { value: 'Title Company', group: 'Finance & Legal' },
+  { value: 'Accountant / CPA', group: 'Finance & Legal' },
+  { value: 'Insurance Broker', group: 'Finance & Legal' },
+  // Government
+  { value: 'Contracting Officer (CO)', group: 'Government' },
+  { value: 'Contracting Officer Rep (COR)', group: 'Government' },
+  { value: 'Government PM', group: 'Government' },
+  // Consultants & Other
+  { value: 'Environmental Consultant', group: 'Consultants & Other' },
+  { value: 'Permitting Consultant', group: 'Consultants & Other' },
+  { value: 'Surveyor', group: 'Consultants & Other' },
+  { value: 'Property Manager', group: 'Consultants & Other' },
+  { value: 'Broker', group: 'Consultants & Other' },
+  { value: 'DBE Consultant', group: 'Consultants & Other' },
+]
+
+export const PROJECT_PLAYER_ROLE_GROUPS = [
+  'Ownership & Development',
+  'Construction',
+  'Design',
+  'Finance & Legal',
+  'Government',
+  'Consultants & Other',
+]
+
 // ─── Portfolio: Engagement State ────────────────────────────────────────────
 
 export const ENGAGEMENT_STATES: EngagementState[] = [

@@ -11,6 +11,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog'
+import { PROJECT_PLAYER_ROLES, PROJECT_PLAYER_ROLE_GROUPS } from '@/lib/utils/constants'
 
 type Party = {
   id: string
@@ -36,6 +37,7 @@ export default function AddPlayerModal({ projectId }: AddPlayerModalProps) {
   const [search, setSearch] = useState('')
   const [selected, setSelected] = useState<Party | null>(null)
   const [role, setRole] = useState('')
+  const [customRole, setCustomRole] = useState('')
   const [isPrimary, setIsPrimary] = useState(false)
   const [notes, setNotes] = useState('')
 
@@ -45,6 +47,7 @@ export default function AddPlayerModal({ projectId }: AddPlayerModalProps) {
     setSearch('')
     setSelected(null)
     setRole('')
+    setCustomRole('')
     setIsPrimary(false)
     setNotes('')
     setError(null)
@@ -75,13 +78,14 @@ export default function AddPlayerModal({ projectId }: AddPlayerModalProps) {
     setError(null)
 
     try {
+      const finalRole = role === '__custom__' ? customRole.trim() : role.trim()
       const res = await fetch('/api/project-players', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           project_id: projectId,
           party_id: selected.id,
-          role: role.trim(),
+          role: finalRole,
           is_primary: isPrimary,
           notes: notes.trim() || null,
         }),
@@ -102,7 +106,8 @@ export default function AddPlayerModal({ projectId }: AddPlayerModalProps) {
 
   const inputClass =
     'w-full rounded-md border border-input bg-background px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50'
-  const canSave = selected && role.trim() && phase !== 'saving'
+  const effectiveRole = role === '__custom__' ? customRole.trim() : role.trim()
+  const canSave = selected && effectiveRole && phase !== 'saving'
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -190,13 +195,32 @@ export default function AddPlayerModal({ projectId }: AddPlayerModalProps) {
             <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
               Role <span className="text-red-500">*</span>
             </label>
-            <input
+            <select
               value={role}
               onChange={e => setRole(e.target.value)}
-              placeholder="e.g. Owner, GC, Architect, Lender..."
               disabled={phase === 'saving'}
               className={inputClass}
-            />
+            >
+              <option value="">Select a role...</option>
+              {PROJECT_PLAYER_ROLE_GROUPS.map(group => (
+                <optgroup key={group} label={group}>
+                  {PROJECT_PLAYER_ROLES.filter(r => r.group === group).map(r => (
+                    <option key={r.value} value={r.value}>{r.value}</option>
+                  ))}
+                </optgroup>
+              ))}
+              <option value="__custom__">Custom...</option>
+            </select>
+            {role === '__custom__' && (
+              <input
+                value={customRole}
+                onChange={e => setCustomRole(e.target.value)}
+                placeholder="Enter custom role..."
+                disabled={phase === 'saving'}
+                className={inputClass}
+                autoFocus
+              />
+            )}
           </div>
 
           {/* Primary */}
