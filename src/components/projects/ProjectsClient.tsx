@@ -3,7 +3,7 @@
 import { useState, useMemo } from 'react'
 import Link from 'next/link'
 import { toast } from 'sonner'
-import { Trash2, Layers, FolderOpen, Search, X } from 'lucide-react'
+import { Trash2, Layers, FolderOpen, Search, X, ChevronDown } from 'lucide-react'
 import ProjectCard, { type ProjectCardCounts } from '@/components/dashboard/ProjectCard'
 import type { Project } from '@/lib/supabase/types'
 import { cn } from '@/lib/utils'
@@ -14,15 +14,25 @@ interface ProjectsClientProps {
   projects: Project[]
 }
 
-function ProgramBanner({ program, childCount }: { program: Project; childCount: number }) {
+function ProgramBanner({
+  program,
+  childCount,
+  isCollapsed,
+  onToggle,
+}: {
+  program: Project
+  childCount: number
+  isCollapsed: boolean
+  onToggle: () => void
+}) {
   const status = program.status ?? 'active'
 
   return (
-    <Link
-      href={`/projects/${program.id}`}
-      className="group block rounded-lg border border-violet-200 bg-violet-50/40 hover:bg-violet-50/70 transition-colors shadow-sm"
-    >
-      <div className="flex items-center gap-4 px-5 py-4">
+    <div className="flex items-stretch gap-0 rounded-lg border border-violet-200 bg-violet-50/40 shadow-sm overflow-hidden">
+      <Link
+        href={`/projects/${program.id}`}
+        className="group flex items-center gap-4 px-5 py-4 flex-1 min-w-0 hover:bg-violet-50/70 transition-colors"
+      >
         {/* Icon */}
         <div className="flex items-center justify-center w-9 h-9 rounded-md bg-violet-100 text-violet-600 shrink-0">
           <Layers size={18} />
@@ -67,17 +77,39 @@ function ProgramBanner({ program, childCount }: { program: Project; childCount: 
             {childCount} sub-project{childCount !== 1 ? 's' : ''}
           </span>
         </div>
-      </div>
-    </Link>
+      </Link>
+
+      {/* Collapse toggle */}
+      <button
+        onClick={onToggle}
+        title={isCollapsed ? 'Expand sub-projects' : 'Collapse sub-projects'}
+        className="flex items-center justify-center w-10 border-l border-violet-200 text-violet-400 hover:text-violet-600 hover:bg-violet-100/60 transition-colors shrink-0"
+      >
+        <ChevronDown
+          size={16}
+          className={cn('transition-transform duration-200', isCollapsed ? '-rotate-90' : 'rotate-0')}
+        />
+      </button>
+    </div>
   )
 }
 
 export default function ProjectsClient({ projects: initialProjects }: ProjectsClientProps) {
   const [projects, setProjects] = useState(initialProjects)
   const [search, setSearch] = useState('')
+  const [collapsedPrograms, setCollapsedPrograms] = useState<Set<string>>(new Set())
 
   function handleDelete(id: string) {
     setProjects(prev => prev.filter(p => p.id !== id))
+  }
+
+  function toggleProgram(id: string) {
+    setCollapsedPrograms(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
   }
 
   // Filter by search
@@ -152,19 +184,27 @@ export default function ProjectsClient({ projects: initialProjects }: ProjectsCl
       {/* Programs with children */}
       {programs.map(parent => {
         const children = childrenOf.get(parent.id) ?? []
+        const isCollapsed = collapsedPrograms.has(parent.id)
         return (
           <div key={parent.id} className="space-y-3">
-            <ProgramBanner program={parent} childCount={children.length} />
-            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 pl-5 border-l-2 border-violet-200 ml-4">
-              {children.map(child => (
-                <DeletableCard
-                  key={child.id}
-                  project={child}
-                  parentName={parent.name}
-                  onDeleted={() => handleDelete(child.id)}
-                />
-              ))}
-            </div>
+            <ProgramBanner
+              program={parent}
+              childCount={children.length}
+              isCollapsed={isCollapsed}
+              onToggle={() => toggleProgram(parent.id)}
+            />
+            {!isCollapsed && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 pl-5 border-l-2 border-violet-200 ml-4">
+                {children.map(child => (
+                  <DeletableCard
+                    key={child.id}
+                    project={child}
+                    parentName={parent.name}
+                    onDeleted={() => handleDelete(child.id)}
+                  />
+                ))}
+              </div>
+            )}
           </div>
         )
       })}
