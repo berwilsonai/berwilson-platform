@@ -1,15 +1,17 @@
 # BER WILSON — Executive Intelligence Platform
 # Master Architecture & Build Reference (CLAUDE.md)
-# Version: 1.0 | 2026-04-28
+# Version: 2.0 | 2026-06-22
 
 ---
 
 ## WHAT THIS FILE IS
 
-This is the canonical reference for every Claude Code session working on the Ber Wilson platform. It lives in the project root as `CLAUDE.md`. Claude Code reads it automatically.
+Canonical reference for every Claude Code session working on the Ber Wilson platform. Lives in the project root as `CLAUDE.md`; Claude Code reads it automatically.
 
 **Builder:** Richard (EVP, Ber Wilson) — builds in Claude Code terminal. Not a developer.
 **Golden rule:** Never introduce complexity without demonstrated need. Every decision reversible or portable.
+
+> **Version 2.0 note:** This file was rewritten on 2026-06-22 to match the code as it actually is. The v1.0 reference described a Claude-Haiku/Sonnet app that no longer exists — runtime AI is now **Google Gemini**. If anything below disagrees with the code, the code wins; fix this file.
 
 ---
 
@@ -17,8 +19,10 @@ This is the canonical reference for every Claude Code session working on the Ber
 
 **Company:** Ber Wilson — vertically integrated construction, development, and USA prefab steel manufacturing. Salt Lake City, UT.
 **Website:** berwilson.com
-**Platform:** Internal executive intelligence tool for two executives managing a multi-sector construction pipeline (government contracting, large-scale infrastructure, real estate development, prefab manufacturing, institutional).
+**Platform:** Internal executive intelligence tool for two executives managing a multi-sector construction pipeline (government contracting, infrastructure, real estate development, prefab manufacturing, institutional).
 **Core problem:** Two people managing billions in pipeline across federal bids, PE negotiations, JV structures, subcontractor relationships, and manufacturing coordination. They need a single AI-powered source of truth that thinks like a construction COO.
+
+**Where it's headed:** The near-term job is a clean CRM — track projects, tasks, people, and the company itself so the executive team can steer from a high level. The long-term job is an intelligence layer: load an emailed opportunity (text or RFP docs) into "Ber AI," have it assess the opportunity against Ber Wilson's capabilities and appetite, and recommend whether to pursue and spin up a project. The proposal-intake flow (§6) is the first working slice of that.
 
 ---
 
@@ -26,729 +30,220 @@ This is the canonical reference for every Claude Code session working on the Ber
 
 | Layer | Technology | Notes |
 |-------|-----------|-------|
-| Database + Auth | Supabase (Postgres, Auth, Storage, Realtime) | US region. RLS on every table. pgvector enabled. |
-| Frontend | Next.js 14+ (App Router, TypeScript) on Vercel | Server components default. Client only for interactivity. |
-| Styling | Tailwind CSS + shadcn/ui | No custom CSS unless unavoidable. |
-| AI — Extraction | Claude API, **Haiku 4.5** | Email parsing, classification, entity extraction, chunk generation. ~90% of API calls. |
-| AI — Synthesis | Claude API, **Sonnet 4.6** | Executive briefs, cross-project analysis, agent responses. ~10% of API calls. |
-| External Research | Perplexity API (`sonar-pro`) | Due diligence, market scans, public-source verification. Phase 2+. |
-| Email Ingestion | Microsoft Graph API + webhook subscriptions | Push-based. M365 Business Basic already covers API access. Phase 2. |
-| Vector Search | pgvector inside Supabase Postgres | No separate vector DB until >500K chunks. |
-| File Storage | Supabase Storage | Documents organized by project ID. |
+| Database + Auth | Supabase (Postgres, Auth, Storage, Realtime) | US region. RLS enabled on every table (but see §8 — app traffic uses the service role). pgvector enabled. |
+| Frontend | Next.js 16 (App Router, TypeScript) on Vercel | Server components default. Client only for interactivity. |
+| Styling | Tailwind CSS v4 + shadcn/ui (`@base-ui/react`) | No custom CSS unless unavoidable. |
+| Runtime AI | **Google Gemini** (`@google/generative-ai`) | All runtime AI. See §5. |
+| Charts | Recharts | Equity + dashboards. |
+| PDF | `@react-pdf/renderer` | Equity scenario exports. |
+| Client data/state | `@tanstack/react-query`, `zustand` | Equity module only. |
+| Email Ingestion | Microsoft Graph API + webhook subscriptions | Push-based, with subscription renewal cron. |
+| Vector Search | pgvector inside Supabase Postgres | `gemini-embedding-001`, 768-dim. |
+| File Storage | Supabase Storage (`documents` bucket) | Organized by project / entity / site ID. |
 | Deployment | Vercel + Supabase | No containers, no Docker, no servers. |
 
-### AI Model Rules
+### AI Model Rules (CURRENT)
 
-- **Haiku 4.5** → Structured input/output tasks: email parsing, document classification, entity extraction, confidence scoring, embedding generation, chunk creation.
-- **Sonnet 4.6** → Reasoning tasks: executive summaries, cross-project analysis, agent recommendations, document drafting, risk assessment.
-- **Opus** → Never at runtime. Architecture planning only.
-- **Perplexity sonar-pro** → Current web information: company backgrounds, regulatory updates, market data, public record verification.
+Runtime AI is **Gemini only**. Anthropic Claude is **no longer used at runtime** (the old `claude.ts` wrapper and the `@anthropic-ai/sdk` dependency were removed 2026-06-22).
 
-### Integration Abstraction
+- **`gemini-2.5-flash`** → Extraction, classification, document/cert summarization, synthesis, briefs, enrichment, research. The workhorse. Routed through `callGemini` / `callGeminiWithFile` in `src/lib/ai/gemini.ts`.
+- **`gemini-2.5-pro`** → The construction-executive agent's main reasoning loop (`src/lib/ai/agent.ts`).
+- **`gemini-embedding-001`** (768-dim) → Embeddings for RAG (`src/lib/ai/embeddings.ts`, direct v1beta REST call).
+- **Web research** → Gemini with Google Search grounding (`src/lib/ai/research.ts`). Perplexity was the original plan and was never adopted; the file header comment still references it — ignore that.
+- **Opus / any Claude model** → not used here. (Claude Code, the dev tool, is separate from the app's runtime AI.)
 
-All external integrations (Procore, future CRM/ERP) go through `src/lib/integrations/`. Each integration has a typed interface defined before implementation. Procore gets a stub interface in Phase 1 — no implementation until subscribed, but the contract is locked.
+Every AI call logs to the `ai_queries` table (user, prompt, response, model, tokens, latency) — keep that contract when adding calls.
 
 ---
 
-## 3. PROJECT STRUCTURE
+## 3. PROJECT STRUCTURE (actual)
+
+The app has grown well beyond the original Phase-1/2 plan. High-level map of what exists today:
 
 ```
-berwilson-platform/
-├── CLAUDE.md
-├── .env.local                        # never committed
-├── .env.example
-├── package.json
-├── next.config.ts
-├── tailwind.config.ts
-├── tsconfig.json
-├── middleware.ts                      # Supabase auth guard
-├── supabase/
-│   ├── config.toml
-│   └── migrations/
-│       ├── 00001_extensions.sql
-│       ├── 00002_enums.sql
-│       ├── 00003_core_tables.sql
-│       ├── 00004_rls_policies.sql
-│       ├── 00005_activity_triggers.sql
-│       └── ...
-├── src/
-│   ├── app/
-│   │   ├── layout.tsx                 # Root: sidebar, header, auth provider
-│   │   ├── page.tsx                   # Redirect → /dashboard
-│   │   ├── login/page.tsx
-│   │   ├── dashboard/page.tsx         # Portfolio overview
-│   │   ├── projects/
-│   │   │   ├── page.tsx               # List with filters
-│   │   │   └── [id]/
-│   │   │       ├── layout.tsx         # Tab navigation shell
-│   │   │       ├── page.tsx           # Overview (default tab)
-│   │   │       ├── players/page.tsx
-│   │   │       ├── updates/page.tsx
-│   │   │       ├── documents/page.tsx
-│   │   │       ├── milestones/page.tsx
-│   │   │       ├── financing/page.tsx
-│   │   │       └── diligence/page.tsx
-│   │   ├── review/page.tsx            # Review queue
-│   │   ├── activity/page.tsx          # Activity log
-│   │   ├── intel/page.tsx             # AI query (Phase 3)
-│   │   └── api/
-│   │       ├── ai/
-│   │       │   ├── extract/route.ts
-│   │       │   ├── classify/route.ts
-│   │       │   ├── synthesize/route.ts    # Phase 3
-│   │       │   └── research/route.ts      # Phase 2
-│   │       ├── email/
-│   │       │   └── webhook/route.ts       # Phase 2
-│   │       └── webhooks/
-│   │           └── procore/route.ts       # Phase 4 stub
-│   ├── components/
-│   │   ├── ui/                        # shadcn/ui
-│   │   ├── layout/
-│   │   │   ├── AppSidebar.tsx
-│   │   │   ├── AppHeader.tsx
-│   │   │   └── MobileNav.tsx
-│   │   ├── dashboard/
-│   │   │   ├── ProjectCard.tsx
-│   │   │   ├── StageIndicator.tsx
-│   │   │   ├── ActionItemsSummary.tsx
-│   │   │   └── ReviewQueueBadge.tsx
-│   │   ├── projects/
-│   │   │   ├── ProjectForm.tsx
-│   │   │   ├── PlayersTab.tsx
-│   │   │   ├── UpdatesTab.tsx
-│   │   │   ├── DocumentsTab.tsx
-│   │   │   ├── MilestonesTab.tsx
-│   │   │   ├── FinancingTab.tsx
-│   │   │   └── DiligenceTab.tsx
-│   │   ├── review/
-│   │   │   ├── ReviewItem.tsx
-│   │   │   └── ReviewActions.tsx
-│   │   ├── intel/                     # Phase 3
-│   │   │   ├── QueryInput.tsx
-│   │   │   ├── GroundedAnswer.tsx
-│   │   │   └── CitationCard.tsx
-│   │   └── shared/
-│   │       ├── ConfidenceBadge.tsx
-│   │       ├── SourceTag.tsx
-│   │       ├── PasteInput.tsx
-│   │       ├── EmptyState.tsx
-│   │       └── LoadingSkeleton.tsx
-│   ├── lib/
-│   │   ├── supabase/
-│   │   │   ├── client.ts              # createBrowserClient()
-│   │   │   ├── server.ts              # createServerClient()
-│   │   │   ├── admin.ts               # createServiceRoleClient() — API routes only
-│   │   │   └── types.ts               # Re-exports generated types
-│   │   ├── ai/
-│   │   │   ├── claude.ts              # Unified client, model routing built-in
-│   │   │   ├── perplexity.ts          # Perplexity wrapper
-│   │   │   ├── embeddings.ts          # Text → vector
-│   │   │   └── prompts/
-│   │   │       ├── extraction.ts
-│   │   │       ├── classification.ts
-│   │   │       ├── synthesis.ts       # Phase 3
-│   │   │       └── agent.ts           # Phase 4
-│   │   ├── integrations/
-│   │   │   ├── types.ts               # Interfaces defined Phase 1
-│   │   │   └── procore.ts             # Stub
-│   │   └── utils/
-│   │       ├── stages.ts
-│   │       ├── sectors.ts
-│   │       └── activity.ts
-│   └── types/
-│       ├── database.ts                # Generated by Supabase CLI
-│       └── domain.ts                  # App-level types
-└── scripts/
-    ├── seed.ts                        # 3 realistic test projects
-    └── gen-types.ts                   # Runs supabase gen types
+src/
+├── app/
+│   ├── dashboard/            # Portfolio overview (health, alerts, daily brief, needs-attention)
+│   ├── attention/            # Cross-portfolio "what needs me" list
+│   ├── projects/             # List (pipeline + program views) + detail tabs:
+│   │   └── [id]/             #   overview, players, updates, documents, milestones,
+│   │                         #   financing, diligence, entities, tasks, edit
+│   ├── tasks/                # All-tasks view across projects
+│   ├── timeline/             # Gantt-style timeline
+│   ├── capacity/             # Capacity board
+│   ├── proposals/intake/     # AI proposal intake wizard (RFP → assessment → create project)
+│   ├── intel/                # AI query/agent surface (hybrid retrieval + agent chat)
+│   ├── calendar/             # Calendar + meeting prep
+│   ├── contacts/             # Global rolodex (parties) + detail
+│   ├── vendors/              # Vendors & contractors (entities) + detail, federal scorecards
+│   ├── company/              # Ber Wilson company profile (capabilities, certs) — UNDERBUILT
+│   ├── review/               # Review queue for low-confidence AI items
+│   ├── email-log/            # Ingested-email log
+│   ├── activity/             # Append-only audit log
+│   ├── portfolio/            # Site portfolio hierarchy (sites → capital/compliance/components/stakeholders)
+│   ├── equity/               # Equity & valuation suite (cap table, exit scenarios, investor deal,
+│   │                         #   valuation, originator fees, shareable scenarios)
+│   ├── login/, auth/         # Auth
+│   └── api/                  # ~85 route handlers (see below)
+├── components/               # Feature-grouped UI (projects/, dashboard/, equity/, portfolio/,
+│                             #   contacts/, vendors/, intel/, agent/, review/, layout/, ui/, shared/)
+├── lib/
+│   ├── ai/                   # gemini.ts, agent.ts, agent-tools.ts, embeddings.ts, research.ts,
+│   │                         #   proposal-matching.ts, prompts/*
+│   ├── email/                # pipeline.ts, participants.ts
+│   ├── equity/               # calculations/*, constants.ts, format.ts, pdf/*
+│   ├── integrations/         # microsoft-graph.ts, procore.ts (stub), types.ts
+│   ├── supabase/             # client.ts, server.ts (RLS), admin.ts (service role), types.ts
+│   ├── risk-scoring.ts, rate-limit.ts
+│   └── utils/                # constants, sectors, stages, activity
+├── hooks/                    # use-stored-state, equity-* hooks
+└── types/                    # database.ts (GENERATED — source of truth), domain.ts, equity-domain.ts
 ```
+
+**API routes** live under `src/app/api/`. Major groups: `ai/*` (extract, classify, synthesize, brief, draft, agent, research, meeting-prep), `proposals/*` (intake, confirm, upload-chunk), `documents/*`, `projects/*`, `parties/*`, `entities/*`, `portfolio/*`, `equity/*`, `email/*`, `cron/*`, plus per-resource CRUD.
 
 ---
 
 ## 4. DATABASE SCHEMA
 
-All PKs: `id uuid default gen_random_uuid() primary key`. All timestamps: `timestamptz default now()`, UTC. Every table gets RLS. `activity_log` is append-only — no UPDATE or DELETE policies ever.
+**Source of truth is `src/types/database.ts` (generated).** Run `npm run gen-types` after every migration. The schema has expanded far past the original core tables; do not trust a hand-maintained list — read the generated types.
 
-### Enums
+Migrations live in `supabase/migrations/` (41 as of this writing, numbered chronologically).
 
-```sql
-create type project_sector as enum ('government','infrastructure','real_estate','prefab','institutional');
-create type project_status as enum ('active','on_hold','won','lost','closed');
-create type project_stage as enum ('pursuit','capture','bid','award','mobilization','execution','closeout');
-create type update_source as enum ('email','manual_paste','document','agent','procore');
-create type review_state as enum ('pending','approved','rejected');
-create type dd_severity as enum ('info','watch','critical','blocker');
-create type compliance_status as enum ('not_started','in_progress','compliant','non_compliant','waived');
-create type entity_type as enum ('llc','corp','jv','subsidiary','trust','fund','other');
-```
+### Conventions (unchanged)
+- All PKs: `id uuid default gen_random_uuid() primary key`.
+- All timestamps: `timestamptz default now()`, UTC.
+- RLS enabled on every table.
+- `activity_log` is append-only — no UPDATE/DELETE policies, ever.
+- `updated_at` auto-maintained by trigger; tracked tables auto-insert into `activity_log` via trigger.
 
-### Tables
-
-```sql
--- People and organizations across all projects
-create table parties (
-  id uuid default gen_random_uuid() primary key,
-  full_name text not null,
-  company text,
-  title text,
-  email text,
-  phone text,
-  relationship_notes text,
-  is_organization boolean default false,
-  created_at timestamptz default now(),
-  updated_at timestamptz default now()
-);
-
--- Legal entities, subsidiaries, JV structures
-create table entities (
-  id uuid default gen_random_uuid() primary key,
-  name text not null,
-  entity_type entity_type not null,
-  jurisdiction text,
-  parent_entity_id uuid references entities(id),
-  ownership_pct numeric(5,2),
-  formation_date date,
-  ein text,
-  notes text,
-  created_at timestamptz default now()
-);
-
--- Master project record
-create table projects (
-  id uuid default gen_random_uuid() primary key,
-  name text not null,
-  sector project_sector not null,
-  status project_status default 'active',
-  stage project_stage default 'pursuit',
-  description text,
-  estimated_value numeric(15,2),
-  contract_type text,           -- FFP, CPFF, T&M, GMP, lump_sum, cost_plus
-  delivery_method text,         -- design_build, design_bid_build, cmar
-  location text,
-  client_entity text,
-  solicitation_number text,     -- government projects
-  award_date date,
-  ntp_date date,
-  substantial_completion_date date,
-  created_at timestamptz default now(),
-  updated_at timestamptz default now()
-);
-
--- Junction: parties linked to projects with role context
-create table project_players (
-  id uuid default gen_random_uuid() primary key,
-  project_id uuid references projects(id) on delete cascade not null,
-  party_id uuid references parties(id) on delete cascade not null,
-  role text not null,           -- owner_rep, sub_gc, co_kor, pe_partner, architect, etc.
-  is_primary boolean default false,
-  notes text,
-  created_at timestamptz default now(),
-  unique(project_id, party_id, role)
-);
-
--- Gate tracker: pursuit through closeout
-create table milestones (
-  id uuid default gen_random_uuid() primary key,
-  project_id uuid references projects(id) on delete cascade not null,
-  stage project_stage not null,
-  label text not null,
-  target_date date,
-  completed_at timestamptz,
-  notes text,
-  sort_order integer default 0,
-  created_at timestamptz default now()
-);
-
--- File references (files live in Supabase Storage)
-create table documents (
-  id uuid default gen_random_uuid() primary key,
-  project_id uuid references projects(id) on delete cascade not null,
-  storage_path text not null,
-  file_name text not null,
-  file_size_bytes bigint,
-  mime_type text,
-  doc_type text,                -- proposal, contract, drawing, email, report, correspondence, other
-  classification text default 'standard',  -- standard or sensitive
-  ai_summary text,
-  confidence numeric(3,2),
-  source update_source default 'document',
-  uploaded_by uuid,
-  uploaded_at timestamptz default now()
-);
-
--- Parsed updates from email, paste, or document ingestion
-create table updates (
-  id uuid default gen_random_uuid() primary key,
-  project_id uuid references projects(id) on delete cascade not null,
-  source update_source not null,
-  source_ref text,              -- email message_id, document_id, etc.
-  raw_content text not null,
-  summary text,
-  action_items jsonb default '[]',     -- [{text, assignee, due_date, completed}]
-  waiting_on jsonb default '[]',       -- [{text, party, since}]
-  risks jsonb default '[]',            -- [{text, severity, mitigation}]
-  decisions jsonb default '[]',        -- [{text, made_by, date}]
-  confidence numeric(3,2),
-  review_state review_state default 'approved',  -- manual pastes auto-approve
-  reviewed_by uuid,
-  reviewed_at timestamptz,
-  created_at timestamptz default now()
-);
-
--- Text chunks with pgvector embeddings for RAG
-create table chunks (
-  id uuid default gen_random_uuid() primary key,
-  project_id uuid references projects(id) on delete cascade not null,
-  document_id uuid references documents(id) on delete set null,
-  update_id uuid references updates(id) on delete set null,
-  content text not null,
-  embedding vector(1536),
-  chunk_index integer not null,
-  token_count integer,
-  created_at timestamptz default now(),
-  constraint chunks_source_check check (document_id is not null or update_id is not null)
-);
-
--- Due diligence flags
-create table dd_items (
-  id uuid default gen_random_uuid() primary key,
-  project_id uuid references projects(id) on delete cascade not null,
-  category text not null,       -- legal, regulatory, partner_dd, title, environmental, bonding
-  item text not null,
-  status text default 'open',   -- open, in_progress, resolved, accepted_risk
-  severity dd_severity default 'info',
-  assigned_to uuid references parties(id),
-  notes text,
-  resolved_at timestamptz,
-  created_at timestamptz default now()
-);
-
--- Capital stack and financing
-create table financing_structures (
-  id uuid default gen_random_uuid() primary key,
-  project_id uuid references projects(id) on delete cascade not null,
-  structure_type text,          -- pe_partnership, jv_equity, conventional, bond_financed, self_funded
-  senior_debt numeric(15,2),
-  mezzanine numeric(15,2),
-  equity_amount numeric(15,2),
-  equity_pct numeric(5,2),
-  ltv numeric(5,2),
-  interest_rate numeric(5,3),
-  lender text,
-  pe_partner text,
-  waterfall_notes text,
-  draw_schedule jsonb,          -- [{milestone, amount, drawn, date}]
-  notes text,
-  created_at timestamptz default now(),
-  updated_at timestamptz default now()
-);
-
--- CMMC, Davis-Bacon, bonding, certifications
-create table compliance_items (
-  id uuid default gen_random_uuid() primary key,
-  project_id uuid references projects(id) on delete cascade,  -- null = company-wide
-  framework text not null,      -- cmmc, davis_bacon, bonding, dbe_eeo, far_dfars, state_license
-  requirement text not null,
-  status compliance_status default 'not_started',
-  due_date date,
-  responsible_party uuid references parties(id),
-  evidence_doc_id uuid references documents(id),
-  notes text,
-  created_at timestamptz default now(),
-  updated_at timestamptz default now()
-);
-
--- Entity-project relationships
-create table entity_projects (
-  id uuid default gen_random_uuid() primary key,
-  entity_id uuid references entities(id) on delete cascade not null,
-  project_id uuid references projects(id) on delete cascade not null,
-  relationship text not null,   -- owner, jv_partner, sub_entity, guarantor
-  equity_pct numeric(5,2),
-  notes text,
-  created_at timestamptz default now(),
-  unique(entity_id, project_id, relationship)
-);
-
--- APPEND-ONLY audit trail
-create table activity_log (
-  id uuid default gen_random_uuid() primary key,
-  actor_id uuid,                -- null for system/AI
-  actor_type text default 'user',  -- user, system, ai
-  action text not null,
-  table_name text not null,
-  record_id uuid,
-  project_id uuid references projects(id),
-  metadata jsonb default '{}',
-  created_at timestamptz default now()
-);
-
--- Low-confidence items awaiting review
-create table review_queue (
-  id uuid default gen_random_uuid() primary key,
-  source_table text not null,
-  record_id uuid not null,
-  project_id uuid references projects(id),
-  reason text not null,         -- low_confidence, ambiguous_project, unknown_party, conflicting_data
-  confidence numeric(3,2),
-  ai_explanation text,
-  reviewed_by uuid,
-  resolution text,              -- approved, rejected, edited
-  resolved_at timestamptz,
-  created_at timestamptz default now()
-);
-
--- AI query/response log
-create table ai_queries (
-  id uuid default gen_random_uuid() primary key,
-  user_id uuid not null,
-  query_text text not null,
-  response_text text not null,
-  cited_records jsonb default '[]',
-  model_used text not null,
-  prompt_version text,
-  tokens_in integer,
-  tokens_out integer,
-  latency_ms integer,
-  created_at timestamptz default now()
-);
-
--- Perplexity research results
-create table research_artifacts (
-  id uuid default gen_random_uuid() primary key,
-  project_id uuid references projects(id),
-  query_text text not null,
-  response_text text not null,
-  source_urls jsonb default '[]',
-  model_used text,
-  retrieved_at timestamptz default now()
-);
-```
-
-### Key Indexes
-
-```sql
-create index idx_projects_status on projects(status);
-create index idx_projects_sector on projects(sector);
-create index idx_projects_stage on projects(stage);
-create index idx_updates_project on updates(project_id, created_at desc);
-create index idx_updates_review on updates(review_state) where review_state = 'pending';
-create index idx_documents_project on documents(project_id);
-create index idx_chunks_project on chunks(project_id);
-create index idx_chunks_embedding on chunks using ivfflat (embedding vector_cosine_ops) with (lists = 100);
-create index idx_activity_project on activity_log(project_id, created_at desc);
-create index idx_review_pending on review_queue(resolved_at) where resolved_at is null;
-create index idx_milestones_project on milestones(project_id, sort_order);
-create index idx_dd_project on dd_items(project_id);
-create index idx_compliance_project on compliance_items(project_id);
-create index idx_players_project on project_players(project_id);
-create index idx_players_party on project_players(party_id);
-```
-
-### Triggers
-
-```sql
--- Auto-update updated_at
-create or replace function update_updated_at() returns trigger as $$
-begin new.updated_at = now(); return new; end;
-$$ language plpgsql;
-
--- Apply to all tables with updated_at
-create trigger set_updated_at before update on parties for each row execute function update_updated_at();
-create trigger set_updated_at before update on projects for each row execute function update_updated_at();
-create trigger set_updated_at before update on financing_structures for each row execute function update_updated_at();
-create trigger set_updated_at before update on compliance_items for each row execute function update_updated_at();
-
--- Auto-insert activity_log
-create or replace function log_activity() returns trigger as $$
-begin
-  insert into activity_log (actor_id, actor_type, action, table_name, record_id, project_id, metadata)
-  values (
-    auth.uid(), 'user', TG_OP, TG_TABLE_NAME,
-    coalesce(new.id, old.id),
-    case
-      when TG_TABLE_NAME = 'projects' then coalesce(new.id, old.id)
-      when new is not null and new.project_id is not null then new.project_id
-      else null
-    end,
-    case TG_OP
-      when 'UPDATE' then jsonb_build_object('old', to_jsonb(old), 'new', to_jsonb(new))
-      when 'DELETE' then to_jsonb(old)
-      else to_jsonb(new)
-    end
-  );
-  return coalesce(new, old);
-end;
-$$ language plpgsql security definer;
-
--- Apply to tracked tables
-create trigger log_projects after insert or update or delete on projects for each row execute function log_activity();
-create trigger log_updates after insert or update or delete on updates for each row execute function log_activity();
-create trigger log_documents after insert or update or delete on documents for each row execute function log_activity();
-create trigger log_milestones after insert or update or delete on milestones for each row execute function log_activity();
-create trigger log_dd_items after insert or update or delete on dd_items for each row execute function log_activity();
-create trigger log_review after insert or update or delete on review_queue for each row execute function log_activity();
-create trigger log_financing after insert or update or delete on financing_structures for each row execute function log_activity();
-create trigger log_compliance after insert or update or delete on compliance_items for each row execute function log_activity();
-```
-
-### RLS Pattern
-
-```sql
--- Every table uses this pattern:
-alter table {table_name} enable row level security;
-create policy "{table}_select" on {table_name} for select using (auth.role() = 'authenticated');
-create policy "{table}_insert" on {table_name} for insert with check (auth.role() = 'authenticated');
-create policy "{table}_update" on {table_name} for update using (auth.role() = 'authenticated');
-create policy "{table}_delete" on {table_name} for delete using (auth.role() = 'authenticated');
-
--- EXCEPTION: activity_log — NO update or delete
-alter table activity_log enable row level security;
-create policy "activity_select" on activity_log for select using (auth.role() = 'authenticated');
-create policy "activity_insert" on activity_log for insert with check (auth.role() = 'authenticated');
-```
+### Table groups (read database.ts for columns)
+- **Core CRM:** `projects` (with `parent_project_id` hierarchy, `bid_due_date`, `win_probability`, capture fields), `project_players`, `milestones`, `updates`, `documents`, `dd_items`, `financing_structures`, `compliance_items`, `project_dependencies`.
+- **Directory:** `parties` (people + orgs via `is_organization`), `contact_aliases`, `entities` (legal entities/vendors), `entity_projects`, `party_entities`, `entity_reviews`, `federal_scorecards`, `certifications`.
+- **Company:** `company_profile`, `media`, `trade_secrets`, `ts_exposure_items`.
+- **AI / intelligence:** `ai_queries`, `chunks` (pgvector), `agent_conversations`, `agent_messages`, `research_artifacts`, `review_queue`, `risk_scores`, `proposal_intake_sessions`, `stored_briefs`, `portfolio_briefs`.
+- **Email:** `processed_emails`, `email_tokens`, `graph_subscriptions`, `document_distributions`.
+- **Portfolio (site hierarchy):** `sites`, `components`, `funding_sources`, `revenue_share_agreements`, `stakeholder_interactions`, `stakeholder_relationships`, `corridors`, `rail_branches`, `sub_engagements`, `brands`, `dream_quotes`.
+- **Equity:** `equity_scenarios`, `equity_share_links`.
+- **Audit:** `activity_log` (append-only).
+- **RPCs:** `match_chunks`, `match_parties_by_name`, `match_projects_by_name`.
 
 ---
 
 ## 5. AI ARCHITECTURE
 
-### Unified Claude Client
+### Unified Gemini client — `src/lib/ai/gemini.ts`
+- `callGemini({ task, systemPrompt, userMessage, userId, promptVersion?, maxTokens?, jsonMode? })` — text in, text/JSON out. `jsonMode` defaults true (uses `responseMimeType: application/json` + strips stray code fences).
+- `callGeminiWithFile({ systemPrompt, prompt, file: { mimeType, dataBase64 }, userId, logLabel?, promptVersion?, maxTokens?, jsonMode? })` — multimodal: a PDF/image plus a text instruction. Used by document and certification summarization.
+- Both return `{ data, model, tokensIn, tokensOut, latencyMs }` and log to `ai_queries` (fire-and-forget). When the model returns valid JSON, `data` is the parsed object; otherwise `data` is the raw string — callers should branch on `typeof data === 'object'`.
 
-Single wrapper at `src/lib/ai/claude.ts`. Model selection by task type. Every call logged to `ai_queries`.
+### Extraction shape
+Extraction prompts return structured JSON (summary, action_items, waiting_on, risks, decisions, mentioned_parties, mentioned_projects, confidence). See `src/lib/ai/prompts/extraction.ts`.
 
-```
-task === 'extract' | 'classify' | 'embed' → Haiku 4.5
-task === 'synthesize' | 'agent'           → Sonnet 4.6
-```
+### Agent — `src/lib/ai/agent.ts` + `agent-tools.ts`
+`gemini-2.5-pro` agentic loop (up to 5 tool-call rounds). Injects the Ber Wilson company profile into context so the agent knows the company's qualifications without a tool call. Tools are declared in `agent-tools.ts` and executed via `executeToolCall`. Conversations persist to `agent_conversations` / `agent_messages`.
 
-### Extraction Prompt Shape
+**Construction Executive Agent persona:** senior EVP/COO, 25+ yrs government contracting, large-scale development, design-build GC, prefab, construction finance. An owner-operator, not a consultant. Four lenses on every recommendation: **Commercial** (can we win it?), **Operational** (can we deliver it?), **Financial** (can we get paid, at what margin?), **Compliance** (can we protect the downside?). Response protocol: Situation → Risks → Recommendation → Next Decision. Never ungrounded guesses; never hide risk; never substitute for legal/tax counsel; always distinguish facts, estimates, and judgments.
 
-All extraction prompts return structured JSON. Schema specified in prompt. Haiku handles reliably.
+### Hybrid retrieval (RAG)
+Query → SQL filter → vector search (`match_chunks` RPC over `chunks.embedding`) → re-rank (recency/confidence/cosine) → top chunks into context → grounded answer with citations → log to `ai_queries`.
 
-```
-SYSTEM: You are an extraction engine for a construction executive intelligence platform.
-Given raw text, extract:
-- summary: 2-3 sentence summary
-- action_items: [{text, assignee?, due_date?}]
-- waiting_on: [{text, party?, since?}]
-- risks: [{text, severity: info|watch|critical|blocker}]
-- decisions: [{text, made_by?, date?}]
-- mentioned_parties: [{name, company?, role?}]
-- mentioned_projects: [{name_or_ref, confidence: 0-1}]
-- confidence: 0-1 overall extraction quality
-Return ONLY valid JSON. No explanation. No markdown.
-```
-
-### Hybrid Retrieval (Phase 3)
-
-```
-1. Parse query → extract: project names, sectors, stages, date ranges, entities
-2. SQL filter: chunks WHERE project_id IN (matched) AND created_at > range
-3. Vector: ORDER BY embedding <=> query_embedding LIMIT 20 (within filtered set)
-4. Re-rank: recency (0.3) + confidence (0.3) + cosine_sim (0.4)
-5. Top 8 chunks → Sonnet context window
-6. Generate: every factual claim must cite [chunk_id]
-7. Log: query + response + citations → ai_queries
-```
-
-### Construction Executive Agent (Phase 4)
-
-Domain-expert persona: senior EVP/COO, 25+ years government contracting, large-scale development, design-build GC, prefab, construction finance. Not a consultant — an owner-operator.
-
-Decision framework (four lenses on every recommendation):
-1. **Commercial:** Can we win it?
-2. **Operational:** Can we deliver it?
-3. **Financial:** Can we get paid, and with what margin?
-4. **Compliance:** Can we protect the downside?
-
-Response protocol: Situation → Risks → Recommendation → Next Decision.
-Hard rules: Never ungrounded guesses. Never hide risk. Never substitute for legal/tax counsel. Always distinguish facts, estimates, and judgments.
+### Proposal matching — `src/lib/ai/proposal-matching.ts`
+Scores an inbound opportunity against the Ber Wilson `company_profile`. This is the engine behind the intake flow (§6) and the seed of the long-term "should we pursue?" intelligence. **Its quality is capped by how complete `company_profile` is — that's the current bottleneck.**
 
 ---
 
-## 6. PHASED BUILD PLAN
+## 6. PROPOSAL INTAKE (the intelligence on-ramp)
 
-### Phase 1: Foundation
-**Goal:** Both executives using it daily.
-**Scope:** Auth, projects CRUD, project detail tabs (overview/players/updates/documents/milestones/financing/diligence), manual paste + Haiku extraction, document upload, review queue, activity log, executive dashboard.
-**AI:** Haiku for paste extraction only.
-**NOT included:** Email, vector search, synthesis, agent, Procore.
+Already built, end to end:
+1. `/proposals/intake` — `ProposalIntakeWizard` uploads RFP text/docs (chunked upload via `api/proposals/upload-chunk`).
+2. `api/proposals/intake` — runs extraction + `proposal-matching` against the company profile, produces an assessment and a proposed set of projects/parties/entities.
+3. `api/proposals/confirm` — on approval, creates the projects, contacts, and entities in one transaction.
 
-### Phase 2: Intelligence Ingestion
-**Goal:** Email auto-populating project folders.
-**Scope:** Microsoft Graph API + webhook subscriptions, email parsing pipeline, attachment processing, AI classification, confidence scoring, Perplexity research, enhanced review workflow.
-**AI:** Haiku for parsing/classification. Perplexity for research.
-**Trigger:** Phase 1 stable + daily use.
-
-### Phase 3: Query & Synthesis
-**Goal:** AI-generated briefs replacing manual status reporting.
-**Scope:** Natural-language search (hybrid retrieval), grounded answers with citations, saved queries, executive briefs, cross-project synthesis.
-**AI:** Haiku for embeddings. Sonnet for synthesis/briefs.
-**Trigger:** 50+ updates across projects.
-
-### Phase 4: Executive Agent + Integrations
-**Goal:** Agent handling first-draft recommendations on live pursuits.
-**Scope:** Tool-using agent (Sonnet), project-scoped chat, drafting workflows, Procore integration, evaluation harness.
-**AI:** Sonnet for agent. Haiku for tool preprocessing.
-**Trigger:** Phase 3 proven valuable.
+This is the spine of the future "email an opportunity → Ber AI assesses → you decide → project created" loop. The work remaining is **depth of the company profile**, not new plumbing.
 
 ---
 
 ## 7. CONVENTIONS
 
 ### Code
-- TypeScript strict mode
-- Server components default; `'use client'` only when interactive
-- All DB queries through Supabase client — no raw SQL in components
-- API routes handle AI + mutations; pages fetch via server components
-- Error boundary + `loading.tsx` skeleton on every route
+- TypeScript strict mode. Avoid `any` — the codebase has accumulated ~115 `any`/cast escapes from schema drift; don't add more, and prefer regenerating types over casting.
+- Server components default; `'use client'` only when interactive.
+- All DB access via Supabase clients — no raw SQL in components.
+- API routes handle AI + mutations; pages fetch via server components.
+- Error boundary + `loading.tsx` on every route.
 
 ### Naming
-- Database: `snake_case` (tables, columns, enums)
-- TypeScript: `camelCase` (vars/functions), `PascalCase` (types/components)
-- Files: `kebab-case` (non-components), `PascalCase` (components)
-- API routes: `kebab-case` paths
+- Database: `snake_case`. TypeScript: `camelCase` vars/functions, `PascalCase` types/components.
+- Files: `kebab-case` (non-components), `PascalCase` (components). API paths: `kebab-case`.
 
-### Environment Variables
+### Environment variables
 ```
 NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
 SUPABASE_SERVICE_ROLE_KEY=
-ANTHROPIC_API_KEY=
-PERPLEXITY_API_KEY=              # Phase 2
-MICROSOFT_TENANT_ID=             # Phase 2 — from Azure AD app registration
-MICROSOFT_CLIENT_ID=             # Phase 2
-MICROSOFT_CLIENT_SECRET=         # Phase 2
-MICROSOFT_WEBHOOK_SECRET=        # Phase 2 — for validating Graph API notifications
+GEMINI_API_KEY=                  # all runtime AI + embeddings
+MICROSOFT_TENANT_ID=             # email ingestion
+MICROSOFT_CLIENT_ID=
+MICROSOFT_CLIENT_SECRET=
+MICROSOFT_WEBHOOK_SECRET=
 ```
+`ANTHROPIC_API_KEY` and `PERPLEXITY_API_KEY` are no longer used — remove from any new env files.
 
 ### Git
-- Main branch: `main`
-- Feature branches: `phase-1/auth`, `phase-1/projects-crud`, etc.
-- Conventional commits: `feat:`, `fix:`, `refactor:`, `docs:`
-- Never commit `.env.local`
+- Main branch: `main` (this is the live-deploy branch — pushing to it deploys to Vercel production).
+- Conventional commits: `feat:`, `fix:`, `refactor:`, `docs:`. Never commit `.env.local`.
 
 ---
 
-## 8. CMMC & COMPLIANCE
+## 8. SECURITY / COMPLIANCE
 
-### Phase 1 (Now)
-- RLS on every table from migration 001
-- Append-only `activity_log` with triggers
-- `classification` field on documents (standard vs sensitive)
-- MFA-ready auth config
-- US-only infrastructure (Supabase us-east-1, Vercel)
-- All AI calls logged
-
-### Later
-- Formal retention policies
-- Field-level encryption for financing data
-- Role-based access matrix when team grows
-- Dependency auditing
-
-### GovCloud Migration Trigger
-When annual DoD revenue > $2M OR a contract requires CMMC L2. Stack is portable by design — standard Postgres, no vendor lock-in.
+- Middleware (`middleware.ts`) gates every route: unauthenticated users are redirected to `/login`. Public exceptions: login/auth, the Graph webhook, cron endpoints, and token-gated equity share links.
+- **RLS is defense-in-depth, not the active boundary.** App traffic — including ~33 server pages — uses the service-role admin client (`lib/supabase/admin.ts`), which bypasses RLS. The auth boundary is the middleware. This is an accepted trade-off for a 2-user internal tool; if the team grows or sensitive data lands, move pages to the RLS-respecting server client (`lib/supabase/server.ts`).
+- `documents.classification` flags standard vs sensitive. All AI calls logged to `ai_queries`.
+- US-only infrastructure. **Do not store CUI** until a GovCloud migration is done. GovCloud trigger: annual DoD revenue > $2M OR a contract requiring CMMC L2. Stack is portable by design (standard Postgres, no vendor lock-in).
 
 ---
 
-## 9. PROCORE DESIGN
+## 9. KNOWN DEBT / AUDIT NOTES (2026-06-22)
 
-### Phase 1: Interface Only
-```typescript
-interface ConstructionDataProvider {
-  getProjectStatus(externalId: string): Promise<ProjectStatus>;
-  getRFIs(projectId: string): Promise<RFI[]>;
-  getSubmittals(projectId: string): Promise<Submittal[]>;
-  getDailyLogs(projectId: string, dateRange: DateRange): Promise<DailyLog[]>;
-  getBudgetSummary(projectId: string): Promise<BudgetSummary>;
-  syncMilestones(projectId: string): Promise<Milestone[]>;
-}
-```
-
-### Phase 4: Procore REST API v1
-Do NOT use Procore Agent Builder or MCP endpoints yet — still beta, unstable surface.
+Captured so future sessions don't rediscover them:
+- **Scope sprawl.** ~54K lines / 18 nav destinations for a 2-person CRM. The **Equity** (~4.6K lines) and **Portfolio** (~3K lines) modules are large, mostly self-contained, and arguably off the core mission. Decision (Richard, 2026-06-22): **keep both for now**, just clean up. Revisit if maintenance cost bites.
+- **Overlapping "attention" surfaces.** `/dashboard`, `/attention`, `/capacity`, `/timeline`, `/review` plus several dashboard panels all answer "what needs me today." Candidate for consolidation to dashboard + review.
+- **Three directory concepts** (Contacts/parties, Vendors/entities, Portfolio stakeholders) overlap. Original intent (§10) was one `parties` directory; code drifted.
+- **Type drift.** Generated types lag the schema; recurring inline casts (`project as { … }`). Regenerate and fix.
+- **Speculative early-build features** (Procore stub, eval system, background-check/enrichment scaffolding) exist ahead of need.
 
 ---
 
-## 10. CONTACTS / ROLODEX
+## 10. CONTACTS / DIRECTORY (original intent)
 
-The `parties` table is the global contact directory. No additional tables are needed — the schema already supports this fully.
+`parties` is the global contact directory. People and organizations both live here (`is_organization=true` for firms). A party is global — editing it updates everywhere. Contact detail shows: bio/contact info, every project they're linked to (via `project_players`) with role, updates/documents mentioning them, DD items assigned, compliance items owned. Routes: `/contacts`, `/contacts/[id]`.
 
-### What the Contacts page shows per person:
-- Name, company, title, email, phone, relationship_notes
-- All projects they appear in (via `project_players`), with their role on each
-- Latest update that mentioned them (via `updates.mentioned_parties` JSONB search)
-- Latest email thread involving them (Phase 2+)
-- DD items assigned to them
-- Compliance items they're responsible for
-
-### Route structure:
-```
-/contacts                  — global rolodex, all parties
-/contacts/[id]             — individual contact detail page
-```
-
-### Contact detail page tabs:
-1. **Overview** — bio info, relationship notes, contact details
-2. **Projects** — every project they're linked to with role and status
-3. **Activity** — all updates and documents where they're mentioned (searched from updates JSONB + activity_log)
-4. **Notes** — freeform relationship notes, editable
-
-### Key behaviors:
-- Search/filter by name, company, role type
-- "Add to Project" shortcut from the contact page
-- Party records are global — editing a party's info updates it across all projects automatically
-- Phase 2+: show email threads from Microsoft Graph where this contact is sender/recipient
-- Parties can be flagged as `is_organization=true` to represent firms rather than individuals — show member contacts of the same company grouped together
-
-### Build prompt location: Phase 1, Step 1.19A (added after seed data step)
+Note the drift flagged in §9: `entities`/vendors and portfolio `stakeholders` partly duplicate this. When touching directory code, prefer consolidating toward `parties`.
 
 ---
 
 ## 11. DO NOT
 
-- Add a separate vector database (pgvector is fine for years)
-- Use Langchain, LlamaIndex, or any AI orchestration framework
-- Build microservices (this is a monolith)
-- Use Docker or containers
-- Use Prisma or Drizzle (Supabase client + generated types)
-- Pre-build features for future phases (stub interfaces, implement later)
-- Use Opus for runtime AI calls
-- Store CUI until GovCloud migration complete
-- Poll Microsoft Graph API for email (use webhook subscriptions with renewal)
+- Add a separate vector database (pgvector is fine for years).
+- Use LangChain, LlamaIndex, or any AI orchestration framework.
+- Build microservices, use Docker/containers, or add Prisma/Drizzle (Supabase client + generated types only).
+- Reintroduce a second AI provider SDK — runtime AI is Gemini. (Removing Anthropic was deliberate.)
+- Pre-build features for future phases.
+- Store CUI until GovCloud migration is complete.
+- Poll Microsoft Graph for email — use webhook subscriptions with renewal.
 
 ---
 
 ## 12. BUILD STATUS
 
-**Phase:** 2 complete
-**Current step:** query and synthesis
-**Last completed:** 
-**Next action:** 
+**Reality:** well beyond the original Phase 1/2 plan. Live and in daily use on Vercel production.
 
-### What's live as of 2026-05-01 (deployed to Vercel production)
+**Working:** projects (CRUD, pipeline/program views, hierarchy, all detail tabs), dashboard, attention/timeline/capacity, tasks, contacts + vendors directories, company profile (thin), review queue, activity log, email ingestion + log, manual-paste extraction, intel (RAG + agent), proposal intake → assessment → project creation, portfolio site hierarchy, equity & valuation suite.
 
-| Route | Status |
-|-------|--------|
-| `/dashboard` | ✅ 3 projects, pipeline value, needs-attention panel |
-| `/projects` | ✅ List with filters |
-| `/projects/[id]` (Overview) | ✅ Project detail |
-| `/projects/[id]/updates` | ✅ 5 updates on Fort Bragg, 3 on SLC, 2 on Rocky Mtn |
-| `/projects/[id]/players` | ✅ 5–6 players per project |
-| `/projects/[id]/milestones` | ✅ 6–8 milestones per project, completed/pending |
-| `/projects/[id]/financing` | ✅ Capital stacks with draw schedules |
-| `/projects/[id]/diligence` | ✅ DD items + compliance items |
-| `/projects/[id]/documents` | ✅ Placeholder document records |
-| `/projects/[id]/entities` | ✅ JV/entity structures |
-| `/review` | ✅ 2 pending items (low-confidence + ambiguous project) |
-| `/activity` | ✅ Full audit log from seed triggers |
-| `/contacts` | ✅ 16 global parties |
-| Manual Paste (PasteInput) | ✅ Extract → review → save flow wired to `/api/ai/extract` + `/api/updates/save` |
+**Highest-leverage next work** (per Richard, 2026-06-22):
+1. **Flesh out the company profile** so proposal-matching can actually judge fit — this unlocks the intelligence vision with no new plumbing.
+2. Tend the known debt in §9 as it gets in the way.
 
-### Seed data summary
-
-- **Fort Bragg Barracks:** Government, execution, $20.4M FFP — 5 updates with full extraction (action items, risks, decisions, waiting-on), 9 milestones (5 completed), Davis-Bacon + bonding compliance, 4 DD items
-- **Salt Lake Mixed-Use:** Real estate, pursuit, $85M design-build — 3 updates, KEB PE partnership ($22M equity), Wells Fargo construction loan ($55M), height variance risk, Phase II environmental risk, JV entity structure (KEB 45% / BW 40% / Sorensen 15%)
-- **Rocky Mountain Quantum:** Infrastructure, capture, $2.1B CMAR — 2 updates, RMIP/BW JV, Xcel power PSA blocker, zoning blocker, Mortenson teaming, complex entity structure
-
-> UPDATE THIS SECTION at the end of every Claude Code session.
+> UPDATE THIS SECTION (and §9 if you resolve debt) at the end of every Claude Code session.

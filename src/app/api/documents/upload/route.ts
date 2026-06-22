@@ -1,8 +1,9 @@
 import { NextRequest } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { embedDocument } from '@/lib/ai/embeddings'
-import Anthropic from '@anthropic-ai/sdk'
-import type { ContentBlockParam } from '@anthropic-ai/sdk/resources/messages'
+import { callGemini, callGeminiWithFile } from '@/lib/ai/gemini'
+
+type DocSummary = { summary?: string; confidence?: number } | string
 
 const SYSTEM_USER_ID = '00000000-0000-0000-0000-000000000000'
 
@@ -89,68 +90,37 @@ export async function POST(request: NextRequest) {
   // Optionally run AI extraction
   if (extract_ai && (TEXT_MIME_TYPES.has(file.type) || file.type === PDF_MIME_TYPE)) {
     try {
-      const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! })
-      const model = 'claude-haiku-4-5-20251001'
-      let rawText = ''
+      let parsed: DocSummary
       let fullTextContent: string | null = null
-      const start = Date.now()
 
       if (file.type === PDF_MIME_TYPE) {
         const base64 = Buffer.from(fileBuffer).toString('base64')
-        const pdfContent: ContentBlockParam[] = [
-          {
-            type: 'document',
-            source: { type: 'base64', media_type: 'application/pdf', data: base64 },
-            title: file.name,
-          },
-          { type: 'text', text: 'Summarize this document.' },
-        ]
-        const response = await client.messages.create({
-          model,
-          max_tokens: 512,
-          system: DOC_SUMMARY_SYSTEM,
-          messages: [{ role: 'user', content: pdfContent }],
+        const result = await callGeminiWithFile<DocSummary>({
+          systemPrompt: DOC_SUMMARY_SYSTEM,
+          prompt: 'Summarize this document.',
+          file: { mimeType: PDF_MIME_TYPE, dataBase64: base64 },
+          userId: SYSTEM_USER_ID,
+          logLabel: `Document summary: ${file.name}`,
+          promptVersion: 'doc-summary-1.0',
+          maxTokens: 512,
         })
-        const block = response.content.find((b) => b.type === 'text')
-        rawText = block && 'text' in block ? block.text : ''
-        const latencyMs = Date.now() - start
-        supabase.from('ai_queries').insert({
-          user_id: SYSTEM_USER_ID,
-          query_text: `Document summary: ${file.name}`,
-          response_text: rawText.slice(0, 10000),
-          model_used: model,
-          prompt_version: 'doc-summary-1.0',
-          tokens_in: response.usage.input_tokens,
-          tokens_out: response.usage.output_tokens,
-          latency_ms: latencyMs,
-        }).then(() => {})
+        parsed = result.data
       } else {
         const text = new TextDecoder().decode(fileBuffer)
         fullTextContent = text
-        const response = await client.messages.create({
-          model,
-          max_tokens: 512,
-          system: DOC_SUMMARY_SYSTEM,
-          messages: [{ role: 'user', content: text.slice(0, 30000) }],
+        const result = await callGemini<DocSummary>({
+          task: 'doc-summary',
+          systemPrompt: DOC_SUMMARY_SYSTEM,
+          userMessage: text.slice(0, 30000),
+          userId: SYSTEM_USER_ID,
+          promptVersion: 'doc-summary-1.0',
+          maxTokens: 512,
         })
-        const block = response.content.find((b) => b.type === 'text')
-        rawText = block && 'text' in block ? block.text : ''
-        const latencyMs = Date.now() - start
-        supabase.from('ai_queries').insert({
-          user_id: SYSTEM_USER_ID,
-          query_text: `Document summary: ${file.name}`,
-          response_text: rawText.slice(0, 10000),
-          model_used: model,
-          prompt_version: 'doc-summary-1.0',
-          tokens_in: response.usage.input_tokens,
-          tokens_out: response.usage.output_tokens,
-          latency_ms: latencyMs,
-        }).then(() => {})
+        parsed = result.data
       }
 
       let embedText: string | null = null
-      try {
-        const parsed = JSON.parse(rawText) as { summary: string; confidence: number }
+      if (parsed && typeof parsed === 'object') {
         await supabase.from('documents').update({
           ai_summary: parsed.summary ?? null,
           confidence: parsed.confidence ?? null,
@@ -159,9 +129,10 @@ export async function POST(request: NextRequest) {
         doc.confidence = parsed.confidence ?? null
         if (fullTextContent) embedText = fullTextContent
         else if (file.type === PDF_MIME_TYPE && parsed.summary) embedText = parsed.summary
-      } catch {
-        await supabase.from('documents').update({ ai_summary: rawText.slice(0, 1000) }).eq('id', doc.id)
-        doc.ai_summary = rawText.slice(0, 1000)
+      } else {
+        const raw = String(parsed ?? '')
+        await supabase.from('documents').update({ ai_summary: raw.slice(0, 1000) }).eq('id', doc.id)
+        doc.ai_summary = raw.slice(0, 1000)
         if (fullTextContent) embedText = fullTextContent
       }
 

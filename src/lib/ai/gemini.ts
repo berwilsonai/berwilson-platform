@@ -50,6 +50,7 @@ export async function callGemini<T = unknown>(
     userMessage,
     userId,
     promptVersion,
+    maxTokens,
     jsonMode = true,
   } = options
 
@@ -63,7 +64,10 @@ export async function callGemini<T = unknown>(
 
   const response = await model.generateContent({
     contents: [{ role: 'user', parts: [{ text: userMessage }] }],
-    generationConfig: jsonMode ? { responseMimeType: 'application/json' } : {},
+    generationConfig: {
+      ...(jsonMode ? { responseMimeType: 'application/json' } : {}),
+      ...(maxTokens ? { maxOutputTokens: maxTokens } : {}),
+    },
   })
 
   const latencyMs = Date.now() - start
@@ -87,6 +91,103 @@ export async function callGemini<T = unknown>(
     .insert({
       user_id: userId,
       query_text: userMessage.slice(0, 2000),
+      response_text: rawText.slice(0, 10000),
+      model_used: GEMINI_MODEL,
+      prompt_version: promptVersion ?? null,
+      tokens_in: tokensIn,
+      tokens_out: tokensOut,
+      latency_ms: latencyMs,
+    })
+    .then(() => {})
+
+  return { data, model: GEMINI_MODEL, tokensIn, tokensOut, latencyMs }
+}
+
+export interface GeminiFileInput {
+  /** MIME type of the file, e.g. 'application/pdf' or 'image/png'. */
+  mimeType: string
+  /** Base64-encoded file bytes. */
+  dataBase64: string
+}
+
+export interface GeminiFileCallOptions {
+  systemPrompt: string
+  /** Text instruction sent alongside the file, e.g. 'Summarize this document.' */
+  prompt: string
+  file: GeminiFileInput
+  userId: string
+  /** What to store in ai_queries.query_text. Defaults to the prompt. */
+  logLabel?: string
+  promptVersion?: string
+  maxTokens?: number
+  /** Set false for prose output — default true for structured JSON. */
+  jsonMode?: boolean
+}
+
+/**
+ * Multimodal Gemini call: sends a file (PDF, image) plus a text prompt and
+ * returns the same shape as callGemini. Used for document/certification
+ * summarization where the source is a binary file rather than plain text.
+ */
+export async function callGeminiWithFile<T = unknown>(
+  options: GeminiFileCallOptions
+): Promise<GeminiCallResult<T>> {
+  const {
+    systemPrompt,
+    prompt,
+    file,
+    userId,
+    logLabel,
+    promptVersion,
+    maxTokens,
+    jsonMode = true,
+  } = options
+
+  const client = getClient()
+  const model = client.getGenerativeModel({
+    model: GEMINI_MODEL,
+    systemInstruction: systemPrompt,
+  })
+
+  const start = Date.now()
+
+  const response = await model.generateContent({
+    contents: [
+      {
+        role: 'user',
+        parts: [
+          { inlineData: { mimeType: file.mimeType, data: file.dataBase64 } },
+          { text: prompt },
+        ],
+      },
+    ],
+    generationConfig: {
+      ...(jsonMode ? { responseMimeType: 'application/json' } : {}),
+      ...(maxTokens ? { maxOutputTokens: maxTokens } : {}),
+    },
+  })
+
+  const latencyMs = Date.now() - start
+  const tokensIn = response.response.usageMetadata?.promptTokenCount ?? 0
+  const tokensOut = response.response.usageMetadata?.candidatesTokenCount ?? 0
+
+  const rawText = response.response.text()
+  const cleanedText = stripCodeFences(rawText)
+
+  let data: T
+  try {
+    data = JSON.parse(cleanedText) as T
+  } catch {
+    data = cleanedText as unknown as T
+  }
+
+  // Log to ai_queries — fire and forget
+  const supabase = createAdminClient()
+  supabase
+    .from('ai_queries')
+    .insert({
+      user_id: userId,
+      query_text: (logLabel ?? prompt).slice(0, 2000),
       response_text: rawText.slice(0, 10000),
       model_used: GEMINI_MODEL,
       prompt_version: promptVersion ?? null,

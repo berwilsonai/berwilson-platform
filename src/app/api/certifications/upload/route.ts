@@ -1,7 +1,9 @@
 import { NextRequest } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { embedDocument } from '@/lib/ai/embeddings'
-import Anthropic from '@anthropic-ai/sdk'
+import { callGeminiWithFile } from '@/lib/ai/gemini'
+
+type CertSummary = { summary?: string; confidence?: number } | string
 
 const PDF_MIME = 'application/pdf'
 const ALLOWED_TYPES = new Set([PDF_MIME, 'image/jpeg', 'image/png', 'image/webp'])
@@ -103,41 +105,19 @@ export async function POST(request: NextRequest) {
   // AI extraction for PDFs
   if (file.type === PDF_MIME) {
     try {
-      const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! })
-      const model = 'claude-haiku-4-5-20251001'
       const base64 = Buffer.from(fileBuffer).toString('base64')
-      const start = Date.now()
-
-      const response = await client.messages.create({
-        model,
-        max_tokens: 512,
-        system: CERT_SUMMARY_SYSTEM,
-        messages: [{
-          role: 'user',
-          content: [
-            { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64 }, title: file.name },
-            { type: 'text', text: 'Extract the certification details.' },
-          ],
-        }],
+      const result = await callGeminiWithFile<CertSummary>({
+        systemPrompt: CERT_SUMMARY_SYSTEM,
+        prompt: 'Extract the certification details.',
+        file: { mimeType: PDF_MIME, dataBase64: base64 },
+        userId: SYSTEM_USER_ID,
+        logLabel: `Cert scan: ${file.name}`,
+        promptVersion: 'cert-scan-1.0',
+        maxTokens: 512,
       })
+      const parsed = result.data
 
-      const block = response.content.find(b => b.type === 'text')
-      const rawText = block && 'text' in block ? block.text : ''
-      const latencyMs = Date.now() - start
-
-      supabase.from('ai_queries').insert({
-        user_id: SYSTEM_USER_ID,
-        query_text: `Cert scan: ${file.name}`,
-        response_text: rawText.slice(0, 10000),
-        model_used: model,
-        prompt_version: 'cert-scan-1.0',
-        tokens_in: response.usage.input_tokens,
-        tokens_out: response.usage.output_tokens,
-        latency_ms: latencyMs,
-      }).then(() => {})
-
-      try {
-        const parsed = JSON.parse(rawText) as { summary: string; confidence: number }
+      if (parsed && typeof parsed === 'object') {
         await supabase.from('documents').update({
           ai_summary: parsed.summary ?? null,
           confidence: parsed.confidence ?? null,
@@ -145,9 +125,9 @@ export async function POST(request: NextRequest) {
         doc.ai_summary = parsed.summary ?? null
 
         // Embed for AI search
-        embedDocument(doc.id, null, parsed.summary).catch(console.error)
-      } catch {
-        await supabase.from('documents').update({ ai_summary: rawText.slice(0, 1000) }).eq('id', doc.id)
+        if (parsed.summary) embedDocument(doc.id, null, parsed.summary).catch(console.error)
+      } else {
+        await supabase.from('documents').update({ ai_summary: String(parsed ?? '').slice(0, 1000) }).eq('id', doc.id)
       }
     } catch {
       // AI extraction failed — document is still saved
