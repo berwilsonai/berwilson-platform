@@ -2,13 +2,13 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { Flag, Shield, CheckSquare, Calendar, ExternalLink } from 'lucide-react'
+import { Flag, Shield, CheckSquare, Calendar, ExternalLink, Timer } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import MeetingPrepButton from './MeetingPrepButton'
 
 export interface CalendarEvent {
   id: string
-  type: 'milestone' | 'compliance' | 'action' | 'meeting'
+  type: 'milestone' | 'compliance' | 'action' | 'meeting' | 'bid'
   title: string
   date: string
   time?: string | null
@@ -26,13 +26,14 @@ interface CalendarViewProps {
 }
 
 const TYPE_CONFIG = {
+  bid: { icon: Timer, label: 'Bid Due', color: 'text-red-600', bg: 'bg-red-50', ring: 'ring-red-200' },
   milestone: { icon: Flag, label: 'Milestone', color: 'text-blue-600', bg: 'bg-blue-50', ring: 'ring-blue-200' },
   compliance: { icon: Shield, label: 'Compliance', color: 'text-violet-600', bg: 'bg-violet-50', ring: 'ring-violet-200' },
   action: { icon: CheckSquare, label: 'Action Item', color: 'text-emerald-600', bg: 'bg-emerald-50', ring: 'ring-emerald-200' },
   meeting: { icon: Calendar, label: 'Meeting', color: 'text-indigo-600', bg: 'bg-indigo-50', ring: 'ring-indigo-200' },
 }
 
-type FilterType = 'all' | 'milestone' | 'compliance' | 'action' | 'meeting'
+type FilterType = 'all' | 'milestone' | 'compliance' | 'action' | 'meeting' | 'bid'
 
 function groupByWeek(events: CalendarEvent[]): Map<string, CalendarEvent[]> {
   const groups = new Map<string, CalendarEvent[]>()
@@ -157,6 +158,7 @@ export default function CalendarView({ events: serverEvents }: CalendarViewProps
 
   const counts = {
     all: allEvents.length,
+    bid: allEvents.filter(e => e.type === 'bid').length,
     milestone: allEvents.filter(e => e.type === 'milestone').length,
     compliance: allEvents.filter(e => e.type === 'compliance').length,
     action: allEvents.filter(e => e.type === 'action').length,
@@ -174,7 +176,7 @@ export default function CalendarView({ events: serverEvents }: CalendarViewProps
 
       {/* Filter bar */}
       <div className="flex items-center gap-2 flex-wrap">
-        {(['all', 'meeting', 'milestone', 'compliance', 'action'] as const).map((f) => (
+        {(['all', 'bid', 'meeting', 'milestone', 'compliance', 'action'] as const).map((f) => (
           <button
             key={f}
             onClick={() => setFilter(f)}

@@ -3,7 +3,7 @@
 import { useState, useMemo } from 'react'
 import Link from 'next/link'
 import { toast } from 'sonner'
-import { Trash2, Layers, FolderOpen, Search, X, ChevronDown, LayoutGrid, GitBranch, Kanban } from 'lucide-react'
+import { Trash2, Layers, FolderOpen, Search, X, ChevronDown, LayoutGrid, GitBranch, Kanban, SlidersHorizontal } from 'lucide-react'
 import ProjectCard, { type ProjectCardCounts } from '@/components/dashboard/ProjectCard'
 import type { Project, ProjectStage } from '@/lib/supabase/types'
 import { cn } from '@/lib/utils'
@@ -108,6 +108,10 @@ export default function ProjectsClient({ projects: initialProjects }: ProjectsCl
 
   function handleDelete(id: string) {
     setProjects(prev => prev.filter(p => p.id !== id))
+  }
+
+  function handleUpdate(id: string, patch: Partial<Project>) {
+    setProjects(prev => prev.map(p => (p.id === id ? { ...p, ...patch } : p)))
   }
 
   function toggleProgram(id: string) {
@@ -269,6 +273,7 @@ export default function ProjectsClient({ projects: initialProjects }: ProjectsCl
                       project={project}
                       parentName={project.parent_project_id ? nameById.get(project.parent_project_id) : undefined}
                       onDeleted={() => handleDelete(project.id)}
+                      onUpdated={(patch) => handleUpdate(project.id, patch)}
                     />
                   ))}
                 </div>
@@ -318,6 +323,7 @@ export default function ProjectsClient({ projects: initialProjects }: ProjectsCl
                         project={project}
                         parentName={project.parent_project_id ? nameById.get(project.parent_project_id) : undefined}
                         onDeleted={() => handleDelete(project.id)}
+                        onUpdated={(patch) => handleUpdate(project.id, patch)}
                       />
                     ))
                   )}
@@ -349,6 +355,7 @@ export default function ProjectsClient({ projects: initialProjects }: ProjectsCl
                     project={child}
                     parentName={parent.name}
                     onDeleted={() => handleDelete(child.id)}
+                    onUpdated={(patch) => handleUpdate(child.id, patch)}
                   />
                 ))}
               </div>
@@ -376,6 +383,7 @@ export default function ProjectsClient({ projects: initialProjects }: ProjectsCl
               key={project.id}
               project={project}
               onDeleted={() => handleDelete(project.id)}
+              onUpdated={(patch) => handleUpdate(project.id, patch)}
             />
           ))}
         </div>
@@ -389,14 +397,62 @@ function DeletableCard({
   counts,
   parentName,
   onDeleted,
+  onUpdated,
 }: {
   project: Project
   counts?: ProjectCardCounts
   parentName?: string
   onDeleted: () => void
+  onUpdated?: (patch: Partial<Project>) => void
 }) {
   const [confirming, setConfirming] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [editing, setEditing] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const p = project as Project & {
+    bid_due_date?: string | null
+    win_probability?: number | null
+  }
+  const [bidDue, setBidDue] = useState(p.bid_due_date ?? '')
+  const [winProb, setWinProb] = useState(
+    p.win_probability != null ? String(p.win_probability) : ''
+  )
+
+  async function handleQuickSave(e: React.MouseEvent) {
+    e.preventDefault()
+    e.stopPropagation()
+    if (winProb !== '') {
+      const n = Number(winProb)
+      if (isNaN(n) || n < 0 || n > 100) {
+        toast.error('Win % must be 0–100')
+        return
+      }
+    }
+    setSaving(true)
+    try {
+      const patch = {
+        bid_due_date: bidDue || null,
+        win_probability: winProb === '' ? null : Math.round(Number(winProb)),
+      }
+      const res = await fetch(`/api/projects/${project.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(patch),
+      })
+      if (res.ok) {
+        onUpdated?.(patch as Partial<Project>)
+        toast.success('Updated')
+        setEditing(false)
+      } else {
+        const { error } = await res.json().catch(() => ({ error: 'Failed to save' }))
+        toast.error(error ?? 'Failed to save')
+      }
+    } catch {
+      toast.error('Failed to save')
+    } finally {
+      setSaving(false)
+    }
+  }
 
   async function handleDelete(e: React.MouseEvent) {
     e.preventDefault()
@@ -449,11 +505,70 @@ function DeletableCard({
         </div>
       )}
 
+      {/* Quick-edit overlay — set bid date + win % without opening the project */}
+      {editing && (
+        <div
+          className="absolute inset-0 z-10 rounded-lg bg-background/97 border border-primary/40 flex flex-col justify-center gap-3 p-4"
+          onClick={e => { e.preventDefault(); e.stopPropagation() }}
+        >
+          <p className="text-xs font-medium text-center line-clamp-1">{project.name}</p>
+          <div className="space-y-2">
+            <div>
+              <label className="block text-[11px] font-medium text-muted-foreground mb-0.5">Bid Due Date</label>
+              <input
+                type="date"
+                value={bidDue}
+                onChange={e => setBidDue(e.target.value)}
+                onClick={e => e.stopPropagation()}
+                className="h-8 w-full rounded-md border border-input bg-background px-2 text-xs focus:outline-none focus:ring-2 focus:ring-ring"
+              />
+            </div>
+            <div>
+              <label className="block text-[11px] font-medium text-muted-foreground mb-0.5">Win Probability (%)</label>
+              <input
+                type="number"
+                min={0}
+                max={100}
+                value={winProb}
+                onChange={e => setWinProb(e.target.value)}
+                onClick={e => e.stopPropagation()}
+                placeholder="0–100"
+                className="h-8 w-full rounded-md border border-input bg-background px-2 text-xs focus:outline-none focus:ring-2 focus:ring-ring"
+              />
+            </div>
+          </div>
+          <div className="flex gap-2 justify-end mt-1">
+            <button
+              onClick={e => { e.preventDefault(); e.stopPropagation(); setEditing(false); setBidDue(p.bid_due_date ?? ''); setWinProb(p.win_probability != null ? String(p.win_probability) : '') }}
+              className="h-7 px-3 rounded text-xs border border-input hover:bg-muted transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleQuickSave}
+              disabled={saving}
+              className="h-7 px-3 rounded text-xs bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-60"
+            >
+              {saving ? 'Saving…' : 'Save'}
+            </button>
+          </div>
+        </div>
+      )}
+
       <ProjectCard
         project={project}
         counts={counts}
         parentName={parentName}
       />
+
+      {/* Quick-edit button — appears on hover */}
+      <button
+        title="Quick edit: bid date & win %"
+        onClick={e => { e.preventDefault(); e.stopPropagation(); setEditing(true) }}
+        className="absolute top-3 right-9 z-10 opacity-0 group-hover/card:opacity-100 transition-opacity text-muted-foreground hover:text-primary bg-card rounded p-0.5"
+      >
+        <SlidersHorizontal size={13} />
+      </button>
 
       {/* Trash button — appears on hover */}
       <button

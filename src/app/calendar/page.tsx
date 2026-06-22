@@ -12,7 +12,7 @@ export default async function CalendarPage() {
   const thirtyDaysAgo = new Date(now.getTime() - 30 * 86_400_000).toISOString()
   const sixtyDaysOut = new Date(now.getTime() + 60 * 86_400_000).toISOString()
 
-  const [milestonesResult, complianceResult, updatesResult] = await Promise.all([
+  const [milestonesResult, complianceResult, updatesResult, bidsResult] = await Promise.all([
     supabase
       .from('milestones')
       .select('id, label, stage, target_date, completed_at, project_id, project:projects(id, name, sector)')
@@ -33,6 +33,16 @@ export default async function CalendarPage() {
       .eq('review_state', 'approved')
       .order('created_at', { ascending: false })
       .limit(50),
+    // Bid submission deadlines for active pre-award pursuits
+    supabase
+      .from('projects')
+      .select('id, name, bid_due_date, stage')
+      .in('status', ['active', 'on_hold'])
+      .in('stage', ['pursuit', 'capture', 'bid'])
+      .not('bid_due_date', 'is', null)
+      .gte('bid_due_date', thirtyDaysAgo)
+      .lte('bid_due_date', sixtyDaysOut)
+      .order('bid_due_date', { ascending: true }),
   ])
 
   type ActionItemWithDue = {
@@ -72,7 +82,7 @@ export default async function CalendarPage() {
   // Build calendar events
   type CalendarEvent = {
     id: string
-    type: 'milestone' | 'compliance' | 'action'
+    type: 'milestone' | 'compliance' | 'action' | 'bid'
     title: string
     date: string
     project_id: string
@@ -83,6 +93,22 @@ export default async function CalendarPage() {
   }
 
   const events: CalendarEvent[] = []
+
+  for (const b of bidsResult.data ?? []) {
+    const proj = b as typeof b & { bid_due_date?: string | null }
+    if (!proj.bid_due_date) continue
+    events.push({
+      id: `bid-${b.id}`,
+      type: 'bid',
+      title: `Bid due: ${b.name}`,
+      date: proj.bid_due_date,
+      project_id: b.id,
+      project_name: b.name,
+      detail: 'Proposal submission',
+      overdue: new Date(proj.bid_due_date) < now,
+      completed: false,
+    })
+  }
 
   for (const m of milestonesResult.data ?? []) {
     if (!m.target_date) continue
@@ -140,7 +166,7 @@ export default async function CalendarPage() {
         <div>
           <h1 className="text-lg font-semibold text-foreground">Portfolio Calendar</h1>
           <p className="text-xs text-muted-foreground">
-            Milestones, deadlines, and action items across all projects
+            Bid deadlines, milestones, compliance, and action items across all projects
           </p>
         </div>
       </div>
