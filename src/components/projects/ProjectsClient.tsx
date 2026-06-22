@@ -133,18 +133,59 @@ export default function ProjectsClient({ projects: initialProjects, stageFilter 
     })
   }
 
-  // Filter by search
+  const q = search.trim().toLowerCase()
+  const isSearching = q.length > 0
+
+  // Which projects match the search, across every field a user might recall a
+  // project by — name, where it is, who it's for, how it's bid, and its
+  // descriptive text — plus the parent program's name so a sub-project surfaces
+  // when you search the program it belongs to.
+  const matchIds = useMemo(() => {
+    const ids = new Set<string>()
+    if (!q) return ids
+    const nameById = new Map(projects.map(p => [p.id, p.name]))
+    for (const p of projects) {
+      const pp = p as Project & {
+        incumbent?: string | null
+        capture_lead?: string | null
+        win_strategy?: string | null
+      }
+      const haystack = [
+        p.name,
+        p.description,
+        p.location,
+        p.client_entity,
+        p.solicitation_number,
+        p.contract_type,
+        p.delivery_method,
+        p.sector,
+        p.status,
+        p.stage,
+        pp.incumbent,
+        pp.capture_lead,
+        pp.win_strategy,
+        p.parent_project_id ? nameById.get(p.parent_project_id) : null,
+      ]
+      if (haystack.some(field => field?.toLowerCase().includes(q))) ids.add(p.id)
+    }
+    return ids
+  }, [projects, q])
+
+  const matchCount = matchIds.size
+
+  // Rank-and-keep: nothing is hidden while searching. Matches float to the top
+  // of every group; the rest stay visible but dimmed below. With no search the
+  // original order is preserved.
   const filtered = useMemo(() => {
-    if (!search.trim()) return projects
-    const q = search.toLowerCase()
-    return projects.filter(
-      p =>
-        p.name.toLowerCase().includes(q) ||
-        (p.location ?? '').toLowerCase().includes(q) ||
-        (p.client_entity ?? '').toLowerCase().includes(q) ||
-        (p.solicitation_number ?? '').toLowerCase().includes(q)
-    )
-  }, [projects, search])
+    if (!isSearching) return projects
+    return [...projects].sort((a, b) => {
+      const am = matchIds.has(a.id) ? 0 : 1
+      const bm = matchIds.has(b.id) ? 0 : 1
+      return am - bm
+    })
+  }, [projects, isSearching, matchIds])
+
+  const isDimmed = (id: string) => isSearching && !matchIds.has(id)
 
   // Build hierarchy. A sub-project is only nested when its parent program is
   // also in the current (filtered) result set. When a filter excludes the
@@ -240,7 +281,7 @@ export default function ProjectsClient({ projects: initialProjects, stageFilter 
             />
             <input
               type="text"
-              placeholder="Search projects by name, location, client…"
+              placeholder="Search by name, location, client, sector, stage…"
               value={search}
               onChange={e => setSearch(e.target.value)}
               className="h-8 pl-8 pr-8 w-full sm:w-72 rounded-md border border-input bg-background text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
@@ -260,7 +301,7 @@ export default function ProjectsClient({ projects: initialProjects, stageFilter 
         <p className="text-xs text-muted-foreground">{viewCaption}</p>
       </div>
 
-      {filtered.length === 0 && search && (
+      {isSearching && matchCount === 0 && (
         <div className="py-12 text-center text-sm text-muted-foreground">
           No projects match &ldquo;{search}&rdquo;
         </div>
@@ -287,6 +328,8 @@ export default function ProjectsClient({ projects: initialProjects, stageFilter 
                       key={project.id}
                       project={project}
                       parentName={project.parent_project_id ? nameById.get(project.parent_project_id) : undefined}
+                      highlight={q}
+                      dimmed={isDimmed(project.id)}
                       onDeleted={() => handleDelete(project.id)}
                       onUpdated={(patch) => handleUpdate(project.id, patch)}
                     />
@@ -337,6 +380,8 @@ export default function ProjectsClient({ projects: initialProjects, stageFilter 
                         key={project.id}
                         project={project}
                         parentName={project.parent_project_id ? nameById.get(project.parent_project_id) : undefined}
+                        highlight={q}
+                        dimmed={isDimmed(project.id)}
                         onDeleted={() => handleDelete(project.id)}
                         onUpdated={(patch) => handleUpdate(project.id, patch)}
                       />
@@ -369,6 +414,8 @@ export default function ProjectsClient({ projects: initialProjects, stageFilter 
                     key={child.id}
                     project={child}
                     parentName={parent.name}
+                    highlight={q}
+                    dimmed={isDimmed(child.id)}
                     onDeleted={() => handleDelete(child.id)}
                     onUpdated={(patch) => handleUpdate(child.id, patch)}
                   />
@@ -397,6 +444,8 @@ export default function ProjectsClient({ projects: initialProjects, stageFilter 
             <DeletableCard
               key={project.id}
               project={project}
+              highlight={q}
+              dimmed={isDimmed(project.id)}
               onDeleted={() => handleDelete(project.id)}
               onUpdated={(patch) => handleUpdate(project.id, patch)}
             />
@@ -411,12 +460,16 @@ function DeletableCard({
   project,
   counts,
   parentName,
+  highlight,
+  dimmed,
   onDeleted,
   onUpdated,
 }: {
   project: Project
   counts?: ProjectCardCounts
   parentName?: string
+  highlight?: string
+  dimmed?: boolean
   onDeleted: () => void
   onUpdated?: (patch: Partial<Project>) => void
 }) {
@@ -491,7 +544,12 @@ function DeletableCard({
   }
 
   return (
-    <div className="relative group/card">
+    <div
+      className={cn(
+        'relative group/card transition-opacity duration-200',
+        dimmed && 'opacity-40 hover:opacity-100'
+      )}
+    >
       {/* Confirmation overlay */}
       {confirming && (
         <div
@@ -574,6 +632,7 @@ function DeletableCard({
         project={project}
         counts={counts}
         parentName={parentName}
+        highlight={highlight}
       />
 
       {/* Quick-edit button — appears on hover */}

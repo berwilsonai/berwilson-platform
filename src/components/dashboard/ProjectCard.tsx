@@ -59,6 +59,31 @@ function formatValue(value: number | null): string {
   return `$${value.toLocaleString()}`
 }
 
+// Wrap the matched portion of a string in a <mark> so search hits stand out on
+// the card. Case-insensitive; returns the plain string when there's no match.
+function highlightText(text: string, query?: string): React.ReactNode {
+  const q = query?.trim()
+  if (!q) return text
+  const lower = text.toLowerCase()
+  const needle = q.toLowerCase()
+  const out: React.ReactNode[] = []
+  let from = 0
+  let at = lower.indexOf(needle, from)
+  let key = 0
+  while (at !== -1) {
+    if (at > from) out.push(text.slice(from, at))
+    out.push(
+      <mark key={key++} className="rounded bg-yellow-200/70 text-foreground px-0.5">
+        {text.slice(at, at + needle.length)}
+      </mark>
+    )
+    from = at + needle.length
+    at = lower.indexOf(needle, from)
+  }
+  if (from < text.length) out.push(text.slice(from))
+  return out
+}
+
 function timeAgo(dateStr: string | null): string {
   if (!dateStr) return 'Never'
   const diff = Date.now() - new Date(dateStr).getTime()
@@ -75,11 +100,13 @@ interface ProjectCardProps {
   counts?: ProjectCardCounts
   isProgram?: boolean
   parentName?: string
+  /** Active search term — matched substrings in name/client/location are highlighted. */
+  highlight?: string
   className?: string
   style?: React.CSSProperties
 }
 
-export default function ProjectCard({ project, counts, isProgram, parentName, className, style }: ProjectCardProps) {
+export default function ProjectCard({ project, counts, isProgram, parentName, highlight, className, style }: ProjectCardProps) {
   const status = project.status ?? 'active'
   const stage = (project.stage ?? 'pursuit') as ProjectStage
   const StageIcon = STAGE_ICON[stage]
@@ -143,11 +170,11 @@ export default function ProjectCard({ project, counts, isProgram, parentName, cl
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <h3 className="text-[15px] font-semibold text-foreground leading-snug group-hover:text-primary transition-colors line-clamp-2 heading-tight">
-              {project.name}
+              {highlightText(project.name, highlight)}
             </h3>
             {project.client_entity && (
               <p className="text-xs text-muted-foreground mt-0.5 truncate">
-                {project.client_entity}
+                {highlightText(project.client_entity, highlight)}
               </p>
             )}
           </div>
@@ -250,7 +277,9 @@ export default function ProjectCard({ project, counts, isProgram, parentName, cl
         <div className="flex items-center justify-between pt-2 mt-1 border-t border-border/60">
           <span className="text-[11px] text-muted-foreground truncate max-w-[60%] flex items-center gap-1.5">
             <span className="truncate">
-              {parentName ? `Sub-project of ${parentName}` : (project.location ?? 'No location')}
+              {parentName
+                ? <>Sub-project of {highlightText(parentName, highlight)}</>
+                : highlightText(project.location ?? 'No location', highlight)}
             </span>
             {captureLead && (
               <span className="inline-flex items-center gap-0.5 text-muted-foreground/80 shrink-0">
