@@ -15,17 +15,29 @@ export async function updateCompanyProfile(
 
   const str = (key: string) => (formData.get(key) as string | null)?.trim() || null
 
-  const naicsRaw = str('naics_codes') ?? ''
-  const sicRaw = str('sic_codes') ?? ''
-  const naicsCodes = naicsRaw ? naicsRaw.split(',').map(s => s.trim()).filter(Boolean) : []
-  const sicCodes = sicRaw ? sicRaw.split(',').map(s => s.trim()).filter(Boolean) : []
+  // Comma-separated text → trimmed array
+  const csv = (key: string) => {
+    const raw = str(key) ?? ''
+    return raw ? raw.split(',').map(s => s.trim()).filter(Boolean) : []
+  }
+  // Numeric field → number | null
+  const num = (key: string) => {
+    const raw = str(key)
+    return raw ? parseFloat(raw) : null
+  }
 
-  const bondingCapacityRaw = str('bonding_capacity')
-  const aggregateBondingRaw = str('aggregate_bonding')
+  const naicsCodes = csv('naics_codes')
+  const sicCodes = csv('sic_codes')
+
+  // Pursuit profile arrays — checkboxes post multiple values under one name
+  const targetSectors = formData.getAll('target_sectors').map(String).filter(Boolean)
+  const deliveryMethods = formData.getAll('delivery_methods').map(String).filter(Boolean)
+  const contractTypes = formData.getAll('contract_types').map(String).filter(Boolean)
+  const targetGeographies = csv('target_geographies')
+
+  const bondingCapacity = num('bonding_capacity')
+  const aggregateBonding = num('aggregate_bonding')
   const foundedYearRaw = str('founded_year')
-
-  const bondingCapacity = bondingCapacityRaw ? parseFloat(bondingCapacityRaw) : null
-  const aggregateBonding = aggregateBondingRaw ? parseFloat(aggregateBondingRaw) : null
   const foundedYear = foundedYearRaw ? parseInt(foundedYearRaw) : null
 
   // Fetch the singleton id
@@ -58,6 +70,19 @@ export async function updateCompanyProfile(
       bonding_capacity: bondingCapacity,
       aggregate_bonding: aggregateBonding,
       bonding_company: str('bonding_company'),
+      // Pursuit / fit profile
+      target_sectors: targetSectors,
+      target_geographies: targetGeographies,
+      delivery_methods: deliveryMethods,
+      contract_types: contractTypes,
+      min_project_value: num('min_project_value'),
+      max_project_value: num('max_project_value'),
+      sweet_spot_value: num('sweet_spot_value'),
+      annual_revenue: num('annual_revenue'),
+      differentiators: str('differentiators'),
+      disqualifiers: str('disqualifiers'),
+      past_performance: str('past_performance'),
+      pursuit_notes: str('pursuit_notes'),
       updated_at: new Date().toISOString(),
     })
     .eq('id', existing.id)

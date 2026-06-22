@@ -202,7 +202,7 @@ export const agentTools = [
   },
   {
     name: 'get_company_qualifications',
-    description: 'Get Ber Wilson company profile, certifications, licenses, bonding capacity, diversity status, and capabilities. Use this when asked: (1) what certifications or licenses Ber Wilson holds, (2) whether Ber Wilson qualifies for a specific RFP or contract requirement, (3) Ber Wilson\'s bonding capacity, DBE/MBE/WBE/SBE status, NAICS codes, or trade capabilities, (4) due diligence questions about Ber Wilson itself.',
+    description: 'Get Ber Wilson company profile, certifications, licenses, bonding capacity, diversity status, capabilities, AND the pursuit profile (target sectors, project size range, geographies, delivery methods, contract vehicles, differentiators, and hard disqualifiers). Use this when asked: (1) what certifications or licenses Ber Wilson holds, (2) whether Ber Wilson qualifies for or should pursue a specific RFP/opportunity, (3) Ber Wilson\'s bonding capacity, DBE/MBE/WBE/SBE status, NAICS codes, or trade capabilities, (4) what kind of work Ber Wilson goes after or avoids, (5) due diligence questions about Ber Wilson itself.',
     parameters: {
       type: 'object',
       properties: {},
@@ -666,6 +666,20 @@ export async function executeToolCall(
           bonding_single_project: profile.bonding_capacity,
           bonding_aggregate: profile.aggregate_bonding,
           bonding_company: profile.bonding_company,
+          annual_revenue: profile.annual_revenue,
+        },
+        pursuit_profile: {
+          target_sectors: profile.target_sectors,
+          target_geographies: profile.target_geographies,
+          delivery_methods: profile.delivery_methods,
+          contract_types: profile.contract_types,
+          min_project_value: profile.min_project_value,
+          sweet_spot_value: profile.sweet_spot_value,
+          max_project_value: profile.max_project_value,
+          differentiators: profile.differentiators,
+          disqualifiers: profile.disqualifiers,
+          past_performance: profile.past_performance,
+          pursuit_notes: profile.pursuit_notes,
         },
         certifications: certs,
         summary: {

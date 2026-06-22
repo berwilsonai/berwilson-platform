@@ -5,6 +5,7 @@ import { GoogleGenerativeAI, type Part } from '@google/generative-ai'
 import { GoogleAIFileManager } from '@google/generative-ai/server'
 import { PROPOSAL_INTAKE_SYSTEM_PROMPT, PROPOSAL_INTAKE_PROMPT_VERSION } from '@/lib/ai/prompts/proposal-intake'
 import { findMatchingProjects, matchExtractedParties, type ProposalExtraction } from '@/lib/ai/proposal-matching'
+import { assessFit, type FitAssessment } from '@/lib/ai/fit-assessment'
 import { writeFile, unlink } from 'fs/promises'
 import { join } from 'path'
 
@@ -236,6 +237,15 @@ export async function POST(request: NextRequest) {
       // non-fatal
     }
 
+    // Score the opportunity against Ber Wilson's pursuit profile (non-fatal —
+    // a missing/sparse profile just yields no assessment).
+    let fitAssessment: FitAssessment | null = null
+    try {
+      fitAssessment = await assessFit(extraction, userId)
+    } catch {
+      // non-fatal
+    }
+
     // Create intake session
     const { data: session, error: sessionError } = await supabase
       .from('proposal_intake_sessions')
@@ -261,6 +271,7 @@ export async function POST(request: NextRequest) {
       extraction,
       match_candidates: matchCandidates,
       party_matches: partyMatches,
+      fit_assessment: fitAssessment,
       uploaded_files: uploadedFiles,
     })
   } catch (err) {

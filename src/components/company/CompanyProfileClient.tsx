@@ -6,7 +6,8 @@ import {
   Pencil, X, Plus, Trash2, Upload, CheckCircle2, AlertTriangle,
   FileText, Loader2, ShieldCheck,
 } from 'lucide-react'
-import type { CompanyProfile, Certification } from '@/lib/supabase/types'
+import type { CompanyProfile, Certification, ProjectSector } from '@/lib/supabase/types'
+import { SECTORS, SECTOR_LABELS } from '@/lib/utils/constants'
 import {
   updateCompanyProfile,
   createCertification,
@@ -14,6 +15,9 @@ import {
   type CompanyFormState,
   type CertFormState,
 } from '@/app/company/actions'
+
+const DELIVERY_METHODS = ['Design-Build', 'Design-Bid-Build', 'CMAR']
+const CONTRACT_TYPES = ['FFP', 'CPFF', 'T&M', 'GMP', 'Lump Sum', 'Cost Plus']
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -93,6 +97,46 @@ function TextAreaRow({ label, name, defaultValue, rows = 4, placeholder }: {
         placeholder={placeholder}
         className="w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring resize-y"
       />
+    </div>
+  )
+}
+
+function CheckboxGroup({ label, name, options, selected }: {
+  label: string
+  name: string
+  options: Array<{ value: string; label: string }>
+  selected: string[]
+}) {
+  return (
+    <div className="space-y-1.5">
+      <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</label>
+      <div className="flex flex-wrap gap-2">
+        {options.map(opt => (
+          <label key={opt.value} className="flex items-center gap-1.5 cursor-pointer rounded-md border border-input px-2.5 py-1 text-sm hover:bg-accent transition-colors">
+            <input
+              type="checkbox"
+              name={name}
+              value={opt.value}
+              defaultChecked={selected.includes(opt.value)}
+              className="rounded border-input"
+            />
+            {opt.label}
+          </label>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function ChipList({ items, className = '' }: { items: string[]; className?: string }) {
+  if (!items.length) return <span className="text-sm text-muted-foreground">—</span>
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {items.map((it, i) => (
+        <span key={i} className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium ring-1 ring-inset ${className || 'bg-muted text-foreground ring-border'}`}>
+          {it}
+        </span>
+      ))}
     </div>
   )
 }
@@ -443,6 +487,71 @@ export default function CompanyProfileClient({ profile, certifications: initialC
               </div>
             </div>
 
+            {/* Pursuit Profile */}
+            <div className="rounded-lg border border-border p-4 space-y-4">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                Pursuit Profile — what Ber Wilson goes after (drives the AI fit assessment on proposal intake)
+              </p>
+              <CheckboxGroup
+                label="Target Sectors"
+                name="target_sectors"
+                options={SECTORS.map(s => ({ value: s, label: SECTOR_LABELS[s] }))}
+                selected={profile.target_sectors ?? []}
+              />
+              <div className="grid grid-cols-3 gap-4">
+                <InputRow label="Min Project Value ($)" name="min_project_value" type="number" defaultValue={profile.min_project_value?.toString()} placeholder="e.g. 5000000" />
+                <InputRow label="Sweet Spot Value ($)" name="sweet_spot_value" type="number" defaultValue={profile.sweet_spot_value?.toString()} placeholder="e.g. 50000000" />
+                <InputRow label="Max Project Value ($)" name="max_project_value" type="number" defaultValue={profile.max_project_value?.toString()} placeholder="e.g. 500000000" />
+              </div>
+              <InputRow
+                label="Target Geographies (comma-separated)"
+                name="target_geographies"
+                defaultValue={(profile.target_geographies ?? []).join(', ')}
+                placeholder="e.g. Utah, Nevada, Mountain West"
+              />
+              <CheckboxGroup
+                label="Delivery Methods"
+                name="delivery_methods"
+                options={DELIVERY_METHODS.map(d => ({ value: d, label: d }))}
+                selected={profile.delivery_methods ?? []}
+              />
+              <CheckboxGroup
+                label="Contract Vehicles"
+                name="contract_types"
+                options={CONTRACT_TYPES.map(c => ({ value: c, label: c }))}
+                selected={profile.contract_types ?? []}
+              />
+              <InputRow label="Annual Revenue ($)" name="annual_revenue" type="number" defaultValue={profile.annual_revenue?.toString()} />
+              <TextAreaRow
+                label="Differentiators / Win Themes"
+                name="differentiators"
+                defaultValue={profile.differentiators}
+                rows={3}
+                placeholder="What sets Ber Wilson apart on a pursuit — vertical integration, prefab steel speed, self-perform trades, financing capacity…"
+              />
+              <TextAreaRow
+                label="Disqualifiers (hard no-go criteria)"
+                name="disqualifiers"
+                defaultValue={profile.disqualifiers}
+                rows={3}
+                placeholder="Deal-breakers the AI should flag — e.g. projects under $5M, outside the Mountain West, residential-only, no GC role…"
+              />
+              <TextAreaRow
+                label="Relevant Past Performance"
+                name="past_performance"
+                defaultValue={profile.past_performance}
+                rows={3}
+                placeholder="Notable comparable projects the AI can weigh when judging fit."
+              />
+              <TextAreaRow
+                label="Current Appetite Notes"
+                name="pursuit_notes"
+                defaultValue={profile.pursuit_notes}
+                rows={2}
+                placeholder="Strategic priorities right now — sectors to lean into, capacity constraints, etc."
+              />
+            </div>
+
             {saveState && 'error' in saveState && (
               <p className="text-sm text-destructive">{saveState.error}</p>
             )}
@@ -540,6 +649,63 @@ export default function CompanyProfileClient({ profile, certifications: initialC
                 </dl>
               </div>
             )}
+
+            {/* Pursuit Profile */}
+            <div className="space-y-3 pt-2 border-t border-border">
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Pursuit Profile</h3>
+              <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4">
+                <div className="space-y-1">
+                  <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Target Sectors</dt>
+                  <dd><ChipList items={(profile.target_sectors ?? []).map(s => SECTOR_LABELS[s as ProjectSector] ?? s)} className="bg-blue-50 text-blue-700 ring-blue-200" /></dd>
+                </div>
+                <Field
+                  label="Project Size"
+                  value={
+                    profile.min_project_value == null && profile.max_project_value == null && profile.sweet_spot_value == null
+                      ? null
+                      : `${formatCurrency(profile.min_project_value)} – ${formatCurrency(profile.max_project_value)}${profile.sweet_spot_value != null ? ` (sweet spot ${formatCurrency(profile.sweet_spot_value)})` : ''}`
+                  }
+                />
+                <div className="space-y-1">
+                  <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Target Geographies</dt>
+                  <dd><ChipList items={profile.target_geographies ?? []} /></dd>
+                </div>
+                <div className="space-y-1">
+                  <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Delivery Methods</dt>
+                  <dd><ChipList items={profile.delivery_methods ?? []} /></dd>
+                </div>
+                <div className="space-y-1">
+                  <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Contract Vehicles</dt>
+                  <dd><ChipList items={profile.contract_types ?? []} /></dd>
+                </div>
+                <Field label="Annual Revenue" value={profile.annual_revenue != null ? formatCurrency(profile.annual_revenue) : null} />
+              </dl>
+
+              {profile.differentiators && (
+                <div className="space-y-1">
+                  <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Differentiators / Win Themes</h4>
+                  <p className="text-sm leading-relaxed whitespace-pre-line">{profile.differentiators}</p>
+                </div>
+              )}
+              {profile.past_performance && (
+                <div className="space-y-1">
+                  <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Relevant Past Performance</h4>
+                  <p className="text-sm leading-relaxed whitespace-pre-line">{profile.past_performance}</p>
+                </div>
+              )}
+              {profile.disqualifiers && (
+                <div className="space-y-1">
+                  <h4 className="text-xs font-semibold uppercase tracking-wide text-red-600">Disqualifiers (hard no-go)</h4>
+                  <p className="text-sm leading-relaxed whitespace-pre-line">{profile.disqualifiers}</p>
+                </div>
+              )}
+              {profile.pursuit_notes && (
+                <div className="space-y-1">
+                  <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Current Appetite Notes</h4>
+                  <p className="text-sm leading-relaxed whitespace-pre-line">{profile.pursuit_notes}</p>
+                </div>
+              )}
+            </div>
           </div>
         )}
       </section>

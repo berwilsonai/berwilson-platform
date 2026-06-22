@@ -412,22 +412,34 @@ export type Database = {
         Row: {
           about: string | null
           aggregate_bonding: number | null
+          annual_revenue: number | null
           bonding_capacity: number | null
           bonding_company: string | null
           capabilities: string | null
+          contract_types: string[]
           dba_name: string | null
           dbe_certified: boolean
+          delivery_methods: string[]
+          differentiators: string | null
+          disqualifiers: string | null
           email: string | null
           founded_year: number | null
           hq_address: string | null
           id: string
           legal_name: string
           logo_url: string | null
+          max_project_value: number | null
           mbe_certified: boolean
+          min_project_value: number | null
           naics_codes: string[]
+          past_performance: string | null
           phone: string | null
+          pursuit_notes: string | null
           sbe_certified: boolean
           sic_codes: string[]
+          sweet_spot_value: number | null
+          target_geographies: string[]
+          target_sectors: string[]
           updated_at: string
           wbe_certified: boolean
           website: string | null
@@ -435,22 +447,34 @@ export type Database = {
         Insert: {
           about?: string | null
           aggregate_bonding?: number | null
+          annual_revenue?: number | null
           bonding_capacity?: number | null
           bonding_company?: string | null
           capabilities?: string | null
+          contract_types?: string[]
           dba_name?: string | null
           dbe_certified?: boolean
+          delivery_methods?: string[]
+          differentiators?: string | null
+          disqualifiers?: string | null
           email?: string | null
           founded_year?: number | null
           hq_address?: string | null
           id?: string
           legal_name?: string
           logo_url?: string | null
+          max_project_value?: number | null
           mbe_certified?: boolean
+          min_project_value?: number | null
           naics_codes?: string[]
+          past_performance?: string | null
           phone?: string | null
+          pursuit_notes?: string | null
           sbe_certified?: boolean
           sic_codes?: string[]
+          sweet_spot_value?: number | null
+          target_geographies?: string[]
+          target_sectors?: string[]
           updated_at?: string
           wbe_certified?: boolean
           website?: string | null
@@ -458,22 +482,34 @@ export type Database = {
         Update: {
           about?: string | null
           aggregate_bonding?: number | null
+          annual_revenue?: number | null
           bonding_capacity?: number | null
           bonding_company?: string | null
           capabilities?: string | null
+          contract_types?: string[]
           dba_name?: string | null
           dbe_certified?: boolean
+          delivery_methods?: string[]
+          differentiators?: string | null
+          disqualifiers?: string | null
           email?: string | null
           founded_year?: number | null
           hq_address?: string | null
           id?: string
           legal_name?: string
           logo_url?: string | null
+          max_project_value?: number | null
           mbe_certified?: boolean
+          min_project_value?: number | null
           naics_codes?: string[]
+          past_performance?: string | null
           phone?: string | null
+          pursuit_notes?: string | null
           sbe_certified?: boolean
           sic_codes?: string[]
+          sweet_spot_value?: number | null
+          target_geographies?: string[]
+          target_sectors?: string[]
           updated_at?: string
           wbe_certified?: boolean
           website?: string | null

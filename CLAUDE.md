@@ -149,7 +149,11 @@ Extraction prompts return structured JSON (summary, action_items, waiting_on, ri
 Query → SQL filter → vector search (`match_chunks` RPC over `chunks.embedding`) → re-rank (recency/confidence/cosine) → top chunks into context → grounded answer with citations → log to `ai_queries`.
 
 ### Proposal matching — `src/lib/ai/proposal-matching.ts`
-Scores an inbound opportunity against the Ber Wilson `company_profile`. This is the engine behind the intake flow (§6) and the seed of the long-term "should we pursue?" intelligence. **Its quality is capped by how complete `company_profile` is — that's the current bottleneck.**
+Dedupes an inbound opportunity against existing `projects`/`parties` (solicitation #, trigram name, location, client). Does NOT judge fit — that's `fit-assessment.ts`.
+
+### Company context + fit assessment — `src/lib/ai/company-context.ts`, `fit-assessment.ts`
+- `getCompanyContext()` builds one prompt-ready markdown block from `company_profile` + active certs (identity, capabilities, bonding, **pursuit profile**: target sectors, project-size range, geographies, delivery/contract vehicles, differentiators, disqualifiers, past performance). Single source of truth — the agent and fit assessment both use it, so they judge against the same picture. Returns `hasPursuitProfile` so callers know when the profile is too thin to judge confidently.
+- `assessFit(extraction, userId)` scores an opportunity against that context (Commercial/Operational/Financial/Compliance lenses) and returns `{recommendation: pursue|consider|pass, fit_score, summary, strengths, concerns, gaps, key_questions, profile_incomplete}`. Wired into `api/proposals/intake` (non-fatal) and surfaced as a card in `ProposalIntakeWizard`. **Quality scales with how completely the pursuit profile is filled in on `/company`.**
 
 ---
 
@@ -160,7 +164,7 @@ Already built, end to end:
 2. `api/proposals/intake` — runs extraction + `proposal-matching` against the company profile, produces an assessment and a proposed set of projects/parties/entities.
 3. `api/proposals/confirm` — on approval, creates the projects, contacts, and entities in one transaction.
 
-This is the spine of the future "email an opportunity → Ber AI assesses → you decide → project created" loop. The work remaining is **depth of the company profile**, not new plumbing.
+This is the spine of the "email an opportunity → Ber AI assesses → you decide → project created" loop. As of 2026-06-22 the intake also runs a **fit assessment** (§5) — a pursue/consider/pass recommendation scored against the company pursuit profile, shown at the top of the review step. The remaining work is **data, not plumbing**: fill in the pursuit profile on `/company` (target sectors, size range, geographies, delivery/contract vehicles, differentiators, disqualifiers). Until then the assessment self-flags as low-confidence (`profile_incomplete`).
 
 ---
 
@@ -242,8 +246,11 @@ Note the drift flagged in §9: `entities`/vendors and portfolio `stakeholders` p
 
 **Working:** projects (CRUD, pipeline/program views, hierarchy, all detail tabs), dashboard, attention/timeline/capacity, tasks, contacts + vendors directories, company profile (thin), review queue, activity log, email ingestion + log, manual-paste extraction, intel (RAG + agent), proposal intake → assessment → project creation, portfolio site hierarchy, equity & valuation suite.
 
-**Highest-leverage next work** (per Richard, 2026-06-22):
-1. **Flesh out the company profile** so proposal-matching can actually judge fit — this unlocks the intelligence vision with no new plumbing.
-2. Tend the known debt in §9 as it gets in the way.
+**Done 2026-06-22:** Company profile fleshed out with a structured **pursuit profile** (`company_profile` migration `20260622000002`), editable on `/company`, and wired into the AI — the executive agent injects it via `getCompanyContext()`, and proposal intake runs `assessFit()` to give a pursue/consider/pass recommendation in the wizard.
+
+**Highest-leverage next work:**
+1. **Populate the pursuit profile** on `/company` with Ber Wilson's real criteria (only Richard has these facts — don't invent them). This is what makes the fit assessment trustworthy.
+2. Optionally persist `fit_assessment` on `proposal_intake_sessions` (currently returned in the intake response but not stored).
+3. Tend the known debt in §9 as it gets in the way.
 
 > UPDATE THIS SECTION (and §9 if you resolve debt) at the end of every Claude Code session.
