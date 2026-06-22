@@ -18,6 +18,8 @@ type ViewMode = 'program' | 'pipeline'
 
 interface ProjectsClientProps {
   projects: Project[]
+  /** Active stage filter from the URL. When set, the pipeline board shows only this stage's column. */
+  stageFilter?: string
 }
 
 function ProgramBanner({
@@ -100,8 +102,14 @@ function ProgramBanner({
   )
 }
 
-export default function ProjectsClient({ projects: initialProjects }: ProjectsClientProps) {
+export default function ProjectsClient({ projects: initialProjects, stageFilter }: ProjectsClientProps) {
   const [projects, setProjects] = useState(initialProjects)
+  // When a stage filter is active in the URL, restrict the pipeline columns to
+  // just that stage so the board doesn't keep rendering every (mostly empty)
+  // stage. No filter → show the full funnel.
+  const stageColumns = (stageFilter && STAGES.includes(stageFilter as ProjectStage)
+    ? [stageFilter as ProjectStage]
+    : STAGES) as ProjectStage[]
   const [search, setSearch] = useState('')
   const [storedView, setView] = useStoredState<ViewMode>('bw.projects.view', 'pipeline')
   // Normalize any legacy stored values ('stage' / 'board') to the new 'pipeline'.
@@ -261,7 +269,7 @@ export default function ProjectsClient({ projects: initialProjects }: ProjectsCl
       {/* ─── Pipeline (mobile): stage groups stacked top-to-bottom ──────────── */}
       {view === 'pipeline' && filtered.length > 0 && (
         <div className="space-y-6 lg:hidden">
-          {STAGES.filter(s => (byStage.get(s as ProjectStage)?.length ?? 0) > 0).map(s => {
+          {stageColumns.filter(s => (byStage.get(s as ProjectStage)?.length ?? 0) > 0).map(s => {
             const stage = s as ProjectStage
             const items = byStage.get(stage) ?? []
             return (
@@ -293,7 +301,7 @@ export default function ProjectsClient({ projects: initialProjects }: ProjectsCl
       {/* ─── Pipeline (desktop): horizontal Kanban board by stage ───────────── */}
       {view === 'pipeline' && filtered.length > 0 && (
         <div className="hidden lg:flex gap-4 overflow-x-auto pb-4 -mx-1 px-1">
-          {STAGES.map((s) => {
+          {stageColumns.map((s) => {
             const stage = s as ProjectStage
             const items = byStage.get(stage) ?? []
             const colValue = items.reduce((sum, p) => sum + (p.estimated_value ?? 0), 0)

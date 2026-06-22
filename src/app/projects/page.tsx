@@ -93,7 +93,7 @@ export default async function ProjectsPage({ searchParams }: PageProps) {
           }
         />
       ) : (
-        <ProjectsClient projects={projects} />
+        <ProjectsClient projects={projects} stageFilter={stage} />
       )}
     </div>
   )
