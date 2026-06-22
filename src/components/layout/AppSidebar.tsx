@@ -22,6 +22,8 @@ import {
   Globe,
   AlertTriangle,
   FileUp,
+  GanttChart,
+  Gauge,
 } from 'lucide-react'
 
 const NAV_GROUPS = [
@@ -31,6 +33,8 @@ const NAV_GROUPS = [
       { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
       { href: '/attention', label: 'Attention', icon: AlertTriangle },
       { href: '/projects', label: 'Projects', icon: FolderKanban },
+      { href: '/timeline', label: 'Timeline', icon: GanttChart },
+      { href: '/capacity', label: 'Capacity', icon: Gauge },
       { href: '/tasks', label: 'Tasks', icon: ListChecks },
     ],
   },

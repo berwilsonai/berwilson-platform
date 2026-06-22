@@ -28,6 +28,31 @@ function parseFields(formData: FormData): ParseResult {
 
   const str = (key: string) => (formData.get(key) as string | null)?.trim() || null
 
+  // Win probability: integer 0-100 or null
+  const rawPwin = (formData.get('win_probability') as string | null) ?? ''
+  let win_probability: number | null = null
+  if (rawPwin !== '') {
+    const parsed = Math.round(parseFloat(rawPwin))
+    if (isNaN(parsed) || parsed < 0 || parsed > 100) {
+      return { ok: false, error: 'Win probability must be between 0 and 100.' }
+    }
+    win_probability = parsed
+  }
+
+  // Bid decision: go/no-go gate
+  const rawDecision = str('bid_decision')
+  const bid_decision =
+    rawDecision === 'pursue' || rawDecision === 'no_bid' ? rawDecision : 'undecided'
+
+  // Competitors: newline- or comma-separated list -> string[]
+  const rawCompetitors = str('competitors')
+  const competitors = rawCompetitors
+    ? rawCompetitors
+        .split(/[\n,]+/)
+        .map((c) => c.trim())
+        .filter(Boolean)
+    : []
+
   // Parse applicable standards JSON
   const standardsRaw = str('applicable_standards')
   let applicable_standards: string[] | null = null
@@ -53,10 +78,17 @@ function parseFields(formData: FormData): ParseResult {
       location: str('location'),
       client_entity: str('client_entity'),
       solicitation_number: str('solicitation_number'),
+      bid_due_date: str('bid_due_date'),
       award_date: str('award_date'),
       ntp_date: str('ntp_date'),
       substantial_completion_date: str('substantial_completion_date'),
       parent_project_id: str('parent_project_id'),
+      win_probability,
+      bid_decision,
+      capture_lead: str('capture_lead'),
+      incumbent: str('incumbent'),
+      competitors,
+      win_strategy: str('win_strategy'),
       ...(applicable_standards ? { applicable_standards } : {}),
     } as ParsedFields,
   }

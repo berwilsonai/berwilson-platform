@@ -14,9 +14,10 @@ import {
   ENTITY_TYPE_LABELS, ENTITY_TYPE_BADGE, RELATIONSHIP_LABELS,
   ACTIVITY_TABLE_LABELS, ACTIVITY_ACTION_STYLES,
   FEDERAL_STANDARD_LABELS, FEDERAL_STANDARD_DESCRIPTIONS, FEDERAL_STANDARD_BADGE,
-  formatValue, formatDate,
+  formatValue, formatDate, parseCompetitors,
   type FederalStandard,
 } from '@/lib/utils/constants'
+import PursuitSnapshot from '@/components/projects/PursuitSnapshot'
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params
@@ -131,7 +132,7 @@ export default async function ProjectOverviewPage({ params }: PageProps) {
   }
 
   return (
-    <div className="space-y-8 max-w-2xl">
+    <div className="space-y-6">
       {/* Parent breadcrumb for child projects */}
       {parentProject && (
         <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
@@ -163,6 +164,10 @@ export default async function ProjectOverviewPage({ params }: PageProps) {
           Edit
         </Link>
       </div>
+
+      {/* Two-column: detail (left) + pursuit snapshot rail (right) */}
+      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_300px] gap-8 items-start">
+        <div className="space-y-8 min-w-0">
 
       {/* Narrative brief — AI-generated executive summary */}
       <ProjectNarrativeBrief projectId={id} projectName={project.name} />
@@ -253,20 +258,53 @@ export default async function ProjectOverviewPage({ params }: PageProps) {
         </dl>
       </section>
 
-      {/* Key dates */}
-      <section className="space-y-3">
-        <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          Key Dates
-        </h2>
-        <dl className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-4">
-          <Field label="Award Date" value={formatDate(project.award_date)} />
-          <Field label="NTP Date" value={formatDate(project.ntp_date)} />
-          <Field
-            label="Substantial Completion"
-            value={formatDate(project.substantial_completion_date)}
-          />
-        </dl>
-      </section>
+      {/* Competitive landscape */}
+      {(() => {
+        const p = project as typeof project & { incumbent?: string | null; competitors?: unknown; win_strategy?: string | null }
+        const competitors = parseCompetitors(p.competitors)
+        const hasAny = p.incumbent || competitors.length > 0 || p.win_strategy
+        if (!hasAny) return null
+        return (
+          <section className="space-y-3">
+            <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Competitive Landscape
+            </h2>
+            <div className="rounded-lg border border-border p-4 space-y-4">
+              {p.incumbent && (
+                <div>
+                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-1">Incumbent</p>
+                  <p className="text-sm text-foreground">{p.incumbent}</p>
+                </div>
+              )}
+              {competitors.length > 0 && (
+                <div>
+                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-1.5">
+                    Known Competitors
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {competitors.map((c) => (
+                      <span
+                        key={c}
+                        className="inline-flex items-center rounded-full bg-slate-100 text-slate-700 ring-1 ring-inset ring-slate-200 px-2 py-0.5 text-xs font-medium"
+                      >
+                        {c}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {p.win_strategy && (
+                <div>
+                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-1">
+                    Win Strategy / Discriminators
+                  </p>
+                  <p className="text-sm text-foreground leading-relaxed whitespace-pre-line">{p.win_strategy}</p>
+                </div>
+              )}
+            </div>
+          </section>
+        )
+      })()}
 
       {/* Federal Standards */}
       {(() => {
@@ -434,6 +472,12 @@ export default async function ProjectOverviewPage({ params }: PageProps) {
           <p className="text-xs text-muted-foreground">No activity recorded yet.</p>
         )}
       </section>
+
+        </div>{/* end left column */}
+
+        {/* Pursuit snapshot rail */}
+        <PursuitSnapshot project={project} />
+      </div>{/* end two-column grid */}
     </div>
   )
 }

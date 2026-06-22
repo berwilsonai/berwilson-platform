@@ -1,21 +1,44 @@
 import Link from 'next/link'
 import {
-  CheckSquare, Clock, AlertTriangle, Layers,
+  CheckSquare, Clock, AlertTriangle, Layers, CalendarClock, Ban,
   Search, Target, Gavel, Award, Truck, HardHat, FlagTriangleRight,
+  Timer, Percent, UserRound,
 } from 'lucide-react'
 import type { Project } from '@/lib/supabase/types'
 import type { ProjectStage } from '@/lib/supabase/types'
 import { cn } from '@/lib/utils'
 import { SECTOR_BADGE, SECTOR_SHORT } from '@/lib/utils/sectors'
-import { STATUS_BADGE, STATUS_LABELS } from '@/lib/utils/constants'
+import {
+  STATUS_BADGE, STATUS_LABELS,
+  bidDueLabel, bidDueColor, daysUntilDate, pwinBadge,
+} from '@/lib/utils/constants'
 import { STAGE_BADGE, STAGE_LABELS, STAGE_BORDER } from '@/lib/utils/stages'
 import StageIndicator from './StageIndicator'
+
+export interface ProjectDeadline {
+  label: string
+  date: string
+  daysUntil: number
+}
 
 export interface ProjectCardCounts {
   actionCount: number
   waitingCount: number
   riskCount: number
   hasCriticalRisk: boolean
+  /** Soonest upcoming (today or future) deadline across milestones + tasks */
+  nextDeadline?: ProjectDeadline
+  /** Count of items already past their due date */
+  overdueCount?: number
+  /** Count of open critical/blocker diligence items */
+  blockingCount?: number
+}
+
+function deadlineLabel(d: ProjectDeadline): string {
+  if (d.daysUntil === 0) return 'Due today'
+  if (d.daysUntil === 1) return 'Due tomorrow'
+  if (d.daysUntil <= 14) return `Due in ${d.daysUntil}d`
+  return `Due ${new Date(d.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
 }
 
 const STAGE_ICON: Record<ProjectStage, typeof Search> = {
@@ -60,6 +83,13 @@ export default function ProjectCard({ project, counts, isProgram, parentName, cl
   const status = project.status ?? 'active'
   const stage = (project.stage ?? 'pursuit') as ProjectStage
   const StageIcon = STAGE_ICON[stage]
+
+  const bidDue = (project as { bid_due_date?: string | null }).bid_due_date ?? null
+  const bidDueDays = daysUntilDate(bidDue)
+  const winProb = (project as { win_probability?: number | null }).win_probability ?? null
+  const captureLead = (project as { capture_lead?: string | null }).capture_lead ?? null
+  // Only surface the submission deadline pre-award where it's actionable
+  const showBidDue = bidDue && !['award', 'mobilization', 'execution', 'closeout'].includes(stage)
 
   return (
     <Link
@@ -121,10 +151,44 @@ export default function ProjectCard({ project, counts, isProgram, parentName, cl
               </p>
             )}
           </div>
-          <span className="text-sm font-bold tabular-nums text-foreground shrink-0">
-            {formatValue(project.estimated_value)}
-          </span>
+          <div className="flex flex-col items-end gap-1 shrink-0">
+            <span className="text-sm font-bold tabular-nums text-foreground">
+              {formatValue(project.estimated_value)}
+            </span>
+            {winProb != null && (
+              <span
+                className={cn(
+                  'inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[11px] font-semibold ring-1 ring-inset tabular-nums',
+                  pwinBadge(winProb)
+                )}
+                title={`Win probability ${winProb}%`}
+              >
+                <Percent size={9} className="shrink-0" />
+                {winProb}% win
+              </span>
+            )}
+          </div>
         </div>
+
+        {/* Bid submission deadline — the date that matters most pre-award */}
+        {showBidDue && (
+          <div
+            className={cn(
+              'flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-semibold ring-1 ring-inset',
+              bidDueDays != null && bidDueDays < 0
+                ? 'bg-red-50 ring-red-200'
+                : bidDueDays != null && bidDueDays <= 7
+                  ? 'bg-red-50 ring-red-200'
+                  : bidDueDays != null && bidDueDays <= 21
+                    ? 'bg-amber-50 ring-amber-200'
+                    : 'bg-slate-50 ring-slate-200',
+              bidDueColor(bidDue)
+            )}
+          >
+            <Timer size={12} className="shrink-0" />
+            Bid {bidDueLabel(bidDue)?.toLowerCase()}
+          </div>
+        )}
 
         {/* Stage progress bar */}
         <StageIndicator stage={stage} compact />
@@ -156,10 +220,44 @@ export default function ProjectCard({ project, counts, isProgram, parentName, cl
           </div>
         )}
 
-        {/* Footer: location + last updated */}
+        {/* Deadline + blockers — "what's holding this up" at a glance */}
+        {counts && (counts.nextDeadline || (counts.overdueCount ?? 0) > 0 || (counts.blockingCount ?? 0) > 0) && (
+          <div className="flex items-center gap-3 flex-wrap">
+            {(counts.overdueCount ?? 0) > 0 ? (
+              <span className="flex items-center gap-1 text-xs font-medium text-red-600">
+                <CalendarClock size={11} className="shrink-0" />
+                {counts.overdueCount} overdue
+              </span>
+            ) : counts.nextDeadline ? (
+              <span className={cn(
+                'flex items-center gap-1 text-xs font-medium',
+                counts.nextDeadline.daysUntil <= 7 ? 'text-amber-600' : 'text-slate-600'
+              )}>
+                <CalendarClock size={11} className="shrink-0" />
+                {deadlineLabel(counts.nextDeadline)}: {counts.nextDeadline.label}
+              </span>
+            ) : null}
+            {(counts.blockingCount ?? 0) > 0 && (
+              <span className="flex items-center gap-1 text-xs font-medium text-red-600">
+                <Ban size={11} className="shrink-0" />
+                {counts.blockingCount} blocking
+              </span>
+            )}
+          </div>
+        )}
+
+        {/* Footer: location + capture lead + last updated */}
         <div className="flex items-center justify-between pt-2 mt-1 border-t border-border/60">
-          <span className="text-[11px] text-muted-foreground truncate max-w-[60%]">
-            {parentName ? `Sub-project of ${parentName}` : (project.location ?? 'No location')}
+          <span className="text-[11px] text-muted-foreground truncate max-w-[60%] flex items-center gap-1.5">
+            <span className="truncate">
+              {parentName ? `Sub-project of ${parentName}` : (project.location ?? 'No location')}
+            </span>
+            {captureLead && (
+              <span className="inline-flex items-center gap-0.5 text-muted-foreground/80 shrink-0">
+                <UserRound size={10} className="shrink-0" />
+                {captureLead}
+              </span>
+            )}
           </span>
           <span className="text-[11px] text-muted-foreground/70 shrink-0">
             {timeAgo(project.updated_at)}

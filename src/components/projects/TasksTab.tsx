@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { CheckSquare, Square, ListChecks, Plus, Loader2 } from 'lucide-react'
 import EmptyState from '@/components/shared/EmptyState'
+import AssigneeInput from '@/components/shared/AssigneeInput'
 
 export interface FlatTask {
   updateId: string
@@ -31,6 +32,7 @@ export default function TasksTab({ projectId, initialTasks }: TasksTabProps) {
   const [showAddForm, setShowAddForm] = useState(false)
   const [newText, setNewText] = useState('')
   const [newAssignee, setNewAssignee] = useState('')
+  const [newAssigneePartyId, setNewAssigneePartyId] = useState<string | null>(null)
   const [newDueDate, setNewDueDate] = useState('')
   const [adding, setAdding] = useState(false)
   const [addError, setAddError] = useState<string | null>(null)
@@ -50,6 +52,7 @@ export default function TasksTab({ projectId, initialTasks }: TasksTabProps) {
           project_id: projectId,
           text: newText.trim(),
           assignee: newAssignee.trim() || undefined,
+          assignee_party_id: newAssigneePartyId || undefined,
           due_date: newDueDate || undefined,
         }),
       })
@@ -75,6 +78,7 @@ export default function TasksTab({ projectId, initialTasks }: TasksTabProps) {
       ])
       setNewText('')
       setNewAssignee('')
+      setNewAssigneePartyId(null)
       setNewDueDate('')
       setShowAddForm(false)
     } catch (err) {
@@ -152,13 +156,7 @@ export default function TasksTab({ projectId, initialTasks }: TasksTabProps) {
         />
       </div>
       <div className="grid grid-cols-2 gap-3">
-        <input
-          type="text"
-          value={newAssignee}
-          onChange={(e) => setNewAssignee(e.target.value)}
-          placeholder="Assignee (optional)"
-          className="h-9 rounded-md border border-input bg-background px-3 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-        />
+        <AssigneeInput value={newAssignee} onChange={setNewAssignee} onPartyChange={setNewAssigneePartyId} />
         <input
           type="date"
           value={newDueDate}

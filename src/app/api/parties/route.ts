@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
 
   let query = admin
     .from('parties')
-    .select('id, full_name, company, title')
+    .select('id, full_name, company, title, is_organization')
     .eq('status', 'active')
     .order('full_name')
     .limit(200)

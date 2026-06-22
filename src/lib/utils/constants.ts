@@ -217,6 +217,93 @@ export const RELATIONSHIP_LABELS: Record<string, string> = {
   guarantor: 'Guarantor',
 }
 
+// ─── Capture / Bid management ────────────────────────────────────────────────
+
+export type BidDecision = 'undecided' | 'pursue' | 'no_bid'
+
+export const BID_DECISIONS: BidDecision[] = ['undecided', 'pursue', 'no_bid']
+
+export const BID_DECISION_LABELS: Record<BidDecision, string> = {
+  undecided: 'Go / No-Go Pending',
+  pursue: 'Bid',
+  no_bid: 'No-Bid',
+}
+
+export const BID_DECISION_SHORT: Record<BidDecision, string> = {
+  undecided: 'Pending',
+  pursue: 'Bid',
+  no_bid: 'No-Bid',
+}
+
+export const BID_DECISION_BADGE: Record<BidDecision, string> = {
+  undecided: 'bg-slate-100 text-slate-600 ring-slate-200',
+  pursue: 'bg-emerald-50 text-emerald-700 ring-emerald-200',
+  no_bid: 'bg-red-50 text-red-600 ring-red-200',
+}
+
+/** Normalize a possibly-null/legacy bid_decision value to a known key. */
+export function bidDecision(value: string | null | undefined): BidDecision {
+  return value === 'pursue' || value === 'no_bid' ? value : 'undecided'
+}
+
+/** Expected (probability-weighted) value of a pursuit. */
+export function weightedValue(estimatedValue: number | null, winProbability: number | null): number {
+  if (!estimatedValue || winProbability == null) return 0
+  return estimatedValue * (winProbability / 100)
+}
+
+/** Color for a P-win badge, scaled by confidence. */
+export function pwinBadge(p: number | null | undefined): string {
+  if (p == null) return 'bg-slate-100 text-slate-500 ring-slate-200'
+  if (p >= 60) return 'bg-emerald-50 text-emerald-700 ring-emerald-200'
+  if (p >= 35) return 'bg-amber-50 text-amber-700 ring-amber-200'
+  return 'bg-red-50 text-red-600 ring-red-200'
+}
+
+/** Whole days from today (local) until a date string; negative = overdue. */
+export function daysUntilDate(dateStr: string | null | undefined): number | null {
+  if (!dateStr) return null
+  const today = new Date()
+  const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime()
+  const target = new Date(dateStr + 'T00:00:00').getTime()
+  return Math.round((target - todayStart) / 86_400_000)
+}
+
+/** Short human label for a bid deadline, e.g. "Due in 6d" / "Overdue 2d" / "Due today". */
+export function bidDueLabel(dateStr: string | null | undefined): string | null {
+  const d = daysUntilDate(dateStr)
+  if (d == null) return null
+  if (d < 0) return `Overdue ${Math.abs(d)}d`
+  if (d === 0) return 'Due today'
+  if (d === 1) return 'Due tomorrow'
+  if (d <= 30) return `Due in ${d}d`
+  return `Due ${new Date(dateStr + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
+}
+
+/** Urgency color band for a bid deadline. */
+export function bidDueColor(dateStr: string | null | undefined): string {
+  const d = daysUntilDate(dateStr)
+  if (d == null) return 'text-muted-foreground'
+  if (d < 0) return 'text-red-700'
+  if (d <= 7) return 'text-red-600'
+  if (d <= 21) return 'text-amber-600'
+  return 'text-slate-600'
+}
+
+/** Parse a competitors JSON value (array of strings) defensively. */
+export function parseCompetitors(val: unknown): string[] {
+  if (Array.isArray(val)) return val.filter((x): x is string => typeof x === 'string')
+  if (typeof val === 'string') {
+    try {
+      const p = JSON.parse(val)
+      return Array.isArray(p) ? p.filter((x): x is string => typeof x === 'string') : []
+    } catch {
+      return []
+    }
+  }
+  return []
+}
+
 // ─── Formatting helpers ──────────────────────────────────────────────────────
 
 export function formatValue(value: number | null): string {

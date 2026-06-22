@@ -20,6 +20,8 @@ import {
   AlertTriangle,
   FileUp,
   ListTodo,
+  GanttChart,
+  Gauge,
   X,
 } from 'lucide-react'
 
@@ -33,6 +35,8 @@ const PRIMARY_NAV = [
 
 const MORE_NAV = [
   { href: '/proposals/intake', label: 'Ingest', icon: FileUp },
+  { href: '/timeline', label: 'Timeline', icon: GanttChart },
+  { href: '/capacity', label: 'Capacity', icon: Gauge },
   { href: '/tasks', label: 'Tasks', icon: ListTodo },
   { href: '/calendar', label: 'Calendar', icon: CalendarDays },
   { href: '/portfolio', label: 'Portfolio', icon: Globe },

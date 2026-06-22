@@ -31,6 +31,7 @@ function AnimatedNumber({ value, duration = 800, prefix = '', suffix = '' }: { v
 interface HealthPanelProps {
   activeProjects: number
   pipelineValue: number
+  weightedPipelineValue: number
   pendingReview: number
   overdueCount: number
   criticalDdCount: number
@@ -167,6 +168,7 @@ function AlertRow({
 export default function HealthPanel({
   activeProjects,
   pipelineValue,
+  weightedPipelineValue,
   pendingReview,
   overdueCount,
   criticalDdCount,
@@ -293,6 +295,13 @@ export default function HealthPanel({
             </p>
             <p className="text-3xl font-bold text-foreground mt-1 heading-tight">
               {pipelineValue > 0 ? <AnimatedValue value={pipelineValue} /> : '—'}
+            </p>
+            <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
+              <TrendingUp size={11} className="text-emerald-500 shrink-0" />
+              <span className="font-semibold text-emerald-600 tabular-nums">
+                {weightedPipelineValue > 0 ? formatValue(weightedPipelineValue) : '—'}
+              </span>
+              <span className="whitespace-nowrap">weighted (P-win)</span>
             </p>
           </div>
           <div>

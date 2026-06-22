@@ -4,7 +4,8 @@ import { FolderKanban } from 'lucide-react'
 import { createAdminClient } from '@/lib/supabase/admin'
 
 export const metadata = { title: 'Dashboard — Ber Wilson Intelligence' }
-import ProjectCard, { type ProjectCardCounts } from '@/components/dashboard/ProjectCard'
+import { type ProjectCardCounts } from '@/components/dashboard/ProjectCard'
+import DashboardProjects from '@/components/dashboard/DashboardProjects'
 import SortControls from '@/components/dashboard/SortControls'
 import PortfolioBriefButton from '@/components/dashboard/PortfolioBriefButton'
 import DailyBrief from '@/components/dashboard/DailyBrief'
@@ -12,6 +13,8 @@ import AlertsBanner from '@/components/dashboard/AlertsBanner'
 import HealthPanel from '@/components/dashboard/HealthPanel'
 import RiskOverview from '@/components/dashboard/RiskOverview'
 import NeedsAttention from '@/components/dashboard/NeedsAttention'
+import ClosingSoon, { type ClosingSoonItem } from '@/components/dashboard/ClosingSoon'
+import { weightedValue } from '@/lib/utils/constants'
 import EmptyState from '@/components/shared/EmptyState'
 import type { ActionItem, WaitingOnItem, RiskItem } from '@/types/domain'
 
@@ -117,13 +120,23 @@ export default async function DashboardPage({ searchParams }: PageProps) {
 
   // Fetch approved updates to compute per-project action counts
   let updatesRaw: Array<{ project_id: string | null; action_items: unknown; waiting_on: unknown; risks: unknown }> = []
+  let openMilestones: Array<{ project_id: string; label: string; target_date: string | null }> = []
   if (projectIds.length > 0) {
-    const { data } = await supabase
-      .from('updates')
-      .select('project_id, action_items, waiting_on, risks')
-      .in('project_id', projectIds)
-      .eq('review_state', 'approved')
-    updatesRaw = data ?? []
+    const [{ data: upd }, { data: ms }] = await Promise.all([
+      supabase
+        .from('updates')
+        .select('project_id, action_items, waiting_on, risks')
+        .in('project_id', projectIds)
+        .eq('review_state', 'approved'),
+      supabase
+        .from('milestones')
+        .select('project_id, label, target_date')
+        .in('project_id', projectIds)
+        .is('completed_at', null)
+        .not('target_date', 'is', null),
+    ])
+    updatesRaw = upd ?? []
+    openMilestones = (ms ?? []) as typeof openMilestones
   }
 
   // Safely parse a jsonb field that might come back as a JS array or a JSON string
@@ -154,6 +167,48 @@ export default async function DashboardPage({ searchParams }: PageProps) {
     }
   }
 
+  // ── Per-project deadlines + blockers (for "what's holding this up") ─────────
+  const todayStart = new Date(today + 'T00:00:00').getTime()
+  function daysUntil(dateStr: string): number {
+    return Math.round((new Date(dateStr + 'T00:00:00').getTime() - todayStart) / 86_400_000)
+  }
+  function ensureEntry(pid: string): ProjectCardCounts {
+    if (!countMap[pid]) {
+      countMap[pid] = { actionCount: 0, waitingCount: 0, riskCount: 0, hasCriticalRisk: false }
+    }
+    return countMap[pid]
+  }
+
+  // Candidate deadlines: open milestones + open tasks with due dates
+  const candidates: Record<string, Array<{ label: string; date: string; days: number }>> = {}
+  function addCandidate(pid: string, label: string, dateStr: string | null) {
+    if (!dateStr) return
+    ;(candidates[pid] ??= []).push({ label, date: dateStr, days: daysUntil(dateStr) })
+  }
+  for (const m of openMilestones) addCandidate(m.project_id, m.label, m.target_date)
+  for (const u of updatesRaw) {
+    if (!u.project_id) continue
+    for (const a of safeArray<ActionItem>(u.action_items)) {
+      if (!a.completed && a.due_date) addCandidate(u.project_id, a.text, a.due_date)
+    }
+  }
+  for (const pid of Object.keys(candidates)) {
+    const list = candidates[pid]
+    const upcoming = list.filter(c => c.days >= 0).sort((a, b) => a.days - b.days)
+    const entry = ensureEntry(pid)
+    entry.overdueCount = list.filter(c => c.days < 0).length
+    if (upcoming.length > 0) {
+      entry.nextDeadline = { label: upcoming[0].label, date: upcoming[0].date, daysUntil: upcoming[0].days }
+    }
+  }
+  // Open critical/blocker diligence items per project
+  for (const dd of ddRaw ?? []) {
+    if (dd.project_id) {
+      const e = ensureEntry(dd.project_id)
+      e.blockingCount = (e.blockingCount ?? 0) + 1
+    }
+  }
+
   // Sort projects
   const sorted = [...activeProjects].sort((a, b) => {
     if (sort === 'value') return (b.estimated_value ?? 0) - (a.estimated_value ?? 0)
@@ -166,8 +221,33 @@ export default async function DashboardPage({ searchParams }: PageProps) {
 
   // Stats
   const pipelineValue = activeProjects.reduce((sum, p) => sum + (p.estimated_value ?? 0), 0)
+  const weightedPipelineValue = activeProjects.reduce(
+    (sum, p) => sum + weightedValue(p.estimated_value, (p as { win_probability?: number | null }).win_probability ?? null),
+    0
+  )
   const pendingReview = reviewCount ?? 0
   const overdueCount = overdueRaw?.length ?? 0
+
+  // Closing soon: pre-award pursuits with a bid deadline, soonest first
+  const PRE_AWARD = new Set(['pursuit', 'capture', 'bid'])
+  const closingSoon: ClosingSoonItem[] = activeProjects
+    .filter((p) => {
+      const due = (p as { bid_due_date?: string | null }).bid_due_date
+      return due && PRE_AWARD.has(p.stage ?? 'pursuit')
+    })
+    .sort((a, b) => {
+      const da = (a as { bid_due_date?: string | null }).bid_due_date ?? ''
+      const db = (b as { bid_due_date?: string | null }).bid_due_date ?? ''
+      return da.localeCompare(db)
+    })
+    .slice(0, 8)
+    .map((p) => ({
+      id: p.id,
+      name: p.name,
+      bid_due_date: (p as { bid_due_date?: string | null }).bid_due_date ?? null,
+      estimated_value: p.estimated_value,
+      win_probability: (p as { win_probability?: number | null }).win_probability ?? null,
+    }))
 
   // Needs Attention data (cap display at 6 each)
   const reviewItems = (reviewRaw ?? []).slice(0, 6) as ReviewWithProject[]
@@ -213,6 +293,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
         <HealthPanel
           activeProjects={activeProjects.length}
           pipelineValue={pipelineValue}
+          weightedPipelineValue={weightedPipelineValue}
           pendingReview={pendingReview}
           overdueCount={overdueCount}
           criticalDdCount={ddRaw?.length ?? 0}
@@ -272,22 +353,15 @@ export default async function DashboardPage({ searchParams }: PageProps) {
               }
             />
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {sorted.map((project, i) => (
-                <ProjectCard
-                  key={project.id}
-                  project={project}
-                  counts={countMap[project.id]}
-                  className="animate-fade-in-up"
-                  style={{ animationDelay: `${200 + i * 50}ms` }}
-                />
-              ))}
-            </div>
+            <DashboardProjects projects={sorted} counts={countMap} />
           )}
         </div>
 
         {/* Needs Attention — right on desktop, below cards on mobile */}
         <div className="w-full lg:w-72 xl:w-80 shrink-0 space-y-3">
+          {/* Closing soon — bid deadlines across the portfolio */}
+          <ClosingSoon items={closingSoon} />
+
           {/* Risk overview */}
           <Suspense>
             <RiskOverview />

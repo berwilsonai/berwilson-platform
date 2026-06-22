@@ -12,6 +12,31 @@ export type Database = {
   __InternalSupabase: {
     PostgrestVersion: "14.5"
   }
+  graphql_public: {
+    Tables: {
+      [_ in never]: never
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      graphql: {
+        Args: {
+          extensions?: Json
+          operationName?: string
+          query?: string
+          variables?: Json
+        }
+        Returns: Json
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
   public: {
     Tables: {
       activity_log: {
@@ -169,6 +194,7 @@ export type Database = {
           id: string
           latency_ms: number | null
           model_used: string
+          project_id: string | null
           prompt_version: string | null
           query_text: string
           rating: number | null
@@ -183,6 +209,7 @@ export type Database = {
           id?: string
           latency_ms?: number | null
           model_used: string
+          project_id?: string | null
           prompt_version?: string | null
           query_text: string
           rating?: number | null
@@ -197,6 +224,7 @@ export type Database = {
           id?: string
           latency_ms?: number | null
           model_used?: string
+          project_id?: string | null
           prompt_version?: string | null
           query_text?: string
           rating?: number | null
@@ -205,7 +233,15 @@ export type Database = {
           tokens_out?: number | null
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "ai_queries_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       brands: {
         Row: {
@@ -295,6 +331,7 @@ export type Database = {
           id: string
           party_id: string | null
           project_id: string | null
+          site_id: string | null
           token_count: number | null
           update_id: string | null
         }
@@ -308,6 +345,7 @@ export type Database = {
           id?: string
           party_id?: string | null
           project_id?: string | null
+          site_id?: string | null
           token_count?: number | null
           update_id?: string | null
         }
@@ -321,6 +359,7 @@ export type Database = {
           id?: string
           party_id?: string | null
           project_id?: string | null
+          site_id?: string | null
           token_count?: number | null
           update_id?: string | null
         }
@@ -351,6 +390,13 @@ export type Database = {
             columns: ["project_id"]
             isOneToOne: false
             referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chunks_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "sites"
             referencedColumns: ["id"]
           },
           {
@@ -925,6 +971,7 @@ export type Database = {
       }
       entities: {
         Row: {
+          category: Database["public"]["Enums"]["entity_category"]
           confidence_score: number | null
           created_at: string | null
           description: string | null
@@ -947,6 +994,7 @@ export type Database = {
           website_url: string | null
         }
         Insert: {
+          category?: Database["public"]["Enums"]["entity_category"]
           confidence_score?: number | null
           created_at?: string | null
           description?: string | null
@@ -969,6 +1017,7 @@ export type Database = {
           website_url?: string | null
         }
         Update: {
+          category?: Database["public"]["Enums"]["entity_category"]
           confidence_score?: number | null
           created_at?: string | null
           description?: string | null
@@ -1194,6 +1243,138 @@ export type Database = {
             columns: ["scenario_id"]
             isOneToOne: false
             referencedRelation: "equity_scenarios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      federal_scorecards: {
+        Row: {
+          created_at: string | null
+          dart_rate: number | null
+          emr: number | null
+          entity_id: string
+          evaluation_period_end: string | null
+          evaluation_period_start: string | null
+          evaluator_name: string | null
+          evaluator_title: string | null
+          id: string
+          ncrs_issued: number | null
+          ncrs_resolved: number | null
+          overall_rating: number | null
+          project_id: string | null
+          punch_list_items: number | null
+          qm_deficiency_tracking: number | null
+          qm_documentation: number | null
+          qm_material_compliance: number | null
+          qm_notes: string | null
+          qm_qc_plan: number | null
+          qm_rework_rate: number | null
+          qm_submittal_timeliness: number | null
+          qm_testing_compliance: number | null
+          qm_three_phase_inspection: number | null
+          rework_pct: number | null
+          sh_accident_prevention_plan: number | null
+          sh_activity_hazard_analysis: number | null
+          sh_corrective_actions: number | null
+          sh_incident_rate: number | null
+          sh_notes: string | null
+          sh_osha_compliance: number | null
+          sh_ppe_compliance: number | null
+          sh_safety_training: number | null
+          sh_site_inspections: number | null
+          standard: string
+          trir: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          dart_rate?: number | null
+          emr?: number | null
+          entity_id: string
+          evaluation_period_end?: string | null
+          evaluation_period_start?: string | null
+          evaluator_name?: string | null
+          evaluator_title?: string | null
+          id?: string
+          ncrs_issued?: number | null
+          ncrs_resolved?: number | null
+          overall_rating?: number | null
+          project_id?: string | null
+          punch_list_items?: number | null
+          qm_deficiency_tracking?: number | null
+          qm_documentation?: number | null
+          qm_material_compliance?: number | null
+          qm_notes?: string | null
+          qm_qc_plan?: number | null
+          qm_rework_rate?: number | null
+          qm_submittal_timeliness?: number | null
+          qm_testing_compliance?: number | null
+          qm_three_phase_inspection?: number | null
+          rework_pct?: number | null
+          sh_accident_prevention_plan?: number | null
+          sh_activity_hazard_analysis?: number | null
+          sh_corrective_actions?: number | null
+          sh_incident_rate?: number | null
+          sh_notes?: string | null
+          sh_osha_compliance?: number | null
+          sh_ppe_compliance?: number | null
+          sh_safety_training?: number | null
+          sh_site_inspections?: number | null
+          standard: string
+          trir?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          dart_rate?: number | null
+          emr?: number | null
+          entity_id?: string
+          evaluation_period_end?: string | null
+          evaluation_period_start?: string | null
+          evaluator_name?: string | null
+          evaluator_title?: string | null
+          id?: string
+          ncrs_issued?: number | null
+          ncrs_resolved?: number | null
+          overall_rating?: number | null
+          project_id?: string | null
+          punch_list_items?: number | null
+          qm_deficiency_tracking?: number | null
+          qm_documentation?: number | null
+          qm_material_compliance?: number | null
+          qm_notes?: string | null
+          qm_qc_plan?: number | null
+          qm_rework_rate?: number | null
+          qm_submittal_timeliness?: number | null
+          qm_testing_compliance?: number | null
+          qm_three_phase_inspection?: number | null
+          rework_pct?: number | null
+          sh_accident_prevention_plan?: number | null
+          sh_activity_hazard_analysis?: number | null
+          sh_corrective_actions?: number | null
+          sh_incident_rate?: number | null
+          sh_notes?: string | null
+          sh_osha_compliance?: number | null
+          sh_ppe_compliance?: number | null
+          sh_safety_training?: number | null
+          sh_site_inspections?: number | null
+          standard?: string
+          trir?: number | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "federal_scorecards_entity_id_fkey"
+            columns: ["entity_id"]
+            isOneToOne: false
+            referencedRelation: "entities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "federal_scorecards_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
             referencedColumns: ["id"]
           },
         ]
@@ -1576,6 +1757,48 @@ export type Database = {
         }
         Relationships: []
       }
+      party_entities: {
+        Row: {
+          created_at: string | null
+          entity_id: string
+          id: string
+          is_primary: boolean | null
+          party_id: string
+          role: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          entity_id: string
+          id?: string
+          is_primary?: boolean | null
+          party_id: string
+          role?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          entity_id?: string
+          id?: string
+          is_primary?: boolean | null
+          party_id?: string
+          role?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "party_entities_entity_id_fkey"
+            columns: ["entity_id"]
+            isOneToOne: false
+            referencedRelation: "entities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "party_entities_party_id_fkey"
+            columns: ["party_id"]
+            isOneToOne: false
+            referencedRelation: "parties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       portfolio_briefs: {
         Row: {
           brief_type: string
@@ -1762,14 +1985,20 @@ export type Database = {
       }
       projects: {
         Row: {
+          applicable_standards: Json | null
           award_date: string | null
+          bid_decision: string
+          bid_due_date: string | null
+          capture_lead: string | null
           client_entity: string | null
+          competitors: Json
           contract_type: string | null
           created_at: string | null
           delivery_method: string | null
           description: string | null
           estimated_value: number | null
           id: string
+          incumbent: string | null
           location: string | null
           name: string
           ntp_date: string | null
@@ -1780,16 +2009,24 @@ export type Database = {
           status: Database["public"]["Enums"]["project_status"] | null
           substantial_completion_date: string | null
           updated_at: string | null
+          win_probability: number | null
+          win_strategy: string | null
         }
         Insert: {
+          applicable_standards?: Json | null
           award_date?: string | null
+          bid_decision?: string
+          bid_due_date?: string | null
+          capture_lead?: string | null
           client_entity?: string | null
+          competitors?: Json
           contract_type?: string | null
           created_at?: string | null
           delivery_method?: string | null
           description?: string | null
           estimated_value?: number | null
           id?: string
+          incumbent?: string | null
           location?: string | null
           name: string
           ntp_date?: string | null
@@ -1800,16 +2037,24 @@ export type Database = {
           status?: Database["public"]["Enums"]["project_status"] | null
           substantial_completion_date?: string | null
           updated_at?: string | null
+          win_probability?: number | null
+          win_strategy?: string | null
         }
         Update: {
+          applicable_standards?: Json | null
           award_date?: string | null
+          bid_decision?: string
+          bid_due_date?: string | null
+          capture_lead?: string | null
           client_entity?: string | null
+          competitors?: Json
           contract_type?: string | null
           created_at?: string | null
           delivery_method?: string | null
           description?: string | null
           estimated_value?: number | null
           id?: string
+          incumbent?: string | null
           location?: string | null
           name?: string
           ntp_date?: string | null
@@ -1820,6 +2065,8 @@ export type Database = {
           status?: Database["public"]["Enums"]["project_status"] | null
           substantial_completion_date?: string | null
           updated_at?: string | null
+          win_probability?: number | null
+          win_strategy?: string | null
         }
         Relationships: [
           {
@@ -2512,6 +2759,7 @@ export type Database = {
           embedding_status: string | null
           id: string
           mentioned_parties: Json
+          mentioned_projects: Json
           outlook_web_link: string | null
           project_id: string | null
           raw_content: string | null
@@ -2532,6 +2780,7 @@ export type Database = {
           embedding_status?: string | null
           id?: string
           mentioned_parties?: Json
+          mentioned_projects?: Json
           outlook_web_link?: string | null
           project_id?: string | null
           raw_content?: string | null
@@ -2552,6 +2801,7 @@ export type Database = {
           embedding_status?: string | null
           id?: string
           mentioned_parties?: Json
+          mentioned_projects?: Json
           outlook_web_link?: string | null
           project_id?: string | null
           raw_content?: string | null
@@ -2690,6 +2940,7 @@ export type Database = {
         | "active"
         | "demobilized"
         | "complete"
+      entity_category: "vendor" | "partner" | "contractor"
       entity_type:
         | "llc"
         | "corp"
@@ -2750,6 +3001,456 @@ export type Database = {
         | "agent"
         | "procore"
         | "manual_task"
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
+  storage: {
+    Tables: {
+      buckets: {
+        Row: {
+          allowed_mime_types: string[] | null
+          avif_autodetection: boolean | null
+          created_at: string | null
+          file_size_limit: number | null
+          id: string
+          name: string
+          owner: string | null
+          owner_id: string | null
+          public: boolean | null
+          type: Database["storage"]["Enums"]["buckettype"]
+          updated_at: string | null
+        }
+        Insert: {
+          allowed_mime_types?: string[] | null
+          avif_autodetection?: boolean | null
+          created_at?: string | null
+          file_size_limit?: number | null
+          id: string
+          name: string
+          owner?: string | null
+          owner_id?: string | null
+          public?: boolean | null
+          type?: Database["storage"]["Enums"]["buckettype"]
+          updated_at?: string | null
+        }
+        Update: {
+          allowed_mime_types?: string[] | null
+          avif_autodetection?: boolean | null
+          created_at?: string | null
+          file_size_limit?: number | null
+          id?: string
+          name?: string
+          owner?: string | null
+          owner_id?: string | null
+          public?: boolean | null
+          type?: Database["storage"]["Enums"]["buckettype"]
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      buckets_analytics: {
+        Row: {
+          created_at: string
+          deleted_at: string | null
+          format: string
+          id: string
+          name: string
+          type: Database["storage"]["Enums"]["buckettype"]
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          deleted_at?: string | null
+          format?: string
+          id?: string
+          name: string
+          type?: Database["storage"]["Enums"]["buckettype"]
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          deleted_at?: string | null
+          format?: string
+          id?: string
+          name?: string
+          type?: Database["storage"]["Enums"]["buckettype"]
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      buckets_vectors: {
+        Row: {
+          created_at: string
+          id: string
+          type: Database["storage"]["Enums"]["buckettype"]
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id: string
+          type?: Database["storage"]["Enums"]["buckettype"]
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          type?: Database["storage"]["Enums"]["buckettype"]
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      migrations: {
+        Row: {
+          executed_at: string | null
+          hash: string
+          id: number
+          name: string
+        }
+        Insert: {
+          executed_at?: string | null
+          hash: string
+          id: number
+          name: string
+        }
+        Update: {
+          executed_at?: string | null
+          hash?: string
+          id?: number
+          name?: string
+        }
+        Relationships: []
+      }
+      objects: {
+        Row: {
+          bucket_id: string | null
+          created_at: string | null
+          id: string
+          last_accessed_at: string | null
+          metadata: Json | null
+          name: string | null
+          owner: string | null
+          owner_id: string | null
+          path_tokens: string[] | null
+          updated_at: string | null
+          user_metadata: Json | null
+          version: string | null
+        }
+        Insert: {
+          bucket_id?: string | null
+          created_at?: string | null
+          id?: string
+          last_accessed_at?: string | null
+          metadata?: Json | null
+          name?: string | null
+          owner?: string | null
+          owner_id?: string | null
+          path_tokens?: string[] | null
+          updated_at?: string | null
+          user_metadata?: Json | null
+          version?: string | null
+        }
+        Update: {
+          bucket_id?: string | null
+          created_at?: string | null
+          id?: string
+          last_accessed_at?: string | null
+          metadata?: Json | null
+          name?: string | null
+          owner?: string | null
+          owner_id?: string | null
+          path_tokens?: string[] | null
+          updated_at?: string | null
+          user_metadata?: Json | null
+          version?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "objects_bucketId_fkey"
+            columns: ["bucket_id"]
+            isOneToOne: false
+            referencedRelation: "buckets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      s3_multipart_uploads: {
+        Row: {
+          bucket_id: string
+          created_at: string
+          id: string
+          in_progress_size: number
+          key: string
+          metadata: Json | null
+          owner_id: string | null
+          upload_signature: string
+          user_metadata: Json | null
+          version: string
+        }
+        Insert: {
+          bucket_id: string
+          created_at?: string
+          id: string
+          in_progress_size?: number
+          key: string
+          metadata?: Json | null
+          owner_id?: string | null
+          upload_signature: string
+          user_metadata?: Json | null
+          version: string
+        }
+        Update: {
+          bucket_id?: string
+          created_at?: string
+          id?: string
+          in_progress_size?: number
+          key?: string
+          metadata?: Json | null
+          owner_id?: string | null
+          upload_signature?: string
+          user_metadata?: Json | null
+          version?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "s3_multipart_uploads_bucket_id_fkey"
+            columns: ["bucket_id"]
+            isOneToOne: false
+            referencedRelation: "buckets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      s3_multipart_uploads_parts: {
+        Row: {
+          bucket_id: string
+          created_at: string
+          etag: string
+          id: string
+          key: string
+          owner_id: string | null
+          part_number: number
+          size: number
+          upload_id: string
+          version: string
+        }
+        Insert: {
+          bucket_id: string
+          created_at?: string
+          etag: string
+          id?: string
+          key: string
+          owner_id?: string | null
+          part_number: number
+          size?: number
+          upload_id: string
+          version: string
+        }
+        Update: {
+          bucket_id?: string
+          created_at?: string
+          etag?: string
+          id?: string
+          key?: string
+          owner_id?: string | null
+          part_number?: number
+          size?: number
+          upload_id?: string
+          version?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "s3_multipart_uploads_parts_bucket_id_fkey"
+            columns: ["bucket_id"]
+            isOneToOne: false
+            referencedRelation: "buckets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "s3_multipart_uploads_parts_upload_id_fkey"
+            columns: ["upload_id"]
+            isOneToOne: false
+            referencedRelation: "s3_multipart_uploads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      vector_indexes: {
+        Row: {
+          bucket_id: string
+          created_at: string
+          data_type: string
+          dimension: number
+          distance_metric: string
+          id: string
+          metadata_configuration: Json | null
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          bucket_id: string
+          created_at?: string
+          data_type: string
+          dimension: number
+          distance_metric: string
+          id?: string
+          metadata_configuration?: Json | null
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          bucket_id?: string
+          created_at?: string
+          data_type?: string
+          dimension?: number
+          distance_metric?: string
+          id?: string
+          metadata_configuration?: Json | null
+          name?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vector_indexes_bucket_id_fkey"
+            columns: ["bucket_id"]
+            isOneToOne: false
+            referencedRelation: "buckets_vectors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      allow_any_operation: {
+        Args: { expected_operations: string[] }
+        Returns: boolean
+      }
+      allow_only_operation: {
+        Args: { expected_operation: string }
+        Returns: boolean
+      }
+      can_insert_object: {
+        Args: { bucketid: string; metadata: Json; name: string; owner: string }
+        Returns: undefined
+      }
+      extension: { Args: { name: string }; Returns: string }
+      filename: { Args: { name: string }; Returns: string }
+      foldername: { Args: { name: string }; Returns: string[] }
+      get_common_prefix: {
+        Args: { p_delimiter: string; p_key: string; p_prefix: string }
+        Returns: string
+      }
+      get_size_by_bucket: {
+        Args: never
+        Returns: {
+          bucket_id: string
+          size: number
+        }[]
+      }
+      list_multipart_uploads_with_delimiter: {
+        Args: {
+          bucket_id: string
+          delimiter_param: string
+          max_keys?: number
+          next_key_token?: string
+          next_upload_token?: string
+          prefix_param: string
+        }
+        Returns: {
+          created_at: string
+          id: string
+          key: string
+        }[]
+      }
+      list_objects_with_delimiter: {
+        Args: {
+          _bucket_id: string
+          delimiter_param: string
+          max_keys?: number
+          next_token?: string
+          prefix_param: string
+          sort_order?: string
+          start_after?: string
+        }
+        Returns: {
+          created_at: string
+          id: string
+          last_accessed_at: string
+          metadata: Json
+          name: string
+          updated_at: string
+        }[]
+      }
+      operation: { Args: never; Returns: string }
+      search: {
+        Args: {
+          bucketname: string
+          levels?: number
+          limits?: number
+          offsets?: number
+          prefix: string
+          search?: string
+          sortcolumn?: string
+          sortorder?: string
+        }
+        Returns: {
+          created_at: string
+          id: string
+          last_accessed_at: string
+          metadata: Json
+          name: string
+          updated_at: string
+        }[]
+      }
+      search_by_timestamp: {
+        Args: {
+          p_bucket_id: string
+          p_level: number
+          p_limit: number
+          p_prefix: string
+          p_sort_column: string
+          p_sort_column_after: string
+          p_sort_order: string
+          p_start_after: string
+        }
+        Returns: {
+          created_at: string
+          id: string
+          key: string
+          last_accessed_at: string
+          metadata: Json
+          name: string
+          updated_at: string
+        }[]
+      }
+      search_v2: {
+        Args: {
+          bucket_name: string
+          levels?: number
+          limits?: number
+          prefix: string
+          sort_column?: string
+          sort_column_after?: string
+          sort_order?: string
+          start_after?: string
+        }
+        Returns: {
+          created_at: string
+          id: string
+          key: string
+          last_accessed_at: string
+          metadata: Json
+          name: string
+          updated_at: string
+        }[]
+      }
+    }
+    Enums: {
+      buckettype: "STANDARD" | "ANALYTICS" | "VECTOR"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -2875,6 +3576,9 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
+  graphql_public: {
+    Enums: {},
+  },
   public: {
     Enums: {
       bw_role: [
@@ -2928,6 +3632,7 @@ export const Constants = {
         "demobilized",
         "complete",
       ],
+      entity_category: ["vendor", "partner", "contractor"],
       entity_type: [
         "llc",
         "corp",
@@ -2996,6 +3701,11 @@ export const Constants = {
         "procore",
         "manual_task",
       ],
+    },
+  },
+  storage: {
+    Enums: {
+      buckettype: ["STANDARD", "ANALYTICS", "VECTOR"],
     },
   },
 } as const

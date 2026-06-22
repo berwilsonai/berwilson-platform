@@ -4,6 +4,8 @@ import {
   Building2,
   ChevronLeft,
   ExternalLink,
+  FolderKanban,
+  ListChecks,
   Mail,
   Phone,
   Star,
@@ -29,7 +31,91 @@ interface PageProps {
   searchParams: Promise<{ tab?: string }>
 }
 
-const VALID_TABS = ['overview', 'projects', 'activity', 'notes']
+const VALID_TABS = ['overview', 'projects', 'tasks', 'activity', 'notes']
+
+type AssignedTask = {
+  updateId: string
+  index: number
+  text: string
+  dueDate: string | null
+  projectId: string | null
+  projectName: string | null
+}
+
+/**
+ * Open (uncompleted) tasks assigned to a contact. Tasks live as items in the
+ * action_items JSONB array on updates rows. Matches on the contact's id for
+ * newly-tagged tasks, and falls back to an exact name match for legacy /
+ * free-typed assignees so older tasks still surface.
+ */
+async function fetchOpenTasksForParty(
+  supabase: ReturnType<typeof createAdminClient>,
+  partyId: string,
+  fullName: string | null,
+): Promise<AssignedTask[]> {
+  const queries = [
+    supabase
+      .from('updates')
+      .select('id, action_items, project_id, projects(name)')
+      .contains('action_items', [{ assignee_party_id: partyId }]),
+  ]
+  if (fullName) {
+    queries.push(
+      supabase
+        .from('updates')
+        .select('id, action_items, project_id, projects(name)')
+        .contains('action_items', [{ assignee: fullName }]),
+    )
+  }
+
+  const results = await Promise.all(queries)
+
+  type Row = {
+    id: string
+    action_items: unknown
+    project_id: string | null
+    projects: { name: string } | null
+  }
+  const rowsById = new Map<string, Row>()
+  for (const res of results) {
+    for (const r of ((res.data ?? []) as unknown as Row[])) rowsById.set(r.id, r)
+  }
+
+  const tasks: AssignedTask[] = []
+  for (const r of rowsById.values()) {
+    const items = Array.isArray(r.action_items) ? r.action_items : []
+    items.forEach((raw, index) => {
+      const it = raw as {
+        text?: string
+        assignee?: string
+        assignee_party_id?: string
+        due_date?: string
+        completed?: boolean
+      }
+      if (it?.completed) return
+      const matches =
+        it?.assignee_party_id === partyId ||
+        (!it?.assignee_party_id && !!it?.assignee && it.assignee === fullName)
+      if (!matches) return
+      tasks.push({
+        updateId: r.id,
+        index,
+        text: it.text ?? '',
+        dueDate: it.due_date ?? null,
+        projectId: r.project_id ?? null,
+        projectName: r.projects?.name ?? null,
+      })
+    })
+  }
+
+  tasks.sort((a, b) => {
+    if (a.dueDate && b.dueDate) return a.dueDate.localeCompare(b.dueDate)
+    if (a.dueDate) return -1
+    if (b.dueDate) return 1
+    return 0
+  })
+  return tasks
+}
 
 export default async function ContactDetailPage({ params, searchParams }: PageProps) {
   const { id } = await params
@@ -67,6 +153,7 @@ export default async function ContactDetailPage({ params, searchParams }: PagePr
   // ─── Overview tab data ────────────────────────────────────────────────────
   let projectCount = 0
   let lastActive: string | null = null
+  let openTaskCount = 0
   let teamMembers: Array<{ id: string; full_name: string; title: string | null; email: string | null }> = []
 
   if (tab === 'overview') {
@@ -94,6 +181,14 @@ export default async function ContactDetailPage({ params, searchParams }: PagePr
         .order('full_name')
       teamMembers = team ?? []
     }
+
+    openTaskCount = (await fetchOpenTasksForParty(supabase, id, party.full_name)).length
+  }
+
+  // ─── Tasks tab data ───────────────────────────────────────────────────────
+  let assignedTasks: AssignedTask[] = []
+  if (tab === 'tasks') {
+    assignedTasks = await fetchOpenTasksForParty(supabase, id, party.full_name)
   }
 
   // ─── Projects tab data ────────────────────────────────────────────────────
@@ -379,6 +474,10 @@ export default async function ContactDetailPage({ params, searchParams }: PagePr
                     <span className="text-xs text-muted-foreground">Projects</span>
                     <span className="text-sm font-semibold">{projectCount}</span>
                   </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-muted-foreground">Open Tasks</span>
+                    <span className="text-sm font-semibold">{openTaskCount}</span>
+                  </div>
                   {lastActive && (
                     <div className="flex items-center justify-between">
                       <span className="text-xs text-muted-foreground">Last Active</span>
@@ -530,6 +629,62 @@ export default async function ContactDetailPage({ params, searchParams }: PagePr
                     })}
                   </tbody>
                 </table>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── TASKS ────────────────────────────────────────── */}
+        {tab === 'tasks' && (
+          <div>
+            {assignedTasks.length === 0 ? (
+              <div className="py-20 text-center">
+                <ListChecks size={28} className="mx-auto text-muted-foreground/50" />
+                <p className="mt-3 text-sm text-muted-foreground">
+                  No open tasks assigned to {party.full_name}.
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground/70">
+                  Assign tasks to this contact from a project&apos;s Tasks tab.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <p className="text-xs text-muted-foreground">
+                  {assignedTasks.length} open task{assignedTasks.length !== 1 ? 's' : ''} assigned
+                </p>
+                <div className="rounded-lg border border-border bg-card divide-y divide-border">
+                  {assignedTasks.map(task => (
+                    <div
+                      key={`${task.updateId}-${task.index}`}
+                      className="flex items-start gap-3 px-4 py-3"
+                    >
+                      <ListChecks size={15} className="shrink-0 mt-0.5 text-muted-foreground" />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm text-foreground">{task.text}</p>
+                        <div className="flex items-center gap-2 mt-1 flex-wrap">
+                          {task.projectId && task.projectName && (
+                            <Link
+                              href={`/projects/${task.projectId}/tasks`}
+                              className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                            >
+                              <FolderKanban size={11} />
+                              {task.projectName}
+                            </Link>
+                          )}
+                          {task.dueDate && (
+                            <span className="text-xs text-muted-foreground">
+                              Due {new Date(task.dueDate + 'T00:00:00').toLocaleDateString('en-US', {
+                                month: 'short',
+                                day: 'numeric',
+                                year: 'numeric',
+                              })}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
           </div>

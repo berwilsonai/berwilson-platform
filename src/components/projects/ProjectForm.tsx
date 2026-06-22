@@ -218,6 +218,128 @@ export default function ProjectForm({ mode, project, redirectAfterCreate, availa
         </div>
       </section>
 
+      {/* Pursuit & Capture */}
+      <section className="space-y-4">
+        <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          Pursuit & Capture
+        </h2>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          {/* Bid due date — the submission deadline */}
+          <div>
+            <label htmlFor="bid_due_date" className={labelClass}>
+              Bid Due Date
+            </label>
+            <input
+              id="bid_due_date"
+              name="bid_due_date"
+              type="date"
+              defaultValue={(project as any)?.bid_due_date ?? ''}
+              className={inputClass}
+            />
+          </div>
+
+          {/* Win probability */}
+          <div>
+            <label htmlFor="win_probability" className={labelClass}>
+              Win Probability (%)
+            </label>
+            <input
+              id="win_probability"
+              name="win_probability"
+              type="number"
+              min="0"
+              max="100"
+              step="1"
+              defaultValue={(project as any)?.win_probability ?? ''}
+              placeholder="0–100"
+              className={inputClass}
+            />
+          </div>
+
+          {/* Go / No-Go decision */}
+          <div>
+            <label htmlFor="bid_decision" className={labelClass}>
+              Bid Decision
+            </label>
+            <select
+              id="bid_decision"
+              name="bid_decision"
+              defaultValue={(project as any)?.bid_decision ?? 'undecided'}
+              className={inputClass}
+            >
+              <option value="undecided">Go / No-Go Pending</option>
+              <option value="pursue">Bid (Pursue)</option>
+              <option value="no_bid">No-Bid</option>
+            </select>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {/* Capture lead */}
+          <div>
+            <label htmlFor="capture_lead" className={labelClass}>
+              Capture Lead
+            </label>
+            <input
+              id="capture_lead"
+              name="capture_lead"
+              type="text"
+              defaultValue={(project as any)?.capture_lead ?? ''}
+              placeholder="Who owns this pursuit"
+              className={inputClass}
+            />
+          </div>
+
+          {/* Incumbent */}
+          <div>
+            <label htmlFor="incumbent" className={labelClass}>
+              Incumbent
+            </label>
+            <input
+              id="incumbent"
+              name="incumbent"
+              type="text"
+              defaultValue={(project as any)?.incumbent ?? ''}
+              placeholder="Current contract holder, if any"
+              className={inputClass}
+            />
+          </div>
+        </div>
+
+        {/* Competitors */}
+        <div>
+          <label htmlFor="competitors" className={labelClass}>
+            Known Competitors <span className="font-normal text-muted-foreground">(one per line or comma-separated)</span>
+          </label>
+          <textarea
+            id="competitors"
+            name="competitors"
+            defaultValue={
+              Array.isArray((project as any)?.competitors)
+                ? ((project as any).competitors as string[]).join('\n')
+                : ''
+            }
+            placeholder="e.g. Mortenson&#10;Turner&#10;Kiewit"
+            className={textareaClass}
+          />
+        </div>
+
+        {/* Win strategy / discriminators */}
+        <div>
+          <label htmlFor="win_strategy" className={labelClass}>
+            Win Strategy / Discriminators
+          </label>
+          <textarea
+            id="win_strategy"
+            name="win_strategy"
+            defaultValue={(project as any)?.win_strategy ?? ''}
+            placeholder="Why we win: teaming, past performance, price position, technical edge…"
+            className={textareaClass}
+          />
+        </div>
+      </section>
+
       {/* Contract & Delivery */}
       <section className="space-y-4">
         <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">

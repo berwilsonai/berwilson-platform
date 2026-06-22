@@ -5,7 +5,7 @@ import type { TablesInsert, Json } from '@/lib/supabase/types'
 /** POST — create a manual task by inserting a lightweight update with a single action_item */
 export async function POST(request: NextRequest) {
   const body = await request.json()
-  const { project_id, text, assignee, due_date } = body
+  const { project_id, text, assignee, assignee_party_id, due_date } = body
 
   if (!project_id || !text?.trim()) {
     return Response.json({ error: 'project_id and text are required' }, { status: 400 })
@@ -14,6 +14,7 @@ export async function POST(request: NextRequest) {
   const actionItem = {
     text: text.trim(),
     assignee: assignee?.trim() || null,
+    assignee_party_id: assignee_party_id || null,
     due_date: due_date || null,
     completed: false,
   }

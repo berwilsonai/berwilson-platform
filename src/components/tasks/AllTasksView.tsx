@@ -12,6 +12,7 @@ import {
   FolderKanban,
 } from 'lucide-react'
 import EmptyState from '@/components/shared/EmptyState'
+import AssigneeInput from '@/components/shared/AssigneeInput'
 
 export interface GlobalTask {
   updateId: string
@@ -63,6 +64,7 @@ export default function AllTasksView({ initialTasks, projects }: AllTasksViewPro
   const [showAddForm, setShowAddForm] = useState(false)
   const [newText, setNewText] = useState('')
   const [newAssignee, setNewAssignee] = useState('')
+  const [newAssigneePartyId, setNewAssigneePartyId] = useState<string | null>(null)
   const [newDueDate, setNewDueDate] = useState('')
   const [newProjectId, setNewProjectId] = useState(projects[0]?.id ?? '')
   const [adding, setAdding] = useState(false)
@@ -84,6 +86,7 @@ export default function AllTasksView({ initialTasks, projects }: AllTasksViewPro
           project_id: newProjectId,
           text: newText.trim(),
           assignee: newAssignee.trim() || undefined,
+          assignee_party_id: newAssigneePartyId || undefined,
           due_date: newDueDate || undefined,
         }),
       })
@@ -112,6 +115,7 @@ export default function AllTasksView({ initialTasks, projects }: AllTasksViewPro
       ])
       setNewText('')
       setNewAssignee('')
+      setNewAssigneePartyId(null)
       setNewDueDate('')
       setShowAddForm(false)
     } catch (err) {
@@ -233,13 +237,7 @@ export default function AllTasksView({ initialTasks, projects }: AllTasksViewPro
         />
       </div>
       <div className="grid grid-cols-2 gap-3">
-        <input
-          type="text"
-          value={newAssignee}
-          onChange={(e) => setNewAssignee(e.target.value)}
-          placeholder="Assignee (optional)"
-          className="h-9 rounded-md border border-input bg-background px-3 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-        />
+        <AssigneeInput value={newAssignee} onChange={setNewAssignee} onPartyChange={setNewAssigneePartyId} />
         <input
           type="date"
           value={newDueDate}

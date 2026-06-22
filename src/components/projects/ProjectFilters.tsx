@@ -1,8 +1,10 @@
 'use client'
 
 import { useRouter, useSearchParams, usePathname } from 'next/navigation'
-import { useCallback } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import { X } from 'lucide-react'
+
+const FILTER_STORAGE_KEY = 'bw.projects.filters'
 import { SECTOR_LABELS } from '@/lib/utils/sectors'
 import { STAGE_LABELS, STAGES } from '@/lib/utils/stages'
 import type { ProjectSector, ProjectStatus, ProjectStage } from '@/lib/supabase/types'
@@ -28,6 +30,39 @@ export default function ProjectFilters({ sector, status, stage }: ProjectFilters
   const pathname = usePathname()
   const searchParams = useSearchParams()
 
+  // On first load, re-apply the last-used filters if the user landed here with
+  // no filters in the URL. Persisted per browser, so each person keeps their
+  // own view (e.g. sales vs operations) across sessions.
+  const appliedRef = useRef(false)
+  useEffect(() => {
+    if (appliedRef.current) return
+    appliedRef.current = true
+    if (sector || status || stage) return
+    try {
+      const raw = window.localStorage.getItem(FILTER_STORAGE_KEY)
+      if (!raw) return
+      const f = JSON.parse(raw) as { sector?: string; status?: string; stage?: string }
+      const params = new URLSearchParams()
+      if (f.sector) params.set('sector', f.sector)
+      if (f.status) params.set('status', f.status)
+      if (f.stage) params.set('stage', f.stage)
+      const qs = params.toString()
+      if (qs) router.replace(`${pathname}?${qs}`)
+    } catch {
+      /* ignore */
+    }
+    // mount only
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  function persist(next: { sector: string; status: string; stage: string }) {
+    try {
+      window.localStorage.setItem(FILTER_STORAGE_KEY, JSON.stringify(next))
+    } catch {
+      /* ignore */
+    }
+  }
+
   const setParam = useCallback(
     (key: string, value: string) => {
       const params = new URLSearchParams(searchParams.toString())
@@ -36,6 +71,11 @@ export default function ProjectFilters({ sector, status, stage }: ProjectFilters
       } else {
         params.delete(key)
       }
+      persist({
+        sector: params.get('sector') ?? '',
+        status: params.get('status') ?? '',
+        stage: params.get('stage') ?? '',
+      })
       router.push(`${pathname}?${params.toString()}`)
     },
     [router, pathname, searchParams]
@@ -44,6 +84,7 @@ export default function ProjectFilters({ sector, status, stage }: ProjectFilters
   const hasFilters = sector || status || stage
 
   function clearAll() {
+    persist({ sector: '', status: '', stage: '' })
     router.push(pathname)
   }
 
