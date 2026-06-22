@@ -3,7 +3,7 @@
 import { useState, useMemo } from 'react'
 import Link from 'next/link'
 import { toast } from 'sonner'
-import { Trash2, Layers, FolderOpen, Search, X, ChevronDown, LayoutGrid, GitBranch, Kanban, SlidersHorizontal } from 'lucide-react'
+import { Trash2, Layers, FolderOpen, Search, X, ChevronDown, GitBranch, Kanban, SlidersHorizontal } from 'lucide-react'
 import ProjectCard, { type ProjectCardCounts } from '@/components/dashboard/ProjectCard'
 import type { Project, ProjectStage } from '@/lib/supabase/types'
 import { cn } from '@/lib/utils'
@@ -14,7 +14,7 @@ import {
   STAGES, STAGE_LABELS, STAGE_BADGE, STAGE_COLOR,
 } from '@/lib/utils/constants'
 
-type ViewMode = 'program' | 'stage' | 'board'
+type ViewMode = 'program' | 'pipeline'
 
 interface ProjectsClientProps {
   projects: Project[]
@@ -103,7 +103,9 @@ function ProgramBanner({
 export default function ProjectsClient({ projects: initialProjects }: ProjectsClientProps) {
   const [projects, setProjects] = useState(initialProjects)
   const [search, setSearch] = useState('')
-  const [view, setView] = useStoredState<ViewMode>('bw.projects.view', 'program')
+  const [storedView, setView] = useStoredState<ViewMode>('bw.projects.view', 'pipeline')
+  // Normalize any legacy stored values ('stage' / 'board') to the new 'pipeline'.
+  const view: ViewMode = storedView === 'program' ? 'program' : 'pipeline'
   const [collapsedPrograms, setCollapsedPrograms] = useState<Set<string>>(new Set())
 
   function handleDelete(id: string) {
@@ -182,67 +184,72 @@ export default function ProjectsClient({ projects: initialProjects }: ProjectsCl
   }, [filtered])
 
   const viewToggle = (
-    <div className="flex items-center rounded-md border border-border overflow-hidden text-xs shrink-0">
-      <button
-        onClick={() => setView('program')}
-        className={cn(
-          'inline-flex items-center gap-1.5 px-2.5 py-1.5 transition-colors',
-          view === 'program' ? 'bg-foreground text-background' : 'bg-background text-muted-foreground hover:text-foreground hover:bg-accent'
-        )}
-      >
-        <GitBranch size={12} />
-        By Program
-      </button>
-      <button
-        onClick={() => setView('stage')}
-        className={cn(
-          'inline-flex items-center gap-1.5 px-2.5 py-1.5 transition-colors border-l border-border',
-          view === 'stage' ? 'bg-foreground text-background' : 'bg-background text-muted-foreground hover:text-foreground hover:bg-accent'
-        )}
-      >
-        <LayoutGrid size={12} />
-        By Stage
-      </button>
-      <button
-        onClick={() => setView('board')}
-        className={cn(
-          'inline-flex items-center gap-1.5 px-2.5 py-1.5 transition-colors border-l border-border',
-          view === 'board' ? 'bg-foreground text-background' : 'bg-background text-muted-foreground hover:text-foreground hover:bg-accent'
-        )}
-      >
-        <Kanban size={12} />
-        Board
-      </button>
+    <div className="flex items-center gap-2 shrink-0">
+      <span className="hidden sm:inline text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+        View
+      </span>
+      <div className="flex items-center rounded-md border border-border overflow-hidden text-xs">
+        <button
+          onClick={() => setView('pipeline')}
+          title="See the whole bid funnel, grouped by stage"
+          className={cn(
+            'inline-flex items-center gap-1.5 px-3 py-1.5 transition-colors',
+            view === 'pipeline' ? 'bg-foreground text-background' : 'bg-background text-muted-foreground hover:text-foreground hover:bg-accent'
+          )}
+        >
+          <Kanban size={12} />
+          Pipeline
+        </button>
+        <button
+          onClick={() => setView('program')}
+          title="Group projects under their parent program"
+          className={cn(
+            'inline-flex items-center gap-1.5 px-3 py-1.5 transition-colors border-l border-border',
+            view === 'program' ? 'bg-foreground text-background' : 'bg-background text-muted-foreground hover:text-foreground hover:bg-accent'
+          )}
+        >
+          <GitBranch size={12} />
+          Programs
+        </button>
+      </div>
     </div>
   )
+
+  const viewCaption =
+    view === 'program'
+      ? 'Grouped under each parent program, with standalone projects below.'
+      : 'Your bid funnel, grouped by stage — a board on wide screens, a stacked list on mobile.'
 
   return (
     <div className="space-y-6">
       {/* Search + view toggle */}
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div className="relative">
-          <Search
-            size={13}
-            className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none"
-          />
-          <input
-            type="text"
-            placeholder="Search projects by name, location, client…"
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            className="h-8 pl-8 pr-8 w-full sm:w-72 rounded-md border border-input bg-background text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-          />
-          {search && (
-            <button
-              onClick={() => setSearch('')}
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-              aria-label="Clear search"
-            >
-              <X size={12} />
-            </button>
-          )}
+      <div className="space-y-1.5">
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div className="relative">
+            <Search
+              size={13}
+              className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none"
+            />
+            <input
+              type="text"
+              placeholder="Search projects by name, location, client…"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              className="h-8 pl-8 pr-8 w-full sm:w-72 rounded-md border border-input bg-background text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+            />
+            {search && (
+              <button
+                onClick={() => setSearch('')}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                aria-label="Clear search"
+              >
+                <X size={12} />
+              </button>
+            )}
+          </div>
+          {viewToggle}
         </div>
-        {viewToggle}
+        <p className="text-xs text-muted-foreground">{viewCaption}</p>
       </div>
 
       {filtered.length === 0 && search && (
@@ -251,9 +258,9 @@ export default function ProjectsClient({ projects: initialProjects }: ProjectsCl
         </div>
       )}
 
-      {/* ─── Stage view: grouped by pipeline stage ─────────────────────────── */}
-      {view === 'stage' && filtered.length > 0 && (
-        <div className="space-y-6">
+      {/* ─── Pipeline (mobile): stage groups stacked top-to-bottom ──────────── */}
+      {view === 'pipeline' && filtered.length > 0 && (
+        <div className="space-y-6 lg:hidden">
           {STAGES.filter(s => (byStage.get(s as ProjectStage)?.length ?? 0) > 0).map(s => {
             const stage = s as ProjectStage
             const items = byStage.get(stage) ?? []
@@ -283,9 +290,9 @@ export default function ProjectsClient({ projects: initialProjects }: ProjectsCl
         </div>
       )}
 
-      {/* ─── Board view: horizontal Kanban by pipeline stage ───────────────── */}
-      {view === 'board' && filtered.length > 0 && (
-        <div className="flex gap-4 overflow-x-auto pb-4 -mx-1 px-1">
+      {/* ─── Pipeline (desktop): horizontal Kanban board by stage ───────────── */}
+      {view === 'pipeline' && filtered.length > 0 && (
+        <div className="hidden lg:flex gap-4 overflow-x-auto pb-4 -mx-1 px-1">
           {STAGES.map((s) => {
             const stage = s as ProjectStage
             const items = byStage.get(stage) ?? []
