@@ -187,7 +187,7 @@ export default function HealthPanel({
   ].filter((s) => s.value > 0)
 
   return (
-    <div className="rounded-lg glass-panel shadow-sm overflow-hidden">
+    <div className="rounded-lg glass-panel elev-2 overflow-hidden">
       {/* Header */}
       <div className="flex items-center gap-2 px-4 py-2.5 border-b border-border bg-muted/30">
         <TrendingUp size={13} className="text-muted-foreground" />

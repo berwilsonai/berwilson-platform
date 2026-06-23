@@ -43,8 +43,8 @@ export default async function PortfolioPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-slate-900">Portfolio</h1>
-        <p className="text-sm text-slate-500 mt-1">
+        <h1 className="text-2xl font-bold text-slate-900 dark:text-foreground">Portfolio</h1>
+        <p className="text-sm text-slate-500 dark:text-muted-foreground mt-1">
           33 sites across 11 states — Brand &rarr; Corridor &rarr; Site &rarr; Component
         </p>
       </div>

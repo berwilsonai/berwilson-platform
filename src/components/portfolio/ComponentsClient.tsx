@@ -149,15 +149,15 @@ export default function ComponentsClient({ siteId, initialComponents }: Componen
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex flex-wrap items-center gap-4 text-sm">
-          <span className="text-slate-500">
+          <span className="text-slate-500 dark:text-muted-foreground">
             {components.length} component{components.length !== 1 ? 's' : ''}
           </span>
           {totalMid > 0 && (
             <>
-              <span className="text-slate-300">|</span>
-              <span className="text-slate-500">
+              <span className="text-slate-300 dark:text-muted-foreground">|</span>
+              <span className="text-slate-500 dark:text-muted-foreground">
                 Capital range:{' '}
-                <span className="font-mono font-medium text-slate-900">
+                <span className="font-mono font-medium text-slate-900 dark:text-foreground">
                   {formatValue(totalLow > 0 ? totalLow : totalMid * 0.8)} – {formatValue(totalHigh > 0 ? totalHigh : totalMid * 1.3)}
                 </span>
               </span>
@@ -166,7 +166,7 @@ export default function ComponentsClient({ siteId, initialComponents }: Componen
         </div>
         <button
           onClick={openAdd}
-          className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md bg-slate-900 text-white text-xs font-medium hover:bg-slate-700 transition-colors"
+          className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md bg-slate-900 dark:bg-white/15 text-white text-xs font-medium hover:bg-slate-700 dark:hover:bg-white/10 transition-colors"
         >
           <Plus size={13} />
           Add Component
@@ -175,59 +175,59 @@ export default function ComponentsClient({ siteId, initialComponents }: Componen
 
       {/* Table */}
       {components.length === 0 ? (
-        <div className="bg-white rounded-lg border border-slate-200 p-8 text-center">
-          <p className="text-sm text-slate-400 mb-3">No components have been added to this site yet.</p>
+        <div className="bg-white dark:bg-card rounded-lg border border-slate-200 dark:border-border p-8 text-center">
+          <p className="text-sm text-slate-400 dark:text-muted-foreground mb-3">No components have been added to this site yet.</p>
           <button
             onClick={openAdd}
-            className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md bg-slate-900 text-white text-xs font-medium hover:bg-slate-700 transition-colors"
+            className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md bg-slate-900 dark:bg-white/15 text-white text-xs font-medium hover:bg-slate-700 dark:hover:bg-white/10 transition-colors"
           >
             <Plus size={13} />
             Add Component
           </button>
         </div>
       ) : (
-        <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
+        <div className="bg-white dark:bg-card rounded-lg border border-slate-200 dark:border-border overflow-hidden">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-slate-100 bg-slate-50">
-                <th className="text-left px-4 py-2.5 font-medium text-slate-500">Type</th>
-                <th className="text-left px-4 py-2.5 font-medium text-slate-500">Name</th>
-                <th className="text-left px-4 py-2.5 font-medium text-slate-500">Phase</th>
-                <th className="text-left px-4 py-2.5 font-medium text-slate-500">Status</th>
-                <th className="text-right px-4 py-2.5 font-medium text-slate-500">Low</th>
-                <th className="text-right px-4 py-2.5 font-medium text-slate-500">Mid</th>
-                <th className="text-right px-4 py-2.5 font-medium text-slate-500">High</th>
+              <tr className="border-b border-slate-100 dark:border-border/60 bg-slate-50 dark:bg-muted/50">
+                <th className="text-left px-4 py-2.5 font-medium text-slate-500 dark:text-muted-foreground">Type</th>
+                <th className="text-left px-4 py-2.5 font-medium text-slate-500 dark:text-muted-foreground">Name</th>
+                <th className="text-left px-4 py-2.5 font-medium text-slate-500 dark:text-muted-foreground">Phase</th>
+                <th className="text-left px-4 py-2.5 font-medium text-slate-500 dark:text-muted-foreground">Status</th>
+                <th className="text-right px-4 py-2.5 font-medium text-slate-500 dark:text-muted-foreground">Low</th>
+                <th className="text-right px-4 py-2.5 font-medium text-slate-500 dark:text-muted-foreground">Mid</th>
+                <th className="text-right px-4 py-2.5 font-medium text-slate-500 dark:text-muted-foreground">High</th>
                 <th className="px-4 py-2.5 w-20" />
               </tr>
             </thead>
             <tbody>
               {components.map(c => (
-                <tr key={c.id} className="border-b border-slate-50 hover:bg-slate-50">
+                <tr key={c.id} className="border-b border-slate-50 dark:border-border/40 hover:bg-slate-50 dark:hover:bg-muted/50">
                   <td className="px-4 py-2.5">
                     <span className={`inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium ring-1 ring-inset ${COMPONENT_TYPE_BADGE[c.type as keyof typeof COMPONENT_TYPE_BADGE]}`}>
                       {COMPONENT_TYPE_LABELS[c.type as keyof typeof COMPONENT_TYPE_LABELS]}
                     </span>
                   </td>
-                  <td className="px-4 py-2.5 font-medium text-slate-900">{c.name}</td>
-                  <td className="px-4 py-2.5 text-slate-500 text-xs">{c.phase ?? '—'}</td>
+                  <td className="px-4 py-2.5 font-medium text-slate-900 dark:text-foreground">{c.name}</td>
+                  <td className="px-4 py-2.5 text-slate-500 dark:text-muted-foreground text-xs">{c.phase ?? '—'}</td>
                   <td className="px-4 py-2.5">
                     {c.status ? (
                       <span className={`inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium ring-1 ring-inset ${COMPONENT_STATUS_BADGE[c.status as keyof typeof COMPONENT_STATUS_BADGE]}`}>
                         {COMPONENT_STATUS_LABELS[c.status as keyof typeof COMPONENT_STATUS_LABELS]}
                       </span>
-                    ) : <span className="text-slate-400">—</span>}
+                    ) : <span className="text-slate-400 dark:text-muted-foreground">—</span>}
                   </td>
-                  <td className="px-4 py-2.5 text-right font-mono text-xs text-slate-500">{c.capital_low ? formatValue(Number(c.capital_low)) : '—'}</td>
-                  <td className="px-4 py-2.5 text-right font-mono text-xs text-slate-700 font-medium">{c.capital_mid ? formatValue(Number(c.capital_mid)) : '—'}</td>
-                  <td className="px-4 py-2.5 text-right font-mono text-xs text-slate-500">{c.capital_high ? formatValue(Number(c.capital_high)) : '—'}</td>
+                  <td className="px-4 py-2.5 text-right font-mono text-xs text-slate-500 dark:text-muted-foreground">{c.capital_low ? formatValue(Number(c.capital_low)) : '—'}</td>
+                  <td className="px-4 py-2.5 text-right font-mono text-xs text-slate-700 dark:text-slate-200 font-medium">{c.capital_mid ? formatValue(Number(c.capital_mid)) : '—'}</td>
+                  <td className="px-4 py-2.5 text-right font-mono text-xs text-slate-500 dark:text-muted-foreground">{c.capital_high ? formatValue(Number(c.capital_high)) : '—'}</td>
                   <td className="px-4 py-2.5">
                     <div className="flex items-center justify-end gap-1">
                       <button
                         onClick={() => openEdit(c)}
-                        className="inline-flex items-center justify-center h-7 w-7 rounded hover:bg-slate-100 transition-colors"
+                        className="inline-flex items-center justify-center h-7 w-7 rounded hover:bg-slate-100 dark:hover:bg-muted transition-colors"
                         title="Edit"
                       >
-                        <Pencil size={13} className="text-slate-400" />
+                        <Pencil size={13} className="text-slate-400 dark:text-muted-foreground" />
                       </button>
                       {confirmDeleteId === c.id ? (
                         <div className="flex items-center gap-1">
@@ -241,7 +241,7 @@ export default function ComponentsClient({ siteId, initialComponents }: Componen
                           </button>
                           <button
                             onClick={() => setConfirmDeleteId(null)}
-                            className="h-6 w-6 rounded flex items-center justify-center hover:bg-slate-100 transition-colors"
+                            className="h-6 w-6 rounded flex items-center justify-center hover:bg-slate-100 dark:hover:bg-muted transition-colors"
                           >
                             <X size={11} />
                           </button>
@@ -252,7 +252,7 @@ export default function ComponentsClient({ siteId, initialComponents }: Componen
                           className="inline-flex items-center justify-center h-7 w-7 rounded hover:bg-red-50 transition-colors"
                           title="Delete"
                         >
-                          <Trash2 size={13} className="text-slate-400 hover:text-red-500" />
+                          <Trash2 size={13} className="text-slate-400 dark:text-muted-foreground hover:text-red-500" />
                         </button>
                       )}
                     </div>
@@ -262,11 +262,11 @@ export default function ComponentsClient({ siteId, initialComponents }: Componen
             </tbody>
             {totalMid > 0 && (
               <tfoot>
-                <tr className="bg-slate-50 font-medium">
-                  <td colSpan={4} className="px-4 py-2.5 text-slate-700 text-xs uppercase tracking-wider">Total</td>
-                  <td className="px-4 py-2.5 text-right font-mono text-xs text-slate-700">{totalLow > 0 ? formatValue(totalLow) : '—'}</td>
-                  <td className="px-4 py-2.5 text-right font-mono text-xs text-slate-900 font-bold">{formatValue(totalMid)}</td>
-                  <td className="px-4 py-2.5 text-right font-mono text-xs text-slate-700">{totalHigh > 0 ? formatValue(totalHigh) : '—'}</td>
+                <tr className="bg-slate-50 dark:bg-muted/50 font-medium">
+                  <td colSpan={4} className="px-4 py-2.5 text-slate-700 dark:text-slate-200 text-xs uppercase tracking-wider">Total</td>
+                  <td className="px-4 py-2.5 text-right font-mono text-xs text-slate-700 dark:text-slate-200">{totalLow > 0 ? formatValue(totalLow) : '—'}</td>
+                  <td className="px-4 py-2.5 text-right font-mono text-xs text-slate-900 dark:text-foreground font-bold">{formatValue(totalMid)}</td>
+                  <td className="px-4 py-2.5 text-right font-mono text-xs text-slate-700 dark:text-slate-200">{totalHigh > 0 ? formatValue(totalHigh) : '—'}</td>
                   <td />
                 </tr>
               </tfoot>
@@ -389,7 +389,7 @@ export default function ComponentsClient({ siteId, initialComponents }: Componen
             <button
               onClick={handleSave}
               disabled={!form.type || !form.name.trim() || saving}
-              className="inline-flex items-center gap-1.5 h-9 px-4 rounded-md bg-slate-900 text-white text-sm font-medium hover:bg-slate-700 disabled:opacity-50 transition-colors"
+              className="inline-flex items-center gap-1.5 h-9 px-4 rounded-md bg-slate-900 dark:bg-white/15 text-white text-sm font-medium hover:bg-slate-700 dark:hover:bg-white/10 disabled:opacity-50 transition-colors"
             >
               {saving ? <Loader2 size={14} className="animate-spin" /> : null}
               {editing ? 'Save Changes' : 'Add Component'}

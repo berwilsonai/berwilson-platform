@@ -234,20 +234,20 @@ export default function CapitalStackClient({
     <div className="mt-4 space-y-6">
       {/* Capital overview cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="bg-white rounded-lg border border-slate-200 px-4 py-3">
-          <p className="text-xs text-slate-500">Total Capital (Mid)</p>
-          <p className="text-xl font-bold text-slate-900 font-mono mt-1">{formatValue(totalCapitalMid)}</p>
+        <div className="bg-white dark:bg-card rounded-lg border border-slate-200 dark:border-border px-4 py-3">
+          <p className="text-xs text-slate-500 dark:text-muted-foreground">Total Capital (Mid)</p>
+          <p className="text-xl font-bold text-slate-900 dark:text-foreground font-mono mt-1">{formatValue(totalCapitalMid)}</p>
         </div>
-        <div className="bg-white rounded-lg border border-slate-200 px-4 py-3">
-          <p className="text-xs text-slate-500">+30% Contingency</p>
-          <p className="text-xl font-bold text-slate-900 font-mono mt-1">{formatValue(totalCapitalHigh > 0 ? totalCapitalHigh : totalCapitalMid * 1.3)}</p>
+        <div className="bg-white dark:bg-card rounded-lg border border-slate-200 dark:border-border px-4 py-3">
+          <p className="text-xs text-slate-500 dark:text-muted-foreground">+30% Contingency</p>
+          <p className="text-xl font-bold text-slate-900 dark:text-foreground font-mono mt-1">{formatValue(totalCapitalHigh > 0 ? totalCapitalHigh : totalCapitalMid * 1.3)}</p>
         </div>
-        <div className="bg-white rounded-lg border border-slate-200 px-4 py-3">
-          <p className="text-xs text-slate-500">Funded / Identified</p>
+        <div className="bg-white dark:bg-card rounded-lg border border-slate-200 dark:border-border px-4 py-3">
+          <p className="text-xs text-slate-500 dark:text-muted-foreground">Funded / Identified</p>
           <p className="text-xl font-bold text-emerald-700 font-mono mt-1">{formatValue(totalFunded)}</p>
         </div>
-        <div className={`bg-white rounded-lg border px-4 py-3 ${gap > 0 ? 'border-amber-200' : 'border-slate-200'}`}>
-          <p className="text-xs text-slate-500">Gap</p>
+        <div className={`bg-white dark:bg-card rounded-lg border px-4 py-3 ${gap > 0 ? 'border-amber-200' : 'border-slate-200 dark:border-border'}`}>
+          <p className="text-xs text-slate-500 dark:text-muted-foreground">Gap</p>
           <p className={`text-xl font-bold font-mono mt-1 ${gap > 0 ? 'text-amber-600' : 'text-emerald-700'}`}>
             {gap > 0 ? formatValue(gap) : 'Fully funded'}
           </p>
@@ -273,20 +273,20 @@ export default function CapitalStackClient({
 
       {/* Capital by component */}
       {components.length > 0 && (
-        <section className="bg-white rounded-lg border border-slate-200 p-5">
-          <h2 className="text-sm font-semibold text-slate-900 mb-3">Capital by Component</h2>
+        <section className="bg-white dark:bg-card rounded-lg border border-slate-200 dark:border-border p-5">
+          <h2 className="text-sm font-semibold text-slate-900 dark:text-foreground mb-3">Capital by Component</h2>
           <div className="space-y-2">
             {components.map(c => {
               const mid = Number(c.capital_mid ?? 0)
               const pct = totalCapitalMid > 0 ? (mid / totalCapitalMid) * 100 : 0
               return (
                 <div key={c.id} className="flex items-center gap-3">
-                  <div className="w-40 shrink-0 text-xs text-slate-700 truncate">{c.name}</div>
-                  <div className="flex-1 h-5 bg-slate-100 rounded-full overflow-hidden">
+                  <div className="w-40 shrink-0 text-xs text-slate-700 dark:text-slate-200 truncate">{c.name}</div>
+                  <div className="flex-1 h-5 bg-slate-100 dark:bg-muted rounded-full overflow-hidden">
                     <div className="h-full bg-blue-500 rounded-full transition-all" style={{ width: `${pct}%` }} />
                   </div>
-                  <div className="w-20 text-right text-xs font-mono text-slate-600 shrink-0">{formatValue(mid)}</div>
-                  <div className="w-12 text-right text-xs text-slate-400 shrink-0">{pct.toFixed(1)}%</div>
+                  <div className="w-20 text-right text-xs font-mono text-slate-600 dark:text-slate-300 shrink-0">{formatValue(mid)}</div>
+                  <div className="w-12 text-right text-xs text-slate-400 dark:text-muted-foreground shrink-0">{pct.toFixed(1)}%</div>
                 </div>
               )
             })}
@@ -295,14 +295,14 @@ export default function CapitalStackClient({
       )}
 
       {/* Funding sources */}
-      <section className="bg-white rounded-lg border border-slate-200 p-5">
+      <section className="bg-white dark:bg-card rounded-lg border border-slate-200 dark:border-border p-5">
         <div className="flex items-center justify-between mb-3">
-          <h2 className="text-sm font-semibold text-slate-900">
+          <h2 className="text-sm font-semibold text-slate-900 dark:text-foreground">
             Funding Sources ({funding.length})
           </h2>
           <button
             onClick={openAddFunding}
-            className="inline-flex items-center gap-1.5 h-7 px-3 rounded-md bg-slate-900 text-white text-xs font-medium hover:bg-slate-700 transition-colors"
+            className="inline-flex items-center gap-1.5 h-7 px-3 rounded-md bg-slate-900 dark:bg-white/15 text-white text-xs font-medium hover:bg-slate-700 dark:hover:bg-white/10 transition-colors"
           >
             <Plus size={12} />
             Add Source
@@ -310,17 +310,17 @@ export default function CapitalStackClient({
         </div>
 
         {funding.length === 0 ? (
-          <p className="text-sm text-slate-400">No funding sources identified yet.</p>
+          <p className="text-sm text-slate-400 dark:text-muted-foreground">No funding sources identified yet.</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-slate-100">
-                  <th className="text-left px-3 py-2 font-medium text-slate-500 text-xs">Source</th>
-                  <th className="text-left px-3 py-2 font-medium text-slate-500 text-xs">Category</th>
-                  <th className="text-left px-3 py-2 font-medium text-slate-500 text-xs">Status</th>
-                  <th className="text-right px-3 py-2 font-medium text-slate-500 text-xs">Amount</th>
-                  <th className="text-right px-3 py-2 font-medium text-slate-500 text-xs">% of Capital</th>
+                <tr className="border-b border-slate-100 dark:border-border/60">
+                  <th className="text-left px-3 py-2 font-medium text-slate-500 dark:text-muted-foreground text-xs">Source</th>
+                  <th className="text-left px-3 py-2 font-medium text-slate-500 dark:text-muted-foreground text-xs">Category</th>
+                  <th className="text-left px-3 py-2 font-medium text-slate-500 dark:text-muted-foreground text-xs">Status</th>
+                  <th className="text-right px-3 py-2 font-medium text-slate-500 dark:text-muted-foreground text-xs">Amount</th>
+                  <th className="text-right px-3 py-2 font-medium text-slate-500 dark:text-muted-foreground text-xs">% of Capital</th>
                   <th className="px-3 py-2 w-20" />
                 </tr>
               </thead>
@@ -329,18 +329,18 @@ export default function CapitalStackClient({
                   const pct = totalCapitalMid > 0 && f.amount ? ((Number(f.amount) / totalCapitalMid) * 100) : 0
                   const overConcentration = pct > 16
                   return (
-                    <tr key={f.id} className="border-b border-slate-50 hover:bg-slate-50">
-                      <td className="px-3 py-2 font-medium text-slate-900">{f.source_name}</td>
+                    <tr key={f.id} className="border-b border-slate-50 dark:border-border/40 hover:bg-slate-50 dark:hover:bg-muted/50">
+                      <td className="px-3 py-2 font-medium text-slate-900 dark:text-foreground">{f.source_name}</td>
                       <td className="px-3 py-2">
                         <span className={`inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium ring-1 ring-inset ${FUNDING_CATEGORY_BADGE[f.category as keyof typeof FUNDING_CATEGORY_BADGE]}`}>
                           {FUNDING_CATEGORY_LABELS[f.category as keyof typeof FUNDING_CATEGORY_LABELS]}
                         </span>
                       </td>
-                      <td className="px-3 py-2 text-xs text-slate-500">
+                      <td className="px-3 py-2 text-xs text-slate-500 dark:text-muted-foreground">
                         {f.status ? (FUNDING_STATUS_LABELS[f.status as keyof typeof FUNDING_STATUS_LABELS] ?? f.status) : '—'}
                       </td>
                       <td className="px-3 py-2 text-right font-mono text-xs">{f.amount ? formatValue(Number(f.amount)) : '—'}</td>
-                      <td className={`px-3 py-2 text-right text-xs ${overConcentration ? 'text-amber-600 font-medium' : 'text-slate-500'}`}>
+                      <td className={`px-3 py-2 text-right text-xs ${overConcentration ? 'text-amber-600 font-medium' : 'text-slate-500 dark:text-muted-foreground'}`}>
                         {pct > 0 ? `${pct.toFixed(1)}%` : '—'}
                         {overConcentration && ' !'}
                       </td>
@@ -348,10 +348,10 @@ export default function CapitalStackClient({
                         <div className="flex items-center justify-end gap-1">
                           <button
                             onClick={() => openEditFunding(f)}
-                            className="inline-flex items-center justify-center h-7 w-7 rounded hover:bg-slate-100 transition-colors"
+                            className="inline-flex items-center justify-center h-7 w-7 rounded hover:bg-slate-100 dark:hover:bg-muted transition-colors"
                             title="Edit"
                           >
-                            <Pencil size={13} className="text-slate-400" />
+                            <Pencil size={13} className="text-slate-400 dark:text-muted-foreground" />
                           </button>
                           {confirmFundingDeleteId === f.id ? (
                             <div className="flex items-center gap-1">
@@ -365,7 +365,7 @@ export default function CapitalStackClient({
                               </button>
                               <button
                                 onClick={() => setConfirmFundingDeleteId(null)}
-                                className="h-6 w-6 rounded flex items-center justify-center hover:bg-slate-100 transition-colors"
+                                className="h-6 w-6 rounded flex items-center justify-center hover:bg-slate-100 dark:hover:bg-muted transition-colors"
                               >
                                 <X size={11} />
                               </button>
@@ -376,7 +376,7 @@ export default function CapitalStackClient({
                               className="inline-flex items-center justify-center h-7 w-7 rounded hover:bg-red-50 transition-colors"
                               title="Delete"
                             >
-                              <Trash2 size={13} className="text-slate-400 hover:text-red-500" />
+                              <Trash2 size={13} className="text-slate-400 dark:text-muted-foreground hover:text-red-500" />
                             </button>
                           )}
                         </div>
@@ -387,10 +387,10 @@ export default function CapitalStackClient({
               </tbody>
               {totalFunded > 0 && (
                 <tfoot>
-                  <tr className="bg-slate-50 font-medium">
-                    <td colSpan={3} className="px-3 py-2 text-xs text-slate-700 uppercase tracking-wider">Total Identified</td>
-                    <td className="px-3 py-2 text-right font-mono text-xs text-slate-900 font-bold">{formatValue(totalFunded)}</td>
-                    <td className="px-3 py-2 text-right text-xs text-slate-500">
+                  <tr className="bg-slate-50 dark:bg-muted/50 font-medium">
+                    <td colSpan={3} className="px-3 py-2 text-xs text-slate-700 dark:text-slate-200 uppercase tracking-wider">Total Identified</td>
+                    <td className="px-3 py-2 text-right font-mono text-xs text-slate-900 dark:text-foreground font-bold">{formatValue(totalFunded)}</td>
+                    <td className="px-3 py-2 text-right text-xs text-slate-500 dark:text-muted-foreground">
                       {totalCapitalMid > 0 ? `${((totalFunded / totalCapitalMid) * 100).toFixed(1)}%` : '—'}
                     </td>
                     <td />
@@ -403,12 +403,12 @@ export default function CapitalStackClient({
       </section>
 
       {/* Revenue share */}
-      <section className="bg-white rounded-lg border border-slate-200 p-5">
+      <section className="bg-white dark:bg-card rounded-lg border border-slate-200 dark:border-border p-5">
         <div className="flex items-center justify-between mb-3">
-          <h2 className="text-sm font-semibold text-slate-900">Revenue Share Agreement</h2>
+          <h2 className="text-sm font-semibold text-slate-900 dark:text-foreground">Revenue Share Agreement</h2>
           <button
             onClick={openRevenueShare}
-            className="inline-flex items-center gap-1.5 h-7 px-3 rounded-md border border-slate-200 text-xs font-medium hover:bg-slate-50 transition-colors"
+            className="inline-flex items-center gap-1.5 h-7 px-3 rounded-md border border-slate-200 dark:border-border text-xs font-medium hover:bg-slate-50 dark:hover:bg-muted/50 transition-colors"
           >
             <Pencil size={12} />
             {revenueShare ? 'Edit' : 'Set Up'}
@@ -419,7 +419,7 @@ export default function CapitalStackClient({
           <div>
             <div className="flex items-center gap-4 mb-2">
               <div className="flex-1">
-                <div className="h-4 rounded-full bg-slate-100 overflow-hidden flex">
+                <div className="h-4 rounded-full bg-slate-100 dark:bg-muted overflow-hidden flex">
                   <div className="h-full bg-blue-600 rounded-l-full" style={{ width: `${revenueShare.city_pct ?? 60}%` }} />
                   <div className="h-full bg-emerald-500 rounded-r-full" style={{ width: `${revenueShare.bw_pct ?? 40}%` }} />
                 </div>
@@ -430,14 +430,14 @@ export default function CapitalStackClient({
               </div>
             </div>
             {revenueShare.revenue_base && (
-              <p className="text-xs text-slate-500 mt-3 border-t border-slate-100 pt-3">{revenueShare.revenue_base}</p>
+              <p className="text-xs text-slate-500 dark:text-muted-foreground mt-3 border-t border-slate-100 dark:border-border/60 pt-3">{revenueShare.revenue_base}</p>
             )}
             {revenueShare.notes && (
-              <p className="text-xs text-slate-500 mt-2">{revenueShare.notes}</p>
+              <p className="text-xs text-slate-500 dark:text-muted-foreground mt-2">{revenueShare.notes}</p>
             )}
           </div>
         ) : (
-          <p className="text-sm text-slate-400">No revenue share agreement set up yet.</p>
+          <p className="text-sm text-slate-400 dark:text-muted-foreground">No revenue share agreement set up yet.</p>
         )}
       </section>
 
@@ -527,7 +527,7 @@ export default function CapitalStackClient({
             <button
               onClick={handleSaveFunding}
               disabled={!fundingForm.source_name.trim() || !fundingForm.category || fundingSaving}
-              className="inline-flex items-center gap-1.5 h-9 px-4 rounded-md bg-slate-900 text-white text-sm font-medium hover:bg-slate-700 disabled:opacity-50 transition-colors"
+              className="inline-flex items-center gap-1.5 h-9 px-4 rounded-md bg-slate-900 dark:bg-white/15 text-white text-sm font-medium hover:bg-slate-700 dark:hover:bg-white/10 disabled:opacity-50 transition-colors"
             >
               {fundingSaving ? <Loader2 size={14} className="animate-spin" /> : null}
               {editingFunding ? 'Save Changes' : 'Add Source'}
@@ -581,7 +581,7 @@ export default function CapitalStackClient({
             <button onClick={() => setRsOpen(false)} disabled={rsSaving} className="inline-flex items-center gap-1 h-9 px-4 rounded-md border border-input text-sm font-medium hover:bg-accent disabled:opacity-50 transition-colors">
               Cancel
             </button>
-            <button onClick={handleSaveRevenueShare} disabled={rsSaving} className="inline-flex items-center gap-1.5 h-9 px-4 rounded-md bg-slate-900 text-white text-sm font-medium hover:bg-slate-700 disabled:opacity-50 transition-colors">
+            <button onClick={handleSaveRevenueShare} disabled={rsSaving} className="inline-flex items-center gap-1.5 h-9 px-4 rounded-md bg-slate-900 dark:bg-white/15 text-white text-sm font-medium hover:bg-slate-700 dark:hover:bg-white/10 disabled:opacity-50 transition-colors">
               {rsSaving ? <Loader2 size={14} className="animate-spin" /> : null}
               Save Agreement
             </button>

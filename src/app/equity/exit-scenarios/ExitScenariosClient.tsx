@@ -360,7 +360,7 @@ export default function ExitScenariosClient() {
                   </div>
                 </div>
 
-                <div className="mt-4 p-3 bg-white/60 rounded-md">
+                <div className="mt-4 p-3 bg-white/60 dark:bg-card/60 rounded-md">
                   <p className="text-xs text-foreground/80 leading-relaxed">
                     {realityCheckText}
                   </p>

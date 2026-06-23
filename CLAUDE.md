@@ -248,6 +248,12 @@ Note the drift flagged in §9: `entities`/vendors and portfolio `stakeholders` p
 
 **Done 2026-06-22:** Company profile fleshed out with a structured **pursuit profile** (`company_profile` migration `20260622000002`), editable on `/company`, and wired into the AI — the executive agent injects it via `getCompanyContext()`, and proposal intake runs `assessFit()` to give a pursue/consider/pass recommendation in the wizard.
 
+**Done 2026-06-22 (UI lift):**
+- **Design system refinement** in `globals.css`: light neutrals carry a faint cool tint (hue 260) to harmonize with the navy sidebar; added a layered elevation scale (`--elev-1/2/3` + `.elev-*`), `.lift` (hover elevation), `.stagger-children`, `.tnum` (tabular figures), and a `prefers-reduced-motion` block. `Card` now defaults to `elev-1` and accepts an `interactive` prop for hover lift+glow on clickable cards.
+- **Dark mode** is now wired (pre-paint no-flash script in `layout.tsx` + `ThemeToggle` in the header). **Opt-in only** — production renders light unless the user toggles, because ~12 files hardcode `bg-white` and ~60 use light tint pills; a full color audit (`bg-white`→`bg-card`, tint pills) is needed before making dark follow the OS.
+- **Sidebar consistency:** Portfolio/Equity folded into `NAV_GROUPS` (was a hand-coded block with a different active style).
+- **Command palette (⌘K / Ctrl+K):** `CommandPalette.tsx` + `AppHeader` host it; new `GET /api/search?q=` does cross-entity ilike search over projects/parties/entities. Replaced the old mobile-only page-search. Desktop search box + mobile search button both open it.
+
 **Highest-leverage next work:**
 1. **Populate the pursuit profile** on `/company` with Ber Wilson's real criteria (only Richard has these facts — don't invent them). This is what makes the fit assessment trustworthy.
 2. Optionally persist `fit_assessment` on `proposal_intake_sessions` (currently returned in the intake response but not stored).

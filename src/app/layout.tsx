@@ -93,9 +93,16 @@ export default async function RootLayout({
   return (
     <html
       lang="en"
+      suppressHydrationWarning
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="h-full bg-background text-foreground">
+        {/* Apply saved/system theme before paint to avoid a flash of the wrong color scheme. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{document.documentElement.classList.toggle('dark',localStorage.getItem('theme')==='dark');}catch(e){}})();`,
+          }}
+        />
         {showShell ? (
           <div className="flex h-full">
             <AppSidebar pendingReviewCount={pendingReviewCount} attentionCount={attentionCount} />

@@ -55,6 +55,13 @@ const NAV_GROUPS = [
     ],
   },
   {
+    label: 'Finance',
+    items: [
+      { href: '/portfolio', label: 'Portfolio', icon: Globe },
+      { href: '/equity', label: 'Equity & Valuation', icon: TrendingUp },
+    ],
+  },
+  {
     label: 'System',
     items: [
       { href: '/review', label: 'Review Queue', icon: ClipboardCheck },
@@ -150,41 +157,6 @@ export default function AppSidebar({ pendingReviewCount = 0, attentionCount = 0 
             </div>
           </div>
         ))}
-
-        {/* Portfolio & Equity */}
-        <div className="mt-4 pt-3 border-t border-sidebar-border">
-          {!collapsed && (
-            <p className="px-2.5 mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-sidebar-foreground/40">
-              Finance
-            </p>
-          )}
-          <div className="space-y-0.5">
-            <Link
-              href="/portfolio"
-              title={collapsed ? 'Portfolio' : undefined}
-              className={`flex items-center gap-3 px-2.5 py-2 rounded text-sm font-medium transition-colors ${
-                pathname === '/portfolio' || pathname.startsWith('/portfolio/')
-                  ? 'bg-sidebar-accent text-sidebar-foreground'
-                  : 'text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent'
-              }`}
-            >
-              <Globe size={15} className="shrink-0" />
-              {!collapsed && <span className="truncate">Portfolio</span>}
-            </Link>
-            <Link
-              href="/equity"
-              title={collapsed ? 'Equity & Valuation' : undefined}
-              className={`flex items-center gap-3 px-2.5 py-2 rounded text-sm font-medium transition-colors ${
-                pathname === '/equity' || pathname.startsWith('/equity/')
-                  ? 'bg-sidebar-accent text-sidebar-foreground'
-                  : 'text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent'
-              }`}
-            >
-              <TrendingUp size={15} className="shrink-0" />
-              {!collapsed && <span className="truncate">Equity & Valuation</span>}
-            </Link>
-          </div>
-        </div>
       </nav>
     </aside>
   )

@@ -19,10 +19,10 @@ const DOC_TYPE_BADGE: Record<DocType, string> = {
   permit: 'bg-emerald-50 text-emerald-700 ring-emerald-200',
   report: 'bg-amber-50 text-amber-700 ring-amber-200',
   drawing: 'bg-cyan-50 text-cyan-700 ring-cyan-200',
-  correspondence: 'bg-slate-100 text-slate-600 ring-slate-200',
+  correspondence: 'bg-slate-100 dark:bg-muted text-slate-600 dark:text-slate-300 ring-slate-200 dark:ring-border',
   legal: 'bg-red-50 text-red-600 ring-red-200',
   financial: 'bg-orange-50 text-orange-700 ring-orange-200',
-  other: 'bg-slate-50 text-slate-500 ring-slate-200',
+  other: 'bg-slate-50 dark:bg-muted/50 text-slate-500 dark:text-muted-foreground ring-slate-200 dark:ring-border',
 }
 
 function formatBytes(bytes: number | null): string {
@@ -149,10 +149,10 @@ export default function SiteDocumentsClient({ siteId, initialDocuments }: SiteDo
     <div className="mt-4 space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <p className="text-sm text-slate-500">{documents.length} document{documents.length !== 1 ? 's' : ''}</p>
+        <p className="text-sm text-slate-500 dark:text-muted-foreground">{documents.length} document{documents.length !== 1 ? 's' : ''}</p>
         <button
           onClick={() => setShowUpload(!showUpload)}
-          className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md bg-slate-900 text-white text-xs font-medium hover:bg-slate-700 transition-colors"
+          className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md bg-slate-900 dark:bg-white/15 text-white text-xs font-medium hover:bg-slate-700 dark:hover:bg-white/10 transition-colors"
         >
           <Upload size={13} />
           Upload
@@ -167,22 +167,22 @@ export default function SiteDocumentsClient({ siteId, initialDocuments }: SiteDo
             onDragLeave={() => setDragging(false)}
             onDrop={e => { e.preventDefault(); setDragging(false); handleFiles(e.dataTransfer.files) }}
             onClick={() => fileInputRef.current?.click()}
-            className={`relative flex flex-col items-center justify-center rounded-lg border-2 border-dashed px-6 py-8 cursor-pointer transition-colors ${dragging ? 'border-slate-900 bg-slate-50' : 'border-slate-200 hover:border-slate-400 hover:bg-slate-50'}`}
+            className={`relative flex flex-col items-center justify-center rounded-lg border-2 border-dashed px-6 py-8 cursor-pointer transition-colors ${dragging ? 'border-slate-900 dark:border-white/20 bg-slate-50 dark:bg-muted/50' : 'border-slate-200 dark:border-border hover:border-slate-400 dark:hover:border-border hover:bg-slate-50 dark:hover:bg-muted/50'}`}
           >
-            <Upload size={20} className="text-slate-400 mb-2" />
-            <p className="text-sm font-medium text-slate-700">Drop files here or <span className="underline">browse</span></p>
-            <p className="text-xs text-slate-400 mt-1">PDF, DOCX, images, and more</p>
+            <Upload size={20} className="text-slate-400 dark:text-muted-foreground mb-2" />
+            <p className="text-sm font-medium text-slate-700 dark:text-slate-200">Drop files here or <span className="underline">browse</span></p>
+            <p className="text-xs text-slate-400 dark:text-muted-foreground mt-1">PDF, DOCX, images, and more</p>
             <input ref={fileInputRef} type="file" multiple className="sr-only" onChange={e => e.target.files && handleFiles(e.target.files)} />
           </div>
 
           {uploads.length > 0 && (
-            <div className="bg-white rounded-lg border border-slate-200 divide-y divide-slate-100">
+            <div className="bg-white dark:bg-card rounded-lg border border-slate-200 dark:border-border divide-y divide-slate-100 dark:divide-border/60">
               {pendingCount > 0 && (
                 <div className="px-4 py-2 flex items-center justify-between">
-                  <span className="text-xs text-slate-500 font-medium">{pendingCount} file{pendingCount !== 1 ? 's' : ''} ready</span>
+                  <span className="text-xs text-slate-500 dark:text-muted-foreground font-medium">{pendingCount} file{pendingCount !== 1 ? 's' : ''} ready</span>
                   <button
                     onClick={handleUploadAll}
-                    className="inline-flex items-center gap-1.5 h-7 px-3 rounded-md bg-slate-900 text-white text-xs font-medium hover:bg-slate-700 transition-colors"
+                    className="inline-flex items-center gap-1.5 h-7 px-3 rounded-md bg-slate-900 dark:bg-white/15 text-white text-xs font-medium hover:bg-slate-700 dark:hover:bg-white/10 transition-colors"
                   >
                     <Upload size={11} />
                     Upload all
@@ -191,10 +191,10 @@ export default function SiteDocumentsClient({ siteId, initialDocuments }: SiteDo
               )}
               {uploads.map((upload, i) => (
                 <div key={i} className="px-4 py-2.5 flex items-center gap-3">
-                  <File size={15} className="shrink-0 text-slate-400" />
+                  <File size={15} className="shrink-0 text-slate-400 dark:text-muted-foreground" />
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium truncate">{upload.file.name}</p>
-                    {upload.status === 'uploading' && <p className="text-xs text-slate-400">Uploading…</p>}
+                    {upload.status === 'uploading' && <p className="text-xs text-slate-400 dark:text-muted-foreground">Uploading…</p>}
                     {upload.status === 'done' && <p className="text-xs text-emerald-600">Uploaded</p>}
                     {upload.status === 'error' && <p className="text-xs text-red-600">{upload.error}</p>}
                   </div>
@@ -202,18 +202,18 @@ export default function SiteDocumentsClient({ siteId, initialDocuments }: SiteDo
                     <select
                       value={upload.docType}
                       onChange={e => setUploads(prev => prev.map((u, idx) => idx === i ? { ...u, docType: e.target.value as DocType } : u))}
-                      className="h-7 rounded-md border border-slate-200 bg-background px-2 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
+                      className="h-7 rounded-md border border-slate-200 dark:border-border bg-background px-2 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
                     >
                       {DOC_TYPES.map(t => <option key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>)}
                     </select>
                   )}
-                  {upload.status === 'uploading' && <Loader2 size={14} className="animate-spin text-slate-400 shrink-0" />}
+                  {upload.status === 'uploading' && <Loader2 size={14} className="animate-spin text-slate-400 dark:text-muted-foreground shrink-0" />}
                   {upload.status === 'error' && <AlertCircle size={14} className="text-red-500 shrink-0" />}
                   <button
                     onClick={() => setUploads(prev => prev.filter((_, idx) => idx !== i))}
-                    className="inline-flex items-center justify-center h-6 w-6 rounded hover:bg-slate-100 transition-colors shrink-0"
+                    className="inline-flex items-center justify-center h-6 w-6 rounded hover:bg-slate-100 dark:hover:bg-muted transition-colors shrink-0"
                   >
-                    <X size={11} className="text-slate-400" />
+                    <X size={11} className="text-slate-400 dark:text-muted-foreground" />
                   </button>
                 </div>
               ))}
@@ -224,26 +224,26 @@ export default function SiteDocumentsClient({ siteId, initialDocuments }: SiteDo
 
       {/* Document list */}
       {documents.length === 0 && !showUpload ? (
-        <div className="bg-white rounded-lg border border-slate-200 p-8 text-center">
-          <FileText size={24} className="text-slate-300 mx-auto mb-2" />
-          <p className="text-sm text-slate-400 mb-3">No documents linked to this site yet.</p>
+        <div className="bg-white dark:bg-card rounded-lg border border-slate-200 dark:border-border p-8 text-center">
+          <FileText size={24} className="text-slate-300 dark:text-muted-foreground mx-auto mb-2" />
+          <p className="text-sm text-slate-400 dark:text-muted-foreground mb-3">No documents linked to this site yet.</p>
           <button
             onClick={() => setShowUpload(true)}
-            className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md bg-slate-900 text-white text-xs font-medium hover:bg-slate-700 transition-colors"
+            className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md bg-slate-900 dark:bg-white/15 text-white text-xs font-medium hover:bg-slate-700 dark:hover:bg-white/10 transition-colors"
           >
             <Upload size={13} />
             Upload Document
           </button>
         </div>
       ) : documents.length > 0 ? (
-        <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
+        <div className="bg-white dark:bg-card rounded-lg border border-slate-200 dark:border-border overflow-hidden">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-slate-100 bg-slate-50">
-                <th className="text-left px-4 py-2.5 font-medium text-slate-500">File Name</th>
-                <th className="text-left px-4 py-2.5 font-medium text-slate-500">Type</th>
-                <th className="text-left px-4 py-2.5 font-medium text-slate-500">Classification</th>
-                <th className="text-left px-4 py-2.5 font-medium text-slate-500">Uploaded</th>
+              <tr className="border-b border-slate-100 dark:border-border/60 bg-slate-50 dark:bg-muted/50">
+                <th className="text-left px-4 py-2.5 font-medium text-slate-500 dark:text-muted-foreground">File Name</th>
+                <th className="text-left px-4 py-2.5 font-medium text-slate-500 dark:text-muted-foreground">Type</th>
+                <th className="text-left px-4 py-2.5 font-medium text-slate-500 dark:text-muted-foreground">Classification</th>
+                <th className="text-left px-4 py-2.5 font-medium text-slate-500 dark:text-muted-foreground">Uploaded</th>
                 <th className="px-4 py-2.5 w-20" />
               </tr>
             </thead>
@@ -251,29 +251,29 @@ export default function SiteDocumentsClient({ siteId, initialDocuments }: SiteDo
               {documents.map(doc => {
                 const docType = (doc.doc_type ?? 'other') as DocType
                 return (
-                  <tr key={doc.id} className="border-b border-slate-50 hover:bg-slate-50">
+                  <tr key={doc.id} className="border-b border-slate-50 dark:border-border/40 hover:bg-slate-50 dark:hover:bg-muted/50">
                     <td className="px-4 py-2.5">
-                      <p className="font-medium text-slate-900 truncate max-w-xs">{doc.file_name}</p>
-                      {doc.file_size_bytes && <p className="text-xs text-slate-400">{formatBytes(doc.file_size_bytes)}</p>}
+                      <p className="font-medium text-slate-900 dark:text-foreground truncate max-w-xs">{doc.file_name}</p>
+                      {doc.file_size_bytes && <p className="text-xs text-slate-400 dark:text-muted-foreground">{formatBytes(doc.file_size_bytes)}</p>}
                     </td>
                     <td className="px-4 py-2.5">
                       {doc.doc_type ? (
                         <span className={`inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium ring-1 ring-inset ${DOC_TYPE_BADGE[docType] ?? DOC_TYPE_BADGE.other}`}>
                           {doc.doc_type}
                         </span>
-                      ) : <span className="text-xs text-slate-400">—</span>}
+                      ) : <span className="text-xs text-slate-400 dark:text-muted-foreground">—</span>}
                     </td>
-                    <td className="px-4 py-2.5 text-xs text-slate-500">{doc.classification ?? '—'}</td>
-                    <td className="px-4 py-2.5 text-xs text-slate-500">{formatDate(doc.uploaded_at)}</td>
+                    <td className="px-4 py-2.5 text-xs text-slate-500 dark:text-muted-foreground">{doc.classification ?? '—'}</td>
+                    <td className="px-4 py-2.5 text-xs text-slate-500 dark:text-muted-foreground">{formatDate(doc.uploaded_at)}</td>
                     <td className="px-4 py-2.5">
                       <div className="flex items-center justify-end gap-1">
                         <button
                           onClick={() => handleDownload(doc)}
                           disabled={downloading === doc.id}
-                          className="inline-flex items-center justify-center h-7 w-7 rounded hover:bg-slate-100 transition-colors disabled:opacity-50"
+                          className="inline-flex items-center justify-center h-7 w-7 rounded hover:bg-slate-100 dark:hover:bg-muted transition-colors disabled:opacity-50"
                           title="Download"
                         >
-                          {downloading === doc.id ? <Loader2 size={13} className="animate-spin text-slate-400" /> : <Download size={13} className="text-slate-400" />}
+                          {downloading === doc.id ? <Loader2 size={13} className="animate-spin text-slate-400 dark:text-muted-foreground" /> : <Download size={13} className="text-slate-400 dark:text-muted-foreground" />}
                         </button>
                         {confirmDeleteId === doc.id ? (
                           <div className="flex items-center gap-1">
@@ -281,13 +281,13 @@ export default function SiteDocumentsClient({ siteId, initialDocuments }: SiteDo
                             <button onClick={() => handleDelete(doc.id)} disabled={deletingId === doc.id} className="h-6 px-2 rounded text-xs font-medium bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 transition-colors">
                               {deletingId === doc.id ? '…' : 'Yes'}
                             </button>
-                            <button onClick={() => setConfirmDeleteId(null)} className="h-6 w-6 rounded flex items-center justify-center hover:bg-slate-100 transition-colors">
+                            <button onClick={() => setConfirmDeleteId(null)} className="h-6 w-6 rounded flex items-center justify-center hover:bg-slate-100 dark:hover:bg-muted transition-colors">
                               <X size={11} />
                             </button>
                           </div>
                         ) : (
                           <button onClick={() => setConfirmDeleteId(doc.id)} className="inline-flex items-center justify-center h-7 w-7 rounded hover:bg-red-50 transition-colors" title="Delete">
-                            <Trash2 size={13} className="text-slate-400 hover:text-red-500" />
+                            <Trash2 size={13} className="text-slate-400 dark:text-muted-foreground hover:text-red-500" />
                           </button>
                         )}
                       </div>

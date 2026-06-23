@@ -44,11 +44,11 @@ export const SECTOR_SHORT: Record<ProjectSector, string> = {
 }
 
 export const SECTOR_BADGE: Record<ProjectSector, string> = {
-  government: 'bg-blue-50 text-blue-700 ring-blue-200',
-  infrastructure: 'bg-amber-50 text-amber-700 ring-amber-200',
-  real_estate: 'bg-emerald-50 text-emerald-700 ring-emerald-200',
-  prefab: 'bg-violet-50 text-violet-700 ring-violet-200',
-  institutional: 'bg-slate-100 text-slate-600 ring-slate-200',
+  government: 'bg-blue-50 text-blue-700 ring-blue-200 dark:bg-blue-500/15 dark:text-blue-300 dark:ring-blue-500/30',
+  infrastructure: 'bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-500/15 dark:text-amber-300 dark:ring-amber-500/30',
+  real_estate: 'bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-500/15 dark:text-emerald-300 dark:ring-emerald-500/30',
+  prefab: 'bg-violet-50 text-violet-700 ring-violet-200 dark:bg-violet-500/15 dark:text-violet-300 dark:ring-violet-500/30',
+  institutional: 'bg-slate-100 text-slate-600 ring-slate-200 dark:bg-slate-400/15 dark:text-slate-300 dark:ring-slate-400/25',
 }
 
 // ─── Statuses ────────────────────────────────────────────────────────────────
@@ -66,11 +66,11 @@ export const STATUS_LABELS: Record<ProjectStatus, string> = {
 }
 
 export const STATUS_BADGE: Record<ProjectStatus, string> = {
-  active: 'bg-emerald-50 text-emerald-700 ring-emerald-200',
-  on_hold: 'bg-amber-50 text-amber-700 ring-amber-200',
-  won: 'bg-blue-50 text-blue-700 ring-blue-200',
-  lost: 'bg-red-50 text-red-600 ring-red-200',
-  closed: 'bg-slate-100 text-slate-600 ring-slate-200',
+  active: 'bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-500/15 dark:text-emerald-300 dark:ring-emerald-500/30',
+  on_hold: 'bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-500/15 dark:text-amber-300 dark:ring-amber-500/30',
+  won: 'bg-blue-50 text-blue-700 ring-blue-200 dark:bg-blue-500/15 dark:text-blue-300 dark:ring-blue-500/30',
+  lost: 'bg-red-50 text-red-600 ring-red-200 dark:bg-red-500/15 dark:text-red-300 dark:ring-red-500/30',
+  closed: 'bg-slate-100 text-slate-600 ring-slate-200 dark:bg-slate-400/15 dark:text-slate-300 dark:ring-slate-400/25',
 }
 
 // ─── Stages ──────────────────────────────────────────────────────────────────
@@ -100,13 +100,13 @@ export const STAGE_INDEX: Record<ProjectStage, number> = {
 }
 
 export const STAGE_BADGE: Record<ProjectStage, string> = {
-  pursuit: 'bg-slate-100 text-slate-600 ring-slate-200',
-  capture: 'bg-violet-50 text-violet-700 ring-violet-200',
-  bid: 'bg-amber-50 text-amber-700 ring-amber-200',
-  award: 'bg-blue-50 text-blue-700 ring-blue-200',
-  mobilization: 'bg-cyan-50 text-cyan-700 ring-cyan-200',
-  execution: 'bg-emerald-50 text-emerald-700 ring-emerald-200',
-  closeout: 'bg-indigo-50 text-indigo-700 ring-indigo-200',
+  pursuit: 'bg-slate-100 text-slate-600 ring-slate-200 dark:bg-slate-400/15 dark:text-slate-300 dark:ring-slate-400/25',
+  capture: 'bg-violet-50 text-violet-700 ring-violet-200 dark:bg-violet-500/15 dark:text-violet-300 dark:ring-violet-500/30',
+  bid: 'bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-500/15 dark:text-amber-300 dark:ring-amber-500/30',
+  award: 'bg-blue-50 text-blue-700 ring-blue-200 dark:bg-blue-500/15 dark:text-blue-300 dark:ring-blue-500/30',
+  mobilization: 'bg-cyan-50 text-cyan-700 ring-cyan-200 dark:bg-cyan-500/15 dark:text-cyan-300 dark:ring-cyan-500/30',
+  execution: 'bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-500/15 dark:text-emerald-300 dark:ring-emerald-500/30',
+  closeout: 'bg-indigo-50 text-indigo-700 ring-indigo-200 dark:bg-indigo-500/15 dark:text-indigo-300 dark:ring-indigo-500/30',
 }
 
 export const STAGE_COLOR: Record<ProjectStage, string> = {
@@ -141,10 +141,10 @@ export const SEVERITY_LABELS: Record<DdSeverity, string> = {
 }
 
 export const SEVERITY_BADGE: Record<DdSeverity, string> = {
-  info: 'bg-slate-50 text-slate-600 ring-slate-200',
-  watch: 'bg-amber-50 text-amber-700 ring-amber-200',
-  critical: 'bg-orange-50 text-orange-700 ring-orange-200',
-  blocker: 'bg-red-100 text-red-700 ring-red-200',
+  info: 'bg-slate-50 text-slate-600 ring-slate-200 dark:bg-slate-400/15 dark:text-slate-300 dark:ring-slate-400/25',
+  watch: 'bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-500/15 dark:text-amber-300 dark:ring-amber-500/30',
+  critical: 'bg-orange-50 text-orange-700 ring-orange-200 dark:bg-orange-500/15 dark:text-orange-300 dark:ring-orange-500/30',
+  blocker: 'bg-red-100 text-red-700 ring-red-200 dark:bg-red-500/20 dark:text-red-300 dark:ring-red-500/35',
 }
 
 // ─── Entity Types ────────────────────────────────────────────────────────────
@@ -164,13 +164,13 @@ export const ENTITY_TYPE_LABELS: Record<EntityType, string> = {
 }
 
 export const ENTITY_TYPE_BADGE: Record<EntityType, string> = {
-  llc: 'bg-blue-50 text-blue-700 ring-blue-200',
-  corp: 'bg-violet-50 text-violet-700 ring-violet-200',
-  jv: 'bg-emerald-50 text-emerald-700 ring-emerald-200',
-  subsidiary: 'bg-amber-50 text-amber-700 ring-amber-200',
-  trust: 'bg-rose-50 text-rose-700 ring-rose-200',
-  fund: 'bg-indigo-50 text-indigo-700 ring-indigo-200',
-  other: 'bg-slate-50 text-slate-600 ring-slate-200',
+  llc: 'bg-blue-50 text-blue-700 ring-blue-200 dark:bg-blue-500/15 dark:text-blue-300 dark:ring-blue-500/30',
+  corp: 'bg-violet-50 text-violet-700 ring-violet-200 dark:bg-violet-500/15 dark:text-violet-300 dark:ring-violet-500/30',
+  jv: 'bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-500/15 dark:text-emerald-300 dark:ring-emerald-500/30',
+  subsidiary: 'bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-500/15 dark:text-amber-300 dark:ring-amber-500/30',
+  trust: 'bg-rose-50 text-rose-700 ring-rose-200 dark:bg-rose-500/15 dark:text-rose-300 dark:ring-rose-500/30',
+  fund: 'bg-indigo-50 text-indigo-700 ring-indigo-200 dark:bg-indigo-500/15 dark:text-indigo-300 dark:ring-indigo-500/30',
+  other: 'bg-slate-50 text-slate-600 ring-slate-200 dark:bg-slate-400/15 dark:text-slate-300 dark:ring-slate-400/25',
 }
 
 // ─── Compliance Status ───────────────────────────────────────────────────────
@@ -203,9 +203,9 @@ export const ACTIVITY_TABLE_LABELS: Record<string, string> = {
 }
 
 export const ACTIVITY_ACTION_STYLES: Record<string, string> = {
-  INSERT: 'bg-emerald-50 text-emerald-700 ring-emerald-200',
-  UPDATE: 'bg-blue-50 text-blue-700 ring-blue-200',
-  DELETE: 'bg-red-50 text-red-600 ring-red-200',
+  INSERT: 'bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-500/15 dark:text-emerald-300 dark:ring-emerald-500/30',
+  UPDATE: 'bg-blue-50 text-blue-700 ring-blue-200 dark:bg-blue-500/15 dark:text-blue-300 dark:ring-blue-500/30',
+  DELETE: 'bg-red-50 text-red-600 ring-red-200 dark:bg-red-500/15 dark:text-red-300 dark:ring-red-500/30',
 }
 
 // ─── Entity Relationships ────────────────────────────────────────────────────

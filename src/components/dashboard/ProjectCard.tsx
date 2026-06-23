@@ -73,7 +73,7 @@ function highlightText(text: string, query?: string): React.ReactNode {
   while (at !== -1) {
     if (at > from) out.push(text.slice(from, at))
     out.push(
-      <mark key={key++} className="rounded bg-yellow-200/70 text-foreground px-0.5">
+      <mark key={key++} className="rounded bg-yellow-200/70 dark:bg-yellow-400/25 text-foreground px-0.5">
         {text.slice(at, at + needle.length)}
       </mark>
     )
@@ -159,7 +159,7 @@ export default function ProjectCard({ project, counts, isProgram, parentName, hi
             </span>
           )}
           {isProgram && (
-            <span className="inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-xs font-medium ring-1 ring-inset bg-violet-50 text-violet-700 ring-violet-200">
+            <span className="inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-xs font-medium ring-1 ring-inset bg-violet-50 text-violet-700 ring-violet-200 dark:bg-violet-500/15 dark:text-violet-300 dark:ring-violet-500/30">
               <Layers size={10} />
               Program
             </span>

@@ -241,7 +241,7 @@ export default function StakeholdersClient({
             {Object.entries(tempCounts).map(([temp, count]) => (
               <span
                 key={temp}
-                className={`inline-flex items-center rounded-md px-2.5 py-1 text-xs font-medium ring-1 ring-inset ${TEMPERATURE_BADGE[temp as keyof typeof TEMPERATURE_BADGE] ?? 'bg-slate-50 text-slate-500 ring-slate-200'}`}
+                className={`inline-flex items-center rounded-md px-2.5 py-1 text-xs font-medium ring-1 ring-inset ${TEMPERATURE_BADGE[temp as keyof typeof TEMPERATURE_BADGE] ?? 'bg-slate-50 dark:bg-muted/50 text-slate-500 dark:text-muted-foreground ring-slate-200 dark:ring-border'}`}
               >
                 {TEMPERATURE_LABELS[temp as keyof typeof TEMPERATURE_LABELS] ?? temp}: {count}
               </span>
@@ -250,7 +250,7 @@ export default function StakeholdersClient({
         )}
         <button
           onClick={() => setAddOpen(true)}
-          className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md bg-slate-900 text-white text-xs font-medium hover:bg-slate-700 transition-colors shrink-0 ml-auto"
+          className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md bg-slate-900 dark:bg-white/15 text-white text-xs font-medium hover:bg-slate-700 dark:hover:bg-white/10 transition-colors shrink-0 ml-auto"
         >
           <Plus size={13} />
           Add Stakeholder
@@ -259,11 +259,11 @@ export default function StakeholdersClient({
 
       {/* Stakeholder cards */}
       {stakeholders.length === 0 ? (
-        <div className="bg-white rounded-lg border border-slate-200 p-8 text-center">
-          <p className="text-sm text-slate-400 mb-3">No stakeholders linked to this site yet.</p>
+        <div className="bg-white dark:bg-card rounded-lg border border-slate-200 dark:border-border p-8 text-center">
+          <p className="text-sm text-slate-400 dark:text-muted-foreground mb-3">No stakeholders linked to this site yet.</p>
           <button
             onClick={() => setAddOpen(true)}
-            className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md bg-slate-900 text-white text-xs font-medium hover:bg-slate-700 transition-colors"
+            className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md bg-slate-900 dark:bg-white/15 text-white text-xs font-medium hover:bg-slate-700 dark:hover:bg-white/10 transition-colors"
           >
             <Plus size={13} />
             Add Stakeholder
@@ -275,32 +275,32 @@ export default function StakeholdersClient({
             const party = sr.party
             const srInteractions = interactions[sr.id] ?? []
             return (
-              <div key={sr.id} className="bg-white rounded-lg border border-slate-200 p-4">
+              <div key={sr.id} className="bg-white dark:bg-card rounded-lg border border-slate-200 dark:border-border p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <h3 className="text-sm font-semibold text-slate-900">{party?.full_name ?? 'Unknown'}</h3>
-                    <p className="text-xs text-slate-500 mt-0.5">
+                    <h3 className="text-sm font-semibold text-slate-900 dark:text-foreground">{party?.full_name ?? 'Unknown'}</h3>
+                    <p className="text-xs text-slate-500 dark:text-muted-foreground mt-0.5">
                       {[party?.title, party?.company].filter(Boolean).join(' at ')}
                     </p>
-                    {sr.role && <p className="text-xs text-slate-500 mt-1">{sr.role}</p>}
+                    {sr.role && <p className="text-xs text-slate-500 dark:text-muted-foreground mt-1">{sr.role}</p>}
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
-                    <span className={`inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ring-1 ring-inset ${TEMPERATURE_BADGE[sr.temperature as keyof typeof TEMPERATURE_BADGE] ?? 'bg-slate-50 text-slate-500 ring-slate-200'}`}>
+                    <span className={`inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ring-1 ring-inset ${TEMPERATURE_BADGE[sr.temperature as keyof typeof TEMPERATURE_BADGE] ?? 'bg-slate-50 dark:bg-muted/50 text-slate-500 dark:text-muted-foreground ring-slate-200 dark:ring-border'}`}>
                       {TEMPERATURE_LABELS[sr.temperature as keyof typeof TEMPERATURE_LABELS] ?? sr.temperature}
                     </span>
                     <button
                       onClick={() => openLogInteraction(sr)}
-                      className="inline-flex items-center justify-center h-7 w-7 rounded hover:bg-slate-100 transition-colors"
+                      className="inline-flex items-center justify-center h-7 w-7 rounded hover:bg-slate-100 dark:hover:bg-muted transition-colors"
                       title="Log interaction"
                     >
-                      <MessageSquarePlus size={14} className="text-slate-400" />
+                      <MessageSquarePlus size={14} className="text-slate-400 dark:text-muted-foreground" />
                     </button>
                     <button
                       onClick={() => openEdit(sr)}
-                      className="inline-flex items-center justify-center h-7 w-7 rounded hover:bg-slate-100 transition-colors"
+                      className="inline-flex items-center justify-center h-7 w-7 rounded hover:bg-slate-100 dark:hover:bg-muted transition-colors"
                       title="Edit"
                     >
-                      <Pencil size={14} className="text-slate-400" />
+                      <Pencil size={14} className="text-slate-400 dark:text-muted-foreground" />
                     </button>
                     {confirmDeleteId === sr.id ? (
                       <div className="flex items-center gap-1">
@@ -314,7 +314,7 @@ export default function StakeholdersClient({
                         </button>
                         <button
                           onClick={() => setConfirmDeleteId(null)}
-                          className="h-6 w-6 rounded flex items-center justify-center hover:bg-slate-100 transition-colors"
+                          className="h-6 w-6 rounded flex items-center justify-center hover:bg-slate-100 dark:hover:bg-muted transition-colors"
                         >
                           <X size={11} />
                         </button>
@@ -325,32 +325,32 @@ export default function StakeholdersClient({
                         className="inline-flex items-center justify-center h-7 w-7 rounded hover:bg-red-50 transition-colors"
                         title="Remove"
                       >
-                        <Trash2 size={14} className="text-slate-400 hover:text-red-500" />
+                        <Trash2 size={14} className="text-slate-400 dark:text-muted-foreground hover:text-red-500" />
                       </button>
                     )}
                   </div>
                 </div>
 
                 {(party?.email || party?.phone) && (
-                  <div className="flex gap-4 mt-2 text-xs text-slate-500">
+                  <div className="flex gap-4 mt-2 text-xs text-slate-500 dark:text-muted-foreground">
                     {party?.email && <span>{party.email}</span>}
                     {party?.phone && <span>{party.phone}</span>}
                   </div>
                 )}
 
                 {srInteractions.length > 0 && (
-                  <div className="mt-3 border-t border-slate-100 pt-2.5">
-                    <p className="text-xs uppercase tracking-wider text-slate-400 font-medium mb-1.5">Recent Interactions</p>
+                  <div className="mt-3 border-t border-slate-100 dark:border-border/60 pt-2.5">
+                    <p className="text-xs uppercase tracking-wider text-slate-400 dark:text-muted-foreground font-medium mb-1.5">Recent Interactions</p>
                     <div className="space-y-1.5">
                       {srInteractions.slice(0, 3).map(i => (
                         <div key={i.id} className="flex items-start gap-2 text-xs">
-                          <span className="text-slate-400 shrink-0 w-16">{formatDate(i.interaction_date)}</span>
-                          <span className="text-slate-400 shrink-0 capitalize">{i.medium}</span>
-                          <span className="text-slate-600 truncate">{i.summary}</span>
+                          <span className="text-slate-400 dark:text-muted-foreground shrink-0 w-16">{formatDate(i.interaction_date)}</span>
+                          <span className="text-slate-400 dark:text-muted-foreground shrink-0 capitalize">{i.medium}</span>
+                          <span className="text-slate-600 dark:text-slate-300 truncate">{i.summary}</span>
                         </div>
                       ))}
                       {srInteractions.length > 3 && (
-                        <p className="text-xs text-slate-400">+ {srInteractions.length - 3} more</p>
+                        <p className="text-xs text-slate-400 dark:text-muted-foreground">+ {srInteractions.length - 3} more</p>
                       )}
                     </div>
                   </div>
@@ -450,7 +450,7 @@ export default function StakeholdersClient({
             <button
               onClick={handleAddStakeholder}
               disabled={!selected || addSaving}
-              className="inline-flex items-center gap-1.5 h-9 px-4 rounded-md bg-slate-900 text-white text-sm font-medium hover:bg-slate-700 disabled:opacity-50 transition-colors"
+              className="inline-flex items-center gap-1.5 h-9 px-4 rounded-md bg-slate-900 dark:bg-white/15 text-white text-sm font-medium hover:bg-slate-700 dark:hover:bg-white/10 disabled:opacity-50 transition-colors"
             >
               {addSaving ? <Loader2 size={14} className="animate-spin" /> : null}
               Add Stakeholder
@@ -497,7 +497,7 @@ export default function StakeholdersClient({
             <button onClick={() => setEditOpen(false)} disabled={editSaving} className="inline-flex items-center gap-1 h-9 px-4 rounded-md border border-input text-sm font-medium hover:bg-accent disabled:opacity-50 transition-colors">
               Cancel
             </button>
-            <button onClick={handleEditSave} disabled={editSaving} className="inline-flex items-center gap-1.5 h-9 px-4 rounded-md bg-slate-900 text-white text-sm font-medium hover:bg-slate-700 disabled:opacity-50 transition-colors">
+            <button onClick={handleEditSave} disabled={editSaving} className="inline-flex items-center gap-1.5 h-9 px-4 rounded-md bg-slate-900 dark:bg-white/15 text-white text-sm font-medium hover:bg-slate-700 dark:hover:bg-white/10 disabled:opacity-50 transition-colors">
               {editSaving ? <Loader2 size={14} className="animate-spin" /> : null}
               Save Changes
             </button>
@@ -556,7 +556,7 @@ export default function StakeholdersClient({
             <button
               onClick={handleLogInteraction}
               disabled={!logSummary.trim() || logSaving}
-              className="inline-flex items-center gap-1.5 h-9 px-4 rounded-md bg-slate-900 text-white text-sm font-medium hover:bg-slate-700 disabled:opacity-50 transition-colors"
+              className="inline-flex items-center gap-1.5 h-9 px-4 rounded-md bg-slate-900 dark:bg-white/15 text-white text-sm font-medium hover:bg-slate-700 dark:hover:bg-white/10 disabled:opacity-50 transition-colors"
             >
               {logSaving ? <Loader2 size={14} className="animate-spin" /> : null}
               Log Interaction

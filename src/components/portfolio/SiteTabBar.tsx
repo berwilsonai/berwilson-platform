@@ -17,7 +17,7 @@ export default function SiteTabBar({ siteId }: { siteId: string }) {
   const base = `/portfolio/sites/${siteId}`
 
   return (
-    <div className="border-b border-slate-200">
+    <div className="border-b border-slate-200 dark:border-border">
       <nav className="flex gap-0 -mb-px overflow-x-auto">
         {TABS.map(({ label, segment }) => {
           const href = segment ? `${base}/${segment}` : base
@@ -30,8 +30,8 @@ export default function SiteTabBar({ siteId }: { siteId: string }) {
               href={href}
               className={`shrink-0 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
                 isActive
-                  ? 'border-slate-900 text-slate-900'
-                  : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
+                  ? 'border-slate-900 dark:border-white/20 text-slate-900 dark:text-foreground'
+                  : 'border-transparent text-slate-500 dark:text-muted-foreground hover:text-slate-700 dark:hover:text-slate-200 hover:border-slate-300 dark:hover:border-border'
               }`}
             >
               {label}
