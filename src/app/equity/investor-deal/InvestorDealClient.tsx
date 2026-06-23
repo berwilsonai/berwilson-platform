@@ -133,7 +133,7 @@ export default function InvestorDealClient() {
                   </span>
                 </div>
                 {isOverCap && (
-                  <p className="text-xs text-amber-600">
+                  <p className="text-xs text-amber-600 dark:text-amber-400">
                     Above {formatCurrencyCompact(sweetSpotMax)} exceeds {(investorDeal.maxParentEquityFromInvestment * 100).toFixed(0)}% parent cap.
                     Excess would come in as subsidiary-level preferred equity.
                   </p>
@@ -381,7 +381,7 @@ export default function InvestorDealClient() {
                 <p className="text-xs uppercase tracking-wide text-muted-foreground mb-1">
                   Total Package (Year 5)
                 </p>
-                <p className="text-2xl font-bold text-amber-600">
+                <p className="text-2xl font-bold text-amber-600 dark:text-amber-400">
                   {formatCurrencyCompact(result.totalPackageYear5)}
                 </p>
               </CardContent>
@@ -433,10 +433,10 @@ export default function InvestorDealClient() {
                     <TableCell className="text-xs text-right font-bold">
                       {formatCurrency(result.totalPackageYear0)}
                     </TableCell>
-                    <TableCell className="text-xs text-right font-bold text-amber-600">
+                    <TableCell className="text-xs text-right font-bold text-amber-600 dark:text-amber-400">
                       {formatCurrency(result.totalPackageYear5)}
                     </TableCell>
-                    <TableCell className="text-xs text-right font-bold text-amber-600">
+                    <TableCell className="text-xs text-right font-bold text-amber-600 dark:text-amber-400">
                       {formatCurrency(result.totalPackageYear10)}
                     </TableCell>
                   </TableRow>
@@ -461,17 +461,17 @@ export default function InvestorDealClient() {
                       onClick={() => setInvestorDeal({ investmentAmount: amt })}
                       className={`flex items-center justify-between w-full px-3 py-2 rounded-md text-xs transition-colors ${
                         amt === investorDeal.investmentAmount
-                          ? 'bg-amber-50 border border-amber-200'
+                          ? 'bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60'
                           : 'bg-muted/30 hover:bg-muted/50'
                       }`}
                     >
                       <span className="font-medium">{formatCurrencyCompact(amt)}</span>
                       <span className="text-muted-foreground">&rarr;</span>
-                      <span className={`font-medium ${underCap ? 'text-emerald-600' : 'text-amber-600'}`}>
+                      <span className={`font-medium ${underCap ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'}`}>
                         {formatPercentDisplay(pct)} equity
                       </span>
                       {!underCap && (
-                        <span className="text-xs text-amber-500">exceeds cap</span>
+                        <span className="text-xs text-amber-500 dark:text-amber-400">exceeds cap</span>
                       )}
                     </button>
                   )

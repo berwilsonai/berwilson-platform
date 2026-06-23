@@ -136,11 +136,11 @@ export default async function ProjectOverviewPage({ params }: PageProps) {
       {/* Parent breadcrumb for child projects */}
       {parentProject && (
         <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-          <Layers size={12} className="text-violet-500" />
+          <Layers size={12} className="text-violet-500 dark:text-violet-400" />
           <span>Part of</span>
           <Link
             href={`/projects/${parentProject.id}`}
-            className="font-medium text-violet-600 hover:text-violet-800 transition-colors"
+            className="font-medium text-violet-600 dark:text-violet-400 hover:text-violet-800 dark:hover:text-violet-300 transition-colors"
           >
             {parentProject.name}
           </Link>
@@ -188,7 +188,7 @@ export default async function ProjectOverviewPage({ params }: PageProps) {
           <div className="flex items-center justify-between">
             <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               <span className="inline-flex items-center gap-1">
-                <Layers size={12} className="text-violet-500" />
+                <Layers size={12} className="text-violet-500 dark:text-violet-400" />
                 Sub-Projects ({(childProjects ?? []).length})
               </span>
             </h2>
@@ -215,7 +215,7 @@ export default async function ProjectOverviewPage({ params }: PageProps) {
                 >
                   {SECTOR_SHORT[child.sector]}
                 </span>
-                <span className="text-sm font-medium text-foreground flex-1 truncate group-hover:text-blue-600 transition-colors">
+                <span className="text-sm font-medium text-foreground flex-1 truncate group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
                   {child.name}
                 </span>
                 {child.stage && (
@@ -285,7 +285,7 @@ export default async function ProjectOverviewPage({ params }: PageProps) {
                     {competitors.map((c) => (
                       <span
                         key={c}
-                        className="inline-flex items-center rounded-full bg-slate-100 text-slate-700 ring-1 ring-inset ring-slate-200 px-2 py-0.5 text-xs font-medium"
+                        className="inline-flex items-center rounded-full bg-slate-100 dark:bg-slate-900/40 text-slate-700 dark:text-slate-300 ring-1 ring-inset ring-slate-200 dark:ring-slate-800/60 px-2 py-0.5 text-xs font-medium"
                       >
                         {c}
                       </span>
@@ -324,7 +324,7 @@ export default async function ProjectOverviewPage({ params }: PageProps) {
                   <span
                     className={cn(
                       'inline-flex shrink-0 items-center rounded px-1.5 py-0.5 text-xs font-semibold ring-1 ring-inset mt-0.5',
-                      FEDERAL_STANDARD_BADGE[std] ?? 'bg-slate-100 text-slate-600 ring-slate-200'
+                      FEDERAL_STANDARD_BADGE[std] ?? 'bg-slate-100 dark:bg-slate-900/40 text-slate-600 dark:text-slate-400 ring-slate-200 dark:ring-slate-800/60'
                     )}
                   >
                     {std === 'usace_qm' ? 'USACE QM' : 'DoD 385'}
@@ -423,7 +423,7 @@ export default async function ProjectOverviewPage({ params }: PageProps) {
               <tbody className="divide-y divide-border">
                 {typedLogs.map((log) => {
                   const link = activityRecordLink(log.table_name, log.record_id, id)
-                  const actionStyle = ACTIVITY_ACTION_STYLES[log.action] ?? 'bg-slate-50 text-slate-600 ring-slate-200'
+                  const actionStyle = ACTIVITY_ACTION_STYLES[log.action] ?? 'bg-slate-50 dark:bg-slate-950/40 text-slate-600 dark:text-slate-400 ring-slate-200 dark:ring-slate-800/60'
                   return (
                     <tr key={log.id} className="hover:bg-muted/30 transition-colors">
                       <td className="py-2 px-3 font-mono text-muted-foreground whitespace-nowrap w-36">
@@ -445,7 +445,7 @@ export default async function ProjectOverviewPage({ params }: PageProps) {
                           <div className="mt-0.5">
                             {Object.entries(log.field_changes as Record<string, { old: unknown; new: unknown }>).map(([field, change]) => (
                               <span key={field} className="text-xs text-foreground/70">
-                                {field}: <span className="line-through text-red-500/70">{String(change.old ?? '—')}</span> → <span className="text-emerald-600">{String(change.new ?? '—')}</span>
+                                {field}: <span className="line-through text-red-500/70 dark:text-red-400">{String(change.old ?? '—')}</span> → <span className="text-emerald-600 dark:text-emerald-400">{String(change.new ?? '—')}</span>
                               </span>
                             ))}
                           </div>

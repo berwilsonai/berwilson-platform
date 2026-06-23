@@ -174,7 +174,7 @@ export default function MilestonesTab({
                 <div
                   className={cn(
                     'flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap',
-                    isPast && 'bg-emerald-100 text-emerald-700',
+                    isPast && 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300',
                     isCurrent && 'bg-emerald-600 text-white',
                     !isPast && !isCurrent && 'bg-muted text-muted-foreground'
                   )}
@@ -201,9 +201,9 @@ export default function MilestonesTab({
 
       {/* ── Advance stage suggestion ── */}
       {allCurrentComplete && nextStage && (
-        <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 flex items-center justify-between gap-4 flex-wrap">
-          <div className="flex items-center gap-2 text-sm text-emerald-800 min-w-0">
-            <Check size={15} className="text-emerald-600 shrink-0" />
+        <div className="rounded-lg border border-emerald-200 dark:border-emerald-800/60 bg-emerald-50 dark:bg-emerald-950/40 px-4 py-3 flex items-center justify-between gap-4 flex-wrap">
+          <div className="flex items-center gap-2 text-sm text-emerald-800 dark:text-emerald-300 min-w-0">
+            <Check size={15} className="text-emerald-600 dark:text-emerald-400 shrink-0" />
             <span>
               All milestones in <strong>{STAGE_LABELS[currentStage]}</strong> are
               complete. Ready to advance to{' '}
@@ -220,7 +220,7 @@ export default function MilestonesTab({
             </button>
           ) : (
             <div className="flex items-center gap-2 shrink-0 flex-wrap">
-              <span className="text-xs text-emerald-700 font-medium">
+              <span className="text-xs text-emerald-700 dark:text-emerald-300 font-medium">
                 Confirm advance to {STAGE_LABELS[nextStage]}?
               </span>
               <button
@@ -247,7 +247,7 @@ export default function MilestonesTab({
         </div>
       )}
 
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
 
       {/* ── Stage columns ── */}
       <div className="overflow-x-auto -mx-1 px-1 pb-3">
@@ -266,7 +266,7 @@ export default function MilestonesTab({
                 key={stage}
                 className={cn(
                   'w-56 rounded-lg border flex flex-col',
-                  isCurrent && 'border-emerald-300 ring-1 ring-emerald-200 shadow-sm',
+                  isCurrent && 'border-emerald-300 dark:border-emerald-700/60 ring-1 ring-emerald-200 dark:ring-emerald-800/60 shadow-sm',
                   (isPast || isFuture) && 'border-border'
                 )}
               >
@@ -274,8 +274,8 @@ export default function MilestonesTab({
                 <div
                   className={cn(
                     'flex items-center justify-between px-3 py-2 rounded-t-lg border-b',
-                    isCurrent && 'bg-emerald-50 border-emerald-200',
-                    isPast && 'bg-slate-50 border-border',
+                    isCurrent && 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800/60',
+                    isPast && 'bg-slate-50 dark:bg-slate-950/40 border-border',
                     isFuture && 'bg-muted border-border'
                   )}
                 >
@@ -284,7 +284,7 @@ export default function MilestonesTab({
                       className={cn(
                         'inline-flex items-center justify-center w-5 h-5 rounded-full text-xs font-bold shrink-0',
                         isCurrent && 'bg-emerald-600 text-white',
-                        isPast && 'bg-emerald-100 text-emerald-700',
+                        isPast && 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300',
                         isFuture && 'bg-muted-foreground/20 text-muted-foreground'
                       )}
                     >
@@ -293,8 +293,8 @@ export default function MilestonesTab({
                     <span
                       className={cn(
                         'text-xs font-semibold truncate',
-                        isCurrent && 'text-emerald-800',
-                        isPast && 'text-slate-600',
+                        isCurrent && 'text-emerald-800 dark:text-emerald-300',
+                        isPast && 'text-slate-600 dark:text-slate-400',
                         isFuture && 'text-muted-foreground'
                       )}
                     >
@@ -306,7 +306,7 @@ export default function MilestonesTab({
                       className={cn(
                         'text-xs shrink-0 tabular-nums',
                         completed === total
-                          ? 'text-emerald-600 font-semibold'
+                          ? 'text-emerald-600 dark:text-emerald-400 font-semibold'
                           : 'text-muted-foreground'
                       )}
                     >

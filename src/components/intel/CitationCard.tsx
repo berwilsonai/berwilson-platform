@@ -18,10 +18,10 @@ export default function CitationCard({ chunk }: Props) {
   const confidencePct = Math.round(chunk.source_confidence * 100)
   const confidenceColor =
     chunk.source_confidence >= 0.8
-      ? 'text-emerald-600'
+      ? 'text-emerald-600 dark:text-emerald-400'
       : chunk.source_confidence >= 0.5
-        ? 'text-amber-600'
-        : 'text-red-500'
+        ? 'text-amber-600 dark:text-amber-400'
+        : 'text-red-500 dark:text-red-400'
 
   // Show a short preview (first 120 chars)
   const preview = chunk.content.slice(0, 120).trim() + (chunk.content.length > 120 ? '…' : '')

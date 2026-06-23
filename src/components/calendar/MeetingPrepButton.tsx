@@ -43,7 +43,7 @@ export default function MeetingPrepButton({ subject, date, attendees }: MeetingP
       <button
         onClick={(e) => { e.preventDefault(); e.stopPropagation(); brief ? setOpen(true) : generate() }}
         disabled={loading}
-        className="shrink-0 inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium text-indigo-600 bg-indigo-50 ring-1 ring-indigo-200 hover:bg-indigo-100 transition-colors disabled:opacity-50"
+        className="shrink-0 inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/40 ring-1 ring-indigo-200 dark:ring-indigo-800/60 hover:bg-indigo-100 dark:hover:bg-indigo-900/40 transition-colors disabled:opacity-50"
         title="Generate meeting prep brief"
       >
         {loading ? <RefreshCw size={10} className="animate-spin" /> : <Sparkles size={10} />}
@@ -61,7 +61,7 @@ export default function MeetingPrepButton({ subject, date, attendees }: MeetingP
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center gap-2 px-4 py-3 border-b border-border">
-              <Sparkles size={14} className="text-indigo-600" />
+              <Sparkles size={14} className="text-indigo-600 dark:text-indigo-400" />
               <h3 className="text-sm font-semibold text-foreground flex-1">Meeting Prep: {subject}</h3>
               <button onClick={() => setOpen(false)} className="p-1 text-muted-foreground hover:text-foreground">
                 <X size={14} />
@@ -77,7 +77,7 @@ export default function MeetingPrepButton({ subject, date, attendees }: MeetingP
       )}
 
       {error && (
-        <span className="text-xs text-red-500 ml-1">{error}</span>
+        <span className="text-xs text-red-500 dark:text-red-400 ml-1">{error}</span>
       )}
     </>
   )

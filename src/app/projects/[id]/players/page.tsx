@@ -149,7 +149,7 @@ export default async function PlayersPage({ params }: PageProps) {
                       {player.is_primary && (
                         <Star
                           size={11}
-                          className="text-amber-500 fill-amber-400 shrink-0"
+                          className="text-amber-500 dark:text-amber-400 fill-amber-400 shrink-0"
                           aria-label="Primary contact"
                         />
                       )}

@@ -199,16 +199,16 @@ export default function VendorProfileClient({
                         <td className="px-3 py-2">
                           {review ? (
                             <div className="flex items-center gap-1">
-                              <Star size={10} className="text-amber-500 fill-amber-500" />
+                              <Star size={10} className="text-amber-500 dark:text-amber-400 fill-amber-500" />
                               <span>{Number(review.rating).toFixed(1)}</span>
                               {review.on_time !== null && (
                                 review.on_time
-                                  ? <CheckCircle2 size={10} className="text-green-500 ml-1" />
+                                  ? <CheckCircle2 size={10} className="text-green-500 dark:text-green-400 ml-1" />
                                   : <XCircle size={10} className="text-red-400 ml-1" />
                               )}
                               {review.on_budget !== null && (
                                 review.on_budget
-                                  ? <CheckCircle2 size={10} className="text-green-500" />
+                                  ? <CheckCircle2 size={10} className="text-green-500 dark:text-green-400" />
                                   : <XCircle size={10} className="text-red-400" />
                               )}
                             </div>
@@ -262,7 +262,7 @@ export default function VendorProfileClient({
                             size={12}
                             className={cn(
                               i <= Math.round(Number(review.rating))
-                                ? 'text-amber-500 fill-amber-500'
+                                ? 'text-amber-500 dark:text-amber-400 fill-amber-500'
                                 : 'text-muted-foreground/30'
                             )}
                           />
@@ -294,19 +294,19 @@ export default function VendorProfileClient({
                   {/* Indicators */}
                   <div className="flex items-center gap-3 mt-2">
                     {review.on_time !== null && (
-                      <span className={cn('inline-flex items-center gap-1 text-xs', review.on_time ? 'text-green-600' : 'text-red-500')}>
+                      <span className={cn('inline-flex items-center gap-1 text-xs', review.on_time ? 'text-green-600 dark:text-green-400' : 'text-red-500 dark:text-red-400')}>
                         {review.on_time ? <CheckCircle2 size={10} /> : <XCircle size={10} />}
                         {review.on_time ? 'On time' : 'Late'}
                       </span>
                     )}
                     {review.on_budget !== null && (
-                      <span className={cn('inline-flex items-center gap-1 text-xs', review.on_budget ? 'text-green-600' : 'text-red-500')}>
+                      <span className={cn('inline-flex items-center gap-1 text-xs', review.on_budget ? 'text-green-600 dark:text-green-400' : 'text-red-500 dark:text-red-400')}>
                         {review.on_budget ? <CheckCircle2 size={10} /> : <XCircle size={10} />}
                         {review.on_budget ? 'On budget' : 'Over budget'}
                       </span>
                     )}
                     {review.would_rehire !== null && (
-                      <span className={cn('inline-flex items-center gap-1 text-xs', review.would_rehire ? 'text-green-600' : 'text-red-500')}>
+                      <span className={cn('inline-flex items-center gap-1 text-xs', review.would_rehire ? 'text-green-600 dark:text-green-400' : 'text-red-500 dark:text-red-400')}>
                         {review.would_rehire ? <CheckCircle2 size={10} /> : <XCircle size={10} />}
                         {review.would_rehire ? 'Would rehire' : 'Would not rehire'}
                       </span>

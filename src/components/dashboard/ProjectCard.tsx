@@ -203,12 +203,12 @@ export default function ProjectCard({ project, counts, isProgram, parentName, hi
             className={cn(
               'flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-semibold ring-1 ring-inset',
               bidDueDays != null && bidDueDays < 0
-                ? 'bg-red-50 ring-red-200'
+                ? 'bg-red-50 dark:bg-red-950/40 ring-red-200 dark:ring-red-800/60'
                 : bidDueDays != null && bidDueDays <= 7
-                  ? 'bg-red-50 ring-red-200'
+                  ? 'bg-red-50 dark:bg-red-950/40 ring-red-200 dark:ring-red-800/60'
                   : bidDueDays != null && bidDueDays <= 21
-                    ? 'bg-amber-50 ring-amber-200'
-                    : 'bg-slate-50 ring-slate-200',
+                    ? 'bg-amber-50 dark:bg-amber-950/40 ring-amber-200 dark:ring-amber-800/60'
+                    : 'bg-slate-50 dark:bg-slate-950/40 ring-slate-200 dark:ring-slate-800/60',
               bidDueColor(bidDue)
             )}
           >
@@ -224,13 +224,13 @@ export default function ProjectCard({ project, counts, isProgram, parentName, hi
         {counts && (counts.actionCount > 0 || counts.waitingCount > 0 || counts.riskCount > 0) && (
           <div className="flex items-center gap-3">
             {counts.actionCount > 0 && (
-              <span className="flex items-center gap-1 text-xs text-slate-600">
+              <span className="flex items-center gap-1 text-xs text-slate-600 dark:text-slate-400">
                 <CheckSquare size={11} className="shrink-0" />
                 {counts.actionCount} action{counts.actionCount !== 1 ? 's' : ''}
               </span>
             )}
             {counts.waitingCount > 0 && (
-              <span className="flex items-center gap-1 text-xs text-amber-600">
+              <span className="flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400">
                 <Clock size={11} className="shrink-0" />
                 {counts.waitingCount} waiting
               </span>
@@ -238,7 +238,7 @@ export default function ProjectCard({ project, counts, isProgram, parentName, hi
             {counts.riskCount > 0 && (
               <span className={cn(
                 'flex items-center gap-1 text-xs font-medium',
-                counts.hasCriticalRisk ? 'text-red-600' : 'text-amber-600'
+                counts.hasCriticalRisk ? 'text-red-600 dark:text-red-400' : 'text-amber-600 dark:text-amber-400'
               )}>
                 <AlertTriangle size={11} className="shrink-0" />
                 {counts.riskCount} risk{counts.riskCount !== 1 ? 's' : ''}
@@ -251,21 +251,21 @@ export default function ProjectCard({ project, counts, isProgram, parentName, hi
         {counts && (counts.nextDeadline || (counts.overdueCount ?? 0) > 0 || (counts.blockingCount ?? 0) > 0) && (
           <div className="flex items-center gap-3 flex-wrap">
             {(counts.overdueCount ?? 0) > 0 ? (
-              <span className="flex items-center gap-1 text-xs font-medium text-red-600">
+              <span className="flex items-center gap-1 text-xs font-medium text-red-600 dark:text-red-400">
                 <CalendarClock size={11} className="shrink-0" />
                 {counts.overdueCount} overdue
               </span>
             ) : counts.nextDeadline ? (
               <span className={cn(
                 'flex items-center gap-1 text-xs font-medium',
-                counts.nextDeadline.daysUntil <= 7 ? 'text-amber-600' : 'text-slate-600'
+                counts.nextDeadline.daysUntil <= 7 ? 'text-amber-600 dark:text-amber-400' : 'text-slate-600 dark:text-slate-400'
               )}>
                 <CalendarClock size={11} className="shrink-0" />
                 {deadlineLabel(counts.nextDeadline)}: {counts.nextDeadline.label}
               </span>
             ) : null}
             {(counts.blockingCount ?? 0) > 0 && (
-              <span className="flex items-center gap-1 text-xs font-medium text-red-600">
+              <span className="flex items-center gap-1 text-xs font-medium text-red-600 dark:text-red-400">
                 <Ban size={11} className="shrink-0" />
                 {counts.blockingCount} blocking
               </span>

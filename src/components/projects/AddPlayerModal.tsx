@@ -127,7 +127,7 @@ export default function AddPlayerModal({ projectId }: AddPlayerModalProps) {
         </DialogHeader>
 
         <div className="space-y-4">
-          {error && <p className="text-sm text-red-600">{error}</p>}
+          {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
 
           {/* Contact search */}
           <div className="space-y-1.5">
@@ -193,7 +193,7 @@ export default function AddPlayerModal({ projectId }: AddPlayerModalProps) {
           {/* Role */}
           <div className="space-y-1.5">
             <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              Role <span className="text-red-500">*</span>
+              Role <span className="text-red-500 dark:text-red-400">*</span>
             </label>
             <select
               value={role}

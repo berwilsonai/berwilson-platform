@@ -81,10 +81,10 @@ function DiffRow({
       className={cn(
         'rounded-md border px-3 py-2.5 space-y-1',
         isConflict
-          ? 'border-amber-200 bg-amber-50'
+          ? 'border-amber-200 dark:border-amber-800/60 bg-amber-50 dark:bg-amber-950/40'
           : current
           ? 'border-border bg-muted/30'
-          : 'border-emerald-200 bg-emerald-50/40'
+          : 'border-emerald-200 dark:border-emerald-800/60 bg-emerald-50/40 dark:bg-emerald-950/40'
       )}
     >
       <div className="flex items-center gap-1.5">
@@ -92,26 +92,26 @@ function DiffRow({
           {FIELD_LABELS[field] ?? field}
         </span>
         {isConflict && (
-          <span className="inline-flex items-center gap-1 text-xs text-amber-700 font-medium">
+          <span className="inline-flex items-center gap-1 text-xs text-amber-700 dark:text-amber-300 font-medium">
             <AlertTriangle size={10} />
             Conflict — will not overwrite
           </span>
         )}
         {!isConflict && !current && (
-          <span className="text-xs text-emerald-700 font-medium">New</span>
+          <span className="text-xs text-emerald-700 dark:text-emerald-300 font-medium">New</span>
         )}
       </div>
 
       {isConflict && (
         <p className="text-xs text-muted-foreground line-through">{current}</p>
       )}
-      <p className={cn('text-sm', isConflict ? 'text-amber-800' : 'text-foreground')}>
+      <p className={cn('text-sm', isConflict ? 'text-amber-800 dark:text-amber-300' : 'text-foreground')}>
         {field === 'linkedin_url' ? (
           <a
             href={enriched}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 text-blue-600 hover:underline"
+            className="inline-flex items-center gap-1 text-blue-600 dark:text-blue-400 hover:underline"
           >
             {enriched} <ExternalLink size={11} />
           </a>
@@ -139,10 +139,10 @@ function NotesPreview({ notes }: { notes: EnrichmentNotes }) {
   ]
 
   return (
-    <div className="rounded-md border border-blue-200 bg-blue-50/40 px-3 py-2.5 space-y-2">
+    <div className="rounded-md border border-blue-200 dark:border-blue-800/60 bg-blue-50/40 dark:bg-blue-950/40 px-3 py-2.5 space-y-2">
       <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
         Enrichment Notes
-        <span className="ml-1.5 text-blue-700 font-medium normal-case">Will be saved to profile</span>
+        <span className="ml-1.5 text-blue-700 dark:text-blue-300 font-medium normal-case">Will be saved to profile</span>
       </span>
 
       {notes.years_of_experience && (
@@ -246,7 +246,7 @@ export default function EnrichProfileButton({
           onClick={runEnrichment}
           className="w-full inline-flex items-center justify-center gap-1.5 h-9 px-3 rounded-md border border-input text-sm font-medium hover:bg-accent transition-colors"
         >
-          <Sparkles size={14} className="text-purple-500" />
+          <Sparkles size={14} className="text-purple-500 dark:text-purple-400" />
           Enrich Profile
         </button>
         {lastEnrichedAt && (
@@ -259,7 +259,7 @@ export default function EnrichProfileButton({
             })}
           </p>
         )}
-        {error && <p className="text-xs text-red-600">{error}</p>}
+        {error && <p className="text-xs text-red-600 dark:text-red-400">{error}</p>}
       </div>
     )
   }
@@ -269,7 +269,7 @@ export default function EnrichProfileButton({
     return (
       <div className="rounded-md border border-border bg-card p-4 space-y-2">
         <div className="flex items-center gap-2">
-          <Loader2 size={14} className="animate-spin text-purple-500" />
+          <Loader2 size={14} className="animate-spin text-purple-500 dark:text-purple-400" />
           <span className="text-sm font-medium">Enriching profile…</span>
         </div>
         <div className="space-y-1.5">
@@ -298,7 +298,7 @@ export default function EnrichProfileButton({
         {/* Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-1.5">
-            <Sparkles size={14} className="text-purple-500" />
+            <Sparkles size={14} className="text-purple-500 dark:text-purple-400" />
             <span className="text-sm font-semibold">Review Enrichment</span>
           </div>
           <button onClick={discard} className="text-muted-foreground hover:text-foreground transition-colors">
@@ -307,7 +307,7 @@ export default function EnrichProfileButton({
         </div>
 
         {preview.graph_done && (
-          <p className="text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 rounded px-2 py-1">
+          <p className="text-xs text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 rounded px-2 py-1">
             Microsoft Graph: contact found in Outlook
           </p>
         )}
@@ -347,7 +347,7 @@ export default function EnrichProfileButton({
                   href={s.url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center gap-1 text-xs text-blue-600 hover:underline truncate"
+                  className="flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 hover:underline truncate"
                 >
                   <ExternalLink size={10} className="shrink-0" />
                   <span className="truncate">{s.title ?? s.url}</span>
@@ -357,7 +357,7 @@ export default function EnrichProfileButton({
           </div>
         )}
 
-        {error && <p className="text-sm text-red-600">{error}</p>}
+        {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
 
         <div className="flex items-center gap-2">
           {hasAnything && (
@@ -385,7 +385,7 @@ export default function EnrichProfileButton({
     return (
       <div className="rounded-md border border-border bg-card p-4">
         <div className="flex items-center gap-2">
-          <Loader2 size={14} className="animate-spin text-purple-500" />
+          <Loader2 size={14} className="animate-spin text-purple-500 dark:text-purple-400" />
           <span className="text-sm">Saving enrichment…</span>
         </div>
       </div>
@@ -395,17 +395,17 @@ export default function EnrichProfileButton({
   // ── done ──────────────────────────────────────────────────────────────────
   return (
     <div className="space-y-2">
-      <div className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2.5 flex items-center gap-2">
-        <Check size={14} className="text-emerald-600 shrink-0" />
-        <span className="text-sm text-emerald-800">Profile enriched successfully</span>
+      <div className="rounded-md border border-emerald-200 dark:border-emerald-800/60 bg-emerald-50 dark:bg-emerald-950/40 px-3 py-2.5 flex items-center gap-2">
+        <Check size={14} className="text-emerald-600 dark:text-emerald-400 shrink-0" />
+        <span className="text-sm text-emerald-800 dark:text-emerald-300">Profile enriched successfully</span>
       </div>
       {conflicts.length > 0 && (
-        <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 space-y-1">
-          <p className="text-xs font-semibold text-amber-800">
+        <div className="rounded-md border border-amber-200 dark:border-amber-800/60 bg-amber-50 dark:bg-amber-950/40 px-3 py-2 space-y-1">
+          <p className="text-xs font-semibold text-amber-800 dark:text-amber-300">
             {conflicts.length} conflict{conflicts.length !== 1 ? 's' : ''} logged — existing values preserved
           </p>
           {conflicts.map((c) => (
-            <p key={c.field} className="text-xs text-amber-700">
+            <p key={c.field} className="text-xs text-amber-700 dark:text-amber-300">
               {FIELD_LABELS[c.field] ?? c.field}: kept &ldquo;{c.current}&rdquo;
             </p>
           ))}
@@ -415,7 +415,7 @@ export default function EnrichProfileButton({
         onClick={() => { setStage('idle'); setData(null); setSaveConflicts([]) }}
         className="w-full inline-flex items-center justify-center gap-1.5 h-8 px-3 rounded-md border border-input text-xs font-medium hover:bg-accent transition-colors"
       >
-        <Sparkles size={12} className="text-purple-500" />
+        <Sparkles size={12} className="text-purple-500 dark:text-purple-400" />
         Enrich Again
       </button>
     </div>

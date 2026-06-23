@@ -1,11 +1,10 @@
 'use client'
 
 import Image from 'next/image'
-import { usePathname, useRouter } from 'next/navigation'
+import { usePathname } from 'next/navigation'
 import { useState, useEffect, useCallback } from 'react'
-import { LogOut, Search } from 'lucide-react'
-import { createClient } from '@/lib/supabase/client'
-import ThemeToggle from './ThemeToggle'
+import { Search } from 'lucide-react'
+import UserMenu from './UserMenu'
 import CommandPalette from './CommandPalette'
 
 const PAGE_TITLES: Record<string, string> = {
@@ -33,15 +32,8 @@ function getPageTitle(pathname: string): string {
   return 'Ber Wilson'
 }
 
-function initials(email: string): string {
-  const parts = email.split('@')[0].split(/[._-]/)
-  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase()
-  return email.slice(0, 2).toUpperCase()
-}
-
 export default function AppHeader({ email }: { email: string }) {
   const pathname = usePathname()
-  const router = useRouter()
   const [paletteOpen, setPaletteOpen] = useState(false)
 
   // Global ⌘K / Ctrl+K to open the command palette.
@@ -57,13 +49,6 @@ export default function AppHeader({ email }: { email: string }) {
   }, [])
 
   const closePalette = useCallback(() => setPaletteOpen(false), [])
-
-  async function handleSignOut() {
-    const supabase = createClient()
-    await supabase.auth.signOut()
-    router.push('/login')
-    router.refresh()
-  }
 
   return (
     <>
@@ -104,25 +89,7 @@ export default function AppHeader({ email }: { email: string }) {
             <Search size={16} />
           </button>
 
-          <ThemeToggle />
-
-          <div className="flex items-center gap-2 px-1.5 py-1.5 rounded-md hover:bg-muted/50 transition-colors">
-            <div className="size-7 rounded-full bg-primary text-primary-foreground text-[11px] font-semibold flex items-center justify-center shrink-0">
-              {initials(email)}
-            </div>
-            <span className="text-xs text-muted-foreground hidden md:block max-w-[160px] truncate">
-              {email}
-            </span>
-          </div>
-
-          <button
-            onClick={handleSignOut}
-            className="p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-            aria-label="Sign out"
-            title="Sign out"
-          >
-            <LogOut size={15} />
-          </button>
+          <UserMenu email={email} />
         </div>
       </header>
 

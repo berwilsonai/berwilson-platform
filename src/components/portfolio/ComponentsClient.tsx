@@ -149,15 +149,15 @@ export default function ComponentsClient({ siteId, initialComponents }: Componen
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex flex-wrap items-center gap-4 text-sm">
-          <span className="text-slate-500 dark:text-muted-foreground">
+          <span className="text-slate-500 dark:text-slate-400 dark:text-muted-foreground">
             {components.length} component{components.length !== 1 ? 's' : ''}
           </span>
           {totalMid > 0 && (
             <>
               <span className="text-slate-300 dark:text-muted-foreground">|</span>
-              <span className="text-slate-500 dark:text-muted-foreground">
+              <span className="text-slate-500 dark:text-slate-400 dark:text-muted-foreground">
                 Capital range:{' '}
-                <span className="font-mono font-medium text-slate-900 dark:text-foreground">
+                <span className="font-mono font-medium text-slate-900 dark:text-slate-200 dark:text-foreground">
                   {formatValue(totalLow > 0 ? totalLow : totalMid * 0.8)} – {formatValue(totalHigh > 0 ? totalHigh : totalMid * 1.3)}
                 </span>
               </span>
@@ -175,7 +175,7 @@ export default function ComponentsClient({ siteId, initialComponents }: Componen
 
       {/* Table */}
       {components.length === 0 ? (
-        <div className="bg-white dark:bg-card rounded-lg border border-slate-200 dark:border-border p-8 text-center">
+        <div className="bg-white dark:bg-card rounded-lg border border-slate-200 dark:border-slate-800/60 dark:border-border p-8 text-center">
           <p className="text-sm text-slate-400 dark:text-muted-foreground mb-3">No components have been added to this site yet.</p>
           <button
             onClick={openAdd}
@@ -186,30 +186,30 @@ export default function ComponentsClient({ siteId, initialComponents }: Componen
           </button>
         </div>
       ) : (
-        <div className="bg-white dark:bg-card rounded-lg border border-slate-200 dark:border-border overflow-hidden">
+        <div className="bg-white dark:bg-card rounded-lg border border-slate-200 dark:border-slate-800/60 dark:border-border overflow-hidden">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-slate-100 dark:border-border/60 bg-slate-50 dark:bg-muted/50">
-                <th className="text-left px-4 py-2.5 font-medium text-slate-500 dark:text-muted-foreground">Type</th>
-                <th className="text-left px-4 py-2.5 font-medium text-slate-500 dark:text-muted-foreground">Name</th>
-                <th className="text-left px-4 py-2.5 font-medium text-slate-500 dark:text-muted-foreground">Phase</th>
-                <th className="text-left px-4 py-2.5 font-medium text-slate-500 dark:text-muted-foreground">Status</th>
-                <th className="text-right px-4 py-2.5 font-medium text-slate-500 dark:text-muted-foreground">Low</th>
-                <th className="text-right px-4 py-2.5 font-medium text-slate-500 dark:text-muted-foreground">Mid</th>
-                <th className="text-right px-4 py-2.5 font-medium text-slate-500 dark:text-muted-foreground">High</th>
+              <tr className="border-b border-slate-100 dark:border-slate-900/50 dark:border-border/60 bg-slate-50 dark:bg-slate-950/40 dark:bg-muted/50">
+                <th className="text-left px-4 py-2.5 font-medium text-slate-500 dark:text-slate-400 dark:text-muted-foreground">Type</th>
+                <th className="text-left px-4 py-2.5 font-medium text-slate-500 dark:text-slate-400 dark:text-muted-foreground">Name</th>
+                <th className="text-left px-4 py-2.5 font-medium text-slate-500 dark:text-slate-400 dark:text-muted-foreground">Phase</th>
+                <th className="text-left px-4 py-2.5 font-medium text-slate-500 dark:text-slate-400 dark:text-muted-foreground">Status</th>
+                <th className="text-right px-4 py-2.5 font-medium text-slate-500 dark:text-slate-400 dark:text-muted-foreground">Low</th>
+                <th className="text-right px-4 py-2.5 font-medium text-slate-500 dark:text-slate-400 dark:text-muted-foreground">Mid</th>
+                <th className="text-right px-4 py-2.5 font-medium text-slate-500 dark:text-slate-400 dark:text-muted-foreground">High</th>
                 <th className="px-4 py-2.5 w-20" />
               </tr>
             </thead>
             <tbody>
               {components.map(c => (
-                <tr key={c.id} className="border-b border-slate-50 dark:border-border/40 hover:bg-slate-50 dark:hover:bg-muted/50">
+                <tr key={c.id} className="border-b border-slate-50 dark:border-border/40 hover:bg-slate-50 dark:hover:bg-slate-950/40 dark:hover:bg-muted/50">
                   <td className="px-4 py-2.5">
                     <span className={`inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium ring-1 ring-inset ${COMPONENT_TYPE_BADGE[c.type as keyof typeof COMPONENT_TYPE_BADGE]}`}>
                       {COMPONENT_TYPE_LABELS[c.type as keyof typeof COMPONENT_TYPE_LABELS]}
                     </span>
                   </td>
-                  <td className="px-4 py-2.5 font-medium text-slate-900 dark:text-foreground">{c.name}</td>
-                  <td className="px-4 py-2.5 text-slate-500 dark:text-muted-foreground text-xs">{c.phase ?? '—'}</td>
+                  <td className="px-4 py-2.5 font-medium text-slate-900 dark:text-slate-200 dark:text-foreground">{c.name}</td>
+                  <td className="px-4 py-2.5 text-slate-500 dark:text-slate-400 dark:text-muted-foreground text-xs">{c.phase ?? '—'}</td>
                   <td className="px-4 py-2.5">
                     {c.status ? (
                       <span className={`inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium ring-1 ring-inset ${COMPONENT_STATUS_BADGE[c.status as keyof typeof COMPONENT_STATUS_BADGE]}`}>
@@ -217,21 +217,21 @@ export default function ComponentsClient({ siteId, initialComponents }: Componen
                       </span>
                     ) : <span className="text-slate-400 dark:text-muted-foreground">—</span>}
                   </td>
-                  <td className="px-4 py-2.5 text-right font-mono text-xs text-slate-500 dark:text-muted-foreground">{c.capital_low ? formatValue(Number(c.capital_low)) : '—'}</td>
+                  <td className="px-4 py-2.5 text-right font-mono text-xs text-slate-500 dark:text-slate-400 dark:text-muted-foreground">{c.capital_low ? formatValue(Number(c.capital_low)) : '—'}</td>
                   <td className="px-4 py-2.5 text-right font-mono text-xs text-slate-700 dark:text-slate-200 font-medium">{c.capital_mid ? formatValue(Number(c.capital_mid)) : '—'}</td>
-                  <td className="px-4 py-2.5 text-right font-mono text-xs text-slate-500 dark:text-muted-foreground">{c.capital_high ? formatValue(Number(c.capital_high)) : '—'}</td>
+                  <td className="px-4 py-2.5 text-right font-mono text-xs text-slate-500 dark:text-slate-400 dark:text-muted-foreground">{c.capital_high ? formatValue(Number(c.capital_high)) : '—'}</td>
                   <td className="px-4 py-2.5">
                     <div className="flex items-center justify-end gap-1">
                       <button
                         onClick={() => openEdit(c)}
-                        className="inline-flex items-center justify-center h-7 w-7 rounded hover:bg-slate-100 dark:hover:bg-muted transition-colors"
+                        className="inline-flex items-center justify-center h-7 w-7 rounded hover:bg-slate-100 dark:hover:bg-slate-900/40 dark:hover:bg-muted transition-colors"
                         title="Edit"
                       >
                         <Pencil size={13} className="text-slate-400 dark:text-muted-foreground" />
                       </button>
                       {confirmDeleteId === c.id ? (
                         <div className="flex items-center gap-1">
-                          <span className="text-xs text-red-600 font-medium">Delete?</span>
+                          <span className="text-xs text-red-600 dark:text-red-400 font-medium">Delete?</span>
                           <button
                             onClick={() => handleDelete(c.id)}
                             disabled={deletingId === c.id}
@@ -241,7 +241,7 @@ export default function ComponentsClient({ siteId, initialComponents }: Componen
                           </button>
                           <button
                             onClick={() => setConfirmDeleteId(null)}
-                            className="h-6 w-6 rounded flex items-center justify-center hover:bg-slate-100 dark:hover:bg-muted transition-colors"
+                            className="h-6 w-6 rounded flex items-center justify-center hover:bg-slate-100 dark:hover:bg-slate-900/40 dark:hover:bg-muted transition-colors"
                           >
                             <X size={11} />
                           </button>
@@ -249,10 +249,10 @@ export default function ComponentsClient({ siteId, initialComponents }: Componen
                       ) : (
                         <button
                           onClick={() => setConfirmDeleteId(c.id)}
-                          className="inline-flex items-center justify-center h-7 w-7 rounded hover:bg-red-50 transition-colors"
+                          className="inline-flex items-center justify-center h-7 w-7 rounded hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors"
                           title="Delete"
                         >
-                          <Trash2 size={13} className="text-slate-400 dark:text-muted-foreground hover:text-red-500" />
+                          <Trash2 size={13} className="text-slate-400 dark:text-muted-foreground hover:text-red-500 dark:hover:text-red-400" />
                         </button>
                       )}
                     </div>
@@ -262,10 +262,10 @@ export default function ComponentsClient({ siteId, initialComponents }: Componen
             </tbody>
             {totalMid > 0 && (
               <tfoot>
-                <tr className="bg-slate-50 dark:bg-muted/50 font-medium">
+                <tr className="bg-slate-50 dark:bg-slate-950/40 dark:bg-muted/50 font-medium">
                   <td colSpan={4} className="px-4 py-2.5 text-slate-700 dark:text-slate-200 text-xs uppercase tracking-wider">Total</td>
                   <td className="px-4 py-2.5 text-right font-mono text-xs text-slate-700 dark:text-slate-200">{totalLow > 0 ? formatValue(totalLow) : '—'}</td>
-                  <td className="px-4 py-2.5 text-right font-mono text-xs text-slate-900 dark:text-foreground font-bold">{formatValue(totalMid)}</td>
+                  <td className="px-4 py-2.5 text-right font-mono text-xs text-slate-900 dark:text-slate-200 dark:text-foreground font-bold">{formatValue(totalMid)}</td>
                   <td className="px-4 py-2.5 text-right font-mono text-xs text-slate-700 dark:text-slate-200">{totalHigh > 0 ? formatValue(totalHigh) : '—'}</td>
                   <td />
                 </tr>
@@ -283,12 +283,12 @@ export default function ComponentsClient({ siteId, initialComponents }: Componen
           </DialogHeader>
 
           <div className="space-y-4">
-            {error && <p className="text-sm text-red-600">{error}</p>}
+            {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
 
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                  Type <span className="text-red-500">*</span>
+                  Type <span className="text-red-500 dark:text-red-400">*</span>
                 </label>
                 <select
                   value={form.type}
@@ -322,7 +322,7 @@ export default function ComponentsClient({ siteId, initialComponents }: Componen
 
             <div className="space-y-1.5">
               <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                Name <span className="text-red-500">*</span>
+                Name <span className="text-red-500 dark:text-red-400">*</span>
               </label>
               <input
                 value={form.name}

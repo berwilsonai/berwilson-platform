@@ -67,13 +67,13 @@ function renderMarkdownLite(text: string): React.ReactNode[] {
         highlighted.split('|||').forEach((chunk, ci) => {
           if (!chunk) return
           if (/^FACT:$/.test(chunk)) {
-            nodes.push(<span key={`s-${lineIdx}-${i}-${ci}`} className="text-emerald-600 font-semibold text-xs uppercase tracking-wide mr-1">FACT:</span>)
+            nodes.push(<span key={`s-${lineIdx}-${i}-${ci}`} className="text-emerald-600 dark:text-emerald-400 font-semibold text-xs uppercase tracking-wide mr-1">FACT:</span>)
           } else if (/^ESTIMATE:$/.test(chunk)) {
-            nodes.push(<span key={`s-${lineIdx}-${i}-${ci}`} className="text-amber-600 font-semibold text-xs uppercase tracking-wide mr-1">ESTIMATE:</span>)
+            nodes.push(<span key={`s-${lineIdx}-${i}-${ci}`} className="text-amber-600 dark:text-amber-400 font-semibold text-xs uppercase tracking-wide mr-1">ESTIMATE:</span>)
           } else if (/^JUDGMENT:$/.test(chunk)) {
-            nodes.push(<span key={`s-${lineIdx}-${i}-${ci}`} className="text-blue-600 font-semibold text-xs uppercase tracking-wide mr-1">JUDGMENT:</span>)
+            nodes.push(<span key={`s-${lineIdx}-${i}-${ci}`} className="text-blue-600 dark:text-blue-400 font-semibold text-xs uppercase tracking-wide mr-1">JUDGMENT:</span>)
           } else if (/^⚠/.test(chunk)) {
-            nodes.push(<span key={`s-${lineIdx}-${i}-${ci}`} className="text-amber-600 font-medium text-xs">{chunk}</span>)
+            nodes.push(<span key={`s-${lineIdx}-${i}-${ci}`} className="text-amber-600 dark:text-amber-400 font-medium text-xs">{chunk}</span>)
           } else {
             nodes.push(<span key={`s-${lineIdx}-${i}-${ci}`}>{chunk}</span>)
           }
@@ -95,9 +95,9 @@ export default function GroundedAnswer({ answer, citations, low_confidence, no_d
     <div className="space-y-6">
       {/* Confidence warning */}
       {low_confidence && (
-        <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5">
-          <AlertTriangle size={14} className="text-amber-600 shrink-0 mt-0.5" />
-          <p className="text-xs text-amber-800">
+        <div className="flex items-start gap-2 rounded-lg border border-amber-200 dark:border-amber-800/60 bg-amber-50 dark:bg-amber-950/40 px-3 py-2.5">
+          <AlertTriangle size={14} className="text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+          <p className="text-xs text-amber-800 dark:text-amber-300">
             The sources for this answer have low confidence scores. Treat conclusions as preliminary until verified with original documents.
           </p>
         </div>

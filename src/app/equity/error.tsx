@@ -17,7 +17,7 @@ export default function Error({
 
   return (
     <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
-      <AlertTriangle size={32} className="text-amber-500" />
+      <AlertTriangle size={32} className="text-amber-500 dark:text-amber-400" />
       <h2 className="text-lg font-semibold">Something went wrong</h2>
       <p className="text-sm text-muted-foreground max-w-md text-center">
         {error.message || 'An unexpected error occurred. Please try again.'}

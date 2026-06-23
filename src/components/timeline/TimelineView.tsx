@@ -24,11 +24,11 @@ export interface TimelineRow {
 }
 
 const MARKER_STYLE: Record<MarkerType, { dot: string; label: string }> = {
-  bid_due: { dot: 'bg-red-500 ring-red-200', label: 'Bid Due' },
-  award: { dot: 'bg-blue-500 ring-blue-200', label: 'Award' },
-  ntp: { dot: 'bg-cyan-500 ring-cyan-200', label: 'NTP' },
-  completion: { dot: 'bg-indigo-500 ring-indigo-200', label: 'Substantial Completion' },
-  milestone: { dot: 'bg-amber-400 ring-amber-200', label: 'Milestone' },
+  bid_due: { dot: 'bg-red-500 ring-red-200 dark:ring-red-800/60', label: 'Bid Due' },
+  award: { dot: 'bg-blue-500 ring-blue-200 dark:ring-blue-800/60', label: 'Award' },
+  ntp: { dot: 'bg-cyan-500 ring-cyan-200 dark:ring-cyan-800/60', label: 'NTP' },
+  completion: { dot: 'bg-indigo-500 ring-indigo-200 dark:ring-indigo-800/60', label: 'Substantial Completion' },
+  milestone: { dot: 'bg-amber-400 ring-amber-200 dark:ring-amber-800/60', label: 'Milestone' },
 }
 
 const DAY = 86_400_000
@@ -173,7 +173,7 @@ export default function TimelineView({ rows }: { rows: TimelineRow[] }) {
                 ))}
                 {todayPct >= 0 && todayPct <= 100 && (
                   <div className="absolute top-0 bottom-0 w-px bg-red-400/70" style={{ left: `${todayPct}%` }}>
-                    <span className="absolute -top-0 left-1 text-[9px] font-semibold text-red-500">today</span>
+                    <span className="absolute -top-0 left-1 text-[9px] font-semibold text-red-500 dark:text-red-400">today</span>
                   </div>
                 )}
               </div>

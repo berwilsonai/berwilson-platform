@@ -94,7 +94,7 @@ export default function ContactEnrichmentDisplay({
                 href={s.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center gap-1 text-xs text-blue-600 hover:underline truncate"
+                className="flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 hover:underline truncate"
               >
                 <ExternalLink size={9} className="shrink-0" />
                 <span className="truncate">{s.title ?? s.url}</span>
@@ -106,15 +106,15 @@ export default function ContactEnrichmentDisplay({
 
       {/* Conflicts */}
       {conflicts && conflicts.length > 0 && (
-        <div className="rounded-md border border-amber-200 bg-amber-50 px-2.5 py-2 space-y-1">
+        <div className="rounded-md border border-amber-200 dark:border-amber-800/60 bg-amber-50 dark:bg-amber-950/40 px-2.5 py-2 space-y-1">
           <div className="flex items-center gap-1">
-            <AlertTriangle size={10} className="text-amber-600" />
-            <p className="text-xs font-semibold text-amber-800">
+            <AlertTriangle size={10} className="text-amber-600 dark:text-amber-400" />
+            <p className="text-xs font-semibold text-amber-800 dark:text-amber-300">
               {conflicts.length} conflict{conflicts.length !== 1 ? 's' : ''} — existing values preserved
             </p>
           </div>
           {conflicts.map((c) => (
-            <p key={c.field} className="text-xs text-amber-700">
+            <p key={c.field} className="text-xs text-amber-700 dark:text-amber-300">
               {c.field}: found &ldquo;{c.enriched}&rdquo; but kept &ldquo;{c.current}&rdquo;
             </p>
           ))}

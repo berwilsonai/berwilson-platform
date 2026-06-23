@@ -26,11 +26,11 @@ interface CalendarViewProps {
 }
 
 const TYPE_CONFIG = {
-  bid: { icon: Timer, label: 'Bid Due', color: 'text-red-600', bg: 'bg-red-50', ring: 'ring-red-200' },
-  milestone: { icon: Flag, label: 'Milestone', color: 'text-blue-600', bg: 'bg-blue-50', ring: 'ring-blue-200' },
-  compliance: { icon: Shield, label: 'Compliance', color: 'text-violet-600', bg: 'bg-violet-50', ring: 'ring-violet-200' },
-  action: { icon: CheckSquare, label: 'Action Item', color: 'text-emerald-600', bg: 'bg-emerald-50', ring: 'ring-emerald-200' },
-  meeting: { icon: Calendar, label: 'Meeting', color: 'text-indigo-600', bg: 'bg-indigo-50', ring: 'ring-indigo-200' },
+  bid: { icon: Timer, label: 'Bid Due', color: 'text-red-600 dark:text-red-400', bg: 'bg-red-50 dark:bg-red-950/40', ring: 'ring-red-200 dark:ring-red-800/60' },
+  milestone: { icon: Flag, label: 'Milestone', color: 'text-blue-600 dark:text-blue-400', bg: 'bg-blue-50 dark:bg-blue-950/40', ring: 'ring-blue-200 dark:ring-blue-800/60' },
+  compliance: { icon: Shield, label: 'Compliance', color: 'text-violet-600 dark:text-violet-400', bg: 'bg-violet-50 dark:bg-violet-950/40', ring: 'ring-violet-200 dark:ring-violet-800/60' },
+  action: { icon: CheckSquare, label: 'Action Item', color: 'text-emerald-600 dark:text-emerald-400', bg: 'bg-emerald-50 dark:bg-emerald-950/40', ring: 'ring-emerald-200 dark:ring-emerald-800/60' },
+  meeting: { icon: Calendar, label: 'Meeting', color: 'text-indigo-600 dark:text-indigo-400', bg: 'bg-indigo-50 dark:bg-indigo-950/40', ring: 'ring-indigo-200 dark:ring-indigo-800/60' },
 }
 
 type FilterType = 'all' | 'milestone' | 'compliance' | 'action' | 'meeting' | 'bid'
@@ -169,7 +169,7 @@ export default function CalendarView({ events: serverEvents }: CalendarViewProps
     <div className="space-y-4">
       {/* Outlook warning */}
       {outlookWarning && (
-        <div className="text-xs text-amber-600 bg-amber-50 px-3 py-2 rounded-md ring-1 ring-amber-200">
+        <div className="text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 px-3 py-2 rounded-md ring-1 ring-amber-200 dark:ring-amber-800/60">
           {outlookWarning}
         </div>
       )}
@@ -238,7 +238,7 @@ export default function CalendarView({ events: serverEvents }: CalendarViewProps
                       {/* Date */}
                       <div className={cn(
                         'shrink-0 w-10 text-center',
-                        eventDate < today && !event.completed && event.type !== 'meeting' ? 'text-red-600' : 'text-muted-foreground'
+                        eventDate < today && !event.completed && event.type !== 'meeting' ? 'text-red-600 dark:text-red-400' : 'text-muted-foreground'
                       )}>
                         <p className="text-xs font-mono">
                           {new Date(eventDate).toLocaleDateString('en-US', { month: 'short' })}
@@ -284,12 +284,12 @@ export default function CalendarView({ events: serverEvents }: CalendarViewProps
 
                       {/* Status badges */}
                       {event.overdue && !event.completed && (
-                        <span className="shrink-0 text-xs font-medium text-red-600 bg-red-50 px-1.5 py-0.5 rounded ring-1 ring-red-200">
+                        <span className="shrink-0 text-xs font-medium text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/40 px-1.5 py-0.5 rounded ring-1 ring-red-200 dark:ring-red-800/60">
                           Overdue
                         </span>
                       )}
                       {event.completed && event.type !== 'meeting' && (
-                        <span className="shrink-0 text-xs font-medium text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded ring-1 ring-emerald-200">
+                        <span className="shrink-0 text-xs font-medium text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-1.5 py-0.5 rounded ring-1 ring-emerald-200 dark:ring-emerald-800/60">
                           Done
                         </span>
                       )}

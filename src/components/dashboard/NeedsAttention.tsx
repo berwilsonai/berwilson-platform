@@ -48,10 +48,10 @@ export default function NeedsAttention({ reviewItems, overdueItems, ddItems, rev
   return (
     <div className="rounded-lg glass-panel shadow-sm">
       <div className="flex items-center gap-2 px-4 py-3 border-b border-border">
-        <AlertTriangle size={14} className={cn(hasAttention ? 'text-amber-500' : 'text-muted-foreground')} />
+        <AlertTriangle size={14} className={cn(hasAttention ? 'text-amber-500 dark:text-amber-400' : 'text-muted-foreground')} />
         <h2 className="text-sm font-semibold text-foreground heading-tight">Needs Attention</h2>
         {hasAttention && (
-          <span className="ml-auto text-xs font-medium tabular-nums bg-amber-100 text-amber-700 rounded px-1.5 py-0.5">
+          <span className="ml-auto text-xs font-medium tabular-nums bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 rounded px-1.5 py-0.5">
             {reviewItems.length + overdueItems.length + ddItems.length}
           </span>
         )}
@@ -90,7 +90,7 @@ export default function NeedsAttention({ reviewItems, overdueItems, ddItems, rev
                       <p className="text-xs text-muted-foreground mt-0.5 capitalize">
                         {item.reason.replace(/_/g, ' ')}
                         {item.confidence != null && (
-                          <span className="ml-1 text-amber-600">
+                          <span className="ml-1 text-amber-600 dark:text-amber-400">
                             {Math.round(item.confidence * 100)}%
                           </span>
                         )}
@@ -109,7 +109,7 @@ export default function NeedsAttention({ reviewItems, overdueItems, ddItems, rev
                 {reviewCount > 6 && (
                   <Link
                     href="/review"
-                    className="block px-2 py-1 text-xs text-blue-600 hover:underline"
+                    className="block px-2 py-1 text-xs text-blue-600 dark:text-blue-400 hover:underline"
                   >
                     +{reviewCount - 6} more →
                   </Link>
@@ -123,7 +123,7 @@ export default function NeedsAttention({ reviewItems, overdueItems, ddItems, rev
             <div className="rounded-md bg-muted/30 p-3">
               <div className="flex items-center gap-1.5 mb-2">
                 <span className="size-1.5 rounded-full bg-red-400 shrink-0" />
-                <CalendarClock size={12} className="text-red-500 shrink-0" />
+                <CalendarClock size={12} className="text-red-500 dark:text-red-400 shrink-0" />
                 <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
                   Overdue Milestones
                 </span>
@@ -143,7 +143,7 @@ export default function NeedsAttention({ reviewItems, overdueItems, ddItems, rev
                       </p>
                     </div>
                     {m.target_date && (
-                      <span className="shrink-0 text-xs font-medium text-red-600 tabular-nums">
+                      <span className="shrink-0 text-xs font-medium text-red-600 dark:text-red-400 tabular-nums">
                         {daysOverdue(m.target_date)}d
                       </span>
                     )}
@@ -158,7 +158,7 @@ export default function NeedsAttention({ reviewItems, overdueItems, ddItems, rev
             <div className="rounded-md bg-muted/30 p-3">
               <div className="flex items-center gap-1.5 mb-2">
                 <span className="size-1.5 rounded-full bg-orange-400 shrink-0" />
-                <TrendingUp size={12} className="text-red-500 shrink-0" />
+                <TrendingUp size={12} className="text-red-500 dark:text-red-400 shrink-0" />
                 <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
                   Due Diligence
                 </span>
@@ -180,8 +180,8 @@ export default function NeedsAttention({ reviewItems, overdueItems, ddItems, rev
                     <span className={cn(
                       'shrink-0 inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium ring-1 ring-inset',
                       dd.severity === 'blocker'
-                        ? 'bg-red-100 text-red-700 ring-red-200'
-                        : 'bg-orange-50 text-orange-700 ring-orange-200'
+                        ? 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 ring-red-200 dark:ring-red-800/60'
+                        : 'bg-orange-50 dark:bg-orange-950/40 text-orange-700 dark:text-orange-300 ring-orange-200 dark:ring-orange-800/60'
                     )}>
                       {dd.severity}
                     </span>

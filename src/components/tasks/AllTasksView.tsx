@@ -245,7 +245,7 @@ export default function AllTasksView({ initialTasks, projects }: AllTasksViewPro
           className="h-9 rounded-md border border-input bg-background px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
         />
       </div>
-      {addError && <p className="text-sm text-red-600">{addError}</p>}
+      {addError && <p className="text-sm text-red-600 dark:text-red-400">{addError}</p>}
       <div className="flex items-center gap-2">
         <button
           onClick={handleAddTask}
@@ -339,7 +339,7 @@ export default function AllTasksView({ initialTasks, projects }: AllTasksViewPro
                   aria-label={task.completed ? 'Mark incomplete' : 'Mark complete'}
                 >
                   {task.completed ? (
-                    <CheckSquare size={16} className="text-emerald-600" />
+                    <CheckSquare size={16} className="text-emerald-600 dark:text-emerald-400" />
                   ) : (
                     <Square size={16} className="text-muted-foreground" />
                   )}
@@ -352,7 +352,7 @@ export default function AllTasksView({ initialTasks, projects }: AllTasksViewPro
                   <div className="flex items-center gap-2 mt-1 flex-wrap">
                     <Link
                       href={`/projects/${task.projectId}/tasks`}
-                      className="inline-flex items-center gap-1 text-xs text-blue-500 hover:text-blue-400 transition-colors"
+                      className="inline-flex items-center gap-1 text-xs text-blue-500 dark:text-blue-400 hover:text-blue-400 transition-colors"
                     >
                       <FolderKanban size={10} />
                       {task.projectName}
@@ -362,7 +362,7 @@ export default function AllTasksView({ initialTasks, projects }: AllTasksViewPro
                     )}
                     {due && (
                       <span className={`text-xs font-medium ${
-                        due.overdue ? 'text-red-500' : due.urgent ? 'text-amber-500' : 'text-muted-foreground'
+                        due.overdue ? 'text-red-500 dark:text-red-400' : due.urgent ? 'text-amber-500 dark:text-amber-400' : 'text-muted-foreground'
                       }`}>
                         {due.label}
                       </span>
@@ -378,7 +378,7 @@ export default function AllTasksView({ initialTasks, projects }: AllTasksViewPro
                 <button
                   onClick={() => handleDelete(task)}
                   disabled={deleting === key}
-                  className="shrink-0 mt-0.5 opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-red-500 transition-all disabled:opacity-40"
+                  className="shrink-0 mt-0.5 opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-red-500 dark:hover:text-red-400 transition-all disabled:opacity-40"
                   aria-label="Delete task"
                 >
                   {deleting === key ? (

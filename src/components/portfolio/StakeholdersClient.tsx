@@ -241,7 +241,7 @@ export default function StakeholdersClient({
             {Object.entries(tempCounts).map(([temp, count]) => (
               <span
                 key={temp}
-                className={`inline-flex items-center rounded-md px-2.5 py-1 text-xs font-medium ring-1 ring-inset ${TEMPERATURE_BADGE[temp as keyof typeof TEMPERATURE_BADGE] ?? 'bg-slate-50 dark:bg-muted/50 text-slate-500 dark:text-muted-foreground ring-slate-200 dark:ring-border'}`}
+                className={`inline-flex items-center rounded-md px-2.5 py-1 text-xs font-medium ring-1 ring-inset ${TEMPERATURE_BADGE[temp as keyof typeof TEMPERATURE_BADGE] ?? 'bg-slate-50 dark:bg-slate-950/40 dark:bg-muted/50 text-slate-500 dark:text-slate-400 dark:text-muted-foreground ring-slate-200 dark:ring-slate-800/60 dark:ring-border'}`}
               >
                 {TEMPERATURE_LABELS[temp as keyof typeof TEMPERATURE_LABELS] ?? temp}: {count}
               </span>
@@ -259,7 +259,7 @@ export default function StakeholdersClient({
 
       {/* Stakeholder cards */}
       {stakeholders.length === 0 ? (
-        <div className="bg-white dark:bg-card rounded-lg border border-slate-200 dark:border-border p-8 text-center">
+        <div className="bg-white dark:bg-card rounded-lg border border-slate-200 dark:border-slate-800/60 dark:border-border p-8 text-center">
           <p className="text-sm text-slate-400 dark:text-muted-foreground mb-3">No stakeholders linked to this site yet.</p>
           <button
             onClick={() => setAddOpen(true)}
@@ -275,36 +275,36 @@ export default function StakeholdersClient({
             const party = sr.party
             const srInteractions = interactions[sr.id] ?? []
             return (
-              <div key={sr.id} className="bg-white dark:bg-card rounded-lg border border-slate-200 dark:border-border p-4">
+              <div key={sr.id} className="bg-white dark:bg-card rounded-lg border border-slate-200 dark:border-slate-800/60 dark:border-border p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <h3 className="text-sm font-semibold text-slate-900 dark:text-foreground">{party?.full_name ?? 'Unknown'}</h3>
-                    <p className="text-xs text-slate-500 dark:text-muted-foreground mt-0.5">
+                    <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-200 dark:text-foreground">{party?.full_name ?? 'Unknown'}</h3>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-muted-foreground mt-0.5">
                       {[party?.title, party?.company].filter(Boolean).join(' at ')}
                     </p>
-                    {sr.role && <p className="text-xs text-slate-500 dark:text-muted-foreground mt-1">{sr.role}</p>}
+                    {sr.role && <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-muted-foreground mt-1">{sr.role}</p>}
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
-                    <span className={`inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ring-1 ring-inset ${TEMPERATURE_BADGE[sr.temperature as keyof typeof TEMPERATURE_BADGE] ?? 'bg-slate-50 dark:bg-muted/50 text-slate-500 dark:text-muted-foreground ring-slate-200 dark:ring-border'}`}>
+                    <span className={`inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ring-1 ring-inset ${TEMPERATURE_BADGE[sr.temperature as keyof typeof TEMPERATURE_BADGE] ?? 'bg-slate-50 dark:bg-slate-950/40 dark:bg-muted/50 text-slate-500 dark:text-slate-400 dark:text-muted-foreground ring-slate-200 dark:ring-slate-800/60 dark:ring-border'}`}>
                       {TEMPERATURE_LABELS[sr.temperature as keyof typeof TEMPERATURE_LABELS] ?? sr.temperature}
                     </span>
                     <button
                       onClick={() => openLogInteraction(sr)}
-                      className="inline-flex items-center justify-center h-7 w-7 rounded hover:bg-slate-100 dark:hover:bg-muted transition-colors"
+                      className="inline-flex items-center justify-center h-7 w-7 rounded hover:bg-slate-100 dark:hover:bg-slate-900/40 dark:hover:bg-muted transition-colors"
                       title="Log interaction"
                     >
                       <MessageSquarePlus size={14} className="text-slate-400 dark:text-muted-foreground" />
                     </button>
                     <button
                       onClick={() => openEdit(sr)}
-                      className="inline-flex items-center justify-center h-7 w-7 rounded hover:bg-slate-100 dark:hover:bg-muted transition-colors"
+                      className="inline-flex items-center justify-center h-7 w-7 rounded hover:bg-slate-100 dark:hover:bg-slate-900/40 dark:hover:bg-muted transition-colors"
                       title="Edit"
                     >
                       <Pencil size={14} className="text-slate-400 dark:text-muted-foreground" />
                     </button>
                     {confirmDeleteId === sr.id ? (
                       <div className="flex items-center gap-1">
-                        <span className="text-xs text-red-600 font-medium">Delete?</span>
+                        <span className="text-xs text-red-600 dark:text-red-400 font-medium">Delete?</span>
                         <button
                           onClick={() => handleDelete(sr.id)}
                           disabled={deletingId === sr.id}
@@ -314,7 +314,7 @@ export default function StakeholdersClient({
                         </button>
                         <button
                           onClick={() => setConfirmDeleteId(null)}
-                          className="h-6 w-6 rounded flex items-center justify-center hover:bg-slate-100 dark:hover:bg-muted transition-colors"
+                          className="h-6 w-6 rounded flex items-center justify-center hover:bg-slate-100 dark:hover:bg-slate-900/40 dark:hover:bg-muted transition-colors"
                         >
                           <X size={11} />
                         </button>
@@ -322,24 +322,24 @@ export default function StakeholdersClient({
                     ) : (
                       <button
                         onClick={() => setConfirmDeleteId(sr.id)}
-                        className="inline-flex items-center justify-center h-7 w-7 rounded hover:bg-red-50 transition-colors"
+                        className="inline-flex items-center justify-center h-7 w-7 rounded hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors"
                         title="Remove"
                       >
-                        <Trash2 size={14} className="text-slate-400 dark:text-muted-foreground hover:text-red-500" />
+                        <Trash2 size={14} className="text-slate-400 dark:text-muted-foreground hover:text-red-500 dark:hover:text-red-400" />
                       </button>
                     )}
                   </div>
                 </div>
 
                 {(party?.email || party?.phone) && (
-                  <div className="flex gap-4 mt-2 text-xs text-slate-500 dark:text-muted-foreground">
+                  <div className="flex gap-4 mt-2 text-xs text-slate-500 dark:text-slate-400 dark:text-muted-foreground">
                     {party?.email && <span>{party.email}</span>}
                     {party?.phone && <span>{party.phone}</span>}
                   </div>
                 )}
 
                 {srInteractions.length > 0 && (
-                  <div className="mt-3 border-t border-slate-100 dark:border-border/60 pt-2.5">
+                  <div className="mt-3 border-t border-slate-100 dark:border-slate-900/50 dark:border-border/60 pt-2.5">
                     <p className="text-xs uppercase tracking-wider text-slate-400 dark:text-muted-foreground font-medium mb-1.5">Recent Interactions</p>
                     <div className="space-y-1.5">
                       {srInteractions.slice(0, 3).map(i => (
@@ -368,11 +368,11 @@ export default function StakeholdersClient({
             <DialogTitle>Add Stakeholder</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            {addError && <p className="text-sm text-red-600">{addError}</p>}
+            {addError && <p className="text-sm text-red-600 dark:text-red-400">{addError}</p>}
 
             <div className="space-y-1.5">
               <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                Contact <span className="text-red-500">*</span>
+                Contact <span className="text-red-500 dark:text-red-400">*</span>
               </label>
               {selected ? (
                 <div className="flex items-center justify-between rounded-md border border-input bg-muted/30 px-3 py-2">
@@ -466,7 +466,7 @@ export default function StakeholdersClient({
             <DialogTitle>Edit Stakeholder Relationship</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            {editError && <p className="text-sm text-red-600">{editError}</p>}
+            {editError && <p className="text-sm text-red-600 dark:text-red-400">{editError}</p>}
 
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
@@ -512,7 +512,7 @@ export default function StakeholdersClient({
             <DialogTitle>Log Interaction — {loggingForSR?.party?.full_name}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            {logError && <p className="text-sm text-red-600">{logError}</p>}
+            {logError && <p className="text-sm text-red-600 dark:text-red-400">{logError}</p>}
 
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
@@ -531,7 +531,7 @@ export default function StakeholdersClient({
 
             <div className="space-y-1.5">
               <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                Summary <span className="text-red-500">*</span>
+                Summary <span className="text-red-500 dark:text-red-400">*</span>
               </label>
               <textarea
                 value={logSummary}

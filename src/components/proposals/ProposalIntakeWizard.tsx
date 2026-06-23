@@ -450,7 +450,7 @@ export default function ProposalIntakeWizard({ availableParents: initialParents 
         {/* AI Intake Summary Banner */}
         <div className="p-4 rounded-lg border border-border bg-muted/30">
           <div className="flex items-start gap-3">
-            <CheckCircle2 size={18} className="text-green-600 shrink-0 mt-0.5" />
+            <CheckCircle2 size={18} className="text-green-600 dark:text-green-400 shrink-0 mt-0.5" />
             <div>
               <div className="flex items-center gap-2 mb-1">
                 <span className="text-xs font-mono bg-primary/10 text-primary px-2 py-0.5 rounded">
@@ -470,7 +470,7 @@ export default function ProposalIntakeWizard({ availableParents: initialParents 
         {extraction.is_master_plan && extraction.master_plan_name && (
           <div className="p-4 rounded-lg border border-purple-200 bg-purple-50/50 dark:border-purple-900 dark:bg-purple-950/20">
             <div className="flex items-center gap-3">
-              <Layers size={18} className="text-purple-600 shrink-0" />
+              <Layers size={18} className="text-purple-600 dark:text-purple-400 shrink-0" />
               <div>
                 <p className="text-sm font-semibold text-foreground">Master Plan: {extraction.master_plan_name}</p>
                 <p className="text-xs text-muted-foreground mt-0.5">
@@ -486,7 +486,7 @@ export default function ProposalIntakeWizard({ availableParents: initialParents 
           <div className="p-4 rounded-lg border border-blue-200 bg-blue-50/50 dark:border-blue-900 dark:bg-blue-950/20">
             <div className="flex items-start justify-between">
               <div className="flex items-start gap-3">
-                <Building2 size={18} className="text-blue-600 shrink-0 mt-0.5" />
+                <Building2 size={18} className="text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
                 <div>
                   <p className="text-sm font-semibold text-foreground">{extraction.developer_company.name}</p>
                   {extraction.developer_company.location && <p className="text-xs text-muted-foreground">{extraction.developer_company.location}</p>}
@@ -654,7 +654,7 @@ export default function ProposalIntakeWizard({ availableParents: initialParents 
             <div className="space-y-1">
               {extraction.risks.map((r, i) => (
                 <div key={i} className="flex items-start gap-2 text-sm">
-                  <span className={`text-xs font-mono px-1.5 py-0.5 rounded shrink-0 ${r.severity === 'critical' || r.severity === 'blocker' ? 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-400' : r.severity === 'watch' ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-600'}`}>{r.severity}</span>
+                  <span className={`text-xs font-mono px-1.5 py-0.5 rounded shrink-0 ${r.severity === 'critical' || r.severity === 'blocker' ? 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-400' : r.severity === 'watch' ? 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300' : 'bg-gray-100 dark:bg-gray-900/40 text-gray-600 dark:text-gray-400'}`}>{r.severity}</span>
                   <span className="text-xs">{r.text}</span>
                 </div>
               ))}
@@ -692,7 +692,7 @@ export default function ProposalIntakeWizard({ availableParents: initialParents 
             <div className="space-y-1.5">
               {orgParties.map((org, i) => (
                 <div key={`org-${i}`} className="p-2.5 rounded-md border border-blue-200 bg-blue-50/30 dark:border-blue-900 dark:bg-blue-950/20 flex items-center gap-2">
-                  <Building2 size={14} className="text-blue-600 shrink-0" />
+                  <Building2 size={14} className="text-blue-600 dark:text-blue-400 shrink-0" />
                   <span className="text-sm font-medium flex-1">{org.name}</span>
                   <span className="text-xs bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300 px-2 py-0.5 rounded">{org.role}</span>
                 </div>
@@ -724,8 +724,8 @@ export default function ProposalIntakeWizard({ availableParents: initialParents 
                     </div>
                     {pm.match_type !== 'none' ? (
                       <div className="flex items-center gap-2 shrink-0">
-                        <CheckCircle2 size={14} className="text-green-600" />
-                        <span className="text-xs text-green-700">{pm.match_type === 'fuzzy_name' ? '~' : ''}{pm.matched_party_name}</span>
+                        <CheckCircle2 size={14} className="text-green-600 dark:text-green-400" />
+                        <span className="text-xs text-green-700 dark:text-green-300">{pm.match_type === 'fuzzy_name' ? '~' : ''}{pm.matched_party_name}</span>
                         <button onClick={() => setPartyActions((prev) => prev.map((a) => a.extracted_index === pm.extracted_index
                           ? { ...a, action: a.action === 'link_existing' ? 'create_new' : 'link_existing', existing_party_id: pm.matched_party_id || undefined }
                           : a))} className="text-xs underline text-muted-foreground">
@@ -733,7 +733,7 @@ export default function ProposalIntakeWizard({ availableParents: initialParents 
                         </button>
                       </div>
                     ) : (
-                      <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded shrink-0">New contact</span>
+                      <span className="text-xs bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded shrink-0">New contact</span>
                     )}
                   </div>
                 )
@@ -777,7 +777,7 @@ export default function ProposalIntakeWizard({ availableParents: initialParents 
         <div className="p-4 rounded-lg border border-border bg-card space-y-3">
           {parentProjectId && (
             <div className="flex items-center gap-2">
-              <Layers size={14} className="text-purple-600 shrink-0" />
+              <Layers size={14} className="text-purple-600 dark:text-purple-400 shrink-0" />
               <span className="text-sm">Under program: <strong>{availableParents.find(p => p.id === parentProjectId)?.name}</strong></span>
             </div>
           )}
@@ -788,7 +788,7 @@ export default function ProposalIntakeWizard({ availableParents: initialParents 
             const matchName = attachId ? matchCandidates.find(mc => mc.project_id === attachId)?.project_name : null
             return (
               <div key={i} className="flex items-center gap-2">
-                <CheckCircle2 size={14} className={attachId ? 'text-amber-600 shrink-0' : 'text-green-600 shrink-0'} />
+                <CheckCircle2 size={14} className={attachId ? 'text-amber-600 dark:text-amber-400 shrink-0' : 'text-green-600 dark:text-green-400 shrink-0'} />
                 <span className="text-sm">
                   {attachId
                     ? <>Attach docs to existing: <strong>{matchName}</strong></>
@@ -801,7 +801,7 @@ export default function ProposalIntakeWizard({ availableParents: initialParents 
 
           {createDeveloperVendor && extraction.developer_company && (
             <div className="flex items-center gap-2">
-              <Building2 size={14} className="text-blue-600 shrink-0" />
+              <Building2 size={14} className="text-blue-600 dark:text-blue-400 shrink-0" />
               <span className="text-sm">Add to vendors: <strong>{extraction.developer_company.name}</strong></span>
             </div>
           )}
@@ -842,7 +842,7 @@ export default function ProposalIntakeWizard({ availableParents: initialParents 
       <div className="space-y-6">
         <div className="flex items-center gap-3">
           <div className="h-10 w-10 rounded-full bg-green-100 dark:bg-green-950 flex items-center justify-center shrink-0">
-            <CheckCircle2 size={20} className="text-green-600" />
+            <CheckCircle2 size={20} className="text-green-600 dark:text-green-400" />
           </div>
           <div>
             <h2 className="text-base font-semibold">Ingestion Complete</h2>
@@ -855,7 +855,7 @@ export default function ProposalIntakeWizard({ availableParents: initialParents 
           {doneResult.created_projects.map((proj) => (
             <div key={proj.id} className="flex items-center justify-between p-3">
               <div className="flex items-center gap-2">
-                <CheckCircle2 size={14} className="text-green-600" />
+                <CheckCircle2 size={14} className="text-green-600 dark:text-green-400" />
                 <span className="text-sm font-medium">Created: {proj.name}</span>
               </div>
               <button onClick={() => router.push(`/projects/${proj.id}`)}
@@ -868,7 +868,7 @@ export default function ProposalIntakeWizard({ availableParents: initialParents 
           {(doneResult.attached_projects || []).map((proj) => (
             <div key={proj.id} className="flex items-center justify-between p-3">
               <div className="flex items-center gap-2">
-                <CheckCircle2 size={14} className="text-amber-600" />
+                <CheckCircle2 size={14} className="text-amber-600 dark:text-amber-400" />
                 <span className="text-sm font-medium">Updated: {proj.name}</span>
               </div>
               <button onClick={() => router.push(`/projects/${proj.id}`)}
@@ -880,7 +880,7 @@ export default function ProposalIntakeWizard({ availableParents: initialParents 
 
           {doneResult.developer_entity_id && (
             <div className="flex items-center gap-2 p-3">
-              <Building2 size={14} className="text-blue-600" />
+              <Building2 size={14} className="text-blue-600 dark:text-blue-400" />
               <span className="text-sm">{extraction.developer_company?.name} added to vendors</span>
             </div>
           )}
@@ -898,7 +898,7 @@ export default function ProposalIntakeWizard({ availableParents: initialParents 
 
           {doneResult.entities_created > 0 && (
             <div className="flex items-center gap-2 p-3">
-              <CheckCircle2 size={14} className="text-purple-600" />
+              <CheckCircle2 size={14} className="text-purple-600 dark:text-purple-400" />
               <span className="text-sm text-muted-foreground">{doneResult.entities_created} entit{doneResult.entities_created !== 1 ? 'ies' : 'y'} created</span>
             </div>
           )}
@@ -941,9 +941,9 @@ const REC_STYLE: Record<FitAssessment['recommendation'], {
   bar: string
   Icon: typeof ThumbsUp
 }> = {
-  pursue: { label: 'Pursue', ring: 'border-green-300', bg: 'bg-green-50/60', text: 'text-green-700', bar: 'bg-green-500', Icon: ThumbsUp },
-  consider: { label: 'Consider', ring: 'border-amber-300', bg: 'bg-amber-50/60', text: 'text-amber-700', bar: 'bg-amber-500', Icon: HelpCircle },
-  pass: { label: 'Pass', ring: 'border-red-300', bg: 'bg-red-50/60', text: 'text-red-700', bar: 'bg-red-500', Icon: ThumbsDown },
+  pursue: { label: 'Pursue', ring: 'border-green-300 dark:border-green-700/60', bg: 'bg-green-50/60 dark:bg-green-950/40', text: 'text-green-700 dark:text-green-300', bar: 'bg-green-500', Icon: ThumbsUp },
+  consider: { label: 'Consider', ring: 'border-amber-300 dark:border-amber-700/60', bg: 'bg-amber-50/60 dark:bg-amber-950/40', text: 'text-amber-700 dark:text-amber-300', bar: 'bg-amber-500', Icon: HelpCircle },
+  pass: { label: 'Pass', ring: 'border-red-300 dark:border-red-700/60', bg: 'bg-red-50/60 dark:bg-red-950/40', text: 'text-red-700 dark:text-red-300', bar: 'bg-red-500', Icon: ThumbsDown },
 }
 
 function FitList({ title, items, tone }: { title: string; items: string[]; tone: string }) {
@@ -991,7 +991,7 @@ function FitAssessmentCard({ fit }: { fit: FitAssessment }) {
       </div>
 
       {fit.profile_incomplete && (
-        <p className="text-xs text-amber-700 bg-amber-100/70 rounded px-2.5 py-1.5 flex items-center gap-1.5">
+        <p className="text-xs text-amber-700 dark:text-amber-300 bg-amber-100/70 dark:bg-amber-900/40 rounded px-2.5 py-1.5 flex items-center gap-1.5">
           <AlertTriangle size={12} className="shrink-0" />
           This assessment is low-confidence — flesh out the pursuit profile on the <a href="/company" className="underline font-medium">Company page</a> for sharper judgments.
         </p>
@@ -999,10 +999,10 @@ function FitAssessmentCard({ fit }: { fit: FitAssessment }) {
 
       {/* Detail columns */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3">
-        <FitList title="Why it fits" items={fit.strengths} tone="text-green-700" />
-        <FitList title="Concerns" items={fit.concerns} tone="text-amber-700" />
-        <FitList title="Gaps to close" items={fit.gaps} tone="text-red-700" />
-        <FitList title="Key questions" items={fit.key_questions} tone="text-blue-700" />
+        <FitList title="Why it fits" items={fit.strengths} tone="text-green-700 dark:text-green-300" />
+        <FitList title="Concerns" items={fit.concerns} tone="text-amber-700 dark:text-amber-300" />
+        <FitList title="Gaps to close" items={fit.gaps} tone="text-red-700 dark:text-red-300" />
+        <FitList title="Key questions" items={fit.key_questions} tone="text-blue-700 dark:text-blue-300" />
       </div>
     </div>
   )

@@ -36,22 +36,22 @@ function ProgramBanner({
   const status = program.status ?? 'active'
 
   return (
-    <div className="flex items-stretch gap-0 rounded-lg border border-violet-200 bg-violet-50/40 shadow-sm overflow-hidden">
+    <div className="flex items-stretch gap-0 rounded-lg border border-violet-200 dark:border-violet-800/60 bg-violet-50/40 dark:bg-violet-950/40 shadow-sm overflow-hidden">
       <Link
         href={`/projects/${program.id}`}
-        className="group flex items-center gap-4 px-5 py-4 flex-1 min-w-0 hover:bg-violet-50/70 transition-colors"
+        className="group flex items-center gap-4 px-5 py-4 flex-1 min-w-0 hover:bg-violet-50/70 dark:hover:bg-violet-950/40 transition-colors"
       >
         {/* Icon */}
-        <div className="flex items-center justify-center w-9 h-9 rounded-md bg-violet-100 text-violet-600 shrink-0">
+        <div className="flex items-center justify-center w-9 h-9 rounded-md bg-violet-100 dark:bg-violet-900/40 text-violet-600 dark:text-violet-400 shrink-0">
           <Layers size={18} />
         </div>
 
         {/* Name + entity */}
         <div className="min-w-0 flex-1">
-          <p className="text-[10px] font-semibold tracking-widest uppercase text-violet-500 mb-0.5">
+          <p className="text-[10px] font-semibold tracking-widest uppercase text-violet-500 dark:text-violet-400 mb-0.5">
             Program
           </p>
-          <h2 className="text-[15px] font-semibold text-foreground leading-tight group-hover:text-violet-700 transition-colors truncate">
+          <h2 className="text-[15px] font-semibold text-foreground leading-tight group-hover:text-violet-700 dark:group-hover:text-violet-300 transition-colors truncate">
             {program.name}
           </h2>
           {program.client_entity && (
@@ -91,7 +91,7 @@ function ProgramBanner({
       <button
         onClick={onToggle}
         title={isCollapsed ? 'Expand sub-projects' : 'Collapse sub-projects'}
-        className="flex items-center justify-center w-10 border-l border-violet-200 text-violet-400 hover:text-violet-600 hover:bg-violet-100/60 transition-colors shrink-0"
+        className="flex items-center justify-center w-10 border-l border-violet-200 dark:border-violet-800/60 text-violet-400 hover:text-violet-600 dark:hover:text-violet-400 hover:bg-violet-100/60 dark:hover:bg-violet-900/40 transition-colors shrink-0"
       >
         <ChevronDown
           size={16}
@@ -366,7 +366,7 @@ export default function ProjectsClient({ projects: initialProjects, stageFilter 
                   <div className="flex items-center justify-between mt-1.5 text-xs">
                     <span className="font-semibold tabular-nums text-foreground">{formatValue(colValue)}</span>
                     {colWeighted > 0 && (
-                      <span className="tabular-nums text-emerald-600">{formatValue(colWeighted)} wtd</span>
+                      <span className="tabular-nums text-emerald-600 dark:text-emerald-400">{formatValue(colWeighted)} wtd</span>
                     )}
                   </div>
                 </div>
@@ -408,7 +408,7 @@ export default function ProjectsClient({ projects: initialProjects, stageFilter 
               onToggle={() => toggleProgram(parent.id)}
             />
             {!isCollapsed && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 pl-5 border-l-2 border-violet-200 ml-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 pl-5 border-l-2 border-violet-200 dark:border-violet-800/60 ml-4">
                 {children.map(child => (
                   <DeletableCard
                     key={child.id}

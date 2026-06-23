@@ -98,7 +98,7 @@ function ArtifactCard({ artifact }: { artifact: ResearchArtifact }) {
                     href={s.url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center gap-1.5 text-xs text-blue-600 hover:underline truncate"
+                    className="flex items-center gap-1.5 text-xs text-blue-600 dark:text-blue-400 hover:underline truncate"
                   >
                     <ExternalLink size={11} className="shrink-0" />
                     <span className="truncate">{s.title ?? s.url}</span>
@@ -286,7 +286,7 @@ export default function ResearchPanel({
             autoFocus
           />
 
-          {error && <p className="text-sm text-red-600">{error}</p>}
+          {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
 
           <div className="flex items-center gap-2">
             <button
@@ -317,7 +317,7 @@ export default function ResearchPanel({
                   Result
                 </p>
                 {savedId ? (
-                  <span className="inline-flex items-center gap-1 text-xs text-emerald-600 font-medium">
+                  <span className="inline-flex items-center gap-1 text-xs text-emerald-600 dark:text-emerald-400 font-medium">
                     <Save size={11} />
                     Saved to Research
                   </span>
@@ -355,7 +355,7 @@ export default function ResearchPanel({
                         href={s.url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="flex items-center gap-1.5 text-xs text-blue-600 hover:underline"
+                        className="flex items-center gap-1.5 text-xs text-blue-600 dark:text-blue-400 hover:underline"
                       >
                         <ExternalLink size={11} className="shrink-0" />
                         <span className="truncate">{s.title ?? s.url}</span>

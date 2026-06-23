@@ -28,16 +28,16 @@ export default async function SiteLayout({
   return (
     <div className="space-y-4">
       {/* Breadcrumb */}
-      <nav className="flex items-center gap-1.5 text-sm text-slate-500 dark:text-muted-foreground">
-        <Link href="/portfolio" className="hover:text-slate-900 dark:hover:text-foreground">Portfolio</Link>
+      <nav className="flex items-center gap-1.5 text-sm text-slate-500 dark:text-slate-400 dark:text-muted-foreground">
+        <Link href="/portfolio" className="hover:text-slate-900 dark:hover:text-slate-200 dark:hover:text-foreground">Portfolio</Link>
         <span>/</span>
         {corridor && (
           <>
-            <span className="text-slate-500 dark:text-muted-foreground">{corridor.name}</span>
+            <span className="text-slate-500 dark:text-slate-400 dark:text-muted-foreground">{corridor.name}</span>
             <span>/</span>
           </>
         )}
-        <span className="text-slate-900 dark:text-foreground font-medium">{site.name}</span>
+        <span className="text-slate-900 dark:text-slate-200 dark:text-foreground font-medium">{site.name}</span>
       </nav>
 
       {/* Header */}
@@ -47,16 +47,16 @@ export default async function SiteLayout({
             {site.site_number && (
               <span className="text-sm font-mono text-slate-400 dark:text-muted-foreground">Site {site.site_number}</span>
             )}
-            <h1 className="text-2xl font-bold text-slate-900 dark:text-foreground truncate">{site.name}</h1>
+            <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-200 dark:text-foreground truncate">{site.name}</h1>
           </div>
-          <p className="text-sm text-slate-500 dark:text-muted-foreground mt-1">
+          <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-muted-foreground mt-1">
             {[site.city, site.state].filter(Boolean).join(', ')}
             {brand && <span className="ml-2 text-slate-400 dark:text-muted-foreground">({brand.code})</span>}
           </p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
           {site.is_lead_site && (
-            <span className="text-xs font-bold uppercase bg-indigo-100 text-indigo-700 px-2 py-1 rounded">
+            <span className="text-xs font-bold uppercase bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 px-2 py-1 rounded">
               Lead Site
             </span>
           )}

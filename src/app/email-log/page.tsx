@@ -44,27 +44,27 @@ const STATUS_CONFIG: Record<
 > = {
   ingested: {
     label: 'Ingested',
-    color: 'text-emerald-700 bg-emerald-50 ring-emerald-200',
+    color: 'text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 ring-emerald-200 dark:ring-emerald-800/60',
     Icon: CheckCircle2,
   },
   in_review: {
     label: 'In Review',
-    color: 'text-amber-700 bg-amber-50 ring-amber-200',
+    color: 'text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 ring-amber-200 dark:ring-amber-800/60',
     Icon: Clock,
   },
   rejected: {
     label: 'Rejected',
-    color: 'text-rose-700 bg-rose-50 ring-rose-200',
+    color: 'text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/40 ring-rose-200 dark:ring-rose-800/60',
     Icon: XCircle,
   },
   skipped: {
     label: 'Skipped',
-    color: 'text-slate-500 bg-slate-50 ring-slate-200',
+    color: 'text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-950/40 ring-slate-200 dark:ring-slate-800/60',
     Icon: MinusCircle,
   },
   failed: {
     label: 'Failed',
-    color: 'text-red-700 bg-red-50 ring-red-200',
+    color: 'text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-950/40 ring-red-200 dark:ring-red-800/60',
     Icon: AlertTriangle,
   },
 }

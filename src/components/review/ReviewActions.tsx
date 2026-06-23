@@ -75,9 +75,9 @@ export default function ReviewActions({
 
   if (resolved) {
     const labels: Record<string, { text: string; color: string }> = {
-      approved: { text: 'Approved', color: 'text-emerald-600' },
-      rejected: { text: 'Rejected', color: 'text-red-600' },
-      edited: { text: 'Edited & Approved', color: 'text-blue-600' },
+      approved: { text: 'Approved', color: 'text-emerald-600 dark:text-emerald-400' },
+      rejected: { text: 'Rejected', color: 'text-red-600 dark:text-red-400' },
+      edited: { text: 'Edited & Approved', color: 'text-blue-600 dark:text-blue-400' },
     }
     const label = labels[resolved] ?? labels.approved
     return (
@@ -90,14 +90,14 @@ export default function ReviewActions({
   return (
     <div className="flex flex-col items-end gap-1">
       {reassignError && (
-        <p className="text-xs text-red-600">{reassignError}</p>
+        <p className="text-xs text-red-600 dark:text-red-400">{reassignError}</p>
       )}
     <div className="flex items-center gap-2 flex-wrap">
       {/* Approve */}
       <button
         onClick={() => resolve('approved')}
         disabled={loading !== null}
-        className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded text-xs font-medium bg-emerald-50 text-emerald-700 hover:bg-emerald-100 disabled:opacity-50 transition-colors"
+        className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded text-xs font-medium bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 disabled:opacity-50 transition-colors"
       >
         <CheckCircle size={13} />
         {loading === 'approve' ? 'Approving...' : 'Approve'}
@@ -107,7 +107,7 @@ export default function ReviewActions({
       <button
         onClick={() => resolve('rejected')}
         disabled={loading !== null}
-        className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded text-xs font-medium bg-red-50 text-red-700 hover:bg-red-100 disabled:opacity-50 transition-colors"
+        className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded text-xs font-medium bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-900/40 disabled:opacity-50 transition-colors"
       >
         <XCircle size={13} />
         {loading === 'reject' ? 'Rejecting...' : 'Reject'}

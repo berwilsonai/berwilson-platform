@@ -83,7 +83,7 @@ export default function ValuationClient() {
       </div>
 
       {/* Blended Result Hero */}
-      <Card className="border-amber-300 bg-amber-50/30">
+      <Card className="border-amber-300 dark:border-amber-700/60 bg-amber-50/30 dark:bg-amber-950/40">
         <CardContent className="pt-6">
           <div className="grid gap-4 md:grid-cols-4">
             <div className="text-center">
@@ -91,8 +91,8 @@ export default function ValuationClient() {
               <p className="text-xl font-bold text-foreground">{formatCurrencyCompact(result.blended.low)}</p>
             </div>
             <div className="text-center">
-              <p className="text-xs uppercase tracking-wide text-amber-600 mb-1">Blended Mid</p>
-              <p className="text-2xl font-bold text-amber-700">{formatCurrencyCompact(result.blended.mid)}</p>
+              <p className="text-xs uppercase tracking-wide text-amber-600 dark:text-amber-400 mb-1">Blended Mid</p>
+              <p className="text-2xl font-bold text-amber-700 dark:text-amber-300">{formatCurrencyCompact(result.blended.mid)}</p>
             </div>
             <div className="text-center">
               <p className="text-xs uppercase tracking-wide text-muted-foreground mb-1">Optimistic</p>
@@ -192,7 +192,7 @@ export default function ValuationClient() {
                       variant="ghost"
                       size="sm"
                       onClick={() => removeContract(i)}
-                      className="h-7 w-7 p-0 text-muted-foreground hover:text-red-600"
+                      className="h-7 w-7 p-0 text-muted-foreground hover:text-red-600 dark:hover:text-red-400"
                     >
                       <Trash2 size={12} />
                     </Button>
@@ -206,7 +206,7 @@ export default function ValuationClient() {
                 </TableCell>
                 <TableCell />
                 <TableCell />
-                <TableCell className="text-xs text-right font-bold text-amber-700">
+                <TableCell className="text-xs text-right font-bold text-amber-700 dark:text-amber-300">
                   {formatCurrencyCompact(valuation.contracts.reduce((s, c) => s + c.value * c.probability, 0))}
                 </TableCell>
                 <TableCell />
@@ -231,7 +231,7 @@ export default function ValuationClient() {
                 <p className="text-sm font-medium">{formatCurrencyCompact(result.dcf.low)}</p>
               </div>
               <div>
-                <p className="text-xs text-amber-600">Mid</p>
+                <p className="text-xs text-amber-600 dark:text-amber-400">Mid</p>
                 <p className="text-sm font-bold">{formatCurrencyCompact(result.dcf.mid)}</p>
               </div>
               <div>
@@ -395,7 +395,7 @@ export default function ValuationClient() {
                 <p className="text-sm font-medium">{formatCurrencyCompact(result.multiples.low)}</p>
               </div>
               <div>
-                <p className="text-xs text-amber-600">Mid</p>
+                <p className="text-xs text-amber-600 dark:text-amber-400">Mid</p>
                 <p className="text-sm font-bold">{formatCurrencyCompact(result.multiples.mid)}</p>
               </div>
               <div>
@@ -546,7 +546,7 @@ export default function ValuationClient() {
                 <p className="text-sm font-medium">{formatCurrencyCompact(result.assets.low)}</p>
               </div>
               <div>
-                <p className="text-xs text-amber-600">Mid</p>
+                <p className="text-xs text-amber-600 dark:text-amber-400">Mid</p>
                 <p className="text-sm font-bold">{formatCurrencyCompact(result.assets.mid)}</p>
               </div>
               <div>

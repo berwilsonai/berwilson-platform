@@ -8,7 +8,7 @@ export default function AttentionPage() {
     <div className="max-w-4xl mx-auto space-y-6">
       <div className="flex items-center gap-3">
         <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-red-500/10">
-          <AlertTriangle size={16} className="text-red-500" />
+          <AlertTriangle size={16} className="text-red-500 dark:text-red-400" />
         </div>
         <div>
           <h1 className="text-lg font-semibold text-foreground">What&apos;s Falling Through the Cracks</h1>

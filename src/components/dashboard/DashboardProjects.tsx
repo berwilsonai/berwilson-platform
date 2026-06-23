@@ -185,7 +185,7 @@ export default function DashboardProjects({ projects, counts }: DashboardProject
                   )}
                 </div>
                 {isProgram && !isCollapsed && (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pl-4 border-l-2 border-violet-200 ml-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pl-4 border-l-2 border-violet-200 dark:border-violet-800/60 ml-2">
                     {kids.map(c => (
                       <ProjectCard key={c.id} project={c} counts={counts[c.id]} parentName={p.name} />
                     ))}

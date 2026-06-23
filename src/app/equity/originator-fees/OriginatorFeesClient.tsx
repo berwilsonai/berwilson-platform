@@ -189,7 +189,7 @@ export default function OriginatorFeesClient() {
                       variant="ghost"
                       size="sm"
                       onClick={() => removeTier(i)}
-                      className="h-5 w-5 p-0 text-muted-foreground hover:text-red-600"
+                      className="h-5 w-5 p-0 text-muted-foreground hover:text-red-600 dark:hover:text-red-400"
                       disabled={originatorFees.tiers.length <= 1}
                     >
                       <Trash2 size={10} />
@@ -248,12 +248,12 @@ export default function OriginatorFeesClient() {
           </Card>
 
           {/* Total */}
-          <Card className="border-amber-300 bg-amber-50/30">
+          <Card className="border-amber-300 dark:border-amber-700/60 bg-amber-50/30 dark:bg-amber-950/40">
             <CardContent className="pt-4 text-center">
               <p className="text-xs uppercase tracking-wide text-muted-foreground mb-1">
                 Total Lifetime Originator Fees
               </p>
-              <p className="text-2xl font-bold text-amber-700">
+              <p className="text-2xl font-bold text-amber-700 dark:text-amber-300">
                 {formatCurrency(totalLifetime)}
               </p>
               <p className="text-xs text-muted-foreground mt-1">
@@ -332,7 +332,7 @@ export default function OriginatorFeesClient() {
                         <TableCell className="text-xs text-right">
                           {formatCurrencyCompact(r.netProfit)}
                         </TableCell>
-                        <TableCell className="text-xs text-right font-medium text-amber-700">
+                        <TableCell className="text-xs text-right font-medium text-amber-700 dark:text-amber-300">
                           {formatCurrency(r.originatorFee)}
                           {r.capApplied && (
                             <Badge variant="secondary" className="ml-1 text-[8px] px-1 py-0">
@@ -348,7 +348,7 @@ export default function OriginatorFeesClient() {
                             variant="ghost"
                             size="sm"
                             onClick={() => removeDeal(i)}
-                            className="h-7 w-7 p-0 text-muted-foreground hover:text-red-600"
+                            className="h-7 w-7 p-0 text-muted-foreground hover:text-red-600 dark:hover:text-red-400"
                           >
                             <Trash2 size={12} />
                           </Button>
@@ -369,7 +369,7 @@ export default function OriginatorFeesClient() {
                         results.reduce((sum, r) => sum + r.netProfit, 0)
                       )}
                     </TableCell>
-                    <TableCell className="text-xs text-right font-bold text-amber-700">
+                    <TableCell className="text-xs text-right font-bold text-amber-700 dark:text-amber-300">
                       {formatCurrency(totalLifetime)}
                     </TableCell>
                     <TableCell />

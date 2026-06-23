@@ -44,8 +44,8 @@ export default async function CompanyPage() {
     <div className="space-y-8 max-w-3xl">
       {/* Header */}
       <div className="flex items-center gap-3">
-        <div className="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center shrink-0">
-          <Building2 size={20} className="text-slate-500" />
+        <div className="w-10 h-10 rounded-lg bg-slate-100 dark:bg-slate-900/40 flex items-center justify-center shrink-0">
+          <Building2 size={20} className="text-slate-500 dark:text-slate-400" />
         </div>
         <div>
           <h1 className="text-xl font-semibold">{profile.legal_name}</h1>

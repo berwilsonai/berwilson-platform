@@ -437,7 +437,7 @@ function DrawScheduleEditor({
               <div className="flex items-center justify-center">
                 <button
                   onClick={() => removeRow(idx)}
-                  className="p-1 text-muted-foreground hover:text-red-600 transition-colors"
+                  className="p-1 text-muted-foreground hover:text-red-600 dark:hover:text-red-400 transition-colors"
                   title="Remove row"
                 >
                   <Trash2 size={12} />
@@ -569,9 +569,9 @@ export default function FinancingTab({
     return (
       <div className="max-w-2xl space-y-6">
         {/* Classification banner */}
-        <div className="flex items-center gap-2 rounded-md bg-amber-50 border border-amber-200 px-3 py-2">
-          <Lock size={13} className="text-amber-600 shrink-0" />
-          <p className="text-xs text-amber-800 font-medium">
+        <div className="flex items-center gap-2 rounded-md bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 px-3 py-2">
+          <Lock size={13} className="text-amber-600 dark:text-amber-400 shrink-0" />
+          <p className="text-xs text-amber-800 dark:text-amber-300 font-medium">
             CONFIDENTIAL — Financial data. Handle per information security policy.
           </p>
         </div>
@@ -703,7 +703,7 @@ export default function FinancingTab({
           </FormField>
         </div>
 
-        {error && <p className="text-sm text-red-600">{error}</p>}
+        {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
 
         {/* Actions */}
         <div className="flex items-center gap-2 border-t border-border pt-5">
@@ -747,7 +747,7 @@ export default function FinancingTab({
       <div className="flex items-start justify-between gap-4">
         <div className="flex items-center gap-2">
           <h2 className="text-sm font-semibold">Financing Structure</h2>
-          <span className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs font-semibold uppercase tracking-wide bg-amber-100 text-amber-800 ring-1 ring-inset ring-amber-300">
+          <span className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs font-semibold uppercase tracking-wide bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-300 ring-1 ring-inset ring-amber-300">
             <Lock size={9} />
             Confidential
           </span>
@@ -791,7 +791,7 @@ export default function FinancingTab({
         <FieldRow
           label="Senior Debt"
           value={
-            <span className="font-medium text-blue-700">
+            <span className="font-medium text-blue-700 dark:text-blue-300">
               {formatCurrency(financing.senior_debt)}
             </span>
           }
@@ -799,7 +799,7 @@ export default function FinancingTab({
         <FieldRow
           label="Mezzanine"
           value={
-            <span className="font-medium text-amber-700">
+            <span className="font-medium text-amber-700 dark:text-amber-300">
               {formatCurrency(financing.mezzanine)}
             </span>
           }
@@ -807,7 +807,7 @@ export default function FinancingTab({
         <FieldRow
           label="Equity"
           value={
-            <span className="font-medium text-emerald-700">
+            <span className="font-medium text-emerald-700 dark:text-emerald-300">
               {financing.equity_amount != null
                 ? `${formatCurrency(financing.equity_amount)}${financing.equity_pct != null ? ` (${formatPct(financing.equity_pct)})` : ''}`
                 : '—'}
@@ -828,7 +828,7 @@ export default function FinancingTab({
             <div className="flex items-center gap-3 text-xs mb-3">
               <span className="text-muted-foreground">
                 Drawn:{' '}
-                <span className="font-semibold text-emerald-700">
+                <span className="font-semibold text-emerald-700 dark:text-emerald-300">
                   {formatCurrency(totalDrawn)}
                 </span>
               </span>
@@ -866,7 +866,7 @@ export default function FinancingTab({
                 key={idx}
                 className={cn(
                   'grid grid-cols-[1fr_100px_72px_110px] border-b last:border-b-0 border-border',
-                  entry.drawn > 0 && 'bg-emerald-50/40'
+                  entry.drawn > 0 && 'bg-emerald-50/40 dark:bg-emerald-950/40'
                 )}
               >
                 <div className="px-3 py-2.5 text-sm text-foreground border-r border-border">
@@ -877,7 +877,7 @@ export default function FinancingTab({
                 </div>
                 <div className="px-3 py-2.5 border-r border-border">
                   {entry.drawn > 0 ? (
-                    <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-700">
+                    <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-700 dark:text-emerald-300">
                       <Check size={11} />
                       Drawn
                     </span>

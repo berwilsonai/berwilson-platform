@@ -63,13 +63,13 @@ export default function DashboardPage() {
         <div className="grid gap-4 md:grid-cols-2 auto-rows-min">
           {MODULES.map(({ href, title, description, icon: Icon, priority }) => (
             <Link key={href} href={href} className="group">
-              <Card className={`h-full transition-all hover:shadow-md ${priority ? 'border-amber-300 bg-amber-50/30' : ''}`}>
+              <Card className={`h-full transition-all hover:shadow-md ${priority ? 'border-amber-300 dark:border-amber-700/60 bg-amber-50/30 dark:bg-amber-950/40' : ''}`}>
                 <CardHeader className="pb-2">
                   <div className="flex items-center gap-2.5">
-                    <div className={`p-1.5 rounded-md ${priority ? 'bg-amber-100 text-amber-700' : 'bg-muted text-muted-foreground'}`}>
+                    <div className={`p-1.5 rounded-md ${priority ? 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300' : 'bg-muted text-muted-foreground'}`}>
                       <Icon size={16} />
                     </div>
-                    <CardTitle className="text-sm font-medium group-hover:text-amber-700 transition-colors">
+                    <CardTitle className="text-sm font-medium group-hover:text-amber-700 dark:group-hover:text-amber-300 transition-colors">
                       {title}
                     </CardTitle>
                   </div>
@@ -79,7 +79,7 @@ export default function DashboardPage() {
                     {description}
                   </CardDescription>
                   {priority && (
-                    <p className="text-xs text-amber-600 font-medium mt-2 uppercase tracking-wide">
+                    <p className="text-xs text-amber-600 dark:text-amber-400 font-medium mt-2 uppercase tracking-wide">
                       Start here
                     </p>
                   )}

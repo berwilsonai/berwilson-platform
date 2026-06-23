@@ -163,7 +163,7 @@ export default function CompanyAutocomplete({ inputClass }: CompanyAutocompleteP
 
       {/* Visual indicator when linked to existing entity */}
       {selectedEntity && (
-        <p className="mt-1 text-xs text-green-600 flex items-center gap-1">
+        <p className="mt-1 text-xs text-green-600 dark:text-green-400 flex items-center gap-1">
           <Building2 size={10} />
           Linked to existing vendor record
         </p>

@@ -58,10 +58,10 @@ function EmailBody({ raw }: { raw: string }) {
 }
 
 const SEVERITY_COLORS: Record<string, string> = {
-  info: 'bg-slate-100 text-slate-600',
-  watch: 'bg-amber-100 text-amber-700',
-  critical: 'bg-red-100 text-red-700',
-  blocker: 'bg-red-200 text-red-800',
+  info: 'bg-slate-100 dark:bg-slate-900/40 text-slate-600 dark:text-slate-400',
+  watch: 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300',
+  critical: 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300',
+  blocker: 'bg-red-200 dark:bg-red-900/60 text-red-800 dark:text-red-300',
 }
 
 function formatTimestamp(ts: string | null): string {
@@ -140,7 +140,7 @@ function UpdateCard({ update, onSaved }: { update: Update; onSaved: () => void }
               href={update.outlook_web_link as string}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs font-medium text-blue-600 hover:text-blue-800 hover:bg-blue-50 transition-colors"
+              className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs font-medium text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-950/40 transition-colors"
               title="Open in Outlook"
             >
               <ExternalLink size={11} />
@@ -176,7 +176,7 @@ function UpdateCard({ update, onSaved }: { update: Update; onSaved: () => void }
                     aria-label={item.completed ? 'Mark incomplete' : 'Mark complete'}
                   >
                     {item.completed ? (
-                      <CheckSquare size={14} className="text-emerald-600" />
+                      <CheckSquare size={14} className="text-emerald-600 dark:text-emerald-400" />
                     ) : (
                       <Square size={14} className="text-muted-foreground" />
                     )}
@@ -282,7 +282,7 @@ function UpdateCard({ update, onSaved }: { update: Update; onSaved: () => void }
               href={update.outlook_web_link as string}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-blue-600 hover:text-blue-800 underline"
+              className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 underline"
             >
               View in Outlook
             </a>

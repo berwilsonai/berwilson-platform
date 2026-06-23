@@ -85,7 +85,7 @@ export default function ReviewForm({ entityId, projects, onSaved, onCancel }: Re
                 className={cn(
                   'transition-colors',
                   i <= (hoverRating || rating)
-                    ? 'text-amber-500 fill-amber-500'
+                    ? 'text-amber-500 dark:text-amber-400 fill-amber-500'
                     : 'text-muted-foreground/30'
                 )}
               />
@@ -181,7 +181,7 @@ function TriToggle({
           onClick={() => onChange(value === true ? null : true)}
           className={cn(
             'px-2 py-1 rounded text-xs font-medium transition-colors',
-            value === true ? 'bg-green-100 text-green-700 border border-green-300' : 'bg-muted text-muted-foreground'
+            value === true ? 'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 border border-green-300 dark:border-green-700/60' : 'bg-muted text-muted-foreground'
           )}
         >
           Yes
@@ -191,7 +191,7 @@ function TriToggle({
           onClick={() => onChange(value === false ? null : false)}
           className={cn(
             'px-2 py-1 rounded text-xs font-medium transition-colors',
-            value === false ? 'bg-red-100 text-red-700 border border-red-300' : 'bg-muted text-muted-foreground'
+            value === false ? 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 border border-red-300 dark:border-red-700/60' : 'bg-muted text-muted-foreground'
           )}
         >
           No

@@ -50,13 +50,13 @@ const ENTITY_TYPE_LABELS: Record<EntityType, string> = {
 }
 
 const ENTITY_TYPE_STYLES: Record<EntityType, string> = {
-  llc: 'bg-blue-50 text-blue-700 ring-blue-200',
-  corp: 'bg-violet-50 text-violet-700 ring-violet-200',
-  jv: 'bg-emerald-50 text-emerald-700 ring-emerald-200',
-  subsidiary: 'bg-amber-50 text-amber-700 ring-amber-200',
-  trust: 'bg-rose-50 text-rose-700 ring-rose-200',
-  fund: 'bg-indigo-50 text-indigo-700 ring-indigo-200',
-  other: 'bg-slate-50 text-slate-600 ring-slate-200',
+  llc: 'bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 ring-blue-200 dark:ring-blue-800/60',
+  corp: 'bg-violet-50 dark:bg-violet-950/40 text-violet-700 dark:text-violet-300 ring-violet-200 dark:ring-violet-800/60',
+  jv: 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 ring-emerald-200 dark:ring-emerald-800/60',
+  subsidiary: 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 ring-amber-200 dark:ring-amber-800/60',
+  trust: 'bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 ring-rose-200 dark:ring-rose-800/60',
+  fund: 'bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 ring-indigo-200 dark:ring-indigo-800/60',
+  other: 'bg-slate-50 dark:bg-slate-950/40 text-slate-600 dark:text-slate-400 ring-slate-200 dark:ring-slate-800/60',
 }
 
 const RELATIONSHIPS = ['owner', 'jv_partner', 'sub_entity', 'guarantor', 'vendor', 'subcontractor', 'consultant', 'partner'] as const
@@ -350,7 +350,7 @@ function EntityTreeNode({
         )}
 
         {isLinked && (
-          <span className="shrink-0 inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium ring-1 ring-inset bg-emerald-50 text-emerald-700 ring-emerald-200">
+          <span className="shrink-0 inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium ring-1 ring-inset bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 ring-emerald-200 dark:ring-emerald-800/60">
             On project
           </span>
         )}
@@ -682,7 +682,7 @@ export default function EntitiesTab({
           excludeId={editEntity?.id}
         />
 
-        {error && <p className="text-sm text-red-600">{error}</p>}
+        {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
 
         <div className="flex items-center gap-2 border-t border-border pt-5">
           <button
@@ -704,7 +704,7 @@ export default function EntitiesTab({
           {isEdit && editEntity && (
             <button
               onClick={() => handleDeleteEntity(editEntity)}
-              className="ml-auto inline-flex items-center gap-1.5 h-9 px-3 rounded-md border border-red-200 text-red-600 text-sm font-medium hover:bg-red-50 transition-colors"
+              className="ml-auto inline-flex items-center gap-1.5 h-9 px-3 rounded-md border border-red-200 dark:border-red-800/60 text-red-600 dark:text-red-400 text-sm font-medium hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors"
             >
               <Trash2 size={14} />
               Delete
@@ -810,7 +810,7 @@ export default function EntitiesTab({
                 />
               </FormField>
             </div>
-            {error && <p className="text-sm text-red-600">{error}</p>}
+            {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
             <div className="flex items-center gap-2">
               <button
                 onClick={handleLink}
@@ -902,7 +902,7 @@ export default function EntitiesTab({
                           </FormField>
                         </div>
                       </div>
-                      {error && <p className="text-sm text-red-600">{error}</p>}
+                      {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
                       <div className="flex items-center gap-2">
                         <button
                           onClick={() => handleUpdateLink(ep)}
@@ -956,7 +956,7 @@ export default function EntitiesTab({
                         <button
                           onClick={() => handleUnlink(ep)}
                           title="Remove from project"
-                          className="h-7 w-7 flex items-center justify-center rounded text-muted-foreground hover:text-red-600 hover:bg-red-50 transition-colors"
+                          className="h-7 w-7 flex items-center justify-center rounded text-muted-foreground hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors"
                         >
                           <Link2Off size={12} />
                         </button>

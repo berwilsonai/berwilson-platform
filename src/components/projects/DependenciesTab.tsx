@@ -29,10 +29,10 @@ interface DependenciesTabProps {
 }
 
 const SEVERITY_COLORS: Record<string, string> = {
-  info: 'text-slate-600 bg-slate-50 ring-slate-200',
-  watch: 'text-yellow-600 bg-yellow-50 ring-yellow-200',
-  critical: 'text-red-600 bg-red-50 ring-red-200',
-  blocker: 'text-red-700 bg-red-100 ring-red-300',
+  info: 'text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-950/40 ring-slate-200 dark:ring-slate-800/60',
+  watch: 'text-yellow-600 dark:text-yellow-400 bg-yellow-50 dark:bg-yellow-950/40 ring-yellow-200 dark:ring-yellow-800/60',
+  critical: 'text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/40 ring-red-200 dark:ring-red-800/60',
+  blocker: 'text-red-700 dark:text-red-300 bg-red-100 dark:bg-red-900/40 ring-red-300',
 }
 
 export default function DependenciesTab({ projectId, projectName, allProjects }: DependenciesTabProps) {
@@ -105,10 +105,10 @@ export default function DependenciesTab({ projectId, projectName, allProjects }:
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <GitBranch size={14} className="text-pink-600" />
+          <GitBranch size={14} className="text-pink-600 dark:text-pink-400" />
           <h3 className="text-sm font-semibold text-foreground">Cross-Project Dependencies</h3>
           {activeDeps.length > 0 && (
-            <span className="text-xs font-medium bg-pink-50 text-pink-600 px-1.5 py-0.5 rounded ring-1 ring-pink-200">
+            <span className="text-xs font-medium bg-pink-50 dark:bg-pink-950/40 text-pink-600 dark:text-pink-400 px-1.5 py-0.5 rounded ring-1 ring-pink-200 dark:ring-pink-800/60">
               {activeDeps.length} active
             </span>
           )}
@@ -221,14 +221,14 @@ export default function DependenciesTab({ projectId, projectName, allProjects }:
                 <button
                   onClick={() => resolve(dep.id)}
                   title="Mark resolved"
-                  className="p-1 text-emerald-500 hover:text-emerald-600 hover:bg-emerald-50 rounded transition-colors"
+                  className="p-1 text-emerald-500 dark:text-emerald-400 hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 rounded transition-colors"
                 >
                   <Check size={13} />
                 </button>
                 <button
                   onClick={() => remove(dep.id)}
                   title="Remove"
-                  className="p-1 text-muted-foreground hover:text-red-500 hover:bg-red-50 rounded transition-colors"
+                  className="p-1 text-muted-foreground hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 rounded transition-colors"
                 >
                   <X size={13} />
                 </button>

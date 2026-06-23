@@ -41,9 +41,9 @@ export default function PursuitSnapshot({ project }: { project: ProjectWithCaptu
           className={cn(
             'rounded-lg border p-4 text-center',
             bidDueDays != null && bidDueDays <= 7
-              ? 'border-red-200 bg-red-50'
+              ? 'border-red-200 dark:border-red-800/60 bg-red-50 dark:bg-red-950/40'
               : bidDueDays != null && bidDueDays <= 21
-                ? 'border-amber-200 bg-amber-50'
+                ? 'border-amber-200 dark:border-amber-800/60 bg-amber-50 dark:bg-amber-950/40'
                 : 'border-border bg-card'
           )}
         >
@@ -107,7 +107,7 @@ export default function PursuitSnapshot({ project }: { project: ProjectWithCaptu
           {weighted > 0 && (
             <div className="flex items-center justify-between px-4 py-2.5">
               <span className="text-xs text-muted-foreground">Weighted (P-win)</span>
-              <span className="text-sm font-semibold tabular-nums text-emerald-600">{formatValue(weighted)}</span>
+              <span className="text-sm font-semibold tabular-nums text-emerald-600 dark:text-emerald-400">{formatValue(weighted)}</span>
             </div>
           )}
 

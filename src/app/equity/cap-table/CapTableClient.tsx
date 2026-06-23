@@ -176,11 +176,11 @@ export default function CapTableClient() {
 
           {/* Validation Warnings */}
           {!validation.valid && (
-            <div className="bg-red-50 border border-red-200 rounded-md p-3 flex items-start gap-2">
-              <AlertTriangle size={14} className="text-red-600 mt-0.5 shrink-0" />
+            <div className="bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800/60 rounded-md p-3 flex items-start gap-2">
+              <AlertTriangle size={14} className="text-red-600 dark:text-red-400 mt-0.5 shrink-0" />
               <div className="space-y-1">
                 {validation.errors.map((err, i) => (
-                  <p key={i} className="text-xs text-red-700">{err}</p>
+                  <p key={i} className="text-xs text-red-700 dark:text-red-300">{err}</p>
                 ))}
               </div>
             </div>
@@ -226,7 +226,7 @@ export default function CapTableClient() {
                           </button>
                           <button
                             onClick={() => removeHolder(i)}
-                            className="text-muted-foreground hover:text-red-600"
+                            className="text-muted-foreground hover:text-red-600 dark:hover:text-red-400"
                             title="Remove holder"
                           >
                             <Trash2 size={12} />
@@ -273,8 +273,8 @@ export default function CapTableClient() {
                 <span
                   className={`font-medium ${
                     Math.abs(validation.total - 100) < 0.1
-                      ? 'text-emerald-600'
-                      : 'text-red-600'
+                      ? 'text-emerald-600 dark:text-emerald-400'
+                      : 'text-red-600 dark:text-red-400'
                   }`}
                 >
                   {formatPercentDisplay(validation.total)}
@@ -318,7 +318,7 @@ export default function CapTableClient() {
                       <span>
                         <span className="font-medium">{formatPercentDisplay(h.percentage)}</span>
                         {original && (
-                          <span className="text-red-500 ml-1">({delta.toFixed(1)}%)</span>
+                          <span className="text-red-500 dark:text-red-400 ml-1">({delta.toFixed(1)}%)</span>
                         )}
                       </span>
                     </div>
@@ -331,7 +331,7 @@ export default function CapTableClient() {
               </div>
 
               {dilutedHolders.find((h) => h.classB && h.percentage < ERIC_OWNERSHIP_FLOOR) ? (
-                <p className="text-xs text-red-600">
+                <p className="text-xs text-red-600 dark:text-red-400">
                   This dilution would bring Eric below the {ERIC_OWNERSHIP_FLOOR}% floor.
                 </p>
               ) : (
@@ -404,7 +404,7 @@ export default function CapTableClient() {
                         <TableCell className="text-xs text-right font-medium">
                           {formatCurrency(h.value)}
                         </TableCell>
-                        <TableCell className="text-xs text-right font-medium text-amber-600">
+                        <TableCell className="text-xs text-right font-medium text-amber-600 dark:text-amber-400">
                           {formatCurrency(h.value * (vestedPct / 100))}
                         </TableCell>
                       </TableRow>

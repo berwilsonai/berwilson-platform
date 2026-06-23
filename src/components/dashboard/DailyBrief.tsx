@@ -86,7 +86,7 @@ export default function DailyBrief() {
         </span>
         {stale && !loading && (
           <Tooltip>
-            <TooltipTrigger className="text-xs text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded cursor-help">
+            <TooltipTrigger className="text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 px-1.5 py-0.5 rounded cursor-help">
               Yesterday
             </TooltipTrigger>
             <TooltipContent>
@@ -119,7 +119,7 @@ export default function DailyBrief() {
           )}
 
           {error && (
-            <p className="text-xs text-red-600 pt-3">{error}</p>
+            <p className="text-xs text-red-600 dark:text-red-400 pt-3">{error}</p>
           )}
 
           {brief && (

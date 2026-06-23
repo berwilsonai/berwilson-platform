@@ -209,7 +209,7 @@ export default function BackgroundCheckStatus({
           </div>
         )}
 
-        {error && <p className="text-xs text-red-600">{error}</p>}
+        {error && <p className="text-xs text-red-600 dark:text-red-400">{error}</p>}
 
         <div className="flex items-center gap-2 pt-1">
           <button
@@ -232,7 +232,7 @@ export default function BackgroundCheckStatus({
             <button
               onClick={handleClear}
               disabled={saving}
-              className="ml-auto text-xs text-muted-foreground hover:text-red-600 transition-colors"
+              className="ml-auto text-xs text-muted-foreground hover:text-red-600 dark:hover:text-red-400 transition-colors"
             >
               Clear record
             </button>
@@ -258,7 +258,7 @@ export default function BackgroundCheckStatus({
 
       {data.completed ? (
         <div className="space-y-2">
-          <div className="flex items-center gap-1.5 text-emerald-700">
+          <div className="flex items-center gap-1.5 text-emerald-700 dark:text-emerald-300">
             <ShieldCheck size={14} className="shrink-0" />
             <span className="text-xs font-medium">Completed</span>
             {data.checkDate && (

@@ -58,7 +58,7 @@ function ScoreDisplay({ score, label }: { score: number | null; label: string })
   if (score === null) return null
   return (
     <div className="flex items-center gap-1" title={`${label}: ${score.toFixed(1)}/5`}>
-      <Star size={11} className="text-amber-500 fill-amber-500" />
+      <Star size={11} className="text-amber-500 dark:text-amber-400 fill-amber-500" />
       <span className="text-xs text-muted-foreground">{score.toFixed(1)}</span>
     </div>
   )
@@ -301,7 +301,7 @@ function VendorCard({ vendor }: { vendor: VendorWithStats }) {
         </div>
         {displayScore !== null && (
           <div className="flex items-center gap-1 shrink-0">
-            <Star size={12} className="text-amber-500 fill-amber-500" />
+            <Star size={12} className="text-amber-500 dark:text-amber-400 fill-amber-500" />
             <span className="text-xs font-medium">{displayScore.toFixed(1)}</span>
           </div>
         )}

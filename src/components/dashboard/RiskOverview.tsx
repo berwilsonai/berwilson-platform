@@ -18,17 +18,17 @@ interface RiskScore {
 }
 
 function scoreColor(score: number): string {
-  if (score <= 20) return 'text-emerald-600'
-  if (score <= 40) return 'text-amber-600'
-  if (score <= 60) return 'text-orange-600'
-  return 'text-red-600'
+  if (score <= 20) return 'text-emerald-600 dark:text-emerald-400'
+  if (score <= 40) return 'text-amber-600 dark:text-amber-400'
+  if (score <= 60) return 'text-orange-600 dark:text-orange-400'
+  return 'text-red-600 dark:text-red-400'
 }
 
 function scoreBg(score: number): string {
-  if (score <= 20) return 'bg-emerald-50 ring-emerald-200'
-  if (score <= 40) return 'bg-amber-50 ring-amber-200'
-  if (score <= 60) return 'bg-orange-50 ring-orange-200'
-  return 'bg-red-50 ring-red-200'
+  if (score <= 20) return 'bg-emerald-50 dark:bg-emerald-950/40 ring-emerald-200 dark:ring-emerald-800/60'
+  if (score <= 40) return 'bg-amber-50 dark:bg-amber-950/40 ring-amber-200 dark:ring-amber-800/60'
+  if (score <= 60) return 'bg-orange-50 dark:bg-orange-950/40 ring-orange-200 dark:ring-orange-800/60'
+  return 'bg-red-50 dark:bg-red-950/40 ring-red-200 dark:ring-red-800/60'
 }
 
 function scoreLabel(score: number): string {
@@ -40,8 +40,8 @@ function scoreLabel(score: number): string {
 
 const TrendIcon = ({ trend }: { trend: RiskScore['trend'] }) => {
   switch (trend) {
-    case 'improving': return <TrendingDown size={10} className="text-emerald-500" />
-    case 'deteriorating': return <TrendingUp size={10} className="text-red-500" />
+    case 'improving': return <TrendingDown size={10} className="text-emerald-500 dark:text-emerald-400" />
+    case 'deteriorating': return <TrendingUp size={10} className="text-red-500 dark:text-red-400" />
     case 'stable': return <Minus size={10} className="text-slate-400" />
     default: return null
   }

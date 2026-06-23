@@ -19,10 +19,10 @@ import type {
 
 const SEVERITY_OPTIONS = ['info', 'watch', 'critical', 'blocker'] as const
 const SEVERITY_COLORS: Record<string, string> = {
-  info: 'bg-slate-100 text-slate-600',
-  watch: 'bg-amber-100 text-amber-700',
-  critical: 'bg-red-100 text-red-700',
-  blocker: 'bg-red-200 text-red-800',
+  info: 'bg-slate-100 dark:bg-slate-900/40 text-slate-600 dark:text-slate-400',
+  watch: 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300',
+  critical: 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300',
+  blocker: 'bg-red-200 dark:bg-red-900/60 text-red-800 dark:text-red-300',
 }
 
 type Phase = 'loading' | 'editing' | 'saving' | 'error'
@@ -141,13 +141,13 @@ export default function UpdateEditModal({ updateId, onSaved }: UpdateEditModalPr
 
         {phase === 'error' && !summary && (
           <div className="py-8 text-center">
-            <p className="text-sm text-red-600">{error}</p>
+            <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
           </div>
         )}
 
         {(phase === 'editing' || phase === 'saving') && (
           <div className="space-y-5">
-            {error && <p className="text-sm text-red-600">{error}</p>}
+            {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
 
             {/* Summary */}
             <div className="space-y-1.5">
@@ -207,7 +207,7 @@ export default function UpdateEditModal({ updateId, onSaved }: UpdateEditModalPr
                   <button
                     onClick={() => setActionItems((prev) => prev.filter((_, i) => i !== idx))}
                     disabled={phase === 'saving'}
-                    className="shrink-0 mt-1.5 p-1 text-muted-foreground hover:text-red-600 transition-colors"
+                    className="shrink-0 mt-1.5 p-1 text-muted-foreground hover:text-red-600 dark:hover:text-red-400 transition-colors"
                   >
                     <Trash2 size={13} />
                   </button>
@@ -250,7 +250,7 @@ export default function UpdateEditModal({ updateId, onSaved }: UpdateEditModalPr
                   <button
                     onClick={() => setWaitingOn((prev) => prev.filter((_, i) => i !== idx))}
                     disabled={phase === 'saving'}
-                    className="shrink-0 mt-1.5 p-1 text-muted-foreground hover:text-red-600 transition-colors"
+                    className="shrink-0 mt-1.5 p-1 text-muted-foreground hover:text-red-600 dark:hover:text-red-400 transition-colors"
                   >
                     <Trash2 size={13} />
                   </button>
@@ -305,7 +305,7 @@ export default function UpdateEditModal({ updateId, onSaved }: UpdateEditModalPr
                   <button
                     onClick={() => setRisks((prev) => prev.filter((_, i) => i !== idx))}
                     disabled={phase === 'saving'}
-                    className="shrink-0 mt-1.5 p-1 text-muted-foreground hover:text-red-600 transition-colors"
+                    className="shrink-0 mt-1.5 p-1 text-muted-foreground hover:text-red-600 dark:hover:text-red-400 transition-colors"
                   >
                     <Trash2 size={13} />
                   </button>
@@ -357,7 +357,7 @@ export default function UpdateEditModal({ updateId, onSaved }: UpdateEditModalPr
                   <button
                     onClick={() => setDecisions((prev) => prev.filter((_, i) => i !== idx))}
                     disabled={phase === 'saving'}
-                    className="shrink-0 mt-1.5 p-1 text-muted-foreground hover:text-red-600 transition-colors"
+                    className="shrink-0 mt-1.5 p-1 text-muted-foreground hover:text-red-600 dark:hover:text-red-400 transition-colors"
                   >
                     <Trash2 size={13} />
                   </button>

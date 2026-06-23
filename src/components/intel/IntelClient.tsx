@@ -100,7 +100,7 @@ export default function IntelClient() {
 
         {/* Error */}
         {error && !loading && (
-          <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <div className="rounded-lg border border-red-200 dark:border-red-800/60 bg-red-50 dark:bg-red-950/40 px-4 py-3 text-sm text-red-700 dark:text-red-300">
             {error}
           </div>
         )}
@@ -141,14 +141,14 @@ export default function IntelClient() {
                   <button
                     onClick={() => handleRate(1)}
                     title="Thumbs up"
-                    className={`p-1 rounded transition-colors ${rating === 1 ? 'text-emerald-600 bg-emerald-50' : 'text-muted-foreground hover:text-foreground hover:bg-muted'}`}
+                    className={`p-1 rounded transition-colors ${rating === 1 ? 'text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40' : 'text-muted-foreground hover:text-foreground hover:bg-muted'}`}
                   >
                     <ThumbsUp size={13} />
                   </button>
                   <button
                     onClick={() => handleRate(-1)}
                     title="Thumbs down"
-                    className={`p-1 rounded transition-colors ${rating === -1 ? 'text-red-600 bg-red-50' : 'text-muted-foreground hover:text-foreground hover:bg-muted'}`}
+                    className={`p-1 rounded transition-colors ${rating === -1 ? 'text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/40' : 'text-muted-foreground hover:text-foreground hover:bg-muted'}`}
                   >
                     <ThumbsDown size={13} />
                   </button>

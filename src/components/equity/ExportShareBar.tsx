@@ -96,7 +96,7 @@ export default function ExportShareBar() {
             {shareUrl}
           </span>
           <button onClick={handleCopy} className="text-muted-foreground hover:text-foreground">
-            {copied ? <Check size={12} className="text-emerald-600" /> : <Copy size={12} />}
+            {copied ? <Check size={12} className="text-emerald-600 dark:text-emerald-400" /> : <Copy size={12} />}
           </button>
         </div>
       )}

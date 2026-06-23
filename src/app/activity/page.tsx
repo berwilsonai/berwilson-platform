@@ -22,9 +22,9 @@ const TABLE_LABELS: Record<string, string> = {
 }
 
 const ACTION_STYLES: Record<string, string> = {
-  INSERT: 'bg-emerald-50 text-emerald-700 ring-emerald-200',
-  UPDATE: 'bg-blue-50 text-blue-700 ring-blue-200',
-  DELETE: 'bg-red-50 text-red-600 ring-red-200',
+  INSERT: 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 ring-emerald-200 dark:ring-emerald-800/60',
+  UPDATE: 'bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 ring-blue-200 dark:ring-blue-800/60',
+  DELETE: 'bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 ring-red-200 dark:ring-red-800/60',
 }
 
 function recordLink(tableName: string, recordId: string | null, projectId: string | null): string | null {
@@ -173,7 +173,7 @@ export default async function ActivityPage({ searchParams }: PageProps) {
             {rows.map((log) => {
               const proj = log.projects as { id: string; name: string } | null
               const link = recordLink(log.table_name, log.record_id, log.project_id)
-              const actionStyle = ACTION_STYLES[log.action] ?? 'bg-slate-50 text-slate-600 ring-slate-200'
+              const actionStyle = ACTION_STYLES[log.action] ?? 'bg-slate-50 dark:bg-slate-950/40 text-slate-600 dark:text-slate-400 ring-slate-200 dark:ring-slate-800/60'
               return (
                 <div key={log.id} className="rounded-lg border border-border bg-card p-3 space-y-2">
                   <div className="flex items-center justify-between gap-2">
@@ -242,7 +242,7 @@ export default async function ActivityPage({ searchParams }: PageProps) {
                 {rows.map((log) => {
                   const proj = log.projects as { id: string; name: string } | null
                   const link = recordLink(log.table_name, log.record_id, log.project_id)
-                  const actionStyle = ACTION_STYLES[log.action] ?? 'bg-slate-50 text-slate-600 ring-slate-200'
+                  const actionStyle = ACTION_STYLES[log.action] ?? 'bg-slate-50 dark:bg-slate-950/40 text-slate-600 dark:text-slate-400 ring-slate-200 dark:ring-slate-800/60'
                   return (
                     <tr key={log.id} className="hover:bg-muted/30 transition-colors">
                       <td className="py-2 px-3 font-mono text-muted-foreground whitespace-nowrap">

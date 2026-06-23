@@ -83,7 +83,7 @@ export default function EditRoleButton({ playerId, currentRole, playerName }: Ed
             <p className="text-sm text-muted-foreground">
               Updating role for <span className="font-medium text-foreground">{playerName}</span>
             </p>
-            {error && <p className="text-sm text-red-600">{error}</p>}
+            {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
             <div className="space-y-1.5">
               <select
                 value={role}

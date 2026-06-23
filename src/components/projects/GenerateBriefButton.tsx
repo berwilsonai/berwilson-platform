@@ -123,7 +123,7 @@ export default function GenerateBriefButton({ projectId, projectName }: Props) {
                       onClick={handleCopy}
                       className="inline-flex items-center gap-1 h-7 px-2.5 rounded-md text-xs font-medium border border-input hover:bg-accent transition-colors"
                     >
-                      {copied ? <Check size={11} className="text-emerald-600" /> : <Copy size={11} />}
+                      {copied ? <Check size={11} className="text-emerald-600 dark:text-emerald-400" /> : <Copy size={11} />}
                       {copied ? 'Copied' : 'Copy'}
                     </button>
                     <button
@@ -131,7 +131,7 @@ export default function GenerateBriefButton({ projectId, projectName }: Props) {
                       disabled={saving || saved}
                       className="inline-flex items-center gap-1 h-7 px-2.5 rounded-md text-xs font-medium border border-input hover:bg-accent transition-colors disabled:opacity-50"
                     >
-                      {saved ? <Check size={11} className="text-emerald-600" /> : <Save size={11} />}
+                      {saved ? <Check size={11} className="text-emerald-600 dark:text-emerald-400" /> : <Save size={11} />}
                       {saved ? 'Saved' : saving ? 'Saving…' : 'Save'}
                     </button>
                   </>
@@ -148,7 +148,7 @@ export default function GenerateBriefButton({ projectId, projectName }: Props) {
             {/* Body */}
             <div className="flex-1 overflow-y-auto px-5 py-4">
               {error && (
-                <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                <div className="rounded-lg border border-red-200 dark:border-red-800/60 bg-red-50 dark:bg-red-950/40 px-4 py-3 text-sm text-red-700 dark:text-red-300">
                   {error}
                 </div>
               )}
@@ -221,13 +221,13 @@ function renderInline(text: string): React.ReactNode[] {
       return <strong key={i}>{part.slice(2, -2)}</strong>
     }
     if (part === '[CRITICAL]') {
-      return <span key={i} className="text-red-600 font-semibold text-xs">[CRITICAL]</span>
+      return <span key={i} className="text-red-600 dark:text-red-400 font-semibold text-xs">[CRITICAL]</span>
     }
     if (part === '[WATCH]') {
-      return <span key={i} className="text-amber-600 font-semibold text-xs">[WATCH]</span>
+      return <span key={i} className="text-amber-600 dark:text-amber-400 font-semibold text-xs">[WATCH]</span>
     }
     if (part === '[INFO]') {
-      return <span key={i} className="text-blue-600 font-semibold text-xs">[INFO]</span>
+      return <span key={i} className="text-blue-600 dark:text-blue-400 font-semibold text-xs">[INFO]</span>
     }
     return <span key={i}>{part}</span>
   })

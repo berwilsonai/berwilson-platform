@@ -62,7 +62,7 @@ export default function SharePageClient() {
   if (error) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
-        <AlertTriangle size={32} className="text-amber-500" />
+        <AlertTriangle size={32} className="text-amber-500 dark:text-amber-400" />
         <h1 className="text-lg font-semibold">{error}</h1>
         <p className="text-sm text-muted-foreground">This link may have expired or reached its access limit.</p>
       </div>
@@ -101,17 +101,17 @@ export default function SharePageClient() {
             </CardHeader>
             <CardContent>
               <div className="grid gap-4 md:grid-cols-3 mb-4">
-                <div className="text-center p-3 bg-amber-50 rounded-md">
+                <div className="text-center p-3 bg-amber-50 dark:bg-amber-950/40 rounded-md">
                   <p className="text-xs uppercase text-muted-foreground mb-1">Eric&apos;s Ownership</p>
                   <p className="text-lg font-bold">{formatPercentDisplay(exitInputs.ericPercentage)}</p>
                 </div>
-                <div className="text-center p-3 bg-slate-50 rounded-md">
+                <div className="text-center p-3 bg-slate-50 dark:bg-slate-950/40 rounded-md">
                   <p className="text-xs uppercase text-muted-foreground mb-1">Unfunded Baseline</p>
                   <p className="text-lg font-bold text-slate-400">{formatCurrencyCompact(baseline)}</p>
                 </div>
-                <div className="text-center p-3 bg-emerald-50 rounded-md">
+                <div className="text-center p-3 bg-emerald-50 dark:bg-emerald-950/40 rounded-md">
                   <p className="text-xs uppercase text-muted-foreground mb-1">Best Exit Multiplier</p>
-                  <p className="text-lg font-bold text-emerald-600">
+                  <p className="text-lg font-bold text-emerald-600 dark:text-emerald-400">
                     {formatMultiplier(Math.max(...results.map(r => r.multiplier)))}
                   </p>
                 </div>
@@ -131,7 +131,7 @@ export default function SharePageClient() {
                       <TableCell className="text-xs font-medium">{formatCurrencyCompact(r.exitValuation)}</TableCell>
                       <TableCell className="text-xs text-right">{formatCurrency(r.ericPayout)}</TableCell>
                       <TableCell className="text-xs text-right">{formatCurrency(r.investorPayout)}</TableCell>
-                      <TableCell className={`text-xs text-right font-medium ${r.multiplier > 1 ? 'text-emerald-600' : 'text-red-600'}`}>
+                      <TableCell className={`text-xs text-right font-medium ${r.multiplier > 1 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
                         {formatMultiplier(r.multiplier)}
                       </TableCell>
                     </TableRow>
@@ -189,15 +189,15 @@ export default function SharePageClient() {
             </CardHeader>
             <CardContent>
               <div className="grid gap-4 md:grid-cols-3 mb-4">
-                <div className="text-center p-3 bg-slate-50 rounded-md">
+                <div className="text-center p-3 bg-slate-50 dark:bg-slate-950/40 rounded-md">
                   <p className="text-xs uppercase text-muted-foreground mb-1">Conservative</p>
                   <p className="text-lg font-bold">{formatCurrencyCompact(result.blended.low)}</p>
                 </div>
-                <div className="text-center p-3 bg-amber-50 rounded-md">
-                  <p className="text-xs uppercase text-amber-600 mb-1">Blended Mid</p>
-                  <p className="text-xl font-bold text-amber-700">{formatCurrencyCompact(result.blended.mid)}</p>
+                <div className="text-center p-3 bg-amber-50 dark:bg-amber-950/40 rounded-md">
+                  <p className="text-xs uppercase text-amber-600 dark:text-amber-400 mb-1">Blended Mid</p>
+                  <p className="text-xl font-bold text-amber-700 dark:text-amber-300">{formatCurrencyCompact(result.blended.mid)}</p>
                 </div>
-                <div className="text-center p-3 bg-slate-50 rounded-md">
+                <div className="text-center p-3 bg-slate-50 dark:bg-slate-950/40 rounded-md">
                   <p className="text-xs uppercase text-muted-foreground mb-1">Optimistic</p>
                   <p className="text-lg font-bold">{formatCurrencyCompact(result.blended.high)}</p>
                 </div>

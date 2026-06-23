@@ -43,7 +43,7 @@ export default function CapacityBoard({ owners }: { owners: CapacityOwner[] }) {
             <div
               className={cn(
                 'flex items-center justify-center w-9 h-9 rounded-full shrink-0 ring-1 ring-inset',
-                owner.isUnassigned ? 'bg-slate-100 text-slate-500 ring-slate-200' : 'bg-blue-50 text-blue-600 ring-blue-200'
+                owner.isUnassigned ? 'bg-slate-100 dark:bg-slate-900/40 text-slate-500 dark:text-slate-400 ring-slate-200 dark:ring-slate-800/60' : 'bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 ring-blue-200 dark:ring-blue-800/60'
               )}
             >
               <UserRound size={16} />
@@ -71,7 +71,7 @@ export default function CapacityBoard({ owners }: { owners: CapacityOwner[] }) {
             </div>
             <div className="px-4 py-2">
               <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Weighted</p>
-              <p className="text-sm font-bold tabular-nums text-emerald-600">{formatValue(owner.weightedValue)}</p>
+              <p className="text-sm font-bold tabular-nums text-emerald-600 dark:text-emerald-400">{formatValue(owner.weightedValue)}</p>
             </div>
           </div>
 

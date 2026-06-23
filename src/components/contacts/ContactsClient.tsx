@@ -286,7 +286,7 @@ function ContactCard({
         <button
           title="Enrich profile"
           aria-label={`Enrich ${contact.full_name} profile`}
-          className="opacity-0 group-hover:opacity-100 transition-opacity text-purple-400 hover:text-purple-600"
+          className="opacity-0 group-hover:opacity-100 transition-opacity text-purple-400 hover:text-purple-600 dark:hover:text-purple-400"
           onClick={e => {
             e.preventDefault()
             window.location.href = `/contacts/${contact.id}?tab=overview`

@@ -164,7 +164,7 @@ export default function TasksTab({ projectId, initialTasks }: TasksTabProps) {
           className="h-9 rounded-md border border-input bg-background px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
         />
       </div>
-      {addError && <p className="text-sm text-red-600">{addError}</p>}
+      {addError && <p className="text-sm text-red-600 dark:text-red-400">{addError}</p>}
       <div className="flex items-center gap-2">
         <button
           onClick={handleAddTask}
@@ -238,7 +238,7 @@ export default function TasksTab({ projectId, initialTasks }: TasksTabProps) {
                 aria-label={task.completed ? 'Mark incomplete' : 'Mark complete'}
               >
                 {task.completed ? (
-                  <CheckSquare size={16} className="text-emerald-600" />
+                  <CheckSquare size={16} className="text-emerald-600 dark:text-emerald-400" />
                 ) : (
                   <Square size={16} className="text-muted-foreground" />
                 )}

@@ -41,10 +41,10 @@ export default function ClosingSoon({ items }: { items: ClosingSoonItem[] }) {
                 className={cn(
                   'flex flex-col items-center justify-center w-12 shrink-0 rounded-md py-1 ring-1 ring-inset',
                   urgent || (days != null && days < 0)
-                    ? 'bg-red-50 ring-red-200'
+                    ? 'bg-red-50 dark:bg-red-950/40 ring-red-200 dark:ring-red-800/60'
                     : days != null && days <= 21
-                      ? 'bg-amber-50 ring-amber-200'
-                      : 'bg-slate-50 ring-slate-200'
+                      ? 'bg-amber-50 dark:bg-amber-950/40 ring-amber-200 dark:ring-amber-800/60'
+                      : 'bg-slate-50 dark:bg-slate-950/40 ring-slate-200 dark:ring-slate-800/60'
                 )}
               >
                 <span className={cn('text-sm font-bold tabular-nums leading-none', bidDueColor(p.bid_due_date))}>

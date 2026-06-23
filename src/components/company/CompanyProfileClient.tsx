@@ -41,7 +41,7 @@ function BooleanBadge({ label, active }: { label: string; active: boolean }) {
   return (
     <span className={`inline-flex items-center px-2 py-1 rounded-md text-xs font-semibold ${
       active
-        ? 'bg-green-100 text-green-800 ring-1 ring-green-200'
+        ? 'bg-green-100 dark:bg-green-900/40 text-green-800 dark:text-green-300 ring-1 ring-green-200 dark:ring-green-800/60'
         : 'bg-muted text-muted-foreground ring-1 ring-border'
     }`}>
       {label}
@@ -197,7 +197,7 @@ function CertCard({
               <span className="text-xs text-destructive">{editState.error}</span>
             )}
             {editState && 'ok' in editState && (
-              <span className="text-xs text-green-600">Saved</span>
+              <span className="text-xs text-green-600 dark:text-green-400">Saved</span>
             )}
             <div className="ml-auto flex items-center gap-2">
               <button
@@ -224,7 +224,7 @@ function CertCard({
   return (
     <div className="rounded-lg border border-border p-4 space-y-2">
       <div className="flex items-start gap-3">
-        <ShieldCheck size={16} className={`mt-0.5 shrink-0 ${cert.is_active ? 'text-green-500' : 'text-muted-foreground'}`} />
+        <ShieldCheck size={16} className={`mt-0.5 shrink-0 ${cert.is_active ? 'text-green-500 dark:text-green-400' : 'text-muted-foreground'}`} />
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-sm font-medium">{cert.name}</span>
@@ -232,12 +232,12 @@ function CertCard({
               <span className="text-xs bg-muted text-muted-foreground px-1.5 py-0.5 rounded font-medium">Inactive</span>
             )}
             {expired && (
-              <span className="text-xs bg-red-100 text-red-700 px-1.5 py-0.5 rounded font-medium flex items-center gap-1">
+              <span className="text-xs bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 px-1.5 py-0.5 rounded font-medium flex items-center gap-1">
                 <AlertTriangle size={9} /> Expired
               </span>
             )}
             {expiringSoon && (
-              <span className="text-xs bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-medium flex items-center gap-1">
+              <span className="text-xs bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 px-1.5 py-0.5 rounded font-medium flex items-center gap-1">
                 <AlertTriangle size={9} /> Expires in {days}d
               </span>
             )}
@@ -259,7 +259,7 @@ function CertCard({
             onClick={() => fileRef.current?.click()}
             disabled={uploading}
             title={docUploaded ? 'Replace scan' : 'Upload certificate scan'}
-            className={`p-1.5 rounded hover:bg-muted transition-colors ${docUploaded ? 'text-green-600' : 'text-muted-foreground hover:text-foreground'}`}
+            className={`p-1.5 rounded hover:bg-muted transition-colors ${docUploaded ? 'text-green-600 dark:text-green-400' : 'text-muted-foreground hover:text-foreground'}`}
           >
             {uploading ? <Loader2 size={14} className="animate-spin" /> : docUploaded ? <FileText size={14} /> : <Upload size={14} />}
           </button>
@@ -556,7 +556,7 @@ export default function CompanyProfileClient({ profile, certifications: initialC
               <p className="text-sm text-destructive">{saveState.error}</p>
             )}
             {savedOk && (
-              <p className="text-sm text-green-600 flex items-center gap-1.5">
+              <p className="text-sm text-green-600 dark:text-green-400 flex items-center gap-1.5">
                 <CheckCircle2 size={14} /> Saved successfully
               </p>
             )}
@@ -626,12 +626,12 @@ export default function CompanyProfileClient({ profile, certifications: initialC
                 <BooleanBadge label="WBE" active={profile.wbe_certified} />
                 <BooleanBadge label="SBE" active={profile.sbe_certified} />
                 {profile.naics_codes.length > 0 && (
-                  <span className="inline-flex items-center px-2 py-1 rounded-md bg-blue-50 text-blue-700 ring-1 ring-blue-200 text-xs font-medium">
+                  <span className="inline-flex items-center px-2 py-1 rounded-md bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 ring-1 ring-blue-200 dark:ring-blue-800/60 text-xs font-medium">
                     NAICS: {profile.naics_codes.join(', ')}
                   </span>
                 )}
                 {profile.sic_codes.length > 0 && (
-                  <span className="inline-flex items-center px-2 py-1 rounded-md bg-violet-50 text-violet-700 ring-1 ring-violet-200 text-xs font-medium">
+                  <span className="inline-flex items-center px-2 py-1 rounded-md bg-violet-50 dark:bg-violet-950/40 text-violet-700 dark:text-violet-300 ring-1 ring-violet-200 dark:ring-violet-800/60 text-xs font-medium">
                     SIC: {profile.sic_codes.join(', ')}
                   </span>
                 )}
@@ -656,7 +656,7 @@ export default function CompanyProfileClient({ profile, certifications: initialC
               <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4">
                 <div className="space-y-1">
                   <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Target Sectors</dt>
-                  <dd><ChipList items={(profile.target_sectors ?? []).map(s => SECTOR_LABELS[s as ProjectSector] ?? s)} className="bg-blue-50 text-blue-700 ring-blue-200" /></dd>
+                  <dd><ChipList items={(profile.target_sectors ?? []).map(s => SECTOR_LABELS[s as ProjectSector] ?? s)} className="bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 ring-blue-200 dark:ring-blue-800/60" /></dd>
                 </div>
                 <Field
                   label="Project Size"
@@ -695,7 +695,7 @@ export default function CompanyProfileClient({ profile, certifications: initialC
               )}
               {profile.disqualifiers && (
                 <div className="space-y-1">
-                  <h4 className="text-xs font-semibold uppercase tracking-wide text-red-600">Disqualifiers (hard no-go)</h4>
+                  <h4 className="text-xs font-semibold uppercase tracking-wide text-red-600 dark:text-red-400">Disqualifiers (hard no-go)</h4>
                   <p className="text-sm leading-relaxed whitespace-pre-line">{profile.disqualifiers}</p>
                 </div>
               )}

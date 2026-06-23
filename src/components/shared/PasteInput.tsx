@@ -7,10 +7,10 @@ import ConfidenceBadge from './ConfidenceBadge'
 import type { ExtractionResult, ActionItem, WaitingOnItem, RiskItem, DecisionItem } from '@/types/domain'
 
 const SEVERITY_COLORS: Record<string, string> = {
-  info: 'bg-slate-100 text-slate-600',
-  watch: 'bg-amber-100 text-amber-700',
-  critical: 'bg-red-100 text-red-700',
-  blocker: 'bg-red-200 text-red-800',
+  info: 'bg-slate-100 dark:bg-slate-900/40 text-slate-600 dark:text-slate-400',
+  watch: 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300',
+  critical: 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300',
+  blocker: 'bg-red-200 dark:bg-red-900/60 text-red-800 dark:text-red-300',
 }
 
 interface PasteInputProps {
@@ -188,7 +188,7 @@ export default function PasteInput({ projectId, onSaved }: PasteInputProps) {
           className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50 resize-y"
         />
         {error && (
-          <p className="text-sm text-red-600">{error}</p>
+          <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
         )}
         <div className="flex items-center gap-2">
           <button
@@ -238,7 +238,7 @@ export default function PasteInput({ projectId, onSaved }: PasteInputProps) {
   // -------------------------------------------------------------------------
   if (phase === 'done') {
     return (
-      <div className="flex items-center gap-2 py-4 text-sm text-emerald-700">
+      <div className="flex items-center gap-2 py-4 text-sm text-emerald-700 dark:text-emerald-300">
         <Check size={16} />
         Update saved successfully.
       </div>
@@ -282,7 +282,7 @@ export default function PasteInput({ projectId, onSaved }: PasteInputProps) {
         </div>
       </div>
 
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
 
       {/* Summary */}
       <div className="space-y-1.5">
@@ -315,7 +315,7 @@ export default function PasteInput({ projectId, onSaved }: PasteInputProps) {
                 </div>
                 <button
                   onClick={() => removeActionItem(idx)}
-                  className="shrink-0 p-0.5 text-muted-foreground hover:text-red-600 transition-colors"
+                  className="shrink-0 p-0.5 text-muted-foreground hover:text-red-600 dark:hover:text-red-400 transition-colors"
                 >
                   <X size={14} />
                 </button>
@@ -343,7 +343,7 @@ export default function PasteInput({ projectId, onSaved }: PasteInputProps) {
                 </div>
                 <button
                   onClick={() => removeWaitingOn(idx)}
-                  className="shrink-0 p-0.5 text-muted-foreground hover:text-red-600 transition-colors"
+                  className="shrink-0 p-0.5 text-muted-foreground hover:text-red-600 dark:hover:text-red-400 transition-colors"
                 >
                   <X size={14} />
                 </button>
@@ -377,7 +377,7 @@ export default function PasteInput({ projectId, onSaved }: PasteInputProps) {
                 </div>
                 <button
                   onClick={() => removeRisk(idx)}
-                  className="shrink-0 p-0.5 text-muted-foreground hover:text-red-600 transition-colors"
+                  className="shrink-0 p-0.5 text-muted-foreground hover:text-red-600 dark:hover:text-red-400 transition-colors"
                 >
                   <X size={14} />
                 </button>
@@ -405,7 +405,7 @@ export default function PasteInput({ projectId, onSaved }: PasteInputProps) {
                 </div>
                 <button
                   onClick={() => removeDecision(idx)}
-                  className="shrink-0 p-0.5 text-muted-foreground hover:text-red-600 transition-colors"
+                  className="shrink-0 p-0.5 text-muted-foreground hover:text-red-600 dark:hover:text-red-400 transition-colors"
                 >
                   <X size={14} />
                 </button>

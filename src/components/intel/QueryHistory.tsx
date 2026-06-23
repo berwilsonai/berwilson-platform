@@ -116,7 +116,7 @@ export default function QueryHistory({ onSelectQuery }: Props) {
               </button>
               <button
                 onClick={() => removeSaved(q)}
-                className="shrink-0 p-1 opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-red-500 transition-all"
+                className="shrink-0 p-1 opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-red-500 dark:hover:text-red-400 transition-all"
                 title="Remove"
               >
                 <Trash2 size={11} />

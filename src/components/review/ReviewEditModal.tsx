@@ -197,13 +197,13 @@ export default function ReviewEditModal({
 
         {phase === 'error' && !summary && (
           <div className="py-8 text-center">
-            <p className="text-sm text-red-600">{error}</p>
+            <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
           </div>
         )}
 
         {(phase === 'editing' || phase === 'saving') && (
           <div className="space-y-5">
-            {error && <p className="text-sm text-red-600">{error}</p>}
+            {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
 
             {/* Summary */}
             <div className="space-y-1.5">
@@ -263,7 +263,7 @@ export default function ReviewEditModal({
                   <button
                     onClick={() => setActionItems((prev) => prev.filter((_, i) => i !== idx))}
                     disabled={phase === 'saving'}
-                    className="shrink-0 mt-1.5 p-1 text-muted-foreground hover:text-red-600 transition-colors disabled:opacity-50"
+                    className="shrink-0 mt-1.5 p-1 text-muted-foreground hover:text-red-600 dark:hover:text-red-400 transition-colors disabled:opacity-50"
                   >
                     <Trash2 size={13} />
                   </button>
@@ -306,7 +306,7 @@ export default function ReviewEditModal({
                   <button
                     onClick={() => setWaitingOn((prev) => prev.filter((_, i) => i !== idx))}
                     disabled={phase === 'saving'}
-                    className="shrink-0 mt-1.5 p-1 text-muted-foreground hover:text-red-600 transition-colors disabled:opacity-50"
+                    className="shrink-0 mt-1.5 p-1 text-muted-foreground hover:text-red-600 dark:hover:text-red-400 transition-colors disabled:opacity-50"
                   >
                     <Trash2 size={13} />
                   </button>
@@ -361,7 +361,7 @@ export default function ReviewEditModal({
                   <button
                     onClick={() => setRisks((prev) => prev.filter((_, i) => i !== idx))}
                     disabled={phase === 'saving'}
-                    className="shrink-0 mt-1.5 p-1 text-muted-foreground hover:text-red-600 transition-colors disabled:opacity-50"
+                    className="shrink-0 mt-1.5 p-1 text-muted-foreground hover:text-red-600 dark:hover:text-red-400 transition-colors disabled:opacity-50"
                   >
                     <Trash2 size={13} />
                   </button>
@@ -413,7 +413,7 @@ export default function ReviewEditModal({
                   <button
                     onClick={() => setDecisions((prev) => prev.filter((_, i) => i !== idx))}
                     disabled={phase === 'saving'}
-                    className="shrink-0 mt-1.5 p-1 text-muted-foreground hover:text-red-600 transition-colors disabled:opacity-50"
+                    className="shrink-0 mt-1.5 p-1 text-muted-foreground hover:text-red-600 dark:hover:text-red-400 transition-colors disabled:opacity-50"
                   >
                     <Trash2 size={13} />
                   </button>

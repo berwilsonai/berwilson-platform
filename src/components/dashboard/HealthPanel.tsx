@@ -79,10 +79,10 @@ function computeHealthScore(critical: number, overdue: number, review: number, e
 }
 
 function scoreColor(score: number) {
-  if (score >= 85) return { stroke: '#10b981', strokeEnd: '#34d399', text: 'text-emerald-600', bg: 'bg-emerald-50', label: 'Excellent' }
-  if (score >= 70) return { stroke: '#3b82f6', strokeEnd: '#60a5fa', text: 'text-blue-600', bg: 'bg-blue-50', label: 'Good' }
-  if (score >= 50) return { stroke: '#f59e0b', strokeEnd: '#fbbf24', text: 'text-amber-600', bg: 'bg-amber-50', label: 'At Risk' }
-  return { stroke: '#ef4444', strokeEnd: '#f87171', text: 'text-red-600', bg: 'bg-red-50', label: 'Critical' }
+  if (score >= 85) return { stroke: '#10b981', strokeEnd: '#34d399', text: 'text-emerald-600 dark:text-emerald-400', bg: 'bg-emerald-50 dark:bg-emerald-950/40', label: 'Excellent' }
+  if (score >= 70) return { stroke: '#3b82f6', strokeEnd: '#60a5fa', text: 'text-blue-600 dark:text-blue-400', bg: 'bg-blue-50 dark:bg-blue-950/40', label: 'Good' }
+  if (score >= 50) return { stroke: '#f59e0b', strokeEnd: '#fbbf24', text: 'text-amber-600 dark:text-amber-400', bg: 'bg-amber-50 dark:bg-amber-950/40', label: 'At Risk' }
+  return { stroke: '#ef4444', strokeEnd: '#f87171', text: 'text-red-600 dark:text-red-400', bg: 'bg-red-50 dark:bg-red-950/40', label: 'Critical' }
 }
 
 function HealthRing({ score }: { score: number }) {
@@ -203,13 +203,13 @@ export default function HealthPanel({
           </TooltipContent>
         </Tooltip>
         {totalAlerts === 0 && (
-          <span className="ml-auto flex items-center gap-1 text-xs text-emerald-600 font-medium">
+          <span className="ml-auto flex items-center gap-1 text-xs text-emerald-600 dark:text-emerald-400 font-medium">
             <CheckCircle2 size={11} />
             All Clear
           </span>
         )}
         {totalAlerts > 0 && (
-          <span className="ml-auto text-xs text-amber-600 font-medium">
+          <span className="ml-auto text-xs text-amber-600 dark:text-amber-400 font-medium">
             {totalAlerts} item{totalAlerts !== 1 ? 's' : ''} need attention
           </span>
         )}
@@ -232,8 +232,8 @@ export default function HealthPanel({
             icon={ShieldAlert}
             label="Critical DD"
             count={criticalDdCount}
-            dotColor="text-red-600"
-            textColor="text-red-600"
+            dotColor="text-red-600 dark:text-red-400"
+            textColor="text-red-600 dark:text-red-400"
             barColor="bg-red-500"
             maxBar={maxBar}
           />
@@ -241,8 +241,8 @@ export default function HealthPanel({
             icon={Clock}
             label="Overdue"
             count={overdueCount}
-            dotColor="text-orange-600"
-            textColor="text-orange-600"
+            dotColor="text-orange-600 dark:text-orange-400"
+            textColor="text-orange-600 dark:text-orange-400"
             barColor="bg-orange-400"
             maxBar={maxBar}
           />
@@ -250,8 +250,8 @@ export default function HealthPanel({
             icon={ClipboardList}
             label="In Review"
             count={pendingReview}
-            dotColor="text-amber-600"
-            textColor="text-amber-600"
+            dotColor="text-amber-600 dark:text-amber-400"
+            textColor="text-amber-600 dark:text-amber-400"
             barColor="bg-amber-400"
             maxBar={maxBar}
           />
@@ -259,8 +259,8 @@ export default function HealthPanel({
             icon={AlertTriangle}
             label="Cert Expiry"
             count={expiringCertsCount}
-            dotColor="text-yellow-600"
-            textColor="text-yellow-600"
+            dotColor="text-yellow-600 dark:text-yellow-400"
+            textColor="text-yellow-600 dark:text-yellow-400"
             barColor="bg-yellow-400"
             maxBar={maxBar}
           />
@@ -297,8 +297,8 @@ export default function HealthPanel({
               {pipelineValue > 0 ? <AnimatedValue value={pipelineValue} /> : '—'}
             </p>
             <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
-              <TrendingUp size={11} className="text-emerald-500 shrink-0" />
-              <span className="font-semibold text-emerald-600 tabular-nums">
+              <TrendingUp size={11} className="text-emerald-500 dark:text-emerald-400 shrink-0" />
+              <span className="font-semibold text-emerald-600 dark:text-emerald-400 tabular-nums">
                 {weightedPipelineValue > 0 ? formatValue(weightedPipelineValue) : '—'}
               </span>
               <span className="whitespace-nowrap">weighted (P-win)</span>

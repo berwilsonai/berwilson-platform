@@ -18,10 +18,10 @@ export default function ConfidenceBadge({ confidence, className }: ConfidenceBad
   const pct = Math.round(confidence * 100)
   const color =
     confidence >= 0.8
-      ? 'bg-emerald-50 text-emerald-700 ring-emerald-200'
+      ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 ring-emerald-200 dark:ring-emerald-800/60'
       : confidence >= 0.6
-        ? 'bg-amber-50 text-amber-700 ring-amber-200'
-        : 'bg-red-50 text-red-600 ring-red-200'
+        ? 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 ring-amber-200 dark:ring-amber-800/60'
+        : 'bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 ring-red-200 dark:ring-red-800/60'
 
   return (
     <Tooltip>

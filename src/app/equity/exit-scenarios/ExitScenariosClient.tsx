@@ -199,7 +199,7 @@ export default function ExitScenariosClient() {
                       </span>
                     </label>
                     {exitScenarios.investorParticipating && (
-                      <p className="text-xs text-amber-600">
+                      <p className="text-xs text-amber-600 dark:text-amber-400">
                         Participating preferred: investor gets liquidation preference PLUS pro-rata share of remaining proceeds. More investor-friendly.
                       </p>
                     )}
@@ -300,7 +300,7 @@ export default function ExitScenariosClient() {
                     variant="ghost"
                     size="sm"
                     onClick={() => removeExitValuation(val)}
-                    className="h-6 w-6 p-0 text-muted-foreground hover:text-red-600"
+                    className="h-6 w-6 p-0 text-muted-foreground hover:text-red-600 dark:hover:text-red-400"
                     disabled={exitScenarios.exitValuations.length <= 1}
                   >
                     <Trash2 size={11} />
@@ -327,7 +327,7 @@ export default function ExitScenariosClient() {
         <div className="space-y-6">
           {/* Reality Check Hero Card */}
           {primaryResult && (
-            <Card className="border-amber-300 bg-amber-50/30">
+            <Card className="border-amber-300 dark:border-amber-700/60 bg-amber-50/30 dark:bg-amber-950/40">
               <CardContent className="pt-6">
                 <div className="grid gap-4 md:grid-cols-3">
                   <div className="text-center">
@@ -351,10 +351,10 @@ export default function ExitScenariosClient() {
                     <p className="text-xs uppercase tracking-wide text-muted-foreground mb-1">
                       Eric Is Better Off By
                     </p>
-                    <p className="text-2xl font-bold text-emerald-600">
+                    <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
                       {formatMultiplier(primaryResult.multiplier)}
                     </p>
-                    <p className="text-xs text-emerald-600 font-medium">
+                    <p className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">
                       +{formatCurrency(primaryResult.netGain)}
                     </p>
                   </div>

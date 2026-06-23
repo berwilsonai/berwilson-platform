@@ -27,19 +27,19 @@ function MobileCard({
   return (
     <div
       className={`rounded-lg border p-3 space-y-2 ${
-        isBaseline ? 'border-red-200 bg-red-50/50' : 'border-border bg-card'
+        isBaseline ? 'border-red-200 dark:border-red-800/60 bg-red-50/50 dark:bg-red-950/40' : 'border-border bg-card'
       }`}
     >
       <div className="flex items-center justify-between">
-        <span className={`text-sm font-semibold ${isBaseline ? 'text-red-700' : 'text-foreground'}`}>
+        <span className={`text-sm font-semibold ${isBaseline ? 'text-red-700 dark:text-red-300' : 'text-foreground'}`}>
           {isBaseline ? 'Unfunded Baseline' : formatCurrencyCompact(r.exitValuation)}
         </span>
         {!isBaseline && (
           <span
             className={`text-xs font-bold px-2 py-0.5 rounded-full ${
               r.multiplier > 1
-                ? 'bg-emerald-100 text-emerald-700'
-                : 'bg-red-100 text-red-700'
+                ? 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300'
+                : 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300'
             }`}
           >
             {formatMultiplier(r.multiplier)}
@@ -49,7 +49,7 @@ function MobileCard({
       <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs">
         <div>
           <span className="text-muted-foreground">Eric&apos;s Payout</span>
-          <p className={`font-medium ${isBaseline ? 'text-red-700' : 'text-foreground'}`}>
+          <p className={`font-medium ${isBaseline ? 'text-red-700 dark:text-red-300' : 'text-foreground'}`}>
             {formatCurrency(isBaseline ? baselinePayout! : r.ericPayout)}
           </p>
         </div>
@@ -64,7 +64,7 @@ function MobileCard({
         {!isBaseline && (
           <div>
             <span className="text-muted-foreground">vs. Unfunded</span>
-            <p className={`font-medium ${r.netGain > 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+            <p className={`font-medium ${r.netGain > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
               {r.netGain > 0 ? '+' : ''}
               {formatCurrency(r.netGain)}
             </p>
@@ -103,11 +103,11 @@ export default function SensitivityTable({ results, baselinePayout }: Props) {
             </TableRow>
           </TableHeader>
           <TableBody>
-            <TableRow className="bg-red-50/50">
-              <TableCell className="text-xs font-medium text-red-700">
+            <TableRow className="bg-red-50/50 dark:bg-red-950/40">
+              <TableCell className="text-xs font-medium text-red-700 dark:text-red-300">
                 100% Unfunded Baseline
               </TableCell>
-              <TableCell className="text-xs text-right text-red-700 font-medium">
+              <TableCell className="text-xs text-right text-red-700 dark:text-red-300 font-medium">
                 {formatCurrency(baselinePayout)}
               </TableCell>
               <TableCell className="text-xs text-right text-muted-foreground">$0</TableCell>
@@ -132,7 +132,7 @@ export default function SensitivityTable({ results, baselinePayout }: Props) {
                 </TableCell>
                 <TableCell
                   className={`text-xs text-right font-medium ${
-                    r.netGain > 0 ? 'text-emerald-600' : 'text-red-600'
+                    r.netGain > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'
                   }`}
                 >
                   {r.netGain > 0 ? '+' : ''}
@@ -140,7 +140,7 @@ export default function SensitivityTable({ results, baselinePayout }: Props) {
                 </TableCell>
                 <TableCell
                   className={`text-xs text-right font-medium ${
-                    r.multiplier > 1 ? 'text-emerald-600' : 'text-red-600'
+                    r.multiplier > 1 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'
                   }`}
                 >
                   {formatMultiplier(r.multiplier)}

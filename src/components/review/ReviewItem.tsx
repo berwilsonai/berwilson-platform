@@ -34,9 +34,9 @@ function buildSourceLink(item: ReviewQueueItem): string {
 }
 
 const RESOLUTION_CONFIG: Record<string, { label: string; color: string; Icon: React.ComponentType<{ size?: number }> }> = {
-  approved: { label: 'Approved', color: 'text-emerald-700 bg-emerald-50 ring-emerald-200', Icon: CheckCircle2 },
-  edited: { label: 'Approved (edited)', color: 'text-emerald-700 bg-emerald-50 ring-emerald-200', Icon: Pencil },
-  rejected: { label: 'Rejected', color: 'text-rose-700 bg-rose-50 ring-rose-200', Icon: XCircle },
+  approved: { label: 'Approved', color: 'text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 ring-emerald-200 dark:ring-emerald-800/60', Icon: CheckCircle2 },
+  edited: { label: 'Approved (edited)', color: 'text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 ring-emerald-200 dark:ring-emerald-800/60', Icon: Pencil },
+  rejected: { label: 'Rejected', color: 'text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/40 ring-rose-200 dark:ring-rose-800/60', Icon: XCircle },
 }
 
 interface ReviewItemProps {
@@ -65,7 +65,7 @@ export default function ReviewItem({ item, allProjects, allParties, matchedParti
             {sourceLabel}
           </span>
           {!isResolved && (
-            <span className="inline-flex items-center gap-1 text-xs font-medium text-amber-700 bg-amber-50 ring-1 ring-amber-200 ring-inset px-2 py-0.5 rounded">
+            <span className="inline-flex items-center gap-1 text-xs font-medium text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 ring-1 ring-amber-200 dark:ring-amber-800/60 ring-inset px-2 py-0.5 rounded">
               <AlertCircle size={11} />
               {reasonLabel}
             </span>

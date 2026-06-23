@@ -37,20 +37,20 @@ export default function LoginForm() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-50 px-4">
+    <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-950/40 px-4">
       <div className="w-full max-w-sm space-y-8">
         {/* Brand */}
         <div className="text-center">
-          <h1 className="text-lg font-semibold tracking-widest uppercase text-slate-900">
+          <h1 className="text-lg font-semibold tracking-widest uppercase text-slate-900 dark:text-slate-200">
             Ber Wilson
           </h1>
-          <p className="mt-1 text-sm text-slate-500">
+          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
             Executive Intelligence Platform
           </p>
         </div>
 
         {linkError && (
-          <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2 text-center">
+          <p className="text-sm text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 rounded-md px-3 py-2 text-center">
             That link has expired or is invalid. Please sign in below.
           </p>
         )}
@@ -58,7 +58,7 @@ export default function LoginForm() {
         {/* Login form */}
         <form onSubmit={handleLogin} className="space-y-4">
           <div className="space-y-1.5">
-            <label htmlFor="email" className="text-xs font-medium text-slate-700">
+            <label htmlFor="email" className="text-xs font-medium text-slate-700 dark:text-slate-300">
               Email
             </label>
             <input
@@ -68,13 +68,13 @@ export default function LoginForm() {
               onChange={(e) => setEmail(e.target.value)}
               required
               autoComplete="email"
-              className="w-full h-10 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900 focus:border-transparent"
+              className="w-full h-10 rounded-md border border-slate-300 dark:border-slate-700/60 bg-white dark:bg-slate-900 px-3 text-sm text-slate-900 dark:text-slate-200 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900 focus:border-transparent"
               placeholder="you@berwilson.com"
             />
           </div>
 
           <div className="space-y-1.5">
-            <label htmlFor="password" className="text-xs font-medium text-slate-700">
+            <label htmlFor="password" className="text-xs font-medium text-slate-700 dark:text-slate-300">
               Password
             </label>
             <input
@@ -84,12 +84,12 @@ export default function LoginForm() {
               onChange={(e) => setPassword(e.target.value)}
               required
               autoComplete="current-password"
-              className="w-full h-10 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900 focus:border-transparent"
+              className="w-full h-10 rounded-md border border-slate-300 dark:border-slate-700/60 bg-white dark:bg-slate-900 px-3 text-sm text-slate-900 dark:text-slate-200 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900 focus:border-transparent"
             />
           </div>
 
           {error && (
-            <p className="text-sm text-red-600 bg-red-50 rounded-md px-3 py-2">
+            <p className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/40 rounded-md px-3 py-2">
               {error}
             </p>
           )}

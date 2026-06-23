@@ -93,11 +93,11 @@ function PartyChip({
   // Matched / already-in-contacts state
   if (isAlreadyMatched || linkState === 'done') {
     return (
-      <div className="flex items-center gap-1.5 bg-emerald-50 ring-1 ring-emerald-200 rounded px-2 py-1 text-xs">
-        <Check size={11} className="text-emerald-600 shrink-0" />
-        <span className="text-emerald-800 font-medium">{displayMatchName ?? party.name}</span>
+      <div className="flex items-center gap-1.5 bg-emerald-50 dark:bg-emerald-950/40 ring-1 ring-emerald-200 dark:ring-emerald-800/60 rounded px-2 py-1 text-xs">
+        <Check size={11} className="text-emerald-600 dark:text-emerald-400 shrink-0" />
+        <span className="text-emerald-800 dark:text-emerald-300 font-medium">{displayMatchName ?? party.name}</span>
         {displayMatchName && displayMatchName !== party.name && (
-          <span className="text-emerald-600">({party.name})</span>
+          <span className="text-emerald-600 dark:text-emerald-400">({party.name})</span>
         )}
       </div>
     )
@@ -115,7 +115,7 @@ function PartyChip({
 
       {/* Add as new contact */}
       {addState === 'done' ? (
-        <Check size={11} className="text-emerald-600 shrink-0" />
+        <Check size={11} className="text-emerald-600 dark:text-emerald-400 shrink-0" />
       ) : (
         <button
           onClick={handleAddNew}
@@ -142,7 +142,7 @@ function PartyChip({
           {linkState === 'loading' ? (
             <Loader2 size={11} className="animate-spin" />
           ) : linkState === 'error' ? (
-            <Link2Off size={11} className="text-red-500" />
+            <Link2Off size={11} className="text-red-500 dark:text-red-400" />
           ) : (
             <>
               <Link2 size={11} />

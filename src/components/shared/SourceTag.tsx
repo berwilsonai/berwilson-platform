@@ -9,32 +9,32 @@ const SOURCE_CONFIG: Record<
   email: {
     label: 'Email',
     icon: Mail,
-    style: 'bg-blue-50 text-blue-700 ring-blue-200',
+    style: 'bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 ring-blue-200 dark:ring-blue-800/60',
   },
   manual_paste: {
     label: 'Paste',
     icon: ClipboardPaste,
-    style: 'bg-violet-50 text-violet-700 ring-violet-200',
+    style: 'bg-violet-50 dark:bg-violet-950/40 text-violet-700 dark:text-violet-300 ring-violet-200 dark:ring-violet-800/60',
   },
   document: {
     label: 'Document',
     icon: FileText,
-    style: 'bg-slate-50 text-slate-600 ring-slate-200',
+    style: 'bg-slate-50 dark:bg-slate-950/40 text-slate-600 dark:text-slate-400 ring-slate-200 dark:ring-slate-800/60',
   },
   agent: {
     label: 'Agent',
     icon: Bot,
-    style: 'bg-amber-50 text-amber-700 ring-amber-200',
+    style: 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 ring-amber-200 dark:ring-amber-800/60',
   },
   procore: {
     label: 'Procore',
     icon: HardHat,
-    style: 'bg-orange-50 text-orange-700 ring-orange-200',
+    style: 'bg-orange-50 dark:bg-orange-950/40 text-orange-700 dark:text-orange-300 ring-orange-200 dark:ring-orange-800/60',
   },
   manual_task: {
     label: 'Task',
     icon: ListChecks,
-    style: 'bg-emerald-50 text-emerald-700 ring-emerald-200',
+    style: 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 ring-emerald-200 dark:ring-emerald-800/60',
   },
 }
 

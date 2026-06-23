@@ -25,11 +25,11 @@ const DOC_TYPES = [
 type DocType = (typeof DOC_TYPES)[number]
 
 const DOC_TYPE_COLORS: Record<DocType, string> = {
-  proposal: 'bg-blue-50 text-blue-700 ring-blue-200',
-  contract: 'bg-purple-50 text-purple-700 ring-purple-200',
-  report: 'bg-teal-50 text-teal-700 ring-teal-200',
-  correspondence: 'bg-orange-50 text-orange-700 ring-orange-200',
-  other: 'bg-slate-100 text-slate-600 ring-slate-200',
+  proposal: 'bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 ring-blue-200 dark:ring-blue-800/60',
+  contract: 'bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 ring-purple-200 dark:ring-purple-800/60',
+  report: 'bg-teal-50 dark:bg-teal-950/40 text-teal-700 dark:text-teal-300 ring-teal-200 dark:ring-teal-800/60',
+  correspondence: 'bg-orange-50 dark:bg-orange-950/40 text-orange-700 dark:text-orange-300 ring-orange-200 dark:ring-orange-800/60',
+  other: 'bg-slate-100 dark:bg-slate-900/40 text-slate-600 dark:text-slate-400 ring-slate-200 dark:ring-slate-800/60',
 }
 
 const AI_ELIGIBLE_MIMES = new Set([
@@ -272,10 +272,10 @@ export default function VendorDocuments({ entityId, initialDocuments }: VendorDo
                 <Loader2 size={12} className="animate-spin text-muted-foreground" />
               )}
               {upload.status === 'done' && (
-                <span className="text-xs text-emerald-600">Done</span>
+                <span className="text-xs text-emerald-600 dark:text-emerald-400">Done</span>
               )}
               {upload.status === 'error' && (
-                <span className="text-xs text-red-600">{upload.error}</span>
+                <span className="text-xs text-red-600 dark:text-red-400">{upload.error}</span>
               )}
             </div>
           ))}
@@ -318,9 +318,9 @@ export default function VendorDocuments({ entityId, initialDocuments }: VendorDo
                     onClick={() => {
                       if (confirm('Delete this document?')) handleDelete(doc.id)
                     }}
-                    className="h-6 w-6 rounded flex items-center justify-center hover:bg-red-50 transition-colors"
+                    className="h-6 w-6 rounded flex items-center justify-center hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors"
                   >
-                    <Trash2 size={11} className="text-muted-foreground hover:text-red-600" />
+                    <Trash2 size={11} className="text-muted-foreground hover:text-red-600 dark:hover:text-red-400" />
                   </button>
                 </div>
               </div>

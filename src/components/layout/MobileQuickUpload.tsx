@@ -161,8 +161,8 @@ export default function MobileQuickUpload() {
             <div className="px-5 pb-8 space-y-5">
               {success ? (
                 <div className="flex flex-col items-center py-10 gap-3">
-                  <div className="size-16 rounded-full bg-emerald-100 flex items-center justify-center">
-                    <FileUp size={28} className="text-emerald-600" />
+                  <div className="size-16 rounded-full bg-emerald-100 dark:bg-emerald-900/40 flex items-center justify-center">
+                    <FileUp size={28} className="text-emerald-600 dark:text-emerald-400" />
                   </div>
                   <p className="text-base font-medium text-foreground">Uploaded successfully</p>
                   <p className="text-sm text-muted-foreground">AI extraction in progress</p>

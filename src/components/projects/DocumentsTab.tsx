@@ -33,13 +33,13 @@ const DOC_TYPES = [
 type DocType = (typeof DOC_TYPES)[number]
 
 const DOC_TYPE_COLORS: Record<DocType, string> = {
-  proposal: 'bg-blue-50 text-blue-700 ring-blue-200',
-  contract: 'bg-purple-50 text-purple-700 ring-purple-200',
-  drawing: 'bg-indigo-50 text-indigo-700 ring-indigo-200',
-  email: 'bg-sky-50 text-sky-700 ring-sky-200',
-  report: 'bg-teal-50 text-teal-700 ring-teal-200',
-  correspondence: 'bg-orange-50 text-orange-700 ring-orange-200',
-  other: 'bg-slate-100 text-slate-600 ring-slate-200',
+  proposal: 'bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 ring-blue-200 dark:ring-blue-800/60',
+  contract: 'bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 ring-purple-200 dark:ring-purple-800/60',
+  drawing: 'bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 ring-indigo-200 dark:ring-indigo-800/60',
+  email: 'bg-sky-50 dark:bg-sky-950/40 text-sky-700 dark:text-sky-300 ring-sky-200 dark:ring-sky-800/60',
+  report: 'bg-teal-50 dark:bg-teal-950/40 text-teal-700 dark:text-teal-300 ring-teal-200 dark:ring-teal-800/60',
+  correspondence: 'bg-orange-50 dark:bg-orange-950/40 text-orange-700 dark:text-orange-300 ring-orange-200 dark:ring-orange-800/60',
+  other: 'bg-slate-100 dark:bg-slate-900/40 text-slate-600 dark:text-slate-400 ring-slate-200 dark:ring-slate-800/60',
 }
 
 // MIME types that support AI extraction
@@ -194,14 +194,14 @@ function DocumentRow({
           {!confirmDelete ? (
             <button
               onClick={() => setConfirmDelete(true)}
-              className="inline-flex items-center justify-center h-7 w-7 rounded hover:bg-red-50 transition-colors"
+              className="inline-flex items-center justify-center h-7 w-7 rounded hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors"
               title="Delete"
             >
-              <Trash2 size={14} className="text-muted-foreground hover:text-red-600" />
+              <Trash2 size={14} className="text-muted-foreground hover:text-red-600 dark:hover:text-red-400" />
             </button>
           ) : (
             <div className="flex items-center gap-1">
-              <span className="text-xs text-red-600 font-medium">Delete?</span>
+              <span className="text-xs text-red-600 dark:text-red-400 font-medium">Delete?</span>
               <button
                 onClick={handleDelete}
                 disabled={deleting}
@@ -468,17 +468,17 @@ function UploadZone({
                     <p className="text-xs text-muted-foreground">Generating AI summary…</p>
                   )}
                   {upload.status === 'done' && (
-                    <p className="text-xs text-emerald-600">Uploaded</p>
+                    <p className="text-xs text-emerald-600 dark:text-emerald-400">Uploaded</p>
                   )}
                   {upload.status === 'error' && (
-                    <p className="text-xs text-red-600">{upload.error}</p>
+                    <p className="text-xs text-red-600 dark:text-red-400">{upload.error}</p>
                   )}
                 </div>
                 {(upload.status === 'uploading' || upload.status === 'processing') && (
                   <Loader2 size={14} className="animate-spin text-muted-foreground" />
                 )}
                 {upload.status === 'error' && (
-                  <AlertCircle size={14} className="text-red-500" />
+                  <AlertCircle size={14} className="text-red-500 dark:text-red-400" />
                 )}
                 <button
                   onClick={() => removeUpload(i)}

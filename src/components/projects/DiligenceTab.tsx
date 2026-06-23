@@ -86,10 +86,10 @@ const COMPLIANCE_STATUS_LABELS: Record<ComplianceStatus, string> = {
 
 function SeverityBadge({ severity }: { severity: DdSeverity }) {
   const cls = {
-    info: 'bg-blue-50 text-blue-700 ring-blue-200',
-    watch: 'bg-yellow-50 text-yellow-700 ring-yellow-200',
-    critical: 'bg-orange-50 text-orange-700 ring-orange-200',
-    blocker: 'bg-red-50 text-red-700 ring-red-200',
+    info: 'bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 ring-blue-200 dark:ring-blue-800/60',
+    watch: 'bg-yellow-50 dark:bg-yellow-950/40 text-yellow-700 dark:text-yellow-300 ring-yellow-200 dark:ring-yellow-800/60',
+    critical: 'bg-orange-50 dark:bg-orange-950/40 text-orange-700 dark:text-orange-300 ring-orange-200 dark:ring-orange-800/60',
+    blocker: 'bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-300 ring-red-200 dark:ring-red-800/60',
   }[severity]
   return (
     <span
@@ -104,18 +104,18 @@ function SeverityBadge({ severity }: { severity: DdSeverity }) {
 }
 
 const DD_STATUS_SELECT_CLS: Record<string, string> = {
-  open: 'bg-slate-100 text-slate-600 border-slate-200',
-  in_progress: 'bg-blue-50 text-blue-700 border-blue-200',
-  resolved: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-  accepted_risk: 'bg-amber-50 text-amber-700 border-amber-200',
+  open: 'bg-slate-100 dark:bg-slate-900/40 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800/60',
+  in_progress: 'bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800/60',
+  resolved: 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800/60',
+  accepted_risk: 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800/60',
 }
 
 const COMPLIANCE_STATUS_SELECT_CLS: Record<ComplianceStatus, string> = {
-  not_started: 'bg-slate-100 text-slate-600 border-slate-200',
-  in_progress: 'bg-blue-50 text-blue-700 border-blue-200',
-  compliant: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-  non_compliant: 'bg-red-50 text-red-700 border-red-200',
-  waived: 'bg-purple-50 text-purple-700 border-purple-200',
+  not_started: 'bg-slate-100 dark:bg-slate-900/40 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800/60',
+  in_progress: 'bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800/60',
+  compliant: 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800/60',
+  non_compliant: 'bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-300 border-red-200 dark:border-red-800/60',
+  waived: 'bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-800/60',
 }
 
 function formatDate(d: string | null | undefined): string {
@@ -454,7 +454,7 @@ function DdSection({ projectId, initialItems, parties }: DdSectionProps) {
             />
           </FormField>
 
-          {error && <p className="text-sm text-red-600">{error}</p>}
+          {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
 
           <div className="flex items-center gap-2">
             <button
@@ -477,7 +477,7 @@ function DdSection({ projectId, initialItems, parties }: DdSectionProps) {
               <button
                 onClick={handleDelete}
                 disabled={saving}
-                className="ml-auto inline-flex items-center gap-1.5 h-9 px-3 rounded-md border border-red-200 text-red-600 text-sm font-medium hover:bg-red-50 disabled:opacity-50 transition-colors"
+                className="ml-auto inline-flex items-center gap-1.5 h-9 px-3 rounded-md border border-red-200 dark:border-red-800/60 text-red-600 dark:text-red-400 text-sm font-medium hover:bg-red-50 dark:hover:bg-red-950/40 disabled:opacity-50 transition-colors"
               >
                 <Trash2 size={14} />
                 Delete
@@ -511,9 +511,9 @@ function DdSection({ projectId, initialItems, parties }: DdSectionProps) {
             const assignee = item.assigned_to ? partiesById[item.assigned_to] : null
             const rowBg =
               item.severity === 'blocker'
-                ? 'bg-red-50/40'
+                ? 'bg-red-50/40 dark:bg-red-950/40'
                 : item.severity === 'critical'
-                ? 'bg-orange-50/25'
+                ? 'bg-orange-50/25 dark:bg-orange-950/40'
                 : ''
 
             return (
@@ -940,7 +940,7 @@ function ComplianceSection({
             />
           </FormField>
 
-          {error && <p className="text-sm text-red-600">{error}</p>}
+          {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
 
           <div className="flex items-center gap-2">
             <button
@@ -963,7 +963,7 @@ function ComplianceSection({
               <button
                 onClick={handleDelete}
                 disabled={saving}
-                className="ml-auto inline-flex items-center gap-1.5 h-9 px-3 rounded-md border border-red-200 text-red-600 text-sm font-medium hover:bg-red-50 disabled:opacity-50 transition-colors"
+                className="ml-auto inline-flex items-center gap-1.5 h-9 px-3 rounded-md border border-red-200 dark:border-red-800/60 text-red-600 dark:text-red-400 text-sm font-medium hover:bg-red-50 dark:hover:bg-red-950/40 disabled:opacity-50 transition-colors"
               >
                 <Trash2 size={14} />
                 Delete
@@ -1074,7 +1074,7 @@ function ComplianceSection({
                     </td>
                     <td className="px-3 py-3 border-r border-border">
                       {evidenceDoc ? (
-                        <span className="inline-flex items-center gap-1 text-xs text-blue-600 font-medium">
+                        <span className="inline-flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 font-medium">
                           <FileText size={12} className="shrink-0" />
                           <span className="truncate max-w-[120px]">{evidenceDoc.file_name}</span>
                         </span>
@@ -1153,7 +1153,7 @@ export default function DiligenceTab({
           <ShieldCheck size={15} />
           Due Diligence
           {openDdCount > 0 && (
-            <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-orange-100 text-orange-700 text-xs font-bold">
+            <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300 text-xs font-bold">
               {openDdCount}
             </span>
           )}
@@ -1170,7 +1170,7 @@ export default function DiligenceTab({
           <FileCheck size={15} />
           Compliance
           {nonCompliantCount > 0 && (
-            <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-red-100 text-red-700 text-xs font-bold">
+            <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 text-xs font-bold">
               {nonCompliantCount}
             </span>
           )}
@@ -1187,7 +1187,7 @@ export default function DiligenceTab({
           <Search size={15} />
           Research
           {initialResearchArtifacts.length > 0 && (
-            <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-blue-100 text-blue-700 text-xs font-bold">
+            <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 text-xs font-bold">
               {initialResearchArtifacts.length}
             </span>
           )}

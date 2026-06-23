@@ -95,7 +95,7 @@ export default function ProjectNarrativeBrief({ projectId, projectName }: Projec
             </div>
           )}
 
-          {error && <p className="text-xs text-red-600 pt-3">{error}</p>}
+          {error && <p className="text-xs text-red-600 dark:text-red-400 pt-3">{error}</p>}
 
           {brief && (
             <div className={`pt-3 text-sm text-foreground leading-relaxed prose prose-sm prose-slate max-w-none [&_h1]:text-base [&_h1]:font-bold [&_h1]:mb-2 [&_h2]:text-sm [&_h2]:font-semibold [&_h2]:mt-3 [&_h2]:mb-1 [&_h3]:text-xs [&_h3]:font-semibold [&_h3]:mt-2 [&_h3]:mb-1 [&_p]:my-1 [&_ul]:my-1 [&_li]:my-0.5 [&_strong]:text-foreground whitespace-pre-wrap ${loading ? 'opacity-60' : ''}`}>

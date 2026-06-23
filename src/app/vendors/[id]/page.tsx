@@ -165,7 +165,7 @@ export default async function VendorDetailPage({ params }: PageProps) {
           {entity.quality_score && (
             <div className="text-center">
               <div className="flex items-center gap-1">
-                <Star size={14} className="text-amber-500 fill-amber-500" />
+                <Star size={14} className="text-amber-500 dark:text-amber-400 fill-amber-500" />
                 <span className="text-lg font-semibold">{Number(entity.quality_score).toFixed(1)}</span>
               </div>
               <span className="text-xs text-muted-foreground">Your Rating</span>
@@ -174,7 +174,7 @@ export default async function VendorDetailPage({ params }: PageProps) {
           {avgRating !== null && (
             <div className="text-center">
               <div className="flex items-center gap-1">
-                <Star size={14} className="text-blue-500 fill-blue-500" />
+                <Star size={14} className="text-blue-500 dark:text-blue-400 fill-blue-500" />
                 <span className="text-lg font-semibold">{avgRating.toFixed(1)}</span>
               </div>
               <span className="text-xs text-muted-foreground">
@@ -185,7 +185,7 @@ export default async function VendorDetailPage({ params }: PageProps) {
           {entity.confidence_score && (
             <div className="text-center">
               <div className="flex items-center gap-1">
-                <CheckCircle2 size={14} className="text-green-500" />
+                <CheckCircle2 size={14} className="text-green-500 dark:text-green-400" />
                 <span className="text-lg font-semibold">{Number(entity.confidence_score).toFixed(1)}</span>
               </div>
               <span className="text-xs text-muted-foreground">Confidence</span>

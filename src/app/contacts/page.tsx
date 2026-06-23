@@ -74,7 +74,7 @@ export default async function ContactsPage() {
       {(pendingCount ?? 0) > 0 && (
         <Link
           href="/review?reason=new_contact"
-          className="flex items-center gap-2.5 px-4 py-3 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-sm hover:bg-amber-100 transition-colors"
+          className="flex items-center gap-2.5 px-4 py-3 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 text-amber-800 dark:text-amber-300 text-sm hover:bg-amber-100 dark:hover:bg-amber-900/40 transition-colors"
         >
           <Clock size={15} className="shrink-0" />
           <span>

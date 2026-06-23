@@ -46,13 +46,13 @@ const CATEGORY_CONFIG: Record<string, {
   bg: string
   ring: string
 }> = {
-  overdue_action: { icon: CheckCircle2, label: 'Overdue Action', color: 'text-red-600', bg: 'bg-red-50', ring: 'ring-red-200' },
-  stale_waiting: { icon: Clock, label: 'Stale Waiting', color: 'text-amber-600', bg: 'bg-amber-50', ring: 'ring-amber-200' },
-  approaching_milestone: { icon: Flag, label: 'Milestone', color: 'text-blue-600', bg: 'bg-blue-50', ring: 'ring-blue-200' },
-  critical_dd: { icon: AlertTriangle, label: 'DD Blocker', color: 'text-red-600', bg: 'bg-red-50', ring: 'ring-red-200' },
-  expiring_compliance: { icon: Shield, label: 'Compliance', color: 'text-violet-600', bg: 'bg-violet-50', ring: 'ring-violet-200' },
-  stale_decision: { icon: Gavel, label: 'Decision', color: 'text-orange-600', bg: 'bg-orange-50', ring: 'ring-orange-200' },
-  dependency_risk: { icon: GitBranch, label: 'Dependency', color: 'text-pink-600', bg: 'bg-pink-50', ring: 'ring-pink-200' },
+  overdue_action: { icon: CheckCircle2, label: 'Overdue Action', color: 'text-red-600 dark:text-red-400', bg: 'bg-red-50 dark:bg-red-950/40', ring: 'ring-red-200 dark:ring-red-800/60' },
+  stale_waiting: { icon: Clock, label: 'Stale Waiting', color: 'text-amber-600 dark:text-amber-400', bg: 'bg-amber-50 dark:bg-amber-950/40', ring: 'ring-amber-200 dark:ring-amber-800/60' },
+  approaching_milestone: { icon: Flag, label: 'Milestone', color: 'text-blue-600 dark:text-blue-400', bg: 'bg-blue-50 dark:bg-blue-950/40', ring: 'ring-blue-200 dark:ring-blue-800/60' },
+  critical_dd: { icon: AlertTriangle, label: 'DD Blocker', color: 'text-red-600 dark:text-red-400', bg: 'bg-red-50 dark:bg-red-950/40', ring: 'ring-red-200 dark:ring-red-800/60' },
+  expiring_compliance: { icon: Shield, label: 'Compliance', color: 'text-violet-600 dark:text-violet-400', bg: 'bg-violet-50 dark:bg-violet-950/40', ring: 'ring-violet-200 dark:ring-violet-800/60' },
+  stale_decision: { icon: Gavel, label: 'Decision', color: 'text-orange-600 dark:text-orange-400', bg: 'bg-orange-50 dark:bg-orange-950/40', ring: 'ring-orange-200 dark:ring-orange-800/60' },
+  dependency_risk: { icon: GitBranch, label: 'Dependency', color: 'text-pink-600 dark:text-pink-400', bg: 'bg-pink-50 dark:bg-pink-950/40', ring: 'ring-pink-200 dark:ring-pink-800/60' },
 }
 
 type FilterCategory = 'all' | string
@@ -101,10 +101,10 @@ export default function AttentionList() {
       {summary && summary.total > 0 && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {[
-            { label: 'Critical', count: items.filter(i => i.urgency >= 80).length, color: 'text-red-600 bg-red-50 ring-red-200' },
-            { label: 'High', count: items.filter(i => i.urgency >= 60 && i.urgency < 80).length, color: 'text-amber-600 bg-amber-50 ring-amber-200' },
-            { label: 'Medium', count: items.filter(i => i.urgency >= 40 && i.urgency < 60).length, color: 'text-yellow-600 bg-yellow-50 ring-yellow-200' },
-            { label: 'Low', count: items.filter(i => i.urgency < 40).length, color: 'text-slate-600 bg-slate-50 ring-slate-200' },
+            { label: 'Critical', count: items.filter(i => i.urgency >= 80).length, color: 'text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/40 ring-red-200 dark:ring-red-800/60' },
+            { label: 'High', count: items.filter(i => i.urgency >= 60 && i.urgency < 80).length, color: 'text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 ring-amber-200 dark:ring-amber-800/60' },
+            { label: 'Medium', count: items.filter(i => i.urgency >= 40 && i.urgency < 60).length, color: 'text-yellow-600 dark:text-yellow-400 bg-yellow-50 dark:bg-yellow-950/40 ring-yellow-200 dark:ring-yellow-800/60' },
+            { label: 'Low', count: items.filter(i => i.urgency < 40).length, color: 'text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-950/40 ring-slate-200 dark:ring-slate-800/60' },
           ].map(({ label, count, color }) => (
             <div key={label} className={cn('rounded-lg ring-1 ring-inset px-3 py-2', color)}>
               <p className="text-2xl font-bold tabular-nums">{count}</p>
@@ -152,7 +152,7 @@ export default function AttentionList() {
       )}
 
       {/* Error */}
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
 
       {/* Empty state */}
       {!loading && filtered.length === 0 && (

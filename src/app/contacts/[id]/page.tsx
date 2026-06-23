@@ -618,7 +618,7 @@ export default async function ContactDetailPage({ params, searchParams }: PagePr
                               {row.is_primary && (
                                 <Star
                                   size={11}
-                                  className="text-amber-500 fill-amber-400"
+                                  className="text-amber-500 dark:text-amber-400 fill-amber-400"
                                   aria-label="Primary contact"
                                 />
                               )}

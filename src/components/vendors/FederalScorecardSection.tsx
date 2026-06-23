@@ -68,7 +68,7 @@ function RatingBadge({ rating }: { rating: number | null }) {
   if (rating === null || rating === undefined) return <span className="text-xs text-muted-foreground">—</span>
   const r = Math.round(rating)
   return (
-    <span className={cn('text-xs font-semibold', SCORECARD_RATING_COLORS[r] ?? 'text-slate-500')}>
+    <span className={cn('text-xs font-semibold', SCORECARD_RATING_COLORS[r] ?? 'text-slate-500 dark:text-slate-400')}>
       {rating.toFixed(1)} — {SCORECARD_RATING_LABELS[r] ?? 'N/A'}
     </span>
   )
@@ -436,10 +436,10 @@ function ScorecardForm({
                     className={cn(
                       'w-7 h-7 rounded text-xs font-medium transition-colors',
                       scores[c.key] === String(r)
-                        ? r === 0 ? 'bg-slate-200 text-slate-700 ring-1 ring-slate-400'
-                          : r <= 2 ? 'bg-red-100 text-red-700 ring-1 ring-red-400'
-                          : r === 3 ? 'bg-amber-100 text-amber-700 ring-1 ring-amber-400'
-                          : 'bg-green-100 text-green-700 ring-1 ring-green-400'
+                        ? r === 0 ? 'bg-slate-200 dark:bg-slate-900/60 text-slate-700 dark:text-slate-300 ring-1 ring-slate-400'
+                          : r <= 2 ? 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 ring-1 ring-red-400'
+                          : r === 3 ? 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 ring-1 ring-amber-400'
+                          : 'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 ring-1 ring-green-400'
                         : 'bg-muted text-muted-foreground hover:bg-muted/80'
                     )}
                   >
@@ -556,7 +556,7 @@ export default function FederalScorecardSection({
     <section>
       <div className="flex items-center justify-between mb-3">
         <h2 className="text-sm font-semibold inline-flex items-center gap-1.5">
-          <Shield size={14} className="text-blue-600" />
+          <Shield size={14} className="text-blue-600 dark:text-blue-400" />
           Federal Scorecards ({scorecards.length})
         </h2>
         <button

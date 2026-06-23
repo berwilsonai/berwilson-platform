@@ -19,11 +19,11 @@ interface ComplianceClientProps {
 }
 
 const COMPLIANCE_STATUS_BADGE: Record<string, string> = {
-  not_started: 'bg-slate-100 dark:bg-muted text-slate-600 dark:text-slate-300 ring-slate-200 dark:ring-border',
-  in_progress: 'bg-blue-50 text-blue-700 ring-blue-200',
-  compliant: 'bg-emerald-50 text-emerald-700 ring-emerald-200',
-  non_compliant: 'bg-red-50 text-red-600 ring-red-200',
-  waived: 'bg-amber-50 text-amber-700 ring-amber-200',
+  not_started: 'bg-slate-100 dark:bg-slate-900/40 dark:bg-muted text-slate-600 dark:text-slate-300 ring-slate-200 dark:ring-slate-800/60 dark:ring-border',
+  in_progress: 'bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 ring-blue-200 dark:ring-blue-800/60',
+  compliant: 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 ring-emerald-200 dark:ring-emerald-800/60',
+  non_compliant: 'bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 ring-red-200 dark:ring-red-800/60',
+  waived: 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 ring-amber-200 dark:ring-amber-800/60',
 }
 
 const EMPTY_FORM = {
@@ -156,7 +156,7 @@ export default function ComplianceClient({ siteId, initialItems }: ComplianceCli
             {Object.entries(statusCounts).map(([status, count]) => (
               <span
                 key={status}
-                className={`inline-flex items-center rounded-md px-2.5 py-1 text-xs font-medium ring-1 ring-inset ${COMPLIANCE_STATUS_BADGE[status] ?? 'bg-slate-100 dark:bg-muted text-slate-600 dark:text-slate-300 ring-slate-200 dark:ring-border'}`}
+                className={`inline-flex items-center rounded-md px-2.5 py-1 text-xs font-medium ring-1 ring-inset ${COMPLIANCE_STATUS_BADGE[status] ?? 'bg-slate-100 dark:bg-slate-900/40 dark:bg-muted text-slate-600 dark:text-slate-300 ring-slate-200 dark:ring-slate-800/60 dark:ring-border'}`}
               >
                 {COMPLIANCE_STATUS_LABELS[status as keyof typeof COMPLIANCE_STATUS_LABELS] ?? status}: {count}
               </span>
@@ -174,7 +174,7 @@ export default function ComplianceClient({ siteId, initialItems }: ComplianceCli
 
       {/* Empty state */}
       {items.length === 0 ? (
-        <div className="bg-white dark:bg-card rounded-lg border border-slate-200 dark:border-border p-8 text-center">
+        <div className="bg-white dark:bg-card rounded-lg border border-slate-200 dark:border-slate-800/60 dark:border-border p-8 text-center">
           <p className="text-sm text-slate-400 dark:text-muted-foreground mb-3">No compliance items tracked for this site yet.</p>
           <button
             onClick={openAdd}
@@ -186,16 +186,16 @@ export default function ComplianceClient({ siteId, initialItems }: ComplianceCli
         </div>
       ) : (
         Array.from(byFramework.entries()).map(([framework, fwItems]) => (
-          <section key={framework} className="bg-white dark:bg-card rounded-lg border border-slate-200 dark:border-border p-5">
-            <h2 className="text-sm font-semibold text-slate-900 dark:text-foreground mb-3">{framework}</h2>
+          <section key={framework} className="bg-white dark:bg-card rounded-lg border border-slate-200 dark:border-slate-800/60 dark:border-border p-5">
+            <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-200 dark:text-foreground mb-3">{framework}</h2>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-slate-100 dark:border-border/60">
-                    <th className="text-left px-3 py-2 font-medium text-slate-500 dark:text-muted-foreground text-xs">Requirement</th>
-                    <th className="text-left px-3 py-2 font-medium text-slate-500 dark:text-muted-foreground text-xs">Status</th>
-                    <th className="text-left px-3 py-2 font-medium text-slate-500 dark:text-muted-foreground text-xs">Due Date</th>
-                    <th className="text-left px-3 py-2 font-medium text-slate-500 dark:text-muted-foreground text-xs">Notes</th>
+                  <tr className="border-b border-slate-100 dark:border-slate-900/50 dark:border-border/60">
+                    <th className="text-left px-3 py-2 font-medium text-slate-500 dark:text-slate-400 dark:text-muted-foreground text-xs">Requirement</th>
+                    <th className="text-left px-3 py-2 font-medium text-slate-500 dark:text-slate-400 dark:text-muted-foreground text-xs">Status</th>
+                    <th className="text-left px-3 py-2 font-medium text-slate-500 dark:text-slate-400 dark:text-muted-foreground text-xs">Due Date</th>
+                    <th className="text-left px-3 py-2 font-medium text-slate-500 dark:text-slate-400 dark:text-muted-foreground text-xs">Notes</th>
                     <th className="px-3 py-2 w-20" />
                   </tr>
                 </thead>
@@ -203,38 +203,38 @@ export default function ComplianceClient({ siteId, initialItems }: ComplianceCli
                   {fwItems.map(ci => {
                     const isOverdue = ci.due_date && ci.status !== 'compliant' && ci.status !== 'waived' && new Date(ci.due_date) < new Date()
                     return (
-                      <tr key={ci.id} className="border-b border-slate-50 dark:border-border/40 hover:bg-slate-50 dark:hover:bg-muted/50">
-                        <td className="px-3 py-2 font-medium text-slate-900 dark:text-foreground">{ci.requirement ?? ci.framework}</td>
+                      <tr key={ci.id} className="border-b border-slate-50 dark:border-border/40 hover:bg-slate-50 dark:hover:bg-slate-950/40 dark:hover:bg-muted/50">
+                        <td className="px-3 py-2 font-medium text-slate-900 dark:text-slate-200 dark:text-foreground">{ci.requirement ?? ci.framework}</td>
                         <td className="px-3 py-2">
                           {ci.status ? (
-                            <span className={`inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium ring-1 ring-inset ${COMPLIANCE_STATUS_BADGE[ci.status as string] ?? 'bg-slate-100 dark:bg-muted text-slate-600 dark:text-slate-300 ring-slate-200 dark:ring-border'}`}>
+                            <span className={`inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium ring-1 ring-inset ${COMPLIANCE_STATUS_BADGE[ci.status as string] ?? 'bg-slate-100 dark:bg-slate-900/40 dark:bg-muted text-slate-600 dark:text-slate-300 ring-slate-200 dark:ring-slate-800/60 dark:ring-border'}`}>
                               {COMPLIANCE_STATUS_LABELS[ci.status as keyof typeof COMPLIANCE_STATUS_LABELS] ?? ci.status}
                             </span>
                           ) : <span className="text-slate-400 dark:text-muted-foreground text-xs">—</span>}
                         </td>
-                        <td className={`px-3 py-2 text-xs ${isOverdue ? 'text-red-600 font-medium' : 'text-slate-500 dark:text-muted-foreground'}`}>
+                        <td className={`px-3 py-2 text-xs ${isOverdue ? 'text-red-600 dark:text-red-400 font-medium' : 'text-slate-500 dark:text-slate-400 dark:text-muted-foreground'}`}>
                           {ci.due_date ? formatDate(ci.due_date) : '—'}
                           {isOverdue && ' (overdue)'}
                         </td>
-                        <td className="px-3 py-2 text-xs text-slate-500 dark:text-muted-foreground max-w-xs truncate">{ci.notes ?? '—'}</td>
+                        <td className="px-3 py-2 text-xs text-slate-500 dark:text-slate-400 dark:text-muted-foreground max-w-xs truncate">{ci.notes ?? '—'}</td>
                         <td className="px-3 py-2">
                           <div className="flex items-center justify-end gap-1">
-                            <button onClick={() => openEdit(ci)} className="inline-flex items-center justify-center h-7 w-7 rounded hover:bg-slate-100 dark:hover:bg-muted transition-colors" title="Edit">
+                            <button onClick={() => openEdit(ci)} className="inline-flex items-center justify-center h-7 w-7 rounded hover:bg-slate-100 dark:hover:bg-slate-900/40 dark:hover:bg-muted transition-colors" title="Edit">
                               <Pencil size={13} className="text-slate-400 dark:text-muted-foreground" />
                             </button>
                             {confirmDeleteId === ci.id ? (
                               <div className="flex items-center gap-1">
-                                <span className="text-xs text-red-600 font-medium">Delete?</span>
+                                <span className="text-xs text-red-600 dark:text-red-400 font-medium">Delete?</span>
                                 <button onClick={() => handleDelete(ci.id)} disabled={deletingId === ci.id} className="h-6 px-2 rounded text-xs font-medium bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 transition-colors">
                                   {deletingId === ci.id ? '…' : 'Yes'}
                                 </button>
-                                <button onClick={() => setConfirmDeleteId(null)} className="h-6 w-6 rounded flex items-center justify-center hover:bg-slate-100 dark:hover:bg-muted transition-colors">
+                                <button onClick={() => setConfirmDeleteId(null)} className="h-6 w-6 rounded flex items-center justify-center hover:bg-slate-100 dark:hover:bg-slate-900/40 dark:hover:bg-muted transition-colors">
                                   <X size={11} />
                                 </button>
                               </div>
                             ) : (
-                              <button onClick={() => setConfirmDeleteId(ci.id)} className="inline-flex items-center justify-center h-7 w-7 rounded hover:bg-red-50 transition-colors" title="Delete">
-                                <Trash2 size={13} className="text-slate-400 dark:text-muted-foreground hover:text-red-500" />
+                              <button onClick={() => setConfirmDeleteId(ci.id)} className="inline-flex items-center justify-center h-7 w-7 rounded hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors" title="Delete">
+                                <Trash2 size={13} className="text-slate-400 dark:text-muted-foreground hover:text-red-500 dark:hover:text-red-400" />
                               </button>
                             )}
                           </div>
@@ -256,18 +256,18 @@ export default function ComplianceClient({ siteId, initialItems }: ComplianceCli
             <DialogTitle>{editing ? 'Edit Compliance Item' : 'Add Compliance Item'}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            {error && <p className="text-sm text-red-600">{error}</p>}
+            {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
 
             <div className="space-y-1.5">
               <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                Framework <span className="text-red-500">*</span>
+                Framework <span className="text-red-500 dark:text-red-400">*</span>
               </label>
               <input value={form.framework} onChange={e => field('framework', e.target.value)} placeholder="e.g. NEPA, OSHA, Local Permitting" disabled={saving} className={inputClass} autoFocus />
             </div>
 
             <div className="space-y-1.5">
               <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                Requirement <span className="text-red-500">*</span>
+                Requirement <span className="text-red-500 dark:text-red-400">*</span>
               </label>
               <input value={form.requirement} onChange={e => field('requirement', e.target.value)} placeholder="e.g. Environmental Impact Statement" disabled={saving} className={inputClass} />
             </div>
