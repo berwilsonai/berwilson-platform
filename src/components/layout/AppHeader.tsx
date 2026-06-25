@@ -8,6 +8,7 @@ import UserMenu from './UserMenu'
 import CommandPalette from './CommandPalette'
 
 const PAGE_TITLES: Record<string, string> = {
+  '/tasks': 'Team Tasks',
   '/dashboard': 'Dashboard',
   '/attention': 'Attention',
   '/projects': 'Projects',
@@ -16,7 +17,6 @@ const PAGE_TITLES: Record<string, string> = {
   '/vendors': 'Vendors & Contractors',
   '/company': 'Ber Wilson',
   '/review': 'Review Queue',
-  '/email-log': 'Email Log',
   '/activity': 'Activity',
   '/intel': 'Intel',
   '/portfolio': 'Portfolio',

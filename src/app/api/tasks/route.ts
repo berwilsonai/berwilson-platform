@@ -1,98 +1,63 @@
 import { NextRequest } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import type { TablesInsert, Json } from '@/lib/supabase/types'
+import type { TablesInsert } from '@/lib/supabase/types'
 
-/** POST — create a manual task by inserting a lightweight update with a single action_item */
+/** GET — list tasks with optional filters (?status=open|done&assignee=<id>&project=<id>) */
+export async function GET(request: NextRequest) {
+  const { searchParams } = new URL(request.url)
+  const status = searchParams.get('status')
+  const assignee = searchParams.get('assignee')
+  const project = searchParams.get('project')
+
+  const supabase = createAdminClient()
+  let query = supabase
+    .from('tasks')
+    .select('*, assignee:team_members(id, name, color), project:projects(id, name)')
+    .order('due_date', { ascending: true, nullsFirst: false })
+    .order('created_at', { ascending: false })
+
+  if (status === 'open' || status === 'done') query = query.eq('status', status)
+  if (assignee) query = query.eq('assignee_id', assignee)
+  if (project) query = query.eq('project_id', project)
+
+  const { data, error } = await query
+  if (error) {
+    console.error('List tasks failed:', error)
+    return Response.json({ error: error.message }, { status: 500 })
+  }
+  return Response.json({ tasks: data })
+}
+
+/** POST — create a task */
 export async function POST(request: NextRequest) {
   const body = await request.json()
-  const { project_id, text, assignee, assignee_party_id, due_date } = body
+  const { title, what, why, how, assignee_id, project_id, due_date } = body
 
-  if (!project_id || !text?.trim()) {
-    return Response.json({ error: 'project_id and text are required' }, { status: 400 })
+  if (!title?.trim()) {
+    return Response.json({ error: 'title is required' }, { status: 400 })
   }
 
-  const actionItem = {
-    text: text.trim(),
-    assignee: assignee?.trim() || null,
-    assignee_party_id: assignee_party_id || null,
+  const row: TablesInsert<'tasks'> = {
+    title: title.trim(),
+    what: what?.trim() || null,
+    why: why?.trim() || null,
+    how: how?.trim() || null,
+    assignee_id: assignee_id || null,
+    project_id: project_id || null,
     due_date: due_date || null,
-    completed: false,
+    status: 'open',
   }
 
   const supabase = createAdminClient()
-
-  const row: TablesInsert<'updates'> = {
-    project_id,
-    source: 'manual_task',
-    raw_content: text.trim(),
-    summary: null,
-    action_items: [actionItem],
-    waiting_on: [],
-    risks: [],
-    decisions: [],
-    confidence: null,
-    review_state: 'approved',
-  }
-
-  const { data, error } = await supabase.from('updates').insert(row).select('id').single()
+  const { data, error } = await supabase
+    .from('tasks')
+    .insert(row)
+    .select('*, assignee:team_members(id, name, color), project:projects(id, name)')
+    .single()
 
   if (error) {
     console.error('Create task failed:', error)
     return Response.json({ error: error.message }, { status: 500 })
   }
-
-  return Response.json({ id: data.id, task: actionItem })
-}
-
-/** DELETE — remove a single action_item from an update.
- *  If it's the only item, delete the entire update row. */
-export async function DELETE(request: NextRequest) {
-  const body = await request.json()
-  const { update_id, index } = body
-
-  if (!update_id || typeof index !== 'number' || index < 0) {
-    return Response.json({ error: 'update_id and index (non-negative number) are required' }, { status: 400 })
-  }
-
-  const supabase = createAdminClient()
-
-  const { data: update, error: fetchError } = await supabase
-    .from('updates')
-    .select('action_items')
-    .eq('id', update_id)
-    .single()
-
-  if (fetchError || !update) {
-    return Response.json({ error: 'Update not found' }, { status: 404 })
-  }
-
-  const items: Record<string, unknown>[] = Array.isArray(update.action_items)
-    ? (update.action_items as Record<string, unknown>[])
-    : []
-
-  if (index >= items.length) {
-    return Response.json({ error: 'Index out of bounds' }, { status: 400 })
-  }
-
-  // If only one action_item, delete the entire update row
-  if (items.length === 1) {
-    const { error } = await supabase.from('updates').delete().eq('id', update_id)
-    if (error) {
-      return Response.json({ error: 'Failed to delete task' }, { status: 500 })
-    }
-    return Response.json({ deleted: 'update' })
-  }
-
-  // Otherwise, splice out the item and update
-  const newItems = items.filter((_, i) => i !== index)
-  const { error: updateError } = await supabase
-    .from('updates')
-    .update({ action_items: newItems as unknown as Json })
-    .eq('id', update_id)
-
-  if (updateError) {
-    return Response.json({ error: 'Failed to remove task' }, { status: 500 })
-  }
-
-  return Response.json({ deleted: 'item', action_items: newItems })
+  return Response.json({ task: data })
 }

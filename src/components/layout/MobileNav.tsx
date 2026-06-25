@@ -13,7 +13,6 @@ import {
   Users,
   Building2,
   Shield,
-  Mail,
   Activity,
   TrendingUp,
   Globe,
@@ -26,25 +25,24 @@ import {
 } from 'lucide-react'
 
 const PRIMARY_NAV = [
+  { href: '/tasks', label: 'Tasks', icon: ListTodo },
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/attention', label: 'Attention', icon: AlertTriangle, hasBadge: true },
   { href: '/projects', label: 'Projects', icon: FolderKanban },
   { href: '/intel', label: 'Intel', icon: Brain },
   { href: '/review', label: 'Review', icon: ClipboardCheck, hasBadge: true },
 ] as const
 
 const MORE_NAV = [
+  { href: '/attention', label: 'Attention', icon: AlertTriangle },
   { href: '/proposals/intake', label: 'Ingest', icon: FileUp },
   { href: '/timeline', label: 'Timeline', icon: GanttChart },
   { href: '/capacity', label: 'Capacity', icon: Gauge },
-  { href: '/tasks', label: 'Tasks', icon: ListTodo },
   { href: '/calendar', label: 'Calendar', icon: CalendarDays },
   { href: '/portfolio', label: 'Portfolio', icon: Globe },
   { href: '/equity', label: 'Equity', icon: TrendingUp },
   { href: '/contacts', label: 'Contacts', icon: Users },
   { href: '/vendors', label: 'Vendors & Contractors', icon: Building2 },
   { href: '/company', label: 'Ber Wilson', icon: Shield },
-  { href: '/email-log', label: 'Email Log', icon: Mail },
   { href: '/activity', label: 'Activity', icon: Activity },
 ] as const
 

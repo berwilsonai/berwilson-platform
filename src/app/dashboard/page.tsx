@@ -16,7 +16,7 @@ import NeedsAttention from '@/components/dashboard/NeedsAttention'
 import ClosingSoon, { type ClosingSoonItem } from '@/components/dashboard/ClosingSoon'
 import { weightedValue } from '@/lib/utils/constants'
 import EmptyState from '@/components/shared/EmptyState'
-import type { ActionItem, WaitingOnItem, RiskItem } from '@/types/domain'
+import type { WaitingOnItem, RiskItem } from '@/types/domain'
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
@@ -121,8 +121,9 @@ export default async function DashboardPage({ searchParams }: PageProps) {
   // Fetch approved updates to compute per-project action counts
   let updatesRaw: Array<{ project_id: string | null; action_items: unknown; waiting_on: unknown; risks: unknown }> = []
   let openMilestones: Array<{ project_id: string; label: string; target_date: string | null }> = []
+  let openTasks: Array<{ project_id: string | null; title: string; due_date: string | null }> = []
   if (projectIds.length > 0) {
-    const [{ data: upd }, { data: ms }] = await Promise.all([
+    const [{ data: upd }, { data: ms }, { data: tk }] = await Promise.all([
       supabase
         .from('updates')
         .select('project_id, action_items, waiting_on, risks')
@@ -134,9 +135,15 @@ export default async function DashboardPage({ searchParams }: PageProps) {
         .in('project_id', projectIds)
         .is('completed_at', null)
         .not('target_date', 'is', null),
+      supabase
+        .from('tasks')
+        .select('project_id, title, due_date')
+        .in('project_id', projectIds)
+        .eq('status', 'open'),
     ])
     updatesRaw = upd ?? []
     openMilestones = (ms ?? []) as typeof openMilestones
+    openTasks = (tk ?? []) as typeof openTasks
   }
 
   // Safely parse a jsonb field that might come back as a JS array or a JSON string
@@ -156,15 +163,23 @@ export default async function DashboardPage({ searchParams }: PageProps) {
     if (!countMap[pid]) {
       countMap[pid] = { actionCount: 0, waitingCount: 0, riskCount: 0, hasCriticalRisk: false }
     }
-    const actions = safeArray<ActionItem>(u.action_items)
     const waiting = safeArray<WaitingOnItem>(u.waiting_on)
     const risks = safeArray<RiskItem>(u.risks)
-    countMap[pid].actionCount += actions.filter((a) => !a.completed).length
     countMap[pid].waitingCount += waiting.length
     countMap[pid].riskCount += risks.length
     if (risks.some((r) => r.severity === 'critical' || r.severity === 'blocker')) {
       countMap[pid].hasCriticalRisk = true
     }
+  }
+
+  // Per-project open task counts come from the team task system
+  for (const t of openTasks) {
+    const pid = t.project_id
+    if (!pid) continue
+    if (!countMap[pid]) {
+      countMap[pid] = { actionCount: 0, waitingCount: 0, riskCount: 0, hasCriticalRisk: false }
+    }
+    countMap[pid].actionCount += 1
   }
 
   // ── Per-project deadlines + blockers (for "what's holding this up") ─────────
@@ -186,11 +201,8 @@ export default async function DashboardPage({ searchParams }: PageProps) {
     ;(candidates[pid] ??= []).push({ label, date: dateStr, days: daysUntil(dateStr) })
   }
   for (const m of openMilestones) addCandidate(m.project_id, m.label, m.target_date)
-  for (const u of updatesRaw) {
-    if (!u.project_id) continue
-    for (const a of safeArray<ActionItem>(u.action_items)) {
-      if (!a.completed && a.due_date) addCandidate(u.project_id, a.text, a.due_date)
-    }
+  for (const t of openTasks) {
+    if (t.project_id && t.due_date) addCandidate(t.project_id, t.title, t.due_date)
   }
   for (const pid of Object.keys(candidates)) {
     const list = candidates[pid]

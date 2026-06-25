@@ -37,7 +37,7 @@ Canonical reference for every Claude Code session working on the Ber Wilson plat
 | Charts | Recharts | Equity + dashboards. |
 | PDF | `@react-pdf/renderer` | Equity scenario exports. |
 | Client data/state | `@tanstack/react-query`, `zustand` | Equity module only. |
-| Email Ingestion | Microsoft Graph API + webhook subscriptions | Push-based, with subscription renewal cron. |
+| Microsoft Graph | Microsoft Graph API (OAuth) | Powers `/calendar` meeting prep + party enrichment. The email-to-task ingestion scraper was removed 2026-06-25; OAuth + `email_tokens` retained for calendar. |
 | Vector Search | pgvector inside Supabase Postgres | `gemini-embedding-001`, 768-dim. |
 | File Storage | Supabase Storage (`documents` bucket) | Organized by project / entity / site ID. |
 | Deployment | Vercel + Supabase | No containers, no Docker, no servers. |
@@ -119,10 +119,11 @@ Migrations live in `supabase/migrations/` (41 as of this writing, numbered chron
 
 ### Table groups (read database.ts for columns)
 - **Core CRM:** `projects` (with `parent_project_id` hierarchy, `bid_due_date`, `win_probability`, capture fields), `project_players`, `milestones`, `updates`, `documents`, `dd_items`, `financing_structures`, `compliance_items`, `project_dependencies`.
+- **Tasks (2026-06-25):** `tasks` (real task model — title/what/why/how/assignee_id/project_id/due_date/status/completed_at), `task_notes` (per-task notes feed), `team_members` (assignee list, seeded Richard/Eric). Replaces the old `updates.action_items` JSON for the task UI.
 - **Directory:** `parties` (people + orgs via `is_organization`), `contact_aliases`, `entities` (legal entities/vendors), `entity_projects`, `party_entities`, `entity_reviews`, `federal_scorecards`, `certifications`.
 - **Company:** `company_profile`, `media`, `trade_secrets`, `ts_exposure_items`.
 - **AI / intelligence:** `ai_queries`, `chunks` (pgvector), `agent_conversations`, `agent_messages`, `research_artifacts`, `review_queue`, `risk_scores`, `proposal_intake_sessions`, `stored_briefs`, `portfolio_briefs`.
-- **Email:** `processed_emails`, `email_tokens`, `graph_subscriptions`, `document_distributions`.
+- **Microsoft Graph:** `email_tokens` (OAuth — calendar/enrichment), `document_distributions`. (`processed_emails`, `graph_subscriptions` are now unused after the email-scraper removal — safe to drop.)
 - **Portfolio (site hierarchy):** `sites`, `components`, `funding_sources`, `revenue_share_agreements`, `stakeholder_interactions`, `stakeholder_relationships`, `corridors`, `rail_branches`, `sub_engagements`, `brands`, `dream_quotes`.
 - **Equity:** `equity_scenarios`, `equity_share_links`.
 - **Audit:** `activity_log` (append-only).
@@ -217,6 +218,8 @@ Captured so future sessions don't rediscover them:
 - **Three directory concepts** (Contacts/parties, Vendors/entities, Portfolio stakeholders) overlap. Original intent (§10) was one `parties` directory; code drifted.
 - **Type drift.** Generated types lag the schema; recurring inline casts (`project as { … }`). Regenerate and fix.
 - **Speculative early-build features** (Procore stub, eval system, background-check/enrichment scaffolding) exist ahead of need.
+- **Legacy `action_items`.** The old task store (JSON on `updates`) still exists and still powers `/attention`, `/capacity`, `/calendar`, and the AI brief/draft/meeting-prep routes. The new `tasks` table is the real task system; these surfaces should be migrated onto it (and the dead `action_items` data eventually retired). Old email-era tables `processed_emails`/`graph_subscriptions` and the `updates.outlook_web_link` column are now unused — safe to drop in a future migration.
+- **`team_members` is a 4th people-concept** (alongside parties/entities/stakeholders), deliberately kept tiny and separate so task assignment stays fast. If the team-vs-contact overlap ever matters, reconcile with `parties`.
 
 ---
 
@@ -236,7 +239,7 @@ Note the drift flagged in §9: `entities`/vendors and portfolio `stakeholders` p
 - Reintroduce a second AI provider SDK — runtime AI is Gemini. (Removing Anthropic was deliberate.)
 - Pre-build features for future phases.
 - Store CUI until GovCloud migration is complete.
-- Poll Microsoft Graph for email — use webhook subscriptions with renewal.
+- Re-add the email-to-task scraper — it was deliberately removed 2026-06-25 (tasks are now manually created in the team task system). Microsoft Graph is kept for calendar/enrichment only.
 
 ---
 
@@ -244,7 +247,18 @@ Note the drift flagged in §9: `entities`/vendors and portfolio `stakeholders` p
 
 **Reality:** well beyond the original Phase 1/2 plan. Live and in daily use on Vercel production.
 
-**Working:** projects (CRUD, pipeline/program views, hierarchy, all detail tabs), dashboard, attention/timeline/capacity, tasks, contacts + vendors directories, company profile (thin), review queue, activity log, email ingestion + log, manual-paste extraction, intel (RAG + agent), proposal intake → assessment → project creation, portfolio site hierarchy, equity & valuation suite.
+**Working:** projects (CRUD, pipeline/program views, hierarchy, all detail tabs), dashboard, attention/timeline/capacity, **team tasks** (new — see below), contacts + vendors directories, company profile (thin), review queue, activity log, manual-paste extraction, intel (RAG + agent), proposal intake → assessment → project creation, portfolio site hierarchy, equity & valuation suite. **Calendar/meeting-prep still uses Microsoft Graph (OAuth retained); the email-to-task scraper was removed (see below).**
+
+**Done 2026-06-25 (task system rebuild + email scraper removal):**
+- **Tasks are now a real schema**, not `action_items` JSON on `updates`. New migration `20260625000001_team_tasks.sql` adds `tasks` (title + what/why/how + assignee_id + project_id + due_date + status open|done + completed_at), `task_notes` (the updates/notes feed), and `team_members` (lightweight assignee list, seeded Richard/Eric — deliberately separate from `parties`). Completed tasks set `status='done'` (archived, not deleted).
+- **`/tasks` is the new landing screen** (`app/page.tsx` and the login redirect now point to `/tasks`; Tasks moved to top of sidebar + mobile primary nav). `TeamTaskBoard.tsx` is the board (avatar chips, project tags, due pills, quick-add teammate, status/assignee/project filters, Open vs Archive); `TaskDetailSheet.tsx` is a right slide-over with editable what/why/how, a project context card (name/sector/value/players, links to the project), and the notes feed. Project tab reuses the board scoped via `scopeProjectId` (`components/projects/TasksTab.tsx`).
+- **New primitives:** `components/ui/calendar.tsx` + `date-picker.tsx` (custom month grid in an outside-click dropdown — no new deps).
+- **API:** `api/tasks` (GET/POST), `api/tasks/[id]` (GET detail+players+notes / PATCH / DELETE), `api/tasks/[id]/notes` (POST), `api/team-members` (GET/POST).
+- **Email scraper ripped out:** deleted `lib/email/`, `api/email/{webhook,subscribe,backfill}`, `api/cron/renew-subscriptions`, `email-log/`, `components/email/`. Removed the cron from `vercel.json`, the webhook/cron public exceptions from `middleware.ts`, and Email Log from all navs. **Kept** `api/email/oauth(+callback)`, `email_tokens`, and `lib/integrations/microsoft-graph.ts` because `/calendar` + party enrichment use them. Shared extraction (`lib/ai/prompts/extraction.ts`, `api/ai/extract`) kept — still used by proposal intake + manual paste.
+- **Core rewire:** Dashboard per-project action counts + deadlines and the contact "Tasks" tab now read the `tasks` table (contact tab matches a `team_member` by name). Attention/Capacity/Calendar/AI-briefs still read legacy `updates.action_items` — left for a later pass.
+- **Gemini API key rotated** across Vercel production/preview/development + `.env.local` (2026-06-25). Note: the supplied key starts `AQ.` not the usual `AIza` — verify if AI calls 401.
+
+> **DB push status (2026-06-25):** the `20260625000001_team_tasks.sql` migration must be applied to the live Supabase DB (`supabase db push`). Generated types in `database.ts` were hand-extended for `tasks`/`task_notes`/`team_members`; run `npm run gen-types` after the push to reconcile. A full `next build` will fail to prerender `/tasks` until the tables exist.
 
 **Done 2026-06-22:** Company profile fleshed out with a structured **pursuit profile** (`company_profile` migration `20260622000002`), editable on `/company`, and wired into the AI — the executive agent injects it via `getCompanyContext()`, and proposal intake runs `assessFit()` to give a pursue/consider/pass recommendation in the wizard.
 

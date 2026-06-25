@@ -20,7 +20,7 @@ const PAGES: { href: string; label: string; keywords: string }[] = [
   { href: '/projects', label: 'Projects', keywords: 'pipeline deals' },
   { href: '/timeline', label: 'Timeline', keywords: 'gantt schedule' },
   { href: '/capacity', label: 'Capacity', keywords: 'workload board' },
-  { href: '/tasks', label: 'Tasks', keywords: 'todo action items' },
+  { href: '/tasks', label: 'Team Tasks', keywords: 'todo action items team' },
   { href: '/proposals/intake', label: 'Intake Proposal', keywords: 'ingest upload rfp document' },
   { href: '/intel', label: 'Intel', keywords: 'ask query search ai agent' },
   { href: '/calendar', label: 'Calendar', keywords: 'schedule dates milestones meeting' },
@@ -30,7 +30,6 @@ const PAGES: { href: string; label: string; keywords: string }[] = [
   { href: '/portfolio', label: 'Portfolio', keywords: 'sites finance investments' },
   { href: '/equity', label: 'Equity & Valuation', keywords: 'cap table investor deal' },
   { href: '/review', label: 'Review Queue', keywords: 'pending approve reject' },
-  { href: '/email-log', label: 'Email Log', keywords: 'messages correspondence' },
   { href: '/activity', label: 'Activity', keywords: 'audit log history changes' },
 ]
 

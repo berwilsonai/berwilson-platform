@@ -39,10 +39,8 @@ export async function middleware(request: NextRequest) {
     pathname === '/login' ||
     pathname.startsWith('/auth/confirm') ||
     pathname.startsWith('/auth/set-password') ||
-    pathname === '/api/email/webhook' ||           // Microsoft Graph webhook (validation + notifications)
-    pathname === '/api/cron/renew-subscriptions' || // Vercel cron job
     pathname === '/api/cron/risk-scores' ||         // Risk scoring cron job
-    pathname.startsWith('/api/email/oauth/callback') || // OAuth redirect from Microsoft
+    pathname.startsWith('/api/email/oauth/callback') || // OAuth redirect from Microsoft (calendar auth)
     pathname.startsWith('/equity/share/') ||            // Equity shared scenario links (token-gated)
     pathname.startsWith('/api/equity/share/')            // Equity share API (token validation)
 
@@ -55,7 +53,7 @@ export async function middleware(request: NextRequest) {
   // Redirect authenticated users away from /login
   if (user && pathname === '/login') {
     const url = request.nextUrl.clone()
-    url.pathname = '/dashboard'
+    url.pathname = '/tasks'
     return NextResponse.redirect(url)
   }
 

@@ -34,8 +34,7 @@ interface PageProps {
 const VALID_TABS = ['overview', 'projects', 'tasks', 'activity', 'notes']
 
 type AssignedTask = {
-  updateId: string
-  index: number
+  id: string
   text: string
   dueDate: string | null
   projectId: string | null
@@ -43,70 +42,46 @@ type AssignedTask = {
 }
 
 /**
- * Open (uncompleted) tasks assigned to a contact. Tasks live as items in the
- * action_items JSONB array on updates rows. Matches on the contact's id for
- * newly-tagged tasks, and falls back to an exact name match for legacy /
- * free-typed assignees so older tasks still surface.
+ * Open tasks assigned to this contact, from the team task system. Tasks are
+ * assigned to team members, so this matches on a team member whose name equals
+ * the contact's name — surfacing tasks when a contact is also on the team.
+ * External-only contacts will (correctly) have none.
  */
 async function fetchOpenTasksForParty(
   supabase: ReturnType<typeof createAdminClient>,
-  partyId: string,
+  _partyId: string,
   fullName: string | null,
 ): Promise<AssignedTask[]> {
-  const queries = [
-    supabase
-      .from('updates')
-      .select('id, action_items, project_id, projects(name)')
-      .contains('action_items', [{ assignee_party_id: partyId }]),
-  ]
-  if (fullName) {
-    queries.push(
-      supabase
-        .from('updates')
-        .select('id, action_items, project_id, projects(name)')
-        .contains('action_items', [{ assignee: fullName }]),
-    )
-  }
+  if (!fullName) return []
 
-  const results = await Promise.all(queries)
+  const { data: members } = await supabase
+    .from('team_members')
+    .select('id')
+    .eq('name', fullName)
+  const memberIds = (members ?? []).map((m) => m.id)
+  if (memberIds.length === 0) return []
+
+  const { data: rows } = await supabase
+    .from('tasks')
+    .select('id, title, due_date, project_id, projects(name)')
+    .in('assignee_id', memberIds)
+    .eq('status', 'open')
 
   type Row = {
     id: string
-    action_items: unknown
+    title: string
+    due_date: string | null
     project_id: string | null
     projects: { name: string } | null
   }
-  const rowsById = new Map<string, Row>()
-  for (const res of results) {
-    for (const r of ((res.data ?? []) as unknown as Row[])) rowsById.set(r.id, r)
-  }
 
-  const tasks: AssignedTask[] = []
-  for (const r of rowsById.values()) {
-    const items = Array.isArray(r.action_items) ? r.action_items : []
-    items.forEach((raw, index) => {
-      const it = raw as {
-        text?: string
-        assignee?: string
-        assignee_party_id?: string
-        due_date?: string
-        completed?: boolean
-      }
-      if (it?.completed) return
-      const matches =
-        it?.assignee_party_id === partyId ||
-        (!it?.assignee_party_id && !!it?.assignee && it.assignee === fullName)
-      if (!matches) return
-      tasks.push({
-        updateId: r.id,
-        index,
-        text: it.text ?? '',
-        dueDate: it.due_date ?? null,
-        projectId: r.project_id ?? null,
-        projectName: r.projects?.name ?? null,
-      })
-    })
-  }
+  const tasks: AssignedTask[] = ((rows ?? []) as unknown as Row[]).map((r) => ({
+    id: r.id,
+    text: r.title,
+    dueDate: r.due_date,
+    projectId: r.project_id,
+    projectName: r.projects?.name ?? null,
+  }))
 
   tasks.sort((a, b) => {
     if (a.dueDate && b.dueDate) return a.dueDate.localeCompare(b.dueDate)
@@ -655,7 +630,7 @@ export default async function ContactDetailPage({ params, searchParams }: PagePr
                 <div className="rounded-lg border border-border bg-card divide-y divide-border">
                   {assignedTasks.map(task => (
                     <div
-                      key={`${task.updateId}-${task.index}`}
+                      key={task.id}
                       className="flex items-start gap-3 px-4 py-3"
                     >
                       <ListChecks size={15} className="shrink-0 mt-0.5 text-muted-foreground" />

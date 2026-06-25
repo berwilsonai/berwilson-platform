@@ -13,7 +13,6 @@ import {
   ClipboardCheck,
   Activity,
   Brain,
-  Mail,
   CalendarDays,
   ChevronLeft,
   ChevronRight,
@@ -30,12 +29,12 @@ const NAV_GROUPS = [
   {
     label: null, // No label for primary group
     items: [
+      { href: '/tasks', label: 'Tasks', icon: ListChecks },
       { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
       { href: '/attention', label: 'Attention', icon: AlertTriangle },
       { href: '/projects', label: 'Projects', icon: FolderKanban },
       { href: '/timeline', label: 'Timeline', icon: GanttChart },
       { href: '/capacity', label: 'Capacity', icon: Gauge },
-      { href: '/tasks', label: 'Tasks', icon: ListChecks },
     ],
   },
   {
@@ -65,7 +64,6 @@ const NAV_GROUPS = [
     label: 'System',
     items: [
       { href: '/review', label: 'Review Queue', icon: ClipboardCheck },
-      { href: '/email-log', label: 'Email Log', icon: Mail },
       { href: '/activity', label: 'Activity', icon: Activity },
     ],
   },

@@ -47,6 +47,9 @@ export type ResearchArtifact = Tables<'research_artifacts'>
 export type Media = Tables<'media'>
 export type CompanyProfile = Tables<'company_profile'>
 export type Certification = Tables<'certifications'>
+export type Task = Tables<'tasks'>
+export type TaskNote = Tables<'task_notes'>
+export type TeamMember = Tables<'team_members'>
 
 // ---------------------------------------------------------------------------
 // Enum aliases — import these instead of Enums<'project_sector'> everywhere

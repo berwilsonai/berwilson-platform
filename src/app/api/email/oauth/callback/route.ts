@@ -50,15 +50,7 @@ export async function GET(request: NextRequest) {
     return new Response(html(`
       <h2 style="color:#16a34a">✓ Microsoft connected successfully</h2>
       <p>Access tokens stored. <strong>tuaone@berwilson.com</strong> is authorized.</p>
-      <p>Next step: create the inbox subscription so emails start flowing.</p>
-      <br/>
-      <p>Run this in your browser console on the platform, or ask Claude to call <code>POST /api/email/subscribe</code>:</p>
-      <pre style="background:#f1f5f9;padding:12px;border-radius:6px;font-size:13px">fetch('https://berwilson-platform-nu.vercel.app/api/email/subscribe', {
-  method: 'POST',
-  headers: {'Content-Type': 'application/json'},
-  body: '{}',
-  credentials: 'include'
-}).then(r=>r.json()).then(console.log)</pre>
+      <p>Calendar and contact enrichment can now use Microsoft Graph. You can close this tab.</p>
     `), { status: 200, headers: { 'Content-Type': 'text/html' } })
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
