@@ -16,9 +16,14 @@ interface Message {
 interface AgentChatProps {
   projectId?: string
   className?: string
+  placeholder?: string
 }
 
-export default function AgentChat({ projectId, className = '' }: AgentChatProps) {
+export default function AgentChat({
+  projectId,
+  className = '',
+  placeholder = 'Ask about this project...',
+}: AgentChatProps) {
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
@@ -244,7 +249,7 @@ export default function AgentChat({ projectId, className = '' }: AgentChatProps)
             value={input}
             onChange={e => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Ask about this project..."
+            placeholder={placeholder}
             rows={1}
             className="flex-1 resize-none rounded-lg border bg-muted/30 px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/40 min-h-[36px] max-h-[120px]"
             style={{ height: 'auto', overflow: 'hidden' }}
