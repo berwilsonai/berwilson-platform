@@ -130,9 +130,17 @@
   }
   body {
     @apply bg-background text-foreground;
+    /* Native-app feel: clip any stray horizontal overflow and stop the whole
+       page from rubber-banding side-to-side on touch devices. */
+    overflow-x: hidden;
+    overscroll-behavior-x: none;
+    -webkit-tap-highlight-color: transparent;
   }
   html {
     @apply font-sans;
+    overflow-x: hidden;
+    overscroll-behavior-x: none;
+    -webkit-text-size-adjust: 100%;
   }
   /* Force selects and options to inherit font size — browsers don't do this by default */
   select, option {

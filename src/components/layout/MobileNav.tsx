@@ -90,6 +90,17 @@ export default function MobileNav({ pendingCount = 0 }: MobileNavProps) {
           </button>
         </div>
         <div className="grid grid-cols-3 gap-px bg-sidebar-border">
+          {/* Upload document — opens the quick-upload sheet (replaces the old floating button) */}
+          <button
+            onClick={() => {
+              setMoreOpen(false)
+              window.dispatchEvent(new Event('open-quick-upload'))
+            }}
+            className="flex flex-col items-center gap-1.5 py-4 text-xs font-medium transition-colors bg-sidebar text-sidebar-foreground/60 hover:text-sidebar-foreground"
+          >
+            <FileUp size={22} className="text-sidebar-foreground/50" />
+            Upload
+          </button>
           {MORE_NAV.map(({ href, label, icon: Icon }) => {
             const active = pathname === href || pathname.startsWith(href + '/')
             return (

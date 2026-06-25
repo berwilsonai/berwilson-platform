@@ -9,7 +9,6 @@ import {
   ListChecks,
   FolderKanban,
   Archive,
-  UserPlus,
   X,
 } from 'lucide-react'
 import EmptyState from '@/components/shared/EmptyState'
@@ -181,7 +180,14 @@ export default function TeamTaskBoard({
 
       {/* Add form */}
       {showAdd && (
-        <div className="rounded-xl border border-border bg-card p-4 space-y-3 elev-2 animate-fade-in-up">
+        <div className="relative rounded-xl border border-border bg-card p-4 pt-4 space-y-3 elev-2 animate-fade-in-up">
+          <button
+            onClick={() => setShowAdd(false)}
+            className="absolute right-3 top-3 inline-flex items-center justify-center size-7 rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+            aria-label="Close"
+          >
+            <X size={16} />
+          </button>
           <input
             type="text"
             value={title}
@@ -189,7 +195,7 @@ export default function TeamTaskBoard({
             onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddTask() } }}
             placeholder="What needs to be done?"
             autoFocus
-            className="w-full h-10 rounded-md border border-input bg-background px-3 text-sm font-medium placeholder:text-muted-foreground placeholder:font-normal focus:outline-none focus:ring-2 focus:ring-ring"
+            className="w-full h-10 rounded-md border border-input bg-background pl-3 pr-9 text-sm font-medium placeholder:text-muted-foreground placeholder:font-normal focus:outline-none focus:ring-2 focus:ring-ring"
           />
           <div className={cn('grid gap-3', scoped ? 'grid-cols-2' : 'grid-cols-3')}>
             {/* Assignee + quick add */}
@@ -243,22 +249,14 @@ export default function TeamTaskBoard({
 
             <DatePicker value={dueDate} onChange={setDueDate} placeholder="Due date" />
           </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={handleAddTask}
-              disabled={!title.trim() || adding}
-              className="inline-flex items-center gap-1.5 h-9 px-4 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 disabled:opacity-50 transition-colors"
-            >
-              {adding ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
-              Add task
-            </button>
-            <button
-              onClick={() => setShowAdd(false)}
-              className="h-9 px-4 rounded-md border border-input text-sm font-medium hover:bg-muted transition-colors"
-            >
-              Cancel
-            </button>
-          </div>
+          <button
+            onClick={handleAddTask}
+            disabled={!title.trim() || adding}
+            className="w-full inline-flex items-center justify-center gap-1.5 h-10 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 disabled:opacity-50 transition-colors active:scale-[0.99]"
+          >
+            {adding && <Loader2 size={14} className="animate-spin" />}
+            Save task
+          </button>
         </div>
       )}
 

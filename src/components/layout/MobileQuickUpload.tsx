@@ -3,11 +3,9 @@
 import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import {
-  Plus,
   X,
   Upload,
   FileUp,
-  FolderKanban,
   Camera,
   File,
   Loader2,
@@ -55,6 +53,15 @@ export default function MobileQuickUpload() {
   const [success, setSuccess] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const cameraInputRef = useRef<HTMLInputElement>(null)
+
+  // Opened from the mobile "More" menu — no persistent floating button.
+  useEffect(() => {
+    function handleOpen() {
+      setOpen(true)
+    }
+    window.addEventListener('open-quick-upload', handleOpen)
+    return () => window.removeEventListener('open-quick-upload', handleOpen)
+  }, [])
 
   useEffect(() => {
     if (open && projects.length === 0) {
@@ -121,17 +128,7 @@ export default function MobileQuickUpload() {
 
   return (
     <>
-      {/* FAB - positioned above the bottom nav */}
-      <button
-        onClick={() => setOpen(true)}
-        className="md:hidden fixed z-50 right-4 shadow-lg shadow-foreground/10 size-14 rounded-full bg-foreground text-background flex items-center justify-center active:scale-95 transition-transform"
-        style={{ bottom: 'calc(72px + env(safe-area-inset-bottom, 0px))' }}
-        aria-label="Quick upload"
-      >
-        <Plus size={24} strokeWidth={2.5} />
-      </button>
-
-      {/* Upload sheet overlay */}
+      {/* Upload sheet overlay — triggered from the mobile "More" menu */}
       {open && (
         <div className="md:hidden fixed inset-0 z-[60] flex flex-col justify-end">
           {/* Backdrop */}
