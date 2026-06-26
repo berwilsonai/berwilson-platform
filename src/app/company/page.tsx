@@ -3,6 +3,7 @@ import { Building2 } from 'lucide-react'
 import { createAdminClient } from '@/lib/supabase/admin'
 import MediaGallery from '@/components/shared/MediaGallery'
 import CompanyProfileClient from '@/components/company/CompanyProfileClient'
+import CompanyKnowledgeBase from '@/components/company/CompanyKnowledgeBase'
 
 export const metadata: Metadata = {
   title: 'Company Profile — Ber Wilson Intelligence',
@@ -15,6 +16,7 @@ export default async function CompanyPage() {
     { data: profile },
     { data: certifications },
     { data: photos },
+    { data: companyDocs },
   ] = await Promise.all([
     supabase.from('company_profile').select('*').limit(1).single(),
     supabase
@@ -30,6 +32,11 @@ export default async function CompanyPage() {
       .order('is_primary', { ascending: false })
       .order('sort_order')
       .order('created_at'),
+    supabase
+      .from('documents')
+      .select('id, file_name, doc_type, ai_summary, embedding_status, uploaded_at')
+      .eq('is_company', true)
+      .order('uploaded_at', { ascending: false }),
   ])
 
   if (!profile) {
@@ -71,6 +78,9 @@ export default async function CompanyPage() {
         profile={profile}
         certifications={certifications ?? []}
       />
+
+      {/* Knowledge base — Ber Wilson's own corpus, fed to Ber AI */}
+      <CompanyKnowledgeBase documents={companyDocs ?? []} />
     </div>
   )
 }

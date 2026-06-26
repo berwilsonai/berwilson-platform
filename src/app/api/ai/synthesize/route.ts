@@ -326,6 +326,8 @@ Active Certifications:\n${certLines || '(none on file)'}
     filter_after: filterAfter ?? '2000-01-01T00:00:00.000Z',
     match_count: 20,
     filter_entity_ids: filterEntityIds.length > 0 ? filterEntityIds : [],
+    // When narrowed to specific projects, still union the company knowledge base.
+    filter_include_company: filterProjectIds.length > 0,
   })
 
   if (rpcError) {

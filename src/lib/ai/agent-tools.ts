@@ -190,7 +190,7 @@ export const agentTools = [
   },
   {
     name: 'search_knowledge_base',
-    description: 'Semantic search across all indexed content — updates, documents, vendor data, and contact enrichment. Use for questions about specific facts, meeting notes, document content, or historical information that might be in the knowledge base. Returns the most relevant passages with source attribution.',
+    description: 'Semantic search across all indexed content — project updates, documents, vendor data, contact enrichment, AND the Ber Wilson company knowledge base (capability statements, past performance, credentials, key personnel). When scoped to a project the company knowledge base is automatically included, so use this to evaluate an RFP/opportunity against what Ber Wilson can actually do. Returns the most relevant passages with source attribution.',
     parameters: {
       type: 'object',
       properties: {
@@ -585,13 +585,17 @@ export async function executeToolCall(
         const embedData = await embedRes.json() as { embedding: { values: number[] } }
         const queryEmbedding = embedData.embedding.values
 
-        // Vector search via RPC
+        // Vector search via RPC. When scoped to a project, union in the
+        // company knowledge base (project filter alone would exclude it since
+        // company chunks carry no project_id). Portfolio scope (empty filter)
+        // already returns company chunks.
         const { data: chunks, error: rpcError } = await supabase.rpc('match_chunks', {
           query_embedding: `[${queryEmbedding.join(',')}]`,
           filter_project_ids: projectId ? [projectId] : [],
           filter_after: '2000-01-01T00:00:00.000Z',
           match_count: 8,
           filter_entity_ids: [],
+          filter_include_company: !!projectId,
         })
 
         if (rpcError) return { error: rpcError.message }
@@ -605,10 +609,10 @@ export async function executeToolCall(
         }
 
         return {
-          results: (chunks ?? []).slice(0, 8).map((c: { content: string; project_id: string | null; similarity: number; created_at: string }, i: number) => ({
+          results: (chunks ?? []).slice(0, 8).map((c: { content: string; project_id: string | null; is_company?: boolean; similarity: number; created_at: string }, i: number) => ({
             index: i + 1,
             content: c.content.slice(0, 500),
-            project: c.project_id ? projectNames[c.project_id] ?? 'Unknown' : 'General',
+            project: c.is_company ? 'Ber Wilson (company knowledge base)' : c.project_id ? projectNames[c.project_id] ?? 'Unknown' : 'General',
             similarity: c.similarity,
             date: c.created_at,
           })),

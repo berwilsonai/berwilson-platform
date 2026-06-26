@@ -130,7 +130,8 @@ export async function embedDocument(
   documentId: string,
   projectId: string | null,
   textContent: string,
-  entityId?: string | null
+  entityId?: string | null,
+  isCompany = false
 ): Promise<void> {
   const supabase = createAdminClient()
 
@@ -148,6 +149,7 @@ export async function embedDocument(
         project_id: projectId,
         document_id: documentId,
         entity_id: entityId ?? null,
+        is_company: isCompany,
         content: chunk.content,
         embedding: toVectorLiteral(values),
         chunk_index: chunk.chunkIndex,

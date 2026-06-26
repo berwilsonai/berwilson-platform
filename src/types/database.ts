@@ -329,6 +329,7 @@ export type Database = {
           embedding: string | null
           entity_id: string | null
           id: string
+          is_company: boolean
           party_id: string | null
           project_id: string | null
           site_id: string | null
@@ -343,6 +344,7 @@ export type Database = {
           embedding?: string | null
           entity_id?: string | null
           id?: string
+          is_company?: boolean
           party_id?: string | null
           project_id?: string | null
           site_id?: string | null
@@ -357,6 +359,7 @@ export type Database = {
           embedding?: string | null
           entity_id?: string | null
           id?: string
+          is_company?: boolean
           party_id?: string | null
           project_id?: string | null
           site_id?: string | null
@@ -871,6 +874,7 @@ export type Database = {
           file_name: string
           file_size_bytes: number | null
           id: string
+          is_company: boolean
           mime_type: string | null
           project_id: string | null
           site_id: string | null
@@ -890,6 +894,7 @@ export type Database = {
           file_name: string
           file_size_bytes?: number | null
           id?: string
+          is_company?: boolean
           mime_type?: string | null
           project_id?: string | null
           site_id?: string | null
@@ -909,6 +914,7 @@ export type Database = {
           file_name?: string
           file_size_bytes?: number | null
           id?: string
+          is_company?: boolean
           mime_type?: string | null
           project_id?: string | null
           site_id?: string | null
@@ -2986,6 +2992,7 @@ export type Database = {
             Args: {
               filter_after?: string
               filter_entity_ids?: string[]
+              filter_include_company?: boolean
               filter_project_ids?: string[]
               match_count?: number
               query_embedding: string
@@ -2997,6 +3004,7 @@ export type Database = {
               document_id: string
               entity_id: string
               id: string
+              is_company: boolean
               party_id: string
               project_id: string
               similarity: number
