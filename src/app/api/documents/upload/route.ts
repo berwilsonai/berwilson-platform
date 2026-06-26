@@ -70,22 +70,34 @@ export async function POST(request: NextRequest) {
   }
 
   // Insert document record
-  const { data: doc, error: insertError } = await supabase
+  const basePayload = {
+    project_id: project_id || null,
+    entity_id: entity_id || null,
+    site_id: site_id || null,
+    storage_path: storagePath,
+    file_name: file.name,
+    file_size_bytes: file.size,
+    mime_type: file.type || null,
+    doc_type,
+    source: 'document' as const,
+  }
+
+  let { data: doc, error: insertError } = await supabase
     .from('documents')
-    .insert({
-      project_id: project_id || null,
-      entity_id: entity_id || null,
-      site_id: site_id || null,
-      is_company,
-      storage_path: storagePath,
-      file_name: file.name,
-      file_size_bytes: file.size,
-      mime_type: file.type || null,
-      doc_type,
-      source: 'document',
-    })
+    .insert({ ...basePayload, is_company })
     .select()
     .single()
+
+  // Migration-window fallback: if the is_company column doesn't exist yet
+  // (migration 20260625000002 not applied), insert without it so existing
+  // project/entity/site uploads keep working. Company uploads need the migration.
+  if (insertError && (insertError.code === 'PGRST204' || /is_company/i.test(insertError.message))) {
+    ;({ data: doc, error: insertError } = await supabase
+      .from('documents')
+      .insert(basePayload)
+      .select()
+      .single())
+  }
 
   if (insertError || !doc) {
     return Response.json({ error: insertError?.message ?? 'Insert failed' }, { status: 500 })

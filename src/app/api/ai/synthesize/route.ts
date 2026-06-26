@@ -20,6 +20,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { checkRateLimit } from '@/lib/rate-limit'
 import { callGemini } from '@/lib/ai/gemini'
+import { matchChunks } from '@/lib/ai/match-chunks'
 import {
   SYNTHESIS_SYSTEM_PROMPT,
   SYNTHESIS_PROMPT_VERSION,
@@ -320,7 +321,7 @@ Active Certifications:\n${certLines || '(none on file)'}
     ? new Date(Date.now() - intent.date_range_days * 24 * 60 * 60 * 1000).toISOString()
     : null
 
-  const { data: rawChunks, error: rpcError } = await admin.rpc('match_chunks', {
+  const { data: rawChunks, error: rpcError } = await matchChunks(admin, {
     query_embedding: `[${queryEmbedding.join(',')}]`,
     filter_project_ids: filterProjectIds.length > 0 ? filterProjectIds : [],
     filter_after: filterAfter ?? '2000-01-01T00:00:00.000Z',

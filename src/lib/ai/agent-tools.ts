@@ -4,6 +4,7 @@
 
 import { createAdminClient } from '@/lib/supabase/admin'
 import { researchQuery } from './research'
+import { matchChunks } from './match-chunks'
 import type { AgentContext } from './agent'
 
 // ---------------------------------------------------------------------------
@@ -589,7 +590,7 @@ export async function executeToolCall(
         // company knowledge base (project filter alone would exclude it since
         // company chunks carry no project_id). Portfolio scope (empty filter)
         // already returns company chunks.
-        const { data: chunks, error: rpcError } = await supabase.rpc('match_chunks', {
+        const { data: chunks, error: rpcError } = await matchChunks(supabase, {
           query_embedding: `[${queryEmbedding.join(',')}]`,
           filter_project_ids: projectId ? [projectId] : [],
           filter_after: '2000-01-01T00:00:00.000Z',

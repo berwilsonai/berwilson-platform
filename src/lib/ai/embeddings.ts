@@ -1,4 +1,7 @@
 import { createAdminClient } from '@/lib/supabase/admin'
+import type { Database } from '@/types/database'
+
+type ChunkInsert = Database['public']['Tables']['chunks']['Insert']
 
 // gemini-embedding-001 — 768 dimensions, v1beta endpoint, drop-in for text-embedding-004
 const EMBEDDING_MODEL = 'gemini-embedding-001'
@@ -143,18 +146,29 @@ export async function embedDocument(
   try {
     const chunks = chunkText(textContent)
 
+    // Migration-window fallback: drop is_company if the column doesn't exist yet
+    // (migration 20260625000002 not applied). Set false after the first miss so
+    // the rest of the loop skips it too.
+    let includeCompany = true
+
     for (const chunk of chunks) {
       const values = await generateEmbedding(chunk.content)
-      const { error: insertErr } = await supabase.from('chunks').insert({
+      const payload: ChunkInsert = {
         project_id: projectId,
         document_id: documentId,
         entity_id: entityId ?? null,
-        is_company: isCompany,
         content: chunk.content,
         embedding: toVectorLiteral(values),
         chunk_index: chunk.chunkIndex,
         token_count: chunk.tokenCount,
-      })
+      }
+      if (includeCompany) payload.is_company = isCompany
+      let { error: insertErr } = await supabase.from('chunks').insert(payload)
+      if (insertErr && includeCompany && (insertErr.code === 'PGRST204' || /is_company/i.test(insertErr.message))) {
+        includeCompany = false
+        delete payload.is_company
+        ;({ error: insertErr } = await supabase.from('chunks').insert(payload))
+      }
       if (insertErr) throw new Error(`Chunk insert failed: ${insertErr.message}`)
     }
 
