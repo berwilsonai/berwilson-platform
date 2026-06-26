@@ -2987,52 +2987,31 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      match_chunks:
-        | {
-            Args: {
-              filter_after?: string
-              filter_entity_ids?: string[]
-              filter_include_company?: boolean
-              filter_project_ids?: string[]
-              match_count?: number
-              query_embedding: string
-            }
-            Returns: {
-              chunk_index: number
-              content: string
-              created_at: string
-              document_id: string
-              entity_id: string
-              id: string
-              is_company: boolean
-              party_id: string
-              project_id: string
-              similarity: number
-              source_confidence: number
-              token_count: number
-              update_id: string
-            }[]
-          }
-        | {
-            Args: {
-              filter_after: string
-              filter_project_ids: string[]
-              match_count?: number
-              query_embedding: string
-            }
-            Returns: {
-              chunk_index: number
-              content: string
-              created_at: string
-              document_id: string
-              id: string
-              project_id: string
-              similarity: number
-              source_confidence: number
-              token_count: number
-              update_id: string
-            }[]
-          }
+      match_chunks: {
+        Args: {
+          filter_after?: string
+          filter_entity_ids?: string[]
+          filter_include_company?: boolean
+          filter_project_ids?: string[]
+          match_count?: number
+          query_embedding: string
+        }
+        Returns: {
+          chunk_index: number
+          content: string
+          created_at: string
+          document_id: string
+          entity_id: string
+          id: string
+          is_company: boolean
+          party_id: string
+          project_id: string
+          similarity: number
+          source_confidence: number
+          token_count: number
+          update_id: string
+        }[]
+      }
       match_parties_by_name: {
         Args: { search_name: string; threshold?: number }
         Returns: {
