@@ -5,6 +5,7 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { researchQuery } from './research'
 import { matchChunks } from './match-chunks'
+import { embedQuery } from './embeddings'
 import type { AgentContext } from './agent'
 
 // ---------------------------------------------------------------------------
@@ -570,21 +571,8 @@ export async function executeToolCall(
       const projectId = (args.project_id as string) || context.projectId
 
       // Embed the query
-      const EMBEDDING_API = `https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent`
       try {
-        const embedRes = await fetch(`${EMBEDDING_API}?key=${process.env.GEMINI_API_KEY!}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            content: { parts: [{ text: query }] },
-            outputDimensionality: 768,
-          }),
-        })
-
-        if (!embedRes.ok) return { error: 'Failed to embed query' }
-
-        const embedData = await embedRes.json() as { embedding: { values: number[] } }
-        const queryEmbedding = embedData.embedding.values
+        const queryEmbedding = await embedQuery(query)
 
         // Vector search via RPC. When scoped to a project, union in the
         // company knowledge base (project filter alone would exclude it since
@@ -603,7 +591,7 @@ export async function executeToolCall(
 
         // Get project names for context
         const projectIds = [...new Set((chunks ?? []).map((c: { project_id: string | null }) => c.project_id).filter(Boolean))]
-        let projectNames: Record<string, string> = {}
+        const projectNames: Record<string, string> = {}
         if (projectIds.length > 0) {
           const { data: projects } = await supabase.from('projects').select('id, name').in('id', projectIds as string[])
           for (const p of projects ?? []) projectNames[p.id] = p.name

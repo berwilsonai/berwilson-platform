@@ -74,6 +74,14 @@ async function generateEmbedding(text: string): Promise<number[]> {
   return data.embedding.values
 }
 
+/**
+ * Embed a query string for vector search (768-dim, gemini-embedding-001).
+ * Shared by the agent, the /intel synthesize route, and company-knowledge retrieval.
+ */
+export async function embedQuery(text: string): Promise<number[]> {
+  return generateEmbedding(text)
+}
+
 // Format a float array as a pgvector literal: [0.1,0.2,...]
 function toVectorLiteral(values: number[]): string {
   return `[${values.join(',')}]`

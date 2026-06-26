@@ -21,6 +21,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { checkRateLimit } from '@/lib/rate-limit'
 import { callGemini } from '@/lib/ai/gemini'
 import { matchChunks } from '@/lib/ai/match-chunks'
+import { embedQuery } from '@/lib/ai/embeddings'
 import {
   SYNTHESIS_SYSTEM_PROMPT,
   SYNTHESIS_PROMPT_VERSION,
@@ -28,9 +29,6 @@ import {
 } from '@/lib/ai/prompts/synthesis'
 import type { SynthesisResponse, ChunkWithProject, QueryIntent } from '@/types/domain'
 
-const SYSTEM_USER_ID = '00000000-0000-0000-0000-000000000000'
-const EMBEDDING_MODEL = 'gemini-embedding-001'
-const EMBEDDING_API = `https://generativelanguage.googleapis.com/v1beta/models/${EMBEDDING_MODEL}:embedContent`
 
 // ---------------------------------------------------------------------------
 // Query intent extraction prompt
@@ -46,27 +44,6 @@ Given an executive's question, extract:
 - is_vendor_query: true if asking about vendors, subcontractors, or searching across vendor capabilities/certifications (e.g. "which vendors have...", "who is certified for...", "find a sub that...").
 
 Return ONLY valid JSON: {"project_name_hints": [], "entity_name_hints": [], "date_range_days": null, "is_cross_project": true, "is_vendor_query": false}`
-
-// ---------------------------------------------------------------------------
-// Embedding
-// ---------------------------------------------------------------------------
-
-async function embedQuery(text: string): Promise<number[]> {
-  const res = await fetch(`${EMBEDDING_API}?key=${process.env.GEMINI_API_KEY!}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      content: { parts: [{ text }] },
-      outputDimensionality: 768,
-    }),
-  })
-  if (!res.ok) {
-    const err = await res.text()
-    throw new Error(`Embedding API error ${res.status}: ${err}`)
-  }
-  const data = await res.json() as { embedding: { values: number[] } }
-  return data.embedding.values
-}
 
 // ---------------------------------------------------------------------------
 // Re-ranking
@@ -208,8 +185,8 @@ export async function POST(request: NextRequest) {
   }
 
   // 3. Resolve project_name_hints → project_ids
-  let filterProjectIds: string[] = []
-  let projectMap: Record<string, string> = {} // id → name
+  const filterProjectIds: string[] = []
+  const projectMap: Record<string, string> = {} // id → name
 
   const { data: allProjects } = await admin
     .from('projects')
@@ -248,7 +225,7 @@ export async function POST(request: NextRequest) {
   }
 
   // 3c. Resolve entity_name_hints → entity_ids
-  let filterEntityIds: string[] = []
+  const filterEntityIds: string[] = []
   const entityMap: Record<string, string> = {} // id → name
 
   const entityHints = (intent as Record<string, unknown>).entity_name_hints as string[] | undefined

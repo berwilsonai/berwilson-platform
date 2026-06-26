@@ -1,8 +1,10 @@
 import { callGemini } from '@/lib/ai/gemini'
 import { getCompanyContext } from '@/lib/ai/company-context'
+import { getCompanyKnowledge, formatCompanyKnowledge } from '@/lib/ai/company-knowledge'
 import type { ProposalExtraction } from '@/lib/ai/proposal-matching'
 
-export const FIT_ASSESSMENT_PROMPT_VERSION = 'fit-assessment-1.0'
+// Bumped to 1.1 when the company knowledge base was wired into the prompt.
+export const FIT_ASSESSMENT_PROMPT_VERSION = 'fit-assessment-1.1'
 
 export type FitRecommendation = 'pursue' | 'consider' | 'pass'
 
@@ -33,6 +35,8 @@ You will be given (1) Ber Wilson's company profile and pursuit criteria, and (2)
 - Compliance: do we hold (or can we get) the required certifications/qualifications? Any disqualifiers triggered?
 
 Be decisive and honest. If the opportunity trips a stated disqualifier, lean toward "pass". If the company profile lacks the detail needed to judge a dimension, say so in gaps/key_questions and set profile_incomplete=true rather than guessing.
+
+You may also be given a "RELEVANT BER WILSON EVIDENCE" section containing real excerpts from Ber Wilson's own documents (past performance, capability statements, credentials). When present, ground your strengths and operational judgment in that evidence and reference it specifically. Do not invent past performance that is not in the profile or the evidence.
 
 Return ONLY valid JSON matching exactly this shape:
 {
@@ -79,6 +83,26 @@ function summarizeOpportunity(extraction: ProposalExtraction): string {
 }
 
 /**
+ * Build a compact semantic-search query from the opportunity to retrieve the
+ * most relevant company past-performance / capability evidence.
+ */
+function knowledgeQuery(extraction: ProposalExtraction): string {
+  const parts: string[] = []
+  for (const p of extraction.projects ?? []) {
+    if (p.name) parts.push(p.name)
+    if (p.sector) parts.push(p.sector)
+    if (p.scope_of_work) parts.push(p.scope_of_work.slice(0, 300))
+    if (p.location) parts.push(p.location)
+    if (p.delivery_method) parts.push(p.delivery_method)
+  }
+  if (extraction.compliance_requirements?.length) {
+    parts.push(extraction.compliance_requirements.join(' '))
+  }
+  if (parts.length === 0 && extraction.intake_summary) parts.push(extraction.intake_summary)
+  return parts.join(' — ').slice(0, 1000)
+}
+
+/**
  * Assess whether an inbound opportunity fits Ber Wilson, scoring it against the
  * company profile + pursuit criteria. Returns null if no company profile exists.
  */
@@ -89,8 +113,14 @@ export async function assessFit(
   const company = await getCompanyContext()
   if (!company) return null
 
-  const userMessage = `${company.text}
+  // Pull relevant evidence from the company knowledge base (empty until docs
+  // are uploaded on /company — retrieval degrades gracefully to no block).
+  const evidenceBlock = formatCompanyKnowledge(
+    await getCompanyKnowledge(knowledgeQuery(extraction)),
+  )
 
+  const userMessage = `${company.text}
+${evidenceBlock ? `\n${evidenceBlock}\n` : ''}
 ---
 
 ## INBOUND OPPORTUNITY
