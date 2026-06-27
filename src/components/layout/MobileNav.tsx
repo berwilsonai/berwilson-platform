@@ -21,6 +21,7 @@ import {
   ListTodo,
   GanttChart,
   Gauge,
+  Lightbulb,
   X,
 } from 'lucide-react'
 
@@ -33,6 +34,7 @@ const PRIMARY_NAV = [
 ] as const
 
 const MORE_NAV = [
+  { href: '/opportunities', label: 'Opportunities', icon: Lightbulb },
   { href: '/attention', label: 'Attention', icon: AlertTriangle },
   { href: '/proposals/intake', label: 'Ingest', icon: FileUp },
   { href: '/timeline', label: 'Timeline', icon: GanttChart },

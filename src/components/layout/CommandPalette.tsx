@@ -6,6 +6,7 @@ import {
   Search,
   CornerDownLeft,
   FolderKanban,
+  Lightbulb,
   Users,
   Building2,
   ArrowRight,
@@ -18,6 +19,7 @@ const PAGES: { href: string; label: string; keywords: string }[] = [
   { href: '/dashboard', label: 'Dashboard', keywords: 'home overview' },
   { href: '/attention', label: 'Attention', keywords: 'alerts urgent overdue' },
   { href: '/projects', label: 'Projects', keywords: 'pipeline deals' },
+  { href: '/opportunities', label: 'Opportunities', keywords: 'acquisitions partnerships jv mergers investments deals' },
   { href: '/timeline', label: 'Timeline', keywords: 'gantt schedule' },
   { href: '/capacity', label: 'Capacity', keywords: 'workload board' },
   { href: '/tasks', label: 'Team Tasks', keywords: 'todo action items team' },
@@ -35,6 +37,7 @@ const PAGES: { href: string; label: string; keywords: string }[] = [
 
 const TYPE_META: Record<SearchResult['type'], { icon: LucideIcon; label: string }> = {
   project: { icon: FolderKanban, label: 'Project' },
+  opportunity: { icon: Lightbulb, label: 'Opportunity' },
   contact: { icon: Users, label: 'Contact' },
   vendor: { icon: Building2, label: 'Vendor' },
 }

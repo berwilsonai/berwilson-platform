@@ -1,9 +1,15 @@
 import { NextRequest } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import {
+  oppType,
+  oppStatus,
+  OPPORTUNITY_TYPE_LABELS,
+  OPPORTUNITY_STATUS_LABELS,
+} from '@/lib/utils/opportunities'
 
 export type SearchResult = {
   id: string
-  type: 'project' | 'contact' | 'vendor'
+  type: 'project' | 'opportunity' | 'contact' | 'vendor'
   title: string
   subtitle: string | null
   href: string
@@ -21,10 +27,16 @@ export async function GET(request: NextRequest) {
   const pattern = `%${q}%`
   const supabase = createAdminClient()
 
-  const [{ data: projects }, { data: parties }, { data: entities }] = await Promise.all([
+  const [{ data: projects }, { data: opportunities }, { data: parties }, { data: entities }] = await Promise.all([
     supabase
       .from('projects')
       .select('id, name, sector, stage')
+      .ilike('name', pattern)
+      .order('updated_at', { ascending: false })
+      .limit(6),
+    supabase
+      .from('opportunities')
+      .select('id, name, opp_type, status')
       .ilike('name', pattern)
       .order('updated_at', { ascending: false })
       .limit(6),
@@ -49,6 +61,18 @@ export async function GET(request: NextRequest) {
       title: p.name,
       subtitle: [p.stage, p.sector].filter(Boolean).join(' · ') || null,
       href: `/projects/${p.id}`,
+    })
+  }
+  for (const o of opportunities ?? []) {
+    results.push({
+      id: o.id,
+      type: 'opportunity',
+      title: o.name,
+      subtitle: [
+        OPPORTUNITY_TYPE_LABELS[oppType(o.opp_type)],
+        OPPORTUNITY_STATUS_LABELS[oppStatus(o.status)],
+      ].filter(Boolean).join(' · ') || null,
+      href: `/opportunities/${o.id}`,
     })
   }
   for (const p of parties ?? []) {

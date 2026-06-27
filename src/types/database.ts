@@ -2729,6 +2729,163 @@ export type Database = {
           },
         ]
       }
+      opportunities: {
+        Row: {
+          counterparty: string | null
+          created_at: string | null
+          deal_structure: string | null
+          description: string | null
+          estimated_value: number | null
+          id: string
+          identified_date: string | null
+          lead: string | null
+          location: string | null
+          name: string
+          next_step: string | null
+          objective: string | null
+          opp_type: string
+          ownership_stake: number | null
+          priority: string | null
+          probability: number | null
+          sector: string | null
+          source: string | null
+          status: string
+          target_close_date: string | null
+          target_name: string | null
+          thesis: string | null
+          updated_at: string | null
+          website: string | null
+        }
+        Insert: {
+          counterparty?: string | null
+          created_at?: string | null
+          deal_structure?: string | null
+          description?: string | null
+          estimated_value?: number | null
+          id?: string
+          identified_date?: string | null
+          lead?: string | null
+          location?: string | null
+          name: string
+          next_step?: string | null
+          objective?: string | null
+          opp_type?: string
+          ownership_stake?: number | null
+          priority?: string | null
+          probability?: number | null
+          sector?: string | null
+          source?: string | null
+          status?: string
+          target_close_date?: string | null
+          target_name?: string | null
+          thesis?: string | null
+          updated_at?: string | null
+          website?: string | null
+        }
+        Update: {
+          counterparty?: string | null
+          created_at?: string | null
+          deal_structure?: string | null
+          description?: string | null
+          estimated_value?: number | null
+          id?: string
+          identified_date?: string | null
+          lead?: string | null
+          location?: string | null
+          name?: string
+          next_step?: string | null
+          objective?: string | null
+          opp_type?: string
+          ownership_stake?: number | null
+          priority?: string | null
+          probability?: number | null
+          sector?: string | null
+          source?: string | null
+          status?: string
+          target_close_date?: string | null
+          target_name?: string | null
+          thesis?: string | null
+          updated_at?: string | null
+          website?: string | null
+        }
+        Relationships: []
+      }
+      opportunity_documents: {
+        Row: {
+          ai_summary: string | null
+          doc_type: string | null
+          file_name: string
+          file_size_bytes: number | null
+          id: string
+          mime_type: string | null
+          opportunity_id: string
+          storage_path: string
+          uploaded_at: string | null
+        }
+        Insert: {
+          ai_summary?: string | null
+          doc_type?: string | null
+          file_name: string
+          file_size_bytes?: number | null
+          id?: string
+          mime_type?: string | null
+          opportunity_id: string
+          storage_path: string
+          uploaded_at?: string | null
+        }
+        Update: {
+          ai_summary?: string | null
+          doc_type?: string | null
+          file_name?: string
+          file_size_bytes?: number | null
+          id?: string
+          mime_type?: string | null
+          opportunity_id?: string
+          storage_path?: string
+          uploaded_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "opportunity_documents_opportunity_id_fkey"
+            columns: ["opportunity_id"]
+            isOneToOne: false
+            referencedRelation: "opportunities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      opportunity_notes: {
+        Row: {
+          author: string | null
+          body: string
+          created_at: string | null
+          id: string
+          opportunity_id: string
+        }
+        Insert: {
+          author?: string | null
+          body: string
+          created_at?: string | null
+          id?: string
+          opportunity_id: string
+        }
+        Update: {
+          author?: string | null
+          body?: string
+          created_at?: string | null
+          id?: string
+          opportunity_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "opportunity_notes_opportunity_id_fkey"
+            columns: ["opportunity_id"]
+            isOneToOne: false
+            referencedRelation: "opportunities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       task_notes: {
         Row: {
           author: string | null
