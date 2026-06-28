@@ -8,6 +8,7 @@ export async function GET(request: NextRequest) {
   const status = searchParams.get('status')
   const assignee = searchParams.get('assignee')
   const project = searchParams.get('project')
+  const opportunity = searchParams.get('opportunity')
 
   const supabase = createAdminClient()
   let query = supabase
@@ -19,6 +20,7 @@ export async function GET(request: NextRequest) {
   if (status === 'open' || status === 'done') query = query.eq('status', status)
   if (assignee) query = query.eq('assignee_id', assignee)
   if (project) query = query.eq('project_id', project)
+  if (opportunity) query = query.eq('opportunity_id', opportunity)
 
   const { data, error } = await query
   if (error) {
@@ -31,7 +33,7 @@ export async function GET(request: NextRequest) {
 /** POST — create a task */
 export async function POST(request: NextRequest) {
   const body = await request.json()
-  const { title, what, why, how, assignee_id, project_id, due_date } = body
+  const { title, what, why, how, assignee_id, project_id, opportunity_id, due_date } = body
 
   if (!title?.trim()) {
     return Response.json({ error: 'title is required' }, { status: 400 })
@@ -47,6 +49,9 @@ export async function POST(request: NextRequest) {
     due_date: due_date || null,
     status: 'open',
   }
+  // Only reference the opportunity tag when one is chosen, so creating a task
+  // still works before the opportunity_id migration is applied.
+  if (opportunity_id) row.opportunity_id = opportunity_id
 
   const supabase = createAdminClient()
   const { data, error } = await supabase

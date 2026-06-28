@@ -10,6 +10,7 @@ import {
   ArrowUpRight,
   MapPin,
   MessageSquarePlus,
+  Lightbulb,
   Send,
 } from 'lucide-react'
 import {
@@ -27,6 +28,7 @@ import {
   type BoardTask,
   type TeamMember,
   type ProjectOption,
+  type OpportunityOption,
   avatarClasses,
   initials,
 } from './task-utils'
@@ -58,6 +60,7 @@ interface TaskDetailSheetProps {
   taskId: string | null
   teamMembers: TeamMember[]
   projects: ProjectOption[]
+  opportunities?: OpportunityOption[]
   /** Hide the project picker when the sheet is opened inside a project. */
   lockProject?: boolean
   onClose: () => void
@@ -79,11 +82,13 @@ export default function TaskDetailSheet({
   taskId,
   teamMembers,
   projects,
+  opportunities = [],
   lockProject,
   onClose,
   onUpdated,
   onDeleted,
 }: TaskDetailSheetProps) {
+  const hasOpps = opportunities.length > 0
   const [loading, setLoading] = useState(false)
   const [task, setTask] = useState<BoardTask | null>(null)
   const [project, setProject] = useState<ProjectContext | null>(null)
@@ -257,6 +262,21 @@ export default function TaskDetailSheet({
                     </select>
                   </div>
                 )}
+                {hasOpps && (
+                  <div className="space-y-1 col-span-2">
+                    <label className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Opportunity</label>
+                    <select
+                      value={task.opportunity_id ?? ''}
+                      onChange={(e) => patch({ opportunity_id: e.target.value || null })}
+                      className={fieldClass}
+                    >
+                      <option value="">No opportunity</option>
+                      {opportunities.map((o) => (
+                        <option key={o.id} value={o.id}>{o.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
               </div>
 
               {/* What / Why / How */}
@@ -315,6 +335,24 @@ export default function TaskDetailSheet({
                   )}
                 </Link>
               )}
+
+              {/* Opportunity context link */}
+              {hasOpps && task.opportunity_id && (() => {
+                const opp = opportunities.find((o) => o.id === task.opportunity_id)
+                if (!opp) return null
+                return (
+                  <Link
+                    href={`/opportunities/${opp.id}`}
+                    className="flex items-center justify-between gap-2 rounded-lg border border-border bg-muted/30 p-3 hover:bg-muted/50 transition-colors group"
+                  >
+                    <div className="min-w-0 flex items-center gap-2">
+                      <Lightbulb size={14} className="shrink-0 text-muted-foreground" />
+                      <p className="text-sm font-semibold text-foreground truncate">{opp.name}</p>
+                    </div>
+                    <ArrowUpRight size={15} className="shrink-0 text-muted-foreground group-hover:text-foreground transition-colors" />
+                  </Link>
+                )
+              })()}
 
               {/* Notes feed */}
               <div className="space-y-2">

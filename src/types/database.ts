@@ -2926,6 +2926,7 @@ export type Database = {
           due_date: string | null
           how: string | null
           id: string
+          opportunity_id: string | null
           project_id: string | null
           status: string
           title: string
@@ -2940,6 +2941,7 @@ export type Database = {
           due_date?: string | null
           how?: string | null
           id?: string
+          opportunity_id?: string | null
           project_id?: string | null
           status?: string
           title: string
@@ -2954,6 +2956,7 @@ export type Database = {
           due_date?: string | null
           how?: string | null
           id?: string
+          opportunity_id?: string | null
           project_id?: string | null
           status?: string
           title?: string
@@ -2967,6 +2970,13 @@ export type Database = {
             columns: ["assignee_id"]
             isOneToOne: false
             referencedRelation: "team_members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_opportunity_id_fkey"
+            columns: ["opportunity_id"]
+            isOneToOne: false
+            referencedRelation: "opportunities"
             referencedColumns: ["id"]
           },
           {

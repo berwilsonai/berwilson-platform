@@ -59,6 +59,7 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
   if ('how' in body) patch.how = body.how?.trim() || null
   if ('assignee_id' in body) patch.assignee_id = body.assignee_id || null
   if ('project_id' in body) patch.project_id = body.project_id || null
+  if ('opportunity_id' in body) patch.opportunity_id = body.opportunity_id || null
   if ('due_date' in body) patch.due_date = body.due_date || null
   if ('status' in body) {
     patch.status = body.status === 'done' ? 'done' : 'open'

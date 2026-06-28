@@ -8,6 +8,7 @@ import {
   CheckCircle2,
   ListChecks,
   FolderKanban,
+  Lightbulb,
   Archive,
   X,
 } from 'lucide-react'
@@ -20,6 +21,7 @@ import {
   type BoardTask,
   type TeamMember,
   type ProjectOption,
+  type OpportunityOption,
   getDueLabel,
   avatarClasses,
   initials,
@@ -29,6 +31,7 @@ interface TeamTaskBoardProps {
   initialTasks: BoardTask[]
   teamMembers: TeamMember[]
   projects: ProjectOption[]
+  opportunities?: OpportunityOption[]
   /** When set, the board is scoped to a single project (project tab mode). */
   scopeProjectId?: string
 }
@@ -42,9 +45,13 @@ export default function TeamTaskBoard({
   initialTasks,
   teamMembers,
   projects,
+  opportunities = [],
   scopeProjectId,
 }: TeamTaskBoardProps) {
   const scoped = !!scopeProjectId
+  const hasOpps = opportunities.length > 0
+  const oppName = (id: string | null) =>
+    id ? opportunities.find((o) => o.id === id)?.name ?? null : null
   const [tasks, setTasks] = useState<BoardTask[]>(initialTasks)
   const [members, setMembers] = useState<TeamMember[]>(teamMembers)
 
@@ -52,6 +59,7 @@ export default function TeamTaskBoard({
   const [status, setStatus] = useState<StatusFilter>('open')
   const [assigneeFilter, setAssigneeFilter] = useState('all')
   const [projectFilter, setProjectFilter] = useState('all')
+  const [opportunityFilter, setOpportunityFilter] = useState('all')
 
   // detail sheet
   const [openTaskId, setOpenTaskId] = useState<string | null>(null)
@@ -61,6 +69,7 @@ export default function TeamTaskBoard({
   const [title, setTitle] = useState('')
   const [assigneeId, setAssigneeId] = useState('')
   const [projectId, setProjectId] = useState(scopeProjectId ?? '')
+  const [opportunityId, setOpportunityId] = useState('')
   const [dueDate, setDueDate] = useState('')
   const [adding, setAdding] = useState(false)
 
@@ -81,6 +90,7 @@ export default function TeamTaskBoard({
           title: title.trim(),
           assignee_id: assigneeId || undefined,
           project_id: (scopeProjectId ?? projectId) || undefined,
+          opportunity_id: opportunityId || undefined,
           due_date: dueDate || undefined,
         }),
       })
@@ -90,6 +100,7 @@ export default function TeamTaskBoard({
       setTitle('')
       setAssigneeId('')
       setDueDate('')
+      setOpportunityId('')
       if (!scoped) setProjectId('')
       setShowAdd(false)
       toast.success('Task added')
@@ -150,13 +161,18 @@ export default function TeamTaskBoard({
         projectFilter === 'none' ? !t.project_id : t.project_id === projectFilter,
       )
     }
+    if (hasOpps && opportunityFilter !== 'all') {
+      list = list.filter((t) =>
+        opportunityFilter === 'none' ? !t.opportunity_id : t.opportunity_id === opportunityFilter,
+      )
+    }
     return [...list].sort((a, b) => {
       if (a.due_date && b.due_date) return a.due_date.localeCompare(b.due_date)
       if (a.due_date) return -1
       if (b.due_date) return 1
       return (b.created_at ?? '').localeCompare(a.created_at ?? '')
     })
-  }, [tasks, status, assigneeFilter, projectFilter, scoped])
+  }, [tasks, status, assigneeFilter, projectFilter, opportunityFilter, scoped, hasOpps])
 
   return (
     <div className={cn('space-y-5', !scoped && 'max-w-4xl')}>
@@ -197,7 +213,16 @@ export default function TeamTaskBoard({
             autoFocus
             className="w-full h-10 rounded-md border border-input bg-background pl-3 pr-9 text-sm font-medium placeholder:text-muted-foreground placeholder:font-normal focus:outline-none focus:ring-2 focus:ring-ring"
           />
-          <div className={cn('grid gap-3', scoped ? 'grid-cols-2' : 'grid-cols-3')}>
+          <div
+            className={cn(
+              'grid gap-3 grid-cols-2',
+              // assignee + due are always present; add a column for project (unscoped) and opportunity (when any)
+              (() => {
+                const n = 2 + (scoped ? 0 : 1) + (hasOpps ? 1 : 0)
+                return n === 2 ? 'sm:grid-cols-2' : n === 3 ? 'sm:grid-cols-3' : 'sm:grid-cols-4'
+              })(),
+            )}
+          >
             {/* Assignee + quick add */}
             {addingMember ? (
               <div className="flex items-center gap-1">
@@ -247,6 +272,19 @@ export default function TeamTaskBoard({
               </select>
             )}
 
+            {hasOpps && (
+              <select
+                value={opportunityId}
+                onChange={(e) => setOpportunityId(e.target.value)}
+                className={fieldClass}
+              >
+                <option value="">No opportunity</option>
+                {opportunities.map((o) => (
+                  <option key={o.id} value={o.id}>{o.name}</option>
+                ))}
+              </select>
+            )}
+
             <DatePicker value={dueDate} onChange={setDueDate} placeholder="Due date" />
           </div>
           <button
@@ -290,6 +328,14 @@ export default function TeamTaskBoard({
             <option value="all">All projects</option>
             {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
             <option value="none">No project</option>
+          </select>
+        )}
+
+        {hasOpps && (
+          <select value={opportunityFilter} onChange={(e) => setOpportunityFilter(e.target.value)} className="h-8 rounded-md border border-input bg-background px-2 text-xs focus:outline-none focus:ring-2 focus:ring-ring">
+            <option value="all">All opportunities</option>
+            {opportunities.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
+            <option value="none">No opportunity</option>
           </select>
         )}
       </div>
@@ -337,6 +383,11 @@ export default function TeamTaskBoard({
                         <FolderKanban size={11} /> {task.project.name}
                       </span>
                     )}
+                    {oppName(task.opportunity_id) && (
+                      <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                        <Lightbulb size={11} /> {oppName(task.opportunity_id)}
+                      </span>
+                    )}
                     {due && (
                       <span className={cn('text-xs font-medium tnum',
                         due.overdue ? 'text-red-500 dark:text-red-400' : due.urgent ? 'text-amber-600 dark:text-amber-400' : 'text-muted-foreground')}>
@@ -364,6 +415,7 @@ export default function TeamTaskBoard({
         taskId={openTaskId}
         teamMembers={members}
         projects={projects}
+        opportunities={opportunities}
         lockProject={scoped}
         onClose={() => setOpenTaskId(null)}
         onUpdated={(updated) => setTasks((prev) => prev.map((t) => (t.id === updated.id ? { ...t, ...updated } : t)))}

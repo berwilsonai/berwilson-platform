@@ -10,6 +10,7 @@ export interface BoardTask {
   status: string
   assignee_id: string | null
   project_id: string | null
+  opportunity_id: string | null
   assignee: { id: string; name: string; color: string | null } | null
   project: { id: string; name: string } | null
   created_at: string | null
@@ -22,6 +23,11 @@ export interface TeamMember {
 }
 
 export interface ProjectOption {
+  id: string
+  name: string
+}
+
+export interface OpportunityOption {
   id: string
   name: string
 }
