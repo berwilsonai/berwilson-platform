@@ -247,7 +247,7 @@ export default function TaskDetailSheet({
                     onChange={(v) => patch({ due_date: v || null })}
                   />
                 </div>
-                {!lockProject && (
+                {!lockProject && projects.length > 0 && (
                   <div className="space-y-1 col-span-2">
                     <label className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Project</label>
                     <select

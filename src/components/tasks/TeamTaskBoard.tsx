@@ -34,6 +34,10 @@ interface TeamTaskBoardProps {
   opportunities?: OpportunityOption[]
   /** When set, the board is scoped to a single project (project tab mode). */
   scopeProjectId?: string
+  /** When set, the board is scoped to a single opportunity (opportunity detail mode). */
+  scopeOpportunityId?: string
+  /** Hide the board's own heading (the host page provides a section title). */
+  embedded?: boolean
 }
 
 type StatusFilter = 'open' | 'done'
@@ -47,9 +51,16 @@ export default function TeamTaskBoard({
   projects,
   opportunities = [],
   scopeProjectId,
+  scopeOpportunityId,
+  embedded = false,
 }: TeamTaskBoardProps) {
-  const scoped = !!scopeProjectId
-  const hasOpps = opportunities.length > 0
+  const scopedToProject = !!scopeProjectId
+  const scopedToOpportunity = !!scopeOpportunityId
+  // "scoped" = pinned to a single parent record (project tab or opportunity detail).
+  const scoped = scopedToProject || scopedToOpportunity
+  // Which pickers/filters to render (hidden when locked to that parent or when there's nothing to pick).
+  const showProjectControls = !scopedToProject && projects.length > 0
+  const showOpportunityControls = !scopedToOpportunity && opportunities.length > 0
   const oppName = (id: string | null) =>
     id ? opportunities.find((o) => o.id === id)?.name ?? null : null
   const [tasks, setTasks] = useState<BoardTask[]>(initialTasks)
@@ -69,7 +80,7 @@ export default function TeamTaskBoard({
   const [title, setTitle] = useState('')
   const [assigneeId, setAssigneeId] = useState('')
   const [projectId, setProjectId] = useState(scopeProjectId ?? '')
-  const [opportunityId, setOpportunityId] = useState('')
+  const [opportunityId, setOpportunityId] = useState(scopeOpportunityId ?? '')
   const [dueDate, setDueDate] = useState('')
   const [adding, setAdding] = useState(false)
 
@@ -90,7 +101,7 @@ export default function TeamTaskBoard({
           title: title.trim(),
           assignee_id: assigneeId || undefined,
           project_id: (scopeProjectId ?? projectId) || undefined,
-          opportunity_id: opportunityId || undefined,
+          opportunity_id: (scopeOpportunityId ?? opportunityId) || undefined,
           due_date: dueDate || undefined,
         }),
       })
@@ -100,8 +111,8 @@ export default function TeamTaskBoard({
       setTitle('')
       setAssigneeId('')
       setDueDate('')
-      setOpportunityId('')
-      if (!scoped) setProjectId('')
+      if (!scopedToOpportunity) setOpportunityId('')
+      if (!scopedToProject) setProjectId('')
       setShowAdd(false)
       toast.success('Task added')
     } catch {
@@ -156,12 +167,12 @@ export default function TeamTaskBoard({
         assigneeFilter === 'unassigned' ? !t.assignee_id : t.assignee_id === assigneeFilter,
       )
     }
-    if (!scoped && projectFilter !== 'all') {
+    if (showProjectControls && projectFilter !== 'all') {
       list = list.filter((t) =>
         projectFilter === 'none' ? !t.project_id : t.project_id === projectFilter,
       )
     }
-    if (hasOpps && opportunityFilter !== 'all') {
+    if (showOpportunityControls && opportunityFilter !== 'all') {
       list = list.filter((t) =>
         opportunityFilter === 'none' ? !t.opportunity_id : t.opportunity_id === opportunityFilter,
       )
@@ -172,20 +183,22 @@ export default function TeamTaskBoard({
       if (b.due_date) return 1
       return (b.created_at ?? '').localeCompare(a.created_at ?? '')
     })
-  }, [tasks, status, assigneeFilter, projectFilter, opportunityFilter, scoped, hasOpps])
+  }, [tasks, status, assigneeFilter, projectFilter, opportunityFilter, showProjectControls, showOpportunityControls])
 
   return (
     <div className={cn('space-y-5', !scoped && 'max-w-4xl')}>
       {/* Header */}
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <h1 className={cn('font-semibold text-foreground', scoped ? 'text-base' : 'text-xl')}>
-            {scoped ? 'Tasks' : 'Team Tasks'}
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            {openCount} open{scoped ? '' : ' across the team'}
-          </p>
-        </div>
+      <div className={cn('flex items-center gap-3', embedded ? 'justify-end' : 'justify-between')}>
+        {!embedded && (
+          <div>
+            <h1 className={cn('font-semibold text-foreground', scoped ? 'text-base' : 'text-xl')}>
+              {scoped ? 'Tasks' : 'Team Tasks'}
+            </h1>
+            <p className="text-sm text-muted-foreground">
+              {openCount} open{scoped ? '' : ' across the team'}
+            </p>
+          </div>
+        )}
         <button
           onClick={() => setShowAdd((s) => !s)}
           className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 active:scale-[0.98] transition-all elev-1"
@@ -216,9 +229,9 @@ export default function TeamTaskBoard({
           <div
             className={cn(
               'grid gap-3 grid-cols-2',
-              // assignee + due are always present; add a column for project (unscoped) and opportunity (when any)
+              // assignee + due are always present; add a column for each picker that's shown
               (() => {
-                const n = 2 + (scoped ? 0 : 1) + (hasOpps ? 1 : 0)
+                const n = 2 + (showProjectControls ? 1 : 0) + (showOpportunityControls ? 1 : 0)
                 return n === 2 ? 'sm:grid-cols-2' : n === 3 ? 'sm:grid-cols-3' : 'sm:grid-cols-4'
               })(),
             )}
@@ -259,7 +272,7 @@ export default function TeamTaskBoard({
               </select>
             )}
 
-            {!scoped && (
+            {showProjectControls && (
               <select
                 value={projectId}
                 onChange={(e) => setProjectId(e.target.value)}
@@ -272,7 +285,7 @@ export default function TeamTaskBoard({
               </select>
             )}
 
-            {hasOpps && (
+            {showOpportunityControls && (
               <select
                 value={opportunityId}
                 onChange={(e) => setOpportunityId(e.target.value)}
@@ -323,7 +336,7 @@ export default function TeamTaskBoard({
           <option value="unassigned">Unassigned</option>
         </select>
 
-        {!scoped && (
+        {showProjectControls && (
           <select value={projectFilter} onChange={(e) => setProjectFilter(e.target.value)} className="h-8 rounded-md border border-input bg-background px-2 text-xs focus:outline-none focus:ring-2 focus:ring-ring">
             <option value="all">All projects</option>
             {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
@@ -331,7 +344,7 @@ export default function TeamTaskBoard({
           </select>
         )}
 
-        {hasOpps && (
+        {showOpportunityControls && (
           <select value={opportunityFilter} onChange={(e) => setOpportunityFilter(e.target.value)} className="h-8 rounded-md border border-input bg-background px-2 text-xs focus:outline-none focus:ring-2 focus:ring-ring">
             <option value="all">All opportunities</option>
             {opportunities.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
@@ -378,12 +391,12 @@ export default function TeamTaskBoard({
                     {task.title}
                   </p>
                   <div className="flex items-center gap-2 mt-1 flex-wrap">
-                    {!scoped && task.project && (
+                    {!scopedToProject && task.project && (
                       <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
                         <FolderKanban size={11} /> {task.project.name}
                       </span>
                     )}
-                    {oppName(task.opportunity_id) && (
+                    {!scopedToOpportunity && oppName(task.opportunity_id) && (
                       <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
                         <Lightbulb size={11} /> {oppName(task.opportunity_id)}
                       </span>
@@ -416,7 +429,7 @@ export default function TeamTaskBoard({
         teamMembers={members}
         projects={projects}
         opportunities={opportunities}
-        lockProject={scoped}
+        lockProject={scopedToProject}
         onClose={() => setOpenTaskId(null)}
         onUpdated={(updated) => setTasks((prev) => prev.map((t) => (t.id === updated.id ? { ...t, ...updated } : t)))}
         onDeleted={(id) => setTasks((prev) => prev.filter((t) => t.id !== id))}

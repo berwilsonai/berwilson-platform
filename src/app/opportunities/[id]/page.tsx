@@ -1,10 +1,11 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { Pencil, Target, Lightbulb, FileText, MessageSquare, ExternalLink } from 'lucide-react'
+import { Pencil, Target, Lightbulb, FileText, MessageSquare, ExternalLink, ListChecks } from 'lucide-react'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { cn } from '@/lib/utils'
 import { formatValue, formatDate, SECTOR_LABELS } from '@/lib/utils/constants'
 import type { ProjectSector } from '@/lib/supabase/types'
+import type { BoardTask, TeamMember } from '@/components/tasks/task-utils'
 import {
   oppType,
   oppStatus,
@@ -22,6 +23,7 @@ import OpportunityStatusControl from '@/components/opportunities/OpportunityStat
 import OpportunityDeleteButton from '@/components/opportunities/OpportunityDeleteButton'
 import OpportunityDocuments from '@/components/opportunities/OpportunityDocuments'
 import OpportunityNotes from '@/components/opportunities/OpportunityNotes'
+import OpportunityTasks from '@/components/opportunities/OpportunityTasks'
 
 interface PageProps {
   params: Promise<{ id: string }>
@@ -49,7 +51,7 @@ export default async function OpportunityDetailPage({ params }: PageProps) {
 
   if (!opportunity) notFound()
 
-  const [{ data: documents }, { data: notes }] = await Promise.all([
+  const [{ data: documents }, { data: notes }, { data: tasks }, { data: members }] = await Promise.all([
     supabase
       .from('opportunity_documents')
       .select('*')
@@ -60,6 +62,18 @@ export default async function OpportunityDetailPage({ params }: PageProps) {
       .select('*')
       .eq('opportunity_id', id)
       .order('created_at', { ascending: false }),
+    // Tolerant of the opportunity_id column not existing yet (returns null → [] until the migration lands).
+    supabase
+      .from('tasks')
+      .select('*, assignee:team_members(id, name, color), project:projects(id, name)')
+      .eq('opportunity_id', id)
+      .order('due_date', { ascending: true, nullsFirst: false })
+      .order('created_at', { ascending: false }),
+    supabase
+      .from('team_members')
+      .select('id, name, color')
+      .eq('active', true)
+      .order('created_at', { ascending: true }),
   ])
 
   const t = oppType(opportunity.opp_type)
@@ -205,6 +219,18 @@ export default async function OpportunityDetailPage({ params }: PageProps) {
           <p className="text-sm text-foreground mt-0.5">{opportunity.next_step}</p>
         </div>
       )}
+
+      {/* Tasks */}
+      <section>
+        <h2 className="flex items-center gap-1.5 text-sm font-semibold mb-3">
+          <ListChecks size={15} /> Tasks
+        </h2>
+        <OpportunityTasks
+          opportunityId={id}
+          initialTasks={(tasks ?? []) as unknown as BoardTask[]}
+          teamMembers={(members ?? []) as TeamMember[]}
+        />
+      </section>
 
       {/* Documents */}
       <section>
