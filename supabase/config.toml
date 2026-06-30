@@ -27,9 +27,16 @@ file_size_limit = "50MiB"
 [auth]
 site_url = "https://berwilson-platform-berwilsonais-projects.vercel.app"
 additional_redirect_urls = ["https://berwilson-platform-berwilsonais-projects.vercel.app/**", "http://localhost:3000", "https://localhost:3000"]
-jwt_expiry = 3600
+# Access-token (JWT) lifetime. Supabase hard-caps this at 604800 (1 week).
+# Longer-lived tokens mean idle mobile tabs survive much longer before needing
+# a refresh — the failure mode that was silently breaking task saves.
+jwt_expiry = 604800
 enable_refresh_token_rotation = true
-refresh_token_reuse_interval = 10
+# Grace window in which a just-rotated refresh token is still accepted. Raised
+# from 10s so concurrent requests on a phone don't race past the window and get
+# the whole session revoked as a suspected token reuse. The 2-week session
+# length itself is a dashboard setting (Auth → Sessions → Time-box = 336h).
+refresh_token_reuse_interval = 30
 enable_signup = true
 
 [auth.email]
