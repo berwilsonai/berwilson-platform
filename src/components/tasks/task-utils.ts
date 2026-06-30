@@ -32,6 +32,23 @@ export interface OpportunityOption {
   name: string
 }
 
+/**
+ * If a fetch came back 401 (expired session — common on long-lived mobile tabs),
+ * tell the user and bounce them to login. Returns true when it handled an auth
+ * failure so the caller can stop. Without this, a redirected-to-login response
+ * is silently followed by fetch and surfaces as a generic "failed" toast.
+ */
+export function handleAuthError(res: Response): boolean {
+  if (res.status === 401) {
+    if (typeof window !== 'undefined') {
+      const next = encodeURIComponent(window.location.pathname)
+      window.location.href = `/login?next=${next}`
+    }
+    return true
+  }
+  return false
+}
+
 export function formatDate(ts: string | null): string {
   if (!ts) return ''
   return new Date(ts).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })

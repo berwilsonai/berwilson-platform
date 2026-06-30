@@ -31,6 +31,7 @@ import {
   type OpportunityOption,
   avatarClasses,
   initials,
+  handleAuthError,
 } from './task-utils'
 
 interface ProjectContext {
@@ -134,6 +135,7 @@ export default function TaskDetailSheet({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(fields),
       })
+      if (handleAuthError(res)) return
       if (!res.ok) throw new Error()
       const data = await res.json()
       setTask(data.task)
@@ -157,6 +159,7 @@ export default function TaskDetailSheet({
     if (!task) return
     try {
       const res = await fetch(`/api/tasks/${task.id}`, { method: 'DELETE' })
+      if (handleAuthError(res)) return
       if (!res.ok) throw new Error()
       onDeleted(task.id)
       toast.success('Task deleted')
@@ -175,6 +178,7 @@ export default function TaskDetailSheet({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ body: newNote.trim() }),
       })
+      if (handleAuthError(res)) return
       if (!res.ok) throw new Error()
       const data = await res.json()
       setNotes((prev) => [...prev, data.note])

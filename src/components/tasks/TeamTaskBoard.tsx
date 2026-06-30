@@ -25,6 +25,7 @@ import {
   getDueLabel,
   avatarClasses,
   initials,
+  handleAuthError,
 } from './task-utils'
 
 interface TeamTaskBoardProps {
@@ -105,6 +106,7 @@ export default function TeamTaskBoard({
           due_date: dueDate || undefined,
         }),
       })
+      if (handleAuthError(res)) return
       if (!res.ok) throw new Error()
       const data = await res.json()
       setTasks((prev) => [data.task, ...prev])
@@ -130,6 +132,7 @@ export default function TeamTaskBoard({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: newMemberName.trim() }),
       })
+      if (handleAuthError(res)) return
       if (!res.ok) throw new Error()
       const data = await res.json()
       setMembers((prev) => [...prev, data.member])
@@ -152,6 +155,11 @@ export default function TeamTaskBoard({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: next }),
       })
+      if (handleAuthError(res)) {
+        // revert optimistic change before we navigate away
+        setTasks((prev) => prev.map((t) => (t.id === task.id ? { ...t, status: task.status } : t)))
+        return
+      }
       if (!res.ok) throw new Error()
       if (next === 'done') toast.success('Completed — moved to archive')
     } catch {

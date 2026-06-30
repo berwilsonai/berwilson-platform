@@ -45,6 +45,12 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith('/api/equity/share/')            // Equity share API (token validation)
 
   if (!user && !isPublicRoute) {
+    // API calls must get a real 401 (not an HTML login-page redirect that fetch
+    // silently follows as a 200 — that's what made expired-session saves fail
+    // silently on long-lived mobile tabs). Page navigations still redirect.
+    if (pathname.startsWith('/api/')) {
+      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
+    }
     const url = request.nextUrl.clone()
     url.pathname = '/login'
     return NextResponse.redirect(url)
