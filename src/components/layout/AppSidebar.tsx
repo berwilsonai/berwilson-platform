@@ -24,6 +24,7 @@ import {
   GanttChart,
   Gauge,
   Lightbulb,
+  Inbox,
 } from 'lucide-react'
 
 const NAV_GROUPS = [
@@ -43,6 +44,7 @@ const NAV_GROUPS = [
     label: 'Intelligence',
     items: [
       { href: '/proposals/intake', label: 'Intake Proposal', icon: FileUp },
+      { href: '/email-ingestion', label: 'Email Ingestion', icon: Inbox },
       { href: '/intel', label: 'Intel', icon: Brain },
       { href: '/calendar', label: 'Calendar', icon: CalendarDays },
     ],

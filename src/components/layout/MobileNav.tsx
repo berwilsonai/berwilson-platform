@@ -22,6 +22,7 @@ import {
   GanttChart,
   Gauge,
   Lightbulb,
+  Inbox,
   X,
 } from 'lucide-react'
 
@@ -37,6 +38,7 @@ const MORE_NAV = [
   { href: '/opportunities', label: 'Opportunities', icon: Lightbulb },
   { href: '/attention', label: 'Attention', icon: AlertTriangle },
   { href: '/proposals/intake', label: 'Ingest', icon: FileUp },
+  { href: '/email-ingestion', label: 'Email Ingest', icon: Inbox },
   { href: '/timeline', label: 'Timeline', icon: GanttChart },
   { href: '/capacity', label: 'Capacity', icon: Gauge },
   { href: '/calendar', label: 'Calendar', icon: CalendarDays },

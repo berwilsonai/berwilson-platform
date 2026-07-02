@@ -975,6 +975,54 @@ export type Database = {
         }
         Relationships: []
       }
+      email_intake_sessions: {
+        Row: {
+          confirmed_at: string | null
+          created_at: string | null
+          created_record_ids: Json | null
+          extraction_result: Json
+          fit_assessment: Json | null
+          id: string
+          label: string | null
+          match_candidates: Json | null
+          party_matches: Json | null
+          raw_text: string | null
+          status: string
+          updated_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          confirmed_at?: string | null
+          created_at?: string | null
+          created_record_ids?: Json | null
+          extraction_result: Json
+          fit_assessment?: Json | null
+          id?: string
+          label?: string | null
+          match_candidates?: Json | null
+          party_matches?: Json | null
+          raw_text?: string | null
+          status?: string
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          confirmed_at?: string | null
+          created_at?: string | null
+          created_record_ids?: Json | null
+          extraction_result?: Json
+          fit_assessment?: Json | null
+          id?: string
+          label?: string | null
+          match_candidates?: Json | null
+          party_matches?: Json | null
+          raw_text?: string | null
+          status?: string
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       email_tokens: {
         Row: {
           access_token: string
