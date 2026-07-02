@@ -23,6 +23,7 @@ import {
   Gauge,
   Lightbulb,
   Inbox,
+  Search,
   X,
 } from 'lucide-react'
 
@@ -38,6 +39,7 @@ const MORE_NAV = [
   { href: '/opportunities', label: 'Opportunities', icon: Lightbulb },
   { href: '/attention', label: 'Attention', icon: AlertTriangle },
   { href: '/proposals/intake', label: 'Ingest', icon: FileUp },
+  { href: '/email-research', label: 'Email Research', icon: Search },
   { href: '/email-ingestion', label: 'Email Ingest', icon: Inbox },
   { href: '/timeline', label: 'Timeline', icon: GanttChart },
   { href: '/capacity', label: 'Capacity', icon: Gauge },

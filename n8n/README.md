@@ -54,11 +54,30 @@ aggregate → markdown report → email      → Gemini maps → review screen
 The platform re-runs one Gemini pass on the report, so the **current markdown output already
 works** — Edit 1 just sharpens the signal. Keep Qwen doing the private, local gathering.
 
-## Future (optional) — auto-POST instead of paste
+## Automatic mode — trigger from the platform + auto-delivery (now supported)
 
-When you want to skip the copy-paste, add an **HTTP Request** node after *Format Markdown Export*
-that POSTs `{ raw_text: <markdown>, label: <exportLabel> }` to a token-gated platform endpoint
-(e.g. `POST /api/email-ingestion/inbound`, added to `middleware.ts`'s public allowlist with a
-shared secret). The review/confirm screen stays identical — the package just shows up as a
-pending item under Recent. Not wired in this version by design (paste keeps it simple and
-human-triggered).
+The platform can now both **start** a run and **receive** the finished report, so you don't have
+to open the n8n form or copy-paste. Two platform endpoints + two secrets are involved (kept
+distinct on purpose):
+
+| Direction | Platform side | n8n side | Secret / header |
+| --- | --- | --- | --- |
+| Start a run | `/email-research` page → `POST /api/email-research/trigger` | a **Webhook** trigger node | `N8N_WEBHOOK_SECRET` sent as `X-Webhook-Secret` |
+| Deliver report | `POST /api/email-ingestion/inbound` (public, secret-gated) | an **HTTP Request** node | `INGESTION_INBOUND_SECRET` sent as `X-Ingestion-Secret` |
+
+**1. Receive the trigger (replaces the manual form).** Add a **Webhook** node (method POST) as an
+alternate entry point. Set the platform env var `N8N_WEBHOOK_URL` to that webhook's URL and
+`N8N_WEBHOOK_SECRET` to a shared secret; optionally verify the incoming `X-Webhook-Secret` header
+inside n8n. The webhook receives `{ "searchTerm": "...", "exportLabel": "..." }` — feed those into
+the existing *Normalize Input* node (it already reads `searchTerm` / `exportLabel`).
+
+**2. Deliver the report (replaces the email step).** After *Format Markdown Export*, add an
+**HTTP Request** node:
+- Method **POST**, URL `https://<your-platform-domain>/api/email-ingestion/inbound`
+- Header `X-Ingestion-Secret: <INGESTION_INBOUND_SECRET>` (same value you set on the platform)
+- JSON body `{ "raw_text": {{ $json.markdown }}, "label": {{ $json.exportLabel }} }`
+
+The report then shows up as a **pending** item under **Email Ingestion &gt; Recent**, awaiting the
+same human review/confirm step — nothing is auto-created. You can keep the email step too if you
+still want a copy in your inbox. Manual paste/upload on `/email-ingestion` also keeps working
+exactly as before.

@@ -25,6 +25,7 @@ import {
   Gauge,
   Lightbulb,
   Inbox,
+  Search,
 } from 'lucide-react'
 
 const NAV_GROUPS = [
@@ -44,6 +45,7 @@ const NAV_GROUPS = [
     label: 'Intelligence',
     items: [
       { href: '/proposals/intake', label: 'Intake Proposal', icon: FileUp },
+      { href: '/email-research', label: 'Email Research', icon: Search },
       { href: '/email-ingestion', label: 'Email Ingestion', icon: Inbox },
       { href: '/intel', label: 'Intel', icon: Brain },
       { href: '/calendar', label: 'Calendar', icon: CalendarDays },

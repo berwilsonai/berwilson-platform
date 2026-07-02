@@ -24,6 +24,7 @@ const PAGES: { href: string; label: string; keywords: string }[] = [
   { href: '/capacity', label: 'Capacity', keywords: 'workload board' },
   { href: '/tasks', label: 'Team Tasks', keywords: 'todo action items team' },
   { href: '/proposals/intake', label: 'Intake Proposal', keywords: 'ingest upload rfp document' },
+  { href: '/email-research', label: 'Email Research', keywords: 'email search outlook thread run trigger n8n research' },
   { href: '/email-ingestion', label: 'Email Ingestion', keywords: 'email inbox ingest research thread message n8n' },
   { href: '/intel', label: 'Intel', keywords: 'ask query search ai agent' },
   { href: '/calendar', label: 'Calendar', keywords: 'schedule dates milestones meeting' },

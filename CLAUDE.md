@@ -192,6 +192,9 @@ MICROSOFT_TENANT_ID=             # email ingestion
 MICROSOFT_CLIENT_ID=
 MICROSOFT_CLIENT_SECRET=
 MICROSOFT_WEBHOOK_SECRET=
+N8N_WEBHOOK_URL=                 # Email Research trigger → n8n workflow webhook (server-only)
+N8N_WEBHOOK_SECRET=              # sent as X-Webhook-Secret on the outbound trigger call (server-only)
+INGESTION_INBOUND_SECRET=        # required as X-Ingestion-Secret on /api/email-ingestion/inbound (n8n → platform; distinct from N8N_WEBHOOK_SECRET)
 ```
 `ANTHROPIC_API_KEY` and `PERPLEXITY_API_KEY` are no longer used — remove from any new env files.
 
@@ -248,6 +251,13 @@ Note the drift flagged in §9: `entities`/vendors and portfolio `stakeholders` p
 **Reality:** well beyond the original Phase 1/2 plan. Live and in daily use on Vercel production.
 
 **Working:** projects (CRUD, pipeline/program views, hierarchy, all detail tabs), **opportunities** (new — see below), dashboard, attention/timeline/capacity, **team tasks**, contacts + vendors directories, company profile (thin), review queue, activity log, manual-paste extraction, intel (RAG + agent), proposal intake → assessment → project creation, **email ingestion** (n8n report → opportunity/project + people + tasks), portfolio site hierarchy, equity & valuation suite. **Calendar/meeting-prep still uses Microsoft Graph (OAuth retained); the email-to-task scraper was removed (see below).**
+
+**Done 2026-07-02 (Email Research trigger + automatic ingestion):**
+- **Closed the loop both ways** so reports arrive automatically instead of being copy-pasted. Two distinct secrets: `N8N_WEBHOOK_SECRET` (outbound trigger) and `INGESTION_INBOUND_SECRET` (inbound delivery) — never reused, never client-side.
+- **Trigger:** new authenticated page **`/email-research`** (`EmailResearchForm`) — search term + optional export label + "Run Email Research". Fire-and-forget: it POSTs to `api/email-research/trigger`, which (auth-gated) makes a server-to-server POST to `process.env.N8N_WEBHOOK_URL` with header `X-Webhook-Secret: N8N_WEBHOOK_SECRET` and body `{ searchTerm, exportLabel }`, returns as soon as the webhook is dispatched (10s abort cap), and never leaks the URL/secret. Confirmation tells the user the report will show under Email Ingestion > Recent.
+- **Inbound:** new **`api/email-ingestion/inbound`** (called by n8n, not a browser) — added to `middleware.ts`'s public allowlist (exact path `=== '/api/email-ingestion/inbound'`); its only auth is header `X-Ingestion-Secret === INGESTION_INBOUND_SECRET` (401 otherwise). Accepts `{ raw_text, label }` and runs the **exact same shared processing path** as the manual paste flow. Lands as a `pending` session under Recent — **no auto-confirm**; the human review/confirm step stays mandatory.
+- **Refactor (no behavior change):** the analyze core was extracted into `src/lib/email-ingestion/analyze.ts` (`analyzeEmailReport({ rawText, label, userId })`, `EmailIntakeError` with HTTP status, `SYSTEM_USER_ID`). Both `api/email-ingestion/analyze` (manual paste/upload — user resolution + storage read stay in the route) and `api/email-ingestion/inbound` call it, so there's one source of truth. The manual paste/upload flow is unchanged (same request/response contract).
+- **Env:** `N8N_WEBHOOK_URL`, `N8N_WEBHOOK_SECRET`, `INGESTION_INBOUND_SECRET` documented in §7 (values supplied separately, server-only). **Nav:** `/email-research` added to sidebar Intelligence group, mobile More, command palette. `tsc` + eslint clean.
 
 **Done 2026-07-02 (Email Ingestion module):**
 - **New top-level area `/email-ingestion`** (in the sidebar **Intelligence** group, mobile More, command palette). Closes the "email an opportunity → Ber AI assesses → you decide → records created" loop for existing Outlook threads. Richard's external **n8n workflow on his Mac Studio** (local Qwen) gathers threads+attachments and produces a markdown research report; the platform digests it. **This does NOT re-add the forbidden email scraper (§11)** — all Graph scraping stays external in n8n; the platform only accepts a document a human pastes, and creates records only after human review.
