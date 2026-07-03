@@ -280,6 +280,76 @@ export const agentTools = [
       },
     },
   },
+  {
+    name: 'list_opportunities',
+    description: 'List strategic opportunities (acquisitions, partnerships, JVs, investments, mergers, teaming, market entry) — the non-project deal pipeline. Use when asked "what opportunities are we pursuing", "what acquisitions are in diligence", or to compare/scan the deal pipeline. Returns names, types, statuses, targets, values, and next steps.',
+    parameters: {
+      type: 'object',
+      properties: {
+        status: {
+          type: 'string',
+          enum: ['identified', 'evaluating', 'in_discussion', 'due_diligence', 'negotiating', 'agreement', 'closed_won', 'closed_passed'],
+          description: 'Filter by pipeline status',
+        },
+        opp_type: {
+          type: 'string',
+          enum: ['acquisition', 'partnership', 'joint_venture', 'investment', 'merger', 'divestiture', 'teaming', 'market_entry', 'other'],
+          description: 'Filter by opportunity type',
+        },
+        priority: {
+          type: 'string',
+          enum: ['low', 'medium', 'high'],
+          description: 'Filter by priority',
+        },
+      },
+    },
+  },
+  {
+    name: 'query_opportunity',
+    description: 'Get the full record for one strategic opportunity: all deal fields (objective, thesis, target, counterparty, value, structure, probability, dates, next step), the latest progress notes, and attached document metadata (white papers, CIMs, teasers). Use whenever asked about a specific named opportunity or deal.',
+    parameters: {
+      type: 'object',
+      properties: {
+        opportunity_id: { type: 'string', description: 'UUID of the opportunity (if known)' },
+        name: { type: 'string', description: 'Opportunity or target name to look up (fuzzy match). Provide this when the UUID is unknown.' },
+      },
+    },
+  },
+  {
+    name: 'search_tasks',
+    description: 'Search the team task system. Returns tasks with title, what/why/how, assignee, due date, status, linked project or opportunity, and the latest note. Use when asked "what is Eric working on", "what tasks are open on X", "what is overdue", or anything about to-dos and assignments.',
+    parameters: {
+      type: 'object',
+      properties: {
+        query: { type: 'string', description: 'Optional keyword to match against task title/description' },
+        assignee_name: { type: 'string', description: 'Optional: filter by team member name (e.g. "Richard", "Eric")' },
+        project_id: { type: 'string', description: 'Optional: filter to a project' },
+        opportunity_id: { type: 'string', description: 'Optional: filter to an opportunity' },
+        status: {
+          type: 'string',
+          enum: ['open', 'done', 'all'],
+          description: 'Task status filter (default: open)',
+        },
+        due_before: { type: 'string', description: 'Optional ISO date — only tasks due on/before this date' },
+      },
+    },
+  },
+  {
+    name: 'get_document_content',
+    description: 'Fetch the stored full text of an uploaded document so you can quote or analyze its actual contents (proposals, contracts, RFPs, CIMs). Use after search_knowledge_base or query_opportunity surfaces a relevant document. Returns the file name, AI summary, and extracted text.',
+    parameters: {
+      type: 'object',
+      properties: {
+        document_id: { type: 'string', description: 'UUID of the document' },
+        source: {
+          type: 'string',
+          enum: ['project', 'opportunity'],
+          description: 'Which document store: "project" for the main documents table (projects/vendors/company), "opportunity" for opportunity documents (default: project)',
+        },
+      },
+      required: ['document_id'],
+    },
+  },
 ]
 
 // ---------------------------------------------------------------------------
@@ -589,19 +659,44 @@ export async function executeToolCall(
 
         if (rpcError) return { error: rpcError.message }
 
-        // Get project names for context
-        const projectIds = [...new Set((chunks ?? []).map((c: { project_id: string | null }) => c.project_id).filter(Boolean))]
+        // Get project + opportunity names for context (opportunity_id only
+        // exists once migration 20260703000001 is applied; undefined before)
+        type KBChunk = {
+          content: string
+          project_id: string | null
+          opportunity_id?: string | null
+          source_type?: string | null
+          is_company?: boolean
+          similarity: number
+          created_at: string
+        }
+        const kbChunks = (chunks ?? []) as KBChunk[]
+        const projectIds = [...new Set(kbChunks.map((c) => c.project_id).filter(Boolean))]
         const projectNames: Record<string, string> = {}
         if (projectIds.length > 0) {
           const { data: projects } = await supabase.from('projects').select('id, name').in('id', projectIds as string[])
           for (const p of projects ?? []) projectNames[p.id] = p.name
         }
+        const oppIds = [...new Set(kbChunks.map((c) => c.opportunity_id).filter(Boolean))]
+        const oppNames: Record<string, string> = {}
+        if (oppIds.length > 0) {
+          try {
+            const { data: opps } = await supabase.from('opportunities').select('id, name').in('id', oppIds as string[])
+            for (const o of opps ?? []) oppNames[o.id] = o.name
+          } catch { /* opportunities table may not exist yet */ }
+        }
 
         return {
-          results: (chunks ?? []).slice(0, 8).map((c: { content: string; project_id: string | null; is_company?: boolean; similarity: number; created_at: string }, i: number) => ({
+          results: kbChunks.slice(0, 8).map((c, i) => ({
             index: i + 1,
             content: c.content.slice(0, 500),
-            project: c.is_company ? 'Ber Wilson (company knowledge base)' : c.project_id ? projectNames[c.project_id] ?? 'Unknown' : 'General',
+            source: c.is_company
+              ? 'Ber Wilson (company knowledge base)'
+              : c.opportunity_id
+              ? `Opportunity: ${oppNames[c.opportunity_id] ?? 'Unknown'}${c.source_type ? ` (${c.source_type.replace(/_/g, ' ')})` : ''}`
+              : c.project_id
+              ? projectNames[c.project_id] ?? 'Unknown'
+              : 'General',
             similarity: c.similarity,
             date: c.created_at,
           })),
@@ -1103,6 +1198,203 @@ export async function executeToolCall(
           severity: d.severity,
           age_days: Math.floor((Date.now() - new Date(d.created_at).getTime()) / 86_400_000),
         })),
+      }
+    }
+
+    case 'list_opportunities': {
+      let q = supabase
+        .from('opportunities')
+        .select('id, name, opp_type, status, priority, target_name, counterparty, sector, estimated_value, probability, lead, next_step, target_close_date, updated_at')
+        .order('updated_at', { ascending: false })
+        .limit(25)
+
+      if (args.status) q = q.eq('status', args.status as string)
+      if (args.opp_type) q = q.eq('opp_type', args.opp_type as string)
+      if (args.priority) q = q.eq('priority', args.priority as string)
+
+      const { data: opps, error } = await q
+      if (error) return { error: `Opportunities unavailable: ${error.message}` }
+      if (!opps || opps.length === 0) return { message: 'No opportunities match those filters.' }
+
+      return {
+        count: opps.length,
+        opportunities: opps.map((o) => ({
+          id: o.id,
+          name: o.name,
+          type: o.opp_type,
+          status: o.status,
+          priority: o.priority,
+          target: o.target_name,
+          counterparty: o.counterparty,
+          sector: o.sector,
+          estimated_value: o.estimated_value,
+          probability: o.probability,
+          lead: o.lead,
+          next_step: o.next_step,
+          target_close_date: o.target_close_date,
+          last_activity: o.updated_at,
+        })),
+      }
+    }
+
+    case 'query_opportunity': {
+      let oppId = (args.opportunity_id as string) || null
+
+      if (!oppId && args.name) {
+        const { data: matches, error } = await supabase
+          .from('opportunities')
+          .select('id, name, target_name, status')
+          .or(`name.ilike.%${(args.name as string).replace(/[%,]/g, '')}%,target_name.ilike.%${(args.name as string).replace(/[%,]/g, '')}%`)
+          .limit(5)
+        if (error) return { error: `Opportunities unavailable: ${error.message}` }
+        if (!matches || matches.length === 0) return { error: `No opportunity found matching "${args.name}". Try list_opportunities.` }
+        if (matches.length > 1) {
+          return {
+            message: 'Multiple opportunities match — call query_opportunity again with the opportunity_id.',
+            candidates: matches,
+          }
+        }
+        oppId = matches[0].id
+      }
+      if (!oppId) return { error: 'Provide opportunity_id or name' }
+
+      const [oppRes, notesRes, docsRes] = await Promise.all([
+        supabase.from('opportunities').select('*').eq('id', oppId).single(),
+        supabase.from('opportunity_notes').select('body, author, created_at').eq('opportunity_id', oppId).order('created_at', { ascending: false }).limit(10),
+        supabase.from('opportunity_documents').select('id, file_name, doc_type, ai_summary, uploaded_at').eq('opportunity_id', oppId).order('uploaded_at', { ascending: false }),
+      ])
+
+      if (oppRes.error || !oppRes.data) return { error: `Opportunity not found: ${oppRes.error?.message ?? oppId}` }
+
+      return {
+        opportunity: oppRes.data,
+        recent_notes: notesRes.data ?? [],
+        documents: (docsRes.data ?? []).map((d) => ({
+          id: d.id,
+          file_name: d.file_name,
+          doc_type: d.doc_type,
+          ai_summary: d.ai_summary,
+          uploaded_at: d.uploaded_at,
+          hint: 'Use get_document_content with source="opportunity" to read the full text.',
+        })),
+      }
+    }
+
+    case 'search_tasks': {
+      const status = (args.status as string) || 'open'
+      let q = supabase
+        .from('tasks')
+        .select('id, title, what, why, how, assignee_id, project_id, due_date, status, completed_at, created_at')
+        .order('due_date', { ascending: true, nullsFirst: false })
+        .limit(25)
+
+      if (status !== 'all') q = q.eq('status', status)
+      if (args.project_id) q = q.eq('project_id', args.project_id as string)
+      if (args.opportunity_id) q = q.eq('opportunity_id', args.opportunity_id as string)
+      if (args.due_before) q = q.lte('due_date', args.due_before as string)
+      if (args.query) {
+        const term = (args.query as string).replace(/[%,]/g, '')
+        q = q.or(`title.ilike.%${term}%,what.ilike.%${term}%,why.ilike.%${term}%,how.ilike.%${term}%`)
+      }
+
+      const { data: tasks, error } = await q
+      if (error) return { error: `Tasks unavailable: ${error.message}` }
+
+      // Resolve names via separate lookups (dual-schema tolerant — no embeds)
+      const { data: members } = await supabase.from('team_members').select('id, name')
+      const memberName = new Map((members ?? []).map((m) => [m.id, m.name]))
+
+      let filtered = tasks ?? []
+      if (args.assignee_name) {
+        const needle = (args.assignee_name as string).toLowerCase()
+        const matchIds = new Set((members ?? []).filter((m) => m.name.toLowerCase().includes(needle)).map((m) => m.id))
+        filtered = filtered.filter((t) => t.assignee_id && matchIds.has(t.assignee_id))
+      }
+      if (filtered.length === 0) return { message: 'No tasks match those filters.' }
+
+      const projIds = [...new Set(filtered.map((t) => t.project_id).filter(Boolean))] as string[]
+      const projName = new Map<string, string>()
+      if (projIds.length > 0) {
+        const { data: projects } = await supabase.from('projects').select('id, name').in('id', projIds)
+        for (const p of projects ?? []) projName.set(p.id, p.name)
+      }
+
+      // Latest note per task (single query, newest first)
+      const taskIds = filtered.map((t) => t.id)
+      const latestNote = new Map<string, string>()
+      if (taskIds.length > 0) {
+        const { data: notes } = await supabase
+          .from('task_notes')
+          .select('task_id, body, created_at')
+          .in('task_id', taskIds)
+          .order('created_at', { ascending: false })
+        for (const n of notes ?? []) {
+          if (!latestNote.has(n.task_id)) latestNote.set(n.task_id, n.body)
+        }
+      }
+
+      return {
+        count: filtered.length,
+        tasks: filtered.map((t) => ({
+          id: t.id,
+          title: t.title,
+          what: t.what,
+          why: t.why,
+          how: t.how,
+          assignee: t.assignee_id ? memberName.get(t.assignee_id) ?? 'Unknown' : 'Unassigned',
+          project: t.project_id ? projName.get(t.project_id) ?? null : null,
+          due_date: t.due_date,
+          status: t.status,
+          completed_at: t.completed_at,
+          latest_note: latestNote.get(t.id) ?? null,
+        })),
+      }
+    }
+
+    case 'get_document_content': {
+      const docId = args.document_id as string
+      if (!docId) return { error: 'document_id is required' }
+      const table = args.source === 'opportunity' ? 'opportunity_documents' : 'documents'
+
+      // extracted_text only exists post-migration 20260703000001 — retry without it
+      type DocContent = {
+        file_name: string
+        doc_type: string | null
+        ai_summary: string | null
+        extracted_text?: string | null
+      }
+      let doc: DocContent | null = null
+      const full = await supabase
+        .from(table)
+        .select('file_name, doc_type, ai_summary, extracted_text')
+        .eq('id', docId)
+        .maybeSingle()
+      if (!full.error) {
+        doc = full.data
+      } else if (full.error.code === '42703' || /extracted_text/i.test(full.error.message)) {
+        const partial = await supabase
+          .from(table)
+          .select('file_name, doc_type, ai_summary')
+          .eq('id', docId)
+          .maybeSingle()
+        if (partial.error) return { error: `Document lookup failed: ${partial.error.message}` }
+        doc = partial.data
+      } else {
+        return { error: `Document lookup failed: ${full.error.message}` }
+      }
+      if (!doc) return { error: `Document not found: ${docId}` }
+
+      const raw = doc.extracted_text ?? ''
+      const text = raw.slice(0, 20000)
+      return {
+        file_name: doc.file_name,
+        doc_type: doc.doc_type,
+        ai_summary: doc.ai_summary,
+        extracted_text: text || null,
+        truncated: raw.length > 20000,
+        note: text
+          ? undefined
+          : 'No stored full text for this document (uploaded before full-text indexing, or extraction failed). The ai_summary above is all that is indexed.',
       }
     }
 

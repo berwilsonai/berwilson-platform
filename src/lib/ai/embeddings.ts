@@ -88,6 +88,58 @@ function toVectorLiteral(values: number[]): string {
 }
 
 // ---------------------------------------------------------------------------
+// Tolerant chunk insert (migration-window safe)
+// ---------------------------------------------------------------------------
+
+type AdminClient = ReturnType<typeof createAdminClient>
+
+/**
+ * Insert a chunk, transparently dropping columns the live DB doesn't have yet
+ * (migration window). When PostgREST reports an unknown column (PGRST204)
+ * naming one of `optionalKeys`, that key is removed and the insert retried.
+ * Dropped keys accumulate in `droppedKeys` so a multi-chunk loop only pays the
+ * retry once. Returns ok:false when the row is fundamentally uninsertable —
+ * e.g. its only scope column doesn't exist yet, or the old
+ * chunks_source_check constraint (23514) rejects it.
+ */
+async function insertChunkTolerant(
+  supabase: AdminClient,
+  payload: ChunkInsert,
+  optionalKeys: readonly (keyof ChunkInsert)[],
+  droppedKeys: Set<string>
+): Promise<{ ok: boolean; reason?: string }> {
+  const attempt: ChunkInsert = { ...payload }
+  for (const key of optionalKeys) {
+    if (droppedKeys.has(String(key))) delete attempt[key]
+  }
+
+  for (;;) {
+    const { error } = await supabase.from('chunks').insert(attempt)
+    if (!error) return { ok: true }
+
+    // Old check constraint (pre-20260703000001) rejects opportunity-only chunks
+    if (error.code === '23514') {
+      return { ok: false, reason: `chunks_source_check rejected insert (migration 20260703000001 not applied yet)` }
+    }
+
+    const remaining = optionalKeys.filter((k) => k in attempt)
+    if (remaining.length === 0) return { ok: false, reason: error.message }
+
+    const named = remaining.filter((k) => error.message.includes(String(k)))
+    if (error.code === 'PGRST204' || named.length > 0) {
+      const toDrop = named.length > 0 ? named : remaining
+      for (const k of toDrop) {
+        droppedKeys.add(String(k))
+        delete attempt[k]
+      }
+      continue
+    }
+
+    return { ok: false, reason: error.message }
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Public: embed an approved update
 // ---------------------------------------------------------------------------
 
@@ -154,10 +206,8 @@ export async function embedDocument(
   try {
     const chunks = chunkText(textContent)
 
-    // Migration-window fallback: drop is_company if the column doesn't exist yet
-    // (migration 20260625000002 not applied). Set false after the first miss so
-    // the rest of the loop skips it too.
-    let includeCompany = true
+    // Migration-window tolerance: is_company dropped if 20260625000002 not applied
+    const droppedKeys = new Set<string>()
 
     for (const chunk of chunks) {
       const values = await generateEmbedding(chunk.content)
@@ -165,19 +215,14 @@ export async function embedDocument(
         project_id: projectId,
         document_id: documentId,
         entity_id: entityId ?? null,
+        is_company: isCompany,
         content: chunk.content,
         embedding: toVectorLiteral(values),
         chunk_index: chunk.chunkIndex,
         token_count: chunk.tokenCount,
       }
-      if (includeCompany) payload.is_company = isCompany
-      let { error: insertErr } = await supabase.from('chunks').insert(payload)
-      if (insertErr && includeCompany && (insertErr.code === 'PGRST204' || /is_company/i.test(insertErr.message))) {
-        includeCompany = false
-        delete payload.is_company
-        ;({ error: insertErr } = await supabase.from('chunks').insert(payload))
-      }
-      if (insertErr) throw new Error(`Chunk insert failed: ${insertErr.message}`)
+      const res = await insertChunkTolerant(supabase, payload, ['is_company'], droppedKeys)
+      if (!res.ok) throw new Error(`Chunk insert failed: ${res.reason}`)
     }
 
     await supabase
@@ -190,6 +235,164 @@ export async function embedDocument(
       .from('documents')
       .update({ embedding_status: 'error' })
       .eq('id', documentId)
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Public: opportunity embeddings (docs, notes, snapshots, research reports)
+// All degrade to a warn + skip while migration 20260703000001 is unapplied
+// (chunks.opportunity_id column / relaxed source check don't exist yet).
+// ---------------------------------------------------------------------------
+
+// Max chars fed to the chunker in one call (~100 chunks) — keeps a single
+// embed pass well inside a route's maxDuration.
+const MAX_EMBED_CHARS = 200_000
+
+async function insertOpportunityChunks(
+  supabase: AdminClient,
+  opportunityId: string,
+  text: string,
+  sourceType: 'opportunity' | 'opportunity_document' | 'opportunity_note' | 'email_research_report',
+  opportunityDocumentId?: string | null
+): Promise<boolean> {
+  const chunks = chunkText(text.slice(0, MAX_EMBED_CHARS))
+  const droppedKeys = new Set<string>()
+
+  for (const chunk of chunks) {
+    const values = await generateEmbedding(chunk.content)
+    const payload: ChunkInsert = {
+      opportunity_id: opportunityId,
+      opportunity_document_id: opportunityDocumentId ?? null,
+      source_type: sourceType,
+      content: chunk.content,
+      embedding: toVectorLiteral(values),
+      chunk_index: chunk.chunkIndex,
+      token_count: chunk.tokenCount,
+    }
+    // source_type / opportunity_document_id are droppable; opportunity_id is
+    // not — without it the chunk has no scope, so a missing column means the
+    // migration isn't applied and we skip embedding entirely.
+    const res = await insertChunkTolerant(
+      supabase,
+      payload,
+      ['source_type', 'opportunity_document_id'],
+      droppedKeys
+    )
+    if (!res.ok) {
+      console.warn(`[embeddings] opportunity chunk skipped (${sourceType}): ${res.reason}`)
+      return false
+    }
+  }
+  return true
+}
+
+/** Embed the full text of an opportunity document (replaces its prior chunks). */
+export async function embedOpportunityDocument(
+  oppDocId: string,
+  opportunityId: string,
+  textContent: string
+): Promise<void> {
+  const supabase = createAdminClient()
+  try {
+    const { error: delErr } = await supabase
+      .from('chunks')
+      .delete()
+      .eq('opportunity_document_id', oppDocId)
+    if (delErr) {
+      console.warn(`[embeddings] embedOpportunityDocument skipped (migration pending?): ${delErr.message}`)
+      return
+    }
+    await insertOpportunityChunks(supabase, opportunityId, textContent, 'opportunity_document', oppDocId)
+  } catch (err) {
+    console.error('[embeddings] embedOpportunityDocument failed:', err)
+  }
+}
+
+/**
+ * Embed a one-chunk snapshot of an opportunity's core fields so semantic
+ * search can find the opportunity itself. Delete-and-replace.
+ */
+export async function embedOpportunitySnapshot(opportunityId: string): Promise<void> {
+  const supabase = createAdminClient()
+  try {
+    const { data: opp } = await supabase
+      .from('opportunities')
+      .select('name, opp_type, status, priority, description, objective, thesis, target_name, counterparty, sector, location, estimated_value, deal_structure, lead, next_step')
+      .eq('id', opportunityId)
+      .single()
+    if (!opp) return
+
+    const parts: string[] = [`Opportunity: ${opp.name}`]
+    if (opp.opp_type) parts.push(`Type: ${opp.opp_type}`)
+    if (opp.status) parts.push(`Status: ${opp.status}`)
+    if (opp.priority) parts.push(`Priority: ${opp.priority}`)
+    if (opp.sector) parts.push(`Sector: ${opp.sector}`)
+    if (opp.location) parts.push(`Location: ${opp.location}`)
+    if (opp.target_name) parts.push(`Target: ${opp.target_name}`)
+    if (opp.counterparty) parts.push(`Counterparty: ${opp.counterparty}`)
+    if (opp.estimated_value) parts.push(`Estimated Value: $${Number(opp.estimated_value).toLocaleString()}`)
+    if (opp.deal_structure) parts.push(`Deal Structure: ${opp.deal_structure}`)
+    if (opp.lead) parts.push(`Internal Lead: ${opp.lead}`)
+    if (opp.description) parts.push(`Description: ${opp.description}`)
+    if (opp.objective) parts.push(`Objective: ${opp.objective}`)
+    if (opp.thesis) parts.push(`Thesis: ${opp.thesis}`)
+    if (opp.next_step) parts.push(`Next Step: ${opp.next_step}`)
+
+    const text = parts.join('\n')
+    if (text.length < 30) return
+
+    const { error: delErr } = await supabase
+      .from('chunks')
+      .delete()
+      .eq('opportunity_id', opportunityId)
+      .eq('source_type', 'opportunity')
+    if (delErr) {
+      console.warn(`[embeddings] embedOpportunitySnapshot skipped (migration pending?): ${delErr.message}`)
+      return
+    }
+
+    await insertOpportunityChunks(supabase, opportunityId, text, 'opportunity')
+  } catch (err) {
+    console.error('[embeddings] embedOpportunitySnapshot failed:', err)
+  }
+}
+
+/** Embed an opportunity progress note (append-only). */
+export async function embedOpportunityNote(
+  opportunityId: string,
+  noteBody: string,
+  author?: string | null
+): Promise<void> {
+  const supabase = createAdminClient()
+  try {
+    const { data: opp } = await supabase
+      .from('opportunities')
+      .select('name')
+      .eq('id', opportunityId)
+      .single()
+
+    const date = new Date().toISOString().slice(0, 10)
+    const byline = author ? ` by ${author}` : ''
+    const text = `Note on opportunity ${opp?.name ?? opportunityId}${byline} (${date}): ${noteBody}`
+    if (noteBody.trim().length < 5) return
+
+    await insertOpportunityChunks(supabase, opportunityId, text, 'opportunity_note')
+  } catch (err) {
+    console.error('[embeddings] embedOpportunityNote failed:', err)
+  }
+}
+
+/** Embed a confirmed email-research report against its opportunity (append-only). */
+export async function embedOpportunityReport(
+  opportunityId: string,
+  rawText: string
+): Promise<void> {
+  const supabase = createAdminClient()
+  try {
+    if (!rawText || rawText.trim().length < 20) return
+    await insertOpportunityChunks(supabase, opportunityId, rawText.slice(0, 100_000), 'email_research_report')
+  } catch (err) {
+    console.error('[embeddings] embedOpportunityReport failed:', err)
   }
 }
 

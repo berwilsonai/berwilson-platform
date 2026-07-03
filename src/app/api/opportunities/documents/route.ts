@@ -1,6 +1,11 @@
 import { NextRequest } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { callGemini, callGeminiWithFile } from '@/lib/ai/gemini'
+import { transcribePdfText, storeExtractedText } from '@/lib/ai/document-text'
+import { embedOpportunityDocument } from '@/lib/ai/embeddings'
+
+// Summary + full-text transcription + embedding can take a few minutes on big PDFs
+export const maxDuration = 300
 
 type DocSummary = { summary?: string } | string
 
@@ -71,6 +76,8 @@ export async function POST(request: NextRequest) {
   if (extract_ai && (TEXT_MIME_TYPES.has(file.type) || file.type === PDF_MIME_TYPE)) {
     try {
       let parsed: DocSummary
+      let fullTextContent: string | null = null
+
       if (file.type === PDF_MIME_TYPE) {
         const base64 = Buffer.from(fileBuffer).toString('base64')
         const result = await callGeminiWithFile<DocSummary>({
@@ -83,8 +90,17 @@ export async function POST(request: NextRequest) {
           maxTokens: 512,
         })
         parsed = result.data
+        // Second pass: full-text transcription so CIMs/teasers/white papers are
+        // searchable by content from /intel and the agent.
+        fullTextContent = await transcribePdfText({
+          dataBase64: base64,
+          byteLength: fileBuffer.byteLength,
+          fileName: file.name,
+          userId: SYSTEM_USER_ID,
+        })
       } else {
         const text = new TextDecoder().decode(fileBuffer)
+        fullTextContent = text
         const result = await callGemini<DocSummary>({
           task: 'opp-doc-summary',
           systemPrompt: DOC_SUMMARY_SYSTEM,
@@ -101,6 +117,16 @@ export async function POST(request: NextRequest) {
       if (summary) {
         await supabase.from('opportunity_documents').update({ ai_summary: summary }).eq('id', doc.id)
         doc.ai_summary = summary
+      }
+
+      if (fullTextContent) {
+        await storeExtractedText(supabase, 'opportunity_documents', doc.id, fullTextContent)
+      }
+      // Embed full text when available, else the summary — degrades to a
+      // warn+skip until migration 20260703000001 is applied.
+      const embedText = fullTextContent ?? summary
+      if (embedText) {
+        embedOpportunityDocument(doc.id, opportunity_id, embedText).catch(console.error)
       }
     } catch {
       // AI summary failed — document is still saved

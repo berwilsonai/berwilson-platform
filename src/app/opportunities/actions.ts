@@ -2,6 +2,7 @@
 
 import { redirect } from 'next/navigation'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { embedOpportunitySnapshot } from '@/lib/ai/embeddings'
 import type { TablesInsert } from '@/lib/supabase/types'
 
 export type OpportunityFormState = { error: string } | null
@@ -95,6 +96,9 @@ export async function createOpportunity(
 
   if (error) return { error: `Failed to create opportunity: ${error.message}` }
 
+  // Make the opportunity findable by semantic search (skips pre-migration)
+  embedOpportunitySnapshot(data.id).catch(console.error)
+
   redirect(`/opportunities/${data.id}`)
 }
 
@@ -113,6 +117,9 @@ export async function updateOpportunity(
     .eq('id', id)
 
   if (error) return { error: `Failed to update opportunity: ${error.message}` }
+
+  // Refresh the searchable snapshot (skips pre-migration)
+  embedOpportunitySnapshot(id).catch(console.error)
 
   redirect(`/opportunities/${id}`)
 }

@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { embedUpdate, embedOpportunityReport, embedOpportunitySnapshot } from '@/lib/ai/embeddings'
 import type { TablesInsert } from '@/lib/supabase/types'
 import { SECTORS } from '@/lib/utils/constants'
 import { STAGES } from '@/lib/utils/constants'
@@ -222,6 +223,32 @@ export async function POST(request: NextRequest) {
       body: provenance,
       author: 'Email ingestion',
     })
+  }
+
+  // ── 4b. Make the research report itself searchable from /intel ───────────────
+  const reportText = typeof session.raw_text === 'string' ? session.raw_text.trim() : ''
+  if (projectId && reportText) {
+    // Project-kind: store the report as an approved update so it shows on the
+    // project's Updates tab and flows through the standard embedding path.
+    const reportContent = reportText.slice(0, 100_000)
+    const updateRow: TablesInsert<'updates'> = {
+      project_id: projectId,
+      source: 'manual_paste',
+      raw_content: reportContent,
+      summary: `Email research report${session.label ? ` — ${session.label}` : ''}`,
+      review_state: 'approved',
+    }
+    const { data: update, error: updateErr } = await supabase
+      .from('updates')
+      .insert(updateRow)
+      .select('id')
+      .single()
+    if (updateErr) console.error('Report update insert failed:', updateErr)
+    else embedUpdate(update.id, projectId, reportContent).catch(console.error)
+  }
+  if (opportunityId) {
+    if (reportText) embedOpportunityReport(opportunityId, reportText).catch(console.error)
+    embedOpportunitySnapshot(opportunityId).catch(console.error)
   }
 
   // ── 5. Mark session confirmed ────────────────────────────────────────────────

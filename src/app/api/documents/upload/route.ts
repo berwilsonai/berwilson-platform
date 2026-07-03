@@ -2,6 +2,10 @@ import { NextRequest } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { embedDocument } from '@/lib/ai/embeddings'
 import { callGemini, callGeminiWithFile } from '@/lib/ai/gemini'
+import { transcribePdfText, storeExtractedText } from '@/lib/ai/document-text'
+
+// Summary + full-text transcription + embedding can take a few minutes on big PDFs
+export const maxDuration = 300
 
 type DocSummary = { summary?: string; confidence?: number } | string
 
@@ -121,6 +125,14 @@ export async function POST(request: NextRequest) {
           maxTokens: 512,
         })
         parsed = result.data
+        // Second pass: full-text transcription so the document is searchable
+        // by content, not just its summary. Null on failure/oversize → summary fallback.
+        fullTextContent = await transcribePdfText({
+          dataBase64: base64,
+          byteLength: fileBuffer.byteLength,
+          fileName: file.name,
+          userId: SYSTEM_USER_ID,
+        })
       } else {
         const text = new TextDecoder().decode(fileBuffer)
         fullTextContent = text
@@ -152,6 +164,7 @@ export async function POST(request: NextRequest) {
         if (fullTextContent) embedText = fullTextContent
       }
 
+      if (fullTextContent) await storeExtractedText(supabase, 'documents', doc.id, fullTextContent)
       if (embedText) embedDocument(doc.id, project_id, embedText, entity_id, is_company).catch(console.error)
     } catch {
       // AI extraction failed — document is still saved

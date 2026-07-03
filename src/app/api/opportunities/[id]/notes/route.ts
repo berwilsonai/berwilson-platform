@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { embedOpportunityNote } from '@/lib/ai/embeddings'
 
 interface RouteContext {
   params: Promise<{ id: string }>
@@ -33,6 +34,9 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
 
   // Touch the opportunity so it sorts to the top of the list
   await supabase.from('opportunities').update({ updated_at: new Date().toISOString() }).eq('id', id)
+
+  // Make the note searchable from /intel and the agent (skips pre-migration)
+  embedOpportunityNote(id, text, body.author?.trim() || null).catch(console.error)
 
   return Response.json({ note })
 }

@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { embedOpportunitySnapshot } from '@/lib/ai/embeddings'
 import type { TablesUpdate } from '@/lib/supabase/types'
 
 interface RouteContext {
@@ -43,6 +44,10 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
     .single()
 
   if (error) return Response.json({ error: error.message }, { status: 500 })
+
+  // Refresh the searchable snapshot (skips pre-migration)
+  embedOpportunitySnapshot(id).catch(console.error)
+
   return Response.json({ opportunity: data })
 }
 

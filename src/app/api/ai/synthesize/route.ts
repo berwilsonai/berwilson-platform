@@ -56,6 +56,9 @@ interface RawChunk {
   document_id: string | null
   entity_id: string | null
   party_id: string | null
+  // Present once migration 20260703000001 is applied; undefined from the old RPC
+  opportunity_id?: string | null
+  source_type?: string | null
   content: string
   chunk_index: number
   token_count: number | null
@@ -337,13 +340,29 @@ Active Certifications:\n${certLines || '(none on file)'}
   // Flag if all chunks are low confidence
   const allLowConfidence = topChunks.every((c) => Number(c.source_confidence) < 0.5)
 
+  // Resolve opportunity names for citation labels (column only exists
+  // post-migration 20260703000001 — non-fatal if the table is missing)
+  const oppMap: Record<string, string> = {}
+  const citedOppIds = [...new Set(topChunks.map((c) => c.opportunity_id).filter(Boolean))] as string[]
+  if (citedOppIds.length > 0) {
+    try {
+      const { data: opps } = await admin.from('opportunities').select('id, name').in('id', citedOppIds)
+      for (const o of opps ?? []) oppMap[o.id] = o.name
+    } catch {
+      // Non-fatal — chunks fall back to generic labels
+    }
+  }
+
+  const sourceLabel = (c: RawChunk): string => {
+    if (c.entity_id && entityMap[c.entity_id]) return `Vendor: ${entityMap[c.entity_id]}`
+    if (c.opportunity_id) return `Opportunity: ${oppMap[c.opportunity_id] ?? 'Unknown'}`
+    if (c.project_id) return projectMap[c.project_id] ?? 'Unknown Project'
+    return 'Enrichment Data'
+  }
+
   // 9. Build context for Sonnet
   const contextChunks = topChunks.map((c, i) => {
-    let sourceName = c.project_id ? (projectMap[c.project_id] ?? 'Unknown Project') : ''
-    if (c.entity_id && entityMap[c.entity_id]) {
-      sourceName = `Vendor: ${entityMap[c.entity_id]}`
-    }
-    if (!sourceName) sourceName = 'Enrichment Data'
+    const sourceName = sourceLabel(c)
 
     return {
       index: i + 1,
@@ -375,11 +394,7 @@ Active Certifications:\n${certLines || '(none on file)'}
 
   // 11. Build citation objects for the UI
   const citations: ChunkWithProject[] = topChunks.map((c, i) => {
-    let sourceName = c.project_id ? (projectMap[c.project_id] ?? 'Unknown Project') : ''
-    if (c.entity_id && entityMap[c.entity_id]) {
-      sourceName = `Vendor: ${entityMap[c.entity_id]}`
-    }
-    if (!sourceName) sourceName = 'Enrichment Data'
+    const sourceName = sourceLabel(c)
 
     return {
       citation_index: i + 1,
