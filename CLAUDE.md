@@ -349,8 +349,13 @@ Note the drift flagged in §9: `entities`/vendors partly duplicate this. The *su
 - **Command palette (⌘K / Ctrl+K):** `CommandPalette.tsx` + `AppHeader` host it; new `GET /api/search?q=` does cross-entity ilike search over projects/parties/entities. Replaced the old mobile-only page-search. Desktop search box + mobile search button both open it.
 
 **Highest-leverage next work:**
-1. **Populate the pursuit profile** on `/company` with Ber Wilson's real criteria (only Richard has these facts — don't invent them). This is what makes the fit assessment trustworthy.
+1. **Refine the pursuit profile** on `/company` — a first draft was written 2026-07-03 (see below); Richard still needs to confirm delivery methods/contract vehicles, add the project size range (min/sweet spot/max), disqualifiers, and past performance. Those four gaps are what's left between "usable" and "sharp" fit assessments.
 2. Optionally persist `fit_assessment` on `proposal_intake_sessions` (currently returned in the intake response but not stored).
 3. Tend the known debt in §9 as it gets in the way.
+
+**Done 2026-07-03 (migrations applied + pursuit profile seeded):**
+- **All migrations through `20260704000004` are applied to prod** and `npm run gen-types` verified `database.ts` matches (byte-identical to the hand-maintained file). Note: `supabase db push` / `supabase db query --linked` DO work from Claude Code when Richard explicitly asks — the old "Richard runs migrations" notes below are historical.
+- **Pursuit profile first draft written to `company_profile`** (via `db query --linked`, from Richard's direction: full-spectrum GC, prefab steel manufacturing, military-standard compliance, Native American-owned by a 501(c)(3)): capabilities, all 5 target sectors, geographies (UT flagship + Mountain West + nationwide federal), delivery methods (D-B/D-B-B/CMAR — **assumed, confirm**), contract vehicles (FFP/GMP/Lump Sum — **assumed, confirm**), differentiators, pursuit notes. `about` (the platform brief) untouched. Two certification rows seeded from the brief's credentials line: USACE CQM + DoD EM 385-1-1 (numbers/dates blank). `hasPursuitProfile` is now true — fit assessments no longer self-flag `profile_incomplete`. Left deliberately empty (don't invent): project size range, disqualifiers, past performance, annual revenue, diversity-cert booleans (Native-owned ≠ certified — verify Buy Indian Act / IIP / tribal 8(a) eligibility before claiming set-asides).
+- **UX fix:** the Pursuit Profile section on `/company` now has its own Edit button (the only entry point was the "Edit Profile" button at the top of Company Identity — Richard couldn't find it).
 
 > UPDATE THIS SECTION (and §9 if you resolve debt) at the end of every Claude Code session.
