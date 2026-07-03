@@ -1,6 +1,5 @@
 import { Brain } from 'lucide-react'
 import IntelTabs from '@/components/intel/IntelTabs'
-import BackfillCard from '@/components/intel/BackfillCard'
 
 export const metadata = { title: 'Intel — Ber Wilson Intelligence' }
 
@@ -22,9 +21,6 @@ export default function IntelPage() {
 
       {/* Tabbed interface: Queries | Agent */}
       <IntelTabs />
-
-      {/* One-time index backfill — remove once all targets report done */}
-      <BackfillCard />
     </div>
   )
 }
