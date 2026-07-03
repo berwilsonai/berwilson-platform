@@ -21,6 +21,9 @@ Generate a morning intelligence brief. Be direct, urgent, and actionable.
 Structure:
 ## Good Morning — [Date]
 
+### Steering Check
+(One or two sentences: how today's urgent items line up against the company's Now objectives. Only include when objectives are provided.)
+
 ### Needs Your Attention Today
 (Items requiring immediate action or decision — max 5, ranked by urgency)
 
@@ -38,6 +41,7 @@ Rules:
 - Use specific names, dates, and dollar amounts — not vague summaries.
 - If something is X days overdue, say exactly how many days.
 - If a relationship is going cold, name the person and suggest an action.
+- When company objectives are provided, connect urgent items to the objective they serve where the link is clear — and call out any Now objective with no visible movement.
 - Keep it under 600 words. Executives scan, they don't read essays.`
 
 export async function GET(request: NextRequest) {
@@ -73,6 +77,7 @@ export async function GET(request: NextRequest) {
     { data: ddItems },
     { data: complianceItems },
     { data: dependencies },
+    { data: objectives },
   ] = await Promise.all([
     fetchOpenTasks(supabase, { limit: 300 }),
     supabase.from('projects').select('id, name, sector, stage, estimated_value, location').eq('status', 'active'),
@@ -103,6 +108,13 @@ export async function GET(request: NextRequest) {
       .from('project_dependencies')
       .select('id, description, severity, upstream_project_id, downstream_project_id')
       .eq('status', 'active'),
+    // Steering board — fails quietly (null) pre-migration
+    supabase
+      .from('objectives')
+      .select('title, bucket, target_date, owner:team_members(name)')
+      .eq('status', 'active')
+      .in('bucket', ['now', 'soon'])
+      .order('sort_order'),
   ])
 
   const projectMap: Record<string, string> = {}
@@ -168,7 +180,21 @@ export async function GET(request: NextRequest) {
     `- ${p.name}: ${p.stage} stage, $${((p.estimated_value ?? 0) / 1_000_000).toFixed(1)}M, ${p.sector}, ${p.location ?? 'no location'}`
   )
 
+  const objectiveLines = ((objectives ?? []) as Array<{
+    title: string
+    bucket: string
+    target_date: string | null
+    owner: { name: string } | null
+  }>)
+    .sort((a, b) => (a.bucket === b.bucket ? 0 : a.bucket === 'now' ? -1 : 1))
+    .map(o =>
+      `- [${o.bucket.toUpperCase()}] ${o.title}${o.owner ? ` — ${o.owner.name}` : ''}${o.target_date ? ` (target ${o.target_date})` : ''}`,
+    )
+
   const userMessage = `Today is ${now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}.
+
+COMPANY OBJECTIVES (steering board — Now/Soon):
+${objectiveLines.join('\n') || '(none set)'}
 
 ACTIVE PROJECTS:
 ${projectSummaries.join('\n') || '(none)'}

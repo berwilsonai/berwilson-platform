@@ -13,6 +13,7 @@ import AlertsBanner from '@/components/dashboard/AlertsBanner'
 import HealthPanel from '@/components/dashboard/HealthPanel'
 import RiskOverview from '@/components/dashboard/RiskOverview'
 import NeedsAttention from '@/components/dashboard/NeedsAttention'
+import NowObjectives, { type NowObjectiveItem } from '@/components/dashboard/NowObjectives'
 import ClosingSoon, { type ClosingSoonItem } from '@/components/dashboard/ClosingSoon'
 import { weightedValue } from '@/lib/utils/constants'
 import { fetchOpenTasks } from '@/lib/tasks/queries'
@@ -90,6 +91,8 @@ export default async function DashboardPage({ searchParams }: PageProps) {
     { data: overdueRaw },
     { data: ddRaw },
     { data: expiringCerts },
+    { data: nowObjectivesRaw },
+    { data: objectiveTaskRows },
   ] = await Promise.all([
     supabase.from('projects').select('*').eq('status', 'active'),
     fetchOpenTasks(supabase, { dueBefore: today }),
@@ -116,6 +119,19 @@ export default async function DashboardPage({ searchParams }: PageProps) {
       .eq('is_active', true)
       .lte('expiration_date', in90Days)
       .order('expiration_date', { ascending: true }),
+    // Steering board's Now column. Both selects fail quietly pre-migration
+    // (objectives table / tasks.objective_id may not exist yet) → strip hidden.
+    supabase
+      .from('objectives')
+      .select('id, title, target_date, owner:team_members(name, color)')
+      .eq('status', 'active')
+      .eq('bucket', 'now')
+      .order('sort_order'),
+    supabase
+      .from('tasks')
+      .select('objective_id')
+      .eq('status', 'open')
+      .not('objective_id', 'is', null),
   ])
 
   const activeProjects = projectsRaw ?? []
@@ -301,8 +317,31 @@ export default async function DashboardPage({ searchParams }: PageProps) {
     })
   }
 
+  // Now objectives with open-task counts (from the tasks.objective_id tag)
+  const objectiveTaskCounts: Record<string, number> = {}
+  for (const row of (objectiveTaskRows ?? []) as Array<{ objective_id: string | null }>) {
+    if (row.objective_id) {
+      objectiveTaskCounts[row.objective_id] = (objectiveTaskCounts[row.objective_id] ?? 0) + 1
+    }
+  }
+  const nowObjectives: NowObjectiveItem[] = (
+    (nowObjectivesRaw ?? []) as Array<{
+      id: string
+      title: string
+      target_date: string | null
+      owner: { name: string; color: string | null } | null
+    }>
+  ).map((o) => ({ ...o, openTasks: objectiveTaskCounts[o.id] ?? 0 }))
+
   return (
     <div className="space-y-6">
+
+      {/* ── Steering board: Now objectives lead the morning read ─────────── */}
+      {nowObjectives.length > 0 && (
+        <div className="animate-fade-in-up">
+          <NowObjectives items={nowObjectives} />
+        </div>
+      )}
 
       {/* ── Portfolio health overview ─────────────────────────────────────── */}
       <div className="animate-fade-in-up">
