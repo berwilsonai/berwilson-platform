@@ -11,7 +11,7 @@ export const metadata = { title: 'Vendors, Contractors & Partners — Ber Wilson
 export default async function VendorsPage() {
   const supabase = createAdminClient()
 
-  // Fetch all entities with their project relationships and reviews
+  // Fetch all entities with their project relationships
   // Cast to bypass generated types not yet including 'category' column
   const db = supabase as unknown as import('@supabase/supabase-js').SupabaseClient
   const { data: entities, error } = await db
@@ -20,8 +20,7 @@ export default async function VendorsPage() {
       id, name, entity_type, category, jurisdiction, website_url, description,
       specialties, quality_score, confidence_score, headquarters,
       logo_url, enriched_at,
-      entity_projects(id, project_id, relationship),
-      entity_reviews(id, rating)
+      entity_projects(id, project_id, relationship)
     `)
     .order('name')
 
@@ -33,15 +32,6 @@ export default async function VendorsPage() {
       project_id: string
       relationship: string
     }>) ?? []
-    const reviews = (e.entity_reviews as Array<{
-      id: string
-      rating: number
-    }>) ?? []
-
-    const avgRating = reviews.length > 0
-      ? reviews.reduce((sum, r) => sum + Number(r.rating), 0) / reviews.length
-      : null
-
     return {
       id: e.id,
       name: e.name,
@@ -57,8 +47,6 @@ export default async function VendorsPage() {
       logo_url: e.logo_url,
       enriched_at: e.enriched_at,
       project_count: projects.length,
-      review_count: reviews.length,
-      avg_rating: avgRating,
       relationships: [...new Set(projects.map(p => p.relationship))],
     }
   })

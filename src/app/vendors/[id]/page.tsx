@@ -14,7 +14,6 @@ import { cn } from '@/lib/utils'
 import { ENTITY_CATEGORY_LABELS, ENTITY_CATEGORY_BADGE, type EntityCategory } from '@/lib/utils/constants'
 import { createAdminClient } from '@/lib/supabase/admin'
 import VendorProfileClient from '@/components/vendors/VendorProfileClient'
-import FederalScorecardSection from '@/components/vendors/FederalScorecardSection'
 import MediaGallery from '@/components/shared/MediaGallery'
 
 export const metadata = { title: 'Vendor Profile — Ber Wilson Intelligence' }
@@ -41,13 +40,6 @@ export default async function VendorDetailPage({ params }: PageProps) {
     .select('id, relationship, equity_pct, notes, projects(id, name, status, sector)')
     .eq('entity_id', id)
     .order('created_at', { ascending: false })
-
-  // Fetch reviews
-  const { data: reviews } = await supabase
-    .from('entity_reviews')
-    .select('*, projects(id, name)')
-    .eq('entity_id', id)
-    .order('reviewed_at', { ascending: false })
 
   // Fetch primary contact if set (legacy)
   let primaryContact: { id: string; full_name: string; email: string | null; phone: string | null; title: string | null } | null = null
@@ -76,12 +68,6 @@ export default async function VendorDetailPage({ params }: PageProps) {
     .eq('entity_id', id)
     .order('uploaded_at', { ascending: false })
 
-  // Fetch all projects for the review form dropdown
-  const { data: allProjects } = await supabase
-    .from('projects')
-    .select('id, name')
-    .order('name')
-
   // Fetch vendor photos
   const { data: entityPhotos } = await supabase
     .from('media')
@@ -90,18 +76,6 @@ export default async function VendorDetailPage({ params }: PageProps) {
     .order('is_primary', { ascending: false })
     .order('sort_order')
     .order('created_at')
-
-  // Fetch federal scorecards
-  const { data: federalScorecards } = await (supabase as any)
-    .from('federal_scorecards')
-    .select('*, projects(id, name)')
-    .eq('entity_id', id)
-    .order('created_at', { ascending: false })
-
-  // Calculate average rating
-  const avgRating = reviews && reviews.length > 0
-    ? reviews.reduce((sum, r) => sum + Number(r.rating), 0) / reviews.length
-    : null
 
   return (
     <div className="space-y-6">
@@ -171,17 +145,6 @@ export default async function VendorDetailPage({ params }: PageProps) {
               <span className="text-xs text-muted-foreground">Your Rating</span>
             </div>
           )}
-          {avgRating !== null && (
-            <div className="text-center">
-              <div className="flex items-center gap-1">
-                <Star size={14} className="text-blue-500 dark:text-blue-400 fill-blue-500" />
-                <span className="text-lg font-semibold">{avgRating.toFixed(1)}</span>
-              </div>
-              <span className="text-xs text-muted-foreground">
-                Track Record ({reviews?.length ?? 0})
-              </span>
-            </div>
-          )}
           {entity.confidence_score && (
             <div className="text-center">
               <div className="flex items-center gap-1">
@@ -220,22 +183,12 @@ export default async function VendorDetailPage({ params }: PageProps) {
         scope={{ entityId: id }}
       />
 
-      {/* Federal Scorecards — Vendors & Contractors only */}
-      <FederalScorecardSection
-        entityId={id}
-        entityCategory={((entity as any).category ?? 'vendor') as string}
-        initialScorecards={federalScorecards ?? []}
-        allProjects={allProjects ?? []}
-      />
-
       {/* Client-side interactive sections */}
       <VendorProfileClient
         entity={entity}
         projectLinks={projectLinks ?? []}
-        reviews={reviews ?? []}
         primaryContact={primaryContact as { id: string; full_name: string; email: string | null; phone: string | null; title: string | null } | null}
         linkedContacts={(linkedContacts ?? []) as unknown as Array<{ role: string | null; is_primary: boolean | null; parties: { id: string; full_name: string; email: string | null; phone: string | null; title: string | null } | null }>}
-        allProjects={allProjects ?? []}
         entityDocuments={entityDocs ?? []}
       />
     </div>

@@ -24,7 +24,6 @@ import AvatarUpload from '@/components/contacts/AvatarUpload'
 import LinkedInEditor from '@/components/contacts/LinkedInEditor'
 import EnrichProfileButton from '@/components/contacts/EnrichProfileButton'
 import ContactEnrichmentDisplay from '@/components/contacts/ContactEnrichmentDisplay'
-import BackgroundCheckStatus from '@/components/contacts/BackgroundCheckStatus'
 
 interface PageProps {
   params: Promise<{ id: string }>
@@ -509,23 +508,6 @@ export default async function ContactDetailPage({ params, searchParams }: PagePr
                   </div>
                 </section>
               )}
-
-              {/* Background Check */}
-              <section>
-                <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
-                  Background Check
-                </h2>
-                <div className="rounded-lg border border-border bg-card p-4">
-                  <BackgroundCheckStatus
-                    partyId={id}
-                    completed={party.background_check_completed ?? null}
-                    checkDate={party.background_check_date ?? null}
-                    reference={party.background_check_reference ?? null}
-                    provider={party.background_check_provider ?? null}
-                    notes={party.background_check_notes ?? null}
-                  />
-                </div>
-              </section>
             </div>
           </div>
         )}

@@ -25,12 +25,10 @@ export interface VendorWithStats {
   logo_url: string | null
   enriched_at: string | null
   project_count: number
-  review_count: number
-  avg_rating: number | null
   relationships: string[]
 }
 
-type SortKey = 'name' | 'quality_score' | 'project_count' | 'avg_rating'
+type SortKey = 'name' | 'quality_score' | 'project_count'
 type CategoryTab = 'all' | EntityCategory
 
 interface VendorsClientProps {
@@ -127,8 +125,6 @@ export default function VendorsClient({ vendors }: VendorsClientProps) {
           return (b.quality_score ?? 0) - (a.quality_score ?? 0)
         case 'project_count':
           return b.project_count - a.project_count
-        case 'avg_rating':
-          return (b.avg_rating ?? 0) - (a.avg_rating ?? 0)
       }
     })
   }, [vendors, search, sort, filterRelationship, filterSpecialty, categoryTab])
@@ -231,7 +227,6 @@ export default function VendorsClient({ vendors }: VendorsClientProps) {
         >
           <option value="name">Sort: Name</option>
           <option value="quality_score">Sort: Quality Score</option>
-          <option value="avg_rating">Sort: Track Record</option>
           <option value="project_count">Sort: Projects</option>
         </select>
 
@@ -268,7 +263,7 @@ export default function VendorsClient({ vendors }: VendorsClientProps) {
 }
 
 function VendorCard({ vendor }: { vendor: VendorWithStats }) {
-  const displayScore = vendor.quality_score ?? vendor.avg_rating
+  const displayScore = vendor.quality_score
 
   return (
     <Link
@@ -343,9 +338,6 @@ function VendorCard({ vendor }: { vendor: VendorWithStats }) {
           {ENTITY_CATEGORY_LABELS[vendor.category]}
         </span>
         <span>{vendor.project_count} project{vendor.project_count !== 1 ? 's' : ''}</span>
-        {vendor.review_count > 0 && (
-          <span>{vendor.review_count} review{vendor.review_count !== 1 ? 's' : ''}</span>
-        )}
         {vendor.relationships.length > 0 && (
           <span className="ml-auto truncate max-w-[120px]">
             {vendor.relationships.map(r => RELATIONSHIP_LABELS[r] ?? r).join(', ')}

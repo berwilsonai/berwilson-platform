@@ -4,20 +4,14 @@ import { useState } from 'react'
 import Link from 'next/link'
 import {
   Building2,
-  CheckCircle2,
   Edit2,
   ExternalLink,
   Mail,
   Phone,
-  Plus,
   Sparkles,
-  Star,
-  Trash2,
   User,
-  XCircle,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import ReviewForm from './ReviewForm'
 import EnrichEntityButton from './EnrichEntityButton'
 import VendorEditForm from './VendorEditForm'
 import VendorDocuments from './VendorDocuments'
@@ -29,20 +23,6 @@ interface ProjectLink {
   equity_pct: number | null
   notes: string | null
   projects: { id: string; name: string; status: string | null; sector: string } | null
-}
-
-interface Review {
-  id: string
-  entity_id: string
-  project_id: string | null
-  rating: number
-  on_time: boolean | null
-  on_budget: boolean | null
-  would_rehire: boolean | null
-  notes: string | null
-  reviewed_by: string | null
-  reviewed_at: string | null
-  projects: { id: string; name: string } | null
 }
 
 interface PrimaryContact {
@@ -62,10 +42,8 @@ interface LinkedContact {
 interface VendorProfileClientProps {
   entity: Record<string, unknown>
   projectLinks: ProjectLink[]
-  reviews: Review[]
   primaryContact: PrimaryContact | null
   linkedContacts: LinkedContact[]
-  allProjects: Array<{ id: string; name: string }>
   entityDocuments: DocRecord[]
 }
 
@@ -129,31 +107,15 @@ function ContactsSection({ linkedContacts, primaryContact }: { linkedContacts: L
 export default function VendorProfileClient({
   entity,
   projectLinks,
-  reviews: initialReviews,
   primaryContact,
   linkedContacts,
-  allProjects,
   entityDocuments,
 }: VendorProfileClientProps) {
-  const [reviews, setReviews] = useState(initialReviews)
-  const [showReviewForm, setShowReviewForm] = useState(false)
   const [showEditForm, setShowEditForm] = useState(false)
-
-  const handleReviewAdded = (review: Review) => {
-    setReviews(prev => [review, ...prev])
-    setShowReviewForm(false)
-  }
-
-  const handleReviewDeleted = async (reviewId: string) => {
-    const res = await fetch(`/api/entities/${entity.id}/reviews/${reviewId}`, { method: 'DELETE' })
-    if (res.ok) {
-      setReviews(prev => prev.filter(r => r.id !== reviewId))
-    }
-  }
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-      {/* Left column — Project History & Reviews */}
+      {/* Left column — Project History */}
       <div className="lg:col-span-2 space-y-6">
         {/* Project History */}
         <section>
@@ -168,12 +130,10 @@ export default function VendorProfileClient({
                     <th className="text-left px-3 py-2 font-medium">Project</th>
                     <th className="text-left px-3 py-2 font-medium">Role</th>
                     <th className="text-left px-3 py-2 font-medium">Status</th>
-                    <th className="text-left px-3 py-2 font-medium">Review</th>
                   </tr>
                 </thead>
                 <tbody>
                   {projectLinks.map(link => {
-                    const review = reviews.find(r => r.project_id === link.projects?.id)
                     return (
                       <tr key={link.id} className="border-b border-border/50 last:border-0">
                         <td className="px-3 py-2">
@@ -196,26 +156,6 @@ export default function VendorProfileClient({
                             {link.projects?.status ?? '—'}
                           </span>
                         </td>
-                        <td className="px-3 py-2">
-                          {review ? (
-                            <div className="flex items-center gap-1">
-                              <Star size={10} className="text-amber-500 dark:text-amber-400 fill-amber-500" />
-                              <span>{Number(review.rating).toFixed(1)}</span>
-                              {review.on_time !== null && (
-                                review.on_time
-                                  ? <CheckCircle2 size={10} className="text-green-500 dark:text-green-400 ml-1" />
-                                  : <XCircle size={10} className="text-red-400 ml-1" />
-                              )}
-                              {review.on_budget !== null && (
-                                review.on_budget
-                                  ? <CheckCircle2 size={10} className="text-green-500 dark:text-green-400" />
-                                  : <XCircle size={10} className="text-red-400" />
-                              )}
-                            </div>
-                          ) : (
-                            <span className="text-muted-foreground">—</span>
-                          )}
-                        </td>
                       </tr>
                     )
                   })}
@@ -225,105 +165,6 @@ export default function VendorProfileClient({
           )}
         </section>
 
-        {/* Reviews */}
-        <section>
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-sm font-semibold">Reviews ({reviews.length})</h2>
-            <button
-              onClick={() => setShowReviewForm(true)}
-              className="inline-flex items-center gap-1 h-7 px-2.5 rounded-md bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors"
-            >
-              <Plus size={12} />
-              Add Review
-            </button>
-          </div>
-
-          {showReviewForm && (
-            <ReviewForm
-              entityId={entity.id as string}
-              projects={allProjects}
-              onSaved={handleReviewAdded}
-              onCancel={() => setShowReviewForm(false)}
-            />
-          )}
-
-          {reviews.length === 0 ? (
-            <p className="text-xs text-muted-foreground">No reviews yet. Add one after completing a project.</p>
-          ) : (
-            <div className="space-y-3">
-              {reviews.map(review => (
-                <div key={review.id} className="rounded-lg border border-border p-3">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className="flex items-center gap-0.5">
-                        {[1, 2, 3, 4, 5].map(i => (
-                          <Star
-                            key={i}
-                            size={12}
-                            className={cn(
-                              i <= Math.round(Number(review.rating))
-                                ? 'text-amber-500 dark:text-amber-400 fill-amber-500'
-                                : 'text-muted-foreground/30'
-                            )}
-                          />
-                        ))}
-                      </div>
-                      {review.projects && (
-                        <Link
-                          href={`/projects/${review.projects.id}`}
-                          className="text-xs text-primary hover:underline"
-                        >
-                          {review.projects.name}
-                        </Link>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-muted-foreground">
-                        {review.reviewed_at ? new Date(review.reviewed_at).toLocaleDateString() : '—'}
-                      </span>
-                      <button
-                        onClick={() => handleReviewDeleted(review.id)}
-                        className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
-                        title="Delete review"
-                      >
-                        <Trash2 size={11} />
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Indicators */}
-                  <div className="flex items-center gap-3 mt-2">
-                    {review.on_time !== null && (
-                      <span className={cn('inline-flex items-center gap-1 text-xs', review.on_time ? 'text-green-600 dark:text-green-400' : 'text-red-500 dark:text-red-400')}>
-                        {review.on_time ? <CheckCircle2 size={10} /> : <XCircle size={10} />}
-                        {review.on_time ? 'On time' : 'Late'}
-                      </span>
-                    )}
-                    {review.on_budget !== null && (
-                      <span className={cn('inline-flex items-center gap-1 text-xs', review.on_budget ? 'text-green-600 dark:text-green-400' : 'text-red-500 dark:text-red-400')}>
-                        {review.on_budget ? <CheckCircle2 size={10} /> : <XCircle size={10} />}
-                        {review.on_budget ? 'On budget' : 'Over budget'}
-                      </span>
-                    )}
-                    {review.would_rehire !== null && (
-                      <span className={cn('inline-flex items-center gap-1 text-xs', review.would_rehire ? 'text-green-600 dark:text-green-400' : 'text-red-500 dark:text-red-400')}>
-                        {review.would_rehire ? <CheckCircle2 size={10} /> : <XCircle size={10} />}
-                        {review.would_rehire ? 'Would rehire' : 'Would not rehire'}
-                      </span>
-                    )}
-                  </div>
-
-                  {review.notes && (
-                    <p className="mt-2 text-xs text-muted-foreground">{review.notes}</p>
-                  )}
-                  {review.reviewed_by && (
-                    <p className="mt-1 text-xs text-muted-foreground/70">— {review.reviewed_by}</p>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-        </section>
       </div>
 
       {/* Right column — Sidebar */}
