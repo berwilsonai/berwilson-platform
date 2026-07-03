@@ -18,13 +18,13 @@ export default function ClosingSoon({ items }: { items: ClosingSoonItem[] }) {
   if (items.length === 0) return null
 
   return (
-    <div className="rounded-lg glass-panel shadow-sm overflow-hidden">
-      <div className="flex items-center gap-2 px-4 py-2.5 border-b border-border bg-muted/30">
+    <div className="rounded-xl border border-border bg-card elev-1 overflow-hidden">
+      <div className="flex items-center gap-2 px-4 py-2.5 border-b border-border">
         <Timer size={13} className="text-muted-foreground" />
-        <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+        <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
           Closing Soon
         </span>
-        <span className="ml-auto text-xs text-muted-foreground">{items.length}</span>
+        <span className="ml-auto text-xs text-muted-foreground tabular-nums">{items.length}</span>
       </div>
 
       <div className="divide-y divide-border">

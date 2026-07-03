@@ -122,7 +122,7 @@ export default function ProjectCard({ project, counts, isProgram, parentName, hi
     <Link
       href={`/projects/${project.id}`}
       className={cn(
-        'group block rounded-lg border border-border border-l-[3px] bg-card shadow-sm card-hover-glow',
+        'group block rounded-xl border border-border border-l-[3px] bg-card elev-1 lift',
         STAGE_BORDER[stage],
         className
       )}

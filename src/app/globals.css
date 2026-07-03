@@ -182,43 +182,12 @@
   animation: fade-in-up 0.35s ease-out both;
 }
 
-/* ─── Glassmorphism panels ─────────────────────────────────────────────────── */
-.glass-panel {
-  background: oklch(1 0 0 / 0.7);
-  backdrop-filter: blur(12px) saturate(1.2);
-  border: 1px solid oklch(0.9 0 0 / 0.5);
-}
-.dark .glass-panel {
-  background: oklch(0.18 0.01 260 / 0.7);
-  border: 1px solid oklch(1 0 0 / 0.08);
-}
-
-/* ─── Animated number counter ──────────────────────────────────────────────── */
-@keyframes count-up {
-  from { opacity: 0; transform: translateY(6px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-.animate-count-up {
-  animation: count-up 0.5s ease-out both;
-}
-
 /* ─── Gradient sidebar ─────────────────────────────────────────────────────── */
 .sidebar-gradient {
   background: linear-gradient(180deg, oklch(0.20 0.03 260) 0%, oklch(0.14 0.02 260) 100%);
 }
 .sidebar-nav-active {
   background: linear-gradient(90deg, oklch(0.30 0.04 260) 0%, oklch(0.25 0.03 265) 100%);
-}
-
-/* ─── Enhanced card hover glow ─────────────────────────────────────────────── */
-.card-hover-glow {
-  transition: all 0.2s ease;
-}
-.card-hover-glow:hover {
-  box-shadow:
-    inset 3px 0 0 var(--card-glow-color, oklch(0.55 0.15 145)),
-    0 4px 16px oklch(0 0 0 / 0.08);
-  transform: translateY(-2px);
 }
 
 /* ─── Background depth gradient ────────────────────────────────────────────── */
@@ -263,12 +232,6 @@
 .dark .skeleton-shimmer {
   background: linear-gradient(90deg, oklch(0.22 0 0) 25%, oklch(0.28 0 0) 50%, oklch(0.22 0 0) 75%);
   background-size: 200% 100%;
-}
-
-/* ─── Chart area gradient fills ────────────────────────────────────────────── */
-.chart-gradient-fill {
-  opacity: 0;
-  animation: fade-in-up 0.6s ease-out 0.3s both;
 }
 
 /* ─── Elevation utilities ──────────────────────────────────────────────────── */

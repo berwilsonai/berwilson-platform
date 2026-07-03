@@ -24,7 +24,7 @@ export default function AlertsBanner({ alerts }: { alerts: Alert[] }) {
   const hasMore = alerts.length > 3
 
   return (
-    <div className="rounded-lg border border-red-200 dark:border-red-800/60 bg-red-50 dark:bg-red-950/40 shadow-sm overflow-hidden">
+    <div className="rounded-xl border border-red-200 dark:border-red-800/60 bg-red-50 dark:bg-red-950/40 elev-1 overflow-hidden">
       {/* Dismiss confirmation */}
       {confirmDismiss && (
         <div className="flex items-center gap-2 px-4 py-2.5 bg-red-100 dark:bg-red-900/40 border-b border-red-200 dark:border-red-800/60">

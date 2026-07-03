@@ -66,10 +66,10 @@ export default function RiskOverview() {
   if (notableScores.length === 0) return null
 
   return (
-    <div className="rounded-lg border border-border bg-card shadow-sm overflow-hidden">
-      <div className="flex items-center gap-2 px-4 py-3 border-b border-border">
-        <Shield size={14} className="text-muted-foreground" />
-        <h2 className="text-sm font-semibold text-foreground">Portfolio Risk</h2>
+    <div className="rounded-xl border border-border bg-card elev-1 overflow-hidden">
+      <div className="flex items-center gap-2 px-4 py-2.5 border-b border-border">
+        <Shield size={13} className="text-muted-foreground" />
+        <h2 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Portfolio Risk</h2>
       </div>
 
       <div className="divide-y divide-border">

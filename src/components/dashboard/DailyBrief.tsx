@@ -74,7 +74,7 @@ export default function DailyBrief() {
   if (!brief && !loading && !error) return null
 
   return (
-    <div className="rounded-lg border border-primary/20 bg-primary/[0.03] shadow-sm overflow-hidden">
+    <div className="rounded-xl border border-primary/20 bg-primary/[0.03] elev-1 overflow-hidden">
       {/* Header */}
       <button
         onClick={() => setExpanded(!expanded)}

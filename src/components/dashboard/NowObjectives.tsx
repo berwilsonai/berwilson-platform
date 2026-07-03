@@ -29,8 +29,7 @@ export default function NowObjectives({ items }: { items: NowObjectiveItem[] }) 
   return (
     <div className="rounded-xl border border-border bg-card p-4 elev-1">
       <div className="flex items-center justify-between gap-2 mb-3">
-        <div className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-          <span className="size-2 rounded-full bg-red-500" />
+        <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
           <Target size={13} /> Objectives — Now
         </div>
         <Link

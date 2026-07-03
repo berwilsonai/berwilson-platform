@@ -48,10 +48,10 @@ export default function NeedsAttention({ reviewItems, overdueItems, ddItems, rev
   const hasAttention = reviewItems.length > 0 || overdueItems.length > 0 || ddItems.length > 0 || overdueTasks.length > 0
 
   return (
-    <div className="rounded-lg glass-panel shadow-sm">
-      <div className="flex items-center gap-2 px-4 py-3 border-b border-border">
-        <AlertTriangle size={14} className={cn(hasAttention ? 'text-amber-500 dark:text-amber-400' : 'text-muted-foreground')} />
-        <h2 className="text-sm font-semibold text-foreground heading-tight">Needs Attention</h2>
+    <div className="rounded-xl border border-border bg-card elev-1">
+      <div className="flex items-center gap-2 px-4 py-2.5 border-b border-border">
+        <AlertTriangle size={13} className={cn(hasAttention ? 'text-amber-500 dark:text-amber-400' : 'text-muted-foreground')} />
+        <h2 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Needs Attention</h2>
         {hasAttention && (
           <span className="ml-auto text-xs font-medium tabular-nums bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 rounded px-1.5 py-0.5">
             {reviewItems.length + overdueItems.length + ddItems.length + overdueTasks.length}

@@ -1,32 +1,6 @@
-'use client'
-
-import { useEffect, useState, useRef } from 'react'
-import { CheckCircle2, AlertTriangle, Clock, ClipboardList, ShieldAlert, TrendingUp, HelpCircle } from 'lucide-react'
-import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
-
-// ─── Animated counter component ──────────────────────────────────────────────
-function AnimatedNumber({ value, duration = 800, prefix = '', suffix = '' }: { value: number; duration?: number; prefix?: string; suffix?: string }) {
-  const [display, setDisplay] = useState(0)
-  const ref = useRef<HTMLSpanElement>(null)
-  const hasAnimated = useRef(false)
-
-  useEffect(() => {
-    if (hasAnimated.current) return
-    hasAnimated.current = true
-    const start = performance.now()
-    const animate = (now: number) => {
-      const elapsed = now - start
-      const progress = Math.min(elapsed / duration, 1)
-      // Ease-out cubic
-      const eased = 1 - Math.pow(1 - progress, 3)
-      setDisplay(Math.round(eased * value))
-      if (progress < 1) requestAnimationFrame(animate)
-    }
-    requestAnimationFrame(animate)
-  }, [value, duration])
-
-  return <span ref={ref} className="animate-count-up">{prefix}{display.toLocaleString()}{suffix}</span>
-}
+import Link from 'next/link'
+import { CheckCircle2 } from 'lucide-react'
+import { cn } from '@/lib/utils'
 
 interface HealthPanelProps {
   activeProjects: number
@@ -45,126 +19,11 @@ function formatValue(value: number): string {
   return `$${value.toLocaleString()}`
 }
 
-// Animated value that counts up to the formatted dollar amount
-function AnimatedValue({ value }: { value: number }) {
-  const [display, setDisplay] = useState(0)
-  const hasAnimated = useRef(false)
-
-  useEffect(() => {
-    if (hasAnimated.current) return
-    hasAnimated.current = true
-    const start = performance.now()
-    const duration = 1000
-    const animate = (now: number) => {
-      const elapsed = now - start
-      const progress = Math.min(elapsed / duration, 1)
-      const eased = 1 - Math.pow(1 - progress, 3)
-      setDisplay(Math.round(eased * value))
-      if (progress < 1) requestAnimationFrame(animate)
-    }
-    requestAnimationFrame(animate)
-  }, [value])
-
-  return <span className="animate-count-up tabular-nums">{formatValue(display)}</span>
-}
-
-function computeHealthScore(critical: number, overdue: number, review: number, expiring: number): number {
-  const score =
-    100 -
-    Math.min(critical * 15, 45) -
-    Math.min(overdue * 8, 32) -
-    Math.min(review * 3, 15) -
-    Math.min(expiring * 5, 10)
-  return Math.max(0, Math.min(100, score))
-}
-
-function scoreColor(score: number) {
-  if (score >= 85) return { stroke: '#10b981', strokeEnd: '#34d399', text: 'text-emerald-600 dark:text-emerald-400', bg: 'bg-emerald-50 dark:bg-emerald-950/40', label: 'Excellent' }
-  if (score >= 70) return { stroke: '#3b82f6', strokeEnd: '#60a5fa', text: 'text-blue-600 dark:text-blue-400', bg: 'bg-blue-50 dark:bg-blue-950/40', label: 'Good' }
-  if (score >= 50) return { stroke: '#f59e0b', strokeEnd: '#fbbf24', text: 'text-amber-600 dark:text-amber-400', bg: 'bg-amber-50 dark:bg-amber-950/40', label: 'At Risk' }
-  return { stroke: '#ef4444', strokeEnd: '#f87171', text: 'text-red-600 dark:text-red-400', bg: 'bg-red-50 dark:bg-red-950/40', label: 'Critical' }
-}
-
-function HealthRing({ score }: { score: number }) {
-  const r = 32
-  const circumference = 2 * Math.PI * r
-  const progress = (score / 100) * circumference
-  const colors = scoreColor(score)
-
-  return (
-    <div className="flex flex-col items-center gap-1.5">
-      <div className="relative w-[84px] h-[84px] flex items-center justify-center">
-        <svg viewBox="0 0 80 80" className="absolute inset-0 w-full h-full -rotate-90" role="img" aria-label={`Portfolio health score: ${score} out of 100 — ${colors.label}`}>
-          <title>Health Score: {score}/100</title>
-          <defs>
-            <linearGradient id="health-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
-              <stop offset="0%" stopColor={colors.stroke} />
-              <stop offset="100%" stopColor={colors.strokeEnd} />
-            </linearGradient>
-          </defs>
-          <circle cx="40" cy="40" r={r} fill="none" stroke="#e5e7eb" strokeWidth="7" opacity="0.4" />
-          <circle
-            cx="40"
-            cy="40"
-            r={r}
-            fill="none"
-            stroke="url(#health-gradient)"
-            strokeWidth="7"
-            strokeDasharray={`${progress} ${circumference - progress}`}
-            strokeLinecap="round"
-            style={{ transition: 'stroke-dasharray 0.6s ease' }}
-          />
-        </svg>
-        <div className="flex flex-col items-center leading-none">
-          <span className={`text-2xl font-bold ${colors.text}`}><AnimatedNumber value={score} duration={1000} /></span>
-          <span className="text-xs text-muted-foreground mt-0.5">/ 100</span>
-        </div>
-      </div>
-      <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${colors.bg} ${colors.text}`}>
-        {colors.label}
-      </span>
-    </div>
-  )
-}
-
-function AlertRow({
-  icon: Icon,
-  label,
-  count,
-  dotColor,
-  textColor,
-  barColor,
-  maxBar,
-}: {
-  icon: React.ElementType
-  label: string
-  count: number
-  dotColor: string
-  textColor: string
-  barColor: string
-  maxBar: number
-}) {
-  const barWidth = maxBar > 0 ? Math.min((count / maxBar) * 100, 100) : 0
-
-  return (
-    <div className="flex items-center gap-2">
-      <Icon size={11} className={count > 0 ? textColor : 'text-muted-foreground/50'} />
-      <span className={`text-xs w-24 shrink-0 ${count > 0 ? 'text-foreground' : 'text-muted-foreground/60'}`}>
-        {label}
-      </span>
-      <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
-        <div
-          className={`h-full rounded-full transition-all duration-500 ${count > 0 ? barColor : 'bg-emerald-300'}`}
-          style={{ width: count > 0 ? `${barWidth}%` : '0%' }}
-        />
-      </div>
-      <span className={`text-xs font-semibold tabular-nums w-4 text-right ${count > 0 ? textColor : 'text-muted-foreground/50'}`}>
-        {count}
-      </span>
-    </div>
-  )
-}
-
+/**
+ * Executive KPI band: the state of the portfolio in four calm numbers.
+ * Real figures only — no synthetic score. Detail and navigation live in the
+ * alerts banner and Needs Attention rail below.
+ */
 export default function HealthPanel({
   activeProjects,
   pipelineValue,
@@ -174,145 +33,82 @@ export default function HealthPanel({
   criticalDdCount,
   expiringCertsCount,
 }: HealthPanelProps) {
-  const score = computeHealthScore(criticalDdCount, overdueCount, pendingReview, expiringCertsCount)
   const totalAlerts = criticalDdCount + overdueCount + pendingReview + expiringCertsCount
-  const maxBar = Math.max(criticalDdCount, overdueCount, pendingReview, expiringCertsCount, 1)
 
-  // Stacked bar segments (proportional widths)
-  const segments = [
-    { value: criticalDdCount, color: 'bg-red-500', label: 'Critical DD' },
-    { value: overdueCount, color: 'bg-orange-400', label: 'Overdue' },
-    { value: pendingReview, color: 'bg-amber-300', label: 'In Review' },
-    { value: expiringCertsCount, color: 'bg-yellow-300', label: 'Cert Expiry' },
-  ].filter((s) => s.value > 0)
+  const breakdown = [
+    { count: criticalDdCount, label: 'critical', className: 'text-red-600 dark:text-red-400' },
+    { count: overdueCount, label: 'overdue', className: 'text-orange-600 dark:text-orange-400' },
+    { count: pendingReview, label: 'in review', className: 'text-amber-600 dark:text-amber-400' },
+    { count: expiringCertsCount, label: 'cert expiry', className: 'text-yellow-600 dark:text-yellow-500' },
+  ].filter((b) => b.count > 0)
 
   return (
-    <div className="rounded-lg glass-panel elev-2 overflow-hidden">
-      {/* Header */}
-      <div className="flex items-center gap-2 px-4 py-2.5 border-b border-border bg-muted/30">
-        <TrendingUp size={13} className="text-muted-foreground" />
-        <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-          Portfolio Health
-        </span>
-        <Tooltip>
-          <TooltipTrigger className="text-muted-foreground/50 hover:text-muted-foreground cursor-help">
-            <HelpCircle size={11} />
-          </TooltipTrigger>
-          <TooltipContent>
-            Score based on critical DD items, overdue milestones, pending reviews, and expiring certifications. 85+ is excellent, 70+ good, 50+ at risk.
-          </TooltipContent>
-        </Tooltip>
-        {totalAlerts === 0 && (
-          <span className="ml-auto flex items-center gap-1 text-xs text-emerald-600 dark:text-emerald-400 font-medium">
-            <CheckCircle2 size={11} />
-            All Clear
-          </span>
-        )}
-        {totalAlerts > 0 && (
-          <span className="ml-auto text-xs text-amber-600 dark:text-amber-400 font-medium">
-            {totalAlerts} item{totalAlerts !== 1 ? 's' : ''} need attention
-          </span>
-        )}
-      </div>
-
-      <div className="p-4 grid grid-cols-1 sm:grid-cols-[auto_1fr_auto_auto] gap-5 items-center">
-
-        {/* Health Ring */}
-        <HealthRing score={score} />
-
-        {/* Divider */}
-        <div className="hidden sm:block w-px self-stretch bg-border" />
-
-        {/* Alert breakdown */}
-        <div className="space-y-2 min-w-[200px]">
-          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">
-            Alert Breakdown
-          </p>
-          <AlertRow
-            icon={ShieldAlert}
-            label="Critical DD"
-            count={criticalDdCount}
-            dotColor="text-red-600 dark:text-red-400"
-            textColor="text-red-600 dark:text-red-400"
-            barColor="bg-red-500"
-            maxBar={maxBar}
-          />
-          <AlertRow
-            icon={Clock}
-            label="Overdue"
-            count={overdueCount}
-            dotColor="text-orange-600 dark:text-orange-400"
-            textColor="text-orange-600 dark:text-orange-400"
-            barColor="bg-orange-400"
-            maxBar={maxBar}
-          />
-          <AlertRow
-            icon={ClipboardList}
-            label="In Review"
-            count={pendingReview}
-            dotColor="text-amber-600 dark:text-amber-400"
-            textColor="text-amber-600 dark:text-amber-400"
-            barColor="bg-amber-400"
-            maxBar={maxBar}
-          />
-          <AlertRow
-            icon={AlertTriangle}
-            label="Cert Expiry"
-            count={expiringCertsCount}
-            dotColor="text-yellow-600 dark:text-yellow-400"
-            textColor="text-yellow-600 dark:text-yellow-400"
-            barColor="bg-yellow-400"
-            maxBar={maxBar}
-          />
-
-          {/* Stacked bar summary */}
-          <div className="pt-1" role="img" aria-label={segments.length === 0 ? 'No alerts' : segments.map(s => `${s.label}: ${s.value}`).join(', ')}>
-            <div className="flex h-2 rounded-full overflow-hidden gap-px">
-              {segments.length === 0 ? (
-                <div className="flex-1 bg-emerald-400 rounded-full" />
-              ) : (
-                segments.map((s, i) => (
-                  <div
-                    key={i}
-                    className={`${s.color} transition-all duration-500`}
-                    style={{ flex: s.value }}
-                    title={`${s.label}: ${s.value}`}
-                  />
-                ))
-              )}
-            </div>
-          </div>
+    <div className="rounded-xl border border-border bg-card elev-1 px-5 py-4 sm:px-6">
+      <dl className="grid grid-cols-2 gap-x-8 gap-y-5 lg:grid-cols-4">
+        <div className="min-w-0">
+          <dt className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            Pipeline Value
+          </dt>
+          <dd className="mt-1 text-3xl font-semibold text-foreground tnum heading-tight">
+            {pipelineValue > 0 ? formatValue(pipelineValue) : '—'}
+          </dd>
+          <dd className="mt-0.5 text-xs text-muted-foreground">Total across active projects</dd>
         </div>
 
-        {/* Divider */}
-        <div className="hidden sm:block w-px self-stretch bg-border" />
+        <div className="min-w-0">
+          <dt className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            Weighted Pipeline
+          </dt>
+          <dd className="mt-1 text-3xl font-semibold text-foreground tnum heading-tight">
+            {weightedPipelineValue > 0 ? formatValue(weightedPipelineValue) : '—'}
+          </dd>
+          <dd className="mt-0.5 text-xs text-muted-foreground">Adjusted for win probability</dd>
+        </div>
 
-        {/* Pipeline value + project count */}
-        <div className="flex flex-col gap-3 min-w-[110px]">
-          <div>
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-              Pipeline Value
-            </p>
-            <p className="text-3xl font-bold text-foreground mt-1 heading-tight">
-              {pipelineValue > 0 ? <AnimatedValue value={pipelineValue} /> : '—'}
-            </p>
-            <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
-              <TrendingUp size={11} className="text-emerald-500 dark:text-emerald-400 shrink-0" />
-              <span className="font-semibold text-emerald-600 dark:text-emerald-400 tabular-nums">
-                {weightedPipelineValue > 0 ? formatValue(weightedPipelineValue) : '—'}
+        <div className="min-w-0">
+          <dt className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            Active Projects
+          </dt>
+          <dd className="mt-1 text-3xl font-semibold text-foreground tnum heading-tight">
+            {activeProjects}
+          </dd>
+          <dd className="mt-0.5 text-xs text-muted-foreground">
+            <Link href="/projects" className="hover:text-foreground transition-colors">
+              View pipeline →
+            </Link>
+          </dd>
+        </div>
+
+        <div className="min-w-0">
+          <dt className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            Needs Attention
+          </dt>
+          <dd
+            className={cn(
+              'mt-1 text-3xl font-semibold tnum heading-tight',
+              totalAlerts > 0 ? 'text-foreground' : 'text-muted-foreground'
+            )}
+          >
+            {totalAlerts}
+          </dd>
+          <dd className="mt-0.5 text-xs">
+            {totalAlerts === 0 ? (
+              <span className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-medium">
+                <CheckCircle2 size={12} /> All clear
               </span>
-              <span className="whitespace-nowrap">weighted (P-win)</span>
-            </p>
-          </div>
-          <div>
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-              Active Projects
-            </p>
-            <p className="text-3xl font-bold text-foreground mt-1 heading-tight"><AnimatedNumber value={activeProjects} duration={600} /></p>
-          </div>
+            ) : (
+              <span className="text-muted-foreground">
+                {breakdown.map((b, i) => (
+                  <span key={b.label}>
+                    {i > 0 && ' · '}
+                    <span className={cn('font-medium tnum', b.className)}>{b.count}</span> {b.label}
+                  </span>
+                ))}
+              </span>
+            )}
+          </dd>
         </div>
-
-      </div>
+      </dl>
     </div>
   )
 }
