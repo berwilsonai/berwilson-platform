@@ -9,10 +9,11 @@ import { isRole } from './permissions'
 // Resolution rules (must stay in sync with middleware.ts):
 // 1. Pre-migration (team_members has no role/auth_user_id columns): everyone
 //    is admin — identical to today's behavior, so the code can ship first.
-// 2. Bootstrap (migration applied but NO team_member linked yet): everyone is
-//    admin, so Richard can't lock himself out before linking his own account.
-// 3. Linked user: their team_member row's role.
-// 4. Unlinked user once linking has started: member (own tasks only) — the
+// 2. Linked user: their team_member row's role.
+// 3. Bootstrap (no linked, active ADMIN exists yet): unlinked users are
+//    admin, so the executives can't lock themselves out — linking a PM or
+//    member first must never demote the unlinked admin accounts.
+// 4. Unlinked user once an admin is linked: member (own tasks only) — the
 //    safe default for an auth account nobody has classified yet.
 
 export interface Viewer {
@@ -58,12 +59,19 @@ export const getViewer = cache(async (): Promise<Viewer | null> => {
   }
 
   const linked = (members ?? []).filter((m) => m.auth_user_id)
-  if (linked.length === 0) {
-    return { ...base, role: 'admin', isAdmin: true, preMigration: false, bootstrap: true }
-  }
-
   const me = linked.find((m) => m.auth_user_id === user.id)
-  if (!me || !me.active) {
+
+  if (!me) {
+    // Unlinked account. Bootstrap: until a linked, active ADMIN exists,
+    // unlinked users are admin — linking a PM/member first must never
+    // demote the executives' accounts.
+    const adminLinked = linked.some((m) => m.role === 'admin' && m.active)
+    if (!adminLinked) {
+      return { ...base, role: 'admin', isAdmin: true, preMigration: false, bootstrap: true }
+    }
+    return { ...base, role: 'member', isAdmin: false, preMigration: false, bootstrap: false }
+  }
+  if (!me.active) {
     return { ...base, role: 'member', isAdmin: false, preMigration: false, bootstrap: false }
   }
 
