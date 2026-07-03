@@ -20,19 +20,19 @@ import type { ProjectSector, ProjectStage } from '@/lib/supabase/types'
 /**
  * Shared Email Ingestion processing path.
  *
- * This is the single function behind BOTH the manual paste/upload flow
- * (`/api/email-ingestion/analyze`) and the automatic inbound delivery from n8n
- * (`/api/email-ingestion/inbound`). It maps a research report into a unified
+ * This is the single function behind BOTH the in-platform Email Research run
+ * (`/api/email-research/run`) and the manual paste/upload flow
+ * (`/api/email-ingestion/analyze`). It maps a research report into a unified
  * record via Gemini, reuses the proposal matchers + fit assessment, and stages a
  * `pending` `email_intake_sessions` row awaiting the same human review/confirm
  * step. It never auto-confirms anything.
  */
 
-/** Placeholder owner when the ingest wasn't run by a logged-in user (e.g. n8n inbound). */
+/** Placeholder owner when the ingest wasn't run by a logged-in user. */
 export const SYSTEM_USER_ID = '00000000-0000-0000-0000-000000000000'
 
-// Generous cap — gemini-2.5-flash has a large context window; the n8n package is
-// already thread-truncated. Beyond this we trim to protect latency/cost.
+// Generous cap — gemini-2.5-flash has a large context window; research reports
+// are already thread-truncated. Beyond this we trim to protect latency/cost.
 const MAX_CHARS = 200_000
 
 /** Error carrying an HTTP status so route handlers can translate it to a Response. */
@@ -48,7 +48,7 @@ export class EmailIntakeError extends Error {
 export interface AnalyzeEmailReportInput {
   rawText: string
   label: string | null
-  /** Owner of the ingest — a real user id, or SYSTEM_USER_ID for machine (n8n) delivery. */
+  /** Owner of the ingest — a real user id, or SYSTEM_USER_ID for machine delivery. */
   userId: string
 }
 

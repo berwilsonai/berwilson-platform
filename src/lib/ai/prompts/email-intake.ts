@@ -1,8 +1,9 @@
 /**
  * Email Ingestion extraction prompt.
  *
- * The n8n workflow on Richard's Mac gathers Outlook threads + attachments and
- * produces a markdown research package (per-thread people/facts/decisions/actions).
+ * The in-platform Email Research run (/api/email-research/run) gathers Outlook
+ * threads + attachments and produces a markdown research package (per-thread
+ * transcripts + attachment extractions); reports can also be pasted manually.
  * This prompt maps that package into a single proposed CRM record — an Opportunity
  * OR a Project — plus the people to capture as contacts and the tasks to open.
  *

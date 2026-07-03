@@ -37,7 +37,7 @@ Canonical reference for every Claude Code session working on the Ber Wilson plat
 | Charts | Recharts | Equity + dashboards. |
 | PDF | `@react-pdf/renderer` | Equity scenario exports. |
 | Client data/state | `@tanstack/react-query`, `zustand` | Equity module only. |
-| Microsoft Graph | Microsoft Graph API (OAuth) | Powers `/calendar` meeting prep + party enrichment. The email-to-task ingestion scraper was removed 2026-06-25; OAuth + `email_tokens` retained for calendar. |
+| Microsoft Graph | Microsoft Graph API (OAuth) | Powers `/calendar` meeting prep, party enrichment, and **on-demand Email Research** (`/email-research` — human-triggered `$search` over the connected mailbox, human-confirmed intake). The automatic email-to-task scraper was removed 2026-06-25 and stays removed. |
 | Vector Search | pgvector inside Supabase Postgres | `gemini-embedding-001`, 768-dim. |
 | File Storage | Supabase Storage (`documents` bucket) | Organized by project / entity / site ID. |
 | Deployment | Vercel + Supabase | No containers, no Docker, no servers. |
@@ -188,15 +188,12 @@ NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
 SUPABASE_SERVICE_ROLE_KEY=
 GEMINI_API_KEY=                  # all runtime AI + embeddings
-MICROSOFT_TENANT_ID=             # email ingestion
+MICROSOFT_TENANT_ID=             # Graph OAuth (calendar, enrichment, email research)
 MICROSOFT_CLIENT_ID=
 MICROSOFT_CLIENT_SECRET=
 MICROSOFT_WEBHOOK_SECRET=
-N8N_WEBHOOK_URL=                 # Email Research trigger → n8n workflow webhook (server-only)
-N8N_WEBHOOK_SECRET=              # sent as X-Webhook-Secret on the outbound trigger call (server-only)
-INGESTION_INBOUND_SECRET=        # required as X-Ingestion-Secret on /api/email-ingestion/inbound (n8n → platform; distinct from N8N_WEBHOOK_SECRET)
 ```
-`ANTHROPIC_API_KEY` and `PERPLEXITY_API_KEY` are no longer used — remove from any new env files.
+`ANTHROPIC_API_KEY` and `PERPLEXITY_API_KEY` are no longer used — remove from any new env files. `N8N_WEBHOOK_URL` / `N8N_WEBHOOK_SECRET` / `INGESTION_INBOUND_SECRET` were retired 2026-07-02 when Email Research moved in-platform — **Richard: delete them from Vercel** (they were never in `.env.local`).
 
 ### Git
 - Main branch: `main` (this is the live-deploy branch — pushing to it deploys to Vercel production).
@@ -242,7 +239,7 @@ Note the drift flagged in §9: `entities`/vendors and portfolio `stakeholders` p
 - Reintroduce a second AI provider SDK — runtime AI is Gemini. (Removing Anthropic was deliberate.)
 - Pre-build features for future phases.
 - Store CUI until GovCloud migration is complete.
-- Re-add the email-to-task scraper — it was deliberately removed 2026-06-25 (tasks are now manually created in the team task system). Microsoft Graph is kept for calendar/enrichment only.
+- Re-add the **automatic** email-to-task scraper — the webhook-subscription pipeline that silently turned inbox mail into records was deliberately removed 2026-06-25 and stays removed. The on-demand `/email-research` flow (2026-07-02) is different and allowed: a human triggers a mailbox search, and nothing is created without the human review/confirm step in Email Ingestion.
 
 ---
 
@@ -250,9 +247,26 @@ Note the drift flagged in §9: `entities`/vendors and portfolio `stakeholders` p
 
 **Reality:** well beyond the original Phase 1/2 plan. Live and in daily use on Vercel production.
 
-**Working:** projects (CRUD, pipeline/program views, hierarchy, all detail tabs), **opportunities** (new — see below), dashboard, attention/timeline/capacity, **team tasks**, contacts + vendors directories, company profile (thin), review queue, activity log, manual-paste extraction, intel (RAG + agent), proposal intake → assessment → project creation, **email ingestion** (n8n report → opportunity/project + people + tasks), portfolio site hierarchy, equity & valuation suite. **Calendar/meeting-prep still uses Microsoft Graph (OAuth retained); the email-to-task scraper was removed (see below).**
+**Working:** projects (CRUD, pipeline/program views, hierarchy, all detail tabs), **opportunities** (new — see below), dashboard, attention/timeline/capacity, **team tasks**, contacts + vendors directories, company profile (thin), review queue, activity log, manual-paste extraction, intel (RAG + agent), proposal intake → assessment → project creation, **email research + ingestion** (in-platform Outlook sweep → report → opportunity/project + people + tasks), portfolio site hierarchy, equity & valuation suite. **Calendar/meeting-prep still uses Microsoft Graph (OAuth retained); the email-to-task scraper was removed (see below).**
 
-**Done 2026-07-02 (Email Research trigger + automatic ingestion):**
+**Done 2026-07-02 (universal RAG + in-platform Email Research — n8n retired):**
+- **Feature A — universal cross-CRM query.** The RAG architecture was sound but coverage had holes; closed them:
+  - **Full PDF text is now indexed.** All three document-upload routes (`api/documents/upload`, `api/documents`, `api/opportunities/documents`) run a second Gemini transcription pass (`src/lib/ai/document-text.ts`, PDFs ≤15MB, `maxTokens 60000`), store it in new `documents.extracted_text` / `opportunity_documents.extracted_text`, and embed the FULL text instead of the 2-3 sentence summary (summary remains the fallback for oversize/failed extraction). `maxDuration=300` on those routes.
+  - **Opportunities are searchable.** New chunk columns `opportunity_id` / `opportunity_document_id` / `source_type`; new embedders in `embeddings.ts` (`embedOpportunityDocument` / `embedOpportunitySnapshot` (delete-and-replace on create/edit/PATCH) / `embedOpportunityNote` / `embedOpportunityReport`), all built on a shared `insertChunkTolerant` helper that drops unknown columns (PGRST204) and detects the old check constraint (23514) → warn+skip pre-migration. Wired into opportunity create/edit/PATCH, notes POST, doc upload, and email-ingestion confirm.
+  - **4 new agent tools** (`agent-tools.ts`): `list_opportunities`, `query_opportunity` (fuzzy name resolve + notes + doc metadata), `search_tasks` (assignee/project/opportunity/status filters, latest note), `get_document_content` (reads `extracted_text` so the agent can quote sources; tolerant retry). Agent prompt now explains the opportunities-vs-projects split. `search_knowledge_base` + synthesize citations label opportunity chunks (`Opportunity: <name>`).
+  - **One-time backfill:** `api/admin/backfill-embeddings` (batched; targets `project_documents` / `opportunity_documents` / `opportunities` / `opportunity_notes`; 409 with a clear message pre-migration) + `BackfillCard` on `/intel` that loops until done (stall guard). Remove the card after the backfill runs clean.
+  - Migration **`20260703000001_universal_rag.sql`**: chunk columns + relaxed `chunks_source_check` + `extracted_text` columns + `match_chunks` DROP/recreate with **identical args** and extended return shape (so `match-chunks.ts` needed no change; the old RPC pre-migration just returns rows without the new fields).
+- **Feature B — Email Research moved fully in-platform (n8n / Mac Studio / local Qwen retired).**
+  - New `src/lib/integrations/graph-search.ts`: `searchConversations` (Graph `$search`, KQL-escaped, client-side date filter — `$search` can't combine with `$filter`/`$orderby`; groups hits by `conversationId`, newest-first, cap 15) and `fetchConversationMessages` (`$filter=conversationId eq`, **no $orderby** — Graph rejects the combo; JS sort, most recent 30 kept). Mailbox: `tuaone@berwilson.com` (Mail.Read was already in SCOPES; if the stored grant predates it, reconnect via `api/email/oauth`).
+  - New `api/email-research/run` (`maxDuration=300`, auth-gated): search → per-thread transcript (`extractPlainText`, 6k chars/msg) → attachments (deduped name+size across reply chains, max 3/thread; inline/>10MB/non-PDF-image skipped with a note line in the report) → Gemini flash extraction per attachment → one markdown report (~190k char cap, oldest threads trimmed with a note) → `analyzeEmailReport` → `{session_id}` → client redirects straight to the `/email-ingestion/[id]` review screen. No auto-confirm — human review stays mandatory.
+  - `EmailResearchForm` reworked: synchronous run with a "takes 1–4 minutes" loading state + time-range select (90d/1y/all); redirects to review on success. Manual paste on `/email-ingestion` still works as a fallback.
+  - **Removed:** `api/email-research/trigger`, `api/email-ingestion/inbound` (+ its `middleware.ts` public-allowlist line), the `n8n/` directory, and the three n8n env vars (see §7 — Richard deletes them from Vercel). `SYSTEM_USER_ID` kept as the auth fallback.
+  - **Confirm-time RAG tie-in:** on email-ingestion confirm, project-kind stores the report as an approved `updates` row (visible on the project's Updates tab) + `embedUpdate`; opportunity-kind runs `embedOpportunityReport` + snapshot. The handoff document itself becomes queryable from `/intel`.
+- `tsc` + eslint clean on all touched files; `next build` clean. Both features pushed to main (auto-deploys).
+
+> **DB push status (2026-07-02, universal RAG):** `20260703000001_universal_rag.sql` must be applied (Richard runs migrations), then `npm run gen-types`. **Pre-migration degradations (all silent, nothing breaks):** PDF full text is embedded but not stored; opportunity snapshot/note/doc/report embedding warn+skips; `get_document_content` returns summary-only; backfill returns 409. **Post-push checklist for Richard:** `supabase db push` → `npm run gen-types` → open `/intel` and run all four backfill targets → spot-check by asking the agent about a PDF's contents and an opportunity. Also: the **first `/email-research` run may need a Microsoft reconnect** (`api/email/oauth`) if the stored token predates the Mail.Read scope.
+
+**Done 2026-07-02 (Email Research trigger + automatic ingestion) — SUPERSEDED same day: the n8n trigger/inbound plumbing described below was replaced by the in-platform run above; kept for history:**
 - **Closed the loop both ways** so reports arrive automatically instead of being copy-pasted. Two distinct secrets: `N8N_WEBHOOK_SECRET` (outbound trigger) and `INGESTION_INBOUND_SECRET` (inbound delivery) — never reused, never client-side.
 - **Trigger:** new authenticated page **`/email-research`** (`EmailResearchForm`) — search term + optional export label + "Run Email Research". Fire-and-forget: it POSTs to `api/email-research/trigger`, which (auth-gated) makes a server-to-server POST to `process.env.N8N_WEBHOOK_URL` with header `X-Webhook-Secret: N8N_WEBHOOK_SECRET` and body `{ searchTerm, exportLabel }`, returns as soon as the webhook is dispatched (10s abort cap), and never leaks the URL/secret. Confirmation tells the user the report will show under Email Ingestion > Recent.
 - **Inbound:** new **`api/email-ingestion/inbound`** (called by n8n, not a browser) — added to `middleware.ts`'s public allowlist (exact path `=== '/api/email-ingestion/inbound'`); its only auth is header `X-Ingestion-Secret === INGESTION_INBOUND_SECRET` (401 otherwise). Accepts `{ raw_text, label }` and runs the **exact same shared processing path** as the manual paste flow. Lands as a `pending` session under Recent — **no auto-confirm**; the human review/confirm step stays mandatory.

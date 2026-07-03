@@ -26,8 +26,8 @@ export default async function EmailIngestionPage() {
           Email Ingestion
         </h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Paste an email research report (from the n8n workflow) and Ber AI turns it into a
-          proposed opportunity or project — with people and tasks — for you to review and confirm.
+          Run Email Research (or paste a report below) and Ber AI turns it into a proposed
+          opportunity or project — with people and tasks — for you to review and confirm.
         </p>
       </div>
 

@@ -13,9 +13,9 @@ export default function EmailResearchPage() {
           Email Research
         </h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Kick off an automated sweep of your Outlook threads for a person, email, or project.
-          Ber AI assembles a research report and drops it into Email Ingestion for review — no
-          copy-paste needed.
+          Sweep your Outlook threads for a person, email, or project. Ber AI reads the matching
+          threads and attachments, assembles a research report, and takes you straight to the
+          review screen — nothing is created until you confirm.
         </p>
       </div>
 

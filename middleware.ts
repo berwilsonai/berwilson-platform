@@ -41,7 +41,6 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith('/auth/set-password') ||
     pathname === '/api/cron/risk-scores' ||         // Risk scoring cron job
     pathname.startsWith('/api/email/oauth/callback') || // OAuth redirect from Microsoft (calendar auth)
-    pathname === '/api/email-ingestion/inbound' ||       // n8n report delivery (gated by X-Ingestion-Secret)
     pathname.startsWith('/equity/share/') ||            // Equity shared scenario links (token-gated)
     pathname.startsWith('/api/equity/share/')            // Equity share API (token validation)
 

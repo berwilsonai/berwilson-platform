@@ -5,10 +5,10 @@ import { useRouter } from 'next/navigation'
 import { Loader2, FileUp, Sparkles } from 'lucide-react'
 
 /**
- * Paste-or-upload entry point for the Email Ingestion flow. The n8n workflow
- * emails a markdown research report; the user pastes it here (or drops the .md/.txt
- * file, read client-side as text) and we POST it to /api/email-ingestion/analyze,
- * then route to the review screen for the staged session.
+ * Paste-or-upload entry point for the Email Ingestion flow. Most reports now
+ * arrive automatically via /email-research; this form covers any report from
+ * elsewhere — paste the text (or drop a .md/.txt file, read client-side) and we
+ * POST it to /api/email-ingestion/analyze, then route to the review screen.
  */
 export default function EmailIngestForm() {
   const router = useRouter()
