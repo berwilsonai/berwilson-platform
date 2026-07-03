@@ -51,7 +51,6 @@ export type Database = {
           metadata: Json | null
           project_id: string | null
           record_id: string | null
-          site_id: string | null
           table_name: string
         }
         Insert: {
@@ -65,7 +64,6 @@ export type Database = {
           metadata?: Json | null
           project_id?: string | null
           record_id?: string | null
-          site_id?: string | null
           table_name: string
         }
         Update: {
@@ -79,7 +77,6 @@ export type Database = {
           metadata?: Json | null
           project_id?: string | null
           record_id?: string | null
-          site_id?: string | null
           table_name?: string
         }
         Relationships: [
@@ -88,13 +85,6 @@ export type Database = {
             columns: ["project_id"]
             isOneToOne: false
             referencedRelation: "projects"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "activity_log_site_id_fkey"
-            columns: ["site_id"]
-            isOneToOne: false
-            referencedRelation: "sites"
             referencedColumns: ["id"]
           },
         ]
@@ -307,7 +297,6 @@ export type Database = {
           opportunity_id: string | null
           party_id: string | null
           project_id: string | null
-          site_id: string | null
           source_type: string | null
           token_count: number | null
           update_id: string | null
@@ -325,7 +314,6 @@ export type Database = {
           opportunity_id?: string | null
           party_id?: string | null
           project_id?: string | null
-          site_id?: string | null
           source_type?: string | null
           token_count?: number | null
           update_id?: string | null
@@ -343,7 +331,6 @@ export type Database = {
           opportunity_id?: string | null
           party_id?: string | null
           project_id?: string | null
-          site_id?: string | null
           source_type?: string | null
           token_count?: number | null
           update_id?: string | null
@@ -389,13 +376,6 @@ export type Database = {
             columns: ["project_id"]
             isOneToOne: false
             referencedRelation: "projects"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "chunks_site_id_fkey"
-            columns: ["site_id"]
-            isOneToOne: false
-            referencedRelation: "sites"
             referencedColumns: ["id"]
           },
           {
@@ -517,7 +497,6 @@ export type Database = {
       }
       compliance_items: {
         Row: {
-          component_id: string | null
           created_at: string | null
           due_date: string | null
           evidence_doc_id: string | null
@@ -527,12 +506,10 @@ export type Database = {
           project_id: string | null
           requirement: string
           responsible_party: string | null
-          site_id: string | null
           status: Database["public"]["Enums"]["compliance_status"] | null
           updated_at: string | null
         }
         Insert: {
-          component_id?: string | null
           created_at?: string | null
           due_date?: string | null
           evidence_doc_id?: string | null
@@ -542,12 +519,10 @@ export type Database = {
           project_id?: string | null
           requirement: string
           responsible_party?: string | null
-          site_id?: string | null
           status?: Database["public"]["Enums"]["compliance_status"] | null
           updated_at?: string | null
         }
         Update: {
-          component_id?: string | null
           created_at?: string | null
           due_date?: string | null
           evidence_doc_id?: string | null
@@ -557,18 +532,10 @@ export type Database = {
           project_id?: string | null
           requirement?: string
           responsible_party?: string | null
-          site_id?: string | null
           status?: Database["public"]["Enums"]["compliance_status"] | null
           updated_at?: string | null
         }
         Relationships: [
-          {
-            foreignKeyName: "compliance_items_component_id_fkey"
-            columns: ["component_id"]
-            isOneToOne: false
-            referencedRelation: "components"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "compliance_items_evidence_doc_id_fkey"
             columns: ["evidence_doc_id"]
@@ -588,13 +555,6 @@ export type Database = {
             columns: ["responsible_party"]
             isOneToOne: false
             referencedRelation: "parties"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "compliance_items_site_id_fkey"
-            columns: ["site_id"]
-            isOneToOne: false
-            referencedRelation: "sites"
             referencedColumns: ["id"]
           },
         ]
@@ -686,7 +646,6 @@ export type Database = {
         Row: {
           ai_summary: string | null
           classification: string | null
-          component_id: string | null
           confidence: number | null
           doc_type: string | null
           embedding_status: string | null
@@ -698,7 +657,6 @@ export type Database = {
           is_company: boolean
           mime_type: string | null
           project_id: string | null
-          site_id: string | null
           source: Database["public"]["Enums"]["update_source"] | null
           storage_path: string
           uploaded_at: string | null
@@ -707,7 +665,6 @@ export type Database = {
         Insert: {
           ai_summary?: string | null
           classification?: string | null
-          component_id?: string | null
           confidence?: number | null
           doc_type?: string | null
           embedding_status?: string | null
@@ -719,7 +676,6 @@ export type Database = {
           is_company?: boolean
           mime_type?: string | null
           project_id?: string | null
-          site_id?: string | null
           source?: Database["public"]["Enums"]["update_source"] | null
           storage_path: string
           uploaded_at?: string | null
@@ -728,7 +684,6 @@ export type Database = {
         Update: {
           ai_summary?: string | null
           classification?: string | null
-          component_id?: string | null
           confidence?: number | null
           doc_type?: string | null
           embedding_status?: string | null
@@ -740,20 +695,12 @@ export type Database = {
           is_company?: boolean
           mime_type?: string | null
           project_id?: string | null
-          site_id?: string | null
           source?: Database["public"]["Enums"]["update_source"] | null
           storage_path?: string
           uploaded_at?: string | null
           uploaded_by?: string | null
         }
         Relationships: [
-          {
-            foreignKeyName: "documents_component_id_fkey"
-            columns: ["component_id"]
-            isOneToOne: false
-            referencedRelation: "components"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "documents_entity_id_fkey"
             columns: ["entity_id"]
@@ -766,13 +713,6 @@ export type Database = {
             columns: ["project_id"]
             isOneToOne: false
             referencedRelation: "projects"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "documents_site_id_fkey"
-            columns: ["site_id"]
-            isOneToOne: false
-            referencedRelation: "sites"
             referencedColumns: ["id"]
           },
         ]
@@ -1338,11 +1278,6 @@ export type Database = {
       parties: {
         Row: {
           avatar_url: string | null
-          background_check_completed: boolean | null
-          background_check_date: string | null
-          background_check_notes: string | null
-          background_check_provider: string | null
-          background_check_reference: string | null
           company: string | null
           created_at: string | null
           email: string | null
@@ -1363,11 +1298,6 @@ export type Database = {
         }
         Insert: {
           avatar_url?: string | null
-          background_check_completed?: boolean | null
-          background_check_date?: string | null
-          background_check_notes?: string | null
-          background_check_provider?: string | null
-          background_check_reference?: string | null
           company?: string | null
           created_at?: string | null
           email?: string | null
@@ -1388,11 +1318,6 @@ export type Database = {
         }
         Update: {
           avatar_url?: string | null
-          background_check_completed?: boolean | null
-          background_check_date?: string | null
-          background_check_notes?: string | null
-          background_check_provider?: string | null
-          background_check_reference?: string | null
           company?: string | null
           created_at?: string | null
           email?: string | null
@@ -2040,7 +1965,6 @@ export type Database = {
           id: string
           mentioned_parties: Json
           mentioned_projects: Json
-          outlook_web_link: string | null
           project_id: string | null
           raw_content: string | null
           review_state: Database["public"]["Enums"]["review_state"] | null
@@ -2061,7 +1985,6 @@ export type Database = {
           id?: string
           mentioned_parties?: Json
           mentioned_projects?: Json
-          outlook_web_link?: string | null
           project_id?: string | null
           raw_content?: string | null
           review_state?: Database["public"]["Enums"]["review_state"] | null
@@ -2082,7 +2005,6 @@ export type Database = {
           id?: string
           mentioned_parties?: Json
           mentioned_projects?: Json
-          outlook_web_link?: string | null
           project_id?: string | null
           raw_content?: string | null
           review_state?: Database["public"]["Enums"]["review_state"] | null
