@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { MessageSquare, Plus, ChevronDown, ChevronRight, Square, CheckSquare, ExternalLink } from 'lucide-react'
+import { MessageSquare, Plus, ChevronDown, ChevronRight, Square, CheckSquare } from 'lucide-react'
 import EmptyState from '@/components/shared/EmptyState'
 import SourceTag from '@/components/shared/SourceTag'
 import ConfidenceBadge from '@/components/shared/ConfidenceBadge'
@@ -135,18 +135,6 @@ function UpdateCard({ update, onSaved }: { update: Update; onSaved: () => void }
           <span className="text-xs text-muted-foreground">
             {formatTimestamp(update.created_at)}
           </span>
-          {update.source === 'email' && update.outlook_web_link && (
-            <a
-              href={update.outlook_web_link as string}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs font-medium text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-950/40 transition-colors"
-              title="Open in Outlook"
-            >
-              <ExternalLink size={11} />
-              Outlook
-            </a>
-          )}
         </div>
         <UpdateEditModal updateId={update.id} onSaved={onSaved} />
       </div>
@@ -273,20 +261,6 @@ function UpdateCard({ update, onSaved }: { update: Update; onSaved: () => void }
               {update.raw_content}
             </pre>
           ) : null}
-        </div>
-      ) : update.source === 'email' && update.outlook_web_link ? (
-        <div className="border-t border-border px-4 py-2">
-          <span className="text-xs text-muted-foreground">
-            Email body purged after review.{' '}
-            <a
-              href={update.outlook_web_link as string}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 underline"
-            >
-              View in Outlook
-            </a>
-          </span>
         </div>
       ) : null}
     </div>

@@ -34,9 +34,6 @@ Canonical reference for every Claude Code session working on the Ber Wilson plat
 | Frontend | Next.js 16 (App Router, TypeScript) on Vercel | Server components default. Client only for interactivity. |
 | Styling | Tailwind CSS v4 + shadcn/ui (`@base-ui/react`) | No custom CSS unless unavoidable. |
 | Runtime AI | **Google Gemini** (`@google/generative-ai`) | All runtime AI. See §5. |
-| Charts | Recharts | Equity + dashboards. |
-| PDF | `@react-pdf/renderer` | Equity scenario exports. |
-| Client data/state | `@tanstack/react-query`, `zustand` | Equity module only. |
 | Microsoft Graph | Microsoft Graph API (OAuth) | Powers `/calendar` meeting prep, party enrichment, and **on-demand Email Research** (`/email-research` — human-triggered `$search` over the connected mailbox, human-confirmed intake). The automatic email-to-task scraper was removed 2026-06-25 and stays removed. |
 | Vector Search | pgvector inside Supabase Postgres | `gemini-embedding-001`, 768-dim. |
 | File Storage | Supabase Storage (`documents` bucket) | Organized by project / entity / site ID. |
@@ -80,27 +77,23 @@ src/
 │   ├── review/               # Review queue for low-confidence AI items
 │   ├── email-log/            # Ingested-email log
 │   ├── activity/             # Append-only audit log
-│   ├── portfolio/            # Site portfolio hierarchy (sites → capital/compliance/components/stakeholders)
-│   ├── equity/               # Equity & valuation suite (cap table, exit scenarios, investor deal,
-│   │                         #   valuation, originator fees, shareable scenarios)
 │   ├── login/, auth/         # Auth
 │   └── api/                  # ~85 route handlers (see below)
-├── components/               # Feature-grouped UI (projects/, dashboard/, equity/, portfolio/,
-│                             #   contacts/, vendors/, intel/, agent/, review/, layout/, ui/, shared/)
+├── components/               # Feature-grouped UI (projects/, dashboard/, contacts/, vendors/,
+│                             #   intel/, agent/, review/, opportunities/, layout/, ui/, shared/)
 ├── lib/
 │   ├── ai/                   # gemini.ts, agent.ts, agent-tools.ts, embeddings.ts, research.ts,
 │   │                         #   proposal-matching.ts, prompts/*
 │   ├── email/                # pipeline.ts, participants.ts
-│   ├── equity/               # calculations/*, constants.ts, format.ts, pdf/*
-│   ├── integrations/         # microsoft-graph.ts, procore.ts (stub), types.ts
+│   ├── integrations/         # microsoft-graph.ts, graph-search.ts, types.ts
 │   ├── supabase/             # client.ts, server.ts (RLS), admin.ts (service role), types.ts
 │   ├── risk-scoring.ts, rate-limit.ts
 │   └── utils/                # constants, sectors, stages, activity
-├── hooks/                    # use-stored-state, equity-* hooks
-└── types/                    # database.ts (GENERATED — source of truth), domain.ts, equity-domain.ts
+├── hooks/                    # use-stored-state
+└── types/                    # database.ts (GENERATED — source of truth), domain.ts
 ```
 
-**API routes** live under `src/app/api/`. Major groups: `ai/*` (extract, classify, synthesize, brief, draft, agent, research, meeting-prep), `proposals/*` (intake, confirm, upload-chunk), `documents/*`, `projects/*`, `parties/*`, `entities/*`, `portfolio/*`, `equity/*`, `email/*`, `cron/*`, plus per-resource CRUD.
+**API routes** live under `src/app/api/`. Major groups: `ai/*` (extract, classify, synthesize, brief, draft, agent, research, meeting-prep), `proposals/*` (intake, confirm, upload-chunk), `documents/*`, `projects/*`, `parties/*`, `entities/*`, `email/*`, `cron/*`, plus per-resource CRUD.
 
 ---
 
@@ -120,12 +113,10 @@ Migrations live in `supabase/migrations/` (41 as of this writing, numbered chron
 ### Table groups (read database.ts for columns)
 - **Core CRM:** `projects` (with `parent_project_id` hierarchy, `bid_due_date`, `win_probability`, capture fields), `project_players`, `milestones`, `updates`, `documents`, `dd_items`, `financing_structures`, `compliance_items`, `project_dependencies`.
 - **Tasks (2026-06-25):** `tasks` (real task model — title/what/why/how/assignee_id/project_id/due_date/status/completed_at), `task_notes` (per-task notes feed), `team_members` (assignee list, seeded Richard/Eric). Replaces the old `updates.action_items` JSON for the task UI.
-- **Directory:** `parties` (people + orgs via `is_organization`), `contact_aliases`, `entities` (legal entities/vendors), `entity_projects`, `party_entities`, `entity_reviews`, `federal_scorecards`, `certifications`.
-- **Company:** `company_profile`, `media`, `trade_secrets`, `ts_exposure_items`.
+- **Directory:** `parties` (people + orgs via `is_organization`), `contact_aliases`, `entities` (legal entities/vendors), `entity_projects`, `party_entities`, `certifications`.
+- **Company:** `company_profile`, `media`.
 - **AI / intelligence:** `ai_queries`, `chunks` (pgvector), `agent_conversations`, `agent_messages`, `research_artifacts`, `review_queue`, `risk_scores`, `proposal_intake_sessions`, `stored_briefs`, `portfolio_briefs`.
-- **Microsoft Graph:** `email_tokens` (OAuth — calendar/enrichment), `document_distributions`. (`processed_emails`, `graph_subscriptions` are now unused after the email-scraper removal — safe to drop.)
-- **Portfolio (site hierarchy):** `sites`, `components`, `funding_sources`, `revenue_share_agreements`, `stakeholder_interactions`, `stakeholder_relationships`, `corridors`, `rail_branches`, `sub_engagements`, `brands`, `dream_quotes`.
-- **Equity:** `equity_scenarios`, `equity_share_links`.
+- **Microsoft Graph:** `email_tokens` (OAuth — calendar/enrichment/email research).
 - **Audit:** `activity_log` (append-only).
 - **RPCs:** `match_chunks`, `match_parties_by_name`, `match_projects_by_name`.
 
@@ -203,7 +194,7 @@ MICROSOFT_WEBHOOK_SECRET=
 
 ## 8. SECURITY / COMPLIANCE
 
-- Middleware (`middleware.ts`) gates every route: unauthenticated users are redirected to `/login`. Public exceptions: login/auth, the Graph webhook, cron endpoints, and token-gated equity share links.
+- Middleware (`middleware.ts`) gates every route: unauthenticated users are redirected to `/login`. Public exceptions: login/auth, the risk-scores cron, and the Microsoft OAuth callback.
 - **RLS is defense-in-depth, not the active boundary.** App traffic — including ~33 server pages — uses the service-role admin client (`lib/supabase/admin.ts`), which bypasses RLS. The auth boundary is the middleware. This is an accepted trade-off for a 2-user internal tool; if the team grows or sensitive data lands, move pages to the RLS-respecting server client (`lib/supabase/server.ts`).
 - `documents.classification` flags standard vs sensitive. All AI calls logged to `ai_queries`.
 - US-only infrastructure. **Do not store CUI** until a GovCloud migration is done. GovCloud trigger: annual DoD revenue > $2M OR a contract requiring CMMC L2. Stack is portable by design (standard Postgres, no vendor lock-in).
@@ -213,12 +204,12 @@ MICROSOFT_WEBHOOK_SECRET=
 ## 9. KNOWN DEBT / AUDIT NOTES (2026-06-22)
 
 Captured so future sessions don't rediscover them:
-- **Scope sprawl.** ~60K lines for a 2-person CRM (nav consolidated 19 → 15 destinations 2026-07-03). The **Equity** (~4.6K lines) and **Portfolio** (~3K lines) modules are large, mostly self-contained, and arguably off the core mission. Decision (Richard, 2026-06-22): **keep both for now**, just clean up. Revisit if maintenance cost bites.
+- ~~Scope sprawl~~ **LARGELY RESOLVED 2026-07-03:** the Equity & Valuation and Portfolio site-hierarchy modules were removed entirely (~13.5K lines across code + generated types), along with background checks, vendor scorecards/reviews, the Procore stub, and dead scraper-era tables/functions. Nav is 15 → 13 destinations. If a CFO joins and needs basic finance tools/reports, build a fresh purpose-built section then — do not resurrect the old modules.
 - ~~Overlapping "attention" surfaces~~ **RESOLVED 2026-07-03:** `/attention` folded into Dashboard (Needs Attention panel + sidebar badge on Dashboard), `/capacity` folded into `/tasks` (per-person workload chips); both old routes redirect. `/timeline` left primary nav (linked from the Projects toolbar). One attention engine remains: `/api/attention` (also feeds the agent's `get_attention_items`).
-- **Three directory concepts** (Contacts/parties, Vendors/entities, Portfolio stakeholders) overlap. Original intent (§10) was one `parties` directory; code drifted. Still open — the next consolidation candidate.
+- **Two directory concepts** (Contacts/parties, Vendors/entities) overlap; portfolio stakeholders were removed with the Portfolio module 2026-07-03. Original intent (§10) was one `parties` directory. Still open — the next consolidation candidate.
 - **Type drift.** Generated types lag the schema; recurring inline casts (`project as { … }`). Regenerate and fix.
-- **Speculative early-build features** (Procore stub, eval system, background-check/enrichment scaffolding) exist ahead of need.
-- **Legacy `action_items` — reads retired 2026-07-03.** Nothing reads `updates.action_items` for task purposes anymore (attention, calendar, briefs, drafts, meeting prep, daily-brief cron, and the agent's `get_open_items` all read the `tasks` table via `src/lib/tasks/queries.ts`). The extraction prompt still *writes* `action_items` onto `updates` rows; once extraction is rerouted to create real tasks (through review), the column can be dropped. Old email-era tables `processed_emails`/`graph_subscriptions` and the `updates.outlook_web_link` column are unused — safe to drop in a future migration.
+- ~~Speculative early-build features~~ **RESOLVED 2026-07-03:** Procore stub, background checks, and vendor scorecards/reviews removed. Party/entity enrichment (Gemini research) is real and stays.
+- **Legacy `action_items` — reads retired 2026-07-03.** Nothing reads `updates.action_items` for task purposes anymore (attention, calendar, briefs, drafts, meeting prep, daily-brief cron, and the agent's `get_open_items` all read the `tasks` table via `src/lib/tasks/queries.ts`). The extraction prompt still *writes* `action_items` onto `updates` rows; once extraction is rerouted to create real tasks (through review), the column can be dropped. Old email-era tables `processed_emails`/`graph_subscriptions` and `updates.outlook_web_link` are dropped by `20260704000001_simplification_drops.sql`.
 - **Pre-existing lint noise:** two `react-hooks/purity` errors in `src/app/dashboard/page.tsx` (`Date.now()` in a server component — rule misfire, runtime fine).
 - **`team_members` is a 4th people-concept** (alongside parties/entities/stakeholders), deliberately kept tiny and separate so task assignment stays fast. If the team-vs-contact overlap ever matters, reconcile with `parties`.
 
@@ -248,7 +239,19 @@ Note the drift flagged in §9: `entities`/vendors and portfolio `stakeholders` p
 
 **Reality:** well beyond the original Phase 1/2 plan. Live and in daily use on Vercel production.
 
-**Working:** projects (CRUD, pipeline/program views, hierarchy, all detail tabs), **opportunities**, dashboard (single attention surface), timeline, **team tasks** (with per-person workload), contacts + vendors directories, company profile (thin), review queue, activity log, manual-paste extraction, intel (RAG + streaming agent) + **ambient Ask Ber AI dock (⌘J, every page)**, proposal intake → assessment → project creation, **Email Intake** (in-platform Outlook sweep → report → opportunity/project + people + tasks), portfolio site hierarchy, equity & valuation suite. **Calendar/meeting-prep still uses Microsoft Graph (OAuth retained); the email-to-task scraper was removed (see below).**
+**Working:** projects (CRUD, pipeline/program views, hierarchy, all detail tabs), **opportunities**, dashboard (single attention surface), timeline, **team tasks** (with per-person workload), contacts + vendors directories, company profile (thin), review queue, activity log, manual-paste extraction, intel (RAG + streaming agent) + **ambient Ask Ber AI dock (⌘J, every page)**, proposal intake → assessment → project creation, **Email Intake** (in-platform Outlook sweep → report → opportunity/project + people + tasks). **Calendar/meeting-prep still uses Microsoft Graph (OAuth retained); the email-to-task scraper was removed (see below).** Equity & Portfolio modules removed 2026-07-03 (see below).
+
+**Done 2026-07-03 (simplification pass 2 — cut the off-mission modules):**
+- **Equity & Valuation removed** (~6.4K lines): `src/app/equity`, `components/equity`, `lib/equity`, `api/equity`, equity hooks/store/types, nav + middleware + layout references. `formatCurrencyCompact` relocated to `src/lib/utils/format.ts` (TaskDetailSheet imports it from there). Four now-orphaned deps uninstalled: `@tanstack/react-query`, `zustand`, `@react-pdf/renderer`, `recharts`.
+- **Portfolio site-hierarchy removed** (~5K lines): `src/app/portfolio`, `components/portfolio`, `api/portfolio`; the two site-scoped agent tools (`get_stakeholders`, `get_funding_sources`) + their prompt guidance; portfolio constants/enums/type aliases; `site_id` handling in `api/documents/upload`. **Kept:** `portfolio_briefs` (the daily whole-company brief), `get_portfolio_summary` (cross-project), risk scoring. Decision context: a CFO hire is coming — if finance tooling is needed, build a fresh section, don't resurrect this.
+- **Speculative cuts:** background checks (widget + API + contact-page section), vendor scorecards & reviews (FederalScorecardSection, ReviewForm, API routes, review stats in the vendors list/detail), Procore stub, dead scraper-era Graph webhook/processed-email helpers in `microsoft-graph.ts`, outlook_web_link UI in UpdatesTab.
+- **Nav 15 → 13** (Finance group gone). Sidebar/mobile/⌘K/header titles updated.
+- **Opportunities gained `on_hold`** ("On Hold", amber) — parked deals no longer masquerade as active or get force-closed. Outside the pipeline bar (detail page shows an On Hold banner). Plain-text status, app constants only (`src/lib/utils/opportunities.ts`), no migration.
+- **UI consistency:** new shared `ConfirmDialog` (`src/components/ui/confirm-dialog.tsx`); every `window.confirm()`/`window.alert()` replaced with it + sonner toasts. Dark mode now follows `prefers-color-scheme` when no explicit theme is stored (toggle still overrides).
+- Migration **`20260704000001_simplification_drops.sql`** drops it all: equity ×2 tables, portfolio ×12 tables + 9 enums + site/component columns on documents/compliance_items/activity_log/chunks (site-scoped chunks deleted; `documents_scope_check` re-created without site refs), `federal_scorecards`, `entity_reviews`, parties `background_check_*` columns, `processed_emails`, `graph_subscriptions`, `trade_secrets`, `ts_exposure_items`, `document_distributions`, `updates.outlook_web_link`. All `IF EXISTS` — code shipped first, so it can land any time.
+- `database.ts` hand-trimmed to match; `tsc` + full `next build` clean.
+
+> **DB push status (2026-07-03, simplification pass 2):** `20260704000001_simplification_drops.sql` must be applied (Richard runs migrations), then `npm run gen-types`. Nothing breaks pre-migration — the dropped tables/columns simply sit unused. **Data in the dropped tables (equity scenarios, portfolio sites/stakeholders/funding, scorecards, reviews) is permanently deleted — confirmed OK 2026-07-03.**
 
 **Done 2026-07-03 (simplification + ambient AI — "simplification is sophistication" pass):**
 - **Task truth unified.** All "what needs me" surfaces now read the `tasks` table instead of legacy `updates.action_items` JSON: `/api/attention`, `/calendar`, project + portfolio briefs, drafts, meeting prep, the daily-brief cron (which also gained a "due in 7 days" section), and the agent's `get_open_items`. Shared helper: `src/lib/tasks/queries.ts` (`fetchOpenTasks` + prompt formatters, dual-schema tolerant, no embeds).
