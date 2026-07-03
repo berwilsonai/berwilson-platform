@@ -3,6 +3,11 @@
  * Kept separate from microsoft-graph.ts (OAuth/calendar/legacy) — this file
  * owns search + conversation assembly only.
  *
+ * Multi-mailbox: all calls authenticate with the ONE connected account
+ * (AUTH_EMAIL — its token is the only row in email_tokens) but can target any
+ * mailbox that account has delegated access to, via /users/{mailbox}/…
+ * That requires the Mail.Read.Shared scope on the stored grant.
+ *
  * Graph quirks encoded here:
  * - $search cannot combine with $filter/$orderby/$skip; results are
  *   relevance-ranked (max 250/page), so date filtering happens client-side.
@@ -11,13 +16,23 @@
  *   inefficient filter) — sort in JS instead.
  */
 
-import { getValidAccessToken, type GraphMessage } from './microsoft-graph'
+import { getValidAccessToken, type GraphMessage, type GraphAttachment } from './microsoft-graph'
 
 const GRAPH_BASE = 'https://graph.microsoft.com/v1.0'
-const TARGET_EMAIL = 'tuaone@berwilson.com'
+
+/** The account whose OAuth token we hold (the only row in email_tokens). */
+const AUTH_EMAIL = 'tuaone@berwilson.com'
+
+/** Mailboxes Email Research sweeps. AUTH_EMAIL has delegated access to all. */
+export const RESEARCH_MAILBOXES = [
+  AUTH_EMAIL,
+  'info@berwilson.com',
+  'moose@berwilson.com',
+] as const
 
 export interface ConversationSummary {
   conversationId: string
+  mailbox: string
   subject: string
   latestReceived: string // ISO
   messageCount: number
@@ -37,8 +52,8 @@ interface MessageStub {
   hasAttachments: boolean
 }
 
-async function graphGet<T>(path: string, email: string): Promise<T> {
-  const token = await getValidAccessToken(email)
+async function graphGet<T>(path: string): Promise<T> {
+  const token = await getValidAccessToken(AUTH_EMAIL)
   const res = await fetch(`${GRAPH_BASE}${path}`, {
     headers: { Authorization: `Bearer ${token}` },
   })
@@ -50,14 +65,14 @@ async function graphGet<T>(path: string, email: string): Promise<T> {
 }
 
 /**
- * Search the mailbox for messages matching a term and group the hits into
+ * Search one mailbox for messages matching a term and group the hits into
  * conversations, newest first, capped at maxConversations.
  */
 export async function searchConversations(
   term: string,
-  opts: { sinceDays?: number; maxConversations?: number; email?: string } = {}
+  opts: { mailbox?: string; sinceDays?: number; maxConversations?: number } = {}
 ): Promise<SearchConversationsResult> {
-  const email = opts.email ?? TARGET_EMAIL
+  const mailbox = opts.mailbox ?? AUTH_EMAIL
   const maxConversations = Math.min(opts.maxConversations ?? 15, 25)
 
   // KQL term: escape embedded double quotes, wrap the whole thing in quotes
@@ -69,8 +84,7 @@ export async function searchConversations(
   })
 
   const result = await graphGet<{ value: MessageStub[] }>(
-    `/users/${email}/messages?${params}`,
-    email
+    `/users/${encodeURIComponent(mailbox)}/messages?${params}`
   )
 
   let hits = result.value ?? []
@@ -89,6 +103,7 @@ export async function searchConversations(
     if (!existing) {
       byConversation.set(m.conversationId, {
         conversationId: m.conversationId,
+        mailbox,
         subject: m.subject || '(no subject)',
         latestReceived: m.receivedDateTime,
         messageCount: 1,
@@ -119,9 +134,9 @@ export async function searchConversations(
  */
 export async function fetchConversationMessages(
   conversationId: string,
-  opts: { email?: string; maxMessages?: number } = {}
+  opts: { mailbox?: string; maxMessages?: number } = {}
 ): Promise<GraphMessage[]> {
-  const email = opts.email ?? TARGET_EMAIL
+  const mailbox = opts.mailbox ?? AUTH_EMAIL
   const maxMessages = opts.maxMessages ?? 30
 
   const params = new URLSearchParams({
@@ -131,8 +146,7 @@ export async function fetchConversationMessages(
   })
 
   const result = await graphGet<{ value: GraphMessage[] }>(
-    `/users/${email}/messages?${params}`,
-    email
+    `/users/${encodeURIComponent(mailbox)}/messages?${params}`
   )
 
   const messages = (result.value ?? []).sort((a, b) =>
@@ -141,4 +155,19 @@ export async function fetchConversationMessages(
 
   // Keep the most recent N while preserving chronological order
   return messages.length > maxMessages ? messages.slice(messages.length - maxMessages) : messages
+}
+
+/**
+ * List a message's attachments in any accessible mailbox. (The legacy
+ * fetchAttachments in microsoft-graph.ts assumes the message lives in
+ * AUTH_EMAIL's own store — this one targets the owning mailbox.)
+ */
+export async function fetchMessageAttachments(
+  messageId: string,
+  mailbox: string
+): Promise<GraphAttachment[]> {
+  const result = await graphGet<{ value: GraphAttachment[] }>(
+    `/users/${encodeURIComponent(mailbox)}/messages/${messageId}/attachments`
+  )
+  return result.value ?? []
 }

@@ -1,16 +1,23 @@
 import { NextRequest } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { searchConversations, fetchConversationMessages } from '@/lib/integrations/graph-search'
-import { fetchAttachments, extractPlainText, type GraphAttachment } from '@/lib/integrations/microsoft-graph'
+import {
+  searchConversations,
+  fetchConversationMessages,
+  fetchMessageAttachments,
+  RESEARCH_MAILBOXES,
+  type ConversationSummary,
+} from '@/lib/integrations/graph-search'
+import { extractPlainText, type GraphAttachment } from '@/lib/integrations/microsoft-graph'
 import { callGeminiWithFile } from '@/lib/ai/gemini'
 import { analyzeEmailReport, EmailIntakeError } from '@/lib/email-ingestion/analyze'
 
 /**
  * In-platform Email Research (replaces the external n8n workflow).
  *
- * Searches the connected Outlook mailbox for threads matching a term, reads
- * the messages + attachments, assembles one markdown research report, and
- * feeds it through the shared email-ingestion analyzer. The result lands as a
+ * Searches the connected Outlook mailboxes (RESEARCH_MAILBOXES — one OAuth
+ * grant with delegated access) for threads matching a term, reads the
+ * messages + attachments, assembles one markdown research report, and feeds
+ * it through the shared email-ingestion analyzer. The result lands as a
  * pending session under Email Ingestion — nothing is created without the
  * human review/confirm step.
  */
@@ -55,29 +62,50 @@ export async function POST(request: NextRequest) {
     return Response.json({ error: 'A search term is required.' }, { status: 400 })
   }
 
-  // ── 1. Find matching conversations ──────────────────────────────────────────
-  let search
-  try {
-    search = await searchConversations(searchTerm, { sinceDays, maxConversations: MAX_CONVERSATIONS })
-  } catch (err) {
-    const message = err instanceof Error ? err.message : 'Graph search failed'
-    if (/No stored tokens/i.test(message)) {
+  // ── 1. Find matching conversations across all research mailboxes ───────────
+  // Per-mailbox failures degrade gracefully (noted in the report) — a shared
+  // mailbox the grant can't reach yet shouldn't sink the whole run.
+  const mailboxNotes: string[] = []
+  const searchResults = await Promise.all(
+    RESEARCH_MAILBOXES.map(async (mailbox) => {
+      try {
+        return await searchConversations(searchTerm, { mailbox, sinceDays, maxConversations: MAX_CONVERSATIONS })
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'search failed'
+        mailboxNotes.push(
+          /401|403|InvalidAuthenticationToken|Access is denied|ErrorAccessDenied|insufficient/i.test(message)
+            ? `Mailbox ${mailbox} could not be searched — access denied. Reconnect Microsoft at /api/email/oauth to grant shared-mailbox access (Mail.Read.Shared).`
+            : `Mailbox ${mailbox} could not be searched (${message.slice(0, 160)}).`
+        )
+        return null
+      }
+    })
+  )
+
+  if (searchResults.every((r) => r === null)) {
+    const first = mailboxNotes[0] ?? ''
+    if (/access denied|Reconnect/i.test(first)) {
       return Response.json(
-        { error: 'Microsoft account not connected — run the email OAuth flow (Settings → connect Outlook) and try again.' },
+        { error: 'Outlook access was refused for every mailbox. Reconnect the Microsoft account at /api/email/oauth (the stored grant may predate the current scopes).' },
         { status: 503 }
       )
     }
-    if (/401|403|InvalidAuthenticationToken|insufficient/i.test(message)) {
-      return Response.json(
-        { error: 'Outlook access was refused. Reconnect the Microsoft account (the stored grant may predate Mail.Read).' },
-        { status: 503 }
-      )
-    }
-    console.error('[email-research] search failed:', message)
-    return Response.json({ error: 'Outlook search failed. Try again shortly.' }, { status: 502 })
+    console.error('[email-research] all mailbox searches failed:', mailboxNotes)
+    return Response.json(
+      { error: 'Outlook search failed. If this persists, reconnect Microsoft at /api/email/oauth.' },
+      { status: 502 }
+    )
   }
 
-  if (search.conversations.length === 0) {
+  const allConversations: ConversationSummary[] = searchResults
+    .filter((r): r is NonNullable<typeof r> => r !== null)
+    .flatMap((r) => r.conversations)
+    .sort((a, b) => b.latestReceived.localeCompare(a.latestReceived))
+  const totalFound = searchResults.reduce((sum, r) => sum + (r?.totalFound ?? 0), 0)
+  const searchTruncated = allConversations.length > MAX_CONVERSATIONS || searchResults.some((r) => r?.truncated)
+  const conversations = allConversations.slice(0, MAX_CONVERSATIONS)
+
+  if (conversations.length === 0) {
     return Response.json(
       { error: `No email threads matched "${searchTerm}"${sinceDays ? ` in the last ${sinceDays} days` : ''} — try a different term or a wider time range.` },
       { status: 404 }
@@ -86,23 +114,42 @@ export async function POST(request: NextRequest) {
 
   // ── 2. Read each thread + analyze attachments ───────────────────────────────
   const sections: string[] = []
-  const skippedNotes: string[] = []
+  const skippedNotes: string[] = [...mailboxNotes]
+  // The same thread often lands in several mailboxes (info@ CC'd on tuaone's
+  // conversation) — read each conversation once, and skip messages already
+  // transcribed from another mailbox's copy.
+  const seenConversations = new Set<string>()
+  const seenMessageIds = new Set<string>()
+  let threadNumber = 0
 
-  for (const [i, convo] of search.conversations.entries()) {
+  for (const convo of conversations) {
+    if (seenConversations.has(convo.conversationId)) continue
+    seenConversations.add(convo.conversationId)
+
     let messages
     try {
-      messages = await fetchConversationMessages(convo.conversationId, { maxMessages: MAX_MESSAGES_PER_THREAD })
+      messages = await fetchConversationMessages(convo.conversationId, {
+        mailbox: convo.mailbox,
+        maxMessages: MAX_MESSAGES_PER_THREAD,
+      })
     } catch (err) {
       skippedNotes.push(`Thread "${convo.subject}" could not be read (${err instanceof Error ? err.message.slice(0, 120) : 'error'}).`)
       continue
     }
+    messages = messages.filter((m) => {
+      const key = m.internetMessageId || m.id
+      if (seenMessageIds.has(key)) return false
+      seenMessageIds.add(key)
+      return true
+    })
     if (messages.length === 0) continue
 
+    threadNumber++
     const first = messages[0].receivedDateTime.slice(0, 10)
     const last = messages[messages.length - 1].receivedDateTime.slice(0, 10)
     const lines: string[] = [
-      `## Thread ${i + 1}: ${convo.subject}`,
-      `${messages.length} message(s), ${first} to ${last}`,
+      `## Thread ${threadNumber}: ${convo.subject}`,
+      `Mailbox: ${convo.mailbox} · ${messages.length} message(s), ${first} to ${last}`,
       '',
     ]
 
@@ -122,7 +169,7 @@ export async function POST(request: NextRequest) {
     for (const m of messages) {
       if (!m.hasAttachments) continue
       try {
-        const atts = await fetchAttachments(m.id)
+        const atts = await fetchMessageAttachments(m.id, convo.mailbox)
         for (const a of atts) {
           if (a.isInline) continue
           const key = `${a.name}|${a.size}`
@@ -180,7 +227,7 @@ export async function POST(request: NextRequest) {
   const runDate = new Date().toISOString().slice(0, 10)
   const headerLines = [
     `# Email research: "${searchTerm}"`,
-    `Generated ${runDate} · ${sections.length} thread(s) analyzed (of ${search.totalFound} found${search.truncated ? ', newest kept' : ''}) · window: last ${sinceDays} days`,
+    `Generated ${runDate} · ${sections.length} thread(s) analyzed (of ${totalFound} found${searchTruncated ? ', newest kept' : ''}) · mailboxes: ${RESEARCH_MAILBOXES.join(', ')} · window: last ${sinceDays} days`,
   ]
   if (skippedNotes.length > 0) headerLines.push('', '## Skipped items', ...skippedNotes.map((n) => `- ${n}`))
   const header = headerLines.join('\n') + '\n\n'
@@ -212,8 +259,8 @@ export async function POST(request: NextRequest) {
     return Response.json({
       session_id: analysis.session_id,
       conversations_scanned: kept.length,
-      total_found: search.totalFound,
-      truncated: search.truncated || trimmed > 0,
+      total_found: totalFound,
+      truncated: searchTruncated || trimmed > 0,
     })
   } catch (err) {
     if (err instanceof EmailIntakeError) {

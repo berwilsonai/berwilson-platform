@@ -13,8 +13,16 @@ const GRAPH_BASE = 'https://graph.microsoft.com/v1.0'
 const OAUTH_BASE = 'https://login.microsoftonline.com'
 const TARGET_EMAIL = 'tuaone@berwilson.com'
 
-// Scopes needed for reading mail + calendar via OAuth2 auth code flow
-const SCOPES = ['https://graph.microsoft.com/Mail.Read', 'https://graph.microsoft.com/Calendars.Read', 'offline_access']
+// Scopes needed for reading mail + calendar via OAuth2 auth code flow.
+// Mail.Read.Shared lets Email Research read shared/delegated mailboxes
+// (info@, moose@) with tuaone's token — re-consent via /api/email/oauth
+// after adding a scope.
+const SCOPES = [
+  'https://graph.microsoft.com/Mail.Read',
+  'https://graph.microsoft.com/Mail.Read.Shared',
+  'https://graph.microsoft.com/Calendars.Read',
+  'offline_access',
+]
 
 // ---------------------------------------------------------------------------
 // Types
