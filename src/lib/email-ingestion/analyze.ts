@@ -50,6 +50,12 @@ export interface AnalyzeEmailReportInput {
   label: string | null
   /** Owner of the ingest — a real user id, or SYSTEM_USER_ID for machine delivery. */
   userId: string
+  /**
+   * Existing session row to fill in (the email-research run stages a `running`
+   * placeholder up front so the run is visible under Recent). When set, the row
+   * is updated to `pending` instead of inserting a new one.
+   */
+  sessionId?: string
 }
 
 export interface AnalyzeEmailReportResult {
@@ -229,20 +235,24 @@ export async function analyzeEmailReport(
   ])
 
   // 3. Stage the session for review (never auto-confirmed).
-  const { data: session, error } = await supabase
-    .from('email_intake_sessions')
-    .insert({
-      user_id: userId === SYSTEM_USER_ID ? null : userId,
-      status: 'pending',
-      label,
-      raw_text: text,
-      extraction_result: extraction as unknown as never,
-      match_candidates: matchCandidates as unknown as never,
-      party_matches: partyMatches as unknown as never,
-      fit_assessment: (fitAssessment ?? null) as unknown as never,
-    })
-    .select('id')
-    .single()
+  const payload = {
+    user_id: userId === SYSTEM_USER_ID ? null : userId,
+    status: 'pending',
+    label,
+    raw_text: text,
+    extraction_result: extraction as unknown as never,
+    match_candidates: matchCandidates as unknown as never,
+    party_matches: partyMatches as unknown as never,
+    fit_assessment: (fitAssessment ?? null) as unknown as never,
+  }
+  const { data: session, error } = input.sessionId
+    ? await supabase
+        .from('email_intake_sessions')
+        .update(payload)
+        .eq('id', input.sessionId)
+        .select('id')
+        .single()
+    : await supabase.from('email_intake_sessions').insert(payload).select('id').single()
 
   if (error) {
     console.error('Stage email intake session failed:', error)

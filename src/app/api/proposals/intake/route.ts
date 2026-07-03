@@ -259,6 +259,8 @@ export async function POST(request: NextRequest) {
         match_candidates: matchCandidates as any,
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         uploaded_files: uploadedFiles as any,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        fit_assessment: fitAssessment as any,
       })
       .select()
       .single()

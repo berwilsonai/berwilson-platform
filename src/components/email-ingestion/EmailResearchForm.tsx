@@ -109,8 +109,8 @@ export default function EmailResearchForm() {
           <Loader2 size={15} className="animate-spin mt-0.5 shrink-0 text-muted-foreground" />
           <p className="text-sm text-muted-foreground">
             Searching Outlook and reading threads and attachments — this takes 1–4 minutes.
-            Stay here to land on the review screen automatically, or navigate away — the
-            finished report will be waiting under Recent sessions for you to review.
+            Stay here to land on the review screen automatically, or navigate away — the run
+            shows under Recent below and the finished report will be waiting there for review.
           </p>
         </div>
       )}

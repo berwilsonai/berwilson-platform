@@ -1,8 +1,10 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { ArrowLeft, CheckCircle2 } from 'lucide-react'
+import { ArrowLeft, CheckCircle2, Loader2, AlertTriangle } from 'lucide-react'
 import { createAdminClient } from '@/lib/supabase/admin'
 import EmailIngestReview from '@/components/email-ingestion/EmailIngestReview'
+import SessionsAutoRefresh from '@/components/email-ingestion/SessionsAutoRefresh'
+import { effectiveEmailIntakeStatus } from '@/lib/utils/email-ingestion'
 import type { EmailIntakeExtraction } from '@/lib/ai/prompts/email-intake'
 import type { PartyMatch } from '@/lib/ai/proposal-matching'
 import type { FitAssessment } from '@/lib/ai/fit-assessment'
@@ -24,6 +26,39 @@ export default async function EmailIngestReviewPage({ params }: PageProps) {
     .single()
 
   if (!session) notFound()
+
+  const effective = effectiveEmailIntakeStatus(session.status, session.updated_at)
+  if (effective === 'running' || effective === 'failed') {
+    const err =
+      session.extraction_result && typeof session.extraction_result === 'object' && 'error' in (session.extraction_result as object)
+        ? String((session.extraction_result as { error?: unknown }).error ?? '')
+        : ''
+    return (
+      <div className="space-y-5 max-w-3xl">
+        {effective === 'running' && <SessionsAutoRefresh />}
+        <Link href="/email-ingestion" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors">
+          <ArrowLeft size={14} /> Email Ingestion
+        </Link>
+        {effective === 'running' ? (
+          <div className="rounded-lg border border-border bg-card p-5 text-center space-y-3">
+            <Loader2 className="size-7 text-muted-foreground mx-auto animate-spin" />
+            <p className="text-sm font-medium">Research is still running.</p>
+            <p className="text-sm text-muted-foreground">
+              Searching Outlook and reading threads — usually 1–4 minutes. This page refreshes on its own.
+            </p>
+          </div>
+        ) : (
+          <div className="rounded-lg border border-red-300 dark:border-red-800/60 bg-red-50/60 dark:bg-red-950/30 p-5 text-center space-y-3">
+            <AlertTriangle className="size-7 text-red-600 dark:text-red-400 mx-auto" />
+            <p className="text-sm font-medium">This research run failed.</p>
+            <p className="text-sm text-muted-foreground">
+              {err || 'The run never finished — it likely hit the 5-minute limit. Try a narrower search.'}
+            </p>
+          </div>
+        )}
+      </div>
+    )
+  }
 
   const extraction = session.extraction_result as unknown as EmailIntakeExtraction
   const partyMatches = (session.party_matches as unknown as PartyMatch[]) ?? []

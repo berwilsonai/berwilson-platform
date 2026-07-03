@@ -1699,6 +1699,7 @@ export type Database = {
           created_at: string | null
           expires_at: string | null
           extraction_result: Json
+          fit_assessment: Json | null
           id: string
           match_candidates: Json | null
           status: string
@@ -1712,6 +1713,7 @@ export type Database = {
           created_at?: string | null
           expires_at?: string | null
           extraction_result: Json
+          fit_assessment?: Json | null
           id?: string
           match_candidates?: Json | null
           status?: string
@@ -1725,6 +1727,7 @@ export type Database = {
           created_at?: string | null
           expires_at?: string | null
           extraction_result?: Json
+          fit_assessment?: Json | null
           id?: string
           match_candidates?: Json | null
           status?: string
