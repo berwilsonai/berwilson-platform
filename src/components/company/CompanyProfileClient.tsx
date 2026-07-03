@@ -657,7 +657,16 @@ export default function CompanyProfileClient({ profile, certifications: initialC
 
             {/* Pursuit Profile */}
             <div className="space-y-3 pt-2 border-t border-border">
-              <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Pursuit Profile</h3>
+              <div className="flex items-center justify-between">
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Pursuit Profile</h3>
+                <button
+                  type="button"
+                  onClick={() => setEditing(true)}
+                  className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md border border-input bg-background text-xs font-medium hover:bg-accent transition-colors"
+                >
+                  <Pencil size={11} /> Edit
+                </button>
+              </div>
               <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4">
                 <div className="space-y-1">
                   <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Target Sectors</dt>
