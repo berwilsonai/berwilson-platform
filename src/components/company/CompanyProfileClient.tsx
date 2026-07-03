@@ -2,6 +2,8 @@
 
 import { useActionState, useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import { toast } from 'sonner'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import {
   Pencil, X, Plus, Trash2, Upload, CheckCircle2, AlertTriangle,
   FileText, Loader2, ShieldCheck,
@@ -353,6 +355,7 @@ export default function CompanyProfileClient({ profile, certifications: initialC
   const [addCertKey, setAddCertKey] = useState(0)
   const [certs, setCerts] = useState<Certification[]>(initialCerts)
   const [deletingCertId, setDeletingCertId] = useState<string | null>(null)
+  const [pendingDeleteCertId, setPendingDeleteCertId] = useState<string | null>(null)
 
   useEffect(() => { setCerts(initialCerts) }, [initialCerts])
 
@@ -367,11 +370,13 @@ export default function CompanyProfileClient({ profile, certifications: initialC
   )
 
   async function handleDeleteCert(certId: string) {
-    if (!confirm('Delete this certification? This cannot be undone.')) return
     setDeletingCertId(certId)
     const res = await fetch(`/api/certifications/${certId}`, { method: 'DELETE' })
     if (res.ok) {
       setCerts(prev => prev.filter(c => c.id !== certId))
+      toast.success('Certification deleted')
+    } else {
+      toast.error('Delete failed')
     }
     setDeletingCertId(null)
   }
@@ -741,7 +746,7 @@ export default function CompanyProfileClient({ profile, certifications: initialC
             <CertCard
               key={cert.id}
               cert={cert}
-              onDelete={handleDeleteCert}
+              onDelete={(certId: string) => setPendingDeleteCertId(certId)}
             />
           ))}
         </div>
@@ -752,6 +757,16 @@ export default function CompanyProfileClient({ profile, certifications: initialC
           </div>
         )}
       </section>
+
+      <ConfirmDialog
+        open={pendingDeleteCertId !== null}
+        onOpenChange={(open) => { if (!open) setPendingDeleteCertId(null) }}
+        title="Delete this certification?"
+        description="This cannot be undone."
+        confirmLabel="Delete"
+        destructive
+        onConfirm={async () => { if (pendingDeleteCertId) await handleDeleteCert(pendingDeleteCertId) }}
+      />
     </div>
   )
 }

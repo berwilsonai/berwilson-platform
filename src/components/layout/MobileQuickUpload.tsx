@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import { toast } from 'sonner'
 import {
   X,
   Upload,
@@ -115,7 +116,7 @@ export default function MobileQuickUpload() {
       }, 1200)
     } else {
       const { error } = await res.json().catch(() => ({ error: 'Upload failed' }))
-      alert(error ?? 'Upload failed. Please try again.')
+      toast.error(error ?? 'Upload failed. Please try again.')
     }
   }
 

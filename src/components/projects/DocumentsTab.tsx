@@ -13,6 +13,7 @@ import {
 } from 'lucide-react'
 import EmptyState from '@/components/shared/EmptyState'
 import ConfidenceBadge from '@/components/shared/ConfidenceBadge'
+import { toast } from 'sonner'
 import { createClient } from '@/lib/supabase/client'
 import type { Document } from '@/lib/supabase/types'
 
@@ -111,7 +112,7 @@ function DocumentRow({
         .createSignedUrl(doc.storage_path, 120)
 
       if (error || !data?.signedUrl) {
-        alert('Could not generate download link. Please try again.')
+        toast.error('Could not generate download link. Please try again.')
         return
       }
 
@@ -131,7 +132,7 @@ function DocumentRow({
       const res = await fetch(`/api/documents/${doc.id}`, { method: 'DELETE' })
       if (!res.ok) {
         const { error } = await res.json()
-        alert(error ?? 'Delete failed. Please try again.')
+        toast.error(error ?? 'Delete failed. Please try again.')
         return
       }
       onDelete(doc.id)

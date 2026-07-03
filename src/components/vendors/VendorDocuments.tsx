@@ -11,6 +11,8 @@ import {
   Loader2,
   File,
 } from 'lucide-react'
+import { toast } from 'sonner'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { createClient } from '@/lib/supabase/client'
 import type { Document } from '@/lib/supabase/types'
 
@@ -71,6 +73,7 @@ interface VendorDocumentsProps {
 export default function VendorDocuments({ entityId, initialDocuments }: VendorDocumentsProps) {
   const [documents, setDocuments] = useState<Document[]>(initialDocuments)
   const [showUpload, setShowUpload] = useState(false)
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
   const [uploads, setUploads] = useState<UploadState[]>([])
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [dragging, setDragging] = useState(false)
@@ -139,7 +142,7 @@ export default function VendorDocuments({ entityId, initialDocuments }: VendorDo
       .createSignedUrl(doc.storage_path, 120)
 
     if (error || !data?.signedUrl) {
-      alert('Could not generate download link.')
+      toast.error('Could not generate download link.')
       return
     }
 
@@ -154,6 +157,9 @@ export default function VendorDocuments({ entityId, initialDocuments }: VendorDo
     const res = await fetch(`/api/documents/${docId}`, { method: 'DELETE' })
     if (res.ok) {
       setDocuments((prev) => prev.filter((d) => d.id !== docId))
+      toast.success('Document deleted')
+    } else {
+      toast.error('Delete failed')
     }
   }
 
@@ -315,9 +321,7 @@ export default function VendorDocuments({ entityId, initialDocuments }: VendorDo
                     <Download size={11} className="text-muted-foreground" />
                   </button>
                   <button
-                    onClick={() => {
-                      if (confirm('Delete this document?')) handleDelete(doc.id)
-                    }}
+                    onClick={() => setPendingDeleteId(doc.id)}
                     className="h-6 w-6 rounded flex items-center justify-center hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors"
                   >
                     <Trash2 size={11} className="text-muted-foreground hover:text-red-600 dark:hover:text-red-400" />
@@ -328,6 +332,14 @@ export default function VendorDocuments({ entityId, initialDocuments }: VendorDo
           })}
         </div>
       )}
+      <ConfirmDialog
+        open={pendingDeleteId !== null}
+        onOpenChange={(open) => { if (!open) setPendingDeleteId(null) }}
+        title="Delete this document?"
+        confirmLabel="Delete"
+        destructive
+        onConfirm={async () => { if (pendingDeleteId) await handleDelete(pendingDeleteId) }}
+      />
     </section>
   )
 }

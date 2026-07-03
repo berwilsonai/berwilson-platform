@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation'
 import { Upload, Download, Trash2, File, Loader2, Sparkles } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/utils'
+import { toast } from 'sonner'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import type { OpportunityDocument } from '@/lib/supabase/types'
 import { OPPORTUNITY_DOC_TYPES, OPPORTUNITY_DOC_TYPE_LABELS } from '@/lib/utils/opportunities'
 
@@ -30,6 +32,7 @@ export default function OpportunityDocuments({ opportunityId, documents }: Oppor
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [busyId, setBusyId] = useState<string | null>(null)
+  const [pendingDelete, setPendingDelete] = useState<OpportunityDocument | null>(null)
 
   async function handleFiles(files: FileList | null) {
     if (!files || files.length === 0) return
@@ -65,7 +68,7 @@ export default function OpportunityDocuments({ opportunityId, documents }: Oppor
         .from('documents')
         .createSignedUrl(doc.storage_path, 120)
       if (error || !data?.signedUrl) {
-        setError('Could not generate download link.')
+        toast.error('Could not generate download link.')
         return
       }
       const a = document.createElement('a')
@@ -79,15 +82,15 @@ export default function OpportunityDocuments({ opportunityId, documents }: Oppor
   }
 
   async function handleDelete(doc: OpportunityDocument) {
-    if (!confirm(`Delete "${doc.file_name}"?`)) return
     setBusyId(doc.id)
     try {
       const res = await fetch(`/api/opportunities/documents/${doc.id}`, { method: 'DELETE' })
       if (!res.ok) {
         const { error } = await res.json().catch(() => ({ error: 'Delete failed' }))
-        setError(error ?? 'Delete failed')
+        toast.error(error ?? 'Delete failed')
         return
       }
+      toast.success('Document deleted')
       router.refresh()
     } finally {
       setBusyId(null)
@@ -181,7 +184,7 @@ export default function OpportunityDocuments({ opportunityId, documents }: Oppor
                     {busyId === doc.id ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
                   </button>
                   <button
-                    onClick={() => handleDelete(doc)}
+                    onClick={() => setPendingDelete(doc)}
                     disabled={busyId === doc.id}
                     className={cn(
                       'p-1.5 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors'
@@ -196,6 +199,14 @@ export default function OpportunityDocuments({ opportunityId, documents }: Oppor
           ))}
         </ul>
       )}
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        onOpenChange={(open) => { if (!open) setPendingDelete(null) }}
+        title={pendingDelete ? `Delete "${pendingDelete.file_name}"?` : 'Delete document?'}
+        confirmLabel="Delete"
+        destructive
+        onConfirm={async () => { if (pendingDelete) await handleDelete(pendingDelete) }}
+      />
     </div>
   )
 }

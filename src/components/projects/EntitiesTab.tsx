@@ -16,6 +16,8 @@ import {
   Search,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { toast } from 'sonner'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import EmptyState from '@/components/shared/EmptyState'
 import ResearchPanel from './ResearchPanel'
 import type { Entity, EntityProject, ResearchArtifact } from '@/lib/supabase/types'
@@ -421,6 +423,11 @@ export default function EntitiesTab({
   const [mode, setMode] = useState<Mode>({ type: 'view' })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [pendingConfirm, setPendingConfirm] = useState<
+    | { kind: 'unlink'; ep: EntityProjectWithEntity }
+    | { kind: 'delete-entity'; entity: Entity }
+    | null
+  >(null)
 
   // ── Link form state ──────────────────────────────────────────────────────
   const [linkForm, setLinkForm] = useState({
@@ -550,13 +557,13 @@ export default function EntitiesTab({
   }
 
   async function handleUnlink(ep: EntityProjectWithEntity) {
-    if (!confirm(`Remove ${ep.entity.name} from this project?`)) return
     try {
       const res = await fetch(`/api/entity-projects/${ep.id}`, { method: 'DELETE' })
       if (!res.ok) throw new Error('Unlink failed')
       setLinked((prev) => prev.filter((p) => p.id !== ep.id))
+      toast.success(`${ep.entity.name} removed from project`)
     } catch {
-      alert('Failed to unlink entity.')
+      toast.error('Failed to unlink entity.')
     }
   }
 
@@ -611,7 +618,6 @@ export default function EntitiesTab({
   }
 
   async function handleDeleteEntity(entity: Entity) {
-    if (!confirm(`Delete "${entity.name}"? This cannot be undone.`)) return
     try {
       const res = await fetch(`/api/entities/${entity.id}`, { method: 'DELETE' })
       if (!res.ok) {
@@ -621,8 +627,9 @@ export default function EntitiesTab({
       setAllEntities((prev) => prev.filter((e) => e.id !== entity.id))
       setLinked((prev) => prev.filter((ep) => ep.entity_id !== entity.id))
       setMode({ type: 'view' })
+      toast.success('Entity deleted')
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Delete failed')
+      toast.error(err instanceof Error ? err.message : 'Delete failed')
     }
   }
 
@@ -703,7 +710,7 @@ export default function EntitiesTab({
           </button>
           {isEdit && editEntity && (
             <button
-              onClick={() => handleDeleteEntity(editEntity)}
+              onClick={() => setPendingConfirm({ kind: 'delete-entity', entity: editEntity })}
               className="ml-auto inline-flex items-center gap-1.5 h-9 px-3 rounded-md border border-red-200 dark:border-red-800/60 text-red-600 dark:text-red-400 text-sm font-medium hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors"
             >
               <Trash2 size={14} />
@@ -954,7 +961,7 @@ export default function EntitiesTab({
                           <Pencil size={12} />
                         </button>
                         <button
-                          onClick={() => handleUnlink(ep)}
+                          onClick={() => setPendingConfirm({ kind: 'unlink', ep })}
                           title="Remove from project"
                           className="h-7 w-7 flex items-center justify-center rounded text-muted-foreground hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors"
                         >
@@ -1014,6 +1021,24 @@ export default function EntitiesTab({
         )}
       </section>
 
+      <ConfirmDialog
+        open={pendingConfirm !== null}
+        onOpenChange={(open) => { if (!open) setPendingConfirm(null) }}
+        title={
+          pendingConfirm?.kind === 'unlink'
+            ? `Remove ${pendingConfirm.ep.entity.name} from this project?`
+            : pendingConfirm?.kind === 'delete-entity'
+            ? `Delete "${pendingConfirm.entity.name}"?`
+            : 'Are you sure?'
+        }
+        description={pendingConfirm?.kind === 'delete-entity' ? 'This cannot be undone.' : undefined}
+        confirmLabel={pendingConfirm?.kind === 'unlink' ? 'Remove' : 'Delete'}
+        destructive
+        onConfirm={async () => {
+          if (pendingConfirm?.kind === 'unlink') await handleUnlink(pendingConfirm.ep)
+          else if (pendingConfirm?.kind === 'delete-entity') await handleDeleteEntity(pendingConfirm.entity)
+        }}
+      />
     </div>
   )
 }
