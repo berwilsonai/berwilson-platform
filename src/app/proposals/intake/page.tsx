@@ -1,7 +1,7 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import ProposalIntakeWizard from '@/components/proposals/ProposalIntakeWizard'
 
-export const metadata = { title: 'Intake Proposal — Ber Wilson' }
+export const metadata = { title: 'Proposal Intake — Ber Wilson' }
 
 export default async function ProposalIntakePage() {
   const supabase = createAdminClient()
@@ -17,7 +17,7 @@ export default async function ProposalIntakePage() {
   return (
     <div className="max-w-6xl mx-auto p-6">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-foreground">Intake Proposal</h1>
+        <h1 className="text-2xl font-bold text-foreground">Proposal Intake</h1>
         <p className="text-sm text-muted-foreground mt-1">
           Upload a proposal document and the system will extract project details automatically.
         </p>

@@ -4,6 +4,16 @@
 
 @custom-variant dark (&:is(.dark *));
 
+@theme {
+  /* Readability: the two workhorse sizes run one notch larger than Tailwind's
+     defaults. text-xs is the most-used size in this app — 12px was too small
+     for an executive tool read all day. */
+  --text-xs: 0.8125rem;   /* 13px, was 12px */
+  --text-xs--line-height: 1.4;
+  --text-sm: 0.90625rem;  /* 14.5px, was 14px */
+  --text-sm--line-height: 1.45;
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -62,7 +72,8 @@
   --secondary: oklch(0.966 0.004 260);
   --secondary-foreground: oklch(0.205 0.03 260);
   --muted: oklch(0.966 0.004 260);
-  --muted-foreground: oklch(0.505 0.015 260);
+  /* Dark enough to stay comfortably legible at small sizes (~6:1 on white). */
+  --muted-foreground: oklch(0.46 0.015 260);
   --accent: oklch(0.97 0.01 85);
   --accent-foreground: oklch(0.205 0.03 260);
   --destructive: oklch(0.577 0.245 27.325);
@@ -102,7 +113,7 @@
   --secondary: oklch(0.269 0 0);
   --secondary-foreground: oklch(0.985 0 0);
   --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
+  --muted-foreground: oklch(0.75 0 0);
   --accent: oklch(0.269 0 0);
   --accent-foreground: oklch(0.985 0 0);
   --destructive: oklch(0.704 0.191 22.216);

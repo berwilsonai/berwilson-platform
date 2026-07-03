@@ -34,7 +34,7 @@ const PRIMARY_NAV = [
 const MORE_NAV = [
   { href: '/objectives', label: 'Objectives', icon: Target },
   { href: '/opportunities', label: 'Opportunities', icon: Lightbulb },
-  { href: '/proposals/intake', label: 'Intake Proposal', icon: FileUp },
+  { href: '/proposals/intake', label: 'Proposal Intake', icon: FileUp },
   { href: '/email-ingestion', label: 'Email Intake', icon: Inbox },
   { href: '/calendar', label: 'Calendar', icon: CalendarDays },
   { href: '/contacts', label: 'Contacts & Vendors', icon: Users },
@@ -80,12 +80,12 @@ export default function MobileNav({ pendingCount = 0, role = 'admin' }: MobileNa
         }}
       >
         <div className="flex items-center justify-between px-4 py-3 border-b border-sidebar-border">
-          <span className="text-xs font-semibold text-sidebar-foreground/60 uppercase tracking-wider">
+          <span className="text-xs font-semibold text-sidebar-foreground/75 uppercase tracking-wider">
             More
           </span>
           <button
             onClick={() => setMoreOpen(false)}
-            className="p-1 rounded text-sidebar-foreground/50 hover:text-sidebar-foreground"
+            className="p-1 rounded text-sidebar-foreground/70 hover:text-sidebar-foreground"
             aria-label="Close"
           >
             <X size={16} />
@@ -99,9 +99,9 @@ export default function MobileNav({ pendingCount = 0, role = 'admin' }: MobileNa
                 setMoreOpen(false)
                 window.dispatchEvent(new Event('open-quick-upload'))
               }}
-              className="flex flex-col items-center gap-1.5 py-4 text-xs font-medium transition-colors bg-sidebar text-sidebar-foreground/60 hover:text-sidebar-foreground"
+              className="flex flex-col items-center gap-1.5 py-4 text-xs font-medium transition-colors bg-sidebar text-sidebar-foreground/75 hover:text-sidebar-foreground"
             >
-              <FileUp size={22} className="text-sidebar-foreground/50" />
+              <FileUp size={22} className="text-sidebar-foreground/70" />
               Upload
             </button>
           )}
@@ -113,10 +113,10 @@ export default function MobileNav({ pendingCount = 0, role = 'admin' }: MobileNa
                 href={href}
                 onClick={() => setMoreOpen(false)}
                 className={`flex flex-col items-center gap-1.5 py-4 text-xs font-medium transition-colors bg-sidebar ${
-                  active ? 'text-sidebar-foreground' : 'text-sidebar-foreground/60 hover:text-sidebar-foreground'
+                  active ? 'text-sidebar-foreground' : 'text-sidebar-foreground/75 hover:text-sidebar-foreground'
                 }`}
               >
-                <Icon size={22} className={active ? 'text-sidebar-foreground' : 'text-sidebar-foreground/50'} />
+                <Icon size={22} className={active ? 'text-sidebar-foreground' : 'text-sidebar-foreground/70'} />
                 {label}
               </Link>
             )
@@ -140,13 +140,13 @@ export default function MobileNav({ pendingCount = 0, role = 'admin' }: MobileNa
                 className={`flex-1 flex flex-col items-center gap-1 py-3 text-xs font-medium transition-colors ${
                   active
                     ? 'text-sidebar-foreground bg-sidebar-accent'
-                    : 'text-sidebar-foreground/50 hover:text-sidebar-foreground/70'
+                    : 'text-sidebar-foreground/70 hover:text-sidebar-foreground'
                 }`}
               >
                 <span className="relative">
                   <Icon
                     size={20}
-                    className={active ? 'text-sidebar-foreground' : 'text-sidebar-foreground/50'}
+                    className={active ? 'text-sidebar-foreground' : 'text-sidebar-foreground/70'}
                   />
                   {showBadge && (
                     <span className="absolute -top-1 -right-1.5 min-w-[16px] h-4 px-1 flex items-center justify-center rounded-full bg-amber-400 text-xs font-bold text-sidebar leading-none">
@@ -166,12 +166,12 @@ export default function MobileNav({ pendingCount = 0, role = 'admin' }: MobileNa
             className={`flex-1 flex flex-col items-center gap-1 py-3 text-xs font-medium transition-colors ${
               moreOpen || moreActive
                 ? 'text-sidebar-foreground bg-sidebar-accent'
-                : 'text-sidebar-foreground/50 hover:text-sidebar-foreground/70'
+                : 'text-sidebar-foreground/70 hover:text-sidebar-foreground/70'
             }`}
           >
             <MoreHorizontal
               size={20}
-              className={moreOpen || moreActive ? 'text-sidebar-foreground' : 'text-sidebar-foreground/50'}
+              className={moreOpen || moreActive ? 'text-sidebar-foreground' : 'text-sidebar-foreground/70'}
             />
             More
           </button>

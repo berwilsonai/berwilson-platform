@@ -23,7 +23,7 @@ const PAGES: { href: string; label: string; keywords: string }[] = [
   { href: '/opportunities', label: 'Opportunities', keywords: 'acquisitions partnerships jv mergers investments deals' },
   { href: '/timeline', label: 'Timeline', keywords: 'gantt schedule' },
   { href: '/tasks', label: 'Team Tasks', keywords: 'todo action items team workload capacity' },
-  { href: '/proposals/intake', label: 'Intake Proposal', keywords: 'ingest upload rfp document' },
+  { href: '/proposals/intake', label: 'Proposal Intake', keywords: 'ingest upload rfp document intake' },
   { href: '/email-ingestion', label: 'Email Intake', keywords: 'email inbox ingest outlook sweep run research thread message report' },
   { href: '/intel', label: 'Intel', keywords: 'ask query search ai agent' },
   { href: '/calendar', label: 'Calendar', keywords: 'schedule dates milestones meeting' },

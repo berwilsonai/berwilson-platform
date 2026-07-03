@@ -39,7 +39,7 @@ const NAV_GROUPS = [
     label: 'Intelligence',
     items: [
       { href: '/intel', label: 'Intel', icon: Brain },
-      { href: '/proposals/intake', label: 'Intake Proposal', icon: FileUp },
+      { href: '/proposals/intake', label: 'Proposal Intake', icon: FileUp },
       { href: '/email-ingestion', label: 'Email Intake', icon: Inbox },
       { href: '/calendar', label: 'Calendar', icon: CalendarDays },
     ],
@@ -108,7 +108,7 @@ export default function AppSidebar({ pendingReviewCount = 0, attentionCount = 0,
         {navGroups.map((group, gi) => (
           <div key={gi} className={gi > 0 ? 'mt-4 pt-3 border-t border-sidebar-border' : ''}>
             {group.label && !collapsed && (
-              <p className="px-2.5 mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-sidebar-foreground/40">
+              <p className="px-2.5 mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-sidebar-foreground/55">
                 {group.label}
               </p>
             )}
@@ -131,11 +131,11 @@ export default function AppSidebar({ pendingReviewCount = 0, attentionCount = 0,
                     className={`flex items-center gap-3 px-2.5 py-2 rounded text-sm font-medium transition-colors ${
                       active
                         ? 'sidebar-nav-active text-sidebar-foreground'
-                        : 'text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent'
+                        : 'text-sidebar-foreground/75 hover:text-sidebar-foreground hover:bg-sidebar-accent'
                     }`}
                   >
                     <span className="relative shrink-0">
-                      <Icon size={15} />
+                      <Icon size={16} />
                       {showBadge && collapsed && (
                         <span className="absolute -top-1 -right-1 size-2 rounded-full bg-amber-400" />
                       )}
