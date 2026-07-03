@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { Loader2, Check, X, Pencil, Plus, Trash2 } from 'lucide-react'
+import { Loader2, Check, Pencil, Plus, Trash2 } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -12,7 +12,6 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog'
 import type {
-  ActionItem,
   WaitingOnItem,
   RiskItem,
   DecisionItem,
@@ -41,7 +40,6 @@ export default function ReviewEditModal({
   const [error, setError] = useState<string | null>(null)
 
   const [summary, setSummary] = useState('')
-  const [actionItems, setActionItems] = useState<ActionItem[]>([])
   const [waitingOn, setWaitingOn] = useState<WaitingOnItem[]>([])
   const [risks, setRisks] = useState<RiskItem[]>([])
   const [decisions, setDecisions] = useState<DecisionItem[]>([])
@@ -49,7 +47,6 @@ export default function ReviewEditModal({
   // Store the original AI output for diff comparison
   const originalRef = useRef<{
     summary: string
-    action_items: ActionItem[]
     waiting_on: WaitingOnItem[]
     risks: RiskItem[]
     decisions: DecisionItem[]
@@ -72,18 +69,15 @@ export default function ReviewEditModal({
         const data = await res.json()
         const u = data.update
         const ai_summary = u.summary ?? ''
-        const ai_action_items = Array.isArray(u.action_items) ? u.action_items : []
         const ai_waiting_on = Array.isArray(u.waiting_on) ? u.waiting_on : []
         const ai_risks = Array.isArray(u.risks) ? u.risks : []
         const ai_decisions = Array.isArray(u.decisions) ? u.decisions : []
         setSummary(ai_summary)
-        setActionItems(ai_action_items)
         setWaitingOn(ai_waiting_on)
         setRisks(ai_risks)
         setDecisions(ai_decisions)
         originalRef.current = {
           summary: ai_summary,
-          action_items: ai_action_items,
           waiting_on: ai_waiting_on,
           risks: ai_risks,
           decisions: ai_decisions,
@@ -104,7 +98,7 @@ export default function ReviewEditModal({
       const updateRes = await fetch(`/api/updates/${recordId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ summary, action_items: actionItems, waiting_on: waitingOn, risks, decisions }),
+        body: JSON.stringify({ summary, waiting_on: waitingOn, risks, decisions }),
       })
 
       if (!updateRes.ok) {
@@ -120,9 +114,6 @@ export default function ReviewEditModal({
           editDiff.summary = { ai: orig.summary, human: summary }
         }
         const aiCount = (arr: unknown[]) => arr.length
-        if (JSON.stringify(actionItems) !== JSON.stringify(orig.action_items)) {
-          editDiff.action_items = { ai_count: aiCount(orig.action_items), human_count: aiCount(actionItems), changed: true }
-        }
         if (JSON.stringify(waitingOn) !== JSON.stringify(orig.waiting_on)) {
           editDiff.waiting_on = { ai_count: aiCount(orig.waiting_on), human_count: aiCount(waitingOn), changed: true }
         }
@@ -157,9 +148,6 @@ export default function ReviewEditModal({
     }
   }
 
-  function updateActionItem(idx: number, field: keyof ActionItem, value: string | boolean) {
-    setActionItems((prev) => prev.map((item, i) => i === idx ? { ...item, [field]: value } : item))
-  }
   function updateWaitingItem(idx: number, field: keyof WaitingOnItem, value: string) {
     setWaitingOn((prev) => prev.map((item, i) => i === idx ? { ...item, [field]: value } : item))
   }
@@ -217,58 +205,6 @@ export default function ReviewEditModal({
                 disabled={phase === 'saving'}
                 className={`${inputClass} resize-y`}
               />
-            </div>
-
-            {/* Action Items */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                  Action Items ({actionItems.length})
-                </label>
-                <button
-                  onClick={() => setActionItems((prev) => [...prev, { text: '' }])}
-                  disabled={phase === 'saving'}
-                  className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground disabled:opacity-50"
-                >
-                  <Plus size={12} /> Add
-                </button>
-              </div>
-              {actionItems.map((item, idx) => (
-                <div key={idx} className="flex items-start gap-2">
-                  <div className="flex-1 space-y-1">
-                    <input
-                      value={item.text}
-                      onChange={(e) => updateActionItem(idx, 'text', e.target.value)}
-                      placeholder="Action item..."
-                      disabled={phase === 'saving'}
-                      className={inputClass}
-                    />
-                    <div className="flex gap-2">
-                      <input
-                        value={item.assignee ?? ''}
-                        onChange={(e) => updateActionItem(idx, 'assignee', e.target.value)}
-                        placeholder="Assignee"
-                        disabled={phase === 'saving'}
-                        className={`${inputClass} w-1/2`}
-                      />
-                      <input
-                        value={item.due_date ?? ''}
-                        onChange={(e) => updateActionItem(idx, 'due_date', e.target.value)}
-                        placeholder="Due date (YYYY-MM-DD)"
-                        disabled={phase === 'saving'}
-                        className={`${inputClass} w-1/2`}
-                      />
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => setActionItems((prev) => prev.filter((_, i) => i !== idx))}
-                    disabled={phase === 'saving'}
-                    className="shrink-0 mt-1.5 p-1 text-muted-foreground hover:text-red-600 dark:hover:text-red-400 transition-colors disabled:opacity-50"
-                  >
-                    <Trash2 size={13} />
-                  </button>
-                </div>
-              ))}
             </div>
 
             {/* Waiting On */}

@@ -130,8 +130,8 @@ export default function PasteInput({ projectId, onSaved }: PasteInputProps) {
         }),
       })
 
+      const data = await res.json()
       if (!res.ok) {
-        const data = await res.json()
         throw new Error(data.error ?? 'Save failed')
       }
 
@@ -139,7 +139,11 @@ export default function PasteInput({ projectId, onSaved }: PasteInputProps) {
       setRawText('')
       setExtraction(null)
       onSaved?.()
-      toast.success('Update saved successfully')
+      toast.success(
+        data.tasks_created > 0
+          ? `Update saved — ${data.tasks_created} task${data.tasks_created !== 1 ? 's' : ''} added to the board`
+          : 'Update saved successfully',
+      )
 
       // Reset after brief success message
       setTimeout(() => setPhase('input'), 2000)
@@ -302,6 +306,7 @@ export default function PasteInput({ projectId, onSaved }: PasteInputProps) {
         <div className="space-y-2">
           <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
             Action Items ({actionItems.length})
+            <span className="ml-2 normal-case font-normal tracking-normal">— saved as tasks on the board</span>
           </label>
           <div className="space-y-1.5">
             {actionItems.map((item, idx) => (

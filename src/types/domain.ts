@@ -7,7 +7,6 @@ import type {
   Entity,
   ProjectPlayer,
   Milestone,
-  Document,
   Update,
   DdItem,
   FinancingStructure,
@@ -112,9 +111,8 @@ export type ProjectWithMilestones = Project & {
 /** An update with typed JSONB arrays instead of Json */
 export type UpdateWithExtraction = Omit<
   Update,
-  'action_items' | 'waiting_on' | 'risks' | 'decisions'
+  'waiting_on' | 'risks' | 'decisions'
 > & {
-  action_items: ActionItem[]
   waiting_on: WaitingOnItem[]
   risks: RiskItem[]
   decisions: DecisionItem[]

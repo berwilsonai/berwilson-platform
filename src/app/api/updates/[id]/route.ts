@@ -6,58 +6,7 @@ interface RouteContext {
   params: Promise<{ id: string }>
 }
 
-/** PATCH — toggle a single action item's completed flag */
-export async function PATCH(request: NextRequest, { params }: RouteContext) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 })
-
-  const { id } = await params
-  const body = await request.json()
-  const { index, completed } = body
-
-  if (typeof index !== 'number' || index < 0 || typeof completed !== 'boolean') {
-    return Response.json(
-      { error: 'index (non-negative number) and completed (boolean) are required' },
-      { status: 400 }
-    )
-  }
-
-  // Fetch current action_items
-  const { data: update, error: fetchError } = await supabase
-    .from('updates')
-    .select('action_items')
-    .eq('id', id)
-    .single()
-
-  if (fetchError || !update) {
-    return Response.json({ error: 'Update not found' }, { status: 404 })
-  }
-
-  const items: Record<string, unknown>[] = Array.isArray(update.action_items)
-    ? (update.action_items as Record<string, unknown>[]).map(item => ({ ...item }))
-    : []
-
-  if (index >= items.length) {
-    return Response.json({ error: 'Index out of bounds' }, { status: 400 })
-  }
-
-  // Toggle the completed field on the target item
-  items[index] = { ...items[index], completed }
-
-  const { error: updateError } = await supabase
-    .from('updates')
-    .update({ action_items: items as unknown as Json })
-    .eq('id', id)
-
-  if (updateError) {
-    return Response.json({ error: 'Failed to update action item' }, { status: 500 })
-  }
-
-  return Response.json({ action_items: items })
-}
-
-/** PUT — full edit of an update's extracted fields (summary, action_items, etc.) */
+/** PUT — full edit of an update's extracted fields (summary, waiting_on, etc.) */
 export async function PUT(request: NextRequest, { params }: RouteContext) {
   const { id } = await params
 
@@ -72,7 +21,6 @@ export async function PUT(request: NextRequest, { params }: RouteContext) {
 
   let body: {
     summary?: string
-    action_items?: unknown[]
     waiting_on?: unknown[]
     risks?: unknown[]
     decisions?: unknown[]
@@ -87,14 +35,12 @@ export async function PUT(request: NextRequest, { params }: RouteContext) {
   // Build the update payload — only include fields that were sent
   const payload: {
     summary?: string
-    action_items?: Json
     waiting_on?: Json
     risks?: Json
     decisions?: Json
     project_id?: string
   } = {}
   if (body.summary !== undefined) payload.summary = body.summary
-  if (body.action_items !== undefined) payload.action_items = body.action_items as Json
   if (body.waiting_on !== undefined) payload.waiting_on = body.waiting_on as Json
   if (body.risks !== undefined) payload.risks = body.risks as Json
   if (body.decisions !== undefined) payload.decisions = body.decisions as Json

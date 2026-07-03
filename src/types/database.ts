@@ -2014,7 +2014,6 @@ export type Database = {
       }
       updates: {
         Row: {
-          action_items: Json | null
           confidence: number | null
           created_at: string | null
           decisions: Json | null
@@ -2034,7 +2033,6 @@ export type Database = {
           waiting_on: Json | null
         }
         Insert: {
-          action_items?: Json | null
           confidence?: number | null
           created_at?: string | null
           decisions?: Json | null
@@ -2054,7 +2052,6 @@ export type Database = {
           waiting_on?: Json | null
         }
         Update: {
-          action_items?: Json | null
           confidence?: number | null
           created_at?: string | null
           decisions?: Json | null

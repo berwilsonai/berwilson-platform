@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Loader2, Check, X, Pencil, Plus, Trash2 } from 'lucide-react'
+import { Loader2, Check, Pencil, Plus, Trash2 } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -11,19 +11,12 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog'
 import type {
-  ActionItem,
   WaitingOnItem,
   RiskItem,
   DecisionItem,
 } from '@/types/domain'
 
 const SEVERITY_OPTIONS = ['info', 'watch', 'critical', 'blocker'] as const
-const SEVERITY_COLORS: Record<string, string> = {
-  info: 'bg-slate-100 dark:bg-slate-900/40 text-slate-600 dark:text-slate-400',
-  watch: 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300',
-  critical: 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300',
-  blocker: 'bg-red-200 dark:bg-red-900/60 text-red-800 dark:text-red-300',
-}
 
 type Phase = 'loading' | 'editing' | 'saving' | 'error'
 
@@ -38,7 +31,6 @@ export default function UpdateEditModal({ updateId, onSaved }: UpdateEditModalPr
   const [error, setError] = useState<string | null>(null)
 
   const [summary, setSummary] = useState('')
-  const [actionItems, setActionItems] = useState<ActionItem[]>([])
   const [waitingOn, setWaitingOn] = useState<WaitingOnItem[]>([])
   const [risks, setRisks] = useState<RiskItem[]>([])
   const [decisions, setDecisions] = useState<DecisionItem[]>([])
@@ -54,7 +46,6 @@ export default function UpdateEditModal({ updateId, onSaved }: UpdateEditModalPr
         const data = await res.json()
         const u = data.update
         setSummary(u.summary ?? '')
-        setActionItems(Array.isArray(u.action_items) ? u.action_items : [])
         setWaitingOn(Array.isArray(u.waiting_on) ? u.waiting_on : [])
         setRisks(Array.isArray(u.risks) ? u.risks : [])
         setDecisions(Array.isArray(u.decisions) ? u.decisions : [])
@@ -76,7 +67,6 @@ export default function UpdateEditModal({ updateId, onSaved }: UpdateEditModalPr
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           summary,
-          action_items: actionItems,
           waiting_on: waitingOn,
           risks,
           decisions,
@@ -97,10 +87,6 @@ export default function UpdateEditModal({ updateId, onSaved }: UpdateEditModalPr
   }
 
   // --- Inline editing helpers ---
-
-  function updateActionItem(idx: number, field: keyof ActionItem, value: string | boolean) {
-    setActionItems((prev) => prev.map((item, i) => i === idx ? { ...item, [field]: value } : item))
-  }
 
   function updateWaitingItem(idx: number, field: keyof WaitingOnItem, value: string) {
     setWaitingOn((prev) => prev.map((item, i) => i === idx ? { ...item, [field]: value } : item))
@@ -161,58 +147,6 @@ export default function UpdateEditModal({ updateId, onSaved }: UpdateEditModalPr
                 disabled={phase === 'saving'}
                 className={`${inputClass} resize-y`}
               />
-            </div>
-
-            {/* Action Items */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                  Action Items ({actionItems.length})
-                </label>
-                <button
-                  onClick={() => setActionItems((prev) => [...prev, { text: '' }])}
-                  disabled={phase === 'saving'}
-                  className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-                >
-                  <Plus size={12} /> Add
-                </button>
-              </div>
-              {actionItems.map((item, idx) => (
-                <div key={idx} className="flex items-start gap-2">
-                  <div className="flex-1 space-y-1">
-                    <input
-                      value={item.text}
-                      onChange={(e) => updateActionItem(idx, 'text', e.target.value)}
-                      placeholder="Action item..."
-                      disabled={phase === 'saving'}
-                      className={inputClass}
-                    />
-                    <div className="flex gap-2">
-                      <input
-                        value={item.assignee ?? ''}
-                        onChange={(e) => updateActionItem(idx, 'assignee', e.target.value)}
-                        placeholder="Assignee"
-                        disabled={phase === 'saving'}
-                        className={`${inputClass} w-1/2`}
-                      />
-                      <input
-                        value={item.due_date ?? ''}
-                        onChange={(e) => updateActionItem(idx, 'due_date', e.target.value)}
-                        placeholder="Due date (YYYY-MM-DD)"
-                        disabled={phase === 'saving'}
-                        className={`${inputClass} w-1/2`}
-                      />
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => setActionItems((prev) => prev.filter((_, i) => i !== idx))}
-                    disabled={phase === 'saving'}
-                    className="shrink-0 mt-1.5 p-1 text-muted-foreground hover:text-red-600 dark:hover:text-red-400 transition-colors"
-                  >
-                    <Trash2 size={13} />
-                  </button>
-                </div>
-              ))}
             </div>
 
             {/* Waiting On */}

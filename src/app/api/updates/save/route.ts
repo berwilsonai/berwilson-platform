@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { embedUpdate } from '@/lib/ai/embeddings'
+import { createTasksFromActionItems, type ActionItemLike } from '@/lib/tasks/from-action-items'
 import type { TablesInsert } from '@/lib/supabase/types'
 
 export async function POST(request: NextRequest) {
@@ -23,12 +24,13 @@ export async function POST(request: NextRequest) {
 
   const supabase = createAdminClient()
 
+  // action_items deliberately not stored on the update — human-confirmed items
+  // become real tasks below (the column is being dropped).
   const row: TablesInsert<'updates'> = {
     project_id,
     source: 'manual_paste',
     raw_content,
     summary: summary ?? null,
-    action_items: action_items ?? [],
     waiting_on: waiting_on ?? [],
     risks: risks ?? [],
     decisions: decisions ?? [],
@@ -44,8 +46,13 @@ export async function POST(request: NextRequest) {
     return Response.json({ error: error.message }, { status: 500 })
   }
 
+  // Confirmed action items → tasks on the board (user already reviewed them in the wizard)
+  const tasksCreated = Array.isArray(action_items)
+    ? await createTasksFromActionItems(supabase, action_items as ActionItemLike[], { projectId: project_id })
+    : 0
+
   // Fire-and-forget: chunk and embed in background (manual pastes auto-approve)
   embedUpdate(data.id, project_id, raw_content).catch(console.error)
 
-  return Response.json({ id: data.id })
+  return Response.json({ id: data.id, tasks_created: tasksCreated })
 }

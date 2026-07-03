@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { embedUpdate } from '@/lib/ai/embeddings'
+import { createTasksFromActionItems, type ActionItemLike } from '@/lib/tasks/from-action-items'
 
 const VALID_RESOLUTIONS = ['approved', 'rejected', 'edited'] as const
 type Resolution = (typeof VALID_RESOLUTIONS)[number]
@@ -119,15 +120,31 @@ export async function PATCH(
       }
     } else if (reviewItem.source_table === 'updates' && (resolution === 'approved' || resolution === 'edited')) {
       if (reviewItem.record_id && reviewItem.project_id) {
+        // select('*') so this stays tolerant once updates.action_items is dropped
         const { data: update } = await admin
           .from('updates')
-          .select('raw_content, source')
+          .select('*')
           .eq('id', reviewItem.record_id)
           .single()
 
         // Trigger embedding for approved updates (admin needed for chunks table)
         if (update?.raw_content) {
           embedUpdate(reviewItem.record_id, reviewItem.project_id, update.raw_content).catch(console.error)
+        }
+
+        // Approved extraction action items become real tasks, then the legacy
+        // JSON is cleared so they can't be converted twice. Both steps no-op
+        // once the action_items column is dropped.
+        const legacyItems = (update as Record<string, unknown> | null)?.action_items
+        if (Array.isArray(legacyItems) && legacyItems.length > 0) {
+          await createTasksFromActionItems(admin, legacyItems as ActionItemLike[], {
+            projectId: reviewItem.project_id,
+          })
+          // untyped client — the column is gone from generated types (dropped by migration)
+          await (admin as unknown as import('@supabase/supabase-js').SupabaseClient)
+            .from('updates')
+            .update({ action_items: [] })
+            .eq('id', reviewItem.record_id)
         }
 
         // Purge email body after approval — the summary is the permanent record,
