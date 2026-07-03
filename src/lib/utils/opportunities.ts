@@ -73,12 +73,13 @@ export type OpportunityStatus =
   | 'due_diligence'
   | 'negotiating'
   | 'agreement'
+  | 'on_hold'
   | 'closed_won'
   | 'closed_passed'
 
 export const OPPORTUNITY_STATUSES: OpportunityStatus[] = [
   'identified', 'evaluating', 'in_discussion', 'due_diligence',
-  'negotiating', 'agreement', 'closed_won', 'closed_passed',
+  'negotiating', 'agreement', 'on_hold', 'closed_won', 'closed_passed',
 ]
 
 /** Active pipeline stages, in order (excludes the two closed states). */
@@ -93,6 +94,7 @@ export const OPPORTUNITY_STATUS_LABELS: Record<OpportunityStatus, string> = {
   due_diligence: 'Due Diligence',
   negotiating: 'Negotiating',
   agreement: 'Agreement',
+  on_hold: 'On Hold',
   closed_won: 'Closed — Pursued',
   closed_passed: 'Closed — Passed',
 }
@@ -104,6 +106,7 @@ export const OPPORTUNITY_STATUS_INDEX: Record<OpportunityStatus, number> = {
   due_diligence: 3,
   negotiating: 4,
   agreement: 5,
+  on_hold: -1, // parked — not on the active pipeline bar
   closed_won: 6,
   closed_passed: 6,
 }
@@ -115,6 +118,7 @@ export const OPPORTUNITY_STATUS_BADGE: Record<OpportunityStatus, string> = {
   due_diligence: 'bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-500/15 dark:text-amber-300 dark:ring-amber-500/30',
   negotiating: 'bg-violet-50 text-violet-700 ring-violet-200 dark:bg-violet-500/15 dark:text-violet-300 dark:ring-violet-500/30',
   agreement: 'bg-indigo-50 text-indigo-700 ring-indigo-200 dark:bg-indigo-500/15 dark:text-indigo-300 dark:ring-indigo-500/30',
+  on_hold: 'bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-500/15 dark:text-amber-300 dark:ring-amber-500/30',
   closed_won: 'bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-500/15 dark:text-emerald-300 dark:ring-emerald-500/30',
   closed_passed: 'bg-red-50 text-red-600 ring-red-200 dark:bg-red-500/15 dark:text-red-300 dark:ring-red-500/30',
 }

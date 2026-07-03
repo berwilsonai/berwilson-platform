@@ -80,6 +80,7 @@ export default async function OpportunityDetailPage({ params }: PageProps) {
   const s = oppStatus(opportunity.status)
   const p = oppPriority(opportunity.priority)
   const closed = isClosedStatus(opportunity.status)
+  const onHold = s === 'on_hold'
   const currentIndex = OPPORTUNITY_STATUS_INDEX[s]
 
   return (
@@ -124,7 +125,7 @@ export default async function OpportunityDetailPage({ params }: PageProps) {
       </div>
 
       {/* Pipeline progress */}
-      {!closed && (
+      {!closed && !onHold && (
         <div className="flex items-center gap-1">
           {OPPORTUNITY_PIPELINE.map((stage, i) => (
             <div key={stage} className="flex-1 min-w-0">
@@ -144,6 +145,11 @@ export default async function OpportunityDetailPage({ params }: PageProps) {
               </span>
             </div>
           ))}
+        </div>
+      )}
+      {onHold && (
+        <div className="rounded-md px-3 py-2 text-sm font-medium ring-1 ring-inset bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-500/15 dark:text-amber-300 dark:ring-amber-500/30">
+          On Hold
         </div>
       )}
       {closed && (
