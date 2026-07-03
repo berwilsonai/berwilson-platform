@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import type { TablesUpdate } from '@/lib/supabase/types'
-import { getViewer, canAccessTask, forbiddenJson, type Viewer } from '@/lib/auth/viewer'
+import { getViewer, canAccessTask, forbiddenJson, actorAdminClient, type Viewer } from '@/lib/auth/viewer'
 
 interface RouteContext {
   params: Promise<{ id: string }>
@@ -83,7 +83,7 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
     }
   }
 
-  const supabase = createAdminClient()
+  const supabase = await actorAdminClient()
 
   const patch: TablesUpdate<'tasks'> = {}
   if ('title' in body) patch.title = body.title?.trim() || 'Untitled task'
@@ -119,7 +119,7 @@ export async function DELETE(_request: NextRequest, { params }: RouteContext) {
   const { id } = await params
   const guard = await guardTask(await getViewer(), id)
   if (guard) return guard
-  const supabase = createAdminClient()
+  const supabase = await actorAdminClient()
   const { error } = await supabase.from('tasks').delete().eq('id', id)
   if (error) {
     return Response.json({ error: 'Failed to delete task' }, { status: 500 })

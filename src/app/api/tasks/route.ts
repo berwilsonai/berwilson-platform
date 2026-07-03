@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import type { TablesInsert } from '@/lib/supabase/types'
-import { getViewer, filterTasksForViewer, canCreateTask, forbiddenJson } from '@/lib/auth/viewer'
+import { getViewer, filterTasksForViewer, canCreateTask, forbiddenJson, actorAdminClient } from '@/lib/auth/viewer'
 
 /** GET — list tasks with optional filters (?status=open|done&assignee=<id>&project=<id>) */
 export async function GET(request: NextRequest) {
@@ -68,7 +68,7 @@ export async function POST(request: NextRequest) {
   if (opportunity_id) row.opportunity_id = opportunity_id
   if (objective_id) row.objective_id = objective_id
 
-  const supabase = createAdminClient()
+  const supabase = await actorAdminClient()
   const { data, error } = await supabase
     .from('tasks')
     .insert(row)

@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server'
-import { createAdminClient } from '@/lib/supabase/admin'
+import { actorAdminClient } from '@/lib/auth/viewer'
 import { embedUpdate } from '@/lib/ai/embeddings'
 import { createTasksFromActionItems, type ActionItemLike } from '@/lib/tasks/from-action-items'
 import type { TablesInsert } from '@/lib/supabase/types'
@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
     return Response.json({ error: 'project_id and raw_content are required' }, { status: 400 })
   }
 
-  const supabase = createAdminClient()
+  const supabase = await actorAdminClient()
 
   // action_items deliberately not stored on the update — human-confirmed items
   // become real tasks below (the column is being dropped).

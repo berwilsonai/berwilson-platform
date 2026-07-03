@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server'
-import { createAdminClient } from '@/lib/supabase/admin'
+import { actorAdminClient } from '@/lib/auth/viewer'
 
 export const maxDuration = 90
 
@@ -8,7 +8,7 @@ export const maxDuration = 90
 // then calls /api/proposals/intake with the chunk session ID.
 export async function POST(request: NextRequest) {
   try {
-    const supabase = createAdminClient()
+    const supabase = await actorAdminClient()
 
     let formData: FormData
     try {

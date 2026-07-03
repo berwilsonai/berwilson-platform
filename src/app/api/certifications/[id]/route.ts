@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server'
-import { createAdminClient } from '@/lib/supabase/admin'
+import { actorAdminClient } from '@/lib/auth/viewer'
 
 interface RouteParams {
   params: Promise<{ id: string }>
@@ -7,7 +7,7 @@ interface RouteParams {
 
 export async function DELETE(_request: NextRequest, { params }: RouteParams) {
   const { id } = await params
-  const supabase = createAdminClient()
+  const supabase = await actorAdminClient()
 
   // Fetch cert to find linked document
   const { data: cert } = await supabase

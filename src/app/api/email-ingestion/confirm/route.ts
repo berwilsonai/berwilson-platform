@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server'
-import { createAdminClient } from '@/lib/supabase/admin'
+import { actorAdminClient } from '@/lib/auth/viewer'
 import { embedUpdate, embedOpportunityReport, embedOpportunitySnapshot } from '@/lib/ai/embeddings'
 import type { TablesInsert } from '@/lib/supabase/types'
 import { SECTORS } from '@/lib/utils/constants'
@@ -46,7 +46,7 @@ const num = (v: unknown): number | null =>
   typeof v === 'number' && isFinite(v) ? v : v != null && v !== '' && !isNaN(Number(v)) ? Number(v) : null
 
 export async function POST(request: NextRequest) {
-  const supabase = createAdminClient()
+  const supabase = await actorAdminClient()
 
   let body: ConfirmBody
   try {

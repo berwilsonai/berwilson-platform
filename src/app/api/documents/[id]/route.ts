@@ -1,7 +1,6 @@
 import { NextRequest } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { createAdminClient } from '@/lib/supabase/admin'
-import { getViewer, canAccessProject, forbiddenJson } from '@/lib/auth/viewer'
+import { getViewer, canAccessProject, forbiddenJson, actorAdminClient } from '@/lib/auth/viewer'
 
 interface RouteContext {
   params: Promise<{ id: string }>
@@ -32,7 +31,7 @@ export async function DELETE(_request: NextRequest, { params }: RouteContext) {
   }
 
   // Remove from Supabase Storage (admin needed to bypass storage RLS)
-  const admin = createAdminClient()
+  const admin = await actorAdminClient()
   const { error: storageError } = await admin.storage
     .from('documents')
     .remove([doc.storage_path])

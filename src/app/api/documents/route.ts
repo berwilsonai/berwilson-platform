@@ -1,9 +1,8 @@
 import { NextRequest } from 'next/server'
-import { createAdminClient } from '@/lib/supabase/admin'
 import { embedDocument } from '@/lib/ai/embeddings'
 import { callGemini, callGeminiWithFile } from '@/lib/ai/gemini'
 import { transcribePdfText, storeExtractedText } from '@/lib/ai/document-text'
-import { getViewer, canAccessProject, forbiddenJson } from '@/lib/auth/viewer'
+import { getViewer, canAccessProject, forbiddenJson, actorAdminClient } from '@/lib/auth/viewer'
 
 // Summary + full-text transcription + embedding can take a few minutes on big PDFs
 export const maxDuration = 300
@@ -38,7 +37,7 @@ interface InsertBody {
 }
 
 export async function POST(request: NextRequest) {
-  const supabase = createAdminClient()
+  const supabase = await actorAdminClient()
 
   let body: InsertBody
   try {

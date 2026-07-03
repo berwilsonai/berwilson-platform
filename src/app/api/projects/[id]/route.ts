@@ -1,8 +1,7 @@
 import { NextRequest } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { createAdminClient } from '@/lib/supabase/admin'
 import type { TablesUpdate } from '@/lib/supabase/types'
-import { getViewer, canAccessProject, forbiddenJson } from '@/lib/auth/viewer'
+import { getViewer, canAccessProject, forbiddenJson, actorAdminClient } from '@/lib/auth/viewer'
 
 interface RouteContext {
   params: Promise<{ id: string }>
@@ -72,7 +71,7 @@ export async function DELETE(_request: NextRequest, { params }: RouteContext) {
   const { id } = await params
   const viewer = await getViewer()
   if (viewer && !viewer.isAdmin) return forbiddenJson('Only admins can delete projects')
-  const supabase = createAdminClient()
+  const supabase = await actorAdminClient()
 
   const { error } = await supabase
     .from('projects')

@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { actorAdminClient } from '@/lib/auth/viewer'
 import { createClient } from '@/lib/supabase/server'
 import { GoogleGenerativeAI, type Part } from '@google/generative-ai'
 import { GoogleAIFileManager } from '@google/generative-ai/server'
@@ -70,7 +71,7 @@ async function cleanupChunks(
 
 export async function POST(request: NextRequest) {
   try {
-    const supabase = createAdminClient()
+    const supabase = await actorAdminClient()
 
     // Get user if logged in
     let userId = SYSTEM_USER_ID

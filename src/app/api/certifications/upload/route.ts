@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server'
-import { createAdminClient } from '@/lib/supabase/admin'
+import { actorAdminClient } from '@/lib/auth/viewer'
 import { embedDocument } from '@/lib/ai/embeddings'
 import { callGeminiWithFile } from '@/lib/ai/gemini'
 
@@ -15,7 +15,7 @@ Return ONLY valid JSON: {"summary": "...", "confidence": 0.0}
 confidence is 0.0–1.0. Return ONLY valid JSON. No markdown.`
 
 export async function POST(request: NextRequest) {
-  const supabase = createAdminClient()
+  const supabase = await actorAdminClient()
 
   let formData: FormData
   try {

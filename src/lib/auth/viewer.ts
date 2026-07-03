@@ -170,6 +170,17 @@ export async function canAccessTask(
   return false
 }
 
+/**
+ * Service-role client stamped with the signed-in user's identity so the
+ * log_activity trigger attributes the write to them instead of "system".
+ * Use for user-initiated mutations; crons and background jobs should keep
+ * calling createAdminClient() directly (their writes really are system).
+ */
+export async function actorAdminClient() {
+  const viewer = await getViewer()
+  return createAdminClient(viewer ? { id: viewer.authUserId, email: viewer.email } : undefined)
+}
+
 export function forbiddenJson(message = 'Not authorized') {
   return Response.json({ error: message }, { status: 403 })
 }

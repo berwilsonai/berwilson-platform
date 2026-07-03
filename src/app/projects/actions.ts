@@ -1,9 +1,8 @@
 'use server'
 
 import { redirect } from 'next/navigation'
-import { createAdminClient } from '@/lib/supabase/admin'
 import type { TablesInsert } from '@/lib/supabase/types'
-import { getViewer, canAccessProject } from '@/lib/auth/viewer'
+import { getViewer, canAccessProject, actorAdminClient } from '@/lib/auth/viewer'
 
 export type ProjectFormState = { error: string } | null
 
@@ -105,7 +104,7 @@ export async function createProject(
   const result = parseFields(formData)
   if (!result.ok) return { error: result.error }
 
-  const supabase = createAdminClient()
+  const supabase = await actorAdminClient()
   const { data, error } = await supabase
     .from('projects')
     .insert(result.fields)
@@ -131,7 +130,7 @@ export async function updateProject(
   const result = parseFields(formData)
   if (!result.ok) return { error: result.error }
 
-  const supabase = createAdminClient()
+  const supabase = await actorAdminClient()
   const { error } = await supabase
     .from('projects')
     .update(result.fields)

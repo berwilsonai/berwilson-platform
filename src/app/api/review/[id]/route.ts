@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { createAdminClient } from '@/lib/supabase/admin'
+import { actorAdminClient } from '@/lib/auth/viewer'
 import { embedUpdate } from '@/lib/ai/embeddings'
 import { createTasksFromActionItems, type ActionItemLike } from '@/lib/tasks/from-action-items'
 
@@ -40,7 +40,7 @@ export async function PATCH(
   }
 
   // Keep admin client only for embedUpdate (needs service role for chunks table)
-  const admin = createAdminClient()
+  const admin = await actorAdminClient()
 
   // If reassigning to a different project, update both the review item and the source record
   if (body.project_id) {

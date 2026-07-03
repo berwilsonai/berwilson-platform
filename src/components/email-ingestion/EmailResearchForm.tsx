@@ -8,7 +8,9 @@ import { Loader2, Search } from 'lucide-react'
  * Email Research runner. POSTs to /api/email-research/run, which searches the
  * connected Outlook mailbox, reads matching threads + attachments, and stages
  * a pending review session. On success we land directly on the review screen.
- * The run is synchronous and can take a few minutes — keep the tab open.
+ * The run is synchronous and can take a few minutes, but the server finishes
+ * on its own — navigating away just skips the redirect; the finished report
+ * still lands under Recent sessions for later review.
  */
 
 const TIME_RANGES = [
@@ -107,7 +109,8 @@ export default function EmailResearchForm() {
           <Loader2 size={15} className="animate-spin mt-0.5 shrink-0 text-muted-foreground" />
           <p className="text-sm text-muted-foreground">
             Searching Outlook and reading threads and attachments — this takes 1–4 minutes.
-            Keep this tab open; you&apos;ll land on the review screen when it&apos;s done.
+            Stay here to land on the review screen automatically, or navigate away — the
+            finished report will be waiting under Recent sessions for you to review.
           </p>
         </div>
       )}
