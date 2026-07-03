@@ -17,6 +17,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { callGemini } from '@/lib/ai/gemini'
 import { checkRateLimit } from '@/lib/rate-limit'
+import { fetchOpenTasks, formatTasksForPrompt } from '@/lib/tasks/queries'
 
 const MEETING_PREP_PROMPT = `You are a chief of staff preparing an executive for a meeting.
 Generate a concise meeting prep brief. Be specific, name names, cite exact numbers and dates.
@@ -102,8 +103,8 @@ export async function POST(request: NextRequest) {
 
   // 2. Find related projects — through project_players or subject matching
   const partyIds = matchedParties.map(p => p.id)
-  let relatedProjectIds: string[] = []
-  let projectMap: Record<string, string> = {}
+  const relatedProjectIds: string[] = []
+  const projectMap: Record<string, string> = {}
 
   // Via players
   if (partyIds.length > 0) {
@@ -136,15 +137,16 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  // 3. Pull recent updates, open items for matched projects
-  let recentUpdates: { summary: string; action_items: unknown[]; waiting_on: unknown[]; risks: unknown[]; created_at: string; project_name: string }[] = []
+  // 3. Pull recent updates, open tasks, open items for matched projects
+  let recentUpdates: { summary: string; waiting_on: unknown[]; risks: unknown[]; created_at: string; project_name: string }[] = []
   let openDdItems: { item: string; severity: string; project_name: string }[] = []
+  let openTasksContext = ''
 
   if (relatedProjectIds.length > 0) {
-    const [{ data: updates }, { data: dd }] = await Promise.all([
+    const [{ data: updates }, { data: dd }, openTasks] = await Promise.all([
       admin
         .from('updates')
-        .select('summary, action_items, waiting_on, risks, created_at, project_id, projects(name)')
+        .select('summary, waiting_on, risks, created_at, project_id, projects(name)')
         .eq('review_state', 'approved')
         .in('project_id', relatedProjectIds)
         .order('created_at', { ascending: false })
@@ -155,11 +157,13 @@ export async function POST(request: NextRequest) {
         .neq('status', 'resolved')
         .in('project_id', relatedProjectIds)
         .in('severity', ['critical', 'blocker']),
+      fetchOpenTasks(admin, { projectIds: relatedProjectIds, limit: 30 }),
     ])
+
+    openTasksContext = formatTasksForPrompt(openTasks)
 
     recentUpdates = (updates ?? []).map(u => ({
       summary: u.summary ?? '',
-      action_items: (u.action_items ?? []) as unknown[],
       waiting_on: (u.waiting_on ?? []) as unknown[],
       risks: (u.risks ?? []) as unknown[],
       created_at: u.created_at ?? '',
@@ -183,7 +187,7 @@ export async function POST(request: NextRequest) {
   )
 
   const updatesContext = recentUpdates.map(u =>
-    `[${u.project_name}, ${new Date(u.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}] ${u.summary}\n  Actions: ${JSON.stringify(u.action_items).slice(0, 200)}\n  Waiting: ${JSON.stringify(u.waiting_on).slice(0, 200)}\n  Risks: ${JSON.stringify(u.risks).slice(0, 200)}`
+    `[${u.project_name}, ${new Date(u.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}] ${u.summary}\n  Waiting: ${JSON.stringify(u.waiting_on).slice(0, 200)}\n  Risks: ${JSON.stringify(u.risks).slice(0, 200)}`
   ).join('\n\n')
 
   const ddContext = openDdItems.map(d => `- ${d.item} (${d.severity}, ${d.project_name})`).join('\n')
@@ -199,6 +203,9 @@ UNKNOWN ATTENDEES:
 ${unknownAttendees.map(a => `- ${a.name} <${a.email}>`).join('\n') || '(none)'}
 
 RELATED PROJECTS: ${relatedProjectIds.map(id => projectMap[id]).join(', ') || '(no project match found)'}
+
+OPEN TASKS ON RELATED PROJECTS:
+${openTasksContext || '(none)'}
 
 RECENT UPDATES:
 ${updatesContext || '(no recent updates for matched projects)'}

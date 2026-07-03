@@ -13,6 +13,7 @@
 
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { fetchOpenTasks } from '@/lib/tasks/queries'
 
 interface AttentionItem {
   id: string
@@ -33,8 +34,9 @@ export async function GET() {
   const today = now.toISOString().split('T')[0]
   const items: AttentionItem[] = []
 
-  // Parallel data fetch
+  // Parallel data fetch — tasks come from the real task system (tasks table)
   const [
+    overdueTasks,
     { data: projects },
     { data: updates },
     { data: milestones },
@@ -42,10 +44,11 @@ export async function GET() {
     { data: complianceItems },
     { data: dependencies },
   ] = await Promise.all([
+    fetchOpenTasks(supabase, { dueBefore: today }),
     supabase.from('projects').select('id, name').eq('status', 'active'),
     supabase
       .from('updates')
-      .select('id, project_id, action_items, waiting_on, decisions, created_at, projects(name)')
+      .select('id, project_id, summary, waiting_on, decisions, created_at, projects(name)')
       .eq('review_state', 'approved')
       .order('created_at', { ascending: false })
       .limit(100),
@@ -80,32 +83,25 @@ export async function GET() {
   const projectMap: Record<string, string> = {}
   for (const p of projects ?? []) projectMap[p.id] = p.name
 
-  type JsonActionItem = { text?: string; assignee?: string; due_date?: string; completed?: boolean }
   type JsonWaitingOn = { text?: string; party?: string; since?: string }
   type JsonDecision = { text?: string; made_by?: string; date?: string }
 
-  // 1. Overdue action items
-  for (const u of updates ?? []) {
-    const actionItems = (u.action_items ?? []) as JsonActionItem[]
-    for (const item of actionItems) {
-      if (item.completed || !item.due_date) continue
-      const dueDate = new Date(item.due_date)
-      if (dueDate >= now) continue // not overdue yet
-
-      const ageDays = Math.floor((now.getTime() - dueDate.getTime()) / 86_400_000)
-      items.push({
-        id: `action-${u.id}-${item.text?.slice(0, 20)}`,
-        category: 'overdue_action',
-        urgency: Math.min(100, 60 + ageDays * 2),
-        title: item.text ?? 'Untitled action item',
-        detail: item.assignee ? `Assigned to ${item.assignee} · ${ageDays}d overdue` : `${ageDays}d overdue`,
-        project_id: u.project_id,
-        project_name: projectName(u),
-        age_days: ageDays,
-        due_date: item.due_date,
-        source_date: u.created_at ?? '',
-      })
-    }
+  // 1. Overdue tasks (from the tasks table — the real task system)
+  for (const t of overdueTasks) {
+    if (!t.due_date || t.due_date >= today) continue // due today isn't overdue
+    const ageDays = Math.floor((now.getTime() - new Date(t.due_date).getTime()) / 86_400_000)
+    items.push({
+      id: `task-${t.id}`,
+      category: 'overdue_action',
+      urgency: Math.min(100, 60 + ageDays * 2),
+      title: t.title,
+      detail: t.assignee ? `Assigned to ${t.assignee} · ${ageDays}d overdue` : `${ageDays}d overdue`,
+      project_id: t.project_id,
+      project_name: t.project_name ?? '—',
+      age_days: ageDays,
+      due_date: t.due_date,
+      source_date: t.created_at ?? '',
+    })
   }
 
   // 2. Stale waiting-on items (> 14 days since mentioned)
@@ -222,7 +218,7 @@ export async function GET() {
       const hasFollowUp = (updates ?? []).some(later => {
         if (later.project_id !== u.project_id) return false
         if (new Date(later.created_at ?? '') <= new Date(u.created_at ?? '')) return false
-        const summary = (later as unknown as { summary?: string }).summary ?? ''
+        const summary = later.summary ?? ''
         return decisionWords.some(w => summary.toLowerCase().includes(w))
       })
 

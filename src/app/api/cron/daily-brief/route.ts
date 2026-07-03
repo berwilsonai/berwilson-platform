@@ -11,6 +11,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { callGemini } from '@/lib/ai/gemini'
+import { fetchOpenTasks, formatTaskLine } from '@/lib/tasks/queries'
 
 const SYSTEM_USER_ID = '00000000-0000-0000-0000-000000000000'
 
@@ -65,6 +66,7 @@ export async function GET(request: NextRequest) {
 
   // Gather all the intelligence data
   const [
+    openTasks,
     { data: projects },
     { data: updates },
     { data: milestones },
@@ -72,10 +74,11 @@ export async function GET(request: NextRequest) {
     { data: complianceItems },
     { data: dependencies },
   ] = await Promise.all([
+    fetchOpenTasks(supabase, { limit: 300 }),
     supabase.from('projects').select('id, name, sector, stage, estimated_value, location').eq('status', 'active'),
     supabase
       .from('updates')
-      .select('id, project_id, summary, action_items, waiting_on, risks, decisions, created_at, projects(name)')
+      .select('id, project_id, summary, waiting_on, risks, decisions, created_at, projects(name)')
       .eq('review_state', 'approved')
       .order('created_at', { ascending: false })
       .limit(50),
@@ -109,18 +112,18 @@ export async function GET(request: NextRequest) {
 
   // Build context for the brief
   type JsonItem = Record<string, unknown>
-  const overdueActions: string[] = []
   const staleWaiting: string[] = []
   const staleDecisions: string[] = []
 
+  // Overdue + due-soon tasks come from the real task system
+  const overdueActions = openTasks
+    .filter(t => t.due_date && t.due_date < today)
+    .map(t => formatTaskLine(t, now))
+  const dueSoon = openTasks
+    .filter(t => t.due_date && t.due_date >= today && new Date(t.due_date).getTime() <= now.getTime() + 7 * 86_400_000)
+    .map(t => formatTaskLine(t, now))
+
   for (const u of updates ?? []) {
-    for (const a of (u.action_items ?? []) as JsonItem[]) {
-      if (a.completed || !a.due_date) continue
-      if (new Date(a.due_date as string) < now) {
-        const days = Math.floor((now.getTime() - new Date(a.due_date as string).getTime()) / 86_400_000)
-        overdueActions.push(`- ${a.text} (${pName(u)}, ${days}d overdue, assigned: ${a.assignee ?? 'unassigned'})`)
-      }
-    }
     for (const w of (u.waiting_on ?? []) as JsonItem[]) {
       const since = w.since ? new Date(w.since as string) : new Date(u.created_at ?? '')
       const days = Math.floor((now.getTime() - since.getTime()) / 86_400_000)
@@ -170,8 +173,11 @@ export async function GET(request: NextRequest) {
 ACTIVE PROJECTS:
 ${projectSummaries.join('\n') || '(none)'}
 
-OVERDUE ACTION ITEMS (${overdueActions.length}):
+OVERDUE TASKS (${overdueActions.length}):
 ${overdueActions.slice(0, 10).join('\n') || '(none)'}
+
+TASKS DUE IN THE NEXT 7 DAYS (${dueSoon.length}):
+${dueSoon.slice(0, 10).join('\n') || '(none)'}
 
 STALE WAITING-ON ITEMS (${staleWaiting.length}, >14 days):
 ${staleWaiting.slice(0, 10).join('\n') || '(none)'}

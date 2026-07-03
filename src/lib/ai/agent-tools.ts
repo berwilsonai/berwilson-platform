@@ -6,6 +6,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { researchQuery } from './research'
 import { matchChunks } from './match-chunks'
 import { embedQuery } from './embeddings'
+import { fetchOpenTasks } from '@/lib/tasks/queries'
 import type { AgentContext } from './agent'
 
 // ---------------------------------------------------------------------------
@@ -54,7 +55,7 @@ export const agentTools = [
   },
   {
     name: 'get_open_items',
-    description: 'Get open action items, waiting-on blockers, and active risks from approved project updates. Use when asked: "what are our open action items", "what are we waiting on", "what are the active risks", "who owes us a response", or "what needs to happen next". Can scope to one project or pull portfolio-wide.',
+    description: 'Get open tasks (from the team task system), waiting-on blockers, and active risks. Use when asked: "what are our open action items", "what are we waiting on", "what are the active risks", "who owes us a response", or "what needs to happen next". Can scope to one project or pull portfolio-wide.',
     parameters: {
       type: 'object',
       properties: {
@@ -396,7 +397,7 @@ export async function executeToolCall(
 
       let q = supabase
         .from('updates')
-        .select('id, project_id, summary, action_items, risks, decisions, waiting_on, source, created_at, confidence')
+        .select('id, project_id, summary, risks, decisions, waiting_on, source, created_at, confidence')
         .eq('review_state', 'approved')
         .order('created_at', { ascending: false })
         .limit(10)
@@ -495,7 +496,7 @@ export async function executeToolCall(
       const [{ data: recentUpdates }, { data: openDdItems }, { data: openCompliance }] = await Promise.all([
         supabase
           .from('updates')
-          .select('id, project_id, summary, action_items, risks, decisions, created_at')
+          .select('id, project_id, summary, risks, decisions, created_at')
           .eq('review_state', 'approved')
           .in('project_id', allIds)
           .order('created_at', { ascending: false })
@@ -877,7 +878,7 @@ export async function executeToolCall(
 
       let q = supabase
         .from('updates')
-        .select('id, project_id, summary, action_items, waiting_on, risks, decisions, created_at, projects(name)')
+        .select('id, project_id, summary, waiting_on, risks, decisions, created_at, projects(name)')
         .eq('review_state', 'approved')
         .gte('created_at', since)
         .order('created_at', { ascending: false })
@@ -896,15 +897,15 @@ export async function executeToolCall(
         (u.projects as { name: string } | null)?.name ?? 'Unknown'
 
       if (itemType === 'all' || itemType === 'action_items') {
-        result.action_items = rows.flatMap(u => {
-          const items = Array.isArray(u.action_items) ? (u.action_items as JsonObj[]) : []
-          return items.map(item => ({
-            ...item,
-            project: projectName(u),
-            update_id: u.id,
-            update_date: u.created_at,
-          }))
-        })
+        // Open tasks come from the real task system (tasks table)
+        const openTasks = await fetchOpenTasks(supabase, projectId ? { projectId } : {})
+        result.action_items = openTasks.map(t => ({
+          task_id: t.id,
+          text: t.title,
+          assignee: t.assignee,
+          due_date: t.due_date,
+          project: t.project_name ?? 'Unassigned',
+        }))
       }
 
       if (itemType === 'all' || itemType === 'waiting_on') {

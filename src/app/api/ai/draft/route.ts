@@ -15,6 +15,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { callGemini } from '@/lib/ai/gemini'
 import { checkRateLimit } from '@/lib/rate-limit'
+import { fetchOpenTasks, formatTasksForPrompt } from '@/lib/tasks/queries'
 
 const DRAFT_PROMPTS: Record<string, string> = {
   email: `You are drafting a professional email on behalf of a construction executive at Ber Wilson.
@@ -75,10 +76,11 @@ export async function POST(request: NextRequest) {
   // Gather project context
   let projectContext = ''
   if (body.project_id) {
-    const [{ data: project }, { data: updates }, { data: milestones }] = await Promise.all([
+    const [{ data: project }, openTasks, { data: updates }, { data: milestones }] = await Promise.all([
       admin.from('projects').select('name, sector, stage, estimated_value, location').eq('id', body.project_id).single(),
+      fetchOpenTasks(admin, { projectId: body.project_id, limit: 25 }),
       admin.from('updates')
-        .select('summary, action_items, waiting_on, risks, decisions, created_at')
+        .select('summary, waiting_on, risks, decisions, created_at')
         .eq('project_id', body.project_id)
         .eq('review_state', 'approved')
         .order('created_at', { ascending: false })
@@ -95,8 +97,11 @@ export async function POST(request: NextRequest) {
       projectContext = `\nPROJECT: ${project.name}
 Stage: ${project.stage} | Value: $${((project.estimated_value ?? 0) / 1_000_000).toFixed(1)}M | Sector: ${project.sector} | Location: ${project.location ?? 'N/A'}
 
+OPEN TASKS:
+${formatTasksForPrompt(openTasks)}
+
 RECENT UPDATES:
-${(updates ?? []).map(u => `[${new Date(u.created_at ?? '').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}] ${u.summary}\n  Actions: ${JSON.stringify(u.action_items).slice(0, 300)}\n  Waiting: ${JSON.stringify(u.waiting_on).slice(0, 200)}\n  Risks: ${JSON.stringify(u.risks).slice(0, 200)}`).join('\n\n') || '(none)'}
+${(updates ?? []).map(u => `[${new Date(u.created_at ?? '').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}] ${u.summary}\n  Waiting: ${JSON.stringify(u.waiting_on).slice(0, 200)}\n  Risks: ${JSON.stringify(u.risks).slice(0, 200)}`).join('\n\n') || '(none)'}
 
 UPCOMING MILESTONES:
 ${(milestones ?? []).map(m => `- ${m.label} — ${m.target_date}`).join('\n') || '(none)'}
@@ -104,15 +109,26 @@ ${(milestones ?? []).map(m => `- ${m.label} — ${m.target_date}`).join('\n') ||
     }
   } else if (draftType === 'report') {
     // For reports without a specific project, get portfolio overview
-    const { data: projects } = await admin
-      .from('projects')
-      .select('id, name, sector, stage, estimated_value')
-      .eq('status', 'active')
+    const [{ data: projects }, allOpenTasks] = await Promise.all([
+      admin
+        .from('projects')
+        .select('id, name, sector, stage, estimated_value')
+        .eq('status', 'active'),
+      fetchOpenTasks(admin, { limit: 500 }),
+    ])
 
     if (projects && projects.length > 0) {
+      const tasksByProject = new Map<string, typeof allOpenTasks>()
+      for (const t of allOpenTasks) {
+        if (!t.project_id) continue
+        const list = tasksByProject.get(t.project_id) ?? []
+        list.push(t)
+        tasksByProject.set(t.project_id, list)
+      }
+
       const enriched = await Promise.all(projects.map(async p => {
         const { data: latestUpdate } = await admin.from('updates')
-          .select('summary, action_items, risks, created_at')
+          .select('summary, risks, created_at')
           .eq('project_id', p.id)
           .eq('review_state', 'approved')
           .order('created_at', { ascending: false })
@@ -126,9 +142,10 @@ ${(milestones ?? []).map(m => `- ${m.label} — ${m.target_date}`).join('\n') ||
           .limit(1)
 
         const u = latestUpdate?.[0]
+        const tasks = tasksByProject.get(p.id) ?? []
         return `${p.name} (${p.stage}, $${((p.estimated_value ?? 0) / 1_000_000).toFixed(1)}M):
   Latest: ${u?.summary?.slice(0, 150) ?? 'no updates'}
-  Actions: ${JSON.stringify(u?.action_items ?? []).slice(0, 150)}
+  Open tasks (${tasks.length}): ${tasks.slice(0, 3).map(t => t.title).join('; ') || 'none'}
   Risks: ${JSON.stringify(u?.risks ?? []).slice(0, 150)}
   Next milestone: ${nextMs?.[0]?.label ?? 'none'} — ${nextMs?.[0]?.target_date ?? ''}`
       }))

@@ -1,6 +1,7 @@
 import { CalendarDays } from 'lucide-react'
 import { createAdminClient } from '@/lib/supabase/admin'
 import CalendarView from '@/components/calendar/CalendarView'
+import { fetchOpenTasks } from '@/lib/tasks/queries'
 
 export const metadata = { title: 'Calendar — Ber Wilson Intelligence' }
 
@@ -12,7 +13,7 @@ export default async function CalendarPage() {
   const thirtyDaysAgo = new Date(now.getTime() - 30 * 86_400_000).toISOString()
   const sixtyDaysOut = new Date(now.getTime() + 60 * 86_400_000).toISOString()
 
-  const [milestonesResult, complianceResult, updatesResult, bidsResult] = await Promise.all([
+  const [milestonesResult, complianceResult, dueTasks, bidsResult] = await Promise.all([
     supabase
       .from('milestones')
       .select('id, label, stage, target_date, completed_at, project_id, project:projects(id, name, sector)')
@@ -26,13 +27,11 @@ export default async function CalendarPage() {
       .gte('due_date', thirtyDaysAgo)
       .lte('due_date', sixtyDaysOut)
       .order('due_date', { ascending: true }),
-    // Get approved updates with action items that have due dates
-    supabase
-      .from('updates')
-      .select('id, project_id, action_items, project:projects(id, name)')
-      .eq('review_state', 'approved')
-      .order('created_at', { ascending: false })
-      .limit(50),
+    // Open tasks with due dates in the window (tasks table = real task system)
+    fetchOpenTasks(supabase, {
+      dueAfter: thirtyDaysAgo.split('T')[0],
+      dueBefore: sixtyDaysOut.split('T')[0],
+    }),
     // Bid submission deadlines for active pre-award pursuits
     supabase
       .from('projects')
@@ -44,40 +43,6 @@ export default async function CalendarPage() {
       .lte('bid_due_date', sixtyDaysOut)
       .order('bid_due_date', { ascending: true }),
   ])
-
-  type ActionItemWithDue = {
-    text: string
-    assignee?: string
-    due_date?: string
-    completed?: boolean
-  }
-
-  // Extract action items with due dates
-  const actionItems: Array<{
-    text: string
-    assignee: string | null
-    due_date: string
-    project_id: string
-    project_name: string
-  }> = []
-
-  for (const update of updatesResult.data ?? []) {
-    const items = (update.action_items ?? []) as ActionItemWithDue[]
-    for (const item of items) {
-      if (item.due_date && !item.completed) {
-        const dueDate = new Date(item.due_date)
-        if (dueDate >= new Date(thirtyDaysAgo) && dueDate <= new Date(sixtyDaysOut)) {
-          actionItems.push({
-            text: item.text,
-            assignee: item.assignee ?? null,
-            due_date: item.due_date,
-            project_id: update.project_id!,
-            project_name: (update.project as unknown as { name: string })?.name ?? 'Unknown',
-          })
-        }
-      }
-    }
-  }
 
   // Build calendar events
   type CalendarEvent = {
@@ -140,16 +105,17 @@ export default async function CalendarPage() {
     })
   }
 
-  for (const a of actionItems) {
+  for (const t of dueTasks) {
+    if (!t.due_date) continue
     events.push({
-      id: `act-${a.due_date}-${a.text.slice(0, 20)}`,
+      id: `task-${t.id}`,
       type: 'action',
-      title: a.text,
-      date: a.due_date,
-      project_id: a.project_id,
-      project_name: a.project_name,
-      detail: a.assignee ? `Owner: ${a.assignee}` : '',
-      overdue: new Date(a.due_date) < now,
+      title: t.title,
+      date: t.due_date,
+      project_id: t.project_id ?? '',
+      project_name: t.project_name ?? '—',
+      detail: t.assignee ? `Owner: ${t.assignee}` : '',
+      overdue: new Date(t.due_date) < now,
       completed: false,
     })
   }

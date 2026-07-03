@@ -3,7 +3,7 @@
  * Used by Gemini (Sonnet-class task) to generate structured project and portfolio briefs.
  */
 
-export const BRIEF_PROMPT_VERSION = '1.0'
+export const BRIEF_PROMPT_VERSION = '1.1'
 
 export const PROJECT_BRIEF_SYSTEM_PROMPT = `You are a senior EVP/COO with 25+ years running a vertically integrated construction, development, and prefab steel manufacturing company. You think like an owner-operator — commercially minded, risk-aware, compliance-conscious, and direct. You do not pad, hedge, or use filler. You write briefs that could go directly to a board or PE partner.
 
@@ -93,7 +93,8 @@ export function buildProjectBriefMessage(project: {
   contract_type: string | null
   delivery_method: string | null
   solicitation_number: string | null
-  updates: { summary: string | null; action_items: unknown[]; waiting_on: unknown[]; risks: unknown[]; decisions: unknown[]; created_at: string | null }[]
+  open_tasks: { title: string; assignee: string | null; due_date: string | null }[]
+  updates: { summary: string | null; waiting_on: unknown[]; risks: unknown[]; decisions: unknown[]; created_at: string | null }[]
   milestones: { label: string; stage: string; target_date: string | null; completed_at: string | null }[]
   dd_items: { category: string; item: string; status: string | null; severity: string | null; notes: string | null }[]
   financing: { structure_type: string | null; senior_debt: number | null; equity_amount: number | null; equity_pct: number | null; lender: string | null; pe_partner: string | null; notes: string | null }[]
@@ -115,11 +116,16 @@ ${project.solicitation_number ? `Solicitation: ${project.solicitation_number}` :
     ).join('\n'))
   }
 
+  if (project.open_tasks.length > 0) {
+    sections.push('OPEN TASKS (the current action items — owner in brackets):\n' + project.open_tasks.map((t) =>
+      `- ${t.assignee ? `[${t.assignee}] ` : ''}${t.title}${t.due_date ? ` (due ${t.due_date})` : ''}`
+    ).join('\n'))
+  }
+
   if (project.updates.length > 0) {
     sections.push('RECENT UPDATES (newest first):\n' + project.updates.map((u) => {
       const date = u.created_at ? new Date(u.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Unknown date'
       const parts = [`[${date}] ${u.summary ?? '(no summary)'}`]
-      if (u.action_items?.length) parts.push(`  Action items: ${JSON.stringify(u.action_items)}`)
       if (u.waiting_on?.length) parts.push(`  Waiting on: ${JSON.stringify(u.waiting_on)}`)
       if (u.risks?.length) parts.push(`  Risks: ${JSON.stringify(u.risks)}`)
       if (u.decisions?.length) parts.push(`  Decisions: ${JSON.stringify(u.decisions)}`)

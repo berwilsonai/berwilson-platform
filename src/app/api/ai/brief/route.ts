@@ -12,6 +12,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { callGemini } from '@/lib/ai/gemini'
 import { checkRateLimit } from '@/lib/rate-limit'
+import { fetchOpenTasks } from '@/lib/tasks/queries'
 import {
   PROJECT_BRIEF_SYSTEM_PROMPT,
   PORTFOLIO_BRIEF_SYSTEM_PROMPT,
@@ -60,6 +61,7 @@ async function generateProjectBrief(
   // Fetch project + all related data in parallel
   const [
     { data: project },
+    openTasks,
     { data: updates },
     { data: milestones },
     { data: ddItems },
@@ -68,8 +70,9 @@ async function generateProjectBrief(
     { data: players },
   ] = await Promise.all([
     admin.from('projects').select('*').eq('id', projectId).single(),
+    fetchOpenTasks(admin, { projectId, limit: 50 }),
     admin.from('updates')
-      .select('summary, action_items, waiting_on, risks, decisions, created_at')
+      .select('summary, waiting_on, risks, decisions, created_at')
       .eq('project_id', projectId)
       .eq('review_state', 'approved')
       .order('created_at', { ascending: false })
@@ -106,9 +109,9 @@ async function generateProjectBrief(
     contract_type: project.contract_type,
     delivery_method: project.delivery_method,
     solicitation_number: project.solicitation_number,
+    open_tasks: openTasks,
     updates: (updates ?? []).map((u) => ({
       summary: u.summary,
-      action_items: (u.action_items ?? []) as unknown[],
       waiting_on: (u.waiting_on ?? []) as unknown[],
       risks: (u.risks ?? []) as unknown[],
       decisions: (u.decisions ?? []) as unknown[],
@@ -162,6 +165,14 @@ async function generatePortfolioBrief(
     return NextResponse.json({ error: 'No active projects' }, { status: 404 })
   }
 
+  // Open-task counts per project from the real task system
+  const allOpenTasks = await fetchOpenTasks(admin, { limit: 500 })
+  const openTaskCount = new Map<string, number>()
+  for (const t of allOpenTasks) {
+    if (!t.project_id) continue
+    openTaskCount.set(t.project_id, (openTaskCount.get(t.project_id) ?? 0) + 1)
+  }
+
   // For each project, get latest update, top risk, action counts, next milestone
   const enriched = await Promise.all(
     projects.map(async (p) => {
@@ -170,7 +181,7 @@ async function generatePortfolioBrief(
         { data: nextMs },
       ] = await Promise.all([
         admin.from('updates')
-          .select('summary, action_items, waiting_on, risks, created_at')
+          .select('summary, waiting_on, risks, created_at')
           .eq('project_id', p.id)
           .eq('review_state', 'approved')
           .order('created_at', { ascending: false })
@@ -199,8 +210,7 @@ async function generatePortfolioBrief(
           ? new Date(latest.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
           : null,
         topRisk: topRisk?.text ?? null,
-        openActionCount: ((latest?.action_items ?? []) as { completed?: boolean }[])
-          .filter((a) => !a.completed).length,
+        openActionCount: openTaskCount.get(p.id) ?? 0,
         waitingOnCount: ((latest?.waiting_on ?? []) as unknown[]).length,
         nextMilestone: nextMs?.[0]?.label ?? null,
         nextMilestoneDate: nextMs?.[0]?.target_date ?? null,
