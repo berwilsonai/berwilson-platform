@@ -40,7 +40,8 @@ export async function middleware(request: NextRequest) {
     pathname === '/login' ||
     pathname.startsWith('/auth/confirm') ||
     pathname.startsWith('/auth/set-password') ||
-    pathname === '/api/cron/risk-scores' ||         // Risk scoring cron job
+    pathname === '/api/cron/risk-scores' ||         // Risk scoring cron job (self-guards via CRON_SECRET)
+    pathname === '/api/cron/daily-brief' ||          // Daily brief cron job (self-guards via CRON_SECRET)
     pathname.startsWith('/api/email/oauth/callback') // OAuth redirect from Microsoft (calendar auth)
 
   if (!user && !isPublicRoute) {

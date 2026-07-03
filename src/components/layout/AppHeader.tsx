@@ -25,6 +25,7 @@ const PAGE_TITLES: Record<string, string> = {
   '/intel': 'Intel',
   '/proposals/intake': 'Proposal Intake',
   '/settings/users': 'Users & Access',
+  '/settings/health': 'System Health',
 }
 
 function getPageTitle(pathname: string): string {

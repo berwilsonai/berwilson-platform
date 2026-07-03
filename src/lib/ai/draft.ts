@@ -1,0 +1,174 @@
+/**
+ * Draft outbound content: follow-up emails, meeting agendas, status reports.
+ * Shared by POST /api/ai/draft (which adds auth + rate limiting) and the
+ * agent's draft_* tools (which call generateDraft directly — no HTTP self-fetch).
+ */
+
+import { createAdminClient } from '@/lib/supabase/admin'
+import { callGemini } from '@/lib/ai/gemini'
+import { fetchOpenTasks, formatTasksForPrompt } from '@/lib/tasks/queries'
+
+const DRAFT_PROMPTS: Record<string, string> = {
+  email: `You are drafting a professional email on behalf of a construction executive at Ber Wilson.
+
+Rules:
+- Write in the executive's voice — direct, professional, confident. Not stiff or overly formal.
+- Reference specific facts from the project data provided (dates, amounts, names).
+- Keep it concise — busy people don't read long emails.
+- Include a clear ask or next step at the end.
+- Don't use placeholder brackets [like this]. Use the actual data or omit.
+- Format as a ready-to-send email with Subject line, body, and suggested closing.`,
+
+  agenda: `You are drafting a meeting agenda for a construction executive at Ber Wilson.
+
+Rules:
+- Start with meeting title, date, and attendees.
+- Organize by topic with time allocations.
+- Under each topic, list specific discussion points with real data (not vague).
+- Include an "Open Items for Resolution" section pulling from project action items.
+- End with "Next Steps / Assignments" section.
+- Keep it to one page — 10-15 minutes per topic max.`,
+
+  report: `You are drafting a status report for a construction executive at Ber Wilson.
+
+Rules:
+- Start with Executive Summary (3-4 sentences covering portfolio health).
+- Then project-by-project updates: stage, value, recent activity, risks, next milestone.
+- Include a "Decisions Required" section for anything needing executive action.
+- Include an "Upcoming Deadlines" section (next 14 days).
+- Use specific numbers, dates, and names throughout.
+- Keep it scannable — bullet points and headers, not paragraphs.`,
+}
+
+export interface DraftInput {
+  type: string // 'email' | 'agenda' | 'report'
+  context: string // user's instruction (e.g. "follow up with Turner about schedule slip")
+  userId: string
+  projectId?: string
+  recipients?: string[] // names or emails
+}
+
+export async function generateDraft({ type, context, userId, projectId, recipients }: DraftInput) {
+  const draftType = DRAFT_PROMPTS[type] ? type : 'email'
+  const systemPrompt = DRAFT_PROMPTS[draftType]
+  const admin = createAdminClient()
+
+  // Gather project context
+  let projectContext = ''
+  if (projectId) {
+    const [{ data: project }, openTasks, { data: updates }, { data: milestones }] = await Promise.all([
+      admin.from('projects').select('name, sector, stage, estimated_value, location').eq('id', projectId).single(),
+      fetchOpenTasks(admin, { projectId, limit: 25 }),
+      admin.from('updates')
+        .select('summary, waiting_on, risks, decisions, created_at')
+        .eq('project_id', projectId)
+        .eq('review_state', 'approved')
+        .order('created_at', { ascending: false })
+        .limit(5),
+      admin.from('milestones')
+        .select('label, target_date, completed_at')
+        .eq('project_id', projectId)
+        .is('completed_at', null)
+        .order('target_date')
+        .limit(3),
+    ])
+
+    if (project) {
+      projectContext = `\nPROJECT: ${project.name}
+Stage: ${project.stage} | Value: $${((project.estimated_value ?? 0) / 1_000_000).toFixed(1)}M | Sector: ${project.sector} | Location: ${project.location ?? 'N/A'}
+
+OPEN TASKS:
+${formatTasksForPrompt(openTasks)}
+
+RECENT UPDATES:
+${(updates ?? []).map(u => `[${new Date(u.created_at ?? '').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}] ${u.summary}\n  Waiting: ${JSON.stringify(u.waiting_on).slice(0, 200)}\n  Risks: ${JSON.stringify(u.risks).slice(0, 200)}`).join('\n\n') || '(none)'}
+
+UPCOMING MILESTONES:
+${(milestones ?? []).map(m => `- ${m.label} — ${m.target_date}`).join('\n') || '(none)'}
+`
+    }
+  } else if (draftType === 'report') {
+    // For reports without a specific project, get portfolio overview
+    const [{ data: projects }, allOpenTasks] = await Promise.all([
+      admin
+        .from('projects')
+        .select('id, name, sector, stage, estimated_value')
+        .eq('status', 'active'),
+      fetchOpenTasks(admin, { limit: 500 }),
+    ])
+
+    if (projects && projects.length > 0) {
+      const tasksByProject = new Map<string, typeof allOpenTasks>()
+      for (const t of allOpenTasks) {
+        if (!t.project_id) continue
+        const list = tasksByProject.get(t.project_id) ?? []
+        list.push(t)
+        tasksByProject.set(t.project_id, list)
+      }
+
+      const enriched = await Promise.all(projects.map(async p => {
+        const { data: latestUpdate } = await admin.from('updates')
+          .select('summary, risks, created_at')
+          .eq('project_id', p.id)
+          .eq('review_state', 'approved')
+          .order('created_at', { ascending: false })
+          .limit(1)
+
+        const { data: nextMs } = await admin.from('milestones')
+          .select('label, target_date')
+          .eq('project_id', p.id)
+          .is('completed_at', null)
+          .order('target_date')
+          .limit(1)
+
+        const u = latestUpdate?.[0]
+        const tasks = tasksByProject.get(p.id) ?? []
+        return `${p.name} (${p.stage}, $${((p.estimated_value ?? 0) / 1_000_000).toFixed(1)}M):
+  Latest: ${u?.summary?.slice(0, 150) ?? 'no updates'}
+  Open tasks (${tasks.length}): ${tasks.slice(0, 3).map(t => t.title).join('; ') || 'none'}
+  Risks: ${JSON.stringify(u?.risks ?? []).slice(0, 150)}
+  Next milestone: ${nextMs?.[0]?.label ?? 'none'} — ${nextMs?.[0]?.target_date ?? ''}`
+      }))
+
+      projectContext = `\nPORTFOLIO OVERVIEW:\n${enriched.join('\n\n')}\n`
+    }
+  }
+
+  // Match recipients to contacts
+  let recipientContext = ''
+  if (recipients && recipients.length > 0) {
+    for (const r of recipients.slice(0, 5)) {
+      const pattern = `%${r.split(' ')[0]}%`
+      const { data: parties } = await admin
+        .from('parties')
+        .select('full_name, company, title, email')
+        .or(`full_name.ilike.${pattern},email.ilike.${pattern}`)
+        .limit(1)
+      if (parties && parties.length > 0) {
+        const p = parties[0]
+        recipientContext += `\nRecipient: ${p.full_name}${p.title ? `, ${p.title}` : ''}${p.company ? ` at ${p.company}` : ''} <${p.email ?? 'no email on file'}>`
+      }
+    }
+  }
+
+  const userMessage = `INSTRUCTIONS: ${context}
+${recipientContext}
+${projectContext}`
+
+  const result = await callGemini<string>({
+    task: 'synthesize',
+    systemPrompt,
+    userMessage,
+    userId,
+    promptVersion: `draft-${draftType}-v1`,
+    maxTokens: 2500,
+    jsonMode: false,
+  })
+
+  return {
+    draft: result.data as string,
+    type: draftType,
+    model: result.model,
+    latencyMs: result.latencyMs,
+  }
+}

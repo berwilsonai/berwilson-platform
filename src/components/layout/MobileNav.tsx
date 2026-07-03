@@ -19,6 +19,7 @@ import {
   Inbox,
   Target,
   UserCog,
+  HeartPulse,
   X,
 } from 'lucide-react'
 import { canAccessPage, type Role } from '@/lib/auth/permissions'
@@ -41,6 +42,7 @@ const MORE_NAV = [
   { href: '/company', label: 'Ber Wilson', icon: Shield },
   { href: '/activity', label: 'Activity', icon: Activity },
   { href: '/settings/users', label: 'Users & Access', icon: UserCog },
+  { href: '/settings/health', label: 'System Health', icon: HeartPulse },
 ] as const
 
 interface MobileNavProps {

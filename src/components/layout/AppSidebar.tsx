@@ -21,6 +21,7 @@ import {
   Inbox,
   Target,
   UserCog,
+  HeartPulse,
 } from 'lucide-react'
 import { canAccessPage, type Role } from '@/lib/auth/permissions'
 
@@ -57,6 +58,7 @@ const NAV_GROUPS = [
       { href: '/review', label: 'Review Queue', icon: ClipboardCheck },
       { href: '/activity', label: 'Activity', icon: Activity },
       { href: '/settings/users', label: 'Users & Access', icon: UserCog },
+      { href: '/settings/health', label: 'System Health', icon: HeartPulse },
     ],
   },
 ] as const

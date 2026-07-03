@@ -163,7 +163,7 @@ This is the spine of the "email an opportunity → Ber AI assesses → you decid
 ## 7. CONVENTIONS
 
 ### Code
-- TypeScript strict mode. Avoid `any` — the codebase has accumulated ~115 `any`/cast escapes from schema drift; don't add more, and prefer regenerating types over casting.
+- TypeScript strict mode. Avoid `any` — the codebase has ~35 remaining `any`/cast escapes from schema drift (down from ~115; recount 2026-07-03); don't add more, and prefer regenerating types over casting.
 - Server components default; `'use client'` only when interactive.
 - All DB access via Supabase clients — no raw SQL in components.
 - API routes handle AI + mutations; pages fetch via server components.
@@ -183,8 +183,9 @@ MICROSOFT_TENANT_ID=             # Graph OAuth (calendar, enrichment, email rese
 MICROSOFT_CLIENT_ID=
 MICROSOFT_CLIENT_SECRET=
 MICROSOFT_WEBHOOK_SECRET=
+CRON_SECRET=                     # Vercel injects it as Bearer auth on cron invocations (set 2026-07-03)
 ```
-`ANTHROPIC_API_KEY` and `PERPLEXITY_API_KEY` are no longer used — remove from any new env files. `N8N_WEBHOOK_URL` / `N8N_WEBHOOK_SECRET` / `INGESTION_INBOUND_SECRET` were retired 2026-07-02 when Email Research moved in-platform — **Richard: delete them from Vercel** (they were never in `.env.local`).
+`ANTHROPIC_API_KEY` and `PERPLEXITY_API_KEY` are no longer used — remove from any new env files. The n8n-era vars (`N8N_*`, `INGESTION_INBOUND_SECRET`) are gone from Vercel (verified 2026-07-03). `NEXT_PUBLIC_SITE_URL` is no longer referenced anywhere (the agent self-fetches that used it were refactored to direct lib calls 2026-07-03).
 
 ### Git
 - Main branch: `main` (this is the live-deploy branch — pushing to it deploys to Vercel production).
@@ -240,6 +241,12 @@ Note the drift flagged in §9: `entities`/vendors partly duplicate this. The *su
 **Reality:** well beyond the original Phase 1/2 plan. Live and in daily use on Vercel production.
 
 **Working:** projects (CRUD, pipeline/program views, hierarchy, all detail tabs), **opportunities**, **objectives steering board (Now/Soon/Possibly + PDF export, wired into tasks/dashboard/brief)**, dashboard (single attention surface, opens with Now objectives), timeline, **team tasks** (per-person workload, project/opportunity/objective tags), **one Directory (Contacts | Vendors tabs)**, company profile (thin), review queue, activity log, manual-paste extraction (action items → real tasks), intel (RAG + streaming agent) + **ambient Ask Ber AI dock (⌘J, every page)**, proposal intake → assessment → project creation, **Email Intake** (in-platform Outlook sweep → report → opportunity/project + people + tasks). **Calendar/meeting-prep still uses Microsoft Graph (OAuth retained); the email-to-task scraper was removed (see below).** Equity & Portfolio modules removed 2026-07-03 (see below).
+
+**Done 2026-07-03 (production-readiness pass: cron fixes, agent self-fetch refactor, system health):**
+- **The daily brief never ran in production — three compounding failures, all fixed.** (1) `/api/cron/daily-brief` was never in `vercel.json`'s crons (only risk-scores was) — now scheduled at 12:30 UTC (6:30am SLC summer). (2) It wasn't on the middleware public allowlist, so even an external trigger bounced to the auth wall — added (it self-guards via CRON_SECRET). (3) `CRON_SECRET` was never set in Vercel, so risk-scores has been 401ing daily too — generated and set in all three envs. **Security fix:** both cron routes' auth was `authHeader !== 'Bearer ${undefined}'` when the secret was unset — a literal `Bearer undefined` header passed on a public route. Both now fail closed (`!process.env.CRON_SECRET || …`).
+- **Agent self-fetch antipattern removed.** `draft_email`/`draft_agenda`/`draft_status_report` and `get_attention_items` fetched `NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000'` — broken in prod (env var never set; and cookie-less self-fetches would have hit the auth middleware anyway). The attention engine moved to `src/lib/attention.ts` (`computeAttention()`); draft generation moved to `src/lib/ai/draft.ts` (`generateDraft()`). Routes (`api/attention`, `api/ai/draft`) are thin wrappers keeping auth/rate-limit; agent tools call the libs directly. **Rule: agent tools never fetch the app's own HTTP routes — extract shared logic into `src/lib` instead.**
+- **New `/settings/health` (admin-only, sidebar System group + mobile More):** live checks on every load — daily-brief + risk-scores cron freshness (fail >36h), AI pipeline (last `ai_queries` call + 24h count), Microsoft Graph token (connected mailbox, flags a missing `Mail.Read.Shared` scope → tells you to reconnect), failed email-research runs (7d), and required-env presence. Server component, direct admin-client queries, card idiom. This is the "background work fails silently" alarm surface.
+- **Hygiene verified:** `npm run gen-types` run — generated `database.ts` byte-identical to the committed hand-extended file (user-access reconciliation done). Vercel env audit: retired vars already gone; `SYSTEM_USER_ID` no longer referenced in code. `tsc` + eslint + full `next build` clean.
 
 **Done 2026-07-03 (polish pass: research-run visibility, fit persistence, pursuit profile):**
 - **Email research runs are visible immediately.** `api/email-research/run` stages a `running` `email_intake_sessions` row up front (label = search term), so navigating away no longer means minutes of "nothing happened"; every failure path (and a new top-level catch) flips it to `failed` with the error stored in `extraction_result.error`; success updates the same row to `pending` (new `sessionId` input on `analyzeEmailReport` — update-in-place instead of insert). Status values `running`/`failed` are app-level only (plain-text column, no migration). UI: Recent list renders running rows (spinner, non-clickable) and failed rows (error text + dismiss ✕); `SessionsAutoRefresh` re-fetches every 15s while a run is live; the `[id]` review page guards running/failed sessions (auto-refreshing "still running" card / error card); stale `running` rows (>15 min, function cap is 5) display as failed. New `api/email-ingestion/sessions/[id]` PATCH = dismiss (blocked for confirmed); dismissed sessions are hidden from Recent.

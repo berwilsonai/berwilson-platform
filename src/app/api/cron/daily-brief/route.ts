@@ -45,9 +45,9 @@ Rules:
 - Keep it under 600 words. Executives scan, they don't read essays.`
 
 export async function GET(request: NextRequest) {
-  // Verify cron secret
+  // Verify cron secret (fail closed if the secret is not configured)
   const authHeader = request.headers.get('authorization')
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+  if (!process.env.CRON_SECRET || authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 

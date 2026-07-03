@@ -7,6 +7,8 @@ import { researchQuery } from './research'
 import { matchChunks } from './match-chunks'
 import { embedQuery } from './embeddings'
 import { fetchOpenTasks } from '@/lib/tasks/queries'
+import { computeAttention } from '@/lib/attention'
+import { generateDraft } from './draft'
 import type { AgentContext } from './agent'
 
 // ---------------------------------------------------------------------------
@@ -942,24 +944,14 @@ export async function executeToolCall(
       const attendees = args.attendees as string[] | undefined
 
       try {
-        const res = await fetch(`${process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000'}/api/ai/draft`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            type: draftType,
-            context: instructions,
-            project_id: projectId,
-            recipients: recipients ?? attendees,
-          }),
+        const result = await generateDraft({
+          type: draftType,
+          context: instructions,
+          userId: context.userId,
+          projectId,
+          recipients: recipients ?? attendees,
         })
-
-        if (!res.ok) {
-          const err = await res.json().catch(() => ({})) as { error?: string }
-          return { error: err.error ?? `Draft failed (${res.status})` }
-        }
-
-        const data = await res.json() as { draft: string }
-        return { draft: data.draft, type: draftType }
+        return { draft: result.draft, type: draftType }
       } catch (err) {
         return { error: `Draft failed: ${err instanceof Error ? err.message : 'unknown'}` }
       }
@@ -969,10 +961,7 @@ export async function executeToolCall(
       const category = args.category as string | undefined
 
       try {
-        const res = await fetch(`${process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000'}/api/attention`)
-        if (!res.ok) return { error: 'Failed to fetch attention items' }
-
-        const data = await res.json() as { items: Record<string, unknown>[]; summary: Record<string, number> }
+        const data = await computeAttention()
 
         let items = data.items
         if (category && category !== 'all') {
