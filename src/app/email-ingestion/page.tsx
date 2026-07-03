@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { Inbox } from 'lucide-react'
 import { createAdminClient } from '@/lib/supabase/admin'
+import EmailResearchForm from '@/components/email-ingestion/EmailResearchForm'
 import EmailIngestForm from '@/components/email-ingestion/EmailIngestForm'
 import {
   emailIntakeStatus,
@@ -8,9 +9,9 @@ import {
   EMAIL_INTAKE_STATUS_BADGE,
 } from '@/lib/utils/email-ingestion'
 
-export const metadata = { title: 'Email Ingestion — Ber Wilson Intelligence' }
+export const metadata = { title: 'Email Intake — Ber Wilson Intelligence' }
 
-export default async function EmailIngestionPage() {
+export default async function EmailIntakePage() {
   const supabase = createAdminClient()
   const { data: sessions } = await supabase
     .from('email_intake_sessions')
@@ -23,15 +24,27 @@ export default async function EmailIngestionPage() {
       <div>
         <h1 className="text-lg font-semibold flex items-center gap-2">
           <Inbox size={18} className="text-muted-foreground" />
-          Email Ingestion
+          Email Intake
         </h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Run Email Research (or paste a report below) and Ber AI turns it into a proposed
+          Sweep the Outlook mailboxes for a person, email, or project. Ber AI reads the
+          matching threads and attachments, assembles a research report, and proposes an
           opportunity or project — with people and tasks — for you to review and confirm.
+          Nothing is created until you approve it.
         </p>
       </div>
 
-      <EmailIngestForm />
+      <EmailResearchForm />
+
+      {/* Manual fallback — reports produced outside the mailbox sweep */}
+      <details className="group rounded-lg border border-border bg-card">
+        <summary className="cursor-pointer select-none px-4 py-3 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
+          Paste a report manually
+        </summary>
+        <div className="px-4 pb-4">
+          <EmailIngestForm />
+        </div>
+      </details>
 
       {(sessions?.length ?? 0) > 0 && (
         <div className="space-y-2">

@@ -19,13 +19,9 @@ import {
   Shield,
   TrendingUp,
   Globe,
-  AlertTriangle,
   FileUp,
-  GanttChart,
-  Gauge,
   Lightbulb,
   Inbox,
-  Search,
 } from 'lucide-react'
 
 const NAV_GROUPS = [
@@ -34,20 +30,16 @@ const NAV_GROUPS = [
     items: [
       { href: '/tasks', label: 'Tasks', icon: ListChecks },
       { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-      { href: '/attention', label: 'Attention', icon: AlertTriangle },
       { href: '/projects', label: 'Projects', icon: FolderKanban },
       { href: '/opportunities', label: 'Opportunities', icon: Lightbulb },
-      { href: '/timeline', label: 'Timeline', icon: GanttChart },
-      { href: '/capacity', label: 'Capacity', icon: Gauge },
     ],
   },
   {
     label: 'Intelligence',
     items: [
-      { href: '/proposals/intake', label: 'Intake Proposal', icon: FileUp },
-      { href: '/email-research', label: 'Email Research', icon: Search },
-      { href: '/email-ingestion', label: 'Email Ingestion', icon: Inbox },
       { href: '/intel', label: 'Intel', icon: Brain },
+      { href: '/proposals/intake', label: 'Intake Proposal', icon: FileUp },
+      { href: '/email-ingestion', label: 'Email Intake', icon: Inbox },
       { href: '/calendar', label: 'Calendar', icon: CalendarDays },
     ],
   },
@@ -123,7 +115,7 @@ export default function AppSidebar({ pendingReviewCount = 0, attentionCount = 0 
               {group.items.map(({ href, label, icon: Icon }) => {
                 const active = pathname === href || pathname.startsWith(href + '/')
                 const isReview = href === '/review'
-                const isAttention = href === '/attention'
+                const isAttention = href === '/dashboard' // attention folded into the dashboard
                 const badgeCount = isReview ? pendingReviewCount : isAttention ? attentionCount : 0
                 const showBadge = badgeCount > 0
                 return (

@@ -1,7 +1,8 @@
 import Link from 'next/link'
-import { AlertTriangle, CalendarClock, ClipboardCheck, TrendingUp } from 'lucide-react'
+import { AlertTriangle, CalendarClock, ClipboardCheck, ListChecks, TrendingUp } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { SECTOR_BADGE, SECTOR_SHORT } from '@/lib/utils/sectors'
+import type { TaskSummary } from '@/lib/tasks/queries'
 
 type ReviewWithProject = {
   id: string
@@ -40,10 +41,11 @@ interface NeedsAttentionProps {
   overdueItems: MilestoneWithProject[]
   ddItems: DdWithProject[]
   reviewCount: number
+  overdueTasks?: TaskSummary[]
 }
 
-export default function NeedsAttention({ reviewItems, overdueItems, ddItems, reviewCount }: NeedsAttentionProps) {
-  const hasAttention = reviewItems.length > 0 || overdueItems.length > 0 || ddItems.length > 0
+export default function NeedsAttention({ reviewItems, overdueItems, ddItems, reviewCount, overdueTasks = [] }: NeedsAttentionProps) {
+  const hasAttention = reviewItems.length > 0 || overdueItems.length > 0 || ddItems.length > 0 || overdueTasks.length > 0
 
   return (
     <div className="rounded-lg glass-panel shadow-sm">
@@ -52,7 +54,7 @@ export default function NeedsAttention({ reviewItems, overdueItems, ddItems, rev
         <h2 className="text-sm font-semibold text-foreground heading-tight">Needs Attention</h2>
         {hasAttention && (
           <span className="ml-auto text-xs font-medium tabular-nums bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 rounded px-1.5 py-0.5">
-            {reviewItems.length + overdueItems.length + ddItems.length}
+            {reviewItems.length + overdueItems.length + ddItems.length + overdueTasks.length}
           </span>
         )}
       </div>
@@ -64,6 +66,49 @@ export default function NeedsAttention({ reviewItems, overdueItems, ddItems, rev
         </div>
       ) : (
         <div className="p-3 space-y-3">
+
+          {/* Overdue tasks (from the team task system) */}
+          {overdueTasks.length > 0 && (
+            <div className="rounded-md bg-muted/30 p-3">
+              <div className="flex items-center gap-1.5 mb-2">
+                <span className="size-1.5 rounded-full bg-red-400 shrink-0" />
+                <ListChecks size={12} className="text-red-500 dark:text-red-400 shrink-0" />
+                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                  Overdue Tasks
+                </span>
+                <span className="ml-auto text-xs text-muted-foreground tabular-nums">{overdueTasks.length}</span>
+              </div>
+              <div className="space-y-1">
+                {overdueTasks.slice(0, 6).map((t) => (
+                  <Link
+                    key={t.id}
+                    href="/tasks"
+                    className="flex items-start gap-2 rounded-md px-2 py-2 hover:bg-muted/50 transition-colors"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-medium text-foreground truncate">{t.title}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5 truncate">
+                        {[t.assignee, t.project_name].filter(Boolean).join(' · ') || 'Unassigned'}
+                      </p>
+                    </div>
+                    {t.due_date && (
+                      <span className="shrink-0 text-xs font-medium text-red-600 dark:text-red-400 tabular-nums">
+                        {daysOverdue(t.due_date)}d
+                      </span>
+                    )}
+                  </Link>
+                ))}
+                {overdueTasks.length > 6 && (
+                  <Link
+                    href="/tasks"
+                    className="block px-2 py-1 text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                  >
+                    +{overdueTasks.length - 6} more →
+                  </Link>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Review queue items */}
           {reviewItems.length > 0 && (

@@ -1,6 +1,6 @@
 import { Suspense } from 'react'
 import Link from 'next/link'
-import { Plus, FolderKanban } from 'lucide-react'
+import { Plus, FolderKanban, GanttChart } from 'lucide-react'
 import { createAdminClient } from '@/lib/supabase/admin'
 import type { ProjectSector, ProjectStatus, ProjectStage } from '@/lib/supabase/types'
 import { SECTORS, STATUSES, STAGES } from '@/lib/utils/constants'
@@ -61,13 +61,22 @@ export default async function ProjectsPage({ searchParams }: PageProps) {
             </span>
           )}
         </div>
-        <Link
-          href="/projects/new"
-          className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors shrink-0"
-        >
-          <Plus size={14} />
-          New Project
-        </Link>
+        <div className="flex items-center gap-2 shrink-0">
+          <Link
+            href="/timeline"
+            className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md border border-border bg-card text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+          >
+            <GanttChart size={14} />
+            Timeline
+          </Link>
+          <Link
+            href="/projects/new"
+            className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors"
+          >
+            <Plus size={14} />
+            New Project
+          </Link>
+        </div>
       </div>
 
       {/* Cards grid or empty state */}

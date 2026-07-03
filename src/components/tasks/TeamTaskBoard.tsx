@@ -193,6 +193,20 @@ export default function TeamTaskBoard({
     })
   }, [tasks, status, assigneeFilter, projectFilter, opportunityFilter, showProjectControls, showOpportunityControls])
 
+  // Per-person workload (the old Capacity view, folded in) — open + overdue counts.
+  const workload = useMemo(() => {
+    if (scoped) return []
+    const today = new Date().toISOString().split('T')[0]
+    return members.map((m) => {
+      const open = tasks.filter((t) => t.status !== 'done' && t.assignee_id === m.id)
+      return {
+        member: m,
+        open: open.length,
+        overdue: open.filter((t) => t.due_date && t.due_date < today).length,
+      }
+    })
+  }, [tasks, members, scoped])
+
   return (
     <div className={cn('space-y-5', !scoped && 'max-w-4xl')}>
       {/* Header */}
@@ -214,6 +228,39 @@ export default function TeamTaskBoard({
           <Plus size={15} /> New task
         </button>
       </div>
+
+      {/* Team workload — tap a person to filter the board to them */}
+      {!scoped && workload.length > 0 && (
+        <div className="flex gap-2 flex-wrap">
+          {workload.map(({ member, open, overdue }) => {
+            const active = assigneeFilter === member.id
+            return (
+              <button
+                key={member.id}
+                onClick={() => setAssigneeFilter(active ? 'all' : member.id)}
+                className={cn(
+                  'inline-flex items-center gap-2 h-9 pl-1.5 pr-3 rounded-full border text-sm transition-colors',
+                  active
+                    ? 'border-primary/50 bg-primary/10 text-foreground'
+                    : 'border-border bg-card text-muted-foreground hover:text-foreground hover:bg-accent',
+                )}
+                title={`${member.name}: ${open} open${overdue ? `, ${overdue} overdue` : ''}`}
+              >
+                <span className={cn('flex items-center justify-center size-6 rounded-full text-[10px] font-semibold', avatarClasses(member.color))}>
+                  {initials(member.name)}
+                </span>
+                <span className="font-medium">{member.name}</span>
+                <span className="tabular-nums text-xs text-muted-foreground">{open}</span>
+                {overdue > 0 && (
+                  <span className="tabular-nums text-[11px] font-semibold px-1.5 py-0.5 rounded-full bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300">
+                    {overdue} late
+                  </span>
+                )}
+              </button>
+            )
+          })}
+        </div>
+      )}
 
       {/* Add form */}
       {showAdd && (

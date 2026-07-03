@@ -10,8 +10,10 @@ import CommandPalette from './CommandPalette'
 const PAGE_TITLES: Record<string, string> = {
   '/tasks': 'Team Tasks',
   '/dashboard': 'Dashboard',
-  '/attention': 'Attention',
   '/projects': 'Projects',
+  '/opportunities': 'Opportunities',
+  '/timeline': 'Timeline',
+  '/email-ingestion': 'Email Intake',
   '/calendar': 'Calendar',
   '/contacts': 'Contacts',
   '/vendors': 'Vendors & Contractors',

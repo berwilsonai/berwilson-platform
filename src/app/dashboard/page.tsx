@@ -16,6 +16,7 @@ import RiskOverview from '@/components/dashboard/RiskOverview'
 import NeedsAttention from '@/components/dashboard/NeedsAttention'
 import ClosingSoon, { type ClosingSoonItem } from '@/components/dashboard/ClosingSoon'
 import { weightedValue } from '@/lib/utils/constants'
+import { fetchOpenTasks } from '@/lib/tasks/queries'
 import EmptyState from '@/components/shared/EmptyState'
 import type { WaitingOnItem, RiskItem } from '@/types/domain'
 
@@ -85,12 +86,14 @@ export default async function DashboardPage({ searchParams }: PageProps) {
 
   const [
     { data: projectsRaw },
+    overdueTasksAll,
     { data: reviewRaw, count: reviewCount },
     { data: overdueRaw },
     { data: ddRaw },
     { data: expiringCerts },
   ] = await Promise.all([
     supabase.from('projects').select('*').eq('status', 'active'),
+    fetchOpenTasks(supabase, { dueBefore: today }),
     supabase
       .from('review_queue')
       .select('id, reason, source_table, confidence, created_at, project_id, project:projects(id, name, sector)', { count: 'exact' })
@@ -120,14 +123,14 @@ export default async function DashboardPage({ searchParams }: PageProps) {
   const projectIds = activeProjects.map((p) => p.id)
 
   // Fetch approved updates to compute per-project action counts
-  let updatesRaw: Array<{ project_id: string | null; action_items: unknown; waiting_on: unknown; risks: unknown }> = []
+  let updatesRaw: Array<{ project_id: string | null; waiting_on: unknown; risks: unknown }> = []
   let openMilestones: Array<{ project_id: string; label: string; target_date: string | null }> = []
   let openTasks: Array<{ project_id: string | null; title: string; due_date: string | null }> = []
   if (projectIds.length > 0) {
     const [{ data: upd }, { data: ms }, { data: tk }] = await Promise.all([
       supabase
         .from('updates')
-        .select('project_id, action_items, waiting_on, risks')
+        .select('project_id, waiting_on, risks')
         .in('project_id', projectIds)
         .eq('review_state', 'approved'),
       supabase
@@ -263,6 +266,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
     }))
 
   // Needs Attention data (cap display at 6 each)
+  const overdueTasks = overdueTasksAll.filter((t) => t.due_date && t.due_date < today)
   const reviewItems = (reviewRaw ?? []).slice(0, 6) as ReviewWithProject[]
   const overdueItems = (overdueRaw ?? []).slice(0, 6) as MilestoneWithProject[]
   const ddItems = (ddRaw ?? []).slice(0, 6) as DdWithProject[]
@@ -390,6 +394,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
             overdueItems={overdueItems}
             ddItems={ddItems}
             reviewCount={reviewCount ?? 0}
+            overdueTasks={overdueTasks}
           />
         </div>
 

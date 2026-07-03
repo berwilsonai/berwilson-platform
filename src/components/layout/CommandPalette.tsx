@@ -16,16 +16,13 @@ import type { SearchResult } from '@/app/api/search/route'
 
 // Static destinations — always searchable, shown when the query is short.
 const PAGES: { href: string; label: string; keywords: string }[] = [
-  { href: '/dashboard', label: 'Dashboard', keywords: 'home overview' },
-  { href: '/attention', label: 'Attention', keywords: 'alerts urgent overdue' },
+  { href: '/dashboard', label: 'Dashboard', keywords: 'home overview alerts urgent overdue attention' },
   { href: '/projects', label: 'Projects', keywords: 'pipeline deals' },
   { href: '/opportunities', label: 'Opportunities', keywords: 'acquisitions partnerships jv mergers investments deals' },
   { href: '/timeline', label: 'Timeline', keywords: 'gantt schedule' },
-  { href: '/capacity', label: 'Capacity', keywords: 'workload board' },
-  { href: '/tasks', label: 'Team Tasks', keywords: 'todo action items team' },
+  { href: '/tasks', label: 'Team Tasks', keywords: 'todo action items team workload capacity' },
   { href: '/proposals/intake', label: 'Intake Proposal', keywords: 'ingest upload rfp document' },
-  { href: '/email-research', label: 'Email Research', keywords: 'email search outlook thread run research' },
-  { href: '/email-ingestion', label: 'Email Ingestion', keywords: 'email inbox ingest research thread message report' },
+  { href: '/email-ingestion', label: 'Email Intake', keywords: 'email inbox ingest outlook sweep run research thread message report' },
   { href: '/intel', label: 'Intel', keywords: 'ask query search ai agent' },
   { href: '/calendar', label: 'Calendar', keywords: 'schedule dates milestones meeting' },
   { href: '/contacts', label: 'Contacts', keywords: 'people parties rolodex' },
