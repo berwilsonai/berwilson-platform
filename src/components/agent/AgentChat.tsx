@@ -27,6 +27,7 @@ export default function AgentChat({
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
+  const [activity, setActivity] = useState<string | null>(null) // live tool-call label while streaming
   const [error, setError] = useState<string | null>(null)
   const [conversationId, setConversationId] = useState<string | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -76,6 +77,7 @@ export default function AgentChat({
 
     setInput('')
     setError(null)
+    setActivity(null)
 
     const userMsg: Message = {
       id: `tmp-${Date.now()}`,
@@ -85,6 +87,9 @@ export default function AgentChat({
     setMessages(prev => [...prev, userMsg])
     setLoading(true)
 
+    // Placeholder assistant message that fills in as the stream arrives
+    const streamId = `stream-${Date.now()}`
+
     try {
       const res = await fetch('/api/ai/agent', {
         method: 'POST',
@@ -93,37 +98,82 @@ export default function AgentChat({
           message: msg,
           conversationId,
           projectId,
+          stream: true,
         }),
       })
 
-      if (!res.ok) {
+      if (!res.ok || !res.body) {
         const data = await res.json().catch(() => ({})) as { error?: string }
         throw new Error(data.error ?? `Request failed (${res.status})`)
       }
 
-      const data = await res.json() as {
-        response: string
-        conversationId: string
-        messageId?: string
-        toolCalls?: Array<{ name: string; args: Record<string, unknown> }>
-        latencyMs?: number
+      const reader = res.body.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ''
+      let started = false
+
+      const appendDelta = (delta: string) => {
+        if (!started) {
+          started = true
+          setActivity(null)
+          setMessages(prev => [...prev, { id: streamId, role: 'assistant', content: delta, rating: null }])
+        } else {
+          setMessages(prev => prev.map(m => m.id === streamId ? { ...m, content: m.content + delta } : m))
+        }
       }
 
-      setConversationId(data.conversationId)
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buffer += decoder.decode(value, { stream: true })
 
-      const assistantMsg: Message = {
-        id: data.messageId ?? `resp-${Date.now()}`,
-        role: 'assistant',
-        content: data.response,
-        toolCalls: data.toolCalls,
-        latencyMs: data.latencyMs,
-        rating: null,
+        // SSE events are separated by a blank line
+        const events = buffer.split('\n\n')
+        buffer = events.pop() ?? ''
+
+        for (const raw of events) {
+          const line = raw.trim()
+          if (!line.startsWith('data:')) continue
+          let event: {
+            type: string
+            name?: string
+            delta?: string
+            message?: string
+            conversationId?: string
+            messageId?: string | null
+            toolCalls?: Array<{ name: string; args: Record<string, unknown> }>
+            latencyMs?: number
+          }
+          try { event = JSON.parse(line.slice(5).trim()) } catch { continue }
+
+          if (event.type === 'tool' && event.name) {
+            setActivity(event.name.replace(/_/g, ' '))
+          } else if (event.type === 'text' && event.delta) {
+            appendDelta(event.delta)
+          } else if (event.type === 'done') {
+            if (event.conversationId) setConversationId(event.conversationId)
+            setMessages(prev => prev.map(m => m.id === streamId
+              ? {
+                  ...m,
+                  id: event.messageId ?? m.id,
+                  toolCalls: event.toolCalls,
+                  latencyMs: event.latencyMs,
+                }
+              : m))
+          } else if (event.type === 'error') {
+            throw new Error(event.message ?? 'Agent execution failed')
+          }
+        }
       }
-      setMessages(prev => [...prev, assistantMsg])
+
+      if (!started) throw new Error('The agent returned no response — try again.')
     } catch (err) {
+      // Drop the empty placeholder if nothing streamed
+      setMessages(prev => prev.filter(m => m.id !== streamId || m.content))
       setError(err instanceof Error ? err.message : 'Something went wrong')
     } finally {
       setLoading(false)
+      setActivity(null)
       inputRef.current?.focus()
     }
   }, [input, loading, conversationId, projectId])
@@ -225,8 +275,11 @@ export default function AgentChat({
             <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
               <Bot size={12} className="text-primary" />
             </div>
-            <div className="bg-muted/60 rounded-lg px-3 py-2">
+            <div className="bg-muted/60 rounded-lg px-3 py-2 flex items-center gap-2">
               <Loader2 size={14} className="animate-spin text-muted-foreground" />
+              <span className="text-xs text-muted-foreground">
+                {activity ? `Checking ${activity}…` : 'Thinking…'}
+              </span>
             </div>
           </div>
         )}

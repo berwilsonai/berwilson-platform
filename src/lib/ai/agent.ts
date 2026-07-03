@@ -36,13 +36,23 @@ export interface AgentResponse {
   latencyMs: number
 }
 
+/** Optional live-progress hooks — used by the streaming API route. */
+export interface AgentStreamCallbacks {
+  /** Fired when the agent starts executing a tool call. */
+  onToolCall?: (name: string, args: Record<string, unknown>) => void
+  /** Fired for each chunk of generated answer text, in order. */
+  onTextDelta?: (delta: string) => void
+}
+
 /**
  * Run the agent loop: send user message, execute any tool calls, return final response.
+ * Pass `callbacks` to receive tool-call and text-delta events as they happen.
  */
 export async function runAgent(
   userMessage: string,
   context: AgentContext,
-  history: Content[] = []
+  history: Content[] = [],
+  callbacks?: AgentStreamCallbacks
 ): Promise<AgentResponse> {
   const client = getClient()
   const supabase = createAdminClient()
@@ -107,12 +117,24 @@ export async function runAgent(
   let totalTokensOut = 0
 
   for (let round = 0; round < 5; round++) {
-    const response = await model.generateContent({ contents })
+    // Stream each round so answer tokens reach the client as they're generated.
+    const result = await model.generateContentStream({ contents })
 
-    totalTokensIn += response.response.usageMetadata?.promptTokenCount ?? 0
-    totalTokensOut += response.response.usageMetadata?.candidatesTokenCount ?? 0
+    for await (const chunk of result.stream) {
+      let delta = ''
+      try { delta = chunk.text() } catch { /* chunk holds a functionCall, not text */ }
+      if (delta) {
+        finalText += delta
+        callbacks?.onTextDelta?.(delta)
+      }
+    }
 
-    const candidate = response.response.candidates?.[0]
+    const response = await result.response
+
+    totalTokensIn += response.usageMetadata?.promptTokenCount ?? 0
+    totalTokensOut += response.usageMetadata?.candidatesTokenCount ?? 0
+
+    const candidate = response.candidates?.[0]
     if (!candidate) break
 
     const parts = candidate.content.parts
@@ -120,20 +142,14 @@ export async function runAgent(
     // Check for function calls
     const functionCalls = parts.filter((p: Part) => 'functionCall' in p)
 
-    if (functionCalls.length === 0) {
-      // No tool calls — extract text and we're done
-      finalText = parts
-        .filter((p: Part) => 'text' in p)
-        .map((p: Part) => (p as { text: string }).text)
-        .join('')
-      break
-    }
+    if (functionCalls.length === 0) break // no tool calls — the streamed text is the answer
 
     // Execute tool calls
     const toolResponseParts: Part[] = []
 
     for (const fc of functionCalls) {
       const call = (fc as { functionCall: { name: string; args: Record<string, unknown> } }).functionCall
+      callbacks?.onToolCall?.(call.name, call.args)
       const result = await executeToolCall(call.name, call.args, context)
       toolCallLog.push({ name: call.name, args: call.args, result })
 

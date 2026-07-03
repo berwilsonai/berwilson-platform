@@ -1,8 +1,11 @@
 /**
  * POST /api/ai/agent — Run the Construction Executive Agent
  *
- * Body: { message: string, conversationId?: string, projectId?: string }
- * Returns: { response: string, conversationId: string, toolCalls?: [...] }
+ * Body: { message: string, conversationId?: string, projectId?: string, stream?: boolean }
+ * - stream: true → Server-Sent Events: {type:'tool'|'text'|'done'|'error', ...}
+ *   Tool events arrive as the agent works; text deltas stream the answer;
+ *   'done' carries conversationId/messageId/toolCalls for the finished message.
+ * - stream omitted → legacy JSON response { response, conversationId, toolCalls? }
  */
 
 import { NextRequest, NextResponse } from 'next/server'
@@ -11,6 +14,8 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { runAgent } from '@/lib/ai/agent'
 import { checkRateLimit } from '@/lib/rate-limit'
 import type { Content } from '@google/generative-ai'
+
+export const maxDuration = 300
 
 export async function POST(request: NextRequest) {
   const supabase = await createClient()
@@ -30,6 +35,7 @@ export async function POST(request: NextRequest) {
     message?: string
     conversationId?: string
     projectId?: string
+    stream?: boolean
   }
 
   if (!body.message?.trim()) {
@@ -84,13 +90,80 @@ export async function POST(request: NextRequest) {
       content: body.message,
     })
 
-  // Run agent
+  const agentContext = {
+    userId: user.id,
+    projectId: body.projectId,
+    conversationId: conversationId!,
+  }
+
+  // ── Streaming mode (SSE) ──────────────────────────────────────────────────
+  if (body.stream) {
+    const encoder = new TextEncoder()
+    const convId = conversationId!
+
+    const stream = new ReadableStream({
+      async start(controller) {
+        const send = (event: Record<string, unknown>) => {
+          try {
+            controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`))
+          } catch { /* client disconnected — agent run continues so the message still persists */ }
+        }
+
+        try {
+          const result = await runAgent(body.message!, agentContext, history, {
+            onToolCall: (name) => send({ type: 'tool', name }),
+            onTextDelta: (delta) => send({ type: 'text', delta }),
+          })
+
+          // Persist assistant message (same contract as the JSON path)
+          const { data: savedMsg } = await admin
+            .from('agent_messages')
+            .insert({
+              conversation_id: convId,
+              role: 'assistant',
+              content: result.content,
+              tool_calls: result.toolCalls ? JSON.stringify(result.toolCalls) : null,
+              model_used: result.model,
+              tokens_in: result.tokensIn,
+              tokens_out: result.tokensOut,
+              latency_ms: result.latencyMs,
+            })
+            .select('id')
+            .single()
+
+          await admin
+            .from('agent_conversations')
+            .update({ updated_at: new Date().toISOString() })
+            .eq('id', convId)
+
+          send({
+            type: 'done',
+            conversationId: convId,
+            messageId: savedMsg?.id ?? null,
+            toolCalls: result.toolCalls,
+            latencyMs: result.latencyMs,
+          })
+        } catch (err) {
+          console.error('[agent] Stream error:', err)
+          send({ type: 'error', message: err instanceof Error ? err.message : 'Agent execution failed' })
+        } finally {
+          try { controller.close() } catch { /* already closed */ }
+        }
+      },
+    })
+
+    return new Response(stream, {
+      headers: {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache, no-transform',
+        Connection: 'keep-alive',
+      },
+    })
+  }
+
+  // ── Legacy JSON mode ──────────────────────────────────────────────────────
   try {
-    const result = await runAgent(body.message, {
-      userId: user.id,
-      projectId: body.projectId,
-      conversationId: conversationId!,
-    }, history)
+    const result = await runAgent(body.message, agentContext, history)
 
     // Save assistant message — capture the returned ID for ratings
     const { data: savedMsg } = await admin
