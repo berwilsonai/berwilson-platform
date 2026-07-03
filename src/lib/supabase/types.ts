@@ -66,36 +66,3 @@ export type ReviewState = Enums<'review_state'>
 export type DdSeverity = Enums<'dd_severity'>
 export type ComplianceStatus = Enums<'compliance_status'>
 export type EntityType = Enums<'entity_type'>
-
-// ---------------------------------------------------------------------------
-// Portfolio hierarchy table aliases
-// ---------------------------------------------------------------------------
-
-export type Brand = Tables<'brands'>
-export type Corridor = Tables<'corridors'>
-export type Site = Tables<'sites'>
-export type Component = Tables<'components'>
-export type RailBranch = Tables<'rail_branches'>
-export type RevenueShareAgreement = Tables<'revenue_share_agreements'>
-export type SubEngagement = Tables<'sub_engagements'>
-export type FundingSource = Tables<'funding_sources'>
-export type StakeholderRelationship = Tables<'stakeholder_relationships'>
-export type StakeholderInteraction = Tables<'stakeholder_interactions'>
-export type TradeSecret = Tables<'trade_secrets'>
-export type TsExposureItem = Tables<'ts_exposure_items'>
-export type DocumentDistribution = Tables<'document_distributions'>
-export type SiteDependency = Tables<'site_dependencies'>
-
-// ---------------------------------------------------------------------------
-// Portfolio enum aliases
-// ---------------------------------------------------------------------------
-
-export type BwRole = Enums<'bw_role'>
-export type SiteStatus = Enums<'site_status'>
-export type ComponentType = Enums<'component_type'>
-export type ComponentStatus = Enums<'component_status'>
-export type EngagementState = Enums<'engagement_state'>
-export type FundingCategory = Enums<'funding_category'>
-export type FundingStatusEnum = Enums<'funding_status'>
-export type StakeholderTemperature = Enums<'stakeholder_temperature'>
-export type RailType = Enums<'rail_type'>

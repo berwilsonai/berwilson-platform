@@ -39,22 +39,19 @@ export async function POST(request: NextRequest) {
   const file = formData.get('file') as File | null
   const project_id = formData.get('project_id') as string | null
   const entity_id = formData.get('entity_id') as string | null
-  const site_id = formData.get('site_id') as string | null
   const is_company = formData.get('is_company') === 'true'
   const doc_type = (formData.get('doc_type') as string) ?? 'other'
   const extract_ai = formData.get('extract_ai') === 'true'
 
-  if (!file || (!project_id && !entity_id && !site_id && !is_company)) {
-    return Response.json({ error: 'file and one of project_id, entity_id, site_id, or is_company are required' }, { status: 400 })
+  if (!file || (!project_id && !entity_id && !is_company)) {
+    return Response.json({ error: 'file and one of project_id, entity_id, or is_company are required' }, { status: 400 })
   }
 
   // Build storage path
   const timestamp = Date.now()
   const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_')
-  const storagePath = is_company && !project_id && !entity_id && !site_id
+  const storagePath = is_company && !project_id && !entity_id
     ? `company/${timestamp}_${safeName}`
-    : site_id && !project_id && !entity_id
-    ? `sites/${site_id}/${timestamp}_${safeName}`
     : entity_id && !project_id
     ? `entities/${entity_id}/${timestamp}_${safeName}`
     : `projects/${project_id}/${timestamp}_${safeName}`
@@ -77,7 +74,6 @@ export async function POST(request: NextRequest) {
   const basePayload = {
     project_id: project_id || null,
     entity_id: entity_id || null,
-    site_id: site_id || null,
     storage_path: storagePath,
     file_name: file.name,
     file_size_bytes: file.size,

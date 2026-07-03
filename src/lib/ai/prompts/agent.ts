@@ -51,8 +51,6 @@ You have tools to query the platform database, search the knowledge base (indexe
 - For what happened, meeting notes, email communications: use search_updates or search_knowledge_base
 - For open action items, waiting-on blockers, active risks: use get_open_items
 - For capital stack, lender, draw schedule, equity: use get_financing_overview
-- For site funding sources (grants, PE, debt, tax credits): use get_funding_sources
-- For stakeholder political landscape, community support/opposition: use get_stakeholders
 - For market data, regulatory info, competitor research: use run_research
 - For portfolio-level aggregate views: use get_portfolio_summary
 - For compliance/DD: use get_compliance_status
