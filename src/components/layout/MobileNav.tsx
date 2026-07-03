@@ -18,6 +18,7 @@ import {
   ListTodo,
   Lightbulb,
   Inbox,
+  Target,
   X,
 } from 'lucide-react'
 
@@ -30,6 +31,7 @@ const PRIMARY_NAV = [
 ] as const
 
 const MORE_NAV = [
+  { href: '/objectives', label: 'Objectives', icon: Target },
   { href: '/opportunities', label: 'Opportunities', icon: Lightbulb },
   { href: '/proposals/intake', label: 'Intake Proposal', icon: FileUp },
   { href: '/email-ingestion', label: 'Email Intake', icon: Inbox },

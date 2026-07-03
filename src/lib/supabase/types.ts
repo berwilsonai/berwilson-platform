@@ -50,6 +50,7 @@ export type Certification = Tables<'certifications'>
 export type Task = Tables<'tasks'>
 export type TaskNote = Tables<'task_notes'>
 export type TeamMember = Tables<'team_members'>
+export type Objective = Tables<'objectives'>
 export type Opportunity = Tables<'opportunities'>
 export type OpportunityDocument = Tables<'opportunity_documents'>
 export type OpportunityNote = Tables<'opportunity_notes'>

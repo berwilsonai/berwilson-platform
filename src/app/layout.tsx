@@ -54,6 +54,8 @@ export default async function RootLayout({
   const headersList = await headers()
   const pathname = headersList.get('x-pathname') ?? ''
   const isLoginPage = pathname === '/login' || pathname.startsWith('/auth/')
+  // The objectives print view is a standalone document (for print / save-as-PDF) — no app chrome.
+  const isPrintPage = pathname === '/objectives/print'
 
   // Fetch user for the header email; the middleware already enforces auth.
   const supabase = await createClient()
@@ -63,7 +65,7 @@ export default async function RootLayout({
 
   // Show shell on all app routes. Login page gets its own full-page layout.
   // Middleware guarantees no unauthenticated access reaches non-login routes.
-  const showShell = !isLoginPage
+  const showShell = !isLoginPage && !isPrintPage
 
   // Pending review count + attention count for sidebar badges — only needed when shell is visible.
   let pendingReviewCount = 0

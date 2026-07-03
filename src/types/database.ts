@@ -1115,6 +1115,53 @@ export type Database = {
           },
         ]
       }
+      objectives: {
+        Row: {
+          bucket: string
+          created_at: string | null
+          id: string
+          note: string | null
+          owner_id: string | null
+          sort_order: number
+          status: string
+          target_date: string | null
+          title: string
+          updated_at: string | null
+        }
+        Insert: {
+          bucket?: string
+          created_at?: string | null
+          id?: string
+          note?: string | null
+          owner_id?: string | null
+          sort_order?: number
+          status?: string
+          target_date?: string | null
+          title: string
+          updated_at?: string | null
+        }
+        Update: {
+          bucket?: string
+          created_at?: string | null
+          id?: string
+          note?: string | null
+          owner_id?: string | null
+          sort_order?: number
+          status?: string
+          target_date?: string | null
+          title?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "objectives_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "team_members"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       opportunities: {
         Row: {
           counterparty: string | null

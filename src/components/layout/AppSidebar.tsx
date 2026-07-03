@@ -20,6 +20,7 @@ import {
   FileUp,
   Lightbulb,
   Inbox,
+  Target,
 } from 'lucide-react'
 
 const NAV_GROUPS = [
@@ -28,6 +29,7 @@ const NAV_GROUPS = [
     items: [
       { href: '/tasks', label: 'Tasks', icon: ListChecks },
       { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+      { href: '/objectives', label: 'Objectives', icon: Target },
       { href: '/projects', label: 'Projects', icon: FolderKanban },
       { href: '/opportunities', label: 'Opportunities', icon: Lightbulb },
     ],

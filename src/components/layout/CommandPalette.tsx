@@ -19,6 +19,7 @@ import type { SearchResult } from '@/app/api/search/route'
 const PAGES: { href: string; label: string; keywords: string }[] = [
   { href: '/dashboard', label: 'Dashboard', keywords: 'home overview alerts urgent overdue attention' },
   { href: '/projects', label: 'Projects', keywords: 'pipeline deals' },
+  { href: '/objectives', label: 'Objectives', keywords: 'priorities goals strategy steering now soon possibly focus' },
   { href: '/opportunities', label: 'Opportunities', keywords: 'acquisitions partnerships jv mergers investments deals' },
   { href: '/timeline', label: 'Timeline', keywords: 'gantt schedule' },
   { href: '/tasks', label: 'Team Tasks', keywords: 'todo action items team workload capacity' },
