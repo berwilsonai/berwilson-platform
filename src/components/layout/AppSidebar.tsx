@@ -20,7 +20,9 @@ import {
   Lightbulb,
   Inbox,
   Target,
+  UserCog,
 } from 'lucide-react'
+import { canAccessPage, type Role } from '@/lib/auth/permissions'
 
 const NAV_GROUPS = [
   {
@@ -54,6 +56,7 @@ const NAV_GROUPS = [
     items: [
       { href: '/review', label: 'Review Queue', icon: ClipboardCheck },
       { href: '/activity', label: 'Activity', icon: Activity },
+      { href: '/settings/users', label: 'Users & Access', icon: UserCog },
     ],
   },
 ] as const
@@ -61,11 +64,18 @@ const NAV_GROUPS = [
 interface AppSidebarProps {
   pendingReviewCount?: number
   attentionCount?: number
+  role?: Role
 }
 
-export default function AppSidebar({ pendingReviewCount = 0, attentionCount = 0 }: AppSidebarProps) {
+export default function AppSidebar({ pendingReviewCount = 0, attentionCount = 0, role = 'admin' }: AppSidebarProps) {
   const pathname = usePathname()
   const [collapsed, setCollapsed] = useState(false)
+
+  // Only show sections this role can actually visit; drop emptied groups.
+  const navGroups = NAV_GROUPS.map((group) => ({
+    ...group,
+    items: group.items.filter(({ href }) => canAccessPage(role, href)),
+  })).filter((group) => group.items.length > 0)
 
   return (
     <aside
@@ -95,7 +105,7 @@ export default function AppSidebar({ pendingReviewCount = 0, attentionCount = 0 
 
       {/* Nav items */}
       <nav className="flex-1 py-3 px-2 overflow-y-auto">
-        {NAV_GROUPS.map((group, gi) => (
+        {navGroups.map((group, gi) => (
           <div key={gi} className={gi > 0 ? 'mt-4 pt-3 border-t border-sidebar-border' : ''}>
             {group.label && !collapsed && (
               <p className="px-2.5 mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-sidebar-foreground/40">

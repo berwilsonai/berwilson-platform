@@ -3,6 +3,7 @@
 import { redirect } from 'next/navigation'
 import { createAdminClient } from '@/lib/supabase/admin'
 import type { TablesInsert } from '@/lib/supabase/types'
+import { getViewer, canAccessProject } from '@/lib/auth/viewer'
 
 export type ProjectFormState = { error: string } | null
 
@@ -98,6 +99,9 @@ export async function createProject(
   _prev: ProjectFormState,
   formData: FormData
 ): Promise<ProjectFormState> {
+  const viewer = await getViewer()
+  if (!viewer?.isAdmin) return { error: 'Only admins can create projects.' }
+
   const result = parseFields(formData)
   if (!result.ok) return { error: result.error }
 
@@ -119,6 +123,11 @@ export async function updateProject(
   _prev: ProjectFormState,
   formData: FormData
 ): Promise<ProjectFormState> {
+  const viewer = await getViewer()
+  if (!viewer || (!viewer.isAdmin && !(await canAccessProject(viewer, id)))) {
+    return { error: 'You do not have access to edit this project.' }
+  }
+
   const result = parseFields(formData)
   if (!result.ok) return { error: result.error }
 

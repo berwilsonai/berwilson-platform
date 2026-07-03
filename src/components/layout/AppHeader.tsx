@@ -6,6 +6,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { Search, Sparkles } from 'lucide-react'
 import UserMenu from './UserMenu'
 import CommandPalette from './CommandPalette'
+import type { Role } from '@/lib/auth/permissions'
 
 const PAGE_TITLES: Record<string, string> = {
   '/tasks': 'Team Tasks',
@@ -23,6 +24,7 @@ const PAGE_TITLES: Record<string, string> = {
   '/activity': 'Activity',
   '/intel': 'Intel',
   '/proposals/intake': 'Intake Proposal',
+  '/settings/users': 'Users & Access',
 }
 
 function getPageTitle(pathname: string): string {
@@ -33,12 +35,15 @@ function getPageTitle(pathname: string): string {
   return 'Ber Wilson'
 }
 
-export default function AppHeader({ email }: { email: string }) {
+export default function AppHeader({ email, role = 'admin' }: { email: string; role?: Role }) {
   const pathname = usePathname()
   const [paletteOpen, setPaletteOpen] = useState(false)
+  // Cross-portfolio surfaces (search + Ask Ber AI) are admin-only.
+  const isAdmin = role === 'admin'
 
   // Global ⌘K / Ctrl+K to open the command palette.
   useEffect(() => {
+    if (!isAdmin) return
     function onKeyDown(e: KeyboardEvent) {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault()
@@ -47,7 +52,7 @@ export default function AppHeader({ email }: { email: string }) {
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [])
+  }, [isAdmin])
 
   const closePalette = useCallback(() => setPaletteOpen(false), [])
 
@@ -68,6 +73,8 @@ export default function AppHeader({ email }: { email: string }) {
         </div>
 
         <div className="flex items-center gap-1.5 shrink-0">
+          {isAdmin && (
+          <>
           {/* Ask Ber AI — ambient agent, available everywhere */}
           <button
             onClick={() => window.dispatchEvent(new CustomEvent('open-ber-ai'))}
@@ -109,12 +116,14 @@ export default function AppHeader({ email }: { email: string }) {
           >
             <Search size={16} />
           </button>
+          </>
+          )}
 
           <UserMenu email={email} />
         </div>
       </header>
 
-      {paletteOpen && <CommandPalette onClose={closePalette} />}
+      {isAdmin && paletteOpen && <CommandPalette onClose={closePalette} />}
     </>
   )
 }

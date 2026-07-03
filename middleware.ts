@@ -2,6 +2,7 @@ import { createServerClient } from '@supabase/ssr'
 // Import from specific paths to avoid next/server.js loading ua-parser-js (__dirname issue on Vercel edge)
 import { NextResponse } from 'next/dist/server/web/spec-extension/response'
 import type { NextRequest } from 'next/dist/server/web/spec-extension/request'
+import { canAccessApi, canAccessPage, isRole, DEFAULT_LANDING, type Role } from '@/lib/auth/permissions'
 
 export async function middleware(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request })
@@ -59,6 +60,42 @@ export async function middleware(request: NextRequest) {
     const url = request.nextUrl.clone()
     url.pathname = '/tasks'
     return NextResponse.redirect(url)
+  }
+
+  // Role-based section gating. Resolution mirrors lib/auth/viewer.ts:
+  // pre-migration (columns missing) or bootstrap (nobody linked yet) → admin,
+  // so behavior is unchanged until users are actually linked in /settings/users.
+  if (user && !isPublicRoute && !pathname.startsWith('/auth/')) {
+    let role: Role = 'admin'
+    const { data: me, error } = await supabase
+      .from('team_members')
+      .select('role, active')
+      .eq('auth_user_id', user.id)
+      .maybeSingle()
+    if (!error) {
+      if (me) {
+        role = me.active && isRole(me.role) ? me.role : 'member'
+      } else {
+        // Not linked — member unless linking hasn't started at all (bootstrap).
+        const { count } = await supabase
+          .from('team_members')
+          .select('id', { count: 'exact', head: true })
+          .not('auth_user_id', 'is', null)
+        if ((count ?? 0) > 0) role = 'member'
+      }
+    }
+
+    if (role !== 'admin') {
+      if (pathname.startsWith('/api/')) {
+        if (!canAccessApi(role, pathname)) {
+          return NextResponse.json({ error: 'Not authorized' }, { status: 403 })
+        }
+      } else if (!canAccessPage(role, pathname)) {
+        const url = request.nextUrl.clone()
+        url.pathname = DEFAULT_LANDING
+        return NextResponse.redirect(url)
+      }
+    }
   }
 
   // Pass pathname to the layout so it can decide whether to show the app shell

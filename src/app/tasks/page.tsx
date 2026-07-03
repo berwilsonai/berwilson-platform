@@ -1,11 +1,13 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import TeamTaskBoard from '@/components/tasks/TeamTaskBoard'
 import type { BoardTask, TeamMember, ProjectOption, OpportunityOption, ObjectiveOption } from '@/components/tasks/task-utils'
+import { getViewer, filterTasksForViewer, accessibleProjectIds } from '@/lib/auth/viewer'
 
 export const metadata = { title: 'Team Tasks — Ber Wilson Intelligence' }
 
 export default async function TasksPage() {
   const supabase = createAdminClient()
+  const viewer = await getViewer()
 
   // Objectives may not exist pre-migration; a failed select just yields null → no objective controls.
   const [{ data: tasks }, { data: members }, { data: projects }, { data: opportunities }, { data: objectives }] = await Promise.all([
@@ -42,13 +44,34 @@ export default async function TasksPage() {
     .slice()
     .sort((a, b) => (bucketRank[a.bucket] ?? 3) - (bucketRank[b.bucket] ?? 3))
 
+  // Scope the board to the viewer. Admin/executive: the whole team board.
+  // Project manager: tasks + tag pickers narrowed to their granted
+  // projects/opportunities (plus tasks assigned to them). Member: own list,
+  // no tag pickers. Objectives stay executive-level context.
+  let boardTasks = (tasks ?? []) as unknown as BoardTask[]
+  let projectOptions = (projects ?? []) as ProjectOption[]
+  let opportunityOptions = (opportunities ?? []) as OpportunityOption[]
+  let visibleObjectives = objectiveOptions
+  if (viewer && !viewer.isAdmin && viewer.role !== 'executive') {
+    boardTasks = await filterTasksForViewer(viewer, boardTasks)
+    visibleObjectives = []
+    if (viewer.role === 'project_manager') {
+      const projectIds = (await accessibleProjectIds(viewer)) ?? new Set<string>()
+      projectOptions = projectOptions.filter((p) => projectIds.has(p.id))
+      opportunityOptions = opportunityOptions.filter((o) => viewer.grantedOpportunityIds.includes(o.id))
+    } else {
+      projectOptions = []
+      opportunityOptions = []
+    }
+  }
+
   return (
     <TeamTaskBoard
-      initialTasks={(tasks ?? []) as unknown as BoardTask[]}
+      initialTasks={boardTasks}
       teamMembers={(members ?? []) as TeamMember[]}
-      projects={(projects ?? []) as ProjectOption[]}
-      opportunities={(opportunities ?? []) as OpportunityOption[]}
-      objectives={objectiveOptions}
+      projects={projectOptions}
+      opportunities={opportunityOptions}
+      objectives={visibleObjectives}
     />
   )
 }

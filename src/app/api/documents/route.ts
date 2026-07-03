@@ -3,6 +3,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { embedDocument } from '@/lib/ai/embeddings'
 import { callGemini, callGeminiWithFile } from '@/lib/ai/gemini'
 import { transcribePdfText, storeExtractedText } from '@/lib/ai/document-text'
+import { getViewer, canAccessProject, forbiddenJson } from '@/lib/auth/viewer'
 
 // Summary + full-text transcription + embedding can take a few minutes on big PDFs
 export const maxDuration = 300
@@ -51,6 +52,9 @@ export async function POST(request: NextRequest) {
   if (!project_id || !storage_path || !file_name) {
     return Response.json({ error: 'project_id, storage_path, and file_name are required' }, { status: 400 })
   }
+
+  const viewer = await getViewer()
+  if (viewer && !viewer.isAdmin && !(await canAccessProject(viewer, project_id))) return forbiddenJson()
 
   // Insert document record
   const { data: doc, error: insertError } = await supabase

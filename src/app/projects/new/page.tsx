@@ -1,7 +1,9 @@
 import Link from 'next/link'
+import { redirect } from 'next/navigation'
 import { ChevronLeft } from 'lucide-react'
 import { createAdminClient } from '@/lib/supabase/admin'
 import ProjectForm from '@/components/projects/ProjectForm'
+import { getViewer } from '@/lib/auth/viewer'
 
 export const metadata = { title: 'New Project — Ber Wilson Intelligence' }
 
@@ -10,6 +12,9 @@ interface PageProps {
 }
 
 export default async function NewProjectPage({ searchParams }: PageProps) {
+  const viewer = await getViewer()
+  if (viewer && !viewer.isAdmin) redirect('/projects')
+
   const params = await searchParams
   const fromReview = params.from === 'review'
   const defaultParentId = params.parent ?? undefined

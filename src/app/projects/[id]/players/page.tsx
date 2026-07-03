@@ -6,6 +6,7 @@ import EmptyState from '@/components/shared/EmptyState'
 import AddPlayerModal from '@/components/projects/AddPlayerModal'
 import RemovePlayerButton from '@/components/projects/RemovePlayerButton'
 import EditRoleButton from '@/components/projects/EditRoleButton'
+import { getViewer } from '@/lib/auth/viewer'
 
 export const metadata = { title: 'Team — Ber Wilson Intelligence' }
 
@@ -32,6 +33,12 @@ type PlayerRow = {
 export default async function PlayersPage({ params }: PageProps) {
   const { id: projectId } = await params
   const supabase = createAdminClient()
+
+  // People data is executive-only. Non-admins (project managers) get a
+  // limited read: names, roles, and contact info so they can reach the people
+  // they work with — no profile links, no diligence notes, no editing.
+  const viewer = await getViewer()
+  const limited = !(viewer?.isAdmin ?? true)
 
   // Verify project exists
   const { data: project } = await supabase
@@ -62,15 +69,17 @@ export default async function PlayersPage({ params }: PageProps) {
         title="No players yet"
         description="Add the key people and organizations involved in this project."
         action={
-          <div className="flex items-center gap-2">
-            <AddPlayerModal projectId={projectId} />
-            <Link
-              href={`/contacts/new`}
-              className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md border border-input text-xs font-medium hover:bg-accent transition-colors"
-            >
-              Create New Contact
-            </Link>
-          </div>
+          limited ? undefined : (
+            <div className="flex items-center gap-2">
+              <AddPlayerModal projectId={projectId} />
+              <Link
+                href={`/contacts/new`}
+                className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md border border-input text-xs font-medium hover:bg-accent transition-colors"
+              >
+                Create New Contact
+              </Link>
+            </div>
+          )
         }
       />
     )
@@ -82,7 +91,7 @@ export default async function PlayersPage({ params }: PageProps) {
         <p className="text-xs text-muted-foreground">
           {players.length} player{players.length !== 1 ? 's' : ''} on this project
         </p>
-        <AddPlayerModal projectId={projectId} />
+        {!limited && <AddPlayerModal projectId={projectId} />}
       </div>
 
       <div className="rounded-lg border border-border overflow-hidden">
@@ -120,12 +129,16 @@ export default async function PlayersPage({ params }: PageProps) {
                         )}
                       </div>
                       <div className="min-w-0">
-                        <Link
-                          href={`/contacts/${party.id}`}
-                          className="font-medium hover:underline truncate block"
-                        >
-                          {party.full_name}
-                        </Link>
+                        {limited ? (
+                          <span className="font-medium truncate block">{party.full_name}</span>
+                        ) : (
+                          <Link
+                            href={`/contacts/${party.id}`}
+                            className="font-medium hover:underline truncate block"
+                          >
+                            {party.full_name}
+                          </Link>
+                        )}
                         {party.title && (
                           <p className="text-xs text-muted-foreground truncate sm:hidden">
                             {party.title}
@@ -153,11 +166,13 @@ export default async function PlayersPage({ params }: PageProps) {
                           aria-label="Primary contact"
                         />
                       )}
-                      <EditRoleButton
-                        playerId={player.id}
-                        currentRole={player.role}
-                        playerName={party.full_name}
-                      />
+                      {!limited && (
+                        <EditRoleButton
+                          playerId={player.id}
+                          currentRole={player.role}
+                          playerName={party.full_name}
+                        />
+                      )}
                     </div>
                   </td>
                   <td className="px-4 py-3 hidden md:table-cell">
@@ -180,7 +195,7 @@ export default async function PlayersPage({ params }: PageProps) {
                     )}
                   </td>
                   <td className="px-4 py-3 text-right">
-                    <RemovePlayerButton playerId={player.id} playerName={party.full_name} />
+                    {!limited && <RemovePlayerButton playerId={player.id} playerName={party.full_name} />}
                   </td>
                 </tr>
               )

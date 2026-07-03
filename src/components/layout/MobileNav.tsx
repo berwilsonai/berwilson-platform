@@ -18,8 +18,10 @@ import {
   Lightbulb,
   Inbox,
   Target,
+  UserCog,
   X,
 } from 'lucide-react'
+import { canAccessPage, type Role } from '@/lib/auth/permissions'
 
 const PRIMARY_NAV = [
   { href: '/tasks', label: 'Tasks', icon: ListTodo },
@@ -38,17 +40,23 @@ const MORE_NAV = [
   { href: '/contacts', label: 'Contacts & Vendors', icon: Users },
   { href: '/company', label: 'Ber Wilson', icon: Shield },
   { href: '/activity', label: 'Activity', icon: Activity },
+  { href: '/settings/users', label: 'Users & Access', icon: UserCog },
 ] as const
 
 interface MobileNavProps {
   pendingCount?: number
+  role?: Role
 }
 
-export default function MobileNav({ pendingCount = 0 }: MobileNavProps) {
+export default function MobileNav({ pendingCount = 0, role = 'admin' }: MobileNavProps) {
   const pathname = usePathname()
   const [moreOpen, setMoreOpen] = useState(false)
+  const isAdmin = role === 'admin'
 
-  const moreActive = MORE_NAV.some(
+  const primaryNav = PRIMARY_NAV.filter(({ href }) => canAccessPage(role, href))
+  const moreNav = MORE_NAV.filter(({ href }) => canAccessPage(role, href))
+
+  const moreActive = moreNav.some(
     ({ href }) => pathname === href || pathname.startsWith(href + '/')
   )
 
@@ -85,17 +93,19 @@ export default function MobileNav({ pendingCount = 0 }: MobileNavProps) {
         </div>
         <div className="grid grid-cols-3 gap-px bg-sidebar-border">
           {/* Upload document — opens the quick-upload sheet (replaces the old floating button) */}
-          <button
-            onClick={() => {
-              setMoreOpen(false)
-              window.dispatchEvent(new Event('open-quick-upload'))
-            }}
-            className="flex flex-col items-center gap-1.5 py-4 text-xs font-medium transition-colors bg-sidebar text-sidebar-foreground/60 hover:text-sidebar-foreground"
-          >
-            <FileUp size={22} className="text-sidebar-foreground/50" />
-            Upload
-          </button>
-          {MORE_NAV.map(({ href, label, icon: Icon }) => {
+          {isAdmin && (
+            <button
+              onClick={() => {
+                setMoreOpen(false)
+                window.dispatchEvent(new Event('open-quick-upload'))
+              }}
+              className="flex flex-col items-center gap-1.5 py-4 text-xs font-medium transition-colors bg-sidebar text-sidebar-foreground/60 hover:text-sidebar-foreground"
+            >
+              <FileUp size={22} className="text-sidebar-foreground/50" />
+              Upload
+            </button>
+          )}
+          {moreNav.map(({ href, label, icon: Icon }) => {
             const active = pathname === href || pathname.startsWith(href + '/')
             return (
               <Link
@@ -120,7 +130,7 @@ export default function MobileNav({ pendingCount = 0 }: MobileNavProps) {
         style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
       >
         <div className="flex">
-          {PRIMARY_NAV.map(({ href, label, icon: Icon, ...rest }) => {
+          {primaryNav.map(({ href, label, icon: Icon, ...rest }) => {
             const active = pathname === href || pathname.startsWith(href + '/')
             const showBadge = 'hasBadge' in rest && rest.hasBadge && pendingCount > 0
             return (
@@ -149,7 +159,8 @@ export default function MobileNav({ pendingCount = 0 }: MobileNavProps) {
             )
           })}
 
-          {/* More button */}
+          {/* More button — hidden when the drawer would be empty */}
+          {(moreNav.length > 0 || isAdmin) && (
           <button
             onClick={() => setMoreOpen(!moreOpen)}
             className={`flex-1 flex flex-col items-center gap-1 py-3 text-xs font-medium transition-colors ${
@@ -164,6 +175,7 @@ export default function MobileNav({ pendingCount = 0 }: MobileNavProps) {
             />
             More
           </button>
+          )}
         </div>
       </nav>
     </>

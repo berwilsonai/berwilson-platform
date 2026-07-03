@@ -3,6 +3,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { callGemini, callGeminiWithFile } from '@/lib/ai/gemini'
 import { transcribePdfText, storeExtractedText } from '@/lib/ai/document-text'
 import { embedOpportunityDocument } from '@/lib/ai/embeddings'
+import { getViewer, canAccessOpportunity, forbiddenJson } from '@/lib/auth/viewer'
 
 // Summary + full-text transcription + embedding can take a few minutes on big PDFs
 export const maxDuration = 300
@@ -37,6 +38,9 @@ export async function POST(request: NextRequest) {
   if (!file || !opportunity_id) {
     return Response.json({ error: 'file and opportunity_id are required' }, { status: 400 })
   }
+
+  const viewer = await getViewer()
+  if (viewer && !viewer.isAdmin && !canAccessOpportunity(viewer, opportunity_id)) return forbiddenJson()
 
   const timestamp = Date.now()
   const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_')

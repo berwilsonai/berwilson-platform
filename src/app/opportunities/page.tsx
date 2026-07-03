@@ -2,6 +2,7 @@ import { Suspense } from 'react'
 import Link from 'next/link'
 import { Plus, Lightbulb } from 'lucide-react'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { getViewer } from '@/lib/auth/viewer'
 import {
   OPPORTUNITY_TYPES,
   OPPORTUNITY_STATUSES,
@@ -37,11 +38,18 @@ export default async function OpportunitiesPage({ searchParams }: PageProps) {
   if (type) query = query.eq('opp_type', type)
   if (status) query = query.eq('status', status)
 
-  const { data: opportunities, error } = await query
+  const { data, error } = await query
 
   if (error) {
     throw new Error(`Failed to load opportunities: ${error.message}`)
   }
+
+  // Non-admins only see granted opportunities.
+  const viewer = await getViewer()
+  const isAdmin = viewer?.isAdmin ?? true
+  const opportunities = isAdmin
+    ? data
+    : (data ?? []).filter((o) => viewer!.grantedOpportunityIds.includes(o.id))
 
   const count = opportunities?.length ?? 0
   const hasFilters = type || status
@@ -61,13 +69,15 @@ export default async function OpportunitiesPage({ searchParams }: PageProps) {
             </span>
           )}
         </div>
-        <Link
-          href="/opportunities/new"
-          className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors shrink-0"
-        >
-          <Plus size={14} />
-          New Opportunity
-        </Link>
+        {isAdmin && (
+          <Link
+            href="/opportunities/new"
+            className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors shrink-0"
+          >
+            <Plus size={14} />
+            New Opportunity
+          </Link>
+        )}
       </div>
 
       {/* Cards grid or empty state */}

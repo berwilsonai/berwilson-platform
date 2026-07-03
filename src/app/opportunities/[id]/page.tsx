@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { Pencil, Target, Lightbulb, FileText, MessageSquare, ExternalLink, ListChecks } from 'lucide-react'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { getViewer, canAccessOpportunity } from '@/lib/auth/viewer'
 import { cn } from '@/lib/utils'
 import { formatValue, formatDate, SECTOR_LABELS } from '@/lib/utils/constants'
 import type { ProjectSector } from '@/lib/supabase/types'
@@ -50,6 +51,10 @@ export default async function OpportunityDetailPage({ params }: PageProps) {
     .single()
 
   if (!opportunity) notFound()
+
+  // Grant check — non-admins only reach opportunities they've been granted.
+  const viewer = await getViewer()
+  if (viewer && !viewer.isAdmin && !canAccessOpportunity(viewer, id)) notFound()
 
   const [{ data: documents }, { data: notes }, { data: tasks }, { data: members }] = await Promise.all([
     supabase

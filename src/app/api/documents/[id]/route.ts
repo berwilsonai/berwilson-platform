@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { getViewer, canAccessProject, forbiddenJson } from '@/lib/auth/viewer'
 
 interface RouteContext {
   params: Promise<{ id: string }>
@@ -16,12 +17,18 @@ export async function DELETE(_request: NextRequest, { params }: RouteContext) {
   // Fetch the document to get its storage path
   const { data: doc, error: fetchError } = await supabase
     .from('documents')
-    .select('id, storage_path')
+    .select('id, storage_path, project_id')
     .eq('id', id)
     .single()
 
   if (fetchError || !doc) {
     return Response.json({ error: 'Document not found' }, { status: 404 })
+  }
+
+  // Scoped users may only delete documents on their granted projects.
+  const viewer = await getViewer()
+  if (viewer && !viewer.isAdmin) {
+    if (!doc.project_id || !(await canAccessProject(viewer, doc.project_id))) return forbiddenJson()
   }
 
   // Remove from Supabase Storage (admin needed to bypass storage RLS)

@@ -1,10 +1,15 @@
 import Link from 'next/link'
+import { redirect } from 'next/navigation'
 import { ChevronLeft } from 'lucide-react'
 import OpportunityForm from '@/components/opportunities/OpportunityForm'
+import { getViewer } from '@/lib/auth/viewer'
 
 export const metadata = { title: 'New Opportunity — Ber Wilson Intelligence' }
 
-export default function NewOpportunityPage() {
+export default async function NewOpportunityPage() {
+  const viewer = await getViewer()
+  if (viewer && !viewer.isAdmin) redirect('/opportunities')
+
   return (
     <div className="space-y-5">
       <div className="flex items-center gap-2">

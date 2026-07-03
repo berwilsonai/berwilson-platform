@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import type { TablesInsert } from '@/lib/supabase/types'
+import { getViewer, canAccessProject, forbiddenJson } from '@/lib/auth/viewer'
 
 export async function POST(request: NextRequest) {
   const supabase = await createClient()
@@ -16,6 +17,9 @@ export async function POST(request: NextRequest) {
       { status: 400 }
     )
   }
+
+  const viewer = await getViewer()
+  if (viewer && !viewer.isAdmin && !(await canAccessProject(viewer, project_id))) return forbiddenJson()
 
   const row: TablesInsert<'milestones'> = {
     project_id,

@@ -4,6 +4,7 @@ import { Plus, FolderKanban, GanttChart } from 'lucide-react'
 import { createAdminClient } from '@/lib/supabase/admin'
 import type { ProjectSector, ProjectStatus, ProjectStage } from '@/lib/supabase/types'
 import { SECTORS, STATUSES, STAGES } from '@/lib/utils/constants'
+import { getViewer, accessibleProjectIds } from '@/lib/auth/viewer'
 
 export const metadata = { title: 'Projects — Ber Wilson Intelligence' }
 import EmptyState from '@/components/shared/EmptyState'
@@ -37,10 +38,19 @@ export default async function ProjectsPage({ searchParams }: PageProps) {
   if (status) query = query.eq('status', status)
   if (stage) query = query.eq('stage', stage)
 
-  const { data: projects, error } = await query
+  const { data, error } = await query
 
   if (error) {
     throw new Error(`Failed to load projects: ${error.message}`)
+  }
+
+  // Non-admins only see granted projects (parent grants cover children).
+  const viewer = await getViewer()
+  const isAdmin = viewer?.isAdmin ?? true
+  let projects = data ?? []
+  if (!isAdmin && viewer) {
+    const allowed = await accessibleProjectIds(viewer)
+    if (allowed) projects = projects.filter((p) => allowed.has(p.id))
   }
 
   const count = projects?.length ?? 0
@@ -61,22 +71,24 @@ export default async function ProjectsPage({ searchParams }: PageProps) {
             </span>
           )}
         </div>
-        <div className="flex items-center gap-2 shrink-0">
-          <Link
-            href="/timeline"
-            className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md border border-border bg-card text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-          >
-            <GanttChart size={14} />
-            Timeline
-          </Link>
-          <Link
-            href="/projects/new"
-            className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors"
-          >
-            <Plus size={14} />
-            New Project
-          </Link>
-        </div>
+        {isAdmin && (
+          <div className="flex items-center gap-2 shrink-0">
+            <Link
+              href="/timeline"
+              className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md border border-border bg-card text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+            >
+              <GanttChart size={14} />
+              Timeline
+            </Link>
+            <Link
+              href="/projects/new"
+              className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors"
+            >
+              <Plus size={14} />
+              New Project
+            </Link>
+          </div>
+        )}
       </div>
 
       {/* Cards grid or empty state */}
@@ -90,7 +102,7 @@ export default async function ProjectsPage({ searchParams }: PageProps) {
               : 'Add your first project to start tracking your pipeline.'
           }
           action={
-            !hasFilters ? (
+            !hasFilters && isAdmin ? (
               <Link
                 href="/projects/new"
                 className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors"

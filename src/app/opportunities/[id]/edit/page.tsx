@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation'
 import { ChevronLeft } from 'lucide-react'
 import { createAdminClient } from '@/lib/supabase/admin'
 import OpportunityForm from '@/components/opportunities/OpportunityForm'
+import { getViewer, canAccessOpportunity } from '@/lib/auth/viewer'
 
 export const metadata = { title: 'Edit Opportunity — Ber Wilson Intelligence' }
 
@@ -21,6 +22,9 @@ export default async function EditOpportunityPage({ params }: PageProps) {
     .single()
 
   if (!opportunity) notFound()
+
+  const viewer = await getViewer()
+  if (viewer && !viewer.isAdmin && !canAccessOpportunity(viewer, id)) notFound()
 
   return (
     <div className="space-y-5">

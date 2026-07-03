@@ -1,14 +1,31 @@
 import { NextRequest } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import type { TablesUpdate } from '@/lib/supabase/types'
+import { getViewer, canAccessTask, forbiddenJson, type Viewer } from '@/lib/auth/viewer'
 
 interface RouteContext {
   params: Promise<{ id: string }>
 }
 
+/** Load the task's tags and check the viewer may touch it. Null = allowed. */
+async function guardTask(viewer: Viewer | null, id: string): Promise<Response | null> {
+  if (!viewer) return Response.json({ error: 'Not authenticated' }, { status: 401 })
+  if (viewer.isAdmin || viewer.role === 'executive') return null
+  const { data: task } = await createAdminClient()
+    .from('tasks')
+    .select('assignee_id, project_id, opportunity_id')
+    .eq('id', id)
+    .maybeSingle()
+  if (!task) return Response.json({ error: 'Task not found' }, { status: 404 })
+  if (!(await canAccessTask(viewer, task))) return forbiddenJson()
+  return null
+}
+
 /** GET — a task plus linked project context (name, sector, value, players) and its notes feed */
 export async function GET(_request: NextRequest, { params }: RouteContext) {
   const { id } = await params
+  const guard = await guardTask(await getViewer(), id)
+  if (guard) return guard
   const supabase = createAdminClient()
 
   const { data: task, error } = await supabase
@@ -49,7 +66,23 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
 /** PATCH — edit task fields. Setting status='done' stamps completed_at; 'open' clears it. */
 export async function PATCH(request: NextRequest, { params }: RouteContext) {
   const { id } = await params
+  const viewer = await getViewer()
+  const guard = await guardTask(viewer, id)
+  if (guard) return guard
   const body = await request.json()
+
+  // Non-executives can't retag a task onto a project/opportunity they don't have.
+  if (viewer && !viewer.isAdmin && viewer.role !== 'executive') {
+    const retagged = {
+      assignee_id: viewer.teamMemberId,
+      project_id: 'project_id' in body ? body.project_id || null : null,
+      opportunity_id: 'opportunity_id' in body ? body.opportunity_id || null : null,
+    }
+    if ((retagged.project_id || retagged.opportunity_id) && !(await canAccessTask(viewer, retagged))) {
+      return forbiddenJson('You can only tag tasks to your own projects')
+    }
+  }
+
   const supabase = createAdminClient()
 
   const patch: TablesUpdate<'tasks'> = {}
@@ -84,6 +117,8 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
 /** DELETE — remove a task entirely (notes cascade) */
 export async function DELETE(_request: NextRequest, { params }: RouteContext) {
   const { id } = await params
+  const guard = await guardTask(await getViewer(), id)
+  if (guard) return guard
   const supabase = createAdminClient()
   const { error } = await supabase.from('tasks').delete().eq('id', id)
   if (error) {

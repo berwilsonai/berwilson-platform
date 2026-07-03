@@ -1,6 +1,8 @@
 import { NextRequest } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import type { TablesUpdate } from '@/lib/supabase/types'
+import { getViewer, canAccessProject, forbiddenJson } from '@/lib/auth/viewer'
 
 interface RouteContext {
   params: Promise<{ id: string }>
@@ -12,6 +14,13 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
   if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { id } = await params
+
+  const viewer = await getViewer()
+  if (viewer && !viewer.isAdmin) {
+    const { data: ms } = await createAdminClient().from('milestones').select('project_id').eq('id', id).maybeSingle()
+    if (!ms?.project_id || !(await canAccessProject(viewer, ms.project_id))) return forbiddenJson()
+  }
+
   const body = await request.json()
 
   if (typeof body.completed !== 'boolean') {

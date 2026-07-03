@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { embedOpportunitySnapshot } from '@/lib/ai/embeddings'
 import type { TablesUpdate } from '@/lib/supabase/types'
+import { getViewer, canAccessOpportunity, forbiddenJson } from '@/lib/auth/viewer'
 
 interface RouteContext {
   params: Promise<{ id: string }>
@@ -15,6 +16,9 @@ const PATCHABLE = new Set([
 
 export async function PATCH(request: NextRequest, { params }: RouteContext) {
   const { id } = await params
+
+  const viewer = await getViewer()
+  if (viewer && !viewer.isAdmin && !canAccessOpportunity(viewer, id)) return forbiddenJson()
 
   let body: Record<string, unknown>
   try {
@@ -55,6 +59,9 @@ export async function DELETE(_request: NextRequest, { params }: RouteContext) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const viewer = await getViewer()
+  if (viewer && !viewer.isAdmin) return forbiddenJson('Only admins can delete opportunities')
 
   const { id } = await params
   const admin = createAdminClient()

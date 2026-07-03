@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { embedOpportunityNote } from '@/lib/ai/embeddings'
+import { getViewer, canAccessOpportunity, forbiddenJson } from '@/lib/auth/viewer'
 
 interface RouteContext {
   params: Promise<{ id: string }>
@@ -8,6 +9,9 @@ interface RouteContext {
 
 export async function POST(request: NextRequest, { params }: RouteContext) {
   const { id } = await params
+
+  const viewer = await getViewer()
+  if (viewer && !viewer.isAdmin && !canAccessOpportunity(viewer, id)) return forbiddenJson()
 
   let body: { body?: string; author?: string }
   try {

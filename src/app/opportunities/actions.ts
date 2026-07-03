@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { embedOpportunitySnapshot } from '@/lib/ai/embeddings'
 import type { TablesInsert } from '@/lib/supabase/types'
+import { getViewer, canAccessOpportunity } from '@/lib/auth/viewer'
 
 export type OpportunityFormState = { error: string } | null
 
@@ -84,6 +85,9 @@ export async function createOpportunity(
   _prev: OpportunityFormState,
   formData: FormData
 ): Promise<OpportunityFormState> {
+  const viewer = await getViewer()
+  if (viewer && !viewer.isAdmin) return { error: 'Only admins can create opportunities.' }
+
   const result = parseFields(formData)
   if (!result.ok) return { error: result.error }
 
@@ -107,6 +111,11 @@ export async function updateOpportunity(
   _prev: OpportunityFormState,
   formData: FormData
 ): Promise<OpportunityFormState> {
+  const viewer = await getViewer()
+  if (viewer && !viewer.isAdmin && !canAccessOpportunity(viewer, id)) {
+    return { error: 'You do not have access to edit this opportunity.' }
+  }
+
   const result = parseFields(formData)
   if (!result.ok) return { error: result.error }
 

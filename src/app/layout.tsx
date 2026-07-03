@@ -2,8 +2,8 @@ import type { Metadata, Viewport } from "next"
 import { Geist, Geist_Mono } from "next/font/google"
 import "./globals.css"
 import { headers } from "next/headers"
-import { createClient } from "@/lib/supabase/server"
 import { createAdminClient } from "@/lib/supabase/admin"
+import { getViewer } from "@/lib/auth/viewer"
 import { Toaster } from "sonner"
 import AppSidebar from "@/components/layout/AppSidebar"
 import AppHeader from "@/components/layout/AppHeader"
@@ -57,20 +57,21 @@ export default async function RootLayout({
   // The objectives print view is a standalone document (for print / save-as-PDF) — no app chrome.
   const isPrintPage = pathname === '/objectives/print'
 
-  // Fetch user for the header email; the middleware already enforces auth.
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  // Resolve the signed-in user's role; the middleware already enforces auth
+  // and section access — this drives what the shell renders.
+  const viewer = await getViewer()
+  const role = viewer?.role ?? 'member'
+  const isAdmin = viewer?.isAdmin ?? false
 
   // Show shell on all app routes. Login page gets its own full-page layout.
   // Middleware guarantees no unauthenticated access reaches non-login routes.
   const showShell = !isLoginPage && !isPrintPage
 
-  // Pending review count + attention count for sidebar badges — only needed when shell is visible.
+  // Pending review count + attention count for sidebar badges — admin-only
+  // surfaces, so skip the queries for everyone else.
   let pendingReviewCount = 0
   let attentionCount = 0
-  if (showShell) {
+  if (showShell && isAdmin) {
     const adminClient = createAdminClient()
     const today = new Date().toISOString().split('T')[0]
     const [{ count: reviewCount }, { count: overdueMs }, { count: criticalDd }, { count: overdueTasks }] = await Promise.all([
@@ -113,9 +114,9 @@ export default async function RootLayout({
         />
         {showShell ? (
           <div className="flex h-full">
-            <AppSidebar pendingReviewCount={pendingReviewCount} attentionCount={attentionCount} />
+            <AppSidebar pendingReviewCount={pendingReviewCount} attentionCount={attentionCount} role={role} />
             <div className="flex flex-1 flex-col min-w-0">
-              <AppHeader email={user?.email ?? ""} />
+              <AppHeader email={viewer?.email ?? ""} role={role} />
               <main className="flex-1 overflow-y-auto overflow-x-hidden p-5 sm:p-6 pb-24 md:pb-6 scrollbar-thin animate-fade-in-up bg-depth">
                 {children}
                 {/* Mobile footer disclaimer */}
@@ -126,9 +127,9 @@ export default async function RootLayout({
                 </footer>
               </main>
             </div>
-            <MobileNav pendingCount={pendingReviewCount} />
-            <MobileQuickUpload />
-            <AskBerAIDock />
+            <MobileNav pendingCount={pendingReviewCount} role={role} />
+            {isAdmin && <MobileQuickUpload />}
+            {isAdmin && <AskBerAIDock />}
           </div>
         ) : (
           children

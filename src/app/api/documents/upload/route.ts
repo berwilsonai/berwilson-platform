@@ -3,6 +3,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { embedDocument } from '@/lib/ai/embeddings'
 import { callGemini, callGeminiWithFile } from '@/lib/ai/gemini'
 import { transcribePdfText, storeExtractedText } from '@/lib/ai/document-text'
+import { getViewer, canAccessProject, forbiddenJson } from '@/lib/auth/viewer'
 
 // Summary + full-text transcription + embedding can take a few minutes on big PDFs
 export const maxDuration = 300
@@ -45,6 +46,14 @@ export async function POST(request: NextRequest) {
 
   if (!file || (!project_id && !entity_id && !is_company)) {
     return Response.json({ error: 'file and one of project_id, entity_id, or is_company are required' }, { status: 400 })
+  }
+
+  // Scoped users may only upload into their granted projects (never entity/company docs).
+  const viewer = await getViewer()
+  if (viewer && !viewer.isAdmin) {
+    if (!project_id || entity_id || is_company || !(await canAccessProject(viewer, project_id))) {
+      return forbiddenJson()
+    }
   }
 
   // Build storage path

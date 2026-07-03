@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import type { TablesInsert } from '@/lib/supabase/types'
+import { getViewer, canAccessTask, forbiddenJson } from '@/lib/auth/viewer'
 
 interface RouteContext {
   params: Promise<{ id: string }>
@@ -9,6 +10,18 @@ interface RouteContext {
 /** POST — add a note to a task's updates feed */
 export async function POST(request: NextRequest, { params }: RouteContext) {
   const { id } = await params
+
+  const viewer = await getViewer()
+  if (!viewer) return Response.json({ error: 'Not authenticated' }, { status: 401 })
+  if (!viewer.isAdmin && viewer.role !== 'executive') {
+    const { data: task } = await createAdminClient()
+      .from('tasks')
+      .select('assignee_id, project_id, opportunity_id')
+      .eq('id', id)
+      .maybeSingle()
+    if (!task || !(await canAccessTask(viewer, task))) return forbiddenJson()
+  }
+
   const body = await request.json()
   const { body: noteBody, author } = body
 

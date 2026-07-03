@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { getViewer, canAccessProject, forbiddenJson } from '@/lib/auth/viewer'
 
 interface RouteContext {
   params: Promise<{ id: string }>
@@ -11,6 +12,9 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
   if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { id } = await params
+
+  const viewer = await getViewer()
+  if (viewer && !viewer.isAdmin && !(await canAccessProject(viewer, id))) return forbiddenJson()
   const body = await request.json()
   const { stage } = body
 

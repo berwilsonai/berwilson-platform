@@ -39,6 +39,38 @@ export type Database = {
   }
   public: {
     Tables: {
+      access_grants: {
+        Row: {
+          created_at: string | null
+          id: string
+          resource_id: string
+          resource_type: string
+          team_member_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          resource_id: string
+          resource_type: string
+          team_member_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          resource_id?: string
+          resource_type?: string
+          team_member_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "access_grants_team_member_id_fkey"
+            columns: ["team_member_id"]
+            isOneToOne: false
+            referencedRelation: "team_members"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       activity_log: {
         Row: {
           action: string
@@ -1991,24 +2023,33 @@ export type Database = {
       team_members: {
         Row: {
           active: boolean
+          auth_user_id: string | null
           color: string | null
           created_at: string | null
+          email: string | null
           id: string
           name: string
+          role: string
         }
         Insert: {
           active?: boolean
+          auth_user_id?: string | null
           color?: string | null
           created_at?: string | null
+          email?: string | null
           id?: string
           name: string
+          role?: string
         }
         Update: {
           active?: boolean
+          auth_user_id?: string | null
           color?: string | null
           created_at?: string | null
+          email?: string | null
           id?: string
           name?: string
+          role?: string
         }
         Relationships: []
       }

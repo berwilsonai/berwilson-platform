@@ -6,6 +6,7 @@ import { SECTOR_BADGE, SECTOR_LABELS } from '@/lib/utils/sectors'
 import { STAGE_LABELS, STAGE_BADGE } from '@/lib/utils/stages'
 import { STATUS_BADGE, STATUS_LABELS } from '@/lib/utils/constants'
 import ProjectTabBar from '@/components/projects/ProjectTabBar'
+import { getViewer, canAccessProject } from '@/lib/auth/viewer'
 
 interface LayoutProps {
   children: React.ReactNode
@@ -23,6 +24,12 @@ export default async function ProjectLayout({ children, params }: LayoutProps) {
     .single()
 
   if (!project) notFound()
+
+  // Grant check — non-admins only reach projects they've been granted
+  // (directly or via a parent project). 404 rather than 403: don't confirm
+  // the project exists.
+  const viewer = await getViewer()
+  if (viewer && !viewer.isAdmin && !(await canAccessProject(viewer, id))) notFound()
 
   const status = project.status ?? 'active'
   const stage = project.stage ?? 'pursuit'
