@@ -9,7 +9,6 @@ import DashboardProjects from '@/components/dashboard/DashboardProjects'
 import SortControls from '@/components/dashboard/SortControls'
 import PortfolioBriefButton from '@/components/dashboard/PortfolioBriefButton'
 import DailyBrief from '@/components/dashboard/DailyBrief'
-import AskBerAIPanel from '@/components/agent/AskBerAIPanel'
 import AlertsBanner from '@/components/dashboard/AlertsBanner'
 import HealthPanel from '@/components/dashboard/HealthPanel'
 import RiskOverview from '@/components/dashboard/RiskOverview'
@@ -304,11 +303,6 @@ export default async function DashboardPage({ searchParams }: PageProps) {
 
   return (
     <div className="space-y-6">
-
-      {/* ── Ask Ber AI — portfolio-wide intelligence ──────────────────────── */}
-      <div className="animate-fade-in-up">
-        <AskBerAIPanel />
-      </div>
 
       {/* ── Portfolio health overview ─────────────────────────────────────── */}
       <div className="animate-fade-in-up">

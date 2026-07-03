@@ -6,7 +6,6 @@ import { SECTOR_BADGE, SECTOR_LABELS } from '@/lib/utils/sectors'
 import { STAGE_LABELS, STAGE_BADGE } from '@/lib/utils/stages'
 import { STATUS_BADGE, STATUS_LABELS } from '@/lib/utils/constants'
 import ProjectTabBar from '@/components/projects/ProjectTabBar'
-import AskBerAIPanel from '@/components/agent/AskBerAIPanel'
 
 interface LayoutProps {
   children: React.ReactNode
@@ -81,11 +80,6 @@ export default async function ProjectLayout({ children, params }: LayoutProps) {
             )}
           </div>
         </div>
-      </div>
-
-      {/* Ask Ber AI — inline, project-scoped intelligence at the top */}
-      <div className="pb-5">
-        <AskBerAIPanel projectId={id} />
       </div>
 
       {/* Tab bar */}

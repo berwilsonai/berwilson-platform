@@ -9,6 +9,7 @@ import AppSidebar from "@/components/layout/AppSidebar"
 import AppHeader from "@/components/layout/AppHeader"
 import MobileNav from "@/components/layout/MobileNav"
 import MobileQuickUpload from "@/components/layout/MobileQuickUpload"
+import AskBerAIDock from "@/components/agent/AskBerAIDock"
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -70,7 +71,8 @@ export default async function RootLayout({
   let attentionCount = 0
   if (showShell) {
     const adminClient = createAdminClient()
-    const [{ count: reviewCount }, { count: overdueMs }, { count: criticalDd }] = await Promise.all([
+    const today = new Date().toISOString().split('T')[0]
+    const [{ count: reviewCount }, { count: overdueMs }, { count: criticalDd }, { count: overdueTasks }] = await Promise.all([
       adminClient
         .from('review_queue')
         .select('id', { count: 'exact', head: true })
@@ -79,15 +81,20 @@ export default async function RootLayout({
         .from('milestones')
         .select('id', { count: 'exact', head: true })
         .is('completed_at', null)
-        .lt('target_date', new Date().toISOString().split('T')[0]),
+        .lt('target_date', today),
       adminClient
         .from('dd_items')
         .select('id', { count: 'exact', head: true })
         .neq('status', 'resolved')
         .in('severity', ['critical', 'blocker']),
+      adminClient
+        .from('tasks')
+        .select('id', { count: 'exact', head: true })
+        .eq('status', 'open')
+        .lt('due_date', today),
     ])
     pendingReviewCount = reviewCount ?? 0
-    attentionCount = (overdueMs ?? 0) + (criticalDd ?? 0)
+    attentionCount = (overdueMs ?? 0) + (criticalDd ?? 0) + (overdueTasks ?? 0)
   }
 
   return (
@@ -120,6 +127,7 @@ export default async function RootLayout({
             </div>
             <MobileNav pendingCount={pendingReviewCount} />
             <MobileQuickUpload />
+            <AskBerAIDock />
           </div>
         ) : (
           children

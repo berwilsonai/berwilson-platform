@@ -17,12 +17,15 @@ interface AgentChatProps {
   projectId?: string
   className?: string
   placeholder?: string
+  /** Seed the input box (e.g. handed off from the command palette). */
+  initialInput?: string
 }
 
 export default function AgentChat({
   projectId,
   className = '',
   placeholder = 'Ask about this project...',
+  initialInput,
 }: AgentChatProps) {
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
@@ -37,6 +40,14 @@ export default function AgentChat({
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
+
+  // Seed input handed off from the command palette (never clobber typed text).
+  // Derived-state-during-render pattern — reacts to a changed seed without an effect.
+  const [lastSeed, setLastSeed] = useState(initialInput)
+  if (initialInput !== lastSeed) {
+    setLastSeed(initialInput)
+    if (initialInput && !input) setInput(initialInput)
+  }
 
   // Load existing conversation for this project
   useEffect(() => {

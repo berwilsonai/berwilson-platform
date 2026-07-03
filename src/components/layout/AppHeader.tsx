@@ -3,7 +3,7 @@
 import Image from 'next/image'
 import { usePathname } from 'next/navigation'
 import { useState, useEffect, useCallback } from 'react'
-import { Search } from 'lucide-react'
+import { Search, Sparkles } from 'lucide-react'
 import UserMenu from './UserMenu'
 import CommandPalette from './CommandPalette'
 
@@ -69,6 +69,26 @@ export default function AppHeader({ email }: { email: string }) {
         </div>
 
         <div className="flex items-center gap-1.5 shrink-0">
+          {/* Ask Ber AI — ambient agent, available everywhere */}
+          <button
+            onClick={() => window.dispatchEvent(new CustomEvent('open-ber-ai'))}
+            className="hidden md:flex items-center gap-1.5 h-8 px-2.5 rounded-lg border border-primary/30 bg-primary/5 text-primary hover:bg-primary/10 transition-colors"
+            aria-label="Ask Ber AI"
+          >
+            <Sparkles size={14} />
+            <span className="text-xs font-medium">Ask Ber AI</span>
+            <kbd className="ml-1 inline-flex items-center rounded border border-primary/20 bg-background px-1.5 py-0.5 text-[10px] font-medium">
+              ⌘J
+            </kbd>
+          </button>
+          <button
+            onClick={() => window.dispatchEvent(new CustomEvent('open-ber-ai'))}
+            className="p-2 rounded-md text-primary hover:bg-primary/10 transition-colors md:hidden"
+            aria-label="Ask Ber AI"
+          >
+            <Sparkles size={16} />
+          </button>
+
           {/* Desktop search trigger — looks like a search box, opens the palette */}
           <button
             onClick={() => setPaletteOpen(true)}

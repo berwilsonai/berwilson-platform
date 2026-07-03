@@ -10,6 +10,7 @@ import {
   Users,
   Building2,
   ArrowRight,
+  Sparkles,
   type LucideIcon,
 } from 'lucide-react'
 import type { SearchResult } from '@/app/api/search/route'
@@ -42,6 +43,7 @@ const TYPE_META: Record<SearchResult['type'], { icon: LucideIcon; label: string 
 }
 
 type Item =
+  | { kind: 'ask' }
   | { kind: 'page'; href: string; label: string }
   | { kind: 'entity'; result: SearchResult }
 
@@ -70,9 +72,10 @@ export default function CommandPalette({ onClose }: { onClose: () => void }) {
   // Only show fetched records once the query is long enough to have triggered a search.
   const visibleResults = useMemo(() => (searchable ? results : []), [searchable, results])
 
-  // Flat list used for keyboard navigation + indexing.
+  // Flat list used for keyboard navigation + indexing. "Ask Ber AI" is always first.
   const items: Item[] = useMemo(() => {
-    const list: Item[] = pages.map((p) => ({ kind: 'page', href: p.href, label: p.label }))
+    const list: Item[] = [{ kind: 'ask' }]
+    for (const p of pages) list.push({ kind: 'page', href: p.href, label: p.label })
     for (const r of visibleResults) list.push({ kind: 'entity', result: r })
     return list
   }, [pages, visibleResults])
@@ -117,6 +120,20 @@ export default function CommandPalette({ onClose }: { onClose: () => void }) {
     [onClose, router]
   )
 
+  // Hand the current query to the ambient Ask Ber AI dock.
+  const runAsk = useCallback(() => {
+    onClose()
+    window.dispatchEvent(new CustomEvent('open-ber-ai', { detail: { query: term } }))
+  }, [onClose, term])
+
+  const activate = useCallback(
+    (item: Item) => {
+      if (item.kind === 'ask') runAsk()
+      else go(item.kind === 'page' ? item.href : item.result.href)
+    },
+    [go, runAsk]
+  )
+
   const onKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
       if (e.key === 'ArrowDown') {
@@ -130,13 +147,13 @@ export default function CommandPalette({ onClose }: { onClose: () => void }) {
       } else if (e.key === 'Enter') {
         e.preventDefault()
         const item = items[activeIdx]
-        if (item) go(item.kind === 'page' ? item.href : item.result.href)
+        if (item) activate(item)
       } else if (e.key === 'Escape') {
         e.preventDefault()
         onClose()
       }
     },
-    [items, activeIdx, go, onClose]
+    [items, activeIdx, activate, onClose]
   )
 
   // Scroll the active row into view (no state — DOM interaction only).
@@ -184,6 +201,35 @@ export default function CommandPalette({ onClose }: { onClose: () => void }) {
 
         {/* Results */}
         <div ref={listRef} className="max-h-[55vh] overflow-y-auto scrollbar-thin py-2">
+          {/* Ask Ber AI — always first */}
+          <div className="px-2">
+            {(() => {
+              idx++
+              const i = idx
+              const isActive = i === activeIdx
+              return (
+                <button
+                  data-idx={i}
+                  onClick={runAsk}
+                  onMouseMove={() => setActive(i)}
+                  className={`w-full flex items-center gap-3 px-2.5 py-2 rounded-lg text-left transition-colors ${
+                    isActive ? 'bg-muted text-foreground' : 'text-foreground/80'
+                  }`}
+                >
+                  <Sparkles size={14} className="text-primary shrink-0" />
+                  <span className="text-sm flex-1 truncate">
+                    Ask Ber AI{term ? (
+                      <>
+                        : <span className="text-muted-foreground">&ldquo;{term}&rdquo;</span>
+                      </>
+                    ) : '…'}
+                  </span>
+                  {isActive && <CornerDownLeft size={13} className="text-muted-foreground shrink-0" />}
+                </button>
+              )
+            })()}
+          </div>
+
           {/* Pages */}
           {pages.length > 0 && (
             <div className="px-2">
