@@ -40,9 +40,7 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith('/auth/confirm') ||
     pathname.startsWith('/auth/set-password') ||
     pathname === '/api/cron/risk-scores' ||         // Risk scoring cron job
-    pathname.startsWith('/api/email/oauth/callback') || // OAuth redirect from Microsoft (calendar auth)
-    pathname.startsWith('/equity/share/') ||            // Equity shared scenario links (token-gated)
-    pathname.startsWith('/api/equity/share/')            // Equity share API (token validation)
+    pathname.startsWith('/api/email/oauth/callback') // OAuth redirect from Microsoft (calendar auth)
 
   if (!user && !isPublicRoute) {
     // API calls must get a real 401 (not an HTML login-page redirect that fetch

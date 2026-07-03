@@ -54,7 +54,6 @@ export default async function RootLayout({
   const headersList = await headers()
   const pathname = headersList.get('x-pathname') ?? ''
   const isLoginPage = pathname === '/login' || pathname.startsWith('/auth/')
-  const isSharePage = pathname.startsWith('/equity/share/')
 
   // Fetch user for the header email; the middleware already enforces auth.
   const supabase = await createClient()
@@ -64,7 +63,7 @@ export default async function RootLayout({
 
   // Show shell on all app routes. Login page gets its own full-page layout.
   // Middleware guarantees no unauthenticated access reaches non-login routes.
-  const showShell = !isLoginPage && !isSharePage
+  const showShell = !isLoginPage
 
   // Pending review count + attention count for sidebar badges — only needed when shell is visible.
   let pendingReviewCount = 0

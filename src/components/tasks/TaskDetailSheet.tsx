@@ -20,7 +20,7 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet'
 import { DatePicker } from '@/components/ui/date-picker'
-import { formatCurrencyCompact } from '@/lib/equity/format'
+import { formatCurrencyCompact } from '@/lib/utils/format'
 import { SECTOR_LABELS } from '@/lib/utils/constants'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'

@@ -17,8 +17,6 @@ import {
   ChevronLeft,
   ChevronRight,
   Shield,
-  TrendingUp,
-  Globe,
   FileUp,
   Lightbulb,
   Inbox,
@@ -49,13 +47,6 @@ const NAV_GROUPS = [
       { href: '/contacts', label: 'Contacts', icon: Users },
       { href: '/vendors', label: 'Vendors & Contractors', icon: Building2 },
       { href: '/company', label: 'Ber Wilson', icon: Shield },
-    ],
-  },
-  {
-    label: 'Finance',
-    items: [
-      { href: '/portfolio', label: 'Portfolio', icon: Globe },
-      { href: '/equity', label: 'Equity & Valuation', icon: TrendingUp },
     ],
   },
   {

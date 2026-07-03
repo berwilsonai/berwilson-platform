@@ -19,19 +19,3 @@ export function formatCurrencyCompact(value: number): string {
   }
   return formatCurrency(value)
 }
-
-export function formatPercent(value: number, decimals = 1): string {
-  return `${(value * 100).toFixed(decimals)}%`
-}
-
-export function formatPercentDisplay(value: number, decimals = 1): string {
-  return `${value.toFixed(decimals)}%`
-}
-
-export function formatMultiplier(value: number): string {
-  return `${value.toFixed(1)}x`
-}
-
-export function formatNumber(value: number): string {
-  return new Intl.NumberFormat('en-US').format(value)
-}

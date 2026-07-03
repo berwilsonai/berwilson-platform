@@ -29,8 +29,6 @@ const PAGES: { href: string; label: string; keywords: string }[] = [
   { href: '/contacts', label: 'Contacts', keywords: 'people parties rolodex' },
   { href: '/vendors', label: 'Vendors & Contractors', keywords: 'companies organizations subs partners' },
   { href: '/company', label: 'Ber Wilson', keywords: 'company profile capabilities certs' },
-  { href: '/portfolio', label: 'Portfolio', keywords: 'sites finance investments' },
-  { href: '/equity', label: 'Equity & Valuation', keywords: 'cap table investor deal' },
   { href: '/review', label: 'Review Queue', keywords: 'pending approve reject' },
   { href: '/activity', label: 'Activity', keywords: 'audit log history changes' },
 ]

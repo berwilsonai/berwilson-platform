@@ -21,8 +21,6 @@ const PAGE_TITLES: Record<string, string> = {
   '/review': 'Review Queue',
   '/activity': 'Activity',
   '/intel': 'Intel',
-  '/portfolio': 'Portfolio',
-  '/equity': 'Equity & Valuation',
   '/proposals/intake': 'Intake Proposal',
 }
 
