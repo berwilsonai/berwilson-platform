@@ -16,7 +16,7 @@ const PAGE_TITLES: Record<string, string> = {
   '/timeline': 'Timeline',
   '/email-ingestion': 'Email Intake',
   '/calendar': 'Calendar',
-  '/contacts': 'Contacts',
+  '/contacts': 'Directory',
   '/vendors': 'Vendors & Contractors',
   '/company': 'Ber Wilson',
   '/review': 'Review Queue',

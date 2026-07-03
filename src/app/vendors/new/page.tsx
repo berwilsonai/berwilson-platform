@@ -79,7 +79,7 @@ export default function NewVendorPage() {
   return (
     <div className="max-w-lg space-y-5">
       <Link
-        href="/vendors"
+        href="/contacts?tab=vendors"
         className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
       >
         <ChevronLeft size={14} />
@@ -178,7 +178,7 @@ export default function NewVendorPage() {
             {saving ? 'Creating…' : `Create ${ENTITY_CATEGORY_LABELS[category]}`}
           </button>
           <Link
-            href="/vendors"
+            href="/contacts?tab=vendors"
             className="inline-flex items-center h-9 px-4 rounded-md border border-input text-sm font-medium hover:bg-muted transition-colors"
           >
             Cancel

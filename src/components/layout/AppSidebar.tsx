@@ -8,7 +8,6 @@ import {
   LayoutDashboard,
   FolderKanban,
   Users,
-  Building2,
   ListChecks,
   ClipboardCheck,
   Activity,
@@ -46,8 +45,7 @@ const NAV_GROUPS = [
   {
     label: 'Directory',
     items: [
-      { href: '/contacts', label: 'Contacts', icon: Users },
-      { href: '/vendors', label: 'Vendors & Contractors', icon: Building2 },
+      { href: '/contacts', label: 'Contacts & Vendors', icon: Users },
       { href: '/company', label: 'Ber Wilson', icon: Shield },
     ],
   },
@@ -106,7 +104,11 @@ export default function AppSidebar({ pendingReviewCount = 0, attentionCount = 0 
             )}
             <div className="space-y-0.5">
               {group.items.map(({ href, label, icon: Icon }) => {
-                const active = pathname === href || pathname.startsWith(href + '/')
+                const active =
+                  pathname === href ||
+                  pathname.startsWith(href + '/') ||
+                  // vendor detail/new pages belong to the Directory item
+                  (href === '/contacts' && pathname.startsWith('/vendors'))
                 const isReview = href === '/review'
                 const isAttention = href === '/dashboard' // attention folded into the dashboard
                 const badgeCount = isReview ? pendingReviewCount : isAttention ? attentionCount : 0

@@ -81,7 +81,7 @@ export default async function VendorDetailPage({ params }: PageProps) {
     <div className="space-y-6">
       {/* Back link */}
       <Link
-        href="/vendors"
+        href="/contacts?tab=vendors"
         className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
       >
         <ChevronLeft size={14} />

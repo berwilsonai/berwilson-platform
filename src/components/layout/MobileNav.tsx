@@ -11,7 +11,6 @@ import {
   Brain,
   MoreHorizontal,
   Users,
-  Building2,
   Shield,
   Activity,
   FileUp,
@@ -36,8 +35,7 @@ const MORE_NAV = [
   { href: '/proposals/intake', label: 'Intake Proposal', icon: FileUp },
   { href: '/email-ingestion', label: 'Email Intake', icon: Inbox },
   { href: '/calendar', label: 'Calendar', icon: CalendarDays },
-  { href: '/contacts', label: 'Contacts', icon: Users },
-  { href: '/vendors', label: 'Vendors & Contractors', icon: Building2 },
+  { href: '/contacts', label: 'Contacts & Vendors', icon: Users },
   { href: '/company', label: 'Ber Wilson', icon: Shield },
   { href: '/activity', label: 'Activity', icon: Activity },
 ] as const
