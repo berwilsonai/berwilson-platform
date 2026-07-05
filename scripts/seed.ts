@@ -1676,7 +1676,6 @@ async function seedReviewQueue(
 
   const rows = pendingUpdates.map((u) => {
     const project = projects.find((p) => p.id === u.project_id)!
-    const isVeryLow = u.confidence < 0.7
 
     let reason = 'low_confidence'
     let explanation = `AI extraction confidence score ${(u.confidence * 100).toFixed(0)}% is below the 80% threshold. Key entities and action items extracted but some ambiguity in party identification and project references.`

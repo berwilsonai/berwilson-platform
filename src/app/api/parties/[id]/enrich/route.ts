@@ -250,7 +250,6 @@ export async function POST(
   // Build person-focused research queries
   const namePart = party.full_name
   const companyPart = graphResult?.companyName ?? party.company ?? ''
-  const titlePart = graphResult?.jobTitle ?? party.title ?? ''
 
   // Person queries (primary — these results get priority in extraction)
   const personQueries = [

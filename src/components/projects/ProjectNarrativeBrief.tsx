@@ -14,26 +14,6 @@ export default function ProjectNarrativeBrief({ projectId, projectName }: Projec
   const [error, setError] = useState<string | null>(null)
   const [expanded, setExpanded] = useState(true)
 
-  // Load cached brief on mount
-  useEffect(() => {
-    const key = `bw-project-brief-${projectId}`
-    const cached = localStorage.getItem(key)
-    if (cached) {
-      try {
-        const parsed = JSON.parse(cached) as { brief: string; date: string }
-        const today = new Date().toISOString().split('T')[0]
-        if (parsed.date === today) {
-          setBrief(parsed.brief)
-          return
-        }
-        // Show stale brief while loading
-        setBrief(parsed.brief)
-      } catch { /* ignore */ }
-    }
-    generateBrief()
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [projectId])
-
   const generateBrief = useCallback(async () => {
     setLoading(true)
     setError(null)
@@ -64,26 +44,57 @@ export default function ProjectNarrativeBrief({ projectId, projectName }: Projec
     }
   }, [projectId])
 
+  // Load cached brief on mount
+  useEffect(() => {
+    const key = `bw-project-brief-${projectId}`
+    const cached = localStorage.getItem(key)
+    if (cached) {
+      try {
+        const parsed = JSON.parse(cached) as { brief: string; date: string }
+        const today = new Date().toISOString().split('T')[0]
+        if (parsed.date === today) {
+          setBrief(parsed.brief)
+          return
+        }
+        // Show stale brief while loading
+        setBrief(parsed.brief)
+      } catch { /* ignore */ }
+    }
+    generateBrief()
+  }, [projectId, generateBrief])
+
   return (
     <div className="rounded-lg border border-primary/20 bg-primary/[0.03] overflow-hidden">
-      <button
-        onClick={() => setExpanded(!expanded)}
-        className="flex items-center gap-2 w-full px-4 py-3 hover:bg-primary/[0.02] transition-colors"
-      >
-        <Sparkles size={14} className="text-primary shrink-0" />
-        <span className="text-sm font-semibold text-foreground flex-1 text-left">
-          Executive Brief — {projectName}
-        </span>
+      <div className="flex items-center gap-2 w-full px-4 py-3 hover:bg-primary/[0.02] transition-colors">
         <button
-          onClick={(e) => { e.stopPropagation(); generateBrief() }}
+          type="button"
+          onClick={() => setExpanded(!expanded)}
+          aria-expanded={expanded}
+          className="flex items-center gap-2 flex-1 min-w-0 text-left"
+        >
+          <Sparkles size={14} className="text-primary shrink-0" />
+          <span className="text-sm font-semibold text-foreground flex-1 text-left">
+            Executive Brief — {projectName}
+          </span>
+        </button>
+        <button
+          type="button"
+          onClick={() => generateBrief()}
           disabled={loading}
           className="p-1 text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
           title="Refresh brief"
         >
           <RefreshCw size={12} className={loading ? 'animate-spin' : ''} />
         </button>
-        {expanded ? <ChevronUp size={14} className="text-muted-foreground" /> : <ChevronDown size={14} className="text-muted-foreground" />}
-      </button>
+        <button
+          type="button"
+          onClick={() => setExpanded(!expanded)}
+          aria-label={expanded ? 'Collapse brief' : 'Expand brief'}
+          className="p-0.5 text-muted-foreground hover:text-foreground transition-colors"
+        >
+          {expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+        </button>
+      </div>
 
       {expanded && (
         <div className="px-4 pb-4 border-t border-primary/10">

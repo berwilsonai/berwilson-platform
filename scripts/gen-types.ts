@@ -58,7 +58,7 @@ try {
   )
   writeFileSync(outPath, result, 'utf-8')
   console.log(`✓ Written to src/types/database.ts\n`)
-} catch (err) {
+} catch {
   console.error('\nGeneration failed. Common causes:')
   console.error('  · Not logged in — run: npx supabase login')
   console.error('  · Wrong project ID in .env.local')

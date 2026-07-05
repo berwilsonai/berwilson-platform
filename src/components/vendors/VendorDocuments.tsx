@@ -2,12 +2,10 @@
 
 import { useState, useRef } from 'react'
 import {
-  FileText,
   Upload,
   Download,
   Trash2,
   X,
-  AlertCircle,
   Loader2,
   File,
 } from 'lucide-react'

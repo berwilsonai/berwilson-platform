@@ -34,7 +34,7 @@ export default function QueryInput({ onSubmit, loading }: Props) {
     }
   }
 
-  function useSuggestion(s: string) {
+  function applySuggestion(s: string) {
     setQuery(s)
     textareaRef.current?.focus()
   }
@@ -81,7 +81,7 @@ export default function QueryInput({ onSubmit, loading }: Props) {
             {SUGGESTED_QUERIES.map((s) => (
               <button
                 key={s}
-                onClick={() => useSuggestion(s)}
+                onClick={() => applySuggestion(s)}
                 className="text-xs px-3 py-1.5 rounded-full border border-border bg-muted hover:bg-accent text-foreground transition-colors text-left"
               >
                 {s}

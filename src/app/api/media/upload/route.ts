@@ -54,7 +54,6 @@ export async function POST(request: NextRequest) {
 
   // Build storage path
   const timestamp = Date.now()
-  const ext = file.name.split('.').pop()?.toLowerCase() ?? 'jpg'
   const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_')
   let folder: string
   if (project_id) folder = `projects/${project_id}`

@@ -1,5 +1,5 @@
 import type { ProjectStage } from '@/lib/supabase/types'
-import { STAGES, STAGE_LABELS, STAGE_INDEX, STAGE_COLOR, STAGE_BADGE } from '@/lib/utils/stages'
+import { STAGES, STAGE_LABELS, STAGE_INDEX, STAGE_COLOR } from '@/lib/utils/stages'
 import { cn } from '@/lib/utils'
 
 /** Text color to match each stage's identity — used for labels */

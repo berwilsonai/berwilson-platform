@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState } from 'react'
 import { FileText, Loader2, X, Copy, Check } from 'lucide-react'
 
 export default function PortfolioBriefButton() {

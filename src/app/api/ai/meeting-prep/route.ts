@@ -70,7 +70,6 @@ export async function POST(request: NextRequest) {
 
   // 1. Match attendees to known parties
   const attendeeEmails = attendees.map(a => a.email.toLowerCase()).filter(Boolean)
-  const attendeeNames = attendees.map(a => a.name).filter(Boolean)
 
   let matchedParties: { id: string; full_name: string; company: string | null; title: string | null; email: string | null; relationship_notes: string | null }[] = []
 

@@ -47,7 +47,7 @@ interface ReviewItemProps {
   showResolved?: boolean
 }
 
-export default function ReviewItem({ item, allProjects, allParties, matchedParties = [], showResolved = false }: ReviewItemProps) {
+export default function ReviewItem({ item, allProjects, allParties, matchedParties = [] }: ReviewItemProps) {
   const isResolved = !!item.resolved_at
   const sourceLink = buildSourceLink(item)
   const sourceLabel = SOURCE_TABLE_LABELS[item.source_table] ?? item.source_table

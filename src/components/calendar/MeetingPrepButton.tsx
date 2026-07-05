@@ -41,7 +41,7 @@ export default function MeetingPrepButton({ subject, date, attendees }: MeetingP
   return (
     <>
       <button
-        onClick={(e) => { e.preventDefault(); e.stopPropagation(); brief ? setOpen(true) : generate() }}
+        onClick={(e) => { e.preventDefault(); e.stopPropagation(); if (brief) { setOpen(true) } else { generate() } }}
         disabled={loading}
         className="shrink-0 inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/40 ring-1 ring-indigo-200 dark:ring-indigo-800/60 hover:bg-indigo-100 dark:hover:bg-indigo-900/40 transition-colors disabled:opacity-50"
         title="Generate meeting prep brief"

@@ -3,7 +3,6 @@ import Link from 'next/link'
 import {
   Building2,
   ChevronLeft,
-  ExternalLink,
   FolderKanban,
   ListChecks,
   Mail,

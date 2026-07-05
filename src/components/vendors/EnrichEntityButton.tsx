@@ -2,7 +2,6 @@
 
 import { useState } from 'react'
 import { CheckCircle2, Loader2, Sparkles, Tag } from 'lucide-react'
-import { cn } from '@/lib/utils'
 
 interface EnrichEntityButtonProps {
   entityId: string
@@ -25,7 +24,6 @@ interface EnrichmentPreview {
 export default function EnrichEntityButton({
   entityId,
   entityName,
-  websiteUrl,
   enrichedAt,
 }: EnrichEntityButtonProps) {
   const [state, setState] = useState<State>('idle')

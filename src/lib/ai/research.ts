@@ -1,10 +1,6 @@
 /**
- * Research client — currently backed by Gemini 2.5 Flash with Google Search grounding.
- * Interface is designed to swap to Perplexity sonar-pro when the API key is added.
- *
- * To migrate to Perplexity: replace the body of `researchQuery` with a POST to
- * https://api.perplexity.ai/chat/completions using model "sonar-pro".
- * The return shape (ResearchResult) stays identical.
+ * Research client — Gemini 2.5 Flash with Google Search grounding.
+ * Returns a grounded answer plus source citations (ResearchResult).
  */
 
 import { GoogleGenerativeAI } from '@google/generative-ai'

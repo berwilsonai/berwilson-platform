@@ -3,7 +3,6 @@
 import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
-import type { TablesInsert } from '@/lib/supabase/types'
 
 export type ContactFormState = { error: string } | { success: true } | null
 

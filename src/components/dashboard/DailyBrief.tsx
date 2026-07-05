@@ -12,26 +12,6 @@ export default function DailyBrief() {
   const [expanded, setExpanded] = useState(true)
   const [stale, setStale] = useState(false)
 
-  // Load cached brief on mount
-  useEffect(() => {
-    const cached = localStorage.getItem('bw-daily-brief')
-    if (cached) {
-      try {
-        const parsed = JSON.parse(cached) as { brief: string; date: string }
-        const today = new Date().toISOString().split('T')[0]
-        if (parsed.date === today) {
-          setBrief(parsed.brief)
-          return
-        }
-        // Show stale brief while loading fresh one
-        setBrief(parsed.brief)
-        setStale(true)
-      } catch { /* ignore */ }
-    }
-    generateBrief()
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-
   const generateBrief = useCallback(async () => {
     setLoading(true)
     setError(null)
@@ -71,19 +51,42 @@ export default function DailyBrief() {
     }
   }, [])
 
+  // Load cached brief on mount
+  useEffect(() => {
+    const cached = localStorage.getItem('bw-daily-brief')
+    if (cached) {
+      try {
+        const parsed = JSON.parse(cached) as { brief: string; date: string }
+        const today = new Date().toISOString().split('T')[0]
+        if (parsed.date === today) {
+          setBrief(parsed.brief)
+          return
+        }
+        // Show stale brief while loading fresh one
+        setBrief(parsed.brief)
+        setStale(true)
+      } catch { /* ignore */ }
+    }
+    generateBrief()
+  }, [generateBrief])
+
   if (!brief && !loading && !error) return null
 
   return (
     <div className="rounded-xl border border-primary/20 bg-primary/[0.03] elev-1 overflow-hidden">
       {/* Header */}
-      <button
-        onClick={() => setExpanded(!expanded)}
-        className="flex items-center gap-2 w-full px-4 py-3 hover:bg-primary/[0.02] transition-colors"
-      >
-        <Sparkles size={14} className="text-primary shrink-0" />
-        <span className="text-sm font-semibold text-foreground flex-1 text-left">
-          Daily Intelligence Brief
-        </span>
+      <div className="flex items-center gap-2 w-full px-4 py-3 hover:bg-primary/[0.02] transition-colors">
+        <button
+          type="button"
+          onClick={() => setExpanded(!expanded)}
+          aria-expanded={expanded}
+          className="flex items-center gap-2 flex-1 min-w-0 text-left"
+        >
+          <Sparkles size={14} className="text-primary shrink-0" />
+          <span className="text-sm font-semibold text-foreground flex-1 text-left">
+            Daily Intelligence Brief
+          </span>
+        </button>
         {stale && !loading && (
           <Tooltip>
             <TooltipTrigger className="text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 px-1.5 py-0.5 rounded cursor-help">
@@ -96,15 +99,22 @@ export default function DailyBrief() {
         )}
         <button
           type="button"
-          onClick={(e) => { e.stopPropagation(); if (!loading) generateBrief() }}
+          onClick={() => { if (!loading) generateBrief() }}
           disabled={loading}
           className="p-1 text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50 disabled:pointer-events-none"
           aria-label="Refresh brief"
         >
           <RefreshCw size={12} className={loading ? 'animate-spin' : ''} />
         </button>
-        {expanded ? <ChevronUp size={14} className="text-muted-foreground" /> : <ChevronDown size={14} className="text-muted-foreground" />}
-      </button>
+        <button
+          type="button"
+          onClick={() => setExpanded(!expanded)}
+          aria-label={expanded ? 'Collapse brief' : 'Expand brief'}
+          className="p-0.5 text-muted-foreground hover:text-foreground transition-colors"
+        >
+          {expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+        </button>
+      </div>
 
       {/* Content */}
       {expanded && (

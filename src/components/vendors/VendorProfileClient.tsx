@@ -2,16 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import {
-  Building2,
-  Edit2,
-  ExternalLink,
-  Mail,
-  Phone,
-  Sparkles,
-  User,
-} from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { Edit2, User } from 'lucide-react'
 import EnrichEntityButton from './EnrichEntityButton'
 import VendorEditForm from './VendorEditForm'
 import VendorDocuments from './VendorDocuments'

@@ -57,6 +57,8 @@ export default function TimelineView({ rows }: { rows: TimelineRow[] }) {
   const [activeTypes, setActiveTypes] = useState<Set<MarkerType>>(
     new Set(['bid_due', 'award', 'ntp', 'completion', 'milestone'])
   )
+  // Captured once at mount so the memo below stays pure
+  const [now] = useState(() => Date.now())
 
   function toggleType(t: MarkerType) {
     setActiveTypes((prev) => {
@@ -68,8 +70,8 @@ export default function TimelineView({ rows }: { rows: TimelineRow[] }) {
   }
 
   const { windowStart, windowEnd, months, todayPct, visibleRows } = useMemo(() => {
-    const now = Date.now()
-    const todayStart = new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate()).getTime()
+    const today = new Date(now)
+    const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime()
 
     // Keep only markers of active types
     const filteredRows = rows
@@ -99,7 +101,7 @@ export default function TimelineView({ rows }: { rows: TimelineRow[] }) {
       todayPct: ((now - start) / total) * 100,
       visibleRows: sorted,
     }
-  }, [rows, activeTypes])
+  }, [rows, activeTypes, now])
 
   const total = windowEnd - windowStart
   const pct = (dateStr: string) => ((ts(dateStr) - windowStart) / total) * 100

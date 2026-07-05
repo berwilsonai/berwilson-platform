@@ -63,7 +63,7 @@ export default function ProjectForm({ mode, project, redirectAfterCreate, availa
   )
 
   // Federal standards default to both enabled
-  const existingStandards = (project as any)?.applicable_standards as FederalStandard[] | null
+  const existingStandards = project?.applicable_standards as FederalStandard[] | null
   const [selectedStandards, setSelectedStandards] = useState<FederalStandard[]>(
     existingStandards ?? ['usace_qm', 'dod_385']
   )
@@ -234,7 +234,7 @@ export default function ProjectForm({ mode, project, redirectAfterCreate, availa
               id="bid_due_date"
               name="bid_due_date"
               type="date"
-              defaultValue={(project as any)?.bid_due_date ?? ''}
+              defaultValue={project?.bid_due_date ?? ''}
               className={inputClass}
             />
           </div>
@@ -251,7 +251,7 @@ export default function ProjectForm({ mode, project, redirectAfterCreate, availa
               min="0"
               max="100"
               step="1"
-              defaultValue={(project as any)?.win_probability ?? ''}
+              defaultValue={project?.win_probability ?? ''}
               placeholder="0–100"
               className={inputClass}
             />
@@ -265,7 +265,7 @@ export default function ProjectForm({ mode, project, redirectAfterCreate, availa
             <select
               id="bid_decision"
               name="bid_decision"
-              defaultValue={(project as any)?.bid_decision ?? 'undecided'}
+              defaultValue={project?.bid_decision ?? 'undecided'}
               className={inputClass}
             >
               <option value="undecided">Go / No-Go Pending</option>
@@ -285,7 +285,7 @@ export default function ProjectForm({ mode, project, redirectAfterCreate, availa
               id="capture_lead"
               name="capture_lead"
               type="text"
-              defaultValue={(project as any)?.capture_lead ?? ''}
+              defaultValue={project?.capture_lead ?? ''}
               placeholder="Who owns this pursuit"
               className={inputClass}
             />
@@ -300,7 +300,7 @@ export default function ProjectForm({ mode, project, redirectAfterCreate, availa
               id="incumbent"
               name="incumbent"
               type="text"
-              defaultValue={(project as any)?.incumbent ?? ''}
+              defaultValue={project?.incumbent ?? ''}
               placeholder="Current contract holder, if any"
               className={inputClass}
             />
@@ -316,8 +316,8 @@ export default function ProjectForm({ mode, project, redirectAfterCreate, availa
             id="competitors"
             name="competitors"
             defaultValue={
-              Array.isArray((project as any)?.competitors)
-                ? ((project as any).competitors as string[]).join('\n')
+              Array.isArray(project?.competitors)
+                ? (project.competitors as string[]).join('\n')
                 : ''
             }
             placeholder="e.g. Mortenson&#10;Turner&#10;Kiewit"
@@ -333,7 +333,7 @@ export default function ProjectForm({ mode, project, redirectAfterCreate, availa
           <textarea
             id="win_strategy"
             name="win_strategy"
-            defaultValue={(project as any)?.win_strategy ?? ''}
+            defaultValue={project?.win_strategy ?? ''}
             placeholder="Why we win: teaming, past performance, price position, technical edge…"
             className={textareaClass}
           />

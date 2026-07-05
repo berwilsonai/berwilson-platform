@@ -55,7 +55,11 @@ export const getViewer = cache(async (): Promise<Viewer | null> => {
 
   if (error) {
     // Missing columns (42703) → migration not applied → today's behavior.
-    return { ...base, role: 'admin', isAdmin: true, preMigration: true, bootstrap: false }
+    if (error.code === '42703') {
+      return { ...base, role: 'admin', isAdmin: true, preMigration: true, bootstrap: false }
+    }
+    // Any other failure (transient DB error) fails closed, never open.
+    return { ...base, role: 'member', isAdmin: false, preMigration: false, bootstrap: false }
   }
 
   const linked = (members ?? []).filter((m) => m.auth_user_id)

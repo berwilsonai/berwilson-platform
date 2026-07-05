@@ -14,7 +14,7 @@ import {
   ENTITY_TYPE_LABELS, ENTITY_TYPE_BADGE, RELATIONSHIP_LABELS,
   ACTIVITY_TABLE_LABELS, ACTIVITY_ACTION_STYLES,
   FEDERAL_STANDARD_LABELS, FEDERAL_STANDARD_DESCRIPTIONS, FEDERAL_STANDARD_BADGE,
-  formatValue, formatDate, parseCompetitors,
+  formatValue, parseCompetitors,
   type FederalStandard,
 } from '@/lib/utils/constants'
 import PursuitSnapshot from '@/components/projects/PursuitSnapshot'
@@ -308,7 +308,7 @@ export default async function ProjectOverviewPage({ params }: PageProps) {
 
       {/* Federal Standards */}
       {(() => {
-        const standards = ((project as any).applicable_standards ?? ['usace_qm', 'dod_385']) as FederalStandard[]
+        const standards = (project.applicable_standards ?? ['usace_qm', 'dod_385']) as FederalStandard[]
         if (!standards || standards.length === 0) return null
         return (
           <section className="space-y-3">

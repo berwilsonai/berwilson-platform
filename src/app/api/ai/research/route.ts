@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
     return Response.json({ error: 'Invalid JSON' }, { status: 400 })
   }
 
-  const { query, project_id } = body
+  const { query } = body
   if (!query?.trim()) {
     return Response.json({ error: 'query is required' }, { status: 400 })
   }

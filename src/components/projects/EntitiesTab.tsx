@@ -91,21 +91,6 @@ function buildTree(entities: Entity[]): TreeNode[] {
   return roots
 }
 
-function formatPct(n: number | null | undefined): string {
-  if (n == null) return ''
-  return `${n}%`
-}
-
-function formatDate(d: string | null | undefined): string {
-  if (!d) return '—'
-  const [y, m, day] = d.split('-').map(Number)
-  return new Date(y, m - 1, day).toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  })
-}
-
 // ── Shared UI ─────────────────────────────────────────────────────────────────
 
 const inputCls =

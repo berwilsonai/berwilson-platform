@@ -187,7 +187,7 @@ export default function ResearchPanel({
     }
   }
 
-  function useSuggestion(s: string) {
+  function applySuggestion(s: string) {
     setQuery(s)
     setPanelOpen(true)
   }
@@ -208,7 +208,7 @@ export default function ResearchPanel({
         <div>
           <h3 className="text-sm font-semibold">External Research</h3>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Live web intelligence about this project's entities and market
+            Live web intelligence about this project&apos;s entities and market
           </p>
         </div>
         {!panelOpen && (
@@ -232,7 +232,7 @@ export default function ResearchPanel({
             {suggestions.map((s) => (
               <button
                 key={s}
-                onClick={() => useSuggestion(s)}
+                onClick={() => applySuggestion(s)}
                 className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-full text-xs bg-muted text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-colors text-left"
               >
                 <Plus size={11} />

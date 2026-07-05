@@ -19,7 +19,6 @@ type LinkState = 'idle' | 'open' | 'loading' | 'done' | 'error'
 function PartyChip({
   party,
   allParties,
-  index,
 }: {
   party: PartyMatchResult
   allParties: Props['allParties']

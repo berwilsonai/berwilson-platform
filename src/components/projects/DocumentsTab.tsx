@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef } from 'react'
 import {
   FileText,
   Upload,
@@ -71,7 +71,7 @@ function formatDate(ts: string | null): string {
   })
 }
 
-function getFileIcon(mimeType: string | null) {
+function getFileIcon() {
   return <File size={18} className="shrink-0 text-muted-foreground" />
 }
 
@@ -150,7 +150,7 @@ function DocumentRow({
       {/* Row header */}
       <div className="flex items-start gap-3">
         {/* Icon */}
-        <div className="mt-0.5">{getFileIcon(doc.mime_type)}</div>
+        <div className="mt-0.5">{getFileIcon()}</div>
 
         {/* Main info */}
         <div className="flex-1 min-w-0">
@@ -281,15 +281,6 @@ function UploadZone({
     const { document: doc } = await res.json()
     updateUpload(index, { status: 'done', progress: 100 })
     onUploaded(doc as Document)
-  }
-
-  async function startUploads(newUploads: UploadState[]) {
-    const startIndex = uploads.length
-    setUploads((prev) => [...prev, ...newUploads])
-
-    for (let i = 0; i < newUploads.length; i++) {
-      await processFile(newUploads[i], startIndex + i)
-    }
   }
 
   function handleFiles(files: FileList | File[]) {

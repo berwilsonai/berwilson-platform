@@ -73,20 +73,22 @@ export async function middleware(request: NextRequest) {
       .select('role, active')
       .eq('auth_user_id', user.id)
       .maybeSingle()
-    if (!error) {
-      if (me) {
-        role = me.active && isRole(me.role) ? me.role : 'member'
-      } else {
-        // Not linked — member, unless no linked active ADMIN exists yet
-        // (bootstrap: linking a PM first must never demote the admins).
-        const { count } = await supabase
-          .from('team_members')
-          .select('id', { count: 'exact', head: true })
-          .not('auth_user_id', 'is', null)
-          .eq('role', 'admin')
-          .eq('active', true)
-        if ((count ?? 0) > 0) role = 'member'
-      }
+    if (error) {
+      // Only the missing-column error (42703 = migration not applied) keeps
+      // the admin default; any other failure fails closed, never open.
+      if (error.code !== '42703') role = 'member'
+    } else if (me) {
+      role = me.active && isRole(me.role) ? me.role : 'member'
+    } else {
+      // Not linked — member, unless no linked active ADMIN exists yet
+      // (bootstrap: linking a PM first must never demote the admins).
+      const { count } = await supabase
+        .from('team_members')
+        .select('id', { count: 'exact', head: true })
+        .not('auth_user_id', 'is', null)
+        .eq('role', 'admin')
+        .eq('active', true)
+      if ((count ?? 0) > 0) role = 'member'
     }
 
     if (role !== 'admin') {

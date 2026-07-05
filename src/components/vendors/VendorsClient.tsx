@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from 'react'
 import Link from 'next/link'
-import { Building2, Globe, HardHat, Handshake, MapPin, Search, Star, Tag, Truck, X } from 'lucide-react'
+import { Building2, HardHat, Handshake, MapPin, Search, Star, Tag, Truck, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import {
   ENTITY_CATEGORY_LABELS,
@@ -50,16 +50,6 @@ const CATEGORY_ICONS: Record<EntityCategory, typeof Building2> = {
   vendor: Truck,
   partner: Handshake,
   contractor: HardHat,
-}
-
-function ScoreDisplay({ score, label }: { score: number | null; label: string }) {
-  if (score === null) return null
-  return (
-    <div className="flex items-center gap-1" title={`${label}: ${score.toFixed(1)}/5`}>
-      <Star size={11} className="text-amber-500 dark:text-amber-400 fill-amber-500" />
-      <span className="text-xs text-muted-foreground">{score.toFixed(1)}</span>
-    </div>
-  )
 }
 
 export default function VendorsClient({ vendors }: VendorsClientProps) {

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { Building2, Plus, Search } from 'lucide-react'
+import { Building2, Plus } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface Entity {

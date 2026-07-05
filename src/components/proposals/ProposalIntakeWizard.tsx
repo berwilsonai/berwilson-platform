@@ -161,7 +161,7 @@ export default function ProposalIntakeWizard({ availableParents: initialParents 
   }
 
   // Upload a single file using 3MB chunks (for files that exceed Supabase's direct upload limit)
-  const uploadChunked = async (file: File, supabase: ReturnType<typeof createClient>): Promise<{ chunk_session: string; total_chunks: number }> => {
+  const uploadChunked = async (file: File): Promise<{ chunk_session: string; total_chunks: number }> => {
     const CHUNK_SIZE = 3 * 1024 * 1024 // 3MB — safely under Vercel's 4.5MB body limit
     const totalChunks = Math.ceil(file.size / CHUNK_SIZE)
     const sessionId = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
@@ -216,7 +216,7 @@ export default function ProposalIntakeWizard({ availableParents: initialParents 
     if (primaryFile.size > SUPABASE_LIMIT) {
       // Large primary file: use chunked upload (auto-splits into 3MB pieces)
       try {
-        const { chunk_session, total_chunks } = await uploadChunked(primaryFile, supabase)
+        const { chunk_session, total_chunks } = await uploadChunked(primaryFile)
         intakeBody = {
           chunk_session,
           total_chunks,

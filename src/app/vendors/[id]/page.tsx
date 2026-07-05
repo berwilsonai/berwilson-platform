@@ -106,9 +106,9 @@ export default async function VendorDetailPage({ params }: PageProps) {
             <h1 className="text-xl font-semibold">{entity.name}</h1>
             <span className={cn(
               'inline-flex items-center rounded px-2 py-0.5 text-xs font-semibold ring-1 ring-inset',
-              ENTITY_CATEGORY_BADGE[((entity as any).category ?? 'vendor') as EntityCategory]
+              ENTITY_CATEGORY_BADGE[(entity.category ?? 'vendor') as EntityCategory]
             )}>
-              {ENTITY_CATEGORY_LABELS[((entity as any).category ?? 'vendor') as EntityCategory]}
+              {ENTITY_CATEGORY_LABELS[(entity.category ?? 'vendor') as EntityCategory]}
             </span>
             <span className="px-2 py-0.5 rounded bg-muted text-xs font-medium text-muted-foreground uppercase">
               {entity.entity_type}

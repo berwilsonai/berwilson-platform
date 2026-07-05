@@ -301,7 +301,7 @@ function AddCertForm({ onCancel, onSuccess }: { onCancel: () => void; onSuccess:
 
   useEffect(() => {
     if (state && 'ok' in state) onSuccess()
-  }, [state])
+  }, [state, onSuccess])
 
   return (
     <div className="rounded-lg border border-border p-4 space-y-3 bg-muted/20">
