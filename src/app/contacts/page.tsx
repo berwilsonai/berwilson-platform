@@ -32,6 +32,7 @@ export default async function DirectoryPage({ searchParams }: PageProps) {
         .from('parties')
         .select(`
           id, full_name, company, title, email, phone, is_organization, avatar_url,
+          tags, relationship_notes,
           project_players(project_id, role, projects(updated_at))
         `)
         .eq('status', 'active')
@@ -70,6 +71,8 @@ export default async function DirectoryPage({ searchParams }: PageProps) {
       phone: p.phone,
       is_organization: p.is_organization,
       avatar_url: p.avatar_url ?? null,
+      tags: (p.tags as string[]) ?? [],
+      relationship_notes: p.relationship_notes ?? null,
       project_count: players.length,
       roles: [...new Set(players.map(pp => pp.role))],
       last_active: players.reduce<string | null>((max, pp) => {

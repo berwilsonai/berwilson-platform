@@ -1,6 +1,6 @@
 'use client'
 
-import { useActionState } from 'react'
+import { useActionState, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { AlertCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -8,6 +8,7 @@ import { cn } from '@/lib/utils'
 import { createContact } from '@/app/contacts/actions'
 import type { ContactFormState } from '@/app/contacts/actions'
 import CompanyAutocomplete from './CompanyAutocomplete'
+import TagInput from './TagInput'
 
 const inputClass = cn(
   'h-9 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground',
@@ -25,6 +26,17 @@ export default function ContactForm() {
     createContact,
     null
   )
+  const [tags, setTags] = useState<string[]>([])
+  const [tagSuggestions, setTagSuggestions] = useState<Array<{ tag: string; count: number }>>([])
+
+  useEffect(() => {
+    let cancelled = false
+    fetch('/api/parties/tags')
+      .then(res => (res.ok ? res.json() : { tags: [] }))
+      .then(data => { if (!cancelled) setTagSuggestions(data.tags ?? []) })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [])
 
   return (
     <form action={formAction} className="space-y-6 max-w-2xl">
@@ -109,6 +121,15 @@ export default function ContactForm() {
             className={inputClass}
           />
         </div>
+      </div>
+
+      <div>
+        <label className={labelClass}>Tags</label>
+        <input type="hidden" name="tags" value={JSON.stringify(tags)} />
+        <TagInput value={tags} onChange={setTags} suggestions={tagSuggestions} />
+        <p className="mt-1 text-xs text-muted-foreground">
+          Trade or role labels — Auditor, Plumber, Roofer… Reuse an existing tag or create a new one.
+        </p>
       </div>
 
       <div>

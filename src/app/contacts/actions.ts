@@ -21,6 +21,16 @@ export async function createContact(
   const companyName = str(formData, 'company')
   const entityId = str(formData, 'entity_id') // set when user picks from autocomplete
 
+  let tags: string[] = []
+  try {
+    const parsed = JSON.parse(str(formData, 'tags') ?? '[]')
+    if (Array.isArray(parsed)) {
+      tags = [...new Set(parsed.map(t => String(t).trim()).filter(Boolean))]
+    }
+  } catch {
+    // malformed tags input — save the contact without tags
+  }
+
   const fields = {
     full_name,
     company: companyName,
@@ -29,6 +39,7 @@ export async function createContact(
     phone: str(formData, 'phone'),
     relationship_notes: str(formData, 'relationship_notes'),
     is_organization,
+    tags,
     status: 'active', // manually-added contacts go straight into the CRM
   }
 

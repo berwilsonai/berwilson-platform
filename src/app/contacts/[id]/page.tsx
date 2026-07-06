@@ -23,6 +23,8 @@ import AvatarUpload from '@/components/contacts/AvatarUpload'
 import LinkedInEditor from '@/components/contacts/LinkedInEditor'
 import EnrichProfileButton from '@/components/contacts/EnrichProfileButton'
 import ContactEnrichmentDisplay from '@/components/contacts/ContactEnrichmentDisplay'
+import ContactTagsEditor from '@/components/contacts/ContactTagsEditor'
+import CompanyLinkEditor from '@/components/contacts/CompanyLinkEditor'
 
 interface PageProps {
   params: Promise<{ id: string }>
@@ -386,6 +388,21 @@ export default async function ContactDetailPage({ params, searchParams }: PagePr
                   {!party.email && !party.phone && !party.linkedin_url && (
                     <p className="text-sm text-muted-foreground italic">No contact details on file.</p>
                   )}
+                </div>
+              </section>
+
+              {/* Company + tags */}
+              <section>
+                <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
+                  Company &amp; Tags
+                </h2>
+                <div className="rounded-lg border border-border bg-card p-4 space-y-3">
+                  <CompanyLinkEditor
+                    partyId={id}
+                    linkedEntity={linkedEntity ? { id: linkedEntity.id, name: linkedEntity.name } : null}
+                    companyText={party.company}
+                  />
+                  <ContactTagsEditor partyId={id} initialTags={(party.tags as string[]) ?? []} />
                 </div>
               </section>
 

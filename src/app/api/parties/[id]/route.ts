@@ -16,6 +16,7 @@ const ALLOWED_FIELDS = [
   'linkedin_url',
   'avatar_url',
   'is_organization',
+  'tags',
 ] as const
 
 export async function PATCH(request: NextRequest, { params }: RouteContext) {
@@ -28,6 +29,13 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
     if (key in body) {
       ;(updates as Record<string, unknown>)[key] = body[key]
     }
+  }
+
+  if ('tags' in updates) {
+    if (!Array.isArray(updates.tags)) {
+      return Response.json({ error: 'tags must be an array of strings' }, { status: 400 })
+    }
+    updates.tags = [...new Set(updates.tags.map(t => String(t).trim()).filter(Boolean))]
   }
 
   if (Object.keys(updates).length === 0) {

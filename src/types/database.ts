@@ -1372,6 +1372,7 @@ export type Database = {
           phone: string | null
           relationship_notes: string | null
           status: string
+          tags: string[]
           title: string | null
           updated_at: string | null
         }
@@ -1392,6 +1393,7 @@ export type Database = {
           phone?: string | null
           relationship_notes?: string | null
           status?: string
+          tags?: string[]
           title?: string | null
           updated_at?: string | null
         }
@@ -1412,6 +1414,7 @@ export type Database = {
           phone?: string | null
           relationship_notes?: string | null
           status?: string
+          tags?: string[]
           title?: string | null
           updated_at?: string | null
         }

@@ -1,10 +1,23 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import { toast } from 'sonner'
-import { Building2, Mail, Phone, Search, Sparkles, Trash2, User, X } from 'lucide-react'
+import {
+  Building2,
+  Check,
+  CheckSquare,
+  Mail,
+  Phone,
+  Search,
+  Sparkles,
+  Tag,
+  Trash2,
+  User,
+  X,
+} from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 
 export interface ContactWithStats {
   id: string
@@ -15,6 +28,8 @@ export interface ContactWithStats {
   phone: string | null
   is_organization: boolean | null
   avatar_url: string | null
+  tags: string[]
+  relationship_notes: string | null
   project_count: number
   roles: string[]
   last_active: string | null
@@ -32,16 +47,35 @@ export default function ContactsClient({ contacts: initialContacts }: ContactsCl
   const [search, setSearch] = useState('')
   const [sort, setSort] = useState<SortKey>('name')
   const [view, setView] = useState<ViewMode>('all')
+  const [tagFilter, setTagFilter] = useState('')
+
+  // Selection / mass delete
+  const [selecting, setSelecting] = useState(false)
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [confirmOpen, setConfirmOpen] = useState(false)
 
   function handleDelete(id: string) {
     setContacts(prev => prev.filter(c => c.id !== id))
   }
+
+  // Every tag in use, with counts — the filter vocabulary
+  const allTags = useMemo(() => {
+    const counts = new Map<string, number>()
+    contacts.forEach(c => c.tags.forEach(t => counts.set(t, (counts.get(t) ?? 0) + 1)))
+    return [...counts.entries()]
+      .map(([tag, count]) => ({ tag, count }))
+      .sort((a, b) => a.tag.localeCompare(b.tag))
+  }, [contacts])
 
   const filtered = useMemo(() => {
     let list = contacts
 
     if (view === 'individuals') list = list.filter(c => !c.is_organization)
     else if (view === 'organizations') list = list.filter(c => !!c.is_organization)
+
+    if (tagFilter) {
+      list = list.filter(c => c.tags.includes(tagFilter))
+    }
 
     if (search.trim()) {
       const q = search.toLowerCase()
@@ -50,6 +84,10 @@ export default function ContactsClient({ contacts: initialContacts }: ContactsCl
           c.full_name.toLowerCase().includes(q) ||
           (c.company ?? '').toLowerCase().includes(q) ||
           (c.title ?? '').toLowerCase().includes(q) ||
+          (c.email ?? '').toLowerCase().includes(q) ||
+          (c.phone ?? '').toLowerCase().includes(q) ||
+          (c.relationship_notes ?? '').toLowerCase().includes(q) ||
+          c.tags.some(t => t.toLowerCase().includes(q)) ||
           c.roles.some(r => r.toLowerCase().includes(q))
       )
     }
@@ -66,7 +104,56 @@ export default function ContactsClient({ contacts: initialContacts }: ContactsCl
           return b.project_count - a.project_count
       }
     })
-  }, [contacts, search, sort, view])
+  }, [contacts, search, sort, view, tagFilter])
+
+  function toggleSelected(id: string) {
+    setSelected(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  function exitSelection() {
+    setSelecting(false)
+    setSelected(new Set())
+  }
+
+  const allVisibleSelected = filtered.length > 0 && filtered.every(c => selected.has(c.id))
+
+  function toggleSelectAll() {
+    if (allVisibleSelected) {
+      setSelected(prev => {
+        const next = new Set(prev)
+        filtered.forEach(c => next.delete(c.id))
+        return next
+      })
+    } else {
+      setSelected(prev => {
+        const next = new Set(prev)
+        filtered.forEach(c => next.add(c.id))
+        return next
+      })
+    }
+  }
+
+  async function handleBulkDelete() {
+    const ids = [...selected]
+    const res = await fetch('/api/parties/bulk-delete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids }),
+    })
+    if (!res.ok) {
+      const data = await res.json().catch(() => null)
+      toast.error(data?.error ?? 'Failed to delete contacts')
+      return
+    }
+    setContacts(prev => prev.filter(c => !selected.has(c.id)))
+    toast.success(`${ids.length} contact${ids.length !== 1 ? 's' : ''} deleted`)
+    exitSelection()
+  }
 
   return (
     <div className="space-y-4">
@@ -80,10 +167,10 @@ export default function ContactsClient({ contacts: initialContacts }: ContactsCl
           />
           <input
             type="text"
-            placeholder="Search name, company, role…"
+            placeholder="Search name, company, tag, email, notes…"
             value={search}
             onChange={e => setSearch(e.target.value)}
-            className="h-8 pl-8 pr-8 w-60 rounded-md border border-input bg-background text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+            className="h-8 pl-8 pr-8 w-64 rounded-md border border-input bg-background text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
           />
           {search && (
             <button
@@ -95,6 +182,22 @@ export default function ContactsClient({ contacts: initialContacts }: ContactsCl
             </button>
           )}
         </div>
+
+        {/* Tag filter */}
+        {allTags.length > 0 && (
+          <select
+            value={tagFilter}
+            onChange={e => setTagFilter(e.target.value)}
+            className="h-8 rounded-md border border-input bg-background px-2 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+          >
+            <option value="">All Tags</option>
+            {allTags.map(({ tag, count }) => (
+              <option key={tag} value={tag}>
+                {tag} ({count})
+              </option>
+            ))}
+          </select>
+        )}
 
         {/* Sort */}
         <select
@@ -129,6 +232,42 @@ export default function ContactsClient({ contacts: initialContacts }: ContactsCl
         <span className="text-xs text-muted-foreground">
           {filtered.length} contact{filtered.length !== 1 ? 's' : ''}
         </span>
+
+        {/* Selection controls */}
+        <div className="ml-auto flex items-center gap-2">
+          {selecting ? (
+            <>
+              <button
+                onClick={toggleSelectAll}
+                className="h-8 px-2.5 rounded-md border border-input text-xs text-foreground hover:bg-muted transition-colors"
+              >
+                {allVisibleSelected ? 'Deselect all' : `Select all (${filtered.length})`}
+              </button>
+              <button
+                onClick={() => setConfirmOpen(true)}
+                disabled={selected.size === 0}
+                className="h-8 px-2.5 rounded-md bg-destructive text-destructive-foreground text-xs font-medium hover:bg-destructive/90 transition-colors disabled:opacity-50 inline-flex items-center gap-1.5"
+              >
+                <Trash2 size={12} />
+                Delete{selected.size > 0 ? ` (${selected.size})` : ''}
+              </button>
+              <button
+                onClick={exitSelection}
+                className="h-8 px-2.5 rounded-md text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+              >
+                Cancel
+              </button>
+            </>
+          ) : (
+            <button
+              onClick={() => setSelecting(true)}
+              className="h-8 px-2.5 rounded-md border border-input text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors inline-flex items-center gap-1.5"
+            >
+              <CheckSquare size={12} />
+              Select
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Grid */}
@@ -139,10 +278,28 @@ export default function ContactsClient({ contacts: initialContacts }: ContactsCl
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 stagger-children">
           {filtered.map(contact => (
-            <ContactCard key={contact.id} contact={contact} onDelete={handleDelete} />
+            <ContactCard
+              key={contact.id}
+              contact={contact}
+              onDelete={handleDelete}
+              selecting={selecting}
+              selected={selected.has(contact.id)}
+              onToggleSelect={toggleSelected}
+              onTagClick={setTagFilter}
+            />
           ))}
         </div>
       )}
+
+      <ConfirmDialog
+        open={confirmOpen}
+        onOpenChange={setConfirmOpen}
+        title={`Delete ${selected.size} contact${selected.size !== 1 ? 's' : ''}?`}
+        description="They will be archived and removed from your list. Project history is preserved."
+        confirmLabel="Delete"
+        destructive
+        onConfirm={handleBulkDelete}
+      />
     </div>
   )
 }
@@ -150,9 +307,17 @@ export default function ContactsClient({ contacts: initialContacts }: ContactsCl
 function ContactCard({
   contact,
   onDelete,
+  selecting,
+  selected,
+  onToggleSelect,
+  onTagClick,
 }: {
   contact: ContactWithStats
   onDelete: (id: string) => void
+  selecting: boolean
+  selected: boolean
+  onToggleSelect: (id: string) => void
+  onTagClick: (tag: string) => void
 }) {
   const [confirming, setConfirming] = useState(false)
   const [deleting, setDeleting] = useState(false)
@@ -210,7 +375,19 @@ function ContactCard({
 
       <Link
         href={`/contacts/${contact.id}`}
-        className="block rounded-lg border border-border bg-card hover:border-foreground/20 hover:shadow-sm transition-all overflow-hidden"
+        onClick={e => {
+          if (selecting) {
+            e.preventDefault()
+            onToggleSelect(contact.id)
+          }
+        }}
+        aria-checked={selecting ? selected : undefined}
+        className={cn(
+          'block rounded-lg border bg-card transition-all overflow-hidden',
+          selecting && selected
+            ? 'border-primary ring-2 ring-primary/40'
+            : 'border-border hover:border-foreground/20 hover:shadow-sm'
+        )}
       >
         {/* Photo area */}
         <div className="flex flex-col items-center pt-6 pb-4 px-4 gap-3">
@@ -256,6 +433,33 @@ function ContactCard({
             </div>
           )}
 
+          {/* Tags */}
+          {contact.tags.length > 0 && (
+            <div className="flex flex-wrap gap-1">
+              {contact.tags.slice(0, 4).map(tag => (
+                <button
+                  key={tag}
+                  type="button"
+                  onClick={e => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    onTagClick(tag)
+                  }}
+                  className="inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-xs font-medium bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
+                  title={`Filter by ${tag}`}
+                >
+                  <Tag size={8} className="shrink-0" />
+                  {tag}
+                </button>
+              ))}
+              {contact.tags.length > 4 && (
+                <span className="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium bg-muted text-muted-foreground">
+                  +{contact.tags.length - 4}
+                </span>
+              )}
+            </div>
+          )}
+
           <div className="flex items-center justify-between gap-2">
             <div className="flex flex-wrap gap-1 min-w-0">
               {contact.roles.slice(0, 3).map(role => (
@@ -281,27 +485,43 @@ function ContactCard({
         </div>
       </Link>
 
+      {/* Selection indicator */}
+      {selecting && (
+        <div
+          className={cn(
+            'absolute top-2 left-2 size-5 rounded border flex items-center justify-center pointer-events-none',
+            selected
+              ? 'bg-primary border-primary text-primary-foreground'
+              : 'bg-background border-input'
+          )}
+        >
+          {selected && <Check size={13} />}
+        </div>
+      )}
+
       {/* Action buttons — outside the link */}
-      <div className="absolute top-2 right-2 flex items-center gap-1">
-        <button
-          title="Enrich profile"
-          aria-label={`Enrich ${contact.full_name} profile`}
-          className="opacity-0 group-hover:opacity-100 transition-opacity text-purple-400 hover:text-purple-600 dark:hover:text-purple-400"
-          onClick={e => {
-            e.preventDefault()
-            window.location.href = `/contacts/${contact.id}?tab=overview`
-          }}
-        >
-          <Sparkles size={14} />
-        </button>
-        <button
-          title="Delete contact"
-          onClick={e => { e.preventDefault(); e.stopPropagation(); setConfirming(true) }}
-          className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
-        >
-          <Trash2 size={14} />
-        </button>
-      </div>
+      {!selecting && (
+        <div className="absolute top-2 right-2 flex items-center gap-1">
+          <button
+            title="Enrich profile"
+            aria-label={`Enrich ${contact.full_name} profile`}
+            className="opacity-0 group-hover:opacity-100 transition-opacity text-purple-400 hover:text-purple-600 dark:hover:text-purple-400"
+            onClick={e => {
+              e.preventDefault()
+              window.location.href = `/contacts/${contact.id}?tab=overview`
+            }}
+          >
+            <Sparkles size={14} />
+          </button>
+          <button
+            title="Delete contact"
+            onClick={e => { e.preventDefault(); e.stopPropagation(); setConfirming(true) }}
+            className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
+          >
+            <Trash2 size={14} />
+          </button>
+        </div>
+      )}
     </div>
   )
 }
