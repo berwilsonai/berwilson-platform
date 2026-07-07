@@ -47,7 +47,10 @@ ssh "$STUDIO" "
     sed -e \"s#__APP_DIR__#\$HOME/berwilson-platform#g\" -e \"s#__LOG_DIR__#\$HOME/Library/Logs/berwilson#g\" -e \"s#__NODE_BIN__#\$HOME/.node/bin#g\" \
       $APP_DIR/deploy/\$plist.plist > \$HOME/Library/LaunchAgents/\$plist.plist
     launchctl bootout gui/\$(id -u)/\$plist 2>/dev/null || true
-    launchctl bootstrap gui/\$(id -u) \$HOME/Library/LaunchAgents/\$plist.plist
+    sleep 2  # bootout is async; immediate bootstrap can hit EIO
+    launchctl bootstrap gui/\$(id -u) \$HOME/Library/LaunchAgents/\$plist.plist 2>/dev/null \
+      || launchctl kickstart gui/\$(id -u)/\$plist 2>/dev/null \
+      || { sleep 3; launchctl bootstrap gui/\$(id -u) \$HOME/Library/LaunchAgents/\$plist.plist; }
   done
   echo '  services installed'
 "

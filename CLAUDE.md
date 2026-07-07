@@ -46,7 +46,7 @@ Canonical reference for every Claude Code session working on the Ber Wilson plat
 - **All runtime AI** → `qwen/qwen3.6-35b-a3b` via LM Studio's OpenAI-compatible API (`AI_PROVIDER=local`, `src/lib/ai/local.ts`). Expect ~30–60s on extraction-class tasks (reasoning-heavy model, ~75 tok/s generation).
 - **Embeddings** → `text-embedding-qwen3-embedding-0.6b`, truncated+renormalized to 768 dims (schema unchanged). The whole knowledge base was re-embedded locally at cutover (213 chunks). **Never mix embedding models** — a model change means wipe + re-embed (`deploy/reembed.mjs`).
 - **PDFs** → local text extraction via `unpdf` (no model call for transcription); images need a vision model loaded in LM Studio.
-- **Web research / enrichment** (`research.ts`) → blocked in local mode unless `LOCAL_ALLOW_WEB_RESEARCH=true` (would use Gemini + Google Search; only the query leaves). Currently OFF.
+- **Web research / enrichment** (`research.ts`) → blocked in local mode unless `LOCAL_ALLOW_WEB_RESEARCH=true` (uses Gemini + Google Search; only the query leaves, never platform data). Currently ON — Richard kept the Gemini key for the Enrich Profile buttons on contacts/vendors (verified live 2026-07-07).
 - The Gemini path in `gemini.ts` still exists behind the flag but is dormant; cloud Supabase project `qauclkrdejgtpywqixho` is **paused** (restorable safety net); the Vercel project is **deleted**. Every AI call still logs to `ai_queries`.
 
 Anthropic Claude is not used at runtime (removed 2026-06-22).

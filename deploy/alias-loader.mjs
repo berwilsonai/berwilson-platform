@@ -1,4 +1,4 @@
-const ROOT = new URL('./src/', import.meta.url).href
+const ROOT = new URL('../src/', import.meta.url).href
 async function trySuffixes(base, context, next) {
   for (const suffix of ['', '.ts', '.tsx', '/index.ts']) {
     try { return await next(base + suffix, context) } catch { /* next */ }
