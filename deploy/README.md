@@ -43,6 +43,32 @@ Logs: `~/Library/Logs/berwilson/` on the Studio.
   `tailscale serve`) or `http://100.86.79.4:3000`.
 - Phones/laptops need the Tailscale app logged into the same tailnet.
 
+## Self-hosted Supabase (step 4 — stack live, cutover pending)
+
+Lives on the Studio at `~/supabase-selfhost/` (NOT in this repo): official
+docker compose trimmed to 8 services (`docker/docker-compose.lean.yml` —
+realtime/functions/pooler dropped; the app uses none of them), running under
+**Colima** (`~/.local/bin`, no sudo). Secrets + signed ANON/SERVICE_ROLE JWTs
+in `docker/.env` (mode 600). Postgres 17.6 = exact cloud match.
+
+- Manage: `ssh studio` then `cd ~/supabase-selfhost/docker && docker compose -f docker-compose.lean.yml <ps|logs|restart>`
+- Dashboard: `http://localhost:8000` on the Studio (basic auth; creds in `docker/.env`)
+- **Backups: nightly 2:30am** (`com.berwilson.backup` → `~/supabase-selfhost/backup.sh`):
+  `pg_dumpall` + storage tarball to `~/Backups/berwilson/`, 14-day retention.
+  **Offsite copy still pending** — needs SSH enabled on the Mac mini (or another target).
+- Colima autostarts at login (`com.berwilson.colima`); containers are `restart: unless-stopped`.
+- Trial migration 2026-07-07 verified: all row counts match, 56/56 storage files,
+  auth/REST/storage/match_chunks all answering locally. Cloud DB password was
+  reset via the Management API (app unaffected — it uses API keys); the new one
+  is in `~/supabase-selfhost/.cloud-db-password` on the Studio.
+
+### Cutover runbook (when Richard says go)
+1. Freeze writes (stop using the Vercel app; pause Vercel crons).
+2. Re-run the dump/restore + file sync (fresh data; ~5 min — scripts in `~/supabase-selfhost/dumps` + `sync/`).
+3. Point the Studio app's `.env.local` at local Supabase: `NEXT_PUBLIC_SUPABASE_URL=https://richards-mac-studio.tail0e5306.ts.net:8443` (browser-reachable; add `tailscale serve --bg --https=8443 http://localhost:8000`), local ANON/SERVICE_ROLE keys; restart `com.berwilson.platform`.
+4. Step 3 re-embed: flip `EMBEDDINGS_PROVIDER=local`, wipe + re-embed chunks (backfill endpoint + updates re-embed).
+5. Verify logins, tasks, docs, search. Then decommission Vercel + revoke Gemini key + pause cloud Supabase (step 5).
+
 ## Known caveats
 
 - **Microsoft OAuth (calendar / email research):** the Azure app registration's
