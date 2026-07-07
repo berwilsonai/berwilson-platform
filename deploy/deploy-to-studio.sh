@@ -9,9 +9,11 @@ APP_DIR='$HOME/berwilson-platform'   # expanded on the Studio
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 TAILSCALE=/Applications/Tailscale.app/Contents/MacOS/Tailscale
 
+NODE_BIN='$HOME/.node/bin'  # expanded on the Studio (no-sudo Node install; see README)
+
 echo "==> Preflight"
 ssh -o ConnectTimeout=8 "$STUDIO" 'echo "  ssh ok: $(hostname)"'
-ssh "$STUDIO" 'command -v node >/dev/null && echo "  node: $(node --version)" || { echo "  ERROR: node not installed on Studio — install with: brew install node"; exit 1; }'
+ssh "$STUDIO" "export PATH=$NODE_BIN:\$PATH; command -v node >/dev/null && echo \"  node: \$(node --version)\" || { echo '  ERROR: node not installed on Studio — see deploy/README.md'; exit 1; }"
 ssh "$STUDIO" 'curl -sS -m 5 http://localhost:1234/v1/models >/dev/null && echo "  LM Studio: reachable on localhost:1234" || echo "  WARN: LM Studio not answering on localhost:1234 — AI calls will fail until it is running"'
 
 echo "==> Syncing source to Studio:$APP_DIR"
@@ -35,14 +37,14 @@ fi
 scp -q "$ENV_TMP" "$STUDIO:berwilson-platform/.env.local"
 
 echo "==> Installing dependencies + building (this takes a few minutes)"
-ssh "$STUDIO" "cd $APP_DIR && npm ci --no-audit --no-fund && npm run build" | tail -3
+ssh "$STUDIO" "export PATH=$NODE_BIN:\$PATH; cd $APP_DIR && npm ci --no-audit --no-fund && npm run build" | tail -3
 
 echo "==> Installing launchd services"
 ssh "$STUDIO" "
   set -e
   mkdir -p \$HOME/Library/Logs/berwilson \$HOME/Library/LaunchAgents
   for plist in com.berwilson.platform com.berwilson.cron-daily-brief com.berwilson.cron-risk-scores; do
-    sed -e \"s#__APP_DIR__#\$HOME/berwilson-platform#g\" -e \"s#__LOG_DIR__#\$HOME/Library/Logs/berwilson#g\" \
+    sed -e \"s#__APP_DIR__#\$HOME/berwilson-platform#g\" -e \"s#__LOG_DIR__#\$HOME/Library/Logs/berwilson#g\" -e \"s#__NODE_BIN__#\$HOME/.node/bin#g\" \
       $APP_DIR/deploy/\$plist.plist > \$HOME/Library/LaunchAgents/\$plist.plist
     launchctl bootout gui/\$(id -u)/\$plist 2>/dev/null || true
     launchctl bootstrap gui/\$(id -u) \$HOME/Library/LaunchAgents/\$plist.plist

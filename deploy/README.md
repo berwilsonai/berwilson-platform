@@ -6,7 +6,8 @@ no public exposure. Vercel keeps running in parallel until cutover.
 
 ## One-time prerequisites (on the Studio)
 
-- Node.js: `brew install node`
+- Node.js (no sudo/Homebrew needed — installed 2026-07-07 this way):
+  `mkdir -p ~/.node && curl -fsSL https://nodejs.org/dist/v26.0.0/node-v26.0.0-darwin-arm64.tar.gz | tar -xz -C ~/.node --strip-components=1`
 - LM Studio running with the server enabled (port 1234) and set to launch at login
 - Tailscale running and logged in
 - System Settings → Energy → **Prevent automatic sleeping** ON
