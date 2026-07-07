@@ -31,8 +31,19 @@ export interface ResearchResult {
 /**
  * Run a grounded web-search query and return the answer + source URLs.
  * Uses Google Search grounding so the model cites live web results.
+ *
+ * Web research cannot run on a local model — it always goes out to Gemini +
+ * Google Search. In local AI mode (AI_PROVIDER=local) it is therefore blocked
+ * unless LOCAL_ALLOW_WEB_RESEARCH=true opts back in (only the search query
+ * leaves the machine, never platform data).
  */
 export async function researchQuery(query: string): Promise<ResearchResult> {
+  if (process.env.AI_PROVIDER === 'local' && process.env.LOCAL_ALLOW_WEB_RESEARCH !== 'true') {
+    throw new Error(
+      'Web research is disabled in local AI mode. Set LOCAL_ALLOW_WEB_RESEARCH=true to allow outbound search queries (platform data never leaves the machine — only the search query is sent to Google).'
+    )
+  }
+
   const client = getClient()
 
   const model = client.getGenerativeModel({

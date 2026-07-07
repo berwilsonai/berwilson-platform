@@ -168,8 +168,12 @@ async function runChecks(): Promise<HealthCheck[]> {
 
   // 6. Server configuration
   {
+    const localAI = process.env.AI_PROVIDER === 'local'
     const required: Record<string, string | undefined> = {
-      GEMINI_API_KEY: process.env.GEMINI_API_KEY,
+      // AI provider: local mode needs the LM Studio endpoint; gemini mode needs the key
+      ...(localAI
+        ? { LOCAL_AI_BASE_URL: process.env.LOCAL_AI_BASE_URL }
+        : { GEMINI_API_KEY: process.env.GEMINI_API_KEY }),
       CRON_SECRET: process.env.CRON_SECRET,
       MICROSOFT_TENANT_ID: process.env.MICROSOFT_TENANT_ID,
       MICROSOFT_CLIENT_ID: process.env.MICROSOFT_CLIENT_ID,

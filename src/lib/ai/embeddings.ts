@@ -1,4 +1,5 @@
 import { createAdminClient } from '@/lib/supabase/admin'
+import { isLocalEmbeddings, localEmbedding } from './local'
 import type { Database } from '@/types/database'
 
 type ChunkInsert = Database['public']['Tables']['chunks']['Insert']
@@ -53,6 +54,10 @@ function chunkText(text: string): Chunk[] {
 // ---------------------------------------------------------------------------
 
 async function generateEmbedding(text: string): Promise<number[]> {
+  if (isLocalEmbeddings()) {
+    return localEmbedding(text)
+  }
+
   const apiKey = process.env.GEMINI_API_KEY!
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${EMBEDDING_MODEL}:embedContent?key=${apiKey}`
 

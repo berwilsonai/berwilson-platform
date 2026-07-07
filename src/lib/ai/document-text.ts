@@ -1,4 +1,5 @@
 import { callGeminiWithFile } from '@/lib/ai/gemini'
+import { isLocalAI, extractPdfText } from '@/lib/ai/local'
 import type { createAdminClient } from '@/lib/supabase/admin'
 
 // Shared full-text extraction for uploaded PDFs. The 2-3 sentence AI summary
@@ -24,6 +25,14 @@ export async function transcribePdfText(input: {
   userId: string
 }): Promise<string | null> {
   if (input.byteLength > PDF_FULLTEXT_MAX_BYTES) return null
+
+  // Local mode: extract the text directly — no model pass needed for a
+  // verbatim transcription, and nothing leaves the machine.
+  if (isLocalAI()) {
+    const text = await extractPdfText(input.dataBase64)
+    return text && text.length >= 40 ? text : null
+  }
+
   try {
     const result = await callGeminiWithFile<string>({
       systemPrompt: FULLTEXT_SYSTEM,

@@ -9,6 +9,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { AGENT_SYSTEM_PROMPT, projectContextPreamble } from './prompts/agent'
 import { agentTools, executeToolCall } from './agent-tools'
 import { getCompanyContext } from './company-context'
+import { isLocalAI, localChatModel, localChatStream, type LocalChatMessage } from './local'
 
 const AGENT_MODEL = 'gemini-2.5-pro'
 
@@ -54,7 +55,6 @@ export async function runAgent(
   history: Content[] = [],
   callbacks?: AgentStreamCallbacks
 ): Promise<AgentResponse> {
-  const client = getClient()
   const supabase = createAdminClient()
 
   // Build system prompt: start with base, append company qualifications, then optional project context
@@ -97,6 +97,11 @@ export async function runAgent(
     }
   }
 
+  if (isLocalAI()) {
+    return runAgentLocal(userMessage, systemPrompt, context, history, callbacks)
+  }
+
+  const client = getClient()
   const model = client.getGenerativeModel({
     model: AGENT_MODEL,
     systemInstruction: systemPrompt,
@@ -175,5 +180,107 @@ export async function runAgent(
     tokensIn: totalTokensIn,
     tokensOut: totalTokensOut,
     latencyMs,
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Local provider (AI_PROVIDER=local) — same loop against the LM Studio
+// OpenAI-compatible endpoint. agentTools declarations are plain JSON Schema,
+// so they map straight into OpenAI tool format.
+// ---------------------------------------------------------------------------
+
+const localToolDeclarations = agentTools.map((t) => ({
+  type: 'function' as const,
+  function: {
+    name: t.name,
+    description: t.description,
+    parameters: t.parameters as unknown,
+  },
+}))
+
+/** Convert stored Gemini-format history into OpenAI-format messages. */
+function historyToLocalMessages(history: Content[]): LocalChatMessage[] {
+  return history
+    .map((c): LocalChatMessage | null => {
+      const text = (c.parts ?? [])
+        .map((p) => ('text' in p && typeof p.text === 'string' ? p.text : ''))
+        .join('')
+      if (!text) return null
+      return { role: c.role === 'model' ? 'assistant' : 'user', content: text }
+    })
+    .filter((m): m is LocalChatMessage => m !== null)
+}
+
+async function runAgentLocal(
+  userMessage: string,
+  systemPrompt: string,
+  context: AgentContext,
+  history: Content[],
+  callbacks?: AgentStreamCallbacks
+): Promise<AgentResponse> {
+  const model = localChatModel()
+
+  const messages: LocalChatMessage[] = [
+    { role: 'system', content: systemPrompt },
+    ...historyToLocalMessages(history),
+    { role: 'user', content: userMessage },
+  ]
+
+  const start = Date.now()
+  const toolCallLog: NonNullable<AgentResponse['toolCalls']> = []
+
+  let finalText = ''
+  let totalTokensIn = 0
+  let totalTokensOut = 0
+
+  // Agentic loop — up to 5 tool-call rounds, matching the Gemini path
+  for (let round = 0; round < 5; round++) {
+    const result = await localChatStream({
+      model,
+      messages,
+      tools: localToolDeclarations,
+      onTextDelta: (delta) => {
+        finalText += delta
+        callbacks?.onTextDelta?.(delta)
+      },
+    })
+
+    totalTokensIn += result.tokensIn
+    totalTokensOut += result.tokensOut
+
+    if (result.toolCalls.length === 0) break
+
+    messages.push({
+      role: 'assistant',
+      content: result.text,
+      tool_calls: result.toolCalls,
+    })
+
+    for (const tc of result.toolCalls) {
+      let args: Record<string, unknown> = {}
+      try {
+        args = JSON.parse(tc.function.arguments) as Record<string, unknown>
+      } catch {
+        // malformed args from the model — run the tool with none
+      }
+      callbacks?.onToolCall?.(tc.function.name, args)
+      const toolResult = await executeToolCall(tc.function.name, args, context)
+      toolCallLog.push({ name: tc.function.name, args, result: toolResult })
+
+      messages.push({
+        role: 'tool',
+        tool_call_id: tc.id,
+        content: JSON.stringify(toolResult),
+      })
+    }
+  }
+
+  return {
+    content: finalText,
+    toolCalls: toolCallLog.length > 0 ? toolCallLog : undefined,
+    model,
+    tokensIn: totalTokensIn,
+    tokensOut: totalTokensOut,
+    latencyMs: Date.now() - start,
   }
 }
