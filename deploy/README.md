@@ -43,7 +43,7 @@ Logs: `~/Library/Logs/berwilson/` on the Studio.
   `tailscale serve`) or `http://100.86.79.4:3000`.
 - Phones/laptops need the Tailscale app logged into the same tailnet.
 
-## Self-hosted Supabase (step 4 — stack live, cutover pending)
+## Self-hosted Supabase (CUTOVER DONE 2026-07-07 — this IS production)
 
 Lives on the Studio at `~/supabase-selfhost/` (NOT in this repo): official
 docker compose trimmed to 8 services (`docker/docker-compose.lean.yml` —
@@ -62,7 +62,7 @@ in `docker/.env` (mode 600). Postgres 17.6 = exact cloud match.
   reset via the Management API (app unaffected — it uses API keys); the new one
   is in `~/supabase-selfhost/.cloud-db-password` on the Studio.
 
-### Cutover runbook (when Richard says go)
+### Cutover runbook (EXECUTED 2026-07-07 — kept for reference / disaster recovery)
 1. Freeze writes (stop using the Vercel app; pause Vercel crons).
 2. Re-run the dump/restore + file sync (fresh data; ~5 min — scripts in `~/supabase-selfhost/dumps` + `sync/`).
 3. Point the Studio app's `.env.local` at local Supabase: `NEXT_PUBLIC_SUPABASE_URL=https://richards-mac-studio.tail0e5306.ts.net:8443` (browser-reachable; add `tailscale serve --bg --https=8443 http://localhost:8000`), local ANON/SERVICE_ROLE keys; restart `com.berwilson.platform`.
@@ -75,6 +75,5 @@ in `docker/.env` (mode 600). Postgres 17.6 = exact cloud match.
   redirect URIs include only the Vercel domain. Before connecting the mailbox
   from the Studio origin, add the Studio URL's callback
   (`https://<studio-host>/api/email/oauth/callback`) in the Azure portal.
-- **Embeddings still Gemini** (`EMBEDDINGS_PROVIDER=gemini`) until the step-3
-  re-embed — do not flip it on the Studio env by hand.
-- Supabase is still cloud-hosted (step 4 pending).
+- Embeddings are local (knowledge base re-embedded at cutover; model swap = rerun `deploy/reembed.mjs` via `deploy/alias-loader.mjs`).
+- Cloud Supabase project `qauclkrdejgtpywqixho` is PAUSED (restorable rollback); Vercel project deleted — `git push` is backup only, deploys happen via this script.

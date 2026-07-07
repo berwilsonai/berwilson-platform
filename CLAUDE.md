@@ -39,9 +39,17 @@ Canonical reference for every Claude Code session working on the Ber Wilson plat
 | File Storage | Supabase Storage (`documents` bucket) | Organized by project / entity / site ID. |
 | Deployment | Vercel + Supabase | No containers, no Docker, no servers. |
 
-### AI Model Rules (CURRENT)
+### AI Model Rules (CURRENT — FULLY LOCAL since 2026-07-07)
 
-Runtime AI is **Gemini only** by default — but as of 2026-07-06 the platform is **mid-migration to a fully local AI stack** (Richard's decision: absolute security, nothing leaves his hardware). A flag-gated local provider exists: `AI_PROVIDER=local` routes ALL runtime AI to LM Studio on the Mac Studio (Tailscale IP 100.86.79.4, OpenAI-compatible API, Qwen3-30B-A3B). See `src/lib/ai/local.ts` + the 2026-07-06 build-status entry for the full migration plan. Production stays on Gemini until cutover. Anthropic Claude is **no longer used at runtime** (the old `claude.ts` wrapper and the `@anthropic-ai/sdk` dependency were removed 2026-06-22).
+**The platform is fully self-hosted and fully local-AI as of the 2026-07-07 cutover** (Richard's decision: absolute security, nothing leaves his hardware). Production = the Mac Studio, tailnet-only: app at `https://richards-mac-studio.tail0e5306.ts.net/`, self-hosted Supabase at `:8443`, LM Studio on localhost:1234.
+
+- **All runtime AI** → `qwen/qwen3.6-35b-a3b` via LM Studio's OpenAI-compatible API (`AI_PROVIDER=local`, `src/lib/ai/local.ts`). Expect ~30–60s on extraction-class tasks (reasoning-heavy model, ~75 tok/s generation).
+- **Embeddings** → `text-embedding-qwen3-embedding-0.6b`, truncated+renormalized to 768 dims (schema unchanged). The whole knowledge base was re-embedded locally at cutover (213 chunks). **Never mix embedding models** — a model change means wipe + re-embed (`deploy/reembed.mjs`).
+- **PDFs** → local text extraction via `unpdf` (no model call for transcription); images need a vision model loaded in LM Studio.
+- **Web research / enrichment** (`research.ts`) → blocked in local mode unless `LOCAL_ALLOW_WEB_RESEARCH=true` (would use Gemini + Google Search; only the query leaves). Currently OFF.
+- The Gemini path in `gemini.ts` still exists behind the flag but is dormant; cloud Supabase project `qauclkrdejgtpywqixho` is **paused** (restorable safety net); the Vercel project is **deleted**. Every AI call still logs to `ai_queries`.
+
+Anthropic Claude is not used at runtime (removed 2026-06-22).
 
 - **`gemini-2.5-flash`** → Extraction, classification, document/cert summarization, synthesis, briefs, enrichment, research. The workhorse. Routed through `callGemini` / `callGeminiWithFile` in `src/lib/ai/gemini.ts`.
 - **`gemini-2.5-pro`** → The construction-executive agent's main reasoning loop (`src/lib/ai/agent.ts`).
@@ -188,7 +196,7 @@ CRON_SECRET=                     # Vercel injects it as Bearer auth on cron invo
 `ANTHROPIC_API_KEY` and `PERPLEXITY_API_KEY` are no longer used — remove from any new env files. The n8n-era vars (`N8N_*`, `INGESTION_INBOUND_SECRET`) are gone from Vercel (verified 2026-07-03). `NEXT_PUBLIC_SITE_URL` is no longer referenced anywhere (the agent self-fetches that used it were refactored to direct lib calls 2026-07-03).
 
 ### Git
-- Main branch: `main` (this is the live-deploy branch — pushing to it deploys to Vercel production).
+- Main branch: `main`. Pushing is GitHub backup only (Vercel deleted 2026-07-07) — **deploying = `zsh deploy/deploy-to-studio.sh`** after pushing.
 - Conventional commits: `feat:`, `fix:`, `refactor:`, `docs:`. Never commit `.env.local`.
 
 ---
@@ -241,6 +249,14 @@ Note the drift flagged in §9: `entities`/vendors partly duplicate this. The *su
 **Reality:** well beyond the original Phase 1/2 plan. Live and in daily use on Vercel production.
 
 **Working:** projects (CRUD, pipeline/program views, hierarchy, all detail tabs), **opportunities**, **objectives steering board (Now/Soon/Possibly + PDF export, wired into tasks/dashboard/brief)**, dashboard (single attention surface, opens with Now objectives), timeline, **team tasks** (per-person workload, project/opportunity/objective tags), **one Directory (Contacts | Vendors tabs)**, company profile (thin), review queue, activity log, manual-paste extraction (action items → real tasks), intel (RAG + streaming agent) + **ambient Ask Ber AI dock (⌘J, every page)**, proposal intake → assessment → project creation, **Email Intake** (in-platform Outlook sweep → report → opportunity/project + people + tasks). **Calendar/meeting-prep still uses Microsoft Graph (OAuth retained); the email-to-task scraper was removed (see below).** Equity & Portfolio modules removed 2026-07-03 (see below).
+
+**Done 2026-07-07 (CUTOVER COMPLETE — the platform is fully local; steps 3+5 done):**
+- **Final migration executed:** fresh cloud→local dump/restore + 56/56 file re-sync; **every one of the 38 public tables verified count-identical to cloud**, auth (users/identities/sessions) and storage timestamps match exactly. Two migration subtleties handled: auth/storage truncate+restore must run as `supabase_admin` (not `postgres`), and `TRUNCATE auth.users CASCADE` reaches `public.media` via FK (repaired from a targeted dump; it was the only affected table — verified).
+- **Studio app now points at local Supabase** (`https://richards-mac-studio.tail0e5306.ts.net:8443` via a second `tailscale serve` listener → kong :8000); rebuilt (NEXT_PUBLIC_* are build-time) + service restarted, HTTP 200. MacBook `.env.local` flipped too — local dev also targets the Studio stack.
+- **Step 3 (re-embed) done:** chunks wiped and regenerated with the local embedding model — **213 chunks** (was 124: all 46 updates now embedded vs 3 historically, 14/16 documents (2 had no extractable text), opportunity snapshot + note). Gotchas hit: PostgREST schema cache goes stale after `DROP SCHEMA public` (restart `supabase-rest` after restores) and documents' summary column is `ai_summary`. Tooling preserved: `deploy/reembed.mjs` + `deploy/alias-loader.mjs` (runs repo lib code standalone: `node --experimental-strip-types --import ...register(alias-loader)... --env-file=.env.local <script>`).
+- **Verified fully local end-to-end:** `embedQuery`→`match_chunks` returns real content; full `runAgent` loop (tool call → grounded answer, 6.9s) against the local stack; cron route auth OK (tomorrow 6:30am generates the first fully-local brief).
+- **Step 5 (decommission) done:** cloud Supabase project **paused** via Management API (data retained — the rollback safety net; restore from the Supabase dashboard if ever needed), **Vercel project `berwilson-platform` deleted** (deployments + env vars gone; all values live on the Studio + MacBook env files). **`git push` no longer deploys** — it's GitHub backup only; deploying = `zsh deploy/deploy-to-studio.sh`.
+- **Manual items for Richard:** (1) revoke the Gemini API key in Google AI Studio — zero Gemini traffic remains (or keep it and set `LOCAL_ALLOW_WEB_RESEARCH=true` if vendor-enrichment web research is wanted); (2) when reconnecting Microsoft 365 from the new origin, add `https://richards-mac-studio.tail0e5306.ts.net/api/email/oauth/callback` to the Azure app's redirect URIs (existing Graph tokens migrated and keep refreshing server-side); (3) Eric's devices need Tailscale to reach the platform; (4) offsite backup target still pending (enable SSH on the Mac mini).
 
 **Done 2026-07-07 (step 4 groundwork: self-hosted Supabase live on the Studio, trial migration verified):**
 - **A full self-hosted Supabase stack runs on the Mac Studio** under Colima (no-sudo container runtime at `~/.local/bin`; VM: 2 CPU / 3GB / 30GB, autostarts at login via `com.berwilson.colima`). Official compose trimmed to 8 services (`~/supabase-selfhost/docker/docker-compose.lean.yml`) — realtime/edge-functions/supavisor dropped after verifying zero app usage; Postgres 17.6 exactly matches cloud; fresh secrets + self-signed ANON/SERVICE_ROLE JWTs in `docker/.env`. Stack idles at ~1.1GB of the 3GB VM.
