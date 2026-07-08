@@ -1,0 +1,65 @@
+// Ber Wilson — Tailscale ACL policy
+// Source of truth is the Tailscale admin console: https://login.tailscale.com/admin/acls
+// This file is a version-controlled COPY so the policy can be reconstructed. Edits here
+// do nothing until pasted into the admin console.
+//
+// Intent (2026-07-07): the Mac Studio hosts the whole platform, tailnet-only. Without a
+// policy, EVERY tailnet device can reach EVERY Studio port (Postgres 5432, LM Studio 1234
+// [no auth], Screen Sharing 5900, SSH 22, Supabase 8000/8443). This scopes non-admin
+// devices (future: Eric, PMs) down to just the app + Supabase API, while Richard's own
+// devices keep full access.
+//
+// Design notes:
+//  - The Studio stays USER-OWNED (not tagged). Richard's devices are group:admins and get
+//    full access via the first rule; that same rule already permits the Studio to push the
+//    nightly backup to the Mac mini (Studio -> mini:22), so no extra rule is needed for
+//    backup item #2.
+//  - Adding a person = invite them as a normal Tailscale user (NOT in group:admins). They
+//    automatically get only the app-access rule below. Nothing else to configure.
+
+{
+  "groups": {
+    // Only Richard is an admin today. Do NOT add Eric / PMs here — that would grant them
+    // SSH, Postgres, LM Studio, and Screen Sharing on the Studio.
+    "group:admins": ["richmwhite@gmail.com"],
+  },
+
+  "hosts": {
+    "studio": "100.86.79.4",
+  },
+
+  "acls": [
+    // 1) Admin devices (all of Richard's machines) reach everything on the tailnet.
+    //    Also covers Studio -> Mac mini:22 for the encrypted backup push (item #2).
+    {
+      "action": "accept",
+      "src": ["group:admins"],
+      "dst": ["*:*"],
+    },
+
+    // 2) Everyone else reaches ONLY the app (443) and the Supabase API (8443) on the Studio.
+    //    Direct ports (3000, 8000), Postgres (5432), LM Studio (1234), SSH (22), and
+    //    Screen Sharing (5900) are default-denied to non-admins.
+    {
+      "action": "accept",
+      "src": ["*"],
+      "dst": ["studio:443", "studio:8443"],
+    },
+  ],
+
+  // Saved on apply: if any assertion fails, Tailscale REJECTS the save — this is the guard
+  // that guarantees this policy can never lock Richard out of the Studio.
+  "tests": [
+    {
+      "src": "richmwhite@gmail.com",
+      "accept": [
+        "studio:22",
+        "studio:5432",
+        "studio:1234",
+        "studio:5900",
+        "studio:443",
+        "studio:8443",
+      ],
+    },
+  ],
+}

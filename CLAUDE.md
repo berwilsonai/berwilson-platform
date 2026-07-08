@@ -30,14 +30,14 @@ Canonical reference for every Claude Code session working on the Ber Wilson plat
 
 | Layer | Technology | Notes |
 |-------|-----------|-------|
-| Database + Auth | Supabase (Postgres, Auth, Storage, Realtime) | US region. RLS enabled on every table (but see §8 — app traffic uses the service role). pgvector enabled. |
-| Frontend | Next.js 16 (App Router, TypeScript) on Vercel | Server components default. Client only for interactivity. |
+| Database + Auth | **Self-hosted Supabase** (Postgres, Auth, Storage) on the Mac Studio | Docker (Colima) lean stack, tailnet-only at `:8443`. RLS enabled on every table (but see §8 — app traffic uses the service role). pgvector enabled. Cloud project paused as rollback safety net. |
+| Frontend | Next.js 16 (App Router, TypeScript) | Server components default. Client only for interactivity. |
 | Styling | Tailwind CSS v4 + shadcn/ui (`@base-ui/react`) | No custom CSS unless unavoidable. |
-| Runtime AI | **Google Gemini** (`@google/generative-ai`) | All runtime AI. See §5. |
+| Runtime AI | **Local Qwen via LM Studio** (`src/lib/ai/local.ts`) | All runtime AI. Gemini path dormant behind `AI_PROVIDER` flag (web research only). See §5 + AI Model Rules below. |
 | Microsoft Graph | Microsoft Graph API (OAuth) | Powers `/calendar` meeting prep, party enrichment, and **on-demand Email Research** (`/email-research` — human-triggered `$search` over the connected mailbox, human-confirmed intake). The automatic email-to-task scraper was removed 2026-06-25 and stays removed. |
-| Vector Search | pgvector inside Supabase Postgres | `gemini-embedding-001`, 768-dim. |
+| Vector Search | pgvector inside Supabase Postgres | `text-embedding-qwen3-embedding-0.6b`, 768-dim (truncated + renormalized). |
 | File Storage | Supabase Storage (`documents` bucket) | Organized by project / entity / site ID. |
-| Deployment | Vercel + Supabase | No containers, no Docker, no servers. |
+| Deployment | **Mac Studio, tailnet-only** (launchd + `tailscale serve`) | `zsh deploy/deploy-to-studio.sh` from the MacBook. Vercel deleted 2026-07-07; `git push` = GitHub backup only. Crons are launchd agents on the Studio. |
 
 ### AI Model Rules (CURRENT — FULLY LOCAL since 2026-07-07)
 
@@ -50,6 +50,8 @@ Canonical reference for every Claude Code session working on the Ber Wilson plat
 - The Gemini path in `gemini.ts` still exists behind the flag but is dormant; cloud Supabase project `qauclkrdejgtpywqixho` is **paused** (restorable safety net); the Vercel project is **deleted**. Every AI call still logs to `ai_queries`.
 
 Anthropic Claude is not used at runtime (removed 2026-06-22).
+
+**Dormant Gemini-path reference (pre-cutover roles; today only web research touches Gemini):**
 
 - **`gemini-2.5-flash`** → Extraction, classification, document/cert summarization, synthesis, briefs, enrichment, research. The workhorse. Routed through `callGemini` / `callGeminiWithFile` in `src/lib/ai/gemini.ts`.
 - **`gemini-2.5-pro`** → The construction-executive agent's main reasoning loop (`src/lib/ai/agent.ts`).
@@ -186,12 +188,18 @@ This is the spine of the "email an opportunity → Ber AI assesses → you decid
 NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
 SUPABASE_SERVICE_ROLE_KEY=
-GEMINI_API_KEY=                  # all runtime AI + embeddings
+AI_PROVIDER=local                # all runtime AI via LM Studio (unset = Gemini path, dormant)
+LOCAL_AI_BASE_URL=               # LM Studio OpenAI-compatible endpoint
+LOCAL_AI_MODEL=                  # must match LM Studio's model identifier
+LOCAL_EMBEDDING_MODEL=
+EMBEDDINGS_PROVIDER=             # defaults to AI_PROVIDER; NEVER flip without re-embedding (§2)
+LOCAL_ALLOW_WEB_RESEARCH=        # true = Enrich Profile web research via Gemini (query-only leaves)
+GEMINI_API_KEY=                  # only used for web research when the flag above is true
 MICROSOFT_TENANT_ID=             # Graph OAuth (calendar, enrichment, email research)
 MICROSOFT_CLIENT_ID=
 MICROSOFT_CLIENT_SECRET=
 MICROSOFT_WEBHOOK_SECRET=
-CRON_SECRET=                     # Vercel injects it as Bearer auth on cron invocations (set 2026-07-03)
+CRON_SECRET=                     # Bearer auth on cron routes; launchd cron agents on the Studio send it
 ```
 `ANTHROPIC_API_KEY` and `PERPLEXITY_API_KEY` are no longer used — remove from any new env files. The n8n-era vars (`N8N_*`, `INGESTION_INBOUND_SECRET`) are gone from Vercel (verified 2026-07-03). `NEXT_PUBLIC_SITE_URL` is no longer referenced anywhere (the agent self-fetches that used it were refactored to direct lib calls 2026-07-03).
 
@@ -257,6 +265,14 @@ Note the drift flagged in §9: `entities`/vendors partly duplicate this. The *su
 - **Verified fully local end-to-end:** `embedQuery`→`match_chunks` returns real content; full `runAgent` loop (tool call → grounded answer, 6.9s) against the local stack; cron route auth OK (tomorrow 6:30am generates the first fully-local brief).
 - **Step 5 (decommission) done:** cloud Supabase project **paused** via Management API (data retained — the rollback safety net; restore from the Supabase dashboard if ever needed), **Vercel project `berwilson-platform` deleted** (deployments + env vars gone; all values live on the Studio + MacBook env files). **`git push` no longer deploys** — it's GitHub backup only; deploying = `zsh deploy/deploy-to-studio.sh`.
 - **Manual items for Richard:** (1) revoke the Gemini API key in Google AI Studio — zero Gemini traffic remains (or keep it and set `LOCAL_ALLOW_WEB_RESEARCH=true` if vendor-enrichment web research is wanted); (2) when reconnecting Microsoft 365 from the new origin, add `https://richards-mac-studio.tail0e5306.ts.net/api/email/oauth/callback` to the Azure app's redirect URIs (existing Graph tokens migrated and keep refreshing server-side); (3) Eric's devices need Tailscale to reach the platform; (4) offsite backup target still pending (enable SSH on the Mac mini).
+
+**Done 2026-07-07 (security hardening pass — post-cutover audit):**
+- **Live audit of the Studio's posture.** Confirmed already-good: FileVault ON, application firewall ON, no auto-login, no public Tailscale Funnel, no default Supabase creds, dashboard password strong (24 char), all secret files `600`, only 3 real users.
+- **CRITICAL FIX — self-signup closed.** Self-hosted Supabase had `DISABLE_SIGNUP=false` + `ENABLE_EMAIL_AUTOCONFIRM=true`, and every RLS policy grants full access to any `authenticated` role (`auth.role() = 'authenticated'`, `WITH CHECK true`). Combined, anyone reaching the tailnet-exposed Supabase API on `:8443` could self-register (auto-confirmed) and read/write the **entire** database, bypassing the Next.js middleware (which only guards the app UI, not the API front door). Fixed: `GOTRUE_DISABLE_SIGNUP=true` in `~/supabase-selfhost/docker/.env` (backup `.env.bak-presec-20260707`) + recreated the `supabase-auth` container. Verified signup now returns `signup_disabled`; existing logins unaffected. **New users are added by admin invite only.**
+- **Offsite encrypted backup wired (item awaiting one manual step).** `~/supabase-selfhost/backup.sh` (backup `.bak-presec-20260707`) now, after the local `pg_dumpall` + storage tarball, `age`-encrypts both artifacts and pushes them to the Mac mini (`richardwhite@100.74.2.126:Backups/berwilson-offsite`, 14-day retention). **The age PRIVATE key lives ONLY on Richard's MacBook** (`~/.config/age/berwilson-offsite-backup.key`, mode 600) — never on the Studio — so a stolen Studio or mini can't decrypt. Public recipient `age1q85gt646wmguldvruj8xfq25vmc0asj7js4xn67095ykqd9mzqsq4j7zc2` is embedded in the script. `age` installed on both machines (Studio: no-sudo binary in `~/.local/bin`; MacBook: brew). The offsite block is **non-fatal** — a mini outage or missing key just logs `WARN`, local backup always completes (verified: local ok, offsite warned gracefully, no stray `.age`).
+- **Tailscale ACL policy drafted** at `deploy/security/tailscale-acl.hujson` (version-controlled copy; the live policy lives in the Tailscale admin console). Currently EVERY tailnet device can reach EVERY Studio port (5432 Postgres, 1234 LM Studio [no auth], 5900 Screen Sharing, 22 SSH, 8000/8443 Supabase). The policy keeps Richard's devices (`group:admins`) full-access and scopes any future non-admin device (Eric, PMs) to only 443 + 8443. Studio left user-owned (untagged) so the backup push is already permitted by the admin rule. Includes an ACL `tests` block that guarantees it can't lock Richard out.
+- **Deferred by Richard:** SSH key-only auth (disable `PasswordAuthentication`) — low value while tailnet-only; not applied.
+- **Two manual steps remain for Richard:** (1) paste `deploy/security/tailscale-acl.hujson` into https://login.tailscale.com/admin/acls; (2) authorize the Studio's SSH key on the mini so the offsite push works — `ssh -t richardwhite@100.86.79.4 'ssh-copy-id richardwhite@100.74.2.126'` (enter the mini's password once); and **store the age private key in his password manager** (without it the offsite backups are unrecoverable).
 
 **Done 2026-07-07 (step 4 groundwork: self-hosted Supabase live on the Studio, trial migration verified):**
 - **A full self-hosted Supabase stack runs on the Mac Studio** under Colima (no-sudo container runtime at `~/.local/bin`; VM: 2 CPU / 3GB / 30GB, autostarts at login via `com.berwilson.colima`). Official compose trimmed to 8 services (`~/supabase-selfhost/docker/docker-compose.lean.yml`) — realtime/edge-functions/supavisor dropped after verifying zero app usage; Postgres 17.6 exactly matches cloud; fresh secrets + self-signed ANON/SERVICE_ROLE JWTs in `docker/.env`. Stack idles at ~1.1GB of the 3GB VM.
