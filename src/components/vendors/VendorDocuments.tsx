@@ -11,7 +11,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
-import { createClient } from '@/lib/supabase/client'
+import { viewDocument, downloadDocument } from '@/lib/utils/document-links'
 import type { Document } from '@/lib/supabase/types'
 
 const DOC_TYPES = [
@@ -133,22 +133,14 @@ export default function VendorDocuments({ entityId, initialDocuments }: VendorDo
     setUploads((prev) => prev.filter((_, i) => i !== index))
   }
 
+  async function handleView(doc: Document) {
+    const ok = await viewDocument(`/api/documents/${doc.id}`, doc.mime_type)
+    if (!ok) toast.error('Could not open the document.')
+  }
+
   async function handleDownload(doc: Document) {
-    const supabase = createClient()
-    const { data, error } = await supabase.storage
-      .from('documents')
-      .createSignedUrl(doc.storage_path, 120)
-
-    if (error || !data?.signedUrl) {
-      toast.error('Could not generate download link.')
-      return
-    }
-
-    const a = document.createElement('a')
-    a.href = data.signedUrl
-    a.download = doc.file_name
-    a.target = '_blank'
-    a.click()
+    const ok = await downloadDocument(`/api/documents/${doc.id}`)
+    if (!ok) toast.error('Could not generate download link.')
   }
 
   async function handleDelete(docId: string) {
@@ -299,7 +291,13 @@ export default function VendorDocuments({ entityId, initialDocuments }: VendorDo
               <div key={doc.id} className="flex items-start gap-2 rounded-md border border-border bg-card px-3 py-2">
                 <File size={14} className="shrink-0 text-muted-foreground mt-0.5" />
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs font-medium truncate">{doc.file_name}</p>
+                  <button
+                    onClick={() => handleView(doc)}
+                    className="block max-w-full text-left text-xs font-medium truncate hover:underline"
+                    title="Open document"
+                  >
+                    {doc.file_name}
+                  </button>
                   <div className="flex items-center gap-1.5 mt-0.5">
                     <span className={`inline-flex rounded px-1 py-0.5 text-xs font-medium ring-1 ring-inset capitalize ${DOC_TYPE_COLORS[docType] ?? DOC_TYPE_COLORS.other}`}>
                       {docType}

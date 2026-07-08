@@ -3,7 +3,7 @@
 import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { Upload, Download, Trash2, File, Loader2, Sparkles } from 'lucide-react'
-import { createClient } from '@/lib/supabase/client'
+import { viewDocument, downloadDocument } from '@/lib/utils/document-links'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
@@ -60,22 +60,21 @@ export default function OpportunityDocuments({ opportunityId, documents }: Oppor
     }
   }
 
+  async function handleView(doc: OpportunityDocument) {
+    setBusyId(doc.id)
+    try {
+      const ok = await viewDocument(`/api/opportunities/documents/${doc.id}`, doc.mime_type)
+      if (!ok) toast.error('Could not open the document.')
+    } finally {
+      setBusyId(null)
+    }
+  }
+
   async function handleDownload(doc: OpportunityDocument) {
     setBusyId(doc.id)
     try {
-      const supabase = createClient()
-      const { data, error } = await supabase.storage
-        .from('documents')
-        .createSignedUrl(doc.storage_path, 120)
-      if (error || !data?.signedUrl) {
-        toast.error('Could not generate download link.')
-        return
-      }
-      const a = document.createElement('a')
-      a.href = data.signedUrl
-      a.download = doc.file_name
-      a.target = '_blank'
-      a.click()
+      const ok = await downloadDocument(`/api/opportunities/documents/${doc.id}`)
+      if (!ok) toast.error('Could not generate download link.')
     } finally {
       setBusyId(null)
     }
@@ -157,7 +156,14 @@ export default function OpportunityDocuments({ opportunityId, documents }: Oppor
                 <File size={18} className="shrink-0 mt-0.5 text-muted-foreground" />
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-sm font-medium truncate">{doc.file_name}</span>
+                    <button
+                      onClick={() => handleView(doc)}
+                      disabled={busyId === doc.id}
+                      className="text-left text-sm font-medium truncate hover:underline disabled:opacity-50"
+                      title="Open document"
+                    >
+                      {doc.file_name}
+                    </button>
                     {doc.doc_type && (
                       <span className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
                         {OPPORTUNITY_DOC_TYPE_LABELS[doc.doc_type] ?? doc.doc_type}

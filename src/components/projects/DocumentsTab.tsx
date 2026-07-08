@@ -14,7 +14,7 @@ import {
 import EmptyState from '@/components/shared/EmptyState'
 import ConfidenceBadge from '@/components/shared/ConfidenceBadge'
 import { toast } from 'sonner'
-import { createClient } from '@/lib/supabase/client'
+import { viewDocument, downloadDocument } from '@/lib/utils/document-links'
 import type { Document } from '@/lib/supabase/types'
 
 // ---------------------------------------------------------------------------
@@ -100,27 +100,25 @@ function DocumentRow({
   onDelete: (id: string) => void
 }) {
   const [downloading, setDownloading] = useState(false)
+  const [viewing, setViewing] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
+
+  async function handleView() {
+    setViewing(true)
+    try {
+      const ok = await viewDocument(`/api/documents/${doc.id}`, doc.mime_type)
+      if (!ok) toast.error('Could not open the document. Please try again.')
+    } finally {
+      setViewing(false)
+    }
+  }
 
   async function handleDownload() {
     setDownloading(true)
     try {
-      const supabase = createClient()
-      const { data, error } = await supabase.storage
-        .from('documents')
-        .createSignedUrl(doc.storage_path, 120)
-
-      if (error || !data?.signedUrl) {
-        toast.error('Could not generate download link. Please try again.')
-        return
-      }
-
-      const a = document.createElement('a')
-      a.href = data.signedUrl
-      a.download = doc.file_name
-      a.target = '_blank'
-      a.click()
+      const ok = await downloadDocument(`/api/documents/${doc.id}`)
+      if (!ok) toast.error('Could not generate download link. Please try again.')
     } finally {
       setDownloading(false)
     }
@@ -154,7 +152,14 @@ function DocumentRow({
 
         {/* Main info */}
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium text-foreground truncate">{doc.file_name}</p>
+          <button
+            onClick={handleView}
+            disabled={viewing}
+            className="block max-w-full text-left text-sm font-medium text-foreground truncate hover:underline disabled:opacity-50"
+            title="Open document"
+          >
+            {doc.file_name}
+          </button>
           <div className="flex flex-wrap items-center gap-2 mt-1">
             {/* doc_type badge */}
             <span

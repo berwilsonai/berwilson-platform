@@ -1,9 +1,50 @@
 import { NextRequest } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { getViewer, canAccessProject, forbiddenJson, actorAdminClient } from '@/lib/auth/viewer'
 
 interface RouteContext {
   params: Promise<{ id: string }>
+}
+
+// Returns a short-lived signed URL for viewing (?download=1 forces a
+// download). Signed with the admin client — the self-hosted storage has no
+// anon RLS policies, so browser-side signing always fails; access control
+// happens here instead.
+export async function GET(request: NextRequest, { params }: RouteContext) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const { id } = await params
+
+  const { data: doc, error: fetchError } = await supabase
+    .from('documents')
+    .select('id, storage_path, file_name, project_id')
+    .eq('id', id)
+    .single()
+
+  if (fetchError || !doc) {
+    return Response.json({ error: 'Document not found' }, { status: 404 })
+  }
+
+  // Scoped users may only open documents on their granted projects.
+  const viewer = await getViewer()
+  if (viewer && !viewer.isAdmin) {
+    if (!doc.project_id || !(await canAccessProject(viewer, doc.project_id))) return forbiddenJson()
+  }
+
+  const download = request.nextUrl.searchParams.get('download') === '1'
+  const admin = createAdminClient()
+  const { data, error: signError } = await admin.storage
+    .from('documents')
+    .createSignedUrl(doc.storage_path, 300, download ? { download: doc.file_name } : undefined)
+
+  if (signError || !data?.signedUrl) {
+    return Response.json({ error: signError?.message ?? 'Could not create link' }, { status: 500 })
+  }
+
+  return Response.json({ url: data.signedUrl })
 }
 
 export async function DELETE(_request: NextRequest, { params }: RouteContext) {
