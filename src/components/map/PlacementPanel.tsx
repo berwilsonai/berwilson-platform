@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { ChevronDown, ChevronUp, MapPin, Route, Search } from 'lucide-react'
+import { ChevronDown, ChevronUp, Loader2, MapPin, Route, Search, Wand2 } from 'lucide-react'
 import type { MapProject } from '@/lib/map/types'
 import { MarkerGlyph, iconForProject } from './markers'
 
@@ -11,6 +11,9 @@ interface PlacementPanelProps {
   total: number
   onStartPlace: (id: string) => void
   onStartDraw: (id: string) => void
+  onAutoPlace: (id: string) => void
+  onAutoPlaceAll: () => void
+  autoPlacing: boolean
 }
 
 export default function PlacementPanel({
@@ -19,6 +22,9 @@ export default function PlacementPanel({
   total,
   onStartPlace,
   onStartDraw,
+  onAutoPlace,
+  onAutoPlaceAll,
+  autoPlacing,
 }: PlacementPanelProps) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
@@ -33,6 +39,7 @@ export default function PlacementPanel({
           (p.location ?? '').toLowerCase().includes(q)
       )
     : unplaced
+  const withLocation = unplaced.filter((p) => p.location?.trim()).length
 
   return (
     <div className="absolute bottom-4 left-4 z-10 w-72 overflow-hidden rounded-xl border border-border bg-card shadow-lg elev-2">
@@ -56,6 +63,23 @@ export default function PlacementPanel({
 
       {open && (
         <div className="border-t border-border">
+          {withLocation > 0 && (
+            <div className="border-b border-border p-2">
+              <button
+                onClick={onAutoPlaceAll}
+                disabled={autoPlacing}
+                title="Look up each project's location text (offline city/ZIP lookup) and drop pins at the matched centers — reposition any afterwards"
+                className="inline-flex h-7 w-full items-center justify-center gap-1.5 rounded-md border border-border bg-background text-xs font-medium transition-colors hover:bg-accent disabled:opacity-60"
+              >
+                {autoPlacing ? (
+                  <Loader2 size={13} className="animate-spin" />
+                ) : (
+                  <Wand2 size={13} />
+                )}
+                Auto-place {withLocation} from location{withLocation === 1 ? '' : 's'}
+              </button>
+            </div>
+          )}
           <div className="relative border-b border-border">
             <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
             <input
@@ -89,6 +113,16 @@ export default function PlacementPanel({
                     )}
                   </span>
                 </button>
+                {p.location?.trim() && (
+                  <button
+                    onClick={() => onAutoPlace(p.id)}
+                    disabled={autoPlacing}
+                    title={`Place from “${p.location}” (offline lookup)`}
+                    className="inline-flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-opacity hover:bg-background hover:text-foreground focus-visible:opacity-100 disabled:opacity-40 group-hover:opacity-100"
+                  >
+                    <Wand2 size={14} />
+                  </button>
+                )}
                 <button
                   onClick={() => onStartDraw(p.id)}
                   title="Draw a route instead of a marker (rail corridors)"

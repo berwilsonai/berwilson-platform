@@ -61,6 +61,7 @@ export default function MapPageClient({
       : null
   )
   const [placingId, setPlacingId] = useState<string | null>(null)
+  const [autoPlacing, setAutoPlacing] = useState(false)
   const [drawingId, setDrawingId] = useState<string | null>(null)
   const [present, setPresent] = useState(false)
   const [hiddenSectors, setHiddenSectors] = useState<Set<ProjectSector>>(new Set())
@@ -121,15 +122,21 @@ export default function MapPageClient({
     ? merged.find((p) => p.id === activeTarget)?.name ?? ''
     : ''
 
-  async function patchProject(id: string, fields: Override): Promise<boolean> {
+  async function patchProject(
+    id: string,
+    fields: Override,
+    { silent = false } = {}
+  ): Promise<boolean> {
     const res = await fetch(`/api/projects/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(fields),
     })
     if (!res.ok) {
-      const body = await res.json().catch(() => ({}))
-      toast.error(body.error ?? 'Save failed')
+      if (!silent) {
+        const body = await res.json().catch(() => ({}))
+        toast.error(body.error ?? 'Save failed')
+      }
       return false
     }
     return true
@@ -144,6 +151,113 @@ export default function MapPageClient({
       return
     }
     router.refresh()
+  }
+
+  // Offline location → pin lookup (bundled Census gazetteer; nothing leaves
+  // the box). Precision is city/ZIP-center — the toast says what matched so
+  // Reposition can refine.
+  interface GeocodeHit {
+    id: string
+    latitude: number | null
+    longitude?: number
+    matched?: string
+    precision?: 'zip' | 'city' | 'state'
+  }
+
+  async function geocode(queries: { id: string; text: string }[]): Promise<GeocodeHit[]> {
+    const res = await fetch('/api/map/geocode', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ queries }),
+    })
+    if (!res.ok) throw new Error('geocode failed')
+    return (await res.json()).results
+  }
+
+  async function handleAutoPlace(id: string) {
+    const p = merged.find((x) => x.id === id)
+    if (!p?.location?.trim()) return
+    setAutoPlacing(true)
+    try {
+      const [hit] = await geocode([{ id, text: p.location }])
+      if (!hit || hit.latitude == null || hit.longitude == null) {
+        toast.info(`Couldn't read “${p.location}” — click the row, then click the map to place it`)
+        return
+      }
+      await saveFields(id, { latitude: hit.latitude, longitude: hit.longitude })
+      setSelectedId(id)
+      toast.success(
+        hit.precision === 'state'
+          ? `Only matched the state (${hit.matched}) — use Reposition to put it where it belongs`
+          : `Placed at ${hit.matched} — Reposition to fine-tune`
+      )
+    } catch {
+      toast.error('Location lookup failed')
+    } finally {
+      setAutoPlacing(false)
+    }
+  }
+
+  async function handleAutoPlaceAll() {
+    const targets = unplaced.filter((p) => p.location?.trim())
+    if (targets.length === 0) return
+    setAutoPlacing(true)
+    try {
+      const results = await geocode(
+        targets.map((p) => ({ id: p.id, text: p.location!.trim() }))
+      )
+      // Bulk takes city/ZIP matches only — a state centroid is a worse
+      // starting point than staying on the unplaced list.
+      const hits = results.filter(
+        (r): r is GeocodeHit & { latitude: number; longitude: number } =>
+          r.latitude != null && r.longitude != null && r.precision !== 'state'
+      )
+      if (hits.length === 0) {
+        toast.info('No locations could be matched — place these on the map by hand')
+        return
+      }
+      const prev = overrides
+      setOverrides((o) => {
+        const next = { ...o }
+        for (const h of hits) {
+          next[h.id] = { ...next[h.id], latitude: h.latitude, longitude: h.longitude }
+        }
+        return next
+      })
+      const failed: string[] = []
+      for (let i = 0; i < hits.length; i += 5) {
+        await Promise.all(
+          hits.slice(i, i + 5).map(async (h) => {
+            const ok = await patchProject(
+              h.id,
+              { latitude: h.latitude, longitude: h.longitude },
+              { silent: true }
+            )
+            if (!ok) failed.push(h.id)
+          })
+        )
+      }
+      if (failed.length > 0) {
+        setOverrides((o) => {
+          const next = { ...o }
+          for (const id of failed) next[id] = { ...prev[id] }
+          return next
+        })
+      }
+      router.refresh()
+      const placedNow = hits.length - failed.length
+      const remaining = unplaced.length - placedNow
+      if (placedNow === 0) toast.error('Placement saves failed — try again')
+      else
+        toast.success(
+          `Placed ${placedNow} project${placedNow === 1 ? '' : 's'} from location` +
+            (remaining > 0 ? ` — ${remaining} still need manual placement` : '')
+        )
+    } catch {
+      toast.error('Location lookup failed')
+    } finally {
+      setAutoPlacing(false)
+    }
   }
 
   function handlePlace(lngLat: [number, number]) {
@@ -408,6 +522,9 @@ export default function MapPageClient({
             setSelectedId(null)
             setDrawingId(id)
           }}
+          onAutoPlace={(id) => void handleAutoPlace(id)}
+          onAutoPlaceAll={() => void handleAutoPlaceAll()}
+          autoPlacing={autoPlacing}
         />
       )}
 
