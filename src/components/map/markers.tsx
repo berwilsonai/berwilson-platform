@@ -1,6 +1,6 @@
 import type { ProjectSector } from '@/lib/supabase/types'
 import type { MapIconType } from '@/lib/map/constants'
-import { isMapIconType } from '@/lib/map/constants'
+import { isMapIconType, projectPhase } from '@/lib/map/constants'
 import { formatValue } from '@/lib/utils/constants'
 import type { MapProject } from '@/lib/map/types'
 
@@ -44,12 +44,43 @@ const SECTOR_PUCK: Record<ProjectSector, string> = {
   institutional: 'bg-slate-500',
 }
 
+// Outlined (pipeline) variant: card-colored puck, sector-colored ring + glyph
+const SECTOR_OUTLINE: Record<ProjectSector, string> = {
+  government: 'text-blue-600 ring-blue-600 dark:text-blue-400 dark:ring-blue-400',
+  infrastructure: 'text-amber-500 ring-amber-500 dark:text-amber-400 dark:ring-amber-400',
+  real_estate: 'text-emerald-600 ring-emerald-600 dark:text-emerald-400 dark:ring-emerald-400',
+  prefab: 'text-violet-600 ring-violet-600 dark:text-violet-400 dark:ring-violet-400',
+  institutional: 'text-slate-500 ring-slate-500 dark:text-slate-400 dark:ring-slate-400',
+}
+
 export const SECTOR_LINE_COLOR: Record<ProjectSector, string> = {
   government: '#2563eb',
   infrastructure: '#f59e0b',
   real_estate: '#059669',
   prefab: '#7c3aed',
   institutional: '#64748b',
+}
+
+// Value-scaled markers: three size tiers so a $2B program reads bigger than a
+// sub-$1M municipal job. Unknown value gets the neutral middle tier.
+type MarkerTier = 'sm' | 'md' | 'lg'
+
+function markerTier(value: number | null | undefined): MarkerTier {
+  if (value == null) return 'md'
+  if (value >= 250_000_000) return 'lg'
+  if (value >= 20_000_000) return 'md'
+  return 'sm'
+}
+
+const TIER_STYLE: Record<MarkerTier, { puck: string; glyph: number; tip: string }> = {
+  sm: { puck: 'size-7', glyph: 14, tip: 'size-1.5' },
+  md: { puck: 'size-9', glyph: 18, tip: 'size-2' },
+  lg: { puck: 'size-11', glyph: 22, tip: 'size-2.5' },
+}
+
+/** Stamped onto marker elements so MapView's diff can detect stale styling. */
+export function markerVariant(p: Pick<MapProject, 'stage' | 'estimated_value'>): string {
+  return `${projectPhase(p.stage)}:${markerTier(p.estimated_value)}`
 }
 
 export function iconForProject(project: Pick<MapProject, 'map_icon' | 'sector'>): MapIconType {
@@ -87,14 +118,21 @@ function escapeHtml(s: string): string {
  */
 export function buildMarkerElement(project: MapProject): HTMLDivElement {
   const icon = iconForProject(project)
-  const puck = SECTOR_PUCK[project.sector] ?? 'bg-slate-500'
+  const solid = SECTOR_PUCK[project.sector] ?? 'bg-slate-500'
+  const tier = TIER_STYLE[markerTier(project.estimated_value)]
+  // Awarded work = solid sector puck; pipeline = outlined (card bg, sector ring)
+  const awarded = projectPhase(project.stage) === 'awarded'
+  const puckStyle = awarded
+    ? `${solid} text-white ring-white dark:ring-slate-900`
+    : `bg-card ${SECTOR_OUTLINE[project.sector] ?? 'text-slate-500 ring-slate-500'}`
 
   const el = document.createElement('div')
   // z-10 while hovered/selected so the label isn't buried under sibling markers
   el.className = 'group cursor-pointer select-none hover:z-10 data-[selected=true]:z-10'
-  // Stamped so MapView's diff can detect a stale glyph and rebuild
+  // Stamped so MapView's diff can detect a stale glyph/style and rebuild
   el.dataset.icon = icon
   el.dataset.sector = project.sector
+  el.dataset.variant = markerVariant(project)
   const valueLine =
     project.estimated_value != null
       ? `<div class="tnum text-[11px] leading-tight text-muted-foreground">${formatValue(project.estimated_value)}</div>`
@@ -105,10 +143,31 @@ export function buildMarkerElement(project: MapProject): HTMLDivElement {
         <div class="truncate text-xs font-medium leading-tight text-foreground">${escapeHtml(project.name)}</div>
         ${valueLine}
       </div>
-      <div class="flex size-9 items-center justify-center rounded-full ${puck} text-white ring-2 ring-white shadow-md dark:ring-slate-900 group-data-[selected=true]:ring-[3px]">
-        ${glyphSvg(icon, 18)}
+      <div class="flex ${tier.puck} items-center justify-center rounded-full ${puckStyle} ring-2 shadow-md group-data-[selected=true]:ring-[3px]">
+        ${glyphSvg(icon, tier.glyph)}
       </div>
-      <div class="-mt-[3px] size-2 rotate-45 ${puck} rounded-[1px] shadow-md"></div>
+      <div class="-mt-[3px] ${tier.tip} rotate-45 ${solid} rounded-[1px] shadow-md"></div>
+    </div>`
+  return el
+}
+
+/**
+ * Cluster puck for overlapping markers at low zoom: count badge, sector color
+ * when the members are homogeneous, neutral slate otherwise.
+ */
+export function buildClusterElement(members: MapProject[]): HTMLDivElement {
+  const count = members.length
+  const sectors = new Set(members.map((m) => m.sector))
+  const puck =
+    sectors.size === 1 ? SECTOR_PUCK[members[0].sector] ?? 'bg-slate-700' : 'bg-slate-700'
+  const size = count >= 10 ? 'size-11 text-sm' : count >= 5 ? 'size-10 text-sm' : 'size-9 text-xs'
+
+  const el = document.createElement('div')
+  el.className = 'cursor-pointer select-none hover:z-10'
+  el.title = members.map((m) => m.name).join('\n')
+  el.innerHTML = `
+    <div class="flex ${size} items-center justify-center rounded-full ${puck} font-semibold text-white ring-2 ring-white shadow-md transition-transform duration-150 hover:scale-110 dark:ring-slate-900">
+      ${count}
     </div>`
   return el
 }

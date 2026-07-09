@@ -8,7 +8,14 @@ import { Protocol } from 'pmtiles'
 import { buildMapStyle, type MapFlavor } from '@/lib/map/style'
 import { MAP_HOME } from '@/lib/map/constants'
 import type { MapProject, LineStringGeometry } from '@/lib/map/types'
-import { buildMarkerElement, iconForProject, setMarkerSelected, SECTOR_LINE_COLOR } from './markers'
+import {
+  buildClusterElement,
+  buildMarkerElement,
+  iconForProject,
+  markerVariant,
+  setMarkerSelected,
+  SECTOR_LINE_COLOR,
+} from './markers'
 
 // Register the pmtiles protocol once per session
 let protocolRegistered = false
@@ -40,6 +47,8 @@ interface MapViewProps {
   /** Receives imperative controls (flyHome etc.) once the map exists. */
   apiRef: { current: MapApi | null }
   onBasemapError: () => void
+  /** Animate a dash-flow along route lines (present mode). */
+  animateLines: boolean
 }
 
 function currentFlavor(): MapFlavor {
@@ -48,8 +57,20 @@ function currentFlavor(): MapFlavor {
 
 const LINE_SOURCE = 'project-lines'
 const DRAW_SOURCE = 'draw-temp'
+const DASH_LAYER = 'project-lines-dash'
 // Above this zoom, marker labels stay visible (not just on hover)
 const LABEL_ZOOM = 9
+// Screen-space clustering: markers within this pixel radius merge into a
+// count puck; past CLUSTER_MAX_ZOOM they never cluster (same-site escape hatch).
+const CLUSTER_RADIUS = 48
+const CLUSTER_MAX_ZOOM = 14
+
+// Ant-path frames for the present-mode route animation (maplibre's
+// line-dasharray doesn't interpolate, so we cycle discrete patterns).
+const DASH_SEQUENCE: number[][] = [
+  [0, 4, 3], [0.5, 4, 2.5], [1, 4, 2], [1.5, 4, 1.5], [2, 4, 1], [2.5, 4, 0.5], [3, 4, 0],
+  [0, 0.5, 3, 3.5], [0, 1, 3, 3], [0, 1.5, 3, 2.5], [0, 2, 3, 2], [0, 2.5, 3, 1.5], [0, 3, 3, 1], [0, 3.5, 3, 0.5],
+]
 
 export default function MapView({
   projects,
@@ -64,12 +85,18 @@ export default function MapView({
   onDrawCancel,
   apiRef,
   onBasemapError,
+  animateLines,
 }: MapViewProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<maplibregl.Map | null>(null)
   const markersRef = useRef<Map<string, maplibregl.Marker>>(new Map())
+  const clustersRef = useRef<Map<string, maplibregl.Marker>>(new Map())
   const projectsRef = useRef(projects)
   projectsRef.current = projects
+  const selectedRef = useRef(selectedId)
+  selectedRef.current = selectedId
+  const animateRef = useRef(animateLines)
+  animateRef.current = animateLines
   const drawCoordsRef = useRef<[number, number][]>([])
   // Keep latest callbacks reachable from stable map listeners
   const handlersRef = useRef({ onSelect, onPlace, onDrawComplete, onDrawCancel, placing, drawing, drawingProjectId, drawColor })
@@ -113,6 +140,9 @@ export default function MapView({
     map.on('zoom', syncLabels)
     syncLabels()
 
+    // Re-group overlapping markers whenever the camera settles
+    map.on('moveend', () => refreshClusters(map))
+
     map.on('click', (e) => {
       const h = handlersRef.current
       const lngLat: [number, number] = [
@@ -152,16 +182,101 @@ export default function MapView({
 
     mapRef.current = map
     const markers = markersRef.current
+    const clusters = clustersRef.current
     return () => {
       observer.disconnect()
       apiRef.current = null
       markers.forEach((m) => m.remove())
       markers.clear()
+      clusters.forEach((m) => m.remove())
+      clusters.clear()
       map.remove()
       mapRef.current = null
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // ── Screen-space clustering ────────────────────────────────────────────────
+  // Greedy pixel-radius grouping recomputed on camera settle / data change.
+  // The selected project never clusters, so tour/selection highlights survive.
+  function refreshClusters(map: maplibregl.Map) {
+    const markers = markersRef.current
+    const clusters = clustersRef.current
+    type Group = { members: MapProject[]; x: number; y: number }
+    const groups: Group[] = []
+
+    if (map.getZoom() < CLUSTER_MAX_ZOOM) {
+      const pts = projectsRef.current
+        .filter(
+          (p) =>
+            p.latitude != null && p.longitude != null && p.id !== selectedRef.current
+        )
+        .map((p) => ({
+          p,
+          pt: map.project([p.longitude as number, p.latitude as number]),
+        }))
+      const used = new Set<string>()
+      for (const a of pts) {
+        if (used.has(a.p.id)) continue
+        used.add(a.p.id)
+        const g: Group = { members: [a.p], x: a.pt.x, y: a.pt.y }
+        for (const b of pts) {
+          if (used.has(b.p.id)) continue
+          if (Math.hypot(b.pt.x - a.pt.x, b.pt.y - a.pt.y) <= CLUSTER_RADIUS) {
+            used.add(b.p.id)
+            g.members.push(b.p)
+            g.x += b.pt.x
+            g.y += b.pt.y
+          }
+        }
+        if (g.members.length >= 2) groups.push(g)
+      }
+    }
+
+    const hidden = new Set(groups.flatMap((g) => g.members.map((m) => m.id)))
+    for (const [id, marker] of markers) {
+      marker.getElement().style.display = hidden.has(id) ? 'none' : ''
+    }
+
+    const nextKeys = new Set<string>()
+    for (const g of groups) {
+      const key = g.members
+        .map((m) => m.id)
+        .sort()
+        .join('|')
+      nextKeys.add(key)
+      const centroid = map.unproject([g.x / g.members.length, g.y / g.members.length])
+      const existing = clusters.get(key)
+      if (existing) {
+        existing.setLngLat(centroid)
+        continue
+      }
+      const first: [number, number] = [
+        g.members[0].longitude as number,
+        g.members[0].latitude as number,
+      ]
+      const bounds = g.members.reduce(
+        (b, m) => b.extend([m.longitude as number, m.latitude as number]),
+        new maplibregl.LngLatBounds(first, first)
+      )
+      const el = buildClusterElement(g.members)
+      el.addEventListener('click', (ev) => {
+        ev.stopPropagation()
+        if (handlersRef.current.drawing || handlersRef.current.placing) return
+        map.fitBounds(bounds, { padding: 120, maxZoom: CLUSTER_MAX_ZOOM + 0.5 })
+      })
+      clusters.set(
+        key,
+        new maplibregl.Marker({ element: el }).setLngLat(centroid).addTo(map)
+      )
+    }
+    for (const [key, marker] of clusters) {
+      if (!nextKeys.has(key)) {
+        marker.remove()
+        clusters.delete(key)
+      }
+    }
+  }
 
   // ── Line overlays (rail corridors etc.) ────────────────────────────────────
   function ensureOverlays(map: maplibregl.Map) {
@@ -197,6 +312,23 @@ export default function MapView({
         source: LINE_SOURCE,
         paint: { 'line-color': ['get', 'color'], 'line-width': 3 },
         layout: { 'line-cap': 'round', 'line-join': 'round' },
+      })
+      // Present-mode dash-flow overlay; the animation effect toggles visibility
+      map.addLayer({
+        id: DASH_LAYER,
+        type: 'line',
+        source: LINE_SOURCE,
+        paint: {
+          'line-color': '#ffffff',
+          'line-opacity': 0.8,
+          'line-width': 1.6,
+          'line-dasharray': DASH_SEQUENCE[0],
+        },
+        layout: {
+          'line-cap': 'round',
+          'line-join': 'round',
+          visibility: animateRef.current ? 'visible' : 'none',
+        },
       })
       map.on('click', 'project-lines-main', (e) => {
         if (handlersRef.current.drawing || handlersRef.current.placing) return
@@ -273,10 +405,14 @@ export default function MapView({
       let existing = markers.get(p.id)
       let wasSelected = false
       if (existing) {
-        // The glyph/puck are baked into the element at creation — rebuild the
-        // marker if the project's icon or sector changed since.
+        // The glyph/puck/size are baked into the element at creation — rebuild
+        // the marker if the project's icon, sector, phase, or tier changed.
         const prevEl = existing.getElement()
-        if (prevEl.dataset.icon !== iconForProject(p) || prevEl.dataset.sector !== p.sector) {
+        if (
+          prevEl.dataset.icon !== iconForProject(p) ||
+          prevEl.dataset.sector !== p.sector ||
+          prevEl.dataset.variant !== markerVariant(p)
+        ) {
           wasSelected = prevEl.dataset.selected === 'true'
           existing.remove()
           markers.delete(p.id)
@@ -302,7 +438,8 @@ export default function MapView({
 
     // Refresh line overlays when geometry-bearing projects change
     if (map.isStyleLoaded()) ensureOverlays(map)
-     
+    refreshClusters(map)
+
   }, [projects])
 
   // ── Selection highlight + fly ──────────────────────────────────────────────
@@ -311,6 +448,9 @@ export default function MapView({
     for (const [id, marker] of markers) {
       setMarkerSelected(marker.getElement(), id === selectedId)
     }
+    // Selected marker is exempt from clustering — pull it out immediately
+    // (the flyTo's moveend refreshes again once the camera settles)
+    if (mapRef.current) refreshClusters(mapRef.current)
     if (selectedId) {
       const p = projects.find((x) => x.id === selectedId)
       if (p && p.latitude != null && p.longitude != null && mapRef.current) {
@@ -340,6 +480,35 @@ export default function MapView({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedId])
+
+  // ── Route dash-flow animation (present mode) ───────────────────────────────
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map) return
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    if (!animateLines || reduceMotion) {
+      if (map.getLayer(DASH_LAYER)) map.setLayoutProperty(DASH_LAYER, 'visibility', 'none')
+      return
+    }
+    if (map.getLayer(DASH_LAYER)) map.setLayoutProperty(DASH_LAYER, 'visibility', 'visible')
+    let step = -1
+    let raf = 0
+    const tick = (t: number) => {
+      const next = Math.floor(t / 80) % DASH_SEQUENCE.length
+      if (next !== step) {
+        step = next
+        if (map.getLayer(DASH_LAYER)) {
+          map.setPaintProperty(DASH_LAYER, 'line-dasharray', DASH_SEQUENCE[step])
+        }
+      }
+      raf = requestAnimationFrame(tick)
+    }
+    raf = requestAnimationFrame(tick)
+    return () => {
+      cancelAnimationFrame(raf)
+      if (map.getLayer(DASH_LAYER)) map.setLayoutProperty(DASH_LAYER, 'visibility', 'none')
+    }
+  }, [animateLines])
 
   // ── Mode side-effects (cursor, draw reset, Esc/Enter) ─────────────────────
   useEffect(() => {

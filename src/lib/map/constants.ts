@@ -33,6 +33,26 @@ export function isMapIconType(v: unknown): v is MapIconType {
   return typeof v === 'string' && (MAP_ICON_TYPES as readonly string[]).includes(v)
 }
 
+// Pipeline vs awarded work: pre-award stages read as pursuit; award+ is won.
+// Drives the map's phase filter and the solid-vs-outlined marker styles.
+export type MapPhase = 'awarded' | 'pipeline'
+
+export const MAP_PHASES: MapPhase[] = ['awarded', 'pipeline']
+
+export const MAP_PHASE_LABELS: Record<MapPhase, string> = {
+  awarded: 'Awarded',
+  pipeline: 'Pipeline',
+}
+
+export function projectPhase(stage: string | null | undefined): MapPhase {
+  return stage === 'award' ||
+    stage === 'mobilization' ||
+    stage === 'execution' ||
+    stage === 'closeout'
+    ? 'awarded'
+    : 'pipeline'
+}
+
 // Utah default camera; US-wide basemap underneath for the nationwide future.
 export const MAP_HOME = { center: [-111.6, 39.4] as [number, number], zoom: 6.3 }
 

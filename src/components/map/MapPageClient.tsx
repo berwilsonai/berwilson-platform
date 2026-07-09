@@ -13,11 +13,18 @@ import {
   formatValue,
   weightedValue,
 } from '@/lib/utils/constants'
-import type { MapIconType } from '@/lib/map/constants'
+import {
+  MAP_PHASES,
+  MAP_PHASE_LABELS,
+  projectPhase,
+  type MapIconType,
+  type MapPhase,
+} from '@/lib/map/constants'
 import type { MapProject, LineStringGeometry } from '@/lib/map/types'
 import type { MapApi } from './MapView'
 import ProjectMapSheet from './ProjectMapSheet'
 import PlacementPanel from './PlacementPanel'
+import MapSearch from './MapSearch'
 
 function MapSkeleton() {
   return <div className="absolute inset-0 animate-pulse bg-muted" />
@@ -30,22 +37,35 @@ interface MapPageClientProps {
   projects: MapProject[]
   photoUrls: Record<string, string[]>
   isAdmin: boolean
+  /** Deep link (/map?project=<id>) — opens selected + flown-to. */
+  initialProjectId?: string | null
 }
 
 type Override = Partial<
   Pick<MapProject, 'latitude' | 'longitude' | 'map_icon' | 'map_geometry'>
 >
 
-export default function MapPageClient({ projects, photoUrls, isAdmin }: MapPageClientProps) {
+export default function MapPageClient({
+  projects,
+  photoUrls,
+  isAdmin,
+  initialProjectId,
+}: MapPageClientProps) {
   const router = useRouter()
   const apiRef = useRef<MapApi | null>(null)
 
   const [overrides, setOverrides] = useState<Record<string, Override>>({})
-  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [selectedId, setSelectedId] = useState<string | null>(() =>
+    initialProjectId && projects.some((p) => p.id === initialProjectId)
+      ? initialProjectId
+      : null
+  )
   const [placingId, setPlacingId] = useState<string | null>(null)
   const [drawingId, setDrawingId] = useState<string | null>(null)
   const [present, setPresent] = useState(false)
   const [hiddenSectors, setHiddenSectors] = useState<Set<ProjectSector>>(new Set())
+  const [phaseFilter, setPhaseFilter] = useState<'all' | MapPhase>('all')
+  const [photoLightbox, setPhotoLightbox] = useState(false)
   const [basemapMissing, setBasemapMissing] = useState(false)
 
   const merged = useMemo(
@@ -66,8 +86,13 @@ export default function MapPageClient({ projects, photoUrls, isAdmin }: MapPageC
     [merged, placed]
   )
   const visible = useMemo(
-    () => (hiddenSectors.size ? placed.filter((p) => !hiddenSectors.has(p.sector)) : placed),
-    [placed, hiddenSectors]
+    () =>
+      placed.filter(
+        (p) =>
+          (!hiddenSectors.size || !hiddenSectors.has(p.sector)) &&
+          (phaseFilter === 'all' || projectPhase(p.stage) === phaseFilter)
+      ),
+    [placed, hiddenSectors, phaseFilter]
   )
   const sectorsInUse = useMemo(
     () => SECTORS.filter((s) => placed.some((p) => p.sector === s)),
@@ -165,6 +190,10 @@ export default function MapPageClient({ projects, photoUrls, isAdmin }: MapPageC
     if (!present) return
     const onKey = (e: KeyboardEvent) => {
       if (placingId || drawingId) return
+      // Lightbox arrows navigate photos; typing in an input moves the caret
+      if (photoLightbox) return
+      const t = e.target as HTMLElement | null
+      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return
       if (e.key === 'ArrowRight' || e.key === 'PageDown') {
         e.preventDefault()
         e.stopPropagation()
@@ -177,7 +206,7 @@ export default function MapPageClient({ projects, photoUrls, isAdmin }: MapPageC
     }
     window.addEventListener('keydown', onKey, true)
     return () => window.removeEventListener('keydown', onKey, true)
-  }, [present, placingId, drawingId, stepTour])
+  }, [present, placingId, drawingId, stepTour, photoLightbox])
 
   // Present mode: overlay covers the app chrome; browser fullscreen on top.
   // documentElement (not the map div) so portaled sheets stay visible.
@@ -217,6 +246,7 @@ export default function MapPageClient({ projects, photoUrls, isAdmin }: MapPageC
         onDrawCancel={cancelModes}
         apiRef={apiRef}
         onBasemapError={() => setBasemapMissing(true)}
+        animateLines={present}
       />
 
       {/* Toolbar */}
@@ -236,6 +266,25 @@ export default function MapPageClient({ projects, photoUrls, isAdmin }: MapPageC
           >
             {present ? <X size={14} /> : <Presentation size={14} />}
           </button>
+        </div>
+
+        <MapSearch projects={visible} onPick={setSelectedId} />
+
+        {/* Awarded / pipeline filter */}
+        <div className="flex items-center gap-0.5 rounded-lg border border-border bg-card p-1 shadow-sm elev-1">
+          {(['all', ...MAP_PHASES] as const).map((ph) => (
+            <button
+              key={ph}
+              onClick={() => setPhaseFilter(ph)}
+              className={`rounded-md px-2 py-0.5 text-xs font-medium transition-colors ${
+                phaseFilter === ph
+                  ? 'bg-accent text-foreground'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              {ph === 'all' ? 'All' : MAP_PHASE_LABELS[ph]}
+            </button>
+          ))}
         </div>
 
         {/* Sector legend / filter */}
@@ -377,6 +426,7 @@ export default function MapPageClient({ projects, photoUrls, isAdmin }: MapPageC
         }}
         onClearRoute={(id) => void saveFields(id, { map_geometry: null })}
         onIconChange={(id, icon: MapIconType) => void saveFields(id, { map_icon: icon })}
+        onLightboxChange={setPhotoLightbox}
       />
     </div>
   )

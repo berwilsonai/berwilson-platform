@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
+import { Map as MapIcon } from 'lucide-react'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { cn } from '@/lib/utils'
 import { SECTOR_BADGE, SECTOR_LABELS } from '@/lib/utils/sectors'
@@ -19,7 +20,7 @@ export default async function ProjectLayout({ children, params }: LayoutProps) {
 
   const { data: project } = await supabase
     .from('projects')
-    .select('id, name, sector, status, stage, client_entity, location')
+    .select('id, name, sector, status, stage, client_entity, location, latitude, longitude, map_geometry')
     .eq('id', id)
     .single()
 
@@ -84,6 +85,16 @@ export default async function ProjectLayout({ children, params }: LayoutProps) {
               >
                 {STATUS_LABELS[status]}
               </span>
+            )}
+            {/* /map is admin-only, so only admins get the link */}
+            {viewer?.isAdmin && (project.latitude != null || project.map_geometry != null) && (
+              <Link
+                href={`/map?project=${project.id}`}
+                className="inline-flex items-center gap-1 rounded-md border border-border bg-card px-2 py-0.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+              >
+                <MapIcon size={12} />
+                View on map
+              </Link>
             )}
           </div>
         </div>

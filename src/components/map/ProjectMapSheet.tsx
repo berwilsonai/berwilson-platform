@@ -1,7 +1,18 @@
 'use client'
 
+import { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import Link from 'next/link'
-import { ArrowUpRight, Crosshair, MapPin, Route, Trash2 } from 'lucide-react'
+import {
+  ArrowUpRight,
+  ChevronLeft,
+  ChevronRight,
+  Crosshair,
+  MapPin,
+  Route,
+  Trash2,
+  X,
+} from 'lucide-react'
 import {
   Sheet,
   SheetContent,
@@ -32,6 +43,8 @@ interface ProjectMapSheetProps {
   onDrawRoute: (id: string) => void
   onClearRoute: (id: string) => void
   onIconChange: (id: string, icon: MapIconType) => void
+  /** Lets the parent pause its own keyboard handling while the lightbox is up. */
+  onLightboxChange?: (open: boolean) => void
 }
 
 function chip(classes: string, label: string, key?: string) {
@@ -60,8 +73,47 @@ export default function ProjectMapSheet({
   onDrawRoute,
   onClearRoute,
   onIconChange,
+  onLightboxChange,
 }: ProjectMapSheetProps) {
   const p = project
+
+  // Photo lightbox (portaled — SheetContent's transform would trap `fixed`)
+  const [lightbox, setLightbox] = useState<number | null>(null)
+  const lbIndex =
+    lightbox != null && photoUrls.length > 0 ? Math.min(lightbox, photoUrls.length - 1) : null
+
+  function openLightbox(i: number) {
+    setLightbox(i)
+    onLightboxChange?.(true)
+  }
+  function closeLightbox() {
+    setLightbox(null)
+    onLightboxChange?.(false)
+  }
+
+  // Capture phase so Esc/arrows reach the lightbox, not the sheet dialog or
+  // the map's present-mode tour.
+  useEffect(() => {
+    if (lbIndex == null) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        e.stopPropagation()
+        closeLightbox()
+      } else if (e.key === 'ArrowRight') {
+        e.preventDefault()
+        e.stopPropagation()
+        setLightbox((lbIndex + 1) % photoUrls.length)
+      } else if (e.key === 'ArrowLeft') {
+        e.preventDefault()
+        e.stopPropagation()
+        setLightbox((lbIndex - 1 + photoUrls.length) % photoUrls.length)
+      }
+    }
+    window.addEventListener('keydown', onKey, true)
+    return () => window.removeEventListener('keydown', onKey, true)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lbIndex, photoUrls.length])
 
   const dates: [string, string | null][] = p
     ? [
@@ -75,21 +127,39 @@ export default function ProjectMapSheet({
   const weighted = p ? weightedValue(p.estimated_value, p.win_probability) : 0
 
   return (
-    <Sheet open={!!p} onOpenChange={(open) => !open && onClose()}>
+    <Sheet
+      open={!!p}
+      onOpenChange={(open) => {
+        if (open) return
+        // Esc / outside-click while the lightbox is up closes only the lightbox
+        if (lightbox != null) {
+          closeLightbox()
+          return
+        }
+        onClose()
+      }}
+    >
       <SheetContent side="right" className="w-full gap-0 overflow-y-auto sm:max-w-md">
         {p && (
           <>
             {/* Photos */}
             {photoUrls.length > 0 ? (
               <div className="flex gap-1.5 overflow-x-auto px-4 pt-12">
-                {photoUrls.map((url) => (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
+                {photoUrls.map((url, i) => (
+                  <button
                     key={url}
-                    src={url}
-                    alt={p.name}
-                    className="h-36 w-auto shrink-0 rounded-lg border border-border object-cover"
-                  />
+                    type="button"
+                    onClick={() => openLightbox(i)}
+                    className="shrink-0 cursor-zoom-in"
+                    title="View full size"
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={url}
+                      alt={p.name}
+                      className="h-36 w-auto rounded-lg border border-border object-cover"
+                    />
+                  </button>
                 ))}
               </div>
             ) : (
@@ -233,6 +303,65 @@ export default function ProjectMapSheet({
           </>
         )}
       </SheetContent>
+
+      {/* Photo lightbox — portaled to body so the sheet's transform can't clip it */}
+      {p &&
+        lbIndex != null &&
+        createPortal(
+          <div
+            data-map-lightbox
+            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 p-4"
+            onClick={closeLightbox}
+            // Keep pointer events from reaching the sheet's outside-click detection
+            onPointerDown={(e) => e.stopPropagation()}
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={photoUrls[lbIndex]}
+              alt={p.name}
+              className="max-h-full max-w-full rounded-lg object-contain"
+              onClick={(e) => e.stopPropagation()}
+            />
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                closeLightbox()
+              }}
+              title="Close (Esc)"
+              className="absolute right-4 top-4 inline-flex size-9 items-center justify-center rounded-full bg-white/10 text-white transition-colors hover:bg-white/20"
+            >
+              <X size={18} />
+            </button>
+            {photoUrls.length > 1 && (
+              <>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setLightbox((lbIndex - 1 + photoUrls.length) % photoUrls.length)
+                  }}
+                  title="Previous photo (←)"
+                  className="absolute left-4 top-1/2 inline-flex size-10 -translate-y-1/2 items-center justify-center rounded-full bg-white/10 text-white transition-colors hover:bg-white/20"
+                >
+                  <ChevronLeft size={20} />
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setLightbox((lbIndex + 1) % photoUrls.length)
+                  }}
+                  title="Next photo (→)"
+                  className="absolute right-4 top-1/2 inline-flex size-10 -translate-y-1/2 items-center justify-center rounded-full bg-white/10 text-white transition-colors hover:bg-white/20"
+                >
+                  <ChevronRight size={20} />
+                </button>
+                <div className="tnum pointer-events-none absolute inset-x-0 bottom-4 text-center text-xs text-white/80">
+                  {lbIndex + 1} / {photoUrls.length}
+                </div>
+              </>
+            )}
+          </div>,
+          document.body
+        )}
     </Sheet>
   )
 }

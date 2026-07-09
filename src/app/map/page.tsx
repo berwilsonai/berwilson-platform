@@ -5,7 +5,12 @@ import MapPageClient from '@/components/map/MapPageClient'
 
 export const metadata = { title: 'Map — Ber Wilson Intelligence' }
 
-export default async function MapPage() {
+interface MapPageProps {
+  searchParams: Promise<{ project?: string }>
+}
+
+export default async function MapPage({ searchParams }: MapPageProps) {
+  const { project: initialProjectId } = await searchParams
   const supabase = createAdminClient()
 
   const [{ data: projects, error }, viewer] = await Promise.all([
@@ -42,6 +47,7 @@ export default async function MapPage() {
       projects={rows}
       photoUrls={photoUrls}
       isAdmin={viewer?.isAdmin ?? true}
+      initialProjectId={initialProjectId ?? null}
     />
   )
 }
