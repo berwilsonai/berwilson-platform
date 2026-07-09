@@ -48,6 +48,8 @@ function currentFlavor(): MapFlavor {
 
 const LINE_SOURCE = 'project-lines'
 const DRAW_SOURCE = 'draw-temp'
+// Above this zoom, marker labels stay visible (not just on hover)
+const LABEL_ZOOM = 9
 
 export default function MapView({
   projects,
@@ -100,6 +102,16 @@ export default function MapView({
 
     const overlays = () => ensureOverlays(map)
     map.on('style.load', overlays)
+
+    // Persistent marker labels when zoomed in — markers.tsx keys off this attr
+    const syncLabels = () => {
+      containerRef.current?.setAttribute(
+        'data-map-labels',
+        map.getZoom() >= LABEL_ZOOM ? 'true' : 'false'
+      )
+    }
+    map.on('zoom', syncLabels)
+    syncLabels()
 
     map.on('click', (e) => {
       const h = handlersRef.current
@@ -361,5 +373,6 @@ export default function MapView({
   // Inline style, not utilities: maplibre-gl.css sets `.maplibregl-map
   // { position: relative }` unlayered, which beats Tailwind's layered
   // `absolute inset-0` and collapses the container to 0 height.
-  return <div ref={containerRef} style={{ position: 'absolute', inset: 0 }} />
+  // group/maplabels: marker labels read data-map-labels off this ancestor.
+  return <div ref={containerRef} className="group/maplabels" style={{ position: 'absolute', inset: 0 }} />
 }

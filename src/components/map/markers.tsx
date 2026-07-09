@@ -1,6 +1,7 @@
 import type { ProjectSector } from '@/lib/supabase/types'
 import type { MapIconType } from '@/lib/map/constants'
 import { isMapIconType } from '@/lib/map/constants'
+import { formatValue } from '@/lib/utils/constants'
 import type { MapProject } from '@/lib/map/types'
 
 // Illustrated map markers: a sector-tinted puck with a type-specific glyph.
@@ -73,19 +74,37 @@ function glyphSvg(icon: MapIconType, size: number): string {
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICON_PATHS[icon]}</svg>`
 }
 
-/** DOM element for a maplibregl.Marker (anchor: 'bottom'). */
+function escapeHtml(s: string): string {
+  return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!)
+}
+
+/**
+ * DOM element for a maplibregl.Marker (anchor: 'bottom').
+ *
+ * The name/value label shows on hover, and stays on for every marker once the
+ * map container (named group `maplabels` in MapView) carries
+ * data-map-labels="true" — MapView toggles that above LABEL_ZOOM.
+ */
 export function buildMarkerElement(project: MapProject): HTMLDivElement {
   const icon = iconForProject(project)
   const puck = SECTOR_PUCK[project.sector] ?? 'bg-slate-500'
 
   const el = document.createElement('div')
-  el.className = 'group cursor-pointer select-none'
-  el.title = project.name
+  // z-10 while hovered/selected so the label isn't buried under sibling markers
+  el.className = 'group cursor-pointer select-none hover:z-10 data-[selected=true]:z-10'
   // Stamped so MapView's diff can detect a stale glyph and rebuild
   el.dataset.icon = icon
   el.dataset.sector = project.sector
+  const valueLine =
+    project.estimated_value != null
+      ? `<div class="tnum text-[11px] leading-tight text-muted-foreground">${formatValue(project.estimated_value)}</div>`
+      : ''
   el.innerHTML = `
     <div class="relative flex flex-col items-center transition-transform duration-150 group-hover:scale-110 group-data-[selected=true]:scale-125">
+      <div class="pointer-events-none absolute bottom-full mb-1.5 max-w-52 rounded-md border border-border bg-card px-2 py-1 text-center opacity-0 shadow-md transition-opacity duration-150 group-hover:opacity-100 group-data-[map-labels=true]/maplabels:opacity-100">
+        <div class="truncate text-xs font-medium leading-tight text-foreground">${escapeHtml(project.name)}</div>
+        ${valueLine}
+      </div>
       <div class="flex size-9 items-center justify-center rounded-full ${puck} text-white ring-2 ring-white shadow-md dark:ring-slate-900 group-data-[selected=true]:ring-[3px]">
         ${glyphSvg(icon, 18)}
       </div>

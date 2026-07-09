@@ -3,10 +3,16 @@
 import { useMemo, useRef, useState, useEffect, useCallback } from 'react'
 import dynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
-import { Home, Presentation, X } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Home, Presentation, X } from 'lucide-react'
 import { toast } from 'sonner'
 import type { ProjectSector } from '@/lib/supabase/types'
-import { SECTORS, SECTOR_LABELS, SECTOR_BADGE } from '@/lib/utils/constants'
+import {
+  SECTORS,
+  SECTOR_LABELS,
+  SECTOR_BADGE,
+  formatValue,
+  weightedValue,
+} from '@/lib/utils/constants'
 import type { MapIconType } from '@/lib/map/constants'
 import type { MapProject, LineStringGeometry } from '@/lib/map/types'
 import type { MapApi } from './MapView'
@@ -68,6 +74,22 @@ export default function MapPageClient({ projects, photoUrls, isAdmin }: MapPageC
     [placed]
   )
 
+  const stats = useMemo(() => {
+    let pipeline = 0
+    let weighted = 0
+    for (const p of visible) {
+      pipeline += p.estimated_value ?? 0
+      weighted += weightedValue(p.estimated_value, p.win_probability)
+    }
+    return { pipeline, weighted }
+  }, [visible])
+
+  // Present-mode tour: biggest projects first; arrow keys step through
+  const tour = useMemo(
+    () => [...visible].sort((a, b) => (b.estimated_value ?? -1) - (a.estimated_value ?? -1)),
+    [visible]
+  )
+
   const selected = selectedId ? merged.find((p) => p.id === selectedId) ?? null : null
   const activeTarget = placingId ?? drawingId
   const activeTargetName = activeTarget
@@ -120,6 +142,42 @@ export default function MapPageClient({ projects, photoUrls, isAdmin }: MapPageC
     setPlacingId(null)
     setDrawingId(null)
   }, [])
+
+  const tourIndex = selectedId ? tour.findIndex((p) => p.id === selectedId) : -1
+
+  const stepTour = useCallback(
+    (dir: 1 | -1) => {
+      if (tour.length === 0) return
+      const next =
+        tourIndex === -1
+          ? dir === 1
+            ? 0
+            : tour.length - 1
+          : (tourIndex + dir + tour.length) % tour.length
+      setSelectedId(tour[next].id)
+    },
+    [tour, tourIndex]
+  )
+
+  // Present-mode keyboard tour. Capture phase so the maplibre canvas doesn't
+  // also pan on arrow keys when it has focus.
+  useEffect(() => {
+    if (!present) return
+    const onKey = (e: KeyboardEvent) => {
+      if (placingId || drawingId) return
+      if (e.key === 'ArrowRight' || e.key === 'PageDown') {
+        e.preventDefault()
+        e.stopPropagation()
+        stepTour(1)
+      } else if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
+        e.preventDefault()
+        e.stopPropagation()
+        stepTour(-1)
+      }
+    }
+    window.addEventListener('keydown', onKey, true)
+    return () => window.removeEventListener('keydown', onKey, true)
+  }, [present, placingId, drawingId, stepTour])
 
   // Present mode: overlay covers the app chrome; browser fullscreen on top.
   // documentElement (not the map div) so portaled sheets stay visible.
@@ -205,8 +263,22 @@ export default function MapPageClient({ projects, photoUrls, isAdmin }: MapPageC
           </div>
         )}
 
-        <span className="rounded-lg border border-border bg-card px-2 py-1 text-xs text-muted-foreground shadow-sm elev-1">
-          <span className="tnum">{visible.length}</span> on map
+        <span className="rounded-lg border border-border bg-card px-2.5 py-1 text-xs text-muted-foreground shadow-sm elev-1">
+          <span className="tnum font-medium text-foreground">{visible.length}</span> projects
+          {stats.pipeline > 0 && (
+            <>
+              <span className="mx-1.5 opacity-40">·</span>
+              <span className="tnum font-medium text-foreground">{formatValue(stats.pipeline)}</span>{' '}
+              pipeline
+            </>
+          )}
+          {stats.weighted > 0 && (
+            <>
+              <span className="mx-1.5 opacity-40">·</span>
+              <span className="tnum font-medium text-foreground">{formatValue(stats.weighted)}</span>{' '}
+              weighted
+            </>
+          )}
         </span>
       </div>
 
@@ -238,7 +310,43 @@ export default function MapPageClient({ projects, photoUrls, isAdmin }: MapPageC
         </div>
       )}
 
-      {isAdmin && !activeTarget && (
+      {/* Present-mode tour bar */}
+      {present && !activeTarget && tour.length > 0 && (
+        <div className="absolute inset-x-0 bottom-6 z-10 flex justify-center px-4">
+          <div className="flex items-center gap-0.5 rounded-lg border border-border bg-card p-1 shadow-md elev-2">
+            <button
+              onClick={() => stepTour(-1)}
+              title="Previous project (←)"
+              className="inline-flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+            >
+              <ChevronLeft size={15} />
+            </button>
+            <div className="max-w-72 px-2 text-xs">
+              {tourIndex >= 0 ? (
+                <span className="flex items-baseline gap-1.5">
+                  <span className="truncate font-medium text-foreground">
+                    {tour[tourIndex].name}
+                  </span>
+                  <span className="tnum shrink-0 text-muted-foreground">
+                    {tourIndex + 1}/{tour.length}
+                  </span>
+                </span>
+              ) : (
+                <span className="text-muted-foreground">Press → to tour the portfolio</span>
+              )}
+            </div>
+            <button
+              onClick={() => stepTour(1)}
+              title="Next project (→)"
+              className="inline-flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+            >
+              <ChevronRight size={15} />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {isAdmin && !activeTarget && !present && (
         <PlacementPanel
           unplaced={unplaced}
           placedCount={placed.length}
