@@ -2,14 +2,18 @@
 # One-time setup of the fully-offline basemap for /map.
 # Run from the repo root on the MacBook:  zsh scripts/setup-map-data.sh
 #
-# 1. Extracts a full-depth CONUS cut of the daily Protomaps planet build to
-#    ~/berwilson-data/maps/us.pmtiles (~15-25GB; the extract streams via HTTP
-#    range requests — it does NOT download the 120GB planet file).
+# 1. Extracts a cut of the daily Protomaps planet build to
+#    ~/berwilson-data/maps/us.pmtiles (the extract streams via HTTP range
+#    requests — it does NOT download the 120GB planet file).
+#      SCOPE=utah  (default) ~275MB — fine for local dev
+#      SCOPE=conus           ~17-20GB full-depth continental US — production;
+#                            run ON THE STUDIO (it has the disk), see README
 # 2. Vendors the Protomaps fonts + sprites into public/basemaps/ (gitignored;
 #    the deploy rsync ships the working tree, so they reach the Studio).
 #
-# deploy/deploy-to-studio.sh syncs ~/berwilson-data/maps/ to the Studio.
-# Re-running is safe: existing files are kept unless FORCE=1.
+# The deploy script pushes the archive to the Studio ONCE if it has none, and
+# never overwrites an existing Studio archive (which is usually the bigger
+# CONUS extract). Re-running is safe: existing files are kept unless FORCE=1.
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -17,7 +21,11 @@ MAPS_DIR="$HOME/berwilson-data/maps"
 PMTILES="$MAPS_DIR/us.pmtiles"
 ASSETS_DIR="$REPO_ROOT/public/basemaps"
 # Continental US (Alaska/Hawaii: separate extracts later if projects appear there)
-BBOX="-125.5,24.0,-66.5,49.6"
+case "${SCOPE:-utah}" in
+  conus) BBOX="-125.5,24.0,-66.5,49.6" ;;
+  utah)  BBOX="-114.05,36.99,-109.04,42.00" ;;
+  *) echo "unknown SCOPE '$SCOPE' (utah|conus)"; exit 1 ;;
+esac
 
 echo "==> Checking pmtiles CLI"
 if ! command -v pmtiles >/dev/null; then
@@ -32,7 +40,7 @@ if [[ -s "$PMTILES" && "${FORCE:-0}" != "1" ]]; then
   echo "  $PMTILES already exists ($(du -h "$PMTILES" | cut -f1)) — skipping (FORCE=1 to redo)"
 else
   BUILD="$(date -v-1d +%Y%m%d)"  # yesterday's build is always complete
-  echo "  Extracting CONUS from build $BUILD — this downloads 15-25GB, expect hours"
+  echo "  Extracting ${SCOPE:-utah} from build $BUILD (conus = 17-20GB, expect ~1h)"
   pmtiles extract "https://build.protomaps.com/${BUILD}.pmtiles" "$PMTILES" --bbox="$BBOX"
 fi
 pmtiles show "$PMTILES" | head -12

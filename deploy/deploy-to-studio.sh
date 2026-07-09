@@ -22,12 +22,17 @@ rsync -az --delete \
   --exclude '.env*' --exclude '*.log' \
   "$REPO_ROOT/" "$STUDIO:berwilson-platform/"
 
-echo "==> Syncing map data (basemap tiles for /map)"
-if [ -d "$HOME/berwilson-data/maps" ]; then
-  rsync -az "$HOME/berwilson-data/maps/" "$STUDIO:berwilson-data/maps/"
-  echo "  map data in sync"
+echo "==> Checking map data (basemap tiles for /map)"
+# Push-once: the Studio's archive may be a bigger extract (full CONUS) than the
+# MacBook's dev copy (Utah) — never overwrite it. Manage upgrades manually
+# (see scripts/setup-map-data.sh + deploy/README.md).
+if ssh "$STUDIO" '[ -s berwilson-data/maps/us.pmtiles ]'; then
+  echo "  basemap already on Studio — leaving it alone"
+elif [ -s "$HOME/berwilson-data/maps/us.pmtiles" ]; then
+  echo "  pushing basemap to Studio (first time)"
+  rsync -az "$HOME/berwilson-data/maps/us.pmtiles" "$STUDIO:berwilson-data/maps/"
 else
-  echo "  WARN: ~/berwilson-data/maps not found — run scripts/setup-map-data.sh; /map will show a basemap error"
+  echo "  WARN: no basemap anywhere — run scripts/setup-map-data.sh; /map will show a basemap error"
 fi
 
 echo "==> Building Studio env file"

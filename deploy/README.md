@@ -30,20 +30,23 @@ and enables `tailscale serve`.
 ## Offline basemap for /map (one-time)
 
 The interactive project map serves its own map tiles — nothing loads from the
-internet at view time. One-time setup on the MacBook:
+internet at view time. The archive lives at `~/berwilson-data/maps/us.pmtiles`
+(outside the app dir, so the deploy `rsync --delete` never touches it) and is
+streamed by `/api/map/tiles` (range requests; path override `MAP_PMTILES_PATH`).
+Until it exists, `/map` shows a "basemap not installed" notice.
 
-```
-zsh scripts/setup-map-data.sh
-```
-
-That extracts a full-depth continental-US cut of the Protomaps planet build to
-`~/berwilson-data/maps/us.pmtiles` (~15–25GB download, expect hours) and
-vendors fonts/sprites into `public/basemaps/` (gitignored; rsync ships them).
-The next `deploy-to-studio.sh` run pushes the tiles to the Studio once
-(`~/berwilson-data/maps/` there — outside the app dir, so the deploy
-`rsync --delete` never touches it). The app streams the archive via
-`/api/map/tiles` (range requests); override the path with `MAP_PMTILES_PATH`.
-Until the setup runs, `/map` shows a "basemap not installed" notice.
+- **MacBook (local dev):** `zsh scripts/setup-map-data.sh` — extracts a small
+  Utah cut (~275MB) and vendors fonts/sprites into `public/basemaps/`
+  (gitignored; the deploy rsync ships them with the source).
+- **Studio (production):** the full-depth continental-US extract (~17–20GB,
+  ~1h) runs directly on the Studio — done 2026-07-09:
+  `ssh` in, then `~/.local/bin/pmtiles extract https://build.protomaps.com/<yyyymmdd>.pmtiles ~/berwilson-data/maps/us-conus.pmtiles --bbox=-125.5,24.0,-66.5,49.6`,
+  verify with `pmtiles show`, then `mv` it over `us.pmtiles`. (go-pmtiles
+  binary is at `~/.local/bin/pmtiles` on the Studio.)
+- The deploy script pushes the MacBook archive to the Studio **only if the
+  Studio has none**, and never overwrites an existing Studio archive — so the
+  big CONUS extract can't be clobbered by the small dev one. Upgrading the
+  basemap later (new planet build) is a manual re-extract on the Studio.
 
 ## What runs on the Studio
 
