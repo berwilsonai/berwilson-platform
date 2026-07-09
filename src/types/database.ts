@@ -1615,7 +1615,11 @@ export type Database = {
           estimated_value: number | null
           id: string
           incumbent: string | null
+          latitude: number | null
           location: string | null
+          longitude: number | null
+          map_geometry: Json | null
+          map_icon: string | null
           name: string
           ntp_date: string | null
           parent_project_id: string | null
@@ -1643,7 +1647,11 @@ export type Database = {
           estimated_value?: number | null
           id?: string
           incumbent?: string | null
+          latitude?: number | null
           location?: string | null
+          longitude?: number | null
+          map_geometry?: Json | null
+          map_icon?: string | null
           name: string
           ntp_date?: string | null
           parent_project_id?: string | null
@@ -1671,7 +1679,11 @@ export type Database = {
           estimated_value?: number | null
           id?: string
           incumbent?: string | null
+          latitude?: number | null
           location?: string | null
+          longitude?: number | null
+          map_geometry?: Json | null
+          map_icon?: string | null
           name?: string
           ntp_date?: string | null
           parent_project_id?: string | null

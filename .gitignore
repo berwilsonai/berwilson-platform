@@ -39,3 +39,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# offline basemap assets (fetched by scripts/setup-map-data.sh; deployed via rsync working tree)
+/public/basemaps/

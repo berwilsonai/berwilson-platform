@@ -22,6 +22,14 @@ rsync -az --delete \
   --exclude '.env*' --exclude '*.log' \
   "$REPO_ROOT/" "$STUDIO:berwilson-platform/"
 
+echo "==> Syncing map data (basemap tiles for /map)"
+if [ -d "$HOME/berwilson-data/maps" ]; then
+  rsync -az "$HOME/berwilson-data/maps/" "$STUDIO:berwilson-data/maps/"
+  echo "  map data in sync"
+else
+  echo "  WARN: ~/berwilson-data/maps not found — run scripts/setup-map-data.sh; /map will show a basemap error"
+fi
+
 echo "==> Building Studio env file"
 ENV_TMP="$(mktemp)"
 trap 'rm -f "$ENV_TMP"' EXIT

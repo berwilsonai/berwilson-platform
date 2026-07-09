@@ -27,6 +27,24 @@ MacBook one (LM Studio URL flipped to localhost, Vercel-only vars dropped,
 CRON_SECRET generated if absent), builds, (re)installs the launchd services,
 and enables `tailscale serve`.
 
+## Offline basemap for /map (one-time)
+
+The interactive project map serves its own map tiles — nothing loads from the
+internet at view time. One-time setup on the MacBook:
+
+```
+zsh scripts/setup-map-data.sh
+```
+
+That extracts a full-depth continental-US cut of the Protomaps planet build to
+`~/berwilson-data/maps/us.pmtiles` (~15–25GB download, expect hours) and
+vendors fonts/sprites into `public/basemaps/` (gitignored; rsync ships them).
+The next `deploy-to-studio.sh` run pushes the tiles to the Studio once
+(`~/berwilson-data/maps/` there — outside the app dir, so the deploy
+`rsync --delete` never touches it). The app streams the archive via
+`/api/map/tiles` (range requests); override the path with `MAP_PMTILES_PATH`.
+Until the setup runs, `/map` shows a "basemap not installed" notice.
+
 ## What runs on the Studio
 
 | launchd label | What | Schedule |

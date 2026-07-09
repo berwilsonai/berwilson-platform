@@ -22,6 +22,7 @@ import {
   Target,
   UserCog,
   HeartPulse,
+  Map as MapIcon,
 } from 'lucide-react'
 import { canAccessPage, type Role } from '@/lib/auth/permissions'
 
@@ -34,6 +35,7 @@ const NAV_GROUPS = [
       { href: '/objectives', label: 'Objectives', icon: Target },
       { href: '/projects', label: 'Projects', icon: FolderKanban },
       { href: '/opportunities', label: 'Opportunities', icon: Lightbulb },
+      { href: '/map', label: 'Map', icon: MapIcon },
     ],
   },
   {
