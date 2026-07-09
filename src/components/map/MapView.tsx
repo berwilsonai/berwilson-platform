@@ -8,7 +8,7 @@ import { Protocol } from 'pmtiles'
 import { buildMapStyle, type MapFlavor } from '@/lib/map/style'
 import { MAP_HOME } from '@/lib/map/constants'
 import type { MapProject, LineStringGeometry } from '@/lib/map/types'
-import { buildMarkerElement, setMarkerSelected, SECTOR_LINE_COLOR } from './markers'
+import { buildMarkerElement, iconForProject, setMarkerSelected, SECTOR_LINE_COLOR } from './markers'
 
 // Register the pmtiles protocol once per session
 let protocolRegistered = false
@@ -253,16 +253,29 @@ export default function MapView({
 
     for (const p of projects) {
       if (p.latitude == null || p.longitude == null) continue
-      const existing = markers.get(p.id)
+      let existing = markers.get(p.id)
+      let wasSelected = false
       if (existing) {
-        existing.setLngLat([p.longitude, p.latitude])
-      } else {
+        // The glyph/puck are baked into the element at creation — rebuild the
+        // marker if the project's icon or sector changed since.
+        const prevEl = existing.getElement()
+        if (prevEl.dataset.icon !== iconForProject(p) || prevEl.dataset.sector !== p.sector) {
+          wasSelected = prevEl.dataset.selected === 'true'
+          existing.remove()
+          markers.delete(p.id)
+          existing = undefined
+        } else {
+          existing.setLngLat([p.longitude, p.latitude])
+        }
+      }
+      if (!existing) {
         const el = buildMarkerElement(p)
         el.addEventListener('click', (ev) => {
           ev.stopPropagation()
           if (handlersRef.current.drawing || handlersRef.current.placing) return
           handlersRef.current.onSelect(p.id)
         })
+        setMarkerSelected(el, wasSelected)
         const marker = new maplibregl.Marker({ element: el, anchor: 'bottom' })
           .setLngLat([p.longitude, p.latitude])
           .addTo(map)

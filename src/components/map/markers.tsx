@@ -81,6 +81,9 @@ export function buildMarkerElement(project: MapProject): HTMLDivElement {
   const el = document.createElement('div')
   el.className = 'group cursor-pointer select-none'
   el.title = project.name
+  // Stamped so MapView's diff can detect a stale glyph and rebuild
+  el.dataset.icon = icon
+  el.dataset.sector = project.sector
   el.innerHTML = `
     <div class="relative flex flex-col items-center transition-transform duration-150 group-hover:scale-110 group-data-[selected=true]:scale-125">
       <div class="flex size-9 items-center justify-center rounded-full ${puck} text-white ring-2 ring-white shadow-md dark:ring-slate-900 group-data-[selected=true]:ring-[3px]">
