@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { ChevronDown, ChevronUp, MapPin, Search } from 'lucide-react'
+import { ChevronDown, ChevronUp, MapPin, Route, Search } from 'lucide-react'
 import type { MapProject } from '@/lib/map/types'
 import { MarkerGlyph, iconForProject } from './markers'
 
@@ -10,6 +10,7 @@ interface PlacementPanelProps {
   placedCount: number
   total: number
   onStartPlace: (id: string) => void
+  onStartDraw: (id: string) => void
 }
 
 export default function PlacementPanel({
@@ -17,6 +18,7 @@ export default function PlacementPanel({
   placedCount,
   total,
   onStartPlace,
+  onStartDraw,
 }: PlacementPanelProps) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
@@ -68,21 +70,33 @@ export default function PlacementPanel({
               <div className="px-3 py-3 text-xs text-muted-foreground">No matches.</div>
             )}
             {filtered.map((p) => (
-              <button
+              <div
                 key={p.id}
-                onClick={() => onStartPlace(p.id)}
-                className="flex w-full items-center gap-2.5 px-3 py-2 text-left transition-colors hover:bg-accent"
+                className="group flex w-full items-center gap-1 pr-2 transition-colors hover:bg-accent"
               >
-                <MarkerGlyph icon={iconForProject(p)} sector={p.sector} size={12} />
-                <span className="min-w-0">
-                  <span className="block truncate text-sm font-medium">{p.name}</span>
-                  {p.location && (
-                    <span className="block truncate text-xs text-muted-foreground">
-                      {p.location}
-                    </span>
-                  )}
-                </span>
-              </button>
+                <button
+                  onClick={() => onStartPlace(p.id)}
+                  title="Click, then click the map to place a marker"
+                  className="flex min-w-0 flex-1 items-center gap-2.5 px-3 py-2 text-left"
+                >
+                  <MarkerGlyph icon={iconForProject(p)} sector={p.sector} size={12} />
+                  <span className="min-w-0">
+                    <span className="block truncate text-sm font-medium">{p.name}</span>
+                    {p.location && (
+                      <span className="block truncate text-xs text-muted-foreground">
+                        {p.location}
+                      </span>
+                    )}
+                  </span>
+                </button>
+                <button
+                  onClick={() => onStartDraw(p.id)}
+                  title="Draw a route instead of a marker (rail corridors)"
+                  className="inline-flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-opacity hover:bg-background hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100"
+                >
+                  <Route size={14} />
+                </button>
+              </div>
             ))}
           </div>
         </div>

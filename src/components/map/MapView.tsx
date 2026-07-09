@@ -32,6 +32,8 @@ interface MapViewProps {
   onPlace: (lngLat: [number, number]) => void
   /** When true, clicks append rail-route vertices; Enter/double-click completes. */
   drawing: boolean
+  /** Project whose route is being (re)drawn — its saved line hides while drawing. */
+  drawingProjectId: string | null
   drawColor: string
   onDrawComplete: (coords: [number, number][]) => void
   onDrawCancel: () => void
@@ -54,6 +56,7 @@ export default function MapView({
   placing,
   onPlace,
   drawing,
+  drawingProjectId,
   drawColor,
   onDrawComplete,
   onDrawCancel,
@@ -67,8 +70,8 @@ export default function MapView({
   projectsRef.current = projects
   const drawCoordsRef = useRef<[number, number][]>([])
   // Keep latest callbacks reachable from stable map listeners
-  const handlersRef = useRef({ onSelect, onPlace, onDrawComplete, onDrawCancel, placing, drawing, drawColor })
-  handlersRef.current = { onSelect, onPlace, onDrawComplete, onDrawCancel, placing, drawing, drawColor }
+  const handlersRef = useRef({ onSelect, onPlace, onDrawComplete, onDrawCancel, placing, drawing, drawingProjectId, drawColor })
+  handlersRef.current = { onSelect, onPlace, onDrawComplete, onDrawCancel, placing, drawing, drawingProjectId, drawColor }
 
   // ── Map lifecycle ──────────────────────────────────────────────────────────
   useEffect(() => {
@@ -152,6 +155,8 @@ export default function MapView({
   function ensureOverlays(map: maplibregl.Map) {
     const features = projectsRef.current
       .filter((p): p is MapProject & { map_geometry: LineStringGeometry } => !!p.map_geometry)
+      // Hide the saved route while it's being redrawn — the dashed draw line replaces it
+      .filter((p) => p.id !== handlersRef.current.drawingProjectId)
       .map((p) => ({
         type: 'Feature' as const,
         properties: {
@@ -306,6 +311,19 @@ export default function MapView({
           // keep the marker visible left of the detail sheet on desktop
           padding: { right: window.innerWidth >= 640 ? 384 : 0 },
         })
+      } else if (p?.map_geometry && mapRef.current) {
+        // Route-only project (no marker) — frame the whole line
+        const coords = p.map_geometry.coordinates
+        const bounds = coords.reduce(
+          (b, c) => b.extend(c),
+          new maplibregl.LngLatBounds(coords[0], coords[0])
+        )
+        mapRef.current.fitBounds(bounds, {
+          speed: 1.2,
+          curve: 1.4,
+          maxZoom: 12,
+          padding: { top: 60, bottom: 60, left: 60, right: window.innerWidth >= 640 ? 384 + 60 : 60 },
+        })
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -323,6 +341,8 @@ export default function MapView({
       drawCoordsRef.current = []
       if (map.isStyleLoaded()) updateDrawSource(map, [], drawColor)
     }
+    // Entering/leaving redraw hides/restores that project's saved line
+    if (map.isStyleLoaded()) ensureOverlays(map)
 
     if (!placing && !drawing) return
     const onKey = (e: KeyboardEvent) => {

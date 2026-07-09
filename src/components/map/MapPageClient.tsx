@@ -46,13 +46,18 @@ export default function MapPageClient({ projects, photoUrls, isAdmin }: MapPageC
     () => projects.map((p) => (overrides[p.id] ? { ...p, ...overrides[p.id] } : p)),
     [projects, overrides]
   )
+  // A project is "on the map" with a marker, a drawn route, or both —
+  // rail corridors are often route-only, no point marker.
   const placed = useMemo(
-    () => merged.filter((p) => p.latitude != null && p.longitude != null),
+    () =>
+      merged.filter(
+        (p) => (p.latitude != null && p.longitude != null) || p.map_geometry
+      ),
     [merged]
   )
   const unplaced = useMemo(
-    () => merged.filter((p) => p.latitude == null || p.longitude == null),
-    [merged]
+    () => merged.filter((p) => !placed.includes(p)),
+    [merged, placed]
   )
   const visible = useMemo(
     () => (hiddenSectors.size ? placed.filter((p) => !hiddenSectors.has(p.sector)) : placed),
@@ -148,6 +153,7 @@ export default function MapPageClient({ projects, photoUrls, isAdmin }: MapPageC
         placing={!!placingId}
         onPlace={handlePlace}
         drawing={!!drawingId}
+        drawingProjectId={drawingId}
         drawColor={drawColor}
         onDrawComplete={handleDrawComplete}
         onDrawCancel={cancelModes}
@@ -240,6 +246,10 @@ export default function MapPageClient({ projects, photoUrls, isAdmin }: MapPageC
           onStartPlace={(id) => {
             setSelectedId(null)
             setPlacingId(id)
+          }}
+          onStartDraw={(id) => {
+            setSelectedId(null)
+            setDrawingId(id)
           }}
         />
       )}
