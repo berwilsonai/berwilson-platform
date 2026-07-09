@@ -3,7 +3,8 @@
 import { useEffect, useRef } from 'react'
 import maplibregl from 'maplibre-gl'
 import { Protocol } from 'pmtiles'
-import 'maplibre-gl/dist/maplibre-gl.css'
+// maplibre-gl.css is imported in globals.css — a CSS import here (inside the
+// ssr:false dynamic chunk) builds but never gets linked into the page.
 import { buildMapStyle, type MapFlavor } from '@/lib/map/style'
 import { MAP_HOME } from '@/lib/map/constants'
 import type { MapProject, LineStringGeometry } from '@/lib/map/types'
@@ -324,5 +325,8 @@ export default function MapView({
     return () => window.removeEventListener('keydown', onKey)
   }, [placing, drawing, drawColor])
 
-  return <div ref={containerRef} className="absolute inset-0" />
+  // Inline style, not utilities: maplibre-gl.css sets `.maplibregl-map
+  // { position: relative }` unlayered, which beats Tailwind's layered
+  // `absolute inset-0` and collapses the container to 0 height.
+  return <div ref={containerRef} style={{ position: 'absolute', inset: 0 }} />
 }
