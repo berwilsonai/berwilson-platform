@@ -56,6 +56,7 @@ export default function CompanyKnowledgeBase({ documents }: CompanyKnowledgeBase
   const router = useRouter()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [uploading, setUploading] = useState(false)
+  const [dragging, setDragging] = useState(false)
   const [docType, setDocType] = useState<string>('capability_statement')
   const [deletingId, setDeletingId] = useState<string | null>(null)
 
@@ -107,34 +108,54 @@ export default function CompanyKnowledgeBase({ documents }: CompanyKnowledgeBase
         </p>
       </div>
 
-      {/* Upload bar */}
-      <div className="flex items-center gap-2 flex-wrap rounded-xl border border-border bg-card p-3 elev-1">
-        <select
-          value={docType}
-          onChange={(e) => setDocType(e.target.value)}
-          className="h-9 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+      {/* Upload area */}
+      <div className="rounded-xl border border-border bg-card p-3 elev-1 space-y-3">
+        <div className="flex items-center gap-2 flex-wrap">
+          <label className="text-xs text-muted-foreground">Document type</label>
+          <select
+            value={docType}
+            onChange={(e) => setDocType(e.target.value)}
+            className="h-9 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+          >
+            {DOC_TYPES.map((t) => (
+              <option key={t} value={t}>{label(t)}</option>
+            ))}
+          </select>
+        </div>
+        <div
+          onDragOver={(e) => { e.preventDefault(); setDragging(true) }}
+          onDragLeave={() => setDragging(false)}
+          onDrop={(e) => {
+            e.preventDefault()
+            setDragging(false)
+            if (!uploading) handleFiles(e.dataTransfer.files)
+          }}
+          onClick={() => { if (!uploading) fileInputRef.current?.click() }}
+          className={`relative flex flex-col items-center justify-center rounded-lg border-2 border-dashed px-6 py-8 transition-colors
+            ${uploading ? 'cursor-default opacity-70' : 'cursor-pointer'}
+            ${dragging
+              ? 'border-foreground bg-accent'
+              : 'border-border hover:border-muted-foreground hover:bg-accent/50'
+            }`}
         >
-          {DOC_TYPES.map((t) => (
-            <option key={t} value={t}>{label(t)}</option>
-          ))}
-        </select>
-        <button
-          onClick={() => fileInputRef.current?.click()}
-          disabled={uploading}
-          className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 disabled:opacity-50 transition-colors"
-        >
-          {uploading ? <Loader2 size={15} className="animate-spin" /> : <Upload size={15} />}
-          {uploading ? 'Uploading…' : 'Add documents'}
-        </button>
-        <span className="text-xs text-muted-foreground">PDF, Word, text, CSV</span>
-        <input
-          ref={fileInputRef}
-          type="file"
-          multiple
-          className="hidden"
-          accept=".pdf,.docx,.doc,.txt,.csv,.md"
-          onChange={(e) => handleFiles(e.target.files)}
-        />
+          {uploading ? (
+            <Loader2 size={20} className="text-muted-foreground mb-2 animate-spin" />
+          ) : (
+            <Upload size={20} className="text-muted-foreground mb-2" />
+          )}
+          <p className="text-sm font-medium text-foreground">
+            {uploading ? 'Uploading…' : <>Drop files here or <span className="underline">browse</span></>}
+          </p>
+          <p className="text-xs text-muted-foreground mt-1">PDF, Word, text, CSV</p>
+          <input
+            ref={fileInputRef}
+            type="file"
+            multiple
+            className="sr-only"
+            accept=".pdf,.docx,.doc,.txt,.csv,.md"
+            onChange={(e) => handleFiles(e.target.files)}
+          />
+        </div>
       </div>
 
       {/* Document list */}
