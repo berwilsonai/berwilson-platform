@@ -30,6 +30,7 @@ export default function OpportunityDocuments({ opportunityId, documents }: Oppor
   const [docType, setDocType] = useState<string>('white_paper')
   const [extractAi, setExtractAi] = useState(true)
   const [uploading, setUploading] = useState(false)
+  const [dragging, setDragging] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [busyId, setBusyId] = useState<string | null>(null)
   const [pendingDelete, setPendingDelete] = useState<OpportunityDocument | null>(null)
@@ -98,47 +99,68 @@ export default function OpportunityDocuments({ opportunityId, documents }: Oppor
 
   return (
     <div className="space-y-3">
-      {/* Upload bar */}
-      <div className="flex flex-wrap items-center gap-2">
-        <select
-          value={docType}
-          onChange={(e) => setDocType(e.target.value)}
-          className="h-8 rounded-md border border-input bg-background px-2.5 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-        >
-          {OPPORTUNITY_DOC_TYPES.map((t) => (
-            <option key={t} value={t}>
-              {OPPORTUNITY_DOC_TYPE_LABELS[t]}
-            </option>
-          ))}
-        </select>
+      {/* Upload area */}
+      <div className="space-y-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <select
+            value={docType}
+            onChange={(e) => setDocType(e.target.value)}
+            className="h-8 rounded-md border border-input bg-background px-2.5 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+          >
+            {OPPORTUNITY_DOC_TYPES.map((t) => (
+              <option key={t} value={t}>
+                {OPPORTUNITY_DOC_TYPE_LABELS[t]}
+              </option>
+            ))}
+          </select>
 
-        <label className="inline-flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer select-none">
+          <label className="inline-flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={extractAi}
+              onChange={(e) => setExtractAi(e.target.checked)}
+              className="rounded border-input"
+            />
+            <Sparkles size={12} />
+            AI summary
+          </label>
+        </div>
+
+        <div
+          onDragOver={(e) => { e.preventDefault(); setDragging(true) }}
+          onDragLeave={() => setDragging(false)}
+          onDrop={(e) => {
+            e.preventDefault()
+            setDragging(false)
+            if (!uploading) handleFiles(e.dataTransfer.files)
+          }}
+          onClick={() => { if (!uploading) fileInputRef.current?.click() }}
+          className={`relative flex flex-col items-center justify-center rounded-lg border-2 border-dashed px-6 py-6 transition-colors
+            ${uploading ? 'cursor-default opacity-70' : 'cursor-pointer'}
+            ${dragging
+              ? 'border-foreground bg-accent'
+              : 'border-border hover:border-muted-foreground hover:bg-accent/50'
+            }`}
+        >
+          {uploading ? (
+            <Loader2 size={18} className="text-muted-foreground mb-1.5 animate-spin" />
+          ) : (
+            <Upload size={18} className="text-muted-foreground mb-1.5" />
+          )}
+          <p className="text-sm font-medium text-foreground">
+            {uploading ? 'Uploading…' : <>Drop files here or <span className="underline">browse</span></>}
+          </p>
+          <p className="text-xs text-muted-foreground mt-1">
+            White papers, teasers, CIMs, financials
+          </p>
           <input
-            type="checkbox"
-            checked={extractAi}
-            onChange={(e) => setExtractAi(e.target.checked)}
-            className="rounded border-input"
+            ref={fileInputRef}
+            type="file"
+            multiple
+            className="sr-only"
+            onChange={(e) => handleFiles(e.target.files)}
           />
-          <Sparkles size={12} />
-          AI summary
-        </label>
-
-        <button
-          onClick={() => fileInputRef.current?.click()}
-          disabled={uploading}
-          className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors disabled:opacity-60"
-        >
-          {uploading ? <Loader2 size={13} className="animate-spin" /> : <Upload size={13} />}
-          {uploading ? 'Uploading…' : 'Upload'}
-        </button>
-
-        <input
-          ref={fileInputRef}
-          type="file"
-          multiple
-          className="hidden"
-          onChange={(e) => handleFiles(e.target.files)}
-        />
+        </div>
       </div>
 
       {error && <p className="text-xs text-destructive">{error}</p>}
