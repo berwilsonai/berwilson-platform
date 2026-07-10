@@ -52,11 +52,11 @@ export default async function InvestorDetailPage({ params }: PageProps) {
 
   if (!investor) notFound()
 
-  const [{ data: investments }, { data: notes }, { data: members }, { data: projects }, { data: entities }, { data: tasks }] =
+  const [{ data: investments }, { data: notes }, { data: members }, { data: projects }, { data: entities }, { data: tasks }, { data: raises }] =
     await Promise.all([
       supabase
         .from('investments')
-        .select('*, project:projects(id, name), spv:entities!investments_spv_entity_id_fkey(id, name)')
+        .select('*, project:projects(id, name), spv:entities!investments_spv_entity_id_fkey(id, name), raise:raises(id, name)')
         .eq('investor_id', id)
         .order('created_at', { ascending: true }),
       supabase
@@ -77,6 +77,7 @@ export default async function InvestorDetailPage({ params }: PageProps) {
         .eq('investor_id', id)
         .order('due_date', { ascending: true, nullsFirst: false })
         .order('created_at', { ascending: false }),
+      supabase.from('raises').select('id, name').order('created_at', { ascending: false }),
     ])
 
   const t = investorType(investor.investor_type)
@@ -253,6 +254,7 @@ export default async function InvestorDetailPage({ params }: PageProps) {
           investments={invRows}
           projects={projects ?? []}
           entities={entities ?? []}
+          raises={raises ?? []}
         />
       </section>
 

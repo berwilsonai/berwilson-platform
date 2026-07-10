@@ -12,6 +12,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { callGemini } from '@/lib/ai/gemini'
 import { fetchOpenTasks, formatTaskLine } from '@/lib/tasks/queries'
+import { parseTranches, raiseLevels, fillTranches } from '@/lib/investors/raises'
 
 const SYSTEM_USER_ID = '00000000-0000-0000-0000-000000000000'
 
@@ -31,7 +32,7 @@ Structure:
 (Approaching deadlines, stale blockers, relationships going cold)
 
 ### Capital Raise
-(Only include when investor data is provided: where the raise stands — committed vs funded, investor next steps due or overdue, hot investors going cold. 2-4 lines.)
+(Only include when investor data is provided: where each raise stands — committed vs funded vs target, which tranche is filling, investor next steps due or overdue, hot investors going cold. 2-5 lines.)
 
 ### Portfolio Pulse
 (2-3 sentence health check across all projects)
@@ -84,6 +85,7 @@ export async function GET(request: NextRequest) {
     { data: objectives },
     { data: investors },
     { data: investments },
+    { data: raiseRows },
   ] = await Promise.all([
     fetchOpenTasks(supabase, { limit: 300 }),
     supabase.from('projects').select('id, name, sector, stage, estimated_value, location').eq('status', 'active'),
@@ -121,14 +123,18 @@ export async function GET(request: NextRequest) {
       .eq('status', 'active')
       .in('bucket', ['now', 'soon'])
       .order('sort_order'),
-    // Capital raise — both fail quietly (null) pre-migration
+    // Capital raise — all fail quietly (null) pre-migration
     supabase
       .from('investors')
       .select('id, name, stage, interest_level, next_step, next_step_date, last_contact_date')
       .not('stage', 'in', '(passed,dormant)'),
     supabase
       .from('investments')
-      .select('investor_id, target_kind, stage, amount_indicated, amount_committed, amount_funded, project:projects(name)'),
+      .select('investor_id, raise_id, target_kind, stage, amount_indicated, amount_committed, amount_funded, project:projects(name)'),
+    supabase
+      .from('raises')
+      .select('id, name, status, target_amount, tranches')
+      .neq('status', 'closed'),
   ])
 
   const projectMap: Record<string, string> = {}
@@ -194,13 +200,24 @@ export async function GET(request: NextRequest) {
     `- ${p.name}: ${p.stage} stage, $${((p.estimated_value ?? 0) / 1_000_000).toFixed(1)}M, ${p.sector}, ${p.location ?? 'no location'}`
   )
 
-  // Capital raise summary — totals + the follow-ups that need a human this week
+  // Capital raise summary — per-raise standing, totals, and the follow-ups
+  // that need a human this week
   const investorLines: string[] = []
   if ((investors ?? []).length > 0) {
     const allInvestments = investments ?? []
     const money = (v: number) => `$${(v / 1_000_000).toFixed(1)}M`
     const total = (key: 'amount_indicated' | 'amount_committed' | 'amount_funded') =>
       allInvestments.reduce((acc, i) => acc + (i[key] ?? 0), 0)
+    // Where each open raise stands (tranches fill sequentially from committed money)
+    for (const raise of raiseRows ?? []) {
+      const scoped = allInvestments.filter((i) => (i as { raise_id?: string | null }).raise_id === raise.id)
+      const levels = raiseLevels(scoped)
+      const fills = fillTranches(parseTranches(raise.tranches), levels)
+      const nextTranche = fills.find((t) => t.committed < t.amount)
+      investorLines.push(
+        `- Raise "${raise.name}" (${raise.status}): target ${raise.target_amount != null ? money(raise.target_amount) : 'unset'} — ${money(levels.committed)} committed / ${money(levels.funded)} funded / ${money(levels.potential)} potential if all indications convert${nextTranche ? `; filling ${nextTranche.label} (${money(nextTranche.committed)} of ${money(nextTranche.amount)})` : fills.length > 0 ? '; all tranches committed' : ''}`
+      )
+    }
     investorLines.push(
       `- Totals: ${money(total('amount_indicated'))} indicated / ${money(total('amount_committed'))} committed / ${money(total('amount_funded'))} funded across ${investors!.length} active investors`
     )

@@ -1057,6 +1057,7 @@ export type Database = {
           preferred_return_pct: number | null
           profit_share_pct: number | null
           project_id: string | null
+          raise_id: string | null
           spv_entity_id: string | null
           stage: string
           target_close_date: string | null
@@ -1080,6 +1081,7 @@ export type Database = {
           preferred_return_pct?: number | null
           profit_share_pct?: number | null
           project_id?: string | null
+          raise_id?: string | null
           spv_entity_id?: string | null
           stage?: string
           target_close_date?: string | null
@@ -1103,6 +1105,7 @@ export type Database = {
           preferred_return_pct?: number | null
           profit_share_pct?: number | null
           project_id?: string | null
+          raise_id?: string | null
           spv_entity_id?: string | null
           stage?: string
           target_close_date?: string | null
@@ -1123,6 +1126,13 @@ export type Database = {
             columns: ["project_id"]
             isOneToOne: false
             referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "investments_raise_id_fkey"
+            columns: ["raise_id"]
+            isOneToOne: false
+            referencedRelation: "raises"
             referencedColumns: ["id"]
           },
           {
@@ -1970,6 +1980,59 @@ export type Database = {
           {
             foreignKeyName: "proposal_intake_sessions_confirmed_project_id_fkey"
             columns: ["confirmed_project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      raises: {
+        Row: {
+          created_at: string | null
+          id: string
+          name: string
+          notes: string | null
+          open_date: string | null
+          project_id: string | null
+          status: string
+          target_amount: number | null
+          target_close_date: string | null
+          target_kind: string
+          tranches: Json
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          name: string
+          notes?: string | null
+          open_date?: string | null
+          project_id?: string | null
+          status?: string
+          target_amount?: number | null
+          target_close_date?: string | null
+          target_kind?: string
+          tranches?: Json
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          name?: string
+          notes?: string | null
+          open_date?: string | null
+          project_id?: string | null
+          status?: string
+          target_amount?: number | null
+          target_close_date?: string | null
+          target_kind?: string
+          tranches?: Json
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "raises_project_id_fkey"
+            columns: ["project_id"]
             isOneToOne: false
             referencedRelation: "projects"
             referencedColumns: ["id"]

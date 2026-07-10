@@ -9,6 +9,7 @@ import { embedQuery } from './embeddings'
 import { fetchOpenTasks } from '@/lib/tasks/queries'
 import { computeAttention } from '@/lib/attention'
 import { generateDraft } from './draft'
+import { parseTranches, raiseLevels, fillTranches } from '@/lib/investors/raises'
 import type { AgentContext } from './agent'
 
 // ---------------------------------------------------------------------------
@@ -293,7 +294,7 @@ export const agentTools = [
   },
   {
     name: 'list_investors',
-    description: 'List the capital-raise pipeline: potential investors in Ber Wilson (the parent company) and in project SPVs. Returns each investor\'s relationship stage, interest level, type, check size, next step, and money rollups (indicated / committed / funded), plus raise totals. Use when asked "where does the raise stand", "who are our hot investors", "how much is committed", or to scan the investor pipeline.',
+    description: 'List the capital-raise pipeline: potential investors in Ber Wilson (the parent company) and in project SPVs. Returns each investor\'s relationship stage, interest level, type, check size, next step, and money rollups (indicated / committed / funded), plus overall totals and per-raise standing (each named raise\'s target, tranche schedule fill, committed/funded/potential). Use when asked "where does the raise stand", "how is tranche 2 filling", "who are our hot investors", "how much is committed", or to scan the investor pipeline.',
     parameters: {
       type: 'object',
       properties: {
@@ -1169,11 +1170,12 @@ export async function executeToolCall(
       if (args.interest_level) q = q.eq('interest_level', args.interest_level as string)
       if (args.investor_type) q = q.eq('investor_type', args.investor_type as string)
 
-      const [{ data: investors, error }, { data: investments }] = await Promise.all([
+      const [{ data: investors, error }, { data: investments }, { data: raiseRows }] = await Promise.all([
         q,
         supabase
           .from('investments')
-          .select('investor_id, target_kind, stage, amount_indicated, amount_committed, amount_funded, project:projects(name)'),
+          .select('investor_id, raise_id, target_kind, stage, amount_indicated, amount_committed, amount_funded, project:projects(name), raise:raises(name)'),
+        supabase.from('raises').select('id, name, status, target_amount, tranches'),
       ])
       if (error) return { error: `Investors unavailable: ${error.message}` }
 
@@ -1195,6 +1197,28 @@ export async function executeToolCall(
       const total = (key: 'amount_indicated' | 'amount_committed' | 'amount_funded') =>
         scoped.reduce((acc, i) => acc + (i[key] ?? 0), 0)
 
+      // Per-raise standing — tranches fill sequentially from committed money
+      const raiseStandings = (raiseRows ?? []).map((raise) => {
+        const scoped = allInvestments.filter((i) => (i as { raise_id?: string | null }).raise_id === raise.id)
+        const levels = raiseLevels(scoped)
+        const fills = fillTranches(parseTranches(raise.tranches), levels)
+        return {
+          name: raise.name,
+          status: raise.status,
+          target: raise.target_amount,
+          committed: levels.committed,
+          funded: levels.funded,
+          potential_if_indications_convert: levels.potential,
+          tranches: fills.map((t) => ({
+            label: t.label,
+            amount: t.amount,
+            committed: t.committed,
+            funded: t.funded,
+            target_date: t.target_date,
+          })),
+        }
+      })
+
       return {
         count: rows.length,
         raise_totals: {
@@ -1202,6 +1226,7 @@ export async function executeToolCall(
           committed: total('amount_committed'),
           funded: total('amount_funded'),
         },
+        raises: raiseStandings,
         investors: rows.map((r) => {
           const invs = byInvestor.get(r.id) ?? []
           const sum = (key: 'amount_indicated' | 'amount_committed' | 'amount_funded') =>
@@ -1226,6 +1251,7 @@ export async function executeToolCall(
             targets: [...new Set(invs.map((i) =>
               i.target_kind === 'company' ? 'Ber Wilson (parent)' : (i.project as { name: string } | null)?.name ?? 'Project'
             ))],
+            raises: [...new Set(invs.map((i) => (i.raise as { name: string } | null)?.name).filter(Boolean))],
           }
         }),
       }
@@ -1257,7 +1283,7 @@ export async function executeToolCall(
         supabase.from('investors').select('*').eq('id', investorId).single(),
         supabase
           .from('investments')
-          .select('*, project:projects(id, name), spv:entities!investments_spv_entity_id_fkey(id, name)')
+          .select('*, project:projects(id, name), spv:entities!investments_spv_entity_id_fkey(id, name), raise:raises(id, name)')
           .eq('investor_id', investorId)
           .order('created_at', { ascending: true }),
         supabase.from('investor_notes').select('body, author, created_at').eq('investor_id', investorId).order('created_at', { ascending: false }).limit(10),
@@ -1271,6 +1297,7 @@ export async function executeToolCall(
         investor: invRes.data,
         investments: (investmentsRes.data ?? []).map((i) => ({
           target: i.target_kind === 'company' ? 'Ber Wilson (parent)' : (i.project as { name: string } | null)?.name ?? 'Project',
+          raise: (i.raise as { name: string } | null)?.name ?? null,
           spv: (i.spv as { name: string } | null)?.name ?? null,
           stage: i.stage,
           instrument: i.instrument,

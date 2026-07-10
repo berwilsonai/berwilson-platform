@@ -22,6 +22,7 @@ import {
 export interface InvestmentRow extends Investment {
   project: { id: string; name: string } | null
   spv: { id: string; name: string } | null
+  raise?: { id: string; name: string } | null
 }
 
 interface Option {
@@ -34,11 +35,13 @@ interface InvestmentsSectionProps {
   investments: InvestmentRow[]
   projects: Option[]
   entities: Option[]
+  raises?: Option[]
 }
 
 interface FormValues {
   target_kind: string
   project_id: string
+  raise_id: string
   spv_entity_id: string
   stage: string
   instrument: string
@@ -59,6 +62,7 @@ interface FormValues {
 const EMPTY: FormValues = {
   target_kind: 'company',
   project_id: '',
+  raise_id: '',
   spv_entity_id: '',
   stage: 'discussing',
   instrument: '',
@@ -80,6 +84,7 @@ function toFormValues(inv: InvestmentRow): FormValues {
   return {
     target_kind: inv.target_kind,
     project_id: inv.project_id ?? '',
+    raise_id: inv.raise_id ?? '',
     spv_entity_id: inv.spv_entity_id ?? '',
     stage: inv.stage,
     instrument: inv.instrument ?? '',
@@ -104,7 +109,7 @@ const inputClass = cn(
 )
 const labelClass = 'block text-[11px] font-medium text-foreground mb-1'
 
-export default function InvestmentsSection({ investorId, investments, projects, entities }: InvestmentsSectionProps) {
+export default function InvestmentsSection({ investorId, investments, projects, entities, raises = [] }: InvestmentsSectionProps) {
   const router = useRouter()
   const [editingId, setEditingId] = useState<string | null>(null) // 'new' = adding
   const [values, setValues] = useState<FormValues>(EMPTY)
@@ -193,6 +198,25 @@ export default function InvestmentsSection({ investorId, investments, projects, 
             <option value="project">Project / SPV</option>
           </select>
         </div>
+        {raises.length > 0 && (
+          <div>
+            <label className={labelClass}>
+              Raise <span className="font-normal text-muted-foreground">(optional)</span>
+            </label>
+            <select
+              value={values.raise_id}
+              onChange={(e) => set('raise_id', e.target.value)}
+              className={inputClass}
+            >
+              <option value="">Not part of a raise</option>
+              {raises.map((r) => (
+                <option key={r.id} value={r.id}>
+                  {r.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
         {values.target_kind === 'project' && (
           <>
             <div>
@@ -400,6 +424,14 @@ export default function InvestmentsSection({ investorId, investments, projects, 
                         <span className="inline-flex items-center rounded bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground">
                           SPV: {inv.spv.name}
                         </span>
+                      )}
+                      {inv.raise && (
+                        <Link
+                          href={`/investors/raises/${inv.raise.id}`}
+                          className="inline-flex items-center rounded bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground hover:text-primary transition-colors"
+                        >
+                          {inv.raise.name}
+                        </Link>
                       )}
                     </div>
 

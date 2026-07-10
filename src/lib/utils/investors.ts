@@ -247,3 +247,27 @@ export const TARGET_KIND_LABELS: Record<TargetKind, string> = {
   company: 'Ber Wilson (parent)',
   project: 'Project / SPV',
 }
+
+// ─── Raise status ────────────────────────────────────────────────────────────
+
+export type RaiseStatus = 'planned' | 'open' | 'closed'
+
+export const RAISE_STATUSES: RaiseStatus[] = ['planned', 'open', 'closed']
+
+export const RAISE_STATUS_LABELS: Record<RaiseStatus, string> = {
+  planned: 'Planned',
+  open: 'Open',
+  closed: 'Closed',
+}
+
+export const RAISE_STATUS_BADGE: Record<RaiseStatus, string> = {
+  planned: 'bg-slate-100 text-slate-600 ring-slate-200 dark:bg-slate-400/15 dark:text-slate-300 dark:ring-slate-400/25',
+  open: 'bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-500/15 dark:text-emerald-300 dark:ring-emerald-500/30',
+  closed: 'bg-indigo-50 text-indigo-700 ring-indigo-200 dark:bg-indigo-500/15 dark:text-indigo-300 dark:ring-indigo-500/30',
+}
+
+export function raiseStatus(value: string | null | undefined): RaiseStatus {
+  return RAISE_STATUSES.includes(value as RaiseStatus)
+    ? (value as RaiseStatus)
+    : 'open'
+}

@@ -425,7 +425,7 @@ export async function embedInvestorSnapshot(investorId: string): Promise<void> {
         .single(),
       supabase
         .from('investments')
-        .select('target_kind, stage, instrument, amount_indicated, amount_committed, amount_funded, equity_pct, profit_share_pct, preferred_return_pct, terms_notes, target_close_date, next_step, project:projects(name), spv:entities!investments_spv_entity_id_fkey(name)')
+        .select('target_kind, stage, instrument, amount_indicated, amount_committed, amount_funded, equity_pct, profit_share_pct, preferred_return_pct, terms_notes, target_close_date, next_step, project:projects(name), spv:entities!investments_spv_entity_id_fkey(name), raise:raises(name)')
         .eq('investor_id', investorId),
       supabase
         .from('investor_notes')
@@ -458,8 +458,9 @@ export async function embedInvestorSnapshot(investorId: string): Promise<void> {
           ? 'Ber Wilson parent company'
           : `project ${(i.project as { name: string } | null)?.name ?? 'unknown'}`
       const spv = (i.spv as { name: string } | null)?.name
+      const raise = (i.raise as { name: string } | null)?.name
       const line = [
-        `Investment in ${target}${spv ? ` (SPV: ${spv})` : ''}: stage ${i.stage}`,
+        `Investment in ${target}${raise ? ` under raise "${raise}"` : ''}${spv ? ` (SPV: ${spv})` : ''}: stage ${i.stage}`,
         i.instrument ? `instrument ${i.instrument}` : null,
         i.amount_indicated != null ? `indicated ${money(i.amount_indicated)}` : null,
         i.amount_committed != null ? `committed ${money(i.amount_committed)}` : null,

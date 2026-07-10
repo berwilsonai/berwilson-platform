@@ -2,18 +2,24 @@ import { Suspense } from 'react'
 import Link from 'next/link'
 import { Plus, HandCoins } from 'lucide-react'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { cn } from '@/lib/utils'
 import { formatValue } from '@/lib/utils/constants'
 import {
   INVESTOR_TYPES,
   INVESTOR_STAGES,
   INTEREST_LEVELS,
+  raiseStatus,
+  RAISE_STATUS_LABELS,
+  RAISE_STATUS_BADGE,
   type InvestorType,
   type InvestorStage,
   type InterestLevel,
 } from '@/lib/utils/investors'
+import { parseTranches, raiseLevels, fillTranches } from '@/lib/investors/raises'
 import EmptyState from '@/components/shared/EmptyState'
 import InvestorFilters from '@/components/investors/InvestorFilters'
 import InvestorsClient, { type InvestorCardData } from '@/components/investors/InvestorsClient'
+import RaiseTrancheBar, { TrancheBarLegend } from '@/components/investors/RaiseTrancheBar'
 
 export const metadata = { title: 'Investors — Ber Wilson Intelligence' }
 
@@ -42,7 +48,7 @@ export default async function InvestorsPage({ searchParams }: PageProps) {
 
   // Small dataset — fetch everything once, filter + roll up in memory so the
   // stats band and the target filter can both use the investments join.
-  const [{ data: investorRows, error }, { data: investmentRows }] = await Promise.all([
+  const [{ data: investorRows, error }, { data: investmentRows }, { data: raiseRows }] = await Promise.all([
     supabase
       .from('investors')
       .select('*, party:parties(id, full_name, is_organization)')
@@ -50,6 +56,10 @@ export default async function InvestorsPage({ searchParams }: PageProps) {
     supabase
       .from('investments')
       .select('*, project:projects(id, name)'),
+    supabase
+      .from('raises')
+      .select('*, project:projects(id, name)')
+      .order('created_at', { ascending: true }),
   ])
 
   if (error) {
@@ -116,6 +126,24 @@ export default async function InvestorsPage({ searchParams }: PageProps) {
   const count = items.length
   const hasFilters = stage || type || interest || target
 
+  // Raise dashboard cards — open/planned first, closed last
+  const statusOrder: Record<string, number> = { open: 0, planned: 1, closed: 2 }
+  const raises = (raiseRows ?? [])
+    .slice()
+    .sort((a, b) => (statusOrder[a.status] ?? 1) - (statusOrder[b.status] ?? 1))
+    .map((raise) => {
+      const scoped = allInvestments.filter((i) => i.raise_id === raise.id)
+      const levels = raiseLevels(scoped)
+      const explicit = parseTranches(raise.tranches)
+      const tranches =
+        explicit.length > 0
+          ? explicit
+          : raise.target_amount != null
+            ? [{ label: 'Full raise', amount: raise.target_amount, target_date: raise.target_close_date }]
+            : []
+      return { raise, levels, fills: fillTranches(tranches, levels), investorCount: new Set(scoped.map((i) => i.investor_id)).size }
+    })
+
   return (
     <div className="space-y-5">
       {/* Page toolbar */}
@@ -131,14 +159,76 @@ export default async function InvestorsPage({ searchParams }: PageProps) {
             </span>
           )}
         </div>
-        <Link
-          href="/investors/new"
-          className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors shrink-0"
-        >
-          <Plus size={14} />
-          New Investor
-        </Link>
+        <div className="flex items-center gap-2 shrink-0">
+          <Link
+            href="/investors/raises/new"
+            className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md border border-input bg-background text-xs font-medium hover:bg-accent transition-colors"
+          >
+            <Plus size={14} />
+            New Raise
+          </Link>
+          <Link
+            href="/investors/new"
+            className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors"
+          >
+            <Plus size={14} />
+            New Investor
+          </Link>
+        </div>
       </div>
+
+      {/* Raises — potential vs actual per raise */}
+      {raises.length > 0 && (
+        <section className="space-y-3">
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+              Capital Raises <span className="tnum font-normal">({raises.length})</span>
+            </h2>
+            <TrancheBarLegend />
+          </div>
+          <div className={cn('grid gap-3', raises.length > 1 && 'lg:grid-cols-2')}>
+            {raises.map(({ raise, levels, fills, investorCount }) => {
+              const rs = raiseStatus(raise.status)
+              const project = raise.project as { id: string; name: string } | null
+              const targetLabel = raise.target_kind === 'company' ? 'Ber Wilson (parent)' : project?.name ?? 'Project'
+              return (
+                <Link
+                  key={raise.id}
+                  href={`/investors/raises/${raise.id}`}
+                  className="block rounded-xl border border-border bg-card p-4 elev-1 lift"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="text-sm font-semibold truncate">{raise.name}</span>
+                        <span className={cn('inline-flex items-center rounded px-1.5 py-0.5 text-[11px] font-medium ring-1 ring-inset', RAISE_STATUS_BADGE[rs])}>
+                          {RAISE_STATUS_LABELS[rs]}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-muted-foreground mt-0.5">{targetLabel}</p>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <p className="text-sm font-semibold tnum">{formatValue(raise.target_amount)}</p>
+                      <p className="text-[11px] text-muted-foreground">target</p>
+                    </div>
+                  </div>
+                  {fills.length > 0 && (
+                    <div className="mt-3">
+                      <RaiseTrancheBar tranches={fills} />
+                    </div>
+                  )}
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    <span className="font-medium tnum text-foreground">{formatValue(levels.committed)}</span> committed ·{' '}
+                    <span className="font-medium tnum text-foreground">{formatValue(levels.funded)}</span> funded ·{' '}
+                    <span className="font-medium tnum text-foreground">{formatValue(levels.potential)}</span> potential
+                    {investorCount > 0 && <> · {investorCount} investor{investorCount !== 1 ? 's' : ''}</>}
+                  </p>
+                </Link>
+              )
+            })}
+          </div>
+        </section>
+      )}
 
       {/* Raise rollup */}
       {(investorRows?.length ?? 0) > 0 && (

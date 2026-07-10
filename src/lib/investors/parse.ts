@@ -60,6 +60,7 @@ export function parseInvestmentFields(
     fields: {
       target_kind,
       project_id: target_kind === 'project' ? project_id : null,
+      raise_id: str('raise_id'),
       spv_entity_id: str('spv_entity_id'),
       stage,
       instrument,
