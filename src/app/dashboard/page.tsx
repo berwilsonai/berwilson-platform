@@ -86,6 +86,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
     { data: expiringCerts },
     { data: nowObjectivesRaw },
     { data: objectiveTaskRows },
+    { data: investorFollowUpsRaw },
   ] = await Promise.all([
     supabase.from('projects').select('*').eq('status', 'active'),
     fetchOpenTasks(supabase, { dueBefore: today }),
@@ -125,6 +126,13 @@ export default async function DashboardPage({ searchParams }: PageProps) {
       .select('objective_id')
       .eq('status', 'open')
       .not('objective_id', 'is', null),
+    // Capital raise: investors whose next step is overdue (fails quietly pre-migration)
+    supabase
+      .from('investors')
+      .select('id, name, stage, next_step, next_step_date')
+      .not('stage', 'in', '(passed,dormant)')
+      .lt('next_step_date', today)
+      .order('next_step_date', { ascending: true }),
   ])
 
   const activeProjects = projectsRaw ?? []
@@ -421,6 +429,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
             ddItems={ddItems}
             reviewCount={reviewCount ?? 0}
             overdueTasks={overdueTasks}
+            investorFollowUps={investorFollowUpsRaw ?? []}
           />
         </div>
 

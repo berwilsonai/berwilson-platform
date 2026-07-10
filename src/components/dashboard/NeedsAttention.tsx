@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { AlertTriangle, CalendarClock, ClipboardCheck, ListChecks, TrendingUp } from 'lucide-react'
+import { AlertTriangle, CalendarClock, ClipboardCheck, ListChecks, TrendingUp, HandCoins } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { SECTOR_BADGE, SECTOR_SHORT } from '@/lib/utils/sectors'
 import type { TaskSummary } from '@/lib/tasks/queries'
@@ -36,16 +36,25 @@ function daysOverdue(targetDate: string): number {
   return Math.floor((Date.now() - new Date(targetDate).getTime()) / 86_400_000)
 }
 
+export type InvestorFollowUp = {
+  id: string
+  name: string
+  stage: string
+  next_step: string | null
+  next_step_date: string | null
+}
+
 interface NeedsAttentionProps {
   reviewItems: ReviewWithProject[]
   overdueItems: MilestoneWithProject[]
   ddItems: DdWithProject[]
   reviewCount: number
   overdueTasks?: TaskSummary[]
+  investorFollowUps?: InvestorFollowUp[]
 }
 
-export default function NeedsAttention({ reviewItems, overdueItems, ddItems, reviewCount, overdueTasks = [] }: NeedsAttentionProps) {
-  const hasAttention = reviewItems.length > 0 || overdueItems.length > 0 || ddItems.length > 0 || overdueTasks.length > 0
+export default function NeedsAttention({ reviewItems, overdueItems, ddItems, reviewCount, overdueTasks = [], investorFollowUps = [] }: NeedsAttentionProps) {
+  const hasAttention = reviewItems.length > 0 || overdueItems.length > 0 || ddItems.length > 0 || overdueTasks.length > 0 || investorFollowUps.length > 0
 
   return (
     <div className="rounded-xl border border-border bg-card elev-1">
@@ -54,7 +63,7 @@ export default function NeedsAttention({ reviewItems, overdueItems, ddItems, rev
         <h2 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Needs Attention</h2>
         {hasAttention && (
           <span className="ml-auto text-xs font-medium tabular-nums bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 rounded px-1.5 py-0.5">
-            {reviewItems.length + overdueItems.length + ddItems.length + overdueTasks.length}
+            {reviewItems.length + overdueItems.length + ddItems.length + overdueTasks.length + investorFollowUps.length}
           </span>
         )}
       </div>
@@ -106,6 +115,41 @@ export default function NeedsAttention({ reviewItems, overdueItems, ddItems, rev
                     +{overdueTasks.length - 6} more →
                   </Link>
                 )}
+              </div>
+            </div>
+          )}
+
+          {/* Investor follow-ups (overdue next steps on the capital raise) */}
+          {investorFollowUps.length > 0 && (
+            <div className="rounded-md bg-muted/30 p-3">
+              <div className="flex items-center gap-1.5 mb-2">
+                <span className="size-1.5 rounded-full bg-red-400 shrink-0" />
+                <HandCoins size={12} className="text-red-500 dark:text-red-400 shrink-0" />
+                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                  Investor Follow-ups
+                </span>
+                <span className="ml-auto text-xs text-muted-foreground tabular-nums">{investorFollowUps.length}</span>
+              </div>
+              <div className="space-y-1">
+                {investorFollowUps.slice(0, 6).map((inv) => (
+                  <Link
+                    key={inv.id}
+                    href={`/investors/${inv.id}`}
+                    className="flex items-start gap-2 rounded-md px-2 py-2 hover:bg-muted/50 transition-colors"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-medium text-foreground truncate">{inv.name}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5 truncate">
+                        {inv.next_step ?? 'Next step overdue'}
+                      </p>
+                    </div>
+                    {inv.next_step_date && (
+                      <span className="shrink-0 text-xs font-medium text-red-600 dark:text-red-400 tabular-nums">
+                        {daysOverdue(inv.next_step_date)}d
+                      </span>
+                    )}
+                  </Link>
+                ))}
               </div>
             </div>
           )}

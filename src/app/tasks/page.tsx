@@ -1,6 +1,6 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import TeamTaskBoard from '@/components/tasks/TeamTaskBoard'
-import type { BoardTask, TeamMember, ProjectOption, OpportunityOption, ObjectiveOption } from '@/components/tasks/task-utils'
+import type { BoardTask, TeamMember, ProjectOption, OpportunityOption, InvestorOption, ObjectiveOption } from '@/components/tasks/task-utils'
 import { getViewer, filterTasksForViewer, accessibleProjectIds } from '@/lib/auth/viewer'
 
 export const metadata = { title: 'Team Tasks — Ber Wilson Intelligence' }
@@ -10,7 +10,7 @@ export default async function TasksPage() {
   const viewer = await getViewer()
 
   // Objectives may not exist pre-migration; a failed select just yields null → no objective controls.
-  const [{ data: tasks }, { data: members }, { data: projects }, { data: opportunities }, { data: objectives }] = await Promise.all([
+  const [{ data: tasks }, { data: members }, { data: projects }, { data: opportunities }, { data: investors }, { data: objectives }] = await Promise.all([
     supabase
       .from('tasks')
       .select('*, assignee:team_members(id, name, color), project:projects(id, name)')
@@ -32,6 +32,11 @@ export default async function TasksPage() {
       .not('status', 'in', '(closed_won,closed_passed)')
       .order('name'),
     supabase
+      .from('investors')
+      .select('id, name')
+      .not('stage', 'in', '(passed,dormant)')
+      .order('name'),
+    supabase
       .from('objectives')
       .select('id, title, bucket')
       .eq('status', 'active')
@@ -51,6 +56,10 @@ export default async function TasksPage() {
   let boardTasks = (tasks ?? []) as unknown as BoardTask[]
   let projectOptions = (projects ?? []) as ProjectOption[]
   let opportunityOptions = (opportunities ?? []) as OpportunityOption[]
+  // Investor data is admin-only (capital raise is sensitive) — everyone else
+  // gets no investor picker/chips, even executives.
+  const investorOptions: InvestorOption[] =
+    !viewer || viewer.isAdmin ? ((investors ?? []) as InvestorOption[]) : []
   let visibleObjectives = objectiveOptions
   if (viewer && !viewer.isAdmin && viewer.role !== 'executive') {
     boardTasks = await filterTasksForViewer(viewer, boardTasks)
@@ -71,6 +80,7 @@ export default async function TasksPage() {
       teamMembers={(members ?? []) as TeamMember[]}
       projects={projectOptions}
       opportunities={opportunityOptions}
+      investors={investorOptions}
       objectives={visibleObjectives}
     />
   )

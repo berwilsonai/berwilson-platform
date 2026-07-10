@@ -58,6 +58,8 @@ interface RawChunk {
   party_id: string | null
   // Present once migration 20260703000001 is applied; undefined from the old RPC
   opportunity_id?: string | null
+  // Present once migration 20260710000002 is applied
+  investor_id?: string | null
   source_type?: string | null
   content: string
   chunk_index: number
@@ -353,9 +355,22 @@ Active Certifications:\n${certLines || '(none on file)'}
     }
   }
 
+  // Same for investor snapshots (column only exists post-migration 20260710000002)
+  const investorMap: Record<string, string> = {}
+  const citedInvestorIds = [...new Set(topChunks.map((c) => c.investor_id).filter(Boolean))] as string[]
+  if (citedInvestorIds.length > 0) {
+    try {
+      const { data: invs } = await admin.from('investors').select('id, name').in('id', citedInvestorIds)
+      for (const i of invs ?? []) investorMap[i.id] = i.name
+    } catch {
+      // Non-fatal — chunks fall back to generic labels
+    }
+  }
+
   const sourceLabel = (c: RawChunk): string => {
     if (c.entity_id && entityMap[c.entity_id]) return `Vendor: ${entityMap[c.entity_id]}`
     if (c.opportunity_id) return `Opportunity: ${oppMap[c.opportunity_id] ?? 'Unknown'}`
+    if (c.investor_id) return `Investor: ${investorMap[c.investor_id] ?? 'Unknown'}`
     if (c.project_id) return projectMap[c.project_id] ?? 'Unknown Project'
     return 'Enrichment Data'
   }

@@ -93,6 +93,7 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
   if ('assignee_id' in body) patch.assignee_id = body.assignee_id || null
   if ('project_id' in body) patch.project_id = body.project_id || null
   if ('opportunity_id' in body) patch.opportunity_id = body.opportunity_id || null
+  if ('investor_id' in body) patch.investor_id = body.investor_id || null
   if ('objective_id' in body) patch.objective_id = body.objective_id || null
   if ('due_date' in body) patch.due_date = body.due_date || null
   if ('status' in body) {

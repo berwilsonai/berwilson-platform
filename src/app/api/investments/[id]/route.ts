@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { embedInvestorSnapshot } from '@/lib/ai/embeddings'
 import { getViewer, forbiddenJson } from '@/lib/auth/viewer'
 import { parseInvestmentFields, type InvestmentBody } from '@/lib/investors/parse'
 
@@ -47,6 +48,9 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
 
   await supabase.from('investors').update({ updated_at: new Date().toISOString() }).eq('id', data.investor_id)
 
+  // Refresh the searchable snapshot (skips pre-migration)
+  embedInvestorSnapshot(data.investor_id).catch(console.error)
+
   return Response.json({ investment: data })
 }
 
@@ -57,8 +61,13 @@ export async function DELETE(_request: NextRequest, { params }: RouteContext) {
   const { id } = await params
   const supabase = createAdminClient()
 
+  // Grab the parent before deleting so the snapshot can be refreshed
+  const { data: row } = await supabase.from('investments').select('investor_id').eq('id', id).maybeSingle()
+
   const { error } = await supabase.from('investments').delete().eq('id', id)
   if (error) return Response.json({ error: error.message }, { status: 500 })
+
+  if (row?.investor_id) embedInvestorSnapshot(row.investor_id).catch(console.error)
 
   return Response.json({ success: true })
 }

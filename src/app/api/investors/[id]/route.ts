@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { embedInvestorSnapshot } from '@/lib/ai/embeddings'
 import type { TablesUpdate } from '@/lib/supabase/types'
 import { getViewer, forbiddenJson } from '@/lib/auth/viewer'
 
@@ -49,6 +50,9 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
     .single()
 
   if (error) return Response.json({ error: error.message }, { status: 500 })
+
+  // Refresh the searchable snapshot (skips pre-migration)
+  embedInvestorSnapshot(id).catch(console.error)
 
   return Response.json({ investor: data })
 }

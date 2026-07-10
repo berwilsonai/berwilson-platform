@@ -324,6 +324,7 @@ export type Database = {
           embedding: string | null
           entity_id: string | null
           id: string
+          investor_id: string | null
           is_company: boolean
           opportunity_document_id: string | null
           opportunity_id: string | null
@@ -341,6 +342,7 @@ export type Database = {
           embedding?: string | null
           entity_id?: string | null
           id?: string
+          investor_id?: string | null
           is_company?: boolean
           opportunity_document_id?: string | null
           opportunity_id?: string | null
@@ -358,6 +360,7 @@ export type Database = {
           embedding?: string | null
           entity_id?: string | null
           id?: string
+          investor_id?: string | null
           is_company?: boolean
           opportunity_document_id?: string | null
           opportunity_id?: string | null
@@ -387,6 +390,13 @@ export type Database = {
             columns: ["opportunity_document_id"]
             isOneToOne: false
             referencedRelation: "opportunity_documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chunks_investor_id_fkey"
+            columns: ["investor_id"]
+            isOneToOne: false
+            referencedRelation: "investors"
             referencedColumns: ["id"]
           },
           {
@@ -2173,6 +2183,7 @@ export type Database = {
           due_date: string | null
           how: string | null
           id: string
+          investor_id: string | null
           objective_id: string | null
           opportunity_id: string | null
           project_id: string | null
@@ -2189,6 +2200,7 @@ export type Database = {
           due_date?: string | null
           how?: string | null
           id?: string
+          investor_id?: string | null
           objective_id?: string | null
           opportunity_id?: string | null
           project_id?: string | null
@@ -2205,6 +2217,7 @@ export type Database = {
           due_date?: string | null
           how?: string | null
           id?: string
+          investor_id?: string | null
           objective_id?: string | null
           opportunity_id?: string | null
           project_id?: string | null
@@ -2220,6 +2233,13 @@ export type Database = {
             columns: ["assignee_id"]
             isOneToOne: false
             referencedRelation: "team_members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_investor_id_fkey"
+            columns: ["investor_id"]
+            isOneToOne: false
+            referencedRelation: "investors"
             referencedColumns: ["id"]
           },
           {
@@ -2367,6 +2387,7 @@ export type Database = {
           document_id: string
           entity_id: string
           id: string
+          investor_id: string
           is_company: boolean
           opportunity_id: string
           party_id: string

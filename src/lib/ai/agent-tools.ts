@@ -292,8 +292,48 @@ export const agentTools = [
     },
   },
   {
+    name: 'list_investors',
+    description: 'List the capital-raise pipeline: potential investors in Ber Wilson (the parent company) and in project SPVs. Returns each investor\'s relationship stage, interest level, type, check size, next step, and money rollups (indicated / committed / funded), plus raise totals. Use when asked "where does the raise stand", "who are our hot investors", "how much is committed", or to scan the investor pipeline.',
+    parameters: {
+      type: 'object',
+      properties: {
+        stage: {
+          type: 'string',
+          enum: ['identified', 'contacted', 'in_conversation', 'materials_sent', 'diligence', 'soft_committed', 'committed', 'funded', 'passed', 'dormant'],
+          description: 'Filter by relationship pipeline stage',
+        },
+        interest_level: {
+          type: 'string',
+          enum: ['hot', 'warm', 'cool', 'cold'],
+          description: 'Filter by interest level',
+        },
+        investor_type: {
+          type: 'string',
+          enum: ['individual', 'family_office', 'private_equity', 'venture_capital', 'institutional', 'bank_lender', 'tribal', 'strategic', 'other'],
+          description: 'Filter by investor type',
+        },
+        target_kind: {
+          type: 'string',
+          enum: ['company', 'project'],
+          description: 'Only investors with an investment targeting the parent company or a project/SPV',
+        },
+      },
+    },
+  },
+  {
+    name: 'query_investor',
+    description: 'Get the full record for one investor: relationship fields (stage, interest, check size, preferred structures, source, next step), every investment with amounts and terms (target, indicated/committed/funded, equity %, profit share %, SPV), the latest contact-log notes, and open tasks. Use whenever asked about a specific named investor.',
+    parameters: {
+      type: 'object',
+      properties: {
+        investor_id: { type: 'string', description: 'UUID of the investor (if known)' },
+        name: { type: 'string', description: 'Investor name to look up (fuzzy match). Provide this when the UUID is unknown.' },
+      },
+    },
+  },
+  {
     name: 'search_tasks',
-    description: 'Search the team task system. Returns tasks with title, what/why/how, assignee, due date, status, linked project or opportunity, and the latest note. Use when asked "what is Eric working on", "what tasks are open on X", "what is overdue", or anything about to-dos and assignments.',
+    description: 'Search the team task system. Returns tasks with title, what/why/how, assignee, due date, status, linked project/opportunity/investor, and the latest note. Use when asked "what is Eric working on", "what tasks are open on X", "what is overdue", or anything about to-dos and assignments.',
     parameters: {
       type: 'object',
       properties: {
@@ -301,6 +341,7 @@ export const agentTools = [
         assignee_name: { type: 'string', description: 'Optional: filter by team member name (e.g. "Richard", "Eric")' },
         project_id: { type: 'string', description: 'Optional: filter to a project' },
         opportunity_id: { type: 'string', description: 'Optional: filter to an opportunity' },
+        investor_id: { type: 'string', description: 'Optional: filter to an investor' },
         status: {
           type: 'string',
           enum: ['open', 'done', 'all'],
@@ -641,6 +682,7 @@ export async function executeToolCall(
           content: string
           project_id: string | null
           opportunity_id?: string | null
+          investor_id?: string | null
           source_type?: string | null
           is_company?: boolean
           similarity: number
@@ -661,6 +703,14 @@ export async function executeToolCall(
             for (const o of opps ?? []) oppNames[o.id] = o.name
           } catch { /* opportunities table may not exist yet */ }
         }
+        const invIds = [...new Set(kbChunks.map((c) => c.investor_id).filter(Boolean))]
+        const invNames: Record<string, string> = {}
+        if (invIds.length > 0) {
+          try {
+            const { data: invs } = await supabase.from('investors').select('id, name').in('id', invIds as string[])
+            for (const i of invs ?? []) invNames[i.id] = i.name
+          } catch { /* investors table may not exist yet */ }
+        }
 
         return {
           results: kbChunks.slice(0, 8).map((c, i) => ({
@@ -670,6 +720,8 @@ export async function executeToolCall(
               ? 'Ber Wilson (company knowledge base)'
               : c.opportunity_id
               ? `Opportunity: ${oppNames[c.opportunity_id] ?? 'Unknown'}${c.source_type ? ` (${c.source_type.replace(/_/g, ' ')})` : ''}`
+              : c.investor_id
+              ? `Investor: ${invNames[c.investor_id] ?? 'Unknown'}`
               : c.project_id
               ? projectNames[c.project_id] ?? 'Unknown'
               : 'General',
@@ -1106,6 +1158,141 @@ export async function executeToolCall(
       }
     }
 
+    case 'list_investors': {
+      let q = supabase
+        .from('investors')
+        .select('id, name, investor_type, stage, interest_level, check_size_min, check_size_max, preferred_structures, sector_interests, source, next_step, next_step_date, last_contact_date, updated_at')
+        .order('updated_at', { ascending: false })
+        .limit(50)
+
+      if (args.stage) q = q.eq('stage', args.stage as string)
+      if (args.interest_level) q = q.eq('interest_level', args.interest_level as string)
+      if (args.investor_type) q = q.eq('investor_type', args.investor_type as string)
+
+      const [{ data: investors, error }, { data: investments }] = await Promise.all([
+        q,
+        supabase
+          .from('investments')
+          .select('investor_id, target_kind, stage, amount_indicated, amount_committed, amount_funded, project:projects(name)'),
+      ])
+      if (error) return { error: `Investors unavailable: ${error.message}` }
+
+      const allInvestments = investments ?? []
+      const byInvestor = new Map<string, typeof allInvestments>()
+      for (const inv of allInvestments) {
+        const list = byInvestor.get(inv.investor_id) ?? []
+        list.push(inv)
+        byInvestor.set(inv.investor_id, list)
+      }
+
+      let rows = investors ?? []
+      if (args.target_kind) {
+        rows = rows.filter((r) => (byInvestor.get(r.id) ?? []).some((i) => i.target_kind === args.target_kind))
+      }
+      if (rows.length === 0) return { message: 'No investors match those filters.' }
+
+      const scoped = allInvestments.filter((i) => rows.some((r) => r.id === i.investor_id))
+      const total = (key: 'amount_indicated' | 'amount_committed' | 'amount_funded') =>
+        scoped.reduce((acc, i) => acc + (i[key] ?? 0), 0)
+
+      return {
+        count: rows.length,
+        raise_totals: {
+          indicated: total('amount_indicated'),
+          committed: total('amount_committed'),
+          funded: total('amount_funded'),
+        },
+        investors: rows.map((r) => {
+          const invs = byInvestor.get(r.id) ?? []
+          const sum = (key: 'amount_indicated' | 'amount_committed' | 'amount_funded') =>
+            invs.reduce((acc, i) => acc + (i[key] ?? 0), 0)
+          return {
+            id: r.id,
+            name: r.name,
+            type: r.investor_type,
+            stage: r.stage,
+            interest_level: r.interest_level,
+            check_size_min: r.check_size_min,
+            check_size_max: r.check_size_max,
+            preferred_structures: r.preferred_structures,
+            sector_interests: r.sector_interests,
+            source: r.source,
+            next_step: r.next_step,
+            next_step_date: r.next_step_date,
+            last_contact_date: r.last_contact_date,
+            indicated: sum('amount_indicated'),
+            committed: sum('amount_committed'),
+            funded: sum('amount_funded'),
+            targets: [...new Set(invs.map((i) =>
+              i.target_kind === 'company' ? 'Ber Wilson (parent)' : (i.project as { name: string } | null)?.name ?? 'Project'
+            ))],
+          }
+        }),
+      }
+    }
+
+    case 'query_investor': {
+      let investorId = (args.investor_id as string) || null
+
+      if (!investorId && args.name) {
+        const term = (args.name as string).replace(/[%,]/g, '')
+        const { data: matches, error } = await supabase
+          .from('investors')
+          .select('id, name, stage, interest_level')
+          .ilike('name', `%${term}%`)
+          .limit(5)
+        if (error) return { error: `Investors unavailable: ${error.message}` }
+        if (!matches || matches.length === 0) return { error: `No investor found matching "${args.name}". Try list_investors.` }
+        if (matches.length > 1) {
+          return {
+            message: 'Multiple investors match — call query_investor again with the investor_id.',
+            candidates: matches,
+          }
+        }
+        investorId = matches[0].id
+      }
+      if (!investorId) return { error: 'Provide investor_id or name' }
+
+      const [invRes, investmentsRes, notesRes, tasksRes] = await Promise.all([
+        supabase.from('investors').select('*').eq('id', investorId).single(),
+        supabase
+          .from('investments')
+          .select('*, project:projects(id, name), spv:entities!investments_spv_entity_id_fkey(id, name)')
+          .eq('investor_id', investorId)
+          .order('created_at', { ascending: true }),
+        supabase.from('investor_notes').select('body, author, created_at').eq('investor_id', investorId).order('created_at', { ascending: false }).limit(10),
+        // Tolerant of the investor task tag not existing yet
+        supabase.from('tasks').select('title, status, due_date, assignee:team_members(name)').eq('investor_id', investorId).eq('status', 'open').order('due_date', { ascending: true, nullsFirst: false }),
+      ])
+
+      if (invRes.error || !invRes.data) return { error: `Investor not found: ${invRes.error?.message ?? investorId}` }
+
+      return {
+        investor: invRes.data,
+        investments: (investmentsRes.data ?? []).map((i) => ({
+          target: i.target_kind === 'company' ? 'Ber Wilson (parent)' : (i.project as { name: string } | null)?.name ?? 'Project',
+          spv: (i.spv as { name: string } | null)?.name ?? null,
+          stage: i.stage,
+          instrument: i.instrument,
+          amount_indicated: i.amount_indicated,
+          amount_committed: i.amount_committed,
+          amount_funded: i.amount_funded,
+          equity_pct: i.equity_pct,
+          profit_share_pct: i.profit_share_pct,
+          preferred_return_pct: i.preferred_return_pct,
+          terms_notes: i.terms_notes,
+          target_close_date: i.target_close_date,
+          next_step: i.next_step,
+        })),
+        recent_notes: notesRes.data ?? [],
+        open_tasks: (tasksRes.data ?? []).map((t) => ({
+          title: t.title,
+          due_date: t.due_date,
+          assignee: (t.assignee as { name: string } | null)?.name ?? null,
+        })),
+      }
+    }
+
     case 'search_tasks': {
       const status = (args.status as string) || 'open'
       let q = supabase
@@ -1117,6 +1304,7 @@ export async function executeToolCall(
       if (status !== 'all') q = q.eq('status', status)
       if (args.project_id) q = q.eq('project_id', args.project_id as string)
       if (args.opportunity_id) q = q.eq('opportunity_id', args.opportunity_id as string)
+      if (args.investor_id) q = q.eq('investor_id', args.investor_id as string)
       if (args.due_before) q = q.lte('due_date', args.due_before as string)
       if (args.query) {
         const term = (args.query as string).replace(/[%,]/g, '')

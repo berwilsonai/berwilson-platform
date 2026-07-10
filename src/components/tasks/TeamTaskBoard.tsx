@@ -12,6 +12,7 @@ import {
   Target,
   Archive,
   X,
+  HandCoins,
 } from 'lucide-react'
 import EmptyState from '@/components/shared/EmptyState'
 import { DatePicker } from '@/components/ui/date-picker'
@@ -23,6 +24,7 @@ import {
   type TeamMember,
   type ProjectOption,
   type OpportunityOption,
+  type InvestorOption,
   type ObjectiveOption,
   getDueLabel,
   avatarClasses,
@@ -35,11 +37,14 @@ interface TeamTaskBoardProps {
   teamMembers: TeamMember[]
   projects: ProjectOption[]
   opportunities?: OpportunityOption[]
+  investors?: InvestorOption[]
   objectives?: ObjectiveOption[]
   /** When set, the board is scoped to a single project (project tab mode). */
   scopeProjectId?: string
   /** When set, the board is scoped to a single opportunity (opportunity detail mode). */
   scopeOpportunityId?: string
+  /** When set, the board is scoped to a single investor (investor detail mode). */
+  scopeInvestorId?: string
   /** Hide the board's own heading (the host page provides a section title). */
   embedded?: boolean
 }
@@ -54,21 +59,27 @@ export default function TeamTaskBoard({
   teamMembers,
   projects,
   opportunities = [],
+  investors = [],
   objectives = [],
   scopeProjectId,
   scopeOpportunityId,
+  scopeInvestorId,
   embedded = false,
 }: TeamTaskBoardProps) {
   const scopedToProject = !!scopeProjectId
   const scopedToOpportunity = !!scopeOpportunityId
-  // "scoped" = pinned to a single parent record (project tab or opportunity detail).
-  const scoped = scopedToProject || scopedToOpportunity
+  const scopedToInvestor = !!scopeInvestorId
+  // "scoped" = pinned to a single parent record (project tab, opportunity or investor detail).
+  const scoped = scopedToProject || scopedToOpportunity || scopedToInvestor
   // Which pickers/filters to render (hidden when locked to that parent or when there's nothing to pick).
   const showProjectControls = !scopedToProject && projects.length > 0
   const showOpportunityControls = !scopedToOpportunity && opportunities.length > 0
+  const showInvestorControls = !scopedToInvestor && investors.length > 0
   const showObjectiveControls = objectives.length > 0
   const oppName = (id: string | null) =>
     id ? opportunities.find((o) => o.id === id)?.name ?? null : null
+  const investorName = (id: string | null) =>
+    id ? investors.find((o) => o.id === id)?.name ?? null : null
   const objectiveTitle = (id: string | null) =>
     id ? objectives.find((o) => o.id === id)?.title ?? null : null
   const [tasks, setTasks] = useState<BoardTask[]>(initialTasks)
@@ -79,6 +90,7 @@ export default function TeamTaskBoard({
   const [assigneeFilter, setAssigneeFilter] = useState('all')
   const [projectFilter, setProjectFilter] = useState('all')
   const [opportunityFilter, setOpportunityFilter] = useState('all')
+  const [investorFilter, setInvestorFilter] = useState('all')
   const [objectiveFilter, setObjectiveFilter] = useState('all')
 
   // detail sheet
@@ -90,6 +102,7 @@ export default function TeamTaskBoard({
   const [assigneeId, setAssigneeId] = useState('')
   const [projectId, setProjectId] = useState(scopeProjectId ?? '')
   const [opportunityId, setOpportunityId] = useState(scopeOpportunityId ?? '')
+  const [investorId, setInvestorId] = useState(scopeInvestorId ?? '')
   const [objectiveId, setObjectiveId] = useState('')
   const [dueDate, setDueDate] = useState('')
   const [adding, setAdding] = useState(false)
@@ -112,6 +125,7 @@ export default function TeamTaskBoard({
           assignee_id: assigneeId || undefined,
           project_id: (scopeProjectId ?? projectId) || undefined,
           opportunity_id: (scopeOpportunityId ?? opportunityId) || undefined,
+          investor_id: (scopeInvestorId ?? investorId) || undefined,
           objective_id: objectiveId || undefined,
           due_date: dueDate || undefined,
         }),
@@ -125,6 +139,7 @@ export default function TeamTaskBoard({
       setDueDate('')
       setObjectiveId('')
       if (!scopedToOpportunity) setOpportunityId('')
+      if (!scopedToInvestor) setInvestorId('')
       if (!scopedToProject) setProjectId('')
       setShowAdd(false)
       toast.success('Task added')
@@ -196,6 +211,11 @@ export default function TeamTaskBoard({
         opportunityFilter === 'none' ? !t.opportunity_id : t.opportunity_id === opportunityFilter,
       )
     }
+    if (showInvestorControls && investorFilter !== 'all') {
+      list = list.filter((t) =>
+        investorFilter === 'none' ? !t.investor_id : t.investor_id === investorFilter,
+      )
+    }
     if (showObjectiveControls && objectiveFilter !== 'all') {
       list = list.filter((t) =>
         objectiveFilter === 'none' ? !t.objective_id : t.objective_id === objectiveFilter,
@@ -207,7 +227,7 @@ export default function TeamTaskBoard({
       if (b.due_date) return 1
       return (b.created_at ?? '').localeCompare(a.created_at ?? '')
     })
-  }, [tasks, status, assigneeFilter, projectFilter, opportunityFilter, objectiveFilter, showProjectControls, showOpportunityControls, showObjectiveControls])
+  }, [tasks, status, assigneeFilter, projectFilter, opportunityFilter, investorFilter, objectiveFilter, showProjectControls, showOpportunityControls, showInvestorControls, showObjectiveControls])
 
   // Per-person workload (the old Capacity view, folded in) — open + overdue counts.
   const workload = useMemo(() => {
@@ -306,6 +326,7 @@ export default function TeamTaskBoard({
                   2 +
                   (showProjectControls ? 1 : 0) +
                   (showOpportunityControls ? 1 : 0) +
+                  (showInvestorControls ? 1 : 0) +
                   (showObjectiveControls ? 1 : 0)
                 return n === 2 ? 'sm:grid-cols-2' : n === 3 ? 'sm:grid-cols-3' : 'sm:grid-cols-4'
               })(),
@@ -368,6 +389,19 @@ export default function TeamTaskBoard({
               >
                 <option value="">No opportunity</option>
                 {opportunities.map((o) => (
+                  <option key={o.id} value={o.id}>{o.name}</option>
+                ))}
+              </select>
+            )}
+
+            {showInvestorControls && (
+              <select
+                value={investorId}
+                onChange={(e) => setInvestorId(e.target.value)}
+                className={fieldClass}
+              >
+                <option value="">No investor</option>
+                {investors.map((o) => (
                   <option key={o.id} value={o.id}>{o.name}</option>
                 ))}
               </select>
@@ -440,6 +474,14 @@ export default function TeamTaskBoard({
           </select>
         )}
 
+        {showInvestorControls && (
+          <select value={investorFilter} onChange={(e) => setInvestorFilter(e.target.value)} className="h-8 rounded-md border border-input bg-background px-2 text-xs focus:outline-none focus:ring-2 focus:ring-ring">
+            <option value="all">All investors</option>
+            {investors.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
+            <option value="none">No investor</option>
+          </select>
+        )}
+
         {showObjectiveControls && (
           <select value={objectiveFilter} onChange={(e) => setObjectiveFilter(e.target.value)} className="h-8 rounded-md border border-input bg-background px-2 text-xs focus:outline-none focus:ring-2 focus:ring-ring">
             <option value="all">All objectives</option>
@@ -497,6 +539,11 @@ export default function TeamTaskBoard({
                         <Lightbulb size={11} /> {oppName(task.opportunity_id)}
                       </span>
                     )}
+                    {!scopedToInvestor && investorName(task.investor_id) && (
+                      <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                        <HandCoins size={11} /> {investorName(task.investor_id)}
+                      </span>
+                    )}
                     {objectiveTitle(task.objective_id) && (
                       <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
                         <Target size={11} /> {objectiveTitle(task.objective_id)}
@@ -530,6 +577,7 @@ export default function TeamTaskBoard({
         teamMembers={members}
         projects={projects}
         opportunities={opportunities}
+        investors={investors}
         objectives={objectives}
         lockProject={scopedToProject}
         onClose={() => setOpenTaskId(null)}

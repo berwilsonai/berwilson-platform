@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { Pencil, MessageSquare, Banknote, UserRound, StickyNote } from 'lucide-react'
+import { Pencil, MessageSquare, Banknote, UserRound, StickyNote, ListChecks } from 'lucide-react'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { cn } from '@/lib/utils'
 import { formatValue, formatDate, SECTOR_LABELS } from '@/lib/utils/constants'
@@ -22,7 +22,9 @@ import {
 import InvestorStageControl from '@/components/investors/InvestorStageControl'
 import InvestorDeleteButton from '@/components/investors/InvestorDeleteButton'
 import InvestorNotes from '@/components/investors/InvestorNotes'
+import InvestorTasks from '@/components/investors/InvestorTasks'
 import InvestmentsSection, { type InvestmentRow } from '@/components/investors/InvestmentsSection'
+import type { BoardTask, TeamMember } from '@/components/tasks/task-utils'
 
 interface PageProps {
   params: Promise<{ id: string }>
@@ -50,7 +52,7 @@ export default async function InvestorDetailPage({ params }: PageProps) {
 
   if (!investor) notFound()
 
-  const [{ data: investments }, { data: notes }, { data: members }, { data: projects }, { data: entities }] =
+  const [{ data: investments }, { data: notes }, { data: members }, { data: projects }, { data: entities }, { data: tasks }] =
     await Promise.all([
       supabase
         .from('investments')
@@ -64,10 +66,17 @@ export default async function InvestorDetailPage({ params }: PageProps) {
         .order('created_at', { ascending: false }),
       supabase
         .from('team_members')
-        .select('id, name')
+        .select('id, name, color')
         .order('created_at', { ascending: true }),
       supabase.from('projects').select('id, name').order('name'),
       supabase.from('entities').select('id, name').order('name'),
+      // Tolerant of the investor_id tag column not existing yet (null → [] until the migration lands)
+      supabase
+        .from('tasks')
+        .select('*, assignee:team_members(id, name, color), project:projects(id, name)')
+        .eq('investor_id', id)
+        .order('due_date', { ascending: true, nullsFirst: false })
+        .order('created_at', { ascending: false }),
     ])
 
   const t = investorType(investor.investor_type)
@@ -244,6 +253,18 @@ export default async function InvestorDetailPage({ params }: PageProps) {
           investments={invRows}
           projects={projects ?? []}
           entities={entities ?? []}
+        />
+      </section>
+
+      {/* Tasks */}
+      <section>
+        <h2 className="flex items-center gap-1.5 text-sm font-semibold mb-3">
+          <ListChecks size={15} /> Tasks
+        </h2>
+        <InvestorTasks
+          investorId={id}
+          initialTasks={(tasks ?? []) as unknown as BoardTask[]}
+          teamMembers={(members ?? []) as TeamMember[]}
         />
       </section>
 

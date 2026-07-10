@@ -12,6 +12,7 @@ export async function GET(request: NextRequest) {
   const assignee = searchParams.get('assignee')
   const project = searchParams.get('project')
   const opportunity = searchParams.get('opportunity')
+  const investor = searchParams.get('investor')
   const objective = searchParams.get('objective')
 
   const supabase = createAdminClient()
@@ -25,6 +26,7 @@ export async function GET(request: NextRequest) {
   if (assignee) query = query.eq('assignee_id', assignee)
   if (project) query = query.eq('project_id', project)
   if (opportunity) query = query.eq('opportunity_id', opportunity)
+  if (investor) query = query.eq('investor_id', investor)
   if (objective) query = query.eq('objective_id', objective)
 
   const { data, error } = await query
@@ -41,7 +43,7 @@ export async function POST(request: NextRequest) {
   if (!viewer) return Response.json({ error: 'Not authenticated' }, { status: 401 })
 
   const body = await request.json()
-  const { title, what, why, how, project_id, opportunity_id, objective_id, due_date } = body
+  const { title, what, why, how, project_id, opportunity_id, investor_id, objective_id, due_date } = body
   // Members can only add to their own list — pin the assignee server-side.
   const assignee_id = viewer.role === 'member' ? viewer.teamMemberId : body.assignee_id
 
@@ -63,9 +65,10 @@ export async function POST(request: NextRequest) {
     due_date: due_date || null,
     status: 'open',
   }
-  // Only reference the opportunity/objective tags when one is chosen, so creating
-  // a task still works before those tag migrations are applied.
+  // Only reference the opportunity/investor/objective tags when one is chosen,
+  // so creating a task still works before those tag migrations are applied.
   if (opportunity_id) row.opportunity_id = opportunity_id
+  if (investor_id) row.investor_id = investor_id
   if (objective_id) row.objective_id = objective_id
 
   const supabase = await actorAdminClient()

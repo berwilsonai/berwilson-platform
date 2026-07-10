@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { embedInvestorSnapshot } from '@/lib/ai/embeddings'
 import { getViewer, forbiddenJson } from '@/lib/auth/viewer'
 
 interface RouteContext {
@@ -41,6 +42,9 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
     .from('investors')
     .update({ updated_at: new Date().toISOString(), last_contact_date: new Date().toISOString().slice(0, 10) })
     .eq('id', id)
+
+  // Fold the note into the searchable snapshot (skips pre-migration)
+  embedInvestorSnapshot(id).catch(console.error)
 
   return Response.json({ note })
 }

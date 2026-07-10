@@ -402,6 +402,121 @@ export async function embedOpportunityReport(
 }
 
 // ---------------------------------------------------------------------------
+// Public: investor snapshot (delete-and-replace)
+// Degrades to a warn + skip while migration 20260710000002 is unapplied
+// (chunks.investor_id column / relaxed source check don't exist yet).
+// ---------------------------------------------------------------------------
+
+/**
+ * Embed a snapshot of an investor relationship — core fields, every
+ * investment (target, stage, amounts, terms), and the latest contact-log
+ * notes — so /intel and the agent's search_knowledge_base find investors.
+ * Called after any investor/investment/note write; delete-and-replace keeps
+ * exactly one snapshot per investor.
+ */
+export async function embedInvestorSnapshot(investorId: string): Promise<void> {
+  const supabase = createAdminClient()
+  try {
+    const [{ data: inv }, { data: investments }, { data: notes }] = await Promise.all([
+      supabase
+        .from('investors')
+        .select('name, investor_type, stage, interest_level, check_size_min, check_size_max, preferred_structures, sector_interests, source, referred_by, next_step, next_step_date, last_contact_date, notes')
+        .eq('id', investorId)
+        .single(),
+      supabase
+        .from('investments')
+        .select('target_kind, stage, instrument, amount_indicated, amount_committed, amount_funded, equity_pct, profit_share_pct, preferred_return_pct, terms_notes, target_close_date, next_step, project:projects(name), spv:entities!investments_spv_entity_id_fkey(name)')
+        .eq('investor_id', investorId),
+      supabase
+        .from('investor_notes')
+        .select('body, author, created_at')
+        .eq('investor_id', investorId)
+        .order('created_at', { ascending: false })
+        .limit(5),
+    ])
+    if (!inv) return
+
+    const money = (v: number | null) => (v != null ? `$${Number(v).toLocaleString()}` : null)
+
+    const parts: string[] = [`Investor: ${inv.name}`]
+    parts.push(`Type: ${inv.investor_type}`)
+    parts.push(`Relationship Stage: ${inv.stage}`)
+    if (inv.interest_level) parts.push(`Interest Level: ${inv.interest_level}`)
+    const range = [money(inv.check_size_min), money(inv.check_size_max)].filter(Boolean).join(' to ')
+    if (range) parts.push(`Typical Check Size: ${range}`)
+    if (inv.preferred_structures?.length) parts.push(`Preferred Structures: ${inv.preferred_structures.join(', ')}`)
+    if (inv.sector_interests?.length) parts.push(`Sector Interests: ${inv.sector_interests.join(', ')}`)
+    if (inv.source) parts.push(`Source: ${inv.source}`)
+    if (inv.referred_by) parts.push(`Referred By: ${inv.referred_by}`)
+    if (inv.last_contact_date) parts.push(`Last Contact: ${inv.last_contact_date}`)
+    if (inv.next_step) parts.push(`Next Step: ${inv.next_step}${inv.next_step_date ? ` (by ${inv.next_step_date})` : ''}`)
+    if (inv.notes) parts.push(`Background: ${inv.notes}`)
+
+    for (const i of investments ?? []) {
+      const target =
+        i.target_kind === 'company'
+          ? 'Ber Wilson parent company'
+          : `project ${(i.project as { name: string } | null)?.name ?? 'unknown'}`
+      const spv = (i.spv as { name: string } | null)?.name
+      const line = [
+        `Investment in ${target}${spv ? ` (SPV: ${spv})` : ''}: stage ${i.stage}`,
+        i.instrument ? `instrument ${i.instrument}` : null,
+        i.amount_indicated != null ? `indicated ${money(i.amount_indicated)}` : null,
+        i.amount_committed != null ? `committed ${money(i.amount_committed)}` : null,
+        i.amount_funded != null ? `funded ${money(i.amount_funded)}` : null,
+        i.equity_pct != null ? `equity ${i.equity_pct}%` : null,
+        i.profit_share_pct != null ? `profit share ${i.profit_share_pct}%` : null,
+        i.preferred_return_pct != null ? `preferred return ${i.preferred_return_pct}%` : null,
+        i.target_close_date ? `target close ${i.target_close_date}` : null,
+        i.next_step ? `next step: ${i.next_step}` : null,
+      ].filter(Boolean).join(', ')
+      parts.push(line)
+      if (i.terms_notes) parts.push(`Terms notes: ${i.terms_notes}`)
+    }
+
+    for (const n of notes ?? []) {
+      const when = n.created_at ? new Date(n.created_at).toISOString().slice(0, 10) : ''
+      parts.push(`Contact log${n.author ? ` (${n.author}` : ' ('}${when ? `, ${when})` : ')'}: ${n.body}`)
+    }
+
+    const text = parts.join('\n')
+    if (text.length < 30) return
+
+    const { error: delErr } = await supabase
+      .from('chunks')
+      .delete()
+      .eq('investor_id', investorId)
+    if (delErr) {
+      console.warn(`[embeddings] embedInvestorSnapshot skipped (migration pending?): ${delErr.message}`)
+      return
+    }
+
+    const chunks = chunkText(text.slice(0, MAX_EMBED_CHARS))
+    const droppedKeys = new Set<string>()
+    for (const chunk of chunks) {
+      const values = await generateEmbedding(chunk.content)
+      const payload: ChunkInsert = {
+        investor_id: investorId,
+        source_type: 'investor',
+        content: chunk.content,
+        embedding: toVectorLiteral(values),
+        chunk_index: chunk.chunkIndex,
+        token_count: chunk.tokenCount,
+      }
+      // source_type is droppable; investor_id is the chunk's only scope, so a
+      // missing column means the migration isn't applied — skip embedding.
+      const res = await insertChunkTolerant(supabase, payload, ['source_type'], droppedKeys)
+      if (!res.ok) {
+        console.warn(`[embeddings] investor chunk skipped: ${res.reason}`)
+        return
+      }
+    }
+  } catch (err) {
+    console.error('[embeddings] embedInvestorSnapshot failed:', err)
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Public: embed enrichment data for an entity (vendor)
 // ---------------------------------------------------------------------------
 

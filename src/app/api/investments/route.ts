@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { embedInvestorSnapshot } from '@/lib/ai/embeddings'
 import { getViewer, forbiddenJson } from '@/lib/auth/viewer'
 import { parseInvestmentFields, type InvestmentBody } from '@/lib/investors/parse'
 
@@ -33,6 +34,9 @@ export async function POST(request: NextRequest) {
 
   // Surface activity on the investor list
   await supabase.from('investors').update({ updated_at: new Date().toISOString() }).eq('id', investor_id)
+
+  // Refresh the searchable snapshot (skips pre-migration)
+  embedInvestorSnapshot(investor_id).catch(console.error)
 
   return Response.json({ investment: data })
 }

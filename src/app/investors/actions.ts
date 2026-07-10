@@ -2,6 +2,7 @@
 
 import { redirect } from 'next/navigation'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { embedInvestorSnapshot } from '@/lib/ai/embeddings'
 import type { TablesInsert } from '@/lib/supabase/types'
 import { getViewer } from '@/lib/auth/viewer'
 import { INSTRUMENTS, INVESTOR_TYPES, INVESTOR_STAGES, INTEREST_LEVELS } from '@/lib/utils/investors'
@@ -140,6 +141,9 @@ export async function createInvestor(
 
   if (error) return { error: `Failed to create investor: ${error.message}` }
 
+  // Make the investor findable by semantic search (skips pre-migration)
+  embedInvestorSnapshot(data.id).catch(console.error)
+
   redirect(`/investors/${data.id}`)
 }
 
@@ -163,6 +167,9 @@ export async function updateInvestor(
   const { error } = await supabase.from('investors').update(update).eq('id', id)
 
   if (error) return { error: `Failed to update investor: ${error.message}` }
+
+  // Refresh the searchable snapshot (skips pre-migration)
+  embedInvestorSnapshot(id).catch(console.error)
 
   redirect(`/investors/${id}`)
 }

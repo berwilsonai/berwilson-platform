@@ -13,6 +13,7 @@ import {
   Lightbulb,
   Target,
   Send,
+  HandCoins,
 } from 'lucide-react'
 import {
   Sheet,
@@ -30,6 +31,7 @@ import {
   type TeamMember,
   type ProjectOption,
   type OpportunityOption,
+  type InvestorOption,
   type ObjectiveOption,
   avatarClasses,
   initials,
@@ -64,6 +66,7 @@ interface TaskDetailSheetProps {
   teamMembers: TeamMember[]
   projects: ProjectOption[]
   opportunities?: OpportunityOption[]
+  investors?: InvestorOption[]
   objectives?: ObjectiveOption[]
   /** Hide the project picker when the sheet is opened inside a project. */
   lockProject?: boolean
@@ -87,6 +90,7 @@ export default function TaskDetailSheet({
   teamMembers,
   projects,
   opportunities = [],
+  investors = [],
   objectives = [],
   lockProject,
   onClose,
@@ -94,6 +98,7 @@ export default function TaskDetailSheet({
   onDeleted,
 }: TaskDetailSheetProps) {
   const hasOpps = opportunities.length > 0
+  const hasInvestors = investors.length > 0
   const hasObjectives = objectives.length > 0
   const [loading, setLoading] = useState(false)
   const [task, setTask] = useState<BoardTask | null>(null)
@@ -286,6 +291,21 @@ export default function TaskDetailSheet({
                     </select>
                   </div>
                 )}
+                {hasInvestors && (
+                  <div className="space-y-1 col-span-2">
+                    <label className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Investor</label>
+                    <select
+                      value={task.investor_id ?? ''}
+                      onChange={(e) => patch({ investor_id: e.target.value || null })}
+                      className={fieldClass}
+                    >
+                      <option value="">No investor</option>
+                      {investors.map((o) => (
+                        <option key={o.id} value={o.id}>{o.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
                 {hasObjectives && (
                   <div className="space-y-1 col-span-2">
                     <label className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Objective</label>
@@ -372,6 +392,24 @@ export default function TaskDetailSheet({
                     <div className="min-w-0 flex items-center gap-2">
                       <Lightbulb size={14} className="shrink-0 text-muted-foreground" />
                       <p className="text-sm font-semibold text-foreground truncate">{opp.name}</p>
+                    </div>
+                    <ArrowUpRight size={15} className="shrink-0 text-muted-foreground group-hover:text-foreground transition-colors" />
+                  </Link>
+                )
+              })()}
+
+              {/* Investor context link */}
+              {hasInvestors && task.investor_id && (() => {
+                const inv = investors.find((o) => o.id === task.investor_id)
+                if (!inv) return null
+                return (
+                  <Link
+                    href={`/investors/${inv.id}`}
+                    className="flex items-center justify-between gap-2 rounded-lg border border-border bg-muted/30 p-3 hover:bg-muted/50 transition-colors group"
+                  >
+                    <div className="min-w-0 flex items-center gap-2">
+                      <HandCoins size={14} className="shrink-0 text-muted-foreground" />
+                      <p className="text-sm font-semibold text-foreground truncate">{inv.name}</p>
                     </div>
                     <ArrowUpRight size={15} className="shrink-0 text-muted-foreground group-hover:text-foreground transition-colors" />
                   </Link>

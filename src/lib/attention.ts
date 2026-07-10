@@ -7,6 +7,7 @@
  * - Compliance items expiring within 90 days
  * - Decisions with no follow-through
  * - Active cross-project dependency risks
+ * - Investor follow-ups (overdue next steps; hot/committed-stage investors going cold)
  *
  * Consumed by GET /api/attention and the agent's get_attention_items tool
  * (which calls computeAttention() directly — no HTTP self-fetch).
@@ -17,7 +18,7 @@ import { fetchOpenTasks } from '@/lib/tasks/queries'
 
 export interface AttentionItem {
   id: string
-  category: 'overdue_action' | 'stale_waiting' | 'approaching_milestone' | 'critical_dd' | 'expiring_compliance' | 'stale_decision' | 'dependency_risk'
+  category: 'overdue_action' | 'stale_waiting' | 'approaching_milestone' | 'critical_dd' | 'expiring_compliance' | 'stale_decision' | 'dependency_risk' | 'investor_followup'
   urgency: number // 0-100, higher = more urgent
   title: string
   detail: string
@@ -37,6 +38,7 @@ export interface AttentionSummary {
   expiring_compliance: number
   stale_decisions: number
   dependency_risks: number
+  investor_followups: number
 }
 
 export async function computeAttention(): Promise<{ items: AttentionItem[]; summary: AttentionSummary }> {
@@ -54,6 +56,7 @@ export async function computeAttention(): Promise<{ items: AttentionItem[]; summ
     { data: ddItems },
     { data: complianceItems },
     { data: dependencies },
+    { data: investors },
   ] = await Promise.all([
     fetchOpenTasks(supabase, { dueBefore: today }),
     supabase.from('projects').select('id, name').eq('status', 'active'),
@@ -86,6 +89,11 @@ export async function computeAttention(): Promise<{ items: AttentionItem[]; summ
       .select('id, upstream_project_id, downstream_project_id, dependency_type, description, severity, status, created_at')
       .eq('status', 'active')
       .in('severity', ['critical', 'blocker']),
+    // Capital raise — a failed select (table missing) just yields null → no items
+    supabase
+      .from('investors')
+      .select('id, name, stage, interest_level, next_step, next_step_date, last_contact_date, created_at')
+      .not('stage', 'in', '(passed,dormant)'),
   ])
 
   const projectName = (u: { projects: unknown }) =>
@@ -270,6 +278,47 @@ export async function computeAttention(): Promise<{ items: AttentionItem[]; summ
     })
   }
 
+  // 8. Investor follow-ups — overdue next steps, and hot/late-stage investors going cold
+  for (const inv of investors ?? []) {
+    if (inv.next_step_date && inv.next_step_date < today) {
+      const ageDays = Math.floor((now.getTime() - new Date(inv.next_step_date).getTime()) / 86_400_000)
+      items.push({
+        id: `investor-next-${inv.id}`,
+        category: 'investor_followup',
+        urgency: Math.min(100, 55 + ageDays * 2),
+        title: inv.next_step ? `${inv.name}: ${inv.next_step}` : `${inv.name} — next step overdue`,
+        detail: `Investor next step ${ageDays}d overdue · ${inv.stage}${inv.interest_level ? ` · ${inv.interest_level}` : ''}`,
+        project_id: null,
+        project_name: 'Capital Raise',
+        age_days: ageDays,
+        due_date: inv.next_step_date,
+        source_date: inv.next_step_date,
+      })
+      continue // one item per investor is enough
+    }
+
+    // Hot or late-stage (soft-committed/committed) investors with no contact in 21+ days
+    const lateStage = inv.stage === 'soft_committed' || inv.stage === 'committed'
+    if (inv.interest_level === 'hot' || lateStage) {
+      const lastTouch = inv.last_contact_date ?? inv.created_at?.slice(0, 10)
+      if (!lastTouch) continue
+      const ageDays = Math.floor((now.getTime() - new Date(lastTouch).getTime()) / 86_400_000)
+      if (ageDays < 21) continue
+      items.push({
+        id: `investor-cold-${inv.id}`,
+        category: 'investor_followup',
+        urgency: Math.min(90, 40 + ageDays),
+        title: `${inv.name} is going cold`,
+        detail: `${inv.interest_level === 'hot' ? 'Hot investor' : `Investor at ${inv.stage}`} · no contact in ${ageDays}d`,
+        project_id: null,
+        project_name: 'Capital Raise',
+        age_days: ageDays,
+        due_date: null,
+        source_date: lastTouch,
+      })
+    }
+  }
+
   // Sort by urgency descending
   items.sort((a, b) => b.urgency - a.urgency)
 
@@ -283,6 +332,7 @@ export async function computeAttention(): Promise<{ items: AttentionItem[]; summ
     expiring_compliance: items.filter(i => i.category === 'expiring_compliance').length,
     stale_decisions: items.filter(i => i.category === 'stale_decision').length,
     dependency_risks: items.filter(i => i.category === 'dependency_risk').length,
+    investor_followups: items.filter(i => i.category === 'investor_followup').length,
   }
 
   return { items, summary }
