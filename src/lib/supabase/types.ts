@@ -54,6 +54,9 @@ export type Objective = Tables<'objectives'>
 export type Opportunity = Tables<'opportunities'>
 export type OpportunityDocument = Tables<'opportunity_documents'>
 export type OpportunityNote = Tables<'opportunity_notes'>
+export type Investor = Tables<'investors'>
+export type Investment = Tables<'investments'>
+export type InvestorNote = Tables<'investor_notes'>
 
 // ---------------------------------------------------------------------------
 // Enum aliases — import these instead of Enums<'project_sector'> everywhere

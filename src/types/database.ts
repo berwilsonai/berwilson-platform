@@ -1030,6 +1030,213 @@ export type Database = {
           },
         ]
       }
+      investments: {
+        Row: {
+          amount_committed: number | null
+          amount_funded: number | null
+          amount_indicated: number | null
+          committed_date: string | null
+          created_at: string | null
+          equity_pct: number | null
+          first_discussed_date: string | null
+          funded_date: string | null
+          id: string
+          instrument: string | null
+          investor_id: string
+          next_step: string | null
+          preferred_return_pct: number | null
+          profit_share_pct: number | null
+          project_id: string | null
+          spv_entity_id: string | null
+          stage: string
+          target_close_date: string | null
+          target_kind: string
+          terms_notes: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          amount_committed?: number | null
+          amount_funded?: number | null
+          amount_indicated?: number | null
+          committed_date?: string | null
+          created_at?: string | null
+          equity_pct?: number | null
+          first_discussed_date?: string | null
+          funded_date?: string | null
+          id?: string
+          instrument?: string | null
+          investor_id: string
+          next_step?: string | null
+          preferred_return_pct?: number | null
+          profit_share_pct?: number | null
+          project_id?: string | null
+          spv_entity_id?: string | null
+          stage?: string
+          target_close_date?: string | null
+          target_kind?: string
+          terms_notes?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          amount_committed?: number | null
+          amount_funded?: number | null
+          amount_indicated?: number | null
+          committed_date?: string | null
+          created_at?: string | null
+          equity_pct?: number | null
+          first_discussed_date?: string | null
+          funded_date?: string | null
+          id?: string
+          instrument?: string | null
+          investor_id?: string
+          next_step?: string | null
+          preferred_return_pct?: number | null
+          profit_share_pct?: number | null
+          project_id?: string | null
+          spv_entity_id?: string | null
+          stage?: string
+          target_close_date?: string | null
+          target_kind?: string
+          terms_notes?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "investments_investor_id_fkey"
+            columns: ["investor_id"]
+            isOneToOne: false
+            referencedRelation: "investors"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "investments_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "investments_spv_entity_id_fkey"
+            columns: ["spv_entity_id"]
+            isOneToOne: false
+            referencedRelation: "entities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      investor_notes: {
+        Row: {
+          author: string | null
+          body: string
+          created_at: string | null
+          id: string
+          investor_id: string
+        }
+        Insert: {
+          author?: string | null
+          body: string
+          created_at?: string | null
+          id?: string
+          investor_id: string
+        }
+        Update: {
+          author?: string | null
+          body?: string
+          created_at?: string | null
+          id?: string
+          investor_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "investor_notes_investor_id_fkey"
+            columns: ["investor_id"]
+            isOneToOne: false
+            referencedRelation: "investors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      investors: {
+        Row: {
+          check_size_max: number | null
+          check_size_min: number | null
+          created_at: string | null
+          id: string
+          interest_level: string | null
+          investor_type: string
+          last_contact_date: string | null
+          name: string
+          next_step: string | null
+          next_step_date: string | null
+          notes: string | null
+          party_id: string | null
+          preferred_structures: string[] | null
+          referred_by: string | null
+          relationship_owner_id: string | null
+          sector_interests: string[] | null
+          source: string | null
+          stage: string
+          updated_at: string | null
+        }
+        Insert: {
+          check_size_max?: number | null
+          check_size_min?: number | null
+          created_at?: string | null
+          id?: string
+          interest_level?: string | null
+          investor_type?: string
+          last_contact_date?: string | null
+          name: string
+          next_step?: string | null
+          next_step_date?: string | null
+          notes?: string | null
+          party_id?: string | null
+          preferred_structures?: string[] | null
+          referred_by?: string | null
+          relationship_owner_id?: string | null
+          sector_interests?: string[] | null
+          source?: string | null
+          stage?: string
+          updated_at?: string | null
+        }
+        Update: {
+          check_size_max?: number | null
+          check_size_min?: number | null
+          created_at?: string | null
+          id?: string
+          interest_level?: string | null
+          investor_type?: string
+          last_contact_date?: string | null
+          name?: string
+          next_step?: string | null
+          next_step_date?: string | null
+          notes?: string | null
+          party_id?: string | null
+          preferred_structures?: string[] | null
+          referred_by?: string | null
+          relationship_owner_id?: string | null
+          sector_interests?: string[] | null
+          source?: string | null
+          stage?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "investors_party_id_fkey"
+            columns: ["party_id"]
+            isOneToOne: false
+            referencedRelation: "parties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "investors_relationship_owner_id_fkey"
+            columns: ["relationship_owner_id"]
+            isOneToOne: false
+            referencedRelation: "team_members"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       media: {
         Row: {
           caption: string | null

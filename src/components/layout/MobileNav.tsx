@@ -22,6 +22,7 @@ import {
   HeartPulse,
   X,
   Map as MapIcon,
+  HandCoins,
 } from 'lucide-react'
 import { canAccessPage, type Role } from '@/lib/auth/permissions'
 
@@ -36,6 +37,7 @@ const PRIMARY_NAV = [
 const MORE_NAV = [
   { href: '/objectives', label: 'Objectives', icon: Target },
   { href: '/opportunities', label: 'Opportunities', icon: Lightbulb },
+  { href: '/investors', label: 'Investors', icon: HandCoins },
   { href: '/map', label: 'Map', icon: MapIcon },
   { href: '/proposals/intake', label: 'Proposal Intake', icon: FileUp },
   { href: '/email-ingestion', label: 'Email Intake', icon: Inbox },

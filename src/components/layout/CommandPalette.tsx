@@ -21,6 +21,7 @@ const PAGES: { href: string; label: string; keywords: string }[] = [
   { href: '/projects', label: 'Projects', keywords: 'pipeline deals' },
   { href: '/objectives', label: 'Objectives', keywords: 'priorities goals strategy steering now soon possibly focus' },
   { href: '/opportunities', label: 'Opportunities', keywords: 'acquisitions partnerships jv mergers investments deals' },
+  { href: '/investors', label: 'Investors', keywords: 'capital raise fundraising equity spv commitments funding money lp' },
   { href: '/map', label: 'Project Map', keywords: 'map geography utah locations sites markers rail corridors presentation visualize' },
   { href: '/timeline', label: 'Timeline', keywords: 'gantt schedule' },
   { href: '/tasks', label: 'Team Tasks', keywords: 'todo action items team workload capacity' },
