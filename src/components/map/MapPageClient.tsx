@@ -25,6 +25,7 @@ import type { MapApi } from './MapView'
 import ProjectMapSheet from './ProjectMapSheet'
 import PlacementPanel from './PlacementPanel'
 import MapSearch from './MapSearch'
+import MapLegend from './MapLegend'
 
 function MapSkeleton() {
   return <div className="absolute inset-0 animate-pulse bg-muted" />
@@ -100,14 +101,19 @@ export default function MapPageClient({
     [placed]
   )
 
+  // Split dollars by phase — "$X underway · $Y in pursuit" is the headline
+  // statement when presenting the master plan.
   const stats = useMemo(() => {
-    let pipeline = 0
+    let awarded = 0
+    let pursuit = 0
     let weighted = 0
     for (const p of visible) {
-      pipeline += p.estimated_value ?? 0
+      const v = p.estimated_value ?? 0
+      if (projectPhase(p.stage) === 'awarded') awarded += v
+      else pursuit += v
       weighted += weightedValue(p.estimated_value, p.win_probability)
     }
-    return { pipeline, weighted }
+    return { awarded, pursuit, weighted }
   }, [visible])
 
   // Present-mode tour: biggest projects first; arrow keys step through
@@ -428,11 +434,18 @@ export default function MapPageClient({
 
         <span className="rounded-lg border border-border bg-card px-2.5 py-1 text-xs text-muted-foreground shadow-sm elev-1">
           <span className="tnum font-medium text-foreground">{visible.length}</span> projects
-          {stats.pipeline > 0 && (
+          {stats.awarded > 0 && (
             <>
               <span className="mx-1.5 opacity-40">·</span>
-              <span className="tnum font-medium text-foreground">{formatValue(stats.pipeline)}</span>{' '}
-              pipeline
+              <span className="tnum font-medium text-foreground">{formatValue(stats.awarded)}</span>{' '}
+              underway
+            </>
+          )}
+          {stats.pursuit > 0 && (
+            <>
+              <span className="mx-1.5 opacity-40">·</span>
+              <span className="tnum font-medium text-foreground">{formatValue(stats.pursuit)}</span>{' '}
+              in pursuit
             </>
           )}
           {stats.weighted > 0 && (
@@ -470,6 +483,13 @@ export default function MapPageClient({
           <div className="rounded-lg border border-border bg-card px-3 py-2 text-xs text-muted-foreground shadow-md">
             Basemap not installed on this machine — run <code className="font-mono">scripts/setup-map-data.sh</code>, then redeploy.
           </div>
+        </div>
+      )}
+
+      {/* Marker-language legend — for audiences who don't know the encoding */}
+      {!activeTarget && (
+        <div className="absolute bottom-10 right-4 z-10 hidden sm:block">
+          <MapLegend />
         </div>
       )}
 

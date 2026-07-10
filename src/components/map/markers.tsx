@@ -61,14 +61,16 @@ export const SECTOR_LINE_COLOR: Record<ProjectSector, string> = {
   institutional: '#64748b',
 }
 
-// Value-scaled markers: three size tiers so a $2B program reads bigger than a
-// sub-$1M municipal job. Unknown value gets the neutral middle tier.
-type MarkerTier = 'sm' | 'md' | 'lg'
+// Value-scaled markers, calibrated to the real portfolio: most projects land
+// between $100M and a few $B, so that's where the tiers spread. The xl tier
+// (≥$10B) is the mega-programs — bigger puck, pulsing halo, always-labeled.
+type MarkerTier = 'sm' | 'md' | 'lg' | 'xl'
 
 function markerTier(value: number | null | undefined): MarkerTier {
   if (value == null) return 'md'
-  if (value >= 250_000_000) return 'lg'
-  if (value >= 20_000_000) return 'md'
+  if (value >= 10_000_000_000) return 'xl'
+  if (value >= 1_000_000_000) return 'lg'
+  if (value >= 100_000_000) return 'md'
   return 'sm'
 }
 
@@ -76,6 +78,7 @@ const TIER_STYLE: Record<MarkerTier, { puck: string; glyph: number; tip: string 
   sm: { puck: 'size-7', glyph: 14, tip: 'size-1.5' },
   md: { puck: 'size-9', glyph: 18, tip: 'size-2' },
   lg: { puck: 'size-11', glyph: 22, tip: 'size-2.5' },
+  xl: { puck: 'size-13', glyph: 26, tip: 'size-3' },
 }
 
 /** Stamped onto marker elements so MapView's diff can detect stale styling. */
@@ -119,7 +122,8 @@ function escapeHtml(s: string): string {
 export function buildMarkerElement(project: MapProject): HTMLDivElement {
   const icon = iconForProject(project)
   const solid = SECTOR_PUCK[project.sector] ?? 'bg-slate-500'
-  const tier = TIER_STYLE[markerTier(project.estimated_value)]
+  const tierKey = markerTier(project.estimated_value)
+  const tier = TIER_STYLE[tierKey]
   // Awarded work = solid sector puck; pipeline = outlined (card bg, sector ring)
   const awarded = projectPhase(project.stage) === 'awarded'
   const puckStyle = awarded
@@ -137,13 +141,23 @@ export function buildMarkerElement(project: MapProject): HTMLDivElement {
     project.estimated_value != null
       ? `<div class="tnum text-[11px] leading-tight text-muted-foreground">${formatValue(project.estimated_value)}</div>`
       : ''
+  // Mega-programs: pulsing sector-colored halo + label that never hides
+  const halo =
+    tierKey === 'xl'
+      ? `<span class="absolute inset-0 animate-ping rounded-full ${solid} opacity-30 [animation-duration:3s]"></span>`
+      : ''
+  const labelVisibility =
+    tierKey === 'xl'
+      ? 'opacity-100'
+      : 'opacity-0 group-hover:opacity-100 group-data-[map-labels=true]/maplabels:opacity-100'
   el.innerHTML = `
     <div class="relative flex flex-col items-center transition-transform duration-150 group-hover:scale-110 group-data-[selected=true]:scale-125">
-      <div class="pointer-events-none absolute bottom-full mb-1.5 max-w-52 rounded-md border border-border bg-card px-2 py-1 text-center opacity-0 shadow-md transition-opacity duration-150 group-hover:opacity-100 group-data-[map-labels=true]/maplabels:opacity-100">
+      <div class="pointer-events-none absolute bottom-full mb-1.5 max-w-52 rounded-md border border-border bg-card px-2 py-1 text-center ${labelVisibility} shadow-md transition-opacity duration-150">
         <div class="truncate text-xs font-medium leading-tight text-foreground">${escapeHtml(project.name)}</div>
         ${valueLine}
       </div>
-      <div class="flex ${tier.puck} items-center justify-center rounded-full ${puckStyle} ring-2 shadow-md group-data-[selected=true]:ring-[3px]">
+      <div class="relative flex ${tier.puck} items-center justify-center rounded-full ${puckStyle} ring-2 shadow-md group-data-[selected=true]:ring-[3px]">
+        ${halo}
         ${glyphSvg(icon, tier.glyph)}
       </div>
       <div class="-mt-[3px] ${tier.tip} rotate-45 ${solid} rounded-[1px] shadow-md"></div>
@@ -153,21 +167,38 @@ export function buildMarkerElement(project: MapProject): HTMLDivElement {
 
 /**
  * Cluster puck for overlapping markers at low zoom: count badge, sector color
- * when the members are homogeneous, neutral slate otherwise.
+ * when the members are homogeneous, neutral slate otherwise. Sized by combined
+ * value (not just count) and labeled with the total, so a cluster that
+ * swallows a big program still tells the story.
  */
 export function buildClusterElement(members: MapProject[]): HTMLDivElement {
   const count = members.length
+  const total = members.reduce((s, m) => s + (m.estimated_value ?? 0), 0)
   const sectors = new Set(members.map((m) => m.sector))
   const puck =
     sectors.size === 1 ? SECTOR_PUCK[members[0].sector] ?? 'bg-slate-700' : 'bg-slate-700'
-  const size = count >= 10 ? 'size-11 text-sm' : count >= 5 ? 'size-10 text-sm' : 'size-9 text-xs'
+  const size =
+    total >= 10_000_000_000
+      ? 'size-12 text-sm'
+      : total >= 1_000_000_000 || count >= 10
+        ? 'size-11 text-sm'
+        : count >= 5
+          ? 'size-10 text-sm'
+          : 'size-9 text-xs'
+  const valueLabel =
+    total > 0
+      ? `<div class="tnum mt-1 rounded-md border border-border bg-card px-1.5 py-0.5 text-[11px] font-medium leading-tight text-foreground shadow-md">${formatValue(total)}</div>`
+      : ''
 
   const el = document.createElement('div')
   el.className = 'cursor-pointer select-none hover:z-10'
   el.title = members.map((m) => m.name).join('\n')
   el.innerHTML = `
-    <div class="flex ${size} items-center justify-center rounded-full ${puck} font-semibold text-white ring-2 ring-white shadow-md transition-transform duration-150 hover:scale-110 dark:ring-slate-900">
-      ${count}
+    <div class="flex flex-col items-center transition-transform duration-150 hover:scale-110">
+      <div class="flex ${size} items-center justify-center rounded-full ${puck} font-semibold text-white ring-2 ring-white shadow-md dark:ring-slate-900">
+        ${count}
+      </div>
+      ${valueLabel}
     </div>`
   return el
 }
