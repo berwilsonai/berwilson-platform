@@ -12,6 +12,7 @@ import {
   Trash2,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { DatePicker } from '@/components/ui/date-picker'
 import EmptyState from '@/components/shared/EmptyState'
 import type { FinancingWithSchedule } from '@/types/domain'
 import type { DrawScheduleEntry } from '@/types/domain'
@@ -427,11 +428,11 @@ function DrawScheduleEditor({
                 />
               </div>
               <div className="border-r border-border">
-                <input
-                  type="date"
+                <DatePicker
                   value={row.date}
-                  onChange={(e) => update(idx, { date: e.target.value })}
-                  className="w-full px-2 py-1.5 text-xs bg-background text-muted-foreground focus:outline-none focus:ring-1 focus:ring-inset focus:ring-ring"
+                  onChange={(v) => update(idx, { date: v })}
+                  placeholder="Date"
+                  className="h-8 rounded-none border-0 px-2 text-xs focus-within:ring-1 focus-within:ring-inset"
                 />
               </div>
               <div className="flex items-center justify-center">

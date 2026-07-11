@@ -3,6 +3,7 @@
 import { useRouter, useSearchParams, usePathname } from 'next/navigation'
 import { useCallback } from 'react'
 import { X } from 'lucide-react'
+import { DatePicker } from '@/components/ui/date-picker'
 
 const TABLE_OPTIONS = [
   { value: 'projects', label: 'Projects' },
@@ -100,19 +101,23 @@ export default function ActivityFilters({
         ))}
       </select>
 
-      <input
-        type="date"
-        value={from}
-        onChange={(e) => setParam('from', e.target.value)}
-        className="h-8 rounded-md border border-input bg-background px-2.5 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-      />
+      <div className="w-36">
+        <DatePicker
+          value={from}
+          onChange={(v) => setParam('from', v)}
+          placeholder="From"
+          className="h-8 px-2.5 text-xs"
+        />
+      </div>
 
-      <input
-        type="date"
-        value={to}
-        onChange={(e) => setParam('to', e.target.value)}
-        className="h-8 rounded-md border border-input bg-background px-2.5 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-      />
+      <div className="w-36">
+        <DatePicker
+          value={to}
+          onChange={(v) => setParam('to', v)}
+          placeholder="To"
+          className="h-8 px-2.5 text-xs"
+        />
+      </div>
 
       {hasFilters && (
         <button

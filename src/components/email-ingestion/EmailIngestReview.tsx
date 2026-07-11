@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Loader2, CheckCircle2, Building2, Lightbulb, FolderKanban, User, ListChecks } from 'lucide-react'
 import FitAssessmentCard from '@/components/proposals/FitAssessmentCard'
+import { DatePicker } from '@/components/ui/date-picker'
 import type { EmailIntakeExtraction } from '@/lib/ai/prompts/email-intake'
 import type { PartyMatch } from '@/lib/ai/proposal-matching'
 import type { FitAssessment } from '@/lib/ai/fit-assessment'
@@ -323,12 +324,14 @@ export default function EmailIngestReview({ sessionId, extraction, partyMatches,
                       value={t.assignee ?? ''}
                       onChange={(e) => setTask(i, { assignee: e.target.value || null })}
                     />
-                    <input
-                      type="date"
-                      className="h-7 px-2 rounded border border-input bg-background text-xs"
-                      value={t.due_date ?? ''}
-                      onChange={(e) => setTask(i, { due_date: e.target.value || null })}
-                    />
+                    <div className="w-36">
+                      <DatePicker
+                        value={t.due_date ?? ''}
+                        onChange={(v) => setTask(i, { due_date: v || null })}
+                        placeholder="Due date"
+                        className="h-7 rounded px-2 text-xs"
+                      />
+                    </div>
                   </div>
                 </div>
               </div>

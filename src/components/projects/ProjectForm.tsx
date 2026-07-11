@@ -4,6 +4,7 @@ import { useActionState, useState } from 'react'
 import Link from 'next/link'
 import { AlertCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { DatePicker } from '@/components/ui/date-picker'
 import { cn } from '@/lib/utils'
 import { createProject, updateProject } from '@/app/projects/actions'
 import type { ProjectFormState } from '@/app/projects/actions'
@@ -230,12 +231,10 @@ export default function ProjectForm({ mode, project, redirectAfterCreate, availa
             <label htmlFor="bid_due_date" className={labelClass}>
               Bid Due Date
             </label>
-            <input
+            <DatePicker
               id="bid_due_date"
               name="bid_due_date"
-              type="date"
               defaultValue={project?.bid_due_date ?? ''}
-              className={inputClass}
             />
           </div>
 
@@ -506,12 +505,10 @@ export default function ProjectForm({ mode, project, redirectAfterCreate, availa
             <label htmlFor="award_date" className={labelClass}>
               Award Date
             </label>
-            <input
+            <DatePicker
               id="award_date"
               name="award_date"
-              type="date"
               defaultValue={project?.award_date ?? ''}
-              className={inputClass}
             />
           </div>
 
@@ -519,12 +516,10 @@ export default function ProjectForm({ mode, project, redirectAfterCreate, availa
             <label htmlFor="ntp_date" className={labelClass}>
               NTP Date
             </label>
-            <input
+            <DatePicker
               id="ntp_date"
               name="ntp_date"
-              type="date"
               defaultValue={project?.ntp_date ?? ''}
-              className={inputClass}
             />
           </div>
 
@@ -532,12 +527,10 @@ export default function ProjectForm({ mode, project, redirectAfterCreate, availa
             <label htmlFor="substantial_completion_date" className={labelClass}>
               Substantial Completion
             </label>
-            <input
+            <DatePicker
               id="substantial_completion_date"
               name="substantial_completion_date"
-              type="date"
               defaultValue={project?.substantial_completion_date ?? ''}
-              className={inputClass}
             />
           </div>
         </div>

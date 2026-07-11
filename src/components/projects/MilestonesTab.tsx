@@ -2,6 +2,7 @@
 
 import { Fragment, useState } from 'react'
 import { Check, Plus, Calendar, ArrowRight, Loader2, X } from 'lucide-react'
+import { DatePicker } from '@/components/ui/date-picker'
 import { cn } from '@/lib/utils'
 import { STAGES, STAGE_LABELS, STAGE_INDEX } from '@/lib/utils/stages'
 import type { Milestone, ProjectStage } from '@/lib/supabase/types'
@@ -382,11 +383,11 @@ export default function MilestonesTab({
                         placeholder="Milestone label"
                         className="w-full rounded border border-input bg-background px-2 py-1 text-xs placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
                       />
-                      <input
-                        type="date"
+                      <DatePicker
                         value={newTargetDate}
-                        onChange={(e) => setNewTargetDate(e.target.value)}
-                        className="w-full rounded border border-input bg-background px-2 py-1 text-xs text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                        onChange={setNewTargetDate}
+                        placeholder="Target date"
+                        className="h-7 rounded px-2 text-xs"
                       />
                       <div className="flex gap-1.5">
                         <button

@@ -14,6 +14,7 @@ import {
   Search,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { DatePicker } from '@/components/ui/date-picker'
 import type { DdItem, ComplianceItem, Party, Document, DdSeverity, ComplianceStatus, ResearchArtifact } from '@/lib/supabase/types'
 import ResearchPanel from './ResearchPanel'
 
@@ -887,11 +888,9 @@ function ComplianceSection({
 
           <div className="grid grid-cols-2 gap-4">
             <FormField label="Due Date">
-              <input
-                type="date"
+              <DatePicker
                 value={form.due_date}
-                onChange={(e) => setField('due_date', e.target.value)}
-                className={inputCls}
+                onChange={(v) => setField('due_date', v)}
               />
             </FormField>
             {parties.length > 0 && (

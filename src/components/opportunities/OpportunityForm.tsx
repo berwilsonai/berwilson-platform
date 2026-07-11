@@ -4,6 +4,7 @@ import { useActionState } from 'react'
 import Link from 'next/link'
 import { AlertCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { DatePicker } from '@/components/ui/date-picker'
 import { cn } from '@/lib/utils'
 import { createOpportunity, updateOpportunity } from '@/app/opportunities/actions'
 import type { OpportunityFormState } from '@/app/opportunities/actions'
@@ -393,12 +394,10 @@ export default function OpportunityForm({ mode, opportunity }: OpportunityFormPr
             <label htmlFor="identified_date" className={labelClass}>
               Identified
             </label>
-            <input
+            <DatePicker
               id="identified_date"
               name="identified_date"
-              type="date"
               defaultValue={opportunity?.identified_date ?? ''}
-              className={inputClass}
             />
           </div>
 
@@ -406,12 +405,10 @@ export default function OpportunityForm({ mode, opportunity }: OpportunityFormPr
             <label htmlFor="target_close_date" className={labelClass}>
               Target Close
             </label>
-            <input
+            <DatePicker
               id="target_close_date"
               name="target_close_date"
-              type="date"
               defaultValue={opportunity?.target_close_date ?? ''}
-              className={inputClass}
             />
           </div>
         </div>

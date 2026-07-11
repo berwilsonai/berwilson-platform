@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Plus, X, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
+import { DatePicker } from '@/components/ui/date-picker'
 import type { Raise } from '@/lib/supabase/types'
 import { formatValue } from '@/lib/utils/constants'
 import { parseTranches, MAX_TRANCHES } from '@/lib/investors/raises'
@@ -189,16 +190,11 @@ export default function RaiseForm({ projects, initial }: RaiseFormProps) {
           </div>
           <div>
             <label className={labelClass}>Opened</label>
-            <input type="date" value={openDate} onChange={(e) => setOpenDate(e.target.value)} className={inputClass} />
+            <DatePicker value={openDate} onChange={setOpenDate} />
           </div>
           <div>
             <label className={labelClass}>Target Close</label>
-            <input
-              type="date"
-              value={targetCloseDate}
-              onChange={(e) => setTargetCloseDate(e.target.value)}
-              className={inputClass}
-            />
+            <DatePicker value={targetCloseDate} onChange={setTargetCloseDate} />
           </div>
         </div>
 
@@ -262,11 +258,10 @@ export default function RaiseForm({ projects, initial }: RaiseFormProps) {
             </div>
             <div className="w-40">
               {idx === 0 && <label className={labelClass}>Target Date</label>}
-              <input
-                type="date"
+              <DatePicker
                 value={t.target_date}
-                onChange={(e) => setTranche(idx, 'target_date', e.target.value)}
-                className={inputClass}
+                onChange={(v) => setTranche(idx, 'target_date', v)}
+                placeholder="Target date"
               />
             </div>
             <button

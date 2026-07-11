@@ -7,6 +7,7 @@ import { Plus, Pencil, Trash2, Loader2, Building2, Landmark } from 'lucide-react
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
+import { DatePicker } from '@/components/ui/date-picker'
 import type { Investment } from '@/lib/supabase/types'
 import { formatValue, formatDate } from '@/lib/utils/constants'
 import {
@@ -327,19 +328,19 @@ export default function InvestmentsSection({ investorId, investments, projects, 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <div>
           <label className={labelClass}>First Discussed</label>
-          <input type="date" value={values.first_discussed_date} onChange={(e) => set('first_discussed_date', e.target.value)} className={inputClass} />
+          <DatePicker value={values.first_discussed_date} onChange={(v) => set('first_discussed_date', v)} />
         </div>
         <div>
           <label className={labelClass}>Target Close</label>
-          <input type="date" value={values.target_close_date} onChange={(e) => set('target_close_date', e.target.value)} className={inputClass} />
+          <DatePicker value={values.target_close_date} onChange={(v) => set('target_close_date', v)} />
         </div>
         <div>
           <label className={labelClass}>Committed</label>
-          <input type="date" value={values.committed_date} onChange={(e) => set('committed_date', e.target.value)} className={inputClass} />
+          <DatePicker value={values.committed_date} onChange={(v) => set('committed_date', v)} />
         </div>
         <div>
           <label className={labelClass}>Funded</label>
-          <input type="date" value={values.funded_date} onChange={(e) => set('funded_date', e.target.value)} className={inputClass} />
+          <DatePicker value={values.funded_date} onChange={(v) => set('funded_date', v)} />
         </div>
       </div>
 

@@ -6,6 +6,7 @@ import { toast } from 'sonner'
 import { Trash2, Layers, FolderOpen, Search, X, ChevronDown, GitBranch, Kanban, SlidersHorizontal } from 'lucide-react'
 import ProjectCard, { type ProjectCardCounts } from '@/components/dashboard/ProjectCard'
 import type { Project, ProjectStage } from '@/lib/supabase/types'
+import { DatePicker } from '@/components/ui/date-picker'
 import { cn } from '@/lib/utils'
 import { useStoredState } from '@/hooks/use-stored-state'
 import { SECTOR_BADGE, SECTOR_SHORT } from '@/lib/utils/sectors'
@@ -588,12 +589,10 @@ function DeletableCard({
           <div className="space-y-2">
             <div>
               <label className="block text-[11px] font-medium text-muted-foreground mb-0.5">Bid Due Date</label>
-              <input
-                type="date"
+              <DatePicker
                 value={bidDue}
-                onChange={e => setBidDue(e.target.value)}
-                onClick={e => e.stopPropagation()}
-                className="h-8 w-full rounded-md border border-input bg-background px-2 text-xs focus:outline-none focus:ring-2 focus:ring-ring"
+                onChange={setBidDue}
+                className="h-8 px-2 text-xs"
               />
             </div>
             <div>

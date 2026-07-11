@@ -5,6 +5,7 @@ import { useActionState } from 'react'
 import Link from 'next/link'
 import { AlertCircle, Link2, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { DatePicker } from '@/components/ui/date-picker'
 import { cn } from '@/lib/utils'
 import { createInvestor, updateInvestor } from '@/app/investors/actions'
 import type { InvestorFormState } from '@/app/investors/actions'
@@ -366,12 +367,10 @@ export default function InvestorForm({ mode, investor, parties, teamMembers, lin
             <label htmlFor="last_contact_date" className={labelClass}>
               Last Contact
             </label>
-            <input
+            <DatePicker
               id="last_contact_date"
               name="last_contact_date"
-              type="date"
               defaultValue={investor?.last_contact_date ?? ''}
-              className={inputClass}
             />
           </div>
 
@@ -393,12 +392,10 @@ export default function InvestorForm({ mode, investor, parties, teamMembers, lin
             <label htmlFor="next_step_date" className={labelClass}>
               Next Step By
             </label>
-            <input
+            <DatePicker
               id="next_step_date"
               name="next_step_date"
-              type="date"
               defaultValue={investor?.next_step_date ?? ''}
-              className={inputClass}
             />
           </div>
         </div>

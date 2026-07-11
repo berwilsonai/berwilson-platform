@@ -4,6 +4,7 @@ import { useActionState, useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
+import { DatePicker } from '@/components/ui/date-picker'
 import {
   Pencil, X, Plus, Trash2, Upload, CheckCircle2, AlertTriangle,
   FileText, Loader2, ShieldCheck,
@@ -75,13 +76,17 @@ function InputRow({ label, name, defaultValue, type = 'text', placeholder }: {
   return (
     <div className="space-y-1">
       <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</label>
-      <input
-        name={name}
-        type={type}
-        defaultValue={defaultValue ?? ''}
-        placeholder={placeholder}
-        className="w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-      />
+      {type === 'date' ? (
+        <DatePicker name={name} defaultValue={defaultValue ?? ''} />
+      ) : (
+        <input
+          name={name}
+          type={type}
+          defaultValue={defaultValue ?? ''}
+          placeholder={placeholder}
+          className="w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+        />
+      )}
     </div>
   )
 }

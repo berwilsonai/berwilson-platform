@@ -16,6 +16,7 @@ import {
   Search,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { DatePicker } from '@/components/ui/date-picker'
 import { toast } from 'sonner'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import EmptyState from '@/components/shared/EmptyState'
@@ -245,11 +246,9 @@ function EntityFormFields({
 
       <div className="grid grid-cols-2 gap-4">
         <FormField label="Formation Date">
-          <input
-            type="date"
+          <DatePicker
             value={form.formation_date}
-            onChange={(e) => setField('formation_date', e.target.value)}
-            className={cn(inputCls, 'text-muted-foreground')}
+            onChange={(v) => setField('formation_date', v)}
           />
         </FormField>
         <FormField label="EIN">
