@@ -50,7 +50,8 @@ export async function GET(request: NextRequest) {
     return new Response(html(`
       <h2 style="color:#16a34a">✓ Microsoft connected successfully</h2>
       <p>Access tokens stored. <strong>tuaone@berwilson.com</strong> is authorized.</p>
-      <p>Calendar and contact enrichment can now use Microsoft Graph. You can close this tab.</p>
+      <p>Calendar, meeting prep, and email research are back online.</p>
+      <p><a href="/settings/health">← Back to System Health</a> to confirm the check is green.</p>
     `), { status: 200, headers: { 'Content-Type': 'text/html' } })
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
@@ -59,7 +60,7 @@ export async function GET(request: NextRequest) {
     return new Response(html(`
       <h2 style="color:#dc2626">Token exchange failed</h2>
       <p>${message}</p>
-      <p>Check that MICROSOFT_CLIENT_SECRET in Vercel is the secret <strong>value</strong> (not the ID).</p>
+      <p>Check that MICROSOFT_CLIENT_SECRET in .env.local on the Studio is the secret <strong>value</strong> (not the ID) and hasn't expired.</p>
     `), { status: 500, headers: { 'Content-Type': 'text/html' } })
   }
 }

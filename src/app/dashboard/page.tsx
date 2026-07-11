@@ -18,6 +18,7 @@ import VerticalRollup from '@/components/dashboard/VerticalRollup'
 import ClosingSoon, { type ClosingSoonItem } from '@/components/dashboard/ClosingSoon'
 import { weightedValue } from '@/lib/utils/constants'
 import { fetchOpenTasks } from '@/lib/tasks/queries'
+import { mailboxLooksBroken } from '@/lib/system-health'
 import EmptyState from '@/components/shared/EmptyState'
 import type { WaitingOnItem, RiskItem } from '@/types/domain'
 
@@ -88,6 +89,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
     { data: nowObjectivesRaw },
     { data: objectiveTaskRows },
     { data: investorFollowUpsRaw },
+    { data: graphTokenRow },
   ] = await Promise.all([
     supabase.from('projects').select('*').eq('status', 'active'),
     fetchOpenTasks(supabase, { dueBefore: today }),
@@ -134,6 +136,13 @@ export default async function DashboardPage({ searchParams }: PageProps) {
       .not('stage', 'in', '(passed,dormant)')
       .lt('next_step_date', today)
       .order('next_step_date', { ascending: true }),
+    // Mailbox health: a long-expired token means Graph refreshes are failing
+    supabase
+      .from('email_tokens')
+      .select('email_address, expires_at')
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
   ])
 
   const activeProjects = projectsRaw ?? []
@@ -289,6 +298,13 @@ export default async function DashboardPage({ searchParams }: PageProps) {
   const ddItems = (ddRaw ?? []).slice(0, 6) as DdWithProject[]
   // Build alerts data for the banner
   const alerts: Array<{ type: 'critical' | 'overdue' | 'review'; text: string; href: string }> = []
+  if (mailboxLooksBroken(graphTokenRow?.expires_at)) {
+    alerts.push({
+      type: 'critical',
+      text: `Mailbox disconnected (${graphTokenRow?.email_address}) — calendar, meeting prep & email research are offline. Reconnect from System Health.`,
+      href: '/settings/health',
+    })
+  }
   for (const dd of ddItems) {
     alerts.push({
       type: 'critical',
