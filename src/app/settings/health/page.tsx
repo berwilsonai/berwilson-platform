@@ -20,6 +20,7 @@ import {
   probeBackups,
   probeDisk,
 } from '@/lib/system-health'
+import { publicOrigin } from '@/lib/utils/request-origin'
 
 export const metadata = { title: 'System Health — Ber Wilson Intelligence' }
 export const dynamic = 'force-dynamic'
@@ -287,10 +288,7 @@ export default async function SystemHealthPage() {
   const viewer = await getViewer()
   if (viewer && !viewer.isAdmin) redirect('/tasks')
 
-  const hdrs = await headers()
-  const host = hdrs.get('x-forwarded-host') ?? hdrs.get('host') ?? 'richards-mac-studio.tail0e5306.ts.net'
-  const proto = hdrs.get('x-forwarded-proto') ?? 'https'
-  const appOrigin = `${proto}://${host}`
+  const appOrigin = publicOrigin(await headers())
 
   const checks = await runChecks(appOrigin)
   const worst: Status = checks.some((c) => c.status === 'fail')

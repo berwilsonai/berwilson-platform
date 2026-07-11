@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { buildAuthUrl } from '@/lib/integrations/microsoft-graph'
+import { publicOrigin } from '@/lib/utils/request-origin'
 
 /**
  * GET /api/email/oauth
@@ -15,8 +16,9 @@ export async function GET(request: NextRequest) {
     return Response.json({ error: 'Unauthorized — log into the platform first' }, { status: 401 })
   }
 
-  const origin = request.nextUrl.origin
-  const redirectUri = `${origin}/api/email/oauth/callback`
+  // Behind tailscale serve, nextUrl.origin is https://localhost:3000 — use
+  // the forwarded host so Microsoft gets the real (registered) redirect URI.
+  const redirectUri = `${publicOrigin(request.headers)}/api/email/oauth/callback`
 
   // Use webhook secret as state — simple, no session dependency at callback time
   const state = process.env.MICROSOFT_WEBHOOK_SECRET!

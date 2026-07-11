@@ -3,6 +3,7 @@ import {
   exchangeCodeForTokens,
   storeTokens,
 } from '@/lib/integrations/microsoft-graph'
+import { publicOrigin } from '@/lib/utils/request-origin'
 
 /**
  * GET /api/email/oauth/callback
@@ -40,8 +41,9 @@ export async function GET(request: NextRequest) {
     `), { status: 403, headers: { 'Content-Type': 'text/html' } })
   }
 
-  const origin = request.nextUrl.origin
-  const redirectUri = `${origin}/api/email/oauth/callback`
+  // Must byte-match the redirect_uri sent in the authorize request —
+  // both sides now derive it from the forwarded host (see request-origin.ts).
+  const redirectUri = `${publicOrigin(request.headers)}/api/email/oauth/callback`
 
   try {
     const tokens = await exchangeCodeForTokens(code, redirectUri)
