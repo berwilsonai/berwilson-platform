@@ -110,6 +110,13 @@ const inputClass = cn(
 )
 const labelClass = 'block text-[11px] font-medium text-foreground mb-1'
 
+/** Live readback of a raw dollar input — catches missing/extra zeros. */
+function DollarHint({ value }: { value: string }) {
+  const n = parseFloat(value)
+  if (isNaN(n) || n <= 0) return null
+  return <p className="mt-1 text-[11px] text-muted-foreground tnum">= {formatValue(n)}</p>
+}
+
 export default function InvestmentsSection({ investorId, investments, projects, entities, raises = [] }: InvestmentsSectionProps) {
   const router = useRouter()
   const [editingId, setEditingId] = useState<string | null>(null) // 'new' = adding
@@ -286,14 +293,17 @@ export default function InvestmentsSection({ investorId, investments, projects, 
         <div>
           <label className={labelClass}>Indicated ($)</label>
           <input type="number" step="any" min="0" value={values.amount_indicated} onChange={(e) => set('amount_indicated', e.target.value)} placeholder="Soft interest" className={inputClass} />
+          <DollarHint value={values.amount_indicated} />
         </div>
         <div>
           <label className={labelClass}>Committed ($)</label>
           <input type="number" step="any" min="0" value={values.amount_committed} onChange={(e) => set('amount_committed', e.target.value)} placeholder="Signed" className={inputClass} />
+          <DollarHint value={values.amount_committed} />
         </div>
         <div>
           <label className={labelClass}>Funded ($)</label>
           <input type="number" step="any" min="0" value={values.amount_funded} onChange={(e) => set('amount_funded', e.target.value)} placeholder="Wired" className={inputClass} />
+          <DollarHint value={values.amount_funded} />
         </div>
       </div>
 

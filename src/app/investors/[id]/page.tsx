@@ -24,10 +24,17 @@ import InvestorDeleteButton from '@/components/investors/InvestorDeleteButton'
 import InvestorNotes from '@/components/investors/InvestorNotes'
 import InvestorTasks from '@/components/investors/InvestorTasks'
 import InvestmentsSection, { type InvestmentRow } from '@/components/investors/InvestmentsSection'
+import { isPastDate } from '@/components/investors/InvestorsClient'
 import type { BoardTask, TeamMember } from '@/components/tasks/task-utils'
 
 interface PageProps {
   params: Promise<{ id: string }>
+}
+
+export async function generateMetadata({ params }: PageProps) {
+  const { id } = await params
+  const { data } = await createAdminClient().from('investors').select('name').eq('id', id).single()
+  return { title: `${data?.name ?? 'Investor'} — Ber Wilson Intelligence` }
 }
 
 function Fact({ label, value }: { label: string; value: React.ReactNode }) {
@@ -84,6 +91,7 @@ export default async function InvestorDetailPage({ params }: PageProps) {
   const s = investorStage(investor.stage)
   const heat = interestLevel(investor.interest_level)
   const offPipeline = isOffPipeline(investor.stage)
+  const nextOverdue = isPastDate(investor.next_step_date) && !offPipeline
   const currentIndex = INVESTOR_STAGE_INDEX[s]
   const party = investor.party as { id: string; full_name: string } | null
   const owner = (members ?? []).find((m) => m.id === investor.relationship_owner_id)
@@ -196,13 +204,14 @@ export default async function InvestorDetailPage({ params }: PageProps) {
       {/* Money band */}
       <div className="grid grid-cols-3 gap-3">
         {([
-          ['Indicated', indicated],
-          ['Committed', committed],
-          ['Funded', funded],
-        ] as const).map(([label, value]) => (
+          ['Indicated', indicated, 'Soft-circled'],
+          ['Committed', committed, 'Signed'],
+          ['Funded', funded, 'Wired'],
+        ] as const).map(([label, value, sub]) => (
           <div key={label} className="rounded-xl border border-border bg-card px-4 py-3 elev-1">
             <p className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</p>
             <p className="text-lg font-semibold tnum mt-0.5">{value > 0 ? formatValue(value) : '—'}</p>
+            <p className="text-[11px] text-muted-foreground mt-0.5">{sub}</p>
           </div>
         ))}
       </div>
@@ -217,18 +226,44 @@ export default async function InvestorDetailPage({ params }: PageProps) {
           <Fact label="Source" value={investor.source} />
           <Fact label="Referred By" value={investor.referred_by} />
           <Fact label="Last Contact" value={investor.last_contact_date ? formatDate(investor.last_contact_date) : null} />
-          <Fact label="Next Step By" value={investor.next_step_date ? formatDate(investor.next_step_date) : null} />
+          <Fact
+            label="Next Step By"
+            value={
+              investor.next_step_date ? (
+                <span className={cn(nextOverdue && 'text-amber-600 dark:text-amber-400 font-medium')}>
+                  {formatDate(investor.next_step_date)}
+                  {nextOverdue && ' · overdue'}
+                </span>
+              ) : null
+            }
+          />
         </dl>
       </div>
 
       {/* Next step */}
       {investor.next_step && (
-        <div className="rounded-lg border border-primary/30 bg-primary/5 px-4 py-3">
-          <span className="text-[11px] uppercase tracking-wide text-primary font-semibold">Next Step</span>
+        <div
+          className={cn(
+            'rounded-lg border px-4 py-3',
+            nextOverdue
+              ? 'border-amber-300 bg-amber-50 dark:border-amber-500/40 dark:bg-amber-500/10'
+              : 'border-primary/30 bg-primary/5'
+          )}
+        >
+          <span
+            className={cn(
+              'text-[11px] uppercase tracking-wide font-semibold',
+              nextOverdue ? 'text-amber-700 dark:text-amber-400' : 'text-primary'
+            )}
+          >
+            Next Step{nextOverdue && ' — Overdue'}
+          </span>
           <p className="text-sm text-foreground mt-0.5">
             {investor.next_step}
             {investor.next_step_date && (
-              <span className="text-muted-foreground"> — by {formatDate(investor.next_step_date)}</span>
+              <span className={cn(nextOverdue ? 'text-amber-700 dark:text-amber-400' : 'text-muted-foreground')}>
+                {' '}— by {formatDate(investor.next_step_date)}
+              </span>
             )}
           </p>
         </div>

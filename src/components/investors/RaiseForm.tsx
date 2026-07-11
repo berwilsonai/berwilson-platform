@@ -33,6 +33,13 @@ const inputClass = cn(
 )
 const labelClass = 'block text-xs font-medium text-foreground mb-1'
 
+/** Live readback of a raw dollar input — catches missing/extra zeros. */
+function DollarHint({ value }: { value: string }) {
+  const n = parseFloat(value)
+  if (isNaN(n) || n <= 0) return null
+  return <p className="mt-1 text-[11px] text-muted-foreground tnum">= {formatValue(n)}</p>
+}
+
 export default function RaiseForm({ projects, initial }: RaiseFormProps) {
   const router = useRouter()
   const [saving, setSaving] = useState(false)
@@ -177,6 +184,7 @@ export default function RaiseForm({ projects, initial }: RaiseFormProps) {
               placeholder="88000000"
               className={inputClass}
             />
+            <DollarHint value={targetAmount} />
           </div>
           <div>
             <label className={labelClass}>Status</label>

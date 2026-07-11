@@ -18,11 +18,16 @@ import {
 import { parseTranches, raiseLevels, fillTranches } from '@/lib/investors/raises'
 import RaiseTrancheBar, { TrancheBarLegend } from '@/components/investors/RaiseTrancheBar'
 import RaiseDeleteButton from '@/components/investors/RaiseDeleteButton'
-
-export const metadata = { title: 'Raise — Ber Wilson Intelligence' }
+import { isPastDate } from '@/components/investors/InvestorsClient'
 
 interface PageProps {
   params: Promise<{ id: string }>
+}
+
+export async function generateMetadata({ params }: PageProps) {
+  const { id } = await params
+  const { data } = await createAdminClient().from('raises').select('name').eq('id', id).single()
+  return { title: `${data?.name ?? 'Raise'} — Ber Wilson Intelligence` }
 }
 
 function Stat({ label, value, sub }: { label: string; value: string; sub?: string }) {
@@ -172,6 +177,9 @@ export default async function RaiseDetailPage({ params }: PageProps) {
               <tbody>
                 {fills.map((t, idx) => {
                   const remaining = t.amount - t.committed
+                  // A past target date on a tranche that isn't fully committed
+                  // is a schedule slip — surface it.
+                  const slipped = remaining > 0 && status !== 'closed' && isPastDate(t.target_date)
                   return (
                     <tr key={idx} className="border-t border-border">
                       <td className="py-2 pr-3 font-medium">{t.label}</td>
@@ -181,8 +189,14 @@ export default async function RaiseDetailPage({ params }: PageProps) {
                       <td className={cn('py-2 px-3 text-right tnum', remaining <= 0 && 'text-emerald-600 dark:text-emerald-400 font-medium')}>
                         {remaining <= 0 ? 'Full' : formatValue(remaining)}
                       </td>
-                      <td className="py-2 pl-3 text-right text-muted-foreground">
+                      <td
+                        className={cn(
+                          'py-2 pl-3 text-right whitespace-nowrap',
+                          slipped ? 'text-amber-600 dark:text-amber-400 font-medium' : 'text-muted-foreground'
+                        )}
+                      >
                         {t.target_date ? formatDate(t.target_date) : '—'}
+                        {slipped && ' · slipped'}
                       </td>
                     </tr>
                   )

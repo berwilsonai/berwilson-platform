@@ -191,6 +191,10 @@ export default async function InvestorsPage({ searchParams }: PageProps) {
               const rs = raiseStatus(raise.status)
               const project = raise.project as { id: string; name: string } | null
               const targetLabel = raise.target_kind === 'company' ? 'Ber Wilson (parent)' : project?.name ?? 'Project'
+              const committedPct =
+                raise.target_amount != null && raise.target_amount > 0
+                  ? Math.round((levels.committed / raise.target_amount) * 100)
+                  : null
               return (
                 <Link
                   key={raise.id}
@@ -209,7 +213,9 @@ export default async function InvestorsPage({ searchParams }: PageProps) {
                     </div>
                     <div className="text-right shrink-0">
                       <p className="text-sm font-semibold tnum">{formatValue(raise.target_amount)}</p>
-                      <p className="text-[11px] text-muted-foreground">target</p>
+                      <p className="text-[11px] text-muted-foreground tnum">
+                        target{committedPct != null && ` · ${committedPct}% committed`}
+                      </p>
                     </div>
                   </div>
                   {fills.length > 0 && (

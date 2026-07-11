@@ -68,7 +68,7 @@ export default function InvestorFilters({ stage, type, interest, target }: Inves
       </select>
 
       <select value={target} onChange={(e) => setParam('target', e.target.value)} className={selectClass}>
-        <option value="">All Raises</option>
+        <option value="">All Targets</option>
         <option value="company">Ber Wilson (parent)</option>
         <option value="project">Projects / SPVs</option>
       </select>

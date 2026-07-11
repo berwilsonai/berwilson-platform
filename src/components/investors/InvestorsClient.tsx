@@ -9,6 +9,7 @@ import {
   investorType,
   investorStage,
   interestLevel,
+  isOffPipeline,
   INVESTOR_TYPE_LABELS,
   INVESTOR_TYPE_BADGE,
   INVESTOR_TYPE_BORDER,
@@ -29,6 +30,14 @@ export interface InvestorCardData {
   isOrganization: boolean
 }
 
+/** True when a YYYY-MM-DD date is before today (local). */
+export function isPastDate(dateStr: string | null): boolean {
+  if (!dateStr) return false
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  return new Date(`${dateStr}T00:00:00`).getTime() < today.getTime()
+}
+
 function checkRange(min: number | null, max: number | null): string | null {
   if (min == null && max == null) return null
   if (min != null && max != null) return `${formatValue(min)}–${formatValue(max)}`
@@ -44,6 +53,7 @@ export default function InvestorsClient({ items }: { items: InvestorCardData[] }
         const s = investorStage(investor.stage)
         const heat = interestLevel(investor.interest_level)
         const range = checkRange(investor.check_size_min, investor.check_size_max)
+        const nextOverdue = isPastDate(investor.next_step_date) && !isOffPipeline(investor.stage)
         // Lead with the strongest number they've put on the table
         const money = funded > 0 ? { label: 'Funded', value: funded }
           : committed > 0 ? { label: 'Committed', value: committed }
@@ -114,11 +124,17 @@ export default function InvestorsClient({ items }: { items: InvestorCardData[] }
 
             {/* Next step */}
             {(investor.next_step || investor.next_step_date) && (
-              <div className="mt-2 flex items-center gap-1 text-[11px] text-muted-foreground/80 truncate">
+              <div
+                className={cn(
+                  'mt-2 flex items-center gap-1 text-[11px] truncate',
+                  nextOverdue ? 'text-amber-600 dark:text-amber-400 font-medium' : 'text-muted-foreground/80'
+                )}
+              >
                 <CalendarClock size={11} className="shrink-0" />
                 <span className="truncate">
                   {investor.next_step ? `Next: ${investor.next_step}` : `Next step ${formatDate(investor.next_step_date)}`}
                   {investor.next_step && investor.next_step_date ? ` — ${formatDate(investor.next_step_date)}` : ''}
+                  {nextOverdue && ' · overdue'}
                 </span>
               </div>
             )}
