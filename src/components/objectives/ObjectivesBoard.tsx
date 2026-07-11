@@ -28,6 +28,10 @@ import {
   OBJECTIVE_BUCKETS,
   OBJECTIVE_BUCKET_LABELS,
   OBJECTIVE_BUCKET_ACCENT,
+  OBJECTIVE_HEALTHS,
+  OBJECTIVE_HEALTH_LABELS,
+  OBJECTIVE_HEALTH_BADGE,
+  objectiveHealth,
   type ObjectiveBucket,
 } from '@/lib/utils/objectives'
 import {
@@ -47,6 +51,7 @@ export interface BoardObjective {
   owner_id: string | null
   target_date: string | null
   status: string
+  health: string
   owner: { id: string; name: string; color: string | null } | null
   created_at: string | null
 }
@@ -231,7 +236,7 @@ export default function ObjectivesBoard({ initialObjectives, teamMembers }: Obje
     }
   }
 
-  async function handleSaveEdit(obj: BoardObjective, patch: { title: string; note: string; owner_id: string; target_date: string }) {
+  async function handleSaveEdit(obj: BoardObjective, patch: { title: string; note: string; owner_id: string; target_date: string; health: string }) {
     const prev = objectives
     setObjectives((p) =>
       p.map((o) =>
@@ -243,6 +248,7 @@ export default function ObjectivesBoard({ initialObjectives, teamMembers }: Obje
               owner_id: patch.owner_id || null,
               owner: teamMembers.find((m) => m.id === patch.owner_id) ?? null,
               target_date: patch.target_date || null,
+              health: patch.health,
             }
           : o,
       ),
@@ -507,7 +513,7 @@ interface ObjectiveCardProps {
   onMoveToBucket: (b: ObjectiveBucket) => void
   onEdit: () => void
   onCancelEdit: () => void
-  onSaveEdit: (patch: { title: string; note: string; owner_id: string; target_date: string }) => void
+  onSaveEdit: (patch: { title: string; note: string; owner_id: string; target_date: string; health: string }) => void
   onArchive: () => void
   onDelete: () => void
 }
@@ -565,7 +571,19 @@ function ObjectiveCard({
       </span>
 
       <div className="min-w-0 flex-1">
-        <p className="text-sm font-medium text-foreground">{obj.title}</p>
+        <p className="text-sm font-medium text-foreground">
+          {obj.title}
+          {objectiveHealth(obj.health) !== 'on_track' && (
+            <span
+              className={cn(
+                'ml-2 inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ring-1 ring-inset align-middle',
+                OBJECTIVE_HEALTH_BADGE[objectiveHealth(obj.health)],
+              )}
+            >
+              {OBJECTIVE_HEALTH_LABELS[objectiveHealth(obj.health)]}
+            </span>
+          )}
+        </p>
         {obj.note && <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{obj.note}</p>}
         {(obj.owner || obj.target_date) && (
           <div className="flex items-center gap-2 mt-1.5 flex-wrap">
@@ -630,12 +648,13 @@ function ObjectiveEditForm({
   obj: BoardObjective
   teamMembers: TeamMember[]
   onCancel: () => void
-  onSave: (patch: { title: string; note: string; owner_id: string; target_date: string }) => void
+  onSave: (patch: { title: string; note: string; owner_id: string; target_date: string; health: string }) => void
 }) {
   const [title, setTitle] = useState(obj.title)
   const [note, setNote] = useState(obj.note ?? '')
   const [ownerId, setOwnerId] = useState(obj.owner_id ?? '')
   const [targetDate, setTargetDate] = useState(obj.target_date ?? '')
+  const [health, setHealth] = useState(objectiveHealth(obj.health))
 
   return (
     <div className="rounded-xl border border-primary/40 bg-card p-3 space-y-2.5 elev-2">
@@ -663,6 +682,24 @@ function ObjectiveEditForm({
         </select>
         <DatePicker value={targetDate} onChange={setTargetDate} placeholder="Target date" />
       </div>
+      {/* Health — the explicit "is this being met" judgment */}
+      <div className="flex items-center gap-1.5">
+        {OBJECTIVE_HEALTHS.map((h) => (
+          <button
+            key={h}
+            type="button"
+            onClick={() => setHealth(h)}
+            className={cn(
+              'flex-1 h-8 rounded-md border text-xs font-medium transition-colors',
+              health === h
+                ? cn('ring-1 ring-inset border-transparent', OBJECTIVE_HEALTH_BADGE[h])
+                : 'border-input text-muted-foreground hover:bg-muted',
+            )}
+          >
+            {OBJECTIVE_HEALTH_LABELS[h]}
+          </button>
+        ))}
+      </div>
       <div className="flex items-center justify-end gap-2 pt-0.5">
         <button
           onClick={onCancel}
@@ -671,7 +708,7 @@ function ObjectiveEditForm({
           Cancel
         </button>
         <button
-          onClick={() => onSave({ title, note, owner_id: ownerId, target_date: targetDate })}
+          onClick={() => onSave({ title, note, owner_id: ownerId, target_date: targetDate, health })}
           disabled={!title.trim()}
           className="h-8 px-3 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 disabled:opacity-50 transition-colors"
         >

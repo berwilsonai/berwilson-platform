@@ -13,6 +13,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { callGemini } from '@/lib/ai/gemini'
 import { fetchOpenTasks, formatTaskLine } from '@/lib/tasks/queries'
 import { parseTranches, raiseLevels, fillTranches } from '@/lib/investors/raises'
+import { fetchCalendarEvents } from '@/lib/integrations/microsoft-graph'
 
 const SYSTEM_USER_ID = '00000000-0000-0000-0000-000000000000'
 
@@ -31,6 +32,9 @@ Structure:
 ### This Week's Pressure Points
 (Approaching deadlines, stale blockers, relationships going cold)
 
+### This Week's Meetings
+(Only include when calendar data is provided: the 3-5 meetings that matter most this week and why — tie each to the objective or deal it serves. Flag any meeting with no clear link to a stated priority, and any Now objective with nothing on the calendar advancing it. 2-6 lines.)
+
 ### Capital Raise
 (Only include when investor data is provided: where each raise stands — committed vs funded vs target, which tranche is filling, investor next steps due or overdue, hot investors going cold. 2-5 lines.)
 
@@ -46,7 +50,8 @@ Rules:
 - If something is X days overdue, say exactly how many days.
 - If a relationship is going cold, name the person and suggest an action.
 - On the raise, never conflate indicated (soft interest), committed (signed), and funded (wired) amounts.
-- When company objectives are provided, connect urgent items to the objective they serve where the link is clear — and call out any Now objective with no visible movement.
+- When company objectives are provided, connect urgent items to the objective they serve where the link is clear — and call out any Now objective with no visible movement. Objectives flagged AT RISK or STALLED lead the Steering Check.
+- When meetings are provided, rank them against the Now objectives: which need prep, which advance a stated priority, which serve none.
 - Keep it under 600 words. Executives scan, they don't read essays.`
 
 export async function GET(request: NextRequest) {
@@ -119,7 +124,7 @@ export async function GET(request: NextRequest) {
     // Steering board — fails quietly (null) pre-migration
     supabase
       .from('objectives')
-      .select('title, bucket, target_date, owner:team_members(name)')
+      .select('title, bucket, target_date, health, owner:team_members(name)')
       .eq('status', 'active')
       .in('bucket', ['now', 'soon'])
       .order('sort_order'),
@@ -238,12 +243,40 @@ export async function GET(request: NextRequest) {
     title: string
     bucket: string
     target_date: string | null
+    health: string
     owner: { name: string } | null
   }>)
     .sort((a, b) => (a.bucket === b.bucket ? 0 : a.bucket === 'now' ? -1 : 1))
-    .map(o =>
-      `- [${o.bucket.toUpperCase()}] ${o.title}${o.owner ? ` — ${o.owner.name}` : ''}${o.target_date ? ` (target ${o.target_date})` : ''}`,
+    .map(o => {
+      const healthFlag = o.health === 'at_risk' ? ' [AT RISK]' : o.health === 'stalled' ? ' [STALLED]' : ''
+      return `- [${o.bucket.toUpperCase()}] ${o.title}${healthFlag}${o.owner ? ` — ${o.owner.name}` : ''}${o.target_date ? ` (target ${o.target_date})` : ''}`
+    })
+
+  // Meetings: the next 7 days from the connected Outlook mailbox. Fails
+  // quietly — no Graph token (mailbox never connected) or a Graph error just
+  // drops the meetings section from the brief.
+  let meetingLines: string[] = []
+  try {
+    const events = await fetchCalendarEvents(
+      now.toISOString(),
+      new Date(now.getTime() + 7 * 86_400_000).toISOString()
     )
+    meetingLines = events.slice(0, 15).map(e => {
+      const raw = e.start.dateTime.replace(/\.\d+$/, '')
+      const start = new Date(e.start.timeZone === 'UTC' ? `${raw}Z` : raw)
+      const when = e.isAllDay
+        ? `${raw.split('T')[0]} (all day)`
+        : start.toLocaleString('en-US', {
+            weekday: 'short', month: 'short', day: 'numeric',
+            hour: 'numeric', minute: '2-digit', timeZone: 'America/Denver',
+          })
+      const attendees = e.attendees.length > 0 ? `, ${e.attendees.length} attendee${e.attendees.length === 1 ? '' : 's'}` : ''
+      const where = e.location?.displayName ? ` @ ${e.location.displayName}` : ''
+      return `- ${when}: "${e.subject}" — organized by ${e.organizer.emailAddress.name}${attendees}${where}`
+    })
+  } catch {
+    // mailbox not connected or Graph unavailable — no meetings block
+  }
 
   const userMessage = `Today is ${now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}.
 
@@ -258,6 +291,9 @@ ${overdueActions.slice(0, 10).join('\n') || '(none)'}
 
 TASKS DUE IN THE NEXT 7 DAYS (${dueSoon.length}):
 ${dueSoon.slice(0, 10).join('\n') || '(none)'}
+
+MEETINGS ON THE CALENDAR (next 7 days):
+${meetingLines.join('\n') || '(no calendar data available)'}
 
 CAPITAL RAISE (investors + follow-ups):
 ${investorLines.slice(0, 12).join('\n') || '(none tracked)'}

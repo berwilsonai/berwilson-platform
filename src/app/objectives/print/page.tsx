@@ -3,7 +3,9 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import {
   OBJECTIVE_BUCKETS,
   OBJECTIVE_BUCKET_LABELS,
+  OBJECTIVE_HEALTH_LABELS,
   objectiveBucket,
+  objectiveHealth,
   type ObjectiveBucket,
 } from '@/lib/utils/objectives'
 import { PrintToolbar, PreparedDate } from '@/components/objectives/PrintToolbar'
@@ -31,6 +33,7 @@ interface PrintObjective {
   note: string | null
   bucket: string
   target_date: string | null
+  health: string
   owner: { name: string } | null
 }
 
@@ -51,7 +54,7 @@ export default async function ObjectivesPrintPage({ searchParams }: PageProps) {
   const supabase = createAdminClient()
   const { data, error } = await supabase
     .from('objectives')
-    .select('id, title, note, bucket, target_date, owner:team_members(name)')
+    .select('id, title, note, bucket, target_date, health, owner:team_members(name)')
     .eq('status', 'active')
     .order('sort_order', { ascending: true })
 
@@ -105,7 +108,14 @@ export default async function ObjectivesPrintPage({ searchParams }: PageProps) {
                       {idx + 1}
                     </span>
                     <div className="min-w-0 flex-1">
-                      <p className="text-base font-medium leading-snug">{obj.title}</p>
+                      <p className="text-base font-medium leading-snug">
+                        {obj.title}
+                        {objectiveHealth(obj.health) !== 'on_track' && (
+                          <span className="ml-2 inline-flex items-center rounded border border-slate-300 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-600 align-middle">
+                            {OBJECTIVE_HEALTH_LABELS[objectiveHealth(obj.health)]}
+                          </span>
+                        )}
+                      </p>
                       {obj.note && (
                         <p className="text-sm text-slate-600 mt-1 whitespace-pre-line">{obj.note}</p>
                       )}

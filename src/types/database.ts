@@ -1181,6 +1181,7 @@ export type Database = {
           check_size_max: number | null
           check_size_min: number | null
           created_at: string | null
+          email: string | null
           id: string
           interest_level: string | null
           investor_type: string
@@ -1190,6 +1191,7 @@ export type Database = {
           next_step_date: string | null
           notes: string | null
           party_id: string | null
+          phone: string | null
           preferred_structures: string[] | null
           referred_by: string | null
           relationship_owner_id: string | null
@@ -1202,6 +1204,7 @@ export type Database = {
           check_size_max?: number | null
           check_size_min?: number | null
           created_at?: string | null
+          email?: string | null
           id?: string
           interest_level?: string | null
           investor_type?: string
@@ -1211,6 +1214,7 @@ export type Database = {
           next_step_date?: string | null
           notes?: string | null
           party_id?: string | null
+          phone?: string | null
           preferred_structures?: string[] | null
           referred_by?: string | null
           relationship_owner_id?: string | null
@@ -1223,6 +1227,7 @@ export type Database = {
           check_size_max?: number | null
           check_size_min?: number | null
           created_at?: string | null
+          email?: string | null
           id?: string
           interest_level?: string | null
           investor_type?: string
@@ -1232,6 +1237,7 @@ export type Database = {
           next_step_date?: string | null
           notes?: string | null
           party_id?: string | null
+          phone?: string | null
           preferred_structures?: string[] | null
           referred_by?: string | null
           relationship_owner_id?: string | null
@@ -1378,6 +1384,7 @@ export type Database = {
         Row: {
           bucket: string
           created_at: string | null
+          health: string
           id: string
           note: string | null
           owner_id: string | null
@@ -1390,6 +1397,7 @@ export type Database = {
         Insert: {
           bucket?: string
           created_at?: string | null
+          health?: string
           id?: string
           note?: string | null
           owner_id?: string | null
@@ -1402,6 +1410,7 @@ export type Database = {
         Update: {
           bucket?: string
           created_at?: string | null
+          health?: string
           id?: string
           note?: string | null
           owner_id?: string | null
@@ -2505,6 +2514,8 @@ export type Database = {
         | "real_estate"
         | "prefab"
         | "institutional"
+        | "technology"
+        | "health"
       project_stage:
         | "pursuit"
         | "capture"
@@ -3126,6 +3137,8 @@ export const Constants = {
         "real_estate",
         "prefab",
         "institutional",
+        "technology",
+        "health",
       ],
       project_stage: [
         "pursuit",

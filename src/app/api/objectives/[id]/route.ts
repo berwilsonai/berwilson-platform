@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { OBJECTIVE_BUCKETS } from '@/lib/utils/objectives'
+import { OBJECTIVE_BUCKETS, OBJECTIVE_HEALTHS } from '@/lib/utils/objectives'
 import type { TablesUpdate } from '@/lib/supabase/types'
 
 interface RouteContext {
@@ -22,6 +22,12 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
       return Response.json({ error: 'invalid bucket' }, { status: 400 })
     }
     patch.bucket = body.bucket
+  }
+  if ('health' in body) {
+    if (!OBJECTIVE_HEALTHS.includes(body.health)) {
+      return Response.json({ error: 'invalid health' }, { status: 400 })
+    }
+    patch.health = body.health
   }
   if ('sort_order' in body && typeof body.sort_order === 'number') {
     patch.sort_order = body.sort_order

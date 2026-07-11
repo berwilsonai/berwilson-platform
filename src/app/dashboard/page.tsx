@@ -14,6 +14,7 @@ import HealthPanel from '@/components/dashboard/HealthPanel'
 import RiskOverview from '@/components/dashboard/RiskOverview'
 import NeedsAttention from '@/components/dashboard/NeedsAttention'
 import NowObjectives, { type NowObjectiveItem } from '@/components/dashboard/NowObjectives'
+import VerticalRollup from '@/components/dashboard/VerticalRollup'
 import ClosingSoon, { type ClosingSoonItem } from '@/components/dashboard/ClosingSoon'
 import { weightedValue } from '@/lib/utils/constants'
 import { fetchOpenTasks } from '@/lib/tasks/queries'
@@ -117,7 +118,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
     // (objectives table / tasks.objective_id may not exist yet) → strip hidden.
     supabase
       .from('objectives')
-      .select('id, title, target_date, owner:team_members(name, color)')
+      .select('id, title, target_date, health, owner:team_members(name, color)')
       .eq('status', 'active')
       .eq('bucket', 'now')
       .order('sort_order'),
@@ -330,6 +331,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
       id: string
       title: string
       target_date: string | null
+      health: string
       owner: { name: string; color: string | null } | null
     }>
   ).map((o) => ({ ...o, openTasks: objectiveTaskCounts[o.id] ?? 0 }))
@@ -356,6 +358,19 @@ export default async function DashboardPage({ searchParams }: PageProps) {
           expiringCertsCount={expiringCerts?.length ?? 0}
         />
       </div>
+
+      {/* ── How each vertical is doing ────────────────────────────────────── */}
+      {activeProjects.length > 0 && (
+        <div className="animate-fade-in-up" style={{ animationDelay: '25ms' }}>
+          <VerticalRollup
+            projects={activeProjects.map((p) => ({
+              sector: p.sector,
+              estimated_value: p.estimated_value,
+              win_probability: (p as { win_probability?: number | null }).win_probability ?? null,
+            }))}
+          />
+        </div>
+      )}
 
       {/* ── Alerts banner — critical items across portfolio ──────────────── */}
       {alerts.length > 0 && (

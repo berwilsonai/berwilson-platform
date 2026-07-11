@@ -11,7 +11,7 @@ You will be provided with a list of active projects including:
 - Project name
 - Solicitation number (for government projects)
 - Client entity
-- Sector (government, infrastructure, real_estate, prefab, institutional)
+- Sector (government, infrastructure, real_estate, prefab, institutional, technology, health)
 - Key parties/players
 
 CLASSIFICATION RULES:

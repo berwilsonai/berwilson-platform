@@ -1,10 +1,17 @@
 import Link from 'next/link'
 import { Target, ArrowUpRight } from 'lucide-react'
+import { cn } from '@/lib/utils'
+import {
+  OBJECTIVE_HEALTH_LABELS,
+  OBJECTIVE_HEALTH_BADGE,
+  objectiveHealth,
+} from '@/lib/utils/objectives'
 
 export interface NowObjectiveItem {
   id: string
   title: string
   target_date: string | null
+  health: string
   owner: { name: string; color: string | null } | null
   openTasks: number
 }
@@ -46,7 +53,19 @@ export default function NowObjectives({ items }: { items: NowObjectiveItem[] }) 
               {i + 1}
             </span>
             <div className="min-w-0">
-              <p className="text-sm font-medium text-foreground truncate">{o.title}</p>
+              <p className="text-sm font-medium text-foreground truncate">
+                {o.title}
+                {objectiveHealth(o.health) !== 'on_track' && (
+                  <span
+                    className={cn(
+                      'ml-1.5 inline-flex items-center rounded px-1 py-px text-[9px] font-semibold uppercase tracking-wide ring-1 ring-inset align-middle',
+                      OBJECTIVE_HEALTH_BADGE[objectiveHealth(o.health)],
+                    )}
+                  >
+                    {OBJECTIVE_HEALTH_LABELS[objectiveHealth(o.health)]}
+                  </span>
+                )}
+              </p>
               <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
                 {o.owner && <span>{initials(o.owner.name)}</span>}
                 {o.target_date && <span className="tnum">by {formatTarget(o.target_date)}</span>}

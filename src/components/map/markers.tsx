@@ -42,6 +42,8 @@ const SECTOR_PUCK: Record<ProjectSector, string> = {
   real_estate: 'bg-emerald-600',
   prefab: 'bg-violet-600',
   institutional: 'bg-slate-500',
+  technology: 'bg-sky-600',
+  health: 'bg-rose-600',
 }
 
 // Outlined (pipeline) variant: card-colored puck, sector-colored ring + glyph
@@ -51,6 +53,8 @@ const SECTOR_OUTLINE: Record<ProjectSector, string> = {
   real_estate: 'text-emerald-600 ring-emerald-600 dark:text-emerald-400 dark:ring-emerald-400',
   prefab: 'text-violet-600 ring-violet-600 dark:text-violet-400 dark:ring-violet-400',
   institutional: 'text-slate-500 ring-slate-500 dark:text-slate-400 dark:ring-slate-400',
+  technology: 'text-sky-600 ring-sky-600 dark:text-sky-400 dark:ring-sky-400',
+  health: 'text-rose-600 ring-rose-600 dark:text-rose-400 dark:ring-rose-400',
 }
 
 export const SECTOR_LINE_COLOR: Record<ProjectSector, string> = {
@@ -59,6 +63,8 @@ export const SECTOR_LINE_COLOR: Record<ProjectSector, string> = {
   real_estate: '#059669',
   prefab: '#7c3aed',
   institutional: '#64748b',
+  technology: '#0284c7',
+  health: '#e11d48',
 }
 
 // Value-scaled markers, calibrated to the real portfolio: most projects land
@@ -99,6 +105,10 @@ export function iconForProject(project: Pick<MapProject, 'map_icon' | 'sector'>)
       return 'industrial'
     case 'institutional':
       return 'office'
+    case 'technology':
+      return 'data_center'
+    case 'health':
+      return 'hospital'
     default:
       return 'default'
   }

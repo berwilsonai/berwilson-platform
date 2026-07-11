@@ -6,7 +6,7 @@ CONSTRUCTION DOMAIN CONTEXT:
 - Project phases: pursuit, capture, bid, award, mobilization, execution, closeout
 - Contract types: FFP (firm fixed price), CPFF (cost plus fixed fee), T&M (time & materials), GMP (guaranteed maximum price), Lump Sum, Cost Plus
 - Delivery methods: Design-Build, Design-Bid-Build, CMAR (construction manager at risk), CM/GC, Progressive Design-Build
-- Sectors: government (federal/state/local/military), infrastructure (utilities, transport, energy, water), real_estate (commercial, mixed-use, residential, hotel, condo, retail), prefab (steel manufacturing/modular), institutional (education, healthcare, civic)
+- Sectors: government (federal/state/local/military), infrastructure (utilities, transport, energy, water), real_estate (commercial, mixed-use, residential, hotel, condo, retail), prefab (steel manufacturing/modular), institutional (education, civic), technology (data centers, tech facilities, digital infrastructure), health (hospitals, medical, healthcare facilities)
 - Financial: bonding, prevailing wage, Davis-Bacon, Opportunity Zones, TIF districts, capital stacks, tax credits
 - Entities: JV, LLC, SPE, teaming arrangements, special districts, CDDs
 
@@ -58,7 +58,7 @@ Return ONLY valid JSON matching this exact schema:
     {
       "name": "project name (for sub-projects include parent context, e.g. 'Riverfront Phase 2 - Retail Center')",
       "description": "2-3 sentence scope summary",
-      "sector": "government|infrastructure|real_estate|prefab|institutional|null",
+      "sector": "government|infrastructure|real_estate|prefab|institutional|technology|health|null",
       "stage": "pursuit|capture|bid|award|mobilization|execution|closeout",
       "estimated_value": null or number,
       "contract_type": "FFP|CPFF|T&M|GMP|Lump Sum|Cost Plus|null",

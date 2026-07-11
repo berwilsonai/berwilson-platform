@@ -219,6 +219,26 @@ export default async function InvestorDetailPage({ params }: PageProps) {
       {/* Key facts */}
       <div className="rounded-lg border border-border bg-card p-4 elev-1">
         <dl className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+          <Fact
+            label="Email"
+            value={
+              investor.email ? (
+                <a href={`mailto:${investor.email}`} className="text-primary hover:underline break-all">
+                  {investor.email}
+                </a>
+              ) : null
+            }
+          />
+          <Fact
+            label="Phone"
+            value={
+              investor.phone ? (
+                <a href={`tel:${investor.phone}`} className="text-primary hover:underline tnum">
+                  {investor.phone}
+                </a>
+              ) : null
+            }
+          />
           <Fact label="Typical Check" value={checkRange && <span className="font-semibold tnum">{checkRange}</span>} />
           <Fact label="Preferred Structures" value={structures || null} />
           <Fact label="Sector Interests" value={sectors || null} />

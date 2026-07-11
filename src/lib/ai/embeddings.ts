@@ -420,7 +420,7 @@ export async function embedInvestorSnapshot(investorId: string): Promise<void> {
     const [{ data: inv }, { data: investments }, { data: notes }] = await Promise.all([
       supabase
         .from('investors')
-        .select('name, investor_type, stage, interest_level, check_size_min, check_size_max, preferred_structures, sector_interests, source, referred_by, next_step, next_step_date, last_contact_date, notes')
+        .select('name, investor_type, stage, interest_level, email, phone, check_size_min, check_size_max, preferred_structures, sector_interests, source, referred_by, next_step, next_step_date, last_contact_date, notes')
         .eq('id', investorId)
         .single(),
       supabase
@@ -442,6 +442,8 @@ export async function embedInvestorSnapshot(investorId: string): Promise<void> {
     parts.push(`Type: ${inv.investor_type}`)
     parts.push(`Relationship Stage: ${inv.stage}`)
     if (inv.interest_level) parts.push(`Interest Level: ${inv.interest_level}`)
+    const contact = [inv.email, inv.phone].filter(Boolean).join(', ')
+    if (contact) parts.push(`Contact: ${contact}`)
     const range = [money(inv.check_size_min), money(inv.check_size_max)].filter(Boolean).join(' to ')
     if (range) parts.push(`Typical Check Size: ${range}`)
     if (inv.preferred_structures?.length) parts.push(`Preferred Structures: ${inv.preferred_structures.join(', ')}`)

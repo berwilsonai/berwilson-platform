@@ -167,6 +167,35 @@ export default function InvestorForm({ mode, investor, parties, teamMembers, lin
           )}
         </div>
 
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label htmlFor="email" className={labelClass}>
+              Email
+            </label>
+            <input
+              id="email"
+              name="email"
+              type="email"
+              defaultValue={investor?.email ?? ''}
+              placeholder="name@firm.com"
+              className={inputClass}
+            />
+          </div>
+          <div>
+            <label htmlFor="phone" className={labelClass}>
+              Phone
+            </label>
+            <input
+              id="phone"
+              name="phone"
+              type="tel"
+              defaultValue={investor?.phone ?? ''}
+              placeholder="(801) 555-0100"
+              className={inputClass}
+            />
+          </div>
+        </div>
+
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div>
             <label htmlFor="investor_type" className={labelClass}>

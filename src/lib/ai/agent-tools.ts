@@ -25,7 +25,7 @@ export const agentTools = [
       properties: {
         sector: {
           type: 'string',
-          enum: ['government', 'infrastructure', 'real_estate', 'prefab', 'institutional'],
+          enum: ['government', 'infrastructure', 'real_estate', 'prefab', 'institutional', 'technology', 'health'],
           description: 'Filter by sector',
         },
         stage: {

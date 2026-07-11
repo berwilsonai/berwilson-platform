@@ -40,7 +40,7 @@ export interface EmailIntakeOpportunity {
   name: string | null
   /** acquisition | partnership | joint_venture | investment | merger | divestiture | teaming | market_entry | other */
   opp_type: string | null
-  /** government | infrastructure | real_estate | prefab | institutional */
+  /** government | infrastructure | real_estate | prefab | institutional | technology | health */
   sector: string | null
   location: string | null
   objective: string | null
@@ -53,7 +53,7 @@ export interface EmailIntakeOpportunity {
 
 export interface EmailIntakeProject {
   name: string | null
-  /** government | infrastructure | real_estate | prefab | institutional */
+  /** government | infrastructure | real_estate | prefab | institutional | technology | health */
   sector: string | null
   /** pursuit | capture | bid | award | mobilization | execution | closeout */
   stage: string | null
@@ -78,12 +78,12 @@ export interface EmailIntakeExtraction {
 export const EMAIL_INTAKE_SYSTEM_PROMPT = `You are an intake analyst for Ber Wilson, a vertically integrated construction, development, and prefab steel manufacturing company. You are given a research package assembled from a set of email threads and their attachments — it contains people, key facts, decisions, action items, dates, and dollar figures pulled from real correspondence.
 
 Your job is to turn that raw package into ONE proposed CRM record so an executive can review and confirm it. Decide whether the correspondence describes:
-- a "project" — a construction/development pursuit Ber Wilson would build or bid (federal/infrastructure/real-estate/prefab/institutional work), OR
+- a "project" — a construction/development pursuit Ber Wilson would build or bid (federal/infrastructure/real-estate/prefab/institutional/technology/health work), OR
 - an "opportunity" — a strategic pursuit that is NOT a build job: an acquisition, partnership, joint venture, equity investment, merger, divestiture, teaming agreement, or market entry.
 
 Set "suggested_record" to your best call. Fill in BOTH the "opportunity" and "project" objects as completely as the text supports (leave unknown fields null) so the reviewer can switch kinds without losing information. Use only values from these enumerations:
 - opp_type: acquisition | partnership | joint_venture | investment | merger | divestiture | teaming | market_entry | other
-- sector: government | infrastructure | real_estate | prefab | institutional
+- sector: government | infrastructure | real_estate | prefab | institutional | technology | health
 - stage: pursuit | capture | bid | award | mobilization | execution | closeout
 
 Extract every distinguishable person and organization into "people" (set is_organization=true for companies). Give each a short role describing how they relate to this deal. Turn concrete action items and next steps into "tasks" with a crisp title and, where the text supports it, what/why/how, a due_date (YYYY-MM-DD), and a best-guess assignee name.

@@ -16,7 +16,7 @@ import type {
 // ─── Sectors ─────────────────────────────────────────────────────────────────
 
 export const SECTORS: ProjectSector[] = [
-  'government', 'infrastructure', 'real_estate', 'prefab', 'institutional',
+  'government', 'infrastructure', 'real_estate', 'prefab', 'institutional', 'technology', 'health',
 ]
 
 export const SECTOR_LABELS: Record<ProjectSector, string> = {
@@ -25,6 +25,8 @@ export const SECTOR_LABELS: Record<ProjectSector, string> = {
   real_estate: 'Real Estate',
   prefab: 'Prefab',
   institutional: 'Institutional',
+  technology: 'Technology',
+  health: 'Health',
 }
 
 export const SECTOR_SHORT: Record<ProjectSector, string> = {
@@ -33,6 +35,8 @@ export const SECTOR_SHORT: Record<ProjectSector, string> = {
   real_estate: 'Real Estate',
   prefab: 'Prefab',
   institutional: 'Institutional',
+  technology: 'Tech',
+  health: 'Health',
 }
 
 export const SECTOR_BADGE: Record<ProjectSector, string> = {
@@ -41,6 +45,8 @@ export const SECTOR_BADGE: Record<ProjectSector, string> = {
   real_estate: 'bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-500/15 dark:text-emerald-300 dark:ring-emerald-500/30',
   prefab: 'bg-violet-50 text-violet-700 ring-violet-200 dark:bg-violet-500/15 dark:text-violet-300 dark:ring-violet-500/30',
   institutional: 'bg-slate-100 text-slate-600 ring-slate-200 dark:bg-slate-400/15 dark:text-slate-300 dark:ring-slate-400/25',
+  technology: 'bg-sky-50 text-sky-700 ring-sky-200 dark:bg-sky-500/15 dark:text-sky-300 dark:ring-sky-500/30',
+  health: 'bg-rose-50 text-rose-700 ring-rose-200 dark:bg-rose-500/15 dark:text-rose-300 dark:ring-rose-500/30',
 }
 
 // ─── Statuses ────────────────────────────────────────────────────────────────

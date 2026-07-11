@@ -58,6 +58,8 @@ function parseFields(formData: FormData): ParseResult {
     fields: {
       name,
       party_id: str('party_id'),
+      email: str('email'),
+      phone: str('phone'),
       investor_type: (INVESTOR_TYPES as string[]).includes(rawType) ? rawType : 'other',
       stage: (INVESTOR_STAGES as string[]).includes(rawStage) ? rawStage : 'identified',
       interest_level: (INTEREST_LEVELS as string[]).includes(rawInterest) ? rawInterest : 'warm',
@@ -85,7 +87,8 @@ async function resolveParty(
   supabase: ReturnType<typeof createAdminClient>,
   name: string,
   pickedPartyId: string | null,
-  investorType: string
+  investorType: string,
+  contact?: { email: string | null; phone: string | null }
 ): Promise<string | null> {
   if (pickedPartyId) return pickedPartyId
 
@@ -105,6 +108,8 @@ async function resolveParty(
       is_organization: investorType !== 'individual',
       relationship_notes: 'Added from the Investors pipeline.',
       tags: ['investor'],
+      email: contact?.email ?? null,
+      phone: contact?.phone ?? null,
     })
     .select('id')
     .single()
@@ -130,7 +135,8 @@ export async function createInvestor(
     supabase,
     result.fields.name,
     result.fields.party_id ?? null,
-    result.fields.investor_type ?? 'individual'
+    result.fields.investor_type ?? 'individual',
+    { email: result.fields.email ?? null, phone: result.fields.phone ?? null }
   )
 
   const { data, error } = await supabase
