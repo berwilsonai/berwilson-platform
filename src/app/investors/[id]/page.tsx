@@ -18,13 +18,13 @@ import {
   INVESTOR_PIPELINE,
   INVESTOR_STAGE_INDEX,
   INVESTOR_STAGE_LABELS,
+  isPastDate,
 } from '@/lib/utils/investors'
 import InvestorStageControl from '@/components/investors/InvestorStageControl'
 import InvestorDeleteButton from '@/components/investors/InvestorDeleteButton'
 import InvestorNotes from '@/components/investors/InvestorNotes'
 import InvestorTasks from '@/components/investors/InvestorTasks'
 import InvestmentsSection, { type InvestmentRow } from '@/components/investors/InvestmentsSection'
-import { isPastDate } from '@/components/investors/InvestorsClient'
 import type { BoardTask, TeamMember } from '@/components/tasks/task-utils'
 
 interface PageProps {

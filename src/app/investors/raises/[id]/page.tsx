@@ -14,11 +14,11 @@ import {
   INVESTMENT_STAGE_LABELS,
   INVESTMENT_STAGE_BADGE,
   INVESTOR_STAGE_LABELS,
+  isPastDate,
 } from '@/lib/utils/investors'
 import { parseTranches, raiseLevels, fillTranches } from '@/lib/investors/raises'
 import RaiseTrancheBar, { TrancheBarLegend } from '@/components/investors/RaiseTrancheBar'
 import RaiseDeleteButton from '@/components/investors/RaiseDeleteButton'
-import { isPastDate } from '@/components/investors/InvestorsClient'
 
 interface PageProps {
   params: Promise<{ id: string }>
@@ -213,10 +213,26 @@ export default async function RaiseDetailPage({ params }: PageProps) {
           <HandCoins size={15} /> Investors{investorCount > 0 && <span className="text-muted-foreground font-normal">({investorCount})</span>}
         </h2>
         {rows.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
-            No investments tagged to this raise yet. Tag them from an investor&apos;s page — add or edit an
-            investment and pick this raise.
-          </p>
+          <div className="rounded-xl border border-dashed border-border bg-card px-4 py-6 text-center space-y-3">
+            <p className="text-sm text-muted-foreground">
+              No investments tagged to this raise yet. Open an investor, add or edit an investment,
+              and pick <span className="font-medium text-foreground">{raise.name}</span> in the Raise field.
+            </p>
+            <div className="flex items-center justify-center gap-2">
+              <Link
+                href="/investors"
+                className="inline-flex items-center h-8 px-3 rounded-md bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors"
+              >
+                Go to investors
+              </Link>
+              <Link
+                href="/investors/new"
+                className="inline-flex items-center h-8 px-3 rounded-md border border-input bg-background text-xs font-medium hover:bg-accent transition-colors"
+              >
+                New investor
+              </Link>
+            </div>
+          </div>
         ) : (
           <div className="rounded-xl border border-border bg-card elev-1 overflow-x-auto">
             <table className="w-full text-sm">

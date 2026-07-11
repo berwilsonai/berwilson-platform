@@ -139,6 +139,15 @@ export function isOffPipeline(value: string | null | undefined): boolean {
   return value === 'passed' || value === 'dormant'
 }
 
+/** True when a YYYY-MM-DD date is before today (local). Shared by server pages
+ *  and client components — must live outside any 'use client' module. */
+export function isPastDate(dateStr: string | null): boolean {
+  if (!dateStr) return false
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  return new Date(`${dateStr}T00:00:00`).getTime() < today.getTime()
+}
+
 // ─── Interest Level ──────────────────────────────────────────────────────────
 
 export type InterestLevel = 'hot' | 'warm' | 'cool' | 'cold'

@@ -10,6 +10,7 @@ import {
   investorStage,
   interestLevel,
   isOffPipeline,
+  isPastDate,
   INVESTOR_TYPE_LABELS,
   INVESTOR_TYPE_BADGE,
   INVESTOR_TYPE_BORDER,
@@ -28,14 +29,6 @@ export interface InvestorCardData {
   /** Human-readable target names, e.g. "Ber Wilson (parent)", project names. */
   targets: string[]
   isOrganization: boolean
-}
-
-/** True when a YYYY-MM-DD date is before today (local). */
-export function isPastDate(dateStr: string | null): boolean {
-  if (!dateStr) return false
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  return new Date(`${dateStr}T00:00:00`).getTime() < today.getTime()
 }
 
 function checkRange(min: number | null, max: number | null): string | null {
