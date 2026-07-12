@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { Send, Bot, User, Loader2, AlertCircle, ThumbsUp, ThumbsDown } from 'lucide-react'
+import ReadAloudButton from '@/components/shared/ReadAloudButton'
 
 interface Message {
   id: string
@@ -256,6 +257,7 @@ export default function AgentChat({
               )}
               {msg.role === 'assistant' && !msg.id.startsWith('tmp-') && (
                 <div className="flex items-center gap-0.5 mt-1.5 pt-1 border-t border-border/30">
+                  <ReadAloudButton text={msg.content} />
                   <button
                     onClick={() => rateMessage(msg.id, 1)}
                     title="Helpful"
