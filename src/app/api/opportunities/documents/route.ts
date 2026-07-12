@@ -91,7 +91,7 @@ export async function POST(request: NextRequest) {
           userId: SYSTEM_USER_ID,
           logLabel: `Opportunity doc summary: ${file.name}`,
           promptVersion: 'opp-doc-summary-1.0',
-          maxTokens: 2048, // local Qwen reasons inside this budget; 512 returns empty
+          maxTokens: 2048, // Gemini-path cap only; local mode ignores maxTokens (unbudgeted)
         })
         parsed = result.data
         // Second pass: full-text transcription so CIMs/teasers/white papers are
@@ -111,7 +111,7 @@ export async function POST(request: NextRequest) {
           userMessage: text.slice(0, 30000),
           userId: SYSTEM_USER_ID,
           promptVersion: 'opp-doc-summary-1.0',
-          maxTokens: 2048, // local Qwen reasons inside this budget; 512 returns empty
+          maxTokens: 2048, // Gemini-path cap only; local mode ignores maxTokens (unbudgeted)
         })
         parsed = result.data
       }

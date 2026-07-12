@@ -123,6 +123,13 @@ export interface LocalChatResult {
 interface LocalChatOptions {
   messages: LocalChatMessage[]
   model?: string
+  /**
+   * IGNORED in local mode (Richard's call 2026-07-11): the local model is
+   * free, so generation is unbudgeted — no max_tokens is sent and Qwen runs
+   * until it finishes (small budgets got fully eaten by reasoning tokens and
+   * returned empty text). Kept in the signature so callers can share one
+   * shape with the Gemini path, where maxTokens still applies.
+   */
   maxTokens?: number
   /** OpenAI-format tool declarations. */
   tools?: Array<{ type: 'function'; function: { name: string; description: string; parameters: unknown } }>
@@ -140,7 +147,6 @@ export async function localChat(options: LocalChatOptions): Promise<LocalChatRes
     body: JSON.stringify({
       model: options.model ?? localChatModel(),
       messages: options.messages,
-      ...(options.maxTokens ? { max_tokens: options.maxTokens } : {}),
       ...(options.tools?.length ? { tools: options.tools } : {}),
       stream: false,
     }),
@@ -176,7 +182,6 @@ export async function localChatStream(options: LocalChatOptions): Promise<LocalC
     body: JSON.stringify({
       model: options.model ?? localChatModel(),
       messages: options.messages,
-      ...(options.maxTokens ? { max_tokens: options.maxTokens } : {}),
       ...(options.tools?.length ? { tools: options.tools } : {}),
       stream: true,
       stream_options: { include_usage: true },

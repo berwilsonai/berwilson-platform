@@ -193,9 +193,7 @@ export async function processPromotedDocumentAi(doc: PromotedDocument): Promise<
         userId: SYSTEM_USER_ID,
         logLabel: `Email intake doc summary: ${doc.fileName}`,
         promptVersion: 'doc-summary-1.0',
-        // Local Qwen spends reasoning tokens inside this budget — 512 gets
-        // fully consumed by reasoning and returns an empty summary.
-        maxTokens: 2048,
+        maxTokens: 2048, // Gemini-path cap only; local mode ignores maxTokens (unbudgeted)
       })
       summaryRaw = result.data
       fullTextContent = await transcribePdfText({

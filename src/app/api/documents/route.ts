@@ -98,7 +98,7 @@ export async function POST(request: NextRequest) {
             userId: SYSTEM_USER_ID,
             logLabel: `Document summary: ${file_name}`,
             promptVersion: 'doc-summary-1.0',
-            maxTokens: 2048, // local Qwen reasons inside this budget; 512 returns empty
+            maxTokens: 2048, // Gemini-path cap only; local mode ignores maxTokens (unbudgeted)
           })
           parsed = result.data
           // Second pass: full-text transcription so the document is searchable
@@ -120,7 +120,7 @@ export async function POST(request: NextRequest) {
             userMessage: text.slice(0, 30000), // stay within token budget
             userId: SYSTEM_USER_ID,
             promptVersion: 'doc-summary-1.0',
-            maxTokens: 2048, // local Qwen reasons inside this budget; 512 returns empty
+            maxTokens: 2048, // Gemini-path cap only; local mode ignores maxTokens (unbudgeted)
           })
           parsed = result.data
         }
