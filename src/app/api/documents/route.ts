@@ -1,30 +1,9 @@
 import { NextRequest } from 'next/server'
-import { embedDocument } from '@/lib/ai/embeddings'
-import { callGemini, callGeminiWithFile } from '@/lib/ai/gemini'
-import { transcribePdfText, storeExtractedText } from '@/lib/ai/document-text'
+import { runDocumentAiPass } from '@/lib/ai/document-pipeline'
 import { getViewer, canAccessProject, forbiddenJson, actorAdminClient } from '@/lib/auth/viewer'
 
 // Summary + full-text transcription + embedding can take a few minutes on big PDFs
 export const maxDuration = 300
-
-type DocSummary = { summary?: string; confidence?: number } | string
-
-const SYSTEM_USER_ID = '00000000-0000-0000-0000-000000000000'
-
-const DOC_SUMMARY_SYSTEM = `You are a document analyst for a construction executive intelligence platform.
-Summarize the key points of this document in 2-3 sentences. Focus on: parties involved, key obligations or dates, dollar amounts, and critical terms relevant to construction executives.
-Return ONLY valid JSON: {"summary": "...", "confidence": 0.0}
-confidence is 0.0–1.0 reflecting how clearly this document presents extractable construction intelligence.
-Return ONLY valid JSON. No explanation. No markdown.`
-
-const TEXT_MIME_TYPES = new Set([
-  'text/plain',
-  'text/markdown',
-  'text/csv',
-  'text/html',
-])
-
-const PDF_MIME_TYPE = 'application/pdf'
 
 interface InsertBody {
   project_id: string
@@ -74,98 +53,33 @@ export async function POST(request: NextRequest) {
     return Response.json({ error: insertError?.message ?? 'Insert failed' }, { status: 500 })
   }
 
-  // Optionally run AI extraction
-  if (extract_ai && (TEXT_MIME_TYPES.has(mime_type) || mime_type === PDF_MIME_TYPE)) {
-    try {
-      // Download file from storage
-      const { data: fileBlob, error: downloadError } = await supabase.storage
-        .from('documents')
-        .download(storage_path)
+  if (extract_ai) {
+    // File was uploaded to storage by the client — pull it back for the AI pass.
+    const { data: fileBlob, error: downloadError } = await supabase.storage
+      .from('documents')
+      .download(storage_path)
 
-      if (!downloadError && fileBlob) {
-        let parsed: DocSummary
-        let fullTextContent: string | null = null  // captured for text file embedding
-
-        if (mime_type === PDF_MIME_TYPE) {
-          // Gemini's native PDF support
-          const buffer = await fileBlob.arrayBuffer()
-          const base64 = Buffer.from(buffer).toString('base64')
-
-          const result = await callGeminiWithFile<DocSummary>({
-            systemPrompt: DOC_SUMMARY_SYSTEM,
-            prompt: 'Summarize this document.',
-            file: { mimeType: PDF_MIME_TYPE, dataBase64: base64 },
-            userId: SYSTEM_USER_ID,
-            logLabel: `Document summary: ${file_name}`,
-            promptVersion: 'doc-summary-1.0',
-            maxTokens: 2048, // Gemini-path cap only; local mode ignores maxTokens (unbudgeted)
-          })
-          parsed = result.data
-          // Second pass: full-text transcription so the document is searchable
-          // by content, not just its summary. Null on failure/oversize → summary fallback.
-          fullTextContent = await transcribePdfText({
-            dataBase64: base64,
-            byteLength: buffer.byteLength,
-            fileName: file_name,
-            userId: SYSTEM_USER_ID,
-          })
-        } else {
-          // Text file — read as string
-          const text = await fileBlob.text()
-          fullTextContent = text  // capture for embedding (full content, not truncated)
-
-          const result = await callGemini<DocSummary>({
-            task: 'doc-summary',
-            systemPrompt: DOC_SUMMARY_SYSTEM,
-            userMessage: text.slice(0, 30000), // stay within token budget
-            userId: SYSTEM_USER_ID,
-            promptVersion: 'doc-summary-1.0',
-            maxTokens: 2048, // Gemini-path cap only; local mode ignores maxTokens (unbudgeted)
-          })
-          parsed = result.data
-        }
-
-        // Update document record
-        let embedText: string | null = null
-        if (parsed && typeof parsed === 'object') {
-          await supabase
-            .from('documents')
-            .update({
-              ai_summary: parsed.summary ?? null,
-              confidence: parsed.confidence ?? null,
-            })
-            .eq('id', doc.id)
-
-          doc.ai_summary = parsed.summary ?? null
-          doc.confidence = parsed.confidence ?? null
-          // Text files: embed full content. PDFs: embed AI summary.
-          if (fullTextContent) {
-            embedText = fullTextContent
-          } else if (mime_type === PDF_MIME_TYPE && parsed.summary) {
-            embedText = parsed.summary
-          }
-        } else {
-          // AI returned non-JSON — store raw text as summary
-          const raw = String(parsed ?? '')
-          await supabase
-            .from('documents')
-            .update({ ai_summary: raw.slice(0, 1000) })
-            .eq('id', doc.id)
-          doc.ai_summary = raw.slice(0, 1000)
-          // Still embed whatever text we have for text files
-          if (fullTextContent) embedText = fullTextContent
-        }
-
-        if (fullTextContent) {
-          await storeExtractedText(supabase, 'documents', doc.id, fullTextContent)
-        }
-        if (embedText) {
-          embedDocument(doc.id, project_id, embedText).catch(console.error)
-        }
-      }
-    } catch {
-      // AI extraction failed — document is still saved, just no summary
+    if (downloadError || !fileBlob) {
+      await supabase.from('documents').update({ embedding_status: 'error' }).eq('id', doc.id)
+      doc.embedding_status = 'error'
+    } else {
+      // Never throws — settles embedding_status to complete/error/skipped.
+      const result = await runDocumentAiPass({
+        supabase,
+        documentId: doc.id,
+        projectId: project_id,
+        fileName: file_name,
+        mimeType: mime_type ?? null,
+        buffer: await fileBlob.arrayBuffer(),
+      })
+      doc.ai_summary = result.aiSummary ?? doc.ai_summary
+      doc.confidence = result.confidence ?? doc.confidence
+      doc.embedding_status = result.status
     }
+  } else {
+    // No AI requested — don't leave the doc looking like it's indexing.
+    await supabase.from('documents').update({ embedding_status: 'skipped' }).eq('id', doc.id)
+    doc.embedding_status = 'skipped'
   }
 
   return Response.json({ document: doc })

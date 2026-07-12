@@ -8,6 +8,12 @@ import type { createAdminClient } from '@/lib/supabase/admin'
 // back to summary-only embedding.
 export const PDF_FULLTEXT_MAX_BYTES = 15 * 1024 * 1024
 
+// Postgres text/jsonb rejects NUL bytes ("unsupported Unicode escape
+// sequence") and lone surrogates — PDFs with embedded fonts produce both.
+function sanitizeExtractedText(text: string): string {
+  return text.replace(/\u0000/g, '').replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g, '')
+}
+
 const FULLTEXT_SYSTEM = `You are a document transcriber for a construction executive intelligence platform.
 Extract the COMPLETE text content of this document as clean markdown.
 Preserve headings, lists, tables (as markdown tables), dollar figures, dates, names, and section numbering exactly as written.
@@ -29,7 +35,8 @@ export async function transcribePdfText(input: {
   // Local mode: extract the text directly — no model pass needed for a
   // verbatim transcription, and nothing leaves the machine.
   if (isLocalAI()) {
-    const text = await extractPdfText(input.dataBase64)
+    const raw = await extractPdfText(input.dataBase64)
+    const text = raw ? sanitizeExtractedText(raw) : null
     return text && text.length >= 40 ? text : null
   }
 
@@ -44,10 +51,26 @@ export async function transcribePdfText(input: {
       jsonMode: false,
       maxTokens: 60000,
     })
-    const text = typeof result.data === 'string' ? result.data.trim() : ''
+    const text = typeof result.data === 'string' ? sanitizeExtractedText(result.data.trim()) : ''
     return text.length >= 40 ? text : null
   } catch (err) {
     console.error('[document-text] full-text extraction failed:', err)
+    return null
+  }
+}
+
+/**
+ * Extract the text of a .docx file (Word). Returns null on failure or when
+ * the document has no meaningful text — callers mark the doc unindexable.
+ */
+export async function extractDocxText(buffer: ArrayBuffer): Promise<string | null> {
+  try {
+    const mammoth = await import('mammoth')
+    const result = await mammoth.extractRawText({ buffer: Buffer.from(buffer) })
+    const text = sanitizeExtractedText(result.value?.trim() ?? '')
+    return text.length >= 40 ? text : null
+  } catch (err) {
+    console.error('[document-text] docx extraction failed:', err)
     return null
   }
 }

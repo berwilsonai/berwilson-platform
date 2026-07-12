@@ -1,7 +1,8 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { callGemini, callGeminiWithFile } from '@/lib/ai/gemini'
-import { transcribePdfText, storeExtractedText } from '@/lib/ai/document-text'
-import { embedDocument, embedOpportunityDocument } from '@/lib/ai/embeddings'
+import { transcribePdfText, extractDocxText, storeExtractedText } from '@/lib/ai/document-text'
+import { embedOpportunityDocument } from '@/lib/ai/embeddings'
+import { runDocumentAiPass, documentKind, PDF_MIME_TYPE } from '@/lib/ai/document-pipeline'
 
 /**
  * Email-intake attachment staging.
@@ -62,8 +63,6 @@ export function sanitizeFileName(name: string): string {
 // ---------------------------------------------------------------------------
 
 const SYSTEM_USER_ID = '00000000-0000-0000-0000-000000000000'
-const PDF_MIME_TYPE = 'application/pdf'
-const TEXT_MIME_TYPES = new Set(['text/plain', 'text/markdown', 'text/csv', 'text/html'])
 
 // Mirrors the doc-summary prompts in api/documents + api/opportunities/documents.
 const DOC_SUMMARY_SYSTEM = `You are a document analyst for a construction executive intelligence platform.
@@ -166,25 +165,39 @@ export async function promoteStagedAttachment(
 
 /**
  * The post-insert AI pass the upload routes run: summary + full-text
- * transcription + embedding, best-effort. PDFs and text files only — other
- * types stay as plain stored files. Run sequentially (local model).
+ * extraction + embedding, best-effort (PDF, docx, and text files; other
+ * types stay as plain stored files). Run sequentially (local model).
  */
 export async function processPromotedDocumentAi(doc: PromotedDocument): Promise<void> {
-  const mime = doc.mimeType ?? ''
-  if (mime !== PDF_MIME_TYPE && !TEXT_MIME_TYPES.has(mime)) return
-
   const supabase = createAdminClient()
   try {
     const { data: fileBlob, error: downloadError } = await supabase.storage
       .from('documents')
       .download(doc.storagePath)
     if (downloadError || !fileBlob) return
+    const buffer = await fileBlob.arrayBuffer()
 
-    let summaryRaw: { summary?: string } | string
+    // Project documents share the standard pipeline (incl. embedding_status).
+    if (doc.table === 'documents') {
+      await runDocumentAiPass({
+        supabase,
+        documentId: doc.id,
+        projectId: doc.parentId,
+        fileName: doc.fileName,
+        mimeType: doc.mimeType,
+        buffer,
+      })
+      return
+    }
+
+    // opportunity_documents — no embedding_status column; same pass by hand.
+    const kind = documentKind(doc.mimeType, doc.fileName)
+    if (kind === 'unsupported') return
+
+    let summaryRaw: { summary?: string } | string | null = null
     let fullTextContent: string | null = null
 
-    if (mime === PDF_MIME_TYPE) {
-      const buffer = await fileBlob.arrayBuffer()
+    if (kind === 'pdf') {
       const base64 = Buffer.from(buffer).toString('base64')
       const result = await callGeminiWithFile<{ summary?: string } | string>({
         systemPrompt: DOC_SUMMARY_SYSTEM,
@@ -203,17 +216,19 @@ export async function processPromotedDocumentAi(doc: PromotedDocument): Promise<
         userId: SYSTEM_USER_ID,
       })
     } else {
-      const text = await fileBlob.text()
-      fullTextContent = text
-      const result = await callGemini<{ summary?: string } | string>({
-        task: 'doc-summary',
-        systemPrompt: DOC_SUMMARY_SYSTEM,
-        userMessage: text.slice(0, 30000),
-        userId: SYSTEM_USER_ID,
-        promptVersion: 'doc-summary-1.0',
-        maxTokens: 2048,
-      })
-      summaryRaw = result.data
+      fullTextContent =
+        kind === 'docx' ? await extractDocxText(buffer) : new TextDecoder().decode(buffer)
+      if (fullTextContent) {
+        const result = await callGemini<{ summary?: string } | string>({
+          task: 'doc-summary',
+          systemPrompt: DOC_SUMMARY_SYSTEM,
+          userMessage: fullTextContent.slice(0, 30000),
+          userId: SYSTEM_USER_ID,
+          promptVersion: 'doc-summary-1.0',
+          maxTokens: 2048,
+        })
+        summaryRaw = result.data
+      }
     }
 
     const summary =
@@ -229,11 +244,7 @@ export async function processPromotedDocumentAi(doc: PromotedDocument): Promise<
 
     const embedText = fullTextContent ?? summary
     if (embedText) {
-      if (doc.table === 'documents') {
-        await embedDocument(doc.id, doc.parentId, embedText)
-      } else {
-        await embedOpportunityDocument(doc.id, doc.parentId, embedText)
-      }
+      await embedOpportunityDocument(doc.id, doc.parentId, embedText)
     }
   } catch (err) {
     // Best-effort — the document row exists either way.

@@ -200,7 +200,7 @@ export async function embedDocument(
   textContent: string,
   entityId?: string | null,
   isCompany = false
-): Promise<void> {
+): Promise<boolean> {
   const supabase = createAdminClient()
 
   await supabase
@@ -234,12 +234,14 @@ export async function embedDocument(
       .from('documents')
       .update({ embedding_status: 'complete' })
       .eq('id', documentId)
+    return true
   } catch (err) {
     console.error('[embeddings] embedDocument failed:', err)
     await supabase
       .from('documents')
       .update({ embedding_status: 'error' })
       .eq('id', documentId)
+    return false
   }
 }
 

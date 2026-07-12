@@ -1,7 +1,8 @@
 import { NextRequest } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { callGemini, callGeminiWithFile } from '@/lib/ai/gemini'
-import { transcribePdfText, storeExtractedText } from '@/lib/ai/document-text'
+import { transcribePdfText, extractDocxText, storeExtractedText } from '@/lib/ai/document-text'
+import { documentKind } from '@/lib/ai/document-pipeline'
 import { embedOpportunityDocument } from '@/lib/ai/embeddings'
 import { getViewer, canAccessOpportunity, forbiddenJson } from '@/lib/auth/viewer'
 
@@ -17,7 +18,6 @@ Summarize the key points of this document in 2-3 sentences. Focus on: what the c
 Return ONLY valid JSON: {"summary": "..."}
 No explanation. No markdown.`
 
-const TEXT_MIME_TYPES = new Set(['text/plain', 'text/markdown', 'text/csv', 'text/html'])
 const PDF_MIME_TYPE = 'application/pdf'
 
 export async function POST(request: NextRequest) {
@@ -77,12 +77,13 @@ export async function POST(request: NextRequest) {
   }
 
   // Optional AI summary (best-effort; the document is saved regardless)
-  if (extract_ai && (TEXT_MIME_TYPES.has(file.type) || file.type === PDF_MIME_TYPE)) {
+  const docKind = documentKind(file.type, file.name)
+  if (extract_ai && docKind !== 'unsupported') {
     try {
-      let parsed: DocSummary
+      let parsed: DocSummary | null = null
       let fullTextContent: string | null = null
 
-      if (file.type === PDF_MIME_TYPE) {
+      if (docKind === 'pdf') {
         const base64 = Buffer.from(fileBuffer).toString('base64')
         const result = await callGeminiWithFile<DocSummary>({
           systemPrompt: DOC_SUMMARY_SYSTEM,
@@ -103,17 +104,21 @@ export async function POST(request: NextRequest) {
           userId: SYSTEM_USER_ID,
         })
       } else {
-        const text = new TextDecoder().decode(fileBuffer)
-        fullTextContent = text
-        const result = await callGemini<DocSummary>({
-          task: 'opp-doc-summary',
-          systemPrompt: DOC_SUMMARY_SYSTEM,
-          userMessage: text.slice(0, 30000),
-          userId: SYSTEM_USER_ID,
-          promptVersion: 'opp-doc-summary-1.0',
-          maxTokens: 2048, // Gemini-path cap only; local mode ignores maxTokens (unbudgeted)
-        })
-        parsed = result.data
+        fullTextContent =
+          docKind === 'docx'
+            ? await extractDocxText(fileBuffer)
+            : new TextDecoder().decode(fileBuffer)
+        if (fullTextContent) {
+          const result = await callGemini<DocSummary>({
+            task: 'opp-doc-summary',
+            systemPrompt: DOC_SUMMARY_SYSTEM,
+            userMessage: fullTextContent.slice(0, 30000),
+            userId: SYSTEM_USER_ID,
+            promptVersion: 'opp-doc-summary-1.0',
+            maxTokens: 2048, // Gemini-path cap only; local mode ignores maxTokens (unbudgeted)
+          })
+          parsed = result.data
+        }
       }
 
       const summary =

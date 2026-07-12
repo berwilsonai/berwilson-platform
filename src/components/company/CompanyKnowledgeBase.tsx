@@ -10,6 +10,8 @@ import {
   CheckCircle2,
   Clock,
   AlertCircle,
+  MinusCircle,
+  RefreshCw,
 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -59,6 +61,7 @@ export default function CompanyKnowledgeBase({ documents }: CompanyKnowledgeBase
   const [dragging, setDragging] = useState(false)
   const [docType, setDocType] = useState<string>('capability_statement')
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [reindexingId, setReindexingId] = useState<string | null>(null)
 
   async function handleFiles(files: FileList | null) {
     if (!files || files.length === 0) return
@@ -81,6 +84,25 @@ export default function CompanyKnowledgeBase({ documents }: CompanyKnowledgeBase
     } else {
       toast.error('Upload failed')
     }
+  }
+
+  async function handleReindex(doc: CompanyDoc) {
+    setReindexingId(doc.id)
+    try {
+      const res = await fetch(`/api/documents/${doc.id}/reindex`, { method: 'POST' })
+      const body = await res.json().catch(() => null)
+      if (res.ok && body?.status === 'complete') {
+        toast.success(`${doc.file_name} indexed`)
+      } else if (res.ok && body?.status === 'skipped') {
+        toast.info(`${doc.file_name} — this file type can't be read for AI search`)
+      } else {
+        toast.error(`Indexing failed${body?.error ? `: ${body.error}` : ''} — try re-uploading the file`)
+      }
+    } catch {
+      toast.error('Indexing failed — is the server reachable?')
+    }
+    setReindexingId(null)
+    router.refresh()
   }
 
   async function handleDelete(id: string) {
@@ -146,7 +168,7 @@ export default function CompanyKnowledgeBase({ documents }: CompanyKnowledgeBase
           <p className="text-sm font-medium text-foreground">
             {uploading ? 'Uploading…' : <>Drop files here or <span className="underline">browse</span></>}
           </p>
-          <p className="text-xs text-muted-foreground mt-1">PDF, Word, text, CSV</p>
+          <p className="text-xs text-muted-foreground mt-1">PDF, Word (.docx), text, CSV</p>
           <input
             ref={fileInputRef}
             type="file"
@@ -186,6 +208,17 @@ export default function CompanyKnowledgeBase({ documents }: CompanyKnowledgeBase
                   <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{doc.ai_summary}</p>
                 )}
               </div>
+              {doc.embedding_status !== 'complete' && (
+                <button
+                  onClick={() => handleReindex(doc)}
+                  disabled={reindexingId === doc.id}
+                  className="shrink-0 p-1.5 rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors disabled:opacity-50"
+                  aria-label="Reindex document"
+                  title="Re-run AI indexing from the stored file"
+                >
+                  <RefreshCw size={15} className={reindexingId === doc.id ? 'animate-spin' : ''} />
+                </button>
+              )}
               <button
                 onClick={() => handleDelete(doc.id)}
                 disabled={deletingId === doc.id}
@@ -213,6 +246,15 @@ function EmbedStatus({ status }: { status: string | null }) {
     return (
       <span className="inline-flex items-center gap-1 text-[11px] text-red-500">
         <AlertCircle size={11} /> Index failed
+      </span>
+    )
+  if (status === 'skipped')
+    return (
+      <span
+        className="inline-flex items-center gap-1 text-[11px] text-muted-foreground"
+        title="This file type can't be read for AI search — the file is stored, but Ber AI won't see its contents"
+      >
+        <MinusCircle size={11} /> Not indexed
       </span>
     )
   return (
