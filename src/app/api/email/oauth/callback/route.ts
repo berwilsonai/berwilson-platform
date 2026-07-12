@@ -20,8 +20,8 @@ export async function GET(request: NextRequest) {
   if (error) {
     return new Response(html(`
       <h2 style="color:#dc2626">Microsoft Error</h2>
-      <p><strong>${error}</strong></p>
-      <p>${errorDescription ?? ''}</p>
+      <p><strong>${escapeHtml(error)}</strong></p>
+      <p>${escapeHtml(errorDescription ?? '')}</p>
     `), { status: 400, headers: { 'Content-Type': 'text/html' } })
   }
 
@@ -61,10 +61,22 @@ export async function GET(request: NextRequest) {
 
     return new Response(html(`
       <h2 style="color:#dc2626">Token exchange failed</h2>
-      <p>${message}</p>
+      <p>${escapeHtml(message)}</p>
       <p>Check that MICROSOFT_CLIENT_SECRET in .env.local on the Studio is the secret <strong>value</strong> (not the ID) and hasn't expired.</p>
     `), { status: 500, headers: { 'Content-Type': 'text/html' } })
   }
+}
+
+// This route is on the middleware public allowlist, so query params here are
+// attacker-reachable without auth — everything interpolated into the HTML
+// must be escaped.
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
 }
 
 function html(body: string): string {
