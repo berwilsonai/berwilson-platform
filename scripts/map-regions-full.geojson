@@ -1,0 +1,14 @@
+{
+  "type": "Feature",
+  "properties": {
+    "note": "Basemap extract coverage for production (SCOPE=regions in scripts/setup-map-data.sh). One box per region the portfolio touches: continental US, Tonga, Albania. Adding a country: add a box here (and a dev-sized one in map-regions-dev.geojson), add its names to INTERNATIONAL in src/lib/map/geocode.ts, then re-extract on the Studio (see deploy/README.md)."
+  },
+  "geometry": {
+    "type": "MultiPolygon",
+    "coordinates": [
+      [[[-125.5, 24.0], [-66.5, 24.0], [-66.5, 49.6], [-125.5, 49.6], [-125.5, 24.0]]],
+      [[[-176.5, -22.5], [-173.5, -22.5], [-173.5, -15.3], [-176.5, -15.3], [-176.5, -22.5]]],
+      [[[19.0, 39.5], [21.2, 39.5], [21.2, 42.8], [19.0, 42.8], [19.0, 39.5]]]
+    ]
+  }
+}

@@ -1,6 +1,7 @@
 // Offline location → coordinates lookup for /map placement. Resolves the
 // free-text `projects.location` field against a bundled US Census gazetteer
-// (city/ZIP/state centroids — see scripts/build-gazetteer.mjs). Deliberately
+// (city/ZIP/state centroids — see scripts/build-gazetteer.mjs) plus a small
+// hand-kept list for international portfolio locations. Deliberately
 // NOT street-level geocoding: no external calls ever leave the box, and the
 // map presents at portfolio zoom where a city centroid reads as exact.
 // Server-side only — the dataset is ~2MB; keep it out of client bundles.
@@ -40,6 +41,19 @@ const STATE_NAMES: Record<string, string> = {
 }
 const STATE_ABBRS = new Set(Object.values(STATE_NAMES))
 
+// International places the portfolio actually touches — the US gazetteer can't
+// resolve these. Keyed by normalized name; capital cities get 'city' precision,
+// bare country names get 'state' (approximate → bulk auto-place skips them,
+// single auto-place warns to Reposition). Adding a country later: add rows here
+// AND a box in scripts/map-regions-full.geojson, then re-extract the basemap.
+const INTERNATIONAL: Record<string, [number, number, string, GeocodePrecision]> = {
+  tonga: [-21.14, -175.2, 'Tonga', 'state'],
+  "nuku'alofa": [-21.14, -175.2, "Nuku'alofa, Tonga", 'city'],
+  nukualofa: [-21.14, -175.2, "Nuku'alofa, Tonga", 'city'],
+  albania: [41.15, 20.17, 'Albania', 'state'],
+  tirana: [41.33, 19.82, 'Tirana, Albania', 'city'],
+}
+
 const norm = (s: string) => s.toLowerCase().replace(/\./g, '').replace(/\s+/g, ' ').trim()
 
 /** "st|salt lake city" → "Salt Lake City, ST" for the matched label. */
@@ -72,6 +86,20 @@ function lookupCityAnyState(city: string): string | null {
   const ut = hits.find((k) => k.startsWith('ut|'))
   if (ut) return ut
   return hits.reduce((a, b) => (places[a][2] >= places[b][2] ? a : b))
+}
+
+/** Match segments against the international list; city precision beats country. */
+function lookupInternational(candidates: string[]): GeocodeResult | null {
+  let approx: GeocodeResult | null = null
+  for (const cand of candidates) {
+    // Normalize typographic apostrophes/okina ("Nukuʻalofa") to a plain one.
+    const hit = INTERNATIONAL[cand.replace(/[ʻ‘’`]/g, "'")]
+    if (!hit) continue
+    const result: GeocodeResult = { latitude: hit[0], longitude: hit[1], matched: hit[2], precision: hit[3] }
+    if (result.precision === 'city') return result
+    approx ??= result
+  }
+  return approx
 }
 
 /** Segment ends with a state? Returns [state, remainder-before-it] or null. */
@@ -110,6 +138,11 @@ export function geocodeLocation(text: string): GeocodeResult | null {
     .split(',')
     .map((s) => s.trim())
     .filter((s) => s && s !== 'usa' && s !== 'united states' && s !== 'us')
+
+  // International portfolio locations (Tonga, Albania, …) — checked before the
+  // US state scan; the whole string covers the no-comma case ("Tonga").
+  const intl = lookupInternational([...segments, norm(raw)])
+  if (intl) return intl
 
   for (let i = segments.length - 1; i >= 0; i--) {
     const seg = segments[i]

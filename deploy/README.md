@@ -35,14 +35,24 @@ internet at view time. The archive lives at `~/berwilson-data/maps/us.pmtiles`
 streamed by `/api/map/tiles` (range requests; path override `MAP_PMTILES_PATH`).
 Until it exists, `/map` shows a "basemap not installed" notice.
 
-- **MacBook (local dev):** `zsh scripts/setup-map-data.sh` — extracts a small
-  Utah cut (~275MB) and vendors fonts/sprites into `public/basemaps/`
-  (gitignored; the deploy rsync ships them with the source).
-- **Studio (production):** the full-depth continental-US extract (~17–20GB,
-  ~1h) runs directly on the Studio — done 2026-07-09:
-  `ssh` in, then `~/.local/bin/pmtiles extract https://build.protomaps.com/<yyyymmdd>.pmtiles ~/berwilson-data/maps/us-conus.pmtiles --bbox=-125.5,24.0,-66.5,49.6`,
-  verify with `pmtiles show`, then `mv` it over `us.pmtiles`. (go-pmtiles
-  binary is at `~/.local/bin/pmtiles` on the Studio.)
+Coverage is defined by `scripts/map-regions-{full,dev}.geojson` (currently
+continental US + Tonga + Albania). New country → add a box to both files (and
+its names to `INTERNATIONAL` in `src/lib/map/geocode.ts`), then re-extract.
+
+- **MacBook (local dev):** `zsh scripts/setup-map-data.sh` (SCOPE=dev default)
+  — extracts a small Utah + Tonga + Albania cut (~400MB) and vendors
+  fonts/sprites into `public/basemaps/` (gitignored; the deploy rsync ships
+  them with the source).
+- **Studio (production):** the full-depth extract (~17–20GB, ~1h) runs
+  directly on the Studio (go-pmtiles binary at `~/.local/bin/pmtiles`; the
+  region file lands there via the normal deploy rsync). `ssh` in, then:
+  1. `~/.local/bin/pmtiles extract https://build.protomaps.com/<yyyymmdd>.pmtiles ~/berwilson-data/maps/us-intl.pmtiles --region="$HOME/berwilson-platform/scripts/map-regions-full.geojson" --dry-run`
+     (use yesterday's build date; the dry run prints tile count + size — sanity-check disk first: the old and new archives coexist until the `mv`)
+  2. rerun without `--dry-run`, verify with `pmtiles show ~/berwilson-data/maps/us-intl.pmtiles`
+  3. `mv ~/berwilson-data/maps/us-intl.pmtiles ~/berwilson-data/maps/us.pmtiles`
+     — no service restart needed; the tiles route opens the file per request.
+  (History: CONUS-only bbox extract done 2026-07-09; superseded by the
+  region-file extract when Tonga/Albania coverage was added 2026-07-12.)
 - The deploy script pushes the MacBook archive to the Studio **only if the
   Studio has none**, and never overwrites an existing Studio archive — so the
   big CONUS extract can't be clobbered by the small dev one. Upgrading the

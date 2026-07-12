@@ -194,7 +194,7 @@ export default function MapPageClient({
       setSelectedId(id)
       toast.success(
         hit.precision === 'state'
-          ? `Only matched the state (${hit.matched}) — use Reposition to put it where it belongs`
+          ? `Only matched the state or country (${hit.matched}) — use Reposition to put it where it belongs`
           : `Placed at ${hit.matched} — Reposition to fine-tune`
       )
     } catch {

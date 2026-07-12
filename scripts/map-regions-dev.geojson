@@ -1,0 +1,14 @@
+{
+  "type": "Feature",
+  "properties": {
+    "note": "Basemap extract coverage for MacBook dev (SCOPE=dev in scripts/setup-map-data.sh): Utah + Tonga + Albania — small enough for local work while still covering the international regions. Production uses map-regions-full.geojson."
+  },
+  "geometry": {
+    "type": "MultiPolygon",
+    "coordinates": [
+      [[[-114.05, 36.99], [-109.04, 36.99], [-109.04, 42.0], [-114.05, 42.0], [-114.05, 36.99]]],
+      [[[-176.5, -22.5], [-173.5, -22.5], [-173.5, -15.3], [-176.5, -15.3], [-176.5, -22.5]]],
+      [[[19.0, 39.5], [21.2, 39.5], [21.2, 42.8], [19.0, 42.8], [19.0, 39.5]]]
+    ]
+  }
+}

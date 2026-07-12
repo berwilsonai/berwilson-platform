@@ -112,11 +112,9 @@ export default function MapView({
       style: buildMapStyle(currentFlavor(), window.location.origin),
       center: MAP_HOME.center,
       zoom: MAP_HOME.zoom,
-      minZoom: 3,
-      maxBounds: [
-        [-130, 22],
-        [-60, 52],
-      ],
+      // No maxBounds: projects now span beyond the US (Tonga, Albania) — the
+      // camera roams worldwide; basemap detail exists where the extract covers.
+      minZoom: 1.5,
       attributionControl: { compact: true },
     })
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right')
