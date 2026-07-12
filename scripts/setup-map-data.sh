@@ -42,12 +42,13 @@ if ! command -v pmtiles >/dev/null; then
 fi
 pmtiles version | head -1 || true
 
+BUILD="$(date -v-1d +%Y%m%d)"  # yesterday's build is always complete
+
 echo "==> Basemap archive"
 mkdir -p "$MAPS_DIR"
 if [[ -s "$PMTILES" && "${FORCE:-0}" != "1" ]]; then
   echo "  $PMTILES already exists ($(du -h "$PMTILES" | cut -f1)) — skipping (FORCE=1 to redo)"
 else
-  BUILD="$(date -v-1d +%Y%m%d)"  # yesterday's build is always complete
   echo "  Extracting ${SCOPE:-dev} from build $BUILD (regions/conus = 17-20GB, expect ~1h)"
   if [[ -n "$REGION" ]]; then
     pmtiles extract "https://build.protomaps.com/${BUILD}.pmtiles" "$PMTILES" --region="$REGION"
@@ -56,6 +57,18 @@ else
   fi
 fi
 pmtiles show "$PMTILES" | head -12
+
+# Whole-planet overview at zoom 0-7 (~200MB): continents/countries render at
+# world zoom everywhere; the tiles route serves it for z<=7 and the detailed
+# archive above for z8+. Same daily build, so the cartography matches.
+WORLD="$MAPS_DIR/world.pmtiles"
+echo "==> World overview archive (z0-7)"
+if [[ -s "$WORLD" && "${FORCE:-0}" != "1" ]]; then
+  echo "  $WORLD already exists ($(du -h "$WORLD" | cut -f1)) — skipping (FORCE=1 to redo)"
+else
+  pmtiles extract "https://build.protomaps.com/${BUILD}.pmtiles" "$WORLD" --maxzoom=7
+fi
+pmtiles show "$WORLD" | head -6
 
 echo "==> Style assets (fonts + sprites) -> public/basemaps/"
 if [[ -d "$ASSETS_DIR/fonts" && -d "$ASSETS_DIR/sprites" && "${FORCE:-0}" != "1" ]]; then

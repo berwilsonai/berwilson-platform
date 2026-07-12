@@ -1,7 +1,8 @@
 import { layers, namedFlavor } from '@protomaps/basemaps'
 import type { StyleSpecification } from 'maplibre-gl'
 
-// Fully offline MapLibre style: vector tiles from our range-serving route,
+// Fully offline MapLibre style: vector tiles from our per-tile route (which
+// composites the world-overview + full-detail-regions archives server-side),
 // fonts + sprites vendored into public/basemaps/ (scripts/setup-map-data.sh).
 // Nothing here may reference a CDN — the platform is tailnet-only.
 
@@ -13,7 +14,9 @@ export function buildMapStyle(flavor: MapFlavor, origin: string): StyleSpecifica
     sources: {
       protomaps: {
         type: 'vector',
-        url: 'pmtiles://' + origin + '/api/map/tiles',
+        tiles: [origin + '/api/map/tiles/{z}/{x}/{y}'],
+        minzoom: 0,
+        maxzoom: 15,
         attribution: '© OpenStreetMap',
       },
     },

@@ -2,7 +2,6 @@
 
 import { useEffect, useRef } from 'react'
 import maplibregl from 'maplibre-gl'
-import { Protocol } from 'pmtiles'
 // maplibre-gl.css is imported in globals.css — a CSS import here (inside the
 // ssr:false dynamic chunk) builds but never gets linked into the page.
 import { buildMapStyle, type MapFlavor } from '@/lib/map/style'
@@ -16,14 +15,6 @@ import {
   setMarkerSelected,
   SECTOR_LINE_COLOR,
 } from './markers'
-
-// Register the pmtiles protocol once per session
-let protocolRegistered = false
-function ensureProtocol() {
-  if (protocolRegistered) return
-  maplibregl.addProtocol('pmtiles', new Protocol().tile)
-  protocolRegistered = true
-}
 
 export interface MapApi {
   flyHome: () => void
@@ -105,7 +96,6 @@ export default function MapView({
   // ── Map lifecycle ──────────────────────────────────────────────────────────
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return
-    ensureProtocol()
 
     const map = new maplibregl.Map({
       container: containerRef.current,

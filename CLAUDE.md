@@ -202,7 +202,8 @@ MICROSOFT_CLIENT_ID=
 MICROSOFT_CLIENT_SECRET=
 MICROSOFT_WEBHOOK_SECRET=
 CRON_SECRET=                     # Bearer auth on cron routes; launchd cron agents on the Studio send it
-MAP_PMTILES_PATH=                # optional; /map basemap archive (default ~/berwilson-data/maps/us.pmtiles)
+MAP_PMTILES_PATH=                # optional; /map detail basemap archive (default ~/berwilson-data/maps/us.pmtiles)
+MAP_WORLD_PMTILES_PATH=          # optional; /map world-overview archive z0-7 (default ~/berwilson-data/maps/world.pmtiles)
 MICROSOFT_SECRET_EXPIRES=        # optional YYYY-MM-DD; Azure client secret expiry — /settings/health warns 30d ahead
 BACKUP_DIR=                      # optional; nightly-backup dir the health page checks (default ~/Backups/berwilson)
 ```
@@ -262,6 +263,12 @@ Note the drift flagged in §9: `entities`/vendors partly duplicate this. The *su
 **Reality:** well beyond the original Phase 1/2 plan. Live and in daily use on Vercel production.
 
 **Working:** projects (CRUD, pipeline/program views, hierarchy, all detail tabs), **interactive project map (/map — offline basemap, illustrated markers, rail corridors, present mode)**, **opportunities**, **investors (capital raise pipeline: relationship stages + per-deal commitments vs parent co / project SPVs; named raises w/ tranche schedules + per-raise dashboards; task tags, Ber AI tools + RAG, attention + daily-brief wiring)**, **objectives steering board (Now/Soon/Possibly + PDF export, wired into tasks/dashboard/brief)**, dashboard (single attention surface, opens with Now objectives), timeline, **team tasks** (per-person workload, project/opportunity/objective tags), **one Directory (Contacts | Vendors tabs)**, company profile (thin), review queue, activity log, manual-paste extraction (action items → real tasks), intel (RAG + streaming agent) + **ambient Ask Ber AI dock (⌘J, every page)**, proposal intake → assessment → project creation, **Email Intake** (in-platform Outlook sweep → report → opportunity/project + people + tasks). **Calendar/meeting-prep still uses Microsoft Graph (OAuth retained); the email-to-task scraper was removed (see below).** Equity & Portfolio modules removed 2026-07-03 (see below).
+
+**Done 2026-07-12 (world overview basemap + composite tile route; DEPLOYED):**
+- **Richard: world zoom looked like blank ocean (Pacific islands invisible) — wanted the low-zoom worldwide layer.** Now a second archive `~/berwilson-data/maps/world.pmtiles` (whole planet z0-7, only 186MB) renders continents/countries everywhere at world zoom; full detail still only in the region boxes.
+- **Tile serving switched from pmtiles-protocol byte ranges to a per-tile route** `GET /api/map/tiles/{z}/{x}/{y}` that composites server-side: **z≤7 from the world archive, z8+ from the regions archive** (world missing → low zooms degrade to regions-only; regions missing → 503 which still triggers the map's "basemap not installed" notice). Archives are cached with open FileHandles and **reopened automatically on mtime/size change — replacing an archive still needs no restart**. Out-of-coverage tiles → 204 (maplibre renders empty). Client: `style.ts` uses a standard `tiles` URL template; the pmtiles `Protocol`/`ensureProtocol` client code is gone from `MapView.tsx` (the `pmtiles` dep now serves the route server-side).
+- `setup-map-data.sh` extracts the world archive alongside the main one; the deploy script push-once rule covers `world.pmtiles` too; env `MAP_WORLD_PMTILES_PATH` optional override. Two new pins created at Richard's request (his picks: new records, not reusing "Ber Wilson Pre Fab Steel"): **Tonga Development Project** (real_estate/pursuit, Nukuʻalofa) and **Pre-Fab Steel** (prefab/pursuit, Tirana) — deep links verified live in his session.
+- Verified: route semantics curled (z2 Pacific 200 w/ Fiji/Samoa/NZ labels in the MVT, z5 Europe 200, z12 Nukuʻalofa 200, z12 Fiji + z8 mid-Pacific 204, bad coords 400); `tsc` + eslint + full build clean. (Browser extension disconnected mid-session — final world-zoom visual check was tile-decode-level, not screenshot.)
 
 **Done 2026-07-12 (international map coverage — Tonga + Albania; DEPLOYED):**
 - **Richard: projects are expanding to Tonga (certain) and possibly Albania — the map must cover them.** Chosen approach (his pick): targeted-regions, not whole-world — one archive, full street-level detail in US + Tonga + Albania (+~100MB vs CONUS-only). DB lat/lng checks and the projects PATCH validation were already world-valid; no migration.

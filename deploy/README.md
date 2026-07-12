@@ -30,10 +30,18 @@ and enables `tailscale serve`.
 ## Offline basemap for /map (one-time)
 
 The interactive project map serves its own map tiles — nothing loads from the
-internet at view time. The archive lives at `~/berwilson-data/maps/us.pmtiles`
-(outside the app dir, so the deploy `rsync --delete` never touches it) and is
-streamed by `/api/map/tiles` (range requests; path override `MAP_PMTILES_PATH`).
-Until it exists, `/map` shows a "basemap not installed" notice.
+internet at view time. Two archives live in `~/berwilson-data/maps/` (outside
+the app dir, so the deploy `rsync --delete` never touches them):
+
+- `us.pmtiles` — full-detail regions (path override `MAP_PMTILES_PATH`)
+- `world.pmtiles` — whole-planet overview at zoom 0-7, ~200MB, so continents
+  render at world zoom everywhere (path override `MAP_WORLD_PMTILES_PATH`)
+
+`/api/map/tiles/{z}/{x}/{y}` composites them server-side: world archive for
+z≤7, regions archive for z8+. Replacing an archive on disk is picked up
+automatically (mtime check) — no service restart. Until the regions archive
+exists, `/map` shows a "basemap not installed" notice; a missing world archive
+just degrades world zoom to regions-only.
 
 Coverage is defined by `scripts/map-regions-{full,dev}.geojson` (currently
 continental US + Tonga + Albania). New country → add a box to both files (and

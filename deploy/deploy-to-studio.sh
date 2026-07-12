@@ -34,6 +34,15 @@ elif [ -s "$HOME/berwilson-data/maps/us.pmtiles" ]; then
 else
   echo "  WARN: no basemap anywhere — run scripts/setup-map-data.sh; /map will show a basemap error"
 fi
+# World overview (z0-7, ~200MB) — same push-once rule.
+if ssh "$STUDIO" '[ -s berwilson-data/maps/world.pmtiles ]'; then
+  echo "  world overview already on Studio — leaving it alone"
+elif [ -s "$HOME/berwilson-data/maps/world.pmtiles" ]; then
+  echo "  pushing world overview to Studio (first time)"
+  rsync -az "$HOME/berwilson-data/maps/world.pmtiles" "$STUDIO:berwilson-data/maps/"
+else
+  echo "  WARN: no world overview — run scripts/setup-map-data.sh; world zoom will be regions-only"
+fi
 
 echo "==> Building Studio env file"
 ENV_TMP="$(mktemp)"
