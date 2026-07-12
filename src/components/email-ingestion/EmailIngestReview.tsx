@@ -2,8 +2,10 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Loader2, CheckCircle2, Building2, Lightbulb, FolderKanban, User, ListChecks, Paperclip, Eye } from 'lucide-react'
+import { Loader2, CheckCircle2, Building2, Lightbulb, FolderKanban, User, ListChecks, Paperclip, Eye, Trash2 } from 'lucide-react'
+import { toast } from 'sonner'
 import FitAssessmentCard from '@/components/proposals/FitAssessmentCard'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { DatePicker } from '@/components/ui/date-picker'
 import { viewDocument } from '@/lib/utils/document-links'
 import type { StagedAttachment } from '@/lib/email-ingestion/attachments'
@@ -64,6 +66,52 @@ export default function EmailIngestReview({ sessionId, extraction, partyMatches,
 
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [discardOpen, setDiscardOpen] = useState(false)
+
+  /** Switch record kind, carrying shared facts into the other record's blanks
+   *  so toggling never loses prepopulated data. Never overwrites edits. */
+  function switchKind(next: 'opportunity' | 'project') {
+    if (next === kind) return
+    const keep = <T,>(cur: T | null | undefined, fallback: T | null): T | null =>
+      cur !== null && cur !== undefined && String(cur).trim() !== '' ? cur : fallback
+    if (next === 'project') {
+      setProj((p) => ({
+        ...p,
+        name: keep(p.name, opp.name),
+        sector: keep(p.sector, opp.sector),
+        location: keep(p.location, opp.location),
+        estimated_value: keep(p.estimated_value, opp.estimated_value),
+        description: keep(p.description, opp.objective ?? opp.thesis),
+        client_entity: keep(p.client_entity, opp.counterparty ?? opp.target_name),
+      }))
+    } else {
+      setOpp((o) => ({
+        ...o,
+        name: keep(o.name, proj.name),
+        sector: keep(o.sector, proj.sector),
+        location: keep(o.location, proj.location),
+        estimated_value: keep(o.estimated_value, proj.estimated_value),
+        objective: keep(o.objective, proj.description),
+        counterparty: keep(o.counterparty, proj.client_entity),
+      }))
+    }
+    setKind(next)
+  }
+
+  async function discard() {
+    try {
+      const res = await fetch(`/api/email-ingestion/sessions/${sessionId}`, { method: 'PATCH' })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.error || 'Could not discard the package.')
+      }
+      toast.success('Research package discarded.')
+      router.push('/email-ingestion')
+      router.refresh()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Could not discard the package.')
+    }
+  }
 
   function setPerson(i: number, patch: Partial<PersonRow>) {
     setPeople((prev) => prev.map((p, idx) => (idx === i ? { ...p, ...patch } : p)))
@@ -170,7 +218,7 @@ export default function EmailIngestReview({ sessionId, extraction, partyMatches,
         <div className="inline-flex rounded-md border border-input overflow-hidden">
           <button
             type="button"
-            onClick={() => setKind('opportunity')}
+            onClick={() => switchKind('opportunity')}
             className={`inline-flex items-center gap-1.5 h-8 px-3 text-sm font-medium transition-colors ${
               kind === 'opportunity' ? 'bg-primary text-primary-foreground' : 'bg-background hover:bg-accent'
             }`}
@@ -179,7 +227,7 @@ export default function EmailIngestReview({ sessionId, extraction, partyMatches,
           </button>
           <button
             type="button"
-            onClick={() => setKind('project')}
+            onClick={() => switchKind('project')}
             className={`inline-flex items-center gap-1.5 h-8 px-3 text-sm font-medium transition-colors ${
               kind === 'project' ? 'bg-primary text-primary-foreground' : 'bg-background hover:bg-accent'
             }`}
@@ -404,6 +452,14 @@ export default function EmailIngestReview({ sessionId, extraction, partyMatches,
         </p>
         <button
           type="button"
+          onClick={() => setDiscardOpen(true)}
+          disabled={submitting}
+          className="inline-flex items-center gap-1.5 h-9 px-3 rounded-md border border-input bg-background text-sm font-medium text-muted-foreground hover:text-destructive hover:border-destructive/50 transition-colors disabled:opacity-60"
+        >
+          <Trash2 size={14} /> Discard
+        </button>
+        <button
+          type="button"
           onClick={confirm}
           disabled={submitting}
           className="inline-flex items-center gap-1.5 h-9 px-4 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-60"
@@ -412,6 +468,16 @@ export default function EmailIngestReview({ sessionId, extraction, partyMatches,
           {submitting ? 'Creating…' : `Create ${kind}`}
         </button>
       </div>
+
+      <ConfirmDialog
+        open={discardOpen}
+        onOpenChange={setDiscardOpen}
+        title="Discard this research package?"
+        description="Nothing has been created from it. The package and its staged attachments are removed from Email Intake; the underlying emails are untouched."
+        confirmLabel="Discard"
+        destructive
+        onConfirm={discard}
+      />
     </div>
   )
 }

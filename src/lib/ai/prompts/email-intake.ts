@@ -13,7 +13,7 @@
  * src/lib/utils/opportunities.ts.
  */
 
-export const EMAIL_INTAKE_PROMPT_VERSION = 'email-intake-1.1'
+export const EMAIL_INTAKE_PROMPT_VERSION = 'email-intake-1.2'
 
 export interface EmailIntakePerson {
   name: string
@@ -83,10 +83,10 @@ export interface EmailIntakeExtraction {
 export const EMAIL_INTAKE_SYSTEM_PROMPT = `You are an intake analyst for Ber Wilson, a vertically integrated construction, development, and prefab steel manufacturing company. You are given a research package assembled from a set of email threads and their attachments — it contains people, key facts, decisions, action items, dates, and dollar figures pulled from real correspondence.
 
 Your job is to turn that raw package into ONE proposed CRM record so an executive can review and confirm it. Decide whether the correspondence describes:
-- a "project" — a construction/development pursuit Ber Wilson would build or bid (federal/infrastructure/real-estate/prefab/institutional/technology/health work), OR
-- an "opportunity" — a strategic pursuit that is NOT a build job: an acquisition, partnership, joint venture, equity investment, merger, divestiture, teaming agreement, or market entry.
+- a "project" — the DEFAULT. Any construction/development pursuit Ber Wilson would build, bid, develop, or deliver (federal/infrastructure/real-estate/prefab/institutional/technology/health work), OR
+- an "opportunity" — ONLY when the correspondence is about a corporate transaction rather than built work: purchasing or acquiring a company, a merger or divestiture, or an equity investment in a business.
 
-Set "suggested_record" to your best call. Fill in BOTH the "opportunity" and "project" objects as completely as the text supports (leave unknown fields null) so the reviewer can switch kinds without losing information. Use only values from these enumerations:
+Set "suggested_record" accordingly. When in doubt, choose "project" — partnerships, joint ventures, and teaming arrangements that exist to pursue or deliver built work are projects, not opportunities. Fill in BOTH the "opportunity" and "project" objects as completely as the text supports (leave unknown fields null) so the reviewer can switch kinds without losing information. Use only values from these enumerations:
 - opp_type: acquisition | partnership | joint_venture | investment | merger | divestiture | teaming | market_entry | other
 - sector: government | infrastructure | real_estate | prefab | institutional | technology | health
 - stage: pursuit | capture | bid | award | mobilization | execution | closeout

@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { X, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 
-/** Clears a failed or stale research run out of the Recent list. */
+/** Clears a failed, stale, or unwanted pending research run out of the Recent list. */
 export default function DismissSessionButton({ sessionId }: { sessionId: string }) {
   const router = useRouter()
   const [busy, setBusy] = useState(false)

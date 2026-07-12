@@ -89,7 +89,9 @@ function normalize(raw: Partial<EmailIntakeExtraction> | null): EmailIntakeExtra
     OPPORTUNITY_TYPES.includes(oppType(v as string)) && v ? oppType(v as string) : null
 
   return {
-    suggested_record: r.suggested_record === 'project' ? 'project' : 'opportunity',
+    // Default kind is project — opportunity is only for corporate transactions
+    // (acquisitions, mergers, equity investments), per the intake prompt.
+    suggested_record: r.suggested_record === 'opportunity' ? 'opportunity' : 'project',
     opportunity: {
       name: nullableStr(opp.name),
       opp_type: validOppType(opp.opp_type),

@@ -111,7 +111,10 @@ export default async function EmailIntakePage() {
                   className="flex items-center justify-between gap-3 px-4 py-2.5 hover:bg-accent transition-colors"
                 >
                   <span className="text-sm font-medium truncate">{s.label || 'Untitled research package'}</span>
-                  {badge}
+                  <span className="flex items-center gap-1.5 shrink-0">
+                    {badge}
+                    {st === 'pending' && <DismissSessionButton sessionId={s.id} />}
+                  </span>
                 </Link>
               )
             })}
