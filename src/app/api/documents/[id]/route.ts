@@ -8,9 +8,10 @@ interface RouteContext {
 }
 
 // Returns a short-lived signed URL for viewing (?download=1 forces a
-// download). Signed with the admin client — the self-hosted storage has no
-// anon RLS policies, so browser-side signing always fails; access control
-// happens here instead.
+// download), or the stored readable text (?text=1 — extracted text with the
+// AI summary as fallback, used by the read-aloud button). Signed with the
+// admin client — the self-hosted storage has no anon RLS policies, so
+// browser-side signing always fails; access control happens here instead.
 export async function GET(request: NextRequest, { params }: RouteContext) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -20,7 +21,7 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
 
   const { data: doc, error: fetchError } = await supabase
     .from('documents')
-    .select('id, storage_path, file_name, project_id')
+    .select('id, storage_path, file_name, project_id, extracted_text, ai_summary')
     .eq('id', id)
     .single()
 
@@ -32,6 +33,12 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
   const viewer = await getViewer()
   if (viewer && !viewer.isAdmin) {
     if (!doc.project_id || !(await canAccessProject(viewer, doc.project_id))) return forbiddenJson()
+  }
+
+  if (request.nextUrl.searchParams.get('text') === '1') {
+    const text = doc.extracted_text?.trim() || doc.ai_summary?.trim() || null
+    if (!text) return Response.json({ error: 'No readable text stored for this document' }, { status: 404 })
+    return Response.json({ text })
   }
 
   const download = request.nextUrl.searchParams.get('download') === '1'

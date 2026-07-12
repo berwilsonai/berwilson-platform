@@ -1,7 +1,8 @@
 'use client'
 
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
-import { Volume2, Square } from 'lucide-react'
+import { Volume2, Square, Loader2 } from 'lucide-react'
+import { cn } from '@/lib/utils'
 
 /**
  * Read-aloud button backed by the Web Speech API (window.speechSynthesis) —
@@ -61,7 +62,16 @@ function pickVoice(): SpeechSynthesisVoice | null {
 
 const noopSubscribe = () => () => {}
 
-export default function ReadAloudButton({ text, className = '' }: { text: string; className?: string }) {
+interface ReadAloudButtonProps {
+  /** Text to speak. Omit and provide getText to fetch on demand instead. */
+  text?: string
+  /** Lazily fetch the text on first play (e.g. a document's extracted text). Return null when none is available — the caller handles messaging. */
+  getText?: () => Promise<string | null>
+  className?: string
+  iconSize?: number
+}
+
+export default function ReadAloudButton({ text, getText, className, iconSize = 11 }: ReadAloudButtonProps) {
   // Hydration-safe capability check: false on the server, real value on the client.
   const supported = useSyncExternalStore(
     noopSubscribe,
@@ -69,6 +79,7 @@ export default function ReadAloudButton({ text, className = '' }: { text: string
     () => false
   )
   const [speaking, setSpeaking] = useState(false)
+  const [fetching, setFetching] = useState(false)
   const sessionRef = useRef(0)
   // True only while this instance owns the current global playback — so
   // unmount doesn't cancel audio another button started later.
@@ -89,11 +100,22 @@ export default function ReadAloudButton({ text, className = '' }: { text: string
     setSpeaking(false)
   }
 
-  function play() {
+  async function play() {
+    let source = text ?? null
+    if (!source && getText) {
+      setFetching(true)
+      try {
+        source = await getText()
+      } finally {
+        setFetching(false)
+      }
+    }
+    if (!source) return
+
     // The API is a global singleton — cancel whatever else is speaking.
     window.speechSynthesis.cancel()
     const session = ++sessionRef.current
-    const chunks = chunkText(speakableText(text))
+    const chunks = chunkText(speakableText(source))
     if (chunks.length === 0) return
     const voice = pickVoice()
 
@@ -119,10 +141,19 @@ export default function ReadAloudButton({ text, className = '' }: { text: string
   return (
     <button
       onClick={speaking ? stop : play}
+      disabled={fetching}
       title={speaking ? 'Stop reading' : 'Read aloud'}
-      className={`p-1 rounded transition-colors ${speaking ? 'text-primary bg-primary/10' : 'text-muted-foreground hover:text-foreground hover:bg-muted/60'} ${className}`}
+      className={cn(
+        'p-1 rounded transition-colors',
+        speaking ? 'text-primary bg-primary/10' : 'text-muted-foreground hover:text-foreground hover:bg-muted/60',
+        className
+      )}
     >
-      {speaking ? <Square size={11} /> : <Volume2 size={11} />}
+      {fetching
+        ? <Loader2 size={iconSize} className="animate-spin" />
+        : speaking
+          ? <Square size={iconSize} />
+          : <Volume2 size={iconSize} />}
     </button>
   )
 }

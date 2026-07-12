@@ -12,9 +12,11 @@ interface Conversation {
 interface ConversationListProps {
   activeConversationId: string | null
   onSelectConversation: (id: string | null) => void
+  /** Bump to re-fetch the list (e.g. after a new conversation is created). */
+  refreshToken?: number
 }
 
-export default function ConversationList({ activeConversationId, onSelectConversation }: ConversationListProps) {
+export default function ConversationList({ activeConversationId, onSelectConversation, refreshToken }: ConversationListProps) {
   const [conversations, setConversations] = useState<Conversation[]>([])
 
   useEffect(() => {
@@ -24,7 +26,7 @@ export default function ConversationList({ activeConversationId, onSelectConvers
         setConversations(data.conversations ?? [])
       })
       .catch(() => {})
-  }, [])
+  }, [refreshToken])
 
   function formatDate(dateStr: string) {
     const d = new Date(dateStr)

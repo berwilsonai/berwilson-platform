@@ -44,6 +44,21 @@ export async function viewDocument(apiPath: string, mimeType?: string | null): P
   return true
 }
 
+/**
+ * Fetch a document's stored readable text (extracted text, AI summary as
+ * fallback) for the read-aloud button. Returns null when none is stored.
+ */
+export async function fetchDocumentText(documentId: string): Promise<string | null> {
+  try {
+    const res = await fetch(`/api/documents/${documentId}?text=1`)
+    if (!res.ok) return null
+    const { text } = await res.json()
+    return typeof text === 'string' ? text : null
+  } catch {
+    return null
+  }
+}
+
 /** Force a download (signed URL with Content-Disposition: attachment). */
 export async function downloadDocument(apiPath: string): Promise<boolean> {
   const sep = apiPath.includes('?') ? '&' : '?'

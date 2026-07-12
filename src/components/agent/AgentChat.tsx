@@ -20,6 +20,10 @@ interface AgentChatProps {
   placeholder?: string
   /** Seed the input box (e.g. handed off from the command palette). */
   initialInput?: string
+  /** Open an existing conversation (loads its messages on mount). */
+  conversationId?: string | null
+  /** Fires when sending in a fresh chat creates a new persisted conversation. */
+  onConversationCreated?: (id: string) => void
 }
 
 export default function AgentChat({
@@ -27,13 +31,15 @@ export default function AgentChat({
   className = '',
   placeholder = 'Ask about this project...',
   initialInput,
+  conversationId: initialConversationId = null,
+  onConversationCreated,
 }: AgentChatProps) {
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [activity, setActivity] = useState<string | null>(null) // live tool-call label while streaming
   const [error, setError] = useState<string | null>(null)
-  const [conversationId, setConversationId] = useState<string | null>(null)
+  const [conversationId, setConversationId] = useState<string | null>(initialConversationId)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
 
@@ -50,8 +56,32 @@ export default function AgentChat({
     if (initialInput && !input) setInput(initialInput)
   }
 
-  // Load existing conversation for this project
+  // Load an explicitly selected conversation, or the latest one for a project
   useEffect(() => {
+    const loadMessages = (convId: string) =>
+      fetch(`/api/ai/agent?conversationId=${convId}`)
+        .then(r => r.json())
+        .then((msgData: { messages?: Array<{ id: string; role: string; content: string; tool_calls?: string; latency_ms?: number; created_at?: string }> }) => {
+          if (msgData.messages) {
+            setMessages(
+              msgData.messages
+                .filter(m => m.role === 'user' || m.role === 'assistant')
+                .map(m => ({
+                  id: m.id,
+                  role: m.role as 'user' | 'assistant',
+                  content: m.content,
+                  toolCalls: m.tool_calls ? JSON.parse(m.tool_calls) : undefined,
+                  latencyMs: m.latency_ms ?? undefined,
+                  createdAt: m.created_at ?? undefined,
+                }))
+            )
+          }
+        })
+
+    if (initialConversationId) {
+      loadMessages(initialConversationId).catch(() => {})
+      return
+    }
     if (!projectId) return
     fetch(`/api/ai/agent?projectId=${projectId}`)
       .then(r => r.json())
@@ -59,29 +89,11 @@ export default function AgentChat({
         if (data.conversations?.[0]) {
           const convId = data.conversations[0].id
           setConversationId(convId)
-          // Load messages
-          fetch(`/api/ai/agent?conversationId=${convId}`)
-            .then(r => r.json())
-            .then((msgData: { messages?: Array<{ id: string; role: string; content: string; tool_calls?: string; latency_ms?: number; created_at?: string }> }) => {
-              if (msgData.messages) {
-                setMessages(
-                  msgData.messages
-                    .filter(m => m.role === 'user' || m.role === 'assistant')
-                    .map(m => ({
-                      id: m.id,
-                      role: m.role as 'user' | 'assistant',
-                      content: m.content,
-                      toolCalls: m.tool_calls ? JSON.parse(m.tool_calls) : undefined,
-                      latencyMs: m.latency_ms ?? undefined,
-                      createdAt: m.created_at ?? undefined,
-                    }))
-                )
-              }
-            })
+          return loadMessages(convId)
         }
       })
       .catch(() => {})
-  }, [projectId])
+  }, [projectId, initialConversationId])
 
   const sendMessage = useCallback(async () => {
     const msg = input.trim()
@@ -163,7 +175,10 @@ export default function AgentChat({
           } else if (event.type === 'text' && event.delta) {
             appendDelta(event.delta)
           } else if (event.type === 'done') {
-            if (event.conversationId) setConversationId(event.conversationId)
+            if (event.conversationId) {
+              if (!conversationId) onConversationCreated?.(event.conversationId)
+              setConversationId(event.conversationId)
+            }
             setMessages(prev => prev.map(m => m.id === streamId
               ? {
                   ...m,
@@ -188,7 +203,7 @@ export default function AgentChat({
       setActivity(null)
       inputRef.current?.focus()
     }
-  }, [input, loading, conversationId, projectId])
+  }, [input, loading, conversationId, projectId, onConversationCreated])
 
   function handleKeyDown(e: React.KeyboardEvent) {
     if (e.key === 'Enter' && !e.shiftKey) {

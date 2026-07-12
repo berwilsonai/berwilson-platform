@@ -14,6 +14,8 @@ import {
   RefreshCw,
 } from 'lucide-react'
 import { toast } from 'sonner'
+import ReadAloudButton from '@/components/shared/ReadAloudButton'
+import { fetchDocumentText } from '@/lib/utils/document-links'
 
 export interface CompanyDoc {
   id: string
@@ -208,6 +210,15 @@ export default function CompanyKnowledgeBase({ documents }: CompanyKnowledgeBase
                   <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{doc.ai_summary}</p>
                 )}
               </div>
+              <ReadAloudButton
+                getText={async () => {
+                  const text = await fetchDocumentText(doc.id)
+                  if (!text) toast.info('No readable text stored for this file — open it and use the Mac’s built-in reader instead.')
+                  return text
+                }}
+                iconSize={15}
+                className="shrink-0 p-1.5 rounded-md hover:bg-muted"
+              />
               {doc.embedding_status !== 'complete' && (
                 <button
                   onClick={() => handleReindex(doc)}

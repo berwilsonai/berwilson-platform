@@ -13,8 +13,9 @@ import {
 } from 'lucide-react'
 import EmptyState from '@/components/shared/EmptyState'
 import ConfidenceBadge from '@/components/shared/ConfidenceBadge'
+import ReadAloudButton from '@/components/shared/ReadAloudButton'
 import { toast } from 'sonner'
-import { viewDocument, downloadDocument } from '@/lib/utils/document-links'
+import { viewDocument, downloadDocument, fetchDocumentText } from '@/lib/utils/document-links'
 import type { Document } from '@/lib/supabase/types'
 
 // ---------------------------------------------------------------------------
@@ -184,6 +185,15 @@ function DocumentRow({
 
         {/* Actions */}
         <div className="flex items-center gap-1 shrink-0">
+          <ReadAloudButton
+            getText={async () => {
+              const text = await fetchDocumentText(doc.id)
+              if (!text) toast.info('No readable text stored for this file — open it and use the Mac’s built-in reader instead.')
+              return text
+            }}
+            iconSize={14}
+            className="h-7 w-7 p-0 flex items-center justify-center hover:bg-accent"
+          />
           <button
             onClick={handleDownload}
             disabled={downloading}
