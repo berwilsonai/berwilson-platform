@@ -11,6 +11,12 @@ import {
 import { extractPlainText, type GraphAttachment } from '@/lib/integrations/microsoft-graph'
 import { callGeminiWithFile } from '@/lib/ai/gemini'
 import { analyzeEmailReport, EmailIntakeError } from '@/lib/email-ingestion/analyze'
+import {
+  STAGING_FOLDER,
+  removeStagedFiles,
+  sanitizeFileName,
+  type StagedAttachment,
+} from '@/lib/email-ingestion/attachments'
 
 /**
  * In-platform Email Research (replaces the external n8n workflow).
@@ -34,6 +40,11 @@ const MAX_ATTACHMENTS_PER_THREAD = 3
 const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024
 const MAX_MESSAGE_CHARS = 6_000
 const MAX_REPORT_CHARS = 190_000 // stays under analyzeEmailReport's 200k cap
+
+// Staging (files kept for the review screen's attachment picker) is wider than
+// AI analysis: every non-inline file type qualifies, bigger size cap.
+const MAX_STAGED_BYTES = 25 * 1024 * 1024
+const MAX_STAGED_FILES = 30
 
 const ANALYZABLE_MIMES = new Set([
   'application/pdf',
@@ -83,7 +94,13 @@ export async function POST(request: NextRequest) {
   if (stageErr) console.error('[email-research] could not stage running session:', stageErr)
   const sessionId = staged?.id
 
+  // Attachments staged to storage during the run (declared here so failure
+  // paths can clean them up — a failed session offers no review to pick from).
+  const stagedAttachments: StagedAttachment[] = []
+  const stagedKeys = new Set<string>()
+
   const fail = async (status: number, message: string) => {
+    await removeStagedFiles(admin, stagedAttachments)
     if (sessionId) {
       await admin
         .from('email_intake_sessions')
@@ -207,17 +224,54 @@ export async function POST(request: NextRequest) {
 
       let analyzed = 0
       for (const { attachment: a } of attachments) {
+        // Stage the file to storage so the review screen can offer it for
+        // upload into the created record — every type, wider size cap.
+        const globalKey = `${a.name}|${a.size}`
+        if (
+          sessionId &&
+          a.contentBytes &&
+          a.size <= MAX_STAGED_BYTES &&
+          !stagedKeys.has(globalKey) &&
+          stagedAttachments.length < MAX_STAGED_FILES
+        ) {
+          const path = `${STAGING_FOLDER}/${sessionId}/${stagedAttachments.length + 1}_${sanitizeFileName(a.name)}`
+          const { error: stageErr } = await admin.storage
+            .from('documents')
+            .upload(path, Buffer.from(a.contentBytes, 'base64'), {
+              contentType: a.contentType || 'application/octet-stream',
+              upsert: false,
+            })
+          if (stageErr) {
+            console.error(`[email-research] could not stage attachment ${a.name}:`, stageErr.message)
+          } else {
+            stagedKeys.add(globalKey)
+            stagedAttachments.push({
+              name: a.name,
+              mime_type: a.contentType || null,
+              size_bytes: a.size,
+              storage_path: path,
+              thread_subject: convo.subject,
+              analyzed: false,
+            })
+          }
+        }
+
+        const markAnalyzed = () => {
+          const staged = stagedAttachments.find((s) => `${s.name}|${s.size_bytes}` === globalKey)
+          if (staged) staged.analyzed = true
+        }
+
         if (analyzed >= MAX_ATTACHMENTS_PER_THREAD) {
-          lines.push(`### Attachment: ${a.name}`, 'Skipped — per-thread attachment limit reached.', '')
+          lines.push(`### Attachment: ${a.name}`, 'Not analyzed — per-thread attachment limit reached (file kept for review).', '')
           continue
         }
         lines.push(`### Attachment: ${a.name} (${a.contentType}, ${Math.round(a.size / 1024)} KB)`)
         if (a.size > MAX_ATTACHMENT_BYTES) {
-          lines.push('Skipped — larger than 10 MB.', '')
+          lines.push('Not analyzed — larger than 10 MB.', '')
           continue
         }
         if (!ANALYZABLE_MIMES.has(a.contentType) || !a.contentBytes) {
-          lines.push(`Skipped — ${a.contentType || 'unknown type'} is not analyzable (PDF and images only).`, '')
+          lines.push(`Not analyzed — ${a.contentType || 'unknown type'} is not analyzable (PDF and images only; file kept for review).`, '')
           continue
         }
         try {
@@ -234,6 +288,7 @@ export async function POST(request: NextRequest) {
           const text = typeof result.data === 'string' ? result.data.trim() : ''
           lines.push(text || '(no content extracted)', '')
           analyzed++
+          markAnalyzed()
         } catch (err) {
           lines.push(`Extraction failed (${err instanceof Error ? err.message.slice(0, 120) : 'error'}).`, '')
         }
@@ -271,6 +326,18 @@ export async function POST(request: NextRequest) {
       header +
       kept.join('\n\n') +
       (trimmed > 0 ? `\n\n---\n${trimmed} older thread(s) omitted to fit the analysis size limit.` : '')
+
+    // ── 3b. Record the staged attachments on the session (dual-schema tolerant:
+    // pre-migration the column is missing — files orphan until dismissed, fine) ──
+    if (sessionId && stagedAttachments.length > 0) {
+      const { error: attachErr } = await admin
+        .from('email_intake_sessions')
+        .update({ staged_attachments: stagedAttachments as unknown as never })
+        .eq('id', sessionId)
+      if (attachErr) {
+        console.error('[email-research] staged_attachments not recorded (migration applied?):', attachErr.message)
+      }
+    }
 
     // ── 4. Shared analyzer → the staged row becomes a pending review session ──
     const analysis = await analyzeEmailReport({

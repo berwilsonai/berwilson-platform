@@ -13,7 +13,7 @@
  * src/lib/utils/opportunities.ts.
  */
 
-export const EMAIL_INTAKE_PROMPT_VERSION = 'email-intake-1.0'
+export const EMAIL_INTAKE_PROMPT_VERSION = 'email-intake-1.1'
 
 export interface EmailIntakePerson {
   name: string
@@ -72,6 +72,11 @@ export interface EmailIntakeExtraction {
   people: EmailIntakePerson[]
   tasks: EmailIntakeTask[]
   summary: string
+  /**
+   * Narrative summary of the whole correspondence (multi-paragraph). Heads the
+   * "Email research" document attached to the created record at confirm time.
+   */
+  discussion_summary: string | null
   confidence: number
 }
 
@@ -90,6 +95,8 @@ Extract every distinguishable person and organization into "people" (set is_orga
 
 Ground everything in the package — do not invent parties, dollar figures, dates, or scope that are not present. If a fact is uncertain, omit it rather than guessing. Keep the "summary" to 2-3 sentences an executive can skim.
 
+Also write "discussion_summary": a narrative summary of the entire correspondence, 3-6 short paragraphs. Cover: the situation and how it developed over the threads, each party's position and asks, dollar figures and terms discussed, decisions already made, open questions, and what each attachment contains. This becomes the permanent record attached to the created project or opportunity, so write it to stand alone for a reader who never sees the emails.
+
 Return ONLY valid JSON matching exactly this shape (no markdown, no commentary):
 {
   "suggested_record": "opportunity" | "project",
@@ -98,5 +105,6 @@ Return ONLY valid JSON matching exactly this shape (no markdown, no commentary):
   "people": [{ "name": string, "email": string|null, "company": string|null, "title": string|null, "role": string|null, "is_organization": boolean }],
   "tasks": [{ "title": string, "what": string|null, "why": string|null, "how": string|null, "assignee": string|null, "due_date": string|null }],
   "summary": string,
+  "discussion_summary": string,
   "confidence": 0.0
 }`

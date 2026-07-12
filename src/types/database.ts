@@ -771,6 +771,7 @@ export type Database = {
           match_candidates: Json | null
           party_matches: Json | null
           raw_text: string | null
+          staged_attachments: Json | null
           status: string
           updated_at: string | null
           user_id: string | null
@@ -786,6 +787,7 @@ export type Database = {
           match_candidates?: Json | null
           party_matches?: Json | null
           raw_text?: string | null
+          staged_attachments?: Json | null
           status?: string
           updated_at?: string | null
           user_id?: string | null
@@ -801,6 +803,7 @@ export type Database = {
           match_candidates?: Json | null
           party_matches?: Json | null
           raw_text?: string | null
+          staged_attachments?: Json | null
           status?: string
           updated_at?: string | null
           user_id?: string | null

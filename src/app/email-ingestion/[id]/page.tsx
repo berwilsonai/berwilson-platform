@@ -5,6 +5,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import EmailIngestReview from '@/components/email-ingestion/EmailIngestReview'
 import SessionsAutoRefresh from '@/components/email-ingestion/SessionsAutoRefresh'
 import { effectiveEmailIntakeStatus } from '@/lib/utils/email-ingestion'
+import { parseStagedAttachments } from '@/lib/email-ingestion/attachments'
 import type { EmailIntakeExtraction } from '@/lib/ai/prompts/email-intake'
 import type { PartyMatch } from '@/lib/ai/proposal-matching'
 import type { FitAssessment } from '@/lib/ai/fit-assessment'
@@ -96,6 +97,7 @@ export default async function EmailIngestReviewPage({ params }: PageProps) {
           partyMatches={partyMatches}
           fit={fit}
           label={session.label}
+          stagedAttachments={parseStagedAttachments(session.staged_attachments)}
         />
       )}
     </div>

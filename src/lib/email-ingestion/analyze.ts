@@ -138,6 +138,7 @@ function normalize(raw: Partial<EmailIntakeExtraction> | null): EmailIntakeExtra
           }))
       : [],
     summary: nullableStr(r.summary) ?? '',
+    discussion_summary: nullableStr(r.discussion_summary),
     confidence: nullableNum(r.confidence) ?? 0,
   }
 }

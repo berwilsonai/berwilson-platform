@@ -2,9 +2,11 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Loader2, CheckCircle2, Building2, Lightbulb, FolderKanban, User, ListChecks } from 'lucide-react'
+import { Loader2, CheckCircle2, Building2, Lightbulb, FolderKanban, User, ListChecks, Paperclip, Eye } from 'lucide-react'
 import FitAssessmentCard from '@/components/proposals/FitAssessmentCard'
 import { DatePicker } from '@/components/ui/date-picker'
+import { viewDocument } from '@/lib/utils/document-links'
+import type { StagedAttachment } from '@/lib/email-ingestion/attachments'
 import type { EmailIntakeExtraction } from '@/lib/ai/prompts/email-intake'
 import type { PartyMatch } from '@/lib/ai/proposal-matching'
 import type { FitAssessment } from '@/lib/ai/fit-assessment'
@@ -21,6 +23,7 @@ interface Props {
   partyMatches: PartyMatch[]
   fit: FitAssessment | null
   label: string | null
+  stagedAttachments: StagedAttachment[]
 }
 
 type PersonRow = EmailIntakeExtraction['people'][number] & {
@@ -34,11 +37,14 @@ type TaskRow = EmailIntakeExtraction['tasks'][number] & { include: boolean }
 const inputCls = 'w-full h-9 px-3 rounded-md border border-input bg-background text-sm'
 const labelCls = 'text-[11px] font-semibold uppercase tracking-wide text-muted-foreground'
 
-export default function EmailIngestReview({ sessionId, extraction, partyMatches, fit, label }: Props) {
+export default function EmailIngestReview({ sessionId, extraction, partyMatches, fit, label, stagedAttachments }: Props) {
   const router = useRouter()
   const [kind, setKind] = useState<'opportunity' | 'project'>(extraction.suggested_record)
   const [opp, setOpp] = useState({ ...extraction.opportunity })
   const [proj, setProj] = useState({ ...extraction.project })
+  const [attachments, setAttachments] = useState(
+    stagedAttachments.map((a) => ({ ...a, include: true }))
+  )
 
   const [people, setPeople] = useState<PersonRow[]>(
     extraction.people.map((p, i) => {
@@ -64,6 +70,9 @@ export default function EmailIngestReview({ sessionId, extraction, partyMatches,
   }
   function setTask(i: number, patch: Partial<TaskRow>) {
     setTasks((prev) => prev.map((t, idx) => (idx === i ? { ...t, ...patch } : t)))
+  }
+  function setAttachment(i: number, include: boolean) {
+    setAttachments((prev) => prev.map((a, idx) => (idx === i ? { ...a, include } : a)))
   }
 
   async function confirm() {
@@ -127,6 +136,7 @@ export default function EmailIngestReview({ sessionId, extraction, partyMatches,
             due_date: t.due_date,
             include: t.include,
           })),
+          attachment_paths: attachments.filter((a) => a.include).map((a) => a.storage_path),
         }),
       })
       const data = await res.json()
@@ -341,9 +351,57 @@ export default function EmailIngestReview({ sessionId, extraction, partyMatches,
         </div>
       )}
 
+      {/* Attachments pulled from the email threads */}
+      {attachments.length > 0 && (
+        <div className="rounded-lg border border-border bg-card p-4 space-y-3">
+          <div className="flex items-center gap-2">
+            <Paperclip size={15} className="text-muted-foreground" />
+            <h3 className="text-sm font-semibold">
+              Attachments ({attachments.filter((a) => a.include).length} of {attachments.length})
+            </h3>
+            <span className="text-xs text-muted-foreground">— checked files are saved to the {kind}&apos;s documents</span>
+          </div>
+          <div className="space-y-2">
+            {attachments.map((a, i) => (
+              <div key={a.storage_path} className="flex items-center gap-2.5 p-2 rounded-md border border-border/60">
+                <input
+                  type="checkbox"
+                  checked={a.include}
+                  onChange={(e) => setAttachment(i, e.target.checked)}
+                  className="shrink-0"
+                />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium truncate">{a.name}</p>
+                  <p className="text-xs text-muted-foreground truncate">
+                    {formatBytes(a.size_bytes)} · from “{a.thread_subject}”
+                    {a.analyzed && <span className="text-emerald-600 dark:text-emerald-400"> · content in report</span>}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() =>
+                    viewDocument(
+                      `/api/email-ingestion/sessions/${sessionId}/attachment?path=${encodeURIComponent(a.storage_path)}`,
+                      a.mime_type
+                    )
+                  }
+                  className="inline-flex items-center gap-1 h-8 px-2.5 rounded-md border border-input bg-background text-xs hover:bg-accent transition-colors shrink-0"
+                  title="Open (non-viewable types download instead)"
+                >
+                  <Eye size={13} /> View
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {error && <p className="text-sm text-destructive bg-destructive/10 rounded px-3 py-2">{error}</p>}
 
       <div className="flex items-center justify-end gap-3">
+        <p className="text-[11px] text-muted-foreground mr-auto">
+          The full research report is saved to the {kind} as a document.
+        </p>
         <button
           type="button"
           onClick={confirm}
@@ -356,6 +414,11 @@ export default function EmailIngestReview({ sessionId, extraction, partyMatches,
       </div>
     </div>
   )
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+  return `${Math.max(1, Math.round(bytes / 1024))} KB`
 }
 
 function Field({ label, full, children }: { label: string; full?: boolean; children: React.ReactNode }) {

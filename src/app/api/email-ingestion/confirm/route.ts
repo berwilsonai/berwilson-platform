@@ -1,6 +1,14 @@
 import { NextRequest } from 'next/server'
 import { actorAdminClient } from '@/lib/auth/viewer'
 import { embedUpdate, embedOpportunityReport, embedOpportunitySnapshot } from '@/lib/ai/embeddings'
+import { storeExtractedText } from '@/lib/ai/document-text'
+import {
+  parseStagedAttachments,
+  promoteStagedAttachment,
+  processPromotedDocumentAi,
+  removeStagedFiles,
+  type PromotedDocument,
+} from '@/lib/email-ingestion/attachments'
 import type { TablesInsert } from '@/lib/supabase/types'
 import { SECTORS } from '@/lib/utils/constants'
 import { STAGES } from '@/lib/utils/constants'
@@ -38,6 +46,8 @@ interface ConfirmBody {
   record_fields: Record<string, unknown>
   party_actions: PartyAction[]
   task_actions: TaskAction[]
+  /** Storage paths of staged attachments to promote onto the created record. */
+  attachment_paths?: string[]
 }
 
 const str = (v: unknown): string | null =>
@@ -75,7 +85,8 @@ export async function POST(request: NextRequest) {
     project_id?: string
     party_ids: string[]
     task_ids: string[]
-  } = { party_ids: [], task_ids: [] }
+    document_ids: string[]
+  } = { party_ids: [], task_ids: [], document_ids: [] }
 
   let opportunityId: string | null = null
   let projectId: string | null = null
@@ -251,6 +262,92 @@ export async function POST(request: NextRequest) {
     embedOpportunitySnapshot(opportunityId).catch(console.error)
   }
 
+  const target = projectId
+    ? ({ kind: 'project', id: projectId } as const)
+    : ({ kind: 'opportunity', id: opportunityId! } as const)
+
+  // ── 4c. Research report → a real document on the record ─────────────────────
+  // The full report (headed by the AI's narrative discussion summary) becomes a
+  // named .md document. Deliberately NOT embedded — the update row (project) /
+  // embedOpportunityReport (opportunity) above already index this content.
+  if (reportText) {
+    const extraction = session.extraction_result as { summary?: string; discussion_summary?: string } | null
+    const discussion = typeof extraction?.discussion_summary === 'string' ? extraction.discussion_summary.trim() : ''
+    const title = `Email research — ${session.label || 'report'}`
+    const content =
+      `# ${title}\n\n` +
+      (discussion ? `## Discussion summary\n\n${discussion}\n\n---\n\n## Full research report\n\n` : '') +
+      reportText
+
+    const reportPath = `${target.kind === 'project' ? 'projects' : 'opportunities'}/${target.id}/${Date.now()}_email_research_report.md`
+    const { error: reportUploadErr } = await supabase.storage
+      .from('documents')
+      .upload(reportPath, Buffer.from(content, 'utf-8'), { contentType: 'text/markdown', upsert: false })
+    if (reportUploadErr) {
+      console.error('Report document upload failed:', reportUploadErr.message)
+    } else {
+      const aiSummary = typeof extraction?.summary === 'string' ? extraction.summary : null
+      const base = {
+        storage_path: reportPath,
+        file_name: `${title}.md`,
+        file_size_bytes: Buffer.byteLength(content, 'utf-8'),
+        mime_type: 'text/markdown',
+        doc_type: 'other',
+        ai_summary: aiSummary,
+      }
+      const { data: reportDoc, error: reportInsertErr } = projectId
+        ? await supabase
+            .from('documents')
+            .insert({ ...base, project_id: projectId, source: 'document' })
+            .select('id')
+            .single()
+        : await supabase
+            .from('opportunity_documents')
+            .insert({ ...base, opportunity_id: opportunityId! })
+            .select('id')
+            .single()
+      if (reportInsertErr || !reportDoc) {
+        console.error('Report document insert failed:', reportInsertErr?.message)
+      } else {
+        createdRecordIds.document_ids.push(reportDoc.id)
+        // Store the text so the agent's get_document_content can quote it.
+        storeExtractedText(
+          supabase,
+          projectId ? 'documents' : 'opportunity_documents',
+          reportDoc.id,
+          content
+        ).catch(console.error)
+      }
+    }
+  }
+
+  // ── 4d. Promote the selected staged attachments into the record's documents ──
+  const stagedAll = parseStagedAttachments(session.staged_attachments)
+  const wanted = new Set((body.attachment_paths ?? []).filter((p) => typeof p === 'string'))
+  const selected = stagedAll.filter((a) => wanted.has(a.storage_path))
+
+  const promoted: PromotedDocument[] = []
+  for (const [i, attachment] of selected.entries()) {
+    const doc = await promoteStagedAttachment(supabase, attachment, target, i)
+    if (doc) {
+      promoted.push(doc)
+      createdRecordIds.document_ids.push(doc.id)
+    }
+  }
+
+  // Staged copies are no longer needed (selected files were copied out above).
+  removeStagedFiles(supabase, stagedAll).catch(console.error)
+
+  // Summary + transcription + embedding runs after the response, one document
+  // at a time — the local model is slow and the user shouldn't wait on it.
+  if (promoted.length > 0) {
+    void (async () => {
+      for (const doc of promoted) {
+        await processPromotedDocumentAi(doc)
+      }
+    })()
+  }
+
   // ── 5. Mark session confirmed ────────────────────────────────────────────────
   await supabase
     .from('email_intake_sessions')
@@ -268,5 +365,6 @@ export async function POST(request: NextRequest) {
     project_id: projectId,
     parties_created: createdRecordIds.party_ids.length,
     tasks_created: createdRecordIds.task_ids.length,
+    documents_created: createdRecordIds.document_ids.length,
   })
 }
