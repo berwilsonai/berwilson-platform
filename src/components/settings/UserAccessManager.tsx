@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
-import { Loader2, Mail, Plus, ShieldCheck, UserCheck, UserX, X } from 'lucide-react'
+import { Check, Copy, KeyRound, Loader2, Mail, Plus, RefreshCw, ShieldCheck, UserCheck, UserX, X } from 'lucide-react'
 import { ROLES, ROLE_LABELS, ROLE_DESCRIPTIONS, type Role } from '@/lib/auth/permissions'
 
 interface Grant {
@@ -140,6 +140,7 @@ function MemberCard({
 }) {
   const [saving, setSaving] = useState(false)
   const [editingGrants, setEditingGrants] = useState(false)
+  const [resettingPassword, setResettingPassword] = useState(false)
 
   async function patch(body: Record<string, unknown>, successMsg: string) {
     setSaving(true)
@@ -199,6 +200,16 @@ function MemberCard({
               </option>
             ))}
           </select>
+          {member.auth_user_id && (
+            <button
+              disabled={saving}
+              onClick={() => setResettingPassword(true)}
+              className="h-8 px-2.5 rounded-md border border-input text-xs font-medium hover:bg-accent transition-colors inline-flex items-center gap-1.5"
+            >
+              <KeyRound size={12} />
+              Reset password
+            </button>
+          )}
           <button
             disabled={saving}
             onClick={() => patch({ active: !member.active }, member.active ? `${member.name} deactivated` : `${member.name} reactivated`)}
@@ -235,6 +246,10 @@ function MemberCard({
             </button>
           </div>
         </div>
+      )}
+
+      {resettingPassword && (
+        <PasswordResetModal member={member} onClose={() => setResettingPassword(false)} />
       )}
 
       {editingGrants && (
@@ -368,6 +383,151 @@ function GrantsModal({
             {saving ? 'Saving…' : 'Save Access'}
           </button>
         </div>
+      </div>
+    </div>
+  )
+}
+
+// Memorable Word-Word-#### passwords (~40 bits with the digits — plenty behind
+// a tailnet-only login) so they survive being read over the phone.
+const PASSWORD_WORDS = [
+  'Granite', 'Falcon', 'Copper', 'Summit', 'Timber', 'Harbor', 'Beacon', 'Canyon',
+  'Meadow', 'Anchor', 'Aspen', 'Bridge', 'Condor', 'Desert', 'Ember', 'Forge',
+  'Glacier', 'Hollow', 'Juniper', 'Kestrel', 'Lantern', 'Marble', 'Nimbus', 'Onyx',
+  'Prairie', 'Quarry', 'Ridge', 'Sierra', 'Thunder', 'Umber', 'Vista', 'Willow',
+]
+
+function generatePassword(): string {
+  const rand = new Uint32Array(3)
+  crypto.getRandomValues(rand)
+  const a = PASSWORD_WORDS[rand[0] % PASSWORD_WORDS.length]
+  let b = PASSWORD_WORDS[rand[1] % PASSWORD_WORDS.length]
+  if (b === a) b = PASSWORD_WORDS[(rand[1] + 1) % PASSWORD_WORDS.length]
+  const digits = (rand[2] % 9000) + 1000
+  return `${a}-${b}-${digits}`
+}
+
+function PasswordResetModal({ member, onClose }: { member: Member; onClose: () => void }) {
+  const [password, setPassword] = useState(generatePassword)
+  const [saving, setSaving] = useState(false)
+  const [done, setDone] = useState(false)
+
+  async function copyPassword() {
+    try {
+      await navigator.clipboard.writeText(password)
+      toast.success('Password copied')
+    } catch {
+      toast.error('Copy failed — select and copy it manually')
+    }
+  }
+
+  async function save() {
+    if (password.length < 8) {
+      toast.error('Password must be at least 8 characters')
+      return
+    }
+    setSaving(true)
+    try {
+      const res = await fetch(`/api/admin/users/${member.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password }),
+      })
+      const json = await res.json()
+      if (!res.ok) {
+        toast.error(json.error ?? 'Password reset failed')
+        return
+      }
+      setDone(true)
+      toast.success(`Password set for ${member.name}`)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
+      <div
+        className="w-full max-w-md rounded-lg border border-border bg-card p-5 space-y-4"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-semibold flex items-center gap-1.5">
+            <KeyRound size={14} /> Reset password — {member.name}
+          </h3>
+          <button onClick={onClose} className="p-1 rounded text-muted-foreground hover:text-foreground">
+            <X size={15} />
+          </button>
+        </div>
+
+        {done ? (
+          <>
+            <div className="rounded-md border border-emerald-300 dark:border-emerald-800/60 bg-emerald-50 dark:bg-emerald-950/40 px-3 py-2.5 space-y-1">
+              <p className="text-xs font-medium text-emerald-800 dark:text-emerald-300 flex items-center gap-1">
+                <Check size={12} /> New password is active
+              </p>
+              <p className="font-mono text-sm text-emerald-900 dark:text-emerald-200 select-all">{password}</p>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Share it with {member.name} directly — no email is sent, and it won&apos;t be shown again after
+              you close this.
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={copyPassword}
+                className="h-8 px-3 rounded-md border border-input text-xs font-medium hover:bg-accent transition-colors inline-flex items-center gap-1.5"
+              >
+                <Copy size={12} /> Copy
+              </button>
+              <button
+                onClick={onClose}
+                className="h-8 px-3 rounded-md bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors"
+              >
+                Done
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            <p className="text-xs text-muted-foreground">
+              Sets a new sign-in password for {member.email ?? member.name} immediately. No email is
+              involved — copy the password and share it with them directly.
+            </p>
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">New password</label>
+              <div className="flex items-center gap-2">
+                <input
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full h-9 rounded-md border border-input bg-background px-2.5 text-sm font-mono"
+                />
+                <button
+                  onClick={() => setPassword(generatePassword())}
+                  title="Generate a new password"
+                  className="h-9 px-2.5 rounded-md border border-input text-muted-foreground hover:text-foreground hover:bg-accent transition-colors shrink-0"
+                >
+                  <RefreshCw size={13} />
+                </button>
+              </div>
+            </div>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={onClose}
+                className="h-8 px-3 rounded-md border border-input text-xs font-medium hover:bg-accent transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                disabled={saving}
+                onClick={save}
+                className="h-8 px-3 rounded-md bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 inline-flex items-center gap-1.5"
+              >
+                {saving && <Loader2 size={12} className="animate-spin" />}
+                {saving ? 'Setting…' : 'Set Password'}
+              </button>
+            </div>
+          </>
+        )}
       </div>
     </div>
   )

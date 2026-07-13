@@ -11,9 +11,10 @@ interface PatchBody {
   role?: string
   active?: boolean
   grants?: { resource_type: string; resource_id: string }[]
+  password?: string
 }
 
-/** PATCH — update a member's role/active flag and replace their grants */
+/** PATCH — update a member's role/active flag, replace their grants, or set a new login password */
 export async function PATCH(request: NextRequest, { params }: RouteContext) {
   const viewer = await getViewer()
   if (!viewer) return Response.json({ error: 'Not authenticated' }, { status: 401 })
@@ -29,6 +30,27 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
   }
 
   const admin = createAdminClient()
+
+  // Set a new password directly through the auth admin API — the self-hosted
+  // stack can't send reset emails, so admin-set passwords are the reset path.
+  if ('password' in body) {
+    if (typeof body.password !== 'string' || body.password.length < 8) {
+      return Response.json({ error: 'Password must be at least 8 characters' }, { status: 400 })
+    }
+    const { data: member, error: memberError } = await admin
+      .from('team_members')
+      .select('auth_user_id')
+      .eq('id', id)
+      .single()
+    if (memberError) return Response.json({ error: memberError.message }, { status: 500 })
+    if (!member.auth_user_id) {
+      return Response.json({ error: 'This member has no login yet — invite them first.' }, { status: 400 })
+    }
+    const { error } = await admin.auth.admin.updateUserById(member.auth_user_id, {
+      password: body.password,
+    })
+    if (error) return Response.json({ error: error.message }, { status: 500 })
+  }
 
   const update: { role?: string; active?: boolean } = {}
   if ('role' in body) {
