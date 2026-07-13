@@ -80,7 +80,7 @@ export default async function InvestorDetailPage({ params }: PageProps) {
       // Tolerant of the investor_id tag column not existing yet (null → [] until the migration lands)
       supabase
         .from('tasks')
-        .select('*, assignee:team_members(id, name, color), project:projects(id, name)')
+        .select('*, assignee:team_members!tasks_assignee_id_fkey(id, name, color), project:projects(id, name)')
         .eq('investor_id', id)
         .order('due_date', { ascending: true, nullsFirst: false })
         .order('created_at', { ascending: false }),

@@ -70,7 +70,7 @@ export default async function OpportunityDetailPage({ params }: PageProps) {
     // Tolerant of the opportunity_id column not existing yet (returns null → [] until the migration lands).
     supabase
       .from('tasks')
-      .select('*, assignee:team_members(id, name, color), project:projects(id, name)')
+      .select('*, assignee:team_members!tasks_assignee_id_fkey(id, name, color), project:projects(id, name)')
       .eq('opportunity_id', id)
       .order('due_date', { ascending: true, nullsFirst: false })
       .order('created_at', { ascending: false }),

@@ -13,6 +13,9 @@ export interface BoardTask {
   opportunity_id: string | null
   investor_id: string | null
   objective_id: string | null
+  waiting_on_id: string | null
+  waiting_on_what: string | null
+  waiting_on_since: string | null
   assignee: { id: string; name: string; color: string | null } | null
   project: { id: string; name: string } | null
   created_at: string | null
@@ -79,6 +82,19 @@ export function getDueLabel(due: string): { label: string; urgent: boolean; over
   if (diffDays === 1) return { label: 'Due tomorrow', urgent: true, overdue: false }
   if (diffDays <= 7) return { label: `Due in ${diffDays}d`, urgent: true, overdue: false }
   return { label: `Due ${formatDate(due)}`, urgent: false, overdue: false }
+}
+
+/**
+ * How long a handoff has been outstanding. A blocker that's a week old reads
+ * very differently from one raised this morning, so the age is always shown.
+ */
+export function waitingAge(since: string | null): { label: string; stale: boolean } {
+  if (!since) return { label: '', stale: false }
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const days = Math.round((today.getTime() - new Date(since + 'T00:00:00').getTime()) / 86_400_000)
+  if (days <= 0) return { label: 'today', stale: false }
+  return { label: `${days}d`, stale: days >= 7 }
 }
 
 export function initials(name: string): string {

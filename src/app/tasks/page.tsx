@@ -13,7 +13,7 @@ export default async function TasksPage() {
   const [{ data: tasks }, { data: members }, { data: projects }, { data: opportunities }, { data: investors }, { data: objectives }] = await Promise.all([
     supabase
       .from('tasks')
-      .select('*, assignee:team_members(id, name, color), project:projects(id, name)')
+      .select('*, assignee:team_members!tasks_assignee_id_fkey(id, name, color), project:projects(id, name)')
       .order('due_date', { ascending: true, nullsFirst: false })
       .order('created_at', { ascending: false }),
     supabase
@@ -82,6 +82,7 @@ export default async function TasksPage() {
       opportunities={opportunityOptions}
       investors={investorOptions}
       objectives={visibleObjectives}
+      showWeeklyReport={!viewer || viewer.isAdmin}
     />
   )
 }

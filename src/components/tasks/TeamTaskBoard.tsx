@@ -1,8 +1,10 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import Link from 'next/link'
 import {
   Plus,
+  FileText,
   Loader2,
   Circle,
   CheckCircle2,
@@ -13,6 +15,7 @@ import {
   Archive,
   X,
   HandCoins,
+  Hourglass,
 } from 'lucide-react'
 import EmptyState from '@/components/shared/EmptyState'
 import { DatePicker } from '@/components/ui/date-picker'
@@ -29,6 +32,7 @@ import {
   getDueLabel,
   avatarClasses,
   initials,
+  waitingAge,
   handleAuthError,
 } from './task-utils'
 
@@ -47,6 +51,8 @@ interface TeamTaskBoardProps {
   scopeInvestorId?: string
   /** Hide the board's own heading (the host page provides a section title). */
   embedded?: boolean
+  /** Show the weekly-report link (admin-only — /reports is admin-gated by default-deny). */
+  showWeeklyReport?: boolean
 }
 
 type StatusFilter = 'open' | 'done'
@@ -65,6 +71,7 @@ export default function TeamTaskBoard({
   scopeOpportunityId,
   scopeInvestorId,
   embedded = false,
+  showWeeklyReport = false,
 }: TeamTaskBoardProps) {
   const scopedToProject = !!scopeProjectId
   const scopedToOpportunity = !!scopeOpportunityId
@@ -92,6 +99,7 @@ export default function TeamTaskBoard({
   const [opportunityFilter, setOpportunityFilter] = useState('all')
   const [investorFilter, setInvestorFilter] = useState('all')
   const [objectiveFilter, setObjectiveFilter] = useState('all')
+  const [blockedOnly, setBlockedOnly] = useState(false)
 
   // detail sheet
   const [openTaskId, setOpenTaskId] = useState<string | null>(null)
@@ -112,6 +120,9 @@ export default function TeamTaskBoard({
   const [newMemberName, setNewMemberName] = useState('')
 
   const openCount = tasks.filter((t) => t.status !== 'done').length
+  const blockedCount = tasks.filter((t) => t.status !== 'done' && t.waiting_on_id).length
+  const memberName = (id: string | null) =>
+    id ? members.find((m) => m.id === id)?.name ?? null : null
 
   async function handleAddTask() {
     if (!title.trim()) return
@@ -221,24 +232,29 @@ export default function TeamTaskBoard({
         objectiveFilter === 'none' ? !t.objective_id : t.objective_id === objectiveFilter,
       )
     }
+    if (blockedOnly) list = list.filter((t) => t.waiting_on_id)
     return [...list].sort((a, b) => {
       if (a.due_date && b.due_date) return a.due_date.localeCompare(b.due_date)
       if (a.due_date) return -1
       if (b.due_date) return 1
       return (b.created_at ?? '').localeCompare(a.created_at ?? '')
     })
-  }, [tasks, status, assigneeFilter, projectFilter, opportunityFilter, investorFilter, objectiveFilter, showProjectControls, showOpportunityControls, showInvestorControls, showObjectiveControls])
+  }, [tasks, status, assigneeFilter, projectFilter, opportunityFilter, investorFilter, objectiveFilter, blockedOnly, showProjectControls, showOpportunityControls, showInvestorControls, showObjectiveControls])
 
-  // Per-person workload (the old Capacity view, folded in) — open + overdue counts.
+  // Per-person workload (the old Capacity view, folded in) — open + overdue,
+  // plus how many other people's tasks this person is holding up. That last
+  // number is the follow-up list: it's what they owe the rest of the team.
   const workload = useMemo(() => {
     if (scoped) return []
     const today = new Date().toISOString().split('T')[0]
+    const openTasks = tasks.filter((t) => t.status !== 'done')
     return members.map((m) => {
-      const open = tasks.filter((t) => t.status !== 'done' && t.assignee_id === m.id)
+      const open = openTasks.filter((t) => t.assignee_id === m.id)
       return {
         member: m,
         open: open.length,
         overdue: open.filter((t) => t.due_date && t.due_date < today).length,
+        blocking: openTasks.filter((t) => t.waiting_on_id === m.id).length,
       }
     })
   }, [tasks, members, scoped])
@@ -257,18 +273,29 @@ export default function TeamTaskBoard({
             </p>
           </div>
         )}
-        <button
-          onClick={() => setShowAdd((s) => !s)}
-          className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 active:scale-[0.98] transition-all elev-1"
-        >
-          <Plus size={15} /> New task
-        </button>
+        <div className="flex items-center gap-2">
+          {showWeeklyReport && !scoped && (
+            <Link
+              href="/reports/weekly/print"
+              className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg border border-border bg-card text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+              title="The week as a printable document — send it to the team"
+            >
+              <FileText size={15} /> Weekly report
+            </Link>
+          )}
+          <button
+            onClick={() => setShowAdd((s) => !s)}
+            className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 active:scale-[0.98] transition-all elev-1"
+          >
+            <Plus size={15} /> New task
+          </button>
+        </div>
       </div>
 
       {/* Team workload — tap a person to filter the board to them */}
       {!scoped && workload.length > 0 && (
         <div className="flex gap-2 flex-wrap">
-          {workload.map(({ member, open, overdue }) => {
+          {workload.map(({ member, open, overdue, blocking }) => {
             const active = assigneeFilter === member.id
             return (
               <button
@@ -280,7 +307,7 @@ export default function TeamTaskBoard({
                     ? 'border-primary/50 bg-primary/10 text-foreground'
                     : 'border-border bg-card text-muted-foreground hover:text-foreground hover:bg-accent',
                 )}
-                title={`${member.name}: ${open} open${overdue ? `, ${overdue} overdue` : ''}`}
+                title={`${member.name}: ${open} open${overdue ? `, ${overdue} overdue` : ''}${blocking ? ` · holding up ${blocking} task${blocking === 1 ? '' : 's'} for others` : ''}`}
               >
                 <span className={cn('flex items-center justify-center size-6 rounded-full text-[10px] font-semibold', avatarClasses(member.color))}>
                   {initials(member.name)}
@@ -290,6 +317,11 @@ export default function TeamTaskBoard({
                 {overdue > 0 && (
                   <span className="tabular-nums text-[11px] font-semibold px-1.5 py-0.5 rounded-full bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300">
                     {overdue} late
+                  </span>
+                )}
+                {blocking > 0 && (
+                  <span className="inline-flex items-center gap-1 tabular-nums text-[11px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300">
+                    <Hourglass size={10} /> {blocking}
                   </span>
                 )}
               </button>
@@ -452,6 +484,21 @@ export default function TeamTaskBoard({
           </button>
         </div>
 
+        {blockedCount > 0 && (
+          <button
+            onClick={() => setBlockedOnly((b) => !b)}
+            className={cn(
+              'inline-flex items-center gap-1.5 h-8 px-2.5 rounded-md border text-xs font-medium transition-colors',
+              blockedOnly
+                ? 'border-amber-300 bg-amber-100 text-amber-800 dark:border-amber-500/40 dark:bg-amber-900/40 dark:text-amber-200'
+                : 'border-input bg-background text-muted-foreground hover:text-foreground hover:bg-muted',
+            )}
+            title="Tasks waiting on someone"
+          >
+            <Hourglass size={12} /> Blocked <span className="tabular-nums">{blockedCount}</span>
+          </button>
+        )}
+
         <select value={assigneeFilter} onChange={(e) => setAssigneeFilter(e.target.value)} className="h-8 rounded-md border border-input bg-background px-2 text-xs focus:outline-none focus:ring-2 focus:ring-ring">
           <option value="all">Everyone</option>
           {members.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
@@ -555,6 +602,24 @@ export default function TeamTaskBoard({
                         {due.label}
                       </span>
                     )}
+                    {task.waiting_on_id && !done && (() => {
+                      const age = waitingAge(task.waiting_on_since)
+                      return (
+                        <span
+                          title={task.waiting_on_what ?? undefined}
+                          className={cn(
+                            'inline-flex items-center gap-1 text-xs font-medium rounded-full px-1.5 py-0.5',
+                            age.stale
+                              ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200'
+                              : 'bg-muted text-muted-foreground',
+                          )}
+                        >
+                          <Hourglass size={10} />
+                          {memberName(task.waiting_on_id) ?? 'Someone'}
+                          {age.label && <span className="tnum opacity-70">· {age.label}</span>}
+                        </span>
+                      )
+                    })()}
                   </div>
                 </div>
 

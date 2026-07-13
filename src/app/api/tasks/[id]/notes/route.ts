@@ -23,7 +23,7 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
   }
 
   const body = await request.json()
-  const { body: noteBody, author } = body
+  const { body: noteBody } = body
 
   if (!noteBody?.trim()) {
     return Response.json({ error: 'body is required' }, { status: 400 })
@@ -32,7 +32,9 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
   const row: TablesInsert<'task_notes'> = {
     task_id: id,
     body: noteBody.trim(),
-    author: author?.trim() || null,
+    // Attribution is resolved from the session, never taken from the client —
+    // otherwise a note could be posted under someone else's name.
+    author: viewer.teamMemberName ?? viewer.email ?? null,
   }
 
   const supabase = createAdminClient()

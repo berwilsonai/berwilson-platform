@@ -2,8 +2,9 @@ import { NextRequest } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import type { TablesInsert } from '@/lib/supabase/types'
 import { getViewer, filterTasksForViewer, canCreateTask, forbiddenJson, actorAdminClient } from '@/lib/auth/viewer'
+import { resolveWaitingOn, selfBlockError } from '@/lib/tasks/handoff'
 
-/** GET — list tasks with optional filters (?status=open|done&assignee=<id>&project=<id>) */
+/** GET — list tasks with optional filters (?status=open|done&assignee=<id>&project=<id>&blocking=<id>) */
 export async function GET(request: NextRequest) {
   const viewer = await getViewer()
   if (!viewer) return Response.json({ error: 'Not authenticated' }, { status: 401 })
@@ -14,11 +15,13 @@ export async function GET(request: NextRequest) {
   const opportunity = searchParams.get('opportunity')
   const investor = searchParams.get('investor')
   const objective = searchParams.get('objective')
+  const blocked = searchParams.get('blocked')
+  const blocking = searchParams.get('blocking')
 
   const supabase = createAdminClient()
   let query = supabase
     .from('tasks')
-    .select('*, assignee:team_members(id, name, color), project:projects(id, name)')
+    .select('*, assignee:team_members!tasks_assignee_id_fkey(id, name, color), project:projects(id, name)')
     .order('due_date', { ascending: true, nullsFirst: false })
     .order('created_at', { ascending: false })
 
@@ -28,6 +31,9 @@ export async function GET(request: NextRequest) {
   if (opportunity) query = query.eq('opportunity_id', opportunity)
   if (investor) query = query.eq('investor_id', investor)
   if (objective) query = query.eq('objective_id', objective)
+  // blocked=1 → every open handoff; blocking=<id> → what this person is holding up.
+  if (blocked === '1') query = query.not('waiting_on_id', 'is', null)
+  if (blocking) query = query.eq('waiting_on_id', blocking)
 
   const { data, error } = await query
   if (error) {
@@ -55,6 +61,11 @@ export async function POST(request: NextRequest) {
     return forbiddenJson('You can only create tasks within your projects or your own list')
   }
 
+  const waitingOn = resolveWaitingOn(body)
+  if (waitingOn.error) return Response.json({ error: waitingOn.error }, { status: 400 })
+  const selfBlock = selfBlockError(assignee_id, waitingOn.fields?.waiting_on_id)
+  if (selfBlock) return Response.json({ error: selfBlock }, { status: 400 })
+
   const row: TablesInsert<'tasks'> = {
     title: title.trim(),
     what: what?.trim() || null,
@@ -70,12 +81,13 @@ export async function POST(request: NextRequest) {
   if (opportunity_id) row.opportunity_id = opportunity_id
   if (investor_id) row.investor_id = investor_id
   if (objective_id) row.objective_id = objective_id
+  if (waitingOn.fields?.waiting_on_id) Object.assign(row, waitingOn.fields)
 
   const supabase = await actorAdminClient()
   const { data, error } = await supabase
     .from('tasks')
     .insert(row)
-    .select('*, assignee:team_members(id, name, color), project:projects(id, name)')
+    .select('*, assignee:team_members!tasks_assignee_id_fkey(id, name, color), project:projects(id, name)')
     .single()
 
   if (error) {

@@ -1283,7 +1283,7 @@ export async function executeToolCall(
           .order('created_at', { ascending: true }),
         supabase.from('investor_notes').select('body, author, created_at').eq('investor_id', investorId).order('created_at', { ascending: false }).limit(10),
         // Tolerant of the investor task tag not existing yet
-        supabase.from('tasks').select('title, status, due_date, assignee:team_members(name)').eq('investor_id', investorId).eq('status', 'open').order('due_date', { ascending: true, nullsFirst: false }),
+        supabase.from('tasks').select('title, status, due_date, assignee:team_members!tasks_assignee_id_fkey(name)').eq('investor_id', investorId).eq('status', 'open').order('due_date', { ascending: true, nullsFirst: false }),
       ])
 
       if (invRes.error || !invRes.data) return { error: `Investor not found: ${invRes.error?.message ?? investorId}` }

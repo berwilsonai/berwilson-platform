@@ -2265,6 +2265,9 @@ export type Database = {
           status: string
           title: string
           updated_at: string | null
+          waiting_on_id: string | null
+          waiting_on_since: string | null
+          waiting_on_what: string | null
           what: string | null
           why: string | null
         }
@@ -2282,6 +2285,9 @@ export type Database = {
           status?: string
           title: string
           updated_at?: string | null
+          waiting_on_id?: string | null
+          waiting_on_since?: string | null
+          waiting_on_what?: string | null
           what?: string | null
           why?: string | null
         }
@@ -2299,6 +2305,9 @@ export type Database = {
           status?: string
           title?: string
           updated_at?: string | null
+          waiting_on_id?: string | null
+          waiting_on_since?: string | null
+          waiting_on_what?: string | null
           what?: string | null
           why?: string | null
         }
@@ -2306,6 +2315,13 @@ export type Database = {
           {
             foreignKeyName: "tasks_assignee_id_fkey"
             columns: ["assignee_id"]
+            isOneToOne: false
+            referencedRelation: "team_members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_waiting_on_id_fkey"
+            columns: ["waiting_on_id"]
             isOneToOne: false
             referencedRelation: "team_members"
             referencedColumns: ["id"]
