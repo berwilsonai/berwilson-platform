@@ -225,8 +225,7 @@ ${ddContext || '(none)'}`
   const brief = result.data as string
 
   // 5. Store brief
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  await (admin as any).from('stored_briefs').insert({
+  await admin.from('stored_briefs').insert({
     brief_type: 'meeting_prep',
     title: `Prep: ${subject}`,
     content: brief,

@@ -8,6 +8,7 @@ import { PROPOSAL_INTAKE_SYSTEM_PROMPT, PROPOSAL_INTAKE_PROMPT_VERSION } from '@
 import { findMatchingProjects, matchExtractedParties, type ProposalExtraction } from '@/lib/ai/proposal-matching'
 import { assessFit, type FitAssessment } from '@/lib/ai/fit-assessment'
 import { writeFile, unlink } from 'fs/promises'
+import type { Json } from '@/types/database'
 import { join } from 'path'
 
 export const maxDuration = 300
@@ -253,14 +254,10 @@ export async function POST(request: NextRequest) {
       .insert({
         user_id: userId,
         status: 'pending',
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        extraction_result: extraction as any,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        match_candidates: matchCandidates as any,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        uploaded_files: uploadedFiles as any,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        fit_assessment: fitAssessment as any,
+        extraction_result: extraction as unknown as Json,
+        match_candidates: matchCandidates as unknown as Json,
+        uploaded_files: uploadedFiles as unknown as Json,
+        fit_assessment: fitAssessment as unknown as Json,
       })
       .select()
       .single()

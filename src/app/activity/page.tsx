@@ -88,8 +88,7 @@ export default async function ActivityPage({ searchParams }: PageProps) {
     .select('id, name')
     .order('name')
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let query: any = supabase
+  let query = supabase
     .from('activity_log')
     .select('*, projects(id, name)', { count: 'exact' })
     .order('created_at', { ascending: false })
@@ -106,7 +105,7 @@ export default async function ActivityPage({ searchParams }: PageProps) {
   // Resolve user actor IDs to emails
   const userActorIds = [
     ...new Set(
-      ((logs ?? []) as Array<{ actor_type: string | null; actor_id: string | null }>)
+      (logs ?? [])
         .filter((l) => l.actor_type === 'user' && l.actor_id)
         .map((l) => l.actor_id!)
     ),
@@ -142,8 +141,7 @@ export default async function ActivityPage({ searchParams }: PageProps) {
     return 'Unknown'
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const rows: any[] = logs ?? []
+  const rows = logs ?? []
 
   return (
     <div className="space-y-5">

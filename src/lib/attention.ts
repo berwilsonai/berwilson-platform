@@ -83,8 +83,7 @@ export async function computeAttention(): Promise<{ items: AttentionItem[]; summ
       .not('status', 'in', '("compliant","waived")')
       .lte('due_date', new Date(now.getTime() + 90 * 86_400_000).toISOString().split('T')[0])
       .order('due_date'),
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (supabase as any)
+    supabase
       .from('project_dependencies')
       .select('id, upstream_project_id, downstream_project_id, dependency_type, description, severity, status, created_at')
       .eq('status', 'active')

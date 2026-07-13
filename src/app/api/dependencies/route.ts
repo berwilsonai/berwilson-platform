@@ -11,8 +11,7 @@ export async function GET(request: NextRequest) {
   const projectId = searchParams.get('project_id')
   const supabase = createAdminClient()
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let q = (supabase as any)
+  let q = supabase
     .from('project_dependencies')
     .select('*, upstream:projects!project_dependencies_upstream_project_id_fkey(id, name), downstream:projects!project_dependencies_downstream_project_id_fkey(id, name)')
     .order('created_at', { ascending: false })
@@ -52,8 +51,7 @@ export async function POST(request: NextRequest) {
 
   const supabase = createAdminClient()
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data, error } = await (supabase as any)
+  const { data, error } = await supabase
     .from('project_dependencies')
     .insert({
       upstream_project_id: body.upstream_project_id,

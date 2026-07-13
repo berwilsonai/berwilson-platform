@@ -66,8 +66,7 @@ export async function GET(request: NextRequest) {
   const today = now.toISOString().split('T')[0]
 
   // Check if we already generated today's brief
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: existing } = await (supabase as any)
+  const { data: existing } = await supabase
     .from('stored_briefs')
     .select('id')
     .eq('brief_type', 'portfolio')
@@ -116,8 +115,7 @@ export async function GET(request: NextRequest) {
       .select('id, framework, requirement, status, due_date, project_id, projects(name)')
       .not('status', 'in', '("compliant","waived")')
       .lte('due_date', new Date(now.getTime() + 30 * 86_400_000).toISOString().split('T')[0]),
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (supabase as any)
+    supabase
       .from('project_dependencies')
       .select('id, description, severity, upstream_project_id, downstream_project_id')
       .eq('status', 'active'),
@@ -194,8 +192,7 @@ export async function GET(request: NextRequest) {
     return `- ${c.framework}: ${c.requirement} — ${pName(c)} (${days < 0 ? 'OVERDUE' : `${days}d to deadline`})`
   })
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const depRisks = (dependencies ?? []).map((d: any) => {
+  const depRisks = (dependencies ?? []).map(d => {
     const up = projectMap[d.upstream_project_id] ?? 'Unknown'
     const down = projectMap[d.downstream_project_id] ?? 'Unknown'
     return `- ${d.description ?? `${up} → ${down}`} (${d.severity})`
@@ -329,8 +326,7 @@ ${depRisks.join('\n') || '(none)'}`
   const brief = result.data as string
 
   // Store the brief
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: stored, error: storeError } = await (supabase as any)
+  const { data: stored, error: storeError } = await supabase
     .from('stored_briefs')
     .insert({
       brief_type: 'portfolio',

@@ -5,6 +5,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import type { Database } from '@/types/database'
 
 export async function PATCH(
   request: NextRequest,
@@ -20,15 +21,16 @@ export async function PATCH(
   }
 
   const supabase = createAdminClient()
-  const update: Record<string, unknown> = { updated_at: new Date().toISOString() }
+  const update: Database['public']['Tables']['project_dependencies']['Update'] = {
+    updated_at: new Date().toISOString(),
+  }
 
   if (body.status) update.status = body.status
   if (body.severity) update.severity = body.severity
   if (body.description !== undefined) update.description = body.description
   if (body.status === 'resolved') update.resolved_at = new Date().toISOString()
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data, error } = await (supabase as any)
+  const { data, error } = await supabase
     .from('project_dependencies')
     .update(update)
     .eq('id', id)
@@ -47,8 +49,7 @@ export async function DELETE(
   const { id } = await params
   const supabase = createAdminClient()
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { error } = await (supabase as any)
+  const { error } = await supabase
     .from('project_dependencies')
     .delete()
     .eq('id', id)

@@ -11,6 +11,7 @@ import { computeAttention } from '@/lib/attention'
 import { generateDraft } from './draft'
 import { parseTranches, raiseLevels, fillTranches } from '@/lib/investors/raises'
 import type { AgentContext } from './agent'
+import type { Database } from '@/types/database'
 
 // ---------------------------------------------------------------------------
 // Tool Declarations (Gemini function-calling format)
@@ -815,12 +816,9 @@ export async function executeToolCall(
         .select('id, name, sector, status, stage, estimated_value, location, client_entity, parent_project_id, solicitation_number')
         .order('name')
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      if (args.sector) q = q.eq('sector', args.sector as any)
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      if (args.stage) q = q.eq('stage', args.stage as any)
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      if (args.status) q = q.eq('status', args.status as any)
+      if (args.sector) q = q.eq('sector', args.sector as Database['public']['Enums']['project_sector'])
+      if (args.stage) q = q.eq('stage', args.stage as Database['public']['Enums']['project_stage'])
+      if (args.status) q = q.eq('status', args.status as Database['public']['Enums']['project_status'])
 
       const { data: allProjects, error } = await q
       if (error) return { error: error.message }
@@ -1040,8 +1038,7 @@ export async function executeToolCall(
     case 'get_cross_project_dependencies': {
       const projectId = (args.project_id as string) || context.projectId
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      let q = (supabase as any)
+      let q = supabase
         .from('project_dependencies')
         .select('id, upstream_project_id, downstream_project_id, dependency_type, description, severity, status, created_at, resolved_at')
         .eq('status', 'active')
@@ -1060,16 +1057,14 @@ export async function executeToolCall(
       }
 
       // Get project names
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const ids = [...new Set(deps.flatMap((d: any) => [d.upstream_project_id, d.downstream_project_id]))] as string[]
+      const ids = [...new Set(deps.flatMap(d => [d.upstream_project_id, d.downstream_project_id]))]
       const { data: projects } = await supabase.from('projects').select('id, name').in('id', ids)
       const nameMap: Record<string, string> = {}
       for (const p of projects ?? []) nameMap[p.id] = p.name
 
       return {
         count: deps.length,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        dependencies: deps.map((d: any) => ({
+        dependencies: deps.map(d => ({
           upstream: nameMap[d.upstream_project_id] ?? 'Unknown',
           downstream: nameMap[d.downstream_project_id] ?? 'Unknown',
           type: d.dependency_type,

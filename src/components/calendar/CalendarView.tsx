@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, type ElementType } from 'react'
 import Link from 'next/link'
 import { Flag, Shield, CheckSquare, Calendar, ExternalLink, Timer } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -223,8 +223,7 @@ export default function CalendarView({ events: serverEvents }: CalendarViewProps
                     ? { href, target: '_blank', rel: 'noopener noreferrer' }
                     : { href }
 
-                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                  const Wrapper: any = isMeeting && event.webLink ? 'a' : Link
+                  const Wrapper: ElementType = isMeeting && event.webLink ? 'a' : Link
 
                   return (
                     <Wrapper

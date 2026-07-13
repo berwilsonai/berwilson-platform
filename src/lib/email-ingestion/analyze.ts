@@ -16,6 +16,7 @@ import { assessFit, type FitAssessment } from '@/lib/ai/fit-assessment'
 import { SECTORS, STAGES } from '@/lib/utils/constants'
 import { OPPORTUNITY_TYPES, oppType } from '@/lib/utils/opportunities'
 import type { ProjectSector, ProjectStage } from '@/lib/supabase/types'
+import type { Json } from '@/types/database'
 
 /**
  * Shared Email Ingestion processing path.
@@ -243,10 +244,10 @@ export async function analyzeEmailReport(
     status: 'pending',
     label,
     raw_text: text,
-    extraction_result: extraction as unknown as never,
-    match_candidates: matchCandidates as unknown as never,
-    party_matches: partyMatches as unknown as never,
-    fit_assessment: (fitAssessment ?? null) as unknown as never,
+    extraction_result: extraction as unknown as Json,
+    match_candidates: matchCandidates as unknown as Json,
+    party_matches: partyMatches as unknown as Json,
+    fit_assessment: (fitAssessment ?? null) as unknown as Json,
   }
   const { data: session, error } = input.sessionId
     ? await supabase
