@@ -121,9 +121,10 @@ export default async function WeeklyReportPrintPage({ searchParams }: PageProps)
         .order('created_at', { ascending: true }),
       supabase
         .from('milestones')
-        .select('id, title, target_date, project:projects(name)')
+        .select('id, label, target_date, project:projects(name)')
         .is('completed_at', null)
         .not('target_date', 'is', null)
+        .gte('target_date', today)
         .lte('target_date', twoWeeksAhead)
         .order('target_date', { ascending: true }),
       supabase
@@ -140,7 +141,7 @@ export default async function WeeklyReportPrintPage({ searchParams }: PageProps)
   const members = (memberRows ?? []) as { id: string; name: string }[]
   const milestones = (milestoneRows ?? []) as unknown as {
     id: string
-    title: string
+    label: string
     target_date: string
     project: { name: string } | null
   }[]
@@ -160,6 +161,10 @@ export default async function WeeklyReportPrintPage({ searchParams }: PageProps)
   })
   const nowObjectives = objectiveLines.filter((o) => o.bucket === 'now')
   const soonObjectives = objectiveLines.filter((o) => o.bucket === 'soon')
+  // Priority is mechanical: a task tagged to a Now objective outranks everything
+  // else. The NOW mark makes that legible on every task line, not just in the
+  // objectives section.
+  const nowObjectiveIds = new Set(nowObjectives.map((o) => o.id))
 
   // ── Handoffs: who owes whom. Oldest first — age is the whole point.
   const allHandoffs = openTasks
@@ -182,6 +187,12 @@ export default async function WeeklyReportPrintPage({ searchParams }: PageProps)
     }
   })
 
+  // ── At-a-glance numbers for the letterhead. Scoped to the focus person when
+  // the report is theirs, so the first line of their page is about them.
+  const scopedOpen = focus ? openTasks.filter((t) => t.assignee_id === focus.id) : openTasks
+  const overdueCount = scopedOpen.filter((t) => t.due_date && t.due_date < today).length
+  const staleHandoffs = handoffs.filter((t) => (ageInDays(t.waiting_on_since) ?? 0) >= 7).length
+
   const closedLastWeek = tasks.filter(
     (t) =>
       t.status === 'done' &&
@@ -190,8 +201,16 @@ export default async function WeeklyReportPrintPage({ searchParams }: PageProps)
       (!focus || t.assignee_id === focus.id),
   )
 
+  const nowMark = (t: ReportTask) =>
+    t.objective_id && nowObjectiveIds.has(t.objective_id) ? (
+      <span className="mr-1.5 inline-flex items-center rounded bg-slate-900 px-1 py-px text-[9px] font-bold uppercase tracking-wide text-white align-middle">
+        Now
+      </span>
+    ) : null
+
   const taskLine = (t: ReportTask) => (
     <>
+      {nowMark(t)}
       {t.title}
       {t.project && <span className="text-slate-500"> · {t.project.name}</span>}
     </>
@@ -211,6 +230,11 @@ export default async function WeeklyReportPrintPage({ searchParams }: PageProps)
             </h1>
             <p className="text-sm text-slate-500 mt-1">
               Ber Wilson · Prepared <PreparedDate />
+            </p>
+            <p className="text-sm text-slate-700 mt-2 tabular-nums">
+              {scopedOpen.length} open task{scopedOpen.length === 1 ? '' : 's'} · {overdueCount}{' '}
+              overdue · {handoffs.length} handoff{handoffs.length === 1 ? '' : 's'}
+              {staleHandoffs > 0 && <> ({staleHandoffs} stale ≥7d)</>}
             </p>
           </div>
           <Image src="/logo.png" alt="Ber Wilson" width={120} height={65} className="object-contain h-9 w-auto" />
@@ -290,7 +314,7 @@ export default async function WeeklyReportPrintPage({ searchParams }: PageProps)
                           stale ? 'font-semibold text-slate-900' : 'text-slate-500'
                         }`}
                       >
-                        {age === 0 ? 'today' : `${age}d`}
+                        {age === null ? '—' : age === 0 ? 'today' : `${age}d`}
                       </td>
                     </tr>
                   )
@@ -362,6 +386,7 @@ export default async function WeeklyReportPrintPage({ searchParams }: PageProps)
                         <ul className="mt-1 space-y-1">
                           {owes.map((t) => (
                             <li key={t.id} className="text-sm">
+                              {nowMark(t)}
                               {t.waiting_on_what}
                               <span className="text-slate-500">
                                 {' '}
@@ -434,7 +459,7 @@ export default async function WeeklyReportPrintPage({ searchParams }: PageProps)
                     {formatDate(m.target_date)}
                   </span>
                   <span>
-                    {m.title}
+                    {m.label}
                     {m.project && <span className="text-slate-500"> · {m.project.name}</span>}
                   </span>
                 </li>
