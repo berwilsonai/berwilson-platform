@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { Pencil, MessageSquare, Banknote, UserRound, StickyNote, ListChecks } from 'lucide-react'
+import { Pencil, MessageSquare, Banknote, UserRound, StickyNote, ListChecks, ClipboardList } from 'lucide-react'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { cn } from '@/lib/utils'
 import { formatValue, formatDate, SECTOR_LABELS } from '@/lib/utils/constants'
@@ -19,12 +19,16 @@ import {
   INVESTOR_STAGE_INDEX,
   INVESTOR_STAGE_LABELS,
   isPastDate,
+  isLenderType,
+  REQUIREMENT_OPEN_STATUSES,
 } from '@/lib/utils/investors'
 import InvestorStageControl from '@/components/investors/InvestorStageControl'
 import InvestorDeleteButton from '@/components/investors/InvestorDeleteButton'
 import InvestorNotes from '@/components/investors/InvestorNotes'
 import InvestorTasks from '@/components/investors/InvestorTasks'
 import InvestmentsSection, { type InvestmentRow } from '@/components/investors/InvestmentsSection'
+import InvestorRequirements from '@/components/investors/InvestorRequirements'
+import type { InvestorRequirement } from '@/lib/supabase/types'
 import type { BoardTask, TeamMember } from '@/components/tasks/task-utils'
 
 interface PageProps {
@@ -59,7 +63,7 @@ export default async function InvestorDetailPage({ params }: PageProps) {
 
   if (!investor) notFound()
 
-  const [{ data: investments }, { data: notes }, { data: members }, { data: projects }, { data: entities }, { data: tasks }, { data: raises }] =
+  const [{ data: investments }, { data: notes }, { data: members }, { data: projects }, { data: entities }, { data: tasks }, { data: raises }, { data: requirements }, { data: documents }] =
     await Promise.all([
       supabase
         .from('investments')
@@ -85,7 +89,20 @@ export default async function InvestorDetailPage({ params }: PageProps) {
         .order('due_date', { ascending: true, nullsFirst: false })
         .order('created_at', { ascending: false }),
       supabase.from('raises').select('id, name').order('created_at', { ascending: false }),
+      // Tolerant of the table not existing yet (null → [] until the migration lands)
+      supabase
+        .from('investor_requirements')
+        .select('*')
+        .eq('investor_id', id)
+        .order('sort_order', { ascending: true })
+        .order('created_at', { ascending: true }),
+      supabase.from('documents').select('id, file_name').order('file_name'),
     ])
+
+  const requirementRows = (requirements ?? []) as InvestorRequirement[]
+  const openRequirements = requirementRows.filter((r) =>
+    (REQUIREMENT_OPEN_STATUSES as string[]).includes(r.status)
+  ).length
 
   const t = investorType(investor.investor_type)
   const s = investorStage(investor.stage)
@@ -141,6 +158,11 @@ export default async function InvestorDetailPage({ params }: PageProps) {
             <span className={cn('inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium ring-1 ring-inset', INTEREST_LEVEL_BADGE[heat])}>
               {INTEREST_LEVEL_LABELS[heat]}
             </span>
+            {isLenderType(investor.investor_type) && (
+              <span className="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium text-muted-foreground ring-1 ring-inset ring-border">
+                Lender (debt)
+              </span>
+            )}
           </div>
           <h1 className="text-xl font-semibold leading-tight">{investor.name}</h1>
           {party && (
@@ -310,6 +332,24 @@ export default async function InvestorDetailPage({ params }: PageProps) {
           projects={projects ?? []}
           entities={entities ?? []}
           raises={raises ?? []}
+        />
+      </section>
+
+      {/* Requirements */}
+      <section>
+        <h2 className="flex items-center gap-1.5 text-sm font-semibold mb-3">
+          <ClipboardList size={15} /> Requirements
+          {openRequirements > 0 && (
+            <span className="text-xs font-normal text-muted-foreground">
+              · {openRequirements} outstanding
+            </span>
+          )}
+        </h2>
+        <InvestorRequirements
+          investorId={id}
+          initialItems={requirementRows}
+          projects={projects ?? []}
+          documents={documents ?? []}
         />
       </section>
 

@@ -10,6 +10,7 @@ import {
   investorStage,
   interestLevel,
   isOffPipeline,
+  isLenderType,
   isPastDate,
   INVESTOR_TYPE_LABELS,
   INVESTOR_TYPE_BADGE,
@@ -86,6 +87,11 @@ export default function InvestorsClient({ items }: { items: InvestorCardData[] }
               <span className={cn('inline-flex items-center rounded px-1.5 py-0.5 text-[11px] font-medium ring-1 ring-inset', INVESTOR_TYPE_BADGE[t])}>
                 {INVESTOR_TYPE_LABELS[t]}
               </span>
+              {isLenderType(investor.investor_type) && (
+                <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground ring-1 ring-inset ring-border">
+                  Lender (debt)
+                </span>
+              )}
               {range && <span className="tnum">Checks {range}</span>}
             </div>
 

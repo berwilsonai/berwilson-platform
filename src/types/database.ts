@@ -1179,6 +1179,70 @@ export type Database = {
           },
         ]
       }
+      investor_requirements: {
+        Row: {
+          category: string
+          created_at: string | null
+          evidence_doc_id: string | null
+          id: string
+          investor_id: string
+          item: string
+          notes: string | null
+          project_id: string | null
+          sort_order: number | null
+          status: string
+          updated_at: string | null
+        }
+        Insert: {
+          category?: string
+          created_at?: string | null
+          evidence_doc_id?: string | null
+          id?: string
+          investor_id: string
+          item: string
+          notes?: string | null
+          project_id?: string | null
+          sort_order?: number | null
+          status?: string
+          updated_at?: string | null
+        }
+        Update: {
+          category?: string
+          created_at?: string | null
+          evidence_doc_id?: string | null
+          id?: string
+          investor_id?: string
+          item?: string
+          notes?: string | null
+          project_id?: string | null
+          sort_order?: number | null
+          status?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "investor_requirements_evidence_doc_id_fkey"
+            columns: ["evidence_doc_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "investor_requirements_investor_id_fkey"
+            columns: ["investor_id"]
+            isOneToOne: false
+            referencedRelation: "investors"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "investor_requirements_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       investors: {
         Row: {
           check_size_max: number | null

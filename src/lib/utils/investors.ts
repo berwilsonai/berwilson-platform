@@ -14,13 +14,14 @@ export type InvestorType =
   | 'venture_capital'
   | 'institutional'
   | 'bank_lender'
+  | 'private_lender'
   | 'tribal'
   | 'strategic'
   | 'other'
 
 export const INVESTOR_TYPES: InvestorType[] = [
   'individual', 'family_office', 'private_equity', 'venture_capital',
-  'institutional', 'bank_lender', 'tribal', 'strategic', 'other',
+  'institutional', 'bank_lender', 'private_lender', 'tribal', 'strategic', 'other',
 ]
 
 export const INVESTOR_TYPE_LABELS: Record<InvestorType, string> = {
@@ -30,6 +31,7 @@ export const INVESTOR_TYPE_LABELS: Record<InvestorType, string> = {
   venture_capital: 'Venture Capital',
   institutional: 'Institutional',
   bank_lender: 'Bank / Lender',
+  private_lender: 'Private Lender / Debt Fund',
   tribal: 'Tribal',
   strategic: 'Strategic',
   other: 'Other',
@@ -42,6 +44,7 @@ export const INVESTOR_TYPE_BADGE: Record<InvestorType, string> = {
   venture_capital: 'bg-cyan-50 text-cyan-700 ring-cyan-200 dark:bg-cyan-500/15 dark:text-cyan-300 dark:ring-cyan-500/30',
   institutional: 'bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-500/15 dark:text-emerald-300 dark:ring-emerald-500/30',
   bank_lender: 'bg-slate-100 text-slate-600 ring-slate-200 dark:bg-slate-400/15 dark:text-slate-300 dark:ring-slate-400/25',
+  private_lender: 'bg-teal-50 text-teal-700 ring-teal-200 dark:bg-teal-500/15 dark:text-teal-300 dark:ring-teal-500/30',
   tribal: 'bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-500/15 dark:text-amber-300 dark:ring-amber-500/30',
   strategic: 'bg-orange-50 text-orange-700 ring-orange-200 dark:bg-orange-500/15 dark:text-orange-300 dark:ring-orange-500/30',
   other: 'bg-slate-100 text-slate-600 ring-slate-200 dark:bg-slate-400/15 dark:text-slate-300 dark:ring-slate-400/25',
@@ -54,6 +57,7 @@ export const INVESTOR_TYPE_BORDER: Record<InvestorType, string> = {
   venture_capital: 'border-l-cyan-400',
   institutional: 'border-l-emerald-400',
   bank_lender: 'border-l-slate-300',
+  private_lender: 'border-l-teal-400',
   tribal: 'border-l-amber-400',
   strategic: 'border-l-orange-400',
   other: 'border-l-slate-300',
@@ -63,6 +67,12 @@ export function investorType(value: string | null | undefined): InvestorType {
   return INVESTOR_TYPES.includes(value as InvestorType)
     ? (value as InvestorType)
     : 'other'
+}
+
+/** Lender-type investors are debt, not equity — they carry documentation
+ *  requirement checklists and their terms live in terms_notes. */
+export function isLenderType(value: string | null | undefined): boolean {
+  return value === 'bank_lender' || value === 'private_lender'
 }
 
 // ─── Investor Stage (relationship pipeline) ──────────────────────────────────
@@ -279,4 +289,55 @@ export function raiseStatus(value: string | null | undefined): RaiseStatus {
   return RAISE_STATUSES.includes(value as RaiseStatus)
     ? (value as RaiseStatus)
     : 'open'
+}
+
+// ─── Requirement checklist (lender documentation) ────────────────────────────
+
+export type RequirementCategory = 'corporate' | 'project' | 'sponsor' | 'other'
+
+export const REQUIREMENT_CATEGORIES: RequirementCategory[] = [
+  'corporate', 'project', 'sponsor', 'other',
+]
+
+export const REQUIREMENT_CATEGORY_LABELS: Record<RequirementCategory, string> = {
+  corporate: 'Corporate',
+  project: 'Project',
+  sponsor: 'Sponsor',
+  other: 'Other',
+}
+
+export type RequirementStatus =
+  | 'needed'
+  | 'in_progress'
+  | 'have'
+  | 'submitted'
+  | 'waived'
+  | 'n_a'
+
+export const REQUIREMENT_STATUSES: RequirementStatus[] = [
+  'needed', 'in_progress', 'have', 'submitted', 'waived', 'n_a',
+]
+
+export const REQUIREMENT_STATUS_LABELS: Record<RequirementStatus, string> = {
+  needed: 'Needed',
+  in_progress: 'In Progress',
+  have: 'Have',
+  submitted: 'Submitted',
+  waived: 'Waived',
+  n_a: 'N/A',
+}
+
+/** Statuses that still need action before a package is complete. */
+export const REQUIREMENT_OPEN_STATUSES: RequirementStatus[] = ['needed', 'in_progress']
+
+export function requirementCategory(value: string | null | undefined): RequirementCategory {
+  return REQUIREMENT_CATEGORIES.includes(value as RequirementCategory)
+    ? (value as RequirementCategory)
+    : 'other'
+}
+
+export function requirementStatus(value: string | null | undefined): RequirementStatus {
+  return REQUIREMENT_STATUSES.includes(value as RequirementStatus)
+    ? (value as RequirementStatus)
+    : 'needed'
 }

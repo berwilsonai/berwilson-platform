@@ -57,6 +57,7 @@ export type OpportunityNote = Tables<'opportunity_notes'>
 export type Investor = Tables<'investors'>
 export type Investment = Tables<'investments'>
 export type InvestorNote = Tables<'investor_notes'>
+export type InvestorRequirement = Tables<'investor_requirements'>
 export type Raise = Tables<'raises'>
 
 // ---------------------------------------------------------------------------

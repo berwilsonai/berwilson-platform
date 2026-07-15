@@ -311,7 +311,7 @@ export const agentTools = [
         },
         investor_type: {
           type: 'string',
-          enum: ['individual', 'family_office', 'private_equity', 'venture_capital', 'institutional', 'bank_lender', 'tribal', 'strategic', 'other'],
+          enum: ['individual', 'family_office', 'private_equity', 'venture_capital', 'institutional', 'bank_lender', 'private_lender', 'tribal', 'strategic', 'other'],
           description: 'Filter by investor type',
         },
         target_kind: {
@@ -324,7 +324,7 @@ export const agentTools = [
   },
   {
     name: 'query_investor',
-    description: 'Get the full record for one investor: relationship fields (stage, interest, check size, preferred structures, source, next step), every investment with amounts and terms (target, indicated/committed/funded, equity %, profit share %, SPV), the latest contact-log notes, and open tasks. Use whenever asked about a specific named investor.',
+    description: 'Get the full record for one investor: relationship fields (stage, interest, check size, preferred structures, source, next step), every investment with amounts and terms (target, indicated/committed/funded, equity %, profit share %, SPV), the latest contact-log notes, open tasks, and the documentation requirements checklist (what the investor/lender needs from us — per project or standing — with have/needed status). Use whenever asked about a specific named investor or lender.',
     parameters: {
       type: 'object',
       properties: {
@@ -1274,7 +1274,7 @@ export async function executeToolCall(
       }
       if (!investorId) return { error: 'Provide investor_id or name' }
 
-      const [invRes, investmentsRes, notesRes, tasksRes] = await Promise.all([
+      const [invRes, investmentsRes, notesRes, tasksRes, reqsRes] = await Promise.all([
         supabase.from('investors').select('*').eq('id', investorId).single(),
         supabase
           .from('investments')
@@ -1284,6 +1284,8 @@ export async function executeToolCall(
         supabase.from('investor_notes').select('body, author, created_at').eq('investor_id', investorId).order('created_at', { ascending: false }).limit(10),
         // Tolerant of the investor task tag not existing yet
         supabase.from('tasks').select('title, status, due_date, assignee:team_members!tasks_assignee_id_fkey(name)').eq('investor_id', investorId).eq('status', 'open').order('due_date', { ascending: true, nullsFirst: false }),
+        // Tolerant of the requirements table not existing yet
+        supabase.from('investor_requirements').select('category, item, status, notes, evidence_doc_id, project:projects(id, name)').eq('investor_id', investorId).order('category', { ascending: true }).order('sort_order', { ascending: true }),
       ])
 
       if (invRes.error || !invRes.data) return { error: `Investor not found: ${invRes.error?.message ?? investorId}` }
@@ -1311,6 +1313,15 @@ export async function executeToolCall(
           title: t.title,
           due_date: t.due_date,
           assignee: (t.assignee as { name: string } | null)?.name ?? null,
+        })),
+        // Documentation the investor/lender needs from us before they'll fund
+        requirements: (reqsRes.data ?? []).map((r) => ({
+          category: r.category,
+          item: r.item,
+          status: r.status,
+          notes: r.notes,
+          project: (r.project as { name: string } | null)?.name ?? 'standard (all deals)',
+          evidence_on_file: r.evidence_doc_id != null,
         })),
       }
     }

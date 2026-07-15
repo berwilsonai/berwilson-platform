@@ -419,7 +419,7 @@ export async function embedOpportunityReport(
 export async function embedInvestorSnapshot(investorId: string): Promise<void> {
   const supabase = createAdminClient()
   try {
-    const [{ data: inv }, { data: investments }, { data: notes }] = await Promise.all([
+    const [{ data: inv }, { data: investments }, { data: notes }, { data: requirements }] = await Promise.all([
       supabase
         .from('investors')
         .select('name, investor_type, stage, interest_level, email, phone, check_size_min, check_size_max, preferred_structures, sector_interests, source, referred_by, next_step, next_step_date, last_contact_date, notes')
@@ -435,6 +435,13 @@ export async function embedInvestorSnapshot(investorId: string): Promise<void> {
         .eq('investor_id', investorId)
         .order('created_at', { ascending: false })
         .limit(5),
+      // Tolerant of the table not existing yet (error → null → skipped)
+      supabase
+        .from('investor_requirements')
+        .select('category, item, status, notes, project:projects(name)')
+        .eq('investor_id', investorId)
+        .order('category', { ascending: true })
+        .order('sort_order', { ascending: true }),
     ])
     if (!inv) return
 
@@ -477,6 +484,15 @@ export async function embedInvestorSnapshot(investorId: string): Promise<void> {
       ].filter(Boolean).join(', ')
       parts.push(line)
       if (i.terms_notes) parts.push(`Terms notes: ${i.terms_notes}`)
+    }
+
+    for (const r of requirements ?? []) {
+      const scope = (r.project as { name: string } | null)?.name
+        ? `for project ${(r.project as { name: string }).name}`
+        : 'standard (every deal)'
+      parts.push(
+        `Documentation requirement (${r.category}) [${r.status}]: ${r.item} — ${scope}${r.notes ? ` (${r.notes})` : ''}`
+      )
     }
 
     for (const n of notes ?? []) {
