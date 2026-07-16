@@ -78,18 +78,10 @@ export async function DELETE(_request: NextRequest, { params }: RouteContext) {
     if (!doc.project_id || !(await canAccessProject(viewer, doc.project_id))) return forbiddenJson()
   }
 
-  // Remove from Supabase Storage (admin needed to bypass storage RLS)
-  const admin = await actorAdminClient()
-  const { error: storageError } = await admin.storage
-    .from('documents')
-    .remove([doc.storage_path])
-
-  if (storageError) {
-    // Log but don't block — still delete the DB record
-    console.error('Storage delete failed:', storageError.message)
-  }
-
-  // Delete DB record via user client so activity_log captures the real user
+  // Delete the DB record first (cascades the document's chunks, so the
+  // indexed content dies with it) via user client so activity_log captures
+  // the real user. Storage cleanup comes after — if the row delete fails we
+  // must not have already destroyed the file.
   const { error: dbError } = await supabase
     .from('documents')
     .delete()
@@ -97,6 +89,17 @@ export async function DELETE(_request: NextRequest, { params }: RouteContext) {
 
   if (dbError) {
     return Response.json({ error: dbError.message }, { status: 500 })
+  }
+
+  // Remove from Supabase Storage (admin needed to bypass storage RLS)
+  const admin = await actorAdminClient()
+  const { error: storageError } = await admin.storage
+    .from('documents')
+    .remove([doc.storage_path])
+
+  if (storageError) {
+    // Log but don't block — the record (and its index chunks) are gone
+    console.error('Storage delete failed:', storageError.message)
   }
 
   return Response.json({ success: true })

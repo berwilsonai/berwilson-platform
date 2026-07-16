@@ -34,7 +34,7 @@ export default async function CompanyPage() {
       .order('created_at'),
     supabase
       .from('documents')
-      .select('id, file_name, doc_type, ai_summary, embedding_status, uploaded_at')
+      .select('id, file_name, doc_type, mime_type, ai_summary, embedding_status, uploaded_at')
       .eq('is_company', true)
       .order('uploaded_at', { ascending: false }),
   ])

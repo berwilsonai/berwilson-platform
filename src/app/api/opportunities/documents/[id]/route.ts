@@ -63,14 +63,8 @@ export async function DELETE(_request: NextRequest, { params }: RouteContext) {
   const viewer = await getViewer()
   if (viewer && !viewer.isAdmin && !canAccessOpportunity(viewer, doc.opportunity_id)) return forbiddenJson()
 
-  const { error: storageError } = await admin.storage
-    .from('documents')
-    .remove([doc.storage_path])
-
-  if (storageError) {
-    console.error('Storage delete failed:', storageError.message)
-  }
-
+  // DB row first (cascades the document's chunks), storage cleanup after —
+  // if the row delete fails we must not have already destroyed the file.
   const { error: dbError } = await admin
     .from('opportunity_documents')
     .delete()
@@ -78,6 +72,14 @@ export async function DELETE(_request: NextRequest, { params }: RouteContext) {
 
   if (dbError) {
     return Response.json({ error: dbError.message }, { status: 500 })
+  }
+
+  const { error: storageError } = await admin.storage
+    .from('documents')
+    .remove([doc.storage_path])
+
+  if (storageError) {
+    console.error('Storage delete failed:', storageError.message)
   }
 
   return Response.json({ success: true })

@@ -12,15 +12,17 @@ import {
   AlertCircle,
   MinusCircle,
   RefreshCw,
+  Download,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import ReadAloudButton from '@/components/shared/ReadAloudButton'
-import { fetchDocumentText } from '@/lib/utils/document-links'
+import { viewDocument, downloadDocument, fetchDocumentText } from '@/lib/utils/document-links'
 
 export interface CompanyDoc {
   id: string
   file_name: string
   doc_type: string | null
+  mime_type: string | null
   ai_summary: string | null
   embedding_status: string | null
   uploaded_at: string | null
@@ -64,6 +66,28 @@ export default function CompanyKnowledgeBase({ documents }: CompanyKnowledgeBase
   const [docType, setDocType] = useState<string>('capability_statement')
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [reindexingId, setReindexingId] = useState<string | null>(null)
+  const [viewingId, setViewingId] = useState<string | null>(null)
+  const [downloadingId, setDownloadingId] = useState<string | null>(null)
+
+  async function handleView(doc: CompanyDoc) {
+    setViewingId(doc.id)
+    try {
+      const ok = await viewDocument(`/api/documents/${doc.id}`, doc.mime_type)
+      if (!ok) toast.error('Could not open the document. Please try again.')
+    } finally {
+      setViewingId(null)
+    }
+  }
+
+  async function handleDownload(doc: CompanyDoc) {
+    setDownloadingId(doc.id)
+    try {
+      const ok = await downloadDocument(`/api/documents/${doc.id}`)
+      if (!ok) toast.error('Could not generate download link. Please try again.')
+    } finally {
+      setDownloadingId(null)
+    }
+  }
 
   async function handleFiles(files: FileList | null) {
     if (!files || files.length === 0) return
@@ -198,7 +222,14 @@ export default function CompanyKnowledgeBase({ documents }: CompanyKnowledgeBase
               <FileText size={18} className="shrink-0 mt-0.5 text-muted-foreground" />
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <p className="text-sm font-medium text-foreground truncate">{doc.file_name}</p>
+                  <button
+                    onClick={() => handleView(doc)}
+                    disabled={viewingId === doc.id}
+                    className="max-w-full text-left text-sm font-medium text-foreground truncate hover:underline disabled:opacity-50"
+                    title="Open document"
+                  >
+                    {doc.file_name}
+                  </button>
                   {doc.doc_type && (
                     <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[11px] font-medium bg-muted text-muted-foreground">
                       {label(doc.doc_type)}
@@ -219,6 +250,15 @@ export default function CompanyKnowledgeBase({ documents }: CompanyKnowledgeBase
                 iconSize={15}
                 className="shrink-0 p-1.5 rounded-md hover:bg-muted"
               />
+              <button
+                onClick={() => handleDownload(doc)}
+                disabled={downloadingId === doc.id}
+                className="shrink-0 p-1.5 rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors disabled:opacity-50"
+                aria-label="Download document"
+                title="Download"
+              >
+                {downloadingId === doc.id ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} />}
+              </button>
               {doc.embedding_status !== 'complete' && (
                 <button
                   onClick={() => handleReindex(doc)}
