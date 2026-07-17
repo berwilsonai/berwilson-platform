@@ -371,7 +371,7 @@ export default function MapPageClient({
 
       {/* Toolbar */}
       <div className="absolute left-4 top-4 z-10 flex max-w-[calc(100%-6rem)] flex-wrap items-center gap-2">
-        <div className="flex items-center gap-1 rounded-lg border border-border bg-card p-1 shadow-sm elev-1">
+        <div className="flex items-center gap-1 rounded-lg border border-border bg-card p-1 elev-1">
           <button
             onClick={() => apiRef.current?.flyHome()}
             title="Back to Utah"
@@ -391,7 +391,7 @@ export default function MapPageClient({
         <MapSearch projects={visible} onPick={setSelectedId} />
 
         {/* Awarded / pipeline filter */}
-        <div className="flex items-center gap-0.5 rounded-lg border border-border bg-card p-1 shadow-sm elev-1">
+        <div className="flex items-center gap-0.5 rounded-lg border border-border bg-card p-1 elev-1">
           {(['all', ...MAP_PHASES] as const).map((ph) => (
             <button
               key={ph}
@@ -409,7 +409,7 @@ export default function MapPageClient({
 
         {/* Sector legend / filter */}
         {sectorsInUse.length > 1 && (
-          <div className="flex flex-wrap items-center gap-1 rounded-lg border border-border bg-card p-1 shadow-sm elev-1">
+          <div className="flex flex-wrap items-center gap-1 rounded-lg border border-border bg-card p-1 elev-1">
             {sectorsInUse.map((s) => {
               const off = hiddenSectors.has(s)
               return (
@@ -432,7 +432,7 @@ export default function MapPageClient({
           </div>
         )}
 
-        <span className="rounded-lg border border-border bg-card px-2.5 py-1 text-xs text-muted-foreground shadow-sm elev-1">
+        <span className="rounded-lg border border-border bg-card px-2.5 py-1 text-xs text-muted-foreground elev-1">
           <span className="tnum font-medium text-foreground">{visible.length}</span> projects
           {stats.awarded > 0 && (
             <>
@@ -461,7 +461,7 @@ export default function MapPageClient({
       {/* Placement / drawing banner */}
       {activeTarget && (
         <div className="absolute inset-x-0 top-4 z-10 flex justify-center px-16">
-          <div className="flex items-center gap-3 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 shadow-md dark:border-amber-500/40 dark:bg-amber-950 dark:text-amber-200">
+          <div className="flex items-center gap-3 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 elev-2 dark:border-amber-500/40 dark:bg-amber-950 dark:text-amber-200">
             <span>
               {placingId
                 ? `Click the map to place “${activeTargetName}”`
@@ -480,7 +480,7 @@ export default function MapPageClient({
       {/* Basemap missing notice */}
       {basemapMissing && (
         <div className="absolute inset-x-0 bottom-16 z-10 flex justify-center px-4">
-          <div className="rounded-lg border border-border bg-card px-3 py-2 text-xs text-muted-foreground shadow-md">
+          <div className="rounded-lg border border-border bg-card px-3 py-2 text-xs text-muted-foreground elev-2">
             Basemap not installed on this machine — run <code className="font-mono">scripts/setup-map-data.sh</code>, then redeploy.
           </div>
         </div>
@@ -496,7 +496,7 @@ export default function MapPageClient({
       {/* Present-mode tour bar */}
       {present && !activeTarget && tour.length > 0 && (
         <div className="absolute inset-x-0 bottom-6 z-10 flex justify-center px-4">
-          <div className="flex items-center gap-0.5 rounded-lg border border-border bg-card p-1 shadow-md elev-2">
+          <div className="flex items-center gap-0.5 rounded-lg border border-border bg-card p-1 elev-2">
             <button
               onClick={() => stepTour(-1)}
               title="Previous project (←)"

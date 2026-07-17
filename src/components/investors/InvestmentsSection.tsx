@@ -189,7 +189,7 @@ export default function InvestmentsSection({ investorId, investments, projects, 
 
   const form = editingId !== null && (
     <div className="rounded-lg border border-primary/30 bg-primary/[0.03] p-4 space-y-4">
-      <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+      <h3 className="label-caps text-muted-foreground">
         {editingId === 'new' ? 'New Investment' : 'Edit Investment'}
       </h3>
 

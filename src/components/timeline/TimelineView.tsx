@@ -192,7 +192,7 @@ export default function TimelineView({ rows }: { rows: TimelineRow[] }) {
                         <span className={cn('inline-flex items-center rounded px-1 py-0.5 text-[9px] font-medium ring-1 ring-inset', STAGE_BADGE[row.stage])}>
                           {STAGE_LABELS[row.stage]}
                         </span>
-                        <span className="text-[10px] text-muted-foreground tabular-nums">{formatValue(row.estimatedValue)}</span>
+                        <span className="text-[10px] text-muted-foreground tnum">{formatValue(row.estimatedValue)}</span>
                       </div>
                     </Link>
                   </div>
@@ -214,7 +214,7 @@ export default function TimelineView({ rows }: { rows: TimelineRow[] }) {
                           )}
                         />
                         {/* Tooltip */}
-                        <div className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 hidden group-hover/marker:block z-20 whitespace-nowrap rounded bg-foreground text-background text-[10px] px-2 py-1 shadow-lg">
+                        <div className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 hidden group-hover/marker:block z-20 whitespace-nowrap rounded bg-foreground text-background text-[10px] px-2 py-1 elev-3">
                           <span className="font-semibold">{MARKER_STYLE[m.type].label}:</span> {m.label}
                           <br />
                           {new Date(m.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}

@@ -137,7 +137,7 @@ const inputCls =
 function FormField({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-1">
-      <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+      <label className="label-caps text-muted-foreground">
         {label}
       </label>
       {children}
@@ -500,7 +500,7 @@ function DdSection({ projectId, initialItems, parties }: DdSectionProps) {
             {['Category', 'Item', 'Severity', 'Status', 'Assigned To', ''].map((h, i) => (
               <div
                 key={i}
-                className="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground border-r last:border-r-0 border-border"
+                className="px-3 py-2 label-caps text-muted-foreground border-r last:border-r-0 border-border"
               >
                 {h}
               </div>
@@ -993,7 +993,7 @@ function ComplianceSection({
                 ].map((h, i) => (
                   <th
                     key={i}
-                    className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground border-r last:border-r-0 border-border whitespace-nowrap"
+                    className="px-3 py-2 text-left label-caps text-muted-foreground border-r last:border-r-0 border-border whitespace-nowrap"
                   >
                     {h}
                   </th>

@@ -59,7 +59,7 @@ function chip(classes: string, label: string, key?: string) {
 }
 
 const SectionLabel = ({ children }: { children: React.ReactNode }) => (
-  <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+  <div className="label-caps text-muted-foreground">
     {children}
   </div>
 )

@@ -94,7 +94,7 @@ export default function ContactEnrichmentDisplay({
                 href={s.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 hover:underline truncate"
+                className="flex items-center gap-1 text-xs text-primary hover:underline truncate"
               >
                 <ExternalLink size={9} className="shrink-0" />
                 <span className="truncate">{s.title ?? s.url}</span>

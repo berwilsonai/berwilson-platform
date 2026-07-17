@@ -37,22 +37,22 @@ function ProgramBanner({
   const status = program.status ?? 'active'
 
   return (
-    <div className="flex items-stretch gap-0 rounded-lg border border-violet-200 dark:border-violet-800/60 bg-violet-50/40 dark:bg-violet-950/40 shadow-sm overflow-hidden">
+    <div className="flex items-stretch gap-0 rounded-xl border border-border bg-card elev-1 overflow-hidden">
       <Link
         href={`/projects/${program.id}`}
-        className="group flex items-center gap-4 px-5 py-4 flex-1 min-w-0 hover:bg-violet-50/70 dark:hover:bg-violet-950/40 transition-colors"
+        className="group flex items-center gap-4 px-5 py-4 flex-1 min-w-0 hover:bg-accent/50 transition-colors"
       >
         {/* Icon */}
-        <div className="flex items-center justify-center w-9 h-9 rounded-md bg-violet-100 dark:bg-violet-900/40 text-violet-600 dark:text-violet-400 shrink-0">
+        <div className="flex items-center justify-center w-9 h-9 rounded-md bg-muted text-muted-foreground shrink-0">
           <Layers size={18} />
         </div>
 
         {/* Name + entity */}
         <div className="min-w-0 flex-1">
-          <p className="text-[10px] font-semibold tracking-widest uppercase text-violet-500 dark:text-violet-400 mb-0.5">
+          <p className="label-caps text-muted-foreground mb-0.5">
             Program
           </p>
-          <h2 className="text-[15px] font-semibold text-foreground leading-tight group-hover:text-violet-700 dark:group-hover:text-violet-300 transition-colors truncate">
+          <h2 className="text-sm font-semibold text-foreground leading-tight group-hover:text-primary transition-colors truncate">
             {program.name}
           </h2>
           {program.client_entity && (
@@ -78,7 +78,7 @@ function ProgramBanner({
           >
             {STATUS_LABELS[status]}
           </span>
-          <span className="text-sm font-bold tabular-nums text-foreground">
+          <span className="text-sm font-bold tnum text-foreground">
             {formatValue(program.estimated_value)}
           </span>
           <span className="hidden md:inline-flex items-center gap-1 text-xs text-muted-foreground border border-border rounded px-2 py-0.5 bg-background">
@@ -92,7 +92,7 @@ function ProgramBanner({
       <button
         onClick={onToggle}
         title={isCollapsed ? 'Expand sub-projects' : 'Collapse sub-projects'}
-        className="flex items-center justify-center w-10 border-l border-violet-200 dark:border-violet-800/60 text-violet-400 hover:text-violet-600 dark:hover:text-violet-400 hover:bg-violet-100/60 dark:hover:bg-violet-900/40 transition-colors shrink-0"
+        className="flex items-center justify-center w-10 border-l border-border text-muted-foreground hover:text-foreground hover:bg-accent transition-colors shrink-0"
       >
         <ChevronDown
           size={16}
@@ -235,7 +235,7 @@ export default function ProjectsClient({ projects: initialProjects, stageFilter 
 
   const viewToggle = (
     <div className="flex items-center gap-2 shrink-0">
-      <span className="hidden sm:inline text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+      <span className="hidden sm:inline label-caps text-muted-foreground">
         View
       </span>
       <div className="flex items-center rounded-md border border-border overflow-hidden text-xs">
@@ -365,9 +365,9 @@ export default function ProjectsClient({ projects: initialProjects, stageFilter 
                     </span>
                   </div>
                   <div className="flex items-center justify-between mt-1.5 text-xs">
-                    <span className="font-semibold tabular-nums text-foreground">{formatValue(colValue)}</span>
+                    <span className="font-semibold tnum text-foreground">{formatValue(colValue)}</span>
                     {colWeighted > 0 && (
-                      <span className="tabular-nums text-emerald-600 dark:text-emerald-400">{formatValue(colWeighted)} wtd</span>
+                      <span className="tnum text-emerald-600 dark:text-emerald-400">{formatValue(colWeighted)} wtd</span>
                     )}
                   </div>
                 </div>
@@ -409,7 +409,7 @@ export default function ProjectsClient({ projects: initialProjects, stageFilter 
               onToggle={() => toggleProgram(parent.id)}
             />
             {!isCollapsed && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 pl-5 border-l-2 border-violet-200 dark:border-violet-800/60 ml-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 pl-5 border-l-2 border-border ml-4">
                 {children.map(child => (
                   <DeletableCard
                     key={child.id}
@@ -431,7 +431,7 @@ export default function ProjectsClient({ projects: initialProjects, stageFilter 
       {view === 'program' && programs.length > 0 && standalone.length > 0 && (
         <div className="flex items-center gap-3 py-1">
           <div className="h-px flex-1 bg-border" />
-          <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
+          <span className="label-caps text-muted-foreground">
             Independent Projects
           </span>
           <div className="h-px flex-1 bg-border" />

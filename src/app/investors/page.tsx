@@ -181,7 +181,7 @@ export default async function InvestorsPage({ searchParams }: PageProps) {
       {raises.length > 0 && (
         <section className="space-y-3">
           <div className="flex items-center justify-between gap-3">
-            <h2 className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+            <h2 className="label-caps text-muted-foreground">
               Capital Raises <span className="tnum font-normal">({raises.length})</span>
             </h2>
             <TrancheBarLegend />

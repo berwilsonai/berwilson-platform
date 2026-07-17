@@ -58,7 +58,7 @@ export default function MapSearch({ projects, onPick }: MapSearchProps) {
 
   return (
     <div className="relative">
-      <div className="flex h-9 w-44 items-center gap-1.5 rounded-lg border border-border bg-card px-2 shadow-sm elev-1">
+      <div className="flex h-9 w-44 items-center gap-1.5 rounded-lg border border-border bg-card px-2 elev-1">
         <Search size={13} className="shrink-0 text-muted-foreground" />
         <input
           ref={inputRef}
@@ -76,7 +76,7 @@ export default function MapSearch({ projects, onPick }: MapSearchProps) {
       </div>
 
       {open && (
-        <div className="absolute left-0 top-full z-20 mt-1 w-72 overflow-hidden rounded-lg border border-border bg-card shadow-md elev-2">
+        <div className="absolute left-0 top-full z-20 mt-1 w-72 overflow-hidden rounded-lg border border-border bg-card elev-2">
           {matches.map((p, i) => (
             <button
               key={p.id}

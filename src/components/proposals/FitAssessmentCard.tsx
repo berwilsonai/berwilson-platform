@@ -24,7 +24,7 @@ function FitList({ title, items, tone }: { title: string; items: string[]; tone:
   if (!items?.length) return null
   return (
     <div className="space-y-1">
-      <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{title}</p>
+      <p className="label-caps text-muted-foreground">{title}</p>
       <ul className="space-y-1">
         {items.map((it, i) => (
           <li key={i} className={`text-xs leading-relaxed flex gap-1.5 ${tone}`}>
@@ -46,7 +46,7 @@ export default function FitAssessmentCard({ fit }: { fit: FitAssessment }) {
         <Target size={18} className={`${s.text} shrink-0 mt-0.5`} />
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Ber AI Fit Assessment</span>
+            <span className="label-caps text-muted-foreground">Ber AI Fit Assessment</span>
             <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-bold ${s.text} bg-background ring-1 ring-inset ${s.ring}`}>
               <s.Icon size={11} /> {s.label}
             </span>
@@ -54,7 +54,7 @@ export default function FitAssessmentCard({ fit }: { fit: FitAssessment }) {
           {fit.summary && <p className="text-sm text-foreground mt-1.5 leading-relaxed">{fit.summary}</p>}
         </div>
         <div className="text-right shrink-0">
-          <div className={`text-2xl font-bold tabular-nums ${s.text}`}>{fit.fit_score}</div>
+          <div className={`text-2xl font-bold tnum ${s.text}`}>{fit.fit_score}</div>
           <div className="text-[10px] uppercase tracking-wide text-muted-foreground">fit / 100</div>
         </div>
       </div>

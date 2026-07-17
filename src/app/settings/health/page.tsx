@@ -314,7 +314,7 @@ export default async function SystemHealthPage() {
 
       <div className="rounded-xl border border-border bg-card elev-1">
         <div className="border-b border-border px-4 py-3">
-          <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+          <span className="label-caps text-muted-foreground">
             Checks
           </span>
           <span className="tnum ml-2 text-[11px] text-muted-foreground">{checks.length}</span>

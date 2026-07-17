@@ -2,23 +2,25 @@ import * as React from "react"
 
 import { cn } from "@/lib/utils"
 
-function Card({
+/**
+ * Panel — the app's one card language.
+ * Top-level page panels: `<Panel>` (rounded-xl border bg-card elev-1).
+ * Nested sub-blocks inside a panel: plain `rounded-md bg-muted/30` divs — no
+ * border, no shadow (don't nest Panels).
+ */
+function Panel({
   className,
-  size = "default",
   interactive = false,
   ...props
 }: React.ComponentProps<"div"> & {
-  size?: "default" | "sm"
-  /** Adds a hover lift + glow. Use on clickable cards (wrapped in a Link/button). */
+  /** Adds hover lift. Use on clickable panels (wrapped in a Link/button). */
   interactive?: boolean
 }) {
   return (
     <div
-      data-slot="card"
-      data-size={size}
       className={cn(
-        "group/card flex flex-col gap-4 overflow-hidden rounded-xl bg-card py-4 text-sm text-card-foreground elev-1 ring-1 ring-foreground/[0.06] has-data-[slot=card-footer]:pb-0 has-[>img:first-child]:pt-0 data-[size=sm]:gap-3 data-[size=sm]:py-3 data-[size=sm]:has-data-[slot=card-footer]:pb-0 *:[img:first-child]:rounded-t-xl *:[img:last-child]:rounded-b-xl",
-        interactive && "lift cursor-pointer hover:ring-foreground/10",
+        "rounded-xl border border-border bg-card elev-1",
+        interactive && "lift",
         className
       )}
       {...props}
@@ -26,84 +28,29 @@ function Card({
   )
 }
 
-function CardHeader({ className, ...props }: React.ComponentProps<"div">) {
+/**
+ * PanelHeader — the canonical small-caps header row: 11px muted label with an
+ * optional tabular count, plus room for actions on the right.
+ */
+function PanelHeader({
+  label,
+  count,
+  className,
+  children,
+  ...props
+}: React.ComponentProps<"div"> & {
+  label: React.ReactNode
+  count?: number | string
+}) {
   return (
-    <div
-      data-slot="card-header"
-      className={cn(
-        "group/card-header @container/card-header grid auto-rows-min items-start gap-1 rounded-t-xl px-4 group-data-[size=sm]/card:px-3 has-data-[slot=card-action]:grid-cols-[1fr_auto] has-data-[slot=card-description]:grid-rows-[auto_auto] [.border-b]:pb-4 group-data-[size=sm]/card:[.border-b]:pb-3",
-        className
-      )}
-      {...props}
-    />
+    <div className={cn("flex items-center justify-between gap-2 px-4 py-2.5 border-b border-border", className)} {...props}>
+      <h2 className="label-caps text-muted-foreground flex items-center gap-1.5">
+        {label}
+        {count !== undefined && <span className="tnum font-medium normal-case tracking-normal">{count}</span>}
+      </h2>
+      {children}
+    </div>
   )
 }
 
-function CardTitle({ className, ...props }: React.ComponentProps<"div">) {
-  return (
-    <div
-      data-slot="card-title"
-      className={cn(
-        "text-base leading-snug font-medium group-data-[size=sm]/card:text-sm",
-        className
-      )}
-      {...props}
-    />
-  )
-}
-
-function CardDescription({ className, ...props }: React.ComponentProps<"div">) {
-  return (
-    <div
-      data-slot="card-description"
-      className={cn("text-sm text-muted-foreground", className)}
-      {...props}
-    />
-  )
-}
-
-function CardAction({ className, ...props }: React.ComponentProps<"div">) {
-  return (
-    <div
-      data-slot="card-action"
-      className={cn(
-        "col-start-2 row-span-2 row-start-1 self-start justify-self-end",
-        className
-      )}
-      {...props}
-    />
-  )
-}
-
-function CardContent({ className, ...props }: React.ComponentProps<"div">) {
-  return (
-    <div
-      data-slot="card-content"
-      className={cn("px-4 group-data-[size=sm]/card:px-3", className)}
-      {...props}
-    />
-  )
-}
-
-function CardFooter({ className, ...props }: React.ComponentProps<"div">) {
-  return (
-    <div
-      data-slot="card-footer"
-      className={cn(
-        "flex items-center rounded-b-xl border-t bg-muted/50 p-4 group-data-[size=sm]/card:p-3",
-        className
-      )}
-      {...props}
-    />
-  )
-}
-
-export {
-  Card,
-  CardHeader,
-  CardFooter,
-  CardTitle,
-  CardAction,
-  CardDescription,
-  CardContent,
-}
+export { Panel, PanelHeader }

@@ -1,6 +1,6 @@
-import { CalendarDays } from 'lucide-react'
 import { createAdminClient } from '@/lib/supabase/admin'
 import CalendarView from '@/components/calendar/CalendarView'
+import IntelSectionTabs from '@/components/intel/IntelSectionTabs'
 import { fetchOpenTasks } from '@/lib/tasks/queries'
 
 export const metadata = { title: 'Calendar — Ber Wilson Intelligence' }
@@ -125,17 +125,11 @@ export default async function CalendarPage() {
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
-      <div className="flex items-center gap-3">
-        <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-primary/10">
-          <CalendarDays size={16} className="text-primary" />
-        </div>
-        <div>
-          <h1 className="text-lg font-semibold text-foreground">Portfolio Calendar</h1>
-          <p className="text-xs text-muted-foreground">
-            Bid deadlines, milestones, compliance, and action items across all projects
-          </p>
-        </div>
-      </div>
+      <IntelSectionTabs active="calendar" />
+
+      <p className="text-xs text-muted-foreground">
+        Bid deadlines, milestones, compliance, and action items across all projects
+      </p>
 
       <CalendarView events={events} />
     </div>

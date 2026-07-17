@@ -220,7 +220,7 @@ export default function RaiseForm({ projects, initial }: RaiseFormProps) {
       {/* Tranches */}
       <div className="rounded-xl border border-border bg-card p-4 elev-1 space-y-3">
         <div className="flex items-center justify-between">
-          <h3 className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+          <h3 className="label-caps text-muted-foreground">
             Tranches <span className="font-normal normal-case">(targets — commitments fill them in order)</span>
           </h3>
           {trancheSum > 0 && (

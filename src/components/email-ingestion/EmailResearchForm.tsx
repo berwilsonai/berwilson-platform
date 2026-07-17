@@ -53,7 +53,7 @@ export default function EmailResearchForm() {
   return (
     <form onSubmit={submit} className="rounded-lg border border-border bg-card p-4 sm:p-5 space-y-4">
       <div className="space-y-1.5">
-        <label htmlFor="searchTerm" className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+        <label htmlFor="searchTerm" className="label-caps text-muted-foreground">
           Search term (person, email, or project keyword)
         </label>
         <input
@@ -70,7 +70,7 @@ export default function EmailResearchForm() {
 
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-1.5">
-          <label htmlFor="label" className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+          <label htmlFor="label" className="label-caps text-muted-foreground">
             Label <span className="font-normal normal-case text-muted-foreground/70">(optional)</span>
           </label>
           <input
@@ -85,7 +85,7 @@ export default function EmailResearchForm() {
         </div>
 
         <div className="space-y-1.5">
-          <label htmlFor="sinceDays" className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+          <label htmlFor="sinceDays" className="label-caps text-muted-foreground">
             Time range
           </label>
           <select

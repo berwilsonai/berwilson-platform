@@ -64,7 +64,7 @@ function Field({ label, value }: { label: string; value: string | null | undefin
 function SectionHeader({ title, children }: { title: string; children?: React.ReactNode }) {
   return (
     <div className="flex items-center justify-between">
-      <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{title}</h2>
+      <h2 className="label-caps text-muted-foreground">{title}</h2>
       {children}
     </div>
   )
@@ -410,7 +410,7 @@ export default function CompanyProfileClient({ profile, certifications: initialC
           <form action={saveAction} className="space-y-6">
             {/* Identity fields */}
             <div className="rounded-lg border border-border p-4 space-y-4">
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Identity</p>
+              <p className="label-caps text-muted-foreground">Identity</p>
               <div className="grid grid-cols-2 gap-4">
                 <InputRow label="Legal Name *" name="legal_name" defaultValue={profile.legal_name} />
                 <InputRow label="DBA / Trade Name" name="dba_name" defaultValue={profile.dba_name} />
@@ -426,7 +426,7 @@ export default function CompanyProfileClient({ profile, certifications: initialC
 
             {/* Narrative */}
             <div className="rounded-lg border border-border p-4 space-y-4">
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Narrative (used by AI for RFP matching & due diligence)</p>
+              <p className="label-caps text-muted-foreground">Narrative (used by AI for RFP matching & due diligence)</p>
               <TextAreaRow
                 label="About Ber Wilson"
                 name="about"
@@ -445,7 +445,7 @@ export default function CompanyProfileClient({ profile, certifications: initialC
 
             {/* Classifications */}
             <div className="rounded-lg border border-border p-4 space-y-4">
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Classifications</p>
+              <p className="label-caps text-muted-foreground">Classifications</p>
               <div className="grid grid-cols-2 gap-4">
                 <InputRow
                   label="NAICS Codes (comma-separated)"
@@ -464,7 +464,7 @@ export default function CompanyProfileClient({ profile, certifications: initialC
 
             {/* Diversity status */}
             <div className="rounded-lg border border-border p-4 space-y-3">
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Diversity / Small Business Status</p>
+              <p className="label-caps text-muted-foreground">Diversity / Small Business Status</p>
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                 {(['dbe', 'mbe', 'wbe', 'sbe'] as const).map(key => (
                   <label key={key} className="flex items-center gap-2 cursor-pointer">
@@ -489,7 +489,7 @@ export default function CompanyProfileClient({ profile, certifications: initialC
 
             {/* Bonding */}
             <div className="rounded-lg border border-border p-4 space-y-4">
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Bonding & Insurance</p>
+              <p className="label-caps text-muted-foreground">Bonding & Insurance</p>
               <div className="grid grid-cols-3 gap-4">
                 <InputRow label="Single Project Bonding Capacity ($)" name="bonding_capacity" type="number" defaultValue={profile.bonding_capacity?.toString()} />
                 <InputRow label="Aggregate Bonding Capacity ($)" name="aggregate_bonding" type="number" defaultValue={profile.aggregate_bonding?.toString()} />
@@ -499,7 +499,7 @@ export default function CompanyProfileClient({ profile, certifications: initialC
 
             {/* Pursuit Profile */}
             <div className="rounded-lg border border-border p-4 space-y-4">
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+              <p className="label-caps text-muted-foreground">
                 Pursuit Profile — what Ber Wilson goes after (drives the AI fit assessment on proposal intake)
               </p>
               <CheckboxGroup
@@ -614,7 +614,7 @@ export default function CompanyProfileClient({ profile, certifications: initialC
             {/* About */}
             {profile.about && (
               <div className="space-y-1.5">
-                <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">About</h3>
+                <h3 className="label-caps text-muted-foreground">About</h3>
                 <p className="text-sm leading-relaxed whitespace-pre-line">{profile.about}</p>
               </div>
             )}
@@ -622,14 +622,14 @@ export default function CompanyProfileClient({ profile, certifications: initialC
             {/* Capabilities */}
             {profile.capabilities && (
               <div className="space-y-1.5">
-                <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Capabilities & Services</h3>
+                <h3 className="label-caps text-muted-foreground">Capabilities & Services</h3>
                 <p className="text-sm leading-relaxed whitespace-pre-line">{profile.capabilities}</p>
               </div>
             )}
 
             {/* Classifications + Diversity */}
             <div className="space-y-3">
-              <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Classifications & Status</h3>
+              <h3 className="label-caps text-muted-foreground">Classifications & Status</h3>
               <div className="flex flex-wrap gap-2">
                 <BooleanBadge label="DBE" active={profile.dbe_certified} />
                 <BooleanBadge label="MBE" active={profile.mbe_certified} />
@@ -651,7 +651,7 @@ export default function CompanyProfileClient({ profile, certifications: initialC
             {/* Bonding */}
             {(profile.bonding_capacity || profile.aggregate_bonding || profile.bonding_company) && (
               <div className="space-y-2">
-                <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Bonding & Insurance</h3>
+                <h3 className="label-caps text-muted-foreground">Bonding & Insurance</h3>
                 <dl className="grid grid-cols-3 gap-x-6 gap-y-2">
                   <Field label="Single Project" value={formatCurrency(profile.bonding_capacity)} />
                   <Field label="Aggregate" value={formatCurrency(profile.aggregate_bonding)} />
@@ -663,7 +663,7 @@ export default function CompanyProfileClient({ profile, certifications: initialC
             {/* Pursuit Profile */}
             <div className="space-y-3 pt-2 border-t border-border">
               <div className="flex items-center justify-between">
-                <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Pursuit Profile</h3>
+                <h3 className="label-caps text-muted-foreground">Pursuit Profile</h3>
                 <button
                   type="button"
                   onClick={() => setEditing(true)}
@@ -702,13 +702,13 @@ export default function CompanyProfileClient({ profile, certifications: initialC
 
               {profile.differentiators && (
                 <div className="space-y-1">
-                  <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Differentiators / Win Themes</h4>
+                  <h4 className="label-caps text-muted-foreground">Differentiators / Win Themes</h4>
                   <p className="text-sm leading-relaxed whitespace-pre-line">{profile.differentiators}</p>
                 </div>
               )}
               {profile.past_performance && (
                 <div className="space-y-1">
-                  <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Relevant Past Performance</h4>
+                  <h4 className="label-caps text-muted-foreground">Relevant Past Performance</h4>
                   <p className="text-sm leading-relaxed whitespace-pre-line">{profile.past_performance}</p>
                 </div>
               )}
@@ -720,7 +720,7 @@ export default function CompanyProfileClient({ profile, certifications: initialC
               )}
               {profile.pursuit_notes && (
                 <div className="space-y-1">
-                  <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Current Appetite Notes</h4>
+                  <h4 className="label-caps text-muted-foreground">Current Appetite Notes</h4>
                   <p className="text-sm leading-relaxed whitespace-pre-line">{profile.pursuit_notes}</p>
                 </div>
               )}

@@ -357,7 +357,7 @@ export default async function ContactDetailPage({ params, searchParams }: PagePr
             <div className="lg:col-span-2 space-y-6">
               {/* Contact info */}
               <section>
-                <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
+                <h2 className="label-caps text-muted-foreground mb-3">
                   Contact Info
                 </h2>
                 <div className="rounded-lg border border-border bg-card p-4 space-y-3">
@@ -393,7 +393,7 @@ export default async function ContactDetailPage({ params, searchParams }: PagePr
 
               {/* Company + tags */}
               <section>
-                <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
+                <h2 className="label-caps text-muted-foreground mb-3">
                   Company &amp; Tags
                 </h2>
                 <div className="rounded-lg border border-border bg-card p-4 space-y-3">
@@ -408,7 +408,7 @@ export default async function ContactDetailPage({ params, searchParams }: PagePr
 
               {/* Relationship notes */}
               <section>
-                <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
+                <h2 className="label-caps text-muted-foreground mb-3">
                   Relationship Notes
                 </h2>
                 <div className="rounded-lg border border-border bg-card p-4">
@@ -422,7 +422,7 @@ export default async function ContactDetailPage({ params, searchParams }: PagePr
               {/* Team / co-workers */}
               {teamMembers.length > 0 && (
                 <section>
-                  <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
+                  <h2 className="label-caps text-muted-foreground mb-3">
                     {party.is_organization ? 'Team' : `Others at ${party.company}`}
                   </h2>
                   <div className="rounded-lg border border-border bg-card divide-y divide-border">
@@ -456,7 +456,7 @@ export default async function ContactDetailPage({ params, searchParams }: PagePr
             {/* Right: quick stats */}
             <div className="space-y-4">
               <section>
-                <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
+                <h2 className="label-caps text-muted-foreground mb-3">
                   Quick Stats
                 </h2>
                 <div className="rounded-lg border border-border bg-card p-4 space-y-3">
@@ -498,7 +498,7 @@ export default async function ContactDetailPage({ params, searchParams }: PagePr
 
               {/* Enrich Profile */}
               <section>
-                <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
+                <h2 className="label-caps text-muted-foreground mb-3">
                   Intelligence
                 </h2>
                 <div className="rounded-lg border border-border bg-card p-4">
@@ -512,7 +512,7 @@ export default async function ContactDetailPage({ params, searchParams }: PagePr
               {/* Enrichment notes (if available) */}
               {party.enrichment_notes && (
                 <section>
-                  <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
+                  <h2 className="label-caps text-muted-foreground mb-3">
                     Research Notes
                   </h2>
                   <div className="rounded-lg border border-border bg-card p-4">
@@ -668,7 +668,7 @@ export default async function ContactDetailPage({ params, searchParams }: PagePr
           <div className="space-y-6">
             {/* Updates */}
             <section>
-              <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
+              <h2 className="label-caps text-muted-foreground mb-3">
                 Updates
               </h2>
               {activityUpdates.length === 0 ? (
@@ -681,7 +681,7 @@ export default async function ContactDetailPage({ params, searchParams }: PagePr
                       <div key={u.id} className="px-4 py-3 space-y-1">
                         <div className="flex items-center justify-between gap-2">
                           {proj && (
-                            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                            <span className="label-caps text-muted-foregroundr">
                               {proj.name}
                             </span>
                           )}
@@ -708,7 +708,7 @@ export default async function ContactDetailPage({ params, searchParams }: PagePr
             {/* DD items */}
             {ddItems.length > 0 && (
               <section>
-                <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
+                <h2 className="label-caps text-muted-foreground mb-3">
                   Due Diligence Items Assigned
                 </h2>
                 <div className="rounded-lg border border-border divide-y divide-border">
@@ -738,7 +738,7 @@ export default async function ContactDetailPage({ params, searchParams }: PagePr
             {/* Compliance items */}
             {complianceItems.length > 0 && (
               <section>
-                <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
+                <h2 className="label-caps text-muted-foreground mb-3">
                   Compliance Responsibilities
                 </h2>
                 <div className="rounded-lg border border-border divide-y divide-border">
@@ -783,7 +783,7 @@ export default async function ContactDetailPage({ params, searchParams }: PagePr
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-2 space-y-6">
               <section>
-                <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
+                <h2 className="label-caps text-muted-foreground mb-3">
                   Relationship Notes
                 </h2>
                 <div className="rounded-lg border border-border bg-card p-4">
@@ -798,7 +798,7 @@ export default async function ContactDetailPage({ params, searchParams }: PagePr
             <div>
               {activityLog.length > 0 && (
                 <section>
-                  <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
+                  <h2 className="label-caps text-muted-foreground mb-3">
                     Edit History
                   </h2>
                   <div className="space-y-2">

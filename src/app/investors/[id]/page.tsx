@@ -314,7 +314,7 @@ export default async function InvestorDetailPage({ params }: PageProps) {
       {/* Background */}
       {investor.notes && (
         <section>
-          <h2 className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">
+          <h2 className="flex items-center gap-1.5 label-caps text-muted-foreground mb-2">
             <StickyNote size={13} /> Background
           </h2>
           <p className="text-sm text-foreground whitespace-pre-wrap">{investor.notes}</p>

@@ -88,7 +88,7 @@ function ArtifactCard({ artifact }: { artifact: ResearchArtifact }) {
           </p>
           {sources.length > 0 && (
             <div className="space-y-1">
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              <p className="label-caps text-muted-foreground">
                 Sources
               </p>
               <div className="space-y-1">
@@ -98,7 +98,7 @@ function ArtifactCard({ artifact }: { artifact: ResearchArtifact }) {
                     href={s.url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center gap-1.5 text-xs text-blue-600 dark:text-blue-400 hover:underline truncate"
+                    className="flex items-center gap-1.5 text-xs text-primary hover:underline truncate"
                   >
                     <ExternalLink size={11} className="shrink-0" />
                     <span className="truncate">{s.title ?? s.url}</span>
@@ -225,7 +225,7 @@ export default function ResearchPanel({
       {/* Query suggestions */}
       {!panelOpen && suggestions.length > 0 && (
         <div className="space-y-2">
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          <p className="label-caps text-muted-foreground">
             Suggested Queries
           </p>
           <div className="flex flex-wrap gap-2">
@@ -313,7 +313,7 @@ export default function ResearchPanel({
           {result && (
             <div className="space-y-3 border-t border-border pt-4">
               <div className="flex items-center justify-between gap-2">
-                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                <p className="label-caps text-muted-foreground">
                   Result
                 </p>
                 {savedId ? (
@@ -345,7 +345,7 @@ export default function ResearchPanel({
 
               {result.sources.length > 0 && (
                 <div className="space-y-1">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  <p className="label-caps text-muted-foreground">
                     Sources ({result.sources.length})
                   </p>
                   <div className="space-y-1">
@@ -355,7 +355,7 @@ export default function ResearchPanel({
                         href={s.url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="flex items-center gap-1.5 text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                        className="flex items-center gap-1.5 text-xs text-primary hover:underline"
                       >
                         <ExternalLink size={11} className="shrink-0" />
                         <span className="truncate">{s.title ?? s.url}</span>
@@ -384,7 +384,7 @@ export default function ResearchPanel({
       {/* Saved artifacts */}
       {artifacts.length > 0 && (
         <div className="space-y-2">
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          <p className="label-caps text-muted-foreground">
             Saved Research ({artifacts.length})
           </p>
           <div className="space-y-2">

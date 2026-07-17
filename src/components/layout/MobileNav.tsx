@@ -3,51 +3,9 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useState } from 'react'
-import {
-  LayoutDashboard,
-  FolderKanban,
-  CalendarDays,
-  ClipboardCheck,
-  Brain,
-  MoreHorizontal,
-  Users,
-  Shield,
-  Activity,
-  FileUp,
-  ListTodo,
-  Lightbulb,
-  Inbox,
-  Target,
-  UserCog,
-  HeartPulse,
-  X,
-  Map as MapIcon,
-  HandCoins,
-} from 'lucide-react'
+import { MoreHorizontal, FileUp, X } from 'lucide-react'
 import { canAccessPage, type Role } from '@/lib/auth/permissions'
-
-const PRIMARY_NAV = [
-  { href: '/tasks', label: 'Tasks', icon: ListTodo },
-  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/projects', label: 'Projects', icon: FolderKanban },
-  { href: '/intel', label: 'Intel', icon: Brain },
-  { href: '/review', label: 'Review', icon: ClipboardCheck, hasBadge: true },
-] as const
-
-const MORE_NAV = [
-  { href: '/objectives', label: 'Objectives', icon: Target },
-  { href: '/opportunities', label: 'Opportunities', icon: Lightbulb },
-  { href: '/investors', label: 'Investors', icon: HandCoins },
-  { href: '/map', label: 'Map', icon: MapIcon },
-  { href: '/proposals/intake', label: 'Proposal Intake', icon: FileUp },
-  { href: '/email-ingestion', label: 'Email Intake', icon: Inbox },
-  { href: '/calendar', label: 'Calendar', icon: CalendarDays },
-  { href: '/contacts', label: 'Contacts & Vendors', icon: Users },
-  { href: '/company', label: 'Ber Wilson', icon: Shield },
-  { href: '/activity', label: 'Activity', icon: Activity },
-  { href: '/settings/users', label: 'Users & Access', icon: UserCog },
-  { href: '/settings/health', label: 'System Health', icon: HeartPulse },
-] as const
+import { NAV_ITEMS, navItemActive } from '@/lib/nav'
 
 interface MobileNavProps {
   pendingCount?: number
@@ -59,12 +17,11 @@ export default function MobileNav({ pendingCount = 0, role = 'admin' }: MobileNa
   const [moreOpen, setMoreOpen] = useState(false)
   const isAdmin = role === 'admin'
 
-  const primaryNav = PRIMARY_NAV.filter(({ href }) => canAccessPage(role, href))
-  const moreNav = MORE_NAV.filter(({ href }) => canAccessPage(role, href))
+  const accessible = NAV_ITEMS.filter(({ href }) => canAccessPage(role, href))
+  const primaryNav = accessible.filter((item) => item.mobilePrimary)
+  const moreNav = accessible.filter((item) => !item.mobilePrimary)
 
-  const moreActive = moreNav.some(
-    ({ href }) => pathname === href || pathname.startsWith(href + '/')
-  )
+  const moreActive = moreNav.some((item) => navItemActive(item, pathname))
 
   return (
     <>
@@ -86,7 +43,7 @@ export default function MobileNav({ pendingCount = 0, role = 'admin' }: MobileNa
         }}
       >
         <div className="flex items-center justify-between px-4 py-3 border-b border-sidebar-border">
-          <span className="text-xs font-semibold text-sidebar-foreground/75 uppercase tracking-wider">
+          <span className="label-caps text-sidebar-foreground/75">
             More
           </span>
           <button
@@ -111,8 +68,9 @@ export default function MobileNav({ pendingCount = 0, role = 'admin' }: MobileNa
               Upload
             </button>
           )}
-          {moreNav.map(({ href, label, icon: Icon }) => {
-            const active = pathname === href || pathname.startsWith(href + '/')
+          {moreNav.map((item) => {
+            const { href, label, icon: Icon } = item
+            const active = navItemActive(item, pathname)
             return (
               <Link
                 key={href}
@@ -136,9 +94,12 @@ export default function MobileNav({ pendingCount = 0, role = 'admin' }: MobileNa
         style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
       >
         <div className="flex">
-          {primaryNav.map(({ href, label, icon: Icon, ...rest }) => {
-            const active = pathname === href || pathname.startsWith(href + '/')
-            const showBadge = 'hasBadge' in rest && rest.hasBadge && pendingCount > 0
+          {primaryNav.map((item) => {
+            const { href, icon: Icon, badge } = item
+            // The tab bar uses short labels; "Review Queue" reads as "Review".
+            const label = href === '/review' ? 'Review' : item.label
+            const active = navItemActive(item, pathname)
+            const showBadge = badge === 'review' && pendingCount > 0
             return (
               <Link
                 key={href}

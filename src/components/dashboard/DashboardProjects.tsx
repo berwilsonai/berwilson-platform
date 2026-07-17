@@ -145,7 +145,7 @@ export default function DashboardProjects({ projects, counts }: DashboardProject
                     {items.length}
                   </span>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 stagger-children">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {items.map(p => (
                     <ProjectCard
                       key={p.id}

@@ -88,7 +88,7 @@ function DiffRow({
       )}
     >
       <div className="flex items-center gap-1.5">
-        <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        <span className="label-caps text-muted-foreground">
           {FIELD_LABELS[field] ?? field}
         </span>
         {isConflict && (
@@ -111,7 +111,7 @@ function DiffRow({
             href={enriched}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 text-blue-600 dark:text-blue-400 hover:underline"
+            className="inline-flex items-center gap-1 text-primary hover:underline"
           >
             {enriched} <ExternalLink size={11} />
           </a>
@@ -140,7 +140,7 @@ function NotesPreview({ notes }: { notes: EnrichmentNotes }) {
 
   return (
     <div className="rounded-md border border-blue-200 dark:border-blue-800/60 bg-blue-50/40 dark:bg-blue-950/40 px-3 py-2.5 space-y-2">
-      <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+      <span className="label-caps text-muted-foreground">
         Enrichment Notes
         <span className="ml-1.5 text-blue-700 dark:text-blue-300 font-medium normal-case">Will be saved to profile</span>
       </span>
@@ -337,7 +337,7 @@ export default function EnrichProfileButton({
         {/* Sources */}
         {preview.sources.length > 0 && (
           <div className="space-y-1 pt-1 border-t border-border">
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            <p className="label-caps text-muted-foreground">
               Sources
             </p>
             <div className="space-y-0.5 max-h-24 overflow-y-auto">
@@ -347,7 +347,7 @@ export default function EnrichProfileButton({
                   href={s.url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 hover:underline truncate"
+                  className="flex items-center gap-1 text-xs text-primary hover:underline truncate"
                 >
                   <ExternalLink size={10} className="shrink-0" />
                   <span className="truncate">{s.title ?? s.url}</span>

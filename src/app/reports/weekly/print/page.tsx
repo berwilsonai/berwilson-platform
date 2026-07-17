@@ -231,7 +231,7 @@ export default async function WeeklyReportPrintPage({ searchParams }: PageProps)
             <p className="text-sm text-slate-500 mt-1">
               Ber Wilson · Prepared <PreparedDate />
             </p>
-            <p className="text-sm text-slate-700 mt-2 tabular-nums">
+            <p className="text-sm text-slate-700 mt-2 tnum">
               {scopedOpen.length} open task{scopedOpen.length === 1 ? '' : 's'} · {overdueCount}{' '}
               overdue · {handoffs.length} handoff{handoffs.length === 1 ? '' : 's'}
               {staleHandoffs > 0 && <> ({staleHandoffs} stale ≥7d)</>}
@@ -251,19 +251,19 @@ export default async function WeeklyReportPrintPage({ searchParams }: PageProps)
             <ol className="mt-1 divide-y divide-slate-100">
               {nowObjectives.map((o, idx) => (
                 <li key={o.id} className="flex items-start gap-4 py-3 break-inside-avoid">
-                  <span className="shrink-0 mt-0.5 inline-flex items-center justify-center size-6 rounded-full bg-slate-900 text-white text-xs font-semibold tabular-nums">
+                  <span className="shrink-0 mt-0.5 inline-flex items-center justify-center size-6 rounded-full bg-slate-900 text-white text-xs font-semibold tnum">
                     {idx + 1}
                   </span>
                   <div className="min-w-0 flex-1">
                     <p className="text-base font-medium leading-snug">
                       {o.title}
                       {objectiveHealth(o.health) !== 'on_track' && (
-                        <span className="ml-2 inline-flex items-center rounded border border-slate-300 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-600 align-middle">
+                        <span className="ml-2 inline-flex items-center rounded border border-slate-300 px-1.5 py-0.5 label-caps text-slate-600 align-middle">
                           {OBJECTIVE_HEALTH_LABELS[objectiveHealth(o.health)]}
                         </span>
                       )}
                     </p>
-                    <p className="text-xs text-slate-500 mt-1 tabular-nums">
+                    <p className="text-xs text-slate-500 mt-1 tnum">
                       {o.owner && <>Owner: {o.owner.name} · </>}
                       {o.open} open task{o.open === 1 ? '' : 's'}
                       {o.overdue > 0 && <> · {o.overdue} overdue</>}
@@ -286,7 +286,7 @@ export default async function WeeklyReportPrintPage({ searchParams }: PageProps)
         <section className="mt-8 break-inside-avoid-page">
           <h2 className="text-xs font-semibold uppercase tracking-[0.15em] text-slate-500 pb-2 border-b border-slate-200">
             Handoffs — what people owe each other
-            <span className="ml-2 font-normal normal-case tracking-normal tabular-nums">
+            <span className="ml-2 font-normal normal-case tracking-normal tnum">
               {handoffs.length} open
             </span>
           </h2>
@@ -310,7 +310,7 @@ export default async function WeeklyReportPrintPage({ searchParams }: PageProps)
                         <span className="block text-xs text-slate-500">{taskLine(t)}</span>
                       </td>
                       <td
-                        className={`py-2 text-right whitespace-nowrap tabular-nums ${
+                        className={`py-2 text-right whitespace-nowrap tnum ${
                           stale ? 'font-semibold text-slate-900' : 'text-slate-500'
                         }`}
                       >
@@ -336,7 +336,7 @@ export default async function WeeklyReportPrintPage({ searchParams }: PageProps)
               <div key={member.id} className="mt-5 break-inside-avoid-page">
                 <h3 className="text-sm font-semibold border-b border-slate-100 pb-1">
                   {member.name}
-                  <span className="ml-2 font-normal text-xs text-slate-500 tabular-nums">
+                  <span className="ml-2 font-normal text-xs text-slate-500 tnum">
                     {overdue.length + dueThisWeek.length + noDate.length} open
                     {owes.length > 0 && <> · holding up {owes.length}</>}
                   </span>
@@ -348,11 +348,11 @@ export default async function WeeklyReportPrintPage({ searchParams }: PageProps)
                   <div className="mt-2 space-y-3">
                     {overdue.length > 0 && (
                       <div>
-                        <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Overdue</p>
+                        <p className="label-caps text-slate-500">Overdue</p>
                         <ul className="mt-1 space-y-1">
                           {overdue.map((t) => (
                             <li key={t.id} className="text-sm flex gap-2">
-                              <span className="shrink-0 tabular-nums text-slate-500 w-16">
+                              <span className="shrink-0 tnum text-slate-500 w-16">
                                 {formatDate(t.due_date)}
                               </span>
                               <span>{taskLine(t)}</span>
@@ -364,11 +364,11 @@ export default async function WeeklyReportPrintPage({ searchParams }: PageProps)
 
                     {dueThisWeek.length > 0 && (
                       <div>
-                        <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Due this week</p>
+                        <p className="label-caps text-slate-500">Due this week</p>
                         <ul className="mt-1 space-y-1">
                           {dueThisWeek.map((t) => (
                             <li key={t.id} className="text-sm flex gap-2">
-                              <span className="shrink-0 tabular-nums text-slate-500 w-16">
+                              <span className="shrink-0 tnum text-slate-500 w-16">
                                 {formatDate(t.due_date)}
                               </span>
                               <span>{taskLine(t)}</span>
@@ -380,7 +380,7 @@ export default async function WeeklyReportPrintPage({ searchParams }: PageProps)
 
                     {owes.length > 0 && (
                       <div>
-                        <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                        <p className="label-caps text-slate-500">
                           Owes others
                         </p>
                         <ul className="mt-1 space-y-1">
@@ -404,7 +404,7 @@ export default async function WeeklyReportPrintPage({ searchParams }: PageProps)
 
                     {blockedOn.length > 0 && (
                       <div>
-                        <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                        <p className="label-caps text-slate-500">
                           Waiting on others
                         </p>
                         <ul className="mt-1 space-y-1">
@@ -419,7 +419,7 @@ export default async function WeeklyReportPrintPage({ searchParams }: PageProps)
 
                     {noDate.length > 0 && (
                       <div>
-                        <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">No due date</p>
+                        <p className="label-caps text-slate-500">No due date</p>
                         <ul className="mt-1 space-y-1">
                           {noDate.map((t) => (
                             <li key={t.id} className="text-sm">
@@ -445,7 +445,7 @@ export default async function WeeklyReportPrintPage({ searchParams }: PageProps)
             <ul className="mt-2 divide-y divide-slate-100">
               {bids.map((p) => (
                 <li key={p.id} className="py-2 text-sm flex gap-3 break-inside-avoid">
-                  <span className="shrink-0 tabular-nums text-slate-500 w-24">
+                  <span className="shrink-0 tnum text-slate-500 w-24">
                     {formatDate(p.bid_due_date)}
                   </span>
                   <span>
@@ -455,7 +455,7 @@ export default async function WeeklyReportPrintPage({ searchParams }: PageProps)
               ))}
               {milestones.map((m) => (
                 <li key={m.id} className="py-2 text-sm flex gap-3 break-inside-avoid">
-                  <span className="shrink-0 tabular-nums text-slate-500 w-24">
+                  <span className="shrink-0 tnum text-slate-500 w-24">
                     {formatDate(m.target_date)}
                   </span>
                   <span>
@@ -472,7 +472,7 @@ export default async function WeeklyReportPrintPage({ searchParams }: PageProps)
         <section className="mt-8 break-inside-avoid-page">
           <h2 className="text-xs font-semibold uppercase tracking-[0.15em] text-slate-500 pb-2 border-b border-slate-200">
             Closed last week
-            <span className="ml-2 font-normal normal-case tracking-normal tabular-nums">
+            <span className="ml-2 font-normal normal-case tracking-normal tnum">
               {closedLastWeek.length}
             </span>
           </h2>

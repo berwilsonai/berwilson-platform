@@ -24,7 +24,7 @@ export default function ClosingSoon({ items }: { items: ClosingSoonItem[] }) {
         <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
           Closing Soon
         </span>
-        <span className="ml-auto text-xs text-muted-foreground tabular-nums">{items.length}</span>
+        <span className="ml-auto text-xs text-muted-foreground tnum">{items.length}</span>
       </div>
 
       <div className="divide-y divide-border">
@@ -47,7 +47,7 @@ export default function ClosingSoon({ items }: { items: ClosingSoonItem[] }) {
                       : 'bg-slate-50 dark:bg-slate-950/40 ring-slate-200 dark:ring-slate-800/60'
                 )}
               >
-                <span className={cn('text-sm font-bold tabular-nums leading-none', bidDueColor(p.bid_due_date))}>
+                <span className={cn('text-sm font-bold tnum leading-none', bidDueColor(p.bid_due_date))}>
                   {days != null && days < 0 ? `+${Math.abs(days)}` : days}
                 </span>
                 <span className="text-[9px] uppercase tracking-wide text-muted-foreground mt-0.5">
@@ -65,13 +65,13 @@ export default function ClosingSoon({ items }: { items: ClosingSoonItem[] }) {
               </div>
 
               <div className="flex flex-col items-end gap-0.5 shrink-0">
-                <span className="text-xs font-semibold tabular-nums text-foreground">
+                <span className="text-xs font-semibold tnum text-foreground">
                   {formatValue(p.estimated_value)}
                 </span>
                 {p.win_probability != null && (
                   <span
                     className={cn(
-                      'inline-flex items-center rounded px-1 py-0.5 text-[10px] font-semibold ring-1 ring-inset tabular-nums',
+                      'inline-flex items-center rounded px-1 py-0.5 text-[10px] font-semibold ring-1 ring-inset tnum',
                       pwinBadge(p.win_probability)
                     )}
                   >

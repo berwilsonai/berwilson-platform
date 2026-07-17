@@ -7,36 +7,7 @@ import { Search, Sparkles } from 'lucide-react'
 import UserMenu from './UserMenu'
 import CommandPalette from './CommandPalette'
 import type { Role } from '@/lib/auth/permissions'
-
-const PAGE_TITLES: Record<string, string> = {
-  '/tasks': 'Team Tasks',
-  '/dashboard': 'Dashboard',
-  '/objectives': 'Objectives',
-  '/projects': 'Projects',
-  '/opportunities': 'Opportunities',
-  '/investors': 'Investors',
-  '/map': 'Project Map',
-  '/timeline': 'Timeline',
-  '/email-ingestion': 'Email Intake',
-  '/calendar': 'Calendar',
-  '/contacts': 'Directory',
-  '/vendors': 'Vendors & Contractors',
-  '/company': 'Ber Wilson',
-  '/review': 'Review Queue',
-  '/activity': 'Activity',
-  '/intel': 'Intel',
-  '/proposals/intake': 'Proposal Intake',
-  '/settings/users': 'Users & Access',
-  '/settings/health': 'System Health',
-}
-
-function getPageTitle(pathname: string): string {
-  if (PAGE_TITLES[pathname]) return PAGE_TITLES[pathname]
-  for (const [path, title] of Object.entries(PAGE_TITLES)) {
-    if (pathname.startsWith(path + '/')) return title
-  }
-  return 'Ber Wilson'
-}
+import { pageTitle } from '@/lib/nav'
 
 export default function AppHeader({ email, role = 'admin' }: { email: string; role?: Role }) {
   const pathname = usePathname()
@@ -72,7 +43,7 @@ export default function AppHeader({ email, role = 'admin' }: { email: string; ro
             className="object-contain h-5 w-auto md:hidden shrink-0"
             priority
           />
-          <h1 className="text-base font-semibold text-foreground truncate heading-tight">{getPageTitle(pathname)}</h1>
+          <h1 className="text-base font-semibold text-foreground truncate heading-tight">{pageTitle(pathname)}</h1>
         </div>
 
         <div className="flex items-center gap-1.5 shrink-0">

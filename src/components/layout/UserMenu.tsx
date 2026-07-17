@@ -86,7 +86,7 @@ export default function UserMenu({ email }: { email: string }) {
       {open && (
         <div
           role="menu"
-          className="absolute right-0 top-full mt-1.5 w-56 rounded-lg border border-border bg-popover text-popover-foreground shadow-lg elev-2 p-1 z-20 animate-fade-in-up"
+          className="absolute right-0 top-full mt-1.5 w-56 rounded-lg border border-border bg-popover text-popover-foreground elev-2 p-1 z-20 animate-fade-in-up"
         >
           <div className="px-3 py-2 border-b border-border/60 mb-1">
             <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Signed in as</p>

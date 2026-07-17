@@ -34,7 +34,7 @@ export default function IntelTabs() {
       </aside>
 
       {/* Main chat */}
-      <div className="flex-1 min-w-0 border rounded-xl bg-background shadow-sm flex flex-col overflow-hidden">
+      <div className="flex-1 min-w-0 border rounded-xl bg-background elev-1 flex flex-col overflow-hidden">
         <AgentChat
           key={chatSession}
           conversationId={conversationId}

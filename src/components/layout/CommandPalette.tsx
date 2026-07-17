@@ -14,26 +14,13 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import type { SearchResult } from '@/app/api/search/route'
+import { NAV_ITEMS, PALETTE_EXTRAS } from '@/lib/nav'
 
 // Static destinations — always searchable, shown when the query is short.
+// Derived from the single nav source plus palette-only extras.
 const PAGES: { href: string; label: string; keywords: string }[] = [
-  { href: '/dashboard', label: 'Dashboard', keywords: 'home overview alerts urgent overdue attention' },
-  { href: '/projects', label: 'Projects', keywords: 'pipeline deals' },
-  { href: '/objectives', label: 'Objectives', keywords: 'priorities goals strategy steering now soon possibly focus' },
-  { href: '/opportunities', label: 'Opportunities', keywords: 'acquisitions partnerships jv mergers investments deals' },
-  { href: '/investors', label: 'Investors', keywords: 'capital raise fundraising equity spv commitments funding money lp' },
-  { href: '/map', label: 'Project Map', keywords: 'map geography utah locations sites markers rail corridors presentation visualize' },
-  { href: '/timeline', label: 'Timeline', keywords: 'gantt schedule' },
-  { href: '/tasks', label: 'Team Tasks', keywords: 'todo action items team workload capacity' },
-  { href: '/proposals/intake', label: 'Proposal Intake', keywords: 'ingest upload rfp document intake' },
-  { href: '/email-ingestion', label: 'Email Intake', keywords: 'email inbox ingest outlook sweep run research thread message report' },
-  { href: '/intel', label: 'Intel', keywords: 'ask query search ai agent' },
-  { href: '/calendar', label: 'Calendar', keywords: 'schedule dates milestones meeting' },
-  { href: '/contacts', label: 'Contacts & Vendors', keywords: 'people parties rolodex directory' },
-  { href: '/contacts?tab=vendors', label: 'Vendors & Contractors', keywords: 'companies organizations subs partners entities' },
-  { href: '/company', label: 'Ber Wilson', keywords: 'company profile capabilities certs' },
-  { href: '/review', label: 'Review Queue', keywords: 'pending approve reject' },
-  { href: '/activity', label: 'Activity', keywords: 'audit log history changes' },
+  ...NAV_ITEMS.map((i) => ({ href: i.href, label: i.title ?? i.label, keywords: i.keywords })),
+  ...PALETTE_EXTRAS,
 ]
 
 const TYPE_META: Record<SearchResult['type'], { icon: LucideIcon; label: string }> = {
@@ -234,7 +221,7 @@ export default function CommandPalette({ onClose }: { onClose: () => void }) {
           {/* Pages */}
           {pages.length > 0 && (
             <div className="px-2">
-              <p className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+              <p className="px-2 py-1 label-caps text-muted-foreground">
                 Pages
               </p>
               {pages.map((p) => {
@@ -265,7 +252,7 @@ export default function CommandPalette({ onClose }: { onClose: () => void }) {
           {/* Entities */}
           {visibleResults.length > 0 && (
             <div className="px-2 mt-1">
-              <p className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+              <p className="px-2 py-1 label-caps text-muted-foreground">
                 Records
               </p>
               {visibleResults.map((r) => {

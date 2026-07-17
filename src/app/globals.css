@@ -18,9 +18,9 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-sans);
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-geist-mono);
-  --font-heading: var(--font-sans);
+  --font-heading: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -103,24 +103,26 @@
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.75 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
+  /* Dark neutrals carry the same faint cool tint (hue 260) as light mode so
+     both themes share one temperature and harmonize with the navy sidebar. */
+  --background: oklch(0.145 0.008 260);
+  --foreground: oklch(0.985 0.003 260);
+  --card: oklch(0.205 0.01 260);
+  --card-foreground: oklch(0.985 0.003 260);
+  --popover: oklch(0.205 0.01 260);
+  --popover-foreground: oklch(0.985 0.003 260);
+  --primary: oklch(0.922 0.005 260);
+  --primary-foreground: oklch(0.205 0.01 260);
+  --secondary: oklch(0.269 0.01 260);
+  --secondary-foreground: oklch(0.985 0.003 260);
+  --muted: oklch(0.269 0.01 260);
+  --muted-foreground: oklch(0.75 0.01 260);
+  --accent: oklch(0.269 0.01 260);
+  --accent-foreground: oklch(0.985 0.003 260);
   --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
+  --border: oklch(0.92 0.02 260 / 12%);
+  --input: oklch(0.92 0.02 260 / 16%);
+  --ring: oklch(0.556 0.02 260);
   --chart-1: oklch(0.55 0.15 260);
   --chart-2: oklch(0.65 0.15 145);
   --chart-3: oklch(0.70 0.12 45);
@@ -191,33 +193,20 @@
   background: linear-gradient(90deg, oklch(0.30 0.04 260) 0%, oklch(0.25 0.03 265) 100%);
 }
 
-/* ─── Background depth gradient ────────────────────────────────────────────── */
-.bg-depth {
-  background:
-    radial-gradient(ellipse 80% 60% at 10% 20%, oklch(0.96 0.015 260 / 0.5) 0%, transparent 60%),
-    radial-gradient(ellipse 50% 40% at 90% 80%, oklch(0.97 0.01 145 / 0.3) 0%, transparent 50%),
-    var(--background);
-}
-.dark .bg-depth {
-  background:
-    radial-gradient(ellipse 80% 60% at 10% 20%, oklch(0.18 0.03 260 / 0.4) 0%, transparent 60%),
-    radial-gradient(ellipse 50% 40% at 90% 80%, oklch(0.16 0.02 145 / 0.3) 0%, transparent 50%),
-    var(--background);
-}
-
-/* ─── Section dividers with fade ───────────────────────────────────────────── */
-.divider-fade {
-  height: 1px;
-  background: linear-gradient(90deg, transparent 0%, oklch(0.8 0 0 / 0.5) 20%, oklch(0.8 0 0 / 0.5) 80%, transparent 100%);
-}
-.dark .divider-fade {
-  background: linear-gradient(90deg, transparent 0%, oklch(0.4 0 0 / 0.4) 20%, oklch(0.4 0 0 / 0.4) 80%, transparent 100%);
-}
-
 /* ─── Typography refinements ───────────────────────────────────────────────── */
 .heading-tight {
   letter-spacing: -0.02em;
   text-wrap: balance;
+}
+
+/* The canonical section-label idiom: 11px small-caps muted label. Color stays
+   in markup (content uses text-muted-foreground, sidebar uses its own tint). */
+@utility label-caps {
+  font-size: 11px;
+  line-height: 1.35;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
 /* ─── Skeleton shimmer (richer loading) ────────────────────────────────────── */
@@ -254,19 +243,6 @@
   box-shadow: var(--elev-3);
   transform: translateY(-2px);
 }
-
-/* ─── Staggered entrance for grids/lists ───────────────────────────────────── */
-.stagger-children > * {
-  animation: fade-in-up 0.4s ease-out both;
-}
-.stagger-children > *:nth-child(1) { animation-delay: 0.02s; }
-.stagger-children > *:nth-child(2) { animation-delay: 0.06s; }
-.stagger-children > *:nth-child(3) { animation-delay: 0.10s; }
-.stagger-children > *:nth-child(4) { animation-delay: 0.14s; }
-.stagger-children > *:nth-child(5) { animation-delay: 0.18s; }
-.stagger-children > *:nth-child(6) { animation-delay: 0.22s; }
-.stagger-children > *:nth-child(7) { animation-delay: 0.26s; }
-.stagger-children > *:nth-child(8) { animation-delay: 0.30s; }
 
 /* ─── Tabular figures for financial / metric numbers ───────────────────────── */
 .tnum {

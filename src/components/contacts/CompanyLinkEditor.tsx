@@ -151,7 +151,7 @@ export default function CompanyLinkEditor({ partyId, linkedEntity, companyText }
         autoComplete="off"
       />
       {query.length > 0 && (
-        <div className="absolute z-50 mt-1 w-full rounded-md border border-border bg-popover shadow-md max-h-56 overflow-y-auto">
+        <div className="absolute z-50 mt-1 w-full rounded-md border border-border bg-popover elev-2 max-h-56 overflow-y-auto">
           {loading && <div className="px-3 py-2 text-xs text-muted-foreground">Searching…</div>}
           {results.map(entity => (
             <button

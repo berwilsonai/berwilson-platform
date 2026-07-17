@@ -100,7 +100,7 @@ const inputCls =
 function FormField({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-1">
-      <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+      <label className="label-caps text-muted-foreground">
         {label}
       </label>
       {children}
@@ -717,7 +717,7 @@ export default function EntitiesTab({
       {/* ── Section 1: Linked to this project ─────────────────────────── */}
       <section className="space-y-3">
         <div className="flex items-center justify-between">
-          <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          <h2 className="label-caps text-muted-foreground">
             Linked to This Project
           </h2>
           {!isLinkMode && !isEditLinkMode && (
@@ -926,7 +926,7 @@ export default function EntitiesTab({
                         {RELATIONSHIP_LABELS[ep.relationship as Relationship] ?? ep.relationship}
                       </span>
                       {ep.equity_pct != null && (
-                        <span className="text-xs font-medium text-foreground shrink-0 tabular-nums">
+                        <span className="text-xs font-medium text-foreground shrink-0 tnum">
                           {ep.equity_pct}%
                         </span>
                       )}
@@ -964,7 +964,7 @@ export default function EntitiesTab({
       {/* ── Section 2: Corporate Structure Tree ───────────────────────── */}
       <section className="space-y-3">
         <div className="flex items-center justify-between">
-          <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          <h2 className="label-caps text-muted-foreground">
             Corporate Structure
           </h2>
           <button

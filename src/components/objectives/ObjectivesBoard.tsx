@@ -322,7 +322,7 @@ export default function ObjectivesBoard({ initialObjectives, teamMembers }: Obje
               <div className="flex items-center gap-2 px-1 pb-2">
                 <span className={cn('size-2 rounded-full', OBJECTIVE_BUCKET_ACCENT[bucket])} />
                 <h2 className="text-sm font-semibold text-foreground">{OBJECTIVE_BUCKET_LABELS[bucket]}</h2>
-                <span className="text-xs text-muted-foreground tabular-nums">{list.length}</span>
+                <span className="text-xs text-muted-foreground tnum">{list.length}</span>
               </div>
 
               {/* Cards */}
@@ -446,7 +446,7 @@ export default function ObjectivesBoard({ initialObjectives, teamMembers }: Obje
           className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
         >
           {showArchive ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-          Archive <span className="tabular-nums">({archived.length})</span>
+          Archive <span className="tnum">({archived.length})</span>
         </button>
         {showArchive && (
           <div className="mt-2 space-y-2">
@@ -561,7 +561,7 @@ function ObjectiveCard({
     >
       <span
         className={cn(
-          'shrink-0 mt-0.5 inline-flex items-center justify-center size-5 rounded-full text-[11px] font-semibold tabular-nums',
+          'shrink-0 mt-0.5 inline-flex items-center justify-center size-5 rounded-full text-[11px] font-semibold tnum',
           bucket === 'now'
             ? 'bg-primary text-primary-foreground'
             : 'bg-muted text-muted-foreground',
@@ -576,7 +576,7 @@ function ObjectiveCard({
           {objectiveHealth(obj.health) !== 'on_track' && (
             <span
               className={cn(
-                'ml-2 inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ring-1 ring-inset align-middle',
+                'ml-2 inline-flex items-center rounded px-1.5 py-0.5 label-caps ring-1 ring-inset align-middle',
                 OBJECTIVE_HEALTH_BADGE[objectiveHealth(obj.health)],
               )}
             >

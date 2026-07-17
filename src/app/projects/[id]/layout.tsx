@@ -2,7 +2,7 @@ import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { Map as MapIcon } from 'lucide-react'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { cn } from '@/lib/utils'
+import { Chip } from '@/components/ui/chip'
 import { SECTOR_BADGE, SECTOR_LABELS } from '@/lib/utils/sectors'
 import { STAGE_LABELS, STAGE_BADGE } from '@/lib/utils/stages'
 import { STATUS_BADGE, STATUS_LABELS } from '@/lib/utils/constants'
@@ -60,31 +60,10 @@ export default async function ProjectLayout({ children, params }: LayoutProps) {
 
           {/* Stage / sector / status badges */}
           <div className="flex items-center gap-2 flex-wrap shrink-0">
-            <span
-              className={cn(
-                'inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium ring-1 ring-inset',
-                STAGE_BADGE[stage]
-              )}
-            >
-              {STAGE_LABELS[stage]}
-            </span>
-            <span
-              className={cn(
-                'inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium ring-1 ring-inset',
-                SECTOR_BADGE[project.sector]
-              )}
-            >
-              {SECTOR_LABELS[project.sector]}
-            </span>
+            <Chip tone={STAGE_BADGE[stage]}>{STAGE_LABELS[stage]}</Chip>
+            <Chip tone={SECTOR_BADGE[project.sector]}>{SECTOR_LABELS[project.sector]}</Chip>
             {status !== 'active' && (
-              <span
-                className={cn(
-                  'inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium ring-1 ring-inset',
-                  STATUS_BADGE[status]
-                )}
-              >
-                {STATUS_LABELS[status]}
-              </span>
+              <Chip tone={STATUS_BADGE[status]}>{STATUS_LABELS[status]}</Chip>
             )}
             {/* /map is admin-only, so only admins get the link */}
             {viewer?.isAdmin && (project.latitude != null || project.map_geometry != null) && (

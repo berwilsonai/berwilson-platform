@@ -37,7 +37,7 @@ type PersonRow = EmailIntakeExtraction['people'][number] & {
 type TaskRow = EmailIntakeExtraction['tasks'][number] & { include: boolean }
 
 const inputCls = 'w-full h-9 px-3 rounded-md border border-input bg-background text-sm'
-const labelCls = 'text-[11px] font-semibold uppercase tracking-wide text-muted-foreground'
+const labelCls = 'label-caps text-muted-foreground'
 
 export default function EmailIngestReview({ sessionId, extraction, partyMatches, fit, label, stagedAttachments }: Props) {
   const router = useRouter()
@@ -106,7 +106,7 @@ export default function EmailIngestReview({ sessionId, extraction, partyMatches,
         throw new Error(data.error || 'Could not discard the package.')
       }
       toast.success('Research package discarded.')
-      router.push('/email-ingestion')
+      router.push('/intake')
       router.refresh()
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Could not discard the package.')

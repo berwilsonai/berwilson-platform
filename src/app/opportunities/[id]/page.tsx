@@ -198,7 +198,7 @@ export default async function OpportunityDetailPage({ params }: PageProps) {
       {/* Description */}
       {opportunity.description && (
         <section>
-          <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Overview</h2>
+          <h2 className="label-caps text-muted-foreground mb-2">Overview</h2>
           <p className="text-sm text-foreground whitespace-pre-wrap">{opportunity.description}</p>
         </section>
       )}
@@ -206,7 +206,7 @@ export default async function OpportunityDetailPage({ params }: PageProps) {
       {/* Objective + Thesis */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <section className="rounded-lg border border-border bg-card p-4 elev-1">
-          <h2 className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">
+          <h2 className="flex items-center gap-1.5 label-caps text-muted-foreground mb-2">
             <Target size={13} /> Objective
           </h2>
           <p className="text-sm text-foreground whitespace-pre-wrap">
@@ -214,7 +214,7 @@ export default async function OpportunityDetailPage({ params }: PageProps) {
           </p>
         </section>
         <section className="rounded-lg border border-border bg-card p-4 elev-1">
-          <h2 className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">
+          <h2 className="flex items-center gap-1.5 label-caps text-muted-foreground mb-2">
             <Lightbulb size={13} /> Strategic Thesis
           </h2>
           <p className="text-sm text-foreground whitespace-pre-wrap">

@@ -58,7 +58,10 @@ interface TeamTaskBoardProps {
 type StatusFilter = 'open' | 'done'
 
 const fieldClass =
-  'h-9 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring'
+  'h-8 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring'
+
+const filterFieldClass =
+  'h-8 rounded-md border border-input bg-background px-2 text-xs focus:outline-none focus:ring-2 focus:ring-ring'
 
 export default function TeamTaskBoard({
   initialTasks,
@@ -277,17 +280,17 @@ export default function TeamTaskBoard({
           {showWeeklyReport && !scoped && (
             <Link
               href="/reports/weekly/print"
-              className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg border border-border bg-card text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+              className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md border border-border bg-card text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
               title="The week as a printable document — send it to the team"
             >
-              <FileText size={15} /> Weekly report
+              <FileText size={14} /> Weekly report
             </Link>
           )}
           <button
             onClick={() => setShowAdd((s) => !s)}
-            className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 active:scale-[0.98] transition-all elev-1"
+            className="inline-flex items-center gap-1.5 h-8 px-3.5 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 active:scale-[0.98] transition-all elev-1"
           >
-            <Plus size={15} /> New task
+            <Plus size={14} /> New task
           </button>
         </div>
       </div>
@@ -313,14 +316,14 @@ export default function TeamTaskBoard({
                   {initials(member.name)}
                 </span>
                 <span className="font-medium">{member.name}</span>
-                <span className="tabular-nums text-xs text-muted-foreground">{open}</span>
+                <span className="tnum text-xs text-muted-foreground">{open}</span>
                 {overdue > 0 && (
-                  <span className="tabular-nums text-[11px] font-semibold px-1.5 py-0.5 rounded-full bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300">
+                  <span className="tnum text-[11px] font-semibold text-red-600 dark:text-red-400">
                     {overdue} late
                   </span>
                 )}
                 {blocking > 0 && (
-                  <span className="inline-flex items-center gap-1 tabular-nums text-[11px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300">
+                  <span className="inline-flex items-center gap-0.5 tnum text-[11px] font-semibold text-amber-600 dark:text-amber-400">
                     <Hourglass size={10} /> {blocking}
                   </span>
                 )}
@@ -376,10 +379,10 @@ export default function TeamTaskBoard({
                   autoFocus
                   className={cn(fieldClass, 'flex-1 min-w-0')}
                 />
-                <button onClick={handleAddMember} className="shrink-0 inline-flex items-center justify-center size-9 rounded-md bg-primary text-primary-foreground hover:bg-primary/90" aria-label="Save teammate">
+                <button onClick={handleAddMember} className="shrink-0 inline-flex items-center justify-center size-8 rounded-md bg-primary text-primary-foreground hover:bg-primary/90" aria-label="Save teammate">
                   <Plus size={15} />
                 </button>
-                <button onClick={() => { setAddingMember(false); setNewMemberName('') }} className="shrink-0 inline-flex items-center justify-center size-9 rounded-md border border-input hover:bg-muted" aria-label="Cancel">
+                <button onClick={() => { setAddingMember(false); setNewMemberName('') }} className="shrink-0 inline-flex items-center justify-center size-8 rounded-md border border-input hover:bg-muted" aria-label="Cancel">
                   <X size={15} />
                 </button>
               </div>
@@ -495,18 +498,18 @@ export default function TeamTaskBoard({
             )}
             title="Tasks waiting on someone"
           >
-            <Hourglass size={12} /> Blocked <span className="tabular-nums">{blockedCount}</span>
+            <Hourglass size={12} /> Blocked <span className="tnum">{blockedCount}</span>
           </button>
         )}
 
-        <select value={assigneeFilter} onChange={(e) => setAssigneeFilter(e.target.value)} className="h-8 rounded-md border border-input bg-background px-2 text-xs focus:outline-none focus:ring-2 focus:ring-ring">
+        <select value={assigneeFilter} onChange={(e) => setAssigneeFilter(e.target.value)} className={filterFieldClass}>
           <option value="all">Everyone</option>
           {members.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
           <option value="unassigned">Unassigned</option>
         </select>
 
         {showProjectControls && (
-          <select value={projectFilter} onChange={(e) => setProjectFilter(e.target.value)} className="h-8 rounded-md border border-input bg-background px-2 text-xs focus:outline-none focus:ring-2 focus:ring-ring">
+          <select value={projectFilter} onChange={(e) => setProjectFilter(e.target.value)} className={filterFieldClass}>
             <option value="all">All projects</option>
             {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
             <option value="none">No project</option>
@@ -514,7 +517,7 @@ export default function TeamTaskBoard({
         )}
 
         {showOpportunityControls && (
-          <select value={opportunityFilter} onChange={(e) => setOpportunityFilter(e.target.value)} className="h-8 rounded-md border border-input bg-background px-2 text-xs focus:outline-none focus:ring-2 focus:ring-ring">
+          <select value={opportunityFilter} onChange={(e) => setOpportunityFilter(e.target.value)} className={filterFieldClass}>
             <option value="all">All opportunities</option>
             {opportunities.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
             <option value="none">No opportunity</option>
@@ -522,7 +525,7 @@ export default function TeamTaskBoard({
         )}
 
         {showInvestorControls && (
-          <select value={investorFilter} onChange={(e) => setInvestorFilter(e.target.value)} className="h-8 rounded-md border border-input bg-background px-2 text-xs focus:outline-none focus:ring-2 focus:ring-ring">
+          <select value={investorFilter} onChange={(e) => setInvestorFilter(e.target.value)} className={filterFieldClass}>
             <option value="all">All investors</option>
             {investors.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
             <option value="none">No investor</option>
@@ -530,7 +533,7 @@ export default function TeamTaskBoard({
         )}
 
         {showObjectiveControls && (
-          <select value={objectiveFilter} onChange={(e) => setObjectiveFilter(e.target.value)} className="h-8 rounded-md border border-input bg-background px-2 text-xs focus:outline-none focus:ring-2 focus:ring-ring">
+          <select value={objectiveFilter} onChange={(e) => setObjectiveFilter(e.target.value)} className={filterFieldClass}>
             <option value="all">All objectives</option>
             {objectives.map((o) => <option key={o.id} value={o.id}>{o.title}</option>)}
             <option value="none">No objective</option>
@@ -546,7 +549,7 @@ export default function TeamTaskBoard({
           description={status === 'done' ? 'Completed tasks land here for reference.' : 'Add a task to get the team moving.'}
         />
       ) : (
-        <div className="space-y-2 stagger-children">
+        <div className="space-y-2">
           {filtered.map((task) => {
             const due = task.due_date ? getDueLabel(task.due_date) : null
             const done = task.status === 'done'

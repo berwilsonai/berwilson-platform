@@ -133,7 +133,7 @@ export default async function DirectoryPage({ searchParams }: PageProps) {
                 )}
               >
                 <Icon size={14} /> {label}
-                <span className={cn('tabular-nums text-xs', activeTab === key ? 'text-primary-foreground/70' : 'text-muted-foreground/70')}>
+                <span className={cn('tnum text-xs', activeTab === key ? 'text-primary-foreground/70' : 'text-muted-foreground/70')}>
                   {count}
                 </span>
               </Link>

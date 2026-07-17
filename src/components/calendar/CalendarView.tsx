@@ -203,7 +203,7 @@ export default function CalendarView({ events: serverEvents }: CalendarViewProps
         <div className="space-y-6">
           {Array.from(weeks.entries()).map(([weekKey, weekEvents]) => (
             <div key={weekKey}>
-              <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">
+              <h3 className="label-caps text-muted-foreground mb-2">
                 {formatWeekLabel(weekKey)}
               </h3>
 

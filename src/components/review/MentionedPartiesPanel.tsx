@@ -153,7 +153,7 @@ function PartyChip({
 
       {/* Contact picker dropdown */}
       {linkState === 'open' && (
-        <div className="absolute left-0 top-full mt-1 z-50 w-56 rounded-lg border border-border bg-popover shadow-lg">
+        <div className="absolute left-0 top-full mt-1 z-50 w-56 rounded-lg border border-border bg-popover elev-3">
           <div className="p-2 border-b border-border">
             <input
               autoFocus

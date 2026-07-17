@@ -57,7 +57,7 @@ export default function OpportunityForm({ mode, opportunity }: OpportunityFormPr
 
       {/* Core info */}
       <section className="space-y-4">
-        <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        <h2 className="label-caps text-muted-foreground">
           Core Info
         </h2>
 
@@ -149,7 +149,7 @@ export default function OpportunityForm({ mode, opportunity }: OpportunityFormPr
 
       {/* Strategy */}
       <section className="space-y-4">
-        <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        <h2 className="label-caps text-muted-foreground">
           Strategy
         </h2>
 
@@ -196,7 +196,7 @@ export default function OpportunityForm({ mode, opportunity }: OpportunityFormPr
 
       {/* Counterparty & Deal */}
       <section className="space-y-4">
-        <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        <h2 className="label-caps text-muted-foreground">
           Counterparty & Deal
         </h2>
 
@@ -315,7 +315,7 @@ export default function OpportunityForm({ mode, opportunity }: OpportunityFormPr
 
       {/* Context */}
       <section className="space-y-4">
-        <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        <h2 className="label-caps text-muted-foreground">
           Context
         </h2>
 
@@ -385,7 +385,7 @@ export default function OpportunityForm({ mode, opportunity }: OpportunityFormPr
 
       {/* Key Dates */}
       <section className="space-y-4">
-        <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        <h2 className="label-caps text-muted-foreground">
           Key Dates
         </h2>
 

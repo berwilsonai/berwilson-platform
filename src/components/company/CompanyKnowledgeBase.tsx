@@ -146,7 +146,7 @@ export default function CompanyKnowledgeBase({ documents }: CompanyKnowledgeBase
   return (
     <section className="space-y-3">
       <div>
-        <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        <h2 className="label-caps text-muted-foreground">
           Knowledge Base
         </h2>
         <p className="text-xs text-muted-foreground mt-1">

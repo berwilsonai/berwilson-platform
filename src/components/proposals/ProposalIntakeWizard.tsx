@@ -689,7 +689,7 @@ export default function ProposalIntakeWizard({ availableParents: initialParents 
         {/* Organizations → Vendors */}
         {orgParties.length > 0 && (
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Companies → Vendors & Partners</p>
+            <p className="label-caps text-muted-foreground mb-2">Companies → Vendors & Partners</p>
             <div className="space-y-1.5">
               {orgParties.map((org, i) => (
                 <div key={`org-${i}`} className="p-2.5 rounded-md border border-blue-200 bg-blue-50/30 dark:border-blue-900 dark:bg-blue-950/20 flex items-center gap-2">
@@ -704,7 +704,7 @@ export default function ProposalIntakeWizard({ availableParents: initialParents 
 
         {/* Individuals → Contacts */}
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Individuals → Contacts</p>
+          <p className="label-caps text-muted-foreground mb-2">Individuals → Contacts</p>
           {individualMatches.length === 0 ? (
             <div className="flex items-center gap-2 p-4 rounded-md border border-border text-sm text-muted-foreground">
               <Users size={14} /> No individual contacts were extracted from this document.
@@ -745,7 +745,7 @@ export default function ProposalIntakeWizard({ availableParents: initialParents 
 
         {extraction.entities && extraction.entities.length > 0 && (
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Legal Entities → Vendors</p>
+            <p className="label-caps text-muted-foreground mb-2">Legal Entities → Vendors</p>
             {extraction.entities.map((e, i) => (
               <div key={i} className="flex items-center gap-2 text-sm p-2 rounded border border-border mb-1">
                 <span className="font-medium">{e.name}</span>

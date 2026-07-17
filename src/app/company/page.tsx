@@ -64,7 +64,7 @@ export default async function CompanyPage() {
 
       {/* Photo gallery */}
       <section className="space-y-2">
-        <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        <h2 className="label-caps text-muted-foreground">
           Company Photos
         </h2>
         <MediaGallery

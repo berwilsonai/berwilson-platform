@@ -310,7 +310,7 @@ export default async function ActivityPage({ searchParams }: PageProps) {
                 ← Previous
               </Link>
             )}
-            <span className="px-2 tabular-nums">
+            <span className="px-2 tnum">
               {page} / {totalPages}
             </span>
             {page < totalPages && (

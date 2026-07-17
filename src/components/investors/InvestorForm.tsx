@@ -93,7 +93,7 @@ export default function InvestorForm({ mode, investor, parties, teamMembers, lin
 
       {/* Who */}
       <section className="space-y-4">
-        <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        <h2 className="label-caps text-muted-foreground">
           Who
         </h2>
 
@@ -122,7 +122,7 @@ export default function InvestorForm({ mode, investor, parties, teamMembers, lin
           <input type="hidden" name="party_id" value={partyId} />
           {/* Contact suggestions — mousedown (not click) so it beats input blur */}
           {suggestOpen && suggestions.length > 0 && (
-            <ul className="absolute z-20 mt-1 w-full rounded-md border border-border bg-popover shadow-md overflow-hidden">
+            <ul className="absolute z-20 mt-1 w-full rounded-md border border-border bg-popover elev-2 overflow-hidden">
               {suggestions.map((p) => (
                 <li key={p.id}>
                   <button
@@ -256,7 +256,7 @@ export default function InvestorForm({ mode, investor, parties, teamMembers, lin
 
       {/* Capital profile */}
       <section className="space-y-4">
-        <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        <h2 className="label-caps text-muted-foreground">
           Capital Profile
         </h2>
 
@@ -338,7 +338,7 @@ export default function InvestorForm({ mode, investor, parties, teamMembers, lin
 
       {/* Relationship */}
       <section className="space-y-4">
-        <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        <h2 className="label-caps text-muted-foreground">
           Relationship
         </h2>
 

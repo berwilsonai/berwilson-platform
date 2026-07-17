@@ -37,7 +37,7 @@ export default async function EmailIngestReviewPage({ params }: PageProps) {
     return (
       <div className="space-y-5 max-w-3xl">
         {effective === 'running' && <SessionsAutoRefresh />}
-        <Link href="/email-ingestion" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors">
+        <Link href="/intake" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors">
           <ArrowLeft size={14} /> Email Ingestion
         </Link>
         {effective === 'running' ? (
@@ -71,7 +71,7 @@ export default async function EmailIngestReviewPage({ params }: PageProps) {
 
   return (
     <div className="space-y-5 max-w-3xl">
-      <Link href="/email-ingestion" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors">
+      <Link href="/intake" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors">
         <ArrowLeft size={14} /> Email Ingestion
       </Link>
 

@@ -123,7 +123,7 @@ export default function TagInput({
       </div>
 
       {open && (matches.length > 0 || (q && !exactExists)) && (
-        <div className="absolute z-50 mt-1 w-full rounded-md border border-border bg-popover shadow-md max-h-56 overflow-y-auto">
+        <div className="absolute z-50 mt-1 w-full rounded-md border border-border bg-popover elev-2 max-h-56 overflow-y-auto">
           {matches.map(s => (
             <button
               key={s.tag}
@@ -133,7 +133,7 @@ export default function TagInput({
             >
               <Tag size={12} className="text-muted-foreground shrink-0" />
               <span className="text-sm">{s.tag}</span>
-              <span className="ml-auto text-xs text-muted-foreground tabular-nums">{s.count}</span>
+              <span className="ml-auto text-xs text-muted-foreground tnum">{s.count}</span>
             </button>
           ))}
           {q && !exactExists && (

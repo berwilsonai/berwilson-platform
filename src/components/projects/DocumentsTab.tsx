@@ -366,7 +366,7 @@ function UploadZone({
       {pendingUploads.length > 0 && (
         <div className="rounded-lg border border-border bg-card divide-y divide-border">
           <div className="px-4 py-2 flex items-center justify-between">
-            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+            <span className="label-caps text-muted-foreground">
               Ready to upload ({pendingUploads.length})
             </span>
             <button

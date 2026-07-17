@@ -104,14 +104,14 @@ export default async function ObjectivesPrintPage({ searchParams }: PageProps) {
               <ol className="mt-1 divide-y divide-slate-100">
                 {items.map((obj, idx) => (
                   <li key={obj.id} className="flex items-start gap-4 py-4 break-inside-avoid">
-                    <span className="shrink-0 mt-0.5 inline-flex items-center justify-center size-7 rounded-full bg-slate-900 text-white text-sm font-semibold tabular-nums">
+                    <span className="shrink-0 mt-0.5 inline-flex items-center justify-center size-7 rounded-full bg-slate-900 text-white text-sm font-semibold tnum">
                       {idx + 1}
                     </span>
                     <div className="min-w-0 flex-1">
                       <p className="text-base font-medium leading-snug">
                         {obj.title}
                         {objectiveHealth(obj.health) !== 'on_track' && (
-                          <span className="ml-2 inline-flex items-center rounded border border-slate-300 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-600 align-middle">
+                          <span className="ml-2 inline-flex items-center rounded border border-slate-300 px-1.5 py-0.5 label-caps text-slate-600 align-middle">
                             {OBJECTIVE_HEALTH_LABELS[objectiveHealth(obj.health)]}
                           </span>
                         )}

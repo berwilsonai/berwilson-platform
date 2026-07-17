@@ -156,7 +156,7 @@ export default async function RaiseDetailPage({ params }: PageProps) {
       {fills.length > 0 && (
         <div className="rounded-xl border border-border bg-card p-4 elev-1 space-y-4">
           <div className="flex items-center justify-between gap-3 flex-wrap">
-            <h2 className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+            <h2 className="label-caps text-muted-foreground">
               Tranche Fill <span className="font-normal normal-case">(commitments fill in order)</span>
             </h2>
             <TrancheBarLegend />
@@ -300,7 +300,7 @@ export default async function RaiseDetailPage({ params }: PageProps) {
       {/* Notes */}
       {raise.notes && (
         <section>
-          <h2 className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">
+          <h2 className="flex items-center gap-1.5 label-caps text-muted-foreground mb-2">
             <StickyNote size={13} /> Notes
           </h2>
           <p className="text-sm text-foreground whitespace-pre-wrap">{raise.notes}</p>

@@ -175,7 +175,7 @@ export default async function ProjectOverviewPage({ params }: PageProps) {
       {/* Description */}
       {project.description && (
         <section className="space-y-2">
-          <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          <h2 className="label-caps text-muted-foreground">
             Description
           </h2>
           <p className="text-sm text-foreground leading-relaxed">{project.description}</p>
@@ -186,7 +186,7 @@ export default async function ProjectOverviewPage({ params }: PageProps) {
       {isProgram && (
         <section className="space-y-3">
           <div className="flex items-center justify-between">
-            <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            <h2 className="label-caps text-muted-foreground">
               <span className="inline-flex items-center gap-1">
                 <Layers size={12} className="text-violet-500 dark:text-violet-400" />
                 Sub-Projects ({(childProjects ?? []).length})
@@ -223,7 +223,7 @@ export default async function ProjectOverviewPage({ params }: PageProps) {
                     {STAGE_LABELS[child.stage]}
                   </span>
                 )}
-                <span className="text-sm font-semibold tabular-nums text-foreground shrink-0">
+                <span className="text-sm font-semibold tnum text-foreground shrink-0">
                   {formatValue(child.estimated_value)}
                 </span>
                 <ChevronRight size={14} className="text-muted-foreground shrink-0" />
@@ -243,7 +243,7 @@ export default async function ProjectOverviewPage({ params }: PageProps) {
 
       {/* Contract & value */}
       <section className="space-y-3">
-        <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        <h2 className="label-caps text-muted-foreground">
           Contract
         </h2>
         <dl className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-4">
@@ -266,7 +266,7 @@ export default async function ProjectOverviewPage({ params }: PageProps) {
         if (!hasAny) return null
         return (
           <section className="space-y-3">
-            <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            <h2 className="label-caps text-muted-foreground">
               Competitive Landscape
             </h2>
             <div className="rounded-lg border border-border p-4 space-y-4">
@@ -312,7 +312,7 @@ export default async function ProjectOverviewPage({ params }: PageProps) {
         if (!standards || standards.length === 0) return null
         return (
           <section className="space-y-3">
-            <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            <h2 className="label-caps text-muted-foreground">
               Applicable Federal Standards
             </h2>
             <div className="space-y-2">
@@ -349,7 +349,7 @@ export default async function ProjectOverviewPage({ params }: PageProps) {
       {entityLinks.length > 0 && (
         <section className="space-y-3">
           <div className="flex items-center justify-between">
-            <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            <h2 className="label-caps text-muted-foreground">
               Corporate Entities
             </h2>
             <Link
@@ -385,7 +385,7 @@ export default async function ProjectOverviewPage({ params }: PageProps) {
                   {RELATIONSHIP_LABELS[ep.relationship] ?? ep.relationship}
                 </span>
                 {ep.equity_pct != null && (
-                  <span className="text-xs font-medium text-foreground shrink-0 tabular-nums">
+                  <span className="text-xs font-medium text-foreground shrink-0 tnum">
                     {ep.equity_pct}%
                   </span>
                 )}
@@ -407,7 +407,7 @@ export default async function ProjectOverviewPage({ params }: PageProps) {
       {/* Activity feed */}
       <section className="space-y-3">
         <div className="flex items-center justify-between">
-          <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          <h2 className="label-caps text-muted-foreground">
             Recent Activity
           </h2>
           <Link

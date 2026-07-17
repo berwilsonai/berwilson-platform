@@ -1,8 +1,8 @@
 import { Layers } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { Chip } from '@/components/ui/chip'
 import {
   SECTORS,
-  SECTOR_LABELS,
+  SECTOR_SHORT,
   SECTOR_BADGE,
   formatValue,
   weightedValue,
@@ -17,9 +17,8 @@ export interface RollupProject {
 
 /**
  * Per-vertical rollup: how each sector of the vertically integrated platform
- * is doing, at a glance — count, pipeline value, weighted value. Sectors are
- * the vertical dimension (government / infrastructure / real estate / prefab /
- * institutional / technology / health).
+ * is doing, at a glance — count, pipeline value, weighted value. Rendered as a
+ * compact list in the dashboard's right rail.
  */
 export default function VerticalRollup({ projects }: { projects: RollupProject[] }) {
   const rows = SECTORS.map((sector) => {
@@ -41,29 +40,24 @@ export default function VerticalRollup({ projects }: { projects: RollupProject[]
   if (rows.length < 2) return null
 
   return (
-    <div className="rounded-xl border border-border bg-card p-4 elev-1">
-      <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-3">
-        <Layers size={13} /> By Vertical
-        <span className="tabular-nums font-normal">{rows.length}</span>
+    <div className="rounded-xl border border-border bg-card elev-1">
+      <div className="flex items-center gap-2 px-4 py-2.5 border-b border-border">
+        <Layers size={13} className="text-muted-foreground" />
+        <h2 className="label-caps text-muted-foreground">By Vertical</h2>
+        <span className="ml-auto text-xs text-muted-foreground tnum">{rows.length}</span>
       </div>
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-x-6 gap-y-4">
+      <div className="p-3 space-y-1">
         {rows.map((r) => (
-          <div key={r.sector} className="min-w-0">
-            <span
-              className={cn(
-                'inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium ring-1 ring-inset',
-                SECTOR_BADGE[r.sector as ProjectSector]
-              )}
-            >
-              {SECTOR_LABELS[r.sector as ProjectSector]}
-            </span>
-            <p className="text-lg font-semibold tnum mt-1.5">
-              {r.pipeline > 0 ? formatValue(r.pipeline) : '—'}
-            </p>
-            <p className="text-[11px] text-muted-foreground tnum">
+          <div key={r.sector} className="flex items-center gap-2 rounded-md px-2 py-1.5">
+            <Chip tone={SECTOR_BADGE[r.sector as ProjectSector]}>
+              {SECTOR_SHORT[r.sector as ProjectSector]}
+            </Chip>
+            <span className="text-xs text-muted-foreground tnum">
               {r.count} project{r.count !== 1 ? 's' : ''}
-              {r.weighted > 0 && ` · ${formatValue(r.weighted)} wtd`}
-            </p>
+            </span>
+            <span className="ml-auto text-sm font-semibold tnum">
+              {r.pipeline > 0 ? formatValue(r.pipeline) : '—'}
+            </span>
           </div>
         ))}
       </div>

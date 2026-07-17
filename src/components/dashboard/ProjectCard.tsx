@@ -1,18 +1,18 @@
 import Link from 'next/link'
 import {
   CheckSquare, Clock, AlertTriangle, Layers, CalendarClock, Ban,
-  Search, Target, Gavel, Award, Truck, HardHat, FlagTriangleRight,
-  Timer, Percent, UserRound,
+  Timer, UserRound,
 } from 'lucide-react'
 import type { Project } from '@/lib/supabase/types'
 import type { ProjectStage } from '@/lib/supabase/types'
 import { cn } from '@/lib/utils'
+import { Chip } from '@/components/ui/chip'
 import { SECTOR_BADGE, SECTOR_SHORT } from '@/lib/utils/sectors'
 import {
   STATUS_BADGE, STATUS_LABELS,
-  bidDueLabel, bidDueColor, daysUntilDate, pwinBadge,
+  bidDueLabel, daysUntilDate,
 } from '@/lib/utils/constants'
-import { STAGE_BADGE, STAGE_LABELS, STAGE_BORDER } from '@/lib/utils/stages'
+import { STAGE_BORDER } from '@/lib/utils/stages'
 import StageIndicator from './StageIndicator'
 
 export interface ProjectDeadline {
@@ -39,16 +39,6 @@ function deadlineLabel(d: ProjectDeadline): string {
   if (d.daysUntil === 1) return 'Due tomorrow'
   if (d.daysUntil <= 14) return `Due in ${d.daysUntil}d`
   return `Due ${new Date(d.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
-}
-
-const STAGE_ICON: Record<ProjectStage, typeof Search> = {
-  pursuit: Search,
-  capture: Target,
-  bid: Gavel,
-  award: Award,
-  mobilization: Truck,
-  execution: HardHat,
-  closeout: FlagTriangleRight,
 }
 
 function formatValue(value: number | null): string {
@@ -109,7 +99,6 @@ interface ProjectCardProps {
 export default function ProjectCard({ project, counts, isProgram, parentName, highlight, className, style }: ProjectCardProps) {
   const status = project.status ?? 'active'
   const stage = (project.stage ?? 'pursuit') as ProjectStage
-  const StageIcon = STAGE_ICON[stage]
 
   const bidDue = (project as { bid_due_date?: string | null }).bid_due_date ?? null
   const bidDueDays = daysUntilDate(bidDue)
@@ -117,6 +106,9 @@ export default function ProjectCard({ project, counts, isProgram, parentName, hi
   const captureLead = (project as { capture_lead?: string | null }).capture_lead ?? null
   // Only surface the submission deadline pre-award where it's actionable
   const showBidDue = bidDue && !['award', 'mobilization', 'execution', 'closeout'].includes(stage)
+  // Color carries urgency: red ≤7d/overdue, amber ≤21d, plain beyond that.
+  const bidUrgent = bidDueDays != null && bidDueDays <= 7
+  const bidNear = bidDueDays != null && bidDueDays > 7 && bidDueDays <= 21
 
   return (
     <Link
@@ -128,40 +120,33 @@ export default function ProjectCard({ project, counts, isProgram, parentName, hi
       )}
       style={style}
     >
-      <div className="p-4 sm:p-5 space-y-3">
-        {/* Top row: stage badge (primary), sector badge, status badge */}
+      <div className="p-4 space-y-3">
+        {/* Top row: sector (+ status when notable, + program) — stage is told
+            by the left border + progress bar, not a third badge */}
         <div className="flex items-center gap-2">
-          <span
-            className={cn(
-              'inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs font-medium ring-1 ring-inset',
-              STAGE_BADGE[stage]
-            )}
-          >
-            <StageIcon size={11} className="shrink-0" />
-            {STAGE_LABELS[stage]}
-          </span>
-          <span
-            className={cn(
-              'inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium ring-1 ring-inset',
-              SECTOR_BADGE[project.sector]
-            )}
-          >
-            {SECTOR_SHORT[project.sector]}
-          </span>
+          <Chip tone={SECTOR_BADGE[project.sector]}>{SECTOR_SHORT[project.sector]}</Chip>
           {status !== 'active' && (
-            <span
-              className={cn(
-                'inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium ring-1 ring-inset',
-                STATUS_BADGE[status]
-              )}
-            >
-              {STATUS_LABELS[status]}
-            </span>
+            <Chip tone={STATUS_BADGE[status]}>{STATUS_LABELS[status]}</Chip>
           )}
           {isProgram && (
-            <span className="inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-xs font-medium ring-1 ring-inset bg-violet-50 text-violet-700 ring-violet-200 dark:bg-violet-500/15 dark:text-violet-300 dark:ring-violet-500/30">
+            <Chip tone="bg-violet-50 text-violet-700 ring-violet-200 dark:bg-violet-500/15 dark:text-violet-300 dark:ring-violet-500/30">
               <Layers size={10} />
               Program
+            </Chip>
+          )}
+          {showBidDue && (
+            <span
+              className={cn(
+                'ml-auto inline-flex items-center gap-1 text-xs shrink-0',
+                bidUrgent
+                  ? 'font-semibold text-red-600 dark:text-red-400'
+                  : bidNear
+                    ? 'font-semibold text-amber-600 dark:text-amber-400'
+                    : 'text-muted-foreground'
+              )}
+            >
+              <Timer size={11} className="shrink-0" />
+              Bid {bidDueLabel(bidDue)?.toLowerCase()}
             </span>
           )}
         </div>
@@ -169,7 +154,7 @@ export default function ProjectCard({ project, counts, isProgram, parentName, hi
         {/* Project name + value */}
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <h3 className="text-[15px] font-semibold text-foreground leading-snug group-hover:text-primary transition-colors line-clamp-2 heading-tight">
+            <h3 className="text-sm font-semibold text-foreground leading-snug group-hover:text-primary transition-colors line-clamp-2 heading-tight">
               {highlightText(project.name, highlight)}
             </h3>
             {project.client_entity && (
@@ -178,53 +163,28 @@ export default function ProjectCard({ project, counts, isProgram, parentName, hi
               </p>
             )}
           </div>
-          <div className="flex flex-col items-end gap-1 shrink-0">
-            <span className="text-sm font-bold tabular-nums text-foreground">
+          <div className="flex flex-col items-end shrink-0">
+            <span className="text-sm font-bold tnum text-foreground">
               {formatValue(project.estimated_value)}
             </span>
             {winProb != null && (
-              <span
-                className={cn(
-                  'inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[11px] font-semibold ring-1 ring-inset tabular-nums',
-                  pwinBadge(winProb)
-                )}
-                title={`Win probability ${winProb}%`}
-              >
-                <Percent size={9} className="shrink-0" />
+              <span className="text-[11px] text-muted-foreground tnum" title={`Win probability ${winProb}%`}>
                 {winProb}% win
               </span>
             )}
           </div>
         </div>
 
-        {/* Bid submission deadline — the date that matters most pre-award */}
-        {showBidDue && (
-          <div
-            className={cn(
-              'flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-semibold ring-1 ring-inset',
-              bidDueDays != null && bidDueDays < 0
-                ? 'bg-red-50 dark:bg-red-950/40 ring-red-200 dark:ring-red-800/60'
-                : bidDueDays != null && bidDueDays <= 7
-                  ? 'bg-red-50 dark:bg-red-950/40 ring-red-200 dark:ring-red-800/60'
-                  : bidDueDays != null && bidDueDays <= 21
-                    ? 'bg-amber-50 dark:bg-amber-950/40 ring-amber-200 dark:ring-amber-800/60'
-                    : 'bg-slate-50 dark:bg-slate-950/40 ring-slate-200 dark:ring-slate-800/60',
-              bidDueColor(bidDue)
-            )}
-          >
-            <Timer size={12} className="shrink-0" />
-            Bid {bidDueLabel(bidDue)?.toLowerCase()}
-          </div>
-        )}
-
         {/* Stage progress bar */}
         <StageIndicator stage={stage} compact />
 
-        {/* Action / waiting / risk counts — only when passed from dashboard */}
-        {counts && (counts.actionCount > 0 || counts.waitingCount > 0 || counts.riskCount > 0) && (
-          <div className="flex items-center gap-3">
+        {/* One meta line: counts + deadline + blockers — color only where it
+            means something (red = overdue/blocking, amber = waiting/near) */}
+        {counts && (counts.actionCount > 0 || counts.waitingCount > 0 || counts.riskCount > 0 ||
+          counts.nextDeadline || (counts.overdueCount ?? 0) > 0 || (counts.blockingCount ?? 0) > 0) && (
+          <div className="flex items-center gap-3 flex-wrap">
             {counts.actionCount > 0 && (
-              <span className="flex items-center gap-1 text-xs text-slate-600 dark:text-slate-400">
+              <span className="flex items-center gap-1 text-xs text-muted-foreground">
                 <CheckSquare size={11} className="shrink-0" />
                 {counts.actionCount} action{counts.actionCount !== 1 ? 's' : ''}
               </span>
@@ -244,12 +204,6 @@ export default function ProjectCard({ project, counts, isProgram, parentName, hi
                 {counts.riskCount} risk{counts.riskCount !== 1 ? 's' : ''}
               </span>
             )}
-          </div>
-        )}
-
-        {/* Deadline + blockers — "what's holding this up" at a glance */}
-        {counts && (counts.nextDeadline || (counts.overdueCount ?? 0) > 0 || (counts.blockingCount ?? 0) > 0) && (
-          <div className="flex items-center gap-3 flex-wrap">
             {(counts.overdueCount ?? 0) > 0 ? (
               <span className="flex items-center gap-1 text-xs font-medium text-red-600 dark:text-red-400">
                 <CalendarClock size={11} className="shrink-0" />
@@ -257,8 +211,8 @@ export default function ProjectCard({ project, counts, isProgram, parentName, hi
               </span>
             ) : counts.nextDeadline ? (
               <span className={cn(
-                'flex items-center gap-1 text-xs font-medium',
-                counts.nextDeadline.daysUntil <= 7 ? 'text-amber-600 dark:text-amber-400' : 'text-slate-600 dark:text-slate-400'
+                'flex items-center gap-1 text-xs',
+                counts.nextDeadline.daysUntil <= 7 ? 'font-medium text-amber-600 dark:text-amber-400' : 'text-muted-foreground'
               )}>
                 <CalendarClock size={11} className="shrink-0" />
                 {deadlineLabel(counts.nextDeadline)}: {counts.nextDeadline.label}

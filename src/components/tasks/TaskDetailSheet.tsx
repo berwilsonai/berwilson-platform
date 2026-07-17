@@ -276,7 +276,7 @@ export default function TaskDetailSheet({
               {/* Meta row */}
               <div className="grid grid-cols-2 gap-3 pt-1">
                 <div className="space-y-1">
-                  <label className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Assignee</label>
+                  <label className="label-caps text-muted-foreground">Assignee</label>
                   <select
                     value={task.assignee_id ?? ''}
                     onChange={(e) => patch({ assignee_id: e.target.value || null })}
@@ -289,7 +289,7 @@ export default function TaskDetailSheet({
                   </select>
                 </div>
                 <div className="space-y-1">
-                  <label className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Due date</label>
+                  <label className="label-caps text-muted-foreground">Due date</label>
                   <DatePicker
                     value={task.due_date ?? ''}
                     onChange={(v) => patch({ due_date: v || null })}
@@ -297,7 +297,7 @@ export default function TaskDetailSheet({
                 </div>
                 {!lockProject && projects.length > 0 && (
                   <div className="space-y-1 col-span-2">
-                    <label className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Project</label>
+                    <label className="label-caps text-muted-foreground">Project</label>
                     <select
                       value={task.project_id ?? ''}
                       onChange={(e) => patch({ project_id: e.target.value || null })}
@@ -312,7 +312,7 @@ export default function TaskDetailSheet({
                 )}
                 {hasOpps && (
                   <div className="space-y-1 col-span-2">
-                    <label className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Opportunity</label>
+                    <label className="label-caps text-muted-foreground">Opportunity</label>
                     <select
                       value={task.opportunity_id ?? ''}
                       onChange={(e) => patch({ opportunity_id: e.target.value || null })}
@@ -327,7 +327,7 @@ export default function TaskDetailSheet({
                 )}
                 {hasInvestors && (
                   <div className="space-y-1 col-span-2">
-                    <label className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Investor</label>
+                    <label className="label-caps text-muted-foreground">Investor</label>
                     <select
                       value={task.investor_id ?? ''}
                       onChange={(e) => patch({ investor_id: e.target.value || null })}
@@ -342,7 +342,7 @@ export default function TaskDetailSheet({
                 )}
                 {hasObjectives && (
                   <div className="space-y-1 col-span-2">
-                    <label className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Objective</label>
+                    <label className="label-caps text-muted-foreground">Objective</label>
                     <select
                       value={task.objective_id ?? ''}
                       onChange={(e) => patch({ objective_id: e.target.value || null })}
@@ -359,7 +359,7 @@ export default function TaskDetailSheet({
 
               {/* Waiting on — who owes the assignee something before this can move. */}
               <div className="space-y-1.5">
-                <label className="inline-flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                <label className="inline-flex items-center gap-1.5 label-caps text-muted-foreground">
                   <Hourglass size={12} /> Waiting on
                 </label>
                 <div className="flex gap-2">
@@ -420,7 +420,7 @@ export default function TaskDetailSheet({
                 ['How', how, setHow, 'how', 'How should we approach it?'],
               ] as const).map(([label, val, setter, key, placeholder]) => (
                 <div key={key} className="space-y-1">
-                  <label className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{label}</label>
+                  <label className="label-caps text-muted-foreground">{label}</label>
                   <textarea
                     value={val}
                     onChange={(e) => setter(e.target.value)}
@@ -526,7 +526,7 @@ export default function TaskDetailSheet({
 
               {/* Notes feed */}
               <div className="space-y-2">
-                <div className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                <div className="flex items-center gap-1.5 label-caps text-muted-foreground">
                   <MessageSquarePlus size={13} /> Updates &amp; notes
                 </div>
                 <div className="space-y-2">

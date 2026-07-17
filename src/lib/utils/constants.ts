@@ -234,9 +234,9 @@ export const BID_DECISION_SHORT: Record<BidDecision, string> = {
 }
 
 export const BID_DECISION_BADGE: Record<BidDecision, string> = {
-  undecided: 'bg-slate-100 text-slate-600 ring-slate-200',
-  pursue: 'bg-emerald-50 text-emerald-700 ring-emerald-200',
-  no_bid: 'bg-red-50 text-red-600 ring-red-200',
+  undecided: 'bg-slate-100 text-slate-600 ring-slate-200 dark:bg-slate-400/15 dark:text-slate-300 dark:ring-slate-400/25',
+  pursue: 'bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-500/15 dark:text-emerald-300 dark:ring-emerald-500/30',
+  no_bid: 'bg-red-50 text-red-600 ring-red-200 dark:bg-red-500/15 dark:text-red-300 dark:ring-red-500/30',
 }
 
 /** Normalize a possibly-null/legacy bid_decision value to a known key. */
@@ -252,10 +252,10 @@ export function weightedValue(estimatedValue: number | null, winProbability: num
 
 /** Color for a P-win badge, scaled by confidence. */
 export function pwinBadge(p: number | null | undefined): string {
-  if (p == null) return 'bg-slate-100 text-slate-500 ring-slate-200'
-  if (p >= 60) return 'bg-emerald-50 text-emerald-700 ring-emerald-200'
-  if (p >= 35) return 'bg-amber-50 text-amber-700 ring-amber-200'
-  return 'bg-red-50 text-red-600 ring-red-200'
+  if (p == null) return 'bg-slate-100 text-slate-500 ring-slate-200 dark:bg-slate-400/15 dark:text-slate-300 dark:ring-slate-400/25'
+  if (p >= 60) return 'bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-500/15 dark:text-emerald-300 dark:ring-emerald-500/30'
+  if (p >= 35) return 'bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-500/15 dark:text-amber-300 dark:ring-amber-500/30'
+  return 'bg-red-50 text-red-600 ring-red-200 dark:bg-red-500/15 dark:text-red-300 dark:ring-red-500/30'
 }
 
 /** Whole days from today (local) until a date string; negative = overdue. */
@@ -390,9 +390,9 @@ export const ENTITY_CATEGORY_LABELS: Record<EntityCategory, string> = {
 }
 
 export const ENTITY_CATEGORY_BADGE: Record<EntityCategory, string> = {
-  vendor: 'bg-blue-50 text-blue-700 ring-blue-200',
-  partner: 'bg-emerald-50 text-emerald-700 ring-emerald-200',
-  contractor: 'bg-amber-50 text-amber-700 ring-amber-200',
+  vendor: 'bg-blue-50 text-blue-700 ring-blue-200 dark:bg-blue-500/15 dark:text-blue-300 dark:ring-blue-500/30',
+  partner: 'bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-500/15 dark:text-emerald-300 dark:ring-emerald-500/30',
+  contractor: 'bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-500/15 dark:text-amber-300 dark:ring-amber-500/30',
 }
 
 // ─── Federal Standards ──────────────────────────────────────────────────────
@@ -412,8 +412,8 @@ export const FEDERAL_STANDARD_DESCRIPTIONS: Record<FederalStandard, string> = {
 }
 
 export const FEDERAL_STANDARD_BADGE: Record<FederalStandard, string> = {
-  usace_qm: 'bg-blue-50 text-blue-700 ring-blue-200',
-  dod_385: 'bg-orange-50 text-orange-700 ring-orange-200',
+  usace_qm: 'bg-blue-50 text-blue-700 ring-blue-200 dark:bg-blue-500/15 dark:text-blue-300 dark:ring-blue-500/30',
+  dod_385: 'bg-orange-50 text-orange-700 ring-orange-200 dark:bg-orange-500/15 dark:text-orange-300 dark:ring-orange-500/30',
 }
 
 // USACE Quality Management scorecard criteria

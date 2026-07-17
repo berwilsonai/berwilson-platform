@@ -43,7 +43,7 @@ export default function StageIndicator({
             />
           ))}
         </div>
-        <span className={cn('text-xs font-medium tabular-nums', STAGE_TEXT[stage])}>
+        <span className={cn('text-xs font-medium tnum', STAGE_TEXT[stage])}>
           {STAGE_LABELS[stage]}
         </span>
       </div>

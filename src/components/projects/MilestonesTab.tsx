@@ -267,7 +267,7 @@ export default function MilestonesTab({
                 key={stage}
                 className={cn(
                   'w-56 rounded-lg border flex flex-col',
-                  isCurrent && 'border-emerald-300 dark:border-emerald-700/60 ring-1 ring-emerald-200 dark:ring-emerald-800/60 shadow-sm',
+                  isCurrent && 'border-emerald-300 dark:border-emerald-700/60 ring-1 ring-emerald-200 dark:ring-emerald-800/60 elev-1',
                   (isPast || isFuture) && 'border-border'
                 )}
               >
@@ -305,7 +305,7 @@ export default function MilestonesTab({
                   {total > 0 && (
                     <span
                       className={cn(
-                        'text-xs shrink-0 tabular-nums',
+                        'text-xs shrink-0 tnum',
                         completed === total
                           ? 'text-emerald-600 dark:text-emerald-400 font-semibold'
                           : 'text-muted-foreground'

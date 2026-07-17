@@ -46,7 +46,7 @@ export default function HealthPanel({
     <div className="rounded-xl border border-border bg-card elev-1 px-5 py-4 sm:px-6">
       <dl className="grid grid-cols-2 gap-x-8 gap-y-5 lg:grid-cols-4">
         <div className="min-w-0">
-          <dt className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+          <dt className="label-caps text-muted-foreground">
             Pipeline Value
           </dt>
           <dd className="mt-1 text-3xl font-semibold text-foreground tnum heading-tight">
@@ -56,7 +56,7 @@ export default function HealthPanel({
         </div>
 
         <div className="min-w-0">
-          <dt className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+          <dt className="label-caps text-muted-foreground">
             Weighted Pipeline
           </dt>
           <dd className="mt-1 text-3xl font-semibold text-foreground tnum heading-tight">
@@ -66,7 +66,7 @@ export default function HealthPanel({
         </div>
 
         <div className="min-w-0">
-          <dt className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+          <dt className="label-caps text-muted-foreground">
             Active Projects
           </dt>
           <dd className="mt-1 text-3xl font-semibold text-foreground tnum heading-tight">
@@ -80,7 +80,7 @@ export default function HealthPanel({
         </div>
 
         <div className="min-w-0">
-          <dt className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+          <dt className="label-caps text-muted-foreground">
             Needs Attention
           </dt>
           <dd

@@ -47,11 +47,11 @@ export default function PursuitSnapshot({ project }: { project: ProjectWithCaptu
                 : 'border-border bg-card'
           )}
         >
-          <div className="flex items-center justify-center gap-1.5 text-xs font-medium text-muted-foreground uppercase tracking-wide">
+          <div className="flex items-center justify-center gap-1.5 label-caps text-muted-foreground">
             <Timer size={12} />
             Bid Submission
           </div>
-          <p className={cn('text-2xl font-bold mt-1 tabular-nums', bidDueColor(bidDue))}>
+          <p className={cn('text-2xl font-bold mt-1 tnum', bidDueColor(bidDue))}>
             {bidDueLabel(bidDue)}
           </p>
           <p className="text-xs text-muted-foreground mt-0.5">{formatDate(bidDue)}</p>
@@ -82,7 +82,7 @@ export default function PursuitSnapshot({ project }: { project: ProjectWithCaptu
               <span className="text-xs text-muted-foreground inline-flex items-center gap-1.5">
                 <Percent size={12} /> Win Probability
               </span>
-              <span className={cn('inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold ring-1 ring-inset tabular-nums', pwinBadge(winProb))}>
+              <span className={cn('inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold ring-1 ring-inset tnum', pwinBadge(winProb))}>
                 {winProb != null ? `${winProb}%` : '—'}
               </span>
             </div>
@@ -102,12 +102,12 @@ export default function PursuitSnapshot({ project }: { project: ProjectWithCaptu
           {/* Value + weighted */}
           <div className="flex items-center justify-between px-4 py-2.5">
             <span className="text-xs text-muted-foreground">Est. Value</span>
-            <span className="text-sm font-bold tabular-nums">{formatValue(project.estimated_value)}</span>
+            <span className="text-sm font-bold tnum">{formatValue(project.estimated_value)}</span>
           </div>
           {weighted > 0 && (
             <div className="flex items-center justify-between px-4 py-2.5">
               <span className="text-xs text-muted-foreground">Weighted (P-win)</span>
-              <span className="text-sm font-semibold tabular-nums text-emerald-600 dark:text-emerald-400">{formatValue(weighted)}</span>
+              <span className="text-sm font-semibold tnum text-emerald-600 dark:text-emerald-400">{formatValue(weighted)}</span>
             </div>
           )}
 
@@ -135,7 +135,7 @@ export default function PursuitSnapshot({ project }: { project: ProjectWithCaptu
             {dates.map((d) => (
               <div key={d.label} className="flex items-center justify-between px-4 py-2">
                 <span className="text-xs text-muted-foreground">{d.label}</span>
-                <span className={cn('text-xs tabular-nums', d.highlight ? cn('font-semibold', bidDueColor(d.value)) : 'text-foreground')}>
+                <span className={cn('text-xs tnum', d.highlight ? cn('font-semibold', bidDueColor(d.value)) : 'text-foreground')}>
                   {formatDate(d.value)}
                 </span>
               </div>

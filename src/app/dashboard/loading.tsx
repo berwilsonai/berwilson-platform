@@ -2,7 +2,7 @@ export default function DashboardLoading() {
   return (
     <div className="space-y-5">
       {/* Health panel skeleton */}
-      <div className="rounded-lg border border-border bg-card shadow-sm overflow-hidden animate-pulse">
+      <div className="rounded-lg border border-border bg-card elev-1 overflow-hidden animate-pulse">
         <div className="flex items-center gap-2 px-4 py-2.5 border-b border-border bg-muted/30">
           <div className="h-3 w-28 rounded bg-muted" />
         </div>
@@ -40,7 +40,7 @@ export default function DashboardLoading() {
       {/* Stat cards skeleton */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 animate-pulse">
         {Array.from({ length: 4 }).map((_, i) => (
-          <div key={i} className="rounded-lg border border-border border-l-2 border-l-muted bg-card p-4 shadow-sm">
+          <div key={i} className="rounded-lg border border-border border-l-2 border-l-muted bg-card p-4 elev-1">
             <div className="h-3 w-24 rounded bg-muted" />
             <div className="h-8 w-16 rounded bg-muted mt-2" />
           </div>
@@ -57,7 +57,7 @@ export default function DashboardLoading() {
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {Array.from({ length: 4 }).map((_, i) => (
-              <div key={i} className="rounded-lg border border-border bg-card shadow-sm p-4 sm:p-5 space-y-3">
+              <div key={i} className="rounded-lg border border-border bg-card elev-1 p-4 sm:p-5 space-y-3">
                 <div className="flex items-center gap-2">
                   <div className="h-5 w-12 rounded bg-muted" />
                   <div className="h-5 w-14 rounded bg-muted" />
@@ -85,7 +85,7 @@ export default function DashboardLoading() {
 
         {/* Right sidebar skeleton */}
         <div className="w-full lg:w-72 xl:w-80 shrink-0 space-y-3">
-          <div className="rounded-lg border border-border bg-card shadow-sm p-4 space-y-3">
+          <div className="rounded-lg border border-border bg-card elev-1 p-4 space-y-3">
             <div className="h-4 w-28 rounded bg-muted" />
             {Array.from({ length: 3 }).map((_, i) => (
               <div key={i} className="flex items-center justify-between">
@@ -94,7 +94,7 @@ export default function DashboardLoading() {
               </div>
             ))}
           </div>
-          <div className="rounded-lg border border-border bg-card shadow-sm">
+          <div className="rounded-lg border border-border bg-card elev-1">
             <div className="px-4 py-3 border-b border-border">
               <div className="h-4 w-32 rounded bg-muted" />
             </div>

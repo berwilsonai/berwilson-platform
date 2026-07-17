@@ -9,7 +9,6 @@ import DashboardProjects from '@/components/dashboard/DashboardProjects'
 import SortControls from '@/components/dashboard/SortControls'
 import PortfolioBriefButton from '@/components/dashboard/PortfolioBriefButton'
 import DailyBrief from '@/components/dashboard/DailyBrief'
-import AlertsBanner from '@/components/dashboard/AlertsBanner'
 import HealthPanel from '@/components/dashboard/HealthPanel'
 import RiskOverview from '@/components/dashboard/RiskOverview'
 import NeedsAttention from '@/components/dashboard/NeedsAttention'
@@ -21,12 +20,6 @@ import { fetchOpenTasks } from '@/lib/tasks/queries'
 import { mailboxLooksBroken } from '@/lib/system-health'
 import EmptyState from '@/components/shared/EmptyState'
 import type { WaitingOnItem, RiskItem } from '@/types/domain'
-
-// ─── helpers ────────────────────────────────────────────────────────────────
-
-function daysOverdue(targetDate: string): number {
-  return Math.floor((Date.now() - new Date(targetDate).getTime()) / 86_400_000)
-}
 
 // ─── types for joined queries ────────────────────────────────────────────────
 
@@ -291,49 +284,15 @@ export default async function DashboardPage({ searchParams }: PageProps) {
       win_probability: (p as { win_probability?: number | null }).win_probability ?? null,
     }))
 
-  // Needs Attention data (cap display at 6 each)
+  // Needs Attention data (cap display at 6 each). Critical system/compliance
+  // items (mailbox, certs) render at the top of the same rail card.
   const overdueTasks = overdueTasksAll.filter((t) => t.due_date && t.due_date < today)
   const reviewItems = (reviewRaw ?? []).slice(0, 6) as ReviewWithProject[]
   const overdueItems = (overdueRaw ?? []).slice(0, 6) as MilestoneWithProject[]
   const ddItems = (ddRaw ?? []).slice(0, 6) as DdWithProject[]
-  // Build alerts data for the banner
-  const alerts: Array<{ type: 'critical' | 'overdue' | 'review'; text: string; href: string }> = []
-  if (mailboxLooksBroken(graphTokenRow?.expires_at)) {
-    alerts.push({
-      type: 'critical',
-      text: `Mailbox disconnected (${graphTokenRow?.email_address}) — calendar, meeting prep & email research are offline. Reconnect from System Health.`,
-      href: '/settings/health',
-    })
-  }
-  for (const dd of ddItems) {
-    alerts.push({
-      type: 'critical',
-      text: `[${dd.severity.toUpperCase()}] ${dd.project?.name}: ${dd.item.slice(0, 80)}`,
-      href: `/projects/${dd.project_id}/diligence`,
-    })
-  }
-  for (const m of overdueItems) {
-    if (m.target_date) {
-      alerts.push({
-        type: 'overdue',
-        text: `Overdue: ${m.label} (${m.project?.name}) — ${daysOverdue(m.target_date)}d past due`,
-        href: `/projects/${m.project_id}/milestones`,
-      })
-    }
-  }
-  for (const cert of expiringCerts ?? []) {
-    const days = cert.expiration_date
-      ? Math.ceil((new Date(cert.expiration_date).getTime() - Date.now()) / 86_400_000)
-      : null
-    const isExpired = days !== null && days < 0
-    alerts.push({
-      type: isExpired ? 'critical' : 'overdue',
-      text: isExpired
-        ? `Cert EXPIRED: ${cert.name}${cert.issuing_body ? ` (${cert.issuing_body})` : ''} — renew now`
-        : `Cert expiring in ${days}d: ${cert.name}${cert.issuing_body ? ` (${cert.issuing_body})` : ''}`,
-      href: '/company',
-    })
-  }
+  const mailboxAlert = mailboxLooksBroken(graphTokenRow?.expires_at)
+    ? { email: graphTokenRow?.email_address ?? 'mailbox' }
+    : null
 
   // Now objectives with open-task counts (from the tasks.objective_id tag)
   const objectiveTaskCounts: Record<string, number> = {}
@@ -356,14 +315,10 @@ export default async function DashboardPage({ searchParams }: PageProps) {
     <div className="space-y-6">
 
       {/* ── Steering board: Now objectives lead the morning read ─────────── */}
-      {nowObjectives.length > 0 && (
-        <div className="animate-fade-in-up">
-          <NowObjectives items={nowObjectives} />
-        </div>
-      )}
+      {nowObjectives.length > 0 && <NowObjectives items={nowObjectives} />}
 
       {/* ── Portfolio health overview ─────────────────────────────────────── */}
-      <div className="animate-fade-in-up">
+      <div>
         <HealthPanel
           activeProjects={activeProjects.length}
           pipelineValue={pipelineValue}
@@ -375,40 +330,15 @@ export default async function DashboardPage({ searchParams }: PageProps) {
         />
       </div>
 
-      {/* ── How each vertical is doing ────────────────────────────────────── */}
-      {activeProjects.length > 0 && (
-        <div className="animate-fade-in-up" style={{ animationDelay: '25ms' }}>
-          <VerticalRollup
-            projects={activeProjects.map((p) => ({
-              sector: p.sector,
-              estimated_value: p.estimated_value,
-              win_probability: (p as { win_probability?: number | null }).win_probability ?? null,
-            }))}
-          />
-        </div>
-      )}
-
-      {/* ── Alerts banner — critical items across portfolio ──────────────── */}
-      {alerts.length > 0 && (
-        <div className="animate-fade-in-up" style={{ animationDelay: '50ms' }}>
-          <AlertsBanner alerts={alerts} />
-        </div>
-      )}
-
       {/* ── Daily intelligence brief ────────────────────────────────────── */}
       {activeProjects.length > 0 && (
-        <div className="animate-fade-in-up" style={{ animationDelay: '100ms' }}>
-          <Suspense>
-            <DailyBrief />
-          </Suspense>
-        </div>
+        <Suspense>
+          <DailyBrief />
+        </Suspense>
       )}
 
-      {/* ── Section divider ───────────────────────────────────────────────── */}
-      <div className="divider-fade" />
-
       {/* ── Main content ──────────────────────────────────────────────────── */}
-      <div className="flex flex-col lg:flex-row gap-6 animate-fade-in-up" style={{ animationDelay: '150ms' }}>
+      <div className="flex flex-col lg:flex-row gap-6">
 
         {/* Cards grid — left on desktop, first on mobile */}
         <div className="flex-1 min-w-0 space-y-3">
@@ -449,6 +379,17 @@ export default async function DashboardPage({ searchParams }: PageProps) {
           {/* Closing soon — bid deadlines across the portfolio */}
           <ClosingSoon items={closingSoon} />
 
+          {/* How each vertical is doing */}
+          {activeProjects.length > 0 && (
+            <VerticalRollup
+              projects={activeProjects.map((p) => ({
+                sector: p.sector,
+                estimated_value: p.estimated_value,
+                win_probability: (p as { win_probability?: number | null }).win_probability ?? null,
+              }))}
+            />
+          )}
+
           {/* Risk overview */}
           <Suspense>
             <RiskOverview />
@@ -461,6 +402,8 @@ export default async function DashboardPage({ searchParams }: PageProps) {
             reviewCount={reviewCount ?? 0}
             overdueTasks={overdueTasks}
             investorFollowUps={investorFollowUpsRaw ?? []}
+            mailboxAlert={mailboxAlert}
+            expiringCerts={expiringCerts ?? []}
           />
         </div>
 

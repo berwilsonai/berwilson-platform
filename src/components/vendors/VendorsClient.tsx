@@ -321,7 +321,7 @@ export default function VendorsClient({ vendors: initialVendors }: VendorsClient
       </p>
 
       {/* Card grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 stagger-children">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
         {filtered.map(vendor => (
           <VendorCard
             key={vendor.id}

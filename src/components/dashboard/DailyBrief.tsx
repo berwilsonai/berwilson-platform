@@ -4,12 +4,19 @@ import { useState, useEffect, useCallback } from 'react'
 import { toast } from 'sonner'
 import { Sparkles, RefreshCw, ChevronDown, ChevronUp } from 'lucide-react'
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
+import { useStoredState } from '@/hooks/use-stored-state'
 
+/**
+ * Daily intelligence brief — collapsed by default and generated only on
+ * demand. The local model takes 30–60s per generation, so the morning read
+ * must never block on it: the cached brief (if any) renders instantly, and a
+ * fresh one is a deliberate click.
+ */
 export default function DailyBrief() {
   const [brief, setBrief] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [expanded, setExpanded] = useState(true)
+  const [expanded, setExpanded] = useStoredState('bw.brief.expanded', false)
   const [stale, setStale] = useState(false)
 
   const generateBrief = useCallback(async () => {
@@ -51,26 +58,18 @@ export default function DailyBrief() {
     }
   }, [])
 
-  // Load cached brief on mount
+  // Load the cached brief on mount — never auto-generate (30–60s local call).
   useEffect(() => {
     const cached = localStorage.getItem('bw-daily-brief')
     if (cached) {
       try {
         const parsed = JSON.parse(cached) as { brief: string; date: string }
         const today = new Date().toISOString().split('T')[0]
-        if (parsed.date === today) {
-          setBrief(parsed.brief)
-          return
-        }
-        // Show stale brief while loading fresh one
         setBrief(parsed.brief)
-        setStale(true)
+        setStale(parsed.date !== today)
       } catch { /* ignore */ }
     }
-    generateBrief()
-  }, [generateBrief])
-
-  if (!brief && !loading && !error) return null
+  }, [])
 
   return (
     <div className="rounded-xl border border-primary/20 bg-primary/[0.03] elev-1 overflow-hidden">
@@ -93,19 +92,21 @@ export default function DailyBrief() {
               Yesterday
             </TooltipTrigger>
             <TooltipContent>
-              This brief is from yesterday. Click the refresh button to generate a fresh one.
+              This brief is from yesterday. Generate a fresh one — it takes about a minute.
             </TooltipContent>
           </Tooltip>
         )}
-        <button
-          type="button"
-          onClick={() => { if (!loading) generateBrief() }}
-          disabled={loading}
-          className="p-1 text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50 disabled:pointer-events-none"
-          aria-label="Refresh brief"
-        >
-          <RefreshCw size={12} className={loading ? 'animate-spin' : ''} />
-        </button>
+        {brief && (
+          <button
+            type="button"
+            onClick={() => { if (!loading) generateBrief() }}
+            disabled={loading}
+            className="p-1 text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50 disabled:pointer-events-none"
+            aria-label="Refresh brief"
+          >
+            <RefreshCw size={12} className={loading ? 'animate-spin' : ''} />
+          </button>
+        )}
         <button
           type="button"
           onClick={() => setExpanded(!expanded)}
@@ -130,6 +131,22 @@ export default function DailyBrief() {
 
           {error && (
             <p className="text-xs text-red-600 dark:text-red-400 pt-3">{error}</p>
+          )}
+
+          {!brief && !loading && !error && (
+            <div className="pt-3 flex items-center gap-3">
+              <p className="text-xs text-muted-foreground flex-1">
+                No brief yet today. Generating one takes about a minute on the local model.
+              </p>
+              <button
+                type="button"
+                onClick={generateBrief}
+                className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors shrink-0"
+              >
+                <Sparkles size={12} />
+                Generate
+              </button>
+            </div>
           )}
 
           {brief && (

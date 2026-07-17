@@ -57,7 +57,7 @@ export default function MeetingPrepButton({ subject, date, attendees }: MeetingP
           onClick={() => setOpen(false)}
         >
           <div
-            className="bg-card border border-border rounded-xl shadow-xl max-w-2xl w-full mx-4 max-h-[80vh] overflow-hidden flex flex-col"
+            className="bg-card border border-border rounded-xl elev-3 max-w-2xl w-full mx-4 max-h-[80vh] overflow-hidden flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center gap-2 px-4 py-3 border-b border-border">

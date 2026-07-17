@@ -92,7 +92,7 @@ export default function ProjectForm({ mode, project, redirectAfterCreate, availa
 
       {/* Core info */}
       <section className="space-y-4">
-        <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        <h2 className="label-caps text-muted-foreground">
           Core Info
         </h2>
 
@@ -221,7 +221,7 @@ export default function ProjectForm({ mode, project, redirectAfterCreate, availa
 
       {/* Pursuit & Capture */}
       <section className="space-y-4">
-        <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        <h2 className="label-caps text-muted-foreground">
           Pursuit & Capture
         </h2>
 
@@ -341,7 +341,7 @@ export default function ProjectForm({ mode, project, redirectAfterCreate, availa
 
       {/* Contract & Delivery */}
       <section className="space-y-4">
-        <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        <h2 className="label-caps text-muted-foreground">
           Contract & Delivery
         </h2>
 
@@ -407,7 +407,7 @@ export default function ProjectForm({ mode, project, redirectAfterCreate, availa
 
       {/* Client & Location */}
       <section className="space-y-4">
-        <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        <h2 className="label-caps text-muted-foreground">
           Client & Location
         </h2>
 
@@ -461,7 +461,7 @@ export default function ProjectForm({ mode, project, redirectAfterCreate, availa
 
       {/* Federal Standards */}
       <section className="space-y-4">
-        <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        <h2 className="label-caps text-muted-foreground">
           Federal Standards
         </h2>
         <p className="text-xs text-muted-foreground -mt-2">
@@ -496,7 +496,7 @@ export default function ProjectForm({ mode, project, redirectAfterCreate, availa
 
       {/* Key Dates */}
       <section className="space-y-4">
-        <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        <h2 className="label-caps text-muted-foreground">
           Key Dates
         </h2>
 
