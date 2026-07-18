@@ -42,17 +42,20 @@ export default async function StructurePrintPage({ searchParams }: PageProps) {
   return (
     <div className="min-h-full bg-white text-slate-900">
       <ForceLightTheme />
-      {/* Landscape page; shrink the chart slightly so the 4-division row fits. */}
-      <style>{`@page { size: letter landscape; margin: 0.4in; } @media print { .org-print-zoom { zoom: 0.8; } }`}</style>
+      {/* Landscape page; shrink the chart slightly so the 4-division row fits.
+          print-color-adjust keeps the navy parent cards + division accent
+          colors in the exported PDF (browsers drop backgrounds by default). */}
+      <style>{`@page { size: letter landscape; margin: 0.4in; } @media print { .org-print-zoom { zoom: 0.8; } html { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }`}</style>
       <StructurePrintToolbar depth={depth} />
 
       <div className="mx-auto max-w-5xl px-8 py-10 print:max-w-none print:px-0 print:py-0">
         {/* Letterhead */}
         <header className="flex items-start justify-between gap-4 pb-6 border-b-2 border-slate-900">
           <div>
-            <h1 className="text-2xl font-semibold tracking-tight">Entity Architecture</h1>
+            <p className="label-caps text-slate-500">Ber Wilson</p>
+            <h1 className="text-2xl font-semibold tracking-tight mt-0.5">Entity Architecture</h1>
             <p className="text-sm text-slate-500 mt-1">
-              Ber Wilson · Prepared <PreparedDate />
+              Prepared <PreparedDate />
             </p>
           </div>
           <Image

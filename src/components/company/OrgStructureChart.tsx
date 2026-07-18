@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type CSSProperties } from 'react'
 import Link from 'next/link'
 import { FileDown, Maximize2, Minus, Plus, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -21,6 +21,14 @@ interface OrgStructureChartProps {
 }
 
 const ZOOM_STEPS = [0.6, 0.7, 0.8, 0.9, 1, 1.1, 1.25]
+
+// Faint diagram-canvas dot grid; the dots derive from the theme border color
+// so they track light/dark automatically.
+const DOT_GRID: CSSProperties = {
+  backgroundImage:
+    'radial-gradient(color-mix(in oklab, var(--border) 60%, transparent) 1px, transparent 1px)',
+  backgroundSize: '22px 22px',
+}
 
 export default function OrgStructureChart({ nodes, people }: OrgStructureChartProps) {
   const divisionIds = useMemo(
@@ -141,7 +149,11 @@ export default function OrgStructureChart({ nodes, people }: OrgStructureChartPr
           </button>
         ) : (
           <button
-            onClick={() => setPresent(true)}
+            onClick={() => {
+              setPresent(true)
+              // Presenting on a big screen — nudge to 110% if still at default.
+              setZoomIdx((z) => (z === 4 ? 5 : z))
+            }}
             className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-border bg-card text-sm font-medium text-foreground hover:bg-accent transition-colors"
           >
             <Maximize2 size={14} /> Present
@@ -152,16 +164,14 @@ export default function OrgStructureChart({ nodes, people }: OrgStructureChartPr
   )
 
   const chart = (
-    <div className="overflow-x-auto pb-4">
-      <div style={{ zoom }}>
-        <OrgChart
-          nodes={nodes}
-          people={people}
-          expandedDivisions={expanded}
-          showPeople={showPeople}
-          onToggleDivision={toggleDivision}
-        />
-      </div>
+    <div style={{ zoom }}>
+      <OrgChart
+        nodes={nodes}
+        people={people}
+        expandedDivisions={expanded}
+        showPeople={showPeople}
+        onToggleDivision={toggleDivision}
+      />
     </div>
   )
 
@@ -171,7 +181,14 @@ export default function OrgStructureChart({ nodes, people }: OrgStructureChartPr
         <div className="sticky top-0 z-10 border-b border-border bg-background/95 backdrop-blur-sm px-6 py-3">
           {controls}
         </div>
-        <div className="px-6 py-8">{chart}</div>
+        <div className="min-h-[calc(100vh-3.6rem)] px-8 py-10" style={DOT_GRID}>
+          {/* Slide title */}
+          <div className="text-center mb-10">
+            <p className="label-caps text-muted-foreground">Ber Wilson</p>
+            <h1 className="text-3xl font-semibold tracking-tight mt-1">Entity Architecture</h1>
+          </div>
+          <div className="overflow-x-auto pb-4">{chart}</div>
+        </div>
       </div>
     )
   }
@@ -179,7 +196,12 @@ export default function OrgStructureChart({ nodes, people }: OrgStructureChartPr
   return (
     <div className="space-y-4">
       {controls}
-      {chart}
+      {/* Diagram canvas */}
+      <div className="rounded-xl border border-border bg-card elev-1 overflow-hidden">
+        <div className="overflow-x-auto p-6" style={DOT_GRID}>
+          {chart}
+        </div>
+      </div>
     </div>
   )
 }
