@@ -3,7 +3,7 @@ import { Network } from 'lucide-react'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getViewer } from '@/lib/auth/viewer'
 import CompanySectionTabs from '@/components/company/CompanySectionTabs'
-import OrgStructureBoard from '@/components/company/OrgStructureBoard'
+import StructureView from '@/components/company/StructureView'
 
 export const metadata: Metadata = {
   title: 'Org Structure — Ber Wilson Intelligence',
@@ -51,11 +51,7 @@ export default async function CompanyStructurePage() {
 
       <CompanySectionTabs active="structure" showProfile={isAdmin} />
 
-      <OrgStructureBoard
-        initialNodes={nodes ?? []}
-        initialPeople={people ?? []}
-        canEdit={isAdmin}
-      />
+      <StructureView nodes={nodes ?? []} people={people ?? []} canEdit={isAdmin} />
     </div>
   )
 }

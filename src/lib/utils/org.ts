@@ -61,6 +61,56 @@ export function orgTier(value: string | null | undefined): OrgTier | null {
   return ORG_TIERS.includes(value as OrgTier) ? (value as OrgTier) : null
 }
 
+// ─── Grouping (shared by the chart renderer + print view) ────────────────────
+
+import type { OrgNode, OrgPerson } from '@/lib/supabase/types'
+
+export interface OrgGroups {
+  arms: OrgNode[]
+  management: OrgNode | null
+  divisions: OrgNode[]
+  spvsByDivision: Map<string, OrgNode[]>
+  roster: Record<OrgTier, OrgPerson[]>
+  staffByNode: Map<string, OrgPerson[]>
+}
+
+const bySort = (
+  a: { sort_order: number; created_at: string | null },
+  b: { sort_order: number; created_at: string | null },
+) => a.sort_order - b.sort_order || (a.created_at ?? '').localeCompare(b.created_at ?? '')
+
+/** Group flat org rows into the render structure. Pure — server-safe. */
+export function groupOrg(nodes: OrgNode[], people: OrgPerson[]): OrgGroups {
+  const arms = nodes.filter((n) => n.kind === 'arm').sort(bySort)
+  const management = nodes.find((n) => n.kind === 'management') ?? null
+  const divisions = nodes.filter((n) => n.kind === 'division').sort(bySort)
+
+  const spvsByDivision = new Map<string, OrgNode[]>()
+  for (const d of divisions) spvsByDivision.set(d.id, [])
+  for (const n of nodes) {
+    if (n.kind !== 'spv' || !n.parent_id) continue
+    spvsByDivision.get(n.parent_id)?.push(n)
+  }
+  for (const list of spvsByDivision.values()) list.sort(bySort)
+
+  const roster: Record<OrgTier, OrgPerson[]> = { leadership: [], director: [] }
+  const staffByNode = new Map<string, OrgPerson[]>()
+  for (const p of people) {
+    if (p.node_id) {
+      const list = staffByNode.get(p.node_id) ?? []
+      list.push(p)
+      staffByNode.set(p.node_id, list)
+    } else {
+      roster[p.tier === 'leadership' ? 'leadership' : 'director'].push(p)
+    }
+  }
+  roster.leadership.sort(bySort)
+  roster.director.sort(bySort)
+  for (const list of staffByNode.values()) list.sort(bySort)
+
+  return { arms, management, divisions, spvsByDivision, roster, staffByNode }
+}
+
 // ─── Person status ───────────────────────────────────────────────────────────
 
 export type OrgPersonStatus = 'active' | 'open'
