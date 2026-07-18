@@ -56,6 +56,18 @@ const ACCENTS = {
     label: 'text-amber-600 dark:text-amber-400',
     rail: 'bg-amber-300 dark:bg-amber-500/40',
   },
+  yellow: {
+    bar: 'bg-yellow-400',
+    edge: 'bg-yellow-300 dark:bg-yellow-500/50',
+    label: 'text-yellow-600 dark:text-yellow-400',
+    rail: 'bg-yellow-300 dark:bg-yellow-500/40',
+  },
+  red: {
+    bar: 'bg-red-500',
+    edge: 'bg-red-300 dark:bg-red-500/50',
+    label: 'text-red-600 dark:text-red-400',
+    rail: 'bg-red-300 dark:bg-red-500/40',
+  },
   blue: {
     bar: 'bg-blue-500',
     edge: 'bg-blue-300 dark:bg-blue-500/50',
@@ -94,23 +106,25 @@ const ACCENTS = {
   },
 } satisfies Record<string, DivisionAccent>
 
+// Fallback for unmatched divisions — leads with hues no named vertical claims.
 const ACCENT_CYCLE: DivisionAccent[] = [
-  ACCENTS.blue,
-  ACCENTS.emerald,
-  ACCENTS.amber,
-  ACCENTS.rose,
   ACCENTS.sky,
   ACCENTS.violet,
   ACCENTS.teal,
+  ACCENTS.amber,
+  ACCENTS.rose,
+  ACCENTS.blue,
+  ACCENTS.emerald,
 ]
 
-/** Keyword-match the division's vertical to the app's sector hue families. */
+/** Keyword-match the division's vertical to its color (Richard's picks:
+ * energy green, military red, health blue, real estate yellow). */
 function divisionAccent(division: OrgNode, index: number): DivisionAccent {
   const text = `${division.vertical ?? ''} ${division.name}`.toLowerCase()
-  if (/energy|power|solar|util/.test(text)) return ACCENTS.amber
-  if (/military|defense|federal|government/.test(text)) return ACCENTS.blue
-  if (/health|wellness|medical/.test(text)) return ACCENTS.rose
-  if (/real estate|housing|develop/.test(text)) return ACCENTS.emerald
+  if (/energy|power|solar|util/.test(text)) return ACCENTS.emerald
+  if (/military|defense|federal|government/.test(text)) return ACCENTS.red
+  if (/health|wellness|medical/.test(text)) return ACCENTS.blue
+  if (/real estate|housing|develop/.test(text)) return ACCENTS.yellow
   if (/tech|data|software/.test(text)) return ACCENTS.sky
   if (/steel|prefab|manufactur|industrial/.test(text)) return ACCENTS.violet
   if (/infrastructure|rail|transit/.test(text)) return ACCENTS.blue
