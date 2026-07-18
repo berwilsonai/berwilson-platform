@@ -76,6 +76,7 @@ export const TITLE_EXTRAS: { href: string; title: string }[] = [
   { href: '/vendors', title: 'Vendors & Contractors' },
   { href: '/calendar', title: 'Calendar' },
   { href: '/email-ingestion', title: 'Intake' },
+  { href: '/company/structure', title: 'Ber Wilson — Structure' },
 ]
 
 /** Palette-only rows (query-param destinations, secondary tabs). */
@@ -84,6 +85,7 @@ export const PALETTE_EXTRAS: { href: string; label: string; keywords: string }[]
   { href: '/contacts?tab=vendors', label: 'Vendors & Contractors', keywords: 'companies organizations subs partners entities' },
   { href: '/calendar', label: 'Calendar', keywords: 'schedule dates milestones meeting outlook' },
   { href: '/intake?tab=proposal', label: 'Proposal Intake', keywords: 'ingest upload rfp document proposal' },
+  { href: '/company/structure', label: 'Org Structure', keywords: 'entity architecture chart divisions spv holdings leadership organization team' },
 ]
 
 /** True when `pathname` belongs to `item` (exact, child path, or alsoMatches). */

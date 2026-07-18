@@ -1657,6 +1657,103 @@ export type Database = {
           },
         ]
       }
+      org_nodes: {
+        Row: {
+          created_at: string | null
+          entity_type: string | null
+          id: string
+          kind: string
+          location: string | null
+          name: string
+          note: string | null
+          parent_id: string | null
+          sort_order: number
+          updated_at: string | null
+          vertical: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          entity_type?: string | null
+          id?: string
+          kind?: string
+          location?: string | null
+          name: string
+          note?: string | null
+          parent_id?: string | null
+          sort_order?: number
+          updated_at?: string | null
+          vertical?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          entity_type?: string | null
+          id?: string
+          kind?: string
+          location?: string | null
+          name?: string
+          note?: string | null
+          parent_id?: string | null
+          sort_order?: number
+          updated_at?: string | null
+          vertical?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "org_nodes_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "org_nodes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      org_people: {
+        Row: {
+          created_at: string | null
+          detail: string | null
+          id: string
+          name: string | null
+          node_id: string | null
+          role: string
+          sort_order: number
+          status: string
+          tier: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          detail?: string | null
+          id?: string
+          name?: string | null
+          node_id?: string | null
+          role: string
+          sort_order?: number
+          status?: string
+          tier?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          detail?: string | null
+          id?: string
+          name?: string | null
+          node_id?: string | null
+          role?: string
+          sort_order?: number
+          status?: string
+          tier?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "org_people_node_id_fkey"
+            columns: ["node_id"]
+            isOneToOne: false
+            referencedRelation: "org_nodes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       parties: {
         Row: {
           avatar_url: string | null

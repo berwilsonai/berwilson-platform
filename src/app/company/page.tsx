@@ -4,6 +4,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import MediaGallery from '@/components/shared/MediaGallery'
 import CompanyProfileClient from '@/components/company/CompanyProfileClient'
 import CompanyKnowledgeBase from '@/components/company/CompanyKnowledgeBase'
+import CompanySectionTabs from '@/components/company/CompanySectionTabs'
 
 export const metadata: Metadata = {
   title: 'Company Profile — Ber Wilson Intelligence',
@@ -61,6 +62,9 @@ export default async function CompanyPage() {
           )}
         </div>
       </div>
+
+      {/* This route is admin-only, so both tabs always show */}
+      <CompanySectionTabs active="profile" showProfile />
 
       {/* Photo gallery */}
       <section className="space-y-2">

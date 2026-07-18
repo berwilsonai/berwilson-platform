@@ -36,10 +36,14 @@ export function isRole(value: unknown): value is Role {
 // The project map (/map + /api/map) is deliberately admin-only for now — it
 // shows the whole portfolio. To open it to PMs/execs later, add those prefixes
 // here and filter the /map page's fetch via accessibleProjectIds.
+// Every role may VIEW the org structure chart (/company/structure); editing it
+// stays admin-only (the /api/org mutation routes are not allowlisted below and
+// carry in-route admin guards). The rest of /company remains admin-only —
+// prefix matching means '/company/structure' does not grant '/company'.
 const ROLE_PAGE_PREFIXES: Record<Exclude<Role, 'admin'>, string[]> = {
-  executive: ['/tasks', '/objectives'],
-  project_manager: ['/tasks', '/projects', '/opportunities'],
-  member: ['/tasks'],
+  executive: ['/tasks', '/objectives', '/company/structure'],
+  project_manager: ['/tasks', '/projects', '/opportunities', '/company/structure'],
+  member: ['/tasks', '/company/structure'],
 }
 
 // API path prefixes each non-admin role may call. Fine-grained checks (which

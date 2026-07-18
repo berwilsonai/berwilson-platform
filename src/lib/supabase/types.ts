@@ -59,6 +59,8 @@ export type Investment = Tables<'investments'>
 export type InvestorNote = Tables<'investor_notes'>
 export type InvestorRequirement = Tables<'investor_requirements'>
 export type Raise = Tables<'raises'>
+export type OrgNode = Tables<'org_nodes'>
+export type OrgPerson = Tables<'org_people'>
 
 // ---------------------------------------------------------------------------
 // Enum aliases — import these instead of Enums<'project_sector'> everywhere
