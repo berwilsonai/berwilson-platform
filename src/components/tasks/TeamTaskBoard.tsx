@@ -559,6 +559,7 @@ export default function TeamTaskBoard({
                 onClick={() => setOpenTaskId(task.id)}
                 className={cn(
                   'group flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3 cursor-pointer lift',
+                  due?.overdue && !done && 'border-l-[3px] border-l-red-400 dark:border-l-red-500/70',
                   done && 'opacity-60',
                 )}
               >

@@ -404,8 +404,8 @@ function VendorCard({
             className="w-9 h-9 rounded object-contain bg-muted shrink-0"
           />
         ) : (
-          <div className="w-9 h-9 rounded bg-muted flex items-center justify-center shrink-0">
-            <Building2 size={16} className="text-muted-foreground" />
+          <div className="w-9 h-9 rounded bg-primary/10 text-primary dark:bg-primary/20 flex items-center justify-center shrink-0">
+            <Building2 size={16} />
           </div>
         )}
         <div className="flex-1 min-w-0">

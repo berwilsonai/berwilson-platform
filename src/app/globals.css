@@ -61,8 +61,10 @@
 
 :root {
   /* Light neutrals carry a faint cool tint (hue 260) so the whole surface
-     harmonizes with the navy sidebar instead of reading as flat pure-gray. */
-  --background: oklch(0.992 0.002 260);
+     harmonizes with the navy sidebar instead of reading as flat pure-gray.
+     The canvas sits a visible step below the white cards — background vs card
+     separation is what gives every panel its lift; don't converge them. */
+  --background: oklch(0.976 0.004 260);
   --foreground: oklch(0.16 0.015 260);
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.16 0.015 260);

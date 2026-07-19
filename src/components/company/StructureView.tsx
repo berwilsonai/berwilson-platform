@@ -61,7 +61,9 @@ export default function StructureView({
       {view === 'chart' ? (
         <OrgStructureChart nodes={nodes} people={people} />
       ) : (
-        <OrgStructureBoard initialNodes={nodes} initialPeople={people} canEdit={canEdit} />
+        <div className="max-w-3xl">
+          <OrgStructureBoard initialNodes={nodes} initialPeople={people} canEdit={canEdit} />
+        </div>
       )}
     </div>
   )

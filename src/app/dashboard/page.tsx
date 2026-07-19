@@ -17,6 +17,7 @@ import VerticalRollup from '@/components/dashboard/VerticalRollup'
 import ClosingSoon, { type ClosingSoonItem } from '@/components/dashboard/ClosingSoon'
 import { weightedValue } from '@/lib/utils/constants'
 import { fetchOpenTasks } from '@/lib/tasks/queries'
+import { getViewer } from '@/lib/auth/viewer'
 import { mailboxLooksBroken } from '@/lib/system-health'
 import EmptyState from '@/components/shared/EmptyState'
 import type { WaitingOnItem, RiskItem } from '@/types/domain'
@@ -67,7 +68,16 @@ export default async function DashboardPage({ searchParams }: PageProps) {
     : 'updated'
 
   const supabase = createAdminClient()
-  const today = new Date().toISOString().split('T')[0]
+  const now = new Date()
+  const today = now.toISOString().split('T')[0]
+  // Greeting is rendered in the executives' timezone, not the server's.
+  const denverHour = Number(now.toLocaleString('en-US', { hour: 'numeric', hour12: false, timeZone: 'America/Denver' }))
+  const greeting = denverHour < 12 ? 'Good morning' : denverHour < 17 ? 'Good afternoon' : 'Good evening'
+  const dateLine = now.toLocaleDateString('en-US', {
+    weekday: 'long', month: 'long', day: 'numeric', timeZone: 'America/Denver',
+  })
+  const viewer = await getViewer()
+  const firstName = viewer?.teamMemberName?.split(' ')[0] ?? null
 
   // Parallel: projects + attention items
   const in90Days = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
@@ -313,6 +323,14 @@ export default async function DashboardPage({ searchParams }: PageProps) {
 
   return (
     <div className="space-y-6">
+
+      {/* ── Greeting: the morning read opens like one ─────────────────────── */}
+      <div>
+        <h1 className="text-2xl font-semibold tracking-tight heading-tight">
+          {greeting}{firstName ? `, ${firstName}` : ''}
+        </h1>
+        <p className="mt-1 text-sm text-muted-foreground">{dateLine}</p>
+      </div>
 
       {/* ── Steering board: Now objectives lead the morning read ─────────── */}
       {nowObjectives.length > 0 && <NowObjectives items={nowObjectives} />}

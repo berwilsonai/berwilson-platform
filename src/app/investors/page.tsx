@@ -27,10 +27,23 @@ interface PageProps {
   searchParams: Promise<{ stage?: string; type?: string; interest?: string; target?: string }>
 }
 
-function Stat({ label, value, sub }: { label: string; value: string; sub?: string }) {
+// Accent dot echoes the tranche-bar legend: amber=indicated, indigo=committed,
+// emerald=funded. Literal classes only.
+function Stat({ label, value, sub, tone }: { label: string; value: string; sub?: string; tone?: 'amber' | 'indigo' | 'emerald' }) {
+  const dot =
+    tone === 'amber'
+      ? 'bg-amber-400'
+      : tone === 'indigo'
+        ? 'bg-indigo-500'
+        : tone === 'emerald'
+          ? 'bg-emerald-500'
+          : null
   return (
     <div className="rounded-xl border border-border bg-card px-4 py-3 elev-1">
-      <p className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</p>
+      <p className="flex items-center gap-1.5 text-[11px] uppercase tracking-wide text-muted-foreground">
+        {dot && <span className={`size-1.5 rounded-full ${dot}`} />}
+        {label}
+      </p>
       <p className="text-lg font-semibold tnum mt-0.5">{value}</p>
       {sub && <p className="text-[11px] text-muted-foreground mt-0.5">{sub}</p>}
     </div>
@@ -239,13 +252,14 @@ export default async function InvestorsPage({ searchParams }: PageProps) {
       {/* Raise rollup */}
       {(investorRows?.length ?? 0) > 0 && (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-          <Stat label="Indicated" value={formatValue(total('amount_indicated'))} sub="Soft-circled interest" />
+          <Stat label="Indicated" value={formatValue(total('amount_indicated'))} sub="Soft-circled interest" tone="amber" />
           <Stat
             label="Committed"
             value={formatValue(total('amount_committed'))}
             sub={`${formatValue(committedCompany)} parent · ${formatValue(committedProject)} projects`}
+            tone="indigo"
           />
-          <Stat label="Funded" value={formatValue(total('amount_funded'))} sub="Wired to date" />
+          <Stat label="Funded" value={formatValue(total('amount_funded'))} sub="Wired to date" tone="emerald" />
           <Stat label="Investors" value={String(count)} sub={hasFilters ? 'Matching filters' : 'In the pipeline'} />
         </div>
       )}

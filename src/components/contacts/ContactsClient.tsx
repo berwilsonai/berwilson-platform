@@ -13,10 +13,10 @@ import {
   Sparkles,
   Tag,
   Trash2,
-  User,
   X,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { hashedAvatarClasses, nameInitials } from '@/lib/utils/avatar'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 
 export interface ContactWithStats {
@@ -391,13 +391,22 @@ function ContactCard({
       >
         {/* Photo area */}
         <div className="flex flex-col items-center pt-6 pb-4 px-4 gap-3">
-          <div className="size-20 rounded-full bg-muted flex items-center justify-center shrink-0 overflow-hidden ring-2 ring-border">
+          <div
+            className={cn(
+              'size-20 rounded-full flex items-center justify-center shrink-0 overflow-hidden',
+              contact.avatar_url
+                ? 'bg-muted ring-2 ring-border'
+                : contact.is_organization
+                  ? 'bg-primary/10 text-primary dark:bg-primary/20'
+                  : hashedAvatarClasses(contact.full_name)
+            )}
+          >
             {contact.avatar_url ? (
               <img src={contact.avatar_url} alt={contact.full_name} className="size-20 object-cover" />
             ) : contact.is_organization ? (
-              <Building2 size={30} className="text-muted-foreground" />
+              <Building2 size={30} />
             ) : (
-              <User size={30} className="text-muted-foreground" />
+              <span className="text-xl font-semibold tracking-wide">{nameInitials(contact.full_name)}</span>
             )}
           </div>
           <div className="text-center min-w-0 w-full">

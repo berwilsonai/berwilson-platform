@@ -226,14 +226,41 @@ export default function AgentChat({
       {/* Messages area */}
       <div className="flex-1 overflow-y-auto px-3 py-4 space-y-4 min-h-0">
         {messages.length === 0 && !loading && (
-          <div className="flex flex-col items-center justify-center h-full text-center py-12">
-            <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center mb-3">
-              <Bot size={20} className="text-primary" />
+          <div className="flex flex-col items-center justify-center h-full text-center py-12 px-4">
+            <div className="size-12 rounded-xl bg-primary text-primary-foreground flex items-center justify-center mb-3 elev-1">
+              <Bot size={22} />
             </div>
-            <p className="text-sm font-medium text-foreground">Executive Intelligence Agent</p>
-            <p className="text-xs text-muted-foreground mt-1 max-w-[240px]">
-              Ask about project status, risks, compliance, financials, or portfolio performance.
+            <p className="text-sm font-semibold text-foreground">Ask Ber AI</p>
+            <p className="text-xs text-muted-foreground mt-1 max-w-[280px]">
+              Your executive intelligence agent — it reads the portfolio, documents, tasks, and the raise before answering.
             </p>
+            <div className="flex flex-wrap justify-center gap-1.5 mt-4 max-w-[420px]">
+              {(projectId
+                ? [
+                    'Summarize where this project stands',
+                    'What are the biggest risks here?',
+                    'Who are the key players on this project?',
+                  ]
+                : [
+                    'What needs my attention today?',
+                    'Where does the capital raise stand?',
+                    'Which projects are stalled?',
+                    'Draft a status update for Eric',
+                  ]
+              ).map(q => (
+                <button
+                  key={q}
+                  type="button"
+                  onClick={() => {
+                    setInput(q)
+                    inputRef.current?.focus()
+                  }}
+                  className="rounded-full border border-border bg-card px-3 py-1.5 text-xs text-foreground/80 hover:border-primary/40 hover:text-primary hover:bg-primary/5 transition-colors"
+                >
+                  {q}
+                </button>
+              ))}
+            </div>
           </div>
         )}
 

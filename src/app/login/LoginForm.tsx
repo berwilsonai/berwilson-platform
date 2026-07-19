@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import Image from 'next/image'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Loader2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
@@ -37,75 +38,98 @@ export default function LoginForm() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-950/40 px-4">
-      <div className="w-full max-w-sm space-y-8">
-        {/* Brand */}
-        <div className="text-center">
-          <h1 className="text-lg font-semibold tracking-widest uppercase text-slate-900 dark:text-slate-200">
-            Ber Wilson
-          </h1>
-          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-            Executive Intelligence Platform
-          </p>
-        </div>
+    <div
+      className="relative flex min-h-screen items-center justify-center px-4"
+      style={{
+        background:
+          'radial-gradient(80rem 40rem at 50% -10%, oklch(0.30 0.05 260) 0%, oklch(0.18 0.025 260) 45%, oklch(0.13 0.02 260) 100%)',
+      }}
+    >
+      {/* Faint dot grid — same canvas language as the entity chart. */}
+      <div
+        aria-hidden
+        className="absolute inset-0 pointer-events-none"
+        style={{
+          backgroundImage: 'radial-gradient(oklch(1 0 0 / 0.07) 1px, transparent 1px)',
+          backgroundSize: '22px 22px',
+        }}
+      />
 
-        {linkError && (
-          <p className="text-sm text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 rounded-md px-3 py-2 text-center">
-            That link has expired or is invalid. Please sign in below.
-          </p>
-        )}
-
-        {/* Login form */}
-        <form onSubmit={handleLogin} className="space-y-4">
-          <div className="space-y-1.5">
-            <label htmlFor="email" className="text-xs font-medium text-slate-700 dark:text-slate-300">
-              Email
-            </label>
-            <input
-              id="email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              autoComplete="email"
-              className="w-full h-10 rounded-md border border-slate-300 dark:border-slate-700/60 bg-white dark:bg-slate-900 px-3 text-sm text-slate-900 dark:text-slate-200 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900 focus:border-transparent"
-              placeholder="you@berwilson.com"
+      <div className="relative w-full max-w-sm">
+        <div className="rounded-2xl bg-card elev-3 border border-border/60 px-7 py-8 space-y-6">
+          {/* Brand */}
+          <div className="flex flex-col items-center text-center gap-3">
+            <Image
+              src="/logo.png"
+              alt="Ber Wilson"
+              width={150}
+              height={80}
+              className="object-contain h-11 w-auto"
+              priority
             />
+            <p className="label-caps text-muted-foreground">
+              Executive Intelligence Platform
+            </p>
           </div>
 
-          <div className="space-y-1.5">
-            <label htmlFor="password" className="text-xs font-medium text-slate-700 dark:text-slate-300">
-              Password
-            </label>
-            <input
-              id="password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              autoComplete="current-password"
-              className="w-full h-10 rounded-md border border-slate-300 dark:border-slate-700/60 bg-white dark:bg-slate-900 px-3 text-sm text-slate-900 dark:text-slate-200 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900 focus:border-transparent"
-            />
-          </div>
-
-          {error && (
-            <p className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/40 rounded-md px-3 py-2">
-              {error}
+          {linkError && (
+            <p className="text-sm text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 rounded-md px-3 py-2 text-center">
+              That link has expired or is invalid. Please sign in below.
             </p>
           )}
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full h-10 rounded-md bg-slate-900 text-white text-sm font-medium hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
-          >
-            {loading && <Loader2 size={14} className="animate-spin" />}
-            Sign In
-          </button>
-        </form>
+          {/* Login form */}
+          <form onSubmit={handleLogin} className="space-y-4">
+            <div className="space-y-1.5">
+              <label htmlFor="email" className="text-xs font-medium text-foreground/80">
+                Email
+              </label>
+              <input
+                id="email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                autoComplete="email"
+                className="w-full h-10 rounded-md border border-input bg-background dark:bg-slate-900 px-3 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
+                placeholder="you@berwilson.com"
+              />
+            </div>
 
-        <p className="text-center text-xs text-slate-400">
-          Internal use only
+            <div className="space-y-1.5">
+              <label htmlFor="password" className="text-xs font-medium text-foreground/80">
+                Password
+              </label>
+              <input
+                id="password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                autoComplete="current-password"
+                className="w-full h-10 rounded-md border border-input bg-background dark:bg-slate-900 px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
+              />
+            </div>
+
+            {error && (
+              <p className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/40 rounded-md px-3 py-2">
+                {error}
+              </p>
+            )}
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full h-10 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2 elev-1"
+            >
+              {loading && <Loader2 size={14} className="animate-spin" />}
+              Sign In
+            </button>
+          </form>
+        </div>
+
+        <p className="mt-5 text-center text-xs text-white/40">
+          Internal use only · Private network access
         </p>
       </div>
     </div>
