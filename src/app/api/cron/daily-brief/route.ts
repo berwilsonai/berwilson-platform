@@ -271,8 +271,10 @@ export async function GET(request: NextRequest) {
       const where = e.location?.displayName ? ` @ ${e.location.displayName}` : ''
       return `- ${when}: "${e.subject}" — organized by ${e.organizer.emailAddress.name}${attendees}${where}`
     })
-  } catch {
-    // mailbox not connected or Graph unavailable — no meetings block
+  } catch (err) {
+    // mailbox not connected or Graph unavailable — no meetings block, but log
+    // it: a silent failure here hid a week of dead calendar fetches once.
+    console.warn('[daily-brief] meetings fetch failed:', err instanceof Error ? err.message : err)
   }
 
   const userMessage = `Today is ${now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}.

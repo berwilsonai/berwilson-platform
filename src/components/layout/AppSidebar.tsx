@@ -6,7 +6,7 @@ import { usePathname } from 'next/navigation'
 import { useState } from 'react'
 import { ChevronLeft, ChevronRight, Settings } from 'lucide-react'
 import { canAccessPage, type Role } from '@/lib/auth/permissions'
-import { NAV_ITEMS, NAV_GROUP_ORDER, navItemActive } from '@/lib/nav'
+import { NAV_ITEMS, NAV_GROUP_ORDER, navItemActive, resolveNavItem } from '@/lib/nav'
 
 interface AppSidebarProps {
   pendingReviewCount?: number
@@ -24,7 +24,9 @@ export default function AppSidebar({ pendingReviewCount = 0, attentionCount = 0,
   const navGroups = NAV_GROUP_ORDER.filter(({ group }) => group !== 'system')
     .map(({ group, label }) => ({
       label,
-      items: NAV_ITEMS.filter((item) => item.group === group && canAccessPage(role, item.href)),
+      items: NAV_ITEMS.filter((item) => item.group === group)
+        .map((item) => resolveNavItem(item, (href) => canAccessPage(role, href)))
+        .filter((item): item is NonNullable<typeof item> => item !== null),
     }))
     .filter((group) => group.items.length > 0)
 

@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation'
 import { useState } from 'react'
 import { MoreHorizontal, FileUp, X } from 'lucide-react'
 import { canAccessPage, type Role } from '@/lib/auth/permissions'
-import { NAV_ITEMS, navItemActive } from '@/lib/nav'
+import { NAV_ITEMS, navItemActive, resolveNavItem } from '@/lib/nav'
 
 interface MobileNavProps {
   pendingCount?: number
@@ -17,7 +17,8 @@ export default function MobileNav({ pendingCount = 0, role = 'admin' }: MobileNa
   const [moreOpen, setMoreOpen] = useState(false)
   const isAdmin = role === 'admin'
 
-  const accessible = NAV_ITEMS.filter(({ href }) => canAccessPage(role, href))
+  const accessible = NAV_ITEMS.map((item) => resolveNavItem(item, (href) => canAccessPage(role, href)))
+    .filter((item): item is NonNullable<typeof item> => item !== null)
   const primaryNav = accessible.filter((item) => item.mobilePrimary)
   const moreNav = accessible.filter((item) => !item.mobilePrimary)
 

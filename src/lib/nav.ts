@@ -42,6 +42,24 @@ export interface NavItem {
   badge?: NavBadge
   /** Extra path prefixes that should highlight this item as active. */
   alsoMatches?: string[]
+  /**
+   * Substitute destination when the role can't access `href` but CAN access
+   * this one (e.g. every role may view /company/structure while /company
+   * stays admin-only). Consumers resolve it via `resolveNavItem`.
+   */
+  fallback?: { href: string; label: string }
+}
+
+/**
+ * Resolve a nav item for a viewer: the item itself when its `href` is
+ * allowed, its fallback destination when only that is allowed, else null.
+ */
+export function resolveNavItem(item: NavItem, allowed: (href: string) => boolean): NavItem | null {
+  if (allowed(item.href)) return item
+  if (item.fallback && allowed(item.fallback.href)) {
+    return { ...item, href: item.fallback.href, label: item.fallback.label, title: item.fallback.label, alsoMatches: undefined }
+  }
+  return null
 }
 
 export const NAV_ITEMS: NavItem[] = [
@@ -55,7 +73,7 @@ export const NAV_ITEMS: NavItem[] = [
   { href: '/intel', label: 'Intel', icon: Brain, group: 'intelligence', keywords: 'ask query search ai agent calendar meetings', mobilePrimary: true, alsoMatches: ['/calendar'] },
   { href: '/intake', label: 'Intake', icon: Inbox, group: 'intelligence', keywords: 'email inbox ingest outlook sweep research proposal rfp upload document intake', alsoMatches: ['/email-ingestion', '/proposals/intake'] },
   { href: '/contacts', label: 'Contacts & Vendors', title: 'Directory', icon: Users, group: 'directory', keywords: 'people parties rolodex directory contacts vendors', alsoMatches: ['/vendors'] },
-  { href: '/company', label: 'Ber Wilson', icon: Shield, group: 'directory', keywords: 'company profile capabilities certs' },
+  { href: '/company', label: 'Ber Wilson', icon: Shield, group: 'directory', keywords: 'company profile capabilities certs', fallback: { href: '/company/structure', label: 'Org Structure' } },
   { href: '/review', label: 'Review Queue', title: 'Review Queue', icon: ClipboardCheck, group: 'system', keywords: 'pending approve reject', mobilePrimary: true, badge: 'review' },
   { href: '/activity', label: 'Activity', icon: Activity, group: 'system', keywords: 'audit log history changes' },
   { href: '/settings/users', label: 'Users & Access', icon: UserCog, group: 'system', keywords: 'roles invite permissions team accounts' },

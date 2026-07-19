@@ -289,8 +289,11 @@ export async function fetchCalendarEvents(
     $top: '50',
   })
 
+  // The token owner's own calendar must go through /me — this tenant 403s
+  // /users/{upn}/calendarView even for the signed-in user (verified 2026-07-19).
+  const base = email === TARGET_EMAIL ? '/me' : `/users/${email}`
   const result = await graphFetch<{ value: GraphCalendarEvent[] }>(
-    `/users/${email}/calendarView?${params}`,
+    `${base}/calendarView?${params}`,
     token
   )
   // Filter out cancelled events
