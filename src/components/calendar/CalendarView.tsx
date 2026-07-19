@@ -39,12 +39,14 @@ function groupByWeek(events: CalendarEvent[]): Map<string, CalendarEvent[]> {
   const groups = new Map<string, CalendarEvent[]>()
 
   for (const event of events) {
-    const d = new Date(event.date)
+    // event.date is date-only — pin to local midnight so the week bucket
+    // doesn't shift a day in US timezones (new Date('YYYY-MM-DD') = UTC).
+    const d = new Date(event.date + 'T00:00:00')
     const day = d.getDay()
     const diff = d.getDate() - day + (day === 0 ? -6 : 1)
     const monday = new Date(d)
     monday.setDate(diff)
-    const weekKey = monday.toISOString().split('T')[0]
+    const weekKey = monday.toLocaleDateString('en-CA') // local YYYY-MM-DD
 
     if (!groups.has(weekKey)) groups.set(weekKey, [])
     groups.get(weekKey)!.push(event)
@@ -54,7 +56,7 @@ function groupByWeek(events: CalendarEvent[]): Map<string, CalendarEvent[]> {
 }
 
 function formatWeekLabel(mondayStr: string): string {
-  const monday = new Date(mondayStr)
+  const monday = new Date(mondayStr + 'T00:00:00')
   const sunday = new Date(monday.getTime() + 6 * 86_400_000)
 
   const now = new Date()
@@ -96,6 +98,7 @@ export default function CalendarView({ events: serverEvents }: CalendarViewProps
             subject: string
             start: string
             end: string
+            startTimeZone?: string
             location: string | null
             organizer: string | null
             attendees: { name: string; email: string; response: string }[]
@@ -110,7 +113,11 @@ export default function CalendarView({ events: serverEvents }: CalendarViewProps
         }
 
         const mapped: CalendarEvent[] = data.events.map(e => {
-          const startDate = new Date(e.start)
+          // Graph returns naive datetimes + a timeZone field (usually UTC).
+          // Parse accordingly or the time renders hours off and the date can
+          // land on the wrong day.
+          const raw = e.start.replace(/\.\d+$/, '')
+          const startDate = new Date(e.startTimeZone === 'UTC' ? `${raw}Z` : raw)
           const timeStr = e.isAllDay ? null : startDate.toLocaleTimeString('en-US', {
             hour: 'numeric', minute: '2-digit',
           })
@@ -121,7 +128,7 @@ export default function CalendarView({ events: serverEvents }: CalendarViewProps
             id: `outlook-${e.id}`,
             type: 'meeting' as const,
             title: e.subject,
-            date: startDate.toISOString().split('T')[0],
+            date: startDate.toLocaleDateString('en-CA'), // local day, not UTC day
             time: timeStr,
             project_id: '',
             project_name: e.organizer ?? '',
@@ -240,10 +247,10 @@ export default function CalendarView({ events: serverEvents }: CalendarViewProps
                         eventDate < today && !event.completed && event.type !== 'meeting' ? 'text-red-600 dark:text-red-400' : 'text-muted-foreground'
                       )}>
                         <p className="text-xs font-mono">
-                          {new Date(eventDate).toLocaleDateString('en-US', { month: 'short' })}
+                          {new Date(eventDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'short' })}
                         </p>
                         <p className="text-lg font-bold leading-none">
-                          {new Date(eventDate).getDate()}
+                          {new Date(eventDate + 'T00:00:00').getDate()}
                         </p>
                       </div>
 
