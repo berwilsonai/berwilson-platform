@@ -71,7 +71,7 @@ export const NAV_ITEMS: NavItem[] = [
   { href: '/investors', label: 'Investors', icon: HandCoins, group: 'primary', keywords: 'capital raise fundraising equity spv commitments funding money lp' },
   { href: '/map', label: 'Map', title: 'Project Map', icon: MapIcon, group: 'primary', keywords: 'map geography utah locations sites markers rail corridors presentation visualize' },
   { href: '/intel', label: 'Intel', icon: Brain, group: 'intelligence', keywords: 'ask query search ai agent calendar meetings', mobilePrimary: true, alsoMatches: ['/calendar'] },
-  { href: '/intake', label: 'Intake', icon: Inbox, group: 'intelligence', keywords: 'email inbox ingest outlook sweep research proposal rfp upload document intake', alsoMatches: ['/email-ingestion', '/proposals/intake'] },
+  { href: '/intake', label: 'Intake', icon: Inbox, group: 'intelligence', keywords: 'email inbox ingest outlook sweep research proposal rfp upload document intake meeting notes minutes attendees follow-up transcript recap', alsoMatches: ['/email-ingestion', '/proposals/intake', '/intake/meeting'] },
   { href: '/contacts', label: 'Contacts & Vendors', title: 'Directory', icon: Users, group: 'directory', keywords: 'people parties rolodex directory contacts vendors', alsoMatches: ['/vendors'] },
   { href: '/company', label: 'Ber Wilson', icon: Shield, group: 'directory', keywords: 'company profile capabilities certs', fallback: { href: '/company/structure', label: 'Org Structure' } },
   { href: '/review', label: 'Review Queue', title: 'Review Queue', icon: ClipboardCheck, group: 'system', keywords: 'pending approve reject', mobilePrimary: true, badge: 'review' },
@@ -103,6 +103,7 @@ export const PALETTE_EXTRAS: { href: string; label: string; keywords: string }[]
   { href: '/contacts?tab=vendors', label: 'Vendors & Contractors', keywords: 'companies organizations subs partners entities' },
   { href: '/calendar', label: 'Calendar', keywords: 'schedule dates milestones meeting outlook' },
   { href: '/intake?tab=proposal', label: 'Proposal Intake', keywords: 'ingest upload rfp document proposal' },
+  { href: '/intake?tab=meeting', label: 'Meeting Notes', keywords: 'meeting minutes notes attendees follow-up transcript recap paste' },
   { href: '/company/structure', label: 'Org Structure', keywords: 'entity architecture chart divisions spv holdings leadership organization team' },
 ]
 

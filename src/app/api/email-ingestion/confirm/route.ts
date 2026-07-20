@@ -1,7 +1,6 @@
 import { NextRequest } from 'next/server'
 import { actorAdminClient } from '@/lib/auth/viewer'
 import { embedUpdate, embedOpportunityReport, embedOpportunitySnapshot } from '@/lib/ai/embeddings'
-import { storeExtractedText } from '@/lib/ai/document-text'
 import {
   parseStagedAttachments,
   promoteStagedAttachment,
@@ -9,15 +8,15 @@ import {
   removeStagedFiles,
   type PromotedDocument,
 } from '@/lib/email-ingestion/attachments'
+import {
+  createRecordFromFields,
+  saveReportDocument,
+  str,
+  type RecordKind,
+} from '@/lib/email-ingestion/confirm-helpers'
 import type { TablesInsert } from '@/lib/supabase/types'
-import { SECTORS } from '@/lib/utils/constants'
-import { STAGES } from '@/lib/utils/constants'
-import { oppType } from '@/lib/utils/opportunities'
-import type { ProjectSector, ProjectStage } from '@/lib/supabase/types'
 
 export const maxDuration = 300
-
-type RecordKind = 'opportunity' | 'project'
 
 interface PartyAction {
   name: string
@@ -49,11 +48,6 @@ interface ConfirmBody {
   /** Storage paths of staged attachments to promote onto the created record. */
   attachment_paths?: string[]
 }
-
-const str = (v: unknown): string | null =>
-  typeof v === 'string' && v.trim() ? v.trim() : null
-const num = (v: unknown): number | null =>
-  typeof v === 'number' && isFinite(v) ? v : v != null && v !== '' && !isNaN(Number(v)) ? Number(v) : null
 
 export async function POST(request: NextRequest) {
   const supabase = await actorAdminClient()
@@ -88,60 +82,18 @@ export async function POST(request: NextRequest) {
     document_ids: string[]
   } = { party_ids: [], task_ids: [], document_ids: [] }
 
-  let opportunityId: string | null = null
-  let projectId: string | null = null
-
   // ── 1. Create the primary record ────────────────────────────────────────────
-  if (record_kind === 'project') {
-    const name = str(fields.name)
-    if (!name) return Response.json({ error: 'A project name is required.' }, { status: 400 })
-    const sector = SECTORS.includes(fields.sector as ProjectSector)
-      ? (fields.sector as ProjectSector)
-      : ('real_estate' as ProjectSector)
-    const stage = STAGES.includes(fields.stage as ProjectStage)
-      ? (fields.stage as ProjectStage)
-      : ('pursuit' as ProjectStage)
-
-    const row: TablesInsert<'projects'> = {
-      name,
-      sector,
-      stage,
-      status: 'active',
-      description: str(fields.description),
-      estimated_value: num(fields.estimated_value),
-      contract_type: str(fields.contract_type),
-      delivery_method: str(fields.delivery_method),
-      location: str(fields.location),
-      client_entity: str(fields.client_entity),
-    }
-    const { data, error } = await supabase.from('projects').insert(row).select('id').single()
-    if (error) return Response.json({ error: `Failed to create project: ${error.message}` }, { status: 500 })
-    projectId = data.id
-    createdRecordIds.project_id = data.id
-  } else {
-    const name = str(fields.name)
-    if (!name) return Response.json({ error: 'An opportunity name is required.' }, { status: 400 })
-
-    const row: TablesInsert<'opportunities'> = {
-      name,
-      opp_type: oppType(str(fields.opp_type)),
-      status: 'identified',
-      priority: 'medium',
-      sector: str(fields.sector),
-      location: str(fields.location),
-      objective: str(fields.objective),
-      thesis: str(fields.thesis),
-      target_name: str(fields.target_name),
-      counterparty: str(fields.counterparty),
-      estimated_value: num(fields.estimated_value),
-      next_step: str(fields.next_step),
-      source: 'Email ingestion',
-    }
-    const { data, error } = await supabase.from('opportunities').insert(row).select('id').single()
-    if (error) return Response.json({ error: `Failed to create opportunity: ${error.message}` }, { status: 500 })
-    opportunityId = data.id
-    createdRecordIds.opportunity_id = data.id
+  const created = await createRecordFromFields(supabase, record_kind, fields, {
+    source: 'Email ingestion',
+  })
+  if (created.error || !created.id) {
+    const status = created.error?.includes('required') ? 400 : 500
+    return Response.json({ error: created.error ?? 'Failed to create record.' }, { status })
   }
+  const opportunityId: string | null = record_kind === 'opportunity' ? created.id : null
+  const projectId: string | null = record_kind === 'project' ? created.id : null
+  if (projectId) createdRecordIds.project_id = projectId
+  if (opportunityId) createdRecordIds.opportunity_id = opportunityId
 
   // ── 2. People → parties (match/create) + project_players when project-kind ───
   const linkedPeople: { id: string; name: string; role: string | null }[] = []
@@ -278,47 +230,15 @@ export async function POST(request: NextRequest) {
       `# ${title}\n\n` +
       (discussion ? `## Discussion summary\n\n${discussion}\n\n---\n\n## Full research report\n\n` : '') +
       reportText
+    const aiSummary = typeof extraction?.summary === 'string' ? extraction.summary : null
 
-    const reportPath = `${target.kind === 'project' ? 'projects' : 'opportunities'}/${target.id}/${Date.now()}_email_research_report.md`
-    const { error: reportUploadErr } = await supabase.storage
-      .from('documents')
-      .upload(reportPath, Buffer.from(content, 'utf-8'), { contentType: 'text/markdown', upsert: false })
-    if (reportUploadErr) {
-      console.error('Report document upload failed:', reportUploadErr.message)
-    } else {
-      const aiSummary = typeof extraction?.summary === 'string' ? extraction.summary : null
-      const base = {
-        storage_path: reportPath,
-        file_name: `${title}.md`,
-        file_size_bytes: Buffer.byteLength(content, 'utf-8'),
-        mime_type: 'text/markdown',
-        doc_type: 'other',
-        ai_summary: aiSummary,
-      }
-      const { data: reportDoc, error: reportInsertErr } = projectId
-        ? await supabase
-            .from('documents')
-            .insert({ ...base, project_id: projectId, source: 'document' })
-            .select('id')
-            .single()
-        : await supabase
-            .from('opportunity_documents')
-            .insert({ ...base, opportunity_id: opportunityId! })
-            .select('id')
-            .single()
-      if (reportInsertErr || !reportDoc) {
-        console.error('Report document insert failed:', reportInsertErr?.message)
-      } else {
-        createdRecordIds.document_ids.push(reportDoc.id)
-        // Store the text so the agent's get_document_content can quote it.
-        storeExtractedText(
-          supabase,
-          projectId ? 'documents' : 'opportunity_documents',
-          reportDoc.id,
-          content
-        ).catch(console.error)
-      }
-    }
+    const docId = await saveReportDocument(supabase, target, {
+      title,
+      content,
+      aiSummary,
+      fileSlug: 'email_research_report',
+    })
+    if (docId) createdRecordIds.document_ids.push(docId)
   }
 
   // ── 4d. Promote the selected staged attachments into the record's documents ──

@@ -767,6 +767,7 @@ export type Database = {
           extraction_result: Json
           fit_assessment: Json | null
           id: string
+          intake_kind: string
           label: string | null
           match_candidates: Json | null
           party_matches: Json | null
@@ -783,6 +784,7 @@ export type Database = {
           extraction_result: Json
           fit_assessment?: Json | null
           id?: string
+          intake_kind?: string
           label?: string | null
           match_candidates?: Json | null
           party_matches?: Json | null
@@ -799,6 +801,7 @@ export type Database = {
           extraction_result?: Json
           fit_assessment?: Json | null
           id?: string
+          intake_kind?: string
           label?: string | null
           match_candidates?: Json | null
           party_matches?: Json | null

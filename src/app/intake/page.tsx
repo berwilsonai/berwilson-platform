@@ -1,9 +1,10 @@
 import Link from 'next/link'
-import { Inbox, FileUp, Loader2 } from 'lucide-react'
+import { Inbox, FileUp, Users, Loader2 } from 'lucide-react'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { cn } from '@/lib/utils'
 import EmailResearchForm from '@/components/email-ingestion/EmailResearchForm'
 import EmailIngestForm from '@/components/email-ingestion/EmailIngestForm'
+import MeetingIntakeForm from '@/components/meeting-intake/MeetingIntakeForm'
 import SessionsAutoRefresh from '@/components/email-ingestion/SessionsAutoRefresh'
 import DismissSessionButton from '@/components/email-ingestion/DismissSessionButton'
 import ProposalIntakeWizard from '@/components/proposals/ProposalIntakeWizard'
@@ -21,17 +22,21 @@ interface PageProps {
 
 const TABS = [
   { key: 'email', label: 'Email', icon: Inbox },
+  { key: 'meeting', label: 'Meeting', icon: Users },
   { key: 'proposal', label: 'Proposal', icon: FileUp },
 ] as const
 
+type TabKey = (typeof TABS)[number]['key']
+
 export default async function IntakePage({ searchParams }: PageProps) {
   const params = await searchParams
-  const tab = params.tab === 'proposal' ? 'proposal' : 'email'
+  const tab: TabKey =
+    params.tab === 'proposal' ? 'proposal' : params.tab === 'meeting' ? 'meeting' : 'email'
 
   const supabase = createAdminClient()
 
   return (
-    <div className={cn('space-y-6', tab === 'email' ? 'max-w-3xl' : 'max-w-6xl')}>
+    <div className={cn('space-y-6', tab === 'proposal' ? 'max-w-6xl' : 'max-w-3xl')}>
       {/* Tab switcher — the Directory `?tab=` idiom */}
       <div className="flex items-center gap-1 border-b border-border">
         {TABS.map(({ key, label, icon: Icon }) => (
@@ -51,7 +56,13 @@ export default async function IntakePage({ searchParams }: PageProps) {
         ))}
       </div>
 
-      {tab === 'email' ? <EmailTab supabase={supabase} /> : <ProposalTab supabase={supabase} />}
+      {tab === 'email' ? (
+        <EmailTab supabase={supabase} />
+      ) : tab === 'meeting' ? (
+        <MeetingTab supabase={supabase} />
+      ) : (
+        <ProposalTab supabase={supabase} />
+      )}
     </div>
   )
 }
@@ -60,6 +71,7 @@ async function EmailTab({ supabase }: { supabase: ReturnType<typeof createAdminC
   const { data: sessions } = await supabase
     .from('email_intake_sessions')
     .select('id, label, status, updated_at, extraction_result')
+    .eq('intake_kind', 'email')
     .neq('status', 'dismissed')
     .order('updated_at', { ascending: false })
     .limit(25)
@@ -149,6 +161,62 @@ async function EmailTab({ supabase }: { supabase: ReturnType<typeof createAdminC
                   className="flex items-center justify-between gap-3 px-4 py-2.5 hover:bg-accent transition-colors"
                 >
                   <span className="text-sm font-medium truncate">{s.label || 'Untitled research package'}</span>
+                  <span className="flex items-center gap-1.5 shrink-0">
+                    {badge}
+                    {st === 'pending' && <DismissSessionButton sessionId={s.id} />}
+                  </span>
+                </Link>
+              )
+            })}
+          </div>
+        </div>
+      )}
+    </>
+  )
+}
+
+async function MeetingTab({ supabase }: { supabase: ReturnType<typeof createAdminClient> }) {
+  const { data: sessions } = await supabase
+    .from('email_intake_sessions')
+    .select('id, label, status, updated_at')
+    .eq('intake_kind', 'meeting')
+    .neq('status', 'dismissed')
+    .order('updated_at', { ascending: false })
+    .limit(25)
+
+  const rows = sessions ?? []
+
+  return (
+    <>
+      <div>
+        <p className="text-sm text-muted-foreground">
+          Paste the notes or transcript from a meeting. Ber AI extracts a summary, attendees,
+          decisions, and follow-up tasks — then you pick which existing projects and opportunities
+          to update (or create new ones) and confirm. Each record gets the minutes, a saved meeting
+          document, the attendees, and its tasks. Nothing is created until you approve it.
+        </p>
+      </div>
+
+      <MeetingIntakeForm />
+
+      {rows.length > 0 && (
+        <div className="space-y-2">
+          <h2 className="label-caps text-muted-foreground">Recent</h2>
+          <div className="rounded-lg border border-border bg-card divide-y divide-border">
+            {rows.map((s) => {
+              const st = s.status === 'confirmed' ? 'confirmed' : 'pending'
+              const badge = (
+                <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full ring-1 ring-inset shrink-0 inline-flex items-center gap-1 ${EMAIL_INTAKE_STATUS_BADGE[st]}`}>
+                  {EMAIL_INTAKE_STATUS_LABELS[st]}
+                </span>
+              )
+              return (
+                <Link
+                  key={s.id}
+                  href={`/intake/meeting/${s.id}`}
+                  className="flex items-center justify-between gap-3 px-4 py-2.5 hover:bg-accent transition-colors"
+                >
+                  <span className="text-sm font-medium truncate">{s.label || 'Untitled meeting'}</span>
                   <span className="flex items-center gap-1.5 shrink-0">
                     {badge}
                     {st === 'pending' && <DismissSessionButton sessionId={s.id} />}

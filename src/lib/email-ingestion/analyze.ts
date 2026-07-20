@@ -34,7 +34,7 @@ export const SYSTEM_USER_ID = '00000000-0000-0000-0000-000000000000'
 
 // Generous cap — gemini-2.5-flash has a large context window; research reports
 // are already thread-truncated. Beyond this we trim to protect latency/cost.
-const MAX_CHARS = 200_000
+export const MAX_CHARS = 200_000
 
 /** Error carrying an HTTP status so route handlers can translate it to a Response. */
 export class EmailIntakeError extends Error {
