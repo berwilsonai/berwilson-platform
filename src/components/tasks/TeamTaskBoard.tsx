@@ -53,6 +53,8 @@ interface TeamTaskBoardProps {
   embedded?: boolean
   /** Show the weekly-report link (admin-only — /reports is admin-gated by default-deny). */
   showWeeklyReport?: boolean
+  /** Open this task's detail sheet on mount (deep link from search: /tasks?task=<id>). */
+  initialOpenTaskId?: string | null
 }
 
 type StatusFilter = 'open' | 'done'
@@ -75,6 +77,7 @@ export default function TeamTaskBoard({
   scopeInvestorId,
   embedded = false,
   showWeeklyReport = false,
+  initialOpenTaskId = null,
 }: TeamTaskBoardProps) {
   const scopedToProject = !!scopeProjectId
   const scopedToOpportunity = !!scopeOpportunityId
@@ -105,7 +108,7 @@ export default function TeamTaskBoard({
   const [blockedOnly, setBlockedOnly] = useState(false)
 
   // detail sheet
-  const [openTaskId, setOpenTaskId] = useState<string | null>(null)
+  const [openTaskId, setOpenTaskId] = useState<string | null>(initialOpenTaskId)
 
   // add form
   const [showAdd, setShowAdd] = useState(false)

@@ -5,7 +5,12 @@ import { getViewer, filterTasksForViewer, accessibleProjectIds } from '@/lib/aut
 
 export const metadata = { title: 'Team Tasks — Ber Wilson Intelligence' }
 
-export default async function TasksPage() {
+export default async function TasksPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ task?: string }>
+}) {
+  const { task: initialOpenTaskId } = await searchParams
   const supabase = createAdminClient()
   const viewer = await getViewer()
 
@@ -83,6 +88,7 @@ export default async function TasksPage() {
       investors={investorOptions}
       objectives={visibleObjectives}
       showWeeklyReport={!viewer || viewer.isAdmin}
+      initialOpenTaskId={initialOpenTaskId ?? null}
     />
   )
 }

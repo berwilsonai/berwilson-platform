@@ -11,6 +11,10 @@ import {
   Building2,
   ArrowRight,
   Sparkles,
+  ListChecks,
+  HandCoins,
+  Target,
+  FileText,
   type LucideIcon,
 } from 'lucide-react'
 import type { SearchResult } from '@/app/api/search/route'
@@ -28,6 +32,10 @@ const TYPE_META: Record<SearchResult['type'], { icon: LucideIcon; label: string 
   opportunity: { icon: Lightbulb, label: 'Opportunity' },
   contact: { icon: Users, label: 'Contact' },
   vendor: { icon: Building2, label: 'Vendor' },
+  task: { icon: ListChecks, label: 'Task' },
+  investor: { icon: HandCoins, label: 'Investor' },
+  objective: { icon: Target, label: 'Objective' },
+  document: { icon: FileText, label: 'Document' },
 }
 
 type Item =
@@ -179,7 +187,7 @@ export default function CommandPalette({ onClose }: { onClose: () => void }) {
               setQuery(e.target.value)
               setActive(0)
             }}
-            placeholder="Search projects, people, vendors, pages…"
+            placeholder="Search everything — projects, tasks, people, investors, documents…"
             className="flex-1 bg-transparent text-base text-foreground placeholder:text-muted-foreground focus:outline-none"
           />
           <kbd className="hidden sm:inline-flex items-center rounded border border-border bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
