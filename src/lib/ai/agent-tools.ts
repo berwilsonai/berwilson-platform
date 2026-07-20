@@ -683,6 +683,7 @@ export async function executeToolCall(
         type KBChunk = {
           content: string
           project_id: string | null
+          document_id?: string | null
           opportunity_id?: string | null
           investor_id?: string | null
           source_type?: string | null
@@ -713,6 +714,18 @@ export async function executeToolCall(
             for (const i of invs ?? []) invNames[i.id] = i.name
           } catch { /* investors table may not exist yet */ }
         }
+        // Reference documents (standalone digest docs) carry only a document_id —
+        // label them by file name so citations are meaningful.
+        const refDocIds = [...new Set(
+          kbChunks
+            .filter((c) => c.document_id && !c.project_id && !c.is_company && !c.opportunity_id && !c.investor_id)
+            .map((c) => c.document_id)
+        )]
+        const docNames: Record<string, string> = {}
+        if (refDocIds.length > 0) {
+          const { data: refDocs } = await supabase.from('documents').select('id, file_name').in('id', refDocIds as string[])
+          for (const d of refDocs ?? []) docNames[d.id] = d.file_name
+        }
 
         return {
           results: kbChunks.slice(0, 8).map((c, i) => ({
@@ -726,6 +739,8 @@ export async function executeToolCall(
               ? `Investor: ${invNames[c.investor_id] ?? 'Unknown'}`
               : c.project_id
               ? projectNames[c.project_id] ?? 'Unknown'
+              : c.document_id && docNames[c.document_id]
+              ? `Document: ${docNames[c.document_id]}`
               : 'General',
             similarity: c.similarity,
             date: c.created_at,

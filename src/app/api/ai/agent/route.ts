@@ -35,6 +35,7 @@ export async function POST(request: NextRequest) {
     message?: string
     conversationId?: string
     projectId?: string
+    documentId?: string
     stream?: boolean
   }
 
@@ -52,6 +53,7 @@ export async function POST(request: NextRequest) {
       .insert({
         user_id: user.id,
         project_id: body.projectId ?? null,
+        document_id: body.documentId ?? null,
         title: body.message.slice(0, 100),
       })
       .select('id')
@@ -93,6 +95,7 @@ export async function POST(request: NextRequest) {
   const agentContext = {
     userId: user.id,
     projectId: body.projectId,
+    documentId: body.documentId,
     conversationId: conversationId!,
   }
 
@@ -216,6 +219,7 @@ export async function GET(request: NextRequest) {
 
   const conversationId = request.nextUrl.searchParams.get('conversationId')
   const projectId = request.nextUrl.searchParams.get('projectId')
+  const documentId = request.nextUrl.searchParams.get('documentId')
 
   const admin = createAdminClient()
 
@@ -231,15 +235,16 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ messages: messages ?? [] })
   }
 
-  // Otherwise list conversations for this user/project
+  // Otherwise list conversations for this user/project/document
   let q = admin
     .from('agent_conversations')
-    .select('id, title, project_id, created_at, updated_at')
+    .select('id, title, project_id, document_id, created_at, updated_at')
     .eq('user_id', user.id)
     .order('updated_at', { ascending: false })
     .limit(20)
 
   if (projectId) q = q.eq('project_id', projectId) as typeof q
+  if (documentId) q = q.eq('document_id', documentId) as typeof q
 
   const { data, error } = await q
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })

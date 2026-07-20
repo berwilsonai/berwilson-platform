@@ -16,6 +16,8 @@ interface Message {
 
 interface AgentChatProps {
   projectId?: string
+  /** Scope the chat to a single reference document (digest / Q&A). */
+  documentId?: string
   className?: string
   placeholder?: string
   /** Seed the input box (e.g. handed off from the command palette). */
@@ -28,6 +30,7 @@ interface AgentChatProps {
 
 export default function AgentChat({
   projectId,
+  documentId,
   className = '',
   placeholder = 'Ask about this project...',
   initialInput,
@@ -82,8 +85,13 @@ export default function AgentChat({
       loadMessages(initialConversationId).catch(() => {})
       return
     }
-    if (!projectId) return
-    fetch(`/api/ai/agent?projectId=${projectId}`)
+    const scopeQuery = projectId
+      ? `projectId=${projectId}`
+      : documentId
+      ? `documentId=${documentId}`
+      : null
+    if (!scopeQuery) return
+    fetch(`/api/ai/agent?${scopeQuery}`)
       .then(r => r.json())
       .then((data: { conversations?: Array<{ id: string }> }) => {
         if (data.conversations?.[0]) {
@@ -93,7 +101,7 @@ export default function AgentChat({
         }
       })
       .catch(() => {})
-  }, [projectId, initialConversationId])
+  }, [projectId, documentId, initialConversationId])
 
   const sendMessage = useCallback(async () => {
     const msg = input.trim()
@@ -122,6 +130,7 @@ export default function AgentChat({
           message: msg,
           conversationId,
           projectId,
+          documentId,
           stream: true,
         }),
       })
@@ -203,7 +212,7 @@ export default function AgentChat({
       setActivity(null)
       inputRef.current?.focus()
     }
-  }, [input, loading, conversationId, projectId, onConversationCreated])
+  }, [input, loading, conversationId, projectId, documentId, onConversationCreated])
 
   function handleKeyDown(e: React.KeyboardEvent) {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -232,10 +241,19 @@ export default function AgentChat({
             </div>
             <p className="text-sm font-semibold text-foreground">Ask Ber AI</p>
             <p className="text-xs text-muted-foreground mt-1 max-w-[280px]">
-              Your executive intelligence agent — it reads the portfolio, documents, tasks, and the raise before answering.
+              {documentId
+                ? 'Ask anything about this document — it will answer from the text, quote passages, and explain dense sections.'
+                : 'Your executive intelligence agent — it reads the portfolio, documents, tasks, and the raise before answering.'}
             </p>
             <div className="flex flex-wrap justify-center gap-1.5 mt-4 max-w-[420px]">
-              {(projectId
+              {(documentId
+                ? [
+                    'Give me a plain-language outline of this document',
+                    'What are the key obligations and deadlines?',
+                    'What dollar amounts and terms should I know?',
+                    'What are the risks or red flags here?',
+                  ]
+                : projectId
                 ? [
                     'Summarize where this project stands',
                     'What are the biggest risks here?',

@@ -4,7 +4,6 @@ import { useState, useCallback, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Upload, FileText, CheckCircle2, AlertTriangle, Loader2, X, Building2, ChevronRight, ExternalLink, Users, Layers } from 'lucide-react'
 import FitAssessmentCard from '@/components/proposals/FitAssessmentCard'
-import { createClient } from '@/lib/supabase/client'
 
 type Step = 'upload' | 'review' | 'parties' | 'confirm' | 'done'
 
@@ -204,10 +203,9 @@ export default function ProposalIntakeWizard({ availableParents: initialParents 
       }
     }
 
-    const supabase = createClient()
-
     // For large files (primary file only), use chunked upload
-    // For all other files, try direct Supabase upload
+    // For all other files, upload server-side (browser-side upload fails
+    // against the self-hosted stack — no storage RLS policies)
     const primaryFile = files[primaryIndex] || files[0]
     const SUPABASE_LIMIT = 48 * 1024 * 1024 // 48MB — just under the 50MB free tier cap
 
@@ -230,33 +228,34 @@ export default function ProposalIntakeWizard({ availableParents: initialParents 
         return
       }
     } else {
-      // Small files: direct Supabase upload
+      // Small files: server-side upload (admin client stores the file)
       const storedFiles: Array<{ storage_path: string; file_name: string; file_size_bytes: number; mime_type: string }> = []
 
       for (const file of files) {
-        const timestamp = Date.now()
-        const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_')
-        const storagePath = `proposals/pending/${timestamp}_${safeName}`
+        const form = new FormData()
+        form.append('file', file, file.name)
 
-        const { error: uploadError } = await supabase.storage
-          .from('documents')
-          .upload(storagePath, file, {
-            contentType: file.type || 'application/octet-stream',
-            cacheControl: '3600',
-            upsert: false,
-          })
+        let uploadRes: Response
+        try {
+          uploadRes = await fetch('/api/proposals/upload', { method: 'POST', body: form })
+        } catch {
+          setError(`Failed to upload ${file.name} — check your connection and try again.`)
+          setLoading(false)
+          return
+        }
 
-        if (uploadError) {
-          setError(`Failed to upload ${file.name}: ${uploadError.message}`)
+        const uploadData = await uploadRes.json().catch(() => ({}))
+        if (!uploadRes.ok) {
+          setError((uploadData.error as string) || `Failed to upload ${file.name}`)
           setLoading(false)
           return
         }
 
         storedFiles.push({
-          storage_path: storagePath,
-          file_name: file.name,
-          file_size_bytes: file.size,
-          mime_type: file.type || 'application/octet-stream',
+          storage_path: uploadData.storage_path as string,
+          file_name: uploadData.file_name as string,
+          file_size_bytes: uploadData.file_size_bytes as number,
+          mime_type: uploadData.mime_type as string,
         })
       }
 

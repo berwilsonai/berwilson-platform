@@ -124,6 +124,7 @@ export type Database = {
       agent_conversations: {
         Row: {
           created_at: string | null
+          document_id: string | null
           id: string
           project_id: string | null
           title: string | null
@@ -132,6 +133,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string | null
+          document_id?: string | null
           id?: string
           project_id?: string | null
           title?: string | null
@@ -140,6 +142,7 @@ export type Database = {
         }
         Update: {
           created_at?: string | null
+          document_id?: string | null
           id?: string
           project_id?: string | null
           title?: string | null
@@ -152,6 +155,13 @@ export type Database = {
             columns: ["project_id"]
             isOneToOne: false
             referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agent_conversations_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
             referencedColumns: ["id"]
           },
         ]
@@ -697,6 +707,7 @@ export type Database = {
           file_size_bytes: number | null
           id: string
           is_company: boolean
+          is_reference: boolean
           mime_type: string | null
           project_id: string | null
           source: Database["public"]["Enums"]["update_source"] | null
@@ -716,6 +727,7 @@ export type Database = {
           file_size_bytes?: number | null
           id?: string
           is_company?: boolean
+          is_reference?: boolean
           mime_type?: string | null
           project_id?: string | null
           source?: Database["public"]["Enums"]["update_source"] | null
@@ -735,6 +747,7 @@ export type Database = {
           file_size_bytes?: number | null
           id?: string
           is_company?: boolean
+          is_reference?: boolean
           mime_type?: string | null
           project_id?: string | null
           source?: Database["public"]["Enums"]["update_source"] | null

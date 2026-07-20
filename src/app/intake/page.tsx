@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { Inbox, FileUp, Users, Loader2 } from 'lucide-react'
+import { Inbox, FileUp, Users, FileText, Loader2 } from 'lucide-react'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { cn } from '@/lib/utils'
 import EmailResearchForm from '@/components/email-ingestion/EmailResearchForm'
@@ -8,6 +8,8 @@ import MeetingIntakeForm from '@/components/meeting-intake/MeetingIntakeForm'
 import SessionsAutoRefresh from '@/components/email-ingestion/SessionsAutoRefresh'
 import DismissSessionButton from '@/components/email-ingestion/DismissSessionButton'
 import ProposalIntakeWizard from '@/components/proposals/ProposalIntakeWizard'
+import ReferenceDocForm from '@/components/reference-docs/ReferenceDocForm'
+import { formatDate } from '@/lib/utils/constants'
 import {
   effectiveEmailIntakeStatus,
   EMAIL_INTAKE_STATUS_LABELS,
@@ -24,6 +26,7 @@ const TABS = [
   { key: 'email', label: 'Email', icon: Inbox },
   { key: 'meeting', label: 'Meeting', icon: Users },
   { key: 'proposal', label: 'Proposal', icon: FileUp },
+  { key: 'document', label: 'Document', icon: FileText },
 ] as const
 
 type TabKey = (typeof TABS)[number]['key']
@@ -31,7 +34,13 @@ type TabKey = (typeof TABS)[number]['key']
 export default async function IntakePage({ searchParams }: PageProps) {
   const params = await searchParams
   const tab: TabKey =
-    params.tab === 'proposal' ? 'proposal' : params.tab === 'meeting' ? 'meeting' : 'email'
+    params.tab === 'proposal'
+      ? 'proposal'
+      : params.tab === 'meeting'
+      ? 'meeting'
+      : params.tab === 'document'
+      ? 'document'
+      : 'email'
 
   const supabase = createAdminClient()
 
@@ -60,6 +69,8 @@ export default async function IntakePage({ searchParams }: PageProps) {
         <EmailTab supabase={supabase} />
       ) : tab === 'meeting' ? (
         <MeetingTab supabase={supabase} />
+      ) : tab === 'document' ? (
+        <DocumentTab supabase={supabase} />
       ) : (
         <ProposalTab supabase={supabase} />
       )}
@@ -224,6 +235,56 @@ async function MeetingTab({ supabase }: { supabase: ReturnType<typeof createAdmi
                 </Link>
               )
             })}
+          </div>
+        </div>
+      )}
+    </>
+  )
+}
+
+async function DocumentTab({ supabase }: { supabase: ReturnType<typeof createAdminClient> }) {
+  const { data: docs } = await supabase
+    .from('documents')
+    .select('id, file_name, ai_summary, embedding_status, uploaded_at')
+    .eq('is_reference', true)
+    .order('uploaded_at', { ascending: false })
+    .limit(30)
+
+  const rows = docs ?? []
+
+  return (
+    <>
+      <div>
+        <p className="text-sm text-muted-foreground">
+          Upload a lengthy proposal or document to digest it. Ber AI reads the whole thing, writes a
+          summary, and lets you ask questions to make sure you understand it — with read-aloud on the
+          summary and every answer. Documents stay here and become searchable from Ask Ber AI.
+        </p>
+      </div>
+
+      <ReferenceDocForm />
+
+      {rows.length > 0 && (
+        <div className="space-y-2">
+          <h2 className="label-caps text-muted-foreground">Recent documents</h2>
+          <div className="rounded-lg border border-border bg-card divide-y divide-border">
+            {rows.map((d) => (
+              <Link
+                key={d.id}
+                href={`/intake/document/${d.id}`}
+                className="flex items-center justify-between gap-3 px-4 py-2.5 hover:bg-accent transition-colors"
+              >
+                <div className="min-w-0">
+                  <span className="text-sm font-medium truncate block">{d.file_name}</span>
+                  {d.ai_summary && (
+                    <span className="text-xs text-muted-foreground line-clamp-1">{d.ai_summary}</span>
+                  )}
+                </div>
+                <span className="text-xs text-muted-foreground shrink-0">
+                  {d.uploaded_at ? formatDate(d.uploaded_at) : ''}
+                </span>
+              </Link>
+            ))}
           </div>
         </div>
       )}

@@ -367,11 +367,24 @@ Active Certifications:\n${certLines || '(none on file)'}
     }
   }
 
+  // Standalone reference documents carry only a document_id — label by file name.
+  const docMap: Record<string, string> = {}
+  const citedDocIds = [...new Set(
+    topChunks
+      .filter((c) => c.document_id && !c.project_id && !c.entity_id && !c.opportunity_id && !c.investor_id)
+      .map((c) => c.document_id)
+  )] as string[]
+  if (citedDocIds.length > 0) {
+    const { data: refDocs } = await admin.from('documents').select('id, file_name').in('id', citedDocIds)
+    for (const d of refDocs ?? []) docMap[d.id] = d.file_name
+  }
+
   const sourceLabel = (c: RawChunk): string => {
     if (c.entity_id && entityMap[c.entity_id]) return `Vendor: ${entityMap[c.entity_id]}`
     if (c.opportunity_id) return `Opportunity: ${oppMap[c.opportunity_id] ?? 'Unknown'}`
     if (c.investor_id) return `Investor: ${investorMap[c.investor_id] ?? 'Unknown'}`
     if (c.project_id) return projectMap[c.project_id] ?? 'Unknown Project'
+    if (c.document_id && docMap[c.document_id]) return `Document: ${docMap[c.document_id]}`
     return 'Enrichment Data'
   }
 

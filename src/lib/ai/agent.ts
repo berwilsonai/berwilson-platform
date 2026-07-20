@@ -25,6 +25,8 @@ function getClient(): GoogleGenerativeAI {
 export interface AgentContext {
   userId: string
   projectId?: string
+  /** Scope the conversation to a single reference document (digest / Q&A). */
+  documentId?: string
   conversationId: string
 }
 
@@ -94,6 +96,31 @@ export async function runAgent(
         parent_name: parentName,
         child_count: childCount,
       })
+    }
+  }
+
+  // Document-scoped chat: inject the document so the agent answers from it.
+  if (context.documentId) {
+    const { data: doc } = await supabase
+      .from('documents')
+      .select('file_name, ai_summary, extracted_text')
+      .eq('id', context.documentId)
+      .single()
+
+    if (doc) {
+      // Cap the injected text so a huge document can't blow the context window;
+      // the agent can still pull more via get_document_content / search_knowledge_base.
+      const MAX_DOC_CHARS = 120_000
+      const fullText = doc.extracted_text ?? ''
+      const truncated = fullText.length > MAX_DOC_CHARS
+      const body = truncated ? fullText.slice(0, MAX_DOC_CHARS) : fullText
+
+      systemPrompt += `\n\n## DOCUMENT UNDER REVIEW: "${doc.file_name}"
+You are helping the user read and understand this specific document. Answer questions primarily from its contents below. Quote and cite specific passages, clauses, dates, and dollar figures. If the answer isn't in the document, say so plainly rather than guessing. When asked, produce clear outlines and plain-language explanations of dense sections.${
+        doc.ai_summary ? `\n\nSummary: ${doc.ai_summary}` : ''
+      }\n\n--- DOCUMENT TEXT${truncated ? ' (truncated — use get_document_content or search_knowledge_base for the rest)' : ''} ---\n${
+        body || '(No extractable text was stored for this document. Use get_document_content or search_knowledge_base to retrieve what is indexed.)'
+      }\n--- END DOCUMENT TEXT ---`
     }
   }
 
