@@ -43,6 +43,21 @@ type Item =
   | { kind: 'page'; href: string; label: string }
   | { kind: 'entity'; result: SearchResult }
 
+// Area filter chips. 'all' searches everything (the default); a type narrows
+// the records list to that area.
+type Scope = 'all' | SearchResult['type']
+const SCOPES: { value: Scope; label: string }[] = [
+  { value: 'all', label: 'All' },
+  { value: 'project', label: 'Projects' },
+  { value: 'opportunity', label: 'Opportunities' },
+  { value: 'contact', label: 'Contacts' },
+  { value: 'vendor', label: 'Vendors' },
+  { value: 'task', label: 'Tasks' },
+  { value: 'investor', label: 'Investors' },
+  { value: 'objective', label: 'Objectives' },
+  { value: 'document', label: 'Documents' },
+]
+
 const MIN_QUERY = 2
 
 export default function CommandPalette({ onClose }: { onClose: () => void }) {
@@ -54,19 +69,24 @@ export default function CommandPalette({ onClose }: { onClose: () => void }) {
   const [results, setResults] = useState<SearchResult[]>([])
   const [loading, setLoading] = useState(false)
   const [active, setActive] = useState(0)
+  const [scope, setScope] = useState<Scope>('all')
 
   const term = query.trim()
   const searchable = term.length >= MIN_QUERY
 
-  // Filtered static pages.
+  // Filtered static pages — only offered when searching all areas.
   const pages = useMemo(() => {
+    if (scope !== 'all') return []
     const t = term.toLowerCase()
     if (!t) return PAGES
     return PAGES.filter((p) => p.label.toLowerCase().includes(t) || p.keywords.includes(t))
-  }, [term])
+  }, [term, scope])
 
   // Only show fetched records once the query is long enough to have triggered a search.
-  const visibleResults = useMemo(() => (searchable ? results : []), [searchable, results])
+  const visibleResults = useMemo(() => {
+    if (!searchable) return []
+    return scope === 'all' ? results : results.filter((r) => r.type === scope)
+  }, [searchable, results, scope])
 
   // Flat list used for keyboard navigation + indexing. "Ask Ber AI" is always first.
   const items: Item[] = useMemo(() => {
@@ -195,6 +215,27 @@ export default function CommandPalette({ onClose }: { onClose: () => void }) {
           </kbd>
         </div>
 
+        {/* Area scope — "All" searches every area at once */}
+        <div className="flex flex-wrap items-center gap-1.5 px-4 py-2.5 border-b border-border">
+          {SCOPES.map((s) => (
+            <button
+              key={s.value}
+              onClick={() => {
+                setScope(s.value)
+                setActive(0)
+                inputRef.current?.focus()
+              }}
+              className={`h-6 px-2.5 rounded-full text-xs font-medium transition-colors ${
+                scope === s.value
+                  ? 'bg-primary text-primary-foreground'
+                  : 'bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground'
+              }`}
+            >
+              {s.label}
+            </button>
+          ))}
+        </div>
+
         {/* Results */}
         <div ref={listRef} className="max-h-[55vh] overflow-y-auto scrollbar-thin py-2">
           {/* Ask Ber AI — always first */}
@@ -297,6 +338,11 @@ export default function CommandPalette({ onClose }: { onClose: () => void }) {
           )}
 
           {/* Empty / loading states */}
+          {!searchable && scope !== 'all' && (
+            <p className="px-4 py-8 text-center text-sm text-muted-foreground">
+              Type to search {SCOPES.find((s) => s.value === scope)?.label.toLowerCase()}…
+            </p>
+          )}
           {searchable && !loading && visibleResults.length === 0 && pages.length === 0 && (
             <p className="px-4 py-8 text-center text-sm text-muted-foreground">
               No matches for &ldquo;{term}&rdquo;
