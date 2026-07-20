@@ -74,11 +74,12 @@ export default function CommandPalette({ onClose }: { onClose: () => void }) {
   const term = query.trim()
   const searchable = term.length >= MIN_QUERY
 
-  // Filtered static pages — only offered when searching all areas.
+  // Static page matches — only shown when the typed query names a page
+  // (never the full list; the area chips above already cover the areas).
   const pages = useMemo(() => {
     if (scope !== 'all') return []
     const t = term.toLowerCase()
-    if (!t) return PAGES
+    if (!t) return []
     return PAGES.filter((p) => p.label.toLowerCase().includes(t) || p.keywords.includes(t))
   }, [term, scope])
 
@@ -338,9 +339,11 @@ export default function CommandPalette({ onClose }: { onClose: () => void }) {
           )}
 
           {/* Empty / loading states */}
-          {!searchable && scope !== 'all' && (
+          {!searchable && (
             <p className="px-4 py-8 text-center text-sm text-muted-foreground">
-              Type to search {SCOPES.find((s) => s.value === scope)?.label.toLowerCase()}…
+              {scope === 'all'
+                ? 'Type to search everything, or pick an area above'
+                : `Type to search ${SCOPES.find((s) => s.value === scope)?.label.toLowerCase()}…`}
             </p>
           )}
           {searchable && !loading && visibleResults.length === 0 && pages.length === 0 && (
