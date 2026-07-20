@@ -77,7 +77,7 @@ export default function RiskOverview() {
           <Link
             key={s.project_id}
             href={`/projects/${s.project_id}`}
-            className="flex items-center gap-3 px-4 py-2.5 hover:bg-muted/30 transition-colors"
+            className="flex items-center gap-3 px-4 py-2.5 hover:bg-accent/60 transition-colors"
           >
             <span className={`shrink-0 inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold ring-1 ring-inset ${scoreBg(s.score)} ${scoreColor(s.score)}`}>
               {s.score}

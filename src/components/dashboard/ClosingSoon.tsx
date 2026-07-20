@@ -35,7 +35,7 @@ export default function ClosingSoon({ items }: { items: ClosingSoonItem[] }) {
             <Link
               key={p.id}
               href={`/projects/${p.id}`}
-              className="group flex items-center gap-3 px-4 py-2.5 hover:bg-muted/30 transition-colors"
+              className="group flex items-center gap-3 px-4 py-2.5 hover:bg-accent/60 transition-colors"
             >
               <div
                 className={cn(

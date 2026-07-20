@@ -43,7 +43,7 @@ export default function AppHeader({ email, role = 'admin' }: { email: string; ro
             className="object-contain h-5 w-auto md:hidden shrink-0"
             priority
           />
-          <h1 className="text-base font-semibold text-foreground truncate heading-tight">{pageTitle(pathname)}</h1>
+          <h1 className="text-lg font-semibold text-foreground truncate heading-tight">{pageTitle(pathname)}</h1>
         </div>
 
         <div className="flex items-center gap-1.5 shrink-0">

@@ -153,7 +153,7 @@ export default function NeedsAttention({ reviewItems, overdueItems, ddItems, rev
                   <Link
                     key={t.id}
                     href="/tasks"
-                    className="flex items-start gap-2 rounded-md px-2 py-2 hover:bg-muted/50 transition-colors"
+                    className="flex items-start gap-2 rounded-md px-2 py-2 hover:bg-accent/70 transition-colors"
                   >
                     <div className="flex-1 min-w-0">
                       <p className="text-xs font-medium text-foreground truncate">{t.title}</p>
@@ -196,7 +196,7 @@ export default function NeedsAttention({ reviewItems, overdueItems, ddItems, rev
                   <Link
                     key={inv.id}
                     href={`/investors/${inv.id}`}
-                    className="flex items-start gap-2 rounded-md px-2 py-2 hover:bg-muted/50 transition-colors"
+                    className="flex items-start gap-2 rounded-md px-2 py-2 hover:bg-accent/70 transition-colors"
                   >
                     <div className="flex-1 min-w-0">
                       <p className="text-xs font-medium text-foreground truncate">{inv.name}</p>
@@ -231,7 +231,7 @@ export default function NeedsAttention({ reviewItems, overdueItems, ddItems, rev
                   <Link
                     key={item.id}
                     href="/review"
-                    className="flex items-start gap-2 rounded-md px-2 py-2 hover:bg-muted/50 transition-colors"
+                    className="flex items-start gap-2 rounded-md px-2 py-2 hover:bg-accent/70 transition-colors"
                   >
                     <div className="flex-1 min-w-0">
                       <p className="text-xs font-medium text-foreground truncate">
@@ -284,7 +284,7 @@ export default function NeedsAttention({ reviewItems, overdueItems, ddItems, rev
                   <Link
                     key={m.id}
                     href={`/projects/${m.project_id}/milestones`}
-                    className="flex items-start gap-2 rounded-md px-2 py-2 hover:bg-muted/50 transition-colors"
+                    className="flex items-start gap-2 rounded-md px-2 py-2 hover:bg-accent/70 transition-colors"
                   >
                     <div className="flex-1 min-w-0">
                       <p className="text-xs font-medium text-foreground truncate">{m.label}</p>
@@ -319,7 +319,7 @@ export default function NeedsAttention({ reviewItems, overdueItems, ddItems, rev
                   <Link
                     key={dd.id}
                     href={`/projects/${dd.project_id}/diligence`}
-                    className="flex items-start gap-2 rounded-md px-2 py-2 hover:bg-muted/50 transition-colors"
+                    className="flex items-start gap-2 rounded-md px-2 py-2 hover:bg-accent/70 transition-colors"
                   >
                     <div className="flex-1 min-w-0">
                       <p className="text-xs font-medium text-foreground line-clamp-2">{dd.item}</p>

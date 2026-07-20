@@ -64,7 +64,7 @@ export default function ConversationList({ activeConversationId, onSelectConvers
             <button
               key={conv.id}
               onClick={() => onSelectConversation(conv.id)}
-              className={`block w-full text-left px-3 py-2.5 hover:bg-muted/50 transition-colors ${
+              className={`block w-full text-left px-3 py-2.5 hover:bg-accent/70 transition-colors ${
                 activeConversationId === conv.id ? 'bg-primary/5 border-l-2 border-primary' : ''
               }`}
             >

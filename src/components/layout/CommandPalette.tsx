@@ -201,7 +201,7 @@ export default function CommandPalette({ onClose }: { onClose: () => void }) {
                   onClick={runAsk}
                   onMouseMove={() => setActive(i)}
                   className={`w-full flex items-center gap-3 px-2.5 py-2 rounded-lg text-left transition-colors ${
-                    isActive ? 'bg-muted text-foreground' : 'text-foreground/80'
+                    isActive ? 'bg-accent text-foreground' : 'text-foreground/80'
                   }`}
                 >
                   <Sparkles size={14} className="text-primary shrink-0" />
@@ -236,7 +236,7 @@ export default function CommandPalette({ onClose }: { onClose: () => void }) {
                     onClick={() => go(p.href)}
                     onMouseMove={() => setActive(i)}
                     className={`w-full flex items-center gap-3 px-2.5 py-2 rounded-lg text-left transition-colors ${
-                      isActive ? 'bg-muted text-foreground' : 'text-foreground/80'
+                      isActive ? 'bg-accent text-foreground' : 'text-foreground/80'
                     }`}
                   >
                     <ArrowRight size={14} className="text-muted-foreground shrink-0" />
@@ -268,7 +268,7 @@ export default function CommandPalette({ onClose }: { onClose: () => void }) {
                     onClick={() => go(r.href)}
                     onMouseMove={() => setActive(i)}
                     className={`w-full flex items-center gap-3 px-2.5 py-2 rounded-lg text-left transition-colors ${
-                      isActive ? 'bg-muted text-foreground' : 'text-foreground/80'
+                      isActive ? 'bg-accent text-foreground' : 'text-foreground/80'
                     }`}
                   >
                     <Icon size={15} className="text-muted-foreground shrink-0" />

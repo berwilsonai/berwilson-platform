@@ -242,7 +242,7 @@ export default async function ActivityPage({ searchParams }: PageProps) {
                   const link = recordLink(log.table_name, log.record_id, log.project_id)
                   const actionStyle = ACTION_STYLES[log.action] ?? 'bg-slate-50 dark:bg-slate-950/40 text-slate-600 dark:text-slate-400 ring-slate-200 dark:ring-slate-800/60'
                   return (
-                    <tr key={log.id} className="hover:bg-muted/30 transition-colors">
+                    <tr key={log.id} className="hover:bg-accent/60 transition-colors">
                       <td className="py-2 px-3 font-mono text-muted-foreground whitespace-nowrap">
                         {formatTs(log.created_at)}
                       </td>

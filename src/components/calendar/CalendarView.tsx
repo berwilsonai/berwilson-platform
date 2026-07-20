@@ -237,7 +237,7 @@ export default function CalendarView({ events: serverEvents }: CalendarViewProps
                       key={event.id}
                       {...wrapperProps}
                       className={cn(
-                        'flex items-start gap-3 px-4 py-3 hover:bg-muted/30 transition-colors',
+                        'flex items-start gap-3 px-4 py-3 hover:bg-accent/60 transition-colors',
                         event.completed && event.type !== 'meeting' && 'opacity-50'
                       )}
                     >
