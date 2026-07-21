@@ -33,12 +33,20 @@ export interface ReferencedMatch {
   matched_name: string | null
 }
 
+/** A person known before AI runs (e.g. from a picked calendar event). */
+export interface SeedAttendee {
+  name: string
+  email: string | null
+}
+
 export interface AnalyzeMeetingInput {
   rawText: string
   title: string | null
   meetingDate: string | null
   /** Owner of the ingest — a real user id, or SYSTEM_USER_ID for machine delivery. */
   userId: string
+  /** Attendees known up front (calendar) — merged into the extraction, deduped. */
+  seedAttendees?: SeedAttendee[]
 }
 
 export interface AnalyzeMeetingResult {
@@ -196,16 +204,39 @@ async function matchReferencedRecords(
  * pending review session. Throws {@link EmailIntakeError} (with an HTTP status) on
  * failure so callers can translate it to a Response.
  */
-export async function analyzeMeetingNotes(input: AnalyzeMeetingInput): Promise<AnalyzeMeetingResult> {
+/** Merge calendar-known attendees into the AI extraction (dedupe by email/name). */
+function mergeSeedAttendees(extraction: MeetingIntakeExtraction, seeds: SeedAttendee[]): void {
+  for (const s of seeds) {
+    const name = s.name?.trim()
+    if (!name) continue
+    const dup = extraction.attendees.some(
+      (a) =>
+        (s.email && a.email && a.email.toLowerCase() === s.email.toLowerCase()) ||
+        a.name.trim().toLowerCase() === name.toLowerCase(),
+    )
+    if (dup) continue
+    extraction.attendees.push({
+      name, email: s.email, company: null, title: null, role: null, is_organization: false,
+    })
+  }
+}
+
+/**
+ * Run one Gemini pass over meeting text and return the normalized extraction —
+ * WITHOUT staging a session. Shared by {@link analyzeMeetingNotes} (first pass)
+ * and the in-review re-draft. Throws {@link EmailIntakeError} on failure.
+ */
+export async function extractMeeting(input: {
+  rawText: string
+  title: string | null
+  meetingDate: string | null
+  userId: string
+}): Promise<MeetingIntakeExtraction> {
   const { userId, title, meetingDate } = input
   const supabase = createAdminClient()
 
   let text = input.rawText
-  let truncated = false
-  if (text.length > MAX_CHARS) {
-    text = text.slice(0, MAX_CHARS)
-    truncated = true
-  }
+  if (text.length > MAX_CHARS) text = text.slice(0, MAX_CHARS)
 
   // Roster of active team members so the model normalizes task owners to real
   // people (the review screen pre-selects the match). Non-fatal if it fails.
@@ -215,8 +246,6 @@ export async function analyzeMeetingNotes(input: AnalyzeMeetingInput): Promise<A
     .eq('active', true)
   const roster = (memberRows ?? []).map((m) => m.name)
 
-  // 1. Map the notes into a structured recap via Gemini.
-  let extraction: MeetingIntakeExtraction
   try {
     const { data } = await callGemini<Partial<MeetingIntakeExtraction> | string>({
       task: 'meeting-intake',
@@ -229,12 +258,25 @@ export async function analyzeMeetingNotes(input: AnalyzeMeetingInput): Promise<A
     if (!data || typeof data !== 'object') {
       throw new EmailIntakeError(422, 'The AI could not parse these notes. Try a cleaner paste.')
     }
-    extraction = normalize(data as Partial<MeetingIntakeExtraction>, title, meetingDate)
+    return normalize(data as Partial<MeetingIntakeExtraction>, title, meetingDate)
   } catch (err) {
     if (err instanceof EmailIntakeError) throw err
     console.error('Meeting intake analyze failed:', err)
     throw new EmailIntakeError(500, 'AI analysis failed. Check the AI provider and try again.')
   }
+}
+
+export async function analyzeMeetingNotes(input: AnalyzeMeetingInput): Promise<AnalyzeMeetingResult> {
+  const { userId, title, meetingDate } = input
+  const supabase = createAdminClient()
+
+  const truncated = input.rawText.length > MAX_CHARS
+  const text = truncated ? input.rawText.slice(0, MAX_CHARS) : input.rawText
+
+  // 1. Map the notes into a structured recap via Gemini, then fold in any
+  //    attendees already known from a picked calendar event.
+  const extraction = await extractMeeting({ rawText: text, title, meetingDate, userId })
+  if (input.seedAttendees?.length) mergeSeedAttendees(extraction, input.seedAttendees)
 
   // 2. Pre-resolve attendees + referenced records (all non-fatal).
   const attendeeParties = extraction.attendees.map((p) => ({

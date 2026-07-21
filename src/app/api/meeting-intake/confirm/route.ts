@@ -44,6 +44,9 @@ interface TaskAction {
   include: boolean
   /** Client ref of the target this task belongs to, or null for no record. */
   target_ref: string | null
+  /** Handoff: who this task waits on (same ref space as assignee) + for what. */
+  waiting_on_ref?: string | null
+  waiting_on_what?: string | null
 }
 
 // Small rotating palette for new owner avatars (mirrors /api/team-members).
@@ -322,6 +325,16 @@ export async function POST(request: NextRequest) {
       if (!assigneeId && t.assignee) {
         assigneeId = memberByName.get(t.assignee.toLowerCase()) ?? null
       }
+      // Resolve an optional handoff (waiting-on) the same way, then the triple.
+      let waitingId: string | null = null
+      const wref = t.waiting_on_ref
+      if (wref?.startsWith('owner:')) {
+        waitingId = ownerMemberByRef.get(wref.slice('owner:'.length)) ?? null
+      } else if (wref && memberIds.has(wref)) {
+        waitingId = wref
+      }
+      const waitingWhat = str(t.waiting_on_what)
+
       const row: TablesInsert<'tasks'> = {
         title: t.title.trim(),
         what: str(t.what),
@@ -333,6 +346,12 @@ export async function POST(request: NextRequest) {
         status: 'open',
       }
       if (tgt?.kind === 'opportunity') row.opportunity_id = tgt.id
+      // A task can't wait on the person doing it (that's a note, not a handoff).
+      if (waitingId && waitingWhat && waitingId !== assigneeId) {
+        row.waiting_on_id = waitingId
+        row.waiting_on_what = waitingWhat
+        row.waiting_on_since = new Date().toISOString().split('T')[0]
+      }
 
       const { data, error } = await supabase.from('tasks').insert(row).select('id').single()
       if (error) {

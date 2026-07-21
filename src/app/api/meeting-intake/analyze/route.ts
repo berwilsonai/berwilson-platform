@@ -26,6 +26,16 @@ export async function POST(request: NextRequest) {
   const title = nullableStr(body.title)
   const meetingDate = nullableStr(body.meeting_date) // validated (ISO) in normalize
   let text = nullableStr(body.raw_text) ?? ''
+  const seedAttendees = Array.isArray(body.seed_attendees)
+    ? body.seed_attendees
+        .map((a: unknown) => {
+          const o = a as { name?: unknown; email?: unknown }
+          const name = nullableStr(o?.name)
+          return name ? { name, email: nullableStr(o?.email) } : null
+        })
+        .filter((a: unknown): a is { name: string; email: string | null } => a !== null)
+        .slice(0, 50)
+    : undefined
 
   // Uploaded .md/.txt path: read from the documents bucket.
   if (!text && body.storage_path) {
@@ -41,7 +51,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const result = await analyzeMeetingNotes({ rawText: text, title, meetingDate, userId })
+    const result = await analyzeMeetingNotes({ rawText: text, title, meetingDate, userId, seedAttendees })
     return Response.json(result)
   } catch (err) {
     if (err instanceof EmailIntakeError) {

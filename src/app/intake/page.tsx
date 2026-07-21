@@ -189,13 +189,29 @@ async function EmailTab({ supabase }: { supabase: ReturnType<typeof createAdminC
 async function MeetingTab({ supabase }: { supabase: ReturnType<typeof createAdminClient> }) {
   const { data: sessions } = await supabase
     .from('email_intake_sessions')
-    .select('id, label, status, updated_at')
+    .select('id, label, status, updated_at, created_record_ids')
     .eq('intake_kind', 'meeting')
     .neq('status', 'dismissed')
     .order('updated_at', { ascending: false })
     .limit(25)
 
-  const rows = sessions ?? []
+  const dateFmt = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' })
+  const rows = (sessions ?? []).map((s) => {
+    const c = (s.created_record_ids ?? {}) as {
+      project_ids?: string[]; opportunity_ids?: string[]; task_ids?: string[]; document_ids?: string[]
+    }
+    const records = (c.project_ids?.length ?? 0) + (c.opportunity_ids?.length ?? 0)
+    const parts: string[] = []
+    if (records) parts.push(`${records} record${records === 1 ? '' : 's'}`)
+    if (c.task_ids?.length) parts.push(`${c.task_ids.length} task${c.task_ids.length === 1 ? '' : 's'}`)
+    const when = s.updated_at ? dateFmt.format(new Date(s.updated_at)) : null
+    return {
+      ...s,
+      summary: s.status === 'confirmed'
+        ? [when, ...parts].filter(Boolean).join(' · ') || null
+        : null,
+    }
+  })
 
   return (
     <>
@@ -227,7 +243,10 @@ async function MeetingTab({ supabase }: { supabase: ReturnType<typeof createAdmi
                   href={`/intake/meeting/${s.id}`}
                   className="flex items-center justify-between gap-3 px-4 py-2.5 hover:bg-accent transition-colors"
                 >
-                  <span className="text-sm font-medium truncate">{s.label || 'Untitled meeting'}</span>
+                  <span className="min-w-0">
+                    <span className="text-sm font-medium truncate block">{s.label || 'Untitled meeting'}</span>
+                    {s.summary && <span className="text-[11px] text-muted-foreground">{s.summary}</span>}
+                  </span>
                   <span className="flex items-center gap-1.5 shrink-0">
                     {badge}
                     {st === 'pending' && <DismissSessionButton sessionId={s.id} />}

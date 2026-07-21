@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   Loader2, CheckCircle2, Building2, ListChecks, Users, FolderKanban,
-  Lightbulb, Plus, X, Trash2, Search,
+  Lightbulb, Plus, X, Trash2, Search, Target, Sparkles, Clock,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
@@ -134,6 +134,10 @@ type TaskRow = MeetingIntakeExtraction['tasks'][number] & {
    * attendee being promoted to owner in this same pass, or null for unassigned.
    */
   assignee_id: string | null
+  /** Handoff: this task is blocked waiting on someone (same ref space as assignee). */
+  waiting_on_id: string | null
+  waiting_on_what: string | null
+  showBlocked: boolean
 }
 
 interface NewFields {
@@ -233,6 +237,9 @@ export default function MeetingIntakeReview({
         include: true,
         target_ref: seededRef >= 0 ? `seed-${seededRef}` : null,
         assignee_id: bestMemberId(t.assignee, teamMembers),
+        waiting_on_id: null,
+        waiting_on_what: null,
+        showBlocked: false,
       }
     }),
   )
@@ -242,6 +249,66 @@ export default function MeetingIntakeReview({
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [discardOpen, setDiscardOpen] = useState(false)
+  const [redrafting, setRedrafting] = useState(false)
+  const [addedObjectives, setAddedObjectives] = useState<Set<string>>(new Set())
+
+  const decisionLines = useMemo(
+    () => decisionsText.split('\n').map((d) => d.trim()).filter(Boolean),
+    [decisionsText],
+  )
+
+  /** Re-run the AI over the edited minutes to re-suggest tasks (+ new attendees). */
+  async function redraft() {
+    const bodyText = [title.trim(), summary.trim(), minutes.trim(), decisionLines.join('\n')].filter(Boolean).join('\n\n')
+    if (!bodyText.trim()) { toast.error('Add minutes or a summary first.'); return }
+    setRedrafting(true)
+    try {
+      const res = await fetch('/api/meeting-intake/redraft', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: bodyText, title: title.trim() || null, meeting_date: meetingDate || null }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Re-draft failed.')
+      setTasks(
+        (data.tasks ?? []).map((t: MeetingIntakeExtraction['tasks'][number]) => ({
+          ...t, include: true, target_ref: null,
+          assignee_id: bestMemberId(t.assignee, teamMembers),
+          waiting_on_id: null, waiting_on_what: null, showBlocked: false,
+        })),
+      )
+      if (Array.isArray(data.attendees)) {
+        setAttendees((prev) => {
+          const seen = new Set(prev.map((p) => p.name.trim().toLowerCase()))
+          const additions = (data.attendees as MeetingIntakeExtraction['attendees'])
+            .filter((a) => a.name?.trim() && !seen.has(a.name.trim().toLowerCase()))
+            .map((a) => ({ ...a, ref: nextAttRef(), action: 'create' as const, existing_party_id: null, existing_name: null, owner: false }))
+          return [...prev, ...additions]
+        })
+      }
+      toast.success('Tasks re-suggested from the minutes. Re-tag their records if needed.')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Re-draft failed.')
+    } finally {
+      setRedrafting(false)
+    }
+  }
+
+  /** Push a meeting decision onto the steering board as a Soon objective. */
+  async function addObjective(text: string) {
+    try {
+      const res = await fetch('/api/objectives', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: text, bucket: 'soon' }),
+      })
+      if (!res.ok) throw new Error()
+      setAddedObjectives((prev) => new Set(prev).add(text))
+      toast.success('Added to the steering board (Soon).')
+    } catch {
+      toast.error('Could not add the objective.')
+    }
+  }
 
   const selectedIds = useMemo(() => new Set(targets.filter((t) => !t.isNew).map((t) => t.id)), [targets])
 
@@ -400,6 +467,8 @@ export default function MeetingIntakeReview({
             title: t.title, what: t.what, why: t.why, how: t.how,
             assignee: t.assignee, assignee_ref: effectiveAssignee(t) || null,
             due_date: t.due_date, include: t.include, target_ref: t.target_ref,
+            waiting_on_ref: t.waiting_on_id && assigneeValues.has(t.waiting_on_id) ? t.waiting_on_id : null,
+            waiting_on_what: t.waiting_on_what,
           })),
         }),
       })
@@ -441,6 +510,27 @@ export default function MeetingIntakeReview({
         <div className="space-y-1">
           <label className={labelCls}>Decisions <span className="normal-case font-normal text-muted-foreground">(one per line)</span></label>
           <textarea className={`${inputCls} h-auto py-2`} rows={3} value={decisionsText} onChange={(e) => setDecisionsText(e.target.value)} placeholder="Key decisions reached…" />
+          {decisionLines.length > 0 && (
+            <div className="flex flex-wrap items-center gap-1.5 pt-1">
+              <span className="text-[11px] text-muted-foreground">Push to steering board:</span>
+              {decisionLines.map((d, i) => {
+                const added = addedObjectives.has(d)
+                return (
+                  <button
+                    key={i}
+                    type="button"
+                    disabled={added}
+                    onClick={() => addObjective(d)}
+                    className={`inline-flex items-center gap-1 h-6 px-2 rounded-full border text-[11px] transition-colors ${added ? 'border-emerald-300 dark:border-emerald-700/60 text-emerald-700 dark:text-emerald-300' : 'border-dashed border-input hover:bg-accent'}`}
+                    title={added ? 'Added as a Soon objective' : `Add "${d}" to the steering board as a Soon objective`}
+                  >
+                    {added ? <CheckCircle2 size={11} /> : <Target size={11} />}
+                    <span className="max-w-[16rem] truncate">{d}</span>
+                  </button>
+                )
+              })}
+            </div>
+          )}
         </div>
       </div>
 
@@ -612,12 +702,22 @@ export default function MeetingIntakeReview({
       </div>
 
       {/* Tasks */}
-      {tasks.length > 0 && (
-        <div className="rounded-lg border border-border bg-card p-4 space-y-3">
-          <div className="flex items-center gap-2">
-            <ListChecks size={15} className="text-muted-foreground" />
-            <h3 className="text-sm font-semibold">Follow-up tasks ({tasks.filter((t) => t.include).length} of {tasks.length})</h3>
-          </div>
+      <div className="rounded-lg border border-border bg-card p-4 space-y-3">
+        <div className="flex items-center gap-2">
+          <ListChecks size={15} className="text-muted-foreground" />
+          <h3 className="text-sm font-semibold">Follow-up tasks ({tasks.filter((t) => t.include).length} of {tasks.length})</h3>
+          <button
+            type="button"
+            onClick={redraft}
+            disabled={redrafting}
+            className="ml-auto inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md border border-input bg-background text-xs hover:bg-accent transition-colors disabled:opacity-60"
+            title="Re-run Ber AI over your edited minutes to re-suggest tasks"
+          >
+            {redrafting ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
+            {redrafting ? 'Thinking…' : 'Re-suggest from minutes'}
+          </button>
+        </div>
+        {tasks.length > 0 ? (
           <div className="space-y-2">
             {tasks.map((t, i) => (
               <div key={i} className="flex items-start gap-2.5 p-2 rounded-md border border-border/60">
@@ -641,7 +741,27 @@ export default function MeetingIntakeReview({
                       <option value="">No record (executive list)</option>
                       {targets.map((tg) => <option key={tg.ref} value={tg.ref}>{targetLabel(tg)}</option>)}
                     </select>
+                    {!t.showBlocked && !t.waiting_on_id && (
+                      <button type="button" onClick={() => setTask(i, { showBlocked: true })} className="inline-flex items-center gap-1 h-7 px-2 rounded border border-dashed border-input text-[11px] text-muted-foreground hover:bg-accent transition-colors" title="Mark this task as waiting on someone">
+                        <Clock size={11} /> Blocked?
+                      </button>
+                    )}
                   </div>
+                  {(t.showBlocked || t.waiting_on_id) && (
+                    <div className="flex flex-wrap items-center gap-2 pl-0.5">
+                      <span className="text-[11px] text-amber-600 dark:text-amber-400 inline-flex items-center gap-1"><Clock size={11} /> Waiting on</span>
+                      <select
+                        className="h-7 px-2 rounded border border-input bg-background text-xs w-32"
+                        value={t.waiting_on_id && assigneeValues.has(t.waiting_on_id) ? t.waiting_on_id : ''}
+                        onChange={(e) => setTask(i, { waiting_on_id: e.target.value || null })}
+                      >
+                        <option value="">— who</option>
+                        {assigneeOptions.filter((o) => o.value !== effectiveAssignee(t)).map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                      </select>
+                      <input className="h-7 px-2 rounded border border-input bg-background text-xs flex-1 min-w-[8rem]" placeholder="for what (e.g. the survey)" value={t.waiting_on_what ?? ''} onChange={(e) => setTask(i, { waiting_on_what: e.target.value || null })} />
+                      <button type="button" onClick={() => setTask(i, { showBlocked: false, waiting_on_id: null, waiting_on_what: null })} className="text-muted-foreground hover:text-destructive" title="Clear"><X size={13} /></button>
+                    </div>
+                  )}
                   {!effectiveAssignee(t) && t.assignee && (
                     <p className="text-[11px] text-amber-600 dark:text-amber-400">
                       AI suggested “{t.assignee}” — not a team owner. Pick one, or tick “Can own tasks” on that attendee.
@@ -651,9 +771,11 @@ export default function MeetingIntakeReview({
               </div>
             ))}
           </div>
-          <p className="text-[11px] text-muted-foreground">Ber AI pre-assigns each task to the team member it inferred; adjust the owner or the record (or leave it on the executive list) before processing.</p>
-        </div>
-      )}
+        ) : (
+          <p className="text-sm text-muted-foreground">No tasks yet — edit the minutes and click “Re-suggest from minutes”, or process without tasks.</p>
+        )}
+        <p className="text-[11px] text-muted-foreground">Ber AI pre-assigns each task to the team member it inferred; adjust the owner, the record, or a blocker before processing.</p>
+      </div>
 
       {error && <p className="text-sm text-destructive bg-destructive/10 rounded px-3 py-2">{error}</p>}
 

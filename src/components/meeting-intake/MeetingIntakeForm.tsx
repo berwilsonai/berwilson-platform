@@ -2,8 +2,12 @@
 
 import { useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Loader2, FileUp, Sparkles } from 'lucide-react'
+import { Loader2, FileUp, Sparkles, CalendarDays, Users, X } from 'lucide-react'
+import { toast } from 'sonner'
 import { DatePicker } from '@/components/ui/date-picker'
+
+interface CalEventAttendee { name: string; email: string | null }
+interface CalEvent { id: string; subject: string; date: string | null; when: string; attendees: CalEventAttendee[] }
 
 /**
  * Paste-or-upload entry point for Meeting Notes Intake. Paste the raw notes /
@@ -20,6 +24,36 @@ export default function MeetingIntakeForm() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
+
+  // Calendar prefill
+  const [calEvents, setCalEvents] = useState<CalEvent[] | null>(null)
+  const [calLoading, setCalLoading] = useState(false)
+  const [calOpen, setCalOpen] = useState(false)
+  const [seedAttendees, setSeedAttendees] = useState<CalEventAttendee[]>([])
+
+  async function loadCalendar() {
+    setCalOpen(true)
+    if (calEvents) return
+    setCalLoading(true)
+    try {
+      const res = await fetch('/api/meeting-intake/calendar-events')
+      const data = await res.json()
+      setCalEvents(data.events ?? [])
+      if (data.error) toast.error(data.error)
+    } catch {
+      setCalEvents([])
+      toast.error('Could not load calendar events.')
+    } finally {
+      setCalLoading(false)
+    }
+  }
+
+  function pickEvent(e: CalEvent) {
+    setTitle(e.subject)
+    if (e.date) setMeetingDate(e.date)
+    setSeedAttendees(e.attendees)
+    setCalOpen(false)
+  }
 
   async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -45,6 +79,7 @@ export default function MeetingIntakeForm() {
           raw_text: text,
           title: title.trim() || null,
           meeting_date: meetingDate || null,
+          seed_attendees: seedAttendees.length ? seedAttendees : undefined,
         }),
       })
       const data = await res.json()
@@ -76,6 +111,44 @@ export default function MeetingIntakeForm() {
           onChange={onFile}
           className="hidden"
         />
+        <div className="relative shrink-0">
+          <button
+            type="button"
+            onClick={loadCalendar}
+            className="inline-flex items-center justify-center gap-1.5 h-9 px-3 rounded-md border border-input bg-background text-sm font-medium hover:bg-accent transition-colors w-full"
+          >
+            {calLoading ? <Loader2 size={14} className="animate-spin" /> : <CalendarDays size={14} />}
+            From calendar
+          </button>
+          {calOpen && (
+            <div className="absolute right-0 z-30 mt-1 w-80 max-h-80 overflow-auto rounded-md border border-border bg-card shadow-lg">
+              <div className="flex items-center justify-between px-3 py-2 border-b border-border">
+                <span className="label-caps text-muted-foreground">Recent meetings</span>
+                <button type="button" onClick={() => setCalOpen(false)} className="text-muted-foreground hover:text-foreground"><X size={14} /></button>
+              </div>
+              {calLoading ? (
+                <div className="px-3 py-4 text-sm text-muted-foreground flex items-center gap-2"><Loader2 size={14} className="animate-spin" /> Loading…</div>
+              ) : calEvents && calEvents.length > 0 ? (
+                calEvents.map((e) => (
+                  <button
+                    key={e.id}
+                    type="button"
+                    onClick={() => pickEvent(e)}
+                    className="flex w-full flex-col items-start gap-0.5 px-3 py-2 text-left hover:bg-accent transition-colors border-b border-border/50 last:border-0"
+                  >
+                    <span className="text-sm font-medium truncate w-full">{e.subject}</span>
+                    <span className="text-[11px] text-muted-foreground flex items-center gap-2">
+                      <span>{e.when}</span>
+                      {e.attendees.length > 0 && <span className="inline-flex items-center gap-0.5"><Users size={10} /> {e.attendees.length}</span>}
+                    </span>
+                  </button>
+                ))
+              ) : (
+                <div className="px-3 py-4 text-sm text-muted-foreground">No recent calendar meetings found.</div>
+              )}
+            </div>
+          )}
+        </div>
         <button
           type="button"
           onClick={() => fileRef.current?.click()}
@@ -90,6 +163,19 @@ export default function MeetingIntakeForm() {
         <p className="text-xs text-muted-foreground">
           Loaded <span className="font-medium text-foreground">{fileName}</span> — edit below if needed.
         </p>
+      )}
+
+      {seedAttendees.length > 0 && (
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="text-xs text-muted-foreground inline-flex items-center gap-1"><Users size={12} /> Attendees from calendar:</span>
+          {seedAttendees.map((a, i) => (
+            <span key={i} className="inline-flex items-center gap-1 h-6 px-2 rounded-full bg-accent text-xs">
+              {a.name}
+              <button type="button" onClick={() => setSeedAttendees((prev) => prev.filter((_, idx) => idx !== i))} className="text-muted-foreground hover:text-destructive"><X size={11} /></button>
+            </span>
+          ))}
+          <span className="text-[11px] text-muted-foreground">— added to the extracted attendees for review</span>
+        </div>
       )}
 
       <textarea
