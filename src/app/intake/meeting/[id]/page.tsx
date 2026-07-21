@@ -47,8 +47,8 @@ export default async function MeetingReviewPage({ params }: PageProps) {
     )
   }
 
-  // Picker data — existing records the meeting can fan out onto.
-  const [{ data: projects }, { data: opportunities }] = await Promise.all([
+  // Picker data — existing records the meeting can fan out onto + task owners.
+  const [{ data: projects }, { data: opportunities }, { data: teamMembers }] = await Promise.all([
     supabase
       .from('projects')
       .select('id, name, sector')
@@ -57,6 +57,11 @@ export default async function MeetingReviewPage({ params }: PageProps) {
       .from('opportunities')
       .select('id, name')
       .not('status', 'in', '(closed_won,closed_passed)')
+      .order('name'),
+    supabase
+      .from('team_members')
+      .select('id, name')
+      .eq('active', true)
       .order('name'),
   ])
 
@@ -74,6 +79,7 @@ export default async function MeetingReviewPage({ params }: PageProps) {
         partyMatches={partyMatches}
         projects={projects ?? []}
         opportunities={opportunities ?? []}
+        teamMembers={teamMembers ?? []}
       />
     </div>
   )

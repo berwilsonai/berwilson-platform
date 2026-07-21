@@ -1,7 +1,7 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { callGemini } from '@/lib/ai/gemini'
 import {
-  MEETING_INTAKE_SYSTEM_PROMPT,
+  buildMeetingSystemPrompt,
   MEETING_INTAKE_PROMPT_VERSION,
   type MeetingIntakeExtraction,
 } from '@/lib/ai/prompts/meeting-intake'
@@ -207,12 +207,20 @@ export async function analyzeMeetingNotes(input: AnalyzeMeetingInput): Promise<A
     truncated = true
   }
 
+  // Roster of active team members so the model normalizes task owners to real
+  // people (the review screen pre-selects the match). Non-fatal if it fails.
+  const { data: memberRows } = await supabase
+    .from('team_members')
+    .select('name')
+    .eq('active', true)
+  const roster = (memberRows ?? []).map((m) => m.name)
+
   // 1. Map the notes into a structured recap via Gemini.
   let extraction: MeetingIntakeExtraction
   try {
     const { data } = await callGemini<Partial<MeetingIntakeExtraction> | string>({
       task: 'meeting-intake',
-      systemPrompt: MEETING_INTAKE_SYSTEM_PROMPT,
+      systemPrompt: buildMeetingSystemPrompt(roster),
       userMessage: text,
       userId,
       promptVersion: MEETING_INTAKE_PROMPT_VERSION,

@@ -95,3 +95,19 @@ Return ONLY valid JSON matching exactly this shape (no markdown, no commentary):
   "tasks": [{ "title": string, "what": string|null, "why": string|null, "how": string|null, "assignee": string|null, "due_date": string|null, "record_hint": string|null }],
   "confidence": 0.0
 }`
+
+/**
+ * Build the system prompt with the internal team roster appended, so the model
+ * normalizes each task's `assignee` to a real team-member name. The review screen
+ * then pre-selects the matching person in the assignee dropdown. Falls back to the
+ * base prompt when no roster is supplied.
+ */
+export function buildMeetingSystemPrompt(memberNames: string[]): string {
+  const names = memberNames.map((n) => n.trim()).filter(Boolean)
+  if (names.length === 0) return MEETING_INTAKE_SYSTEM_PROMPT
+  const roster = names.map((n) => `- ${n}`).join('\n')
+  return `${MEETING_INTAKE_SYSTEM_PROMPT}
+
+INTERNAL TEAM (the only people who can OWN a follow-up task). When a task's owner is one of these people, set "assignee" to their name spelled EXACTLY as written here. If the owner is external, someone not on this list, or unclear, set "assignee" to null — never guess a name that isn't here:
+${roster}`
+}

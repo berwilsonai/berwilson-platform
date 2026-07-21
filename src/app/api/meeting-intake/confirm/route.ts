@@ -28,6 +28,9 @@ interface TaskAction {
   what: string | null
   why: string | null
   how: string | null
+  /** Resolved team-member id (preferred). */
+  assignee_id: string | null
+  /** AI's free-text guess — fallback when assignee_id is absent. */
   assignee: string | null
   due_date: string | null
   include: boolean
@@ -248,11 +251,18 @@ export async function POST(request: NextRequest) {
       .from('team_members')
       .select('id, name')
       .eq('active', true)
+    const memberIds = new Set((members ?? []).map((m) => m.id))
     const memberByName = new Map((members ?? []).map((m) => [m.name.toLowerCase(), m.id]))
 
     for (const t of includedTasks) {
       const tgt = t.target_ref ? resolved.get(t.target_ref) : undefined
-      const assigneeId = t.assignee ? memberByName.get(t.assignee.toLowerCase()) ?? null : null
+      // Prefer the confirmed team-member id; fall back to matching the AI's name.
+      const assigneeId =
+        t.assignee_id && memberIds.has(t.assignee_id)
+          ? t.assignee_id
+          : t.assignee
+            ? memberByName.get(t.assignee.toLowerCase()) ?? null
+            : null
       const row: TablesInsert<'tasks'> = {
         title: t.title.trim(),
         what: str(t.what),

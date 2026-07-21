@@ -16,6 +16,7 @@ import { SECTORS, SECTOR_LABELS, STAGES, STAGE_LABELS } from '@/lib/utils/consta
 import { OPPORTUNITY_TYPES, OPPORTUNITY_TYPE_LABELS, type OpportunityType } from '@/lib/utils/opportunities'
 
 interface RecordOption { id: string; name: string; sector?: string | null }
+interface TeamMember { id: string; name: string }
 
 interface Props {
   sessionId: string
@@ -24,6 +25,33 @@ interface Props {
   partyMatches: PartyMatch[]
   projects: RecordOption[]
   opportunities: RecordOption[]
+  teamMembers: TeamMember[]
+}
+
+/**
+ * Best-effort resolve of the AI's free-text assignee guess to a real team member.
+ * Exact full-name wins; then substring either direction; then a shared name token
+ * (e.g. "Eric" → "Eric Tuaone"). Returns the member id or null (Unassigned).
+ */
+function bestMemberId(guess: string | null | undefined, members: TeamMember[]): string | null {
+  const g = guess?.trim().toLowerCase()
+  if (!g) return null
+  const exact = members.find((m) => m.name.toLowerCase() === g)
+  if (exact) return exact.id
+  const gTokens = g.split(/\s+/).filter((t) => t.length > 1)
+  const scored = members
+    .map((m) => {
+      const n = m.name.toLowerCase()
+      const nTokens = n.split(/\s+/)
+      let score = 0
+      if (n.includes(g) || g.includes(n)) score = 3
+      else if (gTokens[0] && nTokens.includes(gTokens[0])) score = 2
+      else if (gTokens.some((t) => nTokens.includes(t))) score = 1
+      return { id: m.id, score }
+    })
+    .filter((x) => x.score > 0)
+    .sort((a, b) => b.score - a.score)
+  return scored[0]?.id ?? null
 }
 
 type Kind = 'project' | 'opportunity'
@@ -37,6 +65,8 @@ type PersonRow = MeetingIntakeExtraction['attendees'][number] & {
 type TaskRow = MeetingIntakeExtraction['tasks'][number] & {
   include: boolean
   target_ref: string | null
+  /** Resolved team-member id (the confirmed owner), or null for unassigned. */
+  assignee_id: string | null
 }
 
 interface NewFields {
@@ -64,7 +94,7 @@ let refCounter = 0
 const nextRef = () => `t${++refCounter}`
 
 export default function MeetingIntakeReview({
-  sessionId, extraction, referencedMatches, partyMatches, projects, opportunities,
+  sessionId, extraction, referencedMatches, partyMatches, projects, opportunities, teamMembers,
 }: Props) {
   const router = useRouter()
 
@@ -127,7 +157,12 @@ export default function MeetingIntakeReview({
       const seededRef = hint
         ? extraction.referenced_records.findIndex((rec, i) => matchByIndex.get(i)?.matched_id && rec.name.trim().toLowerCase() === hint)
         : -1
-      return { ...t, include: true, target_ref: seededRef >= 0 ? `seed-${seededRef}` : null }
+      return {
+        ...t,
+        include: true,
+        target_ref: seededRef >= 0 ? `seed-${seededRef}` : null,
+        assignee_id: bestMemberId(t.assignee, teamMembers),
+      }
     }),
   )
 
@@ -242,7 +277,8 @@ export default function MeetingIntakeReview({
           })),
           task_actions: tasks.map((t) => ({
             title: t.title, what: t.what, why: t.why, how: t.how,
-            assignee: t.assignee, due_date: t.due_date, include: t.include, target_ref: t.target_ref,
+            assignee: t.assignee, assignee_id: t.assignee_id,
+            due_date: t.due_date, include: t.include, target_ref: t.target_ref,
           })),
         }),
       })
@@ -443,20 +479,33 @@ export default function MeetingIntakeReview({
                 <div className="flex-1 min-w-0 space-y-1">
                   <input className={`${inputCls} h-8`} value={t.title} onChange={(e) => setTask(i, { title: e.target.value })} />
                   <div className="flex flex-wrap gap-2">
-                    <input className="h-7 px-2 rounded border border-input bg-background text-xs w-32" placeholder="Assignee" value={t.assignee ?? ''} onChange={(e) => setTask(i, { assignee: e.target.value || null })} />
+                    <select
+                      className="h-7 px-2 rounded border border-input bg-background text-xs w-36"
+                      value={t.assignee_id ?? ''}
+                      onChange={(e) => setTask(i, { assignee_id: e.target.value || null })}
+                      title="Assign to a team member"
+                    >
+                      <option value="">Unassigned</option>
+                      {teamMembers.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+                    </select>
                     <div className="w-36">
                       <DatePicker value={t.due_date ?? ''} onChange={(v) => setTask(i, { due_date: v || null })} placeholder="Due date" className="h-7 rounded px-2 text-xs" />
                     </div>
                     <select className="h-7 px-2 rounded border border-input bg-background text-xs" value={t.target_ref ?? ''} onChange={(e) => setTask(i, { target_ref: e.target.value || null })}>
-                      <option value="">No record</option>
+                      <option value="">No record (executive list)</option>
                       {targets.map((tg) => <option key={tg.ref} value={tg.ref}>{targetLabel(tg)}</option>)}
                     </select>
                   </div>
+                  {!t.assignee_id && t.assignee && (
+                    <p className="text-[11px] text-amber-600 dark:text-amber-400">
+                      AI suggested “{t.assignee}” — not a team member. Pick an owner above.
+                    </p>
+                  )}
                 </div>
               </div>
             ))}
           </div>
-          <p className="text-[11px] text-muted-foreground">Assignees are matched to team members by name; unmatched names are left unassigned.</p>
+          <p className="text-[11px] text-muted-foreground">Ber AI pre-assigns each task to the team member it inferred; adjust the owner or the record (or leave it on the executive list) before processing.</p>
         </div>
       )}
 
