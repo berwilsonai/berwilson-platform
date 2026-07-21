@@ -1,12 +1,13 @@
 import { NextRequest } from 'next/server'
 import { actorAdminClient } from '@/lib/auth/viewer'
-import { embedUpdate, embedOpportunityReport, embedOpportunitySnapshot } from '@/lib/ai/embeddings'
+import { embedUpdate, embedOpportunityReport, embedOpportunitySnapshot, embedDocument } from '@/lib/ai/embeddings'
 import {
   createRecordFromFields,
   saveReportDocument,
   str,
   type ConfirmTarget,
   type RecordKind,
+  type TargetKind,
 } from '@/lib/email-ingestion/confirm-helpers'
 import type { TablesInsert } from '@/lib/supabase/types'
 
@@ -51,8 +52,8 @@ const MEMBER_PALETTE = ['indigo', 'emerald', 'amber', 'rose', 'sky', 'violet', '
 interface TargetInput {
   /** Stable client ref used to tie tasks to their target. */
   ref: string
-  kind: RecordKind
-  /** Existing record id — omit/null to create a new record from `new_fields`. */
+  kind: TargetKind
+  /** Existing record id — omit/null to create a new record from `new_fields`. Ignored for 'company'. */
   id?: string | null
   new_fields?: Record<string, unknown> | null
 }
@@ -136,19 +137,23 @@ export async function POST(request: NextRequest) {
     document_ids: string[]
   } = { project_ids: [], opportunity_ids: [], party_ids: [], task_ids: [], document_ids: [] }
 
-  // ── 1. Resolve targets → record ids (existing, or create new) ────────────────
+  // ── 1. Resolve targets → record ids (existing, create new, or the company) ───
   const resolved = new Map<string, ConfirmTarget>() // client ref → {kind, id}
   for (const t of body.targets ?? []) {
-    if (!t || !t.ref || (t.kind !== 'project' && t.kind !== 'opportunity')) continue
+    if (!t || !t.ref) continue
 
-    if (t.id) {
-      resolved.set(t.ref, { kind: t.kind, id: t.id })
-    } else if (t.new_fields) {
-      const created = await createRecordFromFields(supabase, t.kind, t.new_fields, { source: 'Meeting intake' })
-      if (created.id) {
-        resolved.set(t.ref, { kind: t.kind, id: created.id })
-      } else {
-        console.error('Meeting target create failed:', created.error)
+    if (t.kind === 'company') {
+      resolved.set(t.ref, { kind: 'company', id: 'company' })
+    } else if (t.kind === 'project' || t.kind === 'opportunity') {
+      if (t.id) {
+        resolved.set(t.ref, { kind: t.kind, id: t.id })
+      } else if (t.new_fields) {
+        const created = await createRecordFromFields(supabase, t.kind as RecordKind, t.new_fields, { source: 'Meeting intake' })
+        if (created.id) {
+          resolved.set(t.ref, { kind: t.kind, id: created.id })
+        } else {
+          console.error('Meeting target create failed:', created.error)
+        }
       }
     }
   }
@@ -156,7 +161,7 @@ export async function POST(request: NextRequest) {
   const targets = Array.from(resolved.values())
   for (const tgt of targets) {
     if (tgt.kind === 'project') createdRecordIds.project_ids.push(tgt.id)
-    else createdRecordIds.opportunity_ids.push(tgt.id)
+    else if (tgt.kind === 'opportunity') createdRecordIds.opportunity_ids.push(tgt.id)
   }
 
   // ── 2. Attendees → parties (match/create) + promote owners → team_members ────
@@ -256,7 +261,7 @@ export async function POST(request: NextRequest) {
           role: person.role ?? 'Contact',
         })
       }
-    } else {
+    } else if (tgt.kind === 'opportunity') {
       // Opportunity: notes feed + embedding
       if (body_feed) {
         await supabase.from('opportunity_notes').insert({
@@ -283,7 +288,14 @@ export async function POST(request: NextRequest) {
       aiSummary: str(meeting.summary),
       fileSlug: 'meeting_notes',
     })
-    if (docId) createdRecordIds.document_ids.push(docId)
+    if (docId) {
+      createdRecordIds.document_ids.push(docId)
+      // Company minutes have no update/note carrier — embed the doc directly so
+      // Ber AI can retrieve it (project/opportunity targets embed via their feed).
+      if (tgt.kind === 'company' && body_feed) {
+        embedDocument(docId, null, docContent, null, true).catch(console.error)
+      }
+    }
   }
 
   // ── 4. Tasks (assignee by name; record from the task's target_ref) ───────────
@@ -342,16 +354,21 @@ export async function POST(request: NextRequest) {
     .eq('id', session_id)
 
   const singleTarget = targets.length === 1 ? targets[0] : null
+  const redirect = singleTarget
+    ? singleTarget.kind === 'project'
+      ? `/projects/${singleTarget.id}`
+      : singleTarget.kind === 'opportunity'
+        ? `/opportunities/${singleTarget.id}`
+        : '/company'
+    : targets.length === 0 && createdRecordIds.task_ids.length > 0
+      ? '/tasks' // pure executive-team meeting — land on the task board
+      : null
   return Response.json({
     ok: true,
     records_updated: targets.length,
     tasks_created: createdRecordIds.task_ids.length,
     parties_created: createdRecordIds.party_ids.length,
     documents_created: createdRecordIds.document_ids.length,
-    redirect: singleTarget
-      ? singleTarget.kind === 'project'
-        ? `/projects/${singleTarget.id}`
-        : `/opportunities/${singleTarget.id}`
-      : null,
+    redirect,
   })
 }

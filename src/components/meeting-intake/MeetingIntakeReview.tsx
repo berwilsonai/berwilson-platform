@@ -112,6 +112,9 @@ function bestMemberId(guess: string | null | undefined, members: TeamMember[]): 
 }
 
 type Kind = 'project' | 'opportunity'
+/** 'company' = Ber Wilson itself (minutes land in the company Knowledge Base). */
+type TargetKind = Kind | 'company'
+const COMPANY_REF = 'company'
 
 type PersonRow = MeetingIntakeExtraction['attendees'][number] & {
   /** Stable client ref so tasks can point at an attendee promoted to task owner. */
@@ -144,7 +147,7 @@ interface NewFields {
 
 interface SelectedTarget {
   ref: string
-  kind: Kind
+  kind: TargetKind
   id?: string
   name: string
   isNew: boolean
@@ -272,6 +275,11 @@ export default function MeetingIntakeReview({
     ])
   }
 
+  function addCompany() {
+    if (targets.some((t) => t.kind === 'company')) return
+    setTargets((prev) => [...prev, { ref: COMPANY_REF, kind: 'company', id: COMPANY_REF, name: 'Ber Wilson', isNew: false }])
+  }
+
   function removeTarget(ref: string) {
     setTargets((prev) => prev.filter((t) => t.ref !== ref))
     setTasks((prev) => prev.map((t) => (t.target_ref === ref ? { ...t, target_ref: null } : t)))
@@ -354,10 +362,6 @@ export default function MeetingIntakeReview({
   }
 
   async function confirm() {
-    if (targets.length === 0) {
-      setError('Add at least one target record — pick an existing project/opportunity or create one.')
-      return
-    }
     const badNew = targets.find((t) => t.isNew && !t.fields?.name.trim())
     if (badNew) {
       setError('Every new record needs a name.')
@@ -367,6 +371,7 @@ export default function MeetingIntakeReview({
     const decisions = decisionsText.split('\n').map((d) => d.trim()).filter(Boolean)
 
     const targetPayload = targets.map((t) => {
+      if (t.kind === 'company') return { ref: t.ref, kind: 'company' as const, id: COMPANY_REF, new_fields: null }
       if (!t.isNew) return { ref: t.ref, kind: t.kind, id: t.id, new_fields: null }
       const f = t.fields!
       const new_fields: Record<string, unknown> =
@@ -444,7 +449,7 @@ export default function MeetingIntakeReview({
         <div className="flex items-center gap-2">
           <FolderKanban size={15} className="text-muted-foreground" />
           <h3 className="text-sm font-semibold">Records to update ({targets.length})</h3>
-          <span className="text-xs text-muted-foreground">— each gets the minutes, a meeting document, attendees, and its tasks</span>
+          <span className="text-xs text-muted-foreground">— optional; leave empty for a pure executive-team meeting (tasks go to the general list)</span>
         </div>
 
         {targets.length > 0 && (
@@ -454,9 +459,9 @@ export default function MeetingIntakeReview({
               return (
                 <div key={t.ref} className="rounded-md border border-border/60 p-2 space-y-2">
                   <div className="flex items-center gap-2">
-                    {t.kind === 'project' ? <FolderKanban size={13} className="text-muted-foreground shrink-0" /> : <Lightbulb size={13} className="text-muted-foreground shrink-0" />}
+                    {t.kind === 'project' ? <FolderKanban size={13} className="text-muted-foreground shrink-0" /> : t.kind === 'company' ? <Building2 size={13} className="text-muted-foreground shrink-0" /> : <Lightbulb size={13} className="text-muted-foreground shrink-0" />}
                     <span className="text-sm font-medium truncate flex-1">{targetLabel(t)}</span>
-                    <span className="text-[11px] text-muted-foreground shrink-0">{t.kind}{taskCount > 0 ? ` · ${taskCount} task${taskCount === 1 ? '' : 's'}` : ''}</span>
+                    <span className="text-[11px] text-muted-foreground shrink-0">{t.kind === 'company' ? 'company' : t.kind}{taskCount > 0 ? ` · ${taskCount} task${taskCount === 1 ? '' : 's'}` : ''}</span>
                     <button type="button" onClick={() => removeTarget(t.ref)} className="text-muted-foreground hover:text-destructive shrink-0" title="Remove">
                       <X size={15} />
                     </button>
@@ -534,6 +539,11 @@ export default function MeetingIntakeReview({
               </div>
             )}
           </div>
+          {!targets.some((t) => t.kind === 'company') && (
+            <button type="button" onClick={addCompany} className="inline-flex items-center gap-1 h-8 px-2.5 rounded-md border border-input bg-background text-xs hover:bg-accent transition-colors" title="Tag the meeting to Ber Wilson — minutes are saved to the company Knowledge Base">
+              <Building2 size={13} /> Ber Wilson (company)
+            </button>
+          )}
           <button type="button" onClick={() => addNew('project')} className="inline-flex items-center gap-1 h-8 px-2.5 rounded-md border border-input bg-background text-xs hover:bg-accent transition-colors">
             <Plus size={13} /> New project
           </button>

@@ -14,7 +14,9 @@ import { oppType } from '@/lib/utils/opportunities'
 type AdminClient = ReturnType<typeof createAdminClient>
 
 export type RecordKind = 'opportunity' | 'project'
-export type ConfirmTarget = { kind: RecordKind; id: string }
+/** 'company' = Ber Wilson itself (documents land in the company Knowledge Base). */
+export type TargetKind = RecordKind | 'company'
+export type ConfirmTarget = { kind: TargetKind; id: string }
 
 export const str = (v: unknown): string | null =>
   typeof v === 'string' && v.trim() ? v.trim() : null
@@ -102,7 +104,11 @@ export async function saveReportDocument(
   opts: { title: string; content: string; aiSummary: string | null; fileSlug?: string },
 ): Promise<string | null> {
   const slug = opts.fileSlug ?? 'report'
-  const path = `${target.kind === 'project' ? 'projects' : 'opportunities'}/${target.id}/${Date.now()}_${slug}.md`
+  const folder =
+    target.kind === 'project' ? `projects/${target.id}` :
+    target.kind === 'opportunity' ? `opportunities/${target.id}` :
+    'company'
+  const path = `${folder}/${Date.now()}_${slug}.md`
 
   const { error: uploadErr } = await supabase.storage
     .from('documents')
@@ -127,11 +133,17 @@ export async function saveReportDocument(
           .insert({ ...base, project_id: target.id, source: 'document' })
           .select('id')
           .single()
-      : await supabase
-          .from('opportunity_documents')
-          .insert({ ...base, opportunity_id: target.id })
-          .select('id')
-          .single()
+      : target.kind === 'company'
+        ? await supabase
+            .from('documents')
+            .insert({ ...base, is_company: true, source: 'document' })
+            .select('id')
+            .single()
+        : await supabase
+            .from('opportunity_documents')
+            .insert({ ...base, opportunity_id: target.id })
+            .select('id')
+            .single()
 
   if (insertErr || !doc) {
     console.error('Report document insert failed:', insertErr?.message)
@@ -140,7 +152,7 @@ export async function saveReportDocument(
 
   storeExtractedText(
     supabase,
-    target.kind === 'project' ? 'documents' : 'opportunity_documents',
+    target.kind === 'opportunity' ? 'opportunity_documents' : 'documents',
     doc.id,
     opts.content,
   ).catch(console.error)
