@@ -47,23 +47,28 @@ export default async function MeetingReviewPage({ params }: PageProps) {
     )
   }
 
-  // Picker data — existing records the meeting can fan out onto + task owners.
-  const [{ data: projects }, { data: opportunities }, { data: teamMembers }] = await Promise.all([
-    supabase
-      .from('projects')
-      .select('id, name, sector')
-      .order('name'),
-    supabase
-      .from('opportunities')
-      .select('id, name')
-      .not('status', 'in', '(closed_won,closed_passed)')
-      .order('name'),
-    supabase
-      .from('team_members')
-      .select('id, name')
-      .eq('active', true)
-      .order('name'),
-  ])
+  // Picker data — records to fan out onto, task owners, and the contacts directory.
+  const [{ data: projects }, { data: opportunities }, { data: teamMembers }, { data: contacts }] =
+    await Promise.all([
+      supabase
+        .from('projects')
+        .select('id, name, sector')
+        .order('name'),
+      supabase
+        .from('opportunities')
+        .select('id, name')
+        .not('status', 'in', '(closed_won,closed_passed)')
+        .order('name'),
+      supabase
+        .from('team_members')
+        .select('id, name, party_id')
+        .eq('active', true)
+        .order('name'),
+      supabase
+        .from('parties')
+        .select('id, full_name, company, email, is_organization')
+        .order('full_name'),
+    ])
 
   const extraction = session.extraction_result as unknown as MeetingIntakeExtraction
   const referencedMatches = (session.match_candidates as unknown as ReferencedMatch[]) ?? []
@@ -80,6 +85,7 @@ export default async function MeetingReviewPage({ params }: PageProps) {
         projects={projects ?? []}
         opportunities={opportunities ?? []}
         teamMembers={teamMembers ?? []}
+        contacts={contacts ?? []}
       />
     </div>
   )

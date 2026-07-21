@@ -17,6 +17,13 @@ import { OPPORTUNITY_TYPES, OPPORTUNITY_TYPE_LABELS, type OpportunityType } from
 
 interface RecordOption { id: string; name: string; sector?: string | null }
 interface TeamMember { id: string; name: string }
+interface Contact {
+  id: string
+  full_name: string
+  company: string | null
+  email: string | null
+  is_organization: boolean | null
+}
 
 interface Props {
   sessionId: string
@@ -26,6 +33,56 @@ interface Props {
   projects: RecordOption[]
   opportunities: RecordOption[]
   teamMembers: TeamMember[]
+  contacts: Contact[]
+}
+
+/** Per-attendee type-ahead over the whole contacts directory — link to any
+ *  existing contact (not just the AI's guess) so we never create duplicates. */
+function ContactPicker({
+  contacts, onPick,
+}: {
+  contacts: Contact[]
+  onPick: (c: Contact) => void
+}) {
+  const [q, setQ] = useState('')
+  const [open, setOpen] = useState(false)
+  const options = useMemo(() => {
+    const s = q.trim().toLowerCase()
+    if (!s) return []
+    return contacts
+      .filter((c) => c.full_name.toLowerCase().includes(s) || (c.company ?? '').toLowerCase().includes(s))
+      .slice(0, 8)
+  }, [q, contacts])
+
+  return (
+    <div className="relative">
+      <Search size={13} className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
+      <input
+        className="h-7 pl-7 pr-2 rounded border border-input bg-background text-xs w-full"
+        placeholder="Link to an existing contact…"
+        value={q}
+        onFocus={() => setOpen(true)}
+        onChange={(e) => { setQ(e.target.value); setOpen(true) }}
+        onBlur={() => setTimeout(() => setOpen(false), 150)}
+      />
+      {open && options.length > 0 && (
+        <div className="absolute z-20 mt-1 w-full max-h-56 overflow-auto rounded-md border border-border bg-card shadow-lg">
+          {options.map((c) => (
+            <button
+              key={c.id}
+              type="button"
+              onMouseDown={(e) => { e.preventDefault(); onPick(c); setQ(''); setOpen(false) }}
+              className="flex w-full items-center gap-2 px-2.5 py-1.5 text-left text-xs hover:bg-accent transition-colors"
+            >
+              {c.is_organization && <Building2 size={12} className="text-muted-foreground shrink-0" />}
+              <span className="truncate flex-1">{c.full_name}</span>
+              {c.company && <span className="text-[11px] text-muted-foreground truncate max-w-[8rem]">{c.company}</span>}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
 }
 
 /**
@@ -57,15 +114,22 @@ function bestMemberId(guess: string | null | undefined, members: TeamMember[]): 
 type Kind = 'project' | 'opportunity'
 
 type PersonRow = MeetingIntakeExtraction['attendees'][number] & {
+  /** Stable client ref so tasks can point at an attendee promoted to task owner. */
+  ref: string
   action: 'create' | 'link' | 'skip'
   existing_party_id: string | null
   existing_name: string | null
+  /** Internal person who can OWN follow-up tasks (added to the assignee list). */
+  owner: boolean
 }
 
 type TaskRow = MeetingIntakeExtraction['tasks'][number] & {
   include: boolean
   target_ref: string | null
-  /** Resolved team-member id (the confirmed owner), or null for unassigned. */
+  /**
+   * Assignee reference: a real team-member id, or `owner:<attendeeRef>` for an
+   * attendee being promoted to owner in this same pass, or null for unassigned.
+   */
   assignee_id: string | null
 }
 
@@ -92,9 +156,11 @@ const labelCls = 'label-caps text-muted-foreground'
 
 let refCounter = 0
 const nextRef = () => `t${++refCounter}`
+let attRefCounter = 0
+const nextAttRef = () => `att-new-${++attRefCounter}`
 
 export default function MeetingIntakeReview({
-  sessionId, extraction, referencedMatches, partyMatches, projects, opportunities, teamMembers,
+  sessionId, extraction, referencedMatches, partyMatches, projects, opportunities, teamMembers, contacts,
 }: Props) {
   const router = useRouter()
 
@@ -143,9 +209,11 @@ export default function MeetingIntakeReview({
       const m = partyMatches.find((pm) => pm.extracted_index === i && pm.match_type !== 'none')
       return {
         ...p,
+        ref: `att-seed-${i}`,
         action: m ? 'link' : 'create',
         existing_party_id: m?.matched_party_id ?? null,
         existing_name: m?.matched_party_name ?? null,
+        owner: false,
       }
     }),
   )
@@ -222,6 +290,54 @@ export default function MeetingIntakeReview({
     setTasks((prev) => prev.map((t, idx) => (idx === i ? { ...t, ...patch } : t)))
   }
 
+  /** Link an attendee row to an existing contact from the directory. */
+  function linkPerson(i: number, c: Contact) {
+    setPerson(i, {
+      action: 'link',
+      existing_party_id: c.id,
+      existing_name: c.full_name,
+      name: c.full_name,
+      company: c.company ?? undefined,
+      email: c.email ?? undefined,
+      is_organization: c.is_organization ?? false,
+    })
+  }
+  function unlinkPerson(i: number) {
+    setPerson(i, { action: 'create', existing_party_id: null, existing_name: null })
+  }
+  function addAttendee() {
+    setAttendees((prev) => [
+      ...prev,
+      {
+        ref: nextAttRef(), name: '', email: null, company: null, title: null, role: null,
+        is_organization: false, action: 'create', existing_party_id: null, existing_name: null, owner: false,
+      },
+    ])
+  }
+  function removePerson(i: number) {
+    const removed = attendees[i]
+    setAttendees((prev) => prev.filter((_, idx) => idx !== i))
+    // Clear any task pointing at this attendee-as-owner.
+    if (removed) {
+      const ref = `owner:${removed.ref}`
+      setTasks((prev) => prev.map((t) => (t.assignee_id === ref ? { ...t, assignee_id: null } : t)))
+    }
+  }
+
+  // Assignee options: existing owners + attendees promoted to owner in this pass.
+  const assigneeOptions = useMemo(() => {
+    const opts = teamMembers.map((m) => ({ value: m.id, label: m.name }))
+    attendees.forEach((p) => {
+      if (p.owner && p.action !== 'skip' && !p.is_organization) {
+        opts.push({ value: `owner:${p.ref}`, label: `${p.name.trim() || 'New person'} (new owner)` })
+      }
+    })
+    return opts
+  }, [teamMembers, attendees])
+  const assigneeValues = useMemo(() => new Set(assigneeOptions.map((o) => o.value)), [assigneeOptions])
+  // Display/submit value — drop a stale ref (owner un-toggled/removed) to Unassigned.
+  const effectiveAssignee = (t: TaskRow) => (t.assignee_id && assigneeValues.has(t.assignee_id) ? t.assignee_id : '')
+
   async function discard() {
     try {
       const res = await fetch(`/api/email-ingestion/sessions/${sessionId}`, { method: 'PATCH' })
@@ -271,13 +387,13 @@ export default function MeetingIntakeReview({
           meeting: { title: title.trim() || null, date: meetingDate || null, summary: summary.trim() || null, minutes: minutes.trim() || null, decisions },
           targets: targetPayload,
           attendee_actions: attendees.map((p) => ({
-            name: p.name, email: p.email, company: p.company, title: p.title,
+            ref: p.ref, name: p.name, email: p.email, company: p.company, title: p.title,
             role: p.role, is_organization: p.is_organization,
-            action: p.action, existing_party_id: p.existing_party_id,
+            action: p.action, existing_party_id: p.existing_party_id, owner: p.owner,
           })),
           task_actions: tasks.map((t) => ({
             title: t.title, what: t.what, why: t.why, how: t.how,
-            assignee: t.assignee, assignee_id: t.assignee_id,
+            assignee: t.assignee, assignee_ref: effectiveAssignee(t) || null,
             due_date: t.due_date, include: t.include, target_ref: t.target_ref,
           })),
         }),
@@ -428,42 +544,62 @@ export default function MeetingIntakeReview({
       </div>
 
       {/* Attendees */}
-      {attendees.length > 0 && (
-        <div className="rounded-lg border border-border bg-card p-4 space-y-3">
-          <div className="flex items-center gap-2">
-            <Users size={15} className="text-muted-foreground" />
-            <h3 className="text-sm font-semibold">Attendees ({attendees.length})</h3>
-            <span className="text-xs text-muted-foreground">— linked to project targets as players</span>
-          </div>
+      <div className="rounded-lg border border-border bg-card p-4 space-y-3">
+        <div className="flex items-center gap-2">
+          <Users size={15} className="text-muted-foreground" />
+          <h3 className="text-sm font-semibold">Attendees ({attendees.length})</h3>
+          <span className="text-xs text-muted-foreground">— link an existing contact to avoid duplicates; edit before creating</span>
+        </div>
+        {attendees.length > 0 && (
           <div className="space-y-2">
             {attendees.map((p, i) => (
-              <div key={i} className="flex flex-col sm:flex-row sm:items-center gap-2 p-2 rounded-md border border-border/60">
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium flex items-center gap-1.5">
-                    {p.is_organization && <Building2 size={13} className="text-muted-foreground shrink-0" />}
-                    {p.name}
-                  </p>
-                  <p className="text-xs text-muted-foreground truncate">
-                    {[p.role, p.company, p.email].filter(Boolean).join(' · ') || '—'}
-                    {p.action === 'link' && p.existing_name && (
-                      <span className="text-emerald-600 dark:text-emerald-400"> · matches {p.existing_name}</span>
-                    )}
-                  </p>
+              <div key={p.ref} className={`p-2.5 rounded-md border border-border/60 space-y-2 ${p.action === 'skip' ? 'opacity-60' : ''}`}>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <input className="h-8 px-2 rounded border border-input bg-background text-sm" placeholder="Full name" value={p.name} onChange={(e) => setPerson(i, { name: e.target.value })} />
+                  <input className="h-8 px-2 rounded border border-input bg-background text-xs" placeholder="Role (e.g. GC principal)" value={p.role ?? ''} onChange={(e) => setPerson(i, { role: e.target.value || null })} />
+                  <input className="h-8 px-2 rounded border border-input bg-background text-xs" placeholder="Company" value={p.company ?? ''} onChange={(e) => setPerson(i, { company: e.target.value || null })} />
+                  <input className="h-8 px-2 rounded border border-input bg-background text-xs" placeholder="Email" value={p.email ?? ''} onChange={(e) => setPerson(i, { email: e.target.value || null })} />
                 </div>
-                <select
-                  className="h-8 px-2 rounded-md border border-input bg-background text-xs shrink-0"
-                  value={p.action}
-                  onChange={(e) => setPerson(i, { action: e.target.value as PersonRow['action'] })}
-                >
-                  {p.existing_party_id && <option value="link">Link existing</option>}
-                  <option value="create">Create new</option>
-                  <option value="skip">Skip</option>
-                </select>
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="flex-1 min-w-[12rem]">
+                    {p.existing_party_id ? (
+                      <span className="inline-flex items-center gap-1.5 h-7 px-2 rounded border border-emerald-300 dark:border-emerald-700/60 bg-emerald-50/60 dark:bg-emerald-950/40 text-xs text-emerald-700 dark:text-emerald-300">
+                        <CheckCircle2 size={12} /> Linked: {p.existing_name}
+                        <button type="button" onClick={() => unlinkPerson(i)} className="ml-0.5 hover:text-destructive" title="Unlink"><X size={12} /></button>
+                      </span>
+                    ) : (
+                      <ContactPicker contacts={contacts} onPick={(c) => linkPerson(i, c)} />
+                    )}
+                  </div>
+                  <select
+                    className="h-7 px-2 rounded border border-input bg-background text-xs shrink-0"
+                    value={p.action}
+                    onChange={(e) => setPerson(i, { action: e.target.value as PersonRow['action'] })}
+                  >
+                    {p.existing_party_id && <option value="link">Link existing</option>}
+                    <option value="create">Create new</option>
+                    <option value="skip">Skip</option>
+                  </select>
+                  {!p.is_organization && (
+                    <label className="inline-flex items-center gap-1.5 text-xs text-muted-foreground shrink-0" title="Add this person as a task owner — they'll appear in the assignee list">
+                      <input type="checkbox" checked={p.owner} onChange={(e) => setPerson(i, { owner: e.target.checked })} />
+                      Can own tasks
+                    </label>
+                  )}
+                  <label className="inline-flex items-center gap-1 text-xs text-muted-foreground shrink-0" title="This attendee is an organization, not a person">
+                    <input type="checkbox" checked={p.is_organization} onChange={(e) => setPerson(i, { is_organization: e.target.checked, owner: e.target.checked ? false : p.owner })} />
+                    Org
+                  </label>
+                  <button type="button" onClick={() => removePerson(i)} className="text-muted-foreground hover:text-destructive shrink-0" title="Remove attendee"><Trash2 size={14} /></button>
+                </div>
               </div>
             ))}
           </div>
-        </div>
-      )}
+        )}
+        <button type="button" onClick={addAttendee} className="inline-flex items-center gap-1 h-8 px-2.5 rounded-md border border-input bg-background text-xs hover:bg-accent transition-colors">
+          <Plus size={13} /> Add attendee
+        </button>
+      </div>
 
       {/* Tasks */}
       {tasks.length > 0 && (
@@ -481,12 +617,12 @@ export default function MeetingIntakeReview({
                   <div className="flex flex-wrap gap-2">
                     <select
                       className="h-7 px-2 rounded border border-input bg-background text-xs w-36"
-                      value={t.assignee_id ?? ''}
+                      value={effectiveAssignee(t)}
                       onChange={(e) => setTask(i, { assignee_id: e.target.value || null })}
                       title="Assign to a team member"
                     >
                       <option value="">Unassigned</option>
-                      {teamMembers.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+                      {assigneeOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
                     </select>
                     <div className="w-36">
                       <DatePicker value={t.due_date ?? ''} onChange={(v) => setTask(i, { due_date: v || null })} placeholder="Due date" className="h-7 rounded px-2 text-xs" />
@@ -496,9 +632,9 @@ export default function MeetingIntakeReview({
                       {targets.map((tg) => <option key={tg.ref} value={tg.ref}>{targetLabel(tg)}</option>)}
                     </select>
                   </div>
-                  {!t.assignee_id && t.assignee && (
+                  {!effectiveAssignee(t) && t.assignee && (
                     <p className="text-[11px] text-amber-600 dark:text-amber-400">
-                      AI suggested “{t.assignee}” — not a team member. Pick an owner above.
+                      AI suggested “{t.assignee}” — not a team owner. Pick one, or tick “Can own tasks” on that attendee.
                     </p>
                   )}
                 </div>

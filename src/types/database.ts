@@ -2542,6 +2542,7 @@ export type Database = {
           email: string | null
           id: string
           name: string
+          party_id: string | null
           role: string
         }
         Insert: {
@@ -2552,6 +2553,7 @@ export type Database = {
           email?: string | null
           id?: string
           name: string
+          party_id?: string | null
           role?: string
         }
         Update: {
@@ -2562,9 +2564,18 @@ export type Database = {
           email?: string | null
           id?: string
           name?: string
+          party_id?: string | null
           role?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "team_members_party_id_fkey"
+            columns: ["party_id"]
+            isOneToOne: false
+            referencedRelation: "parties"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       updates: {
         Row: {

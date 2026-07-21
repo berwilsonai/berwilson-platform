@@ -13,6 +13,8 @@ import type { TablesInsert } from '@/lib/supabase/types'
 export const maxDuration = 300
 
 interface PartyAction {
+  /** Stable client ref so tasks can point at an attendee promoted to task owner. */
+  ref: string
   name: string
   email: string | null
   company: string | null
@@ -21,6 +23,8 @@ interface PartyAction {
   is_organization: boolean
   action: 'create' | 'link' | 'skip'
   existing_party_id?: string | null
+  /** Internal person who can OWN tasks — find-or-create a linked team_member. */
+  owner?: boolean
 }
 
 interface TaskAction {
@@ -28,15 +32,21 @@ interface TaskAction {
   what: string | null
   why: string | null
   how: string | null
-  /** Resolved team-member id (preferred). */
-  assignee_id: string | null
-  /** AI's free-text guess — fallback when assignee_id is absent. */
+  /**
+   * Assignee reference: a real team-member id, or `owner:<attendeeRef>` for an
+   * attendee promoted to owner in this pass. Falls back to `assignee` (name).
+   */
+  assignee_ref: string | null
+  /** AI's free-text guess — fallback when assignee_ref doesn't resolve. */
   assignee: string | null
   due_date: string | null
   include: boolean
   /** Client ref of the target this task belongs to, or null for no record. */
   target_ref: string | null
 }
+
+// Small rotating palette for new owner avatars (mirrors /api/team-members).
+const MEMBER_PALETTE = ['indigo', 'emerald', 'amber', 'rose', 'sky', 'violet', 'teal', 'orange']
 
 interface TargetInput {
   /** Stable client ref used to tie tasks to their target. */
@@ -149,8 +159,34 @@ export async function POST(request: NextRequest) {
     else createdRecordIds.opportunity_ids.push(tgt.id)
   }
 
-  // ── 2. Attendees → parties (match/create), meeting-wide ──────────────────────
+  // ── 2. Attendees → parties (match/create) + promote owners → team_members ────
   const linkedPeople: { id: string; name: string; role: string | null }[] = []
+  // Attendee ref → resolved team-member id, for tasks assigned to a new owner.
+  const ownerMemberByRef = new Map<string, string>()
+
+  /** Find-or-create the team_member linked to this contact (dedupe by party_id). */
+  async function ensureOwner(partyId: string, name: string, email: string | null): Promise<string | null> {
+    const { data: existing } = await supabase
+      .from('team_members')
+      .select('id')
+      .eq('party_id', partyId)
+      .eq('active', true)
+      .limit(1)
+      .maybeSingle()
+    if (existing) return existing.id
+    const color = MEMBER_PALETTE[Math.floor(Math.random() * MEMBER_PALETTE.length)]
+    const { data, error } = await supabase
+      .from('team_members')
+      .insert({ name, email, party_id: partyId, color } as TablesInsert<'team_members'>)
+      .select('id')
+      .single()
+    if (error) {
+      console.error('Create team member from attendee failed:', error)
+      return null
+    }
+    return data.id
+  }
+
   for (const p of body.attendee_actions ?? []) {
     if (p.action === 'skip') continue
     let partyId: string | null = null
@@ -174,6 +210,12 @@ export async function POST(request: NextRequest) {
     if (!partyId) continue
     createdRecordIds.party_ids.push(partyId)
     linkedPeople.push({ id: partyId, name: p.name, role: str(p.role) })
+
+    // Promote to task owner: one team_member linked to this contact.
+    if (p.owner && p.is_organization !== true && p.ref) {
+      const memberId = await ensureOwner(partyId, p.name.trim(), str(p.email))
+      if (memberId) ownerMemberByRef.set(p.ref, memberId)
+    }
   }
 
   // ── 3. Fan the meeting out onto each target record ───────────────────────────
@@ -256,13 +298,18 @@ export async function POST(request: NextRequest) {
 
     for (const t of includedTasks) {
       const tgt = t.target_ref ? resolved.get(t.target_ref) : undefined
-      // Prefer the confirmed team-member id; fall back to matching the AI's name.
-      const assigneeId =
-        t.assignee_id && memberIds.has(t.assignee_id)
-          ? t.assignee_id
-          : t.assignee
-            ? memberByName.get(t.assignee.toLowerCase()) ?? null
-            : null
+      // Resolve the owner: an attendee promoted this pass → a real member id →
+      // finally the AI's free-text name as a fallback.
+      let assigneeId: string | null = null
+      const ref = t.assignee_ref
+      if (ref?.startsWith('owner:')) {
+        assigneeId = ownerMemberByRef.get(ref.slice('owner:'.length)) ?? null
+      } else if (ref && memberIds.has(ref)) {
+        assigneeId = ref
+      }
+      if (!assigneeId && t.assignee) {
+        assigneeId = memberByName.get(t.assignee.toLowerCase()) ?? null
+      }
       const row: TablesInsert<'tasks'> = {
         title: t.title.trim(),
         what: str(t.what),

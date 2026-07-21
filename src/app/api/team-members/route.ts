@@ -21,7 +21,45 @@ export async function GET() {
   return Response.json({ members: data })
 }
 
-/** POST — quick-add a new team member by name */
+/**
+ * Find-or-create a contact (parties) for a task owner, so a person is one record
+ * across the directory and the owner list. Match order: explicit party_id →
+ * exact email → exact name (unambiguous). Creates a minimal contact otherwise.
+ * Returns the party id, or null on failure (non-fatal — the owner still gets made).
+ */
+async function resolveOwnerParty(
+  supabase: ReturnType<typeof createAdminClient>,
+  name: string,
+  email: string | null,
+  explicitPartyId: string | null,
+): Promise<string | null> {
+  if (explicitPartyId) return explicitPartyId
+  try {
+    if (email) {
+      const { data } = await supabase.from('parties').select('id').ilike('email', email).limit(1).maybeSingle()
+      if (data) return data.id
+    }
+    const { data: byName } = await supabase.from('parties').select('id').ilike('full_name', name).limit(2)
+    if (byName && byName.length === 1) return byName[0].id
+    if (byName && byName.length > 1) return null // ambiguous — don't guess, leave unlinked
+
+    const { data: created, error } = await supabase
+      .from('parties')
+      .insert({ full_name: name, email, is_organization: false })
+      .select('id')
+      .single()
+    if (error) {
+      console.error('Create contact for owner failed:', error)
+      return null
+    }
+    return created.id
+  } catch (err) {
+    console.error('resolveOwnerParty failed:', err)
+    return null
+  }
+}
+
+/** POST — quick-add a new team member by name (also find-or-creates a contact) */
 export async function POST(request: NextRequest) {
   const viewer = await getViewer()
   if (!viewer || (!viewer.isAdmin && viewer.role !== 'executive')) {
@@ -29,8 +67,10 @@ export async function POST(request: NextRequest) {
   }
 
   const body = await request.json()
-  const { name } = body
-  if (!name?.trim()) {
+  const name = typeof body.name === 'string' ? body.name.trim() : ''
+  const email = typeof body.email === 'string' && body.email.trim() ? body.email.trim() : null
+  const explicitPartyId = typeof body.party_id === 'string' && body.party_id ? body.party_id : null
+  if (!name) {
     return Response.json({ error: 'name is required' }, { status: 400 })
   }
 
@@ -42,7 +82,9 @@ export async function POST(request: NextRequest) {
     .select('*', { count: 'exact', head: true })
   const color = PALETTE[(count ?? 0) % PALETTE.length]
 
-  const row: TablesInsert<'team_members'> = { name: name.trim(), color }
+  const partyId = await resolveOwnerParty(supabase, name, email, explicitPartyId)
+
+  const row: TablesInsert<'team_members'> = { name, color, email, party_id: partyId }
   const { data, error } = await supabase.from('team_members').insert(row).select('*').single()
 
   if (error) {
