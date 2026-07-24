@@ -76,6 +76,20 @@ export async function POST(request: NextRequest) {
 
   const supabase = createAdminClient()
 
+  // Dedupe: repeat quick-adds (or retries after a transient error) shouldn't
+  // spawn duplicate rows. If an active member with this name already exists,
+  // return it instead of inserting again.
+  const { data: existing } = await supabase
+    .from('team_members')
+    .select('id, name, color, active, created_at')
+    .ilike('name', name)
+    .eq('active', true)
+    .limit(1)
+    .maybeSingle()
+  if (existing) {
+    return Response.json({ member: existing })
+  }
+
   // Pick the next palette color based on current count
   const { count } = await supabase
     .from('team_members')

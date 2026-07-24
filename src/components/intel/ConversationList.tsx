@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Plus, MessageSquare } from 'lucide-react'
+import { Plus, MessageSquare, Trash2 } from 'lucide-react'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 
 interface Conversation {
   id: string
@@ -18,6 +19,7 @@ interface ConversationListProps {
 
 export default function ConversationList({ activeConversationId, onSelectConversation, refreshToken }: ConversationListProps) {
   const [conversations, setConversations] = useState<Conversation[]>([])
+  const [pendingDelete, setPendingDelete] = useState<Conversation | null>(null)
 
   useEffect(() => {
     fetch('/api/ai/agent')
@@ -27,6 +29,13 @@ export default function ConversationList({ activeConversationId, onSelectConvers
       })
       .catch(() => {})
   }, [refreshToken])
+
+  async function deleteConversation(conv: Conversation) {
+    const res = await fetch(`/api/ai/agent?conversationId=${conv.id}`, { method: 'DELETE' })
+    if (!res.ok) throw new Error('Delete failed')
+    setConversations(prev => prev.filter(c => c.id !== conv.id))
+    if (activeConversationId === conv.id) onSelectConversation(null)
+  }
 
   function formatDate(dateStr: string) {
     const d = new Date(dateStr)
@@ -61,19 +70,41 @@ export default function ConversationList({ activeConversationId, onSelectConvers
           </div>
         ) : (
           conversations.map((conv) => (
-            <button
+            <div
               key={conv.id}
-              onClick={() => onSelectConversation(conv.id)}
-              className={`block w-full text-left px-3 py-2.5 hover:bg-accent/70 transition-colors ${
+              className={`group relative flex items-center hover:bg-accent/70 transition-colors ${
                 activeConversationId === conv.id ? 'bg-primary/5 border-l-2 border-primary' : ''
               }`}
             >
-              <p className="text-xs font-medium text-foreground truncate">{conv.title}</p>
-              <p className="text-xs text-muted-foreground mt-0.5">{formatDate(conv.updated_at)}</p>
-            </button>
+              <button
+                onClick={() => onSelectConversation(conv.id)}
+                className="flex-1 min-w-0 text-left px-3 py-2.5"
+              >
+                <p className="text-xs font-medium text-foreground truncate pr-5">{conv.title}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">{formatDate(conv.updated_at)}</p>
+              </button>
+              <button
+                onClick={() => setPendingDelete(conv)}
+                title="Delete conversation"
+                aria-label="Delete conversation"
+                className="absolute right-1.5 top-1.5 p-1 rounded text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-destructive hover:bg-destructive/10 transition"
+              >
+                <Trash2 size={13} />
+              </button>
+            </div>
           ))
         )}
       </div>
+
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        onOpenChange={(open) => { if (!open) setPendingDelete(null) }}
+        title="Delete this conversation?"
+        description={`"${pendingDelete?.title ?? ''}" and all its messages will be removed permanently. This can't be undone.`}
+        confirmLabel="Delete"
+        destructive
+        onConfirm={() => { if (pendingDelete) return deleteConversation(pendingDelete) }}
+      />
     </div>
   )
 }

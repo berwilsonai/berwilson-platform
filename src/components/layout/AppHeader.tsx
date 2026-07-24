@@ -95,7 +95,7 @@ export default function AppHeader({ email, role = 'admin' }: { email: string; ro
 
           {/* Google Drive shortcut — plain external link, opens in a new tab */}
           <a
-            href="https://drive.google.com/drive/folders/0AA94zfjPBG5dUk9PVA"
+            href="https://drive.google.com/drive/folders/0ANJNCh7N8A9MUk9PVA"
             target="_blank"
             rel="noopener noreferrer"
             className="p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"

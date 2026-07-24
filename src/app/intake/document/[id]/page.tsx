@@ -95,7 +95,7 @@ export default async function DocumentReaderPage({ params }: PageProps) {
           Ask about this document
         </h2>
         <div className="rounded-xl border border-border bg-card elev-1 h-[600px] overflow-hidden">
-          <AgentChat documentId={doc.id} placeholder="Ask anything about this document…" />
+          <AgentChat documentId={doc.id} placeholder="Ask anything about this document…" showClear />
         </div>
       </div>
     </div>

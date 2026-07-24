@@ -223,8 +223,17 @@ export async function GET(request: NextRequest) {
 
   const admin = createAdminClient()
 
-  // If conversationId given, load messages
+  // If conversationId given, load messages (only if the conversation is yours)
   if (conversationId) {
+    const { data: conv } = await admin
+      .from('agent_conversations')
+      .select('user_id')
+      .eq('id', conversationId)
+      .single()
+    if (!conv || conv.user_id !== user.id) {
+      return NextResponse.json({ error: 'Not found' }, { status: 404 })
+    }
+
     const { data: messages, error } = await admin
       .from('agent_messages')
       .select('id, role, content, tool_calls, model_used, latency_ms, created_at')
@@ -250,4 +259,39 @@ export async function GET(request: NextRequest) {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
   return NextResponse.json({ conversations: data ?? [] })
+}
+
+/**
+ * DELETE /api/ai/agent?conversationId=xxx — Delete one of your own conversations
+ * (its messages cascade). Only the owner can delete it.
+ */
+export async function DELETE(request: NextRequest) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const conversationId = request.nextUrl.searchParams.get('conversationId')
+  if (!conversationId) {
+    return NextResponse.json({ error: 'conversationId is required' }, { status: 400 })
+  }
+
+  const admin = createAdminClient()
+
+  // Verify ownership before deleting
+  const { data: conv } = await admin
+    .from('agent_conversations')
+    .select('user_id')
+    .eq('id', conversationId)
+    .single()
+  if (!conv || conv.user_id !== user.id) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  }
+
+  const { error } = await admin
+    .from('agent_conversations')
+    .delete()
+    .eq('id', conversationId)
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  return NextResponse.json({ ok: true })
 }

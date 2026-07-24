@@ -16,10 +16,12 @@ import {
   X,
   HandCoins,
   Hourglass,
+  Users2,
 } from 'lucide-react'
 import EmptyState from '@/components/shared/EmptyState'
 import { DatePicker } from '@/components/ui/date-picker'
 import TaskDetailSheet from './TaskDetailSheet'
+import ManageTeamDialog from './ManageTeamDialog'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 import {
@@ -124,6 +126,8 @@ export default function TeamTaskBoard({
   // quick-add teammate
   const [addingMember, setAddingMember] = useState(false)
   const [newMemberName, setNewMemberName] = useState('')
+  // manage-team dialog (add / remove people)
+  const [manageOpen, setManageOpen] = useState(false)
 
   const openCount = tasks.filter((t) => t.status !== 'done').length
   const blockedCount = tasks.filter((t) => t.status !== 'done' && t.waiting_on_id).length
@@ -167,24 +171,47 @@ export default function TeamTaskBoard({
     }
   }
 
+  function addMemberToState(member: TeamMember) {
+    setMembers((prev) => (prev.some((m) => m.id === member.id) ? prev : [...prev, member]))
+  }
+
   async function handleAddMember() {
-    if (!newMemberName.trim()) return
+    const trimmed = newMemberName.trim()
+    if (!trimmed) return
     try {
       const res = await fetch('/api/team-members', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: newMemberName.trim() }),
+        body: JSON.stringify({ name: trimmed }),
       })
       if (handleAuthError(res)) return
-      if (!res.ok) throw new Error()
-      const data = await res.json()
-      setMembers((prev) => [...prev, data.member])
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error || 'Failed to add teammate')
+      addMemberToState(data.member)
       setAssigneeId(data.member.id)
       setNewMemberName('')
       setAddingMember(false)
-    } catch {
-      toast.error('Failed to add teammate')
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed to add teammate')
     }
+  }
+
+  function handleMemberRemoved(removedId: string, reassignTo: string | null) {
+    // members still holds the pre-removal list here, so we can resolve the target's chip.
+    const target = reassignTo ? members.find((m) => m.id === reassignTo) ?? null : null
+    setMembers((prev) => prev.filter((m) => m.id !== removedId))
+    setTasks((prev) =>
+      prev.map((t) =>
+        t.status !== 'done' && t.assignee_id === removedId
+          ? {
+              ...t,
+              assignee_id: reassignTo,
+              assignee: target ? { id: target.id, name: target.name, color: target.color } : null,
+            }
+          : t,
+      ),
+    )
+    if (assigneeFilter === removedId) setAssigneeFilter('all')
   }
 
   async function handleComplete(task: BoardTask, e: React.MouseEvent) {
@@ -280,6 +307,15 @@ export default function TeamTaskBoard({
           </div>
         )}
         <div className="flex items-center gap-2">
+          {!scoped && (
+            <button
+              onClick={() => setManageOpen(true)}
+              className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md border border-border bg-card text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+              title="Add or remove people who can be assigned tasks"
+            >
+              <Users2 size={14} /> Manage team
+            </button>
+          )}
           {showWeeklyReport && !scoped && (
             <Link
               href="/reports/weekly/print"
@@ -642,6 +678,17 @@ export default function TeamTaskBoard({
             )
           })}
         </div>
+      )}
+
+      {!scoped && (
+        <ManageTeamDialog
+          open={manageOpen}
+          onOpenChange={setManageOpen}
+          members={members}
+          tasks={tasks}
+          onAdded={addMemberToState}
+          onRemoved={handleMemberRemoved}
+        />
       )}
 
       <TaskDetailSheet
