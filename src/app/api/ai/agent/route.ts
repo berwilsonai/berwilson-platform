@@ -112,6 +112,11 @@ export async function POST(request: NextRequest) {
           } catch { /* client disconnected — agent run continues so the message still persists */ }
         }
 
+        // Heartbeat: the local model can reason for 60s+ without emitting a
+        // single visible token, and Safari (especially iOS) kills connections
+        // that go silent that long ("Load failed"). Keep bytes flowing.
+        const heartbeat = setInterval(() => send({ type: 'ping' }), 10_000)
+
         try {
           const result = await runAgent(body.message!, agentContext, history, {
             onToolCall: (name) => send({ type: 'tool', name }),
@@ -150,6 +155,7 @@ export async function POST(request: NextRequest) {
           console.error('[agent] Stream error:', err)
           send({ type: 'error', message: err instanceof Error ? err.message : 'Agent execution failed' })
         } finally {
+          clearInterval(heartbeat)
           try { controller.close() } catch { /* already closed */ }
         }
       },

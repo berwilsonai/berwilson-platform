@@ -127,6 +127,58 @@ export default function AgentChat({
     // Placeholder assistant message that fills in as the stream arrives
     const streamId = `stream-${Date.now()}`
 
+    // If the network stream dies mid-run (iPhone Safari kills idle or
+    // backgrounded connections — "Load failed"), the server still finishes
+    // and persists the answer. Poll the conversation and pick it up instead
+    // of failing the message.
+    const recoverAnswer = async (): Promise<boolean> => {
+      type StoredMsg = { id: string; role: string; content: string; tool_calls?: string | null; latency_ms?: number | null }
+      const deadline = Date.now() + 240_000
+      let convId = conversationId
+      while (Date.now() < deadline) {
+        await new Promise(r => setTimeout(r, 5000))
+        try {
+          // Fresh chat: the conversation was created server-side before the
+          // drop — find it by scope + title (title = the message prefix).
+          if (!convId) {
+            const scope = projectId ? `?projectId=${projectId}` : documentId ? `?documentId=${documentId}` : ''
+            const listRes = await fetch(`/api/ai/agent${scope}`)
+            const listData = await listRes.json() as { conversations?: Array<{ id: string; title: string }> }
+            const match = (listData.conversations ?? []).find(c => c.title === msg.slice(0, 100))
+            if (!match) continue
+            convId = match.id
+          }
+          const res = await fetch(`/api/ai/agent?conversationId=${convId}`)
+          if (!res.ok) continue
+          const data = await res.json() as { messages?: StoredMsg[] }
+          const all = data.messages ?? []
+          const lastUserIdx = all.map(m => m.role === 'user' && m.content === msg).lastIndexOf(true)
+          if (lastUserIdx === -1) continue
+          const answer = all.slice(lastUserIdx + 1).find(m => m.role === 'assistant')
+          if (!answer) continue // run still in progress server-side — keep polling
+
+          let toolCalls: Message['toolCalls']
+          try { toolCalls = answer.tool_calls ? JSON.parse(answer.tool_calls) : undefined } catch { toolCalls = undefined }
+          const recoveredConvId = convId
+          setMessages(prev => [
+            ...prev.filter(m => m.id !== streamId),
+            {
+              id: answer.id,
+              role: 'assistant',
+              content: answer.content,
+              toolCalls,
+              latencyMs: answer.latency_ms ?? undefined,
+              rating: null,
+            },
+          ])
+          if (!conversationId) onConversationCreated?.(recoveredConvId)
+          setConversationId(recoveredConvId)
+          return true
+        } catch { /* transient — keep polling until the deadline */ }
+      }
+      return false
+    }
+
     try {
       const res = await fetch('/api/ai/agent', {
         method: 'POST',
@@ -142,7 +194,8 @@ export default function AgentChat({
 
       if (!res.ok || !res.body) {
         const data = await res.json().catch(() => ({})) as { error?: string }
-        throw new Error(data.error ?? `Request failed (${res.status})`)
+        // A server refusal (auth, rate limit, bad request) is final — no recovery.
+        throw Object.assign(new Error(data.error ?? `Request failed (${res.status})`), { noRecover: true })
       }
 
       const reader = res.body.getReader()
@@ -202,16 +255,27 @@ export default function AgentChat({
                 }
               : m))
           } else if (event.type === 'error') {
-            throw new Error(event.message ?? 'Agent execution failed')
+            // The server itself reported failure — nothing to recover.
+            throw Object.assign(new Error(event.message ?? 'Agent execution failed'), { noRecover: true })
           }
         }
       }
 
       if (!started) throw new Error('The agent returned no response — try again.')
     } catch (err) {
-      // Drop the empty placeholder if nothing streamed
-      setMessages(prev => prev.filter(m => m.id !== streamId || m.content))
-      setError(err instanceof Error ? err.message : 'Something went wrong')
+      // Network-layer drop ("Load failed") — the server keeps working and
+      // persists the answer; try to recover it. Server-reported failures
+      // (noRecover) surface immediately.
+      let recovered = false
+      if (!(err as { noRecover?: boolean }).noRecover) {
+        setActivity('the connection — still working')
+        recovered = await recoverAnswer()
+      }
+      if (!recovered) {
+        // Drop the empty placeholder if nothing streamed
+        setMessages(prev => prev.filter(m => m.id !== streamId || m.content))
+        setError(err instanceof Error ? err.message : 'Something went wrong')
+      }
     } finally {
       setLoading(false)
       setActivity(null)
