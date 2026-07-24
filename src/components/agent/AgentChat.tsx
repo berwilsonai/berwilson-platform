@@ -1,8 +1,9 @@
 'use client'
 
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { Send, Bot, User, Loader2, AlertCircle, ThumbsUp, ThumbsDown } from 'lucide-react'
+import { Send, Bot, User, Loader2, AlertCircle, ThumbsUp, ThumbsDown, Trash2 } from 'lucide-react'
 import ReadAloudButton from '@/components/shared/ReadAloudButton'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 
 interface Message {
   id: string
@@ -26,6 +27,8 @@ interface AgentChatProps {
   conversationId?: string | null
   /** Fires when sending in a fresh chat creates a new persisted conversation. */
   onConversationCreated?: (id: string) => void
+  /** Show a "clear conversation" control (for surfaces without a history list). */
+  showClear?: boolean
 }
 
 export default function AgentChat({
@@ -36,6 +39,7 @@ export default function AgentChat({
   initialInput,
   conversationId: initialConversationId = null,
   onConversationCreated,
+  showClear = false,
 }: AgentChatProps) {
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
@@ -43,6 +47,7 @@ export default function AgentChat({
   const [activity, setActivity] = useState<string | null>(null) // live tool-call label while streaming
   const [error, setError] = useState<string | null>(null)
   const [conversationId, setConversationId] = useState<string | null>(initialConversationId)
+  const [confirmClear, setConfirmClear] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
 
@@ -221,6 +226,16 @@ export default function AgentChat({
     }
   }
 
+  async function clearConversation() {
+    if (conversationId) {
+      const res = await fetch(`/api/ai/agent?conversationId=${conversationId}`, { method: 'DELETE' })
+      if (!res.ok) throw new Error('Delete failed')
+    }
+    setMessages([])
+    setConversationId(null)
+    setError(null)
+  }
+
   async function rateMessage(messageId: string, value: 1 | -1) {
     setMessages(prev => prev.map(m => m.id === messageId ? { ...m, rating: value } : m))
     await fetch('/api/eval/rate', {
@@ -232,8 +247,22 @@ export default function AgentChat({
 
   return (
     <div className={`flex flex-col h-full ${className}`}>
+      {/* Optional clear-conversation header (surfaces without a history list) */}
+      {showClear && conversationId && messages.length > 0 && (
+        <div className="flex items-center justify-end px-3 py-1.5 border-b bg-background">
+          <button
+            type="button"
+            onClick={() => setConfirmClear(true)}
+            className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-destructive transition-colors"
+          >
+            <Trash2 size={12} />
+            Clear conversation
+          </button>
+        </div>
+      )}
+
       {/* Messages area */}
-      <div className="flex-1 overflow-y-auto px-3 py-4 space-y-4 min-h-0">
+      <div className="flex-1 overflow-y-auto overflow-x-hidden px-3 py-4 space-y-4 min-h-0">
         {messages.length === 0 && !loading && (
           <div className="flex flex-col items-center justify-center h-full text-center py-12 px-4">
             <div className="size-12 rounded-xl bg-primary text-primary-foreground flex items-center justify-center mb-3 elev-1">
@@ -290,7 +319,7 @@ export default function AgentChat({
               </div>
             )}
             <div
-              className={`rounded-lg px-3 py-2 max-w-[85%] text-sm ${
+              className={`rounded-lg px-3 py-2 max-w-[85%] min-w-0 break-words text-sm ${
                 msg.role === 'user'
                   ? 'bg-primary text-primary-foreground'
                   : 'bg-muted/60 text-foreground'
@@ -377,7 +406,7 @@ export default function AgentChat({
             onKeyDown={handleKeyDown}
             placeholder={placeholder}
             rows={1}
-            className="flex-1 resize-none rounded-lg border bg-muted/30 px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/40 min-h-[36px] max-h-[120px]"
+            className="flex-1 min-w-0 resize-none rounded-lg border bg-muted/30 px-3 py-2 text-base sm:text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/40 min-h-[36px] max-h-[120px]"
             style={{ height: 'auto', overflow: 'hidden' }}
             onInput={(e) => {
               const el = e.currentTarget
@@ -394,6 +423,16 @@ export default function AgentChat({
           </button>
         </div>
       </div>
+
+      <ConfirmDialog
+        open={confirmClear}
+        onOpenChange={setConfirmClear}
+        title="Clear this conversation?"
+        description="This conversation and all its messages will be removed permanently. This can't be undone."
+        confirmLabel="Clear"
+        destructive
+        onConfirm={clearConversation}
+      />
     </div>
   )
 }

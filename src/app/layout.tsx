@@ -47,6 +47,10 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
+  // Stops iOS Safari's auto-zoom when focusing inputs under 16px, which
+  // shoved fixed-width controls (e.g. the chat send button) off-screen.
+  // iOS still allows manual pinch-zoom regardless of this cap.
+  maximumScale: 1,
   viewportFit: 'cover',
   themeColor: [
     { media: '(prefers-color-scheme: light)', color: '#1a1b2e' },

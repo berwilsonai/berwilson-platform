@@ -354,6 +354,22 @@ export const agentTools = [
     },
   },
   {
+    name: 'list_documents',
+    description: 'List the uploaded documents on a project (or in the Ber Wilson company knowledge base): file name, type, AI summary, and whether full text is stored. Use this FIRST when asked to review, summarize, or compare a project\'s documents — then call get_document_content for each document you need to read in full.',
+    parameters: {
+      type: 'object',
+      properties: {
+        project_id: { type: 'string', description: 'UUID of the project. Omit to use the conversation\'s project scope.' },
+        scope: {
+          type: 'string',
+          enum: ['project', 'company'],
+          description: '"project" (default) lists a project\'s documents; "company" lists the Ber Wilson company knowledge base.',
+        },
+        include_children: { type: 'boolean', description: 'If true and the project is a program, also list documents from its sub-projects.' },
+      },
+    },
+  },
+  {
     name: 'get_document_content',
     description: 'Fetch the stored full text of an uploaded document so you can quote or analyze its actual contents (proposals, contracts, RFPs, CIMs). Use after search_knowledge_base or query_opportunity surfaces a relevant document. Returns the file name, AI summary, and extracted text.',
     parameters: {
@@ -731,6 +747,9 @@ export async function executeToolCall(
           results: kbChunks.slice(0, 8).map((c, i) => ({
             index: i + 1,
             content: c.content.slice(0, 500),
+            // Surface the source document id so the full text can be pulled
+            // with get_document_content instead of answering from snippets.
+            ...(c.document_id ? { document_id: c.document_id } : {}),
             source: c.is_company
               ? 'Ber Wilson (company knowledge base)'
               : c.opportunity_id
@@ -745,6 +764,7 @@ export async function executeToolCall(
             similarity: c.similarity,
             date: c.created_at,
           })),
+          note: 'These are short snippets, not full documents. When a result carries a document_id, call get_document_content to read the whole document before answering in depth.',
         }
       } catch (err) {
         return { error: `Knowledge base search failed: ${err instanceof Error ? err.message : 'unknown'}` }
@@ -1410,6 +1430,75 @@ export async function executeToolCall(
           completed_at: t.completed_at,
           latest_note: latestNote.get(t.id) ?? null,
         })),
+      }
+    }
+
+    case 'list_documents': {
+      const scope = args.scope === 'company' ? 'company' : 'project'
+      let projectIds: string[] = []
+
+      let q = supabase
+        .from('documents')
+        .select('id, file_name, doc_type, classification, ai_summary, uploaded_at, project_id')
+        .order('uploaded_at', { ascending: false })
+        .limit(50)
+
+      if (scope === 'company') {
+        q = q.eq('is_company', true)
+      } else {
+        const projectId = (args.project_id as string) || context.projectId
+        if (!projectId) {
+          return { error: 'No project_id provided or available in context. Pass scope="company" for the company knowledge base.' }
+        }
+        projectIds = [projectId]
+        if (args.include_children) {
+          const { data: children } = await supabase
+            .from('projects')
+            .select('id')
+            .eq('parent_project_id', projectId)
+          projectIds.push(...(children ?? []).map((c) => c.id))
+        }
+        q = q.in('project_id', projectIds)
+      }
+
+      const { data: docs, error } = await q
+      if (error) return { error: error.message }
+      if (!docs || docs.length === 0) {
+        return {
+          message: scope === 'company'
+            ? 'No documents in the company knowledge base.'
+            : 'No documents uploaded on this project.',
+        }
+      }
+
+      // Which of these have stored full text — ids only, never the text itself
+      let textQ = supabase.from('documents').select('id').not('extracted_text', 'is', null)
+      textQ = scope === 'company' ? textQ.eq('is_company', true) : textQ.in('project_id', projectIds)
+      const { data: withText } = await textQ
+      const hasText = new Set((withText ?? []).map((d) => d.id))
+
+      // Label per-project when a program's children are included
+      const projName = new Map<string, string>()
+      if (projectIds.length > 1) {
+        const { data: projects } = await supabase.from('projects').select('id, name').in('id', projectIds)
+        for (const p of projects ?? []) projName.set(p.id, p.name)
+      }
+
+      return {
+        count: docs.length,
+        documents: docs.map((d) => ({
+          id: d.id,
+          file_name: d.file_name,
+          doc_type: d.doc_type,
+          classification: d.classification,
+          ai_summary: d.ai_summary,
+          has_full_text: hasText.has(d.id),
+          uploaded_at: d.uploaded_at,
+          ...(projectIds.length > 1 && d.project_id
+            ? { project: projName.get(d.project_id) ?? null }
+            : {}),
+        })),
+        hint: 'Call get_document_content with a document id to read the full stored text. You can fetch several documents in one turn.',
       }
     }
 
