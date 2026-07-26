@@ -20,6 +20,7 @@ import {
   STEEL_STAGE_LABELS,
 } from '@/lib/utils/steel'
 import SteelStageControl from '@/components/steel/SteelStageControl'
+import SteelNextStepControl from '@/components/steel/SteelNextStepControl'
 import SteelDeleteButton from '@/components/steel/SteelDeleteButton'
 import SteelDealNotes from '@/components/steel/SteelDealNotes'
 import SteelCommissionsPanel from '@/components/steel/SteelCommissionsPanel'
@@ -147,6 +148,14 @@ export default async function SteelDealDetailPage({ params }: PageProps) {
         </div>
       )}
 
+      {/* Next step — inline editable; flows to the /steel tile cards */}
+      <SteelNextStepControl
+        dealId={id}
+        nextStep={deal.next_step}
+        nextStepDate={deal.next_step_date}
+        overdue={nextOverdue}
+      />
+
       {/* Below-floor pricing — needs management approval */}
       {deal.pricing_below_floor && (
         <div className="flex items-start gap-2.5 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 dark:border-amber-500/40 dark:bg-amber-500/10">
@@ -198,17 +207,6 @@ export default async function SteelDealDetailPage({ params }: PageProps) {
             label="Expected Delivery"
             value={deal.expected_delivery_date ? formatDate(deal.expected_delivery_date) : null}
           />
-          <Fact
-            label="Next Step By"
-            value={
-              deal.next_step_date ? (
-                <span className={cn(nextOverdue && 'text-amber-600 dark:text-amber-400 font-medium')}>
-                  {formatDate(deal.next_step_date)}
-                  {nextOverdue && ' · overdue'}
-                </span>
-              ) : null
-            }
-          />
         </dl>
       </div>
 
@@ -224,35 +222,6 @@ export default async function SteelDealDetailPage({ params }: PageProps) {
           squareFeet={deal.square_feet}
           payable={isCommissionPayable(deal.stage)}
         />
-      )}
-
-      {/* Next step */}
-      {deal.next_step && (
-        <div
-          className={cn(
-            'rounded-lg border px-4 py-3',
-            nextOverdue
-              ? 'border-amber-300 bg-amber-50 dark:border-amber-500/40 dark:bg-amber-500/10'
-              : 'border-primary/30 bg-primary/5'
-          )}
-        >
-          <span
-            className={cn(
-              'text-[11px] uppercase tracking-wide font-semibold',
-              nextOverdue ? 'text-amber-700 dark:text-amber-400' : 'text-primary'
-            )}
-          >
-            Next Step{nextOverdue && ' — Overdue'}
-          </span>
-          <p className="text-sm text-foreground mt-0.5">
-            {deal.next_step}
-            {deal.next_step_date && (
-              <span className={cn(nextOverdue ? 'text-amber-700 dark:text-amber-400' : 'text-muted-foreground')}>
-                {' '}— by {formatDate(deal.next_step_date)}
-              </span>
-            )}
-          </p>
-        </div>
       )}
 
       {/* Description */}
