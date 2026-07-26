@@ -89,6 +89,7 @@ export default async function SteelPage({ searchParams }: PageProps) {
   const items: SteelDealCardData[] = filtered.map((deal) => ({
     deal,
     salesperson: deal.salesperson_id ? memberName.get(deal.salesperson_id) ?? null : null,
+    referrer: deal.lead_source_id ? memberName.get(deal.lead_source_id) ?? null : null,
   }))
 
   const sumValue = (stages: SteelStage[]) =>

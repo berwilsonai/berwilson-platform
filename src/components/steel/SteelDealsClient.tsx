@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { CalendarClock, Ruler, UserRound } from 'lucide-react'
+import { CalendarClock, Ruler, UserRound, Handshake } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { SteelDeal } from '@/lib/supabase/types'
 import { formatValue, formatDate } from '@/lib/utils/constants'
@@ -17,16 +17,18 @@ import {
   STEEL_STAGE_BORDER,
 } from '@/lib/utils/steel'
 
-/** Deal + salesperson name resolved server-side. */
+/** Deal + salesperson / referrer names resolved server-side. */
 export interface SteelDealCardData {
   deal: SteelDeal
   salesperson: string | null
+  /** The "Referred By" person (lead_source_id), when set. */
+  referrer: string | null
 }
 
 export default function SteelDealsClient({ items }: { items: SteelDealCardData[] }) {
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-      {items.map(({ deal, salesperson }) => {
+      {items.map(({ deal, salesperson, referrer }) => {
         const s = steelStage(deal.stage)
         const nextOverdue = isPastDate(deal.next_step_date) && isOpenStage(deal.stage)
 
@@ -66,6 +68,16 @@ export default function SteelDealsClient({ items }: { items: SteelDealCardData[]
               <p className="mt-1.5 flex items-center gap-1 text-[11px] text-muted-foreground">
                 <UserRound size={11} className="shrink-0" />
                 {salesperson}
+                <span className="text-muted-foreground/60">· sales</span>
+              </p>
+            )}
+
+            {/* Referrer (lead source person) */}
+            {referrer && (
+              <p className="mt-1 flex items-center gap-1 text-[11px] text-muted-foreground">
+                <Handshake size={11} className="shrink-0" />
+                {referrer}
+                <span className="text-muted-foreground/60">· referred</span>
               </p>
             )}
 
