@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { CalendarClock, Ruler, UserRound, Handshake } from 'lucide-react'
+import { CalendarClock, Ruler, UserRound, Handshake, TriangleAlert } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { SteelDeal } from '@/lib/supabase/types'
 import { formatValue, formatDate } from '@/lib/utils/constants'
@@ -49,6 +49,12 @@ export default function SteelDealsClient({ items }: { items: SteelDealCardData[]
               <span className={cn('inline-flex items-center rounded px-1.5 py-0.5 text-[11px] font-medium ring-1 ring-inset', leadSourceBadge(deal.lead_source))}>
                 {leadSourceLabel(deal.lead_source)}
               </span>
+              {deal.pricing_below_floor && (
+                <span className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-medium ring-1 ring-inset bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-500/15 dark:text-amber-300 dark:ring-amber-500/30">
+                  <TriangleAlert size={11} className="shrink-0" />
+                  Below floor · needs approval
+                </span>
+              )}
             </div>
 
             {/* Name */}

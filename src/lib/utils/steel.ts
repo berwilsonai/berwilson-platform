@@ -89,6 +89,16 @@ export function isOpenStage(value: string | null | undefined): boolean {
   return value !== 'paid' && value !== 'lost'
 }
 
+/**
+ * A commission becomes a real PAYABLE only once the deal's cash is collected
+ * (the deal reaches the 'paid' stage). Before that a commission is projected
+ * (forecast) — computable, but not owed. This is the single trigger point for
+ * "owed" across the app; to pay reps at invoice instead, add 'invoiced' here.
+ */
+export function isCommissionPayable(stage: string | null | undefined): boolean {
+  return stage === 'paid'
+}
+
 // ─── Lead Source ─────────────────────────────────────────────────────────────
 //
 // Lead sources are a self-maintaining vocabulary, not a fixed list: the deal
@@ -210,6 +220,47 @@ export function isPerSqftCostService(type: SteelServiceType): boolean {
 
 /** Default steel/materials cost basis ($/SF), pre-filled on new deals. */
 export const DEFAULT_STEEL_COST_PER_SQFT = 20
+
+// ─── Pricing floor (management approval) ─────────────────────────────────────
+//
+// Steel priced below this $/SF needs management sign-off. The deal form warns
+// on entry, and the save flow flags the deal (steel_deals.pricing_below_floor)
+// so executives can spot below-floor pricing on the list/detail with a badge.
+
+/** Steel pricing floor ($/SF). Below this, a deal needs management approval. */
+export const STEEL_PRICE_FLOOR_PER_SQFT = 30
+
+/**
+ * Effective steel price per SF for the floor check: the steel/materials price
+ * divided by square feet (covers both entry modes — a directly-typed materials
+ * price and one auto-filled from SF × $/SF). Falls back to the entered Price/SF
+ * when materials price or square feet is missing. Returns null when there's
+ * nothing to judge.
+ */
+export function effectiveSteelPricePerSqft(
+  materialsPrice: number | null | undefined,
+  squareFeet: number | null | undefined,
+  pricePerSqft: number | null | undefined
+): number | null {
+  const sf = numOr0(squareFeet)
+  const mp = numOr0(materialsPrice)
+  if (sf > 0 && mp > 0) return mp / sf
+  const ppsf = numOr0(pricePerSqft)
+  return ppsf > 0 ? ppsf : null
+}
+
+/** Whether a deal's effective steel $/SF is below the approval floor. */
+export function isPricingBelowFloor(
+  materialsPrice: number | null | undefined,
+  squareFeet: number | null | undefined,
+  pricePerSqft: number | null | undefined
+): boolean {
+  const eff = effectiveSteelPricePerSqft(materialsPrice, squareFeet, pricePerSqft)
+  return eff != null && eff < STEEL_PRICE_FLOOR_PER_SQFT
+}
+
+const numOr0 = (v: number | null | undefined): number =>
+  typeof v === 'number' && isFinite(v) ? v : 0
 
 // ─── Referral fee (paid to the lead-source referrer) ─────────────────────────
 

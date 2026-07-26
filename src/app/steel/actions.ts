@@ -13,6 +13,7 @@ import {
   referralFeeType,
   canonicalLeadSource,
   isPerSqftCostService,
+  isPricingBelowFloor,
   type SteelServiceType,
 } from '@/lib/utils/steel'
 import { leadSourcesInUse } from '@/lib/steel/lead-sources'
@@ -90,6 +91,15 @@ function parseFields(formData: FormData, canSeeFinancials: boolean): ParseResult
   // Contract value = sum of service prices (the deal's revenue).
   const value = services.reduce((a, s) => a + (s.price ?? 0), 0)
 
+  // Flag deals priced below the steel $/SF floor — surfaced with a badge for
+  // execs and warned on the form. Set for every author (sales enters prices).
+  const materialsPrice = services.find((s) => s.service_type === 'materials')?.price ?? null
+  const pricing_below_floor = isPricingBelowFloor(
+    materialsPrice,
+    sqftNum,
+    typeof price_per_sqft === 'number' ? price_per_sqft : null
+  )
+
   const fields: TablesInsert<'steel_deals'> = {
     name,
     customer: str('customer'),
@@ -102,6 +112,7 @@ function parseFields(formData: FormData, canSeeFinancials: boolean): ParseResult
     square_feet: square_feet as number | null,
     price_per_sqft: price_per_sqft as number | null,
     value,
+    pricing_below_floor,
     expected_delivery_date: str('expected_delivery_date'),
     next_step: str('next_step'),
     next_step_date: str('next_step_date'),

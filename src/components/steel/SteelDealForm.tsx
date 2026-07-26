@@ -22,6 +22,8 @@ import {
   REFERRAL_FEE_LABELS,
   DEFAULT_SERVICE_COMMISSION_PCT,
   DEFAULT_STEEL_COST_PER_SQFT,
+  STEEL_PRICE_FLOOR_PER_SQFT,
+  effectiveSteelPricePerSqft,
   isPerSqftCostService,
   type SteelServiceType,
 } from '@/lib/utils/steel'
@@ -166,6 +168,11 @@ export default function SteelDealForm({
         ? (totalMargin * parseNum(referralValue)) / 100
         : 0
 
+  // Effective steel $/SF for the approval floor: materials price ÷ SF (or the
+  // entered Price/SF). Warn live when it's under the floor.
+  const effectivePpsf = effectiveSteelPricePerSqft(parseNum(svc.materials.price), sqftNum, parseNum(ppsf))
+  const belowFloor = effectivePpsf != null && effectivePpsf < STEEL_PRICE_FLOOR_PER_SQFT
+
   const cancelHref = mode === 'edit' && deal ? `/steel/${deal.id}` : '/steel'
 
   return (
@@ -307,12 +314,26 @@ export default function SteelDealForm({
                 setPpsf(e.target.value)
                 recompute(sqft, e.target.value)
               }}
-              placeholder="e.g. 24.50"
+              placeholder="e.g. 45"
               className={inputClass}
             />
-            <p className="mt-1 text-[11px] text-muted-foreground">Suggests the materials price below.</p>
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              Suggests the materials price below. Floor is ${STEEL_PRICE_FLOOR_PER_SQFT}/SF.
+            </p>
           </div>
         </div>
+
+        {belowFloor && (
+          <div className="flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-300">
+            <AlertCircle size={14} className="mt-0.5 shrink-0" />
+            <span>
+              Steel is priced at{' '}
+              <strong className="tnum">${effectivePpsf!.toFixed(2)}/SF</strong>, below the $
+              {STEEL_PRICE_FLOOR_PER_SQFT}/SF floor. This deal will be flagged as needing management
+              approval.
+            </span>
+          </div>
+        )}
       </section>
 
       {/* Services & commission */}

@@ -22,6 +22,8 @@ interface Props {
   salespersonName: string | null
   referrerName: string | null
   squareFeet: number | null
+  /** Deal's cash is collected → commissions are real payables (vs projected). */
+  payable: boolean
 }
 
 function money(v: number | null): string {
@@ -34,8 +36,19 @@ function perSqft(commission: number, sqft: number | null): string | null {
   return `$${(commission / sqft).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} / SF`
 }
 
-/** Read-only paid/owed pill. Marking paid happens on /steel/commissions. */
-function StatusPill({ paid }: { paid: boolean }) {
+/**
+ * Read-only status pill. A commission is only OWED once the deal is collected
+ * (payable); before that it's PROJECTED. Marking paid happens on
+ * /steel/commissions.
+ */
+function StatusPill({ paid, payable }: { paid: boolean; payable: boolean }) {
+  if (!payable) {
+    return (
+      <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[11px] font-medium ring-1 ring-inset bg-slate-100 text-slate-600 ring-slate-200 dark:bg-slate-400/15 dark:text-slate-300 dark:ring-slate-400/25">
+        Projected
+      </span>
+    )
+  }
   return (
     <span
       className={cn(
@@ -58,6 +71,7 @@ export default function SteelCommissionsPanel({
   salespersonName,
   referrerName,
   squareFeet,
+  payable,
 }: Props) {
   const rows = [...services].sort(
     (a, b) =>
@@ -109,7 +123,11 @@ export default function SteelCommissionsPanel({
                 <td className="py-2 px-3 text-right">{s.commission_pct != null ? `${s.commission_pct}%` : '—'}</td>
                 <td className="py-2 px-3 text-right">{formatValue(serviceCommission(s))}</td>
                 <td className="py-2 pl-3 text-right">
-                  {serviceCommission(s) !== 0 ? <StatusPill paid={s.commission_paid} /> : '—'}
+                  {serviceCommission(s) !== 0 ? (
+                    <StatusPill paid={s.commission_paid} payable={payable} />
+                  ) : (
+                    '—'
+                  )}
                 </td>
               </tr>
             ))}
@@ -141,7 +159,7 @@ export default function SteelCommissionsPanel({
               </span>
             </p>
           </div>
-          {referralAmount > 0 && <StatusPill paid={referralPaid} />}
+          {referralAmount > 0 && <StatusPill paid={referralPaid} payable={payable} />}
         </div>
       )}
 

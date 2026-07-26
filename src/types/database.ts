@@ -2451,6 +2451,7 @@ export type Database = {
           next_step: string | null
           next_step_date: string | null
           price_per_sqft: number | null
+          pricing_below_floor: boolean
           referral_fee_paid: boolean
           referral_fee_paid_date: string | null
           referral_fee_type: string
@@ -2475,6 +2476,7 @@ export type Database = {
           next_step?: string | null
           next_step_date?: string | null
           price_per_sqft?: number | null
+          pricing_below_floor?: boolean
           referral_fee_paid?: boolean
           referral_fee_paid_date?: string | null
           referral_fee_type?: string
@@ -2499,6 +2501,7 @@ export type Database = {
           next_step?: string | null
           next_step_date?: string | null
           price_per_sqft?: number | null
+          pricing_below_floor?: boolean
           referral_fee_paid?: boolean
           referral_fee_paid_date?: string | null
           referral_fee_type?: string

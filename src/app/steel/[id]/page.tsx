@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { Pencil, MessageSquare, StickyNote } from 'lucide-react'
+import { Pencil, MessageSquare, StickyNote, TriangleAlert } from 'lucide-react'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getViewer, canSeeSteelFinancials } from '@/lib/auth/viewer'
 import { cn } from '@/lib/utils'
@@ -11,7 +11,10 @@ import {
   leadSourceLabel,
   leadSourceBadge,
   isLostStage,
+  isCommissionPayable,
   formatSqft,
+  effectiveSteelPricePerSqft,
+  STEEL_PRICE_FLOOR_PER_SQFT,
   STEEL_PIPELINE,
   STEEL_STAGE_INDEX,
   STEEL_STAGE_LABELS,
@@ -70,6 +73,9 @@ export default async function SteelDealDetailPage({ params }: PageProps) {
   const referrer = (members ?? []).find((m) => m.id === deal.lead_source_id)
   const canDelete = viewer?.isAdmin ?? true
   const showFinancials = canSeeSteelFinancials(viewer)
+
+  const materialsPrice = (services ?? []).find((x) => x.service_type === 'materials')?.price ?? null
+  const effectivePpsf = effectiveSteelPricePerSqft(materialsPrice, deal.square_feet, deal.price_per_sqft)
 
   return (
     <div className="space-y-6">
@@ -141,6 +147,27 @@ export default async function SteelDealDetailPage({ params }: PageProps) {
         </div>
       )}
 
+      {/* Below-floor pricing — needs management approval */}
+      {deal.pricing_below_floor && (
+        <div className="flex items-start gap-2.5 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 dark:border-amber-500/40 dark:bg-amber-500/10">
+          <TriangleAlert size={16} className="mt-0.5 shrink-0 text-amber-600 dark:text-amber-400" />
+          <div>
+            <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">
+              Below floor — needs management approval
+            </p>
+            <p className="text-xs text-amber-700 dark:text-amber-300/90 mt-0.5">
+              Steel is priced at{' '}
+              {effectivePpsf != null ? (
+                <strong className="tnum">${effectivePpsf.toFixed(2)}/SF</strong>
+              ) : (
+                'below the floor'
+              )}
+              , under the ${STEEL_PRICE_FLOOR_PER_SQFT}/SF floor.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Money band */}
       <div className="grid grid-cols-3 gap-3">
         {([
@@ -195,6 +222,7 @@ export default async function SteelDealDetailPage({ params }: PageProps) {
           salespersonName={salesperson?.name ?? null}
           referrerName={referrer?.name ?? null}
           squareFeet={deal.square_feet}
+          payable={isCommissionPayable(deal.stage)}
         />
       )}
 

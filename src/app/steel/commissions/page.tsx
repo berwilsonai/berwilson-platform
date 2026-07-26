@@ -10,6 +10,7 @@ import {
   serviceCommission,
   isSteelServiceType,
   isLostStage,
+  isCommissionPayable,
   STEEL_SERVICE_TYPES,
   STEEL_SERVICE_LABELS,
 } from '@/lib/utils/steel'
@@ -48,16 +49,25 @@ export default async function SteelCommissionsPage() {
   let revenue = 0
   let cost = 0
   let margin = 0
+  // salesperson + referral across ALL active deals — the fully-loaded net if
+  // every open deal closes and everyone is paid (headline "Net after comm.").
+  let totalCommitments = 0
   const salesTotal = emptyAgg()
   const refTotal = emptyAgg()
   const bySalesperson = new Map<string, Agg>()
   const byReferrer = new Map<string, Agg>()
   const byService = new Map<string, { revenue: number; cost: number; margin: number }>()
   const payouts: PayoutItem[] = []
+  // Projected commissions on OPEN deals — computable, but not owed until the
+  // deal's cash is collected (reaches the Paid stage).
+  let projSales = 0
+  let projReferral = 0
+  const projBySalesperson = new Map<string, number>()
   const svcLabel = (t: string) => (isSteelServiceType(t) ? STEEL_SERVICE_LABELS[t] : t)
 
   // Lost deals earn nothing — exclude them from every rollup.
   const liveDeals = (deals ?? []).filter((d) => !isLostStage(d.stage))
+  const payableCount = liveDeals.filter((d) => isCommissionPayable(d.stage)).length
 
   for (const deal of liveDeals) {
     const rows = servicesByDeal.get(deal.id) ?? []
@@ -65,9 +75,34 @@ export default async function SteelCommissionsPage() {
     revenue += fin.revenue
     cost += fin.cost
     margin += fin.margin
+    totalCommitments += fin.salespersonCommission + fin.referralFee
 
+    // By-service margin spans all active deals (a margin overview, not payables).
+    for (const s of rows) {
+      const st = byService.get(s.service_type) ?? { revenue: 0, cost: 0, margin: 0 }
+      st.revenue += n(s.price)
+      st.cost += n(s.cost)
+      st.margin += serviceMargin(s)
+      byService.set(s.service_type, st)
+    }
+
+    // Not yet collected → forecast only, never owed.
+    if (!isCommissionPayable(deal.stage)) {
+      projSales += fin.salespersonCommission
+      projReferral += fin.referralFee
+      if (deal.salesperson_id && fin.salespersonCommission !== 0) {
+        projBySalesperson.set(
+          deal.salesperson_id,
+          (projBySalesperson.get(deal.salesperson_id) ?? 0) + fin.salespersonCommission
+        )
+      }
+      continue
+    }
+
+    // Cash collected — commissions are real payables now.
     for (const s of rows) {
       const comm = serviceCommission(s)
+      if (comm === 0) continue
       if (s.commission_paid) salesTotal.paid += comm
       else salesTotal.owed += comm
       if (deal.salesperson_id) {
@@ -76,25 +111,17 @@ export default async function SteelCommissionsPage() {
         else a.owed += comm
         bySalesperson.set(deal.salesperson_id, a)
       }
-      const st = byService.get(s.service_type) ?? { revenue: 0, cost: 0, margin: 0 }
-      st.revenue += n(s.price)
-      st.cost += n(s.cost)
-      st.margin += serviceMargin(s)
-      byService.set(s.service_type, st)
-
-      if (comm !== 0) {
-        payouts.push({
-          key: `service:${s.id}`,
-          kind: 'service',
-          id: s.id,
-          dealId: deal.id,
-          dealName: deal.name,
-          personName: deal.salesperson_id ? memberName.get(deal.salesperson_id) ?? 'Unknown' : 'Unassigned',
-          detail: `${svcLabel(s.service_type)} commission`,
-          amount: comm,
-          paid: s.commission_paid,
-        })
-      }
+      payouts.push({
+        key: `service:${s.id}`,
+        kind: 'service',
+        id: s.id,
+        dealId: deal.id,
+        dealName: deal.name,
+        personName: deal.salesperson_id ? memberName.get(deal.salesperson_id) ?? 'Unknown' : 'Unassigned',
+        detail: `${svcLabel(s.service_type)} commission`,
+        amount: comm,
+        paid: s.commission_paid,
+      })
     }
 
     if (fin.referralFee > 0) {
@@ -120,8 +147,10 @@ export default async function SteelCommissionsPage() {
     }
   }
 
-  const totalCommissions = salesTotal.owed + salesTotal.paid + refTotal.owed + refTotal.paid
-  const net = margin - totalCommissions
+  const net = margin - totalCommitments
+  const projectedRows = [...projBySalesperson.entries()]
+    .map(([id, amount]) => ({ name: memberName.get(id) ?? 'Unknown', amount }))
+    .sort((a, b) => b.amount - a.amount)
 
   return (
     <div className="space-y-6">
@@ -138,8 +167,10 @@ export default async function SteelCommissionsPage() {
       <div>
         <h1 className="text-lg font-semibold">Commissions &amp; Margin</h1>
         <p className="text-sm text-muted-foreground mt-0.5">
-          Across all active deals ({liveDeals.length}). Lost deals excluded. Owed = commissions not yet
-          marked paid.
+          Across all active deals ({liveDeals.length}). Lost deals excluded. Commissions become{' '}
+          <span className="font-medium text-foreground">owed only once a deal is collected (Paid stage)</span>
+          {payableCount > 0 ? ` — ${payableCount} deal${payableCount === 1 ? '' : 's'} collected` : ''}; open
+          deals show as projected.
         </p>
       </div>
 
@@ -154,11 +185,14 @@ export default async function SteelCommissionsPage() {
       {/* Payout worklist — mark commissions/referral fees paid */}
       <SteelPayoutList items={payouts} />
 
-      {/* Owed vs paid */}
+      {/* Owed vs paid — collected deals only */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <OwedPaid title="Salesperson commissions" agg={salesTotal} />
         <OwedPaid title="Referral fees" agg={refTotal} />
       </div>
+
+      {/* Projected — open deals, forecast only (not payable) */}
+      <ProjectedCommissions sales={projSales} referral={projReferral} rows={projectedRows} />
 
       {/* By salesperson */}
       <PeopleTable
@@ -266,6 +300,50 @@ function OwedPaid({ title, agg }: { title: string; agg: Agg }) {
         </div>
       </div>
     </div>
+  )
+}
+
+function ProjectedCommissions({
+  sales,
+  referral,
+  rows,
+}: {
+  sales: number
+  referral: number
+  rows: { name: string; amount: number }[]
+}) {
+  if (sales === 0 && referral === 0) return null
+  return (
+    <section className="rounded-lg border border-dashed border-border bg-card p-4 elev-1">
+      <h2 className="label-caps text-muted-foreground">Projected — open deals</h2>
+      <p className="text-[11px] text-muted-foreground mt-0.5">
+        Forecast if these deals close. Not owed until each deal is collected.
+      </p>
+      <div className="mt-2 flex items-end gap-6">
+        <div>
+          <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Salesperson</p>
+          <p className="text-xl font-semibold tnum">{formatValue(sales)}</p>
+        </div>
+        <div>
+          <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Referral</p>
+          <p className="text-xl font-semibold tnum">{formatValue(referral)}</p>
+        </div>
+        <div>
+          <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Total</p>
+          <p className="text-xl font-semibold tnum">{formatValue(sales + referral)}</p>
+        </div>
+      </div>
+      {rows.length > 0 && (
+        <ul className="mt-3 divide-y divide-border rounded-md border border-border">
+          {rows.map((r) => (
+            <li key={r.name} className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
+              <span className="font-medium truncate">{r.name}</span>
+              <span className="tnum text-muted-foreground">{formatValue(r.amount)}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   )
 }
 
