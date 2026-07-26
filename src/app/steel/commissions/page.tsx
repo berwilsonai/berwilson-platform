@@ -13,6 +13,7 @@ import {
   STEEL_SERVICE_TYPES,
   STEEL_SERVICE_LABELS,
 } from '@/lib/utils/steel'
+import SteelPayoutList, { type PayoutItem } from '@/components/steel/SteelPayoutList'
 
 export const metadata = { title: 'Steel Commissions — Ber Wilson Intelligence' }
 
@@ -52,6 +53,8 @@ export default async function SteelCommissionsPage() {
   const bySalesperson = new Map<string, Agg>()
   const byReferrer = new Map<string, Agg>()
   const byService = new Map<string, { revenue: number; cost: number; margin: number }>()
+  const payouts: PayoutItem[] = []
+  const svcLabel = (t: string) => (isSteelServiceType(t) ? STEEL_SERVICE_LABELS[t] : t)
 
   // Lost deals earn nothing — exclude them from every rollup.
   const liveDeals = (deals ?? []).filter((d) => !isLostStage(d.stage))
@@ -78,6 +81,20 @@ export default async function SteelCommissionsPage() {
       st.cost += n(s.cost)
       st.margin += serviceMargin(s)
       byService.set(s.service_type, st)
+
+      if (comm !== 0) {
+        payouts.push({
+          key: `service:${s.id}`,
+          kind: 'service',
+          id: s.id,
+          dealId: deal.id,
+          dealName: deal.name,
+          personName: deal.salesperson_id ? memberName.get(deal.salesperson_id) ?? 'Unknown' : 'Unassigned',
+          detail: `${svcLabel(s.service_type)} commission`,
+          amount: comm,
+          paid: s.commission_paid,
+        })
+      }
     }
 
     if (fin.referralFee > 0) {
@@ -88,6 +105,18 @@ export default async function SteelCommissionsPage() {
       if (deal.referral_fee_paid) a.paid += fin.referralFee
       else a.owed += fin.referralFee
       byReferrer.set(key, a)
+
+      payouts.push({
+        key: `referral:${deal.id}`,
+        kind: 'referral',
+        id: deal.id,
+        dealId: deal.id,
+        dealName: deal.name,
+        personName: deal.lead_source_id ? memberName.get(deal.lead_source_id) ?? 'Unknown' : 'Unlinked referrer',
+        detail: 'Referral fee',
+        amount: fin.referralFee,
+        paid: deal.referral_fee_paid,
+      })
     }
   }
 
@@ -121,6 +150,9 @@ export default async function SteelCommissionsPage() {
         <Stat label="Margin" value={formatValue(margin)} sub="Revenue − cost" tone="indigo" />
         <Stat label="Net after comm." value={formatValue(net)} sub="Margin − commissions" tone="emerald" />
       </div>
+
+      {/* Payout worklist — mark commissions/referral fees paid */}
+      <SteelPayoutList items={payouts} />
 
       {/* Owed vs paid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

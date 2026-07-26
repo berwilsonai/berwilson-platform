@@ -12,20 +12,22 @@ export type SteelStage =
   | 'order_placed'
   | 'delivered'
   | 'assembled'
+  | 'invoiced'
   | 'paid'
   | 'lost'
 
 export const STEEL_STAGES: SteelStage[] = [
-  'quote', 'engineering', 'order_placed', 'delivered', 'assembled', 'paid', 'lost',
+  'quote', 'engineering', 'order_placed', 'delivered', 'assembled', 'invoiced', 'paid', 'lost',
 ]
 
-// The steel CRM tracks a deal only as far as FRAME ASSEMBLY — even on deals
-// where Ber Wilson builds the whole home, the rest of the build lives in the
-// construction projects module, not here. 'assembled' is optional: a
-// materials-only deal goes delivered → paid, skipping it.
+// The steel CRM tracks a deal only as far as FRAME ASSEMBLY on the build side —
+// even on deals where Ber Wilson builds the whole home, the rest of the build
+// lives in the construction projects module, not here. 'assembled' is optional
+// (a materials-only deal goes delivered → invoiced, skipping it); 'invoiced'
+// marks that the customer has been billed, before payment lands.
 /** Active pipeline stages, in order (excludes the off-ramp state). */
 export const STEEL_PIPELINE: SteelStage[] = [
-  'quote', 'engineering', 'order_placed', 'delivered', 'assembled', 'paid',
+  'quote', 'engineering', 'order_placed', 'delivered', 'assembled', 'invoiced', 'paid',
 ]
 
 export const STEEL_STAGE_LABELS: Record<SteelStage, string> = {
@@ -34,6 +36,7 @@ export const STEEL_STAGE_LABELS: Record<SteelStage, string> = {
   order_placed: 'Order Placed',
   delivered: 'Delivered',
   assembled: 'Frame Assembly',
+  invoiced: 'Invoiced',
   paid: 'Paid',
   lost: 'Lost',
 }
@@ -44,7 +47,8 @@ export const STEEL_STAGE_INDEX: Record<SteelStage, number> = {
   order_placed: 2,
   delivered: 3,
   assembled: 4,
-  paid: 5,
+  invoiced: 5,
+  paid: 6,
   lost: -1,
 }
 
@@ -54,6 +58,7 @@ export const STEEL_STAGE_BADGE: Record<SteelStage, string> = {
   order_placed: 'bg-indigo-50 text-indigo-700 ring-indigo-200 dark:bg-indigo-500/15 dark:text-indigo-300 dark:ring-indigo-500/30',
   delivered: 'bg-cyan-50 text-cyan-700 ring-cyan-200 dark:bg-cyan-500/15 dark:text-cyan-300 dark:ring-cyan-500/30',
   assembled: 'bg-teal-50 text-teal-700 ring-teal-200 dark:bg-teal-500/15 dark:text-teal-300 dark:ring-teal-500/30',
+  invoiced: 'bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-500/15 dark:text-amber-300 dark:ring-amber-500/30',
   paid: 'bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-500/15 dark:text-emerald-300 dark:ring-emerald-500/30',
   lost: 'bg-red-50 text-red-600 ring-red-200 dark:bg-red-500/15 dark:text-red-300 dark:ring-red-500/30',
 }
@@ -64,6 +69,7 @@ export const STEEL_STAGE_BORDER: Record<SteelStage, string> = {
   order_placed: 'border-l-indigo-400',
   delivered: 'border-l-cyan-400',
   assembled: 'border-l-teal-400',
+  invoiced: 'border-l-amber-400',
   paid: 'border-l-emerald-400',
   lost: 'border-l-red-300',
 }

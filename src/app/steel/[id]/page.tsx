@@ -188,7 +188,6 @@ export default async function SteelDealDetailPage({ params }: PageProps) {
       {/* Margin & commissions — admin/executive only */}
       {showFinancials && (
         <SteelCommissionsPanel
-          dealId={id}
           services={services ?? []}
           referralType={deal.referral_fee_type}
           referralValue={deal.referral_fee_value}

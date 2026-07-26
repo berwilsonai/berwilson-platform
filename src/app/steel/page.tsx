@@ -97,7 +97,7 @@ export default async function SteelPage({ searchParams }: PageProps) {
       .reduce((acc, d) => acc + (d.value ?? 0), 0)
 
   const quoting = sumValue(['quote', 'engineering'])
-  const backlog = sumValue(['order_placed', 'delivered', 'assembled'])
+  const backlog = sumValue(['order_placed', 'delivered', 'assembled', 'invoiced'])
   const collected = sumValue(['paid'])
   const openSqft = filtered
     .filter((d) => isOpenStage(d.stage))

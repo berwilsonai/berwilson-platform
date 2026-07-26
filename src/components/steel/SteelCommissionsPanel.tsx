@@ -1,9 +1,4 @@
-'use client'
-
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
-import { toast } from 'sonner'
-import { Check, Loader2 } from 'lucide-react'
+import Link from 'next/link'
 import { cn } from '@/lib/utils'
 import { formatValue } from '@/lib/utils/constants'
 import type { SteelDealService } from '@/lib/supabase/types'
@@ -20,7 +15,6 @@ import {
 } from '@/lib/utils/steel'
 
 interface Props {
-  dealId: string
   services: SteelDealService[]
   referralType: string
   referralValue: number | null
@@ -33,8 +27,23 @@ function money(v: number | null): string {
   return v == null ? '—' : formatValue(v)
 }
 
+/** Read-only paid/owed pill. Marking paid happens on /steel/commissions. */
+function StatusPill({ paid }: { paid: boolean }) {
+  return (
+    <span
+      className={cn(
+        'inline-flex items-center rounded px-1.5 py-0.5 text-[11px] font-medium ring-1 ring-inset',
+        paid
+          ? 'bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-500/15 dark:text-emerald-300 dark:ring-emerald-500/30'
+          : 'bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-500/15 dark:text-amber-300 dark:ring-amber-500/30'
+      )}
+    >
+      {paid ? 'Paid' : 'Owed'}
+    </span>
+  )
+}
+
 export default function SteelCommissionsPanel({
-  dealId,
   services,
   referralType,
   referralValue,
@@ -42,9 +51,6 @@ export default function SteelCommissionsPanel({
   salespersonName,
   referrerName,
 }: Props) {
-  const router = useRouter()
-  const [busy, setBusy] = useState<string | null>(null)
-
   const rows = [...services].sort(
     (a, b) =>
       (isSteelServiceType(a.service_type) ? STEEL_SERVICE_ORDER[a.service_type] : 9) -
@@ -54,48 +60,16 @@ export default function SteelCommissionsPanel({
   const fin = dealFinancials(rows, referralType, referralValue)
   const rType = referralFeeType(referralType)
   const referralAmount = referralFeeAmount(referralType, referralValue, fin.margin)
-
-  async function toggleServicePaid(s: SteelDealService) {
-    setBusy(s.id)
-    try {
-      const res = await fetch(`/api/steel/services/${s.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ paid: !s.commission_paid }),
-      })
-      if (!res.ok) {
-        toast.error('Update failed')
-        return
-      }
-      router.refresh()
-    } finally {
-      setBusy(null)
-    }
-  }
-
-  async function toggleReferralPaid() {
-    setBusy('referral')
-    try {
-      const res = await fetch(`/api/steel/deals/${dealId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ referral_fee_paid: !referralPaid }),
-      })
-      if (!res.ok) {
-        toast.error('Update failed')
-        return
-      }
-      router.refresh()
-    } finally {
-      setBusy(null)
-    }
-  }
-
   const label = (t: string) => (isSteelServiceType(t) ? STEEL_SERVICE_LABELS[t] : t)
 
   return (
     <section className="rounded-lg border border-border bg-card p-4 elev-1">
-      <h2 className="label-caps text-muted-foreground mb-3">Margin &amp; Commissions</h2>
+      <div className="flex items-center justify-between gap-2 mb-3">
+        <h2 className="label-caps text-muted-foreground">Margin &amp; Commissions</h2>
+        <Link href="/steel/commissions" className="text-xs text-primary hover:underline">
+          Payouts →
+        </Link>
+      </div>
 
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
@@ -107,7 +81,7 @@ export default function SteelCommissionsPanel({
               <th className="font-medium pb-2 px-3 text-right">Margin</th>
               <th className="font-medium pb-2 px-3 text-right">Comm %</th>
               <th className="font-medium pb-2 px-3 text-right">Commission</th>
-              <th className="font-medium pb-2 pl-3 text-right">Salesperson</th>
+              <th className="font-medium pb-2 pl-3 text-right">Status</th>
             </tr>
           </thead>
           <tbody className="tnum">
@@ -127,11 +101,7 @@ export default function SteelCommissionsPanel({
                 <td className="py-2 px-3 text-right">{s.commission_pct != null ? `${s.commission_pct}%` : '—'}</td>
                 <td className="py-2 px-3 text-right">{formatValue(serviceCommission(s))}</td>
                 <td className="py-2 pl-3 text-right">
-                  <PaidToggle
-                    paid={s.commission_paid}
-                    disabled={busy === s.id}
-                    onClick={() => toggleServicePaid(s)}
-                  />
+                  {serviceCommission(s) !== 0 ? <StatusPill paid={s.commission_paid} /> : '—'}
                 </td>
               </tr>
             ))}
@@ -163,7 +133,7 @@ export default function SteelCommissionsPanel({
               </span>
             </p>
           </div>
-          <PaidToggle paid={referralPaid} disabled={busy === 'referral'} onClick={toggleReferralPaid} />
+          {referralAmount > 0 && <StatusPill paid={referralPaid} />}
         </div>
       )}
 
@@ -179,24 +149,6 @@ export default function SteelCommissionsPanel({
         <Summary label="Net after comm." value={formatValue(fin.net)} strong />
       </div>
     </section>
-  )
-}
-
-function PaidToggle({ paid, onClick, disabled }: { paid: boolean; onClick: () => void; disabled: boolean }) {
-  return (
-    <button
-      onClick={onClick}
-      disabled={disabled}
-      className={cn(
-        'inline-flex items-center gap-1 rounded px-2 py-0.5 text-[11px] font-medium ring-1 ring-inset transition-colors disabled:opacity-50',
-        paid
-          ? 'bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-500/15 dark:text-emerald-300 dark:ring-emerald-500/30'
-          : 'bg-muted text-muted-foreground ring-border hover:bg-accent'
-      )}
-    >
-      {disabled ? <Loader2 size={11} className="animate-spin" /> : paid && <Check size={11} />}
-      {paid ? 'Paid' : 'Mark paid'}
-    </button>
   )
 }
 
