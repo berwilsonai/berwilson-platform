@@ -197,6 +197,20 @@ export function isSteelServiceType(value: unknown): value is SteelServiceType {
 /** Default salesperson commission rate (% of margin) pre-filled on new lines. */
 export const DEFAULT_SERVICE_COMMISSION_PCT = 10
 
+/**
+ * Services whose cost is driven by a per-square-foot basis (cost =
+ * square_feet × cost_per_sqft). Engineering is excluded — its cost is a
+ * manual dollar figure entered per deal.
+ */
+export const PER_SQFT_COST_SERVICES: SteelServiceType[] = ['materials', 'assembly']
+
+export function isPerSqftCostService(type: SteelServiceType): boolean {
+  return PER_SQFT_COST_SERVICES.includes(type)
+}
+
+/** Default steel/materials cost basis ($/SF), pre-filled on new deals. */
+export const DEFAULT_STEEL_COST_PER_SQFT = 20
+
 // ─── Referral fee (paid to the lead-source referrer) ─────────────────────────
 
 export type ReferralFeeType = 'none' | 'flat' | 'percent'

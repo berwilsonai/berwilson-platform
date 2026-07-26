@@ -194,6 +194,7 @@ export default async function SteelDealDetailPage({ params }: PageProps) {
           referralPaid={deal.referral_fee_paid}
           salespersonName={salesperson?.name ?? null}
           referrerName={referrer?.name ?? null}
+          squareFeet={deal.square_feet}
         />
       )}
 

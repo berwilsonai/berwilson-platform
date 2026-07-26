@@ -21,6 +21,8 @@ import {
   REFERRAL_FEE_TYPES,
   REFERRAL_FEE_LABELS,
   DEFAULT_SERVICE_COMMISSION_PCT,
+  DEFAULT_STEEL_COST_PER_SQFT,
+  isPerSqftCostService,
   type SteelServiceType,
 } from '@/lib/utils/steel'
 import type { SteelDealService } from '@/lib/supabase/types'
@@ -50,7 +52,10 @@ interface SteelDealFormProps {
 
 interface ServiceInput {
   price: string
+  /** Manual dollar cost — used for engineering only. */
   cost: string
+  /** Cost basis $/SF — used for materials & assembly (drives the dollar cost). */
+  costPerSqft: string
   pct: string
 }
 
@@ -84,12 +89,26 @@ export default function SteelDealForm({
   const [ppsf, setPpsf] = useState(deal?.price_per_sqft != null ? String(deal.price_per_sqft) : '')
 
   // Per-service price/cost/commission. Materials price auto-fills from
-  // sqft × $/SF until the user types their own number.
+  // sqft × $/SF until the user types their own number. Materials & assembly
+  // cost is driven by a cost basis ($/SF); engineering cost is manual.
   const initService = (type: SteelServiceType): ServiceInput => {
     const s = services.find((x) => x.service_type === type)
+    // Cost basis $/SF: stored value wins; else back-compute from an existing
+    // dollar cost; else default $20 for materials on a new deal.
+    let costPerSqft = ''
+    if (isPerSqftCostService(type)) {
+      if (s?.cost_per_sqft != null) {
+        costPerSqft = String(s.cost_per_sqft)
+      } else if (s?.cost != null && deal?.square_feet) {
+        costPerSqft = String(Math.round((s.cost / deal.square_feet) * 10000) / 10000)
+      } else if (type === 'materials' && mode === 'create') {
+        costPerSqft = String(DEFAULT_STEEL_COST_PER_SQFT)
+      }
+    }
     return {
       price: s?.price != null ? String(s.price) : '',
       cost: s?.cost != null ? String(s.cost) : '',
+      costPerSqft,
       pct:
         s?.commission_pct != null
           ? String(s.commission_pct)
@@ -127,13 +146,17 @@ export default function SteelDealForm({
     const n = parseFloat(raw.replace(/[$,\s]/g, ''))
     return isFinite(n) ? n : 0
   }
+  const sqftNum = parseNum(sqft)
+  // Effective dollar cost: per-SF services = SF × basis; engineering = manual.
+  const rowCost = (type: SteelServiceType): number =>
+    isPerSqftCostService(type) ? sqftNum * parseNum(svc[type].costPerSqft) : parseNum(svc[type].cost)
   const totalRevenue = STEEL_SERVICE_TYPES.reduce((a, t) => a + parseNum(svc[t].price), 0)
   const totalMargin = STEEL_SERVICE_TYPES.reduce(
-    (a, t) => a + (parseNum(svc[t].price) - parseNum(svc[t].cost)),
+    (a, t) => a + (parseNum(svc[t].price) - rowCost(t)),
     0
   )
   const totalCommission = STEEL_SERVICE_TYPES.reduce(
-    (a, t) => a + ((parseNum(svc[t].price) - parseNum(svc[t].cost)) * parseNum(svc[t].pct)) / 100,
+    (a, t) => a + ((parseNum(svc[t].price) - rowCost(t)) * parseNum(svc[t].pct)) / 100,
     0
   )
   const referralAmount =
@@ -299,14 +322,16 @@ export default function SteelDealForm({
         </h2>
         <p className="-mt-2 text-[11px] text-muted-foreground">
           {canSeeFinancials
-            ? 'Price − cost = margin; the salesperson earns their % of each service’s margin. Leave a service blank if it isn’t part of this deal.'
+            ? 'Price − cost = margin; the salesperson earns their % of each service’s margin. Steel & frame-assembly cost is a per-SF basis (steel defaults to $20/SF, so cost = square feet × basis); engineering cost is entered per deal. Leave a service blank if it isn’t part of this deal.'
             : 'Enter the price for each service on this deal. Leave a service blank if it isn’t part of this deal.'}
         </p>
 
         <div className="space-y-3">
           {STEEL_SERVICE_TYPES.map((type) => {
             const row = svc[type]
-            const margin = parseNum(row.price) - parseNum(row.cost)
+            const perSqft = isPerSqftCostService(type)
+            const costDollars = rowCost(type)
+            const margin = parseNum(row.price) - costDollars
             const commission = (margin * parseNum(row.pct)) / 100
             return (
               <div key={type} className="rounded-md border border-border bg-muted/30 p-3">
@@ -339,20 +364,41 @@ export default function SteelDealForm({
                   {canSeeFinancials && (
                     <>
                       <div>
-                        <label htmlFor={`svc_${type}_cost`} className={labelClass}>
-                          Cost ($)
-                        </label>
-                        <input
-                          id={`svc_${type}_cost`}
-                          name={`svc_${type}_cost`}
-                          type="number"
-                          step="any"
-                          min="0"
-                          value={row.cost}
-                          onChange={(e) => setService(type, { cost: e.target.value })}
-                          placeholder={type === 'engineering' ? 'Paid to engineer' : '0'}
-                          className={inputClass}
-                        />
+                        {perSqft ? (
+                          <>
+                            <label htmlFor={`svc_${type}_cost_per_sqft`} className={labelClass}>
+                              Cost / SF ($)
+                            </label>
+                            <input
+                              id={`svc_${type}_cost_per_sqft`}
+                              name={`svc_${type}_cost_per_sqft`}
+                              type="number"
+                              step="any"
+                              min="0"
+                              value={row.costPerSqft}
+                              onChange={(e) => setService(type, { costPerSqft: e.target.value })}
+                              placeholder={type === 'materials' ? 'e.g. 20' : 'Cost per SF'}
+                              className={inputClass}
+                            />
+                          </>
+                        ) : (
+                          <>
+                            <label htmlFor={`svc_${type}_cost`} className={labelClass}>
+                              Cost ($)
+                            </label>
+                            <input
+                              id={`svc_${type}_cost`}
+                              name={`svc_${type}_cost`}
+                              type="number"
+                              step="any"
+                              min="0"
+                              value={row.cost}
+                              onChange={(e) => setService(type, { cost: e.target.value })}
+                              placeholder="Paid to engineer"
+                              className={inputClass}
+                            />
+                          </>
+                        )}
                       </div>
                       <div>
                         <label htmlFor={`svc_${type}_commission_pct`} className={labelClass}>
@@ -373,6 +419,11 @@ export default function SteelDealForm({
                       <div className="flex flex-col justify-end pb-0.5">
                         <p className="text-[11px] text-muted-foreground">Margin</p>
                         <p className="text-sm font-medium tnum">{formatValue(margin)}</p>
+                        {perSqft && costDollars > 0 && (
+                          <p className="text-[11px] text-muted-foreground tnum">
+                            cost {formatValue(costDollars)}
+                          </p>
+                        )}
                         {commission !== 0 && (
                           <p className="text-[11px] text-muted-foreground tnum">
                             comm {formatValue(commission)}

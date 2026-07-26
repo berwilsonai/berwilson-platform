@@ -12,6 +12,7 @@ import {
   STEEL_SERVICE_ORDER,
   referralFeeType,
   canonicalLeadSource,
+  isPerSqftCostService,
   type SteelServiceType,
 } from '@/lib/utils/steel'
 import { leadSourcesInUse } from '@/lib/steel/lead-sources'
@@ -24,6 +25,7 @@ interface ParsedService {
   service_type: SteelServiceType
   price: number | null
   cost: number | null // undefined-as-null meaning "not provided" is handled by canSeeFinancials
+  cost_per_sqft: number | null // basis for materials/assembly; null for engineering
   commission_pct: number | null
 }
 
@@ -57,17 +59,33 @@ function parseFields(formData: FormData, canSeeFinancials: boolean): ParseResult
   if (square_feet && typeof square_feet === 'object') return { ok: false, ...square_feet }
   const price_per_sqft = num('price_per_sqft', 'Price per square foot')
   if (price_per_sqft && typeof price_per_sqft === 'object') return { ok: false, ...price_per_sqft }
+  const sqftNum = typeof square_feet === 'number' ? square_feet : 0
 
   const rawStage = str('stage') ?? 'quote'
 
   // Services (prices come from everyone; cost/commission only from financials
   // users — otherwise left null here and preserved from existing rows on save).
-  const services: ParsedService[] = STEEL_SERVICE_TYPES.map((type) => ({
-    service_type: type,
-    price: money(`svc_${type}_price`),
-    cost: canSeeFinancials ? money(`svc_${type}_cost`) : null,
-    commission_pct: canSeeFinancials ? money(`svc_${type}_commission_pct`) : null,
-  }))
+  // Materials & assembly cost is driven by a per-SF basis (cost = SF × basis);
+  // engineering cost is a manual dollar figure.
+  const services: ParsedService[] = STEEL_SERVICE_TYPES.map((type) => {
+    let cost: number | null = null
+    let cost_per_sqft: number | null = null
+    if (canSeeFinancials) {
+      if (isPerSqftCostService(type)) {
+        cost_per_sqft = money(`svc_${type}_cost_per_sqft`)
+        cost = cost_per_sqft != null ? Math.round(sqftNum * cost_per_sqft * 100) / 100 : null
+      } else {
+        cost = money(`svc_${type}_cost`)
+      }
+    }
+    return {
+      service_type: type,
+      price: money(`svc_${type}_price`),
+      cost,
+      cost_per_sqft,
+      commission_pct: canSeeFinancials ? money(`svc_${type}_commission_pct`) : null,
+    }
+  })
 
   // Contract value = sum of service prices (the deal's revenue).
   const value = services.reduce((a, s) => a + (s.price ?? 0), 0)
@@ -124,9 +142,11 @@ async function saveServices(
     const ex = byType.get(p.service_type)
     const price = p.price
     const cost = canSeeFinancials ? p.cost : (ex?.cost ?? null)
+    const cost_per_sqft = canSeeFinancials ? p.cost_per_sqft : (ex?.cost_per_sqft ?? null)
     const commission_pct = canSeeFinancials ? p.commission_pct : (ex?.commission_pct ?? null)
     const commission_paid = ex?.commission_paid ?? false
-    const hasData = price != null || cost != null || commission_pct != null || commission_paid
+    const hasData =
+      price != null || cost != null || cost_per_sqft != null || commission_pct != null || commission_paid
 
     if (!hasData) {
       if (ex) toDelete.push(ex.id)
@@ -138,6 +158,7 @@ async function saveServices(
       service_type: p.service_type,
       price,
       cost,
+      cost_per_sqft,
       commission_pct,
       commission_paid,
       commission_paid_date: ex?.commission_paid_date ?? null,

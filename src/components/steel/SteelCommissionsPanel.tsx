@@ -21,10 +21,17 @@ interface Props {
   referralPaid: boolean
   salespersonName: string | null
   referrerName: string | null
+  squareFeet: number | null
 }
 
 function money(v: number | null): string {
   return v == null ? '—' : formatValue(v)
+}
+
+/** e.g. "$1.10 / SF" */
+function perSqft(commission: number, sqft: number | null): string | null {
+  if (!sqft || sqft <= 0) return null
+  return `$${(commission / sqft).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} / SF`
 }
 
 /** Read-only paid/owed pill. Marking paid happens on /steel/commissions. */
@@ -50,6 +57,7 @@ export default function SteelCommissionsPanel({
   referralPaid,
   salespersonName,
   referrerName,
+  squareFeet,
 }: Props) {
   const rows = [...services].sort(
     (a, b) =>
@@ -143,7 +151,11 @@ export default function SteelCommissionsPanel({
         <Summary
           label="Salesperson"
           value={formatValue(fin.salespersonCommission)}
-          sub={salespersonName ?? 'Unassigned'}
+          sub={
+            [salespersonName ?? 'Unassigned', perSqft(fin.salespersonCommission, squareFeet)]
+              .filter(Boolean)
+              .join(' · ')
+          }
         />
         <Summary label="Referral" value={formatValue(fin.referralFee)} sub={referrerName ?? '—'} />
         <Summary label="Net after comm." value={formatValue(fin.net)} strong />

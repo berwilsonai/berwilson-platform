@@ -2389,6 +2389,7 @@ export type Database = {
           commission_paid_date: string | null
           commission_pct: number | null
           cost: number | null
+          cost_per_sqft: number | null
           created_at: string | null
           deal_id: string
           id: string
@@ -2402,6 +2403,7 @@ export type Database = {
           commission_paid_date?: string | null
           commission_pct?: number | null
           cost?: number | null
+          cost_per_sqft?: number | null
           created_at?: string | null
           deal_id: string
           id?: string
@@ -2415,6 +2417,7 @@ export type Database = {
           commission_paid_date?: string | null
           commission_pct?: number | null
           cost?: number | null
+          cost_per_sqft?: number | null
           created_at?: string | null
           deal_id?: string
           id?: string
