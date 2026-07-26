@@ -8,14 +8,13 @@ import { formatValue, formatDate } from '@/lib/utils/constants'
 import { isPastDate } from '@/lib/utils/investors'
 import {
   steelStage,
-  leadSource,
+  leadSourceLabel,
+  leadSourceBadge,
   isOpenStage,
   formatSqft,
   STEEL_STAGE_LABELS,
   STEEL_STAGE_BADGE,
   STEEL_STAGE_BORDER,
-  LEAD_SOURCE_LABELS,
-  LEAD_SOURCE_BADGE,
 } from '@/lib/utils/steel'
 
 /** Deal + salesperson name resolved server-side. */
@@ -29,7 +28,6 @@ export default function SteelDealsClient({ items }: { items: SteelDealCardData[]
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
       {items.map(({ deal, salesperson }) => {
         const s = steelStage(deal.stage)
-        const src = leadSource(deal.lead_source)
         const nextOverdue = isPastDate(deal.next_step_date) && isOpenStage(deal.stage)
 
         return (
@@ -46,8 +44,8 @@ export default function SteelDealsClient({ items }: { items: SteelDealCardData[]
               <span className={cn('inline-flex items-center rounded px-1.5 py-0.5 text-[11px] font-medium ring-1 ring-inset', STEEL_STAGE_BADGE[s])}>
                 {STEEL_STAGE_LABELS[s]}
               </span>
-              <span className={cn('inline-flex items-center rounded px-1.5 py-0.5 text-[11px] font-medium ring-1 ring-inset', LEAD_SOURCE_BADGE[src])}>
-                {LEAD_SOURCE_LABELS[src]}
+              <span className={cn('inline-flex items-center rounded px-1.5 py-0.5 text-[11px] font-medium ring-1 ring-inset', leadSourceBadge(deal.lead_source))}>
+                {leadSourceLabel(deal.lead_source)}
               </span>
             </div>
 

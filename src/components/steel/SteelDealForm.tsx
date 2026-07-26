@@ -14,8 +14,8 @@ import { formatValue } from '@/lib/utils/constants'
 import {
   STEEL_STAGES,
   STEEL_STAGE_LABELS,
-  LEAD_SOURCES,
-  LEAD_SOURCE_LABELS,
+  DEFAULT_LEAD_SOURCES,
+  leadSourceLabel,
 } from '@/lib/utils/steel'
 
 const inputClass = cn(
@@ -33,6 +33,8 @@ interface SteelDealFormProps {
   mode: 'create' | 'edit'
   deal?: SteelDeal
   teamMembers: { id: string; name: string }[]
+  /** Lead sources already in use — merged with the defaults for suggestions. */
+  leadSources?: string[]
 }
 
 /** Live dollar readback under a raw number input — catches magnitude typos. */
@@ -42,7 +44,18 @@ function moneyReadback(raw: string): string | null {
   return `= ${formatValue(parsed)}`
 }
 
-export default function SteelDealForm({ mode, deal, teamMembers }: SteelDealFormProps) {
+export default function SteelDealForm({ mode, deal, teamMembers, leadSources = [] }: SteelDealFormProps) {
+  // Suggestions = sources in use + the defaults, deduped case-insensitively
+  // (in-use casing wins so the vocabulary stays consistent).
+  const sourceOptions: string[] = []
+  const seen = new Set<string>()
+  for (const s of [...leadSources, ...DEFAULT_LEAD_SOURCES]) {
+    const key = s.toLowerCase()
+    if (seen.has(key)) continue
+    seen.add(key)
+    sourceOptions.push(s)
+  }
+
   const action =
     mode === 'edit' && deal
       ? updateSteelDeal.bind(null, deal.id)
@@ -248,18 +261,23 @@ export default function SteelDealForm({ mode, deal, teamMembers }: SteelDealForm
             <label htmlFor="lead_source" className={labelClass}>
               Source
             </label>
-            <select
+            <input
               id="lead_source"
               name="lead_source"
-              defaultValue={deal?.lead_source ?? 'other'}
+              type="text"
+              list="lead-source-options"
+              defaultValue={deal ? leadSourceLabel(deal.lead_source) : ''}
+              placeholder="Pick or type a new one"
               className={inputClass}
-            >
-              {LEAD_SOURCES.map((s) => (
-                <option key={s} value={s}>
-                  {LEAD_SOURCE_LABELS[s]}
-                </option>
+            />
+            <datalist id="lead-source-options">
+              {sourceOptions.map((s) => (
+                <option key={s} value={s} />
               ))}
-            </select>
+            </datalist>
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              New sources are saved and suggested next time.
+            </p>
           </div>
           <div>
             <label htmlFor="lead_source_detail" className={labelClass}>

@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import { ChevronLeft } from 'lucide-react'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getViewer, canWorkSteel } from '@/lib/auth/viewer'
+import { leadSourcesInUse } from '@/lib/steel/lead-sources'
 import SteelDealForm from '@/components/steel/SteelDealForm'
 
 export const metadata = { title: 'New Steel Deal — Ber Wilson Intelligence' }
@@ -12,11 +13,14 @@ export default async function NewSteelDealPage() {
   if (!canWorkSteel(viewer)) redirect('/steel')
 
   const supabase = createAdminClient()
-  const { data: members } = await supabase
-    .from('team_members')
-    .select('id, name')
-    .eq('active', true)
-    .order('created_at', { ascending: true })
+  const [{ data: members }, leadSources] = await Promise.all([
+    supabase
+      .from('team_members')
+      .select('id, name')
+      .eq('active', true)
+      .order('created_at', { ascending: true }),
+    leadSourcesInUse(supabase),
+  ])
 
   return (
     <div className="space-y-5">
@@ -37,7 +41,7 @@ export default async function NewSteelDealPage() {
         </p>
       </div>
 
-      <SteelDealForm mode="create" teamMembers={members ?? []} />
+      <SteelDealForm mode="create" teamMembers={members ?? []} leadSources={leadSources} />
     </div>
   )
 }

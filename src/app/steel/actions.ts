@@ -4,7 +4,8 @@ import { redirect } from 'next/navigation'
 import { createAdminClient } from '@/lib/supabase/admin'
 import type { TablesInsert } from '@/lib/supabase/types'
 import { getViewer, canWorkSteel } from '@/lib/auth/viewer'
-import { STEEL_STAGES, LEAD_SOURCES } from '@/lib/utils/steel'
+import { STEEL_STAGES, canonicalLeadSource } from '@/lib/utils/steel'
+import { leadSourcesInUse } from '@/lib/steel/lead-sources'
 
 export type SteelDealFormState = { error: string } | null
 
@@ -32,7 +33,6 @@ function parseFields(formData: FormData): ParseResult {
   if (value && typeof value === 'object') return { ok: false, ...value }
 
   const rawStage = str('stage') ?? 'quote'
-  const rawSource = str('lead_source') ?? 'other'
 
   return {
     ok: true,
@@ -40,7 +40,7 @@ function parseFields(formData: FormData): ParseResult {
       name,
       customer: str('customer'),
       building_type: str('building_type'),
-      lead_source: (LEAD_SOURCES as string[]).includes(rawSource) ? rawSource : 'other',
+      lead_source: str('lead_source') ?? 'Other',
       lead_source_detail: str('lead_source_detail'),
       salesperson_id: str('salesperson_id'),
       stage: (STEEL_STAGES as string[]).includes(rawStage) ? rawStage : 'quote',
@@ -66,6 +66,7 @@ export async function createSteelDeal(
   if (!result.ok) return { error: result.error }
 
   const supabase = createAdminClient()
+  result.fields.lead_source = canonicalLeadSource(result.fields.lead_source, await leadSourcesInUse(supabase))
   const { data, error } = await supabase
     .from('steel_deals')
     .insert(result.fields)
@@ -89,6 +90,7 @@ export async function updateSteelDeal(
   if (!result.ok) return { error: result.error }
 
   const supabase = createAdminClient()
+  result.fields.lead_source = canonicalLeadSource(result.fields.lead_source, await leadSourcesInUse(supabase))
   const { error } = await supabase.from('steel_deals').update(result.fields).eq('id', id)
 
   if (error) return { error: `Failed to update deal: ${error.message}` }

@@ -8,14 +8,13 @@ import { formatValue, formatDate } from '@/lib/utils/constants'
 import { isPastDate } from '@/lib/utils/investors'
 import {
   steelStage,
-  leadSource,
+  leadSourceLabel,
+  leadSourceBadge,
   isLostStage,
   formatSqft,
   STEEL_PIPELINE,
   STEEL_STAGE_INDEX,
   STEEL_STAGE_LABELS,
-  LEAD_SOURCE_LABELS,
-  LEAD_SOURCE_BADGE,
 } from '@/lib/utils/steel'
 import SteelStageControl from '@/components/steel/SteelStageControl'
 import SteelDeleteButton from '@/components/steel/SteelDeleteButton'
@@ -62,7 +61,6 @@ export default async function SteelDealDetailPage({ params }: PageProps) {
   ])
 
   const s = steelStage(deal.stage)
-  const src = leadSource(deal.lead_source)
   const lost = isLostStage(deal.stage)
   const nextOverdue = isPastDate(deal.next_step_date) && !lost && s !== 'paid'
   const currentIndex = STEEL_STAGE_INDEX[s]
@@ -84,8 +82,8 @@ export default async function SteelDealDetailPage({ params }: PageProps) {
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div className="min-w-0 space-y-2">
           <div className="flex items-center gap-1.5 flex-wrap">
-            <span className={cn('inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium ring-1 ring-inset', LEAD_SOURCE_BADGE[src])}>
-              {LEAD_SOURCE_LABELS[src]}
+            <span className={cn('inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium ring-1 ring-inset', leadSourceBadge(deal.lead_source))}>
+              {leadSourceLabel(deal.lead_source)}
             </span>
             {deal.building_type && (
               <span className="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium text-muted-foreground ring-1 ring-inset ring-border">
@@ -162,7 +160,7 @@ export default async function SteelDealDetailPage({ params }: PageProps) {
           <Fact label="Salesperson" value={salesperson?.name} />
           <Fact
             label="Lead Source"
-            value={[LEAD_SOURCE_LABELS[src], deal.lead_source_detail].filter(Boolean).join(' — ')}
+            value={[leadSourceLabel(deal.lead_source), deal.lead_source_detail].filter(Boolean).join(' — ')}
           />
           <Fact
             label="Expected Delivery"

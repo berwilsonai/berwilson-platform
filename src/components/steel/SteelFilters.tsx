@@ -6,18 +6,19 @@ import { X } from 'lucide-react'
 import {
   STEEL_STAGES,
   STEEL_STAGE_LABELS,
-  LEAD_SOURCES,
-  LEAD_SOURCE_LABELS,
+  leadSourceLabel,
 } from '@/lib/utils/steel'
 
 interface SteelFiltersProps {
   stage: string
   source: string
   sales: string
+  /** Distinct lead sources in use (raw stored values). */
+  sources: string[]
   salespeople: { id: string; name: string }[]
 }
 
-export default function SteelFilters({ stage, source, sales, salespeople }: SteelFiltersProps) {
+export default function SteelFilters({ stage, source, sales, sources, salespeople }: SteelFiltersProps) {
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
@@ -49,9 +50,9 @@ export default function SteelFilters({ stage, source, sales, salespeople }: Stee
 
       <select value={source} onChange={(e) => setParam('source', e.target.value)} className={selectClass}>
         <option value="">All Sources</option>
-        {LEAD_SOURCES.map((s) => (
+        {sources.map((s) => (
           <option key={s} value={s}>
-            {LEAD_SOURCE_LABELS[s]}
+            {leadSourceLabel(s)}
           </option>
         ))}
       </select>

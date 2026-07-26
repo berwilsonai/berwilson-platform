@@ -5,11 +5,10 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { formatValue } from '@/lib/utils/constants'
 import {
   STEEL_STAGES,
-  LEAD_SOURCES,
   isOpenStage,
   formatSqft,
+  leadSourceLabel,
   type SteelStage,
-  type LeadSource,
 } from '@/lib/utils/steel'
 import EmptyState from '@/components/shared/EmptyState'
 import SteelFilters from '@/components/steel/SteelFilters'
@@ -47,7 +46,7 @@ function Stat({ label, value, sub, tone }: { label: string; value: string; sub?:
 export default async function SteelPage({ searchParams }: PageProps) {
   const params = await searchParams
   const stage = STEEL_STAGES.includes(params.stage as SteelStage) ? (params.stage as SteelStage) : ''
-  const source = LEAD_SOURCES.includes(params.source as LeadSource) ? (params.source as LeadSource) : ''
+  const source = params.source ?? ''
   const sales = params.sales ?? ''
 
   const supabase = createAdminClient()
@@ -71,6 +70,11 @@ export default async function SteelPage({ searchParams }: PageProps) {
   }
 
   const memberName = new Map((members ?? []).map((m) => [m.id, m.name]))
+
+  // Filter options come from the data — lead sources are a free vocabulary.
+  const sources = [...new Set((dealRows ?? []).map((d) => d.lead_source).filter(Boolean))].sort(
+    (a, b) => leadSourceLabel(a).localeCompare(leadSourceLabel(b))
+  )
 
   const filtered = (dealRows ?? []).filter((row) => {
     if (stage && row.stage !== stage) return false
@@ -105,7 +109,7 @@ export default async function SteelPage({ searchParams }: PageProps) {
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div className="flex items-center gap-3">
           <Suspense>
-            <SteelFilters stage={stage} source={source} sales={sales} salespeople={members ?? []} />
+            <SteelFilters stage={stage} source={source} sales={sales} sources={sources} salespeople={members ?? []} />
           </Suspense>
           {count > 0 && (
             <span className="text-xs text-muted-foreground">
