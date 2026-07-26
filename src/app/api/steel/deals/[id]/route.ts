@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import type { TablesUpdate } from '@/lib/supabase/types'
-import { getViewer, canWorkSteel, forbiddenJson } from '@/lib/auth/viewer'
+import { getViewer, canWorkSteel, canSeeSteelFinancials, forbiddenJson } from '@/lib/auth/viewer'
 import { STEEL_STAGES } from '@/lib/utils/steel'
 
 interface RouteContext {
@@ -34,6 +34,14 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
       // @ts-expect-error — key is constrained to PATCHABLE keys
       update[key] = value
     }
+  }
+
+  // Referral-fee payment is confidential — gate it to financials users.
+  if ('referral_fee_paid' in body) {
+    if (!canSeeSteelFinancials(viewer)) return forbiddenJson()
+    const paid = !!body.referral_fee_paid
+    update.referral_fee_paid = paid
+    update.referral_fee_paid_date = paid ? new Date().toISOString().slice(0, 10) : null
   }
 
   if (typeof update.stage === 'string' && !(STEEL_STAGES as string[]).includes(update.stage)) {

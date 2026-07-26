@@ -2383,6 +2383,56 @@ export type Database = {
           },
         ]
       }
+      steel_deal_services: {
+        Row: {
+          commission_paid: boolean
+          commission_paid_date: string | null
+          commission_pct: number | null
+          cost: number | null
+          created_at: string | null
+          deal_id: string
+          id: string
+          price: number | null
+          service_type: string
+          sort_order: number
+          updated_at: string | null
+        }
+        Insert: {
+          commission_paid?: boolean
+          commission_paid_date?: string | null
+          commission_pct?: number | null
+          cost?: number | null
+          created_at?: string | null
+          deal_id: string
+          id?: string
+          price?: number | null
+          service_type: string
+          sort_order?: number
+          updated_at?: string | null
+        }
+        Update: {
+          commission_paid?: boolean
+          commission_paid_date?: string | null
+          commission_pct?: number | null
+          cost?: number | null
+          created_at?: string | null
+          deal_id?: string
+          id?: string
+          price?: number | null
+          service_type?: string
+          sort_order?: number
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "steel_deal_services_deal_id_fkey"
+            columns: ["deal_id"]
+            isOneToOne: false
+            referencedRelation: "steel_deals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       steel_deals: {
         Row: {
           building_type: string | null
@@ -2398,6 +2448,10 @@ export type Database = {
           next_step: string | null
           next_step_date: string | null
           price_per_sqft: number | null
+          referral_fee_paid: boolean
+          referral_fee_paid_date: string | null
+          referral_fee_type: string
+          referral_fee_value: number | null
           salesperson_id: string | null
           square_feet: number | null
           stage: string
@@ -2418,6 +2472,10 @@ export type Database = {
           next_step?: string | null
           next_step_date?: string | null
           price_per_sqft?: number | null
+          referral_fee_paid?: boolean
+          referral_fee_paid_date?: string | null
+          referral_fee_type?: string
+          referral_fee_value?: number | null
           salesperson_id?: string | null
           square_feet?: number | null
           stage?: string
@@ -2438,6 +2496,10 @@ export type Database = {
           next_step?: string | null
           next_step_date?: string | null
           price_per_sqft?: number | null
+          referral_fee_paid?: boolean
+          referral_fee_paid_date?: string | null
+          referral_fee_type?: string
+          referral_fee_value?: number | null
           salesperson_id?: string | null
           square_feet?: number | null
           stage?: string

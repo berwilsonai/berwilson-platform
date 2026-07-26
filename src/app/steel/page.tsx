@@ -1,7 +1,8 @@
 import { Suspense } from 'react'
 import Link from 'next/link'
-import { Plus, Factory } from 'lucide-react'
+import { Plus, Factory, BarChart3 } from 'lucide-react'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { getViewer, canSeeSteelFinancials } from '@/lib/auth/viewer'
 import { formatValue } from '@/lib/utils/constants'
 import {
   STEEL_STAGES,
@@ -53,7 +54,7 @@ export default async function SteelPage({ searchParams }: PageProps) {
 
   // Small dataset — fetch everything once, filter + roll up in memory so the
   // stats band re-scopes with the filters.
-  const [{ data: dealRows, error }, { data: members }] = await Promise.all([
+  const [{ data: dealRows, error }, { data: members }, viewer] = await Promise.all([
     supabase
       .from('steel_deals')
       .select('*')
@@ -63,7 +64,9 @@ export default async function SteelPage({ searchParams }: PageProps) {
       .select('id, name')
       .eq('active', true)
       .order('created_at', { ascending: true }),
+    getViewer(),
   ])
+  const showFinancials = canSeeSteelFinancials(viewer)
 
   if (error) {
     throw new Error(`Failed to load steel deals: ${error.message}`)
@@ -94,7 +97,7 @@ export default async function SteelPage({ searchParams }: PageProps) {
       .reduce((acc, d) => acc + (d.value ?? 0), 0)
 
   const quoting = sumValue(['quote', 'engineering'])
-  const backlog = sumValue(['order_placed', 'delivered'])
+  const backlog = sumValue(['order_placed', 'delivered', 'assembled'])
   const collected = sumValue(['paid'])
   const openSqft = filtered
     .filter((d) => isOpenStage(d.stage))
@@ -118,13 +121,24 @@ export default async function SteelPage({ searchParams }: PageProps) {
             </span>
           )}
         </div>
-        <Link
-          href="/steel/new"
-          className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors shrink-0"
-        >
-          <Plus size={14} />
-          New Deal
-        </Link>
+        <div className="flex items-center gap-2 shrink-0">
+          {showFinancials && (
+            <Link
+              href="/steel/commissions"
+              className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md border border-input bg-background text-xs font-medium hover:bg-accent transition-colors"
+            >
+              <BarChart3 size={14} />
+              Commissions
+            </Link>
+          )}
+          <Link
+            href="/steel/new"
+            className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors"
+          >
+            <Plus size={14} />
+            New Deal
+          </Link>
+        </div>
       </div>
 
       {/* Pipeline rollup */}

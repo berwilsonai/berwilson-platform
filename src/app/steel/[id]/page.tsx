@@ -2,7 +2,7 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { Pencil, MessageSquare, StickyNote } from 'lucide-react'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { getViewer } from '@/lib/auth/viewer'
+import { getViewer, canSeeSteelFinancials } from '@/lib/auth/viewer'
 import { cn } from '@/lib/utils'
 import { formatValue, formatDate } from '@/lib/utils/constants'
 import { isPastDate } from '@/lib/utils/investors'
@@ -19,6 +19,7 @@ import {
 import SteelStageControl from '@/components/steel/SteelStageControl'
 import SteelDeleteButton from '@/components/steel/SteelDeleteButton'
 import SteelDealNotes from '@/components/steel/SteelDealNotes'
+import SteelCommissionsPanel from '@/components/steel/SteelCommissionsPanel'
 
 interface PageProps {
   params: Promise<{ id: string }>
@@ -47,7 +48,7 @@ export default async function SteelDealDetailPage({ params }: PageProps) {
   const { data: deal } = await supabase.from('steel_deals').select('*').eq('id', id).single()
   if (!deal) notFound()
 
-  const [{ data: notes }, { data: members }, viewer] = await Promise.all([
+  const [{ data: notes }, { data: members }, { data: services }, viewer] = await Promise.all([
     supabase
       .from('steel_deal_notes')
       .select('*')
@@ -57,6 +58,7 @@ export default async function SteelDealDetailPage({ params }: PageProps) {
       .from('team_members')
       .select('id, name')
       .order('created_at', { ascending: true }),
+    supabase.from('steel_deal_services').select('*').eq('deal_id', id),
     getViewer(),
   ])
 
@@ -67,6 +69,7 @@ export default async function SteelDealDetailPage({ params }: PageProps) {
   const salesperson = (members ?? []).find((m) => m.id === deal.salesperson_id)
   const referrer = (members ?? []).find((m) => m.id === deal.lead_source_id)
   const canDelete = viewer?.isAdmin ?? true
+  const showFinancials = canSeeSteelFinancials(viewer)
 
   return (
     <div className="space-y-6">
@@ -181,6 +184,19 @@ export default async function SteelDealDetailPage({ params }: PageProps) {
           />
         </dl>
       </div>
+
+      {/* Margin & commissions — admin/executive only */}
+      {showFinancials && (
+        <SteelCommissionsPanel
+          dealId={id}
+          services={services ?? []}
+          referralType={deal.referral_fee_type}
+          referralValue={deal.referral_fee_value}
+          referralPaid={deal.referral_fee_paid}
+          salespersonName={salesperson?.name ?? null}
+          referrerName={referrer?.name ?? null}
+        />
+      )}
 
       {/* Next step */}
       {deal.next_step && (

@@ -16,7 +16,14 @@ import {
   STEEL_STAGE_LABELS,
   DEFAULT_LEAD_SOURCES,
   leadSourceLabel,
+  STEEL_SERVICE_TYPES,
+  STEEL_SERVICE_LABELS,
+  REFERRAL_FEE_TYPES,
+  REFERRAL_FEE_LABELS,
+  DEFAULT_SERVICE_COMMISSION_PCT,
+  type SteelServiceType,
 } from '@/lib/utils/steel'
+import type { SteelDealService } from '@/lib/supabase/types'
 
 const inputClass = cn(
   'h-9 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground',
@@ -35,16 +42,26 @@ interface SteelDealFormProps {
   teamMembers: { id: string; name: string }[]
   /** Lead sources already in use — merged with the defaults for suggestions. */
   leadSources?: string[]
+  /** Existing service lines (edit mode). */
+  services?: SteelDealService[]
+  /** Cost/margin/commission/referral are shown only to admin/executive. */
+  canSeeFinancials?: boolean
 }
 
-/** Live dollar readback under a raw number input — catches magnitude typos. */
-function moneyReadback(raw: string): string | null {
-  const parsed = parseFloat(raw.replace(/[$,\s]/g, ''))
-  if (!isFinite(parsed) || parsed <= 0) return null
-  return `= ${formatValue(parsed)}`
+interface ServiceInput {
+  price: string
+  cost: string
+  pct: string
 }
 
-export default function SteelDealForm({ mode, deal, teamMembers, leadSources = [] }: SteelDealFormProps) {
+export default function SteelDealForm({
+  mode,
+  deal,
+  teamMembers,
+  leadSources = [],
+  services = [],
+  canSeeFinancials = true,
+}: SteelDealFormProps) {
   // Suggestions = sources in use + the defaults, deduped case-insensitively
   // (in-use casing wins so the vocabulary stays consistent).
   const sourceOptions: string[] = []
@@ -63,26 +80,70 @@ export default function SteelDealForm({ mode, deal, teamMembers, leadSources = [
 
   const [state, formAction, isPending] = useActionState<SteelDealFormState, FormData>(action, null)
 
-  // Contract value auto-computes from sqft × $/SF until the user types their
-  // own number (a negotiated total can differ from the arithmetic).
   const [sqft, setSqft] = useState(deal?.square_feet != null ? String(deal.square_feet) : '')
   const [ppsf, setPpsf] = useState(deal?.price_per_sqft != null ? String(deal.price_per_sqft) : '')
-  const [value, setValue] = useState(deal?.value != null ? String(deal.value) : '')
-  const [valueTouched, setValueTouched] = useState(mode === 'edit' && deal?.value != null)
 
-  function recompute(nextSqft: string, nextPpsf: string) {
-    if (valueTouched) return
-    const s = parseFloat(nextSqft.replace(/[,\s]/g, ''))
-    const p = parseFloat(nextPpsf.replace(/[$,\s]/g, ''))
-    if (isFinite(s) && isFinite(p) && s > 0 && p > 0) {
-      setValue(String(Math.round(s * p * 100) / 100))
-    } else {
-      setValue('')
+  // Per-service price/cost/commission. Materials price auto-fills from
+  // sqft × $/SF until the user types their own number.
+  const initService = (type: SteelServiceType): ServiceInput => {
+    const s = services.find((x) => x.service_type === type)
+    return {
+      price: s?.price != null ? String(s.price) : '',
+      cost: s?.cost != null ? String(s.cost) : '',
+      pct:
+        s?.commission_pct != null
+          ? String(s.commission_pct)
+          : mode === 'create'
+            ? String(DEFAULT_SERVICE_COMMISSION_PCT)
+            : '',
     }
   }
+  const [svc, setSvc] = useState<Record<SteelServiceType, ServiceInput>>({
+    materials: initService('materials'),
+    engineering: initService('engineering'),
+    assembly: initService('assembly'),
+  })
+  const [materialsPriceTouched, setMaterialsPriceTouched] = useState(
+    mode === 'edit' && services.some((s) => s.service_type === 'materials' && s.price != null)
+  )
+
+  const setService = (type: SteelServiceType, patch: Partial<ServiceInput>) =>
+    setSvc((prev) => ({ ...prev, [type]: { ...prev[type], ...patch } }))
+
+  function recompute(nextSqft: string, nextPpsf: string) {
+    if (materialsPriceTouched) return
+    const s = parseFloat(nextSqft.replace(/[,\s]/g, ''))
+    const p = parseFloat(nextPpsf.replace(/[$,\s]/g, ''))
+    const next = isFinite(s) && isFinite(p) && s > 0 && p > 0 ? String(Math.round(s * p * 100) / 100) : ''
+    setService('materials', { price: next })
+  }
+
+  const [referralType, setReferralType] = useState(deal?.referral_fee_type ?? 'none')
+  const [referralValue, setReferralValue] = useState(
+    deal?.referral_fee_value != null ? String(deal.referral_fee_value) : ''
+  )
+
+  const parseNum = (raw: string): number => {
+    const n = parseFloat(raw.replace(/[$,\s]/g, ''))
+    return isFinite(n) ? n : 0
+  }
+  const totalRevenue = STEEL_SERVICE_TYPES.reduce((a, t) => a + parseNum(svc[t].price), 0)
+  const totalMargin = STEEL_SERVICE_TYPES.reduce(
+    (a, t) => a + (parseNum(svc[t].price) - parseNum(svc[t].cost)),
+    0
+  )
+  const totalCommission = STEEL_SERVICE_TYPES.reduce(
+    (a, t) => a + ((parseNum(svc[t].price) - parseNum(svc[t].cost)) * parseNum(svc[t].pct)) / 100,
+    0
+  )
+  const referralAmount =
+    referralType === 'flat'
+      ? parseNum(referralValue)
+      : referralType === 'percent'
+        ? (totalMargin * parseNum(referralValue)) / 100
+        : 0
 
   const cancelHref = mode === 'edit' && deal ? `/steel/${deal.id}` : '/steel'
-  const valueHint = moneyReadback(value)
 
   return (
     <form action={formAction} className="space-y-6 max-w-2xl">
@@ -182,13 +243,13 @@ export default function SteelDealForm({ mode, deal, teamMembers, leadSources = [
         </div>
       </section>
 
-      {/* Size & price */}
+      {/* Building size */}
       <section className="space-y-4">
         <h2 className="label-caps text-muted-foreground">
-          Size & Price
+          Building Size
         </h2>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label htmlFor="square_feet" className={labelClass}>
               Square Feet
@@ -226,29 +287,179 @@ export default function SteelDealForm({ mode, deal, teamMembers, leadSources = [
               placeholder="e.g. 24.50"
               className={inputClass}
             />
-          </div>
-          <div>
-            <label htmlFor="value" className={labelClass}>
-              Contract Value ($)
-            </label>
-            <input
-              id="value"
-              name="value"
-              type="number"
-              step="any"
-              min="0"
-              value={value}
-              onChange={(e) => {
-                setValue(e.target.value)
-                setValueTouched(e.target.value.trim() !== '')
-              }}
-              placeholder="Auto from SF × $/SF"
-              className={inputClass}
-            />
-            {valueHint && <p className="mt-1 text-[11px] text-muted-foreground tnum">{valueHint}</p>}
+            <p className="mt-1 text-[11px] text-muted-foreground">Suggests the materials price below.</p>
           </div>
         </div>
       </section>
+
+      {/* Services & commission */}
+      <section className="space-y-4">
+        <h2 className="label-caps text-muted-foreground">
+          Services{canSeeFinancials ? ' & Commission' : ''}
+        </h2>
+        <p className="-mt-2 text-[11px] text-muted-foreground">
+          {canSeeFinancials
+            ? 'Price − cost = margin; the salesperson earns their % of each service’s margin. Leave a service blank if it isn’t part of this deal.'
+            : 'Enter the price for each service on this deal. Leave a service blank if it isn’t part of this deal.'}
+        </p>
+
+        <div className="space-y-3">
+          {STEEL_SERVICE_TYPES.map((type) => {
+            const row = svc[type]
+            const margin = parseNum(row.price) - parseNum(row.cost)
+            const commission = (margin * parseNum(row.pct)) / 100
+            return (
+              <div key={type} className="rounded-md border border-border bg-muted/30 p-3">
+                <p className="mb-2 text-xs font-medium">{STEEL_SERVICE_LABELS[type]}</p>
+                <div
+                  className={cn(
+                    'grid gap-3',
+                    canSeeFinancials ? 'grid-cols-2 sm:grid-cols-4' : 'grid-cols-1 sm:grid-cols-2'
+                  )}
+                >
+                  <div>
+                    <label htmlFor={`svc_${type}_price`} className={labelClass}>
+                      Price ($)
+                    </label>
+                    <input
+                      id={`svc_${type}_price`}
+                      name={`svc_${type}_price`}
+                      type="number"
+                      step="any"
+                      min="0"
+                      value={row.price}
+                      onChange={(e) => {
+                        setService(type, { price: e.target.value })
+                        if (type === 'materials') setMaterialsPriceTouched(e.target.value.trim() !== '')
+                      }}
+                      placeholder={type === 'materials' ? 'Auto from SF × $/SF' : '0'}
+                      className={inputClass}
+                    />
+                  </div>
+                  {canSeeFinancials && (
+                    <>
+                      <div>
+                        <label htmlFor={`svc_${type}_cost`} className={labelClass}>
+                          Cost ($)
+                        </label>
+                        <input
+                          id={`svc_${type}_cost`}
+                          name={`svc_${type}_cost`}
+                          type="number"
+                          step="any"
+                          min="0"
+                          value={row.cost}
+                          onChange={(e) => setService(type, { cost: e.target.value })}
+                          placeholder={type === 'engineering' ? 'Paid to engineer' : '0'}
+                          className={inputClass}
+                        />
+                      </div>
+                      <div>
+                        <label htmlFor={`svc_${type}_commission_pct`} className={labelClass}>
+                          Commission %
+                        </label>
+                        <input
+                          id={`svc_${type}_commission_pct`}
+                          name={`svc_${type}_commission_pct`}
+                          type="number"
+                          step="any"
+                          min="0"
+                          value={row.pct}
+                          onChange={(e) => setService(type, { pct: e.target.value })}
+                          placeholder="% of margin"
+                          className={inputClass}
+                        />
+                      </div>
+                      <div className="flex flex-col justify-end pb-0.5">
+                        <p className="text-[11px] text-muted-foreground">Margin</p>
+                        <p className="text-sm font-medium tnum">{formatValue(margin)}</p>
+                        {commission !== 0 && (
+                          <p className="text-[11px] text-muted-foreground tnum">
+                            comm {formatValue(commission)}
+                          </p>
+                        )}
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+
+        <div className="flex flex-wrap gap-x-6 gap-y-1 rounded-md border border-border px-3 py-2 text-xs">
+          <span>
+            Contract value <strong className="tnum">{formatValue(totalRevenue)}</strong>
+          </span>
+          {canSeeFinancials && (
+            <>
+              <span>
+                Margin <strong className="tnum">{formatValue(totalMargin)}</strong>
+              </span>
+              <span>
+                Salesperson comm <strong className="tnum">{formatValue(totalCommission)}</strong>
+              </span>
+              {referralAmount > 0 && (
+                <span>
+                  Referral <strong className="tnum">{formatValue(referralAmount)}</strong>
+                </span>
+              )}
+            </>
+          )}
+        </div>
+      </section>
+
+      {/* Referral fee — financials only */}
+      {canSeeFinancials && (
+        <section className="space-y-4">
+          <h2 className="label-caps text-muted-foreground">Referral Fee</h2>
+          <p className="-mt-2 text-[11px] text-muted-foreground">
+            Paid to the “Referred By” person (set under Lead Source). A flat amount or a % of the deal’s
+            total margin.
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label htmlFor="referral_fee_type" className={labelClass}>
+                Type
+              </label>
+              <select
+                id="referral_fee_type"
+                name="referral_fee_type"
+                value={referralType}
+                onChange={(e) => setReferralType(e.target.value)}
+                className={inputClass}
+              >
+                {REFERRAL_FEE_TYPES.map((t) => (
+                  <option key={t} value={t}>
+                    {REFERRAL_FEE_LABELS[t]}
+                  </option>
+                ))}
+              </select>
+            </div>
+            {referralType !== 'none' && (
+              <div>
+                <label htmlFor="referral_fee_value" className={labelClass}>
+                  {referralType === 'flat' ? 'Amount ($)' : 'Percent (%)'}
+                </label>
+                <input
+                  id="referral_fee_value"
+                  name="referral_fee_value"
+                  type="number"
+                  step="any"
+                  min="0"
+                  value={referralValue}
+                  onChange={(e) => setReferralValue(e.target.value)}
+                  placeholder={referralType === 'flat' ? 'e.g. 2500' : 'e.g. 5'}
+                  className={inputClass}
+                />
+                {referralAmount > 0 && (
+                  <p className="mt-1 text-[11px] text-muted-foreground tnum">= {formatValue(referralAmount)}</p>
+                )}
+              </div>
+            )}
+          </div>
+        </section>
+      )}
 
       {/* Source */}
       <section className="space-y-4">

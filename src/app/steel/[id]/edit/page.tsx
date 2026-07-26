@@ -2,7 +2,7 @@ import Link from 'next/link'
 import { notFound, redirect } from 'next/navigation'
 import { ChevronLeft } from 'lucide-react'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { getViewer, canWorkSteel } from '@/lib/auth/viewer'
+import { getViewer, canWorkSteel, canSeeSteelFinancials } from '@/lib/auth/viewer'
 import { leadSourcesInUse } from '@/lib/steel/lead-sources'
 import SteelDealForm from '@/components/steel/SteelDealForm'
 
@@ -19,13 +19,14 @@ export default async function EditSteelDealPage({ params }: PageProps) {
   if (!canWorkSteel(viewer)) redirect('/steel')
 
   const supabase = createAdminClient()
-  const [{ data: deal }, { data: members }, leadSources] = await Promise.all([
+  const [{ data: deal }, { data: members }, { data: services }, leadSources] = await Promise.all([
     supabase.from('steel_deals').select('*').eq('id', id).single(),
     supabase
       .from('team_members')
       .select('id, name')
       .eq('active', true)
       .order('created_at', { ascending: true }),
+    supabase.from('steel_deal_services').select('*').eq('deal_id', id),
     leadSourcesInUse(supabase),
   ])
 
@@ -47,7 +48,14 @@ export default async function EditSteelDealPage({ params }: PageProps) {
         <h1 className="text-lg font-semibold">Edit Steel Deal</h1>
       </div>
 
-      <SteelDealForm mode="edit" deal={deal} teamMembers={members ?? []} leadSources={leadSources} />
+      <SteelDealForm
+        mode="edit"
+        deal={deal}
+        teamMembers={members ?? []}
+        leadSources={leadSources}
+        services={services ?? []}
+        canSeeFinancials={canSeeSteelFinancials(viewer)}
+      />
     </div>
   )
 }

@@ -2,7 +2,7 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { ChevronLeft } from 'lucide-react'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { getViewer, canWorkSteel } from '@/lib/auth/viewer'
+import { getViewer, canWorkSteel, canSeeSteelFinancials } from '@/lib/auth/viewer'
 import { leadSourcesInUse } from '@/lib/steel/lead-sources'
 import SteelDealForm from '@/components/steel/SteelDealForm'
 
@@ -41,7 +41,12 @@ export default async function NewSteelDealPage() {
         </p>
       </div>
 
-      <SteelDealForm mode="create" teamMembers={members ?? []} leadSources={leadSources} />
+      <SteelDealForm
+        mode="create"
+        teamMembers={members ?? []}
+        leadSources={leadSources}
+        canSeeFinancials={canSeeSteelFinancials(viewer)}
+      />
     </div>
   )
 }

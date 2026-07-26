@@ -11,16 +11,21 @@ export type SteelStage =
   | 'engineering'
   | 'order_placed'
   | 'delivered'
+  | 'assembled'
   | 'paid'
   | 'lost'
 
 export const STEEL_STAGES: SteelStage[] = [
-  'quote', 'engineering', 'order_placed', 'delivered', 'paid', 'lost',
+  'quote', 'engineering', 'order_placed', 'delivered', 'assembled', 'paid', 'lost',
 ]
 
+// The steel CRM tracks a deal only as far as FRAME ASSEMBLY — even on deals
+// where Ber Wilson builds the whole home, the rest of the build lives in the
+// construction projects module, not here. 'assembled' is optional: a
+// materials-only deal goes delivered → paid, skipping it.
 /** Active pipeline stages, in order (excludes the off-ramp state). */
 export const STEEL_PIPELINE: SteelStage[] = [
-  'quote', 'engineering', 'order_placed', 'delivered', 'paid',
+  'quote', 'engineering', 'order_placed', 'delivered', 'assembled', 'paid',
 ]
 
 export const STEEL_STAGE_LABELS: Record<SteelStage, string> = {
@@ -28,6 +33,7 @@ export const STEEL_STAGE_LABELS: Record<SteelStage, string> = {
   engineering: 'Engineering',
   order_placed: 'Order Placed',
   delivered: 'Delivered',
+  assembled: 'Frame Assembly',
   paid: 'Paid',
   lost: 'Lost',
 }
@@ -37,7 +43,8 @@ export const STEEL_STAGE_INDEX: Record<SteelStage, number> = {
   engineering: 1,
   order_placed: 2,
   delivered: 3,
-  paid: 4,
+  assembled: 4,
+  paid: 5,
   lost: -1,
 }
 
@@ -46,6 +53,7 @@ export const STEEL_STAGE_BADGE: Record<SteelStage, string> = {
   engineering: 'bg-violet-50 text-violet-700 ring-violet-200 dark:bg-violet-500/15 dark:text-violet-300 dark:ring-violet-500/30',
   order_placed: 'bg-indigo-50 text-indigo-700 ring-indigo-200 dark:bg-indigo-500/15 dark:text-indigo-300 dark:ring-indigo-500/30',
   delivered: 'bg-cyan-50 text-cyan-700 ring-cyan-200 dark:bg-cyan-500/15 dark:text-cyan-300 dark:ring-cyan-500/30',
+  assembled: 'bg-teal-50 text-teal-700 ring-teal-200 dark:bg-teal-500/15 dark:text-teal-300 dark:ring-teal-500/30',
   paid: 'bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-500/15 dark:text-emerald-300 dark:ring-emerald-500/30',
   lost: 'bg-red-50 text-red-600 ring-red-200 dark:bg-red-500/15 dark:text-red-300 dark:ring-red-500/30',
 }
@@ -55,6 +63,7 @@ export const STEEL_STAGE_BORDER: Record<SteelStage, string> = {
   engineering: 'border-l-violet-400',
   order_placed: 'border-l-indigo-400',
   delivered: 'border-l-cyan-400',
+  assembled: 'border-l-teal-400',
   paid: 'border-l-emerald-400',
   lost: 'border-l-red-300',
 }
@@ -150,4 +159,116 @@ const sqftFormat = new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 })
 export function formatSqft(value: number | null | undefined): string {
   if (value == null || value === 0) return '—'
   return `${sqftFormat.format(value)} SF`
+}
+
+// ─── Commissionable services ─────────────────────────────────────────────────
+//
+// A deal is built from a fixed set of commissionable services. Each has a
+// price (charged) and cost (our cost / pass-through payout); margin = price −
+// cost, and the salesperson earns commission_pct of that margin.
+
+export type SteelServiceType = 'materials' | 'engineering' | 'assembly'
+
+export const STEEL_SERVICE_TYPES: SteelServiceType[] = ['materials', 'engineering', 'assembly']
+
+export const STEEL_SERVICE_LABELS: Record<SteelServiceType, string> = {
+  materials: 'Steel / Materials',
+  engineering: 'Engineering',
+  assembly: 'Frame Assembly',
+}
+
+/** Order the three fixed sections render / sort in. */
+export const STEEL_SERVICE_ORDER: Record<SteelServiceType, number> = {
+  materials: 0,
+  engineering: 1,
+  assembly: 2,
+}
+
+export function isSteelServiceType(value: unknown): value is SteelServiceType {
+  return typeof value === 'string' && (STEEL_SERVICE_TYPES as string[]).includes(value)
+}
+
+/** Default salesperson commission rate (% of margin) pre-filled on new lines. */
+export const DEFAULT_SERVICE_COMMISSION_PCT = 10
+
+// ─── Referral fee (paid to the lead-source referrer) ─────────────────────────
+
+export type ReferralFeeType = 'none' | 'flat' | 'percent'
+
+export const REFERRAL_FEE_TYPES: ReferralFeeType[] = ['none', 'flat', 'percent']
+
+export const REFERRAL_FEE_LABELS: Record<ReferralFeeType, string> = {
+  none: 'No referral fee',
+  flat: 'Flat fee',
+  percent: '% of margin',
+}
+
+export function referralFeeType(value: string | null | undefined): ReferralFeeType {
+  return REFERRAL_FEE_TYPES.includes(value as ReferralFeeType) ? (value as ReferralFeeType) : 'none'
+}
+
+// ─── Commission math ─────────────────────────────────────────────────────────
+
+const n = (v: number | null | undefined): number => (typeof v === 'number' && isFinite(v) ? v : 0)
+
+export interface ServiceLine {
+  service_type: string
+  price: number | null
+  cost: number | null
+  commission_pct: number | null
+  commission_paid?: boolean | null
+}
+
+export function serviceMargin(s: Pick<ServiceLine, 'price' | 'cost'>): number {
+  return n(s.price) - n(s.cost)
+}
+
+export function serviceCommission(s: Pick<ServiceLine, 'price' | 'cost' | 'commission_pct'>): number {
+  return (serviceMargin(s) * n(s.commission_pct)) / 100
+}
+
+export function referralFeeAmount(
+  type: string | null | undefined,
+  value: number | null | undefined,
+  totalMargin: number
+): number {
+  const t = referralFeeType(type)
+  if (t === 'flat') return n(value)
+  if (t === 'percent') return (totalMargin * n(value)) / 100
+  return 0
+}
+
+export interface DealFinancials {
+  revenue: number
+  cost: number
+  margin: number
+  salespersonCommission: number
+  referralFee: number
+  /** Margin left after both commissions. */
+  net: number
+}
+
+export function dealFinancials(
+  services: ServiceLine[],
+  referral_fee_type: string | null | undefined,
+  referral_fee_value: number | null | undefined
+): DealFinancials {
+  const revenue = services.reduce((a, s) => a + n(s.price), 0)
+  const cost = services.reduce((a, s) => a + n(s.cost), 0)
+  const margin = revenue - cost
+  const salespersonCommission = services.reduce((a, s) => a + serviceCommission(s), 0)
+  const referralFee = referralFeeAmount(referral_fee_type, referral_fee_value, margin)
+  return {
+    revenue,
+    cost,
+    margin,
+    salespersonCommission,
+    referralFee,
+    net: margin - salespersonCommission - referralFee,
+  }
+}
+
+/** Contract value = sum of service prices (the deal's revenue). */
+export function servicesRevenue(services: ServiceLine[]): number {
+  return services.reduce((a, s) => a + n(s.price), 0)
 }
