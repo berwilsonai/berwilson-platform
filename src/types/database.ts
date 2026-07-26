@@ -2388,10 +2388,12 @@ export type Database = {
           commission_paid: boolean
           commission_paid_date: string | null
           commission_pct: number | null
+          commissionable: boolean
           cost: number | null
           cost_per_sqft: number | null
           created_at: string | null
           deal_id: string
+          description: string | null
           id: string
           price: number | null
           service_type: string
@@ -2402,10 +2404,12 @@ export type Database = {
           commission_paid?: boolean
           commission_paid_date?: string | null
           commission_pct?: number | null
+          commissionable?: boolean
           cost?: number | null
           cost_per_sqft?: number | null
           created_at?: string | null
           deal_id: string
+          description?: string | null
           id?: string
           price?: number | null
           service_type: string
@@ -2416,10 +2420,12 @@ export type Database = {
           commission_paid?: boolean
           commission_paid_date?: string | null
           commission_pct?: number | null
+          commissionable?: boolean
           cost?: number | null
           cost_per_sqft?: number | null
           created_at?: string | null
           deal_id?: string
+          description?: string | null
           id?: string
           price?: number | null
           service_type?: string

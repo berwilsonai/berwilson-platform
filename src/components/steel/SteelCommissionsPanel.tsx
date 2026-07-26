@@ -4,8 +4,8 @@ import { formatValue } from '@/lib/utils/constants'
 import type { SteelDealService } from '@/lib/supabase/types'
 import {
   STEEL_SERVICE_LABELS,
-  STEEL_SERVICE_ORDER,
   isSteelServiceType,
+  lineItemLabel,
   serviceMargin,
   serviceCommission,
   referralFeeAmount,
@@ -73,16 +73,11 @@ export default function SteelCommissionsPanel({
   squareFeet,
   payable,
 }: Props) {
-  const rows = [...services].sort(
-    (a, b) =>
-      (isSteelServiceType(a.service_type) ? STEEL_SERVICE_ORDER[a.service_type] : 9) -
-      (isSteelServiceType(b.service_type) ? STEEL_SERVICE_ORDER[b.service_type] : 9)
-  )
+  const rows = [...services].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
 
   const fin = dealFinancials(rows, referralType, referralValue)
   const rType = referralFeeType(referralType)
   const referralAmount = referralFeeAmount(referralType, referralValue, fin.margin)
-  const label = (t: string) => (isSteelServiceType(t) ? STEEL_SERVICE_LABELS[t] : t)
 
   return (
     <section className="rounded-lg border border-border bg-card p-4 elev-1">
@@ -114,23 +109,43 @@ export default function SteelCommissionsPanel({
                 </td>
               </tr>
             )}
-            {rows.map((s) => (
-              <tr key={s.id} className="border-t border-border">
-                <td className="py-2 pr-3 font-medium">{label(s.service_type)}</td>
-                <td className="py-2 px-3 text-right">{money(s.price)}</td>
-                <td className="py-2 px-3 text-right">{money(s.cost)}</td>
-                <td className="py-2 px-3 text-right">{formatValue(serviceMargin(s))}</td>
-                <td className="py-2 px-3 text-right">{s.commission_pct != null ? `${s.commission_pct}%` : '—'}</td>
-                <td className="py-2 px-3 text-right">{formatValue(serviceCommission(s))}</td>
-                <td className="py-2 pl-3 text-right">
-                  {serviceCommission(s) !== 0 ? (
-                    <StatusPill paid={s.commission_paid} payable={payable} />
-                  ) : (
-                    '—'
-                  )}
-                </td>
-              </tr>
-            ))}
+            {rows.map((s) => {
+              const notCommissionable = s.commissionable === false
+              const category = isSteelServiceType(s.service_type)
+                ? STEEL_SERVICE_LABELS[s.service_type]
+                : s.service_type
+              const name = lineItemLabel(s.description, s.service_type)
+              return (
+                <tr key={s.id} className="border-t border-border">
+                  <td className="py-2 pr-3">
+                    <span className="font-medium">{name}</span>
+                    {name !== category && (
+                      <span className="ml-1.5 text-[11px] text-muted-foreground">{category}</span>
+                    )}
+                  </td>
+                  <td className="py-2 px-3 text-right">{money(s.price)}</td>
+                  <td className="py-2 px-3 text-right">{money(s.cost)}</td>
+                  <td className="py-2 px-3 text-right">{formatValue(serviceMargin(s))}</td>
+                  <td className="py-2 px-3 text-right">
+                    {notCommissionable ? (
+                      <span className="text-[11px] text-muted-foreground">n/c</span>
+                    ) : s.commission_pct != null ? (
+                      `${s.commission_pct}%`
+                    ) : (
+                      '—'
+                    )}
+                  </td>
+                  <td className="py-2 px-3 text-right">{formatValue(serviceCommission(s))}</td>
+                  <td className="py-2 pl-3 text-right">
+                    {serviceCommission(s) !== 0 ? (
+                      <StatusPill paid={s.commission_paid} payable={payable} />
+                    ) : (
+                      '—'
+                    )}
+                  </td>
+                </tr>
+              )
+            })}
           </tbody>
           <tfoot>
             <tr className="border-t-2 border-border font-semibold tnum">

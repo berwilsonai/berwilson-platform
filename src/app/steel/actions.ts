@@ -8,12 +8,10 @@ import type { TablesInsert } from '@/lib/supabase/types'
 import { getViewer, canWorkSteel, canSeeSteelFinancials } from '@/lib/auth/viewer'
 import {
   STEEL_STAGES,
-  STEEL_SERVICE_TYPES,
-  STEEL_SERVICE_ORDER,
   referralFeeType,
   canonicalLeadSource,
-  isPerSqftCostService,
   isPricingBelowFloor,
+  steelCategory,
   type SteelServiceType,
 } from '@/lib/utils/steel'
 import { leadSourcesInUse } from '@/lib/steel/lead-sources'
@@ -22,16 +20,21 @@ type Db = SupabaseClient<Database>
 
 export type SteelDealFormState = { error: string } | null
 
-interface ParsedService {
-  service_type: SteelServiceType
+interface ParsedLine {
+  /** Existing row id (edit) or null for a new line. */
+  id: string | null
+  description: string | null
+  category: SteelServiceType
   price: number | null
-  cost: number | null // undefined-as-null meaning "not provided" is handled by canSeeFinancials
-  cost_per_sqft: number | null // basis for materials/assembly; null for engineering
+  // cost / commissionable / commission_pct are null when a non-financials user
+  // submits (they never see those fields) → preserved from the existing row.
+  cost: number | null
+  commissionable: boolean | null
   commission_pct: number | null
 }
 
 type ParseResult =
-  | { ok: true; fields: TablesInsert<'steel_deals'>; services: ParsedService[] }
+  | { ok: true; fields: TablesInsert<'steel_deals'>; lines: ParsedLine[] }
   | { ok: false; error: string }
 
 function parseFields(formData: FormData, canSeeFinancials: boolean): ParseResult {
@@ -64,36 +67,31 @@ function parseFields(formData: FormData, canSeeFinancials: boolean): ParseResult
 
   const rawStage = str('stage') ?? 'quote'
 
-  // Services (prices come from everyone; cost/commission only from financials
-  // users — otherwise left null here and preserved from existing rows on save).
-  // Materials & assembly cost is driven by a per-SF basis (cost = SF × basis);
-  // engineering cost is a manual dollar figure.
-  const services: ParsedService[] = STEEL_SERVICE_TYPES.map((type) => {
-    let cost: number | null = null
-    let cost_per_sqft: number | null = null
-    if (canSeeFinancials) {
-      if (isPerSqftCostService(type)) {
-        cost_per_sqft = money(`svc_${type}_cost_per_sqft`)
-        cost = cost_per_sqft != null ? Math.round(sqftNum * cost_per_sqft * 100) / 100 : null
-      } else {
-        cost = money(`svc_${type}_cost`)
-      }
-    }
-    return {
-      service_type: type,
-      price: money(`svc_${type}_price`),
-      cost,
-      cost_per_sqft,
-      commission_pct: canSeeFinancials ? money(`svc_${type}_commission_pct`) : null,
-    }
-  })
+  // Line items (prices come from everyone; cost/commissionable/commission only
+  // from financials users — otherwise left null here and preserved from the
+  // existing row on save). One row per submitted line, in form order.
+  const lineCount = parseInt((formData.get('line_count') as string | null) ?? '0', 10) || 0
+  const lines: ParsedLine[] = []
+  for (let i = 0; i < lineCount; i++) {
+    lines.push({
+      id: str(`line_${i}_id`),
+      description: str(`line_${i}_description`),
+      category: steelCategory(str(`line_${i}_category`)),
+      price: money(`line_${i}_price`),
+      cost: canSeeFinancials ? money(`line_${i}_cost`) : null,
+      commissionable: canSeeFinancials ? formData.has(`line_${i}_commissionable`) : null,
+      commission_pct: canSeeFinancials ? money(`line_${i}_commission_pct`) : null,
+    })
+  }
 
-  // Contract value = sum of service prices (the deal's revenue).
-  const value = services.reduce((a, s) => a + (s.price ?? 0), 0)
+  // Contract value = sum of line prices (the deal's revenue).
+  const value = lines.reduce((a, l) => a + (l.price ?? 0), 0)
 
   // Flag deals priced below the steel $/SF floor — surfaced with a badge for
   // execs and warned on the form. Set for every author (sales enters prices).
-  const materialsPrice = services.find((s) => s.service_type === 'materials')?.price ?? null
+  // Materials price = sum of the materials-category lines.
+  const materialsPrice =
+    lines.filter((l) => l.category === 'materials').reduce((a, l) => a + (l.price ?? 0), 0) || null
   const pricing_below_floor = isPricingBelowFloor(
     materialsPrice,
     sqftNum,
@@ -125,64 +123,78 @@ function parseFields(formData: FormData, canSeeFinancials: boolean): ParseResult
     fields.referral_fee_value = fields.referral_fee_type === 'none' ? null : money('referral_fee_value')
   }
 
-  return { ok: true, fields, services }
+  return { ok: true, fields, lines }
 }
 
 /**
- * Reconcile the deal's three service rows. Prices come from the form; cost and
- * commission are taken from the form only when the editor can see financials —
- * otherwise the existing values are preserved (a sales user can't wipe them).
- * commission_paid / date are always preserved across a normal save.
+ * Reconcile the deal's line items against the submitted set. Prices/description/
+ * category come from the form; cost / commissionable / commission % are taken
+ * from the form only when the editor can see financials — otherwise preserved
+ * from the existing row (a sales user can't wipe them). commission_paid / date
+ * are always preserved. Lines removed from the form are deleted; empty lines
+ * are dropped.
  */
 async function saveServices(
   supabase: Db,
   dealId: string,
-  parsed: ParsedService[],
+  lines: ParsedLine[],
   canSeeFinancials: boolean
 ) {
   const { data: existing } = await supabase
     .from('steel_deal_services')
     .select('*')
     .eq('deal_id', dealId)
-  const byType = new Map((existing ?? []).map((s) => [s.service_type, s]))
+  const byId = new Map((existing ?? []).map((s) => [s.id, s]))
 
-  const toUpsert: TablesInsert<'steel_deal_services'>[] = []
-  const toDelete: string[] = []
+  const withId: TablesInsert<'steel_deal_services'>[] = []
+  const withoutId: TablesInsert<'steel_deal_services'>[] = []
+  const keptIds = new Set<string>()
 
-  for (const p of parsed) {
-    const ex = byType.get(p.service_type)
-    const price = p.price
-    const cost = canSeeFinancials ? p.cost : (ex?.cost ?? null)
-    const cost_per_sqft = canSeeFinancials ? p.cost_per_sqft : (ex?.cost_per_sqft ?? null)
-    const commission_pct = canSeeFinancials ? p.commission_pct : (ex?.commission_pct ?? null)
+  lines.forEach((line, i) => {
+    const ex = line.id ? byId.get(line.id) : undefined
+    const price = line.price
+    const cost = canSeeFinancials ? line.cost : (ex?.cost ?? null)
+    const commissionable = canSeeFinancials ? (line.commissionable ?? true) : (ex?.commissionable ?? true)
+    const commission_pct = canSeeFinancials ? line.commission_pct : (ex?.commission_pct ?? null)
     const commission_paid = ex?.commission_paid ?? false
+    const description = line.description
+
+    // Drop blank lines (nothing entered). An existing row that lands here is
+    // simply not kept → deleted below.
     const hasData =
-      price != null || cost != null || cost_per_sqft != null || commission_pct != null || commission_paid
+      price != null || cost != null || commission_pct != null || (description ?? '') !== '' || commission_paid
+    if (!hasData) return
 
-    if (!hasData) {
-      if (ex) toDelete.push(ex.id)
-      continue
-    }
-
-    toUpsert.push({
+    const row: TablesInsert<'steel_deal_services'> = {
       deal_id: dealId,
-      service_type: p.service_type,
+      service_type: line.category,
+      description,
       price,
       cost,
-      cost_per_sqft,
+      cost_per_sqft: ex?.cost_per_sqft ?? null,
+      commissionable,
       commission_pct,
       commission_paid,
       commission_paid_date: ex?.commission_paid_date ?? null,
-      sort_order: STEEL_SERVICE_ORDER[p.service_type],
-    })
-  }
+      sort_order: i,
+    }
 
+    if (ex) {
+      row.id = ex.id
+      keptIds.add(ex.id)
+      withId.push(row)
+    } else {
+      withoutId.push(row)
+    }
+  })
+
+  const toDelete = (existing ?? []).filter((s) => !keptIds.has(s.id)).map((s) => s.id)
   if (toDelete.length > 0) {
     await supabase.from('steel_deal_services').delete().in('id', toDelete)
   }
-  if (toUpsert.length > 0) {
-    await supabase.from('steel_deal_services').upsert(toUpsert, { onConflict: 'deal_id,service_type' })
-  }
+  // withId upserts on the PK (id) → updates; withoutId are fresh inserts.
+  if (withId.length > 0) await supabase.from('steel_deal_services').upsert(withId)
+  if (withoutId.length > 0) await supabase.from('steel_deal_services').insert(withoutId)
 }
 
 export async function createSteelDeal(
@@ -206,7 +218,7 @@ export async function createSteelDeal(
 
   if (error) return { error: `Failed to create deal: ${error.message}` }
 
-  await saveServices(supabase, data.id, result.services, canSeeFinancials)
+  await saveServices(supabase, data.id, result.lines, canSeeFinancials)
 
   redirect(`/steel/${data.id}`)
 }
@@ -229,7 +241,7 @@ export async function updateSteelDeal(
 
   if (error) return { error: `Failed to update deal: ${error.message}` }
 
-  await saveServices(supabase, id, result.services, canSeeFinancials)
+  await saveServices(supabase, id, result.lines, canSeeFinancials)
 
   redirect(`/steel/${id}`)
 }

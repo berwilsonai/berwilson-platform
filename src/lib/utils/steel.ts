@@ -177,31 +177,49 @@ export function formatSqft(value: number | null | undefined): string {
   return `${sqftFormat.format(value)} SF`
 }
 
-// ─── Commissionable services ─────────────────────────────────────────────────
+// ─── Line items (commissionable) ─────────────────────────────────────────────
 //
-// A deal is built from a fixed set of commissionable services. Each has a
-// price (charged) and cost (our cost / pass-through payout); margin = price −
-// cost, and the salesperson earns commission_pct of that margin.
+// A deal is built from custom LINE ITEMS. Each line has a free-text
+// description, a category (for rollups), a price (charged) and cost (our cost
+// / pass-through payout); margin = price − cost. A line can be marked
+// non-commissionable (its margin is excluded from commission — e.g. freight).
+// The salesperson earns commission_pct of a commissionable line's margin.
 
-export type SteelServiceType = 'materials' | 'engineering' | 'assembly'
+export type SteelServiceType = 'materials' | 'engineering' | 'assembly' | 'other'
 
-export const STEEL_SERVICE_TYPES: SteelServiceType[] = ['materials', 'engineering', 'assembly']
+export const STEEL_SERVICE_TYPES: SteelServiceType[] = ['materials', 'engineering', 'assembly', 'other']
 
 export const STEEL_SERVICE_LABELS: Record<SteelServiceType, string> = {
   materials: 'Steel / Materials',
   engineering: 'Engineering',
   assembly: 'Frame Assembly',
+  other: 'Other',
 }
 
-/** Order the three fixed sections render / sort in. */
+/** Order line categories render / sort in. */
 export const STEEL_SERVICE_ORDER: Record<SteelServiceType, number> = {
   materials: 0,
   engineering: 1,
   assembly: 2,
+  other: 3,
 }
 
 export function isSteelServiceType(value: unknown): value is SteelServiceType {
   return typeof value === 'string' && (STEEL_SERVICE_TYPES as string[]).includes(value)
+}
+
+export function steelCategory(value: string | null | undefined): SteelServiceType {
+  return isSteelServiceType(value) ? value : 'other'
+}
+
+/** A line's display label: its description, falling back to the category. */
+export function lineItemLabel(
+  description: string | null | undefined,
+  category: string | null | undefined
+): string {
+  const d = (description ?? '').trim()
+  if (d) return d
+  return STEEL_SERVICE_LABELS[steelCategory(category)]
 }
 
 /** Default salesperson commission rate (% of margin) pre-filled on new lines. */
@@ -288,13 +306,18 @@ export interface ServiceLine {
   cost: number | null
   commission_pct: number | null
   commission_paid?: boolean | null
+  /** When false, this line's margin earns no commission (default true). */
+  commissionable?: boolean | null
 }
 
 export function serviceMargin(s: Pick<ServiceLine, 'price' | 'cost'>): number {
   return n(s.price) - n(s.cost)
 }
 
-export function serviceCommission(s: Pick<ServiceLine, 'price' | 'cost' | 'commission_pct'>): number {
+export function serviceCommission(
+  s: Pick<ServiceLine, 'price' | 'cost' | 'commission_pct' | 'commissionable'>
+): number {
+  if (s.commissionable === false) return 0
   return (serviceMargin(s) * n(s.commission_pct)) / 100
 }
 
