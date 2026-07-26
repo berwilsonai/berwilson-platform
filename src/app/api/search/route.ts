@@ -13,10 +13,12 @@ import {
   INVESTOR_TYPE_LABELS,
 } from '@/lib/utils/investors'
 import { OBJECTIVE_BUCKET_LABELS, type ObjectiveBucket } from '@/lib/utils/objectives'
+import { steelStage, STEEL_STAGE_LABELS } from '@/lib/utils/steel'
+import { formatValue } from '@/lib/utils/constants'
 
 export type SearchResult = {
   id: string
-  type: 'project' | 'opportunity' | 'contact' | 'vendor' | 'task' | 'investor' | 'objective' | 'document'
+  type: 'project' | 'opportunity' | 'contact' | 'vendor' | 'task' | 'investor' | 'objective' | 'document' | 'steel'
   title: string
   subtitle: string | null
   href: string
@@ -44,6 +46,7 @@ export async function GET(request: NextRequest) {
     { data: investors },
     { data: objectives },
     { data: documents },
+    { data: steelDeals },
   ] = await Promise.all([
     supabase
       .from('projects')
@@ -90,6 +93,12 @@ export async function GET(request: NextRequest) {
       .select('id, file_name, doc_type, project_id, is_company, entity_id, project:projects(name)')
       .ilike('file_name', pattern)
       .order('uploaded_at', { ascending: false })
+      .limit(6),
+    supabase
+      .from('steel_deals')
+      .select('id, name, stage, customer, value')
+      .or(`name.ilike.${pattern},customer.ilike.${pattern}`)
+      .order('updated_at', { ascending: false })
       .limit(6),
   ])
 
@@ -180,6 +189,18 @@ export async function GET(request: NextRequest) {
       title: d.file_name,
       subtitle: d.project?.name ?? (d.is_company ? 'Company knowledge base' : d.doc_type),
       href,
+    })
+  }
+  for (const s of steelDeals ?? []) {
+    results.push({
+      id: s.id,
+      type: 'steel',
+      title: s.name,
+      subtitle: [
+        STEEL_STAGE_LABELS[steelStage(s.stage)],
+        s.value != null ? formatValue(s.value) : s.customer,
+      ].filter(Boolean).join(' · ') || null,
+      href: `/steel/${s.id}`,
     })
   }
 

@@ -189,6 +189,17 @@ export function forbiddenJson(message = 'Not authorized') {
   return Response.json({ error: message }, { status: 403 })
 }
 
+/**
+ * Roles allowed to work the steel CRM (create/edit deals, log notes, move
+ * stages). Deleting deals stays admin-only. A null viewer passes — middleware
+ * already blocks unauthenticated traffic, and the null case only arises in
+ * pre-migration/bootstrap states (same tolerance as the investors guards).
+ */
+export function canWorkSteel(viewer: Viewer | null): boolean {
+  if (!viewer) return true
+  return viewer.isAdmin || viewer.role === 'steel_sales' || viewer.role === 'executive'
+}
+
 interface TaskTags {
   assignee_id: string | null
   project_id: string | null

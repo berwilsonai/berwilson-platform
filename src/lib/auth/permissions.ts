@@ -6,18 +6,20 @@
 //   executive       — Tasks + Objectives, full edit; no deal detail, no AI/directory
 //   project_manager — granted projects/opportunities + tasks within them
 //   member          — own task list only
+//   steel_sales     — the prefab steel CRM (/steel) only
 // Anything not explicitly allowed for a role is admin-only by default, so a
 // new route is private until deliberately opened up.
 
-export type Role = 'admin' | 'executive' | 'project_manager' | 'member'
+export type Role = 'admin' | 'executive' | 'project_manager' | 'member' | 'steel_sales'
 
-export const ROLES: Role[] = ['admin', 'executive', 'project_manager', 'member']
+export const ROLES: Role[] = ['admin', 'executive', 'project_manager', 'member', 'steel_sales']
 
 export const ROLE_LABELS: Record<Role, string> = {
   admin: 'Admin',
   executive: 'Executive',
   project_manager: 'Project Manager',
   member: 'Team Member',
+  steel_sales: 'Steel Sales',
 }
 
 export const ROLE_DESCRIPTIONS: Record<Role, string> = {
@@ -25,6 +27,7 @@ export const ROLE_DESCRIPTIONS: Record<Role, string> = {
   executive: 'Tasks and Objectives with full edit. No projects, AI, or directory.',
   project_manager: 'Granted projects & opportunities, plus tasks within them.',
   member: 'Their own task list only.',
+  steel_sales: 'The prefab steel CRM only — deals, quotes, and deal notes.',
 }
 
 export function isRole(value: unknown): value is Role {
@@ -41,15 +44,16 @@ export function isRole(value: unknown): value is Role {
 // carry in-route admin guards). The rest of /company remains admin-only —
 // prefix matching means '/company/structure' does not grant '/company'.
 const ROLE_PAGE_PREFIXES: Record<Exclude<Role, 'admin'>, string[]> = {
-  executive: ['/tasks', '/objectives', '/company/structure'],
+  executive: ['/tasks', '/objectives', '/company/structure', '/steel'],
   project_manager: ['/tasks', '/projects', '/opportunities', '/company/structure'],
   member: ['/tasks', '/company/structure'],
+  steel_sales: ['/steel'],
 }
 
 // API path prefixes each non-admin role may call. Fine-grained checks (which
 // project, whose task) happen inside the routes via lib/auth/viewer.
 const ROLE_API_PREFIXES: Record<Exclude<Role, 'admin'>, string[]> = {
-  executive: ['/api/tasks', '/api/objectives', '/api/team-members'],
+  executive: ['/api/tasks', '/api/objectives', '/api/team-members', '/api/steel'],
   project_manager: [
     '/api/tasks',
     '/api/team-members',
@@ -59,6 +63,7 @@ const ROLE_API_PREFIXES: Record<Exclude<Role, 'admin'>, string[]> = {
     '/api/milestones',
   ],
   member: ['/api/tasks', '/api/team-members'],
+  steel_sales: ['/api/steel'],
 }
 
 function matchesPrefix(pathname: string, prefixes: string[]): boolean {
@@ -75,6 +80,11 @@ export function canAccessApi(role: Role, pathname: string): boolean {
   return matchesPrefix(pathname, ROLE_API_PREFIXES[role])
 }
 
-// Where an unauthorized page hit gets sent. /tasks is reachable by every role,
-// so this can never redirect-loop.
+// Where an unauthorized page hit gets sent. /tasks is reachable by every role
+// EXCEPT steel_sales, whose whole world is /steel — landingFor keeps the
+// redirect inside the role's allowlist so it can never loop.
 export const DEFAULT_LANDING = '/tasks'
+
+export function landingFor(role: Role): string {
+  return role === 'steel_sales' ? '/steel' : DEFAULT_LANDING
+}

@@ -14,6 +14,7 @@ import {
   HeartPulse,
   Map as MapIcon,
   HandCoins,
+  Factory,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -69,6 +70,7 @@ export const NAV_ITEMS: NavItem[] = [
   { href: '/projects', label: 'Projects', icon: FolderKanban, group: 'primary', keywords: 'pipeline deals', mobilePrimary: true },
   { href: '/opportunities', label: 'Opportunities', icon: Lightbulb, group: 'primary', keywords: 'acquisitions partnerships jv mergers investments deals' },
   { href: '/investors', label: 'Investors', icon: HandCoins, group: 'primary', keywords: 'capital raise fundraising equity spv commitments funding money lp' },
+  { href: '/steel', label: 'Steel CRM', icon: Factory, group: 'primary', keywords: 'prefab steel sales deals quotes square feet sqft plant manufacturing buildings customers' },
   { href: '/map', label: 'Map', title: 'Project Map', icon: MapIcon, group: 'primary', keywords: 'map geography utah locations sites markers rail corridors presentation visualize' },
   { href: '/intel', label: 'Intel', icon: Brain, group: 'intelligence', keywords: 'ask query search ai agent calendar meetings', mobilePrimary: true, alsoMatches: ['/calendar'] },
   { href: '/intake', label: 'Intake', icon: Inbox, group: 'intelligence', keywords: 'email inbox ingest outlook sweep research proposal rfp upload document intake meeting notes minutes attendees follow-up transcript recap digest summarize read aloud understand', alsoMatches: ['/email-ingestion', '/proposals/intake', '/intake/meeting', '/intake/document'] },

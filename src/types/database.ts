@@ -2351,6 +2351,106 @@ export type Database = {
           },
         ]
       }
+      steel_deal_notes: {
+        Row: {
+          author: string | null
+          body: string
+          created_at: string | null
+          deal_id: string
+          id: string
+        }
+        Insert: {
+          author?: string | null
+          body: string
+          created_at?: string | null
+          deal_id: string
+          id?: string
+        }
+        Update: {
+          author?: string | null
+          body?: string
+          created_at?: string | null
+          deal_id?: string
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "steel_deal_notes_deal_id_fkey"
+            columns: ["deal_id"]
+            isOneToOne: false
+            referencedRelation: "steel_deals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      steel_deals: {
+        Row: {
+          building_type: string | null
+          created_at: string | null
+          customer: string | null
+          description: string | null
+          expected_delivery_date: string | null
+          id: string
+          lead_source: string
+          lead_source_detail: string | null
+          name: string
+          next_step: string | null
+          next_step_date: string | null
+          price_per_sqft: number | null
+          salesperson_id: string | null
+          square_feet: number | null
+          stage: string
+          updated_at: string | null
+          value: number | null
+        }
+        Insert: {
+          building_type?: string | null
+          created_at?: string | null
+          customer?: string | null
+          description?: string | null
+          expected_delivery_date?: string | null
+          id?: string
+          lead_source?: string
+          lead_source_detail?: string | null
+          name: string
+          next_step?: string | null
+          next_step_date?: string | null
+          price_per_sqft?: number | null
+          salesperson_id?: string | null
+          square_feet?: number | null
+          stage?: string
+          updated_at?: string | null
+          value?: number | null
+        }
+        Update: {
+          building_type?: string | null
+          created_at?: string | null
+          customer?: string | null
+          description?: string | null
+          expected_delivery_date?: string | null
+          id?: string
+          lead_source?: string
+          lead_source_detail?: string | null
+          name?: string
+          next_step?: string | null
+          next_step_date?: string | null
+          price_per_sqft?: number | null
+          salesperson_id?: string | null
+          square_feet?: number | null
+          stage?: string
+          updated_at?: string | null
+          value?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "steel_deals_salesperson_id_fkey"
+            columns: ["salesperson_id"]
+            isOneToOne: false
+            referencedRelation: "team_members"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       stored_briefs: {
         Row: {
           brief_type: string

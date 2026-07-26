@@ -15,6 +15,7 @@ import {
   HandCoins,
   Target,
   FileText,
+  Factory,
   type LucideIcon,
 } from 'lucide-react'
 import type { SearchResult } from '@/app/api/search/route'
@@ -36,6 +37,7 @@ const TYPE_META: Record<SearchResult['type'], { icon: LucideIcon; label: string 
   investor: { icon: HandCoins, label: 'Investor' },
   objective: { icon: Target, label: 'Objective' },
   document: { icon: FileText, label: 'Document' },
+  steel: { icon: Factory, label: 'Steel Deal' },
 }
 
 type Item =
@@ -56,6 +58,7 @@ const SCOPES: { value: Scope; label: string }[] = [
   { value: 'investor', label: 'Investors' },
   { value: 'objective', label: 'Objectives' },
   { value: 'document', label: 'Documents' },
+  { value: 'steel', label: 'Steel' },
 ]
 
 const MIN_QUERY = 2

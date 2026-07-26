@@ -2,7 +2,7 @@ import { createServerClient } from '@supabase/ssr'
 // Import from specific paths to avoid next/server.js loading ua-parser-js (__dirname issue on Vercel edge)
 import { NextResponse } from 'next/dist/server/web/spec-extension/response'
 import type { NextRequest } from 'next/dist/server/web/spec-extension/request'
-import { canAccessApi, canAccessPage, isRole, DEFAULT_LANDING, type Role } from '@/lib/auth/permissions'
+import { canAccessApi, canAccessPage, isRole, landingFor, type Role } from '@/lib/auth/permissions'
 
 export async function middleware(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request })
@@ -98,7 +98,9 @@ export async function middleware(request: NextRequest) {
         }
       } else if (!canAccessPage(role, pathname)) {
         const url = request.nextUrl.clone()
-        url.pathname = DEFAULT_LANDING
+        // Per-role landing: steel_sales can't see /tasks, so sending them
+        // there would redirect-loop — landingFor keeps it in-allowlist.
+        url.pathname = landingFor(role)
         return NextResponse.redirect(url)
       }
     }
