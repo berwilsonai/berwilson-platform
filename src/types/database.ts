@@ -2393,6 +2393,7 @@ export type Database = {
           id: string
           lead_source: string
           lead_source_detail: string | null
+          lead_source_id: string | null
           name: string
           next_step: string | null
           next_step_date: string | null
@@ -2412,6 +2413,7 @@ export type Database = {
           id?: string
           lead_source?: string
           lead_source_detail?: string | null
+          lead_source_id?: string | null
           name: string
           next_step?: string | null
           next_step_date?: string | null
@@ -2431,6 +2433,7 @@ export type Database = {
           id?: string
           lead_source?: string
           lead_source_detail?: string | null
+          lead_source_id?: string | null
           name?: string
           next_step?: string | null
           next_step_date?: string | null
@@ -2445,6 +2448,13 @@ export type Database = {
           {
             foreignKeyName: "steel_deals_salesperson_id_fkey"
             columns: ["salesperson_id"]
+            isOneToOne: false
+            referencedRelation: "team_members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "steel_deals_lead_source_id_fkey"
+            columns: ["lead_source_id"]
             isOneToOne: false
             referencedRelation: "team_members"
             referencedColumns: ["id"]

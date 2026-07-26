@@ -280,6 +280,28 @@ export default function SteelDealForm({ mode, deal, teamMembers, leadSources = [
             </p>
           </div>
           <div>
+            <label htmlFor="lead_source_id" className={labelClass}>
+              Referred By
+            </label>
+            <select
+              id="lead_source_id"
+              name="lead_source_id"
+              defaultValue={deal?.lead_source_id ?? ''}
+              className={inputClass}
+            >
+              <option value="">— channel / not a person</option>
+              {teamMembers.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.name}
+                </option>
+              ))}
+            </select>
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              The person who brought the deal (add them under Users). Leave blank
+              for channels like Trade Show. Commission-payable later.
+            </p>
+          </div>
+          <div className="sm:col-span-2">
             <label htmlFor="lead_source_detail" className={labelClass}>
               Source Detail
             </label>
@@ -288,7 +310,7 @@ export default function SteelDealForm({ mode, deal, teamMembers, leadSources = [
               name="lead_source_detail"
               type="text"
               defaultValue={deal?.lead_source_detail ?? ''}
-              placeholder="The specific person or firm"
+              placeholder="A firm not in Users, or any extra context"
               className={inputClass}
             />
           </div>

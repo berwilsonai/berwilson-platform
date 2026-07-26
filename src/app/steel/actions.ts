@@ -42,6 +42,7 @@ function parseFields(formData: FormData): ParseResult {
       building_type: str('building_type'),
       lead_source: str('lead_source') ?? 'Other',
       lead_source_detail: str('lead_source_detail'),
+      lead_source_id: str('lead_source_id'),
       salesperson_id: str('salesperson_id'),
       stage: (STEEL_STAGES as string[]).includes(rawStage) ? rawStage : 'quote',
       square_feet: square_feet as number | null,

@@ -65,6 +65,7 @@ export default async function SteelDealDetailPage({ params }: PageProps) {
   const nextOverdue = isPastDate(deal.next_step_date) && !lost && s !== 'paid'
   const currentIndex = STEEL_STAGE_INDEX[s]
   const salesperson = (members ?? []).find((m) => m.id === deal.salesperson_id)
+  const referrer = (members ?? []).find((m) => m.id === deal.lead_source_id)
   const canDelete = viewer?.isAdmin ?? true
 
   return (
@@ -162,6 +163,7 @@ export default async function SteelDealDetailPage({ params }: PageProps) {
             label="Lead Source"
             value={[leadSourceLabel(deal.lead_source), deal.lead_source_detail].filter(Boolean).join(' — ')}
           />
+          <Fact label="Referred By" value={referrer?.name} />
           <Fact
             label="Expected Delivery"
             value={deal.expected_delivery_date ? formatDate(deal.expected_delivery_date) : null}
