@@ -11,13 +11,11 @@
     <string>curl -sS -m 290 -H "Authorization: Bearer $(grep '^CRON_SECRET=' __APP_DIR__/.env.local | cut -d= -f2-)" http://localhost:3000/api/cron/task-digest</string>
   </array>
   <key>StartCalendarInterval</key>
-  <array>
-    <dict><key>Weekday</key><integer>1</integer><key>Hour</key><integer>7</integer><key>Minute</key><integer>0</integer></dict>
-    <dict><key>Weekday</key><integer>2</integer><key>Hour</key><integer>7</integer><key>Minute</key><integer>0</integer></dict>
-    <dict><key>Weekday</key><integer>3</integer><key>Hour</key><integer>7</integer><key>Minute</key><integer>0</integer></dict>
-    <dict><key>Weekday</key><integer>4</integer><key>Hour</key><integer>7</integer><key>Minute</key><integer>0</integer></dict>
-    <dict><key>Weekday</key><integer>5</integer><key>Hour</key><integer>7</integer><key>Minute</key><integer>0</integer></dict>
-  </array>
+  <dict>
+    <key>Weekday</key><integer>1</integer>
+    <key>Hour</key><integer>7</integer>
+    <key>Minute</key><integer>0</integer>
+  </dict>
   <key>StandardOutPath</key>
   <string>__LOG_DIR__/cron-task-digest.log</string>
   <key>StandardErrorPath</key>

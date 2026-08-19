@@ -2,7 +2,7 @@
  * GET /api/cron/task-digest
  *
  * Emails each active team member a personal digest of their overdue + due-this-week
- * tasks. Driven by a launchd job weekday mornings (com.berwilson.cron-task-digest).
+ * tasks. Driven by a launchd job Monday mornings (com.berwilson.cron-task-digest).
  * Quiet for members with nothing due.
  *
  * The email carries the task list inline (not just a link) so it's useful even when

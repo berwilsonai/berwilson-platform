@@ -253,8 +253,8 @@ async function runChecks(appOrigin: string): Promise<HealthCheck[]> {
     })
   }
 
-  // 8b. Task digest cron (launchd, weekday mornings) — quiet days are normal,
-  //     so a stale "last sent" only warns; failed sends are the real signal.
+  // 8b. Task digest cron (launchd, Monday mornings) — a stale "last sent" only
+  //     warns (weekly + quiet weeks are normal); failed sends are the real signal.
   {
     const h = hoursAgo(lastDigest.data?.created_at)
     const failed = failedDigests.count ?? 0
@@ -271,7 +271,7 @@ async function runChecks(appOrigin: string): Promise<HealthCheck[]> {
         failed > 0
           ? 'A member digest failed to send — usually a missing Mail.Send scope (reconnect the mailbox above) or a bad member email.'
           : h === null
-            ? `Emails each member their overdue + due-this-week tasks on weekday mornings. Nothing sends until a member has a task due. ${cronLogsHint}`
+            ? `Emails each member their overdue + due-this-week tasks Monday mornings. Nothing sends until a member has a task due. ${cronLogsHint}`
             : 'Sending on schedule to members with tasks due.',
     })
   }
