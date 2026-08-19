@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { CalendarClock, Ruler, UserRound } from 'lucide-react'
+import { CalendarClock, Ruler, UserRound, Handshake, TriangleAlert } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { SteelDeal } from '@/lib/supabase/types'
 import { formatValue, formatDate } from '@/lib/utils/constants'
@@ -17,16 +17,18 @@ import {
   STEEL_STAGE_BORDER,
 } from '@/lib/utils/steel'
 
-/** Deal + salesperson name resolved server-side. */
+/** Deal + salesperson / referral-source names resolved server-side. */
 export interface SteelDealCardData {
   deal: SteelDeal
   salesperson: string | null
+  /** The marketing / referral source contact (referral_party_id), when set. */
+  referrer: string | null
 }
 
 export default function SteelDealsClient({ items }: { items: SteelDealCardData[] }) {
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-      {items.map(({ deal, salesperson }) => {
+      {items.map(({ deal, salesperson, referrer }) => {
         const s = steelStage(deal.stage)
         const nextOverdue = isPastDate(deal.next_step_date) && isOpenStage(deal.stage)
 
@@ -47,6 +49,12 @@ export default function SteelDealsClient({ items }: { items: SteelDealCardData[]
               <span className={cn('inline-flex items-center rounded px-1.5 py-0.5 text-[11px] font-medium ring-1 ring-inset', leadSourceBadge(deal.lead_source))}>
                 {leadSourceLabel(deal.lead_source)}
               </span>
+              {deal.pricing_below_floor && (
+                <span className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-medium ring-1 ring-inset bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-500/15 dark:text-amber-300 dark:ring-amber-500/30">
+                  <TriangleAlert size={11} className="shrink-0" />
+                  Below floor · needs approval
+                </span>
+              )}
             </div>
 
             {/* Name */}
@@ -66,6 +74,16 @@ export default function SteelDealsClient({ items }: { items: SteelDealCardData[]
               <p className="mt-1.5 flex items-center gap-1 text-[11px] text-muted-foreground">
                 <UserRound size={11} className="shrink-0" />
                 {salesperson}
+                <span className="text-muted-foreground/60">· sales</span>
+              </p>
+            )}
+
+            {/* Referrer (lead source person) */}
+            {referrer && (
+              <p className="mt-1 flex items-center gap-1 text-[11px] text-muted-foreground">
+                <Handshake size={11} className="shrink-0" />
+                {referrer}
+                <span className="text-muted-foreground/60">· referred</span>
               </p>
             )}
 

@@ -20,6 +20,7 @@ const TARGET_EMAIL = 'tuaone@berwilson.com'
 const SCOPES = [
   'https://graph.microsoft.com/Mail.Read',
   'https://graph.microsoft.com/Mail.Read.Shared',
+  'https://graph.microsoft.com/Mail.Send',
   'https://graph.microsoft.com/Calendars.Read',
   'offline_access',
 ]
@@ -247,6 +248,50 @@ export async function fetchAttachments(
     token
   )
   return result.value
+}
+
+// ---------------------------------------------------------------------------
+// Graph API: Sending mail
+// ---------------------------------------------------------------------------
+
+/**
+ * Send an HTML email via Microsoft Graph (`/users/{from}/sendMail`).
+ * Requires the Mail.Send scope — re-consent via /api/email/oauth after adding it.
+ * `from` defaults to the connected mailbox (tuaone@berwilson.com).
+ */
+export async function sendMail(opts: {
+  to: string | string[]
+  subject: string
+  html: string
+  from?: string
+}): Promise<void> {
+  const from = opts.from ?? TARGET_EMAIL
+  const token = await getValidAccessToken(from)
+  const recipients = (Array.isArray(opts.to) ? opts.to : [opts.to]).map((address) => ({
+    emailAddress: { address },
+  }))
+
+  const res = await fetch(`${GRAPH_BASE}/users/${from}/sendMail`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      message: {
+        subject: opts.subject,
+        body: { contentType: 'HTML', content: opts.html },
+        toRecipients: recipients,
+      },
+      saveToSentItems: true,
+    }),
+  })
+
+  // 202 Accepted with an empty body on success.
+  if (!res.ok) {
+    const err = await res.text()
+    throw new Error(`sendMail failed: ${res.status} — ${err}`)
+  }
 }
 
 // ---------------------------------------------------------------------------

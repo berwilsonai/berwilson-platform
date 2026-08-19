@@ -66,8 +66,8 @@ export default async function RootLayout({
   const headersList = await headers()
   const pathname = headersList.get('x-pathname') ?? ''
   const isLoginPage = pathname === '/login' || pathname.startsWith('/auth/')
-  // Print views are standalone documents (for print / save-as-PDF) — no app chrome.
-  const isPrintPage = pathname.endsWith('/print')
+  // Print views + the steel quote are standalone documents (print / save-as-PDF) — no app chrome.
+  const isPrintPage = pathname.endsWith('/print') || pathname.endsWith('/quote')
 
   // Resolve the signed-in user's role; the middleware already enforces auth
   // and section access — this drives what the shell renders.

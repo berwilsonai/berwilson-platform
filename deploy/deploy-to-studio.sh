@@ -56,6 +56,18 @@ if ! grep -q '^CRON_SECRET=' "$ENV_TMP"; then
   echo "CRON_SECRET=$(openssl rand -hex 32)" >> "$ENV_TMP"
   echo "  generated new CRON_SECRET for the Studio"
 fi
+# Local Whisper transcription (whisper.cpp + Metal, built on the Studio). These
+# paths are Studio-specific, so they're set here rather than in the MacBook env.
+# afconvert (macOS built-in) decodes m4a → wav; whisper-cli reads the wav.
+if ! grep -q '^WHISPER_BIN=' "$ENV_TMP"; then
+  WHISPER_BIN_PATH="${WHISPER_BIN_PATH:-$HOME/whisper.cpp/build/bin/whisper-cli}"
+  WHISPER_MODEL_PATH="${WHISPER_MODEL_PATH:-$HOME/whisper.cpp/models/ggml-large-v3-turbo.bin}"
+  {
+    echo "WHISPER_BIN=$WHISPER_BIN_PATH"
+    echo "WHISPER_MODEL=$WHISPER_MODEL_PATH"
+  } >> "$ENV_TMP"
+  echo "  wired Whisper transcription (WHISPER_BIN/WHISPER_MODEL)"
+fi
 scp -q "$ENV_TMP" "$STUDIO:berwilson-platform/.env.local"
 
 echo "==> Installing dependencies + building (this takes a few minutes)"
@@ -65,7 +77,7 @@ echo "==> Installing launchd services"
 ssh "$STUDIO" "
   set -e
   mkdir -p \$HOME/Library/Logs/berwilson \$HOME/Library/LaunchAgents
-  for plist in com.berwilson.platform com.berwilson.cron-daily-brief com.berwilson.cron-risk-scores; do
+  for plist in com.berwilson.platform com.berwilson.cron-daily-brief com.berwilson.cron-risk-scores com.berwilson.cron-task-digest; do
     sed -e \"s#__APP_DIR__#\$HOME/berwilson-platform#g\" -e \"s#__LOG_DIR__#\$HOME/Library/Logs/berwilson#g\" -e \"s#__NODE_BIN__#\$HOME/.node/bin#g\" \
       $APP_DIR/deploy/\$plist.plist > \$HOME/Library/LaunchAgents/\$plist.plist
     launchctl bootout gui/\$(id -u)/\$plist 2>/dev/null || true

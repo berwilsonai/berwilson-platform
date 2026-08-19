@@ -242,7 +242,7 @@ export const agentTools = [
       properties: {
         category: {
           type: 'string',
-          enum: ['all', 'overdue_action', 'stale_waiting', 'approaching_milestone', 'critical_dd', 'expiring_compliance', 'stale_decision', 'dependency_risk'],
+          enum: ['all', 'overdue_action', 'stale_waiting', 'approaching_milestone', 'critical_dd', 'expiring_compliance', 'stale_decision', 'dependency_risk', 'investor_followup', 'dino_payment'],
           description: 'Filter by category (default: all)',
         },
       },

@@ -61,7 +61,7 @@ async function runChecks(appOrigin: string): Promise<HealthCheck[]> {
   const dayAgo = new Date(Date.now() - 86_400_000).toISOString()
   const localAI = process.env.AI_PROVIDER === 'local'
 
-  const [brief, riskScore, lastAi, aiDayCount, failedRuns, graph, lmStudio, backups, disk] =
+  const [brief, riskScore, lastAi, aiDayCount, failedRuns, graph, lmStudio, backups, disk, lastDigest, failedDigests] =
     await Promise.all([
       supabase
         .from('stored_briefs')
@@ -95,6 +95,20 @@ async function runChecks(appOrigin: string): Promise<HealthCheck[]> {
       probeLmStudio(),
       probeBackups(),
       probeDisk(),
+      supabase
+        .from('notification_log')
+        .select('created_at')
+        .eq('kind', 'task_digest')
+        .eq('status', 'sent')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+      supabase
+        .from('notification_log')
+        .select('id', { count: 'exact', head: true })
+        .eq('kind', 'task_digest')
+        .eq('status', 'failed')
+        .gte('created_at', weekAgo),
     ])
 
   const checks: HealthCheck[] = []
@@ -107,14 +121,18 @@ async function runChecks(appOrigin: string): Promise<HealthCheck[]> {
     if (graph.state === 'ok') {
       const scopes = graph.scopes ?? []
       const hasSharedScope = scopes.some((s) => s.toLowerCase().includes('mail.read.shared'))
+      const hasSendScope = scopes.some((s) => s.toLowerCase().includes('mail.send'))
+      const allScopes = hasSharedScope && hasSendScope
       checks.push({
         name: 'Microsoft Mailbox',
-        status: hasSharedScope ? 'ok' : 'warn',
+        status: allScopes ? 'ok' : 'warn',
         headline: `Connected as ${graph.email} — live refresh verified just now`,
-        detail: hasSharedScope
-          ? 'Calendar, meeting prep, and multi-mailbox email research are all working.'
-          : 'Connected, but the token predates the Mail.Read.Shared scope — email research will fail on the shared mailboxes (info@, moose@). Reconnect to refresh scopes.',
-        action: hasSharedScope ? undefined : { label: 'Reconnect Mailbox', href: '/api/email/oauth' },
+        detail: allScopes
+          ? 'Calendar, meeting prep, multi-mailbox email research, and Mail.Send (task digest) are all working.'
+          : !hasSendScope
+            ? 'Connected, but the token is missing the Mail.Send scope — the daily task digest cannot send. Reconnect to grant it.'
+            : 'Connected, but the token predates the Mail.Read.Shared scope — email research will fail on the shared mailboxes (info@, moose@). Reconnect to refresh scopes.',
+        action: allScopes ? undefined : { label: 'Reconnect Mailbox', href: '/api/email/oauth' },
       })
     } else if (graph.state === 'disconnected') {
       checks.push({
@@ -232,6 +250,29 @@ async function runChecks(appOrigin: string): Promise<HealthCheck[]> {
         failed === 0
           ? undefined
           : 'Open Email Intake → Recent sessions to see the error on each failed run.',
+    })
+  }
+
+  // 8b. Task digest cron (launchd, weekday mornings) — quiet days are normal,
+  //     so a stale "last sent" only warns; failed sends are the real signal.
+  {
+    const h = hoursAgo(lastDigest.data?.created_at)
+    const failed = failedDigests.count ?? 0
+    checks.push({
+      name: 'Task Digest',
+      status: failed > 0 ? 'warn' : 'ok',
+      headline:
+        failed > 0
+          ? `${failed} failed send${failed === 1 ? '' : 's'} in 7 days`
+          : h === null
+            ? 'No digests sent yet'
+            : `Last sent ${ageLabel(lastDigest.data?.created_at)}`,
+      detail:
+        failed > 0
+          ? 'A member digest failed to send — usually a missing Mail.Send scope (reconnect the mailbox above) or a bad member email.'
+          : h === null
+            ? `Emails each member their overdue + due-this-week tasks on weekday mornings. Nothing sends until a member has a task due. ${cronLogsHint}`
+            : 'Sending on schedule to members with tasks due.',
     })
   }
 

@@ -217,11 +217,36 @@ export default async function ContactDetailPage({ params, searchParams }: PagePr
     projects: { name: string } | null
   }
 
+  type MeetingActivityRow = {
+    id: string
+    created_at: string | null
+    metadata: {
+      meeting_id?: string
+      title?: string
+      meeting_date?: string
+      scope?: string
+      project_id?: string | null
+      opportunity_id?: string | null
+    } | null
+  }
+
   let activityUpdates: UpdateRow[] = []
   let ddItems: DdRow[] = []
   let complianceItems: ComplianceRow[] = []
+  let meetingActivity: MeetingActivityRow[] = []
 
   if (tab === 'activity') {
+    // Meetings this contact was tagged as an attendee on.
+    const { data: meetingRows } = await supabase
+      .from('activity_log')
+      .select('id, created_at, metadata')
+      .eq('table_name', 'parties')
+      .eq('record_id', id)
+      .eq('action', 'meeting_attended')
+      .order('created_at', { ascending: false })
+      .limit(50)
+    meetingActivity = (meetingRows as MeetingActivityRow[]) ?? []
+
     // Updates for projects this party is involved in
     const { data: playerLinks } = await supabase
       .from('project_players')
@@ -666,6 +691,49 @@ export default async function ContactDetailPage({ params, searchParams }: PagePr
         {/* ── ACTIVITY ─────────────────────────────────────── */}
         {tab === 'activity' && (
           <div className="space-y-6">
+            {/* Meetings this contact attended */}
+            {meetingActivity.length > 0 && (
+              <section>
+                <h2 className="label-caps text-muted-foreground mb-3">Meetings</h2>
+                <div className="rounded-lg border border-border divide-y divide-border">
+                  {meetingActivity.map((m) => {
+                    const meta = m.metadata ?? {}
+                    const scope = meta.scope
+                    const href =
+                      scope === 'project' && meta.project_id
+                        ? `/projects/${meta.project_id}/meetings`
+                        : scope === 'opportunity' && meta.opportunity_id
+                          ? `/opportunities/${meta.opportunity_id}`
+                          : scope === 'company'
+                            ? '/company/board'
+                            : null
+                    const when = meta.meeting_date
+                      ? new Date(`${meta.meeting_date}T00:00:00`).toLocaleDateString('en-US', {
+                          month: 'short', day: 'numeric', year: 'numeric',
+                        })
+                      : m.created_at
+                        ? new Date(m.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                        : ''
+                    const scopeLabel = scope === 'company' ? 'Board' : scope === 'opportunity' ? 'Opportunity' : 'Project'
+                    const inner = (
+                      <div className="px-4 py-3 flex items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-sm truncate">{meta.title ?? 'Meeting'}</p>
+                          <span className="text-xs text-muted-foreground">{scopeLabel} meeting</span>
+                        </div>
+                        {when && <span className="text-xs text-muted-foreground shrink-0">{when}</span>}
+                      </div>
+                    )
+                    return href ? (
+                      <Link key={m.id} href={href} className="block hover:bg-muted/40 transition-colors">{inner}</Link>
+                    ) : (
+                      <div key={m.id}>{inner}</div>
+                    )
+                  })}
+                </div>
+              </section>
+            )}
+
             {/* Updates */}
             <section>
               <h2 className="label-caps text-muted-foreground mb-3">
@@ -770,7 +838,7 @@ export default async function ContactDetailPage({ params, searchParams }: PagePr
               </section>
             )}
 
-            {activityUpdates.length === 0 && ddItems.length === 0 && complianceItems.length === 0 && (
+            {activityUpdates.length === 0 && ddItems.length === 0 && complianceItems.length === 0 && meetingActivity.length === 0 && (
               <p className="py-20 text-center text-sm text-muted-foreground">
                 No activity on record for this contact.
               </p>

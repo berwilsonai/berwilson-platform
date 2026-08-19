@@ -11,16 +11,23 @@ export type SteelStage =
   | 'engineering'
   | 'order_placed'
   | 'delivered'
+  | 'assembled'
+  | 'invoiced'
   | 'paid'
   | 'lost'
 
 export const STEEL_STAGES: SteelStage[] = [
-  'quote', 'engineering', 'order_placed', 'delivered', 'paid', 'lost',
+  'quote', 'engineering', 'order_placed', 'delivered', 'assembled', 'invoiced', 'paid', 'lost',
 ]
 
+// The steel CRM tracks a deal only as far as FRAME ASSEMBLY on the build side —
+// even on deals where Ber Wilson builds the whole home, the rest of the build
+// lives in the construction projects module, not here. 'assembled' is optional
+// (a materials-only deal goes delivered → invoiced, skipping it); 'invoiced'
+// marks that the customer has been billed, before payment lands.
 /** Active pipeline stages, in order (excludes the off-ramp state). */
 export const STEEL_PIPELINE: SteelStage[] = [
-  'quote', 'engineering', 'order_placed', 'delivered', 'paid',
+  'quote', 'engineering', 'order_placed', 'delivered', 'assembled', 'invoiced', 'paid',
 ]
 
 export const STEEL_STAGE_LABELS: Record<SteelStage, string> = {
@@ -28,6 +35,8 @@ export const STEEL_STAGE_LABELS: Record<SteelStage, string> = {
   engineering: 'Engineering',
   order_placed: 'Order Placed',
   delivered: 'Delivered',
+  assembled: 'Frame Assembly',
+  invoiced: 'Invoiced',
   paid: 'Paid',
   lost: 'Lost',
 }
@@ -37,7 +46,9 @@ export const STEEL_STAGE_INDEX: Record<SteelStage, number> = {
   engineering: 1,
   order_placed: 2,
   delivered: 3,
-  paid: 4,
+  assembled: 4,
+  invoiced: 5,
+  paid: 6,
   lost: -1,
 }
 
@@ -46,6 +57,8 @@ export const STEEL_STAGE_BADGE: Record<SteelStage, string> = {
   engineering: 'bg-violet-50 text-violet-700 ring-violet-200 dark:bg-violet-500/15 dark:text-violet-300 dark:ring-violet-500/30',
   order_placed: 'bg-indigo-50 text-indigo-700 ring-indigo-200 dark:bg-indigo-500/15 dark:text-indigo-300 dark:ring-indigo-500/30',
   delivered: 'bg-cyan-50 text-cyan-700 ring-cyan-200 dark:bg-cyan-500/15 dark:text-cyan-300 dark:ring-cyan-500/30',
+  assembled: 'bg-teal-50 text-teal-700 ring-teal-200 dark:bg-teal-500/15 dark:text-teal-300 dark:ring-teal-500/30',
+  invoiced: 'bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-500/15 dark:text-amber-300 dark:ring-amber-500/30',
   paid: 'bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-500/15 dark:text-emerald-300 dark:ring-emerald-500/30',
   lost: 'bg-red-50 text-red-600 ring-red-200 dark:bg-red-500/15 dark:text-red-300 dark:ring-red-500/30',
 }
@@ -55,6 +68,8 @@ export const STEEL_STAGE_BORDER: Record<SteelStage, string> = {
   engineering: 'border-l-violet-400',
   order_placed: 'border-l-indigo-400',
   delivered: 'border-l-cyan-400',
+  assembled: 'border-l-teal-400',
+  invoiced: 'border-l-amber-400',
   paid: 'border-l-emerald-400',
   lost: 'border-l-red-300',
 }
@@ -72,6 +87,16 @@ export function isLostStage(value: string | null | undefined): boolean {
 /** Deals still needing work: not paid, not lost. */
 export function isOpenStage(value: string | null | undefined): boolean {
   return value !== 'paid' && value !== 'lost'
+}
+
+/**
+ * A commission becomes a real PAYABLE only once the deal's cash is collected
+ * (the deal reaches the 'paid' stage). Before that a commission is projected
+ * (forecast) — computable, but not owed. This is the single trigger point for
+ * "owed" across the app; to pay reps at invoice instead, add 'invoiced' here.
+ */
+export function isCommissionPayable(stage: string | null | undefined): boolean {
+  return stage === 'paid'
 }
 
 // ─── Lead Source ─────────────────────────────────────────────────────────────
@@ -150,4 +175,319 @@ const sqftFormat = new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 })
 export function formatSqft(value: number | null | undefined): string {
   if (value == null || value === 0) return '—'
   return `${sqftFormat.format(value)} SF`
+}
+
+// ─── Line items (commissionable) ─────────────────────────────────────────────
+//
+// A deal is built from custom LINE ITEMS. Each line has a free-text
+// description, a category (for rollups), a price (charged) and cost (our cost
+// / pass-through payout); margin = price − cost. A line can be marked
+// non-commissionable (its margin is excluded from commission — e.g. freight).
+// The salesperson earns commission_pct of a commissionable line's margin.
+
+export type SteelServiceType = 'materials' | 'engineering' | 'assembly' | 'other'
+
+export const STEEL_SERVICE_TYPES: SteelServiceType[] = ['materials', 'engineering', 'assembly', 'other']
+
+export const STEEL_SERVICE_LABELS: Record<SteelServiceType, string> = {
+  materials: 'Steel / Materials',
+  engineering: 'Engineering',
+  assembly: 'Frame Assembly',
+  other: 'Other',
+}
+
+/** Order line categories render / sort in. */
+export const STEEL_SERVICE_ORDER: Record<SteelServiceType, number> = {
+  materials: 0,
+  engineering: 1,
+  assembly: 2,
+  other: 3,
+}
+
+export function isSteelServiceType(value: unknown): value is SteelServiceType {
+  return typeof value === 'string' && (STEEL_SERVICE_TYPES as string[]).includes(value)
+}
+
+export function steelCategory(value: string | null | undefined): SteelServiceType {
+  return isSteelServiceType(value) ? value : 'other'
+}
+
+/** A line's display label: its description, falling back to the category. */
+export function lineItemLabel(
+  description: string | null | undefined,
+  category: string | null | undefined
+): string {
+  const d = (description ?? '').trim()
+  if (d) return d
+  return STEEL_SERVICE_LABELS[steelCategory(category)]
+}
+
+/** Whether a line is the installation / frame-assembly work. Installation is
+ * billed separately and earns a flat fee, NOT margin commission (comp plan). */
+export function isInstallCategory(value: string | null | undefined): boolean {
+  return steelCategory(value) === 'assembly'
+}
+
+/**
+ * Services whose cost is driven by a per-square-foot basis (cost =
+ * square_feet × cost_per_sqft). Engineering is excluded — its cost is a
+ * manual dollar figure entered per deal.
+ */
+export const PER_SQFT_COST_SERVICES: SteelServiceType[] = ['materials', 'assembly']
+
+export function isPerSqftCostService(type: SteelServiceType): boolean {
+  return PER_SQFT_COST_SERVICES.includes(type)
+}
+
+/** Default steel/materials cost basis ($/SF), pre-filled on new deals. */
+export const DEFAULT_STEEL_COST_PER_SQFT = 20
+
+// ─── Pricing floor (management approval) ─────────────────────────────────────
+//
+// Steel priced below this $/SF needs management sign-off. The deal form warns
+// on entry, and the save flow flags the deal (steel_deals.pricing_below_floor)
+// so executives can spot below-floor pricing on the list/detail with a badge.
+
+/** Steel pricing floor ($/SF). Below this, a deal needs management approval. */
+export const STEEL_PRICE_FLOOR_PER_SQFT = 30
+
+/**
+ * Effective steel price per SF for the floor check: the steel/materials price
+ * divided by square feet (covers both entry modes — a directly-typed materials
+ * price and one auto-filled from SF × $/SF). Falls back to the entered Price/SF
+ * when materials price or square feet is missing. Returns null when there's
+ * nothing to judge.
+ */
+export function effectiveSteelPricePerSqft(
+  materialsPrice: number | null | undefined,
+  squareFeet: number | null | undefined,
+  pricePerSqft: number | null | undefined
+): number | null {
+  const sf = numOr0(squareFeet)
+  const mp = numOr0(materialsPrice)
+  if (sf > 0 && mp > 0) return mp / sf
+  const ppsf = numOr0(pricePerSqft)
+  return ppsf > 0 ? ppsf : null
+}
+
+/** Whether a deal's effective steel $/SF is below the approval floor. */
+export function isPricingBelowFloor(
+  materialsPrice: number | null | undefined,
+  squareFeet: number | null | undefined,
+  pricePerSqft: number | null | undefined
+): boolean {
+  const eff = effectiveSteelPricePerSqft(materialsPrice, squareFeet, pricePerSqft)
+  return eff != null && eff < STEEL_PRICE_FLOOR_PER_SQFT
+}
+
+const numOr0 = (v: number | null | undefined): number =>
+  typeof v === 'number' && isFinite(v) ? v : 0
+
+// ─── Referral fee (paid to the marketing / referral source) ──────────────────
+//
+// The marketing / referral source (steel_deals.referral_party_id → parties) can
+// be ANY contact — typically a Ber Wilson employee, but an outside referrer too.
+// They earn a referral fee: a flat amount, or a percentage of the deal margin.
+
+export type ReferralFeeType = 'none' | 'flat' | 'percent'
+
+export const REFERRAL_FEE_TYPES: ReferralFeeType[] = ['none', 'flat', 'percent']
+
+export const REFERRAL_FEE_LABELS: Record<ReferralFeeType, string> = {
+  none: 'No referral fee',
+  flat: 'Flat fee',
+  percent: '% of margin',
+}
+
+export function referralFeeType(value: string | null | undefined): ReferralFeeType {
+  return REFERRAL_FEE_TYPES.includes(value as ReferralFeeType) ? (value as ReferralFeeType) : 'none'
+}
+
+// ─── Commission math (founding-phase comp plan) ──────────────────────────────
+//
+//   Sales commission = commissionable margin × RATE
+//   • RATE is set by the deal's total square footage (Sales 15/12/10 for
+//     <20k / 20k-100k / 100k+ SF) and applies to the whole deal. A per-deal
+//     override wins over the tier rate.
+//   • Installation (frame assembly) is billed separately and earns NO margin
+//     commission — the salesperson gets a flat $250-$500 per install job.
+//   • Per-rep volume accelerator: once a rep collects $1M of gross profit in a
+//     calendar year, their rate steps up 1 point for the rest of that year.
+//   • Marketing / referral is handled entirely by the referral fee (flat or %
+//     of margin) paid to the deal's marketing source — see referralFeeAmount.
+//   Cost basis for the steel kit is fixed at $20/SF (see DEFAULT_STEEL_COST_PER_SQFT).
+
+const n = (v: number | null | undefined): number => (typeof v === 'number' && isFinite(v) ? v : 0)
+
+// ── Project-size rate tiers ──
+
+export type SizeTier = 'under_20k' | 'mid' | 'large'
+
+export function steelSizeTier(sqft: number | null | undefined): SizeTier {
+  const s = n(sqft)
+  if (s >= 100_000) return 'large'
+  if (s >= 20_000) return 'mid'
+  return 'under_20k'
+}
+
+export const SIZE_TIER_LABELS: Record<SizeTier, string> = {
+  under_20k: 'Under 20,000 SF',
+  mid: '20,000–100,000 SF',
+  large: '100,000+ SF',
+}
+
+/** Sales commission rate (% of commissionable margin) by project-size tier. */
+export const SALES_RATE_BY_TIER: Record<SizeTier, number> = { under_20k: 15, mid: 12, large: 10 }
+
+/** Collected gross profit (per rep, per calendar year) that triggers the +1pt bump. */
+export const ACCELERATOR_THRESHOLD = 1_000_000
+/** Points added to a rep's rate once they cross the accelerator threshold. */
+export const ACCELERATOR_BUMP = 1
+
+/** Effective sales rate for a deal: SF-tier base (or override), +1 if accelerated. */
+export function salesRate(
+  sqft: number | null | undefined,
+  override: number | null | undefined,
+  accelerated = false
+): number {
+  const base = override != null && isFinite(override) ? override : SALES_RATE_BY_TIER[steelSizeTier(sqft)]
+  return base + (accelerated ? ACCELERATOR_BUMP : 0)
+}
+
+// ── Installation flat fee ──
+
+export const INSTALL_FEE_MIN = 250
+export const INSTALL_FEE_MAX = 500
+
+// ── ICP + marketing (GTM brief) ──
+
+/** Suggested buyer segments (self-maintaining datalist, like lead sources). */
+export const DEFAULT_ICP_SEGMENTS: string[] = [
+  'Developer', 'General Contractor', 'Owner-Builder', 'Ag / Farm', 'Industrial',
+  'Municipal / Gov', 'Church / Institutional', 'Other',
+]
+
+/** Suggested buying triggers. */
+export const DEFAULT_BUYING_TRIGGERS: string[] = [
+  'New construction', 'Expansion', 'Replacement / rebuild', 'Bid requirement',
+  'Speed to build', 'Price shopping', 'Other',
+]
+
+/** Monthly steel media budget (GTM brief). Actual spend comes from the ledger. */
+export const STEEL_MARKETING_MONTHLY_BUDGET = 3000
+
+// ── Line-level margin ──
+
+export interface ServiceLine {
+  service_type: string
+  price: number | null
+  cost: number | null
+  /** Vestigial (rate is deal-level now); kept for row compatibility. */
+  commission_pct?: number | null
+  commission_paid?: boolean | null
+  /** When false, this line's margin is excluded from commissionable margin. */
+  commissionable?: boolean | null
+}
+
+export function serviceMargin(s: Pick<ServiceLine, 'price' | 'cost'>): number {
+  return n(s.price) - n(s.cost)
+}
+
+/**
+ * Margin eligible for sales/marketing commission: sum of line margins,
+ * EXCLUDING installation/frame-assembly lines (flat-fee, never commissioned)
+ * and any line explicitly marked non-commissionable (freight, permits, …).
+ */
+export function commissionableMargin(lines: ServiceLine[]): number {
+  return lines.reduce((a, s) => {
+    if (s.commissionable === false) return a
+    if (isInstallCategory(s.service_type)) return a
+    return a + serviceMargin(s)
+  }, 0)
+}
+
+/** Margin on installation/frame-assembly lines (tracked for P&L; not commissioned). */
+export function installMargin(lines: ServiceLine[]): number {
+  return lines.reduce((a, s) => (isInstallCategory(s.service_type) ? a + serviceMargin(s) : a), 0)
+}
+
+/** Contract value = sum of line prices (the deal's revenue). */
+export function servicesRevenue(lines: ServiceLine[]): number {
+  return lines.reduce((a, s) => a + n(s.price), 0)
+}
+
+// ── Referral fee (paid to the lead-source referrer) ──
+
+export function referralFeeAmount(
+  type: string | null | undefined,
+  value: number | null | undefined,
+  totalMargin: number
+): number {
+  const t = referralFeeType(type)
+  if (t === 'flat') return n(value)
+  if (t === 'percent') return (totalMargin * n(value)) / 100
+  return 0
+}
+
+// ── Whole-deal financials ──
+
+export interface DealCommissionInput {
+  square_feet: number | null
+  sales_rate_override?: number | null
+  install_fee?: number | null
+  referral_fee_type?: string | null
+  referral_fee_value?: number | null
+  /** A salesperson is credited on the deal (default true). */
+  hasSalesperson?: boolean
+  /** The salesperson has crossed their annual $1M-profit accelerator. */
+  salesAccelerated?: boolean
+}
+
+export interface DealFinancials {
+  revenue: number
+  cost: number
+  /** Total margin across all lines (revenue − cost). */
+  margin: number
+  /** Margin eligible for commission (excludes installation + non-commissionable). */
+  commissionableMargin: number
+  installMargin: number
+  salesRate: number
+  salesCommission: number
+  /** Flat installation fee to the salesperson. */
+  installFee: number
+  /** Referral fee to the marketing / referral source (flat or % of margin). */
+  referralFee: number
+  /** Sum of all commissions/fees the company pays out on this deal. */
+  totalPayout: number
+  /** Margin left after all payouts. */
+  net: number
+}
+
+export function dealFinancials(lines: ServiceLine[], deal: DealCommissionInput): DealFinancials {
+  const revenue = servicesRevenue(lines)
+  const cost = lines.reduce((a, s) => a + n(s.cost), 0)
+  const margin = revenue - cost
+  const cMargin = commissionableMargin(lines)
+  const iMargin = installMargin(lines)
+
+  const sRate = salesRate(deal.square_feet, deal.sales_rate_override, deal.salesAccelerated)
+
+  const salesCommission = (deal.hasSalesperson ?? true) ? (cMargin * sRate) / 100 : 0
+  const installFee = n(deal.install_fee)
+  const referralFee = referralFeeAmount(deal.referral_fee_type, deal.referral_fee_value, margin)
+  const totalPayout = salesCommission + installFee + referralFee
+
+  return {
+    revenue,
+    cost,
+    margin,
+    commissionableMargin: cMargin,
+    installMargin: iMargin,
+    salesRate: sRate,
+    salesCommission,
+    installFee,
+    referralFee,
+    totalPayout,
+    net: margin - totalPayout,
+  }
 }

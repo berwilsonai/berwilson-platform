@@ -92,6 +92,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
     { data: nowObjectivesRaw },
     { data: objectiveTaskRows },
     { data: investorFollowUpsRaw },
+    { data: dinoPaymentsRaw },
     { data: graphTokenRow },
   ] = await Promise.all([
     supabase.from('projects').select('*').eq('status', 'active'),
@@ -139,6 +140,14 @@ export default async function DashboardPage({ searchParams }: PageProps) {
       .not('stage', 'in', '(passed,dormant)')
       .lt('next_step_date', today)
       .order('next_step_date', { ascending: true }),
+    // Dino: unpaid installments due within 30 days or overdue (fails quietly pre-migration)
+    supabase
+      .from('dino_payments')
+      .select('id, label, amount, due_date')
+      .eq('paid', false)
+      .not('due_date', 'is', null)
+      .lte('due_date', new Date(now.getTime() + 30 * 86_400_000).toISOString().split('T')[0])
+      .order('due_date', { ascending: true }),
     // Mailbox health: a long-expired token means Graph refreshes are failing
     supabase
       .from('email_tokens')
@@ -422,6 +431,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
             investorFollowUps={investorFollowUpsRaw ?? []}
             mailboxAlert={mailboxAlert}
             expiringCerts={expiringCerts ?? []}
+            dinoPayments={dinoPaymentsRaw ?? []}
           />
         </div>
 

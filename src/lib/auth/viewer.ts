@@ -200,6 +200,17 @@ export function canWorkSteel(viewer: Viewer | null): boolean {
   return viewer.isAdmin || viewer.role === 'steel_sales' || viewer.role === 'executive'
 }
 
+/**
+ * Steel financials — cost, margin, commissions, referral fees, the commissions
+ * report. CONFIDENTIAL: admin/executive only. steel_sales users enter deals
+ * and prices but never see cost or commission. Null (pre-migration/bootstrap)
+ * is treated as privileged, matching canWorkSteel's tolerance.
+ */
+export function canSeeSteelFinancials(viewer: Viewer | null): boolean {
+  if (!viewer) return true
+  return viewer.isAdmin || viewer.role === 'executive'
+}
+
 interface TaskTags {
   assignee_id: string | null
   project_id: string | null

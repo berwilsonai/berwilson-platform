@@ -8,6 +8,7 @@
  * - Decisions with no follow-through
  * - Active cross-project dependency risks
  * - Investor follow-ups (overdue next steps; hot/committed-stage investors going cold)
+ * - Dino payments coming due (installments we owe Dino Service Pros)
  *
  * Consumed by GET /api/attention and the agent's get_attention_items tool
  * (which calls computeAttention() directly — no HTTP self-fetch).
@@ -18,7 +19,7 @@ import { fetchOpenTasks } from '@/lib/tasks/queries'
 
 export interface AttentionItem {
   id: string
-  category: 'overdue_action' | 'stale_waiting' | 'approaching_milestone' | 'critical_dd' | 'expiring_compliance' | 'stale_decision' | 'dependency_risk' | 'investor_followup'
+  category: 'overdue_action' | 'stale_waiting' | 'approaching_milestone' | 'critical_dd' | 'expiring_compliance' | 'stale_decision' | 'dependency_risk' | 'investor_followup' | 'dino_payment'
   urgency: number // 0-100, higher = more urgent
   title: string
   detail: string
@@ -39,6 +40,7 @@ export interface AttentionSummary {
   stale_decisions: number
   dependency_risks: number
   investor_followups: number
+  dino_payments: number
 }
 
 export async function computeAttention(): Promise<{ items: AttentionItem[]; summary: AttentionSummary }> {
@@ -57,6 +59,7 @@ export async function computeAttention(): Promise<{ items: AttentionItem[]; summ
     { data: complianceItems },
     { data: dependencies },
     { data: investors },
+    { data: dinoPayments },
   ] = await Promise.all([
     fetchOpenTasks(supabase, { dueBefore: today }),
     supabase.from('projects').select('id, name').eq('status', 'active'),
@@ -93,6 +96,15 @@ export async function computeAttention(): Promise<{ items: AttentionItem[]; summ
       .from('investors')
       .select('id, name, stage, interest_level, next_step, next_step_date, last_contact_date, created_at')
       .not('stage', 'in', '(passed,dormant)'),
+    // Dino — unpaid installments due within 30 days or overdue (fails quietly
+    // pre-migration → null → no items)
+    supabase
+      .from('dino_payments')
+      .select('id, label, amount, due_date, paid')
+      .eq('paid', false)
+      .not('due_date', 'is', null)
+      .lte('due_date', new Date(now.getTime() + 30 * 86_400_000).toISOString().split('T')[0])
+      .order('due_date'),
   ])
 
   const projectName = (u: { projects: unknown }) =>
@@ -318,6 +330,26 @@ export async function computeAttention(): Promise<{ items: AttentionItem[]; summ
     }
   }
 
+  // 9. Dino payments — installments we owe Dino coming due / overdue
+  for (const p of dinoPayments ?? []) {
+    if (!p.due_date) continue
+    const daysUntil = Math.floor((new Date(p.due_date).getTime() - now.getTime()) / 86_400_000)
+    const isOverdue = p.due_date < today
+    const amountLabel = p.amount != null ? `$${Math.round(p.amount).toLocaleString()}` : ''
+    items.push({
+      id: `dino-payment-${p.id}`,
+      category: 'dino_payment',
+      urgency: isOverdue ? Math.min(100, 70 + Math.abs(daysUntil) * 2) : Math.max(40, 65 - daysUntil),
+      title: `${p.label ?? 'Dino installment'}${amountLabel ? ` — ${amountLabel}` : ''}`,
+      detail: isOverdue ? `Payment to Dino ${Math.abs(daysUntil)}d overdue` : `Payment to Dino due in ${daysUntil}d`,
+      project_id: null,
+      project_name: 'Dino Service Pros',
+      age_days: isOverdue ? Math.abs(daysUntil) : 0,
+      due_date: p.due_date,
+      source_date: p.due_date,
+    })
+  }
+
   // Sort by urgency descending
   items.sort((a, b) => b.urgency - a.urgency)
 
@@ -332,6 +364,7 @@ export async function computeAttention(): Promise<{ items: AttentionItem[]; summ
     stale_decisions: items.filter(i => i.category === 'stale_decision').length,
     dependency_risks: items.filter(i => i.category === 'dependency_risk').length,
     investor_followups: items.filter(i => i.category === 'investor_followup').length,
+    dino_payments: items.filter(i => i.category === 'dino_payment').length,
   }
 
   return { items, summary }

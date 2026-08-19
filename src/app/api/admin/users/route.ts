@@ -49,62 +49,91 @@ export async function GET() {
   })
 }
 
-interface InviteBody {
+interface CreateBody {
   team_member_id?: string // link an existing member instead of creating one
   name?: string
   email?: string
   role?: string
   grants?: { resource_type: string; resource_id: string }[]
+  create_login?: boolean // grant sign-in access now (sets a password directly)
+  password?: string
 }
 
-/** POST — invite a user: create/reuse the team_member, send the Supabase invite email, link on acceptance */
+/**
+ * POST — add a user. Two modes:
+ *   create_login=false (default) — just create/link the team_member row so the
+ *     person is trackable (assignable tasks/deals, a pre-set role) WITHOUT any
+ *     sign-in access. This is how you stage someone before they gain access.
+ *   create_login=true — also create an auth login with the given password set
+ *     directly. No email is sent (this self-hosted stack can't send mail) —
+ *     the admin shares the password out of band.
+ */
 export async function POST(request: NextRequest) {
   const { error: authError } = await requireAdmin()
   if (authError) return authError
 
-  let body: InviteBody
+  let body: CreateBody
   try {
     body = await request.json()
   } catch {
     return Response.json({ error: 'Invalid JSON body' }, { status: 400 })
   }
 
-  const email = body.email?.trim().toLowerCase()
+  const email = body.email?.trim().toLowerCase() || null
   const role = body.role
-  if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
-    return Response.json({ error: 'A valid email is required' }, { status: 400 })
-  }
+  const createLogin = body.create_login === true
+
   if (!isRole(role)) {
     return Response.json({ error: 'A valid role is required' }, { status: 400 })
+  }
+  if (email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+    return Response.json({ error: 'That email address looks invalid' }, { status: 400 })
+  }
+  if (createLogin) {
+    if (!email) {
+      return Response.json({ error: 'An email is required to create a sign-in login' }, { status: 400 })
+    }
+    if (typeof body.password !== 'string' || body.password.length < 8) {
+      return Response.json({ error: 'A password of at least 8 characters is required' }, { status: 400 })
+    }
   }
 
   const admin = createAdminClient()
 
-  // Send the auth invite (creates the auth user; they set a password via
-  // /auth/confirm). If the email already has an account — e.g. linking Richard
-  // or Eric's existing login to their team_member row — just link it.
+  // Only touch auth when granting access now. A login on this stack is an
+  // account with a password set directly — no invite email leaves the box.
   let authUserId: string | null = null
-  const { data: invited, error: inviteError } = await admin.auth.admin.inviteUserByEmail(email)
-  if (invited?.user) {
-    authUserId = invited.user.id
-  } else {
-    const { data: existing } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 })
-    authUserId = existing?.users.find((u) => u.email?.toLowerCase() === email)?.id ?? null
-    if (!authUserId) {
-      return Response.json(
-        { error: `Invite failed: ${inviteError?.message ?? 'unknown error'}` },
-        { status: 500 }
-      )
+  if (createLogin) {
+    const { data: created, error: createError } = await admin.auth.admin.createUser({
+      email: email!,
+      password: body.password,
+      email_confirm: true,
+    })
+    if (created?.user) {
+      authUserId = created.user.id
+    } else {
+      // Email may already have an account (e.g. Richard/Eric) — reuse it and
+      // set the shared password on it.
+      const { data: existing } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 })
+      authUserId = existing?.users.find((u) => u.email?.toLowerCase() === email)?.id ?? null
+      if (authUserId) {
+        await admin.auth.admin.updateUserById(authUserId, { password: body.password })
+      } else {
+        return Response.json(
+          { error: `Could not create login: ${createError?.message ?? 'unknown error'}` },
+          { status: 500 }
+        )
+      }
     }
   }
 
   // Create or link the team_member row
   let memberId = body.team_member_id ?? null
   if (memberId) {
-    const { error } = await admin
-      .from('team_members')
-      .update({ auth_user_id: authUserId, email, role })
-      .eq('id', memberId)
+    const update: { role: string; email?: string; auth_user_id?: string } = { role }
+    if (email) update.email = email
+    if (authUserId) update.auth_user_id = authUserId
+    const { error } = await admin.from('team_members').update(update).eq('id', memberId)
     if (error) return Response.json({ error: error.message }, { status: 500 })
   } else {
     const name = body.name?.trim()
@@ -127,9 +156,9 @@ export async function POST(request: NextRequest) {
       .map((g) => ({ team_member_id: memberId!, resource_type: g.resource_type, resource_id: g.resource_id }))
     if (rows.length > 0) {
       const { error } = await admin.from('access_grants').insert(rows)
-      if (error) return Response.json({ error: `Member invited but grants failed: ${error.message}` }, { status: 500 })
+      if (error) return Response.json({ error: `Member added but grants failed: ${error.message}` }, { status: 500 })
     }
   }
 
-  return Response.json({ ok: true, team_member_id: memberId })
+  return Response.json({ ok: true, team_member_id: memberId, login_created: createLogin })
 }

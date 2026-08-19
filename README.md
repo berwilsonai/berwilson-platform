@@ -1,36 +1,32 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Ber Wilson — Executive Intelligence Platform
 
-## Getting Started
+Internal executive intelligence tool. Next.js 16 (App Router) + self-hosted Supabase, running
+**entirely local** on the Mac Studio behind Tailscale, with a local LLM (LM Studio / Qwen). No
+Vercel, no Supabase cloud — see `CLAUDE.md` for the full architecture and history.
 
-First, run the development server:
+## Local development
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open http://localhost:3000. Requires a `.env.local` (Supabase URL/keys, `CRON_SECRET`, Microsoft
+Graph creds, local-AI vars). See the env section of `CLAUDE.md`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Deployment (self-hosted)
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+The platform runs on the Mac Studio, not a cloud host:
 
-## Learn More
+- **App:** `npm run build` + `next start` on :3000, kept alive by the `com.berwilson.platform`
+  launchd agent, exposed inside the tailnet via `tailscale serve`.
+- **Database + storage:** self-hosted Supabase (Docker) on the same box.
+- **Crons:** launchd agents (`com.berwilson.cron-*`) that curl the `/api/cron/*` routes with
+  `CRON_SECRET`.
+- **Deploy:** `zsh deploy/deploy-to-studio.sh` (rsyncs the repo to the Studio, installs deps,
+  builds, reloads the launchd services). See `deploy/README.md`.
 
-To learn more about Next.js, take a look at the following resources:
+## Types
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+`npm run gen-types` regenerates `src/types/database.ts` from the local Postgres
+(`SUPABASE_DB_URL`). Types are also hand-extended when migrations land ahead of a regen.

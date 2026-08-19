@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { AlertTriangle, CalendarClock, ClipboardCheck, ListChecks, TrendingUp, HandCoins, MailWarning, BadgeAlert } from 'lucide-react'
+import { AlertTriangle, CalendarClock, ClipboardCheck, ListChecks, TrendingUp, HandCoins, MailWarning, BadgeAlert, Wrench } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { SECTOR_BADGE, SECTOR_SHORT } from '@/lib/utils/sectors'
 import type { TaskSummary } from '@/lib/tasks/queries'
@@ -51,6 +51,13 @@ export type ExpiringCert = {
   issuing_body: string | null
 }
 
+export type DinoPaymentDue = {
+  id: string
+  label: string | null
+  amount: number
+  due_date: string | null
+}
+
 interface NeedsAttentionProps {
   reviewItems: ReviewWithProject[]
   overdueItems: MilestoneWithProject[]
@@ -61,11 +68,12 @@ interface NeedsAttentionProps {
   /** Mailbox connection is broken — calendar/email features are offline. */
   mailboxAlert?: { email: string } | null
   expiringCerts?: ExpiringCert[]
+  dinoPayments?: DinoPaymentDue[]
 }
 
-export default function NeedsAttention({ reviewItems, overdueItems, ddItems, reviewCount, overdueTasks = [], investorFollowUps = [], mailboxAlert = null, expiringCerts = [] }: NeedsAttentionProps) {
+export default function NeedsAttention({ reviewItems, overdueItems, ddItems, reviewCount, overdueTasks = [], investorFollowUps = [], mailboxAlert = null, expiringCerts = [], dinoPayments = [] }: NeedsAttentionProps) {
   const hasCritical = !!mailboxAlert || expiringCerts.length > 0
-  const hasAttention = hasCritical || reviewItems.length > 0 || overdueItems.length > 0 || ddItems.length > 0 || overdueTasks.length > 0 || investorFollowUps.length > 0
+  const hasAttention = hasCritical || reviewItems.length > 0 || overdueItems.length > 0 || ddItems.length > 0 || overdueTasks.length > 0 || investorFollowUps.length > 0 || dinoPayments.length > 0
 
   return (
     <div className="rounded-xl border border-border bg-card elev-1">
@@ -74,7 +82,7 @@ export default function NeedsAttention({ reviewItems, overdueItems, ddItems, rev
         <h2 className="label-caps text-muted-foreground">Needs Attention</h2>
         {hasAttention && (
           <span className="ml-auto text-xs font-medium tnum bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 rounded px-1.5 py-0.5">
-            {reviewItems.length + overdueItems.length + ddItems.length + overdueTasks.length + investorFollowUps.length + expiringCerts.length + (mailboxAlert ? 1 : 0)}
+            {reviewItems.length + overdueItems.length + ddItems.length + overdueTasks.length + investorFollowUps.length + dinoPayments.length + expiringCerts.length + (mailboxAlert ? 1 : 0)}
           </span>
         )}
       </div>
@@ -211,6 +219,46 @@ export default function NeedsAttention({ reviewItems, overdueItems, ddItems, rev
                     )}
                   </Link>
                 ))}
+              </div>
+            </div>
+          )}
+
+          {/* Dino payments coming due (money we owe Dino Service Pros) */}
+          {dinoPayments.length > 0 && (
+            <div className="rounded-md bg-muted/30 p-3">
+              <div className="flex items-center gap-1.5 mb-2">
+                <span className="size-1.5 rounded-full bg-amber-400 shrink-0" />
+                <Wrench size={12} className="text-amber-500 dark:text-amber-400 shrink-0" />
+                <span className="label-caps text-muted-foreground">
+                  Dino Payments
+                </span>
+                <span className="ml-auto text-xs text-muted-foreground tnum">{dinoPayments.length}</span>
+              </div>
+              <div className="space-y-1">
+                {dinoPayments.slice(0, 6).map((p) => {
+                  const overdue = p.due_date ? p.due_date < new Date().toISOString().slice(0, 10) : false
+                  return (
+                    <Link
+                      key={p.id}
+                      href="/dino"
+                      className="flex items-start gap-2 rounded-md px-2 py-2 hover:bg-accent/70 transition-colors"
+                    >
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-medium text-foreground truncate">
+                          {p.label ?? 'Installment'} · ${Math.round(p.amount).toLocaleString()}
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-0.5 truncate">
+                          {overdue ? 'Overdue' : 'Coming due'}
+                        </p>
+                      </div>
+                      {p.due_date && (
+                        <span className={cn('shrink-0 text-xs font-medium tnum', overdue ? 'text-red-600 dark:text-red-400' : 'text-amber-600 dark:text-amber-400')}>
+                          {overdue ? `${daysOverdue(p.due_date)}d` : ''}
+                        </span>
+                      )}
+                    </Link>
+                  )
+                })}
               </div>
             </div>
           )}

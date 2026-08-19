@@ -114,6 +114,13 @@ export default function TaskDetailSheet({
   const [what, setWhat] = useState('')
   const [why, setWhy] = useState('')
   const [how, setHow] = useState('')
+  // Which of what/why/how show their textarea. Empty fields collapse to a
+  // subtle "+ Add …" affordance so the common no-detail task stays clean.
+  const [expanded, setExpanded] = useState<Record<'what' | 'why' | 'how', boolean>>({
+    what: false,
+    why: false,
+    how: false,
+  })
   // The handoff is held locally until both halves are present — picking a person
   // with no "what" yet isn't a saveable state, so we don't round-trip it.
   const [waitingId, setWaitingId] = useState('')
@@ -138,6 +145,7 @@ export default function TaskDetailSheet({
         setWhat(t.what ?? '')
         setWhy(t.why ?? '')
         setHow(t.how ?? '')
+        setExpanded({ what: !!t.what, why: !!t.why, how: !!t.how })
         setWaitingId(t.waiting_on_id ?? '')
         setWaitingWhat(t.waiting_on_what ?? '')
       })
@@ -413,27 +421,41 @@ export default function TaskDetailSheet({
                 })()}
               </div>
 
-              {/* What / Why / How */}
+              {/* What / Why / How — empty fields collapse to a subtle add affordance */}
               {([
                 ['What', what, setWhat, 'what', 'What needs to be done?'],
                 ['Why', why, setWhy, 'why', 'Why does it matter?'],
                 ['How', how, setHow, 'how', 'How should we approach it?'],
-              ] as const).map(([label, val, setter, key, placeholder]) => (
-                <div key={key} className="space-y-1">
-                  <label className="label-caps text-muted-foreground">{label}</label>
-                  <textarea
-                    value={val}
-                    onChange={(e) => setter(e.target.value)}
-                    onBlur={() => {
-                      const current = (task[key] ?? '') as string
-                      if (val.trim() !== current) patch({ [key]: val })
-                    }}
-                    placeholder={placeholder}
-                    rows={2}
-                    className="w-full resize-y rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring placeholder:text-muted-foreground"
-                  />
-                </div>
-              ))}
+              ] as const).map(([label, val, setter, key, placeholder]) =>
+                expanded[key] ? (
+                  <div key={key} className="space-y-1">
+                    <label className="label-caps text-muted-foreground">{label}</label>
+                    <textarea
+                      value={val}
+                      onChange={(e) => setter(e.target.value)}
+                      onBlur={() => {
+                        const current = (task[key] ?? '') as string
+                        if (val.trim() !== current) patch({ [key]: val })
+                        // If left empty, re-collapse to keep the sheet tidy.
+                        if (!val.trim()) setExpanded((s) => ({ ...s, [key]: false }))
+                      }}
+                      placeholder={placeholder}
+                      rows={2}
+                      autoFocus
+                      className="w-full resize-y rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring placeholder:text-muted-foreground"
+                    />
+                  </div>
+                ) : (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => setExpanded((s) => ({ ...s, [key]: true }))}
+                    className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    + Add {label.toLowerCase()}
+                  </button>
+                ),
+              )}
 
               {/* Project context card */}
               {project && (
