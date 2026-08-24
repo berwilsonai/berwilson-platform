@@ -18,6 +18,7 @@ import {
   probeBackups,
   probeDisk,
 } from '@/lib/system-health'
+import { isGoogleConfigured } from '@/lib/integrations/google-workspace'
 import { sweepDb } from '@/lib/email-sweep/db'
 
 export const metadata = { title: 'System Health — Ber Wilson Intelligence' }
@@ -144,14 +145,18 @@ async function runChecks(): Promise<HealthCheck[]> {
         name: 'Google Workspace',
         status: 'ok',
         headline: `Connected — token mint verified just now for ${names}`,
-        detail: `Signing via ${mailbox.signingMode ?? 'service account'}. Calendar, meeting prep, contact enrichment, and the mailbox sweep are all working. Service-account access does not expire, so there is nothing to reconnect.`,
+        detail:
+          `Signing via ${mailbox.signingMode ?? 'service account'}. Calendar, meeting prep, contact enrichment, and the mailbox sweep are all working. ` +
+          (mailbox.signingMode === 'per-mailbox OAuth'
+            ? 'A refresh token can be revoked by a password change or an admin revoking app access; if that happens, re-consent with `node scripts/setup-google-oauth.mjs --only <address>` and copy the token file to the Studio.'
+            : 'Service-account access does not expire, so there is nothing to reconnect.'),
       })
     } else if (mailbox.state === 'disconnected') {
       checks.push({
         name: 'Google Workspace',
         status: 'fail',
-        headline: 'No service account configured',
-        detail: `Calendar, meeting prep, the mailbox sweep, and the brief's meetings section are offline. ${mailbox.reason ?? ''} Set GOOGLE_SERVICE_ACCOUNT_KEY_FILE in .env.local on the Studio and redeploy.`,
+        headline: 'No Google credentials configured',
+        detail: `Calendar, meeting prep, the mailbox sweep, and the brief's meetings section are offline. ${mailbox.reason ?? ''} This deployment uses per-mailbox OAuth: run \`node scripts/setup-google-oauth.mjs\`, then copy the token file to ~/berwilson-data/ on the Studio. Full procedure in deploy/google-workspace-setup.md.`,
       })
     } else {
       const broken = (mailbox.mailboxes ?? []).filter((m) => !m.ok)
@@ -161,7 +166,11 @@ async function runChecks(): Promise<HealthCheck[]> {
         headline: mailbox.reason ?? 'Google connection broken',
         detail: `${broken.map((m) => `${m.email}: ${m.error ?? 'unknown error'}`).join(' · ')}${
           mailbox.rawError && broken.length === 0 ? ` — Raw error: ${mailbox.rawError.slice(0, 300)}` : ''
-        } Fix in the Workspace admin console → Security → API controls → Domain-wide delegation; the full procedure is in deploy/google-workspace-setup.md.`,
+        }${
+          mailbox.signingMode === 'per-mailbox OAuth'
+            ? ' Re-consent the affected mailbox with `node scripts/setup-google-oauth.mjs --only <address>` and copy ~/berwilson-data/google-oauth-tokens.json to the Studio.'
+            : ' Fix in the Workspace admin console → Security → API controls → Domain-wide delegation.'
+        } The full procedure is in deploy/google-workspace-setup.md.`,
       })
     }
   }
@@ -318,9 +327,12 @@ async function runChecks(): Promise<HealthCheck[]> {
         ? { LOCAL_AI_BASE_URL: process.env.LOCAL_AI_BASE_URL }
         : { GEMINI_API_KEY: process.env.GEMINI_API_KEY }),
       CRON_SECRET: process.env.CRON_SECRET,
-      // Either form of the service account key satisfies this.
-      GOOGLE_SERVICE_ACCOUNT_KEY: 
-        process.env.GOOGLE_SERVICE_ACCOUNT_KEY_FILE ?? process.env.GOOGLE_SERVICE_ACCOUNT_KEY,
+      // Google auth has three valid modes (downloaded key, signJwt, per-mailbox
+      // OAuth) and this deployment uses OAuth, which is selected by the ABSENCE
+      // of the service-account vars. Naming any single var here would fail the
+      // check on a correctly configured box, so ask the library which mode is
+      // live instead. The Google Workspace check above reports the detail.
+      GOOGLE_AUTH: isGoogleConfigured() ? 'configured' : undefined,
       SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY,
     }
     const missing = Object.entries(required)

@@ -159,7 +159,13 @@ async function consentFor(mailbox, client, rl) {
     response_type: 'code',
     scope: SCOPES.join(' '),
     access_type: 'offline',   // this is what yields a refresh token
-    prompt: 'consent',        // force one even if previously granted
+    // 'select_account' forces the account chooser even when the browser
+    // already has a Google session. Without it, a browser signed into an
+    // unrelated account (a personal gmail.com, say) sails straight past the
+    // picker and lands on a consent screen for the WRONG account.
+    // 'consent' forces a fresh grant even if previously approved, which is
+    // what re-issues a refresh token when the scope list changes.
+    prompt: 'select_account consent',
     login_hint: mailbox,
     state,
   })
