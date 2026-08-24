@@ -98,10 +98,21 @@ ssh "$STUDIO" "
     sed -e \"s#__APP_DIR__#\$HOME/berwilson-platform#g\" -e \"s#__LOG_DIR__#\$HOME/Library/Logs/berwilson#g\" -e \"s#__NODE_BIN__#\$HOME/.node/bin#g\" \
       $APP_DIR/deploy/\$plist.plist > \$HOME/Library/LaunchAgents/\$plist.plist
     launchctl bootout gui/\$(id -u)/\$plist 2>/dev/null || true
-    sleep 2  # bootout is async; immediate bootstrap can hit EIO
+    # bootout is ASYNC. A fixed sleep raced it and left com.berwilson.platform
+    # unloaded entirely (2026-08-23), so poll until it is really gone.
+    for _ in 1 2 3 4 5 6 7 8 9 10; do
+      launchctl list 2>/dev/null | grep -q \$plist || break
+      sleep 1
+    done
     launchctl bootstrap gui/\$(id -u) \$HOME/Library/LaunchAgents/\$plist.plist 2>/dev/null \
       || launchctl kickstart gui/\$(id -u)/\$plist 2>/dev/null \
-      || { sleep 3; launchctl bootstrap gui/\$(id -u) \$HOME/Library/LaunchAgents/\$plist.plist; }
+      || { sleep 3; launchctl bootstrap gui/\$(id -u) \$HOME/Library/LaunchAgents/\$plist.plist 2>/dev/null; }
+    # Confirm it came back rather than assuming it did.
+    if launchctl list 2>/dev/null | grep -q \$plist; then
+      echo \"    \$plist: loaded\"
+    else
+      echo \"    \$plist: FAILED TO LOAD\"
+    fi
   done
   echo '  services installed'
 "
@@ -110,8 +121,17 @@ echo "==> Enabling Tailscale serve (HTTPS inside the tailnet only)"
 ssh "$STUDIO" "$TAILSCALE serve --bg 3000 2>&1 | grep -v '^$' | head -5" || echo "  WARN: tailscale serve failed — app still reachable at http://100.86.79.4:3000 inside the tailnet"
 
 echo "==> Health check"
-sleep 5
-ssh "$STUDIO" 'curl -sS -m 10 -o /dev/null -w "  app responding on localhost:3000 (HTTP %{http_code})\n" http://localhost:3000/login'
+# `next start` needs ~10s to listen. A single probe 5s in reported HTTP 000 on
+# a perfectly good deploy (2026-08-23), so poll for up to 60s before judging.
+ssh "$STUDIO" 'CODE=000
+for i in $(seq 1 20); do
+  CODE=$(curl -sS -m 5 -o /dev/null -w "%{http_code}" http://localhost:3000/login 2>/dev/null || echo 000)
+  [ "$CODE" = "200" ] && { echo "  app responding on localhost:3000 (HTTP 200)"; exit 0; }
+  sleep 3
+done
+echo "  WARN: app did NOT respond within 60s (last HTTP $CODE)"
+echo "        check: tail ~/Library/Logs/berwilson/platform.err.log"
+exit 1' || true
 
 echo "==> Done. Reminders:"
 echo "  - Keep the Studio awake: System Settings -> Energy -> Prevent automatic sleeping ON"
