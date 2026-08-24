@@ -66,6 +66,12 @@ const PEOPLE_BASE = 'https://people.googleapis.com/v1'
  */
 export const SCOPES = [
   'https://www.googleapis.com/auth/gmail.readonly',
+  // The ONLY write scope, and it is narrow: gmail.send can send mail but cannot
+  // read, modify, or delete anything. Needed by the weekly task digest.
+  // Tokens minted before this was added keep working (the refresh call does not
+  // send `scope`) — they simply cannot send until the mailbox re-consents via
+  // `node scripts/setup-google-oauth.mjs`. sendMail() says exactly that.
+  'https://www.googleapis.com/auth/gmail.send',
   'https://www.googleapis.com/auth/calendar.readonly',
   'https://www.googleapis.com/auth/contacts.readonly',
   'https://www.googleapis.com/auth/contacts.other.readonly',
@@ -513,6 +519,70 @@ async function googleFetch<T>(url: string, mailbox: string): Promise<T> {
     throw new Error(`Google API ${path} failed: ${res.status} — ${explainTokenError(err)}`)
   }
   return res.json() as Promise<T>
+}
+
+/**
+ * Send an HTML email as `from` via Gmail (`users.messages.send`).
+ *
+ * Replaces the Microsoft Graph sendMail removed with the rest of Graph on
+ * 2026-08-23. The outbound notification layer (src/lib/notify) is the only
+ * caller; everything else here is read-only.
+ *
+ * Requires the gmail.send scope. Refresh tokens minted before that scope was
+ * added will fail here with a 403 — the error below names the fix rather than
+ * leaving a bare Google error in notification_log.
+ */
+export async function sendMail(opts: {
+  to: string
+  subject: string
+  html: string
+  from?: string
+}): Promise<void> {
+  const from = opts.from ?? PRIMARY_MAILBOX
+  const token = await getAccessToken(from)
+
+  // RFC 2822. Subject is RFC 2047 encoded so non-ASCII survives the hop.
+  const subject = /^[\x20-\x7E]*$/.test(opts.subject)
+    ? opts.subject
+    : `=?UTF-8?B?${Buffer.from(opts.subject, 'utf8').toString('base64')}?=`
+
+  const raw = base64url(
+    Buffer.from(
+      [
+        `From: ${from}`,
+        `To: ${opts.to}`,
+        `Subject: ${subject}`,
+        'MIME-Version: 1.0',
+        'Content-Type: text/html; charset=UTF-8',
+        '',
+        opts.html,
+      ].join('\r\n'),
+      'utf8'
+    )
+  )
+
+  const res = await fetch(
+    `${GMAIL_BASE}/users/${encodeURIComponent(from)}/messages/send`,
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ raw }),
+    }
+  )
+
+  if (!res.ok) {
+    const err = await res.text()
+    if (res.status === 403 || err.includes('insufficient') || err.includes('scope')) {
+      throw new Error(
+        `Gmail refused to send as ${from}: the stored token lacks the gmail.send scope. ` +
+          `Re-consent that mailbox with: node scripts/setup-google-oauth.mjs --only ${from}`
+      )
+    }
+    throw new Error(`Gmail send as ${from} failed: ${res.status} — ${explainTokenError(err)}`)
+  }
 }
 
 // ---------------------------------------------------------------------------

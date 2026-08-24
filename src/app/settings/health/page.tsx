@@ -82,7 +82,7 @@ async function runChecks(): Promise<HealthCheck[]> {
   const dayAgo = new Date(Date.now() - 86_400_000).toISOString()
   const localAI = process.env.AI_PROVIDER === 'local'
 
-  const [brief, riskScore, lastAi, aiDayCount, failedRuns, mailbox, lmStudio, backups, disk] =
+  const [brief, riskScore, lastAi, aiDayCount, failedRuns, mailbox, lmStudio, backups, disk, lastDigest, failedDigests] =
     await Promise.all([
       supabase
         .from('stored_briefs')
@@ -116,6 +116,20 @@ async function runChecks(): Promise<HealthCheck[]> {
       probeLmStudio(),
       probeBackups(),
       probeDisk(),
+      supabase
+        .from('notification_log')
+        .select('created_at')
+        .eq('kind', 'task_digest')
+        .eq('status', 'sent')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+      supabase
+        .from('notification_log')
+        .select('id', { count: 'exact', head: true })
+        .eq('kind', 'task_digest')
+        .eq('status', 'failed')
+        .gte('created_at', weekAgo),
     ])
 
   const checks: HealthCheck[] = []
@@ -249,6 +263,29 @@ async function runChecks(): Promise<HealthCheck[]> {
         failed === 0
           ? undefined
           : 'Open Email Intake → Recent sessions to see the error on each failed run.',
+    })
+  }
+
+  // 8b. Task digest cron (launchd, Monday mornings) — a stale "last sent" only
+  //     warns (weekly + quiet weeks are normal); failed sends are the real signal.
+  {
+    const h = hoursAgo(lastDigest.data?.created_at)
+    const failed = failedDigests.count ?? 0
+    checks.push({
+      name: 'Task Digest',
+      status: failed > 0 ? 'warn' : 'ok',
+      headline:
+        failed > 0
+          ? `${failed} failed send${failed === 1 ? '' : 's'} in 7 days`
+          : h === null
+            ? 'No digests sent yet'
+            : `Last sent ${ageLabel(lastDigest.data?.created_at)}`,
+      detail:
+        failed > 0
+          ? 'A member digest failed to send. Sending needs the gmail.send scope on the connected mailbox — re-run scripts/setup-google-oauth.mjs to grant it, or check the member has a valid email.'
+          : h === null
+            ? `Emails each member their overdue + due-this-week tasks Monday mornings. Nothing sends until a member has a task due. ${cronLogsHint}`
+            : 'Sending on schedule to members with tasks due.',
     })
   }
 

@@ -76,6 +76,60 @@ export async function fetchOpenTasks(
   }))
 }
 
+export interface DigestTask {
+  id: string
+  title: string
+  why: string | null
+  due_date: string | null
+  assignee_id: string | null
+  project_name: string | null
+  opportunity_name: string | null
+}
+
+/**
+ * Fetch open, due-dated tasks for the per-member notification digest.
+ * Kept separate from `fetchOpenTasks`/`TaskSummary` (shared by the AI briefs)
+ * because the digest needs `assignee_id` + `why` and groups by person.
+ * Name resolution uses separate lookups (no PostgREST embeds) for dual-schema safety.
+ */
+export async function fetchTasksForDigest(supabase: AdminClient): Promise<DigestTask[]> {
+  const { data: tasks, error } = await supabase
+    .from('tasks')
+    .select('id, title, why, due_date, assignee_id, project_id, opportunity_id')
+    .eq('status', 'open')
+    .not('assignee_id', 'is', null)
+    .not('due_date', 'is', null)
+    .order('due_date', { ascending: true })
+    .limit(1000)
+
+  if (error || !tasks || tasks.length === 0) return []
+
+  const projectIds = [...new Set(tasks.map((t) => t.project_id).filter(Boolean))] as string[]
+  const opportunityIds = [...new Set(tasks.map((t) => t.opportunity_id).filter(Boolean))] as string[]
+
+  const [{ data: projects }, { data: opportunities }] = await Promise.all([
+    projectIds.length > 0
+      ? supabase.from('projects').select('id, name').in('id', projectIds)
+      : Promise.resolve({ data: [] as { id: string; name: string }[] }),
+    opportunityIds.length > 0
+      ? supabase.from('opportunities').select('id, name').in('id', opportunityIds)
+      : Promise.resolve({ data: [] as { id: string; name: string }[] }),
+  ])
+
+  const projectName = new Map((projects ?? []).map((p) => [p.id, p.name]))
+  const opportunityName = new Map((opportunities ?? []).map((o) => [o.id, o.name]))
+
+  return tasks.map((t) => ({
+    id: t.id,
+    title: t.title,
+    why: t.why,
+    due_date: t.due_date,
+    assignee_id: t.assignee_id,
+    project_name: t.project_id ? projectName.get(t.project_id) ?? null : null,
+    opportunity_name: t.opportunity_id ? opportunityName.get(t.opportunity_id) ?? null : null,
+  }))
+}
+
 /** Render one task as a prompt-ready line: "- [Richard] Send proposal — due 2026-07-05 (3d overdue)" */
 export function formatTaskLine(t: TaskSummary, now: Date = new Date()): string {
   const owner = t.assignee ? `[${t.assignee}] ` : ''

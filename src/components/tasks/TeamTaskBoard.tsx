@@ -122,6 +122,11 @@ export default function TeamTaskBoard({
   const [objectiveId, setObjectiveId] = useState('')
   const [dueDate, setDueDate] = useState('')
   const [adding, setAdding] = useState(false)
+  // Optional why/what/how, collapsed by default so fast entry stays fast.
+  const [showDetails, setShowDetails] = useState(false)
+  const [why, setWhy] = useState('')
+  const [what, setWhat] = useState('')
+  const [how, setHow] = useState('')
 
   // quick-add teammate
   const [addingMember, setAddingMember] = useState(false)
@@ -143,6 +148,9 @@ export default function TeamTaskBoard({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           title: title.trim(),
+          why: why.trim() || undefined,
+          what: what.trim() || undefined,
+          how: how.trim() || undefined,
           assignee_id: assigneeId || undefined,
           project_id: (scopeProjectId ?? projectId) || undefined,
           opportunity_id: (scopeOpportunityId ?? opportunityId) || undefined,
@@ -159,6 +167,10 @@ export default function TeamTaskBoard({
       setAssigneeId('')
       setDueDate('')
       setObjectiveId('')
+      setWhy('')
+      setWhat('')
+      setHow('')
+      setShowDetails(false)
       if (!scopedToOpportunity) setOpportunityId('')
       if (!scopedToInvestor) setInvestorId('')
       if (!scopedToProject) setProjectId('')
@@ -496,6 +508,37 @@ export default function TeamTaskBoard({
 
             <DatePicker value={dueDate} onChange={setDueDate} placeholder="Due date" />
           </div>
+
+          {/* Optional details — why/what/how, collapsed by default */}
+          {showDetails ? (
+            <div className="space-y-2">
+              {([
+                ['Why', why, setWhy, 'Why does it matter?'],
+                ['What', what, setWhat, 'What needs to be done?'],
+                ['How', how, setHow, 'How should we approach it?'],
+              ] as const).map(([label, val, setter, placeholder]) => (
+                <div key={label} className="space-y-1">
+                  <label className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{label}</label>
+                  <textarea
+                    value={val}
+                    onChange={(e) => setter(e.target.value)}
+                    placeholder={placeholder}
+                    rows={2}
+                    className="w-full resize-y rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring placeholder:text-muted-foreground"
+                  />
+                </div>
+              ))}
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setShowDetails(true)}
+              className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+            >
+              + Add details (why / what / how)
+            </button>
+          )}
+
           <button
             onClick={handleAddTask}
             disabled={!title.trim() || adding}
@@ -618,6 +661,9 @@ export default function TeamTaskBoard({
                   <p className={cn('text-sm font-medium truncate', done ? 'line-through text-muted-foreground' : 'text-foreground')}>
                     {task.title}
                   </p>
+                  {task.why && !done && (
+                    <p className="text-xs text-muted-foreground/80 truncate mt-0.5">{task.why}</p>
+                  )}
                   <div className="flex items-center gap-2 mt-1 flex-wrap">
                     {!scopedToProject && task.project && (
                       <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">

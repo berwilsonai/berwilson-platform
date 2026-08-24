@@ -29,6 +29,8 @@ const PORT = 47823 // fixed, so it can be registered as a redirect URI if needed
 
 const SCOPES = [
   'https://www.googleapis.com/auth/gmail.readonly',
+  // Send-only; cannot read or modify. Used by the weekly task digest.
+  'https://www.googleapis.com/auth/gmail.send',
   'https://www.googleapis.com/auth/calendar.readonly',
   'https://www.googleapis.com/auth/contacts.readonly',
   'https://www.googleapis.com/auth/contacts.other.readonly',

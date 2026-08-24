@@ -1660,6 +1660,50 @@ export type Database = {
           },
         ]
       }
+      notification_log: {
+        Row: {
+          channel: string
+          created_at: string | null
+          error: string | null
+          id: string
+          kind: string
+          sent_date: string
+          status: string
+          task_count: number | null
+          team_member_id: string | null
+        }
+        Insert: {
+          channel: string
+          created_at?: string | null
+          error?: string | null
+          id?: string
+          kind?: string
+          sent_date?: string
+          status?: string
+          task_count?: number | null
+          team_member_id?: string | null
+        }
+        Update: {
+          channel?: string
+          created_at?: string | null
+          error?: string | null
+          id?: string
+          kind?: string
+          sent_date?: string
+          status?: string
+          task_count?: number | null
+          team_member_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notification_log_team_member_id_fkey"
+            columns: ["team_member_id"]
+            isOneToOne: false
+            referencedRelation: "team_members"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       objectives: {
         Row: {
           bucket: string

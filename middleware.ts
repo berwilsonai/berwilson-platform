@@ -42,7 +42,8 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith('/auth/set-password') ||
     pathname === '/api/cron/risk-scores' ||         // Risk scoring cron job (self-guards via CRON_SECRET)
     pathname === '/api/cron/daily-brief' ||          // Daily brief cron job (self-guards via CRON_SECRET)
-    pathname === '/api/cron/email-sweep'             // Mailbox sweep cron job (self-guards via CRON_SECRET)
+    pathname === '/api/cron/email-sweep' ||          // Mailbox sweep cron job (self-guards via CRON_SECRET)
+    pathname === '/api/cron/task-digest'             // Per-member task digest cron (self-guards via CRON_SECRET)
 
   if (!user && !isPublicRoute) {
     // API calls must get a real 401 (not an HTML login-page redirect that fetch
