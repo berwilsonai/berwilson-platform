@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { Pencil, Target, Lightbulb, FileText, MessageSquare, ExternalLink, ListChecks } from 'lucide-react'
+import { Pencil, Target, Lightbulb, FileText, MessageSquare, ExternalLink, ListChecks, CalendarDays } from 'lucide-react'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getViewer, canAccessOpportunity } from '@/lib/auth/viewer'
 import { cn } from '@/lib/utils'
@@ -25,6 +25,9 @@ import OpportunityDeleteButton from '@/components/opportunities/OpportunityDelet
 import OpportunityDocuments from '@/components/opportunities/OpportunityDocuments'
 import OpportunityNotes from '@/components/opportunities/OpportunityNotes'
 import OpportunityTasks from '@/components/opportunities/OpportunityTasks'
+import MeetingsView from '@/components/meetings/MeetingsView'
+import { fetchMeetingPickerData } from '@/lib/meetings/picker-data'
+import type { Meeting, Document as DocumentRow } from '@/lib/supabase/types'
 
 interface PageProps {
   params: Promise<{ id: string }>
@@ -56,7 +59,7 @@ export default async function OpportunityDetailPage({ params }: PageProps) {
   const viewer = await getViewer()
   if (viewer && !viewer.isAdmin && !canAccessOpportunity(viewer, id)) notFound()
 
-  const [{ data: documents }, { data: notes }, { data: tasks }, { data: members }] = await Promise.all([
+  const [{ data: documents }, { data: notes }, { data: tasks }, { data: members }, { data: meetings }] = await Promise.all([
     supabase
       .from('opportunity_documents')
       .select('*')
@@ -79,7 +82,18 @@ export default async function OpportunityDetailPage({ params }: PageProps) {
       .select('id, name, color')
       .eq('active', true)
       .order('created_at', { ascending: true }),
+    supabase
+      .from('meetings')
+      .select('*')
+      .eq('opportunity_id', id)
+      .order('meeting_date', { ascending: false }),
   ])
+
+  const meetingIds = (meetings ?? []).map((m) => m.id)
+  const { data: meetingFiles } = meetingIds.length
+    ? await supabase.from('documents').select('*').in('meeting_id', meetingIds).order('uploaded_at', { ascending: false })
+    : { data: [] }
+  const { teamMembers: meetingTeam, contacts: meetingContacts } = await fetchMeetingPickerData(supabase)
 
   const t = oppType(opportunity.opp_type)
   const s = oppStatus(opportunity.status)
@@ -249,6 +263,23 @@ export default async function OpportunityDetailPage({ params }: PageProps) {
           <FileText size={15} /> White Papers & Documents
         </h2>
         <OpportunityDocuments opportunityId={id} documents={documents ?? []} />
+      </section>
+
+      {/* Meetings */}
+      <section>
+        <h2 className="flex items-center gap-1.5 text-sm font-semibold mb-3">
+          <CalendarDays size={15} /> Meetings
+        </h2>
+        <MeetingsView
+          scope="opportunity"
+          opportunityId={id}
+          initialMeetings={(meetings ?? []) as Meeting[]}
+          initialFiles={(meetingFiles ?? []) as DocumentRow[]}
+          teamMembers={meetingTeam}
+          contacts={meetingContacts}
+          canEdit={viewer?.isAdmin ?? false}
+          canDelete={viewer?.isAdmin ?? false}
+        />
       </section>
 
       {/* Notes */}

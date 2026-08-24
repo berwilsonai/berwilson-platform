@@ -13,14 +13,24 @@ export default async function NewSteelDealPage() {
   if (!canWorkSteel(viewer)) redirect('/steel')
 
   const supabase = createAdminClient()
-  const [{ data: members }, leadSources] = await Promise.all([
+  const [{ data: members }, { data: contacts }, leadSources] = await Promise.all([
     supabase
       .from('team_members')
-      .select('id, name')
+      .select('id, name, is_steel_rep')
       .eq('active', true)
       .order('created_at', { ascending: true }),
+    supabase
+      .from('parties')
+      .select('id, full_name, company, is_organization')
+      .neq('status', 'archived')
+      .order('full_name', { ascending: true }),
     leadSourcesInUse(supabase),
   ])
+
+  // Salesperson list = flagged steel reps. Fall back to all active members
+  // pre-migration / if nobody's flagged yet, so the form is never empty.
+  const flagged = (members ?? []).filter((m) => m.is_steel_rep)
+  const reps = flagged.length > 0 ? flagged : (members ?? [])
 
   return (
     <div className="space-y-5">
@@ -43,7 +53,8 @@ export default async function NewSteelDealPage() {
 
       <SteelDealForm
         mode="create"
-        teamMembers={members ?? []}
+        reps={reps.map((m) => ({ id: m.id, name: m.name }))}
+        contacts={contacts ?? []}
         leadSources={leadSources}
         canSeeFinancials={canSeeSteelFinancials(viewer)}
       />

@@ -10,6 +10,7 @@ interface RouteContext {
 interface PatchBody {
   role?: string
   active?: boolean
+  is_steel_rep?: boolean // whether this person is a steel sales rep (Salesperson list)
   grants?: { resource_type: string; resource_id: string }[]
   password?: string
   email?: string // used when granting access to a login-less member
@@ -84,7 +85,8 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
     }
   }
 
-  const update: { role?: string; active?: boolean } = {}
+  const update: { role?: string; active?: boolean; is_steel_rep?: boolean } = {}
+  if ('is_steel_rep' in body) update.is_steel_rep = !!body.is_steel_rep
   if ('role' in body) {
     if (!isRole(body.role)) return Response.json({ error: 'Invalid role' }, { status: 400 })
     // Don't let the last admin demote themselves into a locked-out platform.

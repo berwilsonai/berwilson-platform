@@ -36,16 +36,31 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
     }
   }
 
-  // Referral-fee payment is confidential — gate it to financials users.
-  if ('referral_fee_paid' in body) {
-    if (!canSeeSteelFinancials(viewer)) return forbiddenJson()
-    const paid = !!body.referral_fee_paid
-    update.referral_fee_paid = paid
-    update.referral_fee_paid_date = paid ? new Date().toISOString().slice(0, 10) : null
+  // Marking any commission/fee paid is confidential — gate to financials users.
+  // Each flag carries an auto-stamped payment date (cleared when unmarked).
+  const today = new Date().toISOString().slice(0, 10)
+  const paidFlags = [
+    ['sales_commission_paid', 'sales_commission_paid_date'],
+    ['install_fee_paid', 'install_fee_paid_date'],
+    ['referral_fee_paid', 'referral_fee_paid_date'],
+  ] as const
+  for (const [flag, dateCol] of paidFlags) {
+    if (flag in body) {
+      if (!canSeeSteelFinancials(viewer)) return forbiddenJson()
+      const paid = !!body[flag]
+      update[flag] = paid
+      update[dateCol] = paid ? today : null
+    }
   }
 
   if (typeof update.stage === 'string' && !(STEEL_STAGES as string[]).includes(update.stage)) {
     return Response.json({ error: 'Invalid stage' }, { status: 400 })
+  }
+
+  // collected_date tracks when the deal's cash landed (the accelerator basis):
+  // non-null iff the deal is at the Paid stage.
+  if ('stage' in update) {
+    update.collected_date = update.stage === 'paid' ? today : null
   }
 
   if (Object.keys(update).length === 0) {

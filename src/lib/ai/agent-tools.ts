@@ -10,6 +10,7 @@ import { fetchOpenTasks } from '@/lib/tasks/queries'
 import { computeAttention } from '@/lib/attention'
 import { generateDraft } from './draft'
 import { parseTranches, raiseLevels, fillTranches } from '@/lib/investors/raises'
+import { moduleTools, executeModuleTool, MODULE_TOOL_NAMES } from './agent-tools-modules'
 import type { AgentContext } from './agent'
 import type { Database } from '@/types/database'
 
@@ -242,7 +243,7 @@ export const agentTools = [
       properties: {
         category: {
           type: 'string',
-          enum: ['all', 'overdue_action', 'stale_waiting', 'approaching_milestone', 'critical_dd', 'expiring_compliance', 'stale_decision', 'dependency_risk'],
+          enum: ['all', 'overdue_action', 'stale_waiting', 'approaching_milestone', 'critical_dd', 'expiring_compliance', 'stale_decision', 'dependency_risk', 'investor_followup', 'dino_payment'],
           description: 'Filter by category (default: all)',
         },
       },
@@ -385,6 +386,10 @@ export const agentTools = [
       required: ['document_id'],
     },
   },
+  // The steel CRM, objectives, meetings, the swept mailboxes, activity and the
+  // team roster live in agent-tools-modules.ts — same shape, kept separate only
+  // to stop this file from doubling in length.
+  ...moduleTools,
 ]
 
 // ---------------------------------------------------------------------------
@@ -1550,6 +1555,7 @@ export async function executeToolCall(
     }
 
     default:
+      if (MODULE_TOOL_NAMES.has(toolName)) return executeModuleTool(toolName, args)
       return { error: `Unknown tool: ${toolName}` }
   }
 }

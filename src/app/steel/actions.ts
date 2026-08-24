@@ -12,13 +12,15 @@ import {
   canonicalLeadSource,
   isPricingBelowFloor,
   steelCategory,
+  isPerSqftCostService,
+  DEFAULT_STEEL_COST_PER_SQFT,
   type SteelServiceType,
 } from '@/lib/utils/steel'
 import { leadSourcesInUse } from '@/lib/steel/lead-sources'
 
 type Db = SupabaseClient<Database>
 
-export type SteelDealFormState = { error: string } | null
+export type SteelDealFormState = { error: string } | { ok: true; id: string } | null
 
 interface ParsedLine {
   /** Existing row id (edit) or null for a new line. */
@@ -104,9 +106,15 @@ function parseFields(formData: FormData, canSeeFinancials: boolean): ParseResult
     building_type: str('building_type'),
     lead_source: str('lead_source') ?? 'Other',
     lead_source_detail: str('lead_source_detail'),
-    lead_source_id: str('lead_source_id'),
     salesperson_id: str('salesperson_id'),
+    // Marketing / referral source — any contact (party). Attribution, set by any
+    // author (the referral FEE below is financials-only).
+    referral_party_id: str('referral_party_id'),
     stage: (STEEL_STAGES as string[]).includes(rawStage) ? rawStage : 'quote',
+    // ICP fields (buyer segment + buying trigger) — attribution for marketing
+    // analytics, set by any author.
+    icp_segment: str('icp_segment'),
+    buying_trigger: str('buying_trigger'),
     square_feet: square_feet as number | null,
     price_per_sqft: price_per_sqft as number | null,
     value,
@@ -117,8 +125,12 @@ function parseFields(formData: FormData, canSeeFinancials: boolean): ParseResult
     description: str('description'),
   }
 
-  // Referral fee is confidential — only set it when a financials user submits.
+  // Rate overrides, install fee, and the referral fee are confidential money
+  // controls — only set them when a financials user submits (otherwise the
+  // existing values are preserved by not being written).
   if (canSeeFinancials) {
+    fields.sales_rate_override = money('sales_rate_override')
+    fields.install_fee = money('install_fee')
     fields.referral_fee_type = referralFeeType(str('referral_fee_type'))
     fields.referral_fee_value = fields.referral_fee_type === 'none' ? null : money('referral_fee_value')
   }
@@ -133,12 +145,18 @@ function parseFields(formData: FormData, canSeeFinancials: boolean): ParseResult
  * from the existing row (a sales user can't wipe them). commission_paid / date
  * are always preserved. Lines removed from the form are deleted; empty lines
  * are dropped.
+ *
+ * `squareFeet` exists so a per-SF cost basis can be derived HERE rather than
+ * only in the form. A sales rep never sees the cost fields, so nothing on the
+ * client fills them in — without this the rep's new deal saved with no cost at
+ * all, which reads as 100% margin and pays commission on the full sale price.
  */
 async function saveServices(
   supabase: Db,
   dealId: string,
   lines: ParsedLine[],
-  canSeeFinancials: boolean
+  canSeeFinancials: boolean,
+  squareFeet: number | null
 ) {
   const { data: existing } = await supabase
     .from('steel_deal_services')
@@ -153,7 +171,15 @@ async function saveServices(
   lines.forEach((line, i) => {
     const ex = line.id ? byId.get(line.id) : undefined
     const price = line.price
-    const cost = canSeeFinancials ? line.cost : (ex?.cost ?? null)
+    const submittedCost = canSeeFinancials ? line.cost : (ex?.cost ?? null)
+    // Materials and assembly cost by the square foot. When no cost survived the
+    // form (a sales-user submission, or a brand-new line), fall back to the
+    // line's own basis or the company default so the deal always carries one.
+    const cost =
+      submittedCost ??
+      (isPerSqftCostService(line.category) && squareFeet && squareFeet > 0
+        ? Math.round(squareFeet * (ex?.cost_per_sqft ?? DEFAULT_STEEL_COST_PER_SQFT) * 100) / 100
+        : null)
     const commissionable = canSeeFinancials ? (line.commissionable ?? true) : (ex?.commissionable ?? true)
     const commission_pct = canSeeFinancials ? line.commission_pct : (ex?.commission_pct ?? null)
     const commission_paid = ex?.commission_paid ?? false
@@ -171,7 +197,11 @@ async function saveServices(
       description,
       price,
       cost,
-      cost_per_sqft: ex?.cost_per_sqft ?? null,
+      cost_per_sqft:
+        ex?.cost_per_sqft ??
+        (isPerSqftCostService(line.category) && squareFeet && squareFeet > 0 && submittedCost == null
+          ? DEFAULT_STEEL_COST_PER_SQFT
+          : null),
       commissionable,
       commission_pct,
       commission_paid,
@@ -218,8 +248,11 @@ export async function createSteelDeal(
 
   if (error) return { error: `Failed to create deal: ${error.message}` }
 
-  await saveServices(supabase, data.id, result.lines, canSeeFinancials)
+  await saveServices(supabase, data.id, result.lines, canSeeFinancials, result.fields.square_feet ?? null)
 
+  // `_stay` = the drawer/inline editor wants a result back instead of a full
+  // navigation, so it can close itself and refresh in place.
+  if (formData.get('_stay')) return { ok: true, id: data.id }
   redirect(`/steel/${data.id}`)
 }
 
@@ -241,7 +274,8 @@ export async function updateSteelDeal(
 
   if (error) return { error: `Failed to update deal: ${error.message}` }
 
-  await saveServices(supabase, id, result.lines, canSeeFinancials)
+  await saveServices(supabase, id, result.lines, canSeeFinancials, result.fields.square_feet ?? null)
 
+  if (formData.get('_stay')) return { ok: true, id }
   redirect(`/steel/${id}`)
 }

@@ -1,7 +1,30 @@
 import { NextRequest } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { getViewer, canAccessProject, forbiddenJson, actorAdminClient } from '@/lib/auth/viewer'
+import { getViewer, canAccessProject, forbiddenJson, actorAdminClient, type Viewer } from '@/lib/auth/viewer'
+import { canAccessMeeting } from '@/lib/meetings/access'
+
+/**
+ * A scoped (non-admin) viewer may open/delete a document if it's on a project
+ * they can access, or attached to a meeting they can access (project meetings
+ * follow the project grant; board meetings are admin-only).
+ */
+async function canViewerAccessDoc(
+  viewer: Viewer,
+  doc: { project_id: string | null; meeting_id?: string | null },
+  admin: ReturnType<typeof createAdminClient>,
+): Promise<boolean> {
+  if (doc.project_id && (await canAccessProject(viewer, doc.project_id))) return true
+  if (doc.meeting_id) {
+    const { data: meeting } = await admin
+      .from('meetings')
+      .select('scope, project_id')
+      .eq('id', doc.meeting_id)
+      .maybeSingle()
+    if (meeting && (await canAccessMeeting(viewer, meeting))) return true
+  }
+  return false
+}
 
 interface RouteContext {
   params: Promise<{ id: string }>
@@ -21,7 +44,7 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
 
   const { data: doc, error: fetchError } = await supabase
     .from('documents')
-    .select('id, storage_path, file_name, project_id, extracted_text, ai_summary')
+    .select('id, storage_path, file_name, project_id, meeting_id, extracted_text, ai_summary')
     .eq('id', id)
     .single()
 
@@ -29,10 +52,10 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
     return Response.json({ error: 'Document not found' }, { status: 404 })
   }
 
-  // Scoped users may only open documents on their granted projects.
+  // Scoped users may only open documents on their granted projects / meetings.
   const viewer = await getViewer()
-  if (viewer && !viewer.isAdmin) {
-    if (!doc.project_id || !(await canAccessProject(viewer, doc.project_id))) return forbiddenJson()
+  if (viewer && !viewer.isAdmin && !(await canViewerAccessDoc(viewer, doc, createAdminClient()))) {
+    return forbiddenJson()
   }
 
   if (request.nextUrl.searchParams.get('text') === '1') {
@@ -64,7 +87,7 @@ export async function DELETE(_request: NextRequest, { params }: RouteContext) {
   // Fetch the document to get its storage path
   const { data: doc, error: fetchError } = await supabase
     .from('documents')
-    .select('id, storage_path, project_id')
+    .select('id, storage_path, project_id, meeting_id')
     .eq('id', id)
     .single()
 
@@ -72,10 +95,10 @@ export async function DELETE(_request: NextRequest, { params }: RouteContext) {
     return Response.json({ error: 'Document not found' }, { status: 404 })
   }
 
-  // Scoped users may only delete documents on their granted projects.
+  // Scoped users may only delete documents on their granted projects / meetings.
   const viewer = await getViewer()
-  if (viewer && !viewer.isAdmin) {
-    if (!doc.project_id || !(await canAccessProject(viewer, doc.project_id))) return forbiddenJson()
+  if (viewer && !viewer.isAdmin && !(await canViewerAccessDoc(viewer, doc, createAdminClient()))) {
+    return forbiddenJson()
   }
 
   // Delete the DB record first (cascades the document's chunks, so the

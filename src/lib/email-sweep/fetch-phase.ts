@@ -19,6 +19,25 @@ import { sweepDb, type MailboxSyncRow } from './db'
 /** Threads per Gmail page. 100 keeps each checkpoint cheap to redo. */
 const PAGE_SIZE = 100
 
+/**
+ * Catch-up tuning for a mailbox whose backfill already finished.
+ *
+ * Such a mailbox is NOT done forever — new mail keeps arriving — so each run
+ * re-reads a recent window from page one and lets fingerprint dedupe drop
+ * everything already stored. The buffer covers clock skew and mail that lands
+ * with an older internal date than the run that missed it.
+ */
+const CATCHUP_BUFFER_DAYS = 2
+const CATCHUP_MAX_WINDOW_DAYS = 30
+const CATCHUP_MAX_PAGES = 3
+
+/** Days of history a caught-up mailbox should re-read, based on its last pass. */
+function catchUpWindowDays(completedAt: string | null): number {
+  if (!completedAt) return 7
+  const elapsed = Math.ceil((Date.now() - new Date(completedAt).getTime()) / 86_400_000)
+  return Math.min(CATCHUP_MAX_WINDOW_DAYS, Math.max(1, elapsed) + CATCHUP_BUFFER_DAYS)
+}
+
 export interface FetchProgress {
   mailbox: string
   state: MailboxSyncRow['state']
@@ -103,23 +122,38 @@ export async function fetchMailbox(
   mailbox: string,
   opts: { maxPages?: number; sinceDays?: number | null; restart?: boolean } = {}
 ): Promise<FetchProgress> {
-  const maxPages = opts.maxPages ?? 5
   const existing = await readSync(mailbox)
   const notes: string[] = []
 
-  const resuming = !opts.restart && existing?.state === 'running' && existing.page_token
-  const sinceDays = resuming ? existing.since_days : opts.sinceDays ?? null
+  const resuming = !opts.restart && existing?.state === 'running' && !!existing.page_token
+  // A mailbox that already finished a pass re-reads a recent window instead of
+  // the whole history. Keyed off completed_at, not state, so a mailbox that
+  // failed AFTER its backfill also catches up rather than re-reading years.
+  const catchUp = !opts.restart && !resuming && !!existing?.completed_at
+
+  const sinceDays = resuming
+    ? existing!.since_days
+    : catchUp
+      ? catchUpWindowDays(existing!.completed_at)
+      : opts.sinceDays ?? null
+
+  const maxPages = catchUp
+    ? Math.min(opts.maxPages ?? CATCHUP_MAX_PAGES, CATCHUP_MAX_PAGES)
+    : opts.maxPages ?? 5
 
   let pageToken: string | null = resuming ? existing!.page_token : null
-  let threadsSeen = resuming ? existing!.threads_seen : 0
-  let threadsNew = resuming ? existing!.threads_new : 0
-  let duplicatesSkipped = resuming ? existing!.duplicates_skipped : 0
+  // Counters are cumulative across runs for a resumed or catching-up mailbox.
+  let threadsSeen = resuming || catchUp ? existing!.threads_seen : 0
+  let threadsNew = resuming || catchUp ? existing!.threads_new : 0
+  let duplicatesSkipped = resuming || catchUp ? existing!.duplicates_skipped : 0
 
   await writeSync(mailbox, {
     state: 'running',
     since_days: sinceDays,
     last_error: null,
-    ...(resuming ? {} : { started_at: new Date().toISOString(), completed_at: null }),
+    // A catch-up pass keeps the backfill's started_at; completed_at is the
+    // marker that moves, and the next window is measured from it.
+    ...(resuming || catchUp ? {} : { started_at: new Date().toISOString(), completed_at: null }),
   })
 
   const known = await loadKnownFingerprints()
@@ -151,8 +185,19 @@ export async function fetchMailbox(
         duplicates_skipped: duplicatesSkipped,
       })
 
-      if (!pageToken) {
-        await writeSync(mailbox, { state: 'complete', completed_at: new Date().toISOString() })
+      // Gmail lists newest-first, so on a catch-up pass the first page with
+      // nothing new means everything below it is already stored. Stop there
+      // rather than paging through the whole window every hour.
+      const caughtUp = catchUp && inserted === 0
+
+      if (!pageToken || caughtUp) {
+        await writeSync(mailbox, {
+          state: 'complete',
+          completed_at: new Date().toISOString(),
+          // Drop the cursor so the next run starts a fresh window, not a
+          // token that points into this run's now-stale result set.
+          page_token: null,
+        })
         return {
           mailbox,
           state: 'complete',
@@ -203,21 +248,9 @@ export async function fetchAllMailboxes(
 ): Promise<FetchProgress[]> {
   const out: FetchProgress[] = []
   for (const mailbox of MAILBOXES) {
-    const existing = await readSync(mailbox)
-    // Skip mailboxes already finished unless this is an explicit restart.
-    if (!opts.restart && existing?.state === 'complete') {
-      out.push({
-        mailbox,
-        state: 'complete',
-        pagesThisRun: 0,
-        threadsSeen: existing.threads_seen,
-        threadsNew: existing.threads_new,
-        duplicatesSkipped: existing.duplicates_skipped,
-        done: true,
-        notes: [],
-      })
-      continue
-    }
+    // Every mailbox is fetched every run. A finished backfill is not a finished
+    // mailbox — fetchMailbox drops into a short catch-up window for those, so
+    // mail that arrives after the backfill still reaches the CRM.
     out.push(
       await fetchMailbox(mailbox, {
         maxPages: opts.maxPagesPerMailbox,

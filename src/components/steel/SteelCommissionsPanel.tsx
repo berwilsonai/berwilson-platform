@@ -1,46 +1,37 @@
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
 import { formatValue } from '@/lib/utils/constants'
-import type { SteelDealService } from '@/lib/supabase/types'
 import {
-  STEEL_SERVICE_LABELS,
-  isSteelServiceType,
-  lineItemLabel,
-  serviceMargin,
-  serviceCommission,
-  referralFeeAmount,
   referralFeeType,
   REFERRAL_FEE_LABELS,
-  dealFinancials,
+  steelSizeTier,
+  SIZE_TIER_LABELS,
+  type DealFinancials,
 } from '@/lib/utils/steel'
 
-interface Props {
-  services: SteelDealService[]
+export interface CommissionPanelProps {
+  fin: DealFinancials
+  squareFeet: number | null
+  salespersonName: string | null
+  /** The marketing / referral source (a contact), when set. */
+  referralSourceName: string | null
   referralType: string
   referralValue: number | null
-  referralPaid: boolean
-  salespersonName: string | null
-  referrerName: string | null
-  squareFeet: number | null
   /** Deal's cash is collected → commissions are real payables (vs projected). */
   payable: boolean
+  /** Per-payout paid state (deal-level). */
+  salesPaid: boolean
+  installPaid: boolean
+  referralPaid: boolean
+  salesAccelerated: boolean
+  /**
+   * 'full' = management view (all payouts + margin). 'self' = the salesperson's
+   * own cut (sales commission + install fee only — the referral fee is paid to a
+   * separate contact, not the rep).
+   */
+  scope: 'full' | 'self'
 }
 
-function money(v: number | null): string {
-  return v == null ? '—' : formatValue(v)
-}
-
-/** e.g. "$1.10 / SF" */
-function perSqft(commission: number, sqft: number | null): string | null {
-  if (!sqft || sqft <= 0) return null
-  return `$${(commission / sqft).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} / SF`
-}
-
-/**
- * Read-only status pill. A commission is only OWED once the deal is collected
- * (payable); before that it's PROJECTED. Marking paid happens on
- * /steel/commissions.
- */
 function StatusPill({ paid, payable }: { paid: boolean; payable: boolean }) {
   if (!payable) {
     return (
@@ -63,136 +54,155 @@ function StatusPill({ paid, payable }: { paid: boolean; payable: boolean }) {
   )
 }
 
-export default function SteelCommissionsPanel({
-  services,
-  referralType,
-  referralValue,
-  referralPaid,
-  salespersonName,
-  referrerName,
-  squareFeet,
-  payable,
-}: Props) {
-  const rows = [...services].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+interface PayoutRow {
+  label: string
+  who: string
+  detail: string
+  amount: number
+  paid: boolean
+}
 
-  const fin = dealFinancials(rows, referralType, referralValue)
+function PayoutTable({ rows, payable }: { rows: PayoutRow[]; payable: boolean }) {
+  if (rows.length === 0) {
+    return (
+      <p className="py-3 text-center text-xs text-muted-foreground">
+        No commissions on this deal yet — set prices and a salesperson.
+      </p>
+    )
+  }
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="text-[11px] uppercase tracking-wide text-muted-foreground text-left">
+            <th className="font-medium pb-2 pr-3">Payout</th>
+            <th className="font-medium pb-2 px-3">Who</th>
+            <th className="font-medium pb-2 px-3 text-right">Amount</th>
+            <th className="font-medium pb-2 pl-3 text-right">Status</th>
+          </tr>
+        </thead>
+        <tbody className="tnum">
+          {rows.map((r) => (
+            <tr key={r.label} className="border-t border-border">
+              <td className="py-2 pr-3">
+                <span className="font-medium">{r.label}</span>
+                <span className="ml-1.5 text-[11px] text-muted-foreground">{r.detail}</span>
+              </td>
+              <td className="py-2 px-3 text-muted-foreground">{r.who}</td>
+              <td className="py-2 px-3 text-right">{formatValue(r.amount)}</td>
+              <td className="py-2 pl-3 text-right">
+                <StatusPill paid={r.paid} payable={payable} />
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+export default function SteelCommissionsPanel(props: CommissionPanelProps) {
+  const {
+    fin,
+    squareFeet,
+    salespersonName,
+    referralSourceName,
+    referralType,
+    referralValue,
+    payable,
+    salesPaid,
+    installPaid,
+    referralPaid,
+    salesAccelerated,
+    scope,
+  } = props
+
+  const tier = SIZE_TIER_LABELS[steelSizeTier(squareFeet)]
   const rType = referralFeeType(referralType)
-  const referralAmount = referralFeeAmount(referralType, referralValue, fin.margin)
+  const salesDetail = `${fin.salesRate}% of commissionable margin${salesAccelerated ? ' · +1 accelerator' : ''}`
+
+  // In 'self' scope the viewer is the salesperson → sales + install only.
+  // The referral fee (to a separate contact) is management-only.
+  const rows: PayoutRow[] = []
+  if (fin.salesCommission !== 0) {
+    rows.push({
+      label: 'Sales commission',
+      who: salespersonName ?? 'Unassigned',
+      detail: salesDetail,
+      amount: fin.salesCommission,
+      paid: salesPaid,
+    })
+  }
+  if (fin.installFee > 0) {
+    rows.push({
+      label: 'Installation fee',
+      who: salespersonName ?? 'Unassigned',
+      detail: 'Flat per install job',
+      amount: fin.installFee,
+      paid: installPaid,
+    })
+  }
+  if (scope === 'full' && fin.referralFee > 0) {
+    rows.push({
+      label: 'Referral fee',
+      who: referralSourceName ?? 'Referral source',
+      detail:
+        REFERRAL_FEE_LABELS[rType] + (rType === 'percent' && referralValue != null ? ` (${referralValue}% of margin)` : ''),
+      amount: fin.referralFee,
+      paid: referralPaid,
+    })
+  }
 
   return (
     <section className="rounded-lg border border-border bg-card p-4 elev-1">
       <div className="flex items-center justify-between gap-2 mb-3">
-        <h2 className="label-caps text-muted-foreground">Margin &amp; Commissions</h2>
-        <Link href="/steel/commissions" className="text-xs text-primary hover:underline">
-          Payouts →
-        </Link>
+        <h2 className="label-caps text-muted-foreground">
+          {scope === 'self' ? 'Your Commission' : 'Margin & Commissions'}
+        </h2>
+        {scope === 'full' && (
+          <Link href="/steel/commissions" className="text-xs text-primary hover:underline">
+            Payouts →
+          </Link>
+        )}
       </div>
 
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-[11px] uppercase tracking-wide text-muted-foreground text-left">
-              <th className="font-medium pb-2 pr-3">Service</th>
-              <th className="font-medium pb-2 px-3 text-right">Price</th>
-              <th className="font-medium pb-2 px-3 text-right">Cost</th>
-              <th className="font-medium pb-2 px-3 text-right">Margin</th>
-              <th className="font-medium pb-2 px-3 text-right">Comm %</th>
-              <th className="font-medium pb-2 px-3 text-right">Commission</th>
-              <th className="font-medium pb-2 pl-3 text-right">Status</th>
-            </tr>
-          </thead>
-          <tbody className="tnum">
-            {rows.length === 0 && (
-              <tr>
-                <td colSpan={7} className="py-3 text-muted-foreground text-center text-xs">
-                  No services entered yet — add price &amp; cost on the deal to track margin.
-                </td>
-              </tr>
-            )}
-            {rows.map((s) => {
-              const notCommissionable = s.commissionable === false
-              const category = isSteelServiceType(s.service_type)
-                ? STEEL_SERVICE_LABELS[s.service_type]
-                : s.service_type
-              const name = lineItemLabel(s.description, s.service_type)
-              return (
-                <tr key={s.id} className="border-t border-border">
-                  <td className="py-2 pr-3">
-                    <span className="font-medium">{name}</span>
-                    {name !== category && (
-                      <span className="ml-1.5 text-[11px] text-muted-foreground">{category}</span>
-                    )}
-                  </td>
-                  <td className="py-2 px-3 text-right">{money(s.price)}</td>
-                  <td className="py-2 px-3 text-right">{money(s.cost)}</td>
-                  <td className="py-2 px-3 text-right">{formatValue(serviceMargin(s))}</td>
-                  <td className="py-2 px-3 text-right">
-                    {notCommissionable ? (
-                      <span className="text-[11px] text-muted-foreground">n/c</span>
-                    ) : s.commission_pct != null ? (
-                      `${s.commission_pct}%`
-                    ) : (
-                      '—'
-                    )}
-                  </td>
-                  <td className="py-2 px-3 text-right">{formatValue(serviceCommission(s))}</td>
-                  <td className="py-2 pl-3 text-right">
-                    {serviceCommission(s) !== 0 ? (
-                      <StatusPill paid={s.commission_paid} payable={payable} />
-                    ) : (
-                      '—'
-                    )}
-                  </td>
-                </tr>
-              )
-            })}
-          </tbody>
-          <tfoot>
-            <tr className="border-t-2 border-border font-semibold tnum">
-              <td className="py-2 pr-3">Total</td>
-              <td className="py-2 px-3 text-right">{formatValue(fin.revenue)}</td>
-              <td className="py-2 px-3 text-right">{formatValue(fin.cost)}</td>
-              <td className="py-2 px-3 text-right">{formatValue(fin.margin)}</td>
-              <td className="py-2 px-3" />
-              <td className="py-2 px-3 text-right">{formatValue(fin.salespersonCommission)}</td>
-              <td className="py-2 pl-3" />
-            </tr>
-          </tfoot>
-        </table>
-      </div>
-
-      {/* Referral fee */}
-      {rType !== 'none' && (
-        <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-md bg-muted/30 px-3 py-2 text-sm">
-          <div className="min-w-0">
-            <span className="text-[11px] uppercase tracking-wide text-muted-foreground">Referral fee</span>
-            <p>
-              <span className="font-medium tnum">{formatValue(referralAmount)}</span>{' '}
-              <span className="text-muted-foreground">
-                to {referrerName ?? 'referrer'} · {REFERRAL_FEE_LABELS[rType]}
-                {rType === 'percent' && referralValue != null ? ` (${referralValue}% of margin)` : ''}
-              </span>
-            </p>
-          </div>
-          {referralAmount > 0 && <StatusPill paid={referralPaid} payable={payable} />}
+      {/* Margin band — management sees the full picture; a rep sees the
+          commissionable margin their rate is applied to. */}
+      {scope === 'full' ? (
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-4 text-sm">
+          <Summary label="Revenue" value={formatValue(fin.revenue)} />
+          <Summary label="Cost" value={formatValue(fin.cost)} />
+          <Summary label="Total Margin" value={formatValue(fin.margin)} />
+          <Summary label="Commissionable" value={formatValue(fin.commissionableMargin)} sub="excl. install" />
+          <Summary label="Install Margin" value={formatValue(fin.installMargin)} sub="not commissioned" />
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 gap-3 mb-4 text-sm">
+          <Summary label="Commissionable Margin" value={formatValue(fin.commissionableMargin)} sub={`Size tier: ${tier}`} />
+          <Summary
+            label="Your Commission"
+            value={formatValue(fin.salesCommission + (fin.installFee > 0 ? fin.installFee : 0))}
+            strong
+          />
         </div>
       )}
 
-      {/* Summary */}
-      <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
-        <Summary label="Total Margin" value={formatValue(fin.margin)} />
-        <Summary
-          label="Salesperson"
-          value={formatValue(fin.salespersonCommission)}
-          sub={
-            [salespersonName ?? 'Unassigned', perSqft(fin.salespersonCommission, squareFeet)]
-              .filter(Boolean)
-              .join(' · ')
-          }
-        />
-        <Summary label="Referral" value={formatValue(fin.referralFee)} sub={referrerName ?? '—'} />
-        <Summary label="Net after comm." value={formatValue(fin.net)} strong />
-      </div>
+      <PayoutTable rows={rows} payable={payable} />
+
+      {scope === 'full' && (
+        <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
+          <Summary label="Total Payout" value={formatValue(fin.totalPayout)} />
+          <Summary label="Net after comm." value={formatValue(fin.net)} strong />
+          <Summary label="Sales rate" value={`${fin.salesRate}%`} sub={tier} />
+          <Summary label="Referral fee" value={formatValue(fin.referralFee)} sub={referralSourceName ?? '—'} />
+        </div>
+      )}
+
+      {!payable && (
+        <p className="mt-3 text-[11px] text-muted-foreground">
+          Commissions are <span className="font-medium">projected</span> until the deal&apos;s cash is collected (Paid stage).
+        </p>
+      )}
     </section>
   )
 }

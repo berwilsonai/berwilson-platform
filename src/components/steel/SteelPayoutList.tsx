@@ -7,26 +7,15 @@ import { toast } from 'sonner'
 import { Check, Loader2, Undo2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { formatValue } from '@/lib/utils/constants'
+import { PAID_FIELD, PAYOUT_LABELS, type PayoutItem } from '@/lib/steel/rollups'
 
-export interface PayoutItem {
-  key: string
-  kind: 'service' | 'referral'
-  id: string // service id, or deal id for a referral
-  dealId: string
-  dealName: string
-  personName: string
-  detail: string
-  amount: number
-  paid: boolean
-}
+export type { PayoutItem }
 
 async function setPaid(item: PayoutItem, paid: boolean): Promise<boolean> {
-  const url = item.kind === 'service' ? `/api/steel/services/${item.id}` : `/api/steel/deals/${item.dealId}`
-  const body = item.kind === 'service' ? { paid } : { referral_fee_paid: paid }
-  const res = await fetch(url, {
+  const res = await fetch(`/api/steel/deals/${item.dealId}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
+    body: JSON.stringify({ [PAID_FIELD[item.kind]]: paid }),
   })
   return res.ok
 }
@@ -101,7 +90,7 @@ export default function SteelPayoutList({ items }: { items: PayoutItem[] }) {
                       <Link href={`/steel/${i.dealId}`} className="text-sm font-medium hover:underline truncate block">
                         {i.dealName}
                       </Link>
-                      <p className="text-[11px] text-muted-foreground">{i.detail}</p>
+                      <p className="text-[11px] text-muted-foreground">{PAYOUT_LABELS[i.kind]}</p>
                     </div>
                     <div className="flex items-center gap-3 shrink-0">
                       <span className="text-sm font-medium tnum">{formatValue(i.amount)}</span>
@@ -136,7 +125,7 @@ export default function SteelPayoutList({ items }: { items: PayoutItem[] }) {
                     {i.dealName}
                   </Link>
                   <p className="text-[11px] text-muted-foreground">
-                    {i.personName} · {i.detail}
+                    {i.personName} · {PAYOUT_LABELS[i.kind]}
                   </p>
                 </div>
                 <div className="flex items-center gap-3 shrink-0">

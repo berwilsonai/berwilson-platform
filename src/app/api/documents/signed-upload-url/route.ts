@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getViewer, canAccessProject, forbiddenJson } from '@/lib/auth/viewer'
+import { canAccessMeeting } from '@/lib/meetings/access'
 
 export async function POST(request: NextRequest) {
   const supabase = createAdminClient()
@@ -17,11 +18,24 @@ export async function POST(request: NextRequest) {
     return Response.json({ error: 'storage_path is required' }, { status: 400 })
   }
 
-  // Scoped users may only stage uploads into their granted projects' folders.
+  // Scoped users may only stage uploads into their granted projects' folders
+  // (or a meeting they can access — meeting files live under meetings/<id>/).
   const viewer = await getViewer()
   if (viewer && !viewer.isAdmin) {
-    const match = /^projects\/([0-9a-f-]{36})\//.exec(storage_path)
-    if (!match || !(await canAccessProject(viewer, match[1]))) return forbiddenJson()
+    const projMatch = /^projects\/([0-9a-f-]{36})\//.exec(storage_path)
+    const meetMatch = /^meetings\/([0-9a-f-]{36})\//.exec(storage_path)
+    if (projMatch) {
+      if (!(await canAccessProject(viewer, projMatch[1]))) return forbiddenJson()
+    } else if (meetMatch) {
+      const { data: meeting } = await supabase
+        .from('meetings')
+        .select('scope, project_id')
+        .eq('id', meetMatch[1])
+        .maybeSingle()
+      if (!meeting || !(await canAccessMeeting(viewer, meeting))) return forbiddenJson()
+    } else {
+      return forbiddenJson()
+    }
   }
 
   const { data, error } = await supabase.storage

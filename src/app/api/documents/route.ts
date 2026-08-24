@@ -1,12 +1,15 @@
 import { NextRequest } from 'next/server'
 import { runDocumentAiPass } from '@/lib/ai/document-pipeline'
 import { getViewer, canAccessProject, forbiddenJson, actorAdminClient } from '@/lib/auth/viewer'
+import { canAccessMeeting } from '@/lib/meetings/access'
 
 // Summary + full-text transcription + embedding can take a few minutes on big PDFs
 export const maxDuration = 300
 
 interface InsertBody {
-  project_id: string
+  project_id?: string
+  /** Attach the file to a meeting record (audio recording / exhibit). */
+  meeting_id?: string
   storage_path: string
   file_name: string
   file_size_bytes: number
@@ -25,20 +28,37 @@ export async function POST(request: NextRequest) {
     return Response.json({ error: 'Invalid JSON body' }, { status: 400 })
   }
 
-  const { project_id, storage_path, file_name, file_size_bytes, mime_type, doc_type, extract_ai } = body
+  const { project_id, meeting_id, storage_path, file_name, file_size_bytes, mime_type, doc_type, extract_ai } = body
 
-  if (!project_id || !storage_path || !file_name) {
-    return Response.json({ error: 'project_id, storage_path, and file_name are required' }, { status: 400 })
+  if ((!project_id && !meeting_id) || !storage_path || !file_name) {
+    return Response.json({ error: 'project_id or meeting_id, plus storage_path and file_name, are required' }, { status: 400 })
   }
 
   const viewer = await getViewer()
-  if (viewer && !viewer.isAdmin && !(await canAccessProject(viewer, project_id))) return forbiddenJson()
+  if (viewer && !viewer.isAdmin) {
+    if (meeting_id) {
+      const { data: meeting } = await supabase
+        .from('meetings')
+        .select('scope, project_id')
+        .eq('id', meeting_id)
+        .maybeSingle()
+      if (!meeting || !(await canAccessMeeting(viewer, meeting))) return forbiddenJson()
+    } else if (!project_id || !(await canAccessProject(viewer, project_id))) {
+      return forbiddenJson()
+    }
+  }
+
+  // Meeting attachments (audio, exhibits) are pure storage — never AI-embedded
+  // here (they carry no valid chunk scope; the meeting's minutes document holds
+  // the searchable text).
+  const runAi = extract_ai && !meeting_id
 
   // Insert document record
   const { data: doc, error: insertError } = await supabase
     .from('documents')
     .insert({
-      project_id,
+      project_id: project_id ?? null,
+      meeting_id: meeting_id ?? null,
       storage_path,
       file_name,
       file_size_bytes: file_size_bytes ?? null,
@@ -53,7 +73,7 @@ export async function POST(request: NextRequest) {
     return Response.json({ error: insertError?.message ?? 'Insert failed' }, { status: 500 })
   }
 
-  if (extract_ai) {
+  if (runAi) {
     // File was uploaded to storage by the client — pull it back for the AI pass.
     const { data: fileBlob, error: downloadError } = await supabase.storage
       .from('documents')
@@ -67,7 +87,7 @@ export async function POST(request: NextRequest) {
       const result = await runDocumentAiPass({
         supabase,
         documentId: doc.id,
-        projectId: project_id,
+        projectId: project_id ?? null,
         fileName: file_name,
         mimeType: mime_type ?? null,
         buffer: await fileBlob.arrayBuffer(),

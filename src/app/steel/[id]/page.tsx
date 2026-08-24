@@ -1,8 +1,9 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { Pencil, MessageSquare, StickyNote, TriangleAlert } from 'lucide-react'
+import { MessageSquare, StickyNote, TriangleAlert, FileText } from 'lucide-react'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { getViewer, canSeeSteelFinancials } from '@/lib/auth/viewer'
+import { getViewer, canSeeSteelFinancials, canWorkSteel } from '@/lib/auth/viewer'
+import { leadSourcesInUse } from '@/lib/steel/lead-sources'
 import { cn } from '@/lib/utils'
 import { formatValue, formatDate } from '@/lib/utils/constants'
 import { isPastDate } from '@/lib/utils/investors'
@@ -19,11 +20,15 @@ import {
   STEEL_STAGE_INDEX,
   STEEL_STAGE_LABELS,
 } from '@/lib/utils/steel'
+import { groupServices, acceleratorMap, financialsFor } from '@/lib/steel/rollups'
 import SteelStageControl from '@/components/steel/SteelStageControl'
 import SteelNextStepControl from '@/components/steel/SteelNextStepControl'
 import SteelDeleteButton from '@/components/steel/SteelDeleteButton'
 import SteelDealNotes from '@/components/steel/SteelDealNotes'
 import SteelCommissionsPanel from '@/components/steel/SteelCommissionsPanel'
+import SteelDealFiles from '@/components/steel/SteelDealFiles'
+import SteelEditDrawer from '@/components/steel/SteelEditDrawer'
+import type { Document } from '@/lib/supabase/types'
 
 interface PageProps {
   params: Promise<{ id: string }>
@@ -52,30 +57,82 @@ export default async function SteelDealDetailPage({ params }: PageProps) {
   const { data: deal } = await supabase.from('steel_deals').select('*').eq('id', id).single()
   if (!deal) notFound()
 
-  const [{ data: notes }, { data: members }, { data: services }, viewer] = await Promise.all([
+  // All deals + services power the per-rep accelerator (small table). Documents
+  // are the deal's attached files (plans, quotes, signed orders).
+  const [
+    { data: notes },
+    { data: members },
+    { data: allDeals },
+    { data: allServices },
+    { data: documents },
+    { data: contacts },
+    leadSources,
+    viewer,
+  ] = await Promise.all([
     supabase
       .from('steel_deal_notes')
       .select('*')
       .eq('deal_id', id)
       .order('created_at', { ascending: false }),
+    supabase.from('team_members').select('id, name, is_steel_rep, active').order('created_at', { ascending: true }),
+    supabase.from('steel_deals').select('*'),
+    supabase.from('steel_deal_services').select('*'),
     supabase
-      .from('team_members')
-      .select('id, name')
-      .order('created_at', { ascending: true }),
-    supabase.from('steel_deal_services').select('*').eq('deal_id', id),
+      .from('documents')
+      .select('*')
+      .eq('steel_deal_id', id)
+      .order('uploaded_at', { ascending: false }),
+    supabase
+      .from('parties')
+      .select('id, full_name, company, is_organization')
+      .neq('status', 'archived')
+      .order('full_name', { ascending: true }),
+    leadSourcesInUse(supabase),
     getViewer(),
   ])
+
+  // The marketing / referral source is a contact (party), resolved by name.
+  const { data: referralParty } = deal.referral_party_id
+    ? await supabase.from('parties').select('id, full_name').eq('id', deal.referral_party_id).maybeSingle()
+    : { data: null }
+
+  const rows = groupServices(allDeals ?? [], allServices ?? [])
+  const accel = acceleratorMap(rows, new Date().getFullYear())
+  const thisRow = rows.find((r) => r.deal.id === id) ?? { deal, lines: [] }
+  const services = thisRow.lines
+  const fin = financialsFor(thisRow, accel)
 
   const s = steelStage(deal.stage)
   const lost = isLostStage(deal.stage)
   const nextOverdue = isPastDate(deal.next_step_date) && !lost && s !== 'paid'
   const currentIndex = STEEL_STAGE_INDEX[s]
   const salesperson = (members ?? []).find((m) => m.id === deal.salesperson_id)
-  const referrer = (members ?? []).find((m) => m.id === deal.lead_source_id)
+  const referralSourceName = referralParty?.full_name ?? null
   const canDelete = viewer?.isAdmin ?? true
-  const showFinancials = canSeeSteelFinancials(viewer)
 
-  const materialsPrice = (services ?? []).find((x) => x.service_type === 'materials')?.price ?? null
+  // Financials visibility: management (admin/exec) sees the whole deal; a rep
+  // sees only their own cut on deals where they're the salesperson.
+  const canSeeFull = canSeeSteelFinancials(viewer)
+  const viewerIsSalesperson = !!viewer?.teamMemberId && viewer.teamMemberId === deal.salesperson_id
+  const showFinancials = canSeeFull || viewerIsSalesperson
+  const salesAccelerated = !!(deal.salesperson_id && accel.get(deal.salesperson_id))
+  const canEditFiles = canSeeFull || viewerIsSalesperson
+  const canWork = canWorkSteel(viewer)
+
+  // Salesperson picker = active flagged reps, plus the deal's current salesperson
+  // if they aren't flagged (a legacy assignment), so editing never drops them.
+  const activeReps = (members ?? []).filter((m) => m.is_steel_rep && m.active)
+  let editReps = activeReps.length > 0 ? activeReps : (members ?? []).filter((m) => m.active)
+  if (deal.salesperson_id && !editReps.some((r) => r.id === deal.salesperson_id) && salesperson) {
+    editReps = [salesperson, ...editReps]
+  }
+
+  // Sum of the materials-category lines (a deal can have more than one) — must
+  // match how the form and the save-time floor flag compute it.
+  const materialsPrice =
+    (services ?? [])
+      .filter((x) => x.service_type === 'materials')
+      .reduce((a, x) => a + (x.price ?? 0), 0) || null
   const effectivePpsf = effectiveSteelPricePerSqft(materialsPrice, deal.square_feet, deal.price_per_sqft)
 
   return (
@@ -109,12 +166,23 @@ export default async function SteelDealDetailPage({ params }: PageProps) {
         <div className="flex items-center gap-2 shrink-0">
           <SteelStageControl dealId={id} stage={s} />
           <Link
-            href={`/steel/${id}/edit`}
+            href={`/steel/${id}/quote`}
             className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md border border-input bg-background text-xs font-medium hover:bg-accent transition-colors"
           >
-            <Pencil size={13} />
-            Edit
+            <FileText size={13} />
+            Quote
           </Link>
+          {canWork && (
+            <SteelEditDrawer
+              deal={deal}
+              reps={editReps.map((m) => ({ id: m.id, name: m.name }))}
+              contacts={contacts ?? []}
+              referralSource={referralParty ?? null}
+              leadSources={leadSources}
+              services={services}
+              canSeeFinancials={canSeeFull}
+            />
+          )}
           {canDelete && <SteelDeleteButton dealId={id} name={deal.name} />}
         </div>
       </div>
@@ -198,11 +266,13 @@ export default async function SteelDealDetailPage({ params }: PageProps) {
           <Fact label="Customer" value={deal.customer} />
           <Fact label="Building Type" value={deal.building_type} />
           <Fact label="Salesperson" value={salesperson?.name} />
+          <Fact label="Marketing / Referral Source" value={referralSourceName} />
+          <Fact label="Buyer Segment" value={deal.icp_segment} />
+          <Fact label="Buying Trigger" value={deal.buying_trigger} />
           <Fact
             label="Lead Source"
             value={[leadSourceLabel(deal.lead_source), deal.lead_source_detail].filter(Boolean).join(' — ')}
           />
-          <Fact label="Referred By" value={referrer?.name} />
           <Fact
             label="Expected Delivery"
             value={deal.expected_delivery_date ? formatDate(deal.expected_delivery_date) : null}
@@ -210,19 +280,32 @@ export default async function SteelDealDetailPage({ params }: PageProps) {
         </dl>
       </div>
 
-      {/* Margin & commissions — admin/executive only */}
+      {/* Margin & commissions — management sees the full deal; a rep sees only
+          their own cut. */}
       {showFinancials && (
         <SteelCommissionsPanel
-          services={services ?? []}
+          fin={fin}
+          squareFeet={deal.square_feet}
+          salespersonName={salesperson?.name ?? null}
+          referralSourceName={referralSourceName}
           referralType={deal.referral_fee_type}
           referralValue={deal.referral_fee_value}
-          referralPaid={deal.referral_fee_paid}
-          salespersonName={salesperson?.name ?? null}
-          referrerName={referrer?.name ?? null}
-          squareFeet={deal.square_feet}
           payable={isCommissionPayable(deal.stage)}
+          salesPaid={deal.sales_commission_paid}
+          installPaid={deal.install_fee_paid}
+          referralPaid={deal.referral_fee_paid}
+          salesAccelerated={salesAccelerated}
+          scope={canSeeFull ? 'full' : 'self'}
         />
       )}
+
+      {/* Deal documents — plans, engineering quotes, signed orders */}
+      <section>
+        <h2 className="flex items-center gap-1.5 label-caps text-muted-foreground mb-2">
+          <StickyNote size={13} /> Documents
+        </h2>
+        <SteelDealFiles dealId={id} files={(documents as Document[]) ?? []} canEdit={canEditFiles} />
+      </section>
 
       {/* Description */}
       {deal.description && (

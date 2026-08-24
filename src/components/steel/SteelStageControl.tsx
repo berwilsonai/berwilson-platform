@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { toast } from 'sonner'
 import { Loader2 } from 'lucide-react'
 import { STEEL_STAGES, STEEL_STAGE_LABELS } from '@/lib/utils/steel'
 
@@ -16,15 +17,26 @@ export default function SteelStageControl({ dealId, stage }: SteelStageControlPr
   const [value, setValue] = useState(stage)
 
   async function change(next: string) {
+    const prev = value
     setValue(next)
     setSaving(true)
     try {
-      await fetch(`/api/steel/deals/${dealId}`, {
+      const res = await fetch(`/api/steel/deals/${dealId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ stage: next }),
       })
+      if (!res.ok) {
+        // Revert the optimistic change so the dropdown can't drift from the DB.
+        setValue(prev)
+        const { error } = await res.json().catch(() => ({ error: 'Failed to update stage' }))
+        toast.error(error ?? 'Failed to update stage')
+        return
+      }
       router.refresh()
+    } catch {
+      setValue(prev)
+      toast.error('Failed to update stage')
     } finally {
       setSaving(false)
     }

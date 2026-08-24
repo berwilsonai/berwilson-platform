@@ -222,8 +222,11 @@ export function lineItemLabel(
   return STEEL_SERVICE_LABELS[steelCategory(category)]
 }
 
-/** Default salesperson commission rate (% of margin) pre-filled on new lines. */
-export const DEFAULT_SERVICE_COMMISSION_PCT = 10
+/** Whether a line is the installation / frame-assembly work. Installation is
+ * billed separately and earns a flat fee, NOT margin commission (comp plan). */
+export function isInstallCategory(value: string | null | undefined): boolean {
+  return steelCategory(value) === 'assembly'
+}
 
 /**
  * Services whose cost is driven by a per-square-foot basis (cost =
@@ -280,7 +283,11 @@ export function isPricingBelowFloor(
 const numOr0 = (v: number | null | undefined): number =>
   typeof v === 'number' && isFinite(v) ? v : 0
 
-// ─── Referral fee (paid to the lead-source referrer) ─────────────────────────
+// ─── Referral fee (paid to the marketing / referral source) ──────────────────
+//
+// The marketing / referral source (steel_deals.referral_party_id → parties) can
+// be ANY contact — typically a Ber Wilson employee, but an outside referrer too.
+// They earn a referral fee: a flat amount, or a percentage of the deal margin.
 
 export type ReferralFeeType = 'none' | 'flat' | 'percent'
 
@@ -296,17 +303,89 @@ export function referralFeeType(value: string | null | undefined): ReferralFeeTy
   return REFERRAL_FEE_TYPES.includes(value as ReferralFeeType) ? (value as ReferralFeeType) : 'none'
 }
 
-// ─── Commission math ─────────────────────────────────────────────────────────
+// ─── Commission math (founding-phase comp plan) ──────────────────────────────
+//
+//   Sales commission = commissionable margin × RATE
+//   • RATE is set by the deal's total square footage (Sales 15/12/10 for
+//     <20k / 20k-100k / 100k+ SF) and applies to the whole deal. A per-deal
+//     override wins over the tier rate.
+//   • Installation (frame assembly) is billed separately and earns NO margin
+//     commission — the salesperson gets a flat $250-$500 per install job.
+//   • Per-rep volume accelerator: once a rep collects $1M of gross profit in a
+//     calendar year, their rate steps up 1 point for the rest of that year.
+//   • Marketing / referral is handled entirely by the referral fee (flat or %
+//     of margin) paid to the deal's marketing source — see referralFeeAmount.
+//   Cost basis for the steel kit is fixed at $20/SF (see DEFAULT_STEEL_COST_PER_SQFT).
 
 const n = (v: number | null | undefined): number => (typeof v === 'number' && isFinite(v) ? v : 0)
+
+// ── Project-size rate tiers ──
+
+export type SizeTier = 'under_20k' | 'mid' | 'large'
+
+export function steelSizeTier(sqft: number | null | undefined): SizeTier {
+  const s = n(sqft)
+  if (s >= 100_000) return 'large'
+  if (s >= 20_000) return 'mid'
+  return 'under_20k'
+}
+
+export const SIZE_TIER_LABELS: Record<SizeTier, string> = {
+  under_20k: 'Under 20,000 SF',
+  mid: '20,000–100,000 SF',
+  large: '100,000+ SF',
+}
+
+/** Sales commission rate (% of commissionable margin) by project-size tier. */
+export const SALES_RATE_BY_TIER: Record<SizeTier, number> = { under_20k: 15, mid: 12, large: 10 }
+
+/** Collected gross profit (per rep, per calendar year) that triggers the +1pt bump. */
+export const ACCELERATOR_THRESHOLD = 1_000_000
+/** Points added to a rep's rate once they cross the accelerator threshold. */
+export const ACCELERATOR_BUMP = 1
+
+/** Effective sales rate for a deal: SF-tier base (or override), +1 if accelerated. */
+export function salesRate(
+  sqft: number | null | undefined,
+  override: number | null | undefined,
+  accelerated = false
+): number {
+  const base = override != null && isFinite(override) ? override : SALES_RATE_BY_TIER[steelSizeTier(sqft)]
+  return base + (accelerated ? ACCELERATOR_BUMP : 0)
+}
+
+// ── Installation flat fee ──
+
+export const INSTALL_FEE_MIN = 250
+export const INSTALL_FEE_MAX = 500
+
+// ── ICP + marketing (GTM brief) ──
+
+/** Suggested buyer segments (self-maintaining datalist, like lead sources). */
+export const DEFAULT_ICP_SEGMENTS: string[] = [
+  'Developer', 'General Contractor', 'Owner-Builder', 'Ag / Farm', 'Industrial',
+  'Municipal / Gov', 'Church / Institutional', 'Other',
+]
+
+/** Suggested buying triggers. */
+export const DEFAULT_BUYING_TRIGGERS: string[] = [
+  'New construction', 'Expansion', 'Replacement / rebuild', 'Bid requirement',
+  'Speed to build', 'Price shopping', 'Other',
+]
+
+/** Monthly steel media budget (GTM brief). Actual spend comes from the ledger. */
+export const STEEL_MARKETING_MONTHLY_BUDGET = 3000
+
+// ── Line-level margin ──
 
 export interface ServiceLine {
   service_type: string
   price: number | null
   cost: number | null
-  commission_pct: number | null
+  /** Vestigial (rate is deal-level now); kept for row compatibility. */
+  commission_pct?: number | null
   commission_paid?: boolean | null
-  /** When false, this line's margin earns no commission (default true). */
+  /** When false, this line's margin is excluded from commissionable margin. */
   commissionable?: boolean | null
 }
 
@@ -314,12 +393,30 @@ export function serviceMargin(s: Pick<ServiceLine, 'price' | 'cost'>): number {
   return n(s.price) - n(s.cost)
 }
 
-export function serviceCommission(
-  s: Pick<ServiceLine, 'price' | 'cost' | 'commission_pct' | 'commissionable'>
-): number {
-  if (s.commissionable === false) return 0
-  return (serviceMargin(s) * n(s.commission_pct)) / 100
+/**
+ * Margin eligible for sales/marketing commission: sum of line margins,
+ * EXCLUDING installation/frame-assembly lines (flat-fee, never commissioned)
+ * and any line explicitly marked non-commissionable (freight, permits, …).
+ */
+export function commissionableMargin(lines: ServiceLine[]): number {
+  return lines.reduce((a, s) => {
+    if (s.commissionable === false) return a
+    if (isInstallCategory(s.service_type)) return a
+    return a + serviceMargin(s)
+  }, 0)
 }
+
+/** Margin on installation/frame-assembly lines (tracked for P&L; not commissioned). */
+export function installMargin(lines: ServiceLine[]): number {
+  return lines.reduce((a, s) => (isInstallCategory(s.service_type) ? a + serviceMargin(s) : a), 0)
+}
+
+/** Contract value = sum of line prices (the deal's revenue). */
+export function servicesRevenue(lines: ServiceLine[]): number {
+  return lines.reduce((a, s) => a + n(s.price), 0)
+}
+
+// ── Referral fee (paid to the lead-source referrer) ──
 
 export function referralFeeAmount(
   type: string | null | undefined,
@@ -332,37 +429,65 @@ export function referralFeeAmount(
   return 0
 }
 
+// ── Whole-deal financials ──
+
+export interface DealCommissionInput {
+  square_feet: number | null
+  sales_rate_override?: number | null
+  install_fee?: number | null
+  referral_fee_type?: string | null
+  referral_fee_value?: number | null
+  /** A salesperson is credited on the deal (default true). */
+  hasSalesperson?: boolean
+  /** The salesperson has crossed their annual $1M-profit accelerator. */
+  salesAccelerated?: boolean
+}
+
 export interface DealFinancials {
   revenue: number
   cost: number
+  /** Total margin across all lines (revenue − cost). */
   margin: number
-  salespersonCommission: number
+  /** Margin eligible for commission (excludes installation + non-commissionable). */
+  commissionableMargin: number
+  installMargin: number
+  salesRate: number
+  salesCommission: number
+  /** Flat installation fee to the salesperson. */
+  installFee: number
+  /** Referral fee to the marketing / referral source (flat or % of margin). */
   referralFee: number
-  /** Margin left after both commissions. */
+  /** Sum of all commissions/fees the company pays out on this deal. */
+  totalPayout: number
+  /** Margin left after all payouts. */
   net: number
 }
 
-export function dealFinancials(
-  services: ServiceLine[],
-  referral_fee_type: string | null | undefined,
-  referral_fee_value: number | null | undefined
-): DealFinancials {
-  const revenue = services.reduce((a, s) => a + n(s.price), 0)
-  const cost = services.reduce((a, s) => a + n(s.cost), 0)
+export function dealFinancials(lines: ServiceLine[], deal: DealCommissionInput): DealFinancials {
+  const revenue = servicesRevenue(lines)
+  const cost = lines.reduce((a, s) => a + n(s.cost), 0)
   const margin = revenue - cost
-  const salespersonCommission = services.reduce((a, s) => a + serviceCommission(s), 0)
-  const referralFee = referralFeeAmount(referral_fee_type, referral_fee_value, margin)
+  const cMargin = commissionableMargin(lines)
+  const iMargin = installMargin(lines)
+
+  const sRate = salesRate(deal.square_feet, deal.sales_rate_override, deal.salesAccelerated)
+
+  const salesCommission = (deal.hasSalesperson ?? true) ? (cMargin * sRate) / 100 : 0
+  const installFee = n(deal.install_fee)
+  const referralFee = referralFeeAmount(deal.referral_fee_type, deal.referral_fee_value, margin)
+  const totalPayout = salesCommission + installFee + referralFee
+
   return {
     revenue,
     cost,
     margin,
-    salespersonCommission,
+    commissionableMargin: cMargin,
+    installMargin: iMargin,
+    salesRate: sRate,
+    salesCommission,
+    installFee,
     referralFee,
-    net: margin - salespersonCommission - referralFee,
+    totalPayout,
+    net: margin - totalPayout,
   }
-}
-
-/** Contract value = sum of service prices (the deal's revenue). */
-export function servicesRevenue(services: ServiceLine[]): number {
-  return services.reduce((a, s) => a + n(s.price), 0)
 }

@@ -17,11 +17,11 @@ import {
   STEEL_STAGE_BORDER,
 } from '@/lib/utils/steel'
 
-/** Deal + salesperson / referrer names resolved server-side. */
+/** Deal + salesperson / referral-source names resolved server-side. */
 export interface SteelDealCardData {
   deal: SteelDeal
   salesperson: string | null
-  /** The "Referred By" person (lead_source_id), when set. */
+  /** The marketing / referral source contact (referral_party_id), when set. */
   referrer: string | null
 }
 

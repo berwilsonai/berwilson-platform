@@ -181,11 +181,18 @@ export async function clusterUnassigned(
   progress.threadsConsidered = candidates.length
   if (candidates.length === 0) return progress
 
-  // ── Attach to existing open clusters first ────────────────────────────────
+  // ── Attach to existing clusters first ─────────────────────────────────────
+  // 'staged' clusters are included on purpose. A staged cluster has already
+  // produced its review session, so a later reply on that same deal must land
+  // ON it — if it were allowed to form a fresh cluster it would be staged again
+  // and propose a SECOND project/opportunity for a deal already under review.
+  // Attaching leaves the cluster staged, so nothing is re-proposed.
+  // 'dismissed' is excluded: that deal was judged not real, and a new thread
+  // there deserves to be reconsidered on its own.
   const { data: openData } = await db
     .from('thread_clusters')
     .select('id, label, participants, first_at, last_at, thread_count')
-    .eq('state', 'open')
+    .in('state', ['open', 'staged'])
 
   const openClusters = ((openData ?? []) as ThreadClusterRow[]).map((c) => ({
     row: c,
@@ -289,6 +296,7 @@ export async function clusterUnassigned(
   }
 
   // Existing clusters that absorbed threads need their rollups refreshed.
+  // (Cheap, and only these were candidates for attachment.)
   for (const open of openClusters) {
     await refreshClusterRollups(open.row.id)
   }

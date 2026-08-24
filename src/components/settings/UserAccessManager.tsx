@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
-import { Check, Copy, KeyRound, Loader2, Plus, RefreshCw, ShieldCheck, Trash2, UserCheck, UserPlus, UserX, X } from 'lucide-react'
+import { Check, Copy, Factory, KeyRound, Loader2, Plus, RefreshCw, ShieldCheck, Trash2, UserCheck, UserPlus, UserX, X } from 'lucide-react'
 import { ROLES, ROLE_LABELS, ROLE_DESCRIPTIONS, type Role } from '@/lib/auth/permissions'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 
@@ -17,6 +17,7 @@ interface Member {
   email: string | null
   role: string
   active: boolean
+  is_steel_rep?: boolean
   auth_user_id: string | null
   color: string | null
   grants: Grant[]
@@ -235,6 +236,24 @@ function MemberCard({
               </button>
             )
           )}
+          <button
+            disabled={saving}
+            onClick={() =>
+              patch(
+                { is_steel_rep: !member.is_steel_rep },
+                member.is_steel_rep ? `${member.name} is no longer a steel rep` : `${member.name} is now a steel rep`
+              )
+            }
+            title="Steel sales rep — appears in the Salesperson list on steel deals"
+            className={`h-8 px-2.5 rounded-md border text-xs font-medium transition-colors inline-flex items-center gap-1.5 ${
+              member.is_steel_rep
+                ? 'border-violet-300 bg-violet-50 text-violet-700 dark:border-violet-500/40 dark:bg-violet-500/15 dark:text-violet-300'
+                : 'border-input text-muted-foreground hover:bg-accent'
+            }`}
+          >
+            <Factory size={12} />
+            Steel rep
+          </button>
           <button
             disabled={saving}
             onClick={() => patch({ active: !member.active }, member.active ? `${member.name} deactivated` : `${member.name} reactivated`)}

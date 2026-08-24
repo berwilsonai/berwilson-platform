@@ -64,6 +64,11 @@ export type OrgPerson = Tables<'org_people'>
 export type SteelDeal = Tables<'steel_deals'>
 export type SteelDealNote = Tables<'steel_deal_notes'>
 export type SteelDealService = Tables<'steel_deal_services'>
+export type SteelMarketingSpend = Tables<'steel_marketing_spend'>
+export type Meeting = Tables<'meetings'>
+export type DinoRevenue = Tables<'dino_revenue'>
+export type DinoPayment = Tables<'dino_payments'>
+export type DinoNote = Tables<'dino_notes'>
 
 // ---------------------------------------------------------------------------
 // Enum aliases — import these instead of Enums<'project_sector'> everywhere
