@@ -26,7 +26,7 @@ interface EnrichmentPreview {
   government_contract_history: string | null
   enrichment_notes: EnrichmentNotes
   sources: Array<{ url: string; title?: string }>
-  graph_done: boolean
+  directory_done: boolean
 }
 
 interface EnrichmentConflict {
@@ -273,7 +273,7 @@ export default function EnrichProfileButton({
           <span className="text-sm font-medium">Enriching profile…</span>
         </div>
         <div className="space-y-1.5">
-          <p className="text-xs text-muted-foreground">Searching Microsoft Graph contacts…</p>
+          <p className="text-xs text-muted-foreground">Searching Google Contacts…</p>
           <p className="text-xs text-muted-foreground">Running web research queries…</p>
           <p className="text-xs text-muted-foreground">Structuring results…</p>
         </div>
@@ -306,9 +306,9 @@ export default function EnrichProfileButton({
           </button>
         </div>
 
-        {preview.graph_done && (
+        {preview.directory_done && (
           <p className="text-xs text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 rounded px-2 py-1">
-            Microsoft Graph: contact found in Outlook
+            Google Contacts: contact found
           </p>
         )}
 

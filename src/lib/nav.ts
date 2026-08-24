@@ -15,6 +15,7 @@ import {
   Map as MapIcon,
   HandCoins,
   Factory,
+  Wrench,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -71,9 +72,10 @@ export const NAV_ITEMS: NavItem[] = [
   { href: '/opportunities', label: 'Opportunities', icon: Lightbulb, group: 'primary', keywords: 'acquisitions partnerships jv mergers investments deals' },
   { href: '/investors', label: 'Investors', icon: HandCoins, group: 'primary', keywords: 'capital raise fundraising equity spv commitments funding money lp' },
   { href: '/steel', label: 'Steel CRM', icon: Factory, group: 'primary', keywords: 'prefab steel sales deals quotes square feet sqft plant manufacturing buildings customers' },
+  { href: '/dino', label: 'Dino', title: 'Dino Service Pros', icon: Wrench, group: 'primary', keywords: 'dino service pros plumbing hvac mechanical revenue operating company internal trades payments' },
   { href: '/map', label: 'Map', title: 'Project Map', icon: MapIcon, group: 'primary', keywords: 'map geography utah locations sites markers rail corridors presentation visualize' },
   { href: '/intel', label: 'Intel', icon: Brain, group: 'intelligence', keywords: 'ask query search ai agent calendar meetings', mobilePrimary: true, alsoMatches: ['/calendar'] },
-  { href: '/intake', label: 'Intake', icon: Inbox, group: 'intelligence', keywords: 'email inbox ingest outlook sweep research proposal rfp upload document intake meeting notes minutes attendees follow-up transcript recap digest summarize read aloud understand', alsoMatches: ['/email-ingestion', '/proposals/intake', '/intake/meeting', '/intake/document'] },
+  { href: '/intake', label: 'Intake', icon: Inbox, group: 'intelligence', keywords: 'email inbox ingest gmail sweep research proposal rfp upload document intake meeting notes minutes attendees follow-up transcript recap digest summarize read aloud understand', alsoMatches: ['/email-ingestion', '/proposals/intake', '/intake/meeting', '/intake/document'] },
   { href: '/contacts', label: 'Contacts & Vendors', title: 'Directory', icon: Users, group: 'directory', keywords: 'people parties rolodex directory contacts vendors', alsoMatches: ['/vendors'] },
   { href: '/company', label: 'Ber Wilson', icon: Shield, group: 'directory', keywords: 'company profile capabilities certs', fallback: { href: '/company/structure', label: 'Org Structure' } },
   { href: '/review', label: 'Review Queue', title: 'Review Queue', icon: ClipboardCheck, group: 'system', keywords: 'pending approve reject', mobilePrimary: true, badge: 'review' },
@@ -103,7 +105,7 @@ export const TITLE_EXTRAS: { href: string; title: string }[] = [
 export const PALETTE_EXTRAS: { href: string; label: string; keywords: string }[] = [
   { href: '/timeline', label: 'Timeline', keywords: 'gantt schedule' },
   { href: '/contacts?tab=vendors', label: 'Vendors & Contractors', keywords: 'companies organizations subs partners entities' },
-  { href: '/calendar', label: 'Calendar', keywords: 'schedule dates milestones meeting outlook' },
+  { href: '/calendar', label: 'Calendar', keywords: 'schedule dates milestones meeting google gmail' },
   { href: '/intake?tab=proposal', label: 'Proposal Intake', keywords: 'ingest upload rfp document proposal' },
   { href: '/intake?tab=meeting', label: 'Meeting Notes', keywords: 'meeting minutes notes attendees follow-up transcript recap paste' },
   { href: '/company/structure', label: 'Org Structure', keywords: 'entity architecture chart divisions spv holdings leadership organization team' },

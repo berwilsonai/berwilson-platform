@@ -98,7 +98,7 @@ async function EmailTab({ supabase }: { supabase: ReturnType<typeof createAdminC
       {anyRunning && <SessionsAutoRefresh />}
       <div>
         <p className="text-sm text-muted-foreground">
-          Sweep the Outlook mailboxes for a person, email, or project. Ber AI reads the
+          Sweep the connected Gmail mailboxes for a person, email, or project. Ber AI reads the
           matching threads and attachments, assembles a research report, and proposes an
           opportunity or project — with people and tasks — for you to review and confirm.
           Nothing is created until you approve it.
@@ -136,7 +136,7 @@ async function EmailTab({ supabase }: { supabase: ReturnType<typeof createAdminC
                     <div className="min-w-0">
                       <span className="text-sm font-medium truncate block">{s.label || 'Untitled research package'}</span>
                       <span className="text-xs text-muted-foreground">
-                        Searching Outlook and reading threads — usually 1–4 minutes. Safe to leave this page.
+                        Searching Gmail and reading threads — usually 1–4 minutes. Safe to leave this page.
                       </span>
                     </div>
                     {badge}

@@ -148,7 +148,7 @@ export async function PATCH(
         }
 
         // Purge email body after approval — the summary is the permanent record,
-        // and the Outlook web link is preserved for viewing the original.
+        // and the mail web link is preserved for viewing the original.
         if (update?.source === 'email') {
           await admin
             .from('updates')

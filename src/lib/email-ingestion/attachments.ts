@@ -7,7 +7,7 @@ import { runDocumentAiPass, documentKind, PDF_MIME_TYPE } from '@/lib/ai/documen
 /**
  * Email-intake attachment staging.
  *
- * The email-research run saves every qualifying Outlook attachment to the
+ * The email-research run saves every qualifying Gmail attachment to the
  * documents bucket under email-intake/{sessionId}/… and records the list on
  * `email_intake_sessions.staged_attachments`. The review screen offers a
  * picker; confirm promotes the selected files into the created record's

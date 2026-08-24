@@ -1,7 +1,7 @@
 /**
  * Email Ingestion extraction prompt.
  *
- * The in-platform Email Research run (/api/email-research/run) gathers Outlook
+ * The in-platform Email Research run (/api/email-research/run) gathers Gmail
  * threads + attachments and produces a markdown research package (per-thread
  * transcripts + attachment extractions); reports can also be pasted manually.
  * This prompt maps that package into a single proposed CRM record — an Opportunity

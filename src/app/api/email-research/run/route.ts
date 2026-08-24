@@ -1,16 +1,15 @@
 import { NextRequest } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { searchThreads, renderThread } from '@/lib/integrations/gmail-search'
 import {
-  searchConversations,
-  fetchConversationMessages,
-  fetchMessageAttachments,
-  RESEARCH_MAILBOXES,
-  type ConversationSummary,
-} from '@/lib/integrations/graph-search'
-import { extractPlainText, type GraphAttachment } from '@/lib/integrations/microsoft-graph'
+  fetchAttachmentBytes,
+  isGoogleConfigured,
+  MAILBOXES,
+  type MailAttachmentRef,
+} from '@/lib/integrations/google-workspace'
 import { callGeminiWithFile } from '@/lib/ai/gemini'
-import { analyzeEmailReport, EmailIntakeError } from '@/lib/email-ingestion/analyze'
+import { analyzeEmailReport, EmailIntakeError, maxInputChars } from '@/lib/email-ingestion/analyze'
 import {
   STAGING_FOLDER,
   removeStagedFiles,
@@ -19,14 +18,11 @@ import {
 } from '@/lib/email-ingestion/attachments'
 
 /**
- * In-platform Email Research (replaces the external n8n workflow).
+ * Targeted Email Research — search the connected Gmail mailboxes for a term,
+ * read the matching threads + attachments, and stage ONE pending review session.
  *
- * Searches the connected Outlook mailboxes (RESEARCH_MAILBOXES — one OAuth
- * grant with delegated access) for threads matching a term, reads the
- * messages + attachments, assembles one markdown research report, and feeds
- * it through the shared email-ingestion analyzer. The result lands as a
- * pending session under Email Ingestion — nothing is created without the
- * human review/confirm step.
+ * This is the "I need everything about X, now" path. The whole-mailbox backfill
+ * is a different thing entirely and lives under /api/email-sweep.
  *
  * A `running` session row is staged immediately so the run is visible under
  * Recent even if the user navigates away; it flips to `pending` on success or
@@ -34,12 +30,9 @@ import {
  */
 export const maxDuration = 300
 
-const MAX_CONVERSATIONS = 15
-const MAX_MESSAGES_PER_THREAD = 30
+const MAX_THREADS = 15
 const MAX_ATTACHMENTS_PER_THREAD = 3
 const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024
-const MAX_MESSAGE_CHARS = 6_000
-const MAX_REPORT_CHARS = 190_000 // stays under analyzeEmailReport's 200k cap
 
 // Staging (files kept for the review screen's attachment picker) is wider than
 // AI analysis: every non-inline file type qualifies, bigger size cap.
@@ -58,16 +51,17 @@ const ATTACHMENT_SYSTEM = `You are an analyst extracting intelligence from an em
 Extract the key content as plain text: people and organizations named, dollar figures, dates, deal or contract terms, decisions, obligations, and anything a deal principal would need to know.
 Be thorough but do not pad. Output ONLY the extracted content.`
 
-function fmtAddress(a?: { emailAddress: { name: string; address: string } }): string {
-  if (!a) return 'Unknown'
-  const { name, address } = a.emailAddress
-  return name && name !== address ? `${name} <${address}>` : address
-}
-
 export async function POST(request: NextRequest) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 })
+
+  if (!isGoogleConfigured()) {
+    return Response.json(
+      { error: 'Google Workspace is not configured — see deploy/google-workspace-setup.md.' },
+      { status: 503 }
+    )
+  }
 
   const body = await request.json().catch(() => ({}))
   const searchTerm = typeof body.searchTerm === 'string' ? body.searchTerm.trim() : ''
@@ -111,174 +105,120 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    // ── 1. Find matching conversations across all research mailboxes ─────────
-    // Per-mailbox failures degrade gracefully (noted in the report) — a shared
-    // mailbox the grant can't reach yet shouldn't sink the whole run.
-    const mailboxNotes: string[] = []
-    const searchResults = await Promise.all(
-      RESEARCH_MAILBOXES.map(async (mailbox) => {
-        try {
-          return await searchConversations(searchTerm, { mailbox, sinceDays, maxConversations: MAX_CONVERSATIONS })
-        } catch (err) {
-          const message = err instanceof Error ? err.message : 'search failed'
-          mailboxNotes.push(
-            /401|403|InvalidAuthenticationToken|Access is denied|ErrorAccessDenied|insufficient/i.test(message)
-              ? `Mailbox ${mailbox} could not be searched — access denied. Reconnect Microsoft at /api/email/oauth to grant shared-mailbox access (Mail.Read.Shared).`
-              : `Mailbox ${mailbox} could not be searched (${message.slice(0, 160)}).`
-          )
-          return null
-        }
-      })
-    )
+    // ── 1. Find matching threads across all mailboxes ────────────────────────
+    // Per-mailbox failures degrade into report notes — one unreachable mailbox
+    // shouldn't sink the whole run.
+    const search = await searchThreads(searchTerm, { sinceDays, maxThreads: MAX_THREADS })
 
-    if (searchResults.every((r) => r === null)) {
-      const first = mailboxNotes[0] ?? ''
-      if (/access denied|Reconnect/i.test(first)) {
-        return fail(503, 'Outlook access was refused for every mailbox. Reconnect the Microsoft account at /api/email/oauth (the stored grant may predate the current scopes).')
+    if (search.threads.length === 0) {
+      if (search.notes.length > 0) {
+        console.error('[email-research] all mailbox searches failed:', search.notes)
+        return fail(
+          502,
+          `Gmail search failed. ${search.notes[0]?.slice(0, 200) ?? ''} Check the Google connection on /settings/health.`
+        )
       }
-      console.error('[email-research] all mailbox searches failed:', mailboxNotes)
-      return fail(502, 'Outlook search failed. If this persists, reconnect Microsoft at /api/email/oauth.')
+      return fail(
+        404,
+        `No email threads matched "${searchTerm}"${sinceDays ? ` in the last ${sinceDays} days` : ''} — try a different term or a wider time range.`
+      )
     }
 
-    const allConversations: ConversationSummary[] = searchResults
-      .filter((r): r is NonNullable<typeof r> => r !== null)
-      .flatMap((r) => r.conversations)
-      .sort((a, b) => b.latestReceived.localeCompare(a.latestReceived))
-    const totalFound = searchResults.reduce((sum, r) => sum + (r?.totalFound ?? 0), 0)
-    const searchTruncated = allConversations.length > MAX_CONVERSATIONS || searchResults.some((r) => r?.truncated)
-    const conversations = allConversations.slice(0, MAX_CONVERSATIONS)
-
-    if (conversations.length === 0) {
-      return fail(404, `No email threads matched "${searchTerm}"${sinceDays ? ` in the last ${sinceDays} days` : ''} — try a different term or a wider time range.`)
-    }
-
-    // ── 2. Read each thread + analyze attachments ─────────────────────────────
+    // ── 2. Render each thread + analyze attachments ───────────────────────────
     const sections: string[] = []
-    const skippedNotes: string[] = [...mailboxNotes]
-    // The same thread often lands in several mailboxes (info@ CC'd on tuaone's
-    // conversation) — read each conversation once, and skip messages already
-    // transcribed from another mailbox's copy.
-    const seenConversations = new Set<string>()
-    const seenMessageIds = new Set<string>()
-    let threadNumber = 0
+    const skippedNotes: string[] = [...search.notes]
 
-    for (const convo of conversations) {
-      if (seenConversations.has(convo.conversationId)) continue
-      seenConversations.add(convo.conversationId)
+    for (const [index, thread] of search.threads.entries()) {
+      const lines = [renderThread(thread, { heading: `## Thread ${index + 1}: ${thread.subject}` })]
 
-      let messages
-      try {
-        messages = await fetchConversationMessages(convo.conversationId, {
-          mailbox: convo.mailbox,
-          maxMessages: MAX_MESSAGES_PER_THREAD,
-        })
-      } catch (err) {
-        skippedNotes.push(`Thread "${convo.subject}" could not be read (${err instanceof Error ? err.message.slice(0, 120) : 'error'}).`)
-        continue
-      }
-      messages = messages.filter((m) => {
-        const key = m.internetMessageId || m.id
-        if (seenMessageIds.has(key)) return false
-        seenMessageIds.add(key)
-        return true
-      })
-      if (messages.length === 0) continue
-
-      threadNumber++
-      const first = messages[0].receivedDateTime.slice(0, 10)
-      const last = messages[messages.length - 1].receivedDateTime.slice(0, 10)
-      const lines: string[] = [
-        `## Thread ${threadNumber}: ${convo.subject}`,
-        `Mailbox: ${convo.mailbox} · ${messages.length} message(s), ${first} to ${last}`,
-        '',
-      ]
-
-      for (const m of messages) {
-        const to = (m.toRecipients ?? []).map(fmtAddress).join(', ')
-        lines.push(`### ${m.receivedDateTime.slice(0, 16).replace('T', ' ')} — ${fmtAddress(m.from)}`)
-        if (to) lines.push(`To: ${to}`)
-        lines.push('')
-        const text = extractPlainText(m.body ?? { contentType: 'text', content: m.bodyPreview ?? '' })
-        lines.push(text.slice(0, MAX_MESSAGE_CHARS) + (text.length > MAX_MESSAGE_CHARS ? '\n[… message truncated]' : ''))
-        lines.push('')
-      }
-
-      // Attachments: dedupe across the reply chain by name+size, cap per thread
+      // Dedupe attachments across the reply chain by name+size.
       const seen = new Set<string>()
-      const attachments: { attachment: GraphAttachment; messageId: string }[] = []
-      for (const m of messages) {
-        if (!m.hasAttachments) continue
-        try {
-          const atts = await fetchMessageAttachments(m.id, convo.mailbox)
-          for (const a of atts) {
-            if (a.isInline) continue
-            const key = `${a.name}|${a.size}`
-            if (seen.has(key)) continue
-            seen.add(key)
-            attachments.push({ attachment: a, messageId: m.id })
-          }
-        } catch (err) {
-          skippedNotes.push(`Attachments on "${convo.subject}" could not be listed (${err instanceof Error ? err.message.slice(0, 120) : 'error'}).`)
+      const attachments: MailAttachmentRef[] = []
+      for (const m of thread.messages) {
+        for (const a of m.attachments) {
+          if (a.isInline) continue
+          const key = `${a.name}|${a.size}`
+          if (seen.has(key)) continue
+          seen.add(key)
+          attachments.push(a)
         }
       }
 
       let analyzed = 0
-      for (const { attachment: a } of attachments) {
-        // Stage the file to storage so the review screen can offer it for
-        // upload into the created record — every type, wider size cap.
+      for (const a of attachments) {
         const globalKey = `${a.name}|${a.size}`
-        if (
-          sessionId &&
-          a.contentBytes &&
+        const wantAnalysis =
+          analyzed < MAX_ATTACHMENTS_PER_THREAD &&
+          a.size <= MAX_ATTACHMENT_BYTES &&
+          ANALYZABLE_MIMES.has(a.mimeType)
+        const wantStaging =
+          Boolean(sessionId) &&
           a.size <= MAX_STAGED_BYTES &&
           !stagedKeys.has(globalKey) &&
           stagedAttachments.length < MAX_STAGED_FILES
-        ) {
+
+        // Gmail — unlike Graph — never returns bytes inline, so downloading is
+        // an explicit round trip. Skip it entirely when neither path wants the
+        // file: on a big thread that saves far more than it costs.
+        let bytes: string | null = null
+        if (wantAnalysis || wantStaging) {
+          try {
+            bytes = await fetchAttachmentBytes(thread.mailbox, a.messageId, a.attachmentId)
+          } catch (err) {
+            skippedNotes.push(
+              `Attachment "${a.name}" could not be downloaded (${
+                err instanceof Error ? err.message.slice(0, 120) : 'error'
+              }).`
+            )
+          }
+        }
+
+        if (wantStaging && bytes) {
           const path = `${STAGING_FOLDER}/${sessionId}/${stagedAttachments.length + 1}_${sanitizeFileName(a.name)}`
-          const { error: stageErr } = await admin.storage
+          const { error: uploadErr } = await admin.storage
             .from('documents')
-            .upload(path, Buffer.from(a.contentBytes, 'base64'), {
-              contentType: a.contentType || 'application/octet-stream',
+            .upload(path, Buffer.from(bytes, 'base64'), {
+              contentType: a.mimeType || 'application/octet-stream',
               upsert: false,
             })
-          if (stageErr) {
-            console.error(`[email-research] could not stage attachment ${a.name}:`, stageErr.message)
+          if (uploadErr) {
+            console.error(`[email-research] could not stage attachment ${a.name}:`, uploadErr.message)
           } else {
             stagedKeys.add(globalKey)
             stagedAttachments.push({
               name: a.name,
-              mime_type: a.contentType || null,
+              mime_type: a.mimeType || null,
               size_bytes: a.size,
               storage_path: path,
-              thread_subject: convo.subject,
+              thread_subject: thread.subject,
               analyzed: false,
             })
           }
-        }
-
-        const markAnalyzed = () => {
-          const staged = stagedAttachments.find((s) => `${s.name}|${s.size_bytes}` === globalKey)
-          if (staged) staged.analyzed = true
         }
 
         if (analyzed >= MAX_ATTACHMENTS_PER_THREAD) {
           lines.push(`### Attachment: ${a.name}`, 'Not analyzed — per-thread attachment limit reached (file kept for review).', '')
           continue
         }
-        lines.push(`### Attachment: ${a.name} (${a.contentType}, ${Math.round(a.size / 1024)} KB)`)
+        lines.push(`### Attachment: ${a.name} (${a.mimeType}, ${Math.round(a.size / 1024)} KB)`)
         if (a.size > MAX_ATTACHMENT_BYTES) {
           lines.push('Not analyzed — larger than 10 MB.', '')
           continue
         }
-        if (!ANALYZABLE_MIMES.has(a.contentType) || !a.contentBytes) {
-          lines.push(`Not analyzed — ${a.contentType || 'unknown type'} is not analyzable (PDF and images only; file kept for review).`, '')
+        if (!ANALYZABLE_MIMES.has(a.mimeType)) {
+          lines.push(`Not analyzed — ${a.mimeType || 'unknown type'} is not analyzable (PDF and images only; file kept for review).`, '')
           continue
         }
+        if (!bytes) {
+          lines.push('Not analyzed — the file could not be downloaded.', '')
+          continue
+        }
+
         try {
           const result = await callGeminiWithFile<string>({
             systemPrompt: ATTACHMENT_SYSTEM,
             prompt: 'Extract the key content of this attachment.',
-            file: { mimeType: a.contentType, dataBase64: a.contentBytes },
+            file: { mimeType: a.mimeType, dataBase64: bytes },
             userId: user.id,
             logLabel: `Email research attachment: ${a.name}`,
             promptVersion: 'email-attachment-1.0',
@@ -288,7 +228,8 @@ export async function POST(request: NextRequest) {
           const text = typeof result.data === 'string' ? result.data.trim() : ''
           lines.push(text || '(no content extracted)', '')
           analyzed++
-          markAnalyzed()
+          const stagedRow = stagedAttachments.find((s) => `${s.name}|${s.size_bytes}` === globalKey)
+          if (stagedRow) stagedRow.analyzed = true
         } catch (err) {
           lines.push(`Extraction failed (${err instanceof Error ? err.message.slice(0, 120) : 'error'}).`, '')
         }
@@ -302,10 +243,13 @@ export async function POST(request: NextRequest) {
     }
 
     // ── 3. Assemble the report (trim oldest threads first if over budget) ─────
+    // The cap follows the active AI provider — the local model has far less
+    // context than Gemini, so the same report has to be trimmed harder.
+    const maxReportChars = Math.floor(maxInputChars() * 0.95)
     const runDate = new Date().toISOString().slice(0, 10)
     const headerLines = [
       `# Email research: "${searchTerm}"`,
-      `Generated ${runDate} · ${sections.length} thread(s) analyzed (of ${totalFound} found${searchTruncated ? ', newest kept' : ''}) · mailboxes: ${RESEARCH_MAILBOXES.join(', ')} · window: last ${sinceDays} days`,
+      `Generated ${runDate} · ${sections.length} thread(s) analyzed (of ${search.totalFound} found${search.truncated ? ', newest kept' : ''}) · mailboxes: ${MAILBOXES.join(', ')} · window: last ${sinceDays} days`,
     ]
     if (skippedNotes.length > 0) headerLines.push('', '## Skipped items', ...skippedNotes.map((n) => `- ${n}`))
     const header = headerLines.join('\n') + '\n\n'
@@ -315,7 +259,7 @@ export async function POST(request: NextRequest) {
     let trimmed = 0
     for (const section of sections) {
       // Sections are newest-thread-first — once the budget is hit, older threads drop
-      if (used + section.length > MAX_REPORT_CHARS) {
+      if (used + section.length > maxReportChars) {
         trimmed++
         continue
       }
@@ -327,8 +271,11 @@ export async function POST(request: NextRequest) {
       kept.join('\n\n') +
       (trimmed > 0 ? `\n\n---\n${trimmed} older thread(s) omitted to fit the analysis size limit.` : '')
 
-    // ── 3b. Record the staged attachments on the session (dual-schema tolerant:
-    // pre-migration the column is missing — files orphan until dismissed, fine) ──
+    // The record's permanent document keeps every thread, including the ones
+    // trimmed out of the model's input.
+    const document = header + sections.join('\n\n')
+
+    // ── 3b. Record the staged attachments on the session ─────────────────────
     if (sessionId && stagedAttachments.length > 0) {
       const { error: attachErr } = await admin
         .from('email_intake_sessions')
@@ -342,6 +289,7 @@ export async function POST(request: NextRequest) {
     // ── 4. Shared analyzer → the staged row becomes a pending review session ──
     const analysis = await analyzeEmailReport({
       rawText: report,
+      documentText: document,
       label: label || searchTerm,
       userId: user.id,
       sessionId,
@@ -349,8 +297,8 @@ export async function POST(request: NextRequest) {
     return Response.json({
       session_id: analysis.session_id,
       conversations_scanned: kept.length,
-      total_found: totalFound,
-      truncated: searchTruncated || trimmed > 0,
+      total_found: search.totalFound,
+      truncated: search.truncated || trimmed > 0,
     })
   } catch (err) {
     if (err instanceof EmailIntakeError) {

@@ -42,3 +42,9 @@ next-env.d.ts
 
 # offline basemap assets (fetched by scripts/setup-map-data.sh; deployed via rsync working tree)
 /public/basemaps/
+
+# Supabase CLI scratch state — machine-specific, and actively misleading once
+# the DB moves. These files still pointed at the retired hosted project long
+# after the platform moved to self-hosted Supabase on the Studio, which is how
+# `supabase db push --linked` came to target the wrong database entirely.
+supabase/.temp/

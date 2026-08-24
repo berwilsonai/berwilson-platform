@@ -1,26 +1,24 @@
 /**
  * /settings/health — admin-only system health + maintenance panel.
  *
- * The platform's background work (crons, AI, Graph tokens, backups) fails
+ * The platform's background work (crons, AI, mailbox access, backups) fails
  * silently by design. This page makes those failures visible AND puts the fix
- * next to the diagnosis: every check that can be self-served has an action
- * button (e.g. Reconnect Mailbox runs the Microsoft OAuth flow).
+ * next to the diagnosis wherever one exists.
  *
- * Checks run live on every load — including a real Microsoft token refresh
- * and a real ping to LM Studio, not just "does a row exist".
+ * Checks run live on every load — including a real Google token mint and a
+ * real ping to LM Studio, not just "does a row exist".
  */
 
 import { redirect } from 'next/navigation'
-import { headers } from 'next/headers'
 import { getViewer } from '@/lib/auth/viewer'
 import { createAdminClient } from '@/lib/supabase/admin'
 import {
-  probeGraphConnection,
+  probeMailboxConnection,
   probeLmStudio,
   probeBackups,
   probeDisk,
 } from '@/lib/system-health'
-import { publicOrigin } from '@/lib/utils/request-origin'
+import { sweepDb } from '@/lib/email-sweep/db'
 
 export const metadata = { title: 'System Health — Ber Wilson Intelligence' }
 export const dynamic = 'force-dynamic'
@@ -55,13 +53,36 @@ function ageLabel(iso: string | null | undefined): string {
   return `${Math.round(h / 24)}d ago`
 }
 
-async function runChecks(appOrigin: string): Promise<HealthCheck[]> {
+/**
+ * Sweep backlog counts. Returns null before migration 20260823000001 is
+ * applied, so the check simply doesn't appear rather than erroring the page.
+ */
+async function sweepBacklog(): Promise<{ pending: number; summarized: number; failed: number } | null> {
+  try {
+    const db = sweepDb()
+    const counts = await Promise.all(
+      (['pending', 'summarized', 'failed'] as const).map(async (state) => {
+        const { count, error } = await db
+          .from('email_threads')
+          .select('id', { count: 'exact', head: true })
+          .eq('summary_state', state)
+        if (error) throw new Error(error.message)
+        return count ?? 0
+      })
+    )
+    return { pending: counts[0], summarized: counts[1], failed: counts[2] }
+  } catch {
+    return null
+  }
+}
+
+async function runChecks(): Promise<HealthCheck[]> {
   const supabase = createAdminClient()
   const weekAgo = new Date(Date.now() - 7 * 86_400_000).toISOString()
   const dayAgo = new Date(Date.now() - 86_400_000).toISOString()
   const localAI = process.env.AI_PROVIDER === 'local'
 
-  const [brief, riskScore, lastAi, aiDayCount, failedRuns, graph, lmStudio, backups, disk] =
+  const [brief, riskScore, lastAi, aiDayCount, failedRuns, mailbox, lmStudio, backups, disk] =
     await Promise.all([
       supabase
         .from('stored_briefs')
@@ -91,7 +112,7 @@ async function runChecks(appOrigin: string): Promise<HealthCheck[]> {
         .select('id', { count: 'exact', head: true })
         .eq('status', 'failed')
         .gte('created_at', weekAgo),
-      probeGraphConnection(),
+      probeMailboxConnection(),
       probeLmStudio(),
       probeBackups(),
       probeDisk(),
@@ -101,36 +122,32 @@ async function runChecks(appOrigin: string): Promise<HealthCheck[]> {
   const cronLogsHint =
     'Crons are launchd agents on the Studio — logs in ~/Library/Logs/berwilson/, status via `launchctl list | grep berwilson`.'
 
-  // 1. Microsoft Graph mailbox (calendar, meeting prep, email research, brief meetings)
+  // 1. Google Workspace mailboxes (calendar, meeting prep, email sweep, brief meetings)
   {
-    const redirectUri = `${appOrigin}/api/email/oauth/callback`
-    if (graph.state === 'ok') {
-      const scopes = graph.scopes ?? []
-      const hasSharedScope = scopes.some((s) => s.toLowerCase().includes('mail.read.shared'))
+    if (mailbox.state === 'ok') {
+      const names = (mailbox.mailboxes ?? []).map((m) => m.email).join(', ')
       checks.push({
-        name: 'Microsoft Mailbox',
-        status: hasSharedScope ? 'ok' : 'warn',
-        headline: `Connected as ${graph.email} — live refresh verified just now`,
-        detail: hasSharedScope
-          ? 'Calendar, meeting prep, and multi-mailbox email research are all working.'
-          : 'Connected, but the token predates the Mail.Read.Shared scope — email research will fail on the shared mailboxes (info@, moose@). Reconnect to refresh scopes.',
-        action: hasSharedScope ? undefined : { label: 'Reconnect Mailbox', href: '/api/email/oauth' },
+        name: 'Google Workspace',
+        status: 'ok',
+        headline: `Connected — token mint verified just now for ${names}`,
+        detail: `Signing via ${mailbox.signingMode ?? 'service account'}. Calendar, meeting prep, contact enrichment, and the mailbox sweep are all working. Service-account access does not expire, so there is nothing to reconnect.`,
       })
-    } else if (graph.state === 'disconnected') {
+    } else if (mailbox.state === 'disconnected') {
       checks.push({
-        name: 'Microsoft Mailbox',
+        name: 'Google Workspace',
         status: 'fail',
-        headline: 'No mailbox connected',
-        detail: `Calendar, meeting prep, email research, and the brief's meetings section are offline. Click Reconnect and sign in as tuaone@berwilson.com when Microsoft asks. If Microsoft shows a redirect-URI error, add ${redirectUri} to the Azure app registration (App registrations → Authentication) first.`,
-        action: { label: 'Connect Mailbox', href: '/api/email/oauth' },
+        headline: 'No service account configured',
+        detail: `Calendar, meeting prep, the mailbox sweep, and the brief's meetings section are offline. ${mailbox.reason ?? ''} Set GOOGLE_SERVICE_ACCOUNT_KEY_FILE in .env.local on the Studio and redeploy.`,
       })
     } else {
+      const broken = (mailbox.mailboxes ?? []).filter((m) => !m.ok)
       checks.push({
-        name: 'Microsoft Mailbox',
+        name: 'Google Workspace',
         status: 'fail',
-        headline: `Connection broken${graph.email ? ` (${graph.email})` : ''} — reconnect required`,
-        detail: `${graph.reason ?? ''} Click Reconnect and sign in as ${graph.email ?? 'tuaone@berwilson.com'} with the CURRENT password. If Microsoft shows a redirect-URI error, add ${redirectUri} to the Azure app registration first.${graph.rawError ? ` — Raw error: ${graph.rawError.slice(0, 300)}` : ''}`,
-        action: { label: 'Reconnect Mailbox', href: '/api/email/oauth' },
+        headline: mailbox.reason ?? 'Google connection broken',
+        detail: `${broken.map((m) => `${m.email}: ${m.error ?? 'unknown error'}`).join(' · ')}${
+          mailbox.rawError && broken.length === 0 ? ` — Raw error: ${mailbox.rawError.slice(0, 300)}` : ''
+        } Fix in the Workspace admin console → Security → API controls → Domain-wide delegation; the full procedure is in deploy/google-workspace-setup.md.`,
       })
     }
   }
@@ -235,19 +252,23 @@ async function runChecks(appOrigin: string): Promise<HealthCheck[]> {
     })
   }
 
-  // 9. Azure client secret expiry (optional — set MICROSOFT_SECRET_EXPIRES)
+  // 9. Mailbox sweep backlog
   {
-    const expires = process.env.MICROSOFT_SECRET_EXPIRES
-    if (expires) {
-      const days = Math.floor((new Date(expires + 'T00:00:00').getTime() - Date.now()) / 86_400_000)
+    const sweep = await sweepBacklog()
+    if (sweep) {
       checks.push({
-        name: 'Azure Client Secret',
-        status: days < 0 ? 'fail' : days < 30 ? 'warn' : 'ok',
-        headline: days < 0 ? `Expired ${-days}d ago` : `Expires in ${days}d (${expires})`,
+        name: 'Mailbox Sweep',
+        status: sweep.failed > 0 ? 'warn' : 'ok',
+        headline:
+          sweep.pending > 0
+            ? `${sweep.pending.toLocaleString()} thread(s) waiting to be read`
+            : 'All fetched threads have been read',
         detail:
-          days < 30
-            ? 'When it expires, ALL Microsoft features break and even Reconnect fails. Create a new client secret in Azure (App registrations → Certificates & secrets), update MICROSOFT_CLIENT_SECRET and MICROSOFT_SECRET_EXPIRES in .env.local on the Studio, and redeploy.'
-            : 'The Azure app secret Microsoft features authenticate with. Tracked from MICROSOFT_SECRET_EXPIRES in .env.local.',
+          `${sweep.summarized.toLocaleString()} summarized · ${sweep.pending.toLocaleString()} pending · ${sweep.failed.toLocaleString()} failed. ` +
+          (sweep.pending > 0
+            ? 'The hourly cron drains this newest-first; a first backfill takes many hours on the local model.'
+            : '') +
+          (sweep.failed > 0 ? ' Failed threads can be requeued from Email Intake.' : ''),
       })
     }
   }
@@ -260,9 +281,9 @@ async function runChecks(appOrigin: string): Promise<HealthCheck[]> {
         ? { LOCAL_AI_BASE_URL: process.env.LOCAL_AI_BASE_URL }
         : { GEMINI_API_KEY: process.env.GEMINI_API_KEY }),
       CRON_SECRET: process.env.CRON_SECRET,
-      MICROSOFT_TENANT_ID: process.env.MICROSOFT_TENANT_ID,
-      MICROSOFT_CLIENT_ID: process.env.MICROSOFT_CLIENT_ID,
-      MICROSOFT_CLIENT_SECRET: process.env.MICROSOFT_CLIENT_SECRET,
+      // Either form of the service account key satisfies this.
+      GOOGLE_SERVICE_ACCOUNT_KEY: 
+        process.env.GOOGLE_SERVICE_ACCOUNT_KEY_FILE ?? process.env.GOOGLE_SERVICE_ACCOUNT_KEY,
       SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY,
     }
     const missing = Object.entries(required)
@@ -274,9 +295,7 @@ async function runChecks(appOrigin: string): Promise<HealthCheck[]> {
       headline: missing.length === 0 ? 'All required env vars present' : `Missing: ${missing.join(', ')}`,
       detail:
         missing.length === 0
-          ? process.env.MICROSOFT_SECRET_EXPIRES
-            ? undefined
-            : 'Optional: set MICROSOFT_SECRET_EXPIRES=YYYY-MM-DD (the Azure client secret expiry date) to get warned here before Microsoft features break.'
+          ? undefined
           : 'Set the missing variables in .env.local on the Studio, then redeploy (zsh deploy/deploy-to-studio.sh).',
     })
   }
@@ -288,9 +307,7 @@ export default async function SystemHealthPage() {
   const viewer = await getViewer()
   if (viewer && !viewer.isAdmin) redirect('/tasks')
 
-  const appOrigin = publicOrigin(await headers())
-
-  const checks = await runChecks(appOrigin)
+  const checks = await runChecks()
   const worst: Status = checks.some((c) => c.status === 'fail')
     ? 'fail'
     : checks.some((c) => c.status === 'warn')
@@ -344,7 +361,7 @@ export default async function SystemHealthPage() {
       </div>
 
       <p className="text-sm text-muted-foreground">
-        Checked live on every page load — including a real Microsoft token refresh and an LM Studio ping.
+        Checked live on every page load — including a real Google token mint and an LM Studio ping.
         Cron + backup logs live on the Studio in ~/Library/Logs/berwilson/.
       </p>
     </div>

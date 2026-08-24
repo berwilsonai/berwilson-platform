@@ -2,9 +2,9 @@
  * Live system-health probes for /settings/health.
  *
  * These go beyond "does a row exist" — they exercise the real dependency:
- * an actual Microsoft token refresh, a real ping to LM Studio, a stat of the
- * backup directory and the disk. Everything returns a result object and never
- * throws; the health page renders whatever came back.
+ * a real Google token mint, a real ping to LM Studio, a stat of the backup
+ * directory and the disk. Everything returns a result object and never throws;
+ * the health page renders whatever came back.
  *
  * Server-only (fs/os); do not import from client components.
  */
@@ -12,8 +12,7 @@
 import { promises as fs } from 'fs'
 import os from 'os'
 import path from 'path'
-import { createAdminClient } from '@/lib/supabase/admin'
-import { refreshAccessToken, storeTokens } from '@/lib/integrations/microsoft-graph'
+import { probeGoogleConnection, type GoogleProbe } from '@/lib/integrations/google-workspace'
 
 const PROBE_TIMEOUT_MS = 10_000
 
@@ -30,75 +29,33 @@ async function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise
 }
 
 // ---------------------------------------------------------------------------
-// Microsoft Graph — live grant probe
+// Google Workspace — live grant probe
 // ---------------------------------------------------------------------------
 
-export interface GraphProbe {
-  state: 'ok' | 'broken' | 'disconnected'
-  email?: string
-  scopes?: string[]
-  lastRefreshed?: string | null
-  /** Human explanation of the failure (AADSTS code translated when known). */
-  reason?: string
-  /** Raw error text for debugging. */
-  rawError?: string
-}
-
-/** Translate the AADSTS codes we actually expect into plain English. */
-function explainGraphError(raw: string): string {
-  if (raw.includes('AADSTS50173')) {
-    return 'The mailbox password was changed (or sessions were revoked), which invalidated the stored grant. Reconnecting restores access — no password is stored in the platform.'
-  }
-  if (raw.includes('AADSTS700082') || raw.includes('AADSTS70008')) {
-    return 'The refresh token expired from inactivity. Reconnecting restores access.'
-  }
-  if (raw.includes('AADSTS7000222') || raw.includes('AADSTS7000215') || raw.includes('invalid_client')) {
-    return 'The Azure app client secret is invalid or has expired. Reconnecting will NOT fix this — create a new client secret in the Azure portal (App registrations → Certificates & secrets), update MICROSOFT_CLIENT_SECRET in .env.local on the Studio, and redeploy.'
-  }
-  if (raw.includes('AADSTS65001')) {
-    return 'Consent for the app was revoked in Microsoft 365. Reconnecting re-grants it.'
-  }
-  return 'The stored Microsoft grant no longer works. Reconnecting usually fixes it.'
-}
-
 /**
- * Definitive connection test: attempt a real token refresh against Microsoft.
- * On success the rotated tokens are stored (so this doubles as a keep-alive);
- * on failure we get the actual AADSTS error instead of guessing from row age.
+ * Definitive connection test: mint a real access token for every configured
+ * mailbox against Google.
+ *
+ * Deliberately thinner than the Microsoft probe it replaces. Service-account
+ * auth stores nothing and expires nothing, so there is no grant to go stale
+ * and no "reconnect" ritual — a failure here is always a configuration
+ * problem (scopes, key, or clock), and google-workspace.ts already translates
+ * those into plain English.
  */
-export async function probeGraphConnection(): Promise<GraphProbe> {
+export type { GoogleProbe }
+
+export async function probeMailboxConnection(): Promise<GoogleProbe> {
   try {
-    const supabase = createAdminClient()
-    const { data: row } = await supabase
-      .from('email_tokens')
-      .select('email_address, refresh_token, scopes, updated_at')
-      .order('updated_at', { ascending: false })
-      .limit(1)
-      .maybeSingle()
-
-    if (!row) return { state: 'disconnected' }
-
-    const base = {
-      email: row.email_address,
-      scopes: row.scopes ?? [],
-      lastRefreshed: row.updated_at,
-    }
-
-    try {
-      const tokens = await withTimeout(
-        refreshAccessToken(row.refresh_token),
-        PROBE_TIMEOUT_MS,
-        'Microsoft token refresh'
-      )
-      await storeTokens(tokens, row.email_address)
-      return { state: 'ok', ...base, lastRefreshed: new Date().toISOString() }
-    } catch (err) {
-      const raw = err instanceof Error ? err.message : String(err)
-      return { state: 'broken', ...base, reason: explainGraphError(raw), rawError: raw }
-    }
+    // Bounded like the Graph probe it replaces: this runs on every load of
+    // /settings/health, so a hung Google call must never hang the page.
+    return await withTimeout(
+      probeGoogleConnection(),
+      PROBE_TIMEOUT_MS * 2, // one mint per mailbox, in parallel
+      'Google token mint'
+    )
   } catch (err) {
     const raw = err instanceof Error ? err.message : String(err)
-    return { state: 'broken', reason: 'Could not read the stored token from the database.', rawError: raw }
+    return { state: 'broken', reason: 'The Google connection probe itself failed.', rawError: raw }
   }
 }
 
@@ -251,13 +208,13 @@ export async function probeDisk(): Promise<DiskProbe> {
 // ---------------------------------------------------------------------------
 
 /**
- * True when the stored Graph token looks dead: the access token expired more
- * than 30h ago. When healthy, the daily-brief cron refreshes it every 24h
- * (worst-case healthy staleness ≈ 23h), so 30h past expiry means refreshes
- * are failing. Returns false when no mailbox was ever connected — that's a
- * setup state, not an outage.
+ * True when a mailbox's sweep is in a failed state.
+ *
+ * Replaces the old token-staleness heuristic: service-account auth stores no
+ * token to go stale, so the honest cheap signal that mail ingestion is broken
+ * is the sweep itself having failed. Reads a persisted column — no network
+ * call — which is what makes it safe on every dashboard load.
  */
-export function mailboxLooksBroken(expiresAt: string | null | undefined): boolean {
-  if (!expiresAt) return false
-  return new Date(expiresAt).getTime() < Date.now() - 30 * 3_600_000
+export function mailboxLooksBroken(state: string | null | undefined): boolean {
+  return state === 'failed'
 }

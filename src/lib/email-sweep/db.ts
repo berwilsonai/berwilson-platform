@@ -1,0 +1,79 @@
+/**
+ * Service-role client for the sweep tables.
+ *
+ * mailbox_sync, email_threads, and thread_clusters arrive in migration
+ * 20260823000001, but src/types/database.ts is generated FROM the deployed
+ * schema — so until `npm run gen-types` runs against the migrated database, the
+ * Database type has no idea these tables exist and every call through
+ * createAdminClient() would need an `as never` cast.
+ *
+ * Rather than scatter casts across the sweep, this returns one deliberately
+ * untyped client and the row shapes below carry the contract instead. Once
+ * types are regenerated this file can collapse into createAdminClient().
+ */
+
+import { createClient } from '@supabase/supabase-js'
+
+export function sweepDb() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    { auth: { autoRefreshToken: false, persistSession: false } }
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Row shapes — the hand-maintained stand-in for the generated types
+// ---------------------------------------------------------------------------
+
+export type SweepState = 'idle' | 'running' | 'complete' | 'failed'
+export type SummaryState = 'pending' | 'summarized' | 'failed' | 'skipped'
+export type ClusterState = 'open' | 'staged' | 'dismissed'
+
+export interface MailboxSyncRow {
+  mailbox: string
+  page_token: string | null
+  state: SweepState
+  since_days: number | null
+  threads_seen: number
+  threads_new: number
+  duplicates_skipped: number
+  last_error: string | null
+  started_at: string | null
+  completed_at: string | null
+  updated_at: string | null
+}
+
+export interface EmailThreadRow {
+  id: string
+  fingerprint: string
+  mailbox: string
+  gmail_thread_id: string
+  subject: string | null
+  participants: string[]
+  first_at: string | null
+  last_at: string | null
+  message_count: number
+  attachment_count: number
+  raw_markdown: string | null
+  summary: unknown | null
+  summary_state: SummaryState
+  summary_error: string | null
+  cluster_id: string | null
+  created_at: string | null
+  updated_at: string | null
+}
+
+export interface ThreadClusterRow {
+  id: string
+  label: string | null
+  state: ClusterState
+  reason: string | null
+  thread_count: number
+  participants: string[]
+  first_at: string | null
+  last_at: string | null
+  session_id: string | null
+  created_at: string | null
+  updated_at: string | null
+}

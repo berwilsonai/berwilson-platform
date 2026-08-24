@@ -694,6 +694,110 @@ export type Database = {
           },
         ]
       }
+      dino_notes: {
+        Row: {
+          author: string | null
+          body: string
+          created_at: string | null
+          id: string
+        }
+        Insert: {
+          author?: string | null
+          body: string
+          created_at?: string | null
+          id?: string
+        }
+        Update: {
+          author?: string | null
+          body?: string
+          created_at?: string | null
+          id?: string
+        }
+        Relationships: []
+      }
+      dino_payments: {
+        Row: {
+          amount: number
+          created_at: string | null
+          due_date: string | null
+          id: string
+          label: string | null
+          notes: string | null
+          paid: boolean
+          paid_date: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          amount?: number
+          created_at?: string | null
+          due_date?: string | null
+          id?: string
+          label?: string | null
+          notes?: string | null
+          paid?: boolean
+          paid_date?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          amount?: number
+          created_at?: string | null
+          due_date?: string | null
+          id?: string
+          label?: string | null
+          notes?: string | null
+          paid?: boolean
+          paid_date?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      dino_revenue: {
+        Row: {
+          amount: number
+          client_name: string | null
+          created_at: string | null
+          description: string | null
+          id: string
+          notes: string | null
+          project_id: string | null
+          revenue_date: string
+          source_type: string
+          updated_at: string | null
+        }
+        Insert: {
+          amount?: number
+          client_name?: string | null
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          notes?: string | null
+          project_id?: string | null
+          revenue_date: string
+          source_type?: string
+          updated_at?: string | null
+        }
+        Update: {
+          amount?: number
+          client_name?: string | null
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          notes?: string | null
+          project_id?: string | null
+          revenue_date?: string
+          source_type?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dino_revenue_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       documents: {
         Row: {
           ai_summary: string | null
@@ -708,9 +812,11 @@ export type Database = {
           id: string
           is_company: boolean
           is_reference: boolean
+          meeting_id: string | null
           mime_type: string | null
           project_id: string | null
           source: Database["public"]["Enums"]["update_source"] | null
+          steel_deal_id: string | null
           storage_path: string
           uploaded_at: string | null
           uploaded_by: string | null
@@ -728,9 +834,11 @@ export type Database = {
           id?: string
           is_company?: boolean
           is_reference?: boolean
+          meeting_id?: string | null
           mime_type?: string | null
           project_id?: string | null
           source?: Database["public"]["Enums"]["update_source"] | null
+          steel_deal_id?: string | null
           storage_path: string
           uploaded_at?: string | null
           uploaded_by?: string | null
@@ -748,14 +856,30 @@ export type Database = {
           id?: string
           is_company?: boolean
           is_reference?: boolean
+          meeting_id?: string | null
           mime_type?: string | null
           project_id?: string | null
           source?: Database["public"]["Enums"]["update_source"] | null
+          steel_deal_id?: string | null
           storage_path?: string
           uploaded_at?: string | null
           uploaded_by?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "documents_meeting_id_fkey"
+            columns: ["meeting_id"]
+            isOneToOne: false
+            referencedRelation: "meetings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "documents_steel_deal_id_fkey"
+            columns: ["steel_deal_id"]
+            isOneToOne: false
+            referencedRelation: "steel_deals"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "documents_entity_id_fkey"
             columns: ["entity_id"]
@@ -823,42 +947,6 @@ export type Database = {
           status?: string
           updated_at?: string | null
           user_id?: string | null
-        }
-        Relationships: []
-      }
-      email_tokens: {
-        Row: {
-          access_token: string
-          created_at: string | null
-          email_address: string
-          expires_at: string
-          id: string
-          refresh_token: string
-          scopes: string[] | null
-          token_type: string | null
-          updated_at: string | null
-        }
-        Insert: {
-          access_token: string
-          created_at?: string | null
-          email_address: string
-          expires_at: string
-          id?: string
-          refresh_token: string
-          scopes?: string[] | null
-          token_type?: string | null
-          updated_at?: string | null
-        }
-        Update: {
-          access_token?: string
-          created_at?: string | null
-          email_address?: string
-          expires_at?: string
-          id?: string
-          refresh_token?: string
-          scopes?: string[] | null
-          token_type?: string | null
-          updated_at?: string | null
         }
         Relationships: []
       }
@@ -1415,6 +1503,115 @@ export type Database = {
             columns: ["project_id"]
             isOneToOne: false
             referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      meetings: {
+        Row: {
+          approved_at: string | null
+          approved_by: string | null
+          attendees: Json
+          chair: string | null
+          confidential: boolean
+          created_at: string | null
+          decisions: Json
+          id: string
+          index_ai: boolean
+          kind: string
+          location: string | null
+          meeting_date: string
+          meeting_time: string | null
+          meeting_type_label: string | null
+          minutes: string | null
+          minutes_document_id: string | null
+          opportunity_id: string | null
+          project_id: string | null
+          scope: string
+          secretary: string | null
+          status: string
+          summary: string | null
+          title: string
+          transcript: string | null
+          transcription_status: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          approved_at?: string | null
+          approved_by?: string | null
+          attendees?: Json
+          chair?: string | null
+          confidential?: boolean
+          created_at?: string | null
+          decisions?: Json
+          id?: string
+          index_ai?: boolean
+          kind?: string
+          location?: string | null
+          meeting_date: string
+          meeting_time?: string | null
+          meeting_type_label?: string | null
+          minutes?: string | null
+          minutes_document_id?: string | null
+          opportunity_id?: string | null
+          project_id?: string | null
+          scope?: string
+          secretary?: string | null
+          status?: string
+          summary?: string | null
+          title: string
+          transcript?: string | null
+          transcription_status?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          approved_at?: string | null
+          approved_by?: string | null
+          attendees?: Json
+          chair?: string | null
+          confidential?: boolean
+          created_at?: string | null
+          decisions?: Json
+          id?: string
+          index_ai?: boolean
+          kind?: string
+          location?: string | null
+          meeting_date?: string
+          meeting_time?: string | null
+          meeting_type_label?: string | null
+          minutes?: string | null
+          minutes_document_id?: string | null
+          opportunity_id?: string | null
+          project_id?: string | null
+          scope?: string
+          secretary?: string | null
+          status?: string
+          summary?: string | null
+          title?: string
+          transcript?: string | null
+          transcription_status?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meetings_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meetings_minutes_document_id_fkey"
+            columns: ["minutes_document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meetings_opportunity_id_fkey"
+            columns: ["opportunity_id"]
+            isOneToOne: false
+            referencedRelation: "opportunities"
             referencedColumns: ["id"]
           },
         ]
@@ -2442,26 +2639,73 @@ export type Database = {
           },
         ]
       }
+      steel_marketing_spend: {
+        Row: {
+          amount: number
+          channel: string
+          created_at: string | null
+          description: string | null
+          id: string
+          notes: string | null
+          spend_month: string
+          updated_at: string | null
+        }
+        Insert: {
+          amount?: number
+          channel: string
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          notes?: string | null
+          spend_month: string
+          updated_at?: string | null
+        }
+        Update: {
+          amount?: number
+          channel?: string
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          notes?: string | null
+          spend_month?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       steel_deals: {
         Row: {
           building_type: string | null
+          buying_trigger: string | null
+          collected_date: string | null
           created_at: string | null
           customer: string | null
           description: string | null
           expected_delivery_date: string | null
+          icp_segment: string | null
           id: string
+          install_fee: number | null
+          install_fee_paid: boolean
+          install_fee_paid_date: string | null
           lead_source: string
           lead_source_detail: string | null
           lead_source_id: string | null
+          marketer_id: string | null
+          marketing_commission_paid: boolean
+          marketing_commission_paid_date: string | null
+          marketing_rate_override: number | null
           name: string
           next_step: string | null
           next_step_date: string | null
           price_per_sqft: number | null
           pricing_below_floor: boolean
           referral_fee_paid: boolean
+          referral_party_id: string | null
           referral_fee_paid_date: string | null
           referral_fee_type: string
           referral_fee_value: number | null
+          sales_commission_paid: boolean
+          sales_commission_paid_date: string | null
+          sales_rate_override: number | null
           salesperson_id: string | null
           square_feet: number | null
           stage: string
@@ -2470,14 +2714,24 @@ export type Database = {
         }
         Insert: {
           building_type?: string | null
+          buying_trigger?: string | null
+          collected_date?: string | null
           created_at?: string | null
           customer?: string | null
           description?: string | null
           expected_delivery_date?: string | null
+          icp_segment?: string | null
           id?: string
+          install_fee?: number | null
+          install_fee_paid?: boolean
+          install_fee_paid_date?: string | null
           lead_source?: string
           lead_source_detail?: string | null
           lead_source_id?: string | null
+          marketer_id?: string | null
+          marketing_commission_paid?: boolean
+          marketing_commission_paid_date?: string | null
+          marketing_rate_override?: number | null
           name: string
           next_step?: string | null
           next_step_date?: string | null
@@ -2487,6 +2741,10 @@ export type Database = {
           referral_fee_paid_date?: string | null
           referral_fee_type?: string
           referral_fee_value?: number | null
+          referral_party_id?: string | null
+          sales_commission_paid?: boolean
+          sales_commission_paid_date?: string | null
+          sales_rate_override?: number | null
           salesperson_id?: string | null
           square_feet?: number | null
           stage?: string
@@ -2495,14 +2753,24 @@ export type Database = {
         }
         Update: {
           building_type?: string | null
+          buying_trigger?: string | null
+          collected_date?: string | null
           created_at?: string | null
           customer?: string | null
           description?: string | null
           expected_delivery_date?: string | null
+          icp_segment?: string | null
           id?: string
+          install_fee?: number | null
+          install_fee_paid?: boolean
+          install_fee_paid_date?: string | null
           lead_source?: string
           lead_source_detail?: string | null
           lead_source_id?: string | null
+          marketer_id?: string | null
+          marketing_commission_paid?: boolean
+          marketing_commission_paid_date?: string | null
+          marketing_rate_override?: number | null
           name?: string
           next_step?: string | null
           next_step_date?: string | null
@@ -2512,6 +2780,10 @@ export type Database = {
           referral_fee_paid_date?: string | null
           referral_fee_type?: string
           referral_fee_value?: number | null
+          referral_party_id?: string | null
+          sales_commission_paid?: boolean
+          sales_commission_paid_date?: string | null
+          sales_rate_override?: number | null
           salesperson_id?: string | null
           square_feet?: number | null
           stage?: string
@@ -2527,10 +2799,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "steel_deals_marketer_id_fkey"
+            columns: ["marketer_id"]
+            isOneToOne: false
+            referencedRelation: "team_members"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "steel_deals_lead_source_id_fkey"
             columns: ["lead_source_id"]
             isOneToOne: false
             referencedRelation: "team_members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "steel_deals_referral_party_id_fkey"
+            columns: ["referral_party_id"]
+            isOneToOne: false
+            referencedRelation: "parties"
             referencedColumns: ["id"]
           },
         ]
@@ -2725,6 +3011,7 @@ export type Database = {
           created_at: string | null
           email: string | null
           id: string
+          is_steel_rep: boolean
           name: string
           party_id: string | null
           role: string
@@ -2736,6 +3023,7 @@ export type Database = {
           created_at?: string | null
           email?: string | null
           id?: string
+          is_steel_rep?: boolean
           name: string
           party_id?: string | null
           role?: string
@@ -2747,6 +3035,7 @@ export type Database = {
           created_at?: string | null
           email?: string | null
           id?: string
+          is_steel_rep?: boolean
           name?: string
           party_id?: string | null
           role?: string

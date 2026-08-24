@@ -1,5 +1,5 @@
 import { getViewer, forbiddenJson } from '@/lib/auth/viewer'
-import { fetchCalendarEvents } from '@/lib/integrations/microsoft-graph'
+import { fetchCalendarEvents } from '@/lib/integrations/google-workspace'
 
 export const maxDuration = 60
 
@@ -8,8 +8,8 @@ export const maxDuration = 60
  *
  * Recent + imminent calendar events from the connected mailbox, so the meeting
  * form can prefill the title/date and seed the real attendee list. Degrades to
- * `{ events: [], error }` when Graph is unavailable (token stale, etc.) — the
- * paste flow still works without it.
+ * `{ events: [], error }` when Calendar is unavailable — the paste flow still
+ * works without it.
  */
 export async function GET() {
   const viewer = await getViewer()
@@ -29,11 +29,11 @@ export async function GET() {
     const mapped = events
       .filter((e) => !e.isAllDay)
       .map((e) => {
-        // Graph returns naive datetimes in UTC by default; pin to UTC then format.
-        const d = new Date(`${e.start.dateTime}Z`)
+        // Google returns RFC 3339 with the offset baked in — parse directly.
+        const d = new Date(e.start)
         const seen = new Set<string>()
-        const attendees = (e.attendees ?? [])
-          .map((a) => ({ name: a.emailAddress?.name?.trim() || a.emailAddress?.address || '', email: a.emailAddress?.address?.toLowerCase() || null }))
+        const attendees = e.attendees
+          .map((a) => ({ name: a.name.trim() || a.email, email: a.email.toLowerCase() || null }))
           .filter((a) => a.name && !seen.has(a.email ?? a.name) && seen.add(a.email ?? a.name))
         return {
           id: e.id,
@@ -51,6 +51,6 @@ export async function GET() {
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Calendar unavailable'
     console.error('calendar-events failed:', message)
-    return Response.json({ events: [], error: 'Could not reach the calendar. Reconnect the mailbox on /settings/health, or just paste the notes.' })
+    return Response.json({ events: [], error: 'Could not reach the calendar. Check the Google connection on /settings/health, or just paste the notes.' })
   }
 }

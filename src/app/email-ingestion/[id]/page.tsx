@@ -45,7 +45,7 @@ export default async function EmailIngestReviewPage({ params }: PageProps) {
             <Loader2 className="size-7 text-muted-foreground mx-auto animate-spin" />
             <p className="text-sm font-medium">Research is still running.</p>
             <p className="text-sm text-muted-foreground">
-              Searching Outlook and reading threads — usually 1–4 minutes. This page refreshes on its own.
+              Searching Gmail and reading threads — usually 1–4 minutes. This page refreshes on its own.
             </p>
           </div>
         ) : (

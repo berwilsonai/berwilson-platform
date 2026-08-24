@@ -19,6 +19,7 @@ import { weightedValue } from '@/lib/utils/constants'
 import { fetchOpenTasks } from '@/lib/tasks/queries'
 import { getViewer } from '@/lib/auth/viewer'
 import { mailboxLooksBroken } from '@/lib/system-health'
+import { sweepDb } from '@/lib/email-sweep/db'
 import EmptyState from '@/components/shared/EmptyState'
 import type { WaitingOnItem, RiskItem } from '@/types/domain'
 
@@ -92,7 +93,8 @@ export default async function DashboardPage({ searchParams }: PageProps) {
     { data: nowObjectivesRaw },
     { data: objectiveTaskRows },
     { data: investorFollowUpsRaw },
-    { data: graphTokenRow },
+    { data: dinoPaymentsRaw },
+    { data: mailboxSyncRow },
   ] = await Promise.all([
     supabase.from('projects').select('*').eq('status', 'active'),
     fetchOpenTasks(supabase, { dueBefore: today }),
@@ -139,11 +141,20 @@ export default async function DashboardPage({ searchParams }: PageProps) {
       .not('stage', 'in', '(passed,dormant)')
       .lt('next_step_date', today)
       .order('next_step_date', { ascending: true }),
-    // Mailbox health: a long-expired token means Graph refreshes are failing
+    // Dino: unpaid installments due within 30 days or overdue (fails quietly pre-migration)
     supabase
-      .from('email_tokens')
-      .select('email_address, expires_at')
-      .order('updated_at', { ascending: false })
+      .from('dino_payments')
+      .select('id, label, amount, due_date')
+      .eq('paid', false)
+      .not('due_date', 'is', null)
+      .lte('due_date', new Date(now.getTime() + 30 * 86_400_000).toISOString().split('T')[0])
+      .order('due_date', { ascending: true }),
+    // Mailbox health: a failed sweep means mail is no longer reaching the CRM.
+    // Goes through sweepDb because mailbox_sync postdates the generated types.
+    sweepDb()
+      .from('mailbox_sync')
+      .select('mailbox, state')
+      .eq('state', 'failed')
       .limit(1)
       .maybeSingle(),
   ])
@@ -300,8 +311,9 @@ export default async function DashboardPage({ searchParams }: PageProps) {
   const reviewItems = (reviewRaw ?? []).slice(0, 6) as ReviewWithProject[]
   const overdueItems = (overdueRaw ?? []).slice(0, 6) as MilestoneWithProject[]
   const ddItems = (ddRaw ?? []).slice(0, 6) as DdWithProject[]
-  const mailboxAlert = mailboxLooksBroken(graphTokenRow?.expires_at)
-    ? { email: graphTokenRow?.email_address ?? 'mailbox' }
+  const syncRow = mailboxSyncRow as { mailbox: string; state: string } | null
+  const mailboxAlert = mailboxLooksBroken(syncRow?.state)
+    ? { email: syncRow?.mailbox ?? 'mailbox' }
     : null
 
   // Now objectives with open-task counts (from the tasks.objective_id tag)
@@ -422,6 +434,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
             investorFollowUps={investorFollowUpsRaw ?? []}
             mailboxAlert={mailboxAlert}
             expiringCerts={expiringCerts ?? []}
+            dinoPayments={dinoPaymentsRaw ?? []}
           />
         </div>
 

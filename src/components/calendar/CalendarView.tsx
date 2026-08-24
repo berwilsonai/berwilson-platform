@@ -78,12 +78,12 @@ function formatWeekLabel(mondayStr: string): string {
 
 export default function CalendarView({ events: serverEvents }: CalendarViewProps) {
   const [filter, setFilter] = useState<FilterType>('all')
-  const [outlookEvents, setOutlookEvents] = useState<CalendarEvent[]>([])
-  const [outlookWarning, setOutlookWarning] = useState<string | null>(null)
+  const [calendarEvents, setCalendarEvents] = useState<CalendarEvent[]>([])
+  const [calendarWarning, setCalendarWarning] = useState<string | null>(null)
 
-  // Fetch Outlook calendar events client-side
+  // Fetch Google Calendar events client-side
   useEffect(() => {
-    async function loadOutlookEvents() {
+    async function loadCalendarEvents() {
       try {
         const now = new Date()
         const start = new Date(now.getTime() - 7 * 86_400_000).toISOString()
@@ -98,7 +98,6 @@ export default function CalendarView({ events: serverEvents }: CalendarViewProps
             subject: string
             start: string
             end: string
-            startTimeZone?: string
             location: string | null
             organizer: string | null
             attendees: { name: string; email: string; response: string }[]
@@ -109,15 +108,16 @@ export default function CalendarView({ events: serverEvents }: CalendarViewProps
         }
 
         if (data.warning) {
-          setOutlookWarning(data.warning)
+          setCalendarWarning(data.warning)
         }
 
         const mapped: CalendarEvent[] = data.events.map(e => {
-          // Graph returns naive datetimes + a timeZone field (usually UTC).
-          // Parse accordingly or the time renders hours off and the date can
-          // land on the wrong day.
-          const raw = e.start.replace(/\.\d+$/, '')
-          const startDate = new Date(e.startTimeZone === 'UTC' ? `${raw}Z` : raw)
+          // Google sends timed events as RFC 3339 with the offset baked in, but
+          // all-day events as a bare YYYY-MM-DD. Parsing the bare form directly
+          // yields UTC midnight, which renders as the PREVIOUS day west of
+          // Greenwich — pin it to local midnight instead.
+          const isDateOnly = /^\d{4}-\d{2}-\d{2}$/.test(e.start)
+          const startDate = isDateOnly ? new Date(`${e.start}T00:00:00`) : new Date(e.start)
           const timeStr = e.isAllDay ? null : startDate.toLocaleTimeString('en-US', {
             hour: 'numeric', minute: '2-digit',
           })
@@ -125,7 +125,7 @@ export default function CalendarView({ events: serverEvents }: CalendarViewProps
           const moreCount = e.attendees.length > 3 ? ` +${e.attendees.length - 3}` : ''
 
           return {
-            id: `outlook-${e.id}`,
+            id: `gcal-${e.id}`,
             type: 'meeting' as const,
             title: e.subject,
             date: startDate.toLocaleDateString('en-CA'), // local day, not UTC day
@@ -144,17 +144,17 @@ export default function CalendarView({ events: serverEvents }: CalendarViewProps
           }
         })
 
-        setOutlookEvents(mapped)
+        setCalendarEvents(mapped)
       } catch {
         // Non-fatal — calendar just won't show meetings
       }
     }
 
-    loadOutlookEvents()
+    loadCalendarEvents()
   }, [])
 
-  // Merge server events + outlook events
-  const allEvents = [...serverEvents, ...outlookEvents].sort(
+  // Merge server events + calendar events
+  const allEvents = [...serverEvents, ...calendarEvents].sort(
     (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
   )
 
@@ -174,10 +174,10 @@ export default function CalendarView({ events: serverEvents }: CalendarViewProps
 
   return (
     <div className="space-y-4">
-      {/* Outlook warning */}
-      {outlookWarning && (
+      {/* Calendar warning */}
+      {calendarWarning && (
         <div className="text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 px-3 py-2 rounded-md ring-1 ring-amber-200 dark:ring-amber-800/60">
-          {outlookWarning}
+          {calendarWarning}
         </div>
       )}
 

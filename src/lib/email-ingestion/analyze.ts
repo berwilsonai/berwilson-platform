@@ -1,5 +1,6 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { callGemini } from '@/lib/ai/gemini'
+import { isLocalAI } from '@/lib/ai/local'
 import {
   EMAIL_INTAKE_SYSTEM_PROMPT,
   EMAIL_INTAKE_PROMPT_VERSION,
@@ -32,9 +33,20 @@ import type { Json } from '@/types/database'
 /** Placeholder owner when the ingest wasn't run by a logged-in user. */
 export const SYSTEM_USER_ID = '00000000-0000-0000-0000-000000000000'
 
-// Generous cap — gemini-2.5-flash has a large context window; research reports
-// are already thread-truncated. Beyond this we trim to protect latency/cost.
-export const MAX_CHARS = 200_000
+// Input cap, per provider. gemini-2.5-flash has a huge context window and the
+// reports are already thread-truncated, so 200k chars is a cost guard there.
+// The local model (qwen3.6-35b-a3b) runs with 64k tokens of context and has to
+// fit the prompt AND its reasoning tokens inside that, so it gets a far tighter
+// budget — the sweep's map/reduce split exists precisely so this is enough.
+const GEMINI_MAX_CHARS = 200_000
+const LOCAL_MAX_CHARS = 40_000
+
+export function maxInputChars(): number {
+  return isLocalAI() ? LOCAL_MAX_CHARS : GEMINI_MAX_CHARS
+}
+
+/** @deprecated Use maxInputChars() — the cap now depends on the active provider. */
+export const MAX_CHARS = GEMINI_MAX_CHARS
 
 /** Error carrying an HTTP status so route handlers can translate it to a Response. */
 export class EmailIntakeError extends Error {
@@ -57,6 +69,14 @@ export interface AnalyzeEmailReportInput {
    * is updated to `pending` instead of inserting a new one.
    */
   sessionId?: string
+  /**
+   * Full-fidelity text to STORE on the session, when it differs from what the
+   * model reads. The mailbox sweep feeds the model compact thread summaries
+   * (to fit local context) but keeps the original correspondence here, so the
+   * document attached to the confirmed record is the real mail rather than a
+   * summary of a summary. Defaults to `rawText`.
+   */
+  documentText?: string
 }
 
 export interface AnalyzeEmailReportResult {
@@ -202,10 +222,11 @@ export async function analyzeEmailReport(
   const { label, userId } = input
   const supabase = createAdminClient()
 
+  const cap = maxInputChars()
   let text = input.rawText
   let truncated = false
-  if (text.length > MAX_CHARS) {
-    text = text.slice(0, MAX_CHARS)
+  if (text.length > cap) {
+    text = text.slice(0, cap)
     truncated = true
   }
 
@@ -243,7 +264,9 @@ export async function analyzeEmailReport(
     user_id: userId === SYSTEM_USER_ID ? null : userId,
     status: 'pending',
     label,
-    raw_text: text,
+    // What the reviewer and the confirmed record's document see. Falls back to
+    // the model input when the caller has nothing fuller to offer.
+    raw_text: input.documentText ?? text,
     extraction_result: extraction as unknown as Json,
     match_candidates: matchCandidates as unknown as Json,
     party_matches: partyMatches as unknown as Json,

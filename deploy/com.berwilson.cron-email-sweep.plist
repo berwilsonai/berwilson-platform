@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.berwilson.cron-email-sweep</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/zsh</string>
+    <string>-c</string>
+    <string>curl -sS -m 3500 -H "Authorization: Bearer $(grep '^CRON_SECRET=' __APP_DIR__/.env.local | cut -d= -f2-)" http://localhost:3000/api/cron/email-sweep</string>
+  </array>
+  <!-- Hourly. Each tick advances the sweep by one ~50 minute slice and exits;
+       progress lives in the database, so ticks accumulate and a missed hour
+       costs nothing. The 3500s curl timeout sits above the route's own budget
+       so the request is never cut off mid-thread. -->
+  <key>StartInterval</key>
+  <integer>3600</integer>
+  <!-- Never run two slices at once: the phases are resumable, not reentrant. -->
+  <key>AbandonProcessGroup</key>
+  <false/>
+  <key>StandardOutPath</key>
+  <string>__LOG_DIR__/cron-email-sweep.log</string>
+  <key>StandardErrorPath</key>
+  <string>__LOG_DIR__/cron-email-sweep.err.log</string>
+</dict>
+</plist>

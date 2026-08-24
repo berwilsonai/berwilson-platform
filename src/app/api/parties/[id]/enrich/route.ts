@@ -2,7 +2,7 @@
  * POST /api/parties/[id]/enrich
  *
  * Two-step enrichment pipeline:
- *   1. Microsoft Graph — query Outlook contacts by email (requires OAuth setup)
+ *   1. Google People API — query the mailbox's contacts by email
  *   2. Gemini grounded search — person + company queries → structured extraction
  *
  * Body: {} → returns preview (does NOT save)
@@ -38,7 +38,7 @@ export interface EnrichmentPreview {
     raw_text?: string
   }
   sources: Array<{ url: string; title?: string }>
-  graph_done: boolean
+  directory_done: boolean
 }
 
 export interface EnrichmentConflict {
@@ -60,36 +60,36 @@ export interface EnrichPreviewResponse {
   }
 }
 
-// ── Graph contact lookup ───────────────────────────────────────────────────────
+// ── Google contact lookup ─────────────────────────────────────────────────────
 
-interface GraphContactResult {
+interface DirectoryContactResult {
   displayName?: string
   jobTitle?: string
   companyName?: string
-  department?: string
   businessPhones?: string[]
   mobilePhone?: string
 }
 
-async function queryGraphForContact(email: string): Promise<GraphContactResult | null> {
+/**
+ * Look the person up in the mailbox's Google Contacts, including "other
+ * contacts" — people corresponded with but never saved, which is where most
+ * counterparties actually live. Silent null on any failure: this is one
+ * optional signal among several the enrichment blends.
+ */
+async function queryDirectoryForContact(email: string): Promise<DirectoryContactResult | null> {
   try {
-    // Dynamic import to avoid build errors if integration is not set up
-    const { getValidAccessToken } = await import('@/lib/integrations/microsoft-graph')
-    const token = await getValidAccessToken()
-
-    // Search Outlook contacts by email address
-    const url = `https://graph.microsoft.com/v1.0/me/contacts?$filter=emailAddresses/any(a:a/address eq '${encodeURIComponent(email)}')&$select=displayName,jobTitle,companyName,department,mobilePhone,businessPhones&$top=1`
-    const res = await fetch(url, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-
-    if (!res.ok) return null
-    const data = await res.json()
-    const contact = data.value?.[0]
+    // Dynamic import so an unconfigured integration can't break the build.
+    const { lookupContactByEmail } = await import('@/lib/integrations/google-workspace')
+    const contact = await lookupContactByEmail(email)
     if (!contact) return null
-    return contact as GraphContactResult
+
+    return {
+      displayName: contact.displayName,
+      jobTitle: contact.jobTitle,
+      companyName: contact.companyName,
+      mobilePhone: contact.phone,
+    }
   } catch {
-    // Graph not yet configured or token missing — skip silently
     return null
   }
 }
@@ -239,17 +239,17 @@ export async function POST(
   }
 
   // ── PREVIEW: run enrichment pipeline ────────────────────────────────────
-  let graphResult: GraphContactResult | null = null
-  let graphDone = false
+  let directoryResult: DirectoryContactResult | null = null
+  let directoryDone = false
 
   if (party.email) {
-    graphResult = await queryGraphForContact(party.email)
-    graphDone = graphResult !== null
+    directoryResult = await queryDirectoryForContact(party.email)
+    directoryDone = directoryResult !== null
   }
 
   // Build person-focused research queries
   const namePart = party.full_name
-  const companyPart = graphResult?.companyName ?? party.company ?? ''
+  const companyPart = directoryResult?.companyName ?? party.company ?? ''
 
   // Person queries (primary — these results get priority in extraction)
   const personQueries = [
@@ -303,13 +303,13 @@ export async function POST(
   }
 
   // Build preview
-  const graphPhone = graphResult?.mobilePhone ?? graphResult?.businessPhones?.[0] ?? null
+  const directoryPhone = directoryResult?.mobilePhone ?? directoryResult?.businessPhones?.[0] ?? null
   const preview: EnrichmentPreview = {
     linkedin_url: structured.linkedin_url ?? null,
-    title: graphResult?.jobTitle ?? null,
-    company: graphResult?.companyName ?? null,
-    full_name: graphResult?.displayName ?? null,
-    phone: graphPhone ?? structured.phone ?? null,
+    title: directoryResult?.jobTitle ?? null,
+    company: directoryResult?.companyName ?? null,
+    full_name: directoryResult?.displayName ?? null,
+    phone: directoryPhone ?? structured.phone ?? null,
     government_contract_history: structured.government_contract_history ?? null,
     enrichment_notes: {
       years_of_experience: structured.years_of_experience ?? null,
@@ -322,7 +322,7 @@ export async function POST(
       address: structured.address ?? null,
     },
     sources: allSources.filter((s, i, arr) => arr.findIndex((x) => x.url === s.url) === i).slice(0, 20),
-    graph_done: graphDone,
+    directory_done: directoryDone,
   }
 
   // Detect conflicts

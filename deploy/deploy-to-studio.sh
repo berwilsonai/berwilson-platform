@@ -15,6 +15,19 @@ echo "==> Preflight"
 ssh -o ConnectTimeout=8 "$STUDIO" 'echo "  ssh ok: $(hostname)"'
 ssh "$STUDIO" "export PATH=$NODE_BIN:\$PATH; command -v node >/dev/null && echo \"  node: \$(node --version)\" || { echo '  ERROR: node not installed on Studio — see deploy/README.md'; exit 1; }"
 ssh "$STUDIO" 'curl -sS -m 5 http://localhost:1234/v1/models >/dev/null && echo "  LM Studio: reachable on localhost:1234" || echo "  WARN: LM Studio not answering on localhost:1234 — AI calls will fail until it is running"'
+# Literal home path on the Studio — the generated .env.local is read by Node,
+# which does no shell expansion, so absolute paths have to be baked in.
+STUDIO_HOME="$(ssh "$STUDIO" 'echo $HOME')"
+# This org blocks service account key downloads, so the Studio signs remotely
+# via IAM signJwt using gcloud's Application Default Credentials.
+# Mail auth is per-mailbox OAuth (this Cloud org blocks service account keys).
+if ssh "$STUDIO" '[ -s berwilson-data/google-oauth-tokens.json ]'; then
+  echo "  Google mailbox consent: present"
+else
+  echo "  WARN: no google-oauth-tokens.json on the Studio — mail, calendar, and the sweep will be offline."
+  echo "        Fix: node scripts/setup-google-oauth.mjs   (then scp it to the Studio)"
+  echo "        See deploy/google-workspace-setup.md."
+fi
 
 echo "==> Syncing source to Studio:$APP_DIR"
 rsync -az --delete \
@@ -50,11 +63,27 @@ trap 'rm -f "$ENV_TMP"' EXIT
 # Start from the MacBook env, then adapt for the Studio:
 #  - LM Studio is on the same machine there -> localhost
 #  - drop Vercel-only vars
+#  - repoint any Google key path at the Studio's own copy (unused in the
+#    keyless signJwt setup, but harmless and correct if a key is ever allowed)
 grep -v '^VERCEL_OIDC_TOKEN=' "$REPO_ROOT/.env.local" \
-  | sed 's#^LOCAL_AI_BASE_URL=.*#LOCAL_AI_BASE_URL=http://localhost:1234/v1#' > "$ENV_TMP"
+  | sed 's#^LOCAL_AI_BASE_URL=.*#LOCAL_AI_BASE_URL=http://localhost:1234/v1#' \
+  | sed 's#^GOOGLE_SERVICE_ACCOUNT_KEY_FILE=.*#GOOGLE_SERVICE_ACCOUNT_KEY_FILE='"$STUDIO_HOME"'/berwilson-data/google-service-account.json#' \
+  | sed 's#^GOOGLE_OAUTH_TOKENS_FILE=.*#GOOGLE_OAUTH_TOKENS_FILE='"$STUDIO_HOME"'/berwilson-data/google-oauth-tokens.json#' > "$ENV_TMP"
 if ! grep -q '^CRON_SECRET=' "$ENV_TMP"; then
   echo "CRON_SECRET=$(openssl rand -hex 32)" >> "$ENV_TMP"
   echo "  generated new CRON_SECRET for the Studio"
+fi
+# Local Whisper transcription (whisper.cpp + Metal, built on the Studio). These
+# paths are Studio-specific, so they're set here rather than in the MacBook env.
+# afconvert (macOS built-in) decodes m4a → wav; whisper-cli reads the wav.
+if ! grep -q '^WHISPER_BIN=' "$ENV_TMP"; then
+  WHISPER_BIN_PATH="${WHISPER_BIN_PATH:-$HOME/whisper.cpp/build/bin/whisper-cli}"
+  WHISPER_MODEL_PATH="${WHISPER_MODEL_PATH:-$HOME/whisper.cpp/models/ggml-large-v3-turbo.bin}"
+  {
+    echo "WHISPER_BIN=$WHISPER_BIN_PATH"
+    echo "WHISPER_MODEL=$WHISPER_MODEL_PATH"
+  } >> "$ENV_TMP"
+  echo "  wired Whisper transcription (WHISPER_BIN/WHISPER_MODEL)"
 fi
 scp -q "$ENV_TMP" "$STUDIO:berwilson-platform/.env.local"
 
@@ -65,7 +94,7 @@ echo "==> Installing launchd services"
 ssh "$STUDIO" "
   set -e
   mkdir -p \$HOME/Library/Logs/berwilson \$HOME/Library/LaunchAgents
-  for plist in com.berwilson.platform com.berwilson.cron-daily-brief com.berwilson.cron-risk-scores; do
+  for plist in com.berwilson.platform com.berwilson.cron-daily-brief com.berwilson.cron-risk-scores com.berwilson.cron-email-sweep; do
     sed -e \"s#__APP_DIR__#\$HOME/berwilson-platform#g\" -e \"s#__LOG_DIR__#\$HOME/Library/Logs/berwilson#g\" -e \"s#__NODE_BIN__#\$HOME/.node/bin#g\" \
       $APP_DIR/deploy/\$plist.plist > \$HOME/Library/LaunchAgents/\$plist.plist
     launchctl bootout gui/\$(id -u)/\$plist 2>/dev/null || true

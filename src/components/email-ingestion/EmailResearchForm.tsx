@@ -6,7 +6,7 @@ import { Loader2, Search } from 'lucide-react'
 
 /**
  * Email Research runner. POSTs to /api/email-research/run, which searches the
- * connected Outlook mailbox, reads matching threads + attachments, and stages
+ * connected Gmail mailboxes, reads matching threads + attachments, and stages
  * a pending review session. On success we land directly on the review screen.
  * The run is synchronous and can take a few minutes, but the server finishes
  * on its own — navigating away just skips the redirect; the finished report
@@ -108,7 +108,7 @@ export default function EmailResearchForm() {
         <div className="flex items-start gap-2.5 rounded-md border border-border bg-muted/50 px-3 py-2.5">
           <Loader2 size={15} className="animate-spin mt-0.5 shrink-0 text-muted-foreground" />
           <p className="text-sm text-muted-foreground">
-            Searching Outlook and reading threads and attachments — this takes 1–4 minutes.
+            Searching Gmail and reading threads and attachments — this takes 1–4 minutes.
             Stay here to land on the review screen automatically, or navigate away — the run
             shows under Recent below and the finished report will be waiting there for review.
           </p>

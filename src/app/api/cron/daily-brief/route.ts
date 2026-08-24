@@ -13,7 +13,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { callGemini } from '@/lib/ai/gemini'
 import { fetchOpenTasks, formatTaskLine } from '@/lib/tasks/queries'
 import { parseTranches, raiseLevels, fillTranches } from '@/lib/investors/raises'
-import { fetchCalendarEvents } from '@/lib/integrations/microsoft-graph'
+import { fetchCalendarEvents } from '@/lib/integrations/google-workspace'
 
 const SYSTEM_USER_ID = '00000000-0000-0000-0000-000000000000'
 
@@ -249,9 +249,9 @@ export async function GET(request: NextRequest) {
       return `- [${o.bucket.toUpperCase()}] ${o.title}${healthFlag}${o.owner ? ` — ${o.owner.name}` : ''}${o.target_date ? ` (target ${o.target_date})` : ''}`
     })
 
-  // Meetings: the next 7 days from the connected Outlook mailbox. Fails
-  // quietly — no Graph token (mailbox never connected) or a Graph error just
-  // drops the meetings section from the brief.
+  // Meetings: the next 7 days from the connected Google Calendar. Fails
+  // quietly — an unconfigured service account or a Calendar error just drops
+  // the meetings section from the brief.
   let meetingLines: string[] = []
   try {
     const events = await fetchCalendarEvents(
@@ -259,21 +259,22 @@ export async function GET(request: NextRequest) {
       new Date(now.getTime() + 7 * 86_400_000).toISOString()
     )
     meetingLines = events.slice(0, 15).map(e => {
-      const raw = e.start.dateTime.replace(/\.\d+$/, '')
-      const start = new Date(e.start.timeZone === 'UTC' ? `${raw}Z` : raw)
+      // All-day events carry a bare YYYY-MM-DD; timed ones an RFC 3339 stamp
+      // with the offset already applied.
       const when = e.isAllDay
-        ? `${raw.split('T')[0]} (all day)`
-        : start.toLocaleString('en-US', {
+        ? `${e.start} (all day)`
+        : new Date(e.start).toLocaleString('en-US', {
             weekday: 'short', month: 'short', day: 'numeric',
             hour: 'numeric', minute: '2-digit', timeZone: 'America/Denver',
           })
       const attendees = e.attendees.length > 0 ? `, ${e.attendees.length} attendee${e.attendees.length === 1 ? '' : 's'}` : ''
-      const where = e.location?.displayName ? ` @ ${e.location.displayName}` : ''
-      return `- ${when}: "${e.subject}" — organized by ${e.organizer.emailAddress.name}${attendees}${where}`
+      const where = e.location ? ` @ ${e.location}` : ''
+      const organizer = e.organizer?.name ?? 'unknown organizer'
+      return `- ${when}: "${e.subject}" — organized by ${organizer}${attendees}${where}`
     })
   } catch (err) {
-    // mailbox not connected or Graph unavailable — no meetings block, but log
-    // it: a silent failure here hid a week of dead calendar fetches once.
+    // Calendar unavailable — no meetings block, but log it: a silent failure
+    // here hid a week of dead calendar fetches once.
     console.warn('[daily-brief] meetings fetch failed:', err instanceof Error ? err.message : err)
   }
 

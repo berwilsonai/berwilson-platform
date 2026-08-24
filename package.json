@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "gen-types": "npx supabase gen types typescript --linked > src/types/database.ts"
+    "gen-types": "echo 'gen-types is disabled: --linked points at the retired hosted project (qauclkrdejgtpywqixho), NOT the self-hosted DB on the Studio. See CLAUDE.md before regenerating.' && exit 1"
   },
   "dependencies": {
     "@base-ui/react": "^1.4.1",
