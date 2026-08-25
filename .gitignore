@@ -48,3 +48,6 @@ next-env.d.ts
 # after the platform moved to self-hosted Supabase on the Studio, which is how
 # `supabase db push --linked` came to target the wrong database entirely.
 supabase/.temp/
+
+# Claude Code local session dir
+.claude/
