@@ -7,7 +7,7 @@
  * never change. Keep this file the ONLY place that knows how a channel sends.
  */
 
-import { sendMail } from '@/lib/integrations/google-workspace'
+import { sendMail, type MailAttachment } from '@/lib/integrations/google-workspace'
 
 export type NotifyChannel = 'email' // | 'telegram' (future)
 
@@ -17,6 +17,8 @@ export interface NotifyOptions {
   to: string
   subject: string
   html: string
+  /** Email only. Ignored by channels that cannot carry files. */
+  attachments?: MailAttachment[]
 }
 
 export interface NotifyResult {
@@ -28,7 +30,12 @@ export async function notify(opts: NotifyOptions): Promise<NotifyResult> {
   try {
     switch (opts.channel) {
       case 'email':
-        await sendMail({ to: opts.to, subject: opts.subject, html: opts.html })
+        await sendMail({
+          to: opts.to,
+          subject: opts.subject,
+          html: opts.html,
+          attachments: opts.attachments,
+        })
         return { ok: true }
       default:
         return { ok: false, error: `Unsupported channel: ${opts.channel}` }

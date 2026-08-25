@@ -2,6 +2,7 @@ import { Suspense } from 'react'
 import Link from 'next/link'
 import { FolderKanban } from 'lucide-react'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { leadsDb } from '@/lib/leads/db'
 
 export const metadata = { title: 'Dashboard — Ber Wilson Intelligence' }
 import { type ProjectCardCounts } from '@/components/dashboard/ProjectCard'
@@ -11,7 +12,7 @@ import PortfolioBriefButton from '@/components/dashboard/PortfolioBriefButton'
 import DailyBrief from '@/components/dashboard/DailyBrief'
 import HealthPanel from '@/components/dashboard/HealthPanel'
 import RiskOverview from '@/components/dashboard/RiskOverview'
-import NeedsAttention from '@/components/dashboard/NeedsAttention'
+import NeedsAttention, { type LeadDue } from '@/components/dashboard/NeedsAttention'
 import NowObjectives, { type NowObjectiveItem } from '@/components/dashboard/NowObjectives'
 import VerticalRollup from '@/components/dashboard/VerticalRollup'
 import ClosingSoon, { type ClosingSoonItem } from '@/components/dashboard/ClosingSoon'
@@ -82,6 +83,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
 
   // Parallel: projects + attention items
   const in90Days = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+  const in14Days = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
 
   const [
     { data: projectsRaw },
@@ -94,6 +96,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
     { data: objectiveTaskRows },
     { data: investorFollowUpsRaw },
     { data: dinoPaymentsRaw },
+    { data: leadsDueRaw },
     { data: mailboxSyncRow },
   ] = await Promise.all([
     supabase.from('projects').select('*').eq('status', 'active'),
@@ -149,6 +152,17 @@ export default async function DashboardPage({ searchParams }: PageProps) {
       .not('due_date', 'is', null)
       .lte('due_date', new Date(now.getTime() + 30 * 86_400_000).toISOString().split('T')[0])
       .order('due_date', { ascending: true }),
+    // Inbound leads whose bid date is closing with no decision made. Uses the
+    // untyped leads client — `leads` is not in the generated Database type
+    // (gen-types is disabled on this stack). Fails quietly pre-migration.
+    leadsDb()
+      .from('leads')
+      .select('id, title, sender_company, bid_due_date, fit_recommendation')
+      .in('status', ['new', 'reviewing'])
+      .in('fit_recommendation', ['pursue', 'consider'])
+      .not('bid_due_date', 'is', null)
+      .lte('bid_due_date', in14Days)
+      .order('bid_due_date', { ascending: true }),
     // Mailbox health: a failed sweep means mail is no longer reaching the CRM.
     // Goes through sweepDb because mailbox_sync postdates the generated types.
     sweepDb()
@@ -435,6 +449,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
             mailboxAlert={mailboxAlert}
             expiringCerts={expiringCerts ?? []}
             dinoPayments={dinoPaymentsRaw ?? []}
+            leads={(leadsDueRaw ?? []) as unknown as LeadDue[]}
           />
         </div>
 

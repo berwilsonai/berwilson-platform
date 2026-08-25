@@ -122,6 +122,8 @@ export async function summarizePending(
       .from('email_threads')
       .select('id, subject, raw_markdown, last_at')
       .eq('summary_state', 'pending')
+      // Lead-pipeline threads have their own (differently shaped) triage pass.
+      .eq('pipeline', 'deal')
       .order('last_at', { ascending: false })
       .limit(BATCH)
 
@@ -191,6 +193,7 @@ export async function summarizePending(
     .from('email_threads')
     .select('id', { count: 'exact', head: true })
     .eq('summary_state', 'pending')
+    .eq('pipeline', 'deal')
   progress.remaining = count ?? 0
 
   return progress
@@ -206,6 +209,7 @@ export async function retryFailedSummaries(): Promise<number> {
     .from('email_threads')
     .update({ summary_state: 'pending', summary_error: null })
     .eq('summary_state', 'failed')
+    .eq('pipeline', 'deal')
     .select('id')
 
   if (error) throw new Error(`Could not requeue failed threads: ${error.message}`)

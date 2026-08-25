@@ -804,6 +804,8 @@ export type Database = {
           classification: string | null
           confidence: number | null
           doc_type: string | null
+          drive_file_id: string | null
+          drive_modified_at: string | null
           embedding_status: string | null
           entity_id: string | null
           extracted_text: string | null
@@ -826,6 +828,8 @@ export type Database = {
           classification?: string | null
           confidence?: number | null
           doc_type?: string | null
+          drive_file_id?: string | null
+          drive_modified_at?: string | null
           embedding_status?: string | null
           entity_id?: string | null
           extracted_text?: string | null
@@ -848,6 +852,8 @@ export type Database = {
           classification?: string | null
           confidence?: number | null
           doc_type?: string | null
+          drive_file_id?: string | null
+          drive_modified_at?: string | null
           embedding_status?: string | null
           entity_id?: string | null
           extracted_text?: string | null

@@ -34,7 +34,13 @@ const SCOPES = [
   'https://www.googleapis.com/auth/calendar.readonly',
   'https://www.googleapis.com/auth/contacts.readonly',
   'https://www.googleapis.com/auth/contacts.other.readonly',
+  // Read-only Drive, for the nominated knowledge folder the nightly sync
+  // indexes into the company knowledge base. Grants no write of any kind.
+  'https://www.googleapis.com/auth/drive.readonly',
 ]
+
+// Keep this list in step with SCOPES in src/lib/integrations/google-workspace.ts.
+// A scope added there but not here mints tokens that 403 at the first call.
 
 const GREEN = '\x1b[32m', RED = '\x1b[31m', BOLD = '\x1b[1m', DIM = '\x1b[2m', OFF = '\x1b[0m'
 
@@ -42,9 +48,21 @@ const TOKENS_PATH =
   process.env.GOOGLE_OAUTH_TOKENS_FILE ??
   join(process.env.HOME, 'berwilson-data/google-oauth-tokens.json')
 
-const ALL_MAILBOXES = (process.env.GOOGLE_IMPERSONATE_MAILBOXES ??
-  'moose@berwilson.com,tuaone@berwilson.com')
-  .split(',').map((m) => m.trim().toLowerCase()).filter(Boolean)
+// Both pipelines' mailboxes. The lead sweep reads info@, which is NOT in
+// GOOGLE_IMPERSONATE_MAILBOXES — leaving it out here would mint tokens for the
+// deal mailboxes only and the lead sweep would fail with no credential.
+const ALL_MAILBOXES = [
+  ...new Set(
+    [
+      process.env.GOOGLE_IMPERSONATE_MAILBOXES ?? 'moose@berwilson.com,tuaone@berwilson.com',
+      process.env.GOOGLE_LEAD_MAILBOXES ?? 'info@berwilson.com',
+    ]
+      .join(',')
+      .split(',')
+      .map((m) => m.trim().toLowerCase())
+      .filter(Boolean)
+  ),
+]
 
 // --only <address> re-consents a single mailbox, leaving the others' stored
 // tokens untouched. Useful when one of several flows fails.

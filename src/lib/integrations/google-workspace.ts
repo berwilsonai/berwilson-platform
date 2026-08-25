@@ -46,7 +46,7 @@
  * Don't "fix" it by hard-coding credential paths.
  */
 
-import { createSign } from 'node:crypto'
+import { createSign, randomBytes } from 'node:crypto'
 import { existsSync, readFileSync } from 'node:fs'
 
 // ---------------------------------------------------------------------------
@@ -75,6 +75,9 @@ export const SCOPES = [
   'https://www.googleapis.com/auth/calendar.readonly',
   'https://www.googleapis.com/auth/contacts.readonly',
   'https://www.googleapis.com/auth/contacts.other.readonly',
+  // Read-only Drive, for the nominated knowledge folder the nightly sync
+  // indexes into the company knowledge base. Grants no write of any kind.
+  'https://www.googleapis.com/auth/drive.readonly',
 ] as const
 
 /**
@@ -91,6 +94,27 @@ export const MAILBOXES: readonly string[] = (
 
 /** Default mailbox for calendar + contact reads. */
 export const PRIMARY_MAILBOX = MAILBOXES[0] ?? 'moose@berwilson.com'
+
+/**
+ * Mailboxes swept for INBOUND LEADS rather than deal correspondence.
+ *
+ * Kept separate from {@link MAILBOXES} because the two pipelines are different
+ * shapes and must not mix: deal mail is clustered into multi-thread pursuits and
+ * staged as email_intake_sessions, while lead mail is one thread = one lead,
+ * triaged and scored on its own. A thread's `pipeline` column records which
+ * side it came in on.
+ */
+export const LEAD_MAILBOXES: readonly string[] = (
+  process.env.GOOGLE_LEAD_MAILBOXES ?? 'info@berwilson.com'
+)
+  .split(',')
+  .map((m) => m.trim().toLowerCase())
+  .filter(Boolean)
+
+/** Every mailbox the platform holds a credential for, deduped. */
+export function allMailboxes(): string[] {
+  return [...new Set([...MAILBOXES, ...LEAD_MAILBOXES])]
+}
 
 interface ServiceAccountKey {
   client_email: string
@@ -509,7 +533,7 @@ export function explainTokenError(raw: string): string {
   return raw.slice(0, 400)
 }
 
-async function googleFetch<T>(url: string, mailbox: string): Promise<T> {
+export async function googleFetch<T>(url: string, mailbox: string): Promise<T> {
   const token = await getAccessToken(mailbox)
   const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } })
 
@@ -519,6 +543,19 @@ async function googleFetch<T>(url: string, mailbox: string): Promise<T> {
     throw new Error(`Google API ${path} failed: ${res.status} — ${explainTokenError(err)}`)
   }
   return res.json() as Promise<T>
+}
+
+/** Same auth path as {@link googleFetch}, but for endpoints that return bytes. */
+export async function googleFetchBytes(url: string, mailbox: string): Promise<ArrayBuffer> {
+  const token = await getAccessToken(mailbox)
+  const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } })
+
+  if (!res.ok) {
+    const err = await res.text()
+    const path = url.split('?')[0].replace(/https:\/\/[^/]+/, '')
+    throw new Error(`Google API ${path} failed: ${res.status} — ${explainTokenError(err)}`)
+  }
+  return res.arrayBuffer()
 }
 
 /**
@@ -532,11 +569,20 @@ async function googleFetch<T>(url: string, mailbox: string): Promise<T> {
  * added will fail here with a 403 — the error below names the fix rather than
  * leaving a bare Google error in notification_log.
  */
+/** A file to attach to an outbound message. */
+export interface MailAttachment {
+  fileName: string
+  mimeType: string
+  /** Raw bytes — base64 encoding happens here. */
+  content: Buffer | ArrayBuffer
+}
+
 export async function sendMail(opts: {
   to: string
   subject: string
   html: string
   from?: string
+  attachments?: MailAttachment[]
 }): Promise<void> {
   const from = opts.from ?? PRIMARY_MAILBOX
   const token = await getAccessToken(from)
@@ -546,20 +592,44 @@ export async function sendMail(opts: {
     ? opts.subject
     : `=?UTF-8?B?${Buffer.from(opts.subject, 'utf8').toString('base64')}?=`
 
-  const raw = base64url(
-    Buffer.from(
-      [
-        `From: ${from}`,
-        `To: ${opts.to}`,
-        `Subject: ${subject}`,
-        'MIME-Version: 1.0',
-        'Content-Type: text/html; charset=UTF-8',
+  const attachments = opts.attachments ?? []
+  const headers = [`From: ${from}`, `To: ${opts.to}`, `Subject: ${subject}`, 'MIME-Version: 1.0']
+
+  let message: string
+  if (attachments.length === 0) {
+    message = [...headers, 'Content-Type: text/html; charset=UTF-8', '', opts.html].join('\r\n')
+  } else {
+    // A boundary must not occur in any part. Random hex is the conventional
+    // guarantee, and these are one-shot messages so it need not be reproducible.
+    const boundary = `bw_${randomBytes(16).toString('hex')}`
+    const parts: string[] = [
+      ...headers,
+      `Content-Type: multipart/mixed; boundary="${boundary}"`,
+      '',
+      `--${boundary}`,
+      'Content-Type: text/html; charset=UTF-8',
+      '',
+      opts.html,
+    ]
+
+    for (const a of attachments) {
+      const buf = Buffer.isBuffer(a.content) ? a.content : Buffer.from(a.content)
+      parts.push(
+        `--${boundary}`,
+        `Content-Type: ${a.mimeType}; name="${a.fileName.replace(/"/g, '')}"`,
+        'Content-Transfer-Encoding: base64',
+        `Content-Disposition: attachment; filename="${a.fileName.replace(/"/g, '')}"`,
         '',
-        opts.html,
-      ].join('\r\n'),
-      'utf8'
-    )
-  )
+        // RFC 2045 caps encoded lines at 76 characters.
+        buf.toString('base64').replace(/(.{76})/g, '$1\r\n')
+      )
+    }
+
+    parts.push(`--${boundary}--`, '')
+    message = parts.join('\r\n')
+  }
+
+  const raw = base64url(Buffer.from(message, 'utf8'))
 
   const res = await fetch(
     `${GMAIL_BASE}/users/${encodeURIComponent(from)}/messages/send`,

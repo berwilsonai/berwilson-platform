@@ -93,10 +93,34 @@ function gmailDate(d: Date): string {
 }
 
 /**
+ * Gmail-side exclusions applied to the LEAD sweep.
+ *
+ * This is the cheapest filter in the whole pipeline and the only one that costs
+ * nothing: a thread excluded here is never fetched, never stored, and never
+ * scored. Gmail's own `category:promotions` / `category:social` classifiers do
+ * most of the work for free, and `-label:bw-filtered` lets a human retire a
+ * repeat marketing sender by writing one Gmail filter instead of shipping code.
+ *
+ * Override wholesale with GMAIL_LEAD_EXCLUSIONS (space separated).
+ */
+export const DEFAULT_LEAD_EXCLUSIONS =
+  '-category:promotions -category:social -label:bw-filtered'
+
+export function leadExclusions(): string[] {
+  return (process.env.GMAIL_LEAD_EXCLUSIONS ?? DEFAULT_LEAD_EXCLUSIONS)
+    .split(/\s+/)
+    .map((s) => s.trim())
+    .filter(Boolean)
+}
+
+/**
  * Build a Gmail `q`. Quotes the term so multi-word searches stay phrases, and
  * pushes the date bound server-side.
  */
-export function buildQuery(term: string, opts: { sinceDays?: number; includeSpamTrash?: boolean } = {}): string {
+export function buildQuery(
+  term: string,
+  opts: { sinceDays?: number; includeSpamTrash?: boolean; exclusions?: string[] } = {}
+): string {
   const parts: string[] = []
   if (term.trim()) {
     // Gmail treats " as a phrase delimiter; strip embedded ones rather than
@@ -109,6 +133,7 @@ export function buildQuery(term: string, opts: { sinceDays?: number; includeSpam
   if (!opts.includeSpamTrash) {
     parts.push('-in:spam', '-in:trash')
   }
+  if (opts.exclusions?.length) parts.push(...opts.exclusions)
   return parts.join(' ')
 }
 
@@ -218,9 +243,11 @@ export async function sweepPage(
     sinceDays?: number
     pageSize?: number
     knownFingerprints?: Set<string>
+    /** Extra Gmail `q` terms — the lead sweep passes {@link leadExclusions}. */
+    exclusions?: string[]
   } = {}
 ): Promise<SweepPage> {
-  const q = buildQuery('', { sinceDays: opts.sinceDays })
+  const q = buildQuery('', { sinceDays: opts.sinceDays, exclusions: opts.exclusions })
   const notes: string[] = []
 
   const { threads: stubs, nextPageToken, estimatedTotal } = await listThreads(mailbox, {

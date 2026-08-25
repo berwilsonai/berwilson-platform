@@ -150,6 +150,9 @@ export async function clusterUnassigned(
     .from('email_threads')
     .select('id, subject, participants, first_at, last_at, summary')
     .eq('summary_state', 'summarized')
+    // Lead-pipeline threads are triaged and scored individually and must never
+    // reach thread_clusters -> email_intake_sessions. See the leads module.
+    .eq('pipeline', 'deal')
     .is('cluster_id', null)
     .order('last_at', { ascending: false })
     .limit(opts.maxThreads ?? 2000)

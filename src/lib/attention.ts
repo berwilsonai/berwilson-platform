@@ -9,17 +9,19 @@
  * - Active cross-project dependency risks
  * - Investor follow-ups (overdue next steps; hot/committed-stage investors going cold)
  * - Dino payments coming due (installments we owe Dino Service Pros)
+ * - Inbound leads with a bid date approaching and no decision made
  *
  * Consumed by GET /api/attention and the agent's get_attention_items tool
  * (which calls computeAttention() directly — no HTTP self-fetch).
  */
 
 import { createAdminClient } from '@/lib/supabase/admin'
+import { leadsDb } from '@/lib/leads/db'
 import { fetchOpenTasks } from '@/lib/tasks/queries'
 
 export interface AttentionItem {
   id: string
-  category: 'overdue_action' | 'stale_waiting' | 'approaching_milestone' | 'critical_dd' | 'expiring_compliance' | 'stale_decision' | 'dependency_risk' | 'investor_followup' | 'dino_payment'
+  category: 'overdue_action' | 'stale_waiting' | 'approaching_milestone' | 'critical_dd' | 'expiring_compliance' | 'stale_decision' | 'dependency_risk' | 'investor_followup' | 'dino_payment' | 'lead_review'
   urgency: number // 0-100, higher = more urgent
   title: string
   detail: string
@@ -41,6 +43,7 @@ export interface AttentionSummary {
   dependency_risks: number
   investor_followups: number
   dino_payments: number
+  lead_reviews: number
 }
 
 export async function computeAttention(): Promise<{ items: AttentionItem[]; summary: AttentionSummary }> {
@@ -60,6 +63,7 @@ export async function computeAttention(): Promise<{ items: AttentionItem[]; summ
     { data: dependencies },
     { data: investors },
     { data: dinoPayments },
+    { data: openLeads },
   ] = await Promise.all([
     fetchOpenTasks(supabase, { dueBefore: today }),
     supabase.from('projects').select('id, name').eq('status', 'active'),
@@ -105,6 +109,19 @@ export async function computeAttention(): Promise<{ items: AttentionItem[]; summ
       .not('due_date', 'is', null)
       .lte('due_date', new Date(now.getTime() + 30 * 86_400_000).toISOString().split('T')[0])
       .order('due_date'),
+    // Inbound leads awaiting a decision. Only the ones the AI thinks are worth
+    // pursuing, and only with a real bid date — an undated lead is not urgent,
+    // and surfacing every arrival would drown the panel. Goes through leadsDb()
+    // because `leads` is not in the generated Database type (gen-types is
+    // disabled on this stack); fails quietly pre-migration → null → no items.
+    leadsDb()
+      .from('leads')
+      .select('id, title, sender_company, bid_due_date, fit_recommendation, fit_score, route')
+      .in('status', ['new', 'reviewing'])
+      .in('fit_recommendation', ['pursue', 'consider'])
+      .not('bid_due_date', 'is', null)
+      .lte('bid_due_date', new Date(now.getTime() + 14 * 86_400_000).toISOString().split('T')[0])
+      .order('bid_due_date'),
   ])
 
   const projectName = (u: { projects: unknown }) =>
@@ -350,6 +367,37 @@ export async function computeAttention(): Promise<{ items: AttentionItem[]; summ
     })
   }
 
+  // 10. Inbound leads — a bid closing with nobody assigned to it
+  for (const l of (openLeads ?? []) as unknown as Array<{
+    id: string
+    title: string
+    sender_company: string | null
+    bid_due_date: string
+    fit_recommendation: string | null
+    fit_score: number | null
+  }>) {
+    const daysUntil = Math.floor((new Date(l.bid_due_date).getTime() - now.getTime()) / 86_400_000)
+    const isOverdue = l.bid_due_date < today
+    // A bid date is a hard wall — urgency climbs steeply as it approaches, and
+    // an already-closed one stays loud until somebody dismisses it.
+    items.push({
+      id: `lead-${l.id}`,
+      category: 'lead_review',
+      urgency: isOverdue ? 60 : Math.min(95, 95 - daysUntil * 4),
+      title: `${l.title}${l.sender_company ? ` — ${l.sender_company}` : ''}`,
+      detail: isOverdue
+        ? `Bid closed ${Math.abs(daysUntil)}d ago, never decided`
+        : `Bid due in ${daysUntil}d · AI says ${l.fit_recommendation}${
+            l.fit_score != null ? ` (${l.fit_score}/100)` : ''
+          }`,
+      project_id: null,
+      project_name: 'Inbound Leads',
+      age_days: isOverdue ? Math.abs(daysUntil) : 0,
+      due_date: l.bid_due_date,
+      source_date: l.bid_due_date,
+    })
+  }
+
   // Sort by urgency descending
   items.sort((a, b) => b.urgency - a.urgency)
 
@@ -365,6 +413,7 @@ export async function computeAttention(): Promise<{ items: AttentionItem[]; summ
     dependency_risks: items.filter(i => i.category === 'dependency_risk').length,
     investor_followups: items.filter(i => i.category === 'investor_followup').length,
     dino_payments: items.filter(i => i.category === 'dino_payment').length,
+    lead_reviews: items.filter(i => i.category === 'lead_review').length,
   }
 
   return { items, summary }

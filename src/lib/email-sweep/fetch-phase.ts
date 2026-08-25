@@ -12,8 +12,8 @@
  * because fingerprints already stored are skipped on insert.
  */
 
-import { sweepPage, renderThread, type ResolvedThread } from '@/lib/integrations/gmail-search'
-import { MAILBOXES } from '@/lib/integrations/google-workspace'
+import { sweepPage, renderThread, leadExclusions, type ResolvedThread } from '@/lib/integrations/gmail-search'
+import { MAILBOXES, LEAD_MAILBOXES } from '@/lib/integrations/google-workspace'
 import { sweepDb, type MailboxSyncRow } from './db'
 
 /** Threads per Gmail page. 100 keeps each checkpoint cheap to redo. */
@@ -68,11 +68,24 @@ async function loadKnownFingerprints(): Promise<Set<string>> {
   return known
 }
 
-async function persistThreads(threads: ResolvedThread[]): Promise<number> {
+/**
+ * Which downstream pipeline owns a thread.
+ *
+ * 'deal' threads are clustered into pursuits and staged as review sessions.
+ * 'lead' threads are triaged and scored one-for-one and never enter that queue.
+ * Set at fetch time from which mailbox the thread came out of.
+ */
+export type ThreadPipeline = 'deal' | 'lead'
+
+async function persistThreads(
+  threads: ResolvedThread[],
+  pipeline: ThreadPipeline
+): Promise<number> {
   if (threads.length === 0) return 0
   const db = sweepDb()
 
   const rows = threads.map((t) => ({
+    pipeline,
     fingerprint: t.fingerprint,
     mailbox: t.mailbox,
     gmail_thread_id: t.threadId,
@@ -120,8 +133,14 @@ async function writeSync(mailbox: string, patch: Partial<MailboxSyncRow>): Promi
  */
 export async function fetchMailbox(
   mailbox: string,
-  opts: { maxPages?: number; sinceDays?: number | null; restart?: boolean } = {}
+  opts: {
+    maxPages?: number
+    sinceDays?: number | null
+    restart?: boolean
+    pipeline?: ThreadPipeline
+  } = {}
 ): Promise<FetchProgress> {
+  const pipeline = opts.pipeline ?? 'deal'
   const existing = await readSync(mailbox)
   const notes: string[] = []
 
@@ -166,9 +185,12 @@ export async function fetchMailbox(
         sinceDays: sinceDays ?? undefined,
         pageSize: PAGE_SIZE,
         knownFingerprints: known,
+        // Marketing is dropped at the Gmail edge on the lead side, so it never
+        // costs a fetch or a model call.
+        exclusions: pipeline === 'lead' ? leadExclusions() : undefined,
       })
 
-      const inserted = await persistThreads(page.threads)
+      const inserted = await persistThreads(page.threads, pipeline)
       threadsSeen += page.threads.length + page.duplicatesSkipped
       threadsNew += inserted
       duplicatesSkipped += page.duplicatesSkipped
@@ -244,10 +266,16 @@ export async function fetchMailbox(
  * and would both insert the same cross-mailbox thread.
  */
 export async function fetchAllMailboxes(
-  opts: { maxPagesPerMailbox?: number; sinceDays?: number | null; restart?: boolean } = {}
+  opts: {
+    maxPagesPerMailbox?: number
+    sinceDays?: number | null
+    restart?: boolean
+    pipeline?: ThreadPipeline
+  } = {}
 ): Promise<FetchProgress[]> {
+  const pipeline = opts.pipeline ?? 'deal'
   const out: FetchProgress[] = []
-  for (const mailbox of MAILBOXES) {
+  for (const mailbox of pipeline === 'lead' ? LEAD_MAILBOXES : MAILBOXES) {
     // Every mailbox is fetched every run. A finished backfill is not a finished
     // mailbox — fetchMailbox drops into a short catch-up window for those, so
     // mail that arrives after the backfill still reaches the CRM.
@@ -256,6 +284,7 @@ export async function fetchAllMailboxes(
         maxPages: opts.maxPagesPerMailbox,
         sinceDays: opts.sinceDays,
         restart: opts.restart,
+        pipeline,
       })
     )
   }

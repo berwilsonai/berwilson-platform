@@ -1,4 +1,5 @@
 import {
+  Radar,
   LayoutDashboard,
   FolderKanban,
   Users,
@@ -70,6 +71,7 @@ export const NAV_ITEMS: NavItem[] = [
   { href: '/objectives', label: 'Objectives', icon: Target, group: 'primary', keywords: 'priorities goals strategy steering now soon possibly focus' },
   { href: '/projects', label: 'Projects', icon: FolderKanban, group: 'primary', keywords: 'pipeline deals', mobilePrimary: true },
   { href: '/opportunities', label: 'Opportunities', icon: Lightbulb, group: 'primary', keywords: 'acquisitions partnerships jv mergers investments deals' },
+  { href: '/leads', label: 'Leads', title: 'Inbound Leads', icon: Radar, group: 'primary', keywords: 'inbound bids invitations itb ifb rfp rfq solicitations plan room prospects enquiries info inbox scored triage' },
   { href: '/investors', label: 'Investors', icon: HandCoins, group: 'primary', keywords: 'capital raise fundraising equity spv commitments funding money lp' },
   { href: '/steel', label: 'Steel CRM', icon: Factory, group: 'primary', keywords: 'prefab steel sales deals quotes square feet sqft plant manufacturing buildings customers' },
   { href: '/dino', label: 'Dino', title: 'Dino Service Pros', icon: Wrench, group: 'primary', keywords: 'dino service pros plumbing hvac mechanical revenue operating company internal trades payments' },

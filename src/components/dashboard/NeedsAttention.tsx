@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { AlertTriangle, CalendarClock, ClipboardCheck, ListChecks, TrendingUp, HandCoins, MailWarning, BadgeAlert, Wrench } from 'lucide-react'
+import { AlertTriangle, CalendarClock, ClipboardCheck, ListChecks, TrendingUp, HandCoins, MailWarning, BadgeAlert, Wrench, Radar } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { SECTOR_BADGE, SECTOR_SHORT } from '@/lib/utils/sectors'
 import type { TaskSummary } from '@/lib/tasks/queries'
@@ -51,6 +51,14 @@ export type ExpiringCert = {
   issuing_body: string | null
 }
 
+export type LeadDue = {
+  id: string
+  title: string
+  sender_company: string | null
+  bid_due_date: string | null
+  fit_recommendation: string | null
+}
+
 export type DinoPaymentDue = {
   id: string
   label: string | null
@@ -69,11 +77,13 @@ interface NeedsAttentionProps {
   mailboxAlert?: { email: string } | null
   expiringCerts?: ExpiringCert[]
   dinoPayments?: DinoPaymentDue[]
+  /** Inbound leads with a bid date closing and no decision yet. */
+  leads?: LeadDue[]
 }
 
-export default function NeedsAttention({ reviewItems, overdueItems, ddItems, reviewCount, overdueTasks = [], investorFollowUps = [], mailboxAlert = null, expiringCerts = [], dinoPayments = [] }: NeedsAttentionProps) {
+export default function NeedsAttention({ reviewItems, overdueItems, ddItems, reviewCount, overdueTasks = [], investorFollowUps = [], mailboxAlert = null, expiringCerts = [], dinoPayments = [], leads = [] }: NeedsAttentionProps) {
   const hasCritical = !!mailboxAlert || expiringCerts.length > 0
-  const hasAttention = hasCritical || reviewItems.length > 0 || overdueItems.length > 0 || ddItems.length > 0 || overdueTasks.length > 0 || investorFollowUps.length > 0 || dinoPayments.length > 0
+  const hasAttention = hasCritical || reviewItems.length > 0 || overdueItems.length > 0 || ddItems.length > 0 || overdueTasks.length > 0 || investorFollowUps.length > 0 || dinoPayments.length > 0 || leads.length > 0
 
   return (
     <div className="rounded-xl border border-border bg-card elev-1">
@@ -82,7 +92,7 @@ export default function NeedsAttention({ reviewItems, overdueItems, ddItems, rev
         <h2 className="label-caps text-muted-foreground">Needs Attention</h2>
         {hasAttention && (
           <span className="ml-auto text-xs font-medium tnum bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 rounded px-1.5 py-0.5">
-            {reviewItems.length + overdueItems.length + ddItems.length + overdueTasks.length + investorFollowUps.length + dinoPayments.length + expiringCerts.length + (mailboxAlert ? 1 : 0)}
+            {reviewItems.length + overdueItems.length + ddItems.length + overdueTasks.length + investorFollowUps.length + dinoPayments.length + leads.length + expiringCerts.length + (mailboxAlert ? 1 : 0)}
           </span>
         )}
       </div>
@@ -254,6 +264,54 @@ export default function NeedsAttention({ reviewItems, overdueItems, ddItems, rev
                       {p.due_date && (
                         <span className={cn('shrink-0 text-xs font-medium tnum', overdue ? 'text-red-600 dark:text-red-400' : 'text-amber-600 dark:text-amber-400')}>
                           {overdue ? `${daysOverdue(p.due_date)}d` : ''}
+                        </span>
+                      )}
+                    </Link>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Inbound leads with a bid date closing */}
+          {leads.length > 0 && (
+            <div className="rounded-md bg-muted/30 p-3">
+              <div className="flex items-center gap-1.5 mb-2">
+                <span className="size-1.5 rounded-full bg-amber-400 shrink-0" />
+                <Radar size={12} className="text-amber-500 dark:text-amber-400 shrink-0" />
+                <span className="label-caps text-muted-foreground">
+                  Inbound Leads
+                </span>
+                <span className="ml-auto text-xs text-muted-foreground tnum">{leads.length}</span>
+              </div>
+              <div className="space-y-1">
+                {leads.slice(0, 6).map((l) => {
+                  const overdue = l.bid_due_date
+                    ? l.bid_due_date < new Date().toISOString().slice(0, 10)
+                    : false
+                  return (
+                    <Link
+                      key={l.id}
+                      href="/leads"
+                      className="flex items-start gap-2 rounded-md px-2 py-2 hover:bg-accent/70 transition-colors"
+                    >
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-medium text-foreground truncate">{l.title}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5 truncate">
+                          {overdue ? 'Bid closed — never decided' : 'Bid closing'}
+                          {l.sender_company ? ` · ${l.sender_company}` : ''}
+                        </p>
+                      </div>
+                      {l.bid_due_date && (
+                        <span
+                          className={cn(
+                            'shrink-0 text-xs font-medium tnum',
+                            overdue
+                              ? 'text-red-600 dark:text-red-400'
+                              : 'text-amber-600 dark:text-amber-400'
+                          )}
+                        >
+                          {overdue ? `${daysOverdue(l.bid_due_date)}d` : ''}
                         </span>
                       )}
                     </Link>
