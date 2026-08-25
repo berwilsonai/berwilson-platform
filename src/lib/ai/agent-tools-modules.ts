@@ -19,6 +19,9 @@ import { createAdminClient } from '@/lib/supabase/admin'
 // against the self-hosted DB), so they are reached through the sweep's own
 // untyped client rather than the generated Database type.
 import { sweepDb } from '@/lib/email-sweep/db'
+// Same story for the leads module — it post-dates the last type generation.
+import { leadsDb, parseLeadAttachments, type LeadRow } from '@/lib/leads/db'
+import { ROUTE_LABELS, ROUTE_DESTINATIONS, STATUS_LABELS } from '@/lib/utils/leads'
 import {
   STEEL_STAGE_LABELS,
   STEEL_PIPELINE,
@@ -203,6 +206,73 @@ export const moduleTools = [
     },
   },
   {
+    name: 'list_leads',
+    description:
+      'List INBOUND LEADS from the lead queue (/leads) — bid invitations, ITBs, RFPs and plan-room notices that arrived at info@ and have NOT yet been taken on by anyone. A lead is the tier BEFORE a project or opportunity: it arrived, nobody owns it, and it expires with its bid date. Use for any question about incoming bids, what came in, what is due, or what has not been decided yet. Do NOT use for work already in the pipeline — that is list_projects, list_opportunities, or list_steel_deals.',
+    parameters: {
+      type: 'object',
+      properties: {
+        route: {
+          type: 'string',
+          description:
+            'Optional destination filter: steel, dino, construction, corporate, or unknown.',
+        },
+        status: {
+          type: 'string',
+          description:
+            'Optional status filter: new, reviewing, promoted, forwarded, ignored, expired, spam.',
+        },
+        open_only: {
+          type: 'boolean',
+          description: 'Only leads still awaiting a decision (new or reviewing). Default true.',
+        },
+        recommendation: {
+          type: 'string',
+          description: 'Optional fit filter: pursue, consider, or pass.',
+        },
+        due_within_days: {
+          type: 'number',
+          description: 'Only leads whose bid date falls within this many days from today.',
+        },
+        include_filtered: {
+          type: 'boolean',
+          description:
+            'Include leads triage rejected as marketing (status=spam). Default false — ask for these only when checking whether something was wrongly filtered out.',
+        },
+        limit: { type: 'number', description: 'Max leads to return (default 50).' },
+      },
+    },
+  },
+  {
+    name: 'query_lead',
+    description:
+      'Full detail on one inbound lead: the summary, every extracted decision fact, the requirements (bonding, insurance, wage, set-aside), all key dates, the attached files, and the complete fit assessment (score, recommendation, strengths, concerns, gaps, and the questions to answer before bidding). Use when asked about a specific bid invitation or whether to pursue it.',
+    parameters: {
+      type: 'object',
+      properties: {
+        name: {
+          type: 'string',
+          description: 'Lead title, sending company, or solicitation number (partial match).',
+        },
+        id: { type: 'string', description: 'The lead id, when known.' },
+      },
+    },
+  },
+  {
+    name: 'get_leads_summary',
+    description:
+      'Standing state of the inbound lead queue: how many leads await a decision, split by destination (steel / dino / construction / corporate), how many are recommended to pursue, which bid dates fall soonest, and how many were filtered out as marketing. Use for "what came in", "what bids are due", or "anything we are about to miss".',
+    parameters: {
+      type: 'object',
+      properties: {
+        due_within_days: {
+          type: 'number',
+          description: 'Window for the closing-bids list (default 30).',
+        },
+      },
+    },
+  },
+  {
     name: 'get_dino_summary',
     description:
       'The Dino side venture ledger — revenue entries by source, scheduled payments and what is still due, and notes. Use only for questions naming Dino.',
@@ -221,6 +291,30 @@ const str = (v: unknown): string | undefined =>
   typeof v === 'string' && v.trim() ? v.trim() : undefined
 const num = (v: unknown): number | undefined =>
   typeof v === 'number' && Number.isFinite(v) ? v : undefined
+/** Compact lead shape shared by the lead tools. */
+function leadBrief(row: LeadRow) {
+  const days =
+    row.bid_due_date !== null
+      ? Math.ceil((new Date(row.bid_due_date + 'T00:00:00').getTime() - Date.now()) / 86_400_000)
+      : null
+  return {
+    id: row.id,
+    title: row.title,
+    from: row.sender_company ?? row.sender_name,
+    destination: ROUTE_LABELS[row.route] ?? row.route,
+    becomes: ROUTE_DESTINATIONS[row.route] ?? null,
+    status: STATUS_LABELS[row.status] ?? row.status,
+    location: row.location,
+    estimated_value: row.estimated_value,
+    solicitation_number: row.solicitation_number,
+    bid_due_date: row.bid_due_date,
+    days_until_bid_due: days,
+    fit_score: row.fit_score,
+    fit_recommendation: row.fit_recommendation,
+    scored: row.score_state === 'scored',
+  }
+}
+
 const money = (n: number): number => Math.round(n * 100) / 100
 
 /** Load every steel deal with its line items — the basis for all steel rollups. */
@@ -815,6 +909,134 @@ export async function executeModuleTool(
     }
 
     // ── Dino ─────────────────────────────────────────────────────────────────
+    // ── Inbound leads ────────────────────────────────────────────────────────
+    case 'list_leads': {
+      const openOnly = args.open_only !== false
+      const includeFiltered = args.include_filtered === true
+      const limit = num(args.limit) ?? 50
+
+      let q = leadsDb().from('leads').select('*')
+      if (str(args.route)) q = q.eq('route', str(args.route))
+      if (str(args.status)) q = q.eq('status', str(args.status))
+      else if (openOnly) q = q.in('status', ['new', 'reviewing'])
+      // Marketing rejects are kept as rows so the filter can be audited, but
+      // they are never what someone means by "our leads" unless they ask.
+      else if (!includeFiltered) q = q.neq('status', 'spam')
+      if (str(args.recommendation)) q = q.eq('fit_recommendation', str(args.recommendation))
+
+      const withinDays = num(args.due_within_days)
+      if (withinDays !== undefined) {
+        const cutoff = new Date(Date.now() + withinDays * 86_400_000).toISOString().split('T')[0]
+        q = q.not('bid_due_date', 'is', null).lte('bid_due_date', cutoff)
+      }
+
+      const { data, error } = await q.order('bid_due_date', { ascending: true, nullsFirst: false })
+      if (error) return { error: `Could not read leads: ${error.message}` }
+      const rows = (data ?? []) as LeadRow[]
+
+      return {
+        count: rows.length,
+        note: 'Leads are UNCLAIMED inbound bid invitations, not pipeline work. Promoting one is what turns it into a project, opportunity, or steel deal.',
+        leads: rows.slice(0, limit).map(leadBrief),
+      }
+    }
+
+    case 'query_lead': {
+      const db = leadsDb()
+      let row: LeadRow | null = null
+
+      const id = str(args.id)
+      if (id) {
+        const { data } = await db.from('leads').select('*').eq('id', id).maybeSingle()
+        row = (data as LeadRow | null) ?? null
+      }
+      if (!row) {
+        const name = str(args.name)
+        if (!name) return { error: 'Provide a lead name/company or an id.' }
+        const { data } = await db
+          .from('leads')
+          .select('*')
+          .or(
+            `title.ilike.%${name}%,sender_company.ilike.%${name}%,solicitation_number.ilike.%${name}%`
+          )
+          .order('bid_due_date', { ascending: true, nullsFirst: false })
+          .limit(1)
+        row = ((data ?? [])[0] as LeadRow | undefined) ?? null
+      }
+      if (!row) return { error: 'No matching lead found.' }
+
+      return {
+        ...leadBrief(row),
+        summary: row.summary,
+        scope: row.scope,
+        sector: row.sector,
+        received_at: row.received_at,
+        site_visit_date: row.site_visit_date,
+        rfi_due_date: row.rfi_due_date,
+        sender: {
+          name: row.sender_name,
+          company: row.sender_company,
+          email: row.sender_email,
+          phone: row.sender_phone,
+        },
+        key_facts: row.key_facts,
+        requirements: row.requirements,
+        triage_confidence: row.triage_confidence,
+        attachments: parseLeadAttachments(row.attachments).map((a) => ({
+          name: a.name,
+          size_bytes: a.size_bytes,
+          text_was_read: a.extracted,
+        })),
+        fit_assessment:
+          row.score_state === 'scored'
+            ? {
+                score: row.fit_score,
+                recommendation: row.fit_recommendation,
+                summary: row.fit_summary,
+                strengths: row.fit_strengths,
+                concerns: row.fit_concerns,
+                gaps: row.fit_gaps,
+                questions_to_answer: row.fit_questions,
+              }
+            : { not_scored_yet: true, score_state: row.score_state, error: row.score_error },
+        spam_reason: row.spam_reason,
+      }
+    }
+
+    case 'get_leads_summary': {
+      const windowDays = num(args.due_within_days) ?? 30
+      const { data, error } = await leadsDb().from('leads').select('*')
+      if (error) return { error: `Could not read leads: ${error.message}` }
+      const rows = (data ?? []) as LeadRow[]
+
+      const open = rows.filter((r) => r.status === 'new' || r.status === 'reviewing')
+      const byRoute: Record<string, number> = {}
+      for (const r of open) {
+        const label = ROUTE_LABELS[r.route] ?? r.route
+        byRoute[label] = (byRoute[label] ?? 0) + 1
+      }
+
+      const cutoff = new Date(Date.now() + windowDays * 86_400_000).toISOString().split('T')[0]
+      const today = new Date().toISOString().split('T')[0]
+      const closing = open
+        .filter((r) => r.bid_due_date && r.bid_due_date <= cutoff)
+        .sort((a, b) => (a.bid_due_date ?? '').localeCompare(b.bid_due_date ?? ''))
+
+      return {
+        awaiting_decision: open.length,
+        by_destination: byRoute,
+        recommended_pursue: open.filter((r) => r.fit_recommendation === 'pursue').length,
+        recommended_consider: open.filter((r) => r.fit_recommendation === 'consider').length,
+        not_yet_scored: open.filter((r) => r.score_state !== 'scored').length,
+        promoted: rows.filter((r) => r.status === 'promoted').length,
+        forwarded_to_dino: rows.filter((r) => r.status === 'forwarded').length,
+        expired_undecided: rows.filter((r) => r.status === 'expired').length,
+        filtered_as_marketing: rows.filter((r) => r.status === 'spam').length,
+        overdue_bids: closing.filter((r) => (r.bid_due_date ?? '') < today).length,
+        closing_bids: closing.slice(0, 20).map(leadBrief),
+      }
+    }
+
     case 'get_dino_summary': {
       const [revenue, payments, notes] = await Promise.all([
         supabase

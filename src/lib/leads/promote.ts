@@ -26,6 +26,8 @@ export interface PromoteResult {
   target: PromoteTarget
   id: string
   documentsCopied: number
+  /** Directory contacts created or matched for the sender. */
+  contactsLinked: number
 }
 
 type Sector = Database['public']['Enums']['project_sector']
@@ -141,6 +143,108 @@ export function originNote(lead: LeadRow): string {
     )
   }
   return lines.join('\n').trim()
+}
+
+/**
+ * Put the sender in the directory, and on a promoted project, in the players list.
+ *
+ * Bid invitations come from the same handful of GCs and agencies over and over.
+ * Without this the relationship evaporates on promotion: the project records
+ * "Mountain West GC" as a client string, while the estimator who actually sent
+ * it — name, email, phone — exists nowhere searchable. Two contacts are worth
+ * keeping: the ORGANISATION that invited us, and the PERSON who sent it.
+ *
+ * Matched case-insensitively by name against non-archived parties, mirroring
+ * the investors module. Wholly non-fatal: a directory miss is a lost
+ * convenience, never a reason to fail a promotion that already created records.
+ */
+async function linkSenderToDirectory(
+  supabase: ReturnType<typeof createAdminClient>,
+  lead: LeadRow,
+  projectId: string | null
+): Promise<{ partyIds: string[] }> {
+  const partyIds: string[] = []
+
+  const resolve = async (
+    name: string,
+    isOrg: boolean,
+    contact: { email: string | null; phone: string | null }
+  ): Promise<string | null> => {
+    const { data: existing } = await supabase
+      .from('parties')
+      .select('id')
+      .ilike('full_name', name)
+      .neq('status', 'archived')
+      .limit(1)
+      .maybeSingle()
+    if (existing) return existing.id
+
+    const { data: created, error } = await supabase
+      .from('parties')
+      .insert({
+        full_name: name,
+        is_organization: isOrg,
+        company: isOrg ? null : lead.sender_company,
+        email: contact.email,
+        phone: contact.phone,
+        relationship_notes: `Added from an inbound lead: ${lead.title}`,
+        tags: ['inbound-lead'],
+      })
+      .select('id')
+      .single()
+    if (error) {
+      console.error('[leads/promote] could not add sender to the directory:', error.message)
+      return null
+    }
+    return created.id
+  }
+
+  // project_players.role is free text and the existing rows read as prose
+  // ("Client Principal", "Co-Developer"), so these match that voice rather than
+  // introducing a slug vocabulary the rest of the directory does not use.
+  const players: { id: string; role: string }[] = []
+
+  try {
+    // The organisation first — it is the durable half of the relationship.
+    if (lead.sender_company?.trim()) {
+      const orgId = await resolve(lead.sender_company.trim(), true, {
+        email: null,
+        phone: null,
+      })
+      if (orgId) {
+        partyIds.push(orgId)
+        players.push({ id: orgId, role: 'Inviting Contractor' })
+      }
+    }
+
+    if (lead.sender_name?.trim()) {
+      const personId = await resolve(lead.sender_name.trim(), false, {
+        email: lead.sender_email,
+        phone: lead.sender_phone,
+      })
+      if (personId) {
+        partyIds.push(personId)
+        players.push({ id: personId, role: 'Bid Contact' })
+      }
+    }
+
+    // On a project, the sender is a real player — usually the GC inviting us.
+    if (projectId) {
+      for (const player of players) {
+        const { error } = await supabase.from('project_players').insert({
+          project_id: projectId,
+          party_id: player.id,
+          role: player.role,
+          notes: 'Sent the bid invitation this project was created from.',
+        })
+        if (error) console.error('[leads/promote] could not link player:', error.message)
+      }
+    }
+  } catch (err) {
+    console.error('[leads/promote] directory link failed:', err)
+  }
+
+  return { partyIds }
 }
 
 export async function promoteLead(
@@ -273,6 +377,14 @@ export async function promoteLead(
     )
   }
 
+  // Keep the relationship: the sending firm and the person who sent it belong
+  // in the directory, not only in a client-name string on the new record.
+  const { partyIds } = await linkSenderToDirectory(
+    supabase,
+    lead,
+    target === 'project' ? id : null
+  )
+
   const { error: markErr } = await db
     .from('leads')
     .update({
@@ -289,7 +401,7 @@ export async function promoteLead(
     console.error(`[leads/promote] record created but lead not marked:`, markErr.message)
   }
 
-  return { target, id, documentsCopied }
+  return { target, id, documentsCopied, contactsLinked: partyIds.length }
 }
 
 /** Storage prefix a lead's staged files live under. */

@@ -74,7 +74,7 @@ interface NeedsAttentionProps {
   overdueTasks?: TaskSummary[]
   investorFollowUps?: InvestorFollowUp[]
   /** Mailbox connection is broken — calendar/email features are offline. */
-  mailboxAlert?: { email: string } | null
+  mailboxAlert?: { email: string; reason?: string | null } | null
   expiringCerts?: ExpiringCert[]
   dinoPayments?: DinoPaymentDue[]
   /** Inbound leads with a bid date closing and no decision yet. */
@@ -122,7 +122,9 @@ export default function NeedsAttention({ reviewItems, overdueItems, ddItems, rev
                     <div className="flex-1 min-w-0">
                       <p className="text-xs font-medium text-foreground">Mailbox sweep failing ({mailboxAlert.email})</p>
                       <p className="text-xs text-muted-foreground mt-0.5">
-                        New email is no longer reaching the CRM — check the error on System Health.
+                        {mailboxAlert.reason
+                          ? `New email is no longer reaching the CRM — ${mailboxAlert.reason}`
+                          : 'New email is no longer reaching the CRM — check the error on System Health.'}
                       </p>
                     </div>
                   </Link>

@@ -22,6 +22,42 @@ export function sweepDb() {
   )
 }
 
+/**
+ * Record that a sweep could not run at all, so the outage is VISIBLE.
+ *
+ * Without this, a cron that bails before the sweep starts (no Google
+ * credential, most likely) leaves every mailbox_sync row reading its last
+ * happy state. The dashboard's mailbox alert keys on state='failed', so mail
+ * silently stops reaching the CRM while every screen looks healthy — which is
+ * exactly what happened on 2026-08-25 after the Studio crash took the OAuth
+ * tokens with it.
+ *
+ * Safe with respect to resume: fetchMailbox decides where to restart from
+ * `completed_at`, never from `state`, so a mailbox marked failed here still
+ * catches up over a short window rather than re-reading years of history. The
+ * next successful run overwrites the state, so this self-heals.
+ *
+ * Never throws — failing to record a failure must not turn a 503 into a 500.
+ */
+export async function recordSweepUnavailable(
+  mailboxes: readonly string[],
+  reason: string
+): Promise<void> {
+  try {
+    const db = sweepDb()
+    const now = new Date().toISOString()
+    for (const mailbox of mailboxes) {
+      const { error } = await db.from('mailbox_sync').upsert(
+        { mailbox, state: 'failed', last_error: reason, updated_at: now },
+        { onConflict: 'mailbox' }
+      )
+      if (error) console.error(`[sweep] could not flag ${mailbox} as failed:`, error.message)
+    }
+  } catch (err) {
+    console.error('[sweep] could not record unavailability:', err)
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Row shapes — the hand-maintained stand-in for the generated types
 // ---------------------------------------------------------------------------

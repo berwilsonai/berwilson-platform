@@ -16,8 +16,9 @@
 import { fetchAllMailboxes, type FetchProgress } from '@/lib/email-sweep/fetch-phase'
 import { triagePendingLeads, type TriageProgress } from './triage-phase'
 import { scorePendingLeads, expireStaleLeads, type ScoreProgress } from './score-phase'
+import { notifyScoredLeads, type LeadNotifyProgress } from './notify-leads'
 
-export type LeadPhase = 'fetch' | 'triage' | 'score' | 'expire'
+export type LeadPhase = 'fetch' | 'triage' | 'score' | 'expire' | 'notify'
 
 export interface LeadSweepOptions {
   phases?: LeadPhase[]
@@ -38,11 +39,12 @@ export interface LeadSweepResult {
   triage?: TriageProgress
   score?: ScoreProgress
   expired?: number
+  notified?: LeadNotifyProgress
   elapsedMs: number
   moreWork: boolean
 }
 
-const ALL_PHASES: LeadPhase[] = ['fetch', 'triage', 'score', 'expire']
+const ALL_PHASES: LeadPhase[] = ['fetch', 'triage', 'score', 'expire', 'notify']
 
 export const DEFAULT_LEAD_HISTORY_DAYS = 90
 
@@ -90,6 +92,13 @@ export async function runLeadSweep(opts: LeadSweepOptions = {}): Promise<LeadSwe
     // Cheap and deterministic — always worth running so the queue self-drains.
     result.expired = await expireStaleLeads()
     result.ranPhases.push('expire')
+  }
+
+  if (phases.includes('notify')) {
+    // Last, and outside the budget check: the leads are already scored and
+    // stored, and announcing them is what makes them useful. Never throws.
+    result.notified = await notifyScoredLeads()
+    result.ranPhases.push('notify')
   }
 
   result.elapsedMs = Date.now() - started

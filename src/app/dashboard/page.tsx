@@ -167,7 +167,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
     // Goes through sweepDb because mailbox_sync postdates the generated types.
     sweepDb()
       .from('mailbox_sync')
-      .select('mailbox, state')
+      .select('mailbox, state, last_error')
       .eq('state', 'failed')
       .limit(1)
       .maybeSingle(),
@@ -325,9 +325,12 @@ export default async function DashboardPage({ searchParams }: PageProps) {
   const reviewItems = (reviewRaw ?? []).slice(0, 6) as ReviewWithProject[]
   const overdueItems = (overdueRaw ?? []).slice(0, 6) as MilestoneWithProject[]
   const ddItems = (ddRaw ?? []).slice(0, 6) as DdWithProject[]
-  const syncRow = mailboxSyncRow as { mailbox: string; state: string } | null
+  const syncRow = mailboxSyncRow as { mailbox: string; state: string; last_error: string | null } | null
+  // Carry the recorded reason onto the card. During an outage "why" is the
+  // whole question, and making the reader open another page to find it is how
+  // a red banner gets ignored.
   const mailboxAlert = mailboxLooksBroken(syncRow?.state)
-    ? { email: syncRow?.mailbox ?? 'mailbox' }
+    ? { email: syncRow?.mailbox ?? 'mailbox', reason: syncRow?.last_error ?? null }
     : null
 
   // Now objectives with open-task counts (from the tasks.objective_id tag)

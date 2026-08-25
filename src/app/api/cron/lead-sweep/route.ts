@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { runLeadSweep } from '@/lib/leads/orchestrator'
-import { isGoogleConfigured } from '@/lib/integrations/google-workspace'
+import { isGoogleConfigured, LEAD_MAILBOXES } from '@/lib/integrations/google-workspace'
+import { recordSweepUnavailable } from '@/lib/email-sweep/db'
 
 /**
  * GET /api/cron/lead-sweep
@@ -24,10 +25,11 @@ export async function GET(request: NextRequest) {
   }
 
   if (!isGoogleConfigured()) {
-    return NextResponse.json(
-      { error: 'Google Workspace is not configured — see deploy/google-workspace-setup.md.' },
-      { status: 503 }
-    )
+    const reason = 'Google Workspace is not configured — see deploy/google-workspace-setup.md.'
+    // Same reasoning as the deal sweep: an outage nobody can see is worse than
+    // one that shouts. The dashboard alert keys on this state.
+    await recordSweepUnavailable(LEAD_MAILBOXES, reason)
+    return NextResponse.json({ error: reason }, { status: 503 })
   }
 
   // Stay under the curl timeout the launchd job uses, with room for the
