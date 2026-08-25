@@ -15,6 +15,21 @@ Canonical reference for every Claude Code session working on the Ber Wilson plat
 
 ---
 
+## HOW TO DEPLOY TO PRODUCTION (read this when Richard says "deploy" / "ship it" / "make it live")
+
+**This exact folder — `/Users/richardwhite/berwilson-platform` on the Mac Studio — IS production AND the git repo.** Editing here + the three steps below is a full deploy. There is no separate server. (Set up 2026-08-25: Richard works directly on the Studio; the old MacBook→Studio rsync flow and the stale `~/Documents/berwilson-platform-main` copy are both retired/deleted.)
+
+When Richard asks to deploy, run these from `/Users/richardwhite/berwilson-platform`:
+```bash
+git add -A && git commit -m "<what changed>"          # save + version
+git push origin main                                   # back up to GitHub (berwilsonai/berwilson-platform, public)
+export PATH="$HOME/.node/bin:$PATH" && npm run build   # build (PATH must include ~/.node/bin)
+launchctl kickstart -k gui/$(id -u)/com.berwilson.platform   # restart the live app (launchd keeps it on :3000, tailnet-only)
+```
+Then confirm: `git log --oneline -1` and check the app responds. If `npm run build` fails, do NOT kickstart — the old build stays live; fix the error first. Always `git pull --ff-only` before starting a fresh editing session. Full host/infra detail lives in the `self-hosted-mac-studio-deployment` memory.
+
+---
+
 ## 1. PROJECT IDENTITY
 
 **Company:** Ber Wilson — vertically integrated construction, development, and USA prefab steel manufacturing. Salt Lake City, UT.
