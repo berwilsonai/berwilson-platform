@@ -33,6 +33,34 @@ export interface LeadNotifyProgress {
 /** Only these reach a human unprompted. A `pass` lead is queue material. */
 const ANNOUNCE = new Set(['pursue', 'consider'])
 
+/** pursue outranks consider regardless of score — it is a different verdict. */
+const RECOMMENDATION_RANK: Record<string, number> = { pursue: 0, consider: 1 }
+
+/**
+ * Best first.
+ *
+ * Quality leads the order because that is what the reader is deciding on, and a
+ * digest sorted by deadline puts a mediocre lead that happens to close Friday
+ * above the best opportunity of the month. Deadline is not discarded — it
+ * breaks ties, and every card still carries its own urgency marker — but it no
+ * longer sets the running order.
+ */
+function byQuality(a: LeadRow, b: LeadRow): number {
+  const rank =
+    (RECOMMENDATION_RANK[String(a.fit_recommendation)] ?? 9) -
+    (RECOMMENDATION_RANK[String(b.fit_recommendation)] ?? 9)
+  if (rank !== 0) return rank
+
+  const score = (b.fit_score ?? -1) - (a.fit_score ?? -1)
+  if (score !== 0) return score
+
+  // Equal verdict and score: the one closing sooner is the one to act on.
+  if (a.bid_due_date && b.bid_due_date) return a.bid_due_date.localeCompare(b.bid_due_date)
+  if (a.bid_due_date) return -1
+  if (b.bid_due_date) return 1
+  return 0
+}
+
 function escapeHtml(s: string): string {
   return s
     .replace(/&/g, '&amp;')
@@ -55,7 +83,9 @@ function due(lead: LeadRow): { text: string; urgent: boolean } {
   return { text: `bid due in ${d}d (${lead.bid_due_date})`, urgent: d <= 7 }
 }
 
-export function renderLeadEmail(leads: LeadRow[]): { subject: string; html: string } {
+export function renderLeadEmail(input: LeadRow[]): { subject: string; html: string } {
+  // Sorted here as well as at the query, so any caller gets the same order.
+  const leads = [...input].sort(byQuality)
   const urgent = leads.filter((l) => due(l).urgent).length
   const subject =
     leads.length === 1
@@ -156,9 +186,9 @@ export async function notifyScoredLeads(): Promise<LeadNotifyProgress> {
 
     if (error) return { considered: 0, sent: 0, skipped: true, error: error.message }
 
-    const rows = ((data ?? []) as LeadRow[]).filter((l) =>
-      ANNOUNCE.has(String(l.fit_recommendation))
-    )
+    const rows = ((data ?? []) as LeadRow[])
+      .filter((l) => ANNOUNCE.has(String(l.fit_recommendation)))
+      .sort(byQuality)
     if (rows.length === 0) return { considered: 0, sent: 0, skipped: false }
 
     const { subject, html } = renderLeadEmail(rows)

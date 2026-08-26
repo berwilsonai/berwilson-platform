@@ -1,9 +1,10 @@
 /**
- * Sweep orchestration — runs the four phases under one time budget.
+ * Sweep orchestration — runs the phases under one time budget.
  *
  * Shared by the cron driver and the manual "run now" control so both behave
  * identically. The phase order matters: fetch fills the queue, summarize drains
- * it, cluster groups what's been summarized, stage turns groups into reviews.
+ * it, cluster groups what's been summarized, stage turns groups into reviews,
+ * and predecide recommends what to DO with each review so the queue drains.
  *
  * Every phase is independently resumable, so the orchestrator's only real job
  * is dividing the clock. Fetch is network-bound and finishes fast; summarize is
@@ -14,8 +15,12 @@ import { fetchAllMailboxes, type FetchProgress } from './fetch-phase'
 import { summarizePending, type SummarizeProgress } from './summarize-phase'
 import { clusterUnassigned, type ClusterProgress } from './cluster-phase'
 import { stageOpenClusters, type StageProgress } from './stage-phase'
+import {
+  predecidePendingSessions,
+  type PredecideProgress,
+} from '@/lib/email-ingestion/predecide'
 
-export type SweepPhase = 'fetch' | 'summarize' | 'cluster' | 'stage'
+export type SweepPhase = 'fetch' | 'summarize' | 'cluster' | 'stage' | 'predecide'
 
 export interface SweepRunOptions {
   /** Phases to run, in this order. Defaults to all four. */
@@ -35,12 +40,13 @@ export interface SweepRunResult {
   summarize?: SummarizeProgress
   cluster?: ClusterProgress
   stage?: StageProgress
+  predecide?: PredecideProgress
   elapsedMs: number
   /** True when work remains — the next run should pick up where this left off. */
   moreWork: boolean
 }
 
-const ALL_PHASES: SweepPhase[] = ['fetch', 'summarize', 'cluster', 'stage']
+const ALL_PHASES: SweepPhase[] = ['fetch', 'summarize', 'cluster', 'stage', 'predecide']
 
 /** Share of the budget each phase may consume before yielding to the next. */
 const STAGE_SHARE = 0.25
@@ -90,6 +96,18 @@ export async function runSweep(opts: SweepRunOptions = {}): Promise<SweepRunResu
     result.cluster = await clusterUnassigned()
     result.ranPhases.push('cluster')
     if (result.cluster.clustersCreated > 0) result.moreWork = true
+  }
+
+  if (phases.includes('predecide')) {
+    // Last, on whatever budget is left. This is the only phase that makes the
+    // review queue SHRINK rather than grow, and it runs on capacity that would
+    // otherwise be idle — the model sits unused ~94% of the day.
+    result.predecide = await predecidePendingSessions({
+      budgetMs: Math.max(0, budgetMs - (Date.now() - started)),
+      userId: opts.userId,
+    })
+    result.ranPhases.push('predecide')
+    if (result.predecide.remaining > 0) result.moreWork = true
   }
 
   result.elapsedMs = Date.now() - started

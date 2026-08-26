@@ -914,6 +914,7 @@ export type Database = {
           label: string | null
           match_candidates: Json | null
           party_matches: Json | null
+          predecision: Json | null
           raw_text: string | null
           staged_attachments: Json | null
           status: string
@@ -931,6 +932,7 @@ export type Database = {
           label?: string | null
           match_candidates?: Json | null
           party_matches?: Json | null
+          predecision?: Json | null
           raw_text?: string | null
           staged_attachments?: Json | null
           status?: string
@@ -948,6 +950,7 @@ export type Database = {
           label?: string | null
           match_candidates?: Json | null
           party_matches?: Json | null
+          predecision?: Json | null
           raw_text?: string | null
           staged_attachments?: Json | null
           status?: string

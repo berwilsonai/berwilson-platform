@@ -78,20 +78,65 @@ export default async function IntakePage({ searchParams }: PageProps) {
   )
 }
 
+/** Recommended disposition attached by the pre-decide phase. */
+type Predecision = {
+  disposition: 'create' | 'merge' | 'dismiss'
+  confidence: number
+  reason: string
+  merge_target_name?: string | null
+  headline?: string | null
+}
+
+const DISPOSITION_RANK: Record<string, number> = { create: 0, merge: 1, none: 2, dismiss: 3 }
+
+const DISPOSITION_LABEL: Record<string, string> = {
+  create: 'Create',
+  merge: 'Merge',
+  dismiss: 'Let go',
+}
+
+const DISPOSITION_BADGE: Record<string, string> = {
+  create: 'bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:ring-emerald-900',
+  merge: 'bg-indigo-50 text-indigo-700 ring-indigo-200 dark:bg-indigo-950/40 dark:text-indigo-300 dark:ring-indigo-900',
+  dismiss: 'bg-slate-100 text-slate-600 ring-slate-200 dark:bg-slate-800/60 dark:text-slate-400 dark:ring-slate-700',
+}
+
+/** Tolerant read — predecision is jsonb and predates the generated types. */
+function readPredecision(raw: unknown): Predecision | null {
+  if (!raw || typeof raw !== 'object') return null
+  const o = raw as Record<string, unknown>
+  const d = String(o.disposition ?? '')
+  if (d !== 'create' && d !== 'merge' && d !== 'dismiss') return null
+  return {
+    disposition: d,
+    confidence: Number(o.confidence) || 0,
+    reason: String(o.reason ?? ''),
+    merge_target_name: typeof o.merge_target_name === 'string' ? o.merge_target_name : null,
+    headline: typeof o.headline === 'string' ? o.headline : null,
+  }
+}
+
 async function EmailTab({ supabase }: { supabase: ReturnType<typeof createAdminClient> }) {
   const { data: sessions } = await supabase
     .from('email_intake_sessions')
-    .select('id, label, status, updated_at, extraction_result')
+    .select('id, label, status, updated_at, extraction_result, predecision')
     .eq('intake_kind', 'email')
     .neq('status', 'dismissed')
     .order('updated_at', { ascending: false })
     .limit(25)
 
-  const rows = (sessions ?? []).map((s) => ({
-    ...s,
-    effective: effectiveEmailIntakeStatus(s.status, s.updated_at),
-  }))
+  const rows = (sessions ?? [])
+    .map((s) => ({
+      ...s,
+      effective: effectiveEmailIntakeStatus(s.status, s.updated_at),
+      pre: readPredecision(s.predecision),
+    }))
+    // Best first: what Ber AI says to CREATE leads the list, then merges, then
+    // anything it has not judged yet. A queue in arrival order makes the reader
+    // do the sorting, which is the work we are trying to remove.
+    .sort((a, b) => DISPOSITION_RANK[a.pre?.disposition ?? 'none'] - DISPOSITION_RANK[b.pre?.disposition ?? 'none'])
   const anyRunning = rows.some((r) => r.effective === 'running')
+  const judged = rows.filter((r) => r.pre).length
 
   return (
     <>
@@ -119,7 +164,9 @@ async function EmailTab({ supabase }: { supabase: ReturnType<typeof createAdminC
 
       {rows.length > 0 && (
         <div className="space-y-2">
-          <h2 className="label-caps text-muted-foreground">Recent</h2>
+          <h2 className="label-caps text-muted-foreground">
+            Recent{judged > 0 && <span className="ml-2 normal-case tracking-normal">· {judged} pre-read by Ber AI</span>}
+          </h2>
           <div className="rounded-lg border border-border bg-card divide-y divide-border">
             {rows.map((s) => {
               const st = s.effective
@@ -169,10 +216,27 @@ async function EmailTab({ supabase }: { supabase: ReturnType<typeof createAdminC
                 <Link
                   key={s.id}
                   href={`/email-ingestion/${s.id}`}
-                  className="flex items-center justify-between gap-3 px-4 py-2.5 hover:bg-accent transition-colors"
+                  className="flex items-start justify-between gap-3 px-4 py-2.5 hover:bg-accent transition-colors"
                 >
-                  <span className="text-sm font-medium truncate">{s.label || 'Untitled research package'}</span>
+                  <span className="min-w-0">
+                    <span className="text-sm font-medium truncate block">{s.label || 'Untitled research package'}</span>
+                    {/* The one fact that would change the reader's mind, so the
+                        decision can be made from the list without opening it. */}
+                    {s.pre?.headline && (
+                      <span className="text-xs text-muted-foreground line-clamp-2 mt-0.5 block">{s.pre.headline}</span>
+                    )}
+                  </span>
                   <span className="flex items-center gap-1.5 shrink-0">
+                    {s.pre && (
+                      <span
+                        title={s.pre.reason}
+                        className={`text-[11px] font-medium px-2 py-0.5 rounded-full ring-1 ring-inset ${DISPOSITION_BADGE[s.pre.disposition]}`}
+                      >
+                        {s.pre.disposition === 'merge' && s.pre.merge_target_name
+                          ? `Merge → ${s.pre.merge_target_name}`
+                          : DISPOSITION_LABEL[s.pre.disposition]}
+                      </span>
+                    )}
                     {badge}
                     {st === 'pending' && <DismissSessionButton sessionId={s.id} />}
                   </span>
