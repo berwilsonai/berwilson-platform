@@ -1294,11 +1294,18 @@ export async function upsertCalendarEvent(
   return { ok: false, error: explainTokenError(await insert.text()) }
 }
 
-/** Map any string to a valid Google event id (base32hex, deterministic). */
+/**
+ * Map any string to a valid Google event id (deterministic).
+ *
+ * Google requires base32hex: digits 0-9 and letters **a-v only**, 5-1024 chars.
+ * That alphabet stops at v, so w/x/y/z are rejected — an obvious-looking `bw`
+ * prefix produces "Invalid resource id value" on every insert, which is exactly
+ * what happened the first time this ran. A hex digest is 0-9a-f and therefore
+ * always safe; the prefix below is kept inside the alphabet deliberately.
+ */
 function externalIdToEventId(external: string): string {
   const hash = createHash('sha1').update(external).digest('hex')
-  // hex uses 0-9a-f, all inside base32hex's 0-9a-v — valid as-is.
-  return `bw${hash}`
+  return `lead${hash}`
 }
 
 /**
