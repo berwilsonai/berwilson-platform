@@ -16,6 +16,7 @@ import {
   probeMailboxConnection,
   probeLmStudio,
   probeBackups,
+  probeDriveKnowledge,
   probeDisk,
 } from '@/lib/system-health'
 import { isGoogleConfigured } from '@/lib/integrations/google-workspace'
@@ -83,7 +84,7 @@ async function runChecks(): Promise<HealthCheck[]> {
   const dayAgo = new Date(Date.now() - 86_400_000).toISOString()
   const localAI = process.env.AI_PROVIDER === 'local'
 
-  const [brief, riskScore, lastAi, aiDayCount, failedRuns, mailbox, lmStudio, backups, disk, lastDigest, failedDigests] =
+  const [brief, riskScore, lastAi, aiDayCount, failedRuns, mailbox, lmStudio, backups, drive, disk, lastDigest, failedDigests] =
     await Promise.all([
       supabase
         .from('stored_briefs')
@@ -116,6 +117,7 @@ async function runChecks(): Promise<HealthCheck[]> {
       probeMailboxConnection(),
       probeLmStudio(),
       probeBackups(),
+      probeDriveKnowledge(),
       probeDisk(),
       supabase
         .from('notification_log')
@@ -295,6 +297,31 @@ async function runChecks(): Promise<HealthCheck[]> {
           : h === null
             ? `Emails each member their overdue + due-this-week tasks Monday mornings. Nothing sends until a member has a task due. ${cronLogsHint}`
             : 'Sending on schedule to members with tasks due.',
+    })
+  }
+
+  // Drive knowledge sync — three things must line up (scope, API-enabled on the
+  // credential's project, folder shared with the impersonated mailbox) and they
+  // fail in ways that look identical from outside. An empty folder is reported
+  // as its own state so "nothing indexed" is never mistaken for "broken".
+  {
+    checks.push({
+      name: 'Drive Knowledge Sync',
+      status:
+        drive.state === 'ok'
+          ? 'ok'
+          : drive.state === 'failed'
+            ? 'fail'
+            : 'warn',
+      headline:
+        drive.state === 'ok'
+          ? 'Knowledge folder readable'
+          : drive.state === 'empty'
+            ? 'Connected, but the folder is empty'
+            : drive.state === 'unconfigured'
+              ? 'No knowledge folder configured'
+              : 'Cannot read the knowledge folder',
+      detail: drive.detail,
     })
   }
 

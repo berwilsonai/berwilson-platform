@@ -12,7 +12,12 @@
 import { promises as fs } from 'fs'
 import os from 'os'
 import path from 'path'
-import { probeGoogleConnection, type GoogleProbe } from '@/lib/integrations/google-workspace'
+import {
+  probeGoogleConnection,
+  googleFetch,
+  PRIMARY_MAILBOX,
+  type GoogleProbe,
+} from '@/lib/integrations/google-workspace'
 
 const PROBE_TIMEOUT_MS = 10_000
 
@@ -218,3 +223,58 @@ export async function probeDisk(): Promise<DiskProbe> {
 export function mailboxLooksBroken(state: string | null | undefined): boolean {
   return state === 'failed'
 }
+
+/**
+ * Can the Drive knowledge sync actually read its folder?
+ *
+ * Three separate things must line up and they fail in ways that look alike from
+ * the outside: the mailbox needs the drive.readonly scope, the Drive API must be
+ * enabled on the project that owns the OAUTH CLIENT (not whichever project is
+ * on screen), and the folder must be shared with the mailbox the sync
+ * impersonates. Reporting an EMPTY folder as "ok, nothing to index" matters just
+ * as much — a clean sync of zero files is otherwise indistinguishable from a
+ * broken one.
+ */
+export async function probeDriveKnowledge(): Promise<{
+  state: 'ok' | 'empty' | 'unconfigured' | 'failed'
+  detail: string
+}> {
+  const folderId = process.env.GOOGLE_DRIVE_KNOWLEDGE_FOLDER_ID?.trim()
+  if (!folderId) {
+    return {
+      state: 'unconfigured',
+      detail:
+        'Set GOOGLE_DRIVE_KNOWLEDGE_FOLDER_ID to a Drive folder id to index capability statements, past performance and credentials into the company knowledge base. Lead fit scores are graded against whatever is in there.',
+    }
+  }
+
+  const mailbox = PRIMARY_MAILBOX
+  try {
+    const q = encodeURIComponent(`'${folderId}' in parents and trashed=false`)
+    const data = await googleFetch<{ files?: { name: string }[] }>(
+      `https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(name)&pageSize=100&supportsAllDrives=true&includeItemsFromAllDrives=true`,
+      mailbox
+    )
+    const count = data.files?.length ?? 0
+    if (count === 0) {
+      return {
+        state: 'empty',
+        detail: `Folder is readable by ${mailbox} but contains no files, so the nightly sync has nothing to index. Add documents and they will be indexed on the next run (3:15am), or trigger it sooner.`,
+      }
+    }
+    return { state: 'ok', detail: `${count} file${count === 1 ? '' : 's'} in the knowledge folder, readable by ${mailbox}.` }
+  } catch (err) {
+    const raw = err instanceof Error ? err.message : String(err)
+    let fix = ''
+    if (/has not been used in project|accessNotConfigured/.test(raw)) {
+      fix =
+        ' Enable the Drive API on the project that owns the OAuth client — the message names the project number; it is NOT necessarily the project you were last looking at.'
+    } else if (/insufficient|scope|403/i.test(raw)) {
+      fix = ` Re-consent with: node scripts/setup-google-oauth.mjs --only ${mailbox}`
+    } else if (/404|not found/i.test(raw)) {
+      fix = ` The folder is probably owned by another account — share it with ${mailbox} (Viewer is enough).`
+    }
+    return { state: 'failed', detail: `${raw}${fix}` }
+  }
+}
+
