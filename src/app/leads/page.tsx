@@ -13,7 +13,13 @@ export const metadata = { title: 'Leads — Ber Wilson Intelligence' }
  * the middleware already redirects every other role. This guard covers the case
  * where the allowlist later opens the page up without meaning to.
  */
-export default async function LeadsPage() {
+export default async function LeadsPage({
+  searchParams,
+}: {
+  /** ?lead=<id> opens that lead on mount — the target of the digest email's links. */
+  searchParams: Promise<{ lead?: string }>
+}) {
+  const { lead: initialOpenLeadId } = await searchParams
   const viewer = await getViewer()
   if (viewer && !viewer.isAdmin) redirect('/tasks')
 
@@ -63,7 +69,8 @@ export default async function LeadsPage() {
         </div>
       </div>
 
-      <LeadsClient initialLeads={leads} filteredCount={filteredCount ?? 0} />
+      <LeadsClient
+        initialOpenLeadId={initialOpenLeadId ?? null} initialLeads={leads} filteredCount={filteredCount ?? 0} />
     </div>
   )
 }

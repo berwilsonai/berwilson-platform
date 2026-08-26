@@ -62,6 +62,11 @@ export function renderLeadEmail(leads: LeadRow[]): { subject: string; html: stri
       ? `New lead: ${leads[0].title.slice(0, 80)}`
       : `${leads.length} new leads${urgent > 0 ? ` — ${urgent} closing soon` : ''}`
 
+  // Deep links need an absolute origin; the platform is tailnet-only, so APP_URL
+  // is the only thing that knows it. Without it the mail still reads fine —
+  // every link simply degrades to plain text rather than pointing at localhost.
+  const appUrl = process.env.APP_URL?.trim().replace(/\/$/, '')
+
   const cards = leads
     .map((lead) => {
       const d = due(lead)
@@ -86,7 +91,11 @@ export function renderLeadEmail(leads: LeadRow[]): { subject: string; html: stri
 
       return `
         <div style="border:1px solid #e2e8f0;border-left:3px solid ${d.urgent ? '#dc2626' : '#274580'};border-radius:8px;padding:14px;margin-bottom:12px">
-          <p style="margin:0;font-size:15px;font-weight:600;color:#0f172a">${escapeHtml(lead.title)}</p>
+          <p style="margin:0;font-size:15px;font-weight:600">${
+            appUrl
+              ? `<a href="${appUrl}/leads?lead=${lead.id}" style="color:#274580;text-decoration:none">${escapeHtml(lead.title)}</a>`
+              : `<span style="color:#0f172a">${escapeHtml(lead.title)}</span>`
+          }</p>
           <p style="margin:4px 0 0;font-size:13px;color:#475569">${facts}</p>
           <p style="margin:8px 0 0;font-size:13px;${d.urgent ? 'color:#dc2626;font-weight:600' : 'color:#475569'}">${escapeHtml(d.text)}</p>
           <p style="margin:8px 0 0;font-size:13px;color:#0f172a">
@@ -100,16 +109,19 @@ export function renderLeadEmail(leads: LeadRow[]): { subject: string; html: stri
     })
     .join('')
 
-  const appUrl = process.env.APP_URL
   const link = appUrl
-    ? `<p style="margin:16px 0 0;font-size:13px"><a href="${appUrl}/leads" style="color:#274580">Open the lead queue</a></p>`
+    ? `<p style="margin:20px 0 0;padding-top:14px;border-top:1px solid #e2e8f0;font-size:13px;color:#475569">
+         <a href="${appUrl}/leads" style="color:#274580;font-weight:600;text-decoration:none">Open the lead queue in Ber Intelligence →</a>
+       </p>`
     : ''
 
   return {
     subject,
     html: `<div style="font-family:-apple-system,Segoe UI,sans-serif;max-width:640px">
       <p style="margin:0 0 14px;font-size:13px;color:#475569">
-        Scored from inbound mail. Nobody owns these yet — assigning an owner is what turns one into a project, opportunity, or steel deal.
+        Scored from inbound mail. Nobody owns these yet — assigning an owner is what turns one into a project, opportunity, or steel deal.${
+          appUrl ? ' Tap a title to open it in Ber Intelligence.' : ''
+        }
       </p>
       ${cards}${link}
     </div>`,

@@ -26,17 +26,25 @@ type RouteFilter = LeadRoute | 'all'
 export default function LeadsClient({
   initialLeads,
   filteredCount,
+  initialOpenLeadId = null,
 }: {
   initialLeads: LeadRow[]
   filteredCount: number
+  /** From ?lead=<id> — the digest email links straight to one lead. */
+  initialOpenLeadId?: string | null
 }) {
   const router = useRouter()
   const [leads, setLeads] = useState(initialLeads)
   const [route, setRoute] = useState<RouteFilter>('all')
   const [query, setQuery] = useState('')
   const [showFiltered, setShowFiltered] = useState(false)
-  const [selected, setSelected] = useState<LeadRow | null>(null)
-  const [sheetOpen, setSheetOpen] = useState(false)
+  // Seeded from the URL so a link in the digest email lands on the lead itself
+  // rather than on the queue, leaving the reader to find it again.
+  const deepLinked = initialOpenLeadId
+    ? (initialLeads.find((l) => l.id === initialOpenLeadId) ?? null)
+    : null
+  const [selected, setSelected] = useState<LeadRow | null>(deepLinked)
+  const [sheetOpen, setSheetOpen] = useState(!!deepLinked)
   const [sweeping, setSweeping] = useState(false)
 
   const visible = useMemo(() => {
