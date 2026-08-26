@@ -86,6 +86,25 @@ export const SCOPES = [
 ] as const
 
 /**
+ * Scopes requested for the PRIMARY mailbox only.
+ *
+ * Docs write is the first genuinely powerful permission this platform asks for:
+ * it can edit and delete any Google Doc in the account it is granted on. Only
+ * the Drive-sync mailbox needs it (that is the account the knowledge folder is
+ * read as), so granting it on all three would hand out authority nothing uses —
+ * the opposite of how every other scope here was chosen.
+ *
+ * The consent script adds these to {@link SCOPES} for PRIMARY_MAILBOX and to no
+ * one else. Re-consenting without this entry removes the grant again, which is
+ * the intended way to hand the permission back after an edit.
+ */
+export const PRIMARY_ONLY_SCOPES = [
+  // Read + write Google Docs. Needed to correct the knowledge document in place
+  // rather than asking a human to hand-edit prose the platform is scored on.
+  'https://www.googleapis.com/auth/documents',
+] as const
+
+/**
  * Mailboxes the platform reads. Order matters only in that the first is the
  * default for calendar/contact lookups that aren't mailbox-specific.
  * Override with GOOGLE_IMPERSONATE_MAILBOXES (comma separated).
