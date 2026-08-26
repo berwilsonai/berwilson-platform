@@ -246,14 +246,34 @@ async function consentFor(mailbox, client, rl) {
 
 async function main() {
   console.log(`\n${BOLD}=== Connect the mailboxes to the platform ===${OFF}`)
-  console.log('\nThis needs the OAuth client JSON you downloaded from the Cloud console.')
-  console.log(`${DIM}(Console → APIs & Services → Credentials → your OAuth 2.0 Client ID → Download JSON)${OFF}\n`)
 
   const rl = createInterface({ input: process.stdin, output: process.stdout })
 
+  // The stored token file already carries the OAuth client id + secret, so a
+  // re-consent (adding a mailbox, or a newly required scope) needs nothing from
+  // the Cloud console. Only a first run, or a lost token file, does.
+  let client = null
+  try {
+    const existing = JSON.parse(readFileSync(TOKENS_PATH, 'utf8'))
+    if (existing.client?.client_id && existing.client?.client_secret) {
+      client = existing.client
+      console.log(`\n${GREEN}Reusing the OAuth client already stored at ${TOKENS_PATH}.${OFF}`)
+      console.log(`${DIM}(No console download needed. Pass a client JSON path to override.)${OFF}\n`)
+    }
+  } catch { /* no stored client — fall through to the file prompt */ }
+
+  // An explicit path on the command line always wins over the stored client.
+  const explicitPath = process.argv.slice(2).find((a) => !a.startsWith('--') && a !== ONLY)
+  if (explicitPath) client = null
+
+  if (!client) {
+    console.log('\nThis needs the OAuth client JSON you downloaded from the Cloud console.')
+    console.log(`${DIM}(Console → APIs & Services → Credentials → your OAuth 2.0 Client ID → Download JSON)${OFF}\n`)
+  }
+
   // Find the client file: argument, or the newest matching download.
-  let clientPath = process.argv.slice(2).find((a) => !a.startsWith('--') && a !== ONLY)
-  if (!clientPath) {
+  let clientPath = explicitPath
+  if (!client && !clientPath) {
     const guess = join(process.env.HOME, 'Downloads')
     const candidates = existsSync(guess)
       ? (await import('fs')).readdirSync(guess)
@@ -267,18 +287,19 @@ async function main() {
       if (use.trim().toLowerCase() === 'n') clientPath = null
     }
   }
-  if (!clientPath) {
+  if (!client && !clientPath) {
     clientPath = (await rl.question('Full path to the OAuth client JSON: ')).trim().replace(/^['"]|['"]$/g, '')
   }
 
-  let client
-  try {
-    client = readClientFile(clientPath)
-  } catch (err) {
-    console.error(`\n${RED}${err.message}${OFF}\n`)
-    process.exit(1)
+  if (!client) {
+    try {
+      client = readClientFile(clientPath)
+    } catch (err) {
+      console.error(`\n${RED}${err.message}${OFF}\n`)
+      process.exit(1)
+    }
+    console.log(`${GREEN}OAuth client loaded.${OFF}`)
   }
-  console.log(`${GREEN}OAuth client loaded.${OFF}`)
 
   // Keep any existing consents so re-running for one mailbox doesn't drop the other.
   let store = { client, tokens: {} }
