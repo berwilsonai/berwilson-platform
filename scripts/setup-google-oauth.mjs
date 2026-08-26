@@ -17,6 +17,7 @@
  */
 
 import { createServer } from 'http'
+import { fileURLToPath } from 'node:url'
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'fs'
 import { dirname, join } from 'path'
 import { createInterface } from 'readline/promises'
@@ -27,17 +28,37 @@ const TOKEN_ENDPOINT = 'https://oauth2.googleapis.com/token'
 const AUTH_ENDPOINT = 'https://accounts.google.com/o/oauth2/v2/auth'
 const PORT = 47823 // fixed, so it can be registered as a redirect URI if needed
 
-const SCOPES = [
-  'https://www.googleapis.com/auth/gmail.readonly',
-  // Send-only; cannot read or modify. Used by the weekly task digest.
-  'https://www.googleapis.com/auth/gmail.send',
-  'https://www.googleapis.com/auth/calendar.readonly',
-  'https://www.googleapis.com/auth/contacts.readonly',
-  'https://www.googleapis.com/auth/contacts.other.readonly',
-  // Read-only Drive, for the nominated knowledge folder the nightly sync
-  // indexes into the company knowledge base. Grants no write of any kind.
-  'https://www.googleapis.com/auth/drive.readonly',
-]
+/**
+ * The scope list is READ FROM the app rather than duplicated here.
+ *
+ * It used to be a second hand-maintained copy, and it drifted twice in one day:
+ * drive.readonly, then calendar.events were each added to the app and not to
+ * this file, so a consent run minted tokens that 403'd on the first call — the
+ * precise failure the old comment here warned about, which is what a duplicated
+ * constant guarantees eventually. Parsing the source is less elegant than an
+ * import and completely removes the class of bug; this is a dev script, so the
+ * coupling costs nothing at runtime.
+ */
+function loadScopes() {
+  const src = join(
+    dirname(fileURLToPath(import.meta.url)),
+    '../src/lib/integrations/google-workspace.ts'
+  )
+  const text = readFileSync(src, 'utf8')
+  const block = text.slice(text.indexOf('export const SCOPES = ['))
+  const scopes = [
+    ...block.slice(0, block.indexOf(']')).matchAll(/'(https:\/\/www\.googleapis\.com\/auth\/[^']+)'/g),
+  ].map((m) => m[1])
+
+  if (scopes.length === 0) {
+    console.error(`\n${RED}Could not read SCOPES from ${src}.${OFF}`)
+    console.error('Consenting with a guessed scope list would mint tokens that fail later.\n')
+    process.exit(1)
+  }
+  return scopes
+}
+
+const SCOPES = loadScopes()
 
 // Keep this list in step with SCOPES in src/lib/integrations/google-workspace.ts.
 // A scope added there but not here mints tokens that 403 at the first call.

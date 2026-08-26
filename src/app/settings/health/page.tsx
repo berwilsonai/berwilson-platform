@@ -17,6 +17,7 @@ import {
   probeLmStudio,
   probeBackups,
   probeDriveKnowledge,
+  probeScopeCoverage,
   probeDisk,
 } from '@/lib/system-health'
 import { isGoogleConfigured } from '@/lib/integrations/google-workspace'
@@ -84,7 +85,7 @@ async function runChecks(): Promise<HealthCheck[]> {
   const dayAgo = new Date(Date.now() - 86_400_000).toISOString()
   const localAI = process.env.AI_PROVIDER === 'local'
 
-  const [brief, riskScore, lastAi, aiDayCount, failedRuns, mailbox, lmStudio, backups, drive, disk, lastDigest, failedDigests] =
+  const [brief, riskScore, lastAi, aiDayCount, failedRuns, mailbox, lmStudio, backups, drive, scopes, disk, lastDigest, failedDigests] =
     await Promise.all([
       supabase
         .from('stored_briefs')
@@ -118,6 +119,7 @@ async function runChecks(): Promise<HealthCheck[]> {
       probeLmStudio(),
       probeBackups(),
       probeDriveKnowledge(),
+      probeScopeCoverage(),
       probeDisk(),
       supabase
         .from('notification_log')
@@ -322,6 +324,23 @@ async function runChecks(): Promise<HealthCheck[]> {
               ? 'No knowledge folder configured'
               : 'Cannot read the knowledge folder',
       detail: drive.detail,
+    })
+  }
+
+  // Scope coverage — adding a scope to the code does nothing to tokens already
+  // minted, so a feature can be shipped and silently 403 until someone
+  // re-consents. This has bitten twice (drive.readonly, calendar.events).
+  {
+    checks.push({
+      name: 'Google Permissions',
+      status: scopes.state === 'stale' ? 'warn' : 'ok',
+      headline:
+        scopes.state === 'stale'
+          ? 'A connected mailbox predates a permission the app now needs'
+          : scopes.state === 'ok'
+            ? 'Every mailbox has all the permissions the app needs'
+            : 'Not applicable to this connection type',
+      detail: scopes.detail,
     })
   }
 

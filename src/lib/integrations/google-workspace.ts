@@ -1281,3 +1281,72 @@ function externalIdToEventId(external: string): string {
   // hex uses 0-9a-f, all inside base32hex's 0-9a-v — valid as-is.
   return `bw${hash}`
 }
+
+/**
+ * Do the stored consents actually carry every scope the code declares?
+ *
+ * Adding a scope to {@link SCOPES} does nothing to tokens already minted — they
+ * keep working for everything they were granted and 403 on the new call, which
+ * surfaces at the worst possible moment as a raw permissions error. This has
+ * happened twice: drive.readonly, then calendar.events. The consent script no
+ * longer drifts (it reads SCOPES from this file), but a stored token can still
+ * predate a scope, and only re-consent fixes that.
+ *
+ * Cheap: one refresh per mailbox, and Google returns the granted scope list in
+ * the same response. Never throws.
+ */
+export async function probeScopeCoverage(): Promise<{
+  state: 'ok' | 'stale' | 'unknown'
+  missing: { mailbox: string; scopes: string[] }[]
+  detail: string
+}> {
+  const store = (() => {
+    try {
+      return oauthStore()
+    } catch {
+      return null
+    }
+  })()
+
+  // Only per-mailbox OAuth has a stored grant to go stale; a service account
+  // is authorised centrally and picks up scope changes without re-consent.
+  if (!store) return { state: 'unknown', missing: [], detail: 'Not using per-mailbox OAuth.' }
+
+  const wanted = SCOPES as readonly string[]
+  const missing: { mailbox: string; scopes: string[] }[] = []
+
+  for (const mailbox of Object.keys(store.tokens)) {
+    try {
+      const res = await fetch(TOKEN_ENDPOINT, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          grant_type: 'refresh_token',
+          client_id: store.client.client_id,
+          client_secret: store.client.client_secret,
+          refresh_token: store.tokens[mailbox],
+        }),
+      })
+      if (!res.ok) continue // connection health is the other probe's job
+      const granted = String(((await res.json()) as { scope?: string }).scope ?? '').split(' ')
+      const gaps = wanted.filter((w) => !granted.includes(w))
+      if (gaps.length > 0) {
+        missing.push({ mailbox, scopes: gaps.map((g) => g.split('/auth/')[1] ?? g) })
+      }
+    } catch {
+      // Ignore — an unreachable Google is not a scope problem.
+    }
+  }
+
+  if (missing.length === 0) {
+    return { state: 'ok', missing, detail: `All ${wanted.length} scopes granted on every connected mailbox.` }
+  }
+
+  return {
+    state: 'stale',
+    missing,
+    detail: `${missing
+      .map((m) => `${m.mailbox} is missing ${m.scopes.join(', ')}`)
+      .join('; ')}. Features using those scopes will fail with a permissions error until you re-consent: node scripts/setup-google-oauth.mjs`,
+  }
+}

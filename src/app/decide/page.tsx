@@ -55,10 +55,6 @@ export default async function DecidePage() {
   // --- Inbound leads: unclaimed bid invitations, best first -----------------
   for (const raw of (leadRows ?? []) as LeadRow[]) {
     if (raw.fit_recommendation === 'pass') continue
-    const days =
-      raw.bid_due_date !== null
-        ? Math.ceil((new Date(raw.bid_due_date + 'T00:00:00').getTime() - Date.now()) / 86_400_000)
-        : null
     items.push({
       id: raw.id,
       kind: 'lead',
@@ -68,9 +64,10 @@ export default async function DecidePage() {
       verdict: raw.fit_recommendation ?? null,
       score: raw.fit_score,
       note: raw.fit_summary,
-      // A bid date is the only hard deadline in the whole list.
+      // A bid date is the only hard deadline in the whole list. Days-remaining
+      // is derived client-side from a clock captured once at mount, rather than
+      // during a server render — see DecideClient.
       deadline: raw.bid_due_date,
-      daysLeft: days,
     })
   }
 
@@ -90,7 +87,6 @@ export default async function DecidePage() {
       score: Number.isFinite(score) ? score : null,
       note: pre?.headline ?? pre?.reason ?? null,
       deadline: null,
-      daysLeft: null,
     })
   }
 
@@ -106,7 +102,6 @@ export default async function DecidePage() {
       score: r.confidence !== null ? Math.round(Number(r.confidence) * 100) : null,
       note: null,
       deadline: null,
-      daysLeft: null,
     })
   }
 

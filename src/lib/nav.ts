@@ -5,7 +5,6 @@ import {
   FolderKanban,
   Users,
   ListChecks,
-  ClipboardCheck,
   Activity,
   Brain,
   Shield,

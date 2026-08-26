@@ -19,8 +19,10 @@ export interface DecideItem {
   score: number | null
   note: string | null
   deadline: string | null
-  daysLeft: number | null
 }
+
+/** An item with its days-to-deadline resolved against a fixed clock. */
+type Dated = DecideItem & { daysLeft: number | null }
 
 const KIND_META: Record<DecideKind, { label: string; icon: typeof Radar; tone: string }> = {
   lead: {
@@ -55,7 +57,7 @@ const VERDICT_TONE: Record<string, string> = {
  * to quality, so the list stays "most consequential first" rather than "most
  * recently arrived".
  */
-function weight(i: DecideItem): number {
+function weight(i: Dated): number {
   const urgent = i.daysLeft !== null && i.daysLeft <= 7 ? 1000 : 0
   const overdue = i.daysLeft !== null && i.daysLeft < 0 ? 2000 : 0
   const verdict = i.verdict === 'pursue' || i.verdict === 'create' ? 100 : 0
@@ -64,10 +66,22 @@ function weight(i: DecideItem): number {
 
 export default function DecideClient({ items }: { items: DecideItem[] }) {
   const [kind, setKind] = useState<DecideKind | 'all'>('all')
+  // Captured once at mount rather than read during render: a clock read while
+  // rendering is impure, and the list must not silently reorder itself between
+  // two renders of the same data.
+  const [now] = useState(() => Date.now())
 
   const ranked = useMemo(
-    () => [...items].sort((a, b) => weight(b) - weight(a)),
-    [items]
+    () =>
+      items
+        .map((i) => ({
+          ...i,
+          daysLeft: i.deadline
+            ? Math.ceil((new Date(i.deadline + 'T00:00:00').getTime() - now) / 86_400_000)
+            : null,
+        }))
+        .sort((a, b) => weight(b) - weight(a)),
+    [items, now]
   )
   const visible = useMemo(
     () => (kind === 'all' ? ranked : ranked.filter((i) => i.kind === kind)),

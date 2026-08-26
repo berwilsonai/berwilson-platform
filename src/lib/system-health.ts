@@ -14,6 +14,7 @@ import os from 'os'
 import path from 'path'
 import {
   probeGoogleConnection,
+  probeScopeCoverage,
   googleFetch,
   PRIMARY_MAILBOX,
   type GoogleProbe,
@@ -278,3 +279,5 @@ export async function probeDriveKnowledge(): Promise<{
   }
 }
 
+// Re-exported so the health page has one import site for every probe.
+export { probeScopeCoverage }
