@@ -9,12 +9,14 @@ import { canAccessPage, type Role } from '@/lib/auth/permissions'
 import { NAV_ITEMS, NAV_GROUP_ORDER, navItemActive, resolveNavItem } from '@/lib/nav'
 
 interface AppSidebarProps {
+  /** Module keys with no data — their nav rows are hidden. */
+  emptyModules?: string[]
   pendingReviewCount?: number
   attentionCount?: number
   role?: Role
 }
 
-export default function AppSidebar({ pendingReviewCount = 0, attentionCount = 0, role = 'admin' }: AppSidebarProps) {
+export default function AppSidebar({ pendingReviewCount = 0, attentionCount = 0, role = 'admin', emptyModules = [] }: AppSidebarProps) {
   const pathname = usePathname()
   const [collapsed, setCollapsed] = useState(false)
   const [systemOpen, setSystemOpen] = useState(false)
@@ -24,7 +26,9 @@ export default function AppSidebar({ pendingReviewCount = 0, attentionCount = 0,
   const navGroups = NAV_GROUP_ORDER.filter(({ group }) => group !== 'system')
     .map(({ group, label }) => ({
       label,
-      items: NAV_ITEMS.filter((item) => item.group === group)
+      items: NAV_ITEMS.filter(
+        (item) => item.group === group && !(item.hideWhenEmpty && emptyModules.includes(item.hideWhenEmpty))
+      )
         .map((item) => resolveNavItem(item, (href) => canAccessPage(role, href)))
         .filter((item): item is NonNullable<typeof item> => item !== null),
     }))

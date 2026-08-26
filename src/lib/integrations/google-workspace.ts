@@ -46,7 +46,7 @@
  * Don't "fix" it by hard-coding credential paths.
  */
 
-import { createSign, randomBytes } from 'node:crypto'
+import { createSign, randomBytes, createHash } from 'node:crypto'
 import { existsSync, readFileSync } from 'node:fs'
 
 // ---------------------------------------------------------------------------
@@ -73,6 +73,11 @@ export const SCOPES = [
   // `node scripts/setup-google-oauth.mjs`. sendMail() says exactly that.
   'https://www.googleapis.com/auth/gmail.send',
   'https://www.googleapis.com/auth/calendar.readonly',
+  // Write scope for the deadline calendar. Bid dates, site visits and RFI
+  // deadlines otherwise exist ONLY inside a tailnet-only app the wider team
+  // cannot reach — a mandatory pre-bid site visit nobody can see is a missed
+  // bid. Scoped to events, so it cannot create or delete calendars themselves.
+  'https://www.googleapis.com/auth/calendar.events',
   'https://www.googleapis.com/auth/contacts.readonly',
   'https://www.googleapis.com/auth/contacts.other.readonly',
   // Read-only Drive, for the nominated knowledge folder the nightly sync
@@ -526,6 +531,11 @@ export function explainTokenError(raw: string): string {
   }
   if (raw.includes('invalid_client') || raw.includes('Invalid JWT Signature')) {
     return 'the service account key was rejected. It may have been deleted or rotated in Google Cloud — download a fresh JSON key and update GOOGLE_SERVICE_ACCOUNT_KEY_FILE.'
+  }
+  if (raw.includes('insufficientPermissions') || raw.includes('insufficient authentication scopes')) {
+    // The token predates a scope the code now needs — the usual cause is a
+    // scope added to SCOPES without re-running consent for each mailbox.
+    return 'the stored consent predates a scope this call needs. Re-consent with: node scripts/setup-google-oauth.mjs'
   }
   if (raw.includes('accessNotConfigured') || raw.includes('has not been used in project')) {
     // Google's own message names the exact API and includes a direct enable
@@ -1183,4 +1193,91 @@ export async function probeGoogleConnection(): Promise<GoogleProbe> {
         : `${failed.length} of ${MAILBOXES.length} mailboxes could not be reached.`,
     rawError: failed[0]?.error,
   }
+}
+
+/** A date-only deadline written to the calendar as an all-day event. */
+export interface CalendarWrite {
+  /** Stable key so re-running never creates a second copy of the same date. */
+  externalId: string
+  summary: string
+  description?: string | null
+  location?: string | null
+  /** YYYY-MM-DD. All-day: a bid deadline is a day, not a moment. */
+  date: string
+  /** Who should see it. Defaults to the calendar owner only. */
+  attendees?: string[]
+}
+
+/**
+ * Create or update an all-day event, keyed by {@link CalendarWrite.externalId}.
+ *
+ * Idempotent by construction: Google lets the caller supply the event id, so
+ * the same deadline written twice is one event that gets updated, not two that
+ * both fire. That matters because the lead sweep runs daily and a bid date can
+ * change — an ITB whose date moves should MOVE, not duplicate.
+ *
+ * Never throws: a calendar write failing must not fail the sweep that produced
+ * the lead. The lead is safe in the queue either way.
+ */
+export async function upsertCalendarEvent(
+  event: CalendarWrite,
+  mailbox: string = PRIMARY_MAILBOX
+): Promise<{ ok: boolean; created?: boolean; error?: string }> {
+  // Google requires event ids to be base32hex (lowercase a-v and 0-9), 5-1024
+  // chars. A UUID with the hyphens stripped is not valid — w/x/y/z appear — so
+  // the key is hashed into the allowed alphabet.
+  const id = externalIdToEventId(event.externalId)
+  const token = await getAccessToken(mailbox)
+
+  const end = new Date(`${event.date}T00:00:00Z`)
+  end.setUTCDate(end.getUTCDate() + 1) // all-day end is exclusive
+
+  const body = {
+    id,
+    summary: event.summary,
+    description: event.description ?? undefined,
+    location: event.location ?? undefined,
+    start: { date: event.date },
+    end: { date: end.toISOString().split('T')[0] },
+    ...(event.attendees?.length
+      ? { attendees: event.attendees.map((email) => ({ email })) }
+      : {}),
+    // A deadline you are not reminded of is a deadline you miss.
+    reminders: {
+      useDefault: false,
+      overrides: [
+        { method: 'popup', minutes: 24 * 60 },
+        { method: 'popup', minutes: 3 * 24 * 60 },
+      ],
+    },
+  }
+
+  const base = `${CALENDAR_BASE}/calendars/${encodeURIComponent(mailbox)}/events`
+  const insert = await fetch(base, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  if (insert.ok) return { ok: true, created: true }
+
+  // 409 means the id already exists — the deadline is already on the calendar,
+  // so update it in place rather than leaving a stale date sitting there.
+  if (insert.status === 409) {
+    const patch = await fetch(`${base}/${id}`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+    if (patch.ok) return { ok: true, created: false }
+    return { ok: false, error: explainTokenError(await patch.text()) }
+  }
+
+  return { ok: false, error: explainTokenError(await insert.text()) }
+}
+
+/** Map any string to a valid Google event id (base32hex, deterministic). */
+function externalIdToEventId(external: string): string {
+  const hash = createHash('sha1').update(external).digest('hex')
+  // hex uses 0-9a-f, all inside base32hex's 0-9a-v — valid as-is.
+  return `bw${hash}`
 }

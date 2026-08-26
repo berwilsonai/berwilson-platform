@@ -1,5 +1,6 @@
 import {
   Radar,
+  Gavel,
   LayoutDashboard,
   FolderKanban,
   Users,
@@ -46,6 +47,16 @@ export interface NavItem {
   /** Extra path prefixes that should highlight this item as active. */
   alsoMatches?: string[]
   /**
+   * Hide this destination until its module holds data.
+   *
+   * A nav row for a module with nothing in it is a permanent invitation to a
+   * dead end. Dino is the live case: the operating company is mid-acquisition,
+   * so the module is real and will fill — hiding it until then beats deleting
+   * work that is about to be needed, and it un-hides itself with no code change
+   * the moment the first row lands.
+   */
+  hideWhenEmpty?: 'dino'
+  /**
    * Substitute destination when the role can't access `href` but CAN access
    * this one (e.g. every role may view /company/structure while /company
    * stays admin-only). Consumers resolve it via `resolveNavItem`.
@@ -66,21 +77,21 @@ export function resolveNavItem(item: NavItem, allowed: (href: string) => boolean
 }
 
 export const NAV_ITEMS: NavItem[] = [
+  { href: '/decide', label: 'Decide', title: 'Decide', icon: Gavel, group: 'primary', keywords: 'review queue approve confirm pending inbox decisions bids intake what needs me triage backlog', mobilePrimary: true, badge: 'review', alsoMatches: ['/leads', '/intake', '/review', '/email-ingestion'] },
   { href: '/tasks', label: 'Tasks', title: 'Team Tasks', icon: ListChecks, group: 'primary', keywords: 'todo action items team workload capacity', mobilePrimary: true },
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, group: 'primary', keywords: 'home overview alerts urgent overdue attention', mobilePrimary: true, badge: 'attention' },
   { href: '/objectives', label: 'Objectives', icon: Target, group: 'primary', keywords: 'priorities goals strategy steering now soon possibly focus' },
   { href: '/projects', label: 'Projects', icon: FolderKanban, group: 'primary', keywords: 'pipeline deals', mobilePrimary: true },
   { href: '/opportunities', label: 'Opportunities', icon: Lightbulb, group: 'primary', keywords: 'acquisitions partnerships jv mergers investments deals' },
-  { href: '/leads', label: 'Leads', title: 'Inbound Leads', icon: Radar, group: 'primary', keywords: 'inbound bids invitations itb ifb rfp rfq solicitations plan room prospects enquiries info inbox scored triage' },
+  { href: '/leads', label: 'Leads', title: 'Inbound Leads', icon: Radar, group: 'intelligence', keywords: 'inbound bids invitations itb ifb rfp rfq solicitations plan room prospects enquiries info inbox scored triage' },
   { href: '/investors', label: 'Investors', icon: HandCoins, group: 'primary', keywords: 'capital raise fundraising equity spv commitments funding money lp' },
   { href: '/steel', label: 'Steel CRM', icon: Factory, group: 'primary', keywords: 'prefab steel sales deals quotes square feet sqft plant manufacturing buildings customers' },
-  { href: '/dino', label: 'Dino', title: 'Dino Service Pros', icon: Wrench, group: 'primary', keywords: 'dino service pros plumbing hvac mechanical revenue operating company internal trades payments' },
+  { href: '/dino', label: 'Dino', title: 'Dino Service Pros', icon: Wrench, group: 'primary', hideWhenEmpty: 'dino', keywords: 'dino service pros plumbing hvac mechanical revenue operating company internal trades payments' },
   { href: '/map', label: 'Map', title: 'Project Map', icon: MapIcon, group: 'primary', keywords: 'map geography utah locations sites markers rail corridors presentation visualize' },
   { href: '/intel', label: 'Intel', icon: Brain, group: 'intelligence', keywords: 'ask query search ai agent calendar meetings', mobilePrimary: true, alsoMatches: ['/calendar'] },
   { href: '/intake', label: 'Intake', icon: Inbox, group: 'intelligence', keywords: 'email inbox ingest gmail sweep research proposal rfp upload document intake meeting notes minutes attendees follow-up transcript recap digest summarize read aloud understand', alsoMatches: ['/email-ingestion', '/proposals/intake', '/intake/meeting', '/intake/document'] },
   { href: '/contacts', label: 'Contacts & Vendors', title: 'Directory', icon: Users, group: 'directory', keywords: 'people parties rolodex directory contacts vendors', alsoMatches: ['/vendors'] },
   { href: '/company', label: 'Ber Wilson', icon: Shield, group: 'directory', keywords: 'company profile capabilities certs', fallback: { href: '/company/structure', label: 'Org Structure' } },
-  { href: '/review', label: 'Review Queue', title: 'Review Queue', icon: ClipboardCheck, group: 'system', keywords: 'pending approve reject', mobilePrimary: true, badge: 'review' },
   { href: '/activity', label: 'Activity', icon: Activity, group: 'system', keywords: 'audit log history changes' },
   { href: '/settings/users', label: 'Users & Access', icon: UserCog, group: 'system', keywords: 'roles invite permissions team accounts' },
   { href: '/settings/health', label: 'System Health', icon: HeartPulse, group: 'system', keywords: 'status probes mailbox backups disk checks' },

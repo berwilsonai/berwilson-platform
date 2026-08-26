@@ -17,8 +17,9 @@ import { fetchAllMailboxes, type FetchProgress } from '@/lib/email-sweep/fetch-p
 import { triagePendingLeads, type TriageProgress } from './triage-phase'
 import { scorePendingLeads, expireStaleLeads, type ScoreProgress } from './score-phase'
 import { notifyScoredLeads, type LeadNotifyProgress } from './notify-leads'
+import { syncLeadDeadlines, type LeadCalendarProgress } from './calendar'
 
-export type LeadPhase = 'fetch' | 'triage' | 'score' | 'expire' | 'notify'
+export type LeadPhase = 'fetch' | 'triage' | 'score' | 'expire' | 'notify' | 'calendar'
 
 export interface LeadSweepOptions {
   phases?: LeadPhase[]
@@ -40,11 +41,12 @@ export interface LeadSweepResult {
   score?: ScoreProgress
   expired?: number
   notified?: LeadNotifyProgress
+  calendar?: LeadCalendarProgress
   elapsedMs: number
   moreWork: boolean
 }
 
-const ALL_PHASES: LeadPhase[] = ['fetch', 'triage', 'score', 'expire', 'notify']
+const ALL_PHASES: LeadPhase[] = ['fetch', 'triage', 'score', 'expire', 'calendar', 'notify']
 
 export const DEFAULT_LEAD_HISTORY_DAYS = 90
 
@@ -124,6 +126,12 @@ export async function runLeadSweep(opts: LeadSweepOptions = {}): Promise<LeadSwe
     // Cheap and deterministic — always worth running so the queue self-drains.
     result.expired = await expireStaleLeads()
     result.ranPhases.push('expire')
+  }
+
+  if (phases.includes('calendar')) {
+    // Before notify, so the mail and the calendar agree about what is due.
+    result.calendar = await syncLeadDeadlines()
+    result.ranPhases.push('calendar')
   }
 
   if (phases.includes('notify')) {

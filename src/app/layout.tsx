@@ -83,10 +83,12 @@ export default async function RootLayout({
   // surfaces, so skip the queries for everyone else.
   let pendingReviewCount = 0
   let attentionCount = 0
+  // Modules with nothing in them are hidden rather than shown as dead ends.
+  let emptyModules: string[] = []
   if (showShell && isAdmin) {
     const adminClient = createAdminClient()
     const today = new Date().toISOString().split('T')[0]
-    const [{ count: reviewCount }, { count: overdueMs }, { count: criticalDd }, { count: overdueTasks }] = await Promise.all([
+    const [{ count: reviewCount }, { count: overdueMs }, { count: criticalDd }, { count: overdueTasks }, { count: dinoRows }] = await Promise.all([
       adminClient
         .from('review_queue')
         .select('id', { count: 'exact', head: true })
@@ -106,9 +108,11 @@ export default async function RootLayout({
         .select('id', { count: 'exact', head: true })
         .eq('status', 'open')
         .lt('due_date', today),
+      adminClient.from('dino_revenue').select('id', { count: 'exact', head: true }),
     ])
     pendingReviewCount = reviewCount ?? 0
     attentionCount = (overdueMs ?? 0) + (criticalDd ?? 0) + (overdueTasks ?? 0)
+    if ((dinoRows ?? 0) === 0) emptyModules.push('dino')
   }
 
   return (
@@ -126,7 +130,7 @@ export default async function RootLayout({
         />
         {showShell ? (
           <div className="flex h-full">
-            <AppSidebar pendingReviewCount={pendingReviewCount} attentionCount={attentionCount} role={role} />
+            <AppSidebar pendingReviewCount={pendingReviewCount} attentionCount={attentionCount} role={role} emptyModules={emptyModules} />
             <div className="flex flex-1 flex-col min-w-0">
               <AppHeader email={viewer?.email ?? ""} role={role} />
               <main className="flex-1 overflow-y-auto overflow-x-hidden p-5 sm:p-6 pb-24 md:pb-6 scrollbar-thin animate-fade-in-up">
@@ -139,7 +143,7 @@ export default async function RootLayout({
                 </footer>
               </main>
             </div>
-            <MobileNav pendingCount={pendingReviewCount} role={role} />
+            <MobileNav pendingCount={pendingReviewCount} role={role} emptyModules={emptyModules} />
             {isAdmin && <MobileQuickUpload />}
             {isAdmin && <AskBerAIDock />}
           </div>

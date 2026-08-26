@@ -8,16 +8,21 @@ import { canAccessPage, type Role } from '@/lib/auth/permissions'
 import { NAV_ITEMS, navItemActive, resolveNavItem } from '@/lib/nav'
 
 interface MobileNavProps {
+  /** Module keys with no data — their nav rows are hidden. */
+  emptyModules?: string[]
   pendingCount?: number
   role?: Role
 }
 
-export default function MobileNav({ pendingCount = 0, role = 'admin' }: MobileNavProps) {
+export default function MobileNav({ pendingCount = 0, role = 'admin', emptyModules = [] }: MobileNavProps) {
   const pathname = usePathname()
   const [moreOpen, setMoreOpen] = useState(false)
   const isAdmin = role === 'admin'
 
-  const accessible = NAV_ITEMS.map((item) => resolveNavItem(item, (href) => canAccessPage(role, href)))
+  const accessible = NAV_ITEMS.filter(
+    (item) => !(item.hideWhenEmpty && emptyModules.includes(item.hideWhenEmpty))
+  )
+    .map((item) => resolveNavItem(item, (href) => canAccessPage(role, href)))
     .filter((item): item is NonNullable<typeof item> => item !== null)
   const primaryNav = accessible.filter((item) => item.mobilePrimary)
   const moreNav = accessible.filter((item) => !item.mobilePrimary)
