@@ -48,8 +48,18 @@ const ALL_PHASES: LeadPhase[] = ['fetch', 'triage', 'score', 'expire', 'notify']
 
 export const DEFAULT_LEAD_HISTORY_DAYS = 90
 
-/** Share of the remaining budget scoring may take before triage gets the rest. */
+/** Share of the remaining budget the first scoring pass may take. */
 const SCORE_SHARE = 0.4
+
+/**
+ * Share of the budget held back from triage for a SECOND scoring pass.
+ *
+ * Without it, triage consumes everything left and a lead read this morning is
+ * not scored — and so not announced — until tomorrow's run. For a bid
+ * invitation with a deadline, a day of latency on the fit assessment is most of
+ * the value gone. The tail pass scores what this run just triaged.
+ */
+const TAIL_SHARE = 0.25
 
 export async function runLeadSweep(opts: LeadSweepOptions = {}): Promise<LeadSweepResult> {
   const phases = opts.phases ?? ALL_PHASES
@@ -81,11 +91,33 @@ export async function runLeadSweep(opts: LeadSweepOptions = {}): Promise<LeadSwe
 
   if (phases.includes('triage') && remaining() > 0) {
     result.triage = await triagePendingLeads({
-      budgetMs: remaining(),
+      // Hold a slice back so the leads this pass creates can be scored below
+      // rather than waiting a full day for the next run.
+      budgetMs: Math.max(0, remaining() * (1 - TAIL_SHARE)),
       userId: opts.userId,
     })
     result.ranPhases.push('triage')
     if (result.triage.remaining > 0) result.moreWork = true
+
+    // Tail pass: score what we just triaged, so notify has something to send.
+    if (phases.includes('score') && remaining() > 0 && result.triage.leads > 0) {
+      const tail = await scorePendingLeads({
+        budgetMs: remaining(),
+        userId: opts.userId,
+      })
+      result.score = result.score
+        ? {
+            processed: result.score.processed + tail.processed,
+            scored: result.score.scored + tail.scored,
+            failed: result.score.failed + tail.failed,
+            attachmentsStaged: result.score.attachmentsStaged + tail.attachmentsStaged,
+            // The tail ran last, so its view of what is left is the current one.
+            remaining: tail.remaining,
+            outOfTime: tail.outOfTime,
+          }
+        : tail
+      if (tail.remaining > 0) result.moreWork = true
+    }
   }
 
   if (phases.includes('expire')) {

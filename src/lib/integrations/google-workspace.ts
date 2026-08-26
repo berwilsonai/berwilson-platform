@@ -528,7 +528,13 @@ export function explainTokenError(raw: string): string {
     return 'the service account key was rejected. It may have been deleted or rotated in Google Cloud — download a fresh JSON key and update GOOGLE_SERVICE_ACCOUNT_KEY_FILE.'
   }
   if (raw.includes('accessNotConfigured') || raw.includes('has not been used in project')) {
-    return 'the required API is not enabled on the Google Cloud project. Enable the Gmail, Calendar, and People APIs, then retry.'
+    // Google's own message names the exact API and includes a direct enable
+    // link for this project, which beats any list we hard-code here — the
+    // original text said "Gmail, Calendar, and People" and so pointed the
+    // reader at the wrong three APIs the day Drive was added.
+    const detail = /"message":\s*"([^"]*has not been used in project[^"]*)"/.exec(raw)?.[1]
+    if (detail) return `the required API is not enabled on the Google Cloud project. ${detail}`
+    return 'the required API is not enabled on the Google Cloud project. Enable it in the Cloud console (APIs & Services → Library), then retry.'
   }
   return raw.slice(0, 400)
 }
