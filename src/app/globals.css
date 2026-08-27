@@ -217,6 +217,9 @@
 }
 
 /* ─── Typography refinements ───────────────────────────────────────────────── */
+/* NOTE: `text-wrap: balance` also sets `text-wrap-mode: wrap`, which overrides
+   the nowrap that `truncate` contributes via the `white-space` shorthand. Do
+   not combine this class with `truncate` — use `tracking-[-0.02em]` there. */
 .heading-tight {
   letter-spacing: -0.02em;
   text-wrap: balance;

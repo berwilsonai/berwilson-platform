@@ -43,7 +43,11 @@ export default function AppHeader({ email, role = 'admin' }: { email: string; ro
             className="object-contain h-5 w-auto md:hidden shrink-0"
             priority
           />
-          <h1 className="text-lg font-semibold text-foreground truncate heading-tight">{pageTitle(pathname)}</h1>
+          {/* `tracking-[-0.02em]`, not `heading-tight`: that utility also sets
+              `text-wrap: balance`, which resets the wrap half of `white-space`
+              and so silently defeated `truncate` — the title wrapped to two
+              lines in the band between the mobile and sidebar layouts. */}
+          <h1 className="text-lg font-semibold text-foreground truncate tracking-[-0.02em]">{pageTitle(pathname)}</h1>
         </div>
 
         <div className="flex items-center gap-1.5 shrink-0">
