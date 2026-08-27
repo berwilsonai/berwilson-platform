@@ -20,6 +20,7 @@ import { notifyScoredLeads, type LeadNotifyProgress } from './notify-leads'
 import { syncLeadDeadlines, type LeadCalendarProgress } from './calendar'
 import { syncLeadLabels, type LeadLabelProgress } from './gmail-sync'
 import { draftLeadReplies, type LeadDraftProgress } from './draft-reply'
+import { publishLeadSheetsQuietly, type PublishSheetsResult } from './sheet'
 
 export type LeadPhase =
   | 'fetch'
@@ -30,6 +31,7 @@ export type LeadPhase =
   | 'calendar'
   | 'label'
   | 'draft'
+  | 'sheets'
 
 export interface LeadSweepOptions {
   phases?: LeadPhase[]
@@ -54,6 +56,7 @@ export interface LeadSweepResult {
   calendar?: LeadCalendarProgress
   labels?: LeadLabelProgress
   drafts?: LeadDraftProgress
+  sheets?: PublishSheetsResult | null
   elapsedMs: number
   moreWork: boolean
 }
@@ -67,6 +70,7 @@ const ALL_PHASES: LeadPhase[] = [
   'draft',
   'calendar',
   'notify',
+  'sheets',
 ]
 
 export const DEFAULT_LEAD_HISTORY_DAYS = 90
@@ -180,6 +184,15 @@ export async function runLeadSweep(opts: LeadSweepOptions = {}): Promise<LeadSwe
     // stored, and announcing them is what makes them useful. Never throws.
     result.notified = await notifyScoredLeads()
     result.ranPhases.push('notify')
+  }
+
+  if (phases.includes('sheets')) {
+    // Also outside the budget check, and also cheap: two Drive writes. This is
+    // the only way the steel reps and Dino — none of whom have a platform
+    // login, and Dino never will — see the queue at all, so it must not be the
+    // phase that gets skipped when a long triage overruns.
+    result.sheets = await publishLeadSheetsQuietly()
+    result.ranPhases.push('sheets')
   }
 
   result.elapsedMs = Date.now() - started

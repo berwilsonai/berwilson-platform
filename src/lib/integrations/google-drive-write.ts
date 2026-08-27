@@ -30,6 +30,7 @@ import {
 
 const DRIVE_BASE = 'https://www.googleapis.com/drive/v3'
 const DRIVE_UPLOAD = 'https://www.googleapis.com/upload/drive/v3/files'
+const SHEET_MIME = 'application/vnd.google-apps.spreadsheet'
 const FOLDER_MIME = 'application/vnd.google-apps.folder'
 
 /** The tree everything the platform publishes lives under. */
@@ -267,6 +268,108 @@ export async function uploadToFolder(input: UploadInput): Promise<DriveFileRef> 
       body: new Uint8Array(body),
     }
   )
+}
+
+/** Find a non-folder file by exact name under a parent. */
+async function findFile(
+  mailbox: string,
+  name: string,
+  parentId: string
+): Promise<DriveFileRef | null> {
+  const q = [
+    `name = '${name.replace(/'/g, "\\'")}'`,
+    `'${parentId}' in parents`,
+    'trashed = false',
+  ].join(' and ')
+
+  const params = new URLSearchParams({
+    q,
+    fields: 'files(id, name, webViewLink)',
+    pageSize: '10',
+    supportsAllDrives: 'true',
+    includeItemsFromAllDrives: 'true',
+  })
+
+  const data = await googleFetch<{ files?: DriveFileRef[] }>(
+    `${DRIVE_BASE}/files?${params.toString()}`,
+    mailbox
+  )
+  return data.files?.[0] ?? null
+}
+
+/**
+ * Create or refresh a native Google Sheet from CSV.
+ *
+ * Deliberately goes through Drive's CSV conversion rather than the Sheets API.
+ * Three things fall out of that choice, all of them the point:
+ *
+ *  - **No new API and no new scope.** Drive is already enabled and proven;
+ *    reaching for Sheets would mean enabling another API on the Cloud project,
+ *    which has already been a stumbling block twice.
+ *  - **The file id is stable.** Refreshing writes new media to the SAME file, so
+ *    the link a rep bookmarked and any access granted to an outside collaborator
+ *    both survive every nightly rebuild. Deleting and recreating would silently
+ *    revoke a share and break a saved link once a day.
+ *  - **Whole-sheet replace.** The platform owns every row; there is no merge to
+ *    get wrong, which is what keeps this a read-only projection rather than a
+ *    second source of truth.
+ *
+ * Looked up by name rather than stored, unlike the per-record folders: there is
+ * exactly one sheet per route and the name is generated, so the ambiguity that
+ * forced those to create-not-find cannot arise here.
+ */
+export async function upsertSheetFromCsv(input: {
+  folderId: string
+  /** File name shown in Drive. Also the lookup key, so keep it stable. */
+  name: string
+  csv: string
+  mailbox?: string
+}): Promise<{ ref: DriveFileRef; created: boolean }> {
+  const mailbox = input.mailbox ?? PRIMARY_MAILBOX
+  const media = Buffer.from(input.csv, 'utf8')
+
+  const existing = await findFile(mailbox, input.name, input.folderId)
+  if (existing) {
+    await driveWrite(
+      mailbox,
+      `${DRIVE_UPLOAD}/${existing.id}?uploadType=media&supportsAllDrives=true`,
+      {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'text/csv' },
+        body: new Uint8Array(media),
+      }
+    )
+    return { ref: existing, created: false }
+  }
+
+  const boundary = `bwsheet_${Math.abs(hashString(input.name + media.length)).toString(36)}`
+  // The metadata mimeType is what tells Drive to CONVERT the uploaded CSV into a
+  // real Sheet instead of storing it as an attached file.
+  const metadata = JSON.stringify({
+    name: input.name,
+    parents: [input.folderId],
+    mimeType: SHEET_MIME,
+  })
+  const body = Buffer.concat([
+    Buffer.from(
+      `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${metadata}\r\n` +
+        `--${boundary}\r\nContent-Type: text/csv\r\n\r\n`,
+      'utf8'
+    ),
+    media,
+    Buffer.from(`\r\n--${boundary}--\r\n`, 'utf8'),
+  ])
+
+  const ref = await driveWrite<DriveFileRef>(
+    mailbox,
+    `${DRIVE_UPLOAD}?uploadType=multipart&fields=id,name,webViewLink&supportsAllDrives=true`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': `multipart/related; boundary=${boundary}` },
+      body: new Uint8Array(body),
+    }
+  )
+  return { ref, created: true }
 }
 
 /**
