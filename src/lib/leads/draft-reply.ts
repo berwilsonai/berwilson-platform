@@ -22,13 +22,21 @@ import {
   LEAD_REPLY_SYSTEM_PROMPT,
   buildLeadReplyMessage,
 } from '@/lib/ai/prompts/lead-reply'
-import { LEAD_MAILBOXES, fetchThread } from '@/lib/integrations/google-workspace'
+import { LEAD_MAILBOXES, allMailboxes, fetchThread } from '@/lib/integrations/google-workspace'
 import { GmailScopeError, createDraft } from '@/lib/integrations/gmail-write'
-import { leadsDb, stringArray, type LeadRow } from './db'
+import {
+  GMAIL_THREAD_EMBED,
+  leadsDb,
+  resolveGmailThreadId,
+  stringArray,
+  type LeadRow,
+} from './db'
 
 export interface LeadDraftProgress {
   considered: number
   drafted: number
+  /** Automated senders with no human to answer — expected, not a fault. */
+  noReply: number
   failed: number
   skipped: boolean
   reason?: string
@@ -47,6 +55,52 @@ export interface LeadDraftProgress {
 const DRAFT_FOR = new Set(['pursue'])
 
 const SYSTEM_USER_ID = '00000000-0000-0000-0000-000000000000'
+
+/**
+ * Addresses that cannot receive a reply.
+ *
+ * A large share of inbound bid invitations arrive from plan rooms (BidNet,
+ * Dodge, iSqFt) as automated notifications from a no-reply address, where the
+ * real response goes through the portal instead. Drafting into one of those is
+ * worse than drafting nothing: it looks like a reply is ready to send, and it
+ * would go nowhere. Better to leave the lead alone and let the queue's own
+ * links take the reader to the portal.
+ */
+const NO_REPLY = /^(no[-_.]?reply|do[-_.]?not[-_.]?reply|donotreply|notifications?|automated|mailer[-_.]?daemon|bounce)/i
+
+/** True when nothing useful can be sent to this address. */
+export function isNoReplyAddress(address: string | null | undefined): boolean {
+  if (!address) return true
+  const local = address.split('@')[0] ?? ''
+  return NO_REPLY.test(local.trim())
+}
+
+/**
+ * The best address to answer on a thread.
+ *
+ * Walks BACKWARDS from the most recent message, skipping two kinds of sender:
+ * robots (nothing to answer) and OURSELVES. The last message in a live thread
+ * is very often Ber Wilson's own reply, and answering that addresses the draft
+ * back to the mailbox it was written in — which reads as a working draft right
+ * up until somebody notices it goes nowhere.
+ *
+ * Returns null when no external human ever spoke.
+ */
+export function replyAddressFor(
+  messages: { from?: { address?: string | null } | null }[],
+  fallback: string | null,
+  ownAddresses: Iterable<string> = []
+): string | null {
+  const ours = new Set([...ownAddresses].map((a) => a.trim().toLowerCase()))
+  const usable = (addr: string | null | undefined): addr is string =>
+    Boolean(addr) && !isNoReplyAddress(addr) && !ours.has(String(addr).trim().toLowerCase())
+
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const addr = messages[i]?.from?.address
+    if (usable(addr)) return addr
+  }
+  return usable(fallback) ? fallback : null
+}
 
 /** Strip the model's habitual code fence and any stray subject line. */
 function cleanHtml(raw: string): string {
@@ -73,6 +127,7 @@ export async function draftLeadReplies(
   const progress: LeadDraftProgress = {
     considered: 0,
     drafted: 0,
+    noReply: 0,
     failed: 0,
     skipped: false,
     errors: [],
@@ -88,18 +143,21 @@ export async function draftLeadReplies(
   try {
     const { data, error } = await leadsDb()
       .from('leads')
-      .select('*')
+      .select(`*, ${GMAIL_THREAD_EMBED}`)
       .in('status', ['new', 'reviewing'])
       .eq('score_state', 'scored')
+      // The verdict filter belongs in the QUERY, not after it. Applied in JS
+      // the limit bounds the wrong set: with more scored leads than the limit,
+      // a pursue lead sitting below the cut is fetched away by leads that were
+      // never candidates, and never gets drafted at all.
+      .in('fit_recommendation', [...DRAFT_FOR])
       .is('gmail_draft_id', null)
       .not('thread_id', 'is', null)
       .order('bid_due_date', { ascending: true, nullsFirst: false })
       .limit(opts.limit ?? 20)
     if (error) return { ...progress, skipped: true, reason: error.message }
 
-    const leads = ((data ?? []) as LeadRow[]).filter((l) =>
-      DRAFT_FOR.has(String(l.fit_recommendation))
-    )
+    const leads = (data ?? []) as LeadRow[]
 
     for (const lead of leads) {
       if (Date.now() - started > budgetMs) {
@@ -110,15 +168,27 @@ export async function draftLeadReplies(
       const mailbox = lead.mailbox ?? LEAD_MAILBOXES[0]
 
       try {
+        // Gmail's id for the conversation, not our UUID primary key — the two
+        // are different values and Google rejects ours outright.
+        const gmailThreadId = await resolveGmailThreadId(lead)
+        if (!gmailThreadId) {
+          progress.failed++
+          progress.errors.push(`${lead.title}: no Gmail thread id on the stored thread.`)
+          continue
+        }
+
         // Re-read the thread rather than trusting the lead's stored sender: the
         // reply belongs to whoever spoke LAST, which after a follow-up is often
         // not the person who opened it.
-        const messages = await fetchThread(mailbox, lead.thread_id)
+        const messages = await fetchThread(mailbox, gmailThreadId)
         const last = messages[messages.length - 1]
-        const to = last?.from?.address ?? lead.sender_email
+        // Every mailbox this platform reads is "us" — a thread can legitimately
+        // involve more than one of them, and none of them is a recipient.
+        const to = replyAddressFor(messages, lead.sender_email, allMailboxes())
         if (!to) {
-          progress.failed++
-          progress.errors.push(`${lead.title}: no reply address on the thread.`)
+          // Not a failure — an automated plan-room notification is a normal
+          // thing to receive, and it simply has nobody to answer.
+          progress.noReply++
           continue
         }
 
@@ -153,7 +223,7 @@ export async function draftLeadReplies(
 
         const draftId = await createDraft({
           mailbox,
-          threadId: lead.thread_id,
+          threadId: gmailThreadId,
           to,
           subject: last?.subject || lead.title,
           inReplyTo: last?.messageId ?? null,

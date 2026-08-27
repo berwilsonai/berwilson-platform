@@ -18,7 +18,12 @@
 
 import { LEAD_MAILBOXES } from '@/lib/integrations/google-workspace'
 import { GmailScopeError, modifyThreadLabels } from '@/lib/integrations/gmail-write'
-import { leadsDb, type LeadRow } from './db'
+import {
+  GMAIL_THREAD_EMBED,
+  leadsDb,
+  resolveGmailThreadId,
+  type LeadRow,
+} from './db'
 
 export interface LeadLabelProgress {
   considered: number
@@ -83,7 +88,11 @@ export function desiredLabel(lead: Pick<LeadRow, 'status' | 'fit_recommendation'
 export type LabelableLead = Pick<
   LeadRow,
   'id' | 'thread_id' | 'mailbox' | 'status' | 'fit_recommendation' | 'gmail_label'
->
+> & {
+  /** Optional; resolved from the thread when absent. See resolveGmailThreadId. */
+  gmail_thread_id?: string | null
+  email_threads?: { gmail_thread_id?: string | null } | null
+}
 
 /**
  * Bring one lead's thread label in line with its state, and record what was
@@ -97,7 +106,14 @@ export async function applyLeadLabel(lead: LabelableLead): Promise<string | null
   const want = desiredLabel(lead)
   if (!want || want === lead.gmail_label || !lead.thread_id) return null
 
-  await modifyThreadLabels(lead.mailbox ?? LEAD_MAILBOXES[0], lead.thread_id, {
+  // Gmail knows the conversation by its own id, not by our UUID primary key.
+  // Resolved here rather than demanded from the caller: the API routes hold a
+  // plain LeadRow read with select('*'), and a forgotten join must not turn
+  // into a request Google rejects.
+  const gmailThreadId = await resolveGmailThreadId(lead)
+  if (!gmailThreadId) return null
+
+  await modifyThreadLabels(lead.mailbox ?? LEAD_MAILBOXES[0], gmailThreadId, {
     add: [want],
     // Only the label THIS platform last applied is removed. Anything a human
     // filed the thread under is theirs and stays.
@@ -145,7 +161,9 @@ export async function syncLeadLabels(): Promise<LeadLabelProgress> {
   try {
     const { data, error } = await leadsDb()
       .from('leads')
-      .select('id, thread_id, mailbox, status, fit_recommendation, gmail_label')
+      .select(
+        `id, thread_id, mailbox, status, fit_recommendation, gmail_label, ${GMAIL_THREAD_EMBED}`
+      )
       .not('thread_id', 'is', null)
       .order('updated_at', { ascending: false })
       .limit(2000)

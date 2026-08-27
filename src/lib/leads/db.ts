@@ -94,6 +94,16 @@ export interface LeadRow {
   forwarded_at: string | null
 
   /**
+   * Gmail's own id for the conversation, joined in from `email_threads`.
+   *
+   * NOT the same thing as `thread_id`, which is this platform's UUID primary
+   * key on `email_threads` — passing that to Google returns "Invalid id value".
+   * Present only on reads that ask for it; use {@link resolveGmailThreadId}
+   * rather than reaching for `thread_id` when talking to Gmail.
+   */
+  gmail_thread_id?: string | null
+
+  /**
    * What the platform has already written back into Gmail — the label last
    * applied to the thread, and the draft reply left for a human to send. Both
    * are latches: they are what stop a daily sweep relabelling and re-drafting
@@ -129,4 +139,49 @@ export function parseLeadAttachments(value: unknown): LeadAttachment[] {
       typeof (a as LeadAttachment).name === 'string' &&
       typeof (a as LeadAttachment).storage_path === 'string'
   )
+}
+
+/**
+ * PostgREST embed that carries Gmail's conversation id alongside a lead.
+ *
+ * `leads.thread_id` is a foreign key to `email_threads.id` — a UUID of this
+ * platform's own making. Gmail knows the conversation by a different id
+ * entirely, and handing it the UUID fails with "Invalid id value". Any read
+ * that will go on to touch Gmail must include this.
+ */
+export const GMAIL_THREAD_EMBED = 'email_threads(gmail_thread_id)'
+
+/** Shape PostgREST returns for the embed above. */
+type WithThreadEmbed = { email_threads?: { gmail_thread_id?: string | null } | null }
+
+/**
+ * Pull Gmail's thread id off a row read with {@link GMAIL_THREAD_EMBED},
+ * falling back to a flattened column when the caller has already flattened it.
+ */
+export function embeddedGmailThreadId(row: unknown): string | null {
+  const r = row as (WithThreadEmbed & { gmail_thread_id?: string | null }) | null
+  return r?.email_threads?.gmail_thread_id ?? r?.gmail_thread_id ?? null
+}
+
+/**
+ * Look up Gmail's conversation id for a lead, for callers holding a plain
+ * `LeadRow` that was read without the embed — the API routes, which select `*`.
+ *
+ * Deliberately a lookup rather than a required argument: a caller that forgets
+ * gets the right answer at the cost of one small query, instead of silently
+ * sending Google a UUID.
+ */
+export async function resolveGmailThreadId(
+  lead: Pick<LeadRow, 'thread_id'> & { gmail_thread_id?: string | null }
+): Promise<string | null> {
+  const embedded = embeddedGmailThreadId(lead)
+  if (embedded) return embedded
+  if (!lead.thread_id) return null
+
+  const { data } = await leadsDb()
+    .from('email_threads')
+    .select('gmail_thread_id')
+    .eq('id', lead.thread_id)
+    .maybeSingle()
+  return (data as { gmail_thread_id?: string | null } | null)?.gmail_thread_id ?? null
 }

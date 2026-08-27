@@ -176,7 +176,8 @@ export default function LeadDetailSheet({
       : lead.promoted_steel_deal_id
         ? `/steel/${lead.promoted_steel_deal_id}`
         : null
-  const gmailUrl = gmailThreadUrl(lead.mailbox, lead.thread_id)
+  // Gmail's own conversation id — `thread_id` is our UUID and resolves to nothing.
+  const gmailUrl = gmailThreadUrl(lead.mailbox, lead.gmail_thread_id ?? null)
 
   return (
     <>

@@ -1,7 +1,12 @@
 import { Radar } from 'lucide-react'
 import { redirect } from 'next/navigation'
 import { getViewer } from '@/lib/auth/viewer'
-import { leadsDb, type LeadRow } from '@/lib/leads/db'
+import {
+  GMAIL_THREAD_EMBED,
+  embeddedGmailThreadId,
+  leadsDb,
+  type LeadRow,
+} from '@/lib/leads/db'
 import LeadsClient from '@/components/leads/LeadsClient'
 
 export const metadata = { title: 'Leads — Ber Wilson Intelligence' }
@@ -31,7 +36,7 @@ export default async function LeadsPage({
   const [{ data: openRows, error }, { count: filteredCount }] = await Promise.all([
     db
       .from('leads')
-      .select('*')
+      .select(`*, ${GMAIL_THREAD_EMBED}`)
       .neq('status', 'spam')
       .order('bid_due_date', { ascending: true, nullsFirst: false })
       .order('fit_score', { ascending: false, nullsFirst: false })
@@ -47,12 +52,18 @@ export default async function LeadsPage({
 
   const { data: filteredRows } = await db
     .from('leads')
-    .select('*')
+    .select(`*, ${GMAIL_THREAD_EMBED}`)
     .eq('status', 'spam')
     .order('received_at', { ascending: false })
     .limit(200)
 
-  const leads = [...((openRows ?? []) as LeadRow[]), ...((filteredRows ?? []) as LeadRow[])]
+  // Flatten Gmail's conversation id up onto the row. The detail sheet links
+  // straight into the mailbox, and it cannot use `thread_id` for that — that is
+  // this platform's UUID, which Gmail does not recognise.
+  const flatten = (rows: unknown[] | null): LeadRow[] =>
+    ((rows ?? []) as LeadRow[]).map((r) => ({ ...r, gmail_thread_id: embeddedGmailThreadId(r) }))
+
+  const leads = [...flatten(openRows), ...flatten(filteredRows)]
 
   return (
     <div className="space-y-5">
