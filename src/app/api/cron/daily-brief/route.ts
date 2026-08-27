@@ -1,11 +1,13 @@
 /**
  * GET /api/cron/daily-brief
  *
- * Cron job that generates a portfolio daily brief and stores it.
- * Designed to run every morning. Does NOT send email — just stores the brief
- * in stored_briefs table for viewing at /briefs.
+ * Cron job that generates a portfolio daily brief, stores it, and posts it to
+ * the Google Chat space. Designed to run every morning.
  *
- * When email sending is ready, add the send step after storage.
+ * The Chat post is the part that gets it READ. For most of its life this brief
+ * was stored "for viewing at /briefs" — a page that does not exist — so it was
+ * written to a table with no reader. A shared space reaches the whole team,
+ * including everyone who cannot reach the tailnet at all.
  */
 
 import { NextRequest, NextResponse } from 'next/server'
@@ -14,6 +16,7 @@ import { callGemini } from '@/lib/ai/gemini'
 import { fetchOpenTasks, formatTaskLine } from '@/lib/tasks/queries'
 import { parseTranches, raiseLevels, fillTranches } from '@/lib/investors/raises'
 import { fetchCalendarEvents } from '@/lib/integrations/google-workspace'
+import { broadcastBrief } from '@/lib/notify/broadcast-brief'
 
 const SYSTEM_USER_ID = '00000000-0000-0000-0000-000000000000'
 
@@ -327,13 +330,14 @@ ${depRisks.join('\n') || '(none)'}`
   })
 
   const brief = result.data as string
+  const title = `Daily Brief — ${now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
 
   // Store the brief
   const { data: stored, error: storeError } = await supabase
     .from('stored_briefs')
     .insert({
       brief_type: 'portfolio',
-      title: `Daily Brief — ${now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`,
+      title,
       content: brief,
       model_used: result.model,
       latency_ms: result.latencyMs,
@@ -351,10 +355,21 @@ ${depRisks.join('\n') || '(none)'}`
     console.error('[daily-brief] Failed to store brief:', storeError.message)
   }
 
+  // Delivery is best-effort and deliberately after storage: the brief is
+  // already safe, so a Chat outage costs the post and nothing else.
+  const broadcast = await broadcastBrief(title, brief).catch((err) => ({
+    ok: false,
+    error: err instanceof Error ? err.message : String(err),
+  }))
+  if (!broadcast.ok && !('skipped' in broadcast && broadcast.skipped)) {
+    console.warn('[daily-brief] Chat post failed:', broadcast.error)
+  }
+
   return NextResponse.json({
     success: true,
     brief_id: stored?.id ?? null,
     model_used: result.model,
     latency_ms: result.latencyMs,
+    chat_posted: broadcast.ok,
   })
 }

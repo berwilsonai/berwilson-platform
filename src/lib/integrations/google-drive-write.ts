@@ -106,6 +106,43 @@ export async function shareWithDomain(fileId: string, mailbox: string): Promise<
   }
 }
 
+/**
+ * Make sure the folder is readable by the whole Workspace domain, adding the
+ * permission only if it is genuinely absent.
+ *
+ * Sharing otherwise happens exactly once, when the root is created. If someone
+ * later removes that permission — or the root is recreated by a path that skips
+ * it — publishing carries on succeeding while the documents become invisible to
+ * everyone except the owning mailbox. That is the worst shape of failure this
+ * integration can have: the platform reports "published", the folder fills up,
+ * and the people it was published FOR see an empty Drive.
+ *
+ * Cheap enough to verify on every nightly run, so it does.
+ */
+export async function ensureDomainShared(fileId: string, mailbox: string): Promise<boolean> {
+  const domain = workspaceDomain(mailbox)
+  if (!domain) return false
+
+  try {
+    const data = await googleFetch<{
+      permissions?: { type?: string; role?: string; domain?: string }[]
+    }>(
+      `${DRIVE_BASE}/files/${fileId}/permissions?fields=permissions(type,role,domain)&supportsAllDrives=true`,
+      mailbox
+    )
+    const shared = (data.permissions ?? []).some(
+      (p) => p.type === 'domain' && p.domain === domain
+    )
+    if (shared) return true
+  } catch {
+    // Fall through and try to share: a failed read must not leave the folder
+    // unshared on the assumption that it probably was.
+  }
+
+  await shareWithDomain(fileId, mailbox)
+  return false
+}
+
 /** Find a folder by exact name under a parent, among files the app created. */
 async function findFolder(
   mailbox: string,

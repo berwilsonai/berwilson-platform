@@ -45,7 +45,9 @@ export async function middleware(request: NextRequest) {
     pathname === '/api/cron/email-sweep' ||          // Mailbox sweep cron job (self-guards via CRON_SECRET)
     pathname === '/api/cron/task-digest' ||          // Per-member task digest cron (self-guards via CRON_SECRET)
     pathname === '/api/cron/lead-sweep' ||           // Inbound lead sweep cron (self-guards via CRON_SECRET)
-    pathname === '/api/cron/drive-sync'              // Drive knowledge sync cron (self-guards via CRON_SECRET)
+    pathname === '/api/cron/drive-sync' ||           // Drive knowledge sync cron (self-guards via CRON_SECRET)
+    pathname === '/api/cron/drive-publish' ||        // Drive document publish cron (self-guards via CRON_SECRET)
+    pathname === '/api/cron/contacts-sync'           // Directory → Google Contacts cron (self-guards via CRON_SECRET)
 
   if (!user && !isPublicRoute) {
     // API calls must get a real 401 (not an HTML login-page redirect that fetch

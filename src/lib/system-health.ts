@@ -13,12 +13,16 @@ import { promises as fs } from 'fs'
 import os from 'os'
 import path from 'path'
 import {
+  allMailboxes,
+  isGoogleConfigured,
   probeGoogleConnection,
   probeScopeCoverage,
   googleFetch,
   PRIMARY_MAILBOX,
   type GoogleProbe,
 } from '@/lib/integrations/google-workspace'
+import { isChatConfigured } from '@/lib/notify/chat'
+import { createAdminClient } from '@/lib/supabase/admin'
 
 const PROBE_TIMEOUT_MS = 10_000
 
@@ -276,6 +280,139 @@ export async function probeDriveKnowledge(): Promise<{
       fix = ` The folder is probably owned by another account — share it with ${mailbox} (Viewer is enough).`
     }
     return { state: 'failed', detail: `${raw}${fix}` }
+  }
+}
+
+/**
+ * Is the Google Chat space wired up?
+ *
+ * Purely a config read — there is no way to test an incoming webhook without
+ * posting to the space, and a health check that spams the room every time
+ * somebody opens the page is worse than no check at all.
+ */
+export function probeChat(): { state: 'ok' | 'unconfigured'; detail: string } {
+  const spaces = Object.keys(process.env)
+    .filter((k) => k.startsWith('GOOGLE_CHAT_WEBHOOK_URL_') && process.env[k]?.trim())
+    .map((k) => k.replace('GOOGLE_CHAT_WEBHOOK_URL_', '').toLowerCase())
+
+  if (!isChatConfigured()) {
+    return {
+      state: 'unconfigured',
+      detail:
+        'Set GOOGLE_CHAT_WEBHOOK_URL to post the morning brief and the lead digest into a Chat space — the cheapest way to reach teammates who cannot get onto the tailnet. Get the URL from Chat → the space → Apps & integrations → Webhooks → Add webhook. Treat it as a secret: it carries its own auth token.',
+    }
+  }
+
+  const extra = spaces.length ? ` Dedicated spaces: ${spaces.join(', ')}.` : ''
+  return {
+    state: 'ok',
+    detail: `Default space configured — the morning brief and lead digests post there.${extra}`,
+  }
+}
+
+/**
+ * How much of the directory has reached the mailboxes' contacts?
+ *
+ * Reported as coverage rather than pass/fail: a party with no address and no
+ * number is deliberately not synced, so "not everything is in Google" is the
+ * correct steady state and must not read as a fault.
+ */
+export async function probeContactsSync(): Promise<{
+  state: 'ok' | 'stale' | 'unconfigured'
+  detail: string
+}> {
+  if (!isGoogleConfigured()) {
+    return { state: 'unconfigured', detail: 'Google Workspace is not configured.' }
+  }
+
+  const supabase = createAdminClient()
+  const { data, error } = await supabase
+    .from('parties')
+    .select('email, phone, status, google_contacts_hash')
+
+  if (error) return { state: 'unconfigured', detail: `Could not read the directory: ${error.message}` }
+
+  const rows = (data ?? []) as {
+    email: string | null
+    phone: string | null
+    status: string
+    google_contacts_hash: string | null
+  }[]
+
+  const eligible = rows.filter(
+    (r) => r.status !== 'archived' && Boolean(r.email?.trim() || r.phone?.trim())
+  )
+  const synced = eligible.filter((r) => r.google_contacts_hash).length
+  const mailboxes = allMailboxes().length
+  const skipped = rows.length - eligible.length
+
+  const detail =
+    `${synced} of ${eligible.length} contactable ${eligible.length === 1 ? 'party' : 'parties'} pushed to ` +
+    `${mailboxes} mailbox${mailboxes === 1 ? '' : 'es'}.` +
+    (skipped
+      ? ` ${skipped} skipped — archived, or no email and no phone, so they would only clutter autocomplete.`
+      : '')
+
+  if (synced < eligible.length) {
+    return {
+      state: 'stale',
+      detail: `${detail} The rest go out on the next nightly run (2:45am).`,
+    }
+  }
+  return { state: 'ok', detail }
+}
+
+/**
+ * Are record documents actually reaching the Drive folder people are told to
+ * look in?
+ *
+ * This is the check the whole publishing feature needed and did not have: it
+ * shipped as a button, the button worked, and one project out of fifteen had
+ * ever been pressed. Nothing anywhere said so.
+ */
+export async function probeDrivePublishing(): Promise<{
+  state: 'ok' | 'stale' | 'unconfigured'
+  detail: string
+}> {
+  if (!isGoogleConfigured()) {
+    return { state: 'unconfigured', detail: 'Google Workspace is not configured.' }
+  }
+
+  const supabase = createAdminClient()
+
+  const count = async (table: 'documents' | 'opportunity_documents', fk: string, published: boolean) => {
+    const query = supabase
+      .from(table)
+      .select('id', { count: 'exact', head: true })
+      .not(fk, 'is', null)
+    const { count: n } = await (published
+      ? query.not('drive_published_id', 'is', null)
+      : query.is('drive_published_id', null))
+    return n ?? 0
+  }
+
+  const pairs: [('documents' | 'opportunity_documents'), string][] = [
+    ['documents', 'project_id'],
+    ['documents', 'steel_deal_id'],
+    ['opportunity_documents', 'opportunity_id'],
+  ]
+
+  let pending = 0
+  let published = 0
+  for (const [table, fk] of pairs) {
+    pending += await count(table, fk, false)
+    published += await count(table, fk, true)
+  }
+
+  if (pending === 0) {
+    return {
+      state: 'ok',
+      detail: `All ${published} record document${published === 1 ? '' : 's'} are published to Drive.`,
+    }
+  }
+  return {
+    state: 'stale',
+    detail: `${published} published, ${pending} waiting. The rest go up on the next nightly run (3:45am), or publish one record now from its Documents tab.`,
   }
 }
 

@@ -16,6 +16,9 @@ import {
   probeMailboxConnection,
   probeLmStudio,
   probeBackups,
+  probeChat,
+  probeContactsSync,
+  probeDrivePublishing,
   probeDriveKnowledge,
   probeScopeCoverage,
   probeDisk,
@@ -85,7 +88,7 @@ async function runChecks(): Promise<HealthCheck[]> {
   const dayAgo = new Date(Date.now() - 86_400_000).toISOString()
   const localAI = process.env.AI_PROVIDER === 'local'
 
-  const [brief, riskScore, lastAi, aiDayCount, failedRuns, mailbox, lmStudio, backups, drive, scopes, disk, lastDigest, failedDigests] =
+  const [brief, riskScore, lastAi, aiDayCount, failedRuns, mailbox, lmStudio, backups, drive, scopes, disk, lastDigest, failedDigests, contacts, drivePublish] =
     await Promise.all([
       supabase
         .from('stored_briefs')
@@ -135,6 +138,8 @@ async function runChecks(): Promise<HealthCheck[]> {
         .eq('kind', 'task_digest')
         .eq('status', 'failed')
         .gte('created_at', weekAgo),
+      probeContactsSync(),
+      probeDrivePublishing(),
     ])
 
   const checks: HealthCheck[] = []
@@ -324,6 +329,56 @@ async function runChecks(): Promise<HealthCheck[]> {
               ? 'No knowledge folder configured'
               : 'Cannot read the knowledge folder',
       detail: drive.detail,
+    })
+  }
+
+  // Drive document publishing — the reason this check exists is that the
+  // feature shipped as a button, the button worked, and one project out of
+  // fifteen had ever been published. Nothing anywhere reported that, so the
+  // folder people were told to look in stayed empty and taught them to stop
+  // looking. Coverage is the only honest signal.
+  {
+    checks.push({
+      name: 'Drive Document Publishing',
+      status: drivePublish.state === 'ok' ? 'ok' : drivePublish.state === 'stale' ? 'warn' : 'warn',
+      headline:
+        drivePublish.state === 'ok'
+          ? 'Every record document is in Drive'
+          : drivePublish.state === 'stale'
+            ? 'Documents are waiting to be published'
+            : 'Not configured',
+      detail: drivePublish.detail,
+    })
+  }
+
+  // Directory → Google Contacts. Coverage, not pass/fail: a party with neither
+  // an address nor a number is deliberately skipped, so "not everything is in
+  // Google" is the correct steady state.
+  {
+    checks.push({
+      name: 'Contacts Sync',
+      status: contacts.state === 'ok' ? 'ok' : 'warn',
+      headline:
+        contacts.state === 'ok'
+          ? 'Directory is in the mailboxes'
+          : contacts.state === 'stale'
+            ? 'Some contacts have not reached Google yet'
+            : 'Not configured',
+      detail: contacts.detail,
+    })
+  }
+
+  // Google Chat — a config read, not a live test. Probing an incoming webhook
+  // means posting to the space, and a check that spams the room on every page
+  // load is worse than no check.
+  {
+    const chat = probeChat()
+    checks.push({
+      name: 'Google Chat',
+      status: chat.state === 'ok' ? 'ok' : 'warn',
+      headline:
+        chat.state === 'ok' ? 'Space wired up' : 'No Chat space — digests go to email only',
+      detail: chat.detail,
     })
   }
 

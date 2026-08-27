@@ -94,7 +94,7 @@ echo "==> Installing launchd services"
 ssh "$STUDIO" "
   set -e
   mkdir -p \$HOME/Library/Logs/berwilson \$HOME/Library/LaunchAgents
-  for plist in com.berwilson.platform com.berwilson.cron-daily-brief com.berwilson.cron-risk-scores com.berwilson.cron-email-sweep com.berwilson.cron-task-digest com.berwilson.cron-lead-sweep com.berwilson.cron-drive-sync; do
+  for plist in com.berwilson.platform com.berwilson.cron-daily-brief com.berwilson.cron-risk-scores com.berwilson.cron-email-sweep com.berwilson.cron-task-digest com.berwilson.cron-lead-sweep com.berwilson.cron-drive-sync com.berwilson.cron-drive-publish com.berwilson.cron-contacts-sync; do
     sed -e \"s#__APP_DIR__#\$HOME/berwilson-platform#g\" -e \"s#__LOG_DIR__#\$HOME/Library/Logs/berwilson#g\" -e \"s#__NODE_BIN__#\$HOME/.node/bin#g\" \
       $APP_DIR/deploy/\$plist.plist > \$HOME/Library/LaunchAgents/\$plist.plist
     launchctl bootout gui/\$(id -u)/\$plist 2>/dev/null || true

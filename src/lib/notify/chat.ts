@@ -26,18 +26,24 @@ const CHAT_TIMEOUT_MS = 10_000
  * GOOGLE_CHAT_WEBHOOK_URL, anything else reads GOOGLE_CHAT_WEBHOOK_URL_<KEY>.
  * Keys let a second space be added later (steel, leads) without touching this
  * file or the notify seam.
+ *
+ * A key with no webhook of its own falls back to the default space. That makes
+ * a key a statement of INTENT — "this belongs in a brief space, if there is
+ * one" — rather than a hard dependency, so a caller can name its destination on
+ * day one and the space can be created later without a code change. Without the
+ * fallback, naming a key would silently mean "deliver nowhere".
  */
 export function resolveChatWebhook(to: string): string | null {
   const value = to.trim()
   if (/^https:\/\//i.test(value)) return value
 
+  const fallback = process.env.GOOGLE_CHAT_WEBHOOK_URL?.trim() || null
   const key = value.toLowerCase()
-  const env =
-    key === '' || key === 'default'
-      ? process.env.GOOGLE_CHAT_WEBHOOK_URL
-      : process.env[`GOOGLE_CHAT_WEBHOOK_URL_${key.toUpperCase().replace(/[^A-Z0-9]/g, '_')}`]
+  if (key === '' || key === 'default') return fallback
 
-  return env?.trim() || null
+  const keyed =
+    process.env[`GOOGLE_CHAT_WEBHOOK_URL_${key.toUpperCase().replace(/[^A-Z0-9]/g, '_')}`]?.trim()
+  return keyed || fallback
 }
 
 /** True when at least the default space is wired up. */

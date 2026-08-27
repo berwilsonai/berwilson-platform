@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.berwilson.cron-drive-publish</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/zsh</string>
+    <string>-c</string>
+    <string>curl -sS -m 1700 -H "Authorization: Bearer $(grep '^CRON_SECRET=' __APP_DIR__/.env.local | cut -d= -f2-)" http://localhost:3000/api/cron/drive-publish</string>
+  </array>
+  <!-- Nightly at 3:45am, AFTER the knowledge sync at 3:15 so the two Drive jobs
+       never overlap on the same credential. Uploads only what is new, so a
+       night with nothing added costs one query per record type. -->
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Hour</key>
+    <integer>3</integer>
+    <key>Minute</key>
+    <integer>45</integer>
+  </dict>
+  <key>AbandonProcessGroup</key>
+  <false/>
+  <key>StandardOutPath</key>
+  <string>__LOG_DIR__/cron-drive-publish.log</string>
+  <key>StandardErrorPath</key>
+  <string>__LOG_DIR__/cron-drive-publish.err.log</string>
+</dict>
+</plist>
