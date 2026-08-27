@@ -81,6 +81,14 @@ interface TaskDetailSheetProps {
 const fieldClass =
   'w-full rounded-md border border-input bg-background px-3 h-9 text-sm focus:outline-none focus:ring-2 focus:ring-ring'
 
+type DetailKey = 'what' | 'why' | 'how'
+
+const WHY_FIELDS: { label: string; key: DetailKey; placeholder: string }[] = [
+  { label: 'What', key: 'what', placeholder: 'What needs to be done?' },
+  { label: 'Why', key: 'why', placeholder: 'Why does it matter?' },
+  { label: 'How', key: 'how', placeholder: 'How should we approach it?' },
+]
+
 function noteTime(ts: string | null): string {
   if (!ts) return ''
   return new Date(ts).toLocaleString('en-US', {
@@ -116,11 +124,16 @@ export default function TaskDetailSheet({
   const [how, setHow] = useState('')
   // Which of what/why/how show their textarea. Empty fields collapse to a
   // subtle "+ Add …" affordance so the common no-detail task stays clean.
-  const [expanded, setExpanded] = useState<Record<'what' | 'why' | 'how', boolean>>({
+  const [expanded, setExpanded] = useState<Record<DetailKey, boolean>>({
     what: false,
     why: false,
     how: false,
   })
+  const fieldState: Record<DetailKey, [string, (v: string) => void]> = {
+    what: [what, setWhat],
+    why: [why, setWhy],
+    how: [how, setHow],
+  }
   // The handoff is held locally until both halves are present — picking a person
   // with no "what" yet isn't a saveable state, so we don't round-trip it.
   const [waitingId, setWaitingId] = useState('')
@@ -257,7 +270,7 @@ export default function TaskDetailSheet({
               <div className="flex items-start gap-3">
                 <button
                   onClick={handleComplete}
-                  className="shrink-0 mt-0.5 transition-transform hover:scale-110"
+                  className="relative shrink-0 mt-0.5 inline-flex items-center justify-center size-5 transition-transform hover:scale-110 active:scale-95"
                   aria-label={done ? 'Reopen task' : 'Mark complete'}
                 >
                   {done ? (
@@ -265,6 +278,7 @@ export default function TaskDetailSheet({
                   ) : (
                     <Circle className="size-5 text-muted-foreground hover:text-emerald-500" />
                   )}
+                  <span className="absolute -inset-3" aria-hidden="true" />
                 </button>
                 <SheetTitle className="sr-only">Task detail</SheetTitle>
                 <textarea
@@ -282,7 +296,7 @@ export default function TaskDetailSheet({
 
             <div className="flex-1 overflow-y-auto px-4 pb-4 space-y-5">
               {/* Meta row */}
-              <div className="grid grid-cols-2 gap-3 pt-1">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
                 <div className="space-y-1">
                   <label className="label-caps text-muted-foreground">Assignee</label>
                   <select
@@ -304,7 +318,7 @@ export default function TaskDetailSheet({
                   />
                 </div>
                 {!lockProject && projects.length > 0 && (
-                  <div className="space-y-1 col-span-2">
+                  <div className="space-y-1 sm:col-span-2">
                     <label className="label-caps text-muted-foreground">Project</label>
                     <select
                       value={task.project_id ?? ''}
@@ -319,7 +333,7 @@ export default function TaskDetailSheet({
                   </div>
                 )}
                 {hasOpps && (
-                  <div className="space-y-1 col-span-2">
+                  <div className="space-y-1 sm:col-span-2">
                     <label className="label-caps text-muted-foreground">Opportunity</label>
                     <select
                       value={task.opportunity_id ?? ''}
@@ -334,7 +348,7 @@ export default function TaskDetailSheet({
                   </div>
                 )}
                 {hasInvestors && (
-                  <div className="space-y-1 col-span-2">
+                  <div className="space-y-1 sm:col-span-2">
                     <label className="label-caps text-muted-foreground">Investor</label>
                     <select
                       value={task.investor_id ?? ''}
@@ -349,7 +363,7 @@ export default function TaskDetailSheet({
                   </div>
                 )}
                 {hasObjectives && (
-                  <div className="space-y-1 col-span-2">
+                  <div className="space-y-1 sm:col-span-2">
                     <label className="label-caps text-muted-foreground">Objective</label>
                     <select
                       value={task.objective_id ?? ''}
@@ -422,12 +436,10 @@ export default function TaskDetailSheet({
               </div>
 
               {/* What / Why / How — empty fields collapse to a subtle add affordance */}
-              {([
-                ['What', what, setWhat, 'what', 'What needs to be done?'],
-                ['Why', why, setWhy, 'why', 'Why does it matter?'],
-                ['How', how, setHow, 'how', 'How should we approach it?'],
-              ] as const).map(([label, val, setter, key, placeholder]) =>
-                expanded[key] ? (
+              {WHY_FIELDS.map(({ label, key, placeholder }) => {
+                const [val, setter] = fieldState[key]
+                if (!expanded[key]) return null
+                return (
                   <div key={key} className="space-y-1">
                     <label className="label-caps text-muted-foreground">{label}</label>
                     <textarea
@@ -445,16 +457,25 @@ export default function TaskDetailSheet({
                       className="w-full resize-y rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring placeholder:text-muted-foreground"
                     />
                   </div>
-                ) : (
-                  <button
-                    key={key}
-                    type="button"
-                    onClick={() => setExpanded((s) => ({ ...s, [key]: true }))}
-                    className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-                  >
-                    + Add {label.toLowerCase()}
-                  </button>
-                ),
+                )
+              })}
+
+              {/* The collapsed affordances share one row: as inline-block
+                  siblings of a space-y stack they sat flush against each other
+                  and read as "+ Add what+ Add why+ Add how". */}
+              {WHY_FIELDS.some(({ key }) => !expanded[key]) && (
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                  {WHY_FIELDS.filter(({ key }) => !expanded[key]).map(({ label, key }) => (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => setExpanded((prev) => ({ ...prev, [key]: true }))}
+                      className="inline-flex items-center h-8 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      + Add {label.toLowerCase()}
+                    </button>
+                  ))}
+                </div>
               )}
 
               {/* Project context card */}

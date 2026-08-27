@@ -153,7 +153,19 @@ export default function ManageTeamDialog({ open, onOpenChange, members, tasks, o
           </div>
         ) : (
           <div className="space-y-4">
-            <div className="max-h-64 overflow-y-auto -mx-1 px-1 space-y-1">
+            {/* Header the count: at max-h-64 the 7th person sat below the fold
+                with no scroll affordance, which read as "they're missing from
+                the roster" when they were only out of view. */}
+            <div className="space-y-1.5">
+            <div className="flex items-baseline justify-between">
+              <label className="label-caps text-muted-foreground">Team</label>
+              {members.length > 0 && (
+                <span className="tnum text-xs text-muted-foreground">
+                  {members.length} {members.length === 1 ? 'person' : 'people'}
+                </span>
+              )}
+            </div>
+            <div className="max-h-[min(60vh,24rem)] overflow-y-auto -mx-1 px-1 space-y-1">
               {members.length === 0 ? (
                 <p className="py-2 text-sm text-muted-foreground">No team members yet.</p>
               ) : (
@@ -191,6 +203,7 @@ export default function ManageTeamDialog({ open, onOpenChange, members, tasks, o
                   )
                 })
               )}
+            </div>
             </div>
 
             <div className="border-t border-border pt-3">

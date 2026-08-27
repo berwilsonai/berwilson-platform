@@ -220,7 +220,7 @@ export default async function WeeklyReportPrintPage({ searchParams }: PageProps)
     <div className="min-h-full bg-white text-slate-900">
       <WeeklyPrintToolbar people={members} selected={focus?.id ?? 'all'} />
 
-      <div className="mx-auto max-w-3xl px-8 py-10 print:max-w-none print:px-0 print:py-0">
+      <div className="mx-auto max-w-3xl px-5 sm:px-8 py-8 sm:py-10 print:max-w-none print:px-0 print:py-0">
         {/* Letterhead */}
         <header className="flex items-start justify-between gap-4 pb-6 border-b-2 border-slate-900">
           <div>

@@ -115,7 +115,7 @@ export default function DecideClient({ items }: { items: DecideItem[] }) {
           <button
             key={k}
             onClick={() => setKind(k)}
-            className={`text-xs px-2.5 py-1 rounded-full ring-1 ring-inset transition-colors ${
+            className={`inline-flex items-center text-xs px-3 sm:px-2.5 min-h-11 sm:min-h-0 sm:py-1 rounded-full ring-1 ring-inset transition-colors ${
               kind === k
                 ? 'bg-primary text-primary-foreground ring-primary'
                 : 'bg-card text-muted-foreground ring-border hover:bg-accent'

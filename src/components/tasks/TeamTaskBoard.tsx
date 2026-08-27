@@ -17,6 +17,7 @@ import {
   HandCoins,
   Hourglass,
   Users2,
+  SlidersHorizontal,
 } from 'lucide-react'
 import EmptyState from '@/components/shared/EmptyState'
 import { DatePicker } from '@/components/ui/date-picker'
@@ -65,7 +66,12 @@ const fieldClass =
   'h-8 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring'
 
 const filterFieldClass =
-  'h-8 rounded-md border border-input bg-background px-2 text-xs focus:outline-none focus:ring-2 focus:ring-ring'
+  'h-11 sm:h-8 max-w-full rounded-md border border-input bg-background px-2 text-sm sm:text-xs focus:outline-none focus:ring-2 focus:ring-ring'
+
+// 44px on touch (Apple HIG / WCAG 2.5.5 target size), the tighter 32px on
+// pointer devices. `whitespace-nowrap` keeps a two-word label off two lines.
+const headerButtonClass =
+  'inline-flex items-center justify-center gap-1.5 whitespace-nowrap h-11 sm:h-8 px-3 rounded-md border border-border bg-card text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-accent transition-colors'
 
 export default function TeamTaskBoard({
   initialTasks,
@@ -108,6 +114,8 @@ export default function TeamTaskBoard({
   const [investorFilter, setInvestorFilter] = useState('all')
   const [objectiveFilter, setObjectiveFilter] = useState('all')
   const [blockedOnly, setBlockedOnly] = useState(false)
+  // Record filters are collapsed on phones; `sm:flex` re-reveals them regardless.
+  const [filtersOpen, setFiltersOpen] = useState(false)
 
   // detail sheet
   const [openTaskId, setOpenTaskId] = useState<string | null>(initialOpenTaskId)
@@ -133,6 +141,15 @@ export default function TeamTaskBoard({
   const [newMemberName, setNewMemberName] = useState('')
   // manage-team dialog (add / remove people)
   const [manageOpen, setManageOpen] = useState(false)
+
+  const hasRecordFilters =
+    showProjectControls || showOpportunityControls || showInvestorControls || showObjectiveControls
+  const activeRecordFilters = [
+    showProjectControls && projectFilter !== 'all',
+    showOpportunityControls && opportunityFilter !== 'all',
+    showInvestorControls && investorFilter !== 'all',
+    showObjectiveControls && objectiveFilter !== 'all',
+  ].filter(Boolean).length
 
   const openCount = tasks.filter((t) => t.status !== 'done').length
   const blockedCount = tasks.filter((t) => t.status !== 'done' && t.waiting_on_id).length
@@ -226,10 +243,12 @@ export default function TeamTaskBoard({
     if (assigneeFilter === removedId) setAssigneeFilter('all')
   }
 
-  async function handleComplete(task: BoardTask, e: React.MouseEvent) {
-    e.stopPropagation()
-    const next = task.status === 'done' ? 'open' : 'done'
-    // optimistic
+  /**
+   * Write a task's status, optimistically. Split out of the click handler so the
+   * Undo action on the completion toast can run the exact same path in reverse.
+   */
+  async function setTaskStatus(task: BoardTask, next: 'open' | 'done'): Promise<boolean> {
+    const previous = task.status
     setTasks((prev) => prev.map((t) => (t.id === task.id ? { ...t, status: next } : t)))
     try {
       const res = await fetch(`/api/tasks/${task.id}`, {
@@ -239,15 +258,32 @@ export default function TeamTaskBoard({
       })
       if (handleAuthError(res)) {
         // revert optimistic change before we navigate away
-        setTasks((prev) => prev.map((t) => (t.id === task.id ? { ...t, status: task.status } : t)))
-        return
+        setTasks((prev) => prev.map((t) => (t.id === task.id ? { ...t, status: previous } : t)))
+        return false
       }
       if (!res.ok) throw new Error()
-      if (next === 'done') toast.success('Completed — moved to archive')
+      return true
     } catch {
-      setTasks((prev) => prev.map((t) => (t.id === task.id ? { ...t, status: task.status } : t)))
+      setTasks((prev) => prev.map((t) => (t.id === task.id ? { ...t, status: previous } : t)))
       toast.error('Failed to update')
+      return false
     }
+  }
+
+  async function handleComplete(task: BoardTask, e: React.MouseEvent) {
+    e.stopPropagation()
+    const next = task.status === 'done' ? 'open' : 'done'
+    const ok = await setTaskStatus(task, next)
+    if (!ok || next !== 'done') return
+    // Completing pulls the row out of the list and everything below jumps up, so
+    // a mis-tap on a phone is easy and its consequence is invisible. Undo makes
+    // that a one-tap recovery instead of a trip through Archive.
+    toast.success('Completed — moved to archive', {
+      action: {
+        label: 'Undo',
+        onClick: () => { void setTaskStatus({ ...task, status: 'done' }, 'open') },
+      },
+    })
   }
 
   const filtered = useMemo(() => {
@@ -307,10 +343,10 @@ export default function TeamTaskBoard({
   return (
     <div className={cn('space-y-5', !scoped && 'max-w-4xl')}>
       {/* Header */}
-      <div className={cn('flex items-center gap-3', embedded ? 'justify-end' : 'justify-between')}>
+      <div className={cn('flex flex-wrap items-center gap-3', embedded ? 'justify-end' : 'justify-between')}>
         {!embedded && (
           <div>
-            <h1 className={cn('font-semibold text-foreground', scoped ? 'text-base' : 'text-xl')}>
+            <h1 className={cn('font-semibold text-foreground whitespace-nowrap', scoped ? 'text-base' : 'text-xl')}>
               {scoped ? 'Tasks' : 'Team Tasks'}
             </h1>
             <p className="text-sm text-muted-foreground">
@@ -322,24 +358,28 @@ export default function TeamTaskBoard({
           {!scoped && (
             <button
               onClick={() => setManageOpen(true)}
-              className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md border border-border bg-card text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+              className={headerButtonClass}
               title="Add or remove people who can be assigned tasks"
             >
-              <Users2 size={14} /> Manage team
+              <Users2 size={14} />
+              <span className="sm:hidden">Team</span>
+              <span className="hidden sm:inline">Manage team</span>
             </button>
           )}
           {showWeeklyReport && !scoped && (
             <Link
               href="/reports/weekly/print"
-              className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md border border-border bg-card text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+              className={headerButtonClass}
               title="The week as a printable document — send it to the team"
             >
-              <FileText size={14} /> Weekly report
+              <FileText size={14} />
+              <span className="sm:hidden">Report</span>
+              <span className="hidden sm:inline">Weekly report</span>
             </Link>
           )}
           <button
             onClick={() => setShowAdd((s) => !s)}
-            className="inline-flex items-center gap-1.5 h-8 px-3.5 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 active:scale-[0.98] transition-all elev-1"
+            className="inline-flex items-center justify-center gap-1.5 whitespace-nowrap h-11 sm:h-8 px-3.5 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 active:scale-[0.98] transition-all elev-1"
           >
             <Plus size={14} /> New task
           </button>
@@ -348,7 +388,10 @@ export default function TeamTaskBoard({
 
       {/* Team workload — tap a person to filter the board to them */}
       {!scoped && workload.length > 0 && (
-        <div className="flex gap-2 flex-wrap">
+        // Wrapping seven chips costs three rows on a phone and pushes the list
+        // itself below the fold — scroll them sideways instead, and only wrap
+        // once there's room for it.
+        <div className="flex gap-2 overflow-x-auto pb-1 -mx-4 px-4 sm:mx-0 sm:px-0 sm:pb-0 sm:overflow-visible sm:flex-wrap">
           {workload.map(({ member, open, overdue, blocking }) => {
             const active = assigneeFilter === member.id
             return (
@@ -356,7 +399,7 @@ export default function TeamTaskBoard({
                 key={member.id}
                 onClick={() => setAssigneeFilter(active ? 'all' : member.id)}
                 className={cn(
-                  'inline-flex items-center gap-2 h-9 pl-1.5 pr-3 rounded-full border text-sm transition-colors',
+                  'inline-flex shrink-0 items-center gap-2 h-11 sm:h-9 pl-1.5 pr-3 rounded-full border text-sm transition-colors',
                   active
                     ? 'border-primary/50 bg-primary/10 text-foreground'
                     : 'border-border bg-card text-muted-foreground hover:text-foreground hover:bg-accent',
@@ -551,18 +594,19 @@ export default function TeamTaskBoard({
       )}
 
       {/* Filters */}
+      <div className="space-y-2">
       <div className="flex items-center gap-2 flex-wrap">
         <div className="inline-flex rounded-lg border border-border overflow-hidden text-sm">
           <button
             onClick={() => setStatus('open')}
-            className={cn('px-3 py-1.5 inline-flex items-center gap-1.5 transition-colors',
+            className={cn('px-3 h-11 sm:h-auto sm:py-1.5 inline-flex items-center gap-1.5 transition-colors',
               status === 'open' ? 'bg-primary text-primary-foreground' : 'bg-background text-muted-foreground hover:text-foreground hover:bg-muted')}
           >
             <ListChecks size={14} /> Open
           </button>
           <button
             onClick={() => setStatus('done')}
-            className={cn('px-3 py-1.5 inline-flex items-center gap-1.5 transition-colors border-l border-border',
+            className={cn('px-3 h-11 sm:h-auto sm:py-1.5 inline-flex items-center gap-1.5 transition-colors border-l border-border',
               status === 'done' ? 'bg-primary text-primary-foreground' : 'bg-background text-muted-foreground hover:text-foreground hover:bg-muted')}
           >
             <Archive size={14} /> Archive
@@ -573,7 +617,7 @@ export default function TeamTaskBoard({
           <button
             onClick={() => setBlockedOnly((b) => !b)}
             className={cn(
-              'inline-flex items-center gap-1.5 h-8 px-2.5 rounded-md border text-xs font-medium transition-colors',
+              'inline-flex items-center gap-1.5 h-11 sm:h-8 px-2.5 rounded-md border text-xs font-medium transition-colors',
               blockedOnly
                 ? 'border-amber-300 bg-amber-100 text-amber-800 dark:border-amber-500/40 dark:bg-amber-900/40 dark:text-amber-200'
                 : 'border-input bg-background text-muted-foreground hover:text-foreground hover:bg-muted',
@@ -590,6 +634,30 @@ export default function TeamTaskBoard({
           <option value="unassigned">Unassigned</option>
         </select>
 
+        {hasRecordFilters && (
+          <button
+            onClick={() => setFiltersOpen((o) => !o)}
+            className={cn(
+              'sm:hidden inline-flex items-center gap-1.5 h-11 px-3 rounded-md border text-sm font-medium transition-colors',
+              activeRecordFilters > 0
+                ? 'border-primary/50 bg-primary/10 text-foreground'
+                : 'border-input bg-background text-muted-foreground',
+            )}
+            aria-expanded={filtersOpen}
+          >
+            <SlidersHorizontal size={14} /> Filters
+            {activeRecordFilters > 0 && (
+              <span className="tnum inline-flex items-center justify-center min-w-5 h-5 px-1 rounded-full bg-primary text-primary-foreground text-[11px] font-semibold">
+                {activeRecordFilters}
+              </span>
+            )}
+          </button>
+        )}
+      </div>
+
+      {/* Record filters — four stacked selects eat a phone screen, so they live
+          behind the Filters button below `sm` and sit inline from there up. */}
+      <div className={cn('flex-wrap items-center gap-2', filtersOpen ? 'flex' : 'hidden sm:flex')}>
         {showProjectControls && (
           <select value={projectFilter} onChange={(e) => setProjectFilter(e.target.value)} className={filterFieldClass}>
             <option value="all">All projects</option>
@@ -622,6 +690,7 @@ export default function TeamTaskBoard({
           </select>
         )}
       </div>
+      </div>
 
       {/* List */}
       {filtered.length === 0 ? (
@@ -647,7 +716,7 @@ export default function TeamTaskBoard({
               >
                 <button
                   onClick={(e) => handleComplete(task, e)}
-                  className="shrink-0 transition-transform hover:scale-110"
+                  className="relative shrink-0 inline-flex items-center justify-center size-5 transition-transform hover:scale-110 active:scale-95"
                   aria-label={done ? 'Reopen' : 'Complete'}
                 >
                   {done ? (
@@ -655,6 +724,10 @@ export default function TeamTaskBoard({
                   ) : (
                     <Circle className="size-5 text-muted-foreground group-hover:text-emerald-500 transition-colors" />
                   )}
+                  {/* The circle stays 20px; the tap area grows to 44px. An
+                      absolute overlay does that without moving anything in the
+                      row (padding on the button itself would shift the text). */}
+                  <span className="absolute -inset-3" aria-hidden="true" />
                 </button>
 
                 <div className="min-w-0 flex-1">

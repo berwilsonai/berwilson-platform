@@ -18,11 +18,14 @@ interface WeeklyPrintToolbarProps {
  */
 export function WeeklyPrintToolbar({ people, selected }: WeeklyPrintToolbarProps) {
   return (
-    <div className="print:hidden sticky top-0 z-10 border-b border-slate-200 bg-white/95 backdrop-blur-sm">
-      <div className="mx-auto max-w-3xl px-8 py-3 flex items-center gap-3 flex-wrap">
+    // Opaque, not bg-white/95: a sticky bar keeps the report scrolling beneath
+    // it, and at 95% the text underneath ghosted through and read as a
+    // rendering overlap rather than a deliberate bar.
+    <div className="print:hidden sticky top-0 z-10 border-b border-slate-200 bg-white">
+      <div className="mx-auto max-w-3xl px-4 sm:px-8 py-2.5 flex items-center gap-3 flex-wrap">
         <Link
           href="/tasks"
-          className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-900 transition-colors"
+          className="inline-flex items-center gap-1.5 h-11 sm:h-9 text-sm text-slate-500 hover:text-slate-900 transition-colors"
         >
           <ArrowLeft size={14} /> Tasks
         </Link>
@@ -41,7 +44,7 @@ export function WeeklyPrintToolbar({ people, selected }: WeeklyPrintToolbarProps
                 v === 'all' ? '/reports/weekly/print' : `/reports/weekly/print?person=${v}`
             }}
             className={cn(
-              'h-9 rounded-lg border border-slate-200 bg-white px-2 text-sm text-slate-900',
+              'h-11 sm:h-9 rounded-lg border border-slate-200 bg-white px-2 text-sm text-slate-900',
               'focus:outline-none focus:ring-2 focus:ring-slate-900/20',
             )}
           >
@@ -56,7 +59,7 @@ export function WeeklyPrintToolbar({ people, selected }: WeeklyPrintToolbarProps
 
         <button
           onClick={() => window.print()}
-          className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg bg-slate-900 text-white text-sm font-medium hover:bg-slate-700 transition-colors"
+          className="inline-flex items-center gap-1.5 whitespace-nowrap h-11 sm:h-9 px-3.5 rounded-lg bg-slate-900 text-white text-sm font-medium hover:bg-slate-700 transition-colors"
         >
           <Printer size={15} /> Print / Save PDF
         </button>
