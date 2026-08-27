@@ -3,6 +3,7 @@
 import { useRef, useState } from 'react'
 import { Upload, FileText, Download, Trash2, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
+import DrivePublishButton from '@/components/shared/DrivePublishButton'
 import { createClient } from '@/lib/supabase/client'
 import { viewDocument, downloadDocument } from '@/lib/utils/document-links'
 import type { Document } from '@/lib/supabase/types'
@@ -17,9 +18,19 @@ interface Props {
   dealId: string
   files: Document[]
   canEdit: boolean
+  /** Drive folder this deal has already been published to, if any. */
+  driveFolderUrl?: string | null
+  /** Publishing is a sharing decision, so the control is admin-only. */
+  canPublish?: boolean
 }
 
-export default function SteelDealFiles({ dealId, files: initial, canEdit }: Props) {
+export default function SteelDealFiles({
+  dealId,
+  files: initial,
+  canEdit,
+  driveFolderUrl,
+  canPublish,
+}: Props) {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [files, setFiles] = useState<Document[]>(initial)
   const [uploading, setUploading] = useState(false)
@@ -85,27 +96,40 @@ export default function SteelDealFiles({ dealId, files: initial, canEdit }: Prop
 
   return (
     <div className="space-y-2">
-      {canEdit && (
+      {(canEdit || canPublish) && (
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            disabled={uploading}
-            className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md border border-input bg-background text-xs font-medium hover:bg-accent disabled:opacity-50"
-          >
-            {uploading ? <Loader2 size={13} className="animate-spin" /> : <Upload size={13} />}
-            Add file
-          </button>
-          <span className="text-[11px] text-muted-foreground">Architect plans, engineering quotes, signed orders…</span>
-          <input
-            ref={fileInputRef}
-            type="file"
-            className="sr-only"
-            onChange={(e) => {
-              const f = e.target.files?.[0]
-              if (f) upload(f)
-              e.target.value = ''
-            }}
-          />
+          {canEdit && (
+            <>
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploading}
+                className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md border border-input bg-background text-xs font-medium hover:bg-accent disabled:opacity-50"
+              >
+                {uploading ? <Loader2 size={13} className="animate-spin" /> : <Upload size={13} />}
+                Add file
+              </button>
+              <span className="text-[11px] text-muted-foreground">Architect plans, engineering quotes, signed orders…</span>
+              <input
+                ref={fileInputRef}
+                type="file"
+                className="sr-only"
+                onChange={(e) => {
+                  const f = e.target.files?.[0]
+                  if (f) upload(f)
+                  e.target.value = ''
+                }}
+              />
+            </>
+          )}
+
+          {/* Gated on canPublish alone, not on canEdit — the two permissions are
+              genuinely different (a steel rep may attach files but may not share
+              them out of the tailnet), so neither should imply the other. */}
+          {canPublish && (
+            <div className="ml-auto">
+              <DrivePublishButton kind="steel" id={dealId} folderUrl={driveFolderUrl} />
+            </div>
+          )}
         </div>
       )}
 

@@ -19,6 +19,7 @@
  */
 
 import { notify } from '@/lib/notify'
+import { isChatConfigured } from '@/lib/notify/chat'
 import { leadsDb, type LeadRow } from './db'
 import { ROUTE_LABELS } from '@/lib/utils/leads'
 
@@ -28,6 +29,8 @@ export interface LeadNotifyProgress {
   skipped: boolean
   reason?: string
   error?: string
+  /** Which channels actually delivered — a digest can reach one and not the other. */
+  channels?: string[]
 }
 
 /** Only these reach a human unprompted. A `pass` lead is queue material. */
@@ -159,18 +162,55 @@ export function renderLeadEmail(input: LeadRow[]): { subject: string; html: stri
 }
 
 /**
+ * The same digest, in Google Chat's markup dialect.
+ *
+ * Written by hand rather than converted from the email body: a space is skimmed
+ * on a phone between other things, so this is deliberately terser — verdict,
+ * name, deadline, one line of why. The full case lives one tap away in the
+ * platform, and the reader who needs it will follow the link.
+ */
+export function renderLeadChat(input: LeadRow[]): string {
+  const leads = [...input].sort(byQuality)
+  const appUrl = process.env.APP_URL?.trim().replace(/\/$/, '')
+
+  const lines = leads.map((lead) => {
+    const d = due(lead)
+    const verdict = String(lead.fit_recommendation ?? '').toUpperCase()
+    const title = appUrl ? `<${appUrl}/leads?lead=${lead.id}|${lead.title}>` : lead.title
+    const facts = [lead.sender_company, lead.location, ROUTE_LABELS[lead.route] ?? lead.route]
+      .filter(Boolean)
+      .join(' · ')
+
+    return [
+      `${d.urgent ? '🔴' : '•'} *${verdict}${lead.fit_score !== null ? ` ${lead.fit_score}` : ''}* — ${title}`,
+      facts ? `    ${facts}` : null,
+      `    ${d.text}`,
+      lead.fit_summary ? `    _${lead.fit_summary}_` : null,
+    ]
+      .filter(Boolean)
+      .join('\n')
+  })
+
+  const footer = appUrl ? `\n<${appUrl}/leads|Open the lead queue →>` : ''
+  return `${lines.join('\n\n')}\n${footer}`
+}
+
+/**
  * Announce every scored, still-undecided lead that has not been announced.
  * Never throws — a notification failure must not fail the sweep that produced
  * the leads, and the leads are safe in the queue either way.
  */
 export async function notifyScoredLeads(): Promise<LeadNotifyProgress> {
   const to = process.env.LEADS_NOTIFY_EMAIL?.trim()
-  if (!to) {
+  const chatConfigured = isChatConfigured()
+
+  if (!to && !chatConfigured) {
     return {
       considered: 0,
       sent: 0,
       skipped: true,
-      reason: 'LEADS_NOTIFY_EMAIL is not set — no recipient for lead announcements.',
+      reason:
+        'Neither LEADS_NOTIFY_EMAIL nor GOOGLE_CHAT_WEBHOOK_URL is set — no destination for lead announcements.',
     }
   }
 
@@ -192,20 +232,57 @@ export async function notifyScoredLeads(): Promise<LeadNotifyProgress> {
     if (rows.length === 0) return { considered: 0, sent: 0, skipped: false }
 
     const { subject, html } = renderLeadEmail(rows)
-    const result = await notify({ channel: 'email', to, subject, html })
+    const delivered: string[] = []
+    const failures: string[] = []
 
-    if (!result.ok) {
-      // Leave notified_at null so the next run retries rather than losing them.
-      return { considered: rows.length, sent: 0, skipped: false, error: result.error }
+    if (to) {
+      const res = await notify({ channel: 'email', to, subject, html })
+      if (res.ok) delivered.push('email')
+      else failures.push(`email: ${res.error}`)
     }
 
+    if (chatConfigured) {
+      const res = await notify({
+        channel: 'chat',
+        to: 'default',
+        subject,
+        html,
+        text: renderLeadChat(rows),
+        // One running thread per day, so the space shows a digest rather than a
+        // scroll of separate posts.
+        threadKey: `leads-${new Date().toISOString().slice(0, 10)}`,
+      })
+      if (res.ok) delivered.push('chat')
+      else failures.push(`chat: ${res.error}`)
+    }
+
+    if (delivered.length === 0) {
+      // Leave notified_at null so the next run retries rather than losing them.
+      return {
+        considered: rows.length,
+        sent: 0,
+        skipped: false,
+        error: failures.join('; '),
+        channels: [],
+      }
+    }
+
+    // Stamped once ANY channel delivered. Retrying for the sake of a second
+    // channel would re-announce every lead to the one that already worked, and
+    // a duplicate digest is how a digest starts being ignored.
     const stamped = new Date().toISOString()
     await db
       .from('leads')
       .update({ notified_at: stamped })
       .in('id', rows.map((r) => r.id))
 
-    return { considered: rows.length, sent: rows.length, skipped: false }
+    return {
+      considered: rows.length,
+      sent: rows.length,
+      skipped: false,
+      channels: delivered,
+      error: failures.length ? failures.join('; ') : undefined,
+    }
   } catch (err) {
     return {
       considered: 0,

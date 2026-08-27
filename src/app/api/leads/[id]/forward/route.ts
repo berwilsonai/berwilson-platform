@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getViewer } from '@/lib/auth/viewer'
 import { leadsDb, type LeadRow } from '@/lib/leads/db'
 import { forwardLeadToDino } from '@/lib/leads/forward'
+import { refreshLeadLabel } from '@/lib/leads/gmail-sync'
 
 export const maxDuration = 120
 
@@ -34,6 +35,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   try {
     const result = await forwardLeadToDino(data as LeadRow, to)
+    // Mark the thread handed off, so info@ does not work it again.
+    refreshLeadLabel({ ...(data as LeadRow), status: 'forwarded' })
     return NextResponse.json(result)
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)

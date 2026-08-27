@@ -18,8 +18,18 @@ import { triagePendingLeads, type TriageProgress } from './triage-phase'
 import { scorePendingLeads, expireStaleLeads, type ScoreProgress } from './score-phase'
 import { notifyScoredLeads, type LeadNotifyProgress } from './notify-leads'
 import { syncLeadDeadlines, type LeadCalendarProgress } from './calendar'
+import { syncLeadLabels, type LeadLabelProgress } from './gmail-sync'
+import { draftLeadReplies, type LeadDraftProgress } from './draft-reply'
 
-export type LeadPhase = 'fetch' | 'triage' | 'score' | 'expire' | 'notify' | 'calendar'
+export type LeadPhase =
+  | 'fetch'
+  | 'triage'
+  | 'score'
+  | 'expire'
+  | 'notify'
+  | 'calendar'
+  | 'label'
+  | 'draft'
 
 export interface LeadSweepOptions {
   phases?: LeadPhase[]
@@ -42,11 +52,22 @@ export interface LeadSweepResult {
   expired?: number
   notified?: LeadNotifyProgress
   calendar?: LeadCalendarProgress
+  labels?: LeadLabelProgress
+  drafts?: LeadDraftProgress
   elapsedMs: number
   moreWork: boolean
 }
 
-const ALL_PHASES: LeadPhase[] = ['fetch', 'triage', 'score', 'expire', 'calendar', 'notify']
+const ALL_PHASES: LeadPhase[] = [
+  'fetch',
+  'triage',
+  'score',
+  'expire',
+  'label',
+  'draft',
+  'calendar',
+  'notify',
+]
 
 export const DEFAULT_LEAD_HISTORY_DAYS = 90
 
@@ -126,6 +147,26 @@ export async function runLeadSweep(opts: LeadSweepOptions = {}): Promise<LeadSwe
     // Cheap and deterministic — always worth running so the queue self-drains.
     result.expired = await expireStaleLeads()
     result.ranPhases.push('expire')
+  }
+
+  if (phases.includes('label')) {
+    // After scoring, so a thread is labelled with its final verdict for this
+    // run rather than being relabelled minutes later. Cheap and network-bound,
+    // so it runs whatever is left on the clock.
+    result.labels = await syncLeadLabels()
+    result.ranPhases.push('label')
+  }
+
+  if (phases.includes('draft') && remaining() > 0) {
+    // Model-bound and therefore last of the expensive phases: a draft is a
+    // convenience, and it must never eat the budget that scoring — which
+    // decides whether anyone looks at the lead at all — needs first.
+    result.drafts = await draftLeadReplies({
+      budgetMs: Math.max(0, remaining()),
+      userId: opts.userId,
+    })
+    result.ranPhases.push('draft')
+    if (result.drafts.outOfTime) result.moreWork = true
   }
 
   if (phases.includes('calendar')) {

@@ -17,6 +17,7 @@ import ReadAloudButton from '@/components/shared/ReadAloudButton'
 import { toast } from 'sonner'
 import { viewDocument, downloadDocument, fetchDocumentText } from '@/lib/utils/document-links'
 import type { Document } from '@/lib/supabase/types'
+import DrivePublishButton from '@/components/shared/DrivePublishButton'
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -509,9 +510,18 @@ function UploadZone({
 interface DocumentsTabProps {
   projectId: string
   initialDocuments: Document[]
+  /** Drive folder this project has already been published to, if any. */
+  driveFolderUrl?: string | null
+  /** Publishing is a sharing decision, so the control is admin-only. */
+  canPublish?: boolean
 }
 
-export default function DocumentsTab({ projectId, initialDocuments }: DocumentsTabProps) {
+export default function DocumentsTab({
+  projectId,
+  initialDocuments,
+  driveFolderUrl,
+  canPublish,
+}: DocumentsTabProps) {
   const [documents, setDocuments] = useState<Document[]>(initialDocuments)
   const [showUpload, setShowUpload] = useState(false)
 
@@ -530,13 +540,18 @@ export default function DocumentsTab({ projectId, initialDocuments }: DocumentsT
         <h2 className="text-sm font-semibold text-foreground">
           Documents ({documents.length})
         </h2>
-        <button
-          onClick={() => setShowUpload(!showUpload)}
-          className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md border border-input bg-background text-xs font-medium hover:bg-accent transition-colors"
-        >
-          <Upload size={12} />
-          Upload
-        </button>
+        <div className="flex items-center gap-2">
+          {canPublish && (
+            <DrivePublishButton kind="project" id={projectId} folderUrl={driveFolderUrl} />
+          )}
+          <button
+            onClick={() => setShowUpload(!showUpload)}
+            className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md border border-input bg-background text-xs font-medium hover:bg-accent transition-colors"
+          >
+            <Upload size={12} />
+            Upload
+          </button>
+        </div>
       </div>
 
       {/* Upload zone */}

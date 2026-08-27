@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getViewer } from '@/lib/auth/viewer'
 import { leadsDb, type LeadRow } from '@/lib/leads/db'
 import { promoteLead, type PromoteTarget } from '@/lib/leads/promote'
+import { refreshLeadLabel } from '@/lib/leads/gmail-sync'
 
 export const maxDuration = 300
 
@@ -49,6 +50,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         null,
       salespersonId: typeof body.salesperson_id === 'string' ? body.salesperson_id : null,
     })
+    // The thread now reads "Promoted" in the mailbox, so nobody works it twice.
+    refreshLeadLabel({ ...lead, status: 'promoted' })
     return NextResponse.json(result)
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)

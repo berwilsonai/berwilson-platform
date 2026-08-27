@@ -93,6 +93,17 @@ export interface LeadRow {
   forwarded_to: string | null
   forwarded_at: string | null
 
+  /**
+   * What the platform has already written back into Gmail — the label last
+   * applied to the thread, and the draft reply left for a human to send. Both
+   * are latches: they are what stop a daily sweep relabelling and re-drafting
+   * the same thread forever.
+   */
+  gmail_label: string | null
+  gmail_labeled_at: string | null
+  gmail_draft_id: string | null
+  draft_created_at: string | null
+
   notes: string | null
   created_at: string | null
   updated_at: string | null

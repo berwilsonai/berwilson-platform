@@ -806,6 +806,7 @@ export type Database = {
           doc_type: string | null
           drive_file_id: string | null
           drive_modified_at: string | null
+          drive_published_id: string | null
           embedding_status: string | null
           entity_id: string | null
           extracted_text: string | null
@@ -830,6 +831,7 @@ export type Database = {
           doc_type?: string | null
           drive_file_id?: string | null
           drive_modified_at?: string | null
+          drive_published_id?: string | null
           embedding_status?: string | null
           entity_id?: string | null
           extracted_text?: string | null
@@ -854,6 +856,7 @@ export type Database = {
           doc_type?: string | null
           drive_file_id?: string | null
           drive_modified_at?: string | null
+          drive_published_id?: string | null
           embedding_status?: string | null
           entity_id?: string | null
           extracted_text?: string | null
@@ -1525,6 +1528,7 @@ export type Database = {
           confidential: boolean
           created_at: string | null
           decisions: Json
+          drive_file_id: string | null
           id: string
           index_ai: boolean
           kind: string
@@ -1553,6 +1557,7 @@ export type Database = {
           confidential?: boolean
           created_at?: string | null
           decisions?: Json
+          drive_file_id?: string | null
           id?: string
           index_ai?: boolean
           kind?: string
@@ -1581,6 +1586,7 @@ export type Database = {
           confidential?: boolean
           created_at?: string | null
           decisions?: Json
+          drive_file_id?: string | null
           id?: string
           index_ai?: boolean
           kind?: string
@@ -1769,6 +1775,8 @@ export type Database = {
           created_at: string | null
           deal_structure: string | null
           description: string | null
+          drive_folder_id: string | null
+          drive_folder_url: string | null
           estimated_value: number | null
           id: string
           identified_date: string | null
@@ -1795,6 +1803,8 @@ export type Database = {
           created_at?: string | null
           deal_structure?: string | null
           description?: string | null
+          drive_folder_id?: string | null
+          drive_folder_url?: string | null
           estimated_value?: number | null
           id?: string
           identified_date?: string | null
@@ -1821,6 +1831,8 @@ export type Database = {
           created_at?: string | null
           deal_structure?: string | null
           description?: string | null
+          drive_folder_id?: string | null
+          drive_folder_url?: string | null
           estimated_value?: number | null
           id?: string
           identified_date?: string | null
@@ -1848,6 +1860,7 @@ export type Database = {
         Row: {
           ai_summary: string | null
           doc_type: string | null
+          drive_published_id: string | null
           extracted_text: string | null
           file_name: string
           file_size_bytes: number | null
@@ -1860,6 +1873,7 @@ export type Database = {
         Insert: {
           ai_summary?: string | null
           doc_type?: string | null
+          drive_published_id?: string | null
           extracted_text?: string | null
           file_name: string
           file_size_bytes?: number | null
@@ -1872,6 +1886,7 @@ export type Database = {
         Update: {
           ai_summary?: string | null
           doc_type?: string | null
+          drive_published_id?: string | null
           extracted_text?: string | null
           file_name?: string
           file_size_bytes?: number | null
@@ -2029,6 +2044,8 @@ export type Database = {
           enrichment_conflicts: Json | null
           enrichment_notes: Json | null
           full_name: string
+          google_contacts: Json
+          google_contacts_hash: string | null
           government_contract_history: string | null
           graph_enriched_at: string | null
           id: string
@@ -2050,6 +2067,8 @@ export type Database = {
           enrichment_conflicts?: Json | null
           enrichment_notes?: Json | null
           full_name: string
+          google_contacts?: Json
+          google_contacts_hash?: string | null
           government_contract_history?: string | null
           graph_enriched_at?: string | null
           id?: string
@@ -2071,6 +2090,8 @@ export type Database = {
           enrichment_conflicts?: Json | null
           enrichment_notes?: Json | null
           full_name?: string
+          google_contacts?: Json
+          google_contacts_hash?: string | null
           government_contract_history?: string | null
           graph_enriched_at?: string | null
           id?: string
@@ -2278,6 +2299,8 @@ export type Database = {
           created_at: string | null
           delivery_method: string | null
           description: string | null
+          drive_folder_id: string | null
+          drive_folder_url: string | null
           estimated_value: number | null
           id: string
           incumbent: string | null
@@ -2310,6 +2333,8 @@ export type Database = {
           created_at?: string | null
           delivery_method?: string | null
           description?: string | null
+          drive_folder_id?: string | null
+          drive_folder_url?: string | null
           estimated_value?: number | null
           id?: string
           incumbent?: string | null
@@ -2342,6 +2367,8 @@ export type Database = {
           created_at?: string | null
           delivery_method?: string | null
           description?: string | null
+          drive_folder_id?: string | null
+          drive_folder_url?: string | null
           estimated_value?: number | null
           id?: string
           incumbent?: string | null
@@ -2733,6 +2760,8 @@ export type Database = {
           created_at: string | null
           customer: string | null
           description: string | null
+          drive_folder_id: string | null
+          drive_folder_url: string | null
           expected_delivery_date: string | null
           icp_segment: string | null
           id: string
@@ -2752,10 +2781,10 @@ export type Database = {
           price_per_sqft: number | null
           pricing_below_floor: boolean
           referral_fee_paid: boolean
-          referral_party_id: string | null
           referral_fee_paid_date: string | null
           referral_fee_type: string
           referral_fee_value: number | null
+          referral_party_id: string | null
           sales_commission_paid: boolean
           sales_commission_paid_date: string | null
           sales_rate_override: number | null
@@ -2772,6 +2801,8 @@ export type Database = {
           created_at?: string | null
           customer?: string | null
           description?: string | null
+          drive_folder_id?: string | null
+          drive_folder_url?: string | null
           expected_delivery_date?: string | null
           icp_segment?: string | null
           id?: string
@@ -2811,6 +2842,8 @@ export type Database = {
           created_at?: string | null
           customer?: string | null
           description?: string | null
+          drive_folder_id?: string | null
+          drive_folder_url?: string | null
           expected_delivery_date?: string | null
           icp_segment?: string | null
           id?: string

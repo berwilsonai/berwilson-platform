@@ -16,7 +16,7 @@ import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { viewDocument, downloadDocument } from '@/lib/utils/document-links'
 import { formatValue, formatDate, bidDueLabel, bidDueColor } from '@/lib/utils/constants'
 import {
-  ROUTE_LABELS, ROUTE_BADGE, ROUTE_DESTINATIONS, STATUS_BADGE, STATUS_LABELS,
+  ROUTE_LABELS, ROUTE_BADGE, ROUTE_DESTINATIONS, STATUS_BADGE, STATUS_LABELS, gmailThreadUrl,
 } from '@/lib/utils/leads'
 import { LEAD_ROUTES, type LeadRoute } from '@/lib/ai/prompts/lead-triage'
 import type { LeadRow } from '@/lib/leads/db'
@@ -176,6 +176,7 @@ export default function LeadDetailSheet({
       : lead.promoted_steel_deal_id
         ? `/steel/${lead.promoted_steel_deal_id}`
         : null
+  const gmailUrl = gmailThreadUrl(lead.mailbox, lead.thread_id)
 
   return (
     <>
@@ -213,6 +214,36 @@ export default function LeadDetailSheet({
                 <ExternalLink className="size-3.5 text-muted-foreground" />
                 <span>Open the record this became</span>
               </Link>
+            )}
+
+            {gmailUrl && (
+              <a
+                href={gmailUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="flex items-start gap-2 rounded-md bg-muted/30 p-3 text-sm hover:bg-accent"
+              >
+                <Mail className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />
+                <span>
+                  {lead.gmail_draft_id ? (
+                    <>
+                      <span className="font-medium">A reply is drafted in Gmail</span>
+                      <span className="block text-xs text-muted-foreground">
+                        Ber AI wrote it; read, edit, and send it yourself — nothing was sent.
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      Open the original thread in Gmail
+                      {lead.gmail_label && (
+                        <span className="block text-xs text-muted-foreground">
+                          Filed under {lead.gmail_label}
+                        </span>
+                      )}
+                    </>
+                  )}
+                </span>
+              </a>
             )}
 
             {lead.summary && <p className="text-sm leading-relaxed">{lead.summary}</p>}

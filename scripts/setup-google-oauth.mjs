@@ -45,33 +45,39 @@ function loadScopes() {
     '../src/lib/integrations/google-workspace.ts'
   )
   const text = readFileSync(src, 'utf8')
-  const block = text.slice(text.indexOf('export const SCOPES = ['))
-  const scopes = [
-    ...block.slice(0, block.indexOf(']')).matchAll(/'(https:\/\/www\.googleapis\.com\/auth\/[^']+)'/g),
-  ].map((m) => m[1])
 
-  // Scopes granted on the primary mailbox alone — see PRIMARY_ONLY_SCOPES.
-  const primaryBlock = text.slice(text.indexOf('export const PRIMARY_ONLY_SCOPES = ['))
-  const primaryOnly = primaryBlock
-    ? [
-        ...primaryBlock
-          .slice(0, primaryBlock.indexOf(']'))
-          .matchAll(/'(https:\/\/www\.googleapis\.com\/auth\/[^']+)'/g),
-      ].map((m) => m[1])
-    : []
+  /** Pull one `export const NAME = [ ... ]` scope array out of the source. */
+  const block = (name) => {
+    const start = text.indexOf(`export const ${name} = [`)
+    if (start === -1) return []
+    const chunk = text.slice(start)
+    return [
+      ...chunk
+        .slice(0, chunk.indexOf(']'))
+        .matchAll(/'(https:\/\/www\.googleapis\.com\/auth\/[^']+)'/g),
+    ].map((m) => m[1])
+  }
 
+  const scopes = block('SCOPES')
   if (scopes.length === 0) {
     console.error(`\n${RED}Could not read SCOPES from ${src}.${OFF}`)
     console.error('Consenting with a guessed scope list would mint tokens that fail later.\n')
     process.exit(1)
   }
-  return { scopes, primaryOnly }
+  // The narrower tiers are optional by construction — an empty one just means
+  // no mailbox is currently singled out for elevated access.
+  return {
+    scopes,
+    primaryOnly: block('PRIMARY_ONLY_SCOPES'),
+    leadOnly: block('LEAD_ONLY_SCOPES'),
+  }
 }
 
-const { scopes: SCOPES, primaryOnly: PRIMARY_ONLY_SCOPES } = loadScopes()
-
-// Keep this list in step with SCOPES in src/lib/integrations/google-workspace.ts.
-// A scope added there but not here mints tokens that 403 at the first call.
+const {
+  scopes: SCOPES,
+  primaryOnly: PRIMARY_ONLY_SCOPES,
+  leadOnly: LEAD_ONLY_SCOPES,
+} = loadScopes()
 
 const GREEN = '\x1b[32m', RED = '\x1b[31m', BOLD = '\x1b[1m', DIM = '\x1b[2m', OFF = '\x1b[0m'
 
@@ -94,6 +100,28 @@ const ALL_MAILBOXES = [
       .filter(Boolean)
   ),
 ]
+
+const LEAD_MAILBOX_SET = new Set(
+  (process.env.GOOGLE_LEAD_MAILBOXES ?? 'info@berwilson.com')
+    .split(',')
+    .map((m) => m.trim().toLowerCase())
+    .filter(Boolean)
+)
+
+/**
+ * Which scopes to ask for on one mailbox.
+ *
+ * Mirrors scopesFor() in google-workspace.ts. The elevated tiers are asked for
+ * ONLY where they are used, so re-consenting a mailbox that no longer qualifies
+ * hands the extra permission back — which is the intended way to revoke it.
+ */
+function scopesForMailbox(mailbox) {
+  return [
+    ...SCOPES,
+    ...(mailbox === ALL_MAILBOXES[0] ? PRIMARY_ONLY_SCOPES : []),
+    ...(LEAD_MAILBOX_SET.has(mailbox) ? LEAD_ONLY_SCOPES : []),
+  ]
+}
 
 // --only <address> re-consents a single mailbox, leaving the others' stored
 // tokens untouched. Useful when one of several flows fails.
@@ -206,8 +234,7 @@ async function consentFor(mailbox, client, rl) {
     client_id: client.client_id,
     redirect_uri: redirectUri,
     response_type: 'code',
-    // The primary mailbox alone is asked for the elevated scopes.
-    scope: [...SCOPES, ...(mailbox === ALL_MAILBOXES[0] ? PRIMARY_ONLY_SCOPES : [])].join(' '),
+    scope: scopesForMailbox(mailbox).join(' '),
     access_type: 'offline',   // this is what yields a refresh token
     // 'select_account' forces the account chooser even when the browser
     // already has a Google session. Without it, a browser signed into an

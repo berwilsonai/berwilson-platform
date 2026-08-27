@@ -54,7 +54,7 @@ import { existsSync, readFileSync } from 'node:fs'
 // ---------------------------------------------------------------------------
 
 const TOKEN_ENDPOINT = 'https://oauth2.googleapis.com/token'
-const GMAIL_BASE = 'https://gmail.googleapis.com/gmail/v1'
+export const GMAIL_BASE = 'https://gmail.googleapis.com/gmail/v1'
 const CALENDAR_BASE = 'https://www.googleapis.com/calendar/v3'
 const PEOPLE_BASE = 'https://people.googleapis.com/v1'
 
@@ -78,7 +78,14 @@ export const SCOPES = [
   // cannot reach — a mandatory pre-bid site visit nobody can see is a missed
   // bid. Scoped to events, so it cannot create or delete calendars themselves.
   'https://www.googleapis.com/auth/calendar.events',
-  'https://www.googleapis.com/auth/contacts.readonly',
+  // Contacts is READ+WRITE, unlike everything else at this tier. The platform
+  // pushes its directory into each mailbox's contacts so a party the CRM knows
+  // autocompletes in Gmail for someone who cannot reach the tailnet at all.
+  // That has to happen in every mailbox, which is why it sits here rather than
+  // in one of the narrower tiers below. It supersedes contacts.readonly.
+  'https://www.googleapis.com/auth/contacts',
+  // "Other contacts" (auto-collected addresses) are read-only at Google; there
+  // is no write equivalent and none is wanted.
   'https://www.googleapis.com/auth/contacts.other.readonly',
   // Read-only Drive, for the nominated knowledge folder the nightly sync
   // indexes into the company knowledge base. Grants no write of any kind.
@@ -102,6 +109,29 @@ export const PRIMARY_ONLY_SCOPES = [
   // Read + write Google Docs. Needed to correct the knowledge document in place
   // rather than asking a human to hand-edit prose the platform is scored on.
   'https://www.googleapis.com/auth/documents',
+  // Drive write, restricted to files this app itself created — it cannot see,
+  // touch, or delete anything else in the Drive, which is why it is safe to
+  // hold alongside drive.readonly. Backs the per-record document folders and
+  // the spreadsheet exports (the Sheets API accepts drive.file for app-created
+  // files, so no broader spreadsheets scope is needed).
+  'https://www.googleapis.com/auth/drive.file',
+] as const
+
+/**
+ * Scopes requested for the LEAD mailboxes only (info@).
+ *
+ * `gmail.modify` is the broadest grant in this file — read, write, label, and
+ * trash, everything short of permanent deletion. It buys two things that only
+ * matter on the mailbox inbound bids arrive in: the triage verdict written back
+ * as a Gmail label, and a reply drafted for a human to send. Neither is worth
+ * holding over the deal mailboxes, which stay read-only, so this is scoped the
+ * same way the Docs write was.
+ *
+ * A stored token without it degrades cleanly: labelling and drafting skip with
+ * a message naming the re-consent, and the lead queue is unaffected.
+ */
+export const LEAD_ONLY_SCOPES = [
+  'https://www.googleapis.com/auth/gmail.modify',
 ] as const
 
 /**
@@ -138,6 +168,23 @@ export const LEAD_MAILBOXES: readonly string[] = (
 /** Every mailbox the platform holds a credential for, deduped. */
 export function allMailboxes(): string[] {
   return [...new Set([...MAILBOXES, ...LEAD_MAILBOXES])]
+}
+
+/**
+ * The scopes a given mailbox should have been consented with.
+ *
+ * Three tiers, and which one a mailbox lands in is decided here alone — the
+ * consent script and the staleness probe both read this, so "what should this
+ * mailbox hold" has exactly one answer. A mailbox that is both primary and a
+ * lead mailbox gets the union.
+ */
+export function scopesFor(mailbox: string): string[] {
+  const m = mailbox.trim().toLowerCase()
+  return [
+    ...SCOPES,
+    ...(m === PRIMARY_MAILBOX ? PRIMARY_ONLY_SCOPES : []),
+    ...(LEAD_MAILBOXES.includes(m) ? LEAD_ONLY_SCOPES : []),
+  ]
 }
 
 interface ServiceAccountKey {
@@ -593,17 +640,6 @@ export async function googleFetchBytes(url: string, mailbox: string): Promise<Ar
   return res.arrayBuffer()
 }
 
-/**
- * Send an HTML email as `from` via Gmail (`users.messages.send`).
- *
- * Replaces the Microsoft Graph sendMail removed with the rest of Graph on
- * 2026-08-23. The outbound notification layer (src/lib/notify) is the only
- * caller; everything else here is read-only.
- *
- * Requires the gmail.send scope. Refresh tokens minted before that scope was
- * added will fail here with a 403 — the error below names the fix rather than
- * leaving a bare Google error in notification_log.
- */
 /** A file to attach to an outbound message. */
 export interface MailAttachment {
   fileName: string
@@ -612,23 +648,36 @@ export interface MailAttachment {
   content: Buffer | ArrayBuffer
 }
 
-export async function sendMail(opts: {
+/**
+ * Build a base64url RFC 2822 message — the wire format both `messages.send` and
+ * `drafts.create` take.
+ *
+ * Shared so a draft and a sent message are byte-identical in construction; the
+ * only difference between them should be which endpoint receives it.
+ */
+export function buildRawMessage(opts: {
+  from: string
   to: string
   subject: string
   html: string
-  from?: string
   attachments?: MailAttachment[]
-}): Promise<void> {
-  const from = opts.from ?? PRIMARY_MAILBOX
-  const token = await getAccessToken(from)
-
+  /** Extra RFC 2822 headers, e.g. In-Reply-To / References for a threaded reply. */
+  extraHeaders?: string[]
+}): string {
+  const from = opts.from
   // RFC 2822. Subject is RFC 2047 encoded so non-ASCII survives the hop.
   const subject = /^[\x20-\x7E]*$/.test(opts.subject)
     ? opts.subject
     : `=?UTF-8?B?${Buffer.from(opts.subject, 'utf8').toString('base64')}?=`
 
   const attachments = opts.attachments ?? []
-  const headers = [`From: ${from}`, `To: ${opts.to}`, `Subject: ${subject}`, 'MIME-Version: 1.0']
+  const headers = [
+    `From: ${from}`,
+    `To: ${opts.to}`,
+    `Subject: ${subject}`,
+    ...(opts.extraHeaders ?? []),
+    'MIME-Version: 1.0',
+  ]
 
   let message: string
   if (attachments.length === 0) {
@@ -664,7 +713,30 @@ export async function sendMail(opts: {
     message = parts.join('\r\n')
   }
 
-  const raw = base64url(Buffer.from(message, 'utf8'))
+  return base64url(Buffer.from(message, 'utf8'))
+}
+
+/**
+ * Send an HTML email as `from` via Gmail (`users.messages.send`).
+ *
+ * Replaces the Microsoft Graph sendMail removed with the rest of Graph on
+ * 2026-08-23. The outbound notification layer (src/lib/notify) is the only
+ * caller; everything else here is read-only.
+ *
+ * Requires the gmail.send scope. Refresh tokens minted before that scope was
+ * added will fail here with a 403 — the error below names the fix rather than
+ * leaving a bare Google error in notification_log.
+ */
+export async function sendMail(opts: {
+  to: string
+  subject: string
+  html: string
+  from?: string
+  attachments?: MailAttachment[]
+}): Promise<void> {
+  const from = opts.from ?? PRIMARY_MAILBOX
+  const token = await getAccessToken(from)
+  const raw = buildRawMessage({ ...opts, from })
 
   const res = await fetch(
     `${GMAIL_BASE}/users/${encodeURIComponent(from)}/messages/send`,
@@ -1338,8 +1410,8 @@ export async function probeScopeCoverage(): Promise<{
   // is authorised centrally and picks up scope changes without re-consent.
   if (!store) return { state: 'unknown', missing: [], detail: 'Not using per-mailbox OAuth.' }
 
-  const wanted = SCOPES as readonly string[]
   const missing: { mailbox: string; scopes: string[] }[] = []
+  let checked = 0
 
   for (const mailbox of Object.keys(store.tokens)) {
     try {
@@ -1355,7 +1427,10 @@ export async function probeScopeCoverage(): Promise<{
       })
       if (!res.ok) continue // connection health is the other probe's job
       const granted = String(((await res.json()) as { scope?: string }).scope ?? '').split(' ')
-      const gaps = wanted.filter((w) => !granted.includes(w))
+      // Each mailbox is held to its OWN tier — asking info@ for the Docs write
+      // moose@ carries would report a gap that is deliberate, not a fault.
+      const gaps = scopesFor(mailbox).filter((w) => !granted.includes(w))
+      checked++
       if (gaps.length > 0) {
         missing.push({ mailbox, scopes: gaps.map((g) => g.split('/auth/')[1] ?? g) })
       }
@@ -1365,7 +1440,13 @@ export async function probeScopeCoverage(): Promise<{
   }
 
   if (missing.length === 0) {
-    return { state: 'ok', missing, detail: `All ${wanted.length} scopes granted on every connected mailbox.` }
+    return {
+      state: 'ok',
+      missing,
+      detail: `Every scope this platform declares is granted on all ${checked} connected mailbox${
+        checked === 1 ? '' : 'es'
+      }.`,
+    }
   }
 
   return {

@@ -18,6 +18,7 @@ import { leadSourcesInUse } from '@/lib/steel/lead-sources'
 import { canonicalLeadSource } from '@/lib/utils/steel'
 import type { Database } from '@/types/database'
 import { leadsDb, parseLeadAttachments, type LeadAttachment, type LeadRow } from './db'
+import { publishRecordQuietly, type DriveRecordKind } from '@/lib/drive/publish'
 import { LEAD_FOLDER } from './score-phase'
 
 export type PromoteTarget = 'project' | 'opportunity' | 'steel'
@@ -28,6 +29,8 @@ export interface PromoteResult {
   documentsCopied: number
   /** Directory contacts created or matched for the sender. */
   contactsLinked: number
+  /** Drive folder the bid package was published to, when publishing worked. */
+  driveFolderUrl?: string | null
 }
 
 type Sector = Database['public']['Enums']['project_sector']
@@ -401,7 +404,18 @@ export async function promoteLead(
     console.error(`[leads/promote] record created but lead not marked:`, markErr.message)
   }
 
-  return { target, id, documentsCopied, contactsLinked: partyIds.length }
+  // Publish the bid package to Drive so the people who will actually price it
+  // can open it. Quiet by design: the record and its documents already exist,
+  // and a Drive outage must not read as "promotion failed".
+  const published = await publishRecordQuietly(target as DriveRecordKind, id)
+
+  return {
+    target,
+    id,
+    documentsCopied,
+    contactsLinked: partyIds.length,
+    driveFolderUrl: published?.folderUrl ?? null,
+  }
 }
 
 /** Storage prefix a lead's staged files live under. */

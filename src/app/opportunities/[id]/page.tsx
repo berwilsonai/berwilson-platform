@@ -262,7 +262,12 @@ export default async function OpportunityDetailPage({ params }: PageProps) {
         <h2 className="flex items-center gap-1.5 text-sm font-semibold mb-3">
           <FileText size={15} /> White Papers & Documents
         </h2>
-        <OpportunityDocuments opportunityId={id} documents={documents ?? []} />
+        <OpportunityDocuments
+          opportunityId={id}
+          documents={documents ?? []}
+          driveFolderUrl={opportunity.drive_folder_url}
+          canPublish={viewer?.isAdmin ?? false}
+        />
       </section>
 
       {/* Meetings */}

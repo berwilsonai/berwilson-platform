@@ -88,3 +88,20 @@ export const ROUTE_TABS: LeadRoute[] = [
   'corporate',
   'unknown',
 ]
+
+/**
+ * Deep link to the lead's conversation in Gmail.
+ *
+ * `authuser=<address>` rather than a `/u/0/` index: the reader may well be
+ * signed into several Google accounts, and the index is per-browser-session, so
+ * a positional link opens the wrong mailbox as often as the right one.
+ *
+ * Links to the THREAD rather than the draft — a draft reply lives inside the
+ * conversation, so this shows both, and it still works for a lead that has no
+ * draft.
+ */
+export function gmailThreadUrl(mailbox: string | null, threadId: string | null): string | null {
+  if (!threadId) return null
+  const account = mailbox ? `?authuser=${encodeURIComponent(mailbox)}` : ''
+  return `https://mail.google.com/mail/u/${account}#all/${threadId}`
+}

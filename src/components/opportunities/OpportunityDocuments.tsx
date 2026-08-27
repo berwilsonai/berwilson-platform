@@ -9,6 +9,7 @@ import { toast } from 'sonner'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import type { OpportunityDocument } from '@/lib/supabase/types'
 import { OPPORTUNITY_DOC_TYPES, OPPORTUNITY_DOC_TYPE_LABELS } from '@/lib/utils/opportunities'
+import DrivePublishButton from '@/components/shared/DrivePublishButton'
 
 const AI_ELIGIBLE_MIMES = new Set(['text/plain', 'text/markdown', 'text/csv', 'application/pdf'])
 
@@ -22,9 +23,18 @@ function formatBytes(bytes: number | null): string {
 interface OpportunityDocumentsProps {
   opportunityId: string
   documents: OpportunityDocument[]
+  /** Drive folder this opportunity has already been published to, if any. */
+  driveFolderUrl?: string | null
+  /** Publishing is a sharing decision, so the control is admin-only. */
+  canPublish?: boolean
 }
 
-export default function OpportunityDocuments({ opportunityId, documents }: OpportunityDocumentsProps) {
+export default function OpportunityDocuments({
+  opportunityId,
+  documents,
+  driveFolderUrl,
+  canPublish,
+}: OpportunityDocumentsProps) {
   const router = useRouter()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [docType, setDocType] = useState<string>('white_paper')
@@ -124,6 +134,16 @@ export default function OpportunityDocuments({ opportunityId, documents }: Oppor
             <Sparkles size={12} />
             AI summary
           </label>
+
+          {canPublish && (
+            <div className="ml-auto">
+              <DrivePublishButton
+                kind="opportunity"
+                id={opportunityId}
+                folderUrl={driveFolderUrl}
+              />
+            </div>
+          )}
         </div>
 
         <div

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getViewer } from '@/lib/auth/viewer'
 import { leadsDb, type LeadRow, type LeadStatus } from '@/lib/leads/db'
 import { LEAD_ROUTES, type LeadRoute } from '@/lib/ai/prompts/lead-triage'
+import { refreshLeadLabel } from '@/lib/leads/gmail-sync'
 
 const STATUSES: LeadStatus[] = [
   'new',
@@ -78,6 +79,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   if (!data) return NextResponse.json({ error: 'Lead not found' }, { status: 404 })
+
+  // Push the decision out to Gmail now rather than at tomorrow's sweep — the
+  // people who act on the mailbox cannot see this queue.
+  if ('status' in body) refreshLeadLabel(data as LeadRow)
+
   return NextResponse.json({ lead: data as LeadRow })
 }
 

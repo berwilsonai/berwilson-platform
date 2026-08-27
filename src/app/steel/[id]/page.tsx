@@ -304,7 +304,13 @@ export default async function SteelDealDetailPage({ params }: PageProps) {
         <h2 className="flex items-center gap-1.5 label-caps text-muted-foreground mb-2">
           <StickyNote size={13} /> Documents
         </h2>
-        <SteelDealFiles dealId={id} files={(documents as Document[]) ?? []} canEdit={canEditFiles} />
+        <SteelDealFiles
+          dealId={id}
+          files={(documents as Document[]) ?? []}
+          canEdit={canEditFiles}
+          driveFolderUrl={deal.drive_folder_url}
+          canPublish={viewer?.isAdmin ?? false}
+        />
       </section>
 
       {/* Description */}
