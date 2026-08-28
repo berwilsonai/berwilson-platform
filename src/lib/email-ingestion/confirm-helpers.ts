@@ -126,17 +126,24 @@ export async function saveReportDocument(
     doc_type: 'other',
     ai_summary: opts.aiSummary,
   }
+
+  // The report's CONTENT is already indexed by the caller through the update
+  // row / embedOpportunityReport, so this snapshot is deliberately not embedded
+  // again. Say that with 'skipped': the column defaults to 'pending', which the
+  // UI renders as "Indexing…" — forever, for a file nothing will ever come back
+  // to index. (opportunity_documents has no such column, hence documents-only.)
+  const docBase = { ...base, embedding_status: 'skipped' }
   const { data: doc, error: insertErr } =
     target.kind === 'project'
       ? await supabase
           .from('documents')
-          .insert({ ...base, project_id: target.id, source: 'document' })
+          .insert({ ...docBase, project_id: target.id, source: 'document' })
           .select('id')
           .single()
       : target.kind === 'company'
         ? await supabase
             .from('documents')
-            .insert({ ...base, is_company: true, source: 'document' })
+            .insert({ ...docBase, is_company: true, source: 'document' })
             .select('id')
             .single()
         : await supabase
