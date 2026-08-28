@@ -751,10 +751,25 @@ export async function executeModuleTool(
 
       const query = str(args.query)
       if (query) {
-        const like = `%${query}%`
-        // summary is jsonb; ::text lets one ilike cover deal name, counterparty,
-        // key facts and the narrative without a column-per-field OR chain.
-        q = q.or(`subject.ilike.${like},summary::text.ilike.${like}`)
+        // summary is jsonb. A `summary::text` cast reads naturally but is NOT
+        // valid inside an or() logic tree — PostgREST rejects the whole request
+        // with "failed to parse logic tree", so this tool errored on every
+        // search. Reach into the jsonb with ->> instead, which the logic-tree
+        // parser does accept. key_facts is an array; ->> serialises it to JSON
+        // text, so an ilike still matches inside it.
+        //
+        // The value is double-quoted because a query containing a comma or a
+        // paren would otherwise be parsed as more logic-tree structure.
+        const like = `"*${query.replace(/["\\]/g, '')}*"`
+        q = q.or(
+          [
+            `subject.ilike.${like}`,
+            `summary->>deal_name.ilike.${like}`,
+            `summary->>counterparty.ilike.${like}`,
+            `summary->>summary.ilike.${like}`,
+            `summary->>key_facts.ilike.${like}`,
+          ].join(','),
+        )
       }
       const participant = str(args.participant)
       if (participant) q = q.filter('participants', 'cs', `{${participant}}`)

@@ -265,18 +265,45 @@ export default async function ContactDetailPage({ params, searchParams }: PagePr
       activityUpdates = (updates as UpdateRow[]) ?? []
     }
 
-    // Also try to find updates that mention this party by name in mentioned_parties JSONB
+    // Also find updates on OTHER projects that mention this party by name.
+    //
+    // The name lives inside mentioned_parties, a jsonb array of
+    // {name, role, company}. This used to filter on 'mentioned_parties::text'
+    // — but PostgREST drops the cast and hands raw jsonb to ilike, so the
+    // query failed with "operator does not exist: jsonb ~~* unknown" EVERY
+    // time. A failed query returns null, which is indistinguishable from "no
+    // matches", so this section silently showed nothing on every contact.
+    // The table is small (tens of rows), so match in JS instead.
     if (party.full_name) {
-      const { data: mentionUpdates } = await supabase
+      // Exclude the projects already listed above — but only when there are
+      // any. The old `in.(null)` placeholder errors on a uuid column
+      // ("invalid input syntax for type uuid"), which killed this section for
+      // every contact with no linked projects.
+      let mentionQuery = supabase
         .from('updates')
-        .select('id, summary, created_at, source, projects(name)')
-        .filter('mentioned_parties::text', 'ilike', `%${party.full_name.replace(/'/g, "''")}%`)
-        .not('project_id', 'in', `(${projectIds.length > 0 ? projectIds.join(',') : 'null'})`)
+        .select('id, summary, created_at, source, mentioned_parties, projects(name)')
+        .not('mentioned_parties', 'is', null)
         .order('created_at', { ascending: false })
-        .limit(20)
+        .limit(200)
+      if (projectIds.length > 0) {
+        mentionQuery = mentionQuery.not('project_id', 'in', `(${projectIds.join(',')})`)
+      }
+      const { data: mentionUpdates } = await mentionQuery
 
-      if (mentionUpdates && mentionUpdates.length > 0) {
-        activityUpdates = [...activityUpdates, ...(mentionUpdates as UpdateRow[])]
+      const needle = party.full_name.toLowerCase()
+      const matches = (mentionUpdates ?? []).filter((u) => {
+        const mentioned = (u as { mentioned_parties?: unknown }).mentioned_parties
+        if (!Array.isArray(mentioned)) return false
+        return mentioned.some((m) => {
+          const entry = m as { name?: unknown; company?: unknown }
+          const name = typeof entry?.name === 'string' ? entry.name.toLowerCase() : ''
+          const company = typeof entry?.company === 'string' ? entry.company.toLowerCase() : ''
+          return name.includes(needle) || company.includes(needle)
+        })
+      })
+
+      if (matches.length > 0) {
+        activityUpdates = [...activityUpdates, ...(matches.slice(0, 20) as unknown as UpdateRow[])]
       }
     }
 
