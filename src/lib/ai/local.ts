@@ -37,6 +37,77 @@ export function localEmbeddingModel(): string {
 }
 
 // ---------------------------------------------------------------------------
+// Hang guards.
+//
+// Generation is deliberately UNBUDGETED (no max_tokens — see LocalChatOptions):
+// the model is free, so it may think as long as it likes. But "no token budget"
+// is not "wait forever". With no timeout at all, a wedged LM Studio — or a
+// socket left stalled across one of the Studio's maintenance-sleep windows —
+// hangs the caller indefinitely. That is what killed the daily brief on
+// 2026-08-27 and 08-28: the cron sat for 16.5 minutes and no brief was written
+// on either day, with nothing in any log naming a cause.
+//
+// These caps sit far above any real call (the slowest observed is a ~95s
+// portfolio brief), so they only ever fire on a genuine stall.
+// ---------------------------------------------------------------------------
+
+function envMs(name: string, fallback: number): number {
+  const raw = Number(process.env[name])
+  return Number.isFinite(raw) && raw > 0 ? raw : fallback
+}
+
+/** Whole-call cap for a non-streaming completion. */
+const chatTimeoutMs = () => envMs('LOCAL_AI_TIMEOUT_MS', 900_000)
+
+/**
+ * Gap cap BETWEEN stream chunks. Deliberately not a whole-call cap: a long
+ * answer is legitimate, a silent socket is not, and only the gap tells them
+ * apart.
+ */
+const streamIdleTimeoutMs = () => envMs('LOCAL_AI_STREAM_IDLE_TIMEOUT_MS', 180_000)
+
+/** Embeddings are small and fast; a slow one means something is wrong. */
+const embeddingTimeoutMs = () => envMs('LOCAL_AI_EMBEDDING_TIMEOUT_MS', 120_000)
+
+/**
+ * Turn an abort into something a log reader can act on. `AbortSignal.timeout`
+ * surfaces as a bare "This operation was aborted", which in a cron log is
+ * indistinguishable from a crash.
+ */
+function localStallError(err: unknown, ms: number, what: string): Error {
+  const aborted = err instanceof Error && (err.name === 'TimeoutError' || err.name === 'AbortError')
+  if (!aborted) return err instanceof Error ? err : new Error(String(err))
+  return new Error(
+    `Local AI ${what} timed out after ${Math.round(ms / 1000)}s — no response from LM Studio at ` +
+      `${localBaseUrl()}. Check that it is running and the model is loaded.`,
+  )
+}
+
+/**
+ * One `reader.read()`, bounded by an idle timeout. Rejects rather than hanging
+ * when the stream goes quiet.
+ */
+async function readWithIdleTimeout<T>(
+  reader: ReadableStreamDefaultReader<T>,
+  ms: number,
+): Promise<ReadableStreamReadResult<T>> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  try {
+    return await Promise.race([
+      reader.read(),
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(
+          () => reject(new Error(`Local AI stream stalled — no data for ${Math.round(ms / 1000)}s`)),
+          ms,
+        )
+      }),
+    ])
+  } finally {
+    if (timer) clearTimeout(timer)
+  }
+}
+
+// ---------------------------------------------------------------------------
 // <think> handling — Qwen thinking variants emit <think>…</think> before the
 // answer. Strip it from complete responses and filter it out of streams.
 // ---------------------------------------------------------------------------
@@ -141,16 +212,23 @@ interface LocalChatOptions {
  * Non-streaming chat completion. Returns think-stripped text.
  */
 export async function localChat(options: LocalChatOptions): Promise<LocalChatResult> {
-  const res = await fetch(`${localBaseUrl()}/chat/completions`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      model: options.model ?? localChatModel(),
-      messages: options.messages,
-      ...(options.tools?.length ? { tools: options.tools } : {}),
-      stream: false,
-    }),
-  })
+  const timeout = chatTimeoutMs()
+  let res: Response
+  try {
+    res = await fetch(`${localBaseUrl()}/chat/completions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: options.model ?? localChatModel(),
+        messages: options.messages,
+        ...(options.tools?.length ? { tools: options.tools } : {}),
+        stream: false,
+      }),
+      signal: AbortSignal.timeout(timeout),
+    })
+  } catch (err) {
+    throw localStallError(err, timeout, 'chat completion')
+  }
 
   if (!res.ok) {
     const errText = await res.text()
@@ -176,17 +254,24 @@ export async function localChat(options: LocalChatOptions): Promise<LocalChatRes
  * think-filtered before reaching onTextDelta and the returned text.
  */
 export async function localChatStream(options: LocalChatOptions): Promise<LocalChatResult> {
-  const res = await fetch(`${localBaseUrl()}/chat/completions`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      model: options.model ?? localChatModel(),
-      messages: options.messages,
-      ...(options.tools?.length ? { tools: options.tools } : {}),
-      stream: true,
-      stream_options: { include_usage: true },
-    }),
-  })
+  const timeout = chatTimeoutMs()
+  let res: Response
+  try {
+    res = await fetch(`${localBaseUrl()}/chat/completions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: options.model ?? localChatModel(),
+        messages: options.messages,
+        ...(options.tools?.length ? { tools: options.tools } : {}),
+        stream: true,
+        stream_options: { include_usage: true },
+      }),
+      signal: AbortSignal.timeout(timeout),
+    })
+  } catch (err) {
+    throw localStallError(err, timeout, 'chat completion')
+  }
 
   if (!res.ok || !res.body) {
     const errText = await res.text()
@@ -250,15 +335,22 @@ export async function localChatStream(options: LocalChatOptions): Promise<LocalC
     }
   }
 
-  for (;;) {
-    const { done, value } = await reader.read()
-    if (done) break
-    buffer += decoder.decode(value, { stream: true })
-    let nl: number
-    while ((nl = buffer.indexOf('\n')) !== -1) {
-      handleLine(buffer.slice(0, nl))
-      buffer = buffer.slice(nl + 1)
+  const idle = streamIdleTimeoutMs()
+  try {
+    for (;;) {
+      const { done, value } = await readWithIdleTimeout(reader, idle)
+      if (done) break
+      buffer += decoder.decode(value, { stream: true })
+      let nl: number
+      while ((nl = buffer.indexOf('\n')) !== -1) {
+        handleLine(buffer.slice(0, nl))
+        buffer = buffer.slice(nl + 1)
+      }
     }
+  } catch (err) {
+    // Release the socket — an abandoned reader keeps the connection open.
+    await reader.cancel().catch(() => {})
+    throw localStallError(err, idle, 'chat stream')
   }
   if (buffer) handleLine(buffer)
 
@@ -286,11 +378,18 @@ export async function localChatStream(options: LocalChatOptions): Promise<LocalC
 // ---------------------------------------------------------------------------
 
 export async function localEmbedding(text: string): Promise<number[]> {
-  const res = await fetch(`${localBaseUrl()}/embeddings`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ model: localEmbeddingModel(), input: text }),
-  })
+  const timeout = embeddingTimeoutMs()
+  let res: Response
+  try {
+    res = await fetch(`${localBaseUrl()}/embeddings`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: localEmbeddingModel(), input: text }),
+      signal: AbortSignal.timeout(timeout),
+    })
+  } catch (err) {
+    throw localStallError(err, timeout, 'embedding')
+  }
 
   if (!res.ok) {
     const errText = await res.text()
