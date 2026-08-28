@@ -47,6 +47,13 @@ export interface AnalyzeMeetingInput {
   userId: string
   /** Attendees known up front (calendar) — merged into the extraction, deduped. */
   seedAttendees?: SeedAttendee[]
+  /**
+   * Google Drive file id this session was imported from (Meet transcript).
+   * Written in the same INSERT as the session so idempotency is enforced by the
+   * unique index rather than by the importer stamping it afterwards — a second
+   * run racing the first loses at the database, not halfway through.
+   */
+  driveFileId?: string | null
 }
 
 export interface AnalyzeMeetingResult {
@@ -300,6 +307,7 @@ export async function analyzeMeetingNotes(input: AnalyzeMeetingInput): Promise<A
       user_id: userId === SYSTEM_USER_ID ? null : userId,
       intake_kind: 'meeting',
       status: 'pending',
+      drive_file_id: input.driveFileId ?? null,
       label,
       raw_text: text,
       extraction_result: extraction as unknown as Json,

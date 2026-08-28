@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.berwilson.cron-meet-import</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/zsh</string>
+    <string>-c</string>
+    <string>curl -sS -m 1700 -H "Authorization: Bearer $(grep '^CRON_SECRET=' __APP_DIR__/.env.local | cut -d= -f2-)" http://localhost:3000/api/cron/meet-import</string>
+  </array>
+  <!-- Every two hours through the working day, at :20 so it does not collide
+       with the hourly email sweep at the top of the hour (both queue on the same
+       local model). A meeting that ends at 2pm is staged for review by 2:20 —
+       overnight would be useless for a summary somebody wants the same day.
+       Deliberately silent outside working hours: Meet writes nothing at 3am. -->
+  <key>StartCalendarInterval</key>
+  <array>
+    <dict><key>Hour</key><integer>8</integer><key>Minute</key><integer>20</integer></dict>
+    <dict><key>Hour</key><integer>10</integer><key>Minute</key><integer>20</integer></dict>
+    <dict><key>Hour</key><integer>12</integer><key>Minute</key><integer>20</integer></dict>
+    <dict><key>Hour</key><integer>14</integer><key>Minute</key><integer>20</integer></dict>
+    <dict><key>Hour</key><integer>16</integer><key>Minute</key><integer>20</integer></dict>
+    <dict><key>Hour</key><integer>18</integer><key>Minute</key><integer>20</integer></dict>
+  </array>
+  <key>AbandonProcessGroup</key>
+  <false/>
+  <key>StandardOutPath</key>
+  <string>__LOG_DIR__/cron-meet-import.log</string>
+  <key>StandardErrorPath</key>
+  <string>__LOG_DIR__/cron-meet-import.err.log</string>
+</dict>
+</plist>

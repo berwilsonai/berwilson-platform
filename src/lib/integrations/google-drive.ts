@@ -159,3 +159,128 @@ export async function fetchDriveFile(
   )
   return { buffer, mimeType: file.mimeType, fileName: file.name }
 }
+
+// ---------------------------------------------------------------------------
+// Google Meet artifacts
+// ---------------------------------------------------------------------------
+
+/**
+ * Where Google Meet drops recordings and transcripts: a "Meet Recordings" folder
+ * in the ORGANIZER's My Drive. There is no API to ask for it by role, and the
+ * name is locale-dependent, so it is resolved by name with an env override for
+ * the case where a Workspace has been configured to file them elsewhere.
+ */
+const MEET_FOLDER_NAME = 'Meet Recordings'
+
+/** Meet names its transcript docs "<title> - <timestamp> - Transcript". */
+const TRANSCRIPT_MARKER = 'Transcript'
+
+export interface MeetArtifacts {
+  /** Google Docs holding the verbatim transcript of a call. */
+  transcripts: DriveFile[]
+  /**
+   * Recordings with no sibling transcript. Counted, never imported: a .mp4 is
+   * hundreds of megabytes and Whisper already exists for uploads. Surfacing the
+   * number is what stops "Meet transcription is switched off in the admin
+   * console" from looking identical to "nobody had any meetings".
+   */
+  recordingsWithoutTranscript: number
+  /** True when no Meet Recordings folder exists in this Drive at all. */
+  noMeetFolder: boolean
+}
+
+/** Explicit folder id override, for Workspaces that file Meet output elsewhere. */
+export function meetFolderIdOverride(): string | null {
+  return process.env.GOOGLE_MEET_FOLDER_ID?.trim() || null
+}
+
+/** Resolve the "Meet Recordings" folder id in a mailbox's Drive, if it exists. */
+async function findMeetFolder(mailbox: string): Promise<string | null> {
+  const override = meetFolderIdOverride()
+  if (override) return override
+
+  const params = new URLSearchParams({
+    q: `mimeType = '${GOOGLE_FOLDER}' and name = '${MEET_FOLDER_NAME}' and trashed = false`,
+    fields: 'files(id, name)',
+    pageSize: '5',
+    supportsAllDrives: 'true',
+    includeItemsFromAllDrives: 'true',
+  })
+  const data = await googleFetch<DriveListResponse>(
+    `${DRIVE_BASE}/files?${params.toString()}`,
+    mailbox
+  )
+  return data.files?.[0]?.id ?? null
+}
+
+/**
+ * List the Meet transcripts in one mailbox's Drive, newest first.
+ *
+ * Deliberately scoped to the Meet Recordings folder rather than searching the
+ * whole Drive for documents named "…Transcript" — an executive's own notes file
+ * called "Interview Transcript" is not a meeting recording, and importing it
+ * would put a stranger's words in front of the review queue.
+ *
+ * @param since Only files modified after this ISO timestamp. Bounds a first run
+ *              so a Drive with years of calls doesn't stage hundreds of sessions.
+ */
+export async function listMeetTranscripts(
+  mailbox: string,
+  opts: { since?: string; limit?: number } = {}
+): Promise<MeetArtifacts> {
+  const folderId = await findMeetFolder(mailbox)
+  if (!folderId) {
+    return { transcripts: [], recordingsWithoutTranscript: 0, noMeetFolder: true }
+  }
+
+  const clauses = [`'${folderId}' in parents`, 'trashed = false']
+  if (opts.since) clauses.push(`modifiedTime > '${opts.since}'`)
+
+  const params = new URLSearchParams({
+    q: clauses.join(' and '),
+    fields: 'nextPageToken, files(id, name, mimeType, modifiedTime, size)',
+    pageSize: '200',
+    orderBy: 'modifiedTime desc',
+    supportsAllDrives: 'true',
+    includeItemsFromAllDrives: 'true',
+  })
+
+  const transcripts: DriveFile[] = []
+  const recordings: DriveFile[] = []
+  let pageToken: string | undefined
+
+  do {
+    if (pageToken) params.set('pageToken', pageToken)
+    const data = await googleFetch<DriveListResponse>(
+      `${DRIVE_BASE}/files?${params.toString()}`,
+      mailbox
+    )
+    for (const f of data.files ?? []) {
+      const file: DriveFile = {
+        id: f.id,
+        name: f.name,
+        mimeType: f.mimeType,
+        modifiedTime: f.modifiedTime,
+        size: f.size ? Number(f.size) : null,
+      }
+      if (f.mimeType === GOOGLE_DOC && f.name.includes(TRANSCRIPT_MARKER)) transcripts.push(file)
+      else if (f.mimeType.startsWith('video/')) recordings.push(file)
+    }
+    pageToken = data.nextPageToken
+  } while (pageToken && transcripts.length < (opts.limit ?? 200))
+
+  // A recording is "covered" when a transcript shares its meeting title — Meet
+  // names the pair identically up to the trailing " - Transcript".
+  const covered = new Set(
+    transcripts.map((t) => t.name.replace(/\s*-\s*Transcript\s*$/i, '').trim().toLowerCase())
+  )
+  const uncovered = recordings.filter(
+    (r) => !covered.has(r.name.replace(/\.[a-z0-9]+$/i, '').trim().toLowerCase())
+  ).length
+
+  return {
+    transcripts: opts.limit ? transcripts.slice(0, opts.limit) : transcripts,
+    recordingsWithoutTranscript: uncovered,
+    noMeetFolder: false,
+  }
+}

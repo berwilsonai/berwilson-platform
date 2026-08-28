@@ -14,6 +14,7 @@ import os from 'os'
 import path from 'path'
 import {
   allMailboxes,
+  MAILBOXES,
   isGoogleConfigured,
   probeGoogleConnection,
   probeScopeCoverage,
@@ -21,6 +22,7 @@ import {
   PRIMARY_MAILBOX,
   type GoogleProbe,
 } from '@/lib/integrations/google-workspace'
+import { listMeetTranscripts } from '@/lib/integrations/google-drive'
 import { isChatConfigured } from '@/lib/notify/chat'
 import { createAdminClient } from '@/lib/supabase/admin'
 
@@ -418,3 +420,63 @@ export async function probeDrivePublishing(): Promise<{
 
 // Re-exported so the health page has one import site for every probe.
 export { probeScopeCoverage }
+
+/**
+ * Is Meet transcript import able to do anything?
+ *
+ * The dead state here is quiet and easy to miss: if nobody records with
+ * transcription switched on, Google never creates a "Meet Recordings" folder,
+ * the importer finds nothing every run, and "the feature is off at Google" is
+ * indistinguishable from "nobody had meetings this week". This says which.
+ */
+export async function probeMeetImport(): Promise<{
+  state: 'ok' | 'empty' | 'unconfigured' | 'failed'
+  detail: string
+}> {
+  if (!isGoogleConfigured()) {
+    return {
+      state: 'unconfigured',
+      detail: 'Google Workspace is not configured, so no Drive can be read for Meet transcripts.',
+    }
+  }
+
+  const supabase = createAdminClient()
+  const { count: imported } = await supabase
+    .from('email_intake_sessions')
+    .select('id', { count: 'exact', head: true })
+    .not('drive_file_id', 'is', null)
+
+  const withFolder: string[] = []
+  const withoutFolder: string[] = []
+  try {
+    for (const mailbox of MAILBOXES) {
+      const artifacts = await listMeetTranscripts(mailbox, { limit: 1 })
+      if (artifacts.noMeetFolder) withoutFolder.push(mailbox)
+      else withFolder.push(mailbox)
+    }
+  } catch (err) {
+    const raw = err instanceof Error ? err.message : String(err)
+    const fix = /insufficient|scope|403/i.test(raw)
+      ? ' Re-consent with: node scripts/setup-google-oauth.mjs'
+      : ''
+    return { state: 'failed', detail: `${raw}${fix}` }
+  }
+
+  const tally = `${imported ?? 0} transcript${imported === 1 ? '' : 's'} imported so far.`
+
+  if (!withFolder.length) {
+    return {
+      state: 'empty',
+      detail:
+        `No "Meet Recordings" folder in ${withoutFolder.join(' or ')} — Google only creates it once a call is recorded ` +
+        'with transcription switched on (Workspace admin console → Apps → Google Meet, and the "Record"/"Transcribe" ' +
+        `control in the meeting itself). Nothing can be imported until then. ${tally}`,
+    }
+  }
+
+  const missing = withoutFolder.length ? ` No folder yet in ${withoutFolder.join(', ')}.` : ''
+  return {
+    state: 'ok',
+    detail: `Reading Meet transcripts from ${withFolder.join(', ')}.${missing} ${tally}`,
+  }
+}

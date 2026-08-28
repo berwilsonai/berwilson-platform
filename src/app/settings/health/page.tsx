@@ -20,6 +20,7 @@ import {
   probeContactsSync,
   probeDrivePublishing,
   probeDriveKnowledge,
+  probeMeetImport,
   probeScopeCoverage,
   probeDisk,
 } from '@/lib/system-health'
@@ -88,7 +89,7 @@ async function runChecks(): Promise<HealthCheck[]> {
   const dayAgo = new Date(Date.now() - 86_400_000).toISOString()
   const localAI = process.env.AI_PROVIDER === 'local'
 
-  const [brief, riskScore, lastAi, aiDayCount, failedRuns, mailbox, lmStudio, backups, drive, scopes, disk, lastDigest, failedDigests, contacts, drivePublish] =
+  const [brief, riskScore, lastAi, aiDayCount, failedRuns, mailbox, lmStudio, backups, drive, scopes, disk, lastDigest, failedDigests, contacts, drivePublish, meetImport] =
     await Promise.all([
       supabase
         .from('stored_briefs')
@@ -140,6 +141,7 @@ async function runChecks(): Promise<HealthCheck[]> {
         .gte('created_at', weekAgo),
       probeContactsSync(),
       probeDrivePublishing(),
+      probeMeetImport(),
     ])
 
   const checks: HealthCheck[] = []
@@ -329,6 +331,31 @@ async function runChecks(): Promise<HealthCheck[]> {
               ? 'No knowledge folder configured'
               : 'Cannot read the knowledge folder',
       detail: drive.detail,
+    })
+  }
+
+  // Meet transcript import. "empty" is a first-class state: Google creates the
+  // Meet Recordings folder only once something is recorded with transcription
+  // on, and until then finding nothing is correct behaviour, not a fault.
+  {
+    checks.push({
+      name: 'Meet Transcript Import',
+      status:
+        meetImport.state === 'ok'
+          ? 'ok'
+          : meetImport.state === 'failed'
+            ? 'fail'
+            : 'warn',
+      headline:
+        meetImport.state === 'ok'
+          ? 'Reading Meet transcripts'
+          : meetImport.state === 'empty'
+            ? 'Nothing recorded with transcription yet'
+            : meetImport.state === 'unconfigured'
+              ? 'Google Workspace not configured'
+              : 'Cannot read Meet transcripts',
+      detail: meetImport.detail,
+      action: { label: 'Open Intake', href: '/intake?tab=meeting' },
     })
   }
 

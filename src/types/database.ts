@@ -910,6 +910,7 @@ export type Database = {
           confirmed_at: string | null
           created_at: string | null
           created_record_ids: Json | null
+          drive_file_id: string | null
           extraction_result: Json
           fit_assessment: Json | null
           id: string
@@ -928,6 +929,7 @@ export type Database = {
           confirmed_at?: string | null
           created_at?: string | null
           created_record_ids?: Json | null
+          drive_file_id?: string | null
           extraction_result: Json
           fit_assessment?: Json | null
           id?: string
@@ -946,6 +948,7 @@ export type Database = {
           confirmed_at?: string | null
           created_at?: string | null
           created_record_ids?: Json | null
+          drive_file_id?: string | null
           extraction_result?: Json
           fit_assessment?: Json | null
           id?: string
