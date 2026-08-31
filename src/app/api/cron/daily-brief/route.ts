@@ -1,8 +1,13 @@
 /**
  * GET /api/cron/daily-brief
  *
- * Cron job that generates a portfolio daily brief, stores it, and posts it to
- * the Google Chat space. Designed to run every morning.
+ * Cron job that generates the portfolio brief, stores it, and posts it to the
+ * Google Chat space. Runs WEEKLY, on Monday mornings (Richard's call
+ * 2026-08-31) — a daily cadence produced a message people stopped opening,
+ * and most of what it reports moves on a weekly rhythm anyway. The route path
+ * keeps its `daily-brief` name so the installed launchd job, the middleware
+ * allowlist, and the deploy script stay valid; everything the reader sees says
+ * weekly.
  *
  * The Chat post is the part that gets it READ. For most of its life this brief
  * was stored "for viewing at /briefs" — a page that does not exist — so it was
@@ -21,41 +26,46 @@ import { broadcastBrief } from '@/lib/notify/broadcast-brief'
 const SYSTEM_USER_ID = '00000000-0000-0000-0000-000000000000'
 
 const PROACTIVE_BRIEF_PROMPT = `You are a chief of staff for two construction executives managing a multi-billion dollar portfolio.
-Generate a morning intelligence brief. Be direct, urgent, and actionable.
+Generate the WEEKLY intelligence brief for the week ahead. Be direct, urgent, and actionable.
 
-Structure:
-## Good Morning — [Date]
+Structure — sections appear in this order, which is priority order. Do not reorder them:
+
+## Week of [Date]
+
+### TL;DR
+(3-5 bullets, the whole week at a glance, MOST CONSEQUENTIAL FIRST. Each bullet is one line: what, who owns it, by when. Someone who reads only this section should know what matters this week and what they personally have to move.)
+
+### Decide This Week
+(Items that need a decision or an action from an executive in the next seven days — max 5, ranked by consequence then deadline. Say what the decision is, not just that one is pending.)
+
+### Overdue and Slipping
+(What is already late or going stale: overdue tasks, stale blockers, relationships going cold. Ranked by how many days late. Name the person and the number of days.)
 
 ### Steering Check
-(One or two sentences: how today's urgent items line up against the company's Now objectives. Only include when objectives are provided.)
+(One or two sentences: how the above lines up against the company's Now objectives. Only include when objectives are provided. Objectives flagged AT RISK or STALLED lead this section.)
 
-### Needs Your Attention Today
-(Items requiring immediate action or decision — max 5, ranked by urgency)
-
-### This Week's Pressure Points
-(Approaching deadlines, stale blockers, relationships going cold)
-
-### This Week's Meetings
-(Only include when calendar data is provided: the 3-5 meetings that matter most this week and why — tie each to the objective or deal it serves. Flag any meeting with no clear link to a stated priority, and any Now objective with nothing on the calendar advancing it. 2-6 lines.)
+### The Week Ahead
+(Deadlines, milestones, and the 3-5 meetings that matter most this week and why — tie each to the objective or deal it serves. Flag any meeting with no clear link to a stated priority, and any Now objective with nothing on the calendar advancing it. Only include meetings when calendar data is provided.)
 
 ### Capital Raise
 (Only include when investor data is provided: where each raise stands — committed vs funded vs target, which tranche is filling, investor next steps due or overdue, hot investors going cold. 2-5 lines.)
 
 ### Portfolio Pulse
-(2-3 sentence health check across all projects)
+(2-3 sentence health check across all projects.)
 
 ### Decisions Pending Follow-Through
-(Decisions made but not yet executed — flag these for accountability)
+(Decisions made but not yet executed — flag these for accountability.)
 
 Rules:
-- Lead with the most urgent item. No preamble.
-- Use specific names, dates, and dollar amounts — not vague summaries.
+- The TL;DR comes first and is written last: it summarizes the sections below, it does not add new items.
+- ORDER EVERYTHING BY PRIORITY. Within every section, the most consequential item is first — never alphabetical, never grouped by project. Priority = money at stake and deadline proximity, with anything already overdue outranking anything not yet due.
+- No preamble. Use specific names, dates, and dollar amounts — not vague summaries.
 - If something is X days overdue, say exactly how many days.
 - If a relationship is going cold, name the person and suggest an action.
 - On the raise, never conflate indicated (soft interest), committed (signed), and funded (wired) amounts.
-- When company objectives are provided, connect urgent items to the objective they serve where the link is clear — and call out any Now objective with no visible movement. Objectives flagged AT RISK or STALLED lead the Steering Check.
-- When meetings are provided, rank them against the Now objectives: which need prep, which advance a stated priority, which serve none.
-- Keep it under 600 words. Executives scan, they don't read essays.`
+- When company objectives are provided, connect urgent items to the objective they serve where the link is clear — and call out any Now objective with no visible movement.
+- Drop any section that has nothing real to report rather than padding it.
+- Keep it under 700 words. Executives scan, they don't read essays.`
 
 export async function GET(request: NextRequest) {
   // Verify cron secret (fail closed if the secret is not configured)
@@ -68,16 +78,23 @@ export async function GET(request: NextRequest) {
   const now = new Date()
   const today = now.toISOString().split('T')[0]
 
-  // Check if we already generated today's brief
+  // Monday of the current week, in UTC. The brief is weekly, so the guard has
+  // to cover the whole week: a same-day guard would let a Tuesday retry (or a
+  // hand-triggered run) write a second brief for the same week.
+  const weekStart = new Date(now)
+  weekStart.setUTCHours(0, 0, 0, 0)
+  weekStart.setUTCDate(weekStart.getUTCDate() - ((weekStart.getUTCDay() + 6) % 7))
+
+  // Check if we already generated this week's brief
   const { data: existing } = await supabase
     .from('stored_briefs')
     .select('id')
     .eq('brief_type', 'portfolio')
-    .gte('created_at', `${today}T00:00:00.000Z`)
+    .gte('created_at', weekStart.toISOString())
     .limit(1)
 
   if (existing && existing.length > 0) {
-    return NextResponse.json({ message: 'Brief already generated today', brief_id: existing[0].id })
+    return NextResponse.json({ message: 'Brief already generated this week', brief_id: existing[0].id })
   }
 
   // Gather all the intelligence data
@@ -281,7 +298,7 @@ export async function GET(request: NextRequest) {
     console.warn('[daily-brief] meetings fetch failed:', err instanceof Error ? err.message : err)
   }
 
-  const userMessage = `Today is ${now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}.
+  const userMessage = `This is the weekly brief for the week beginning ${now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}. It covers the week ahead.
 
 COMPANY OBJECTIVES (steering board — Now/Soon):
 ${objectiveLines.join('\n') || '(none set)'}
@@ -324,13 +341,13 @@ ${depRisks.join('\n') || '(none)'}`
     systemPrompt: PROACTIVE_BRIEF_PROMPT,
     userMessage,
     userId: SYSTEM_USER_ID,
-    promptVersion: 'proactive-brief-v1',
-    maxTokens: 3000,
+    promptVersion: 'weekly-brief-v2',
+    maxTokens: 3500,
     jsonMode: false,
   })
 
   const brief = result.data as string
-  const title = `Daily Brief — ${now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
+  const title = `Weekly Brief — week of ${now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
 
   // Store the brief
   const { data: stored, error: storeError } = await supabase

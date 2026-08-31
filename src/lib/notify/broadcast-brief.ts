@@ -1,12 +1,11 @@
 /**
- * Deliver the morning brief to the Google Chat space.
+ * Deliver the weekly brief to the Google Chat space (Monday mornings).
  *
- * The brief has been generated every morning since it shipped and read by
- * nobody: the cron's own docstring says it stores the brief "for viewing at
+ * The brief was generated every morning for weeks and read by nobody: the cron's own docstring says it stores the brief "for viewing at
  * /briefs", and there is no /briefs page. It has been writing to a table with
  * no reader for weeks.
  *
- * A shared Chat space is the right home for it — it is one message a day to a
+ * A shared Chat space is the right home for it — it is one message a week to a
  * room the whole team is already in, including everyone who cannot reach the
  * platform at all. That is precisely the audience the brief was written for and
  * has never once reached.
@@ -77,8 +76,8 @@ export async function broadcastBrief(title: string, markdown: string): Promise<B
     subject: title,
     html: '',
     text,
-    // One thread per day, so the space shows a running series of mornings
-    // rather than a flat wall that buries yesterday.
+    // One thread per run date, so the space shows a running series of weeks
+    // rather than a flat wall that buries the last one.
     threadKey: `brief-${new Date().toISOString().slice(0, 10)}`,
   })
 

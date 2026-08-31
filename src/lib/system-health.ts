@@ -301,14 +301,14 @@ export function probeChat(): { state: 'ok' | 'unconfigured'; detail: string } {
     return {
       state: 'unconfigured',
       detail:
-        'Set GOOGLE_CHAT_WEBHOOK_URL to post the morning brief and the lead digest into a Chat space — the cheapest way to reach teammates who cannot get onto the tailnet. Get the URL from Chat → the space → Apps & integrations → Webhooks → Add webhook. Treat it as a secret: it carries its own auth token.',
+        'Set GOOGLE_CHAT_WEBHOOK_URL to post the weekly brief and the lead digest into a Chat space — the cheapest way to reach teammates who cannot get onto the tailnet. Get the URL from Chat → the space → Apps & integrations → Webhooks → Add webhook. Treat it as a secret: it carries its own auth token.',
     }
   }
 
   const extra = spaces.length ? ` Dedicated spaces: ${spaces.join(', ')}.` : ''
   return {
     state: 'ok',
-    detail: `Default space configured — the morning brief and lead digests post there.${extra}`,
+    detail: `Default space configured — the weekly brief and lead digests post there.${extra}`,
   }
 }
 

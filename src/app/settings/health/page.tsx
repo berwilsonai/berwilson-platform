@@ -201,17 +201,20 @@ async function runChecks(): Promise<HealthCheck[]> {
     })
   }
 
-  // 3. Daily brief cron (launchd, 6:30am local on the Studio)
+  // 3. Weekly brief cron (launchd, Monday 6:30am local on the Studio).
+  // Threshold is 8 days, not 36 hours: one missed Monday must show as a
+  // failure, but a brief written on Monday has to still read as healthy on the
+  // following Sunday.
   {
     const h = hoursAgo(brief.data?.created_at)
+    const fresh = h !== null && h < 8 * 24
     checks.push({
-      name: 'Daily Brief Cron',
-      status: h === null ? 'fail' : h < 36 ? 'ok' : 'fail',
+      name: 'Weekly Brief Cron',
+      status: fresh ? 'ok' : 'fail',
       headline: h === null ? 'Never run' : `Last brief ${ageLabel(brief.data?.created_at)}`,
-      detail:
-        h !== null && h < 36
-          ? 'Generating on schedule (6:30am on the Studio).'
-          : `Expected daily at 6:30am. ${cronLogsHint}`,
+      detail: fresh
+        ? 'Generating on schedule (Mondays at 6:30am on the Studio).'
+        : `Expected weekly on Monday at 6:30am. ${cronLogsHint}`,
     })
   }
 

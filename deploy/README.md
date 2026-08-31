@@ -71,7 +71,7 @@ its names to `INTERNATIONAL` in `src/lib/map/geocode.ts`), then re-extract.
 | launchd label | What | Schedule |
 |---|---|---|
 | `com.berwilson.platform` | `next start` on port 3000 | always (KeepAlive) |
-| `com.berwilson.cron-daily-brief` | POSTs the daily-brief cron route | 6:30am local |
+| `com.berwilson.cron-daily-brief` | POSTs the brief cron route (weekly brief) | Mondays 6:30am local |
 | `com.berwilson.cron-risk-scores` | POSTs the risk-scores cron route | 1:00am local |
 
 Logs: `~/Library/Logs/berwilson/` on the Studio.
