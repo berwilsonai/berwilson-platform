@@ -17,6 +17,7 @@ import {
   probeLmStudio,
   probeBackups,
   probeChat,
+  probeCardOcr,
   probeContactsSync,
   probeDrivePublishing,
   probeDriveKnowledge,
@@ -409,6 +410,18 @@ async function runChecks(): Promise<HealthCheck[]> {
       headline:
         chat.state === 'ok' ? 'Space wired up' : 'No Chat space — digests go to email only',
       detail: chat.detail,
+    })
+  }
+
+  // Business-card scanner — the recognizer is a build artifact outside the repo,
+  // so its absence is invisible until someone photographs a card.
+  {
+    const ocr = await probeCardOcr()
+    checks.push({
+      name: 'Business Card Scanner',
+      status: ocr.state === 'ok' ? 'ok' : 'warn',
+      headline: ocr.state === 'ok' ? 'Card recognizer ready' : 'Recognizer not built on this host',
+      detail: ocr.detail,
     })
   }
 

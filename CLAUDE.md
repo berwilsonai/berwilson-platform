@@ -223,6 +223,7 @@ APP_URL=                         # tailnet base URL for links in outbound notifi
 SUPABASE_DB_URL=                 # optional; local Postgres URL for `npm run gen-types` (self-hosted, replaces --linked)
 MAP_PMTILES_PATH=                # optional; /map detail basemap archive (default ~/berwilson-data/maps/us.pmtiles)
 MAP_WORLD_PMTILES_PATH=          # optional; /map world-overview archive z0-7 (default ~/berwilson-data/maps/world.pmtiles)
+CARD_OCR_BIN=                    # optional; business-card OCR binary (Apple Vision). Default ~/.local/bin/bw-ocr — build with `zsh scripts/build-ocr.sh`
 MICROSOFT_SECRET_EXPIRES=        # optional YYYY-MM-DD; Azure client secret expiry — /settings/health warns 30d ahead
 BACKUP_DIR=                      # optional; nightly-backup dir the health page checks (default ~/Backups/berwilson)
 GOOGLE_LEAD_MAILBOXES=           # mailbox(es) swept for INBOUND LEADS (default info@berwilson.com) — kept apart from the deal mailboxes

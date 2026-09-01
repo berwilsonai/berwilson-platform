@@ -4,6 +4,7 @@ import { Plus, Users, Building2, Clock } from 'lucide-react'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { cn } from '@/lib/utils'
 import ContactsClient from '@/components/contacts/ContactsClient'
+import ScanCardButton from '@/components/contacts/ScanCardButton'
 import type { ContactWithStats } from '@/components/contacts/ContactsClient'
 import VendorsClient from '@/components/vendors/VendorsClient'
 import type { VendorWithStats } from '@/components/vendors/VendorsClient'
@@ -140,13 +141,17 @@ export default async function DirectoryPage({ searchParams }: PageProps) {
             ))}
           </div>
         </div>
-        <Link
-          href={activeTab === 'vendors' ? '/vendors/new' : '/contacts/new'}
-          className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors shrink-0"
-        >
-          <Plus size={14} />
-          {activeTab === 'vendors' ? 'Add Vendor' : 'Add Contact'}
-        </Link>
+        <div className="flex items-center gap-2 shrink-0">
+          {/* Photograph a card on a phone and the contact drafts itself. */}
+          {activeTab === 'contacts' && <ScanCardButton />}
+          <Link
+            href={activeTab === 'vendors' ? '/vendors/new' : '/contacts/new'}
+            className="inline-flex items-center gap-1.5 h-11 sm:h-8 px-3 rounded-md bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors"
+          >
+            <Plus size={14} />
+            <span className="whitespace-nowrap">{activeTab === 'vendors' ? 'Add Vendor' : 'Add Contact'}</span>
+          </Link>
+        </div>
       </div>
 
       {activeTab === 'contacts' ? (

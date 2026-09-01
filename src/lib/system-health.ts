@@ -480,3 +480,23 @@ export async function probeMeetImport(): Promise<{
     detail: `Reading Meet transcripts from ${withFolder.join(', ')}.${missing} ${tally}`,
   }
 }
+
+/**
+ * Business-card scanner — is the local OCR binary built on this host?
+ *
+ * It is a compiled artifact living outside the repo (~/.local/bin/bw-ocr), so a
+ * fresh machine, a wiped ~/.local, or a Command Line Tools reinstall silently
+ * removes the feature: the Scan Card button stays visible and fails only when
+ * someone actually photographs a card. Cheap to check, so check it.
+ */
+export async function probeCardOcr(): Promise<{ state: 'ok' | 'missing'; detail: string }> {
+  const { ocrAvailable, ocrBinPath } = await import('@/lib/ai/card-ocr')
+  const bin = ocrBinPath()
+  if (await ocrAvailable()) {
+    return { state: 'ok', detail: `Recognizer present at ${bin}. Card text is read on this machine; no photo is stored.` }
+  }
+  return {
+    state: 'missing',
+    detail: `No OCR binary at ${bin}. Build it on this host with \`zsh scripts/build-ocr.sh\` (needs the macOS Command Line Tools). Until then, Scan Card on the Directory will fail.`,
+  }
+}
