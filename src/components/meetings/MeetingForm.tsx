@@ -12,6 +12,7 @@ import {
   BOARD_KINDS,
   PROJECT_KINDS,
   OPPORTUNITY_KINDS,
+  RECORDING_ACCEPT,
   MEETING_KIND_LABELS,
   parseAttendees,
   parseDecisions,
@@ -330,7 +331,7 @@ export default function MeetingForm({ scope, projectId, opportunityId, meeting, 
             <input
               ref={recordingInputRef}
               type="file"
-              accept="audio/*,video/*"
+              accept={RECORDING_ACCEPT}
               className="sr-only"
               onChange={(e) => setRecording(e.target.files?.[0] ?? null)}
             />

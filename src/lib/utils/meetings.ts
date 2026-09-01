@@ -191,3 +191,28 @@ export function composeMeetingDocument(m: MeetingDocInput): string {
 
   return lines.join('\n').trim() + '\n'
 }
+
+// ─── Recording upload ────────────────────────────────────────────────────────
+
+/**
+ * `accept` for the meeting-recording file inputs.
+ *
+ * The wildcards alone are NOT enough. A browser expands `audio/*` into a set of
+ * file types via its own MIME→extension table, and that expansion is where the
+ * macOS/iOS file picker decides what to grey out — mp3 was being rejected at the
+ * picker even though nothing server-side objects (the `documents` bucket is
+ * unrestricted) and afconvert decodes it fine. Literal extensions bypass the
+ * expansion entirely, so they are the reliable half of this list.
+ *
+ * Keep this to containers `afconvert` can actually decode (see `afconvert -hf`)
+ * — offering a file the transcription pipeline will choke on is worse than
+ * greying it out.
+ */
+export const RECORDING_ACCEPT = [
+  'audio/*',
+  'video/*',
+  // audio containers
+  '.mp3', '.m4a', '.m4b', '.wav', '.aac', '.adts', '.aif', '.aiff', '.aifc', '.caf', '.flac', '.amr', '.ac3',
+  // video containers (afconvert reads the audio track)
+  '.mp4', '.m4v', '.mov', '.3gp',
+].join(',')

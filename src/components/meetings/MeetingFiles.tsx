@@ -5,6 +5,7 @@ import { Upload, Mic, FileText, Download, Trash2, Loader2, Play } from 'lucide-r
 import { toast } from 'sonner'
 import { createClient } from '@/lib/supabase/client'
 import { viewDocument, downloadDocument } from '@/lib/utils/document-links'
+import { RECORDING_ACCEPT } from '@/lib/utils/meetings'
 import type { Document } from '@/lib/supabase/types'
 
 function isAudio(mime: string | null): boolean {
@@ -141,7 +142,7 @@ export default function MeetingFiles({ meetingId, files, canEdit, onChange, onAu
           <input
             ref={audioInputRef}
             type="file"
-            accept="audio/*,video/*"
+            accept={RECORDING_ACCEPT}
             className="sr-only"
             onChange={(e) => {
               const f = e.target.files?.[0]

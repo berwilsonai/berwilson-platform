@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getViewer } from '@/lib/auth/viewer'
-import { leadsDb, type LeadRow, type LeadStatus } from '@/lib/leads/db'
+import { GMAIL_THREAD_EMBED, leadsDb, type LeadRow, type LeadStatus } from '@/lib/leads/db'
 import { LEAD_ROUTES, type LeadRoute } from '@/lib/ai/prompts/lead-triage'
 import { refreshLeadLabel } from '@/lib/leads/gmail-sync'
 
@@ -88,15 +88,28 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 }
 
 /**
- * DELETE removes the lead row only. The underlying email_threads row stays, so
- * the thread is not re-triaged into a duplicate on the next sweep.
+ * DELETE removes the lead row only. The underlying email_threads row stays, and
+ * triage only ever picks up threads still marked pending, so a deleted lead is
+ * not re-created on the next sweep.
  */
 export async function DELETE(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const viewer = await getViewer()
   if (!viewer?.isAdmin) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const { id } = await params
-  const { error } = await leadsDb().from('leads').delete().eq('id', id)
+  const db = leadsDb()
+
+  // Read the row first so the mailbox can be told. Deleting IS the decision not
+  // to pursue, and leaving the thread labelled `Pursue` in Gmail would invite
+  // somebody who cannot reach this queue to act on a lead that no longer exists.
+  const { data: existing } = await db.from('leads').select(`*, ${GMAIL_THREAD_EMBED}`).eq('id', id).maybeSingle()
+
+  const { error } = await db.from('leads').delete().eq('id', id)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  // Fire-and-forget: the row is already gone, so its own write-back is a no-op.
+  // The label still lands, and a Gmail hiccup never fails the delete.
+  if (existing) refreshLeadLabel({ ...(existing as LeadRow), status: 'ignored' })
+
   return NextResponse.json({ ok: true })
 }

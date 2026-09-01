@@ -24,6 +24,37 @@ export function whisperEnabled(): boolean {
   return Boolean(WHISPER_BIN && WHISPER_MODEL)
 }
 
+/** The configured paths, for diagnostics. */
+export function whisperPaths(): { bin?: string; model?: string } {
+  return { bin: WHISPER_BIN, model: WHISPER_MODEL }
+}
+
+/**
+ * Are the binary AND the model actually present on this host?
+ *
+ * `whisperEnabled()` only says the env vars are set. Both targets are build
+ * artifacts living OUTSIDE the repo (the model is a ~1.5GB download), so either
+ * can vanish — a wiped home dir, a cleanup pass, a fresh machine — while the
+ * config still looks perfect. That happened: the model disappeared and the only
+ * symptom was whisper-cli's opaque "failed to initialize whisper context" at
+ * the moment someone uploaded a recording. Check the files, not just the env.
+ */
+export async function whisperAvailable(): Promise<{ ok: boolean; missing: string[] }> {
+  const missing: string[] = []
+  for (const [label, path] of [['binary', WHISPER_BIN], ['model', WHISPER_MODEL]] as const) {
+    if (!path) {
+      missing.push(`${label} (path not configured)`)
+      continue
+    }
+    try {
+      await fs.access(path)
+    } catch {
+      missing.push(`${label} (${path})`)
+    }
+  }
+  return { ok: missing.length === 0, missing }
+}
+
 interface RunResult {
   code: number | null
   stderr: string
@@ -59,6 +90,14 @@ function run(cmd: string, args: string[], timeoutMs: number): Promise<RunResult>
 export async function transcribeAudio(buffer: Buffer, fileName: string): Promise<string> {
   if (!whisperEnabled()) {
     throw new Error('Whisper transcription is not configured on this host (WHISPER_BIN/WHISPER_MODEL unset).')
+  }
+  const present = await whisperAvailable()
+  if (!present.ok) {
+    throw new Error(
+      `Whisper is configured but missing on disk: ${present.missing.join(', ')}. ` +
+        'Re-download the model with `cd ~/whisper.cpp/models && ./download-ggml-model.sh large-v3-turbo`, ' +
+        'or rebuild the binary per deploy/README.md.',
+    )
   }
   const dir = await fs.mkdtemp(join(tmpdir(), 'bw-whisper-'))
   const ext = extname(fileName) || '.m4a'

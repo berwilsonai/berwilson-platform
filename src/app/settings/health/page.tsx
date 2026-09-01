@@ -18,6 +18,7 @@ import {
   probeBackups,
   probeChat,
   probeCardOcr,
+  probeWhisper,
   probeContactsSync,
   probeDrivePublishing,
   probeDriveKnowledge,
@@ -410,6 +411,24 @@ async function runChecks(): Promise<HealthCheck[]> {
       headline:
         chat.state === 'ok' ? 'Space wired up' : 'No Chat space — digests go to email only',
       detail: chat.detail,
+    })
+  }
+
+  // Meeting transcription — the whisper binary + model are build artifacts
+  // outside the repo, so their absence is invisible until someone uploads a
+  // recording. The model went missing once already.
+  {
+    const w = await probeWhisper()
+    checks.push({
+      name: 'Meeting Transcription',
+      status: w.state === 'ok' ? 'ok' : w.state === 'unconfigured' ? 'warn' : 'fail',
+      headline:
+        w.state === 'ok'
+          ? 'Whisper ready'
+          : w.state === 'unconfigured'
+            ? 'Transcription not configured on this host'
+            : 'Whisper files missing — recordings will not transcribe',
+      detail: w.detail,
     })
   }
 

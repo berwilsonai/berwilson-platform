@@ -500,3 +500,31 @@ export async function probeCardOcr(): Promise<{ state: 'ok' | 'missing'; detail:
     detail: `No OCR binary at ${bin}. Build it on this host with \`zsh scripts/build-ocr.sh\` (needs the macOS Command Line Tools). Until then, Scan Card on the Directory will fail.`,
   }
 }
+
+/**
+ * Meeting transcription — is whisper.cpp actually usable on this host?
+ *
+ * Same shape as the card recognizer: the binary and the ~1.5GB ggml model live
+ * outside the repo, so either can disappear while WHISPER_BIN/WHISPER_MODEL
+ * still point at them. When that happens the Add-recording button keeps working,
+ * the upload succeeds, and the failure only lands later as a meeting stuck at
+ * transcription_status='error'. Check the files.
+ */
+export async function probeWhisper(): Promise<{ state: 'ok' | 'missing' | 'unconfigured'; detail: string }> {
+  const { whisperEnabled, whisperAvailable, whisperPaths } = await import('@/lib/ai/whisper')
+  if (!whisperEnabled()) {
+    return {
+      state: 'unconfigured',
+      detail: 'WHISPER_BIN / WHISPER_MODEL are unset, so uploaded recordings are stored but never transcribed. Expected on a non-Studio host.',
+    }
+  }
+  const { ok, missing } = await whisperAvailable()
+  if (ok) {
+    const { model } = whisperPaths()
+    return { state: 'ok', detail: `Transcription ready (${model}). Recordings are transcribed on this machine; no audio leaves it.` }
+  }
+  return {
+    state: 'missing',
+    detail: `Configured but missing on disk: ${missing.join(', ')}. Re-download the model with \`cd ~/whisper.cpp/models && ./download-ggml-model.sh large-v3-turbo\`. Until then, uploading a recording will fail to transcribe.`,
+  }
+}

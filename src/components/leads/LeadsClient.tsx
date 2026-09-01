@@ -46,6 +46,9 @@ export default function LeadsClient({
   const [selected, setSelected] = useState<LeadRow | null>(deepLinked)
   const [sheetOpen, setSheetOpen] = useState(!!deepLinked)
   const [sweeping, setSweeping] = useState(false)
+  // Server-supplied, then maintained locally so deleting a filtered row does
+  // not leave the toggle advertising a count that is no longer true.
+  const [filtered, setFiltered] = useState(filteredCount)
 
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -91,6 +94,33 @@ export default function LeadsClient({
     }
     setLeads((prev) => prev.map((l) => (l.id === updated.id ? updated : l)))
     setSelected(updated)
+  }
+
+  /**
+   * Discard a lead straight from the queue. Most are decidable from the
+   * headline, so there is no confirm step — that friction is the reason the
+   * control exists. The row goes immediately and comes back if the server
+   * refuses, so a failure is never silent.
+   */
+  async function deleteLead(lead: LeadRow) {
+    setLeads((prev) => prev.filter((l) => l.id !== lead.id))
+    if (lead.status === 'spam') setFiltered((n) => Math.max(0, n - 1))
+    if (selected?.id === lead.id) {
+      setSheetOpen(false)
+      setSelected(null)
+    }
+    try {
+      const res = await fetch(`/api/leads/${lead.id}`, { method: 'DELETE' })
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}))
+        throw new Error(json.error ?? 'Could not delete the lead.')
+      }
+      toast.success('Lead deleted.')
+    } catch (err) {
+      setLeads((prev) => (prev.some((l) => l.id === lead.id) ? prev : [lead, ...prev]))
+      if (lead.status === 'spam') setFiltered((n) => n + 1)
+      toast.error(err instanceof Error ? err.message : 'Could not delete the lead.')
+    }
   }
 
   async function runSweep() {
@@ -167,7 +197,7 @@ export default function LeadsClient({
           title="Everything triage rejected as marketing or noise. Check it occasionally — this is how a wrongly-filtered bid gets caught."
         >
           {showFiltered ? <Eye className="size-4" /> : <EyeOff className="size-4" />}
-          {showFiltered ? 'Showing filtered' : `Filtered (${filteredCount})`}
+          {showFiltered ? 'Showing filtered' : `Filtered (${filtered})`}
         </Button>
 
         <Button variant="outline" size="sm" onClick={runSweep} disabled={sweeping}>
@@ -198,6 +228,7 @@ export default function LeadsClient({
                 setSelected(l)
                 setSheetOpen(true)
               }}
+              onDelete={deleteLead}
             />
           ))}
         </div>
