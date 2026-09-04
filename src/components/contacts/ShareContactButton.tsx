@@ -54,6 +54,25 @@ function fileName(fullName: string): string {
   return `${slug || 'contact'}.vcf`
 }
 
+const FILES_KEY = 'bw.share.files'
+
+/** Whether this device has previously refused a file share. */
+function filesAllowed(): boolean {
+  try {
+    return window.localStorage.getItem(FILES_KEY) !== 'off'
+  } catch {
+    return true
+  }
+}
+
+function rememberFilesRejected(): void {
+  try {
+    window.localStorage.setItem(FILES_KEY, 'off')
+  } catch {
+    // Private mode / storage disabled — we just retry the file next time.
+  }
+}
+
 /**
  * Shares a contact through the device's native share sheet (iOS/Android),
  * so it can be sent straight into iMessage. Prefers a .vcf file — the
@@ -99,20 +118,29 @@ export default function ShareContactButton(props: Props) {
       let shareError: unknown = null
 
       if (canShare) {
-        // A share sheet consumes the user gesture whether it succeeds or not,
-        // so only ONE share() call is ever attempted — a second would fail with
-        // NotAllowedError and mask the real reason. Pick the best payload the
-        // browser says it can take, then fall straight through to the clipboard.
+        // A share sheet consumes the user gesture whether it succeeds or not, so
+        // only ONE share() call is ever attempted — a second would fail with
+        // NotAllowedError and mask the real reason. Pick the payload first, then
+        // fall straight through to the clipboard if the sheet refuses it.
+        //
+        // Desktop Chrome answers canShare({files}) with true and then rejects the
+        // actual share with NotAllowedError, so the vCard is only offered on
+        // touch devices — and a device that refuses it once is remembered, so the
+        // next click goes straight to a text share it will accept.
+        let sharedFile = false
         let payload: ShareData = { title: props.fullName, text }
-        try {
-          const file = new File([buildVCard(props)], fileName(props.fullName), {
-            type: 'text/vcard',
-          })
-          if (navigator.canShare?.({ files: [file] })) {
-            payload = { files: [file], title: props.fullName }
+        if (navigator.maxTouchPoints > 0 && filesAllowed()) {
+          try {
+            const file = new File([buildVCard(props)], fileName(props.fullName), {
+              type: 'text/vcard',
+            })
+            if (navigator.canShare?.({ files: [file] })) {
+              payload = { files: [file], title: props.fullName }
+              sharedFile = true
+            }
+          } catch {
+            // File unsupported — the text payload already covers it.
           }
-        } catch {
-          // File unsupported — the text payload already covers it.
         }
 
         try {
@@ -121,6 +149,7 @@ export default function ShareContactButton(props: Props) {
         } catch (err) {
           // Cancelling is a decision, not a failure.
           if (err instanceof DOMException && err.name === 'AbortError') return
+          if (sharedFile) rememberFilesRejected()
           shareError = err
         }
       }
