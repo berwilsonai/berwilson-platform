@@ -25,6 +25,7 @@ import EnrichProfileButton from '@/components/contacts/EnrichProfileButton'
 import ContactEnrichmentDisplay from '@/components/contacts/ContactEnrichmentDisplay'
 import ContactTagsEditor from '@/components/contacts/ContactTagsEditor'
 import CompanyLinkEditor from '@/components/contacts/CompanyLinkEditor'
+import ShareContactButton from '@/components/contacts/ShareContactButton'
 
 interface PageProps {
   params: Promise<{ id: string }>
@@ -393,6 +394,15 @@ export default async function ContactDetailPage({ params, searchParams }: PagePr
                 </span>
               ) : null}
             </div>
+          </div>
+          <div className="ml-auto shrink-0">
+            <ShareContactButton
+              fullName={party.full_name}
+              email={party.email}
+              phone={party.phone}
+              title={displayTitle}
+              company={linkedEntity?.name ?? party.company}
+            />
           </div>
         </div>
       </div>
