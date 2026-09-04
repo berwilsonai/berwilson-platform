@@ -57,11 +57,37 @@ function fileName(fullName: string): string {
 /**
  * Shares a contact through the device's native share sheet (iOS/Android),
  * so it can be sent straight into iMessage. Prefers a .vcf file — the
- * recipient gets a real contact card they can save — and falls back to
- * plain text, then to the clipboard on desktop browsers with no share sheet.
+ * recipient gets a real contact card they can save — and degrades to a
+ * plain-text share, then to copying the details to the clipboard.
  */
 export default function ShareContactButton(props: Props) {
   const [busy, setBusy] = useState(false)
+
+  /**
+   * Clipboard fallback. navigator.clipboard only exists in a secure context,
+   * so a plain-http origin (e.g. the tailnet IP rather than the HTTPS name)
+   * needs the legacy path or the copy throws.
+   */
+  async function copyToClipboard(text: string): Promise<boolean> {
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text)
+        return true
+      }
+      const el = document.createElement('textarea')
+      el.value = text
+      el.setAttribute('readonly', '')
+      el.style.position = 'fixed'
+      el.style.opacity = '0'
+      document.body.appendChild(el)
+      el.select()
+      const ok = document.execCommand('copy')
+      document.body.removeChild(el)
+      return ok
+    } catch {
+      return false
+    }
+  }
 
   async function handleShare() {
     if (busy) return
@@ -69,38 +95,48 @@ export default function ShareContactButton(props: Props) {
     const text = buildText(props)
 
     try {
-      const nav = typeof navigator !== 'undefined' ? navigator : undefined
+      const canShare = typeof navigator !== 'undefined' && typeof navigator.share === 'function'
+      let shareError: unknown = null
 
-      // 1 — native share sheet with a contact card attached.
-      if (nav?.share) {
+      if (canShare) {
+        // A share sheet consumes the user gesture whether it succeeds or not,
+        // so only ONE share() call is ever attempted — a second would fail with
+        // NotAllowedError and mask the real reason. Pick the best payload the
+        // browser says it can take, then fall straight through to the clipboard.
+        let payload: ShareData = { title: props.fullName, text }
         try {
           const file = new File([buildVCard(props)], fileName(props.fullName), {
             type: 'text/vcard',
           })
-          if (nav.canShare?.({ files: [file] })) {
-            await nav.share({ files: [file], title: props.fullName })
-            return
+          if (navigator.canShare?.({ files: [file] })) {
+            payload = { files: [file], title: props.fullName }
           }
-        } catch (err) {
-          // A cancelled share is a decision, not a failure — don't retry as text.
-          if (err instanceof DOMException && err.name === 'AbortError') return
+        } catch {
+          // File unsupported — the text payload already covers it.
         }
 
-        // 2 — native share sheet, plain text.
         try {
-          await nav.share({ title: props.fullName, text })
+          await navigator.share(payload)
           return
         } catch (err) {
+          // Cancelling is a decision, not a failure.
           if (err instanceof DOMException && err.name === 'AbortError') return
-          throw err
+          shareError = err
         }
       }
 
-      // 3 — no share sheet (most desktop browsers).
-      await navigator.clipboard.writeText(text)
-      toast.success('Contact details copied to clipboard')
-    } catch {
-      toast.error('Could not share this contact')
+      // No share sheet, or the sheet refused — make sure the details still
+      // reach the user rather than dead-ending on an error.
+      const copied = await copyToClipboard(text)
+      if (copied && !shareError) {
+        toast.success('Contact details copied to clipboard')
+      } else if (copied) {
+        toast.success('Sharing unavailable — details copied to clipboard')
+      } else {
+        const reason =
+          shareError instanceof Error ? `${shareError.name}: ${shareError.message}` : 'no share or clipboard support'
+        toast.error(`Could not share this contact (${reason})`)
+      }
     } finally {
       setBusy(false)
     }
