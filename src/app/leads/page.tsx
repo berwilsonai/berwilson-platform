@@ -74,8 +74,9 @@ export default async function LeadsPage({
         <div>
           <h1 className="text-2xl">Leads</h1>
           <p className="text-sm text-muted-foreground">
-            Bid invitations and enquiries arriving at info@, read and scored against what Ber Wilson
-            actually pursues. Promote one and it becomes a project, an opportunity, or a steel deal.
+            Bid invitations arriving at info@ and deals submitted through the website form, read
+            and scored against what Ber Wilson actually pursues. Promote one and it becomes a
+            project, an opportunity, or a steel deal.
           </p>
         </div>
       </div>

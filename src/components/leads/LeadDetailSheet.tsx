@@ -7,6 +7,7 @@ import { toast } from 'sonner'
 import {
   Paperclip, Download, Mail, Phone, Building2, MapPin, Calendar,
   FolderKanban, Lightbulb, Factory, Send, Archive, Undo2, ExternalLink,
+  FolderOpen, Check, Minus,
 } from 'lucide-react'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Button } from '@/components/ui/button'
@@ -19,7 +20,8 @@ import {
   ROUTE_LABELS, ROUTE_BADGE, ROUTE_DESTINATIONS, STATUS_BADGE, STATUS_LABELS, gmailThreadUrl,
 } from '@/lib/utils/leads'
 import { LEAD_ROUTES, type LeadRoute } from '@/lib/ai/prompts/lead-triage'
-import type { LeadRow } from '@/lib/leads/db'
+import { DEAL_CHECKLIST, CHECKLIST_BY_KEY } from '@/lib/deal-intake/checklist'
+import type { LeadRow, IntakeAnswer } from '@/lib/leads/db'
 
 type PromoteTarget = 'project' | 'opportunity' | 'steel'
 
@@ -34,6 +36,80 @@ function Fact({ icon: Icon, label, children }: {
       <div className="min-w-0">
         <p className="label-caps text-muted-foreground">{label}</p>
         <div className="break-words">{children}</div>
+      </div>
+    </div>
+  )
+}
+
+/**
+ * The intake checklist, answered and unanswered.
+ *
+ * Shown instead of the raw key_facts bullets for a web-form lead: the gaps are
+ * the point. Whether the sponsor has site control and a capital stack decides
+ * whether this is worth an hour, and a list that only shows what was filled in
+ * hides exactly the half that matters.
+ */
+function IntakeChecklist({ answers }: { answers: Record<string, IntakeAnswer> }) {
+  const rows = DEAL_CHECKLIST.map((spec) => ({
+    spec,
+    answer: answers[spec.key]?.provided ? answers[spec.key]?.answer ?? null : null,
+  }))
+
+  // Anything the form sent under a key this build does not know about — usually
+  // a question the form gained first. Visible rather than silently dropped.
+  const extra = Object.entries(answers).filter(
+    ([key, a]) => !CHECKLIST_BY_KEY[key] && a?.answer?.trim()
+  )
+
+  if (rows.length === 0 && extra.length === 0) return null
+
+  const answered = rows.filter((r) => r.answer).length
+  const missingRequired = rows.filter((r) => !r.answer && r.spec.required).length
+
+  return (
+    <div className="space-y-1">
+      <p className="label-caps text-muted-foreground">
+        Diligence checklist ({answered} of {rows.length} answered
+        {missingRequired > 0 ? `, ${missingRequired} required missing` : ''})
+      </p>
+      <div className="space-y-1">
+        {rows.map(({ spec, answer }) => (
+          <div key={spec.key} className="rounded-md bg-muted/30 px-2 py-1.5 text-sm">
+            <div className="flex items-start gap-2">
+              {answer ? (
+                <Check className="mt-0.5 size-3.5 shrink-0 text-emerald-600" />
+              ) : (
+                <Minus
+                  className={`mt-0.5 size-3.5 shrink-0 ${
+                    spec.required ? 'text-amber-600' : 'text-muted-foreground'
+                  }`}
+                />
+              )}
+              <div className="min-w-0 flex-1">
+                <p className={answer ? '' : 'text-muted-foreground'}>{spec.label}</p>
+                {answer ? (
+                  <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground break-words">
+                    {answer}
+                  </p>
+                ) : (
+                  spec.required && (
+                    <p className="mt-0.5 text-xs text-amber-700 dark:text-amber-400">
+                      Required — not provided
+                    </p>
+                  )
+                )}
+              </div>
+            </div>
+          </div>
+        ))}
+        {extra.map(([key, a]) => (
+          <div key={key} className="rounded-md bg-muted/30 px-2 py-1.5 text-sm">
+            <p className="text-muted-foreground">{key}</p>
+            <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground break-words">
+              {a.answer}
+            </p>
+          </div>
+        ))}
       </div>
     </div>
   )
@@ -109,8 +185,12 @@ export default function LeadDetailSheet({
 
       const where =
         target === 'project' ? 'projects' : target === 'opportunity' ? 'opportunities' : 'steel'
+      // Say what actually landed. A promotion that pulled in 14 documents and
+      // seeded a diligence checklist deserves more than "Created".
+      const parts = [`${json.documentsCopied} file(s) attached`]
+      if (json.diligenceCreated > 0) parts.push(`${json.diligenceCreated} diligence item(s)`)
       toast.success(
-        `Created — ${json.documentsCopied} file(s) attached.`,
+        `Created — ${parts.join(', ')}.`,
         {
           action: {
             label: 'Open',
@@ -178,6 +258,7 @@ export default function LeadDetailSheet({
         : null
   // Gmail's own conversation id — `thread_id` is our UUID and resolves to nothing.
   const gmailUrl = gmailThreadUrl(lead.mailbox, lead.gmail_thread_id ?? null)
+  const isWebForm = lead.source === 'web_form'
 
   return (
     <>
@@ -247,6 +328,23 @@ export default function LeadDetailSheet({
               </a>
             )}
 
+            {lead.drive_folder_url && (
+              <a
+                href={lead.drive_folder_url}
+                target="_blank"
+                rel="noreferrer"
+                className="flex items-start gap-2 rounded-md bg-muted/30 p-3 text-sm hover:bg-accent"
+              >
+                <FolderOpen className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />
+                <span>
+                  Open the deal folder in Drive
+                  <span className="block text-xs text-muted-foreground">
+                    Everything in it is imported onto the project when this lead is promoted.
+                  </span>
+                </span>
+              </a>
+            )}
+
             {lead.summary && <p className="text-sm leading-relaxed">{lead.summary}</p>}
 
             <div className="grid grid-cols-2 gap-3">
@@ -301,8 +399,14 @@ export default function LeadDetailSheet({
               </div>
             )}
 
-            <Bullets title="Key facts" items={lead.key_facts} />
-            <Bullets title="Requirements to bid" items={lead.requirements} />
+            {isWebForm ? (
+              <IntakeChecklist answers={lead.intake_answers ?? {}} />
+            ) : (
+              <>
+                <Bullets title="Key facts" items={lead.key_facts} />
+                <Bullets title="Requirements to bid" items={lead.requirements} />
+              </>
+            )}
 
             {lead.attachments.length > 0 && (
               <div className="space-y-1">

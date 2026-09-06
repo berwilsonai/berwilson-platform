@@ -19,6 +19,8 @@ import { canonicalLeadSource } from '@/lib/utils/steel'
 import type { Database } from '@/types/database'
 import { leadsDb, parseLeadAttachments, type LeadAttachment, type LeadRow } from './db'
 import { publishRecordQuietly, type DriveRecordKind } from '@/lib/drive/publish'
+import { importDriveFolder } from '@/lib/drive/import'
+import { createDdItemsFromIntake, parseIntakeAnswers } from '@/lib/deal-intake/diligence'
 import { LEAD_FOLDER } from './score-phase'
 
 export type PromoteTarget = 'project' | 'opportunity' | 'steel'
@@ -31,6 +33,10 @@ export interface PromoteResult {
   contactsLinked: number
   /** Drive folder the bid package was published to, when publishing worked. */
   driveFolderUrl?: string | null
+  /** Files pulled in from a web-form deal's Drive folder. */
+  driveImported?: number
+  /** Diligence items seeded from the intake checklist. */
+  diligenceCreated?: number
 }
 
 type Sector = Database['public']['Enums']['project_sector']
@@ -126,10 +132,13 @@ async function copyAttachments(
 
 /** A readable record of where this came from, saved onto the created record. */
 export function originNote(lead: LeadRow): string {
+  const web = lead.source === 'web_form'
   const bits = [
-    `Inbound lead from ${lead.sender_company ?? lead.sender_email ?? 'an email enquiry'}`,
+    `Inbound lead from ${
+      lead.sender_company ?? lead.sender_email ?? (web ? 'the website deal form' : 'an email enquiry')
+    }`,
     lead.received_at ? `received ${lead.received_at.slice(0, 10)}` : null,
-    lead.mailbox ? `via ${lead.mailbox}` : null,
+    web ? 'via the berwilson.com deal intake form' : lead.mailbox ? `via ${lead.mailbox}` : null,
   ].filter(Boolean)
 
   const lines = [`${bits.join(' ')}.`, '']
@@ -190,7 +199,9 @@ async function linkSenderToDirectory(
         company: isOrg ? null : lead.sender_company,
         email: contact.email,
         phone: contact.phone,
-        relationship_notes: `Added from an inbound lead: ${lead.title}`,
+        relationship_notes: `Added from an inbound ${
+          lead.source === 'web_form' ? 'deal submission' : 'lead'
+        }: ${lead.title}`,
         tags: ['inbound-lead'],
       })
       .select('id')
@@ -205,6 +216,17 @@ async function linkSenderToDirectory(
   // project_players.role is free text and the existing rows read as prose
   // ("Client Principal", "Co-Developer"), so these match that voice rather than
   // introducing a slug vocabulary the rest of the directory does not use.
+  //
+  // The two sources are genuinely different relationships and must not share
+  // wording: an email lead is a GC inviting us to bid, while a web-form deal is
+  // a sponsor bringing us their own project. Calling the sponsor an "Inviting
+  // Contractor" would be wrong on the face of the project.
+  const web = lead.source === 'web_form'
+  const orgRole = web ? 'Sponsor / Developer' : 'Inviting Contractor'
+  const personRole = web ? 'Deal Contact' : 'Bid Contact'
+  const playerNote = web
+    ? 'Submitted the deal this project was created from.'
+    : 'Sent the bid invitation this project was created from.'
   const players: { id: string; role: string }[] = []
 
   try {
@@ -216,7 +238,7 @@ async function linkSenderToDirectory(
       })
       if (orgId) {
         partyIds.push(orgId)
-        players.push({ id: orgId, role: 'Inviting Contractor' })
+        players.push({ id: orgId, role: orgRole })
       }
     }
 
@@ -227,7 +249,7 @@ async function linkSenderToDirectory(
       })
       if (personId) {
         partyIds.push(personId)
-        players.push({ id: personId, role: 'Bid Contact' })
+        players.push({ id: personId, role: personRole })
       }
     }
 
@@ -238,7 +260,7 @@ async function linkSenderToDirectory(
           project_id: projectId,
           party_id: player.id,
           role: player.role,
-          notes: 'Sent the bid invitation this project was created from.',
+          notes: playerNote,
         })
         if (error) console.error('[leads/promote] could not link player:', error.message)
       }
@@ -261,6 +283,8 @@ export async function promoteLead(
 
   let id: string
   let documentsCopied = 0
+  let driveImported = 0
+  let diligenceCreated = 0
 
   if (target === 'project') {
     const { data, error } = await supabase
@@ -298,6 +322,48 @@ export async function promoteLead(
       'documents',
       { projectId: id, index: true }
     )
+
+    // A web-form deal arrives as a Drive folder rather than as attachments.
+    if (lead.drive_folder_id) {
+      // ADOPT the folder rather than letting publishRecordToDrive create a
+      // second one. The form creates it under this platform's own OAuth client
+      // as the primary mailbox, so it is app-created and the existing
+      // drive.file scope can write to it — one folder the team works in and the
+      // platform publishes into, instead of two that drift.
+      const { error: adoptErr } = await supabase
+        .from('projects')
+        .update({
+          deal_folder_id: lead.drive_folder_id,
+          drive_folder_id: lead.drive_folder_id,
+          drive_folder_url: lead.drive_folder_url,
+        })
+        .eq('id', id)
+      if (adoptErr) {
+        console.error('[leads/promote] could not adopt the deal folder:', adoptErr.message)
+      }
+
+      // Non-fatal: the project exists and the folder is recorded, so a Drive
+      // outage costs this import and nothing else. The nightly drive-sync pass
+      // picks up whatever did not land.
+      try {
+        const imported = await importDriveFolder({ folderId: lead.drive_folder_id, projectId: id })
+        driveImported = imported.added + imported.updated
+        documentsCopied += driveImported
+      } catch (err) {
+        console.error(
+          '[leads/promote] deal folder import failed:',
+          err instanceof Error ? err.message : String(err)
+        )
+      }
+    }
+
+    // The checklist is the reason the form exists — it becomes diligence items
+    // so gaps are visible and assignable rather than buried in a submission.
+    const answers = parseIntakeAnswers(lead.intake_answers)
+    if (Object.keys(answers).length > 0) {
+      const seeded = await createDdItemsFromIntake(supabase, id, answers)
+      diligenceCreated = seeded.created
+    }
   } else if (target === 'opportunity') {
     const { data, error } = await supabase
       .from('opportunities')
@@ -407,14 +473,23 @@ export async function promoteLead(
   // Publish the bid package to Drive so the people who will actually price it
   // can open it. Quiet by design: the record and its documents already exist,
   // and a Drive outage must not read as "promotion failed".
-  const published = await publishRecordQuietly(target as DriveRecordKind, id)
+  //
+  // Skipped for an adopted deal folder: every document on the record was just
+  // read OUT of that folder and is stamped drive_published_id, so publishing
+  // would create the folder structure and upload nothing. The folder the team
+  // is already working in is the answer.
+  const published = lead.drive_folder_id
+    ? null
+    : await publishRecordQuietly(target as DriveRecordKind, id)
 
   return {
     target,
     id,
     documentsCopied,
     contactsLinked: partyIds.length,
-    driveFolderUrl: published?.folderUrl ?? null,
+    driveFolderUrl: published?.folderUrl ?? lead.drive_folder_url ?? null,
+    driveImported,
+    diligenceCreated,
   }
 }
 

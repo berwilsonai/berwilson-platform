@@ -18,6 +18,7 @@ import { toast } from 'sonner'
 import { viewDocument, downloadDocument, fetchDocumentText } from '@/lib/utils/document-links'
 import type { Document } from '@/lib/supabase/types'
 import DrivePublishButton from '@/components/shared/DrivePublishButton'
+import DriveImportButton from '@/components/shared/DriveImportButton'
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -30,6 +31,11 @@ const DOC_TYPES = [
   'email',
   'report',
   'correspondence',
+  // Both are written by lead promotion — 'solicitation' for a bid package that
+  // arrived by email, 'diligence' for a document imported from a deal folder —
+  // and were missing here, so neither could be filtered for.
+  'solicitation',
+  'diligence',
   'other',
 ] as const
 
@@ -42,6 +48,8 @@ const DOC_TYPE_COLORS: Record<DocType, string> = {
   email: 'bg-sky-50 dark:bg-sky-950/40 text-sky-700 dark:text-sky-300 ring-sky-200 dark:ring-sky-800/60',
   report: 'bg-teal-50 dark:bg-teal-950/40 text-teal-700 dark:text-teal-300 ring-teal-200 dark:ring-teal-800/60',
   correspondence: 'bg-orange-50 dark:bg-orange-950/40 text-orange-700 dark:text-orange-300 ring-orange-200 dark:ring-orange-800/60',
+  solicitation: 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 ring-amber-200 dark:ring-amber-800/60',
+  diligence: 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 ring-emerald-200 dark:ring-emerald-800/60',
   other: 'bg-slate-100 dark:bg-slate-900/40 text-slate-600 dark:text-slate-400 ring-slate-200 dark:ring-slate-800/60',
 }
 
@@ -512,6 +520,9 @@ interface DocumentsTabProps {
   initialDocuments: Document[]
   /** Drive folder this project has already been published to, if any. */
   driveFolderUrl?: string | null
+  /** Set when this project came from a website deal submission — its folder
+      keeps filling during diligence, so it can be pulled in on demand. */
+  hasDealFolder?: boolean
   /** Publishing is a sharing decision, so the control is admin-only. */
   canPublish?: boolean
 }
@@ -520,6 +531,7 @@ export default function DocumentsTab({
   projectId,
   initialDocuments,
   driveFolderUrl,
+  hasDealFolder,
   canPublish,
 }: DocumentsTabProps) {
   const [documents, setDocuments] = useState<Document[]>(initialDocuments)
@@ -541,9 +553,15 @@ export default function DocumentsTab({
           Documents ({documents.length})
         </h2>
         <div className="flex items-center gap-2">
-          {canPublish && (
-            <DrivePublishButton kind="project" id={projectId} folderUrl={driveFolderUrl} />
-          )}
+          {canPublish &&
+            (hasDealFolder ? (
+              // A deal folder is the SAME folder documents would publish to, so
+              // offering both would read as two destinations. Pulling in is the
+              // direction that matters here.
+              <DriveImportButton projectId={projectId} />
+            ) : (
+              <DrivePublishButton kind="project" id={projectId} folderUrl={driveFolderUrl} />
+            ))}
           <button
             onClick={() => setShowUpload(!showUpload)}
             className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md border border-input bg-background text-xs font-medium hover:bg-accent transition-colors"

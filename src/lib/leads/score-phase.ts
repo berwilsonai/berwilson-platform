@@ -15,6 +15,11 @@
  *      profile plus retrieved evidence from the company knowledge base, and
  *      returns the score/summary/strengths/concerns/gaps/questions shape the UI
  *      already knows how to render.
+ *
+ * A web-form lead has no thread; its evidence is the Drive folder the deal form
+ * created. Steps 1-2 are replaced by reading that folder's text in memory —
+ * step 3 is identical, which is the point of scoring both sources here rather
+ * than building a second assessor.
  */
 
 import { assessFit } from '@/lib/ai/fit-assessment'
@@ -25,6 +30,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { fetchThread, fetchAttachmentBytes } from '@/lib/integrations/google-workspace'
 import { SYSTEM_USER_ID } from '@/lib/email-ingestion/analyze'
 import { sweepDb, type EmailThreadRow } from '@/lib/email-sweep/db'
+import { readDriveFolderText } from '@/lib/drive/import'
 import { leadsDb, type LeadAttachment, type LeadRow } from './db'
 
 /** Where staged lead files live in the documents bucket. */
@@ -256,17 +262,32 @@ export async function scorePendingLeads(
       }
 
       try {
-        const { data: threadData, error: threadErr } = await threadsDb
-          .from('email_threads')
-          .select('mailbox, gmail_thread_id')
-          .eq('id', lead.thread_id)
-          .maybeSingle()
-        if (threadErr) throw new Error(threadErr.message)
+        let attachments: LeadAttachment[] = []
+        let text = ''
 
-        const thread = threadData as Pick<EmailThreadRow, 'mailbox' | 'gmail_thread_id'> | null
-        const { attachments, text } = thread
-          ? await stageAttachments(lead, thread)
-          : { attachments: [] as LeadAttachment[], text: '' }
+        if (lead.source === 'web_form' && lead.drive_folder_id) {
+          // A web-form deal's evidence is in its Drive folder. It is read in
+          // memory and NOT staged: most submissions are never promoted, and
+          // copying every one into the documents bucket would pay storage for
+          // deals we pass on. importDriveFolder brings the files in once, at
+          // promotion, when they are worth keeping.
+          const folder = await readDriveFolderText(lead.drive_folder_id)
+          text = folder.text
+        } else if (lead.thread_id) {
+          const { data: threadData, error: threadErr } = await threadsDb
+            .from('email_threads')
+            .select('mailbox, gmail_thread_id')
+            .eq('id', lead.thread_id)
+            .maybeSingle()
+          if (threadErr) throw new Error(threadErr.message)
+
+          const thread = threadData as Pick<EmailThreadRow, 'mailbox' | 'gmail_thread_id'> | null
+          if (thread) {
+            const staged = await stageAttachments(lead, thread)
+            attachments = staged.attachments
+            text = staged.text
+          }
+        }
         progress.attachmentsStaged += attachments.length
 
         const fit = await assessFit(toProposalExtraction(lead, text), userId)

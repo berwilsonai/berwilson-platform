@@ -20,7 +20,7 @@ export default async function DocumentsPage({ params }: PageProps) {
       .select('*')
       .eq('project_id', id)
       .order('uploaded_at', { ascending: false }),
-    supabase.from('projects').select('drive_folder_url').eq('id', id).maybeSingle(),
+    supabase.from('projects').select('drive_folder_url, deal_folder_id').eq('id', id).maybeSingle(),
     getViewer(),
   ])
 
@@ -29,6 +29,7 @@ export default async function DocumentsPage({ params }: PageProps) {
       projectId={id}
       initialDocuments={documents ?? []}
       driveFolderUrl={project?.drive_folder_url ?? null}
+      hasDealFolder={!!project?.deal_folder_id}
       // Publishing copies documents out of the tailnet, so it is a sharing
       // decision — admin-only, matching the API's own guard.
       canPublish={viewer?.isAdmin ?? false}

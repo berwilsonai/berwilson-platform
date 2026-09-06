@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.berwilson.cron-deal-intake</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/zsh</string>
+    <string>-c</string>
+    <string>curl -sS -m 280 -H "Authorization: Bearer $(grep '^CRON_SECRET=' __APP_DIR__/.env.local | cut -d= -f2-)" http://localhost:3000/api/cron/deal-intake</string>
+  </array>
+  <!-- Every 15 minutes, all day. A deal submitted through the website form is a
+       person waiting for an answer, so the lag between submitting and appearing
+       in the queue should be minutes, not overnight. The run is one Drive list
+       call when nothing is new, which is nearly always. -->
+  <key>StartInterval</key>
+  <integer>900</integer>
+  <key>AbandonProcessGroup</key>
+  <false/>
+  <key>StandardOutPath</key>
+  <string>__LOG_DIR__/cron-deal-intake.log</string>
+  <key>StandardErrorPath</key>
+  <string>__LOG_DIR__/cron-deal-intake.err.log</string>
+</dict>
+</plist>

@@ -43,10 +43,30 @@ export interface LeadAttachment {
   extracted: boolean
 }
 
+/** Where the lead came in from. */
+export type LeadSource = 'email' | 'web_form'
+
+/** One answered (or explicitly unanswered) intake checklist question. */
+export interface IntakeAnswer {
+  answer: string | null
+  provided: boolean
+}
+
 export interface LeadRow {
   id: string
-  thread_id: string
+  /**
+   * The email thread this was read from — NULL for a web-form deal, which has
+   * no mailbox behind it. Every Gmail-facing consumer already guards on this.
+   */
+  thread_id: string | null
   mailbox: string | null
+
+  /**
+   * 'email'   — swept out of info@ by the lead pipeline
+   * 'web_form'— submitted through the berwilson.com deal form, which created a
+   *             Drive folder and wrote its checklist into _intake.json
+   */
+  source: LeadSource
 
   route: LeadRoute
   status: LeadStatus
@@ -113,6 +133,21 @@ export interface LeadRow {
   gmail_labeled_at: string | null
   gmail_draft_id: string | null
   draft_created_at: string | null
+
+  /**
+   * The deal folder a web-form lead arrived in, and a link to it.
+   *
+   * Created by the form under the platform's own OAuth client as moose@, which
+   * makes it app-created and therefore writable under the existing drive.file
+   * scope — one folder both ends can use, rather than an imported copy and a
+   * published copy drifting apart. Adopted as projects.drive_folder_id on
+   * promotion.
+   */
+  drive_folder_id: string | null
+  drive_folder_url: string | null
+
+  /** The checklist exactly as submitted, keyed by DEAL_CHECKLIST key. */
+  intake_answers: Record<string, IntakeAnswer>
 
   notes: string | null
   created_at: string | null

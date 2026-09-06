@@ -1,10 +1,19 @@
 'use client'
 
 import { useState } from 'react'
-import { Paperclip, Building2, MapPin, X, Loader2 } from 'lucide-react'
+import { Paperclip, Building2, MapPin, X, Loader2, ListChecks } from 'lucide-react'
 import { Chip } from '@/components/ui/chip'
 import { formatValue, bidDueLabel, bidDueColor } from '@/lib/utils/constants'
-import { ROUTE_LABELS, ROUTE_BADGE, FIT_BADGE, FIT_LABELS, STATUS_BADGE, STATUS_LABELS } from '@/lib/utils/leads'
+import {
+  ROUTE_LABELS,
+  ROUTE_BADGE,
+  FIT_BADGE,
+  FIT_LABELS,
+  STATUS_BADGE,
+  STATUS_LABELS,
+  SOURCE_BADGE,
+  SOURCE_LABELS,
+} from '@/lib/utils/leads'
 import type { LeadRow } from '@/lib/leads/db'
 
 /**
@@ -24,6 +33,11 @@ export default function LeadCard({
   const due = bidDueLabel(lead.bid_due_date)
   const overdue = lead.bid_due_date ? new Date(lead.bid_due_date) < new Date() : false
   const isOpen = lead.status === 'new' || lead.status === 'reviewing'
+  // A web-form deal has no attachments staged; what it has is a filled-in
+  // checklist, which is the equivalent signal of "there is substance here".
+  const answeredCount = Object.values(lead.intake_answers ?? {}).filter(
+    (a) => a?.provided && a.answer
+  ).length
 
   async function remove(e: React.MouseEvent) {
     e.preventDefault()
@@ -94,6 +108,11 @@ export default function LeadCard({
 
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
           <Chip tone={ROUTE_BADGE[lead.route]}>{ROUTE_LABELS[lead.route]}</Chip>
+          {/* Only the non-default source is worth a chip — most leads are mail,
+              and labelling every one of them says nothing. */}
+          {lead.source === 'web_form' && (
+            <Chip tone={SOURCE_BADGE.web_form}>{SOURCE_LABELS.web_form}</Chip>
+          )}
           {!isOpen && <Chip tone={STATUS_BADGE[lead.status]}>{STATUS_LABELS[lead.status]}</Chip>}
           {lead.sender_company && (
             <span className="inline-flex items-center gap-1 min-w-0">
@@ -114,6 +133,12 @@ export default function LeadCard({
             <span className="inline-flex items-center gap-1">
               <Paperclip className="size-3" />
               {lead.attachments.length}
+            </span>
+          )}
+          {answeredCount > 0 && (
+            <span className="inline-flex items-center gap-1">
+              <ListChecks className="size-3" />
+              {answeredCount} answered
             </span>
           )}
           {due && (

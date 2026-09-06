@@ -22,6 +22,7 @@ import {
   probeContactsSync,
   probeDrivePublishing,
   probeDriveKnowledge,
+  probeDealIntake,
   probeMeetImport,
   probeScopeCoverage,
   probeDisk,
@@ -91,7 +92,7 @@ async function runChecks(): Promise<HealthCheck[]> {
   const dayAgo = new Date(Date.now() - 86_400_000).toISOString()
   const localAI = process.env.AI_PROVIDER === 'local'
 
-  const [brief, riskScore, lastAi, aiDayCount, failedRuns, mailbox, lmStudio, backups, drive, scopes, disk, lastDigest, failedDigests, contacts, drivePublish, meetImport] =
+  const [brief, riskScore, lastAi, aiDayCount, failedRuns, mailbox, lmStudio, backups, drive, scopes, disk, lastDigest, failedDigests, contacts, drivePublish, meetImport, dealIntake] =
     await Promise.all([
       supabase
         .from('stored_briefs')
@@ -144,6 +145,7 @@ async function runChecks(): Promise<HealthCheck[]> {
       probeContactsSync(),
       probeDrivePublishing(),
       probeMeetImport(),
+      probeDealIntake(),
     ])
 
   const checks: HealthCheck[] = []
@@ -336,6 +338,26 @@ async function runChecks(): Promise<HealthCheck[]> {
               ? 'No knowledge folder configured'
               : 'Cannot read the knowledge folder',
       detail: drive.detail,
+    })
+  }
+
+  // Website deal intake. Same three-way failure as the knowledge folder, and the
+  // same reason "empty" is its own state — no submissions yet is correct on day
+  // one and must not read as broken.
+  {
+    checks.push({
+      name: 'Deal Intake',
+      status:
+        dealIntake.state === 'ok' ? 'ok' : dealIntake.state === 'failed' ? 'fail' : 'warn',
+      headline:
+        dealIntake.state === 'ok'
+          ? 'Deal folders reaching the queue'
+          : dealIntake.state === 'empty'
+            ? 'Connected, no deals submitted yet'
+            : dealIntake.state === 'unconfigured'
+              ? 'No deal intake folder configured'
+              : 'Cannot read the deal intake folder',
+      detail: dealIntake.detail,
     })
   }
 

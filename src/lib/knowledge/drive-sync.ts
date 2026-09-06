@@ -7,8 +7,11 @@
  * folder of capability statements, past performance, and credentials is what
  * turns a generic score into a grounded one.
  *
- * Change detection is by (drive_file_id, drive_modified_at): an unchanged file
- * costs one list entry and nothing else. An edited one is re-downloaded,
+ * Change detection is by (drive_file_id, drive_modified_at), compared as
+ * instants — see driveFileUnchanged, and do not reduce it back to a string
+ * comparison: the stored timestamptz round-trips with an offset while Drive
+ * sends `Z`, so text equality never holds and every file is re-indexed nightly.
+ * An unchanged file costs one list entry and nothing else. An edited one is re-downloaded,
  * re-uploaded, and re-indexed in place, with its old chunks removed first so a
  * revision cannot leave both versions in the index contradicting each other.
  */
@@ -19,6 +22,7 @@ import {
   listFolder,
   fetchDriveFile,
   driveKnowledgeFolderId,
+  driveFileUnchanged,
   type DriveFile,
 } from '@/lib/integrations/google-drive'
 
@@ -87,8 +91,8 @@ export async function syncDriveKnowledge(
     }
 
     const prior = known.get(file.id)
-    // Drive's modifiedTime changes on any edit — equality means nothing to do.
-    if (prior && prior.drive_modified_at === file.modifiedTime) {
+    // Drive's modifiedTime changes on any edit — same instant means nothing to do.
+    if (prior && driveFileUnchanged(prior.drive_modified_at, file)) {
       progress.unchanged++
       continue
     }

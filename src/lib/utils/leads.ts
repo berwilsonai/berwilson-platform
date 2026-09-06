@@ -8,7 +8,7 @@
  */
 
 import type { LeadRoute } from '@/lib/ai/prompts/lead-triage'
-import type { LeadStatus, FitRecommendation } from '@/lib/leads/db'
+import type { LeadStatus, FitRecommendation, LeadSource } from '@/lib/leads/db'
 
 export const ROUTE_LABELS: Record<LeadRoute, string> = {
   steel: 'Steel',
@@ -38,6 +38,23 @@ export const ROUTE_BADGE: Record<LeadRoute, string> = {
     'bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-500/15 dark:text-amber-300 dark:ring-amber-500/30',
   unknown:
     'bg-slate-50 text-slate-600 ring-slate-200 dark:bg-slate-500/15 dark:text-slate-300 dark:ring-slate-500/30',
+}
+
+/**
+ * Where a lead came in from. Worth showing: a web-form deal arrives with a
+ * checklist and a Drive folder behind it, an email lead with a thread — they
+ * are read and acted on differently.
+ */
+export const SOURCE_LABELS: Record<LeadSource, string> = {
+  email: 'Email',
+  web_form: 'Deal form',
+}
+
+export const SOURCE_BADGE: Record<LeadSource, string> = {
+  email:
+    'bg-slate-50 text-slate-600 ring-slate-200 dark:bg-slate-500/15 dark:text-slate-300 dark:ring-slate-500/30',
+  web_form:
+    'bg-sky-50 text-sky-700 ring-sky-200 dark:bg-sky-500/15 dark:text-sky-300 dark:ring-sky-500/30',
 }
 
 export const STATUS_LABELS: Record<LeadStatus, string> = {

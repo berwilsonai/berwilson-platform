@@ -2302,6 +2302,7 @@ export type Database = {
           created_at: string | null
           delivery_method: string | null
           description: string | null
+          deal_folder_id: string | null
           drive_folder_id: string | null
           drive_folder_url: string | null
           estimated_value: number | null
@@ -2336,6 +2337,7 @@ export type Database = {
           created_at?: string | null
           delivery_method?: string | null
           description?: string | null
+          deal_folder_id?: string | null
           drive_folder_id?: string | null
           drive_folder_url?: string | null
           estimated_value?: number | null
@@ -2370,6 +2372,7 @@ export type Database = {
           created_at?: string | null
           delivery_method?: string | null
           description?: string | null
+          deal_folder_id?: string | null
           drive_folder_id?: string | null
           drive_folder_url?: string | null
           estimated_value?: number | null

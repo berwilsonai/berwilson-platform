@@ -20,7 +20,21 @@ import ResearchPanel from './ResearchPanel'
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
-const DD_CATEGORIES = ['legal', 'regulatory', 'partner_dd', 'title', 'environmental', 'bonding'] as const
+// dd_items.category is plain text; this is the vocabulary the tab offers. The
+// last four arrived with the website deal-intake checklist — see
+// src/lib/deal-intake/checklist.ts, which maps every question to one of these.
+const DD_CATEGORIES = [
+  'legal',
+  'regulatory',
+  'partner_dd',
+  'title',
+  'environmental',
+  'bonding',
+  'site',
+  'financial',
+  'market',
+  'other',
+] as const
 
 const CATEGORY_LABELS: Record<string, string> = {
   legal: 'Legal',
@@ -29,6 +43,10 @@ const CATEGORY_LABELS: Record<string, string> = {
   title: 'Title',
   environmental: 'Environmental',
   bonding: 'Bonding',
+  site: 'Site',
+  financial: 'Financial',
+  market: 'Market',
+  other: 'Other',
 }
 
 const DD_STATUSES = ['open', 'in_progress', 'resolved', 'accepted_risk'] as const

@@ -25,6 +25,7 @@ import {
 import { listMeetTranscripts } from '@/lib/integrations/google-drive'
 import { isChatConfigured } from '@/lib/notify/chat'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { leadsDb } from '@/lib/leads/db'
 
 const PROBE_TIMEOUT_MS = 10_000
 
@@ -280,6 +281,86 @@ export async function probeDriveKnowledge(): Promise<{
       fix = ` Re-consent with: node scripts/setup-google-oauth.mjs --only ${mailbox}`
     } else if (/404|not found/i.test(raw)) {
       fix = ` The folder is probably owned by another account — share it with ${mailbox} (Viewer is enough).`
+    }
+    return { state: 'failed', detail: `${raw}${fix}` }
+  }
+}
+
+/**
+ * Is the website deal-intake folder reachable, and is anything waiting?
+ *
+ * The whole path is a pull: a form writes a folder, a cron reads it. If the
+ * credential lapses or the folder id is wrong, submissions simply stop arriving
+ * and "no new deals" is indistinguishable from "everything is fine". That is
+ * the exact failure shape this platform has rediscovered repeatedly, so it is
+ * checked rather than assumed.
+ *
+ * `empty` is deliberately its own state: no submissions yet is the correct
+ * condition on day one, and it must not read as broken.
+ */
+export async function probeDealIntake(): Promise<{
+  state: 'ok' | 'empty' | 'unconfigured' | 'failed'
+  detail: string
+}> {
+  const folderId = process.env.GOOGLE_DEAL_INTAKE_FOLDER_ID?.trim()
+  if (!folderId) {
+    return {
+      state: 'unconfigured',
+      detail:
+        'Set GOOGLE_DEAL_INTAKE_FOLDER_ID to the Drive folder the berwilson.com deal form creates one subfolder per submission inside. Unset means deal intake is switched off — the form can still run, but nothing reaches the leads queue.',
+    }
+  }
+
+  const mailbox = PRIMARY_MAILBOX
+  try {
+    const q = encodeURIComponent(
+      `'${folderId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`
+    )
+    const data = await googleFetch<{ files?: { name: string }[] }>(
+      `https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(name)&pageSize=100&supportsAllDrives=true&includeItemsFromAllDrives=true`,
+      mailbox
+    )
+    const folders = data.files?.length ?? 0
+
+    // What actually matters is how many became leads. A folder count alone
+    // would look healthy while every manifest failed to parse.
+    let staged = 0
+    try {
+      const { count } = await leadsDb()
+        .from('leads')
+        .select('id', { count: 'exact', head: true })
+        .eq('source', 'web_form')
+      staged = count ?? 0
+    } catch {
+      // Pre-migration, or leads unreachable — the Drive half is still worth
+      // reporting on its own.
+    }
+
+    if (folders === 0) {
+      return {
+        state: 'empty',
+        detail: `Folder is readable by ${mailbox}, and no deals have been submitted yet. The scan runs every 15 minutes.`,
+      }
+    }
+    const behind = folders - staged
+    return {
+      state: 'ok',
+      detail:
+        `${folders} deal folder${folders === 1 ? '' : 's'}, ${staged} staged as leads` +
+        (behind > 0
+          ? `. ${behind} not staged — usually a submission still uploading (the form writes _intake.json last); check the cron log if it persists.`
+          : '.'),
+    }
+  } catch (err) {
+    const raw = err instanceof Error ? err.message : String(err)
+    let fix = ''
+    if (/has not been used in project|accessNotConfigured/.test(raw)) {
+      fix =
+        ' Enable the Drive API on the project that owns the OAuth client — the message names the project number.'
+    } else if (/insufficient|scope|403/i.test(raw)) {
+      fix = ` Re-consent with: node scripts/setup-google-oauth.mjs --only ${mailbox}`
+    } else if (/404|not found/i.test(raw)) {
+      fix = ` The folder is probably owned by another account — share it with ${mailbox}.`
     }
     return { state: 'failed', detail: `${raw}${fix}` }
   }

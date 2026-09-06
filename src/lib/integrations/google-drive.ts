@@ -59,6 +59,14 @@ export function driveKnowledgeFolderId(): string | null {
   return process.env.GOOGLE_DRIVE_KNOWLEDGE_FOLDER_ID?.trim() || null
 }
 
+/**
+ * Parent folder the website form creates one subfolder per deal inside.
+ * Unset means deal intake is switched off, not broken.
+ */
+export function dealIntakeFolderId(): string | null {
+  return process.env.GOOGLE_DEAL_INTAKE_FOLDER_ID?.trim() || null
+}
+
 export function isDriveConfigured(): boolean {
   return !!driveKnowledgeFolderId()
 }
@@ -115,6 +123,74 @@ export async function listFolder(
 
   await walk(folderId, 1)
   return out
+}
+
+/**
+ * List the immediate subfolders of a folder.
+ *
+ * {@link listFolder} deliberately DROPS folders — it returns the files inside a
+ * tree — so it cannot be used to enumerate one-folder-per-deal intake. This is
+ * the complement: folders only, one level, no recursion.
+ */
+export async function listSubfolders(
+  parentId: string,
+  opts: { mailbox?: string } = {}
+): Promise<DriveFile[]> {
+  const mailbox = opts.mailbox ?? PRIMARY_MAILBOX
+  const out: DriveFile[] = []
+  let pageToken: string | undefined
+
+  do {
+    const params = new URLSearchParams({
+      q: `'${parentId}' in parents and mimeType = '${GOOGLE_FOLDER}' and trashed = false`,
+      fields: 'nextPageToken, files(id, name, mimeType, modifiedTime)',
+      pageSize: '200',
+      orderBy: 'createdTime desc',
+      supportsAllDrives: 'true',
+      includeItemsFromAllDrives: 'true',
+    })
+    if (pageToken) params.set('pageToken', pageToken)
+
+    const data = await googleFetch<DriveListResponse>(
+      `${DRIVE_BASE}/files?${params.toString()}`,
+      mailbox
+    )
+    for (const f of data.files ?? []) {
+      out.push({
+        id: f.id,
+        name: f.name,
+        mimeType: f.mimeType,
+        modifiedTime: f.modifiedTime,
+        size: null,
+      })
+    }
+    pageToken = data.nextPageToken
+  } while (pageToken)
+
+  return out
+}
+
+/**
+ * Has a Drive file changed since it was last imported?
+ *
+ * Compared as instants, NOT as strings. Drive returns RFC 3339 with a `Z`
+ * ("…38.096Z"); the value is stored in a `timestamptz` column and comes back
+ * from PostgREST with an offset ("…38.096+00:00"). The two describe the same
+ * moment and never compare equal as text — which silently defeated change
+ * detection entirely: every file was re-downloaded, re-summarized (a model call
+ * each) and re-embedded on every run, and `unchanged` was never once non-zero.
+ *
+ * An unparseable stored value counts as changed, which re-imports one file
+ * rather than skipping it forever.
+ */
+export function driveFileUnchanged(
+  storedModifiedAt: string | null,
+  file: Pick<DriveFile, 'modifiedTime'>
+): boolean {
+  if (!storedModifiedAt) return false
+  const stored = new Date(storedModifiedAt).getTime()
+  const current = new Date(file.modifiedTime).getTime()
+  return Number.isFinite(stored) && Number.isFinite(current) && stored === current
 }
 
 export interface DriveContent {
