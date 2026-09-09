@@ -10,6 +10,8 @@ import {
   AlertCircle,
   Loader2,
   File,
+  Archive,
+  ArchiveRestore,
 } from 'lucide-react'
 import EmptyState from '@/components/shared/EmptyState'
 import ConfidenceBadge from '@/components/shared/ConfidenceBadge'
@@ -19,6 +21,7 @@ import { viewDocument, downloadDocument, fetchDocumentText } from '@/lib/utils/d
 import type { Document } from '@/lib/supabase/types'
 import DrivePublishButton from '@/components/shared/DrivePublishButton'
 import DriveImportButton from '@/components/shared/DriveImportButton'
+import DriveFolderLink from '@/components/shared/DriveFolderLink'
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -105,14 +108,51 @@ interface UploadState {
 function DocumentRow({
   doc,
   onDelete,
+  onChange,
 }: {
   doc: Document
   onDelete: (id: string) => void
+  onChange: (doc: Document) => void
 }) {
   const [downloading, setDownloading] = useState(false)
   const [viewing, setViewing] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [retiring, setRetiring] = useState(false)
+
+  const superseded = !!doc.superseded_at
+
+  /**
+   * Retire or restore. Retiring drops the document's chunks so Ber AI stops
+   * citing it, and keeps everything else — so getting it wrong costs a
+   * re-index, not a document.
+   */
+  async function toggleSuperseded() {
+    setRetiring(true)
+    try {
+      const res = await fetch(`/api/documents/${doc.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ superseded: !superseded }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? 'Could not update the document')
+
+      onChange({ ...doc, superseded_at: superseded ? null : new Date().toISOString() })
+      if (superseded) {
+        // Its chunks were deleted on the way out, so restoring has to re-index
+        // or the document comes back invisible to the thing it was hidden from.
+        toast.success('Restored — re-indexing for Ber AI')
+        void fetch(`/api/documents/${doc.id}/reindex`, { method: 'POST' })
+      } else {
+        toast.success('Retired — kept on the project, no longer used for answers')
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Could not update the document')
+    } finally {
+      setRetiring(false)
+    }
+  }
 
   async function handleView() {
     setViewing(true)
@@ -154,7 +194,9 @@ function DocumentRow({
   const badgeColor = DOC_TYPE_COLORS[docType] ?? DOC_TYPE_COLORS.other
 
   return (
-    <div className="rounded-lg border border-border bg-card px-4 py-3 space-y-2">
+    <div
+      className={`rounded-lg border border-border bg-card px-4 py-3 space-y-2 ${superseded ? 'opacity-60' : ''}`}
+    >
       {/* Row header */}
       <div className="flex items-start gap-3">
         {/* Icon */}
@@ -171,6 +213,15 @@ function DocumentRow({
             {doc.file_name}
           </button>
           <div className="flex flex-wrap items-center gap-2 mt-1">
+            {superseded && (
+              <span
+                className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs font-medium ring-1 ring-inset bg-slate-100 dark:bg-slate-900/40 text-slate-600 dark:text-slate-400 ring-slate-200 dark:ring-slate-800/60"
+                title={doc.superseded_reason ?? 'Retired — not used to answer questions.'}
+              >
+                <Archive size={10} />
+                Retired
+              </span>
+            )}
             {/* doc_type badge */}
             <span
               className={`inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium ring-1 ring-inset capitalize ${badgeColor}`}
@@ -203,6 +254,24 @@ function DocumentRow({
             iconSize={14}
             className="h-7 w-7 p-0 flex items-center justify-center hover:bg-accent"
           />
+          <button
+            onClick={toggleSuperseded}
+            disabled={retiring}
+            className="inline-flex items-center justify-center h-7 w-7 rounded hover:bg-accent transition-colors disabled:opacity-50"
+            title={
+              superseded
+                ? 'Restore — index it for Ber AI again'
+                : 'Retire — keep the file, stop using it to answer questions'
+            }
+          >
+            {retiring ? (
+              <Loader2 size={14} className="animate-spin" />
+            ) : superseded ? (
+              <ArchiveRestore size={14} className="text-muted-foreground" />
+            ) : (
+              <Archive size={14} className="text-muted-foreground" />
+            )}
+          </button>
           <button
             onClick={handleDownload}
             disabled={downloading}
@@ -523,6 +592,9 @@ interface DocumentsTabProps {
   /** Set when this project came from a website deal submission — its folder
       keeps filling during diligence, so it can be pulled in on demand. */
   hasDealFolder?: boolean
+  /** The team's own Drive folder, linked by hand and imported nightly. */
+  sourceFolderId?: string | null
+  sourceFolderUrl?: string | null
   /** Publishing is a sharing decision, so the control is admin-only. */
   canPublish?: boolean
 }
@@ -532,6 +604,8 @@ export default function DocumentsTab({
   initialDocuments,
   driveFolderUrl,
   hasDealFolder,
+  sourceFolderId,
+  sourceFolderUrl,
   canPublish,
 }: DocumentsTabProps) {
   const [documents, setDocuments] = useState<Document[]>(initialDocuments)
@@ -539,6 +613,10 @@ export default function DocumentsTab({
 
   function handleUploaded(doc: Document) {
     setDocuments((prev) => [doc, ...prev])
+  }
+
+  function handleChanged(doc: Document) {
+    setDocuments((prev) => prev.map((d) => (d.id === doc.id ? doc : d)))
   }
 
   function handleDeleted(id: string) {
@@ -553,15 +631,24 @@ export default function DocumentsTab({
           Documents ({documents.length})
         </h2>
         <div className="flex items-center gap-2">
-          {canPublish &&
-            (hasDealFolder ? (
-              // A deal folder is the SAME folder documents would publish to, so
-              // offering both would read as two destinations. Pulling in is the
-              // direction that matters here.
-              <DriveImportButton projectId={projectId} />
-            ) : (
-              <DrivePublishButton kind="project" id={projectId} folderUrl={driveFolderUrl} />
-            ))}
+          {canPublish && (
+            <>
+              {/* Inbound: the team's own folder. Linked by hand once, then
+                  imported nightly — this button is for wanting it now. */}
+              <DriveFolderLink
+                projectId={projectId}
+                folderId={sourceFolderId ?? null}
+                folderUrl={sourceFolderUrl ?? null}
+              />
+              {(sourceFolderId || hasDealFolder) && <DriveImportButton projectId={projectId} />}
+              {/* Outbound, and only when the deal folder was not adopted as the
+                  publish target — offering both there would read as two
+                  destinations for one folder. */}
+              {!hasDealFolder && (
+                <DrivePublishButton kind="project" id={projectId} folderUrl={driveFolderUrl} />
+              )}
+            </>
+          )}
           <button
             onClick={() => setShowUpload(!showUpload)}
             className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md border border-input bg-background text-xs font-medium hover:bg-accent transition-colors"
@@ -596,7 +683,12 @@ export default function DocumentsTab({
       ) : (
         <div className="space-y-3">
           {documents.map((doc) => (
-            <DocumentRow key={doc.id} doc={doc} onDelete={handleDeleted} />
+            <DocumentRow
+              key={doc.id}
+              doc={doc}
+              onDelete={handleDeleted}
+              onChange={handleChanged}
+            />
           ))}
         </div>
       )}

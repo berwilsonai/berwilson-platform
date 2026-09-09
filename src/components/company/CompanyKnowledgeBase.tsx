@@ -26,6 +26,8 @@ export interface CompanyDoc {
   ai_summary: string | null
   embedding_status: string | null
   uploaded_at: string | null
+  /** Retired: kept in the library, no longer used to answer questions. */
+  superseded_at?: string | null
 }
 
 interface CompanyKnowledgeBaseProps {
@@ -235,7 +237,19 @@ export default function CompanyKnowledgeBase({ documents }: CompanyKnowledgeBase
                       {label(doc.doc_type)}
                     </span>
                   )}
-                  <EmbedStatus status={doc.embedding_status} />
+                  {doc.superseded_at ? (
+                    // Shown INSTEAD of the index status, not beside it: a retired
+                    // document reads "Not indexed", which is true but sounds like
+                    // a fault rather than a decision.
+                    <span
+                      className="inline-flex items-center rounded px-1.5 py-0.5 text-[11px] font-medium bg-muted text-muted-foreground"
+                      title="No longer in a nominated Drive folder, or retired by hand. Still here, not used for answers."
+                    >
+                      Retired
+                    </span>
+                  ) : (
+                    <EmbedStatus status={doc.embedding_status} />
+                  )}
                 </div>
                 {doc.ai_summary && (
                   <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{doc.ai_summary}</p>

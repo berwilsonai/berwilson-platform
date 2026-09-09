@@ -42,6 +42,13 @@ export interface DriveFile {
   mimeType: string
   modifiedTime: string
   size: number | null
+  /**
+   * Subfolder path below the folder that was listed, e.g. "Signed NDA" or
+   * "Stockton LOI/2026". Empty for a file sitting directly in it. Carried so an
+   * import can say WHERE a document came from — in a tree organised by phase,
+   * the folder name is half of what the document is.
+   */
+  path?: string
 }
 
 interface DriveListResponse {
@@ -67,25 +74,73 @@ export function dealIntakeFolderId(): string | null {
   return process.env.GOOGLE_DEAL_INTAKE_FOLDER_ID?.trim() || null
 }
 
-export function isDriveConfigured(): boolean {
-  return !!driveKnowledgeFolderId()
+/**
+ * Every nominated knowledge folder, as a list.
+ *
+ * GOOGLE_DRIVE_KNOWLEDGE_FOLDER_ID accepts comma-separated ids so the corporate
+ * tree can be indexed a shelf at a time — "Corporate", "Estimation Templates",
+ * "Prefab Steel" — rather than by pointing at the drive root and hoovering up
+ * everything including drafts. Nominating folders IS the control model; keep it.
+ */
+export function driveKnowledgeFolderIds(): string[] {
+  return (process.env.GOOGLE_DRIVE_KNOWLEDGE_FOLDER_ID ?? '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean)
 }
+
+export function isDriveConfigured(): boolean {
+  return driveKnowledgeFolderIds().length > 0
+}
+
+/**
+ * Folder names that mean "this is retired — do not index it".
+ *
+ * The retirement gesture for someone with no platform login has to be something
+ * they can do in Drive, and dragging a file into an "Archive" folder is the one
+ * every team already knows. Matched case-insensitively on the whole folder name
+ * only: a project folder legitimately called "Old Mill Road" must not vanish.
+ */
+const ARCHIVE_FOLDER_NAMES = new Set([
+  'archive',
+  'archived',
+  'archives',
+  'old',
+  'obsolete',
+  'superseded',
+  'deprecated',
+  'do not use',
+])
+
+export function isArchiveFolder(name: string): boolean {
+  return ARCHIVE_FOLDER_NAMES.has(name.trim().toLowerCase())
+}
+
+/** The archive folder names, for UI copy that has to tell people the convention. */
+export const ARCHIVE_FOLDER_LABEL = 'Archive'
 
 /**
  * List every file in a folder, recursing into subfolders.
  *
- * @param maxDepth Subfolder depth. One level of nesting is plenty for a curated
- *                 folder and stops a mis-pointed id from walking an entire Drive.
+ * Subtrees whose folder name reads as an archive are skipped entirely — that is
+ * how a document is retired by someone who cannot reach the platform.
+ *
+ * @param maxDepth Subfolder depth. Bounded so a mis-pointed id cannot walk an
+ *                 entire Drive. Two is right for a curated knowledge folder;
+ *                 a team's own project folder nests deeper and passes more.
+ * @param includeArchived Import paths must NOT set this. It exists for the one
+ *                 caller that needs to know what was archived rather than
+ *                 pretend it never existed.
  */
 export async function listFolder(
   folderId: string,
-  opts: { mailbox?: string; maxDepth?: number } = {}
+  opts: { mailbox?: string; maxDepth?: number; includeArchived?: boolean } = {}
 ): Promise<DriveFile[]> {
   const mailbox = opts.mailbox ?? PRIMARY_MAILBOX
   const maxDepth = opts.maxDepth ?? 2
   const out: DriveFile[] = []
 
-  async function walk(id: string, depth: number): Promise<void> {
+  async function walk(id: string, depth: number, path: string[] = []): Promise<void> {
     let pageToken: string | undefined
     do {
       const params = new URLSearchParams({
@@ -106,7 +161,8 @@ export async function listFolder(
 
       for (const f of data.files ?? []) {
         if (f.mimeType === GOOGLE_FOLDER) {
-          if (depth < maxDepth) await walk(f.id, depth + 1)
+          if (!opts.includeArchived && isArchiveFolder(f.name)) continue
+          if (depth < maxDepth) await walk(f.id, depth + 1, [...path, f.name])
           continue
         }
         out.push({
@@ -115,6 +171,7 @@ export async function listFolder(
           mimeType: f.mimeType,
           modifiedTime: f.modifiedTime,
           size: f.size ? Number(f.size) : null,
+          path: path.join('/'),
         })
       }
       pageToken = data.nextPageToken
@@ -134,7 +191,7 @@ export async function listFolder(
  */
 export async function listSubfolders(
   parentId: string,
-  opts: { mailbox?: string } = {}
+  opts: { mailbox?: string; driveId?: string; orderBy?: string } = {}
 ): Promise<DriveFile[]> {
   const mailbox = opts.mailbox ?? PRIMARY_MAILBOX
   const out: DriveFile[] = []
@@ -145,10 +202,17 @@ export async function listSubfolders(
       q: `'${parentId}' in parents and mimeType = '${GOOGLE_FOLDER}' and trashed = false`,
       fields: 'nextPageToken, files(id, name, mimeType, modifiedTime)',
       pageSize: '200',
-      orderBy: 'createdTime desc',
+      orderBy: opts.orderBy ?? 'createdTime desc',
       supportsAllDrives: 'true',
       includeItemsFromAllDrives: 'true',
     })
+    // Listing inside a shared drive needs the drive named explicitly; without it
+    // Google searches the user's own corpus and returns nothing, which reads as
+    // "the folder is empty" rather than "you asked the wrong corpus".
+    if (opts.driveId) {
+      params.set('corpora', 'drive')
+      params.set('driveId', opts.driveId)
+    }
     if (pageToken) params.set('pageToken', pageToken)
 
     const data = await googleFetch<DriveListResponse>(
@@ -168,6 +232,51 @@ export async function listSubfolders(
   } while (pageToken)
 
   return out
+}
+
+export interface SharedDrive {
+  id: string
+  name: string
+}
+
+/**
+ * Every shared drive the mailbox can see.
+ *
+ * The team's real document home turned out to be a shared drive, not anybody's
+ * My Drive — so a folder picker that only offers My Drive shows an empty shelf
+ * and teaches the user the feature is broken.
+ */
+export async function listSharedDrives(mailbox: string = PRIMARY_MAILBOX): Promise<SharedDrive[]> {
+  const data = await googleFetch<{ drives?: SharedDrive[] }>(
+    `${DRIVE_BASE}/drives?pageSize=100&fields=drives(id,name)`,
+    mailbox
+  )
+  return (data.drives ?? []).map((d) => ({ id: d.id, name: d.name }))
+}
+
+/**
+ * How many indexable files sit under a folder, and when the newest changed.
+ *
+ * Shown next to each folder in the picker: "3 files, newest 9 Sept" is what
+ * tells someone they are about to link the right folder, and an empty shelf is
+ * usually a sign they should go one level deeper.
+ */
+export async function summarizeFolder(
+  folderId: string,
+  opts: { mailbox?: string; maxDepth?: number } = {}
+): Promise<{ files: number; newest: string | null }> {
+  try {
+    const files = await listFolder(folderId, {
+      mailbox: opts.mailbox,
+      maxDepth: opts.maxDepth ?? 3,
+    })
+    const newest = files.map((f) => f.modifiedTime).sort().pop() ?? null
+    return { files: files.length, newest }
+  } catch {
+    // A folder that will not list is a blank count in a picker, never an error
+    // page over the whole dialog.
+    return { files: 0, newest: null }
+  }
 }
 
 /**

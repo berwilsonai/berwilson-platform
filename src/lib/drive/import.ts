@@ -25,6 +25,7 @@ import {
   driveFileUnchanged,
   type DriveFile,
 } from '@/lib/integrations/google-drive'
+import { reconcileVanished, restoreDocument, type KnownDriveDoc } from './supersede'
 import { MANIFEST_NAME } from '@/lib/deal-intake/parse'
 import { SYSTEM_USER_ID } from '@/lib/email-ingestion/analyze'
 
@@ -38,14 +39,38 @@ export interface DriveImportResult {
   unchanged: number
   skipped: number
   failed: number
+  /** Documents retired because they are no longer in the folder. */
+  superseded: number
+  /** Set when the vanish guard refused to retire anything, with the reason. */
+  supersedeHeldBack: string | null
   errors: string[]
   outOfTime: boolean
+  /** What actually arrived, for the update posted to the project's feed. */
+  arrivals: DocumentArrival[]
 }
 
-interface KnownDoc {
-  id: string
-  drive_file_id: string
+export interface DocumentArrival {
+  fileName: string
+  /** Subfolder it came from, blank when it sat at the top of the folder. */
+  path: string
+  kind: 'added' | 'revised'
+  summary: string | null
+}
+
+interface KnownDoc extends KnownDriveDoc {
   drive_modified_at: string | null
+  embedding_status: string | null
+}
+
+/**
+ * A document whose AI pass never finished is worth another try even though its
+ * bytes have not changed. This repo has stranded documents at 'processing' twice
+ * before — an app restart mid-pass leaves a row that has a file, no text and no
+ * chunks, and is therefore invisible to the search it was imported for. Nothing
+ * ever comes back for it, because change detection correctly says "unchanged".
+ */
+function needsAnotherPass(status: string | null): boolean {
+  return status !== 'complete' && status !== 'skipped'
 }
 
 /** Google Docs arrive as an unsupported mime but export to text — keep them. */
@@ -59,6 +84,8 @@ export async function importDriveFolder(opts: {
   budgetMs?: number
   /** doc_type for newly imported rows. Diligence packages are the default. */
   docType?: string
+  /** Subfolder depth to walk. */
+  maxDepth?: number
 }): Promise<DriveImportResult> {
   const { folderId, projectId } = opts
   const deadline = Date.now() + (opts.budgetMs ?? 10 * 60 * 1000)
@@ -72,18 +99,26 @@ export async function importDriveFolder(opts: {
     unchanged: 0,
     skipped: 0,
     failed: 0,
+    superseded: 0,
+    supersedeHeldBack: null,
     errors: [],
     outOfTime: false,
+    arrivals: [],
   }
 
-  const files = await listFolder(folderId)
+  // Deeper than the knowledge default: a team's own project folder nests by
+  // phase and discipline ("Trump City / West Wendover", "Stockton / LOI"), and
+  // stopping at two levels would silently miss most of it. Archive subtrees are
+  // skipped inside listFolder — that is the retirement gesture.
+  const files = await listFolder(folderId, { maxDepth: opts.maxDepth ?? 4 })
   result.seen = files.length
 
-  // Scoped to this project: the same Drive file could legitimately be imported
-  // onto two projects, and a global map would make the second look unchanged.
+  // Scoped to this project. `documents.drive_file_id` is uniquely indexed, so a
+  // file can only belong to one record anyway; scoping keeps a file owned by
+  // another project from being silently rewritten to point at this one.
   const { data: existingRows } = await supabase
     .from('documents')
-    .select('id, drive_file_id, drive_modified_at')
+    .select('id, drive_file_id, drive_modified_at, superseded_at, embedding_status')
     .eq('project_id', projectId)
     .not('drive_file_id', 'is', null)
 
@@ -91,6 +126,28 @@ export async function importDriveFolder(opts: {
   for (const row of (existingRows ?? []) as KnownDoc[]) {
     known.set(row.drive_file_id, row)
   }
+
+  // Files this platform PUT in Drive must never be read back in as new
+  // documents. It cannot happen while publishing targets its own folder, but the
+  // day a project's source folder and its published folder are the same one,
+  // every published file would return as a duplicate of itself.
+  //
+  // The `drive_file_id is null` filter is load-bearing and was found by running
+  // this: an IMPORTED document is deliberately stamped drive_published_id = its
+  // own Drive id, so without it every file already imported was skipped as
+  // "something we published", which defeated change detection and then made the
+  // whole folder look like it had vanished.
+  const { data: publishedRows } = await supabase
+    .from('documents')
+    .select('drive_published_id')
+    .eq('project_id', projectId)
+    .not('drive_published_id', 'is', null)
+    .is('drive_file_id', null)
+  const published = new Set(
+    ((publishedRows ?? []) as { drive_published_id: string }[]).map((r) => r.drive_published_id)
+  )
+
+  const seenIds = new Set<string>()
 
   for (const file of files) {
     if (Date.now() >= deadline) {
@@ -104,10 +161,24 @@ export async function importDriveFolder(opts: {
       result.skipped++
       continue
     }
+    if (published.has(file.id)) {
+      result.skipped++
+      continue
+    }
 
+    seenIds.add(file.id)
     const prior = known.get(file.id)
+
+    // A file back out of the archive is news even though its bytes did not
+    // change, so the unchanged short-circuit must not swallow it: its chunks
+    // were deleted when it was retired and only a re-index brings them back.
+    const returning = !!prior?.superseded_at
+    if (returning && prior) await restoreDocument(supabase, prior.id)
+
+    const stranded = !!prior && needsAnotherPass(prior.embedding_status)
+
     // Drive's modifiedTime changes on any edit — same instant means nothing to do.
-    if (prior && driveFileUnchanged(prior.drive_modified_at, file)) {
+    if (prior && !returning && !stranded && driveFileUnchanged(prior.drive_modified_at, file)) {
       result.unchanged++
       continue
     }
@@ -181,7 +252,7 @@ export async function importDriveFolder(opts: {
       }
 
       // Settles embedding_status itself and never throws.
-      await runDocumentAiPass({
+      const pass = await runDocumentAiPass({
         supabase,
         documentId,
         projectId,
@@ -189,6 +260,19 @@ export async function importDriveFolder(opts: {
         mimeType: content.mimeType,
         buffer: content.buffer,
       })
+
+      // A retry of an unfinished pass is not news — the document was already
+      // announced when it first arrived, and re-announcing it every time an
+      // index failed would fill the feed with the same file.
+      const retryOnly = stranded && !returning && driveFileUnchanged(prior?.drive_modified_at ?? null, file)
+      if (!retryOnly) {
+        result.arrivals.push({
+          fileName: content.fileName,
+          path: file.path ?? '',
+          kind: prior ? 'revised' : 'added',
+          summary: pass.aiSummary,
+        })
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err)
       console.error(`[drive/import] ${file.name} failed:`, message)
@@ -196,6 +280,20 @@ export async function importDriveFolder(opts: {
       result.failed++
     }
   }
+
+  // Anything imported before that is no longer in the folder was archived or
+  // removed in Drive. Retired here, never deleted — see supersede.ts for why the
+  // guards around this are the important part.
+  const vanished = await reconcileVanished({
+    supabase,
+    known: [...known.values()],
+    seen: seenIds,
+    partial: result.outOfTime,
+    listed: files.length,
+    reason: 'No longer in the linked Drive folder (archived or removed).',
+  })
+  result.superseded = vanished.superseded
+  result.supersedeHeldBack = vanished.heldBack
 
   return result
 }

@@ -1445,6 +1445,11 @@ export async function executeToolCall(
       let q = supabase
         .from('documents')
         .select('id, file_name, doc_type, classification, ai_summary, uploaded_at, project_id')
+        // Retired documents are deliberately absent. Their chunks are already
+        // deleted, so search cannot surface them; listing them here would let
+        // the agent fetch a superseded revision by name and answer from it —
+        // the exact thing retiring one is for.
+        .is('superseded_at', null)
         .order('uploaded_at', { ascending: false })
         .limit(50)
 

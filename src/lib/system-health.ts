@@ -248,30 +248,43 @@ export async function probeDriveKnowledge(): Promise<{
   state: 'ok' | 'empty' | 'unconfigured' | 'failed'
   detail: string
 }> {
-  const folderId = process.env.GOOGLE_DRIVE_KNOWLEDGE_FOLDER_ID?.trim()
-  if (!folderId) {
+  const folderIds = (process.env.GOOGLE_DRIVE_KNOWLEDGE_FOLDER_ID ?? '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean)
+  if (folderIds.length === 0) {
     return {
       state: 'unconfigured',
       detail:
-        'Set GOOGLE_DRIVE_KNOWLEDGE_FOLDER_ID to a Drive folder id to index capability statements, past performance and credentials into the company knowledge base. Lead fit scores are graded against whatever is in there.',
+        'Set GOOGLE_DRIVE_KNOWLEDGE_FOLDER_ID to one or more comma-separated Drive folder ids to index capability statements, past performance and credentials into the company knowledge base. Lead fit scores are graded against whatever is in there.',
     }
   }
 
   const mailbox = PRIMARY_MAILBOX
   try {
-    const q = encodeURIComponent(`'${folderId}' in parents and trashed=false`)
-    const data = await googleFetch<{ files?: { name: string }[] }>(
-      `https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(name)&pageSize=100&supportsAllDrives=true&includeItemsFromAllDrives=true`,
-      mailbox
-    )
-    const count = data.files?.length ?? 0
+    // Counted per folder, and the count is of the top level only — it is a
+    // reachability check, not an inventory. A deep walk of the corporate tree
+    // on every page load would make the health page the slowest thing here.
+    let count = 0
+    for (const folderId of folderIds) {
+      const q = encodeURIComponent(`'${folderId}' in parents and trashed=false`)
+      const data = await googleFetch<{ files?: { name: string }[] }>(
+        `https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(name)&pageSize=100&supportsAllDrives=true&includeItemsFromAllDrives=true`,
+        mailbox
+      )
+      count += data.files?.length ?? 0
+    }
+    const where = `${folderIds.length} folder${folderIds.length === 1 ? '' : 's'}`
     if (count === 0) {
       return {
         state: 'empty',
-        detail: `Folder is readable by ${mailbox} but contains no files, so the nightly sync has nothing to index. Add documents and they will be indexed on the next run (3:15am), or trigger it sooner.`,
+        detail: `${where} readable by ${mailbox}, but nothing in them, so the nightly sync has nothing to index. Add documents and they will be indexed on the next run (3:15am), or trigger it sooner.`,
       }
     }
-    return { state: 'ok', detail: `${count} file${count === 1 ? '' : 's'} in the knowledge folder, readable by ${mailbox}.` }
+    return {
+      state: 'ok',
+      detail: `${count} item${count === 1 ? '' : 's'} across ${where}, readable by ${mailbox}.`,
+    }
   } catch (err) {
     const raw = err instanceof Error ? err.message : String(err)
     let fix = ''
@@ -284,6 +297,60 @@ export async function probeDriveKnowledge(): Promise<{
       fix = ` The folder is probably owned by another account — share it with ${mailbox} (Viewer is enough).`
     }
     return { state: 'failed', detail: `${raw}${fix}` }
+  }
+}
+
+/**
+ * Are project Drive folders actually linked, and reaching the projects?
+ *
+ * Coverage, not pass/fail — the same argument as the publishing check beside
+ * it. The inbound path existed for months pointed at a column no project ever
+ * had, so it ran nightly and imported nothing while looking perfectly healthy.
+ * An unlinked project is a legitimate state; an unlinked ESTATE is the failure,
+ * and only a count says which one this is.
+ */
+export async function probeDriveSourceFolders(): Promise<{
+  state: 'ok' | 'partial' | 'none'
+  detail: string
+}> {
+  const supabase = createAdminClient()
+
+  const { data: projects } = await supabase
+    .from('projects')
+    .select('id, status, drive_source_folder_id, deal_folder_id')
+
+  const rows = (projects ?? []) as {
+    status: string | null
+    drive_source_folder_id: string | null
+    deal_folder_id: string | null
+  }[]
+  const open = rows.filter((r) => !['closed', 'lost'].includes(r.status ?? ''))
+  const linked = open.filter((r) => r.drive_source_folder_id || r.deal_folder_id)
+
+  const { count: imported } = await supabase
+    .from('documents')
+    .select('id', { count: 'exact', head: true })
+    .not('drive_file_id', 'is', null)
+    .not('project_id', 'is', null)
+
+  if (open.length === 0) return { state: 'ok', detail: 'No open projects.' }
+
+  const tail = `${imported ?? 0} document${imported === 1 ? '' : 's'} imported from Drive so far.`
+  if (linked.length === 0) {
+    return {
+      state: 'none',
+      detail: `None of the ${open.length} open projects has a Drive folder linked, so nothing the team files in Drive reaches the platform. Link one from a project's Documents tab. ${tail}`,
+    }
+  }
+  if (linked.length < open.length) {
+    return {
+      state: 'partial',
+      detail: `${linked.length} of ${open.length} open projects have a Drive folder linked. The rest only see documents uploaded here. ${tail}`,
+    }
+  }
+  return {
+    state: 'ok',
+    detail: `All ${open.length} open projects have a Drive folder linked and imported nightly. ${tail}`,
   }
 }
 

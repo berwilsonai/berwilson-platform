@@ -77,6 +77,60 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
   return Response.json({ url: data.signedUrl })
 }
 
+/**
+ * PATCH { superseded: boolean }
+ *
+ * Retires a document, or brings it back. Superseding drops its chunks so Ber AI
+ * stops citing it while the file stays on the record — which is what makes it
+ * safe: undoing a mistake costs a re-index, never a lost document.
+ *
+ * The Drive-side equivalent is dragging the file into an "Archive" folder, which
+ * the nightly sync turns into exactly this. This is the same action for people
+ * who are already in the platform, and for documents that never came from Drive.
+ */
+export async function PATCH(request: NextRequest, { params }: RouteContext) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const { id } = await params
+  const body = (await request.json().catch(() => ({}))) as Record<string, unknown>
+  if (typeof body.superseded !== 'boolean') {
+    return Response.json({ error: 'superseded must be true or false.' }, { status: 400 })
+  }
+
+  const admin = await actorAdminClient()
+  const { data: doc } = await admin
+    .from('documents')
+    .select('id, project_id, meeting_id, file_name')
+    .eq('id', id)
+    .maybeSingle()
+  if (!doc) return Response.json({ error: 'Document not found' }, { status: 404 })
+
+  const viewer = await getViewer()
+  if (viewer && !viewer.isAdmin && !(await canViewerAccessDoc(viewer, doc, createAdminClient()))) {
+    return forbiddenJson()
+  }
+
+  if (body.superseded) {
+    const { supersedeDocument } = await import('@/lib/drive/supersede')
+    const ok = await supersedeDocument(admin, id, 'Retired by hand in the platform.')
+    if (!ok) return Response.json({ error: 'Could not retire the document.' }, { status: 500 })
+    return Response.json({ superseded: true })
+  }
+
+  // Restoring clears the flag and queues a re-index: the chunks were deleted on
+  // the way out, so without this the document would come back invisible to the
+  // one thing superseding was protecting.
+  const { error } = await admin
+    .from('documents')
+    .update({ superseded_at: null, superseded_reason: null, embedding_status: 'pending' })
+    .eq('id', id)
+  if (error) return Response.json({ error: error.message }, { status: 500 })
+
+  return Response.json({ superseded: false, reindex: 'queued' })
+}
+
 export async function DELETE(_request: NextRequest, { params }: RouteContext) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()

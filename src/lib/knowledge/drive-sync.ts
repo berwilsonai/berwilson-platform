@@ -7,6 +7,11 @@
  * folder of capability statements, past performance, and credentials is what
  * turns a generic score into a grounded one.
  *
+ * Several folders can be nominated (comma-separated), so the corporate tree is
+ * indexed a shelf at a time — Corporate, estimation templates, prefab steel
+ * training — rather than by pointing at a drive root and hoovering up drafts.
+ * Nominating folders IS the control model.
+ *
  * Change detection is by (drive_file_id, drive_modified_at), compared as
  * instants — see driveFileUnchanged, and do not reduce it back to a string
  * comparison: the stored timestamptz round-trips with an offset while Drive
@@ -21,10 +26,11 @@ import { runDocumentAiPass, documentKind } from '@/lib/ai/document-pipeline'
 import {
   listFolder,
   fetchDriveFile,
-  driveKnowledgeFolderId,
+  driveKnowledgeFolderIds,
   driveFileUnchanged,
   type DriveFile,
 } from '@/lib/integrations/google-drive'
+import { reconcileVanished, restoreDocument, type KnownDriveDoc } from '@/lib/drive/supersede'
 
 /** Nothing bigger — a 100MB video is not knowledge-base material. */
 const MAX_FILE_BYTES = 30 * 1024 * 1024
@@ -36,23 +42,26 @@ export interface DriveSyncProgress {
   unchanged: number
   skipped: number
   failed: number
+  /** Retired because they are no longer in any nominated folder. */
+  superseded: number
+  supersedeHeldBack: string | null
   errors: string[]
   outOfTime: boolean
 }
 
-interface KnownDoc {
-  id: string
+interface KnownDoc extends KnownDriveDoc {
   storage_path: string
   drive_modified_at: string | null
 }
 
 export async function syncDriveKnowledge(
-  opts: { budgetMs?: number; folderId?: string } = {}
+  opts: { budgetMs?: number; folderId?: string; folderIds?: string[] } = {}
 ): Promise<DriveSyncProgress> {
-  const folderId = opts.folderId ?? driveKnowledgeFolderId()
-  if (!folderId) {
+  const folderIds =
+    opts.folderIds ?? (opts.folderId ? [opts.folderId] : driveKnowledgeFolderIds())
+  if (folderIds.length === 0) {
     throw new Error(
-      'No knowledge folder configured. Set GOOGLE_DRIVE_KNOWLEDGE_FOLDER_ID to a Drive folder id.'
+      'No knowledge folder configured. Set GOOGLE_DRIVE_KNOWLEDGE_FOLDER_ID to a Drive folder id (comma-separated for several).'
     )
   }
 
@@ -67,21 +76,44 @@ export async function syncDriveKnowledge(
     unchanged: 0,
     skipped: 0,
     failed: 0,
+    superseded: 0,
+    supersedeHeldBack: null,
     errors: [],
     outOfTime: false,
   }
 
-  const files = await listFolder(folderId)
+  // Nominated folders may nest — "Corporate" holds Board Meetings, Fundraising,
+  // M&A — so this walks deeper than the two levels a single curated folder needs.
+  // Archive subtrees are skipped inside listFolder.
+  const files: DriveFile[] = []
+  const seenIds = new Set<string>()
+  for (const id of folderIds) {
+    // One unreadable folder must not cost the others: a mistyped id in a list of
+    // five would otherwise take the whole knowledge base down every night.
+    try {
+      files.push(...(await listFolder(id, { maxDepth: 4 })))
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      console.error(`[drive-sync] could not list folder ${id}:`, message)
+      progress.errors.push(`folder ${id}: ${message.slice(0, 160)}`)
+      progress.failed++
+    }
+  }
   progress.seen = files.length
 
+  // Company documents only. A file already imported onto a PROJECT is owned
+  // there — `documents.drive_file_id` is uniquely indexed, so claiming it here
+  // would either steal the row or fail the insert every night forever.
   const { data: existingRows } = await supabase
     .from('documents')
-    .select('id, storage_path, drive_file_id, drive_modified_at')
+    .select('id, storage_path, drive_file_id, drive_modified_at, superseded_at, is_company')
     .not('drive_file_id', 'is', null)
 
   const known = new Map<string, KnownDoc>()
-  for (const row of (existingRows ?? []) as (KnownDoc & { drive_file_id: string })[]) {
-    known.set(row.drive_file_id, row)
+  const ownedElsewhere = new Set<string>()
+  for (const row of (existingRows ?? []) as (KnownDoc & { is_company: boolean })[]) {
+    if (row.is_company) known.set(row.drive_file_id, row)
+    else ownedElsewhere.add(row.drive_file_id)
   }
 
   for (const file of files) {
@@ -90,9 +122,22 @@ export async function syncDriveKnowledge(
       break
     }
 
+    if (ownedElsewhere.has(file.id)) {
+      progress.skipped++
+      continue
+    }
+
+    seenIds.add(file.id)
     const prior = known.get(file.id)
+
+    // A file back out of the archive is news even though its bytes did not
+    // change: its chunks were deleted when it was retired, and only a re-index
+    // brings them back.
+    const returning = !!prior?.superseded_at
+    if (returning && prior) await restoreDocument(supabase, prior.id)
+
     // Drive's modifiedTime changes on any edit — same instant means nothing to do.
-    if (prior && driveFileUnchanged(prior.drive_modified_at, file)) {
+    if (prior && !returning && driveFileUnchanged(prior.drive_modified_at, file)) {
       progress.unchanged++
       continue
     }
@@ -177,6 +222,20 @@ export async function syncDriveKnowledge(
       progress.failed++
     }
   }
+
+  // Archived or removed in Drive — retired here, never deleted. The guards in
+  // reconcileVanished are the important part: a re-permissioned folder returns
+  // fewer files than it holds, and obeying that would empty the knowledge base.
+  const vanished = await reconcileVanished({
+    supabase,
+    known: [...known.values()],
+    seen: seenIds,
+    partial: progress.outOfTime,
+    listed: files.length,
+    reason: 'No longer in a nominated Drive knowledge folder (archived or removed).',
+  })
+  progress.superseded = vanished.superseded
+  progress.supersedeHeldBack = vanished.heldBack
 
   return progress
 }

@@ -22,6 +22,7 @@ import {
   probeContactsSync,
   probeDrivePublishing,
   probeDriveKnowledge,
+  probeDriveSourceFolders,
   probeDealIntake,
   probeThreadRouting,
   probeMeetImport,
@@ -93,7 +94,7 @@ async function runChecks(): Promise<HealthCheck[]> {
   const dayAgo = new Date(Date.now() - 86_400_000).toISOString()
   const localAI = process.env.AI_PROVIDER === 'local'
 
-  const [brief, riskScore, lastAi, aiDayCount, failedRuns, mailbox, lmStudio, backups, drive, scopes, disk, lastDigest, failedDigests, contacts, drivePublish, meetImport, dealIntake, routing] =
+  const [brief, riskScore, lastAi, aiDayCount, failedRuns, mailbox, lmStudio, backups, drive, driveSources, scopes, disk, lastDigest, failedDigests, contacts, drivePublish, meetImport, dealIntake, routing] =
     await Promise.all([
       supabase
         .from('stored_briefs')
@@ -127,6 +128,7 @@ async function runChecks(): Promise<HealthCheck[]> {
       probeLmStudio(),
       probeBackups(),
       probeDriveKnowledge(),
+      probeDriveSourceFolders(),
       probeScopeCoverage(),
       probeDisk(),
       supabase
@@ -428,6 +430,24 @@ async function runChecks(): Promise<HealthCheck[]> {
             ? 'Documents are waiting to be published'
             : 'Not configured',
       detail: drivePublish.detail,
+    })
+  }
+
+  // Drive → projects. Same coverage argument as publishing above, and the same
+  // failure it is written against: this path existed for months pointed at a
+  // column no project ever had, so it ran nightly, imported nothing, and looked
+  // entirely healthy while every document the team filed stayed in Drive.
+  {
+    checks.push({
+      name: 'Drive → Projects',
+      status: driveSources.state === 'ok' ? 'ok' : 'warn',
+      headline:
+        driveSources.state === 'ok'
+          ? 'Project folders are linked and importing'
+          : driveSources.state === 'partial'
+            ? 'Some projects have no Drive folder linked'
+            : 'No project folders linked',
+      detail: driveSources.detail,
     })
   }
 

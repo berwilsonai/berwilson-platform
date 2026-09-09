@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { syncDriveKnowledge } from '@/lib/knowledge/drive-sync'
-import { syncDealFolders } from '@/lib/drive/deal-folder-sync'
+import { syncProjectFolders } from '@/lib/drive/project-folder-sync'
 import { isDriveConfigured } from '@/lib/integrations/google-drive'
 import { isGoogleConfigured } from '@/lib/integrations/google-workspace'
 
@@ -10,8 +10,9 @@ import { isGoogleConfigured } from '@/lib/integrations/google-workspace'
  * Two phases, both reading Drive:
  *   1. Index the nominated knowledge folder into the company knowledge base,
  *      which is what the fit assessor cites as evidence.
- *   2. Re-import every promoted deal folder, so documents the team added during
- *      diligence reach the project instead of only living in Drive.
+ *   2. Re-import every project's linked Drive folder, so documents the team
+ *      files in Drive reach the project instead of only living there — and post
+ *      one update per project saying what arrived and what it is about.
  *
  * Nightly, via com.berwilson.cron-drive-sync. Phase 2 runs even when no
  * knowledge folder is configured — a promoted project's folder is not optional
@@ -53,24 +54,28 @@ export async function GET(request: NextRequest) {
   }
 
   // Deliberately after, and independently: a knowledge-folder problem must not
-  // stop promoted projects picking up the documents their teams just added.
-  let dealFolders
+  // stop projects picking up the documents their teams just filed.
+  let projectFolders
   try {
-    dealFolders = await syncDealFolders({ budgetMs: Math.max(60_000, deadline - Date.now()) })
+    projectFolders = await syncProjectFolders({
+      budgetMs: Math.max(60_000, deadline - Date.now()),
+    })
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
-    console.error('[cron/drive-sync] deal folder phase failed:', message)
-    dealFolders = {
+    console.error('[cron/drive-sync] project folder phase failed:', message)
+    projectFolders = {
       projects: 0,
+      folders: 0,
       added: 0,
       updated: 0,
+      superseded: 0,
       failed: 1,
       errors: [message.slice(0, 200)],
       outOfTime: false,
     }
   }
 
-  const result = { knowledge, dealFolders }
+  const result = { knowledge, projectFolders }
   console.log('[cron/drive-sync]', JSON.stringify(result))
   return NextResponse.json(result)
 }

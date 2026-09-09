@@ -807,6 +807,8 @@ export type Database = {
           drive_file_id: string | null
           drive_modified_at: string | null
           drive_published_id: string | null
+          superseded_at: string | null
+          superseded_reason: string | null
           embedding_status: string | null
           entity_id: string | null
           extracted_text: string | null
@@ -832,6 +834,8 @@ export type Database = {
           drive_file_id?: string | null
           drive_modified_at?: string | null
           drive_published_id?: string | null
+          superseded_at?: string | null
+          superseded_reason?: string | null
           embedding_status?: string | null
           entity_id?: string | null
           extracted_text?: string | null
@@ -857,6 +861,8 @@ export type Database = {
           drive_file_id?: string | null
           drive_modified_at?: string | null
           drive_published_id?: string | null
+          superseded_at?: string | null
+          superseded_reason?: string | null
           embedding_status?: string | null
           entity_id?: string | null
           extracted_text?: string | null
@@ -2303,6 +2309,8 @@ export type Database = {
           delivery_method: string | null
           description: string | null
           deal_folder_id: string | null
+          drive_source_folder_id: string | null
+          drive_source_folder_url: string | null
           drive_folder_id: string | null
           drive_folder_url: string | null
           estimated_value: number | null
@@ -2338,6 +2346,8 @@ export type Database = {
           delivery_method?: string | null
           description?: string | null
           deal_folder_id?: string | null
+          drive_source_folder_id?: string | null
+          drive_source_folder_url?: string | null
           drive_folder_id?: string | null
           drive_folder_url?: string | null
           estimated_value?: number | null
@@ -2373,6 +2383,8 @@ export type Database = {
           delivery_method?: string | null
           description?: string | null
           deal_folder_id?: string | null
+          drive_source_folder_id?: string | null
+          drive_source_folder_url?: string | null
           drive_folder_id?: string | null
           drive_folder_url?: string | null
           estimated_value?: number | null
