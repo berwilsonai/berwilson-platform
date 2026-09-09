@@ -23,6 +23,14 @@ function getClient(): GoogleGenerativeAI {
 }
 
 /**
+ * How much of a PDF's text the local model is shown when summarizing it.
+ *
+ * Matches the cap the plain-text path already applies. Roughly 7.5k tokens,
+ * which leaves the context comfortable regardless of how it is configured.
+ */
+const LOCAL_PDF_SUMMARY_CHARS = 30_000
+
+/**
  * The document cannot be read with what is loaded — a scanned PDF with no
  * vision model, say. Distinct from a failure, because retrying changes
  * nothing: without the distinction a nightly sync spends its whole budget
@@ -252,9 +260,20 @@ export async function callGeminiWithFile<T = unknown>(
           'No text could be extracted — the PDF is scanned or image-only, and no vision model is loaded.'
         )
       }
+      // Capped, and it has to be. A long PDF's full text is tens of thousands of
+      // tokens and the local model's context is finite — a real Phase 1
+      // environmental report arrived at 84,135 tokens against a 65,536 window
+      // and simply failed, taking award letters and teaming agreements with it.
+      // Nothing is lost by the cap: this call produces a SUMMARY, while the
+      // verbatim text is extracted separately by transcribePdfText, stored
+      // whole, and embedded in chunks.
+      const forSummary =
+        pdfText.length > LOCAL_PDF_SUMMARY_CHARS
+          ? `${pdfText.slice(0, LOCAL_PDF_SUMMARY_CHARS)}\n\n[…document continues; summarize from the portion above.]`
+          : pdfText
       return callLocalText<T>({
         systemPrompt,
-        userMessage: `${prompt}\n\nDOCUMENT TEXT:\n${pdfText}`,
+        userMessage: `${prompt}\n\nDOCUMENT TEXT:\n${forSummary}`,
         userId,
         logLabel: logLabel ?? prompt,
         promptVersion,
