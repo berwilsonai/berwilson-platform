@@ -25,6 +25,7 @@ import { fetchAllMailboxes } from '@/lib/email-sweep/fetch-phase'
 import { routeThreads } from '@/lib/email-sweep/route-phase'
 import { applyThreadUpdates } from '@/lib/email-sweep/apply-phase'
 import { triagePendingLeads } from '@/lib/leads/triage-phase'
+import { DEFAULT_LEAD_HISTORY_DAYS } from '@/lib/leads/orchestrator'
 import { sweepDb } from '@/lib/email-sweep/db'
 
 const steps = process.argv.slice(2).filter((a) => !a.startsWith('-'))
@@ -47,10 +48,19 @@ if (run.includes('refetch')) {
     log(`  ${p.mailbox}: seen=${p.threadsSeen} new=${p.threadsNew} REFRESHED=${p.threadsRefreshed} unchanged=${p.duplicatesSkipped} done=${p.done}`)
   }
 
-  log('refetch: lead mailboxes…')
+  // Lead mailboxes keep their 90-day policy — NOT all history.
+  //
+  // This is the difference between the two pipelines, and getting it wrong costs
+  // real money in model time. A deal thread's whole history matters: a project
+  // that started two years ago is still the project. A LEAD is perishable —
+  // "a two-year-old ITB is not a lead" — which is why DEFAULT_LEAD_HISTORY_DAYS
+  // exists. Passing sinceDays:null here once pulled in 1,219 threads between 90
+  // days and a year old, every one of them a long-dead solicitation, and queued
+  // ~14 hours of triage to turn them into expired leads.
+  log('refetch: lead mailboxes (90-day window — see note)…')
   const lead = await fetchAllMailboxes({
     pipeline: 'lead',
-    sinceDays: null,
+    sinceDays: DEFAULT_LEAD_HISTORY_DAYS,
     restart: true,
     maxPagesPerMailbox: 50,
   })
