@@ -208,7 +208,18 @@ export async function syncDriveKnowledge(
           })
           .select('id')
           .single()
-        if (error) throw new Error(error.message)
+        if (error) {
+          // 23505 on drive_file_id means another run inserted this file between
+          // this one's snapshot of the known documents and now. Two syncs do
+          // overlap in practice: a hand-triggered run and the nightly cron, or
+          // a client that disconnected without stopping the server handler.
+          // Losing the race is not a failure — the document is imported.
+          if (error.code === '23505') {
+            progress.skipped++
+            continue
+          }
+          throw new Error(error.message)
+        }
         documentId = data.id
         progress.added++
       }

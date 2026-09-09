@@ -271,7 +271,15 @@ export async function importDriveFolder(opts: {
           })
           .select('id')
           .single()
-        if (error) throw new Error(error.message)
+        if (error) {
+          // See the note in knowledge/drive-sync.ts: losing an insert race to a
+          // concurrent run means the document is imported, not that this failed.
+          if (error.code === '23505') {
+            result.skipped++
+            continue
+          }
+          throw new Error(error.message)
+        }
         documentId = data.id
         result.added++
       }
