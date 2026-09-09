@@ -23,6 +23,7 @@ import {
   probeDrivePublishing,
   probeDriveKnowledge,
   probeDealIntake,
+  probeThreadRouting,
   probeMeetImport,
   probeScopeCoverage,
   probeDisk,
@@ -92,7 +93,7 @@ async function runChecks(): Promise<HealthCheck[]> {
   const dayAgo = new Date(Date.now() - 86_400_000).toISOString()
   const localAI = process.env.AI_PROVIDER === 'local'
 
-  const [brief, riskScore, lastAi, aiDayCount, failedRuns, mailbox, lmStudio, backups, drive, scopes, disk, lastDigest, failedDigests, contacts, drivePublish, meetImport, dealIntake] =
+  const [brief, riskScore, lastAi, aiDayCount, failedRuns, mailbox, lmStudio, backups, drive, scopes, disk, lastDigest, failedDigests, contacts, drivePublish, meetImport, dealIntake, routing] =
     await Promise.all([
       supabase
         .from('stored_briefs')
@@ -146,6 +147,7 @@ async function runChecks(): Promise<HealthCheck[]> {
       probeDrivePublishing(),
       probeMeetImport(),
       probeDealIntake(),
+      probeThreadRouting(),
     ])
 
   const checks: HealthCheck[] = []
@@ -338,6 +340,30 @@ async function runChecks(): Promise<HealthCheck[]> {
               ? 'No knowledge folder configured'
               : 'Cannot read the knowledge folder',
       detail: drive.detail,
+    })
+  }
+
+  // Correspondence reaching records. Watched because the failure it replaced was
+  // invisible: a reply to a stored thread used to be discarded outright, and
+  // nothing anywhere said so.
+  {
+    checks.push({
+      name: 'Email → Records',
+      status:
+        routing.state === 'ok'
+          ? 'ok'
+          : routing.state === 'failed'
+            ? 'fail'
+            : 'warn',
+      headline:
+        routing.state === 'ok'
+          ? 'Correspondence is reaching its records'
+          : routing.state === 'empty'
+            ? 'No thread is tied to a record yet'
+            : routing.state === 'warn'
+              ? 'Routing is behind'
+              : 'Cannot read thread routing',
+      detail: routing.detail,
     })
   }
 

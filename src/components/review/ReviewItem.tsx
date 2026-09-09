@@ -4,14 +4,7 @@ import type { ReviewQueueItem, PartyMatchResult } from '@/types/domain'
 import ConfidenceBadge from '@/components/shared/ConfidenceBadge'
 import ReviewActions from './ReviewActions'
 import MentionedPartiesPanel from './MentionedPartiesPanel'
-
-const REASON_LABELS: Record<string, string> = {
-  low_confidence: 'Low Confidence',
-  ambiguous_project: 'Ambiguous Project',
-  unknown_party: 'Unknown Party',
-  conflicting_data: 'Conflicting Data',
-  new_contact: 'New Contact',
-}
+import { reviewReasonLabel } from '@/lib/utils/review'
 
 const SOURCE_TABLE_LABELS: Record<string, string> = {
   updates: 'Update',
@@ -51,7 +44,7 @@ export default function ReviewItem({ item, allProjects, allParties, matchedParti
   const isResolved = !!item.resolved_at
   const sourceLink = buildSourceLink(item)
   const sourceLabel = SOURCE_TABLE_LABELS[item.source_table] ?? item.source_table
-  const reasonLabel = REASON_LABELS[item.reason] ?? item.reason
+  const reasonLabel = reviewReasonLabel(item.reason)
 
   const resolutionCfg = item.resolution ? RESOLUTION_CONFIG[item.resolution] : null
 

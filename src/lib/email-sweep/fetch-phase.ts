@@ -9,10 +9,22 @@
  * Resumability is the whole design. Gmail's page token is checkpointed to
  * mailbox_sync after EVERY page, so a crash, reboot, or deploy costs at most
  * one page of re-reading. Re-running after completion picks up only new mail,
- * because fingerprints already stored are skipped on insert.
+ * because a thread already stored IN FULL is skipped on insert.
+ *
+ * "In full" is doing real work in that sentence. Until 2026-09-09 a stored
+ * thread was skipped on identity alone — and its identity is the Message-ID of
+ * its FIRST message, so a conversation that had since gained a dozen replies
+ * looked exactly like one already seen and its stored copy never changed. A
+ * known thread is now skipped only while its message count has not grown.
  */
 
-import { sweepPage, renderThread, leadExclusions, type ResolvedThread } from '@/lib/integrations/gmail-search'
+import {
+  sweepPage,
+  renderThread,
+  leadExclusions,
+  type ResolvedThread,
+  type KnownThread,
+} from '@/lib/integrations/gmail-search'
 import { MAILBOXES, LEAD_MAILBOXES } from '@/lib/integrations/google-workspace'
 import { sweepDb, type MailboxSyncRow } from './db'
 
@@ -44,25 +56,42 @@ export interface FetchProgress {
   pagesThisRun: number
   threadsSeen: number
   threadsNew: number
+  /**
+   * Threads already stored that gained messages and were refreshed.
+   *
+   * Counted separately from `threadsNew` because it answers a different
+   * question: not "how much mail arrived" but "how much of what we already had
+   * was out of date" — which, before this existed, was silently always.
+   */
+  threadsRefreshed: number
   duplicatesSkipped: number
   done: boolean
   notes: string[]
 }
 
-/** Load every fingerprint already stored, so cross-mailbox copies are skipped. */
-async function loadKnownFingerprints(): Promise<Set<string>> {
+/**
+ * Load what is already stored for every thread, so a sweep can tell a
+ * cross-mailbox copy (skip) from a conversation that has since grown (refresh).
+ *
+ * Carries the message count, not just the fingerprint: skipping on identity
+ * alone is what froze stored correspondence at first capture.
+ */
+async function loadKnownThreads(): Promise<Map<string, KnownThread>> {
   const db = sweepDb()
-  const known = new Set<string>()
+  const known = new Map<string, KnownThread>()
 
   // Paged — a full backfill can exceed PostgREST's default row ceiling.
   const PAGE = 1000
   for (let from = 0; ; from += PAGE) {
     const { data, error } = await db
       .from('email_threads')
-      .select('fingerprint')
+      .select('fingerprint, message_count')
       .range(from, from + PAGE - 1)
     if (error) throw new Error(`Could not load known threads: ${error.message}`)
-    for (const row of data ?? []) known.add((row as { fingerprint: string }).fingerprint)
+    for (const row of data ?? []) {
+      const r = row as { fingerprint: string; message_count: number | null }
+      known.set(r.fingerprint, { messageCount: r.message_count ?? 0 })
+    }
     if (!data || data.length < PAGE) break
   }
   return known
@@ -77,14 +106,33 @@ async function loadKnownFingerprints(): Promise<Set<string>> {
  */
 export type ThreadPipeline = 'deal' | 'lead'
 
+interface PersistResult {
+  inserted: number
+  refreshed: number
+}
+
+/**
+ * Store this page: insert threads never seen, update ones that have grown.
+ *
+ * The original guard still holds and matters — a thread already captured from
+ * the other mailbox, or on a previous run, must NOT have its summary reset to
+ * pending, or every catch-up pass would re-summarize the whole corpus at 25-50s
+ * a thread. What changed is the definition of "already captured": identity used
+ * to be enough, which meant a conversation could gain a dozen messages and the
+ * platform would keep serving the two it first saw.
+ *
+ * A grown thread DOES go back to pending, deliberately: its summary, its lead
+ * and any record update derived from it are all now stale.
+ */
 async function persistThreads(
   threads: ResolvedThread[],
-  pipeline: ThreadPipeline
-): Promise<number> {
-  if (threads.length === 0) return 0
+  pipeline: ThreadPipeline,
+  grownFingerprints: Set<string>
+): Promise<PersistResult> {
+  if (threads.length === 0) return { inserted: 0, refreshed: 0 }
   const db = sweepDb()
 
-  const rows = threads.map((t) => ({
+  const toRow = (t: ResolvedThread) => ({
     pipeline,
     fingerprint: t.fingerprint,
     mailbox: t.mailbox,
@@ -97,17 +145,56 @@ async function persistThreads(
     attachment_count: t.attachmentCount,
     raw_markdown: renderThread(t),
     summary_state: 'pending' as const,
-  }))
+  })
 
-  // ignoreDuplicates: a thread already captured from the other mailbox (or a
-  // previous run) must NOT have its summary reset to pending.
-  const { data, error } = await db
-    .from('email_threads')
-    .upsert(rows, { onConflict: 'fingerprint', ignoreDuplicates: true })
-    .select('id')
+  const fresh = threads.filter((t) => !grownFingerprints.has(t.fingerprint))
+  const grown = threads.filter((t) => grownFingerprints.has(t.fingerprint))
 
-  if (error) throw new Error(`Could not store threads: ${error.message}`)
-  return data?.length ?? 0
+  let inserted = 0
+  if (fresh.length > 0) {
+    const { data, error } = await db
+      .from('email_threads')
+      .upsert(fresh.map(toRow), { onConflict: 'fingerprint', ignoreDuplicates: true })
+      .select('id')
+    if (error) throw new Error(`Could not store threads: ${error.message}`)
+    inserted = data?.length ?? 0
+  }
+
+  // One at a time rather than a bulk upsert: a bulk upsert without
+  // ignoreDuplicates would also reset every unchanged row it touched, and the
+  // grown set is small by nature — this is the long tail, not the bulk.
+  let refreshed = 0
+  for (const t of grown) {
+    // pipeline and fingerprint identify the row rather than describing it, so a
+    // refresh must not rewrite them.
+    const row = toRow(t)
+    const patch = {
+      mailbox: row.mailbox,
+      gmail_thread_id: row.gmail_thread_id,
+      subject: row.subject,
+      participants: row.participants,
+      first_at: row.first_at,
+      last_at: row.last_at,
+      message_count: row.message_count,
+      attachment_count: row.attachment_count,
+      raw_markdown: row.raw_markdown,
+      summary_state: row.summary_state,
+    }
+    const { error } = await db
+      .from('email_threads')
+      // routed_at cleared alongside the summary: a conversation that has grown
+      // may now match a record it did not before, and its record update is now
+      // short of the new messages either way.
+      .update({ ...patch, summary_error: null, routed_at: null })
+      .eq('fingerprint', t.fingerprint)
+    if (error) {
+      console.error(`[sweep/fetch] could not refresh ${t.fingerprint}:`, error.message)
+      continue
+    }
+    refreshed++
+  }
+
+  return { inserted, refreshed }
 }
 
 async function readSync(mailbox: string): Promise<MailboxSyncRow | null> {
@@ -164,6 +251,9 @@ export async function fetchMailbox(
   // Counters are cumulative across runs for a resumed or catching-up mailbox.
   let threadsSeen = resuming || catchUp ? existing!.threads_seen : 0
   let threadsNew = resuming || catchUp ? existing!.threads_new : 0
+  // Per-run, deliberately not resumed from mailbox_sync: it reports what THIS
+  // run brought up to date, which is what the caller and the health page want.
+  let threadsRefreshed = 0
   let duplicatesSkipped = resuming || catchUp ? existing!.duplicates_skipped : 0
 
   await writeSync(mailbox, {
@@ -175,7 +265,7 @@ export async function fetchMailbox(
     ...(resuming || catchUp ? {} : { started_at: new Date().toISOString(), completed_at: null }),
   })
 
-  const known = await loadKnownFingerprints()
+  const known = await loadKnownThreads()
   let pagesThisRun = 0
 
   try {
@@ -184,15 +274,20 @@ export async function fetchMailbox(
         pageToken,
         sinceDays: sinceDays ?? undefined,
         pageSize: PAGE_SIZE,
-        knownFingerprints: known,
+        knownThreads: known,
         // Marketing is dropped at the Gmail edge on the lead side, so it never
         // costs a fetch or a model call.
         exclusions: pipeline === 'lead' ? leadExclusions() : undefined,
       })
 
-      const inserted = await persistThreads(page.threads, pipeline)
+      const { inserted, refreshed } = await persistThreads(
+        page.threads,
+        pipeline,
+        page.grownFingerprints
+      )
       threadsSeen += page.threads.length + page.duplicatesSkipped
       threadsNew += inserted
+      threadsRefreshed += refreshed
       duplicatesSkipped += page.duplicatesSkipped
       notes.push(...page.notes)
 
@@ -210,7 +305,11 @@ export async function fetchMailbox(
       // Gmail lists newest-first, so on a catch-up pass the first page with
       // nothing new means everything below it is already stored. Stop there
       // rather than paging through the whole window every hour.
-      const caughtUp = catchUp && inserted === 0
+      //
+      // A refreshed thread counts as "something new": a page carrying a reply to
+      // an older conversation must not be read as the end of the window, or the
+      // pass would stop short of replies further down it.
+      const caughtUp = catchUp && inserted === 0 && refreshed === 0
 
       if (!pageToken || caughtUp) {
         await writeSync(mailbox, {
@@ -226,6 +325,7 @@ export async function fetchMailbox(
           pagesThisRun: pagesThisRun + 1,
           threadsSeen,
           threadsNew,
+          threadsRefreshed,
           duplicatesSkipped,
           done: true,
           notes,
@@ -239,6 +339,7 @@ export async function fetchMailbox(
       pagesThisRun,
       threadsSeen,
       threadsNew,
+      threadsRefreshed,
       duplicatesSkipped,
       done: false,
       notes,
@@ -253,6 +354,7 @@ export async function fetchMailbox(
       pagesThisRun,
       threadsSeen,
       threadsNew,
+      threadsRefreshed,
       duplicatesSkipped,
       done: false,
       notes: [...notes, message],

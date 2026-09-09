@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { actorAdminClient } from '@/lib/auth/viewer'
 import { embedUpdate } from '@/lib/ai/embeddings'
 import { createTasksFromActionItems, type ActionItemLike } from '@/lib/tasks/from-action-items'
+import { sweepDb } from '@/lib/email-sweep/db'
 
 const VALID_RESOLUTIONS = ['approved', 'rejected', 'edited'] as const
 type Resolution = (typeof VALID_RESOLUTIONS)[number]
@@ -147,17 +148,66 @@ export async function PATCH(
             .eq('id', reviewItem.record_id)
         }
 
-        // Purge email body after approval — the summary is the permanent record,
-        // and the mail web link is preserved for viewing the original.
-        if (update?.source === 'email') {
-          await admin
-            .from('updates')
-            .update({ raw_content: null })
-            .eq('id', reviewItem.record_id)
-        }
+        // The email body is deliberately KEPT.
+        //
+        // This used to purge raw_content on approval, from the era of the
+        // Outlook scraper: the summary was the record and a web link led back to
+        // the original. That scraper was removed in June 2026 and the sweep's
+        // apply phase is now the only producer of source='email' updates — for
+        // those the body IS the record, the correspondence a project's history
+        // is made of, and the summary is only a subject line. Purging it here
+        // would delete the very thing this update exists to preserve.
       }
     }
   }
 
+  // Rejecting an inferred email match means "this conversation does not belong
+  // to this project". Dropping the link is the whole undo: without it the thread
+  // stays attached and posts again the next time it grows, and the reviewer
+  // would have to reject the same misfiling forever.
+  if (resolution === 'rejected' && reviewItem?.source_table === 'updates') {
+    await unlinkRejectedEmailMatch(admin, reviewItem.record_id as string)
+  }
+
   return NextResponse.json({ ok: true })
+}
+
+/**
+ * Drop the thread→record link behind a rejected email update.
+ *
+ * Only ever removes an INFERRED link. A 'linked' one is a fact — the record was
+ * created from that conversation — so a reviewer rejecting one stray message
+ * must not sever a project from its own origin.
+ */
+async function unlinkRejectedEmailMatch(
+  admin: Awaited<ReturnType<typeof actorAdminClient>>,
+  updateId: string
+): Promise<void> {
+  try {
+    const { data: update } = await admin
+      .from('updates')
+      .select('project_id, source, source_ref')
+      .eq('id', updateId)
+      .maybeSingle()
+    if (!update || update.source !== 'email' || !update.source_ref || !update.project_id) return
+
+    const db = sweepDb()
+    const { data: thread } = await db
+      .from('email_threads')
+      .select('id')
+      .eq('gmail_thread_id', update.source_ref)
+      .maybeSingle()
+    const threadId = (thread as { id: string } | null)?.id
+    if (!threadId) return
+
+    await db
+      .from('thread_links')
+      .delete()
+      .eq('thread_id', threadId)
+      .eq('record_kind', 'project')
+      .eq('record_id', update.project_id)
+      .eq('certainty', 'inferred')
+  } catch (err) {
+    console.error('[review] could not unlink rejected email match:', err)
+  }
 }

@@ -21,7 +21,7 @@ import {
 } from '@/lib/utils/leads'
 import { LEAD_ROUTES, type LeadRoute } from '@/lib/ai/prompts/lead-triage'
 import { DEAL_CHECKLIST, CHECKLIST_BY_KEY } from '@/lib/deal-intake/checklist'
-import type { LeadRow, IntakeAnswer } from '@/lib/leads/db'
+import type { LeadRow, LeadNote, IntakeAnswer } from '@/lib/leads/db'
 
 type PromoteTarget = 'project' | 'opportunity' | 'steel'
 
@@ -137,16 +137,29 @@ export default function LeadDetailSheet({
   open,
   onOpenChange,
   onChanged,
+  siblings = [],
+  onSelectSibling,
+  notes = [],
 }: {
   lead: LeadRow | null
   open: boolean
   onOpenChange: (open: boolean) => void
   onChanged: (lead: LeadRow | null) => void
+  /**
+   * Other opportunities described in the SAME email.
+   *
+   * A referrer who lists four deals in one message produces four leads, and in
+   * a queue sorted by bid date they can sit pages apart looking unrelated. This
+   * is what says they came in together.
+   */
+  siblings?: LeadRow[]
+  onSelectSibling?: (lead: LeadRow) => void
+  /** Activity written when later mail landed on this lead's thread. */
+  notes?: LeadNote[]
 }) {
   const router = useRouter()
   const [busy, setBusy] = useState<string | null>(null)
   const [confirmTarget, setConfirmTarget] = useState<PromoteTarget | null>(null)
-
   if (!lead) return null
 
   const isOpenStatus = lead.status === 'new' || lead.status === 'reviewing'
@@ -406,6 +419,52 @@ export default function LeadDetailSheet({
                 <Bullets title="Key facts" items={lead.key_facts} />
                 <Bullets title="Requirements to bid" items={lead.requirements} />
               </>
+            )}
+
+            {siblings.length > 0 && (
+              <div className="space-y-1">
+                <p className="label-caps text-muted-foreground">
+                  Also in this email ({siblings.length})
+                </p>
+                <ul className="space-y-1">
+                  {siblings.map((s) => (
+                    <li key={s.id}>
+                      <button
+                        type="button"
+                        onClick={() => onSelectSibling?.(s)}
+                        className="text-left text-sm text-primary hover:underline"
+                      >
+                        {s.title}
+                      </button>
+                      <span className="ml-2 text-xs text-muted-foreground">
+                        {s.route}
+                        {s.estimated_value ? ` · ${formatValue(s.estimated_value)}` : ''}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {notes.length > 0 && (
+              <div className="space-y-1">
+                <p className="label-caps text-muted-foreground">
+                  Since this arrived ({notes.length})
+                </p>
+                <ul className="space-y-2">
+                  {notes.map((n) => (
+                    <li key={n.id} className="rounded-md bg-muted/30 p-2">
+                      <p className="text-xs text-muted-foreground">
+                        {n.created_at ? formatDate(n.created_at) : ''}
+                        {n.author ? ` · ${n.author}` : ''}
+                      </p>
+                      <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed line-clamp-6">
+                        {n.body}
+                      </p>
+                    </li>
+                  ))}
+                </ul>
+              </div>
             )}
 
             {lead.attachments.length > 0 && (

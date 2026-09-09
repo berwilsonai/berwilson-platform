@@ -4,6 +4,7 @@ import { getViewer } from '@/lib/auth/viewer'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { leadsDb, type LeadRow } from '@/lib/leads/db'
 import DecideClient, { type DecideItem } from '@/components/decide/DecideClient'
+import { reviewReasonLabel } from '@/lib/utils/review'
 
 export const metadata = { title: 'Decide — Ber Wilson Intelligence' }
 
@@ -95,7 +96,7 @@ export default async function DecidePage() {
     items.push({
       id: r.id,
       kind: 'review',
-      title: r.reason || `${r.source_table} needs review`,
+      title: reviewReasonLabel(r.reason),
       subtitle: r.source_table,
       href: '/review',
       verdict: null,

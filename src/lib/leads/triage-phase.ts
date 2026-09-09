@@ -20,6 +20,7 @@ import {
   LEAD_TRIAGE_PROMPT_VERSION,
   LEAD_ROUTES,
   type LeadTriage,
+  type LeadTriageBatch,
   type LeadRoute,
 } from '@/lib/ai/prompts/lead-triage'
 import { SYSTEM_USER_ID } from '@/lib/email-ingestion/analyze'
@@ -33,6 +34,8 @@ const BATCH = 25
 
 export interface TriageProgress {
   processed: number
+  /** Threads that yielded more than one opportunity. */
+  split: number
   leads: number
   rejected: number
   failed: number
@@ -66,6 +69,29 @@ function isoDate(v: unknown): string | null {
 
 function route(v: unknown): LeadRoute {
   return LEAD_ROUTES.includes(v as LeadRoute) ? (v as LeadRoute) : 'unknown'
+}
+
+/**
+ * Coerce whatever the model returned into a list of opportunities.
+ *
+ * Tolerant of both shapes on purpose: prompt 2.0 asks for `{leads:[...]}`, but a
+ * local model occasionally answers in the 1.0 single-object form, and losing a
+ * real bid invitation to a shape mismatch is far worse than accepting either.
+ */
+function normalizeBatch(raw: unknown, fallbackTitle: string): LeadTriage[] {
+  const batch = (raw ?? {}) as Partial<LeadTriageBatch>
+  const list = Array.isArray(batch.leads) ? batch.leads : [raw]
+
+  const normalized = list
+    .filter((item) => item && typeof item === 'object')
+    .map((item) => normalize(item, fallbackTitle))
+  if (normalized.length === 0) return [normalize(raw, fallbackTitle)]
+
+  // A rejection is a statement about the whole thread, so it cannot be one of
+  // several. If the model marked anything as spam alongside real leads, trust
+  // the leads and drop the rejection.
+  const real = normalized.filter((n) => n.is_lead)
+  return real.length > 0 ? real : normalized.slice(0, 1)
 }
 
 function normalize(raw: unknown, fallbackTitle: string): LeadTriage {
@@ -125,6 +151,7 @@ export async function triagePendingLeads(
 
   const progress: TriageProgress = {
     processed: 0,
+    split: 0,
     leads: 0,
     rejected: 0,
     failed: 0,
@@ -170,7 +197,7 @@ export async function triagePendingLeads(
       }
 
       try {
-        const { data: raw } = await callGemini<Partial<LeadTriage>>({
+        const { data: raw } = await callGemini<Partial<LeadTriageBatch>>({
           task: 'lead-triage',
           systemPrompt: LEAD_TRIAGE_SYSTEM_PROMPT,
           userMessage: text,
@@ -181,13 +208,16 @@ export async function triagePendingLeads(
 
         if (!raw || typeof raw !== 'object') throw new Error('Model did not return JSON.')
 
-        const t = normalize(raw, row.subject ?? '(no subject)')
+        const found = normalizeBatch(raw, row.subject ?? '(no subject)')
+        if (found.length > 1) progress.split++
 
-        // Upsert on thread_id so a re-triage corrects the row in place rather
-        // than stacking duplicates in the queue.
+        for (const [index, t] of found.entries()) {
+        // Upsert on (thread_id, thread_item) so a re-triage corrects each
+        // opportunity in place rather than stacking duplicates in the queue.
         const { error: upsertErr } = await db.from('leads').upsert(
           {
             thread_id: row.id,
+            thread_item: index,
             mailbox: row.mailbox,
             route: t.route,
             status: t.is_lead ? 'new' : 'spam',
@@ -213,14 +243,9 @@ export async function triagePendingLeads(
             // Rejected threads are never scored — that is the whole saving.
             score_state: t.is_lead ? 'pending' : 'skipped',
           },
-          { onConflict: 'thread_id' }
+          { onConflict: 'thread_id,thread_item' }
         )
         if (upsertErr) throw new Error(upsertErr.message)
-
-        await threadsDb
-          .from('email_threads')
-          .update({ summary_state: 'summarized', summary_error: null })
-          .eq('id', row.id)
 
         if (t.is_lead) {
           progress.leads++
@@ -228,6 +253,14 @@ export async function triagePendingLeads(
         } else {
           progress.rejected++
         }
+        }
+
+        await pruneSurplusLeads(row.id, found.length)
+
+        await threadsDb
+          .from('email_threads')
+          .update({ summary_state: 'summarized', summary_error: null })
+          .eq('id', row.id)
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err)
         console.error(`[leads/triage] thread ${row.id} failed:`, message)
@@ -250,6 +283,41 @@ export async function triagePendingLeads(
   progress.remaining = count ?? 0
 
   return progress
+}
+
+/**
+ * Remove leads left over from a previous, larger reading of the same thread.
+ *
+ * A re-triage that now finds three opportunities where it once found five must
+ * not leave two orphans in the queue. But it must never remove one a person has
+ * acted on: a promoted lead is a real record's origin, and an ignored one is a
+ * decision someone made. Only untouched rows go.
+ *
+ * The cost of being wrong here is asymmetric — a stale extra lead is visible and
+ * dismissable, whereas deleting a promoted lead severs a project from where it
+ * came from — so anything that is not plainly untouched is kept.
+ */
+async function pruneSurplusLeads(threadId: string, keep: number): Promise<void> {
+  const db = leadsDb()
+  const { data, error } = await db
+    .from('leads')
+    .delete()
+    .eq('thread_id', threadId)
+    .gte('thread_item', keep)
+    .in('status', ['new', 'spam'])
+    .is('promoted_project_id', null)
+    .is('promoted_opportunity_id', null)
+    .is('promoted_steel_deal_id', null)
+    .is('forwarded_at', null)
+    .select('id')
+
+  if (error) {
+    console.error(`[leads/triage] could not prune surplus leads on ${threadId}:`, error.message)
+    return
+  }
+  if (data?.length) {
+    console.log(`[leads/triage] pruned ${data.length} surplus lead(s) on thread ${threadId}`)
+  }
 }
 
 /** Requeue lead threads whose triage failed, so a transient outage isn't fatal. */

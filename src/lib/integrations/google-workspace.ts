@@ -615,28 +615,65 @@ export function explainTokenError(raw: string): string {
   return raw.slice(0, 400)
 }
 
-export async function googleFetch<T>(url: string, mailbox: string): Promise<T> {
-  const token = await getAccessToken(mailbox)
-  const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } })
+/**
+ * Gmail meters by "query cost units per minute per user", and a sweep that
+ * reads whole threads back to back reaches that ceiling routinely — observed
+ * live while probing 42 threads in a row. Google signals it as 429, or as a 403
+ * whose body says the quota was exceeded (a 403 that means "no permission" and
+ * a 403 that means "slow down" are told apart only by the message).
+ *
+ * Retrying matters more than it looks: `sweepPage` guards `fetchThread` per
+ * thread but not the `listThreads` call above it, so one throttled listing used
+ * to abort a whole mailbox's run — and the backfill re-reads every thread the
+ * platform has.
+ */
+const RETRY_ATTEMPTS = 5
+const RETRY_BASE_MS = 2_000
 
-  if (!res.ok) {
-    const err = await res.text()
-    const path = url.split('?')[0].replace(/https:\/\/[^/]+/, '')
-    throw new Error(`Google API ${path} failed: ${res.status} — ${explainTokenError(err)}`)
+function isTransient(status: number, body: string): boolean {
+  if (status === 429 || status === 500 || status === 502 || status === 503) return true
+  // 403 is overloaded: throttling, or a genuine permission failure that no
+  // amount of waiting fixes. Only the body separates them.
+  if (status === 403) return /quota|rate limit|rateLimitExceeded|userRateLimitExceeded/i.test(body)
+  return false
+}
+
+async function googleRequest(url: string, mailbox: string): Promise<Response> {
+  let lastBody = ''
+  let lastStatus = 0
+
+  for (let attempt = 0; attempt < RETRY_ATTEMPTS; attempt++) {
+    const token = await getAccessToken(mailbox)
+    const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } })
+    if (res.ok) return res
+
+    lastBody = await res.text()
+    lastStatus = res.status
+    if (!isTransient(res.status, lastBody) || attempt === RETRY_ATTEMPTS - 1) break
+
+    // Honour Retry-After when Google sends one; otherwise back off
+    // exponentially. The per-minute window means the first wait is already
+    // seconds, not milliseconds.
+    const retryAfter = Number(res.headers.get('retry-after'))
+    const waitMs =
+      Number.isFinite(retryAfter) && retryAfter > 0
+        ? retryAfter * 1000
+        : RETRY_BASE_MS * 2 ** attempt
+    await new Promise((r) => setTimeout(r, waitMs))
   }
+
+  const path = url.split('?')[0].replace(/https:\/\/[^/]+/, '')
+  throw new Error(`Google API ${path} failed: ${lastStatus} — ${explainTokenError(lastBody)}`)
+}
+
+export async function googleFetch<T>(url: string, mailbox: string): Promise<T> {
+  const res = await googleRequest(url, mailbox)
   return res.json() as Promise<T>
 }
 
 /** Same auth path as {@link googleFetch}, but for endpoints that return bytes. */
 export async function googleFetchBytes(url: string, mailbox: string): Promise<ArrayBuffer> {
-  const token = await getAccessToken(mailbox)
-  const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } })
-
-  if (!res.ok) {
-    const err = await res.text()
-    const path = url.split('?')[0].replace(/https:\/\/[^/]+/, '')
-    throw new Error(`Google API ${path} failed: ${res.status} — ${explainTokenError(err)}`)
-  }
+  const res = await googleRequest(url, mailbox)
   return res.arrayBuffer()
 }
 

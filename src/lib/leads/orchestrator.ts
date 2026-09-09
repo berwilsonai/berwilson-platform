@@ -16,6 +16,8 @@
 import { fetchAllMailboxes, type FetchProgress } from '@/lib/email-sweep/fetch-phase'
 import { triagePendingLeads, type TriageProgress } from './triage-phase'
 import { scorePendingLeads, expireStaleLeads, type ScoreProgress } from './score-phase'
+import { routeThreads, type RouteProgress } from '@/lib/email-sweep/route-phase'
+import { applyThreadUpdates, type ApplyProgress } from '@/lib/email-sweep/apply-phase'
 import { notifyScoredLeads, type LeadNotifyProgress } from './notify-leads'
 import { syncLeadDeadlines, type LeadCalendarProgress } from './calendar'
 import { syncLeadLabels, type LeadLabelProgress } from './gmail-sync'
@@ -26,6 +28,8 @@ export type LeadPhase =
   | 'fetch'
   | 'triage'
   | 'score'
+  | 'route'
+  | 'apply'
   | 'expire'
   | 'notify'
   | 'calendar'
@@ -48,6 +52,8 @@ export interface LeadSweepOptions {
 
 export interface LeadSweepResult {
   ranPhases: LeadPhase[]
+  route?: RouteProgress
+  apply?: ApplyProgress
   fetch?: FetchProgress[]
   triage?: TriageProgress
   score?: ScoreProgress
@@ -65,6 +71,8 @@ const ALL_PHASES: LeadPhase[] = [
   'fetch',
   'triage',
   'score',
+  'route',
+  'apply',
   'expire',
   'label',
   'draft',
@@ -74,6 +82,13 @@ const ALL_PHASES: LeadPhase[] = [
 ]
 
 export const DEFAULT_LEAD_HISTORY_DAYS = 90
+
+/** Deterministic phases, sized to drain a backlog over a few daily runs. */
+const ROUTE_BATCH = 500
+const APPLY_BATCH = 100
+
+/** Ceiling on applying, so attachment imports cannot eat the whole run. */
+const APPLY_MAX_MS = 10 * 60 * 1000
 
 /** Share of the remaining budget the first scoring pass may take. */
 const SCORE_SHARE = 0.4
@@ -145,6 +160,24 @@ export async function runLeadSweep(opts: LeadSweepOptions = {}): Promise<LeadSwe
         : tail
       if (tail.remaining > 0) result.moreWork = true
     }
+  }
+
+  // ── Route and apply ───────────────────────────────────────────────────────
+  // After triage, so a lead created moments ago already has its thread linked to
+  // it, and after the tail scoring pass so a promoted lead's link is seeded from
+  // a settled state. Both are deterministic and take seconds; neither competes
+  // with the model-bound phases above.
+  if (phases.includes('route')) {
+    result.route = await routeThreads({ limit: ROUTE_BATCH })
+    result.ranPhases.push('route')
+  }
+
+  if (phases.includes('apply')) {
+    result.apply = await applyThreadUpdates({
+      limit: APPLY_BATCH,
+      budgetMs: Math.max(0, Math.min(remaining(), APPLY_MAX_MS)),
+    })
+    result.ranPhases.push('apply')
   }
 
   if (phases.includes('expire')) {

@@ -12,7 +12,7 @@ import LeadDetailSheet from './LeadDetailSheet'
 import { ROUTE_TABS, ROUTE_LABELS } from '@/lib/utils/leads'
 import { formatValue } from '@/lib/utils/constants'
 import type { LeadRoute } from '@/lib/ai/prompts/lead-triage'
-import type { LeadRow } from '@/lib/leads/db'
+import type { LeadRow, LeadNote } from '@/lib/leads/db'
 
 type RouteFilter = LeadRoute | 'all'
 
@@ -71,6 +71,37 @@ export default function LeadsClient({
 
   // Captured once at mount rather than read during render — "now" moving under
   // a memo is exactly the impurity the React Compiler rejects.
+  // Other opportunities from the same email. Computed from the list already
+  // loaded rather than fetched: one email's leads are all in it by definition.
+  const siblings = useMemo(() => {
+    if (!selected?.thread_id) return []
+    return leads.filter((l) => l.thread_id === selected.thread_id && l.id !== selected.id)
+  }, [leads, selected])
+
+  const [notes, setNotes] = useState<LeadNote[]>([])
+
+  /**
+   * Load a lead's activity when it is opened.
+   *
+   * Deliberately in the open handler rather than an effect in the sheet: the
+   * sheet stays presentational, and this avoids adding to the documented
+   * set-state-in-effect lint debt.
+   */
+  async function openLead(l: LeadRow) {
+    setSelected(l)
+    setSheetOpen(true)
+    setNotes([])
+    try {
+      const res = await fetch(`/api/leads/${l.id}/notes`)
+      if (!res.ok) return
+      const data = await res.json()
+      // Ignore a response that lost its race with a faster second click.
+      setNotes(data.notes ?? [])
+    } catch {
+      /* the feed is context, never the point of the screen */
+    }
+  }
+
   const [mountedAt] = useState(() => Date.now())
 
   const stats = useMemo(() => {
@@ -225,8 +256,7 @@ export default function LeadsClient({
               key={lead.id}
               lead={lead}
               onOpen={(l) => {
-                setSelected(l)
-                setSheetOpen(true)
+                void openLead(l)
               }}
               onDelete={deleteLead}
             />
@@ -239,6 +269,9 @@ export default function LeadsClient({
         open={sheetOpen}
         onOpenChange={setSheetOpen}
         onChanged={replaceLead}
+        siblings={siblings}
+        onSelectSibling={(l) => void openLead(l)}
+        notes={notes}
       />
     </div>
   )

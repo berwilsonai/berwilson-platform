@@ -216,12 +216,32 @@ export async function searchThreads(
 // Full sweep (backfill)
 // ---------------------------------------------------------------------------
 
+/**
+ * What is already stored for a thread, so a sweep can tell a genuinely new
+ * message from a conversation it has seen before.
+ *
+ * Before 2026-09-09 the caller passed a bare Set of fingerprints and any known
+ * thread was skipped outright. Because the fingerprint is the EARLIEST
+ * Message-ID in a conversation, that meant a reply to a stored thread was
+ * silently discarded and the stored correspondence froze at first capture —
+ * measured against live Gmail, 3 of 40 sampled threads had grown unnoticed, one
+ * from 2 stored messages to 6.
+ */
+export interface KnownThread {
+  messageCount: number
+}
+
 export interface SweepPage {
   threads: ResolvedThread[]
   nextPageToken: string | null
   estimatedTotal: number | null
-  /** Threads on this page skipped because another mailbox already yielded them. */
+  /** Threads on this page skipped because they carry nothing new. */
   duplicatesSkipped: number
+  /**
+   * Threads already stored that have since gained messages. Returned alongside
+   * new ones in `threads`; the caller updates rather than inserts these.
+   */
+  grownFingerprints: Set<string>
   notes: string[]
 }
 
@@ -232,9 +252,12 @@ export interface SweepPage {
  * checkpoints `nextPageToken` after every page and can resume from a crash,
  * a reboot, or a deploy without re-reading what it already has.
  *
- * `knownFingerprints` lets the caller skip threads already ingested from
- * another mailbox (or a previous run) before paying to fetch them — the stub
- * doesn't carry a fingerprint, so the saving is on the AI pass, not the fetch.
+ * `knownThreads` lets the caller skip threads it already holds IN FULL — the
+ * stub doesn't carry a fingerprint, so the saving is on the AI pass, not the
+ * fetch. A known thread that has since gained messages is NOT skipped: it comes
+ * back in `threads` and its fingerprint in `grownFingerprints`, so the caller
+ * can refresh it. The thread is fully fetched before the check either way, so
+ * detecting growth costs nothing extra.
  */
 export async function sweepPage(
   mailbox: string,
@@ -242,7 +265,7 @@ export async function sweepPage(
     pageToken?: string | null
     sinceDays?: number
     pageSize?: number
-    knownFingerprints?: Set<string>
+    knownThreads?: Map<string, KnownThread>
     /** Extra Gmail `q` terms — the lead sweep passes {@link leadExclusions}. */
     exclusions?: string[]
   } = {}
@@ -257,6 +280,7 @@ export async function sweepPage(
   })
 
   const resolved: ResolvedThread[] = []
+  const grownFingerprints = new Set<string>()
   let duplicatesSkipped = 0
 
   for (const stub of stubs) {
@@ -264,11 +288,20 @@ export async function sweepPage(
       const messages = await fetchThread(mailbox, stub.threadId)
       const thread = resolve(mailbox, stub.threadId, messages)
       if (!thread) continue
-      if (opts.knownFingerprints?.has(thread.fingerprint)) {
-        duplicatesSkipped++
-        continue
+
+      const known = opts.knownThreads?.get(thread.fingerprint)
+      if (known) {
+        // Adopt a STRICTLY larger view only. That makes the refresh monotonic:
+        // two mailboxes holding different slices of one conversation converge on
+        // the fuller one instead of overwriting each other on alternate runs.
+        if (thread.messages.length <= known.messageCount) {
+          duplicatesSkipped++
+          continue
+        }
+        grownFingerprints.add(thread.fingerprint)
       }
-      opts.knownFingerprints?.add(thread.fingerprint)
+
+      opts.knownThreads?.set(thread.fingerprint, { messageCount: thread.messages.length })
       resolved.push(thread)
     } catch (err) {
       notes.push(
@@ -279,7 +312,14 @@ export async function sweepPage(
     }
   }
 
-  return { threads: resolved, nextPageToken, estimatedTotal, duplicatesSkipped, notes }
+  return {
+    threads: resolved,
+    nextPageToken,
+    estimatedTotal,
+    duplicatesSkipped,
+    grownFingerprints,
+    notes,
+  }
 }
 
 // ---------------------------------------------------------------------------

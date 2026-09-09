@@ -22,6 +22,8 @@ import { publishRecordQuietly, type DriveRecordKind } from '@/lib/drive/publish'
 import { importDriveFolder } from '@/lib/drive/import'
 import { createDdItemsFromIntake, parseIntakeAnswers } from '@/lib/deal-intake/diligence'
 import { LEAD_FOLDER } from './score-phase'
+import { upsertLink } from '@/lib/email-sweep/route-phase'
+import type { LinkRecordKind } from '@/lib/email-sweep/db'
 
 export type PromoteTarget = 'project' | 'opportunity' | 'steel'
 
@@ -468,6 +470,38 @@ export async function promoteLead(
     // The record exists; failing here would leave the lead looking un-promoted
     // and invite a duplicate. Surface it rather than throwing it away.
     console.error(`[leads/promote] record created but lead not marked:`, markErr.message)
+  }
+
+  // Point this lead's conversation at the record it became, so later mail on
+  // the thread reaches the project instead of stopping at a lead nobody reads
+  // any more. 'linked' rather than 'inferred' because there is nothing to guess:
+  // this thread IS that record's origin, so its updates post without review.
+  //
+  // Seeded at the thread's current message count — promotion has just carried
+  // the correspondence and its attachments across, so only mail arriving AFTER
+  // this moment is new.
+  if (lead.thread_id) {
+    const kind: LinkRecordKind =
+      target === 'project' ? 'project' : target === 'opportunity' ? 'opportunity' : 'steel_deal'
+    const { data: thread } = await db
+      .from('email_threads')
+      .select('message_count')
+      .eq('id', lead.thread_id)
+      .maybeSingle()
+
+    await upsertLink(
+      lead.thread_id,
+      kind,
+      id,
+      'linked',
+      1,
+      'promoted from this lead',
+      (thread as { message_count: number | null } | null)?.message_count ?? 0
+    ).catch((err) =>
+      // Non-fatal: the record exists and is correct. A missing link is repaired
+      // on the next routing pass, which reconciles derived links every run.
+      console.error('[leads/promote] could not link thread to record:', err)
+    )
   }
 
   // Publish the bid package to Drive so the people who will actually price it

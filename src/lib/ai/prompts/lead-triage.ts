@@ -17,7 +17,7 @@
  * survive this one.
  */
 
-export const LEAD_TRIAGE_PROMPT_VERSION = 'lead-triage-1.0'
+export const LEAD_TRIAGE_PROMPT_VERSION = 'lead-triage-2.0'
 
 /** Which side of the business an inbound lead belongs to. */
 export type LeadRoute = 'steel' | 'dino' | 'construction' | 'corporate' | 'unknown'
@@ -60,6 +60,19 @@ export interface LeadTriage {
   /** Bonding, licensing, certifications, insurance, wage, set-aside conditions. */
   requirements: string[]
   confidence: number
+}
+
+/**
+ * What one thread yields.
+ *
+ * An array, because one email is not always one opportunity. A referrer who
+ * sends over several deals at once — "here are four sites we're looking at" —
+ * used to collapse into a single lead by construction, so none of the four could
+ * be scored, promoted or dismissed on its own. The overwhelmingly common case is
+ * still exactly one entry.
+ */
+export interface LeadTriageBatch {
+  leads: LeadTriage[]
 }
 
 export const LEAD_TRIAGE_SYSTEM_PROMPT = `You are the first reader of every email arriving at info@berwilson.com, the general inbox of Ber Wilson — a vertically integrated construction, development, and prefab steel manufacturing company in Salt Lake City, Utah.
@@ -110,8 +123,22 @@ Use only these values for sector: government | infrastructure | real_estate | pr
 
 For rejected threads, keep it cheap: is_lead=false, a one-line spam_reason, a short title, and null or empty everywhere else.
 
-Return ONLY valid JSON matching exactly this shape (no markdown, no commentary):
+YOUR FOURTH JOB — how many opportunities is this?
+
+Almost every thread is ONE opportunity, and you should return one entry. But some senders — brokers, referrers, and business-development contacts — describe SEVERAL distinct deals in a single email, often loosely and in prose. Each of those deserves its own entry, with its own scope, location, value and dates, because each will be pursued, priced, or declined separately.
+
+Return SEPARATE entries when the email describes work at different sites, for different owners, or of plainly different scope — for example "we have a 40-unit multifamily in Ogden, a warehouse shell in Tooele, and a church remodel in Provo".
+
+Return ONE entry when the email describes a single job, however much detail it carries: multiple phases or buildings of the same development, a base bid with alternates, several trades on one site, or one project discussed across a long reply chain. Phases of one job are one opportunity.
+
+If it is not a lead at all, return exactly one entry with is_lead=false.
+
+Do not split a single opportunity to seem thorough, and do not merge distinct ones to seem tidy. Give each entry a title that names its own site or scope, so two entries from the same email are never confused with each other.
+
+Return ONLY valid JSON matching exactly this shape (no markdown, no commentary). Note "leads" is always an array, even for a single opportunity:
 {
+ "leads": [
+  {
   "is_lead": true | false,
   "spam_reason": string|null,
   "route": "steel" | "dino" | "construction" | "corporate" | "unknown",
@@ -132,4 +159,6 @@ Return ONLY valid JSON matching exactly this shape (no markdown, no commentary):
   "key_facts": [string],
   "requirements": [string],
   "confidence": 0.0
+  }
+ ]
 }`

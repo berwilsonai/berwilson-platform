@@ -19,8 +19,17 @@ import {
   predecidePendingSessions,
   type PredecideProgress,
 } from '@/lib/email-ingestion/predecide'
+import { routeThreads, type RouteProgress } from './route-phase'
+import { applyThreadUpdates, type ApplyProgress } from './apply-phase'
 
-export type SweepPhase = 'fetch' | 'summarize' | 'cluster' | 'stage' | 'predecide'
+export type SweepPhase =
+  | 'fetch'
+  | 'summarize'
+  | 'cluster'
+  | 'stage'
+  | 'route'
+  | 'apply'
+  | 'predecide'
 
 export interface SweepRunOptions {
   /** Phases to run, in this order. Defaults to all four. */
@@ -40,13 +49,43 @@ export interface SweepRunResult {
   summarize?: SummarizeProgress
   cluster?: ClusterProgress
   stage?: StageProgress
+  route?: RouteProgress
+  apply?: ApplyProgress
   predecide?: PredecideProgress
   elapsedMs: number
   /** True when work remains — the next run should pick up where this left off. */
   moreWork: boolean
 }
 
-const ALL_PHASES: SweepPhase[] = ['fetch', 'summarize', 'cluster', 'stage', 'predecide']
+const ALL_PHASES: SweepPhase[] = [
+  'fetch',
+  'summarize',
+  'cluster',
+  'stage',
+  'route',
+  'apply',
+  'predecide',
+]
+
+/**
+ * How many links and threads each run works through.
+ *
+ * Both phases are deterministic and IO-bound rather than model-bound — 1,600
+ * threads route in about twelve seconds — so they are sized to drain a backlog
+ * over a few hourly runs without ever competing with summarize for the local
+ * model.
+ */
+const ROUTE_BATCH = 500
+const APPLY_BATCH = 100
+
+/**
+ * Ceiling on the apply phase, independent of the run's remaining budget.
+ *
+ * Attachment imports are the slow part (~30s each), and predecide — the only
+ * phase that makes the review queue SHRINK — runs after this one. Applying must
+ * not eat the whole hour and starve it.
+ */
+const APPLY_MAX_MS = 10 * 60 * 1000
 
 /** Share of the budget each phase may consume before yielding to the next. */
 const STAGE_SHARE = 0.25
@@ -96,6 +135,27 @@ export async function runSweep(opts: SweepRunOptions = {}): Promise<SweepRunResu
     result.cluster = await clusterUnassigned()
     result.ranPhases.push('cluster')
     if (result.cluster.clustersCreated > 0) result.moreWork = true
+  }
+
+  // ── Route and apply ───────────────────────────────────────────────────────
+  // After clustering, so a thread just folded into a confirmed deal is routed in
+  // the same run rather than waiting an hour. Before predecide, because both are
+  // cheap and predecide deliberately eats whatever budget is left.
+  if (phases.includes('route')) {
+    result.route = await routeThreads({ limit: ROUTE_BATCH })
+    result.ranPhases.push('route')
+    if (result.route.threadsConsidered >= ROUTE_BATCH) result.moreWork = true
+  }
+
+  if (phases.includes('apply')) {
+    result.apply = await applyThreadUpdates({
+      limit: APPLY_BATCH,
+      budgetMs: Math.max(0, Math.min(remaining(), APPLY_MAX_MS)),
+    })
+    result.ranPhases.push('apply')
+    if (result.apply.outOfTime || result.apply.linksConsidered >= APPLY_BATCH) {
+      result.moreWork = true
+    }
   }
 
   if (phases.includes('predecide')) {

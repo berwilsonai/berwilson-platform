@@ -43,6 +43,22 @@ export interface LeadAttachment {
   extracted: boolean
 }
 
+/**
+ * One entry in a lead's activity feed.
+ *
+ * Follows the convention of investor_notes / opportunity_notes / steel_deal_notes.
+ * Written when later mail refreshes a lead, so a re-read is distinguishable from
+ * a re-write — without it the refresh happens invisibly.
+ */
+export interface LeadNote {
+  id: string
+  lead_id: string
+  body: string
+  /** Stamped server-side; never taken from the client. */
+  author: string | null
+  created_at: string | null
+}
+
 /** Where the lead came in from. */
 export type LeadSource = 'email' | 'web_form'
 
@@ -60,6 +76,16 @@ export interface LeadRow {
    */
   thread_id: string | null
   mailbox: string | null
+
+  /**
+   * Which opportunity within its email this lead is — 0 for an ordinary thread.
+   *
+   * A referrer who describes five deals in one message produces five leads, and
+   * they are told apart by this ordinal. Re-triage upserts on
+   * (thread_id, thread_item) so each detected opportunity keeps its slot rather
+   * than the run stacking duplicates.
+   */
+  thread_item: number
 
   /**
    * 'email'   — swept out of info@ by the lead pipeline

@@ -3,15 +3,9 @@
 import { useRouter, useSearchParams, usePathname } from 'next/navigation'
 import { useCallback } from 'react'
 import { X } from 'lucide-react'
+import { REVIEW_REASON_LABELS, REVIEW_REASONS } from '@/lib/utils/review'
 
-const REASON_LABELS: Record<string, string> = {
-  new_contact: 'New Contact',
-  low_confidence: 'Low Confidence',
-  ambiguous_project: 'Ambiguous Project',
-  unknown_party: 'Unknown Party',
-  conflicting_data: 'Conflicting Data',
-}
-const REASONS = Object.keys(REASON_LABELS)
+
 
 interface FilterProject {
   id: string
@@ -76,9 +70,9 @@ export default function ReviewFilters({ projects, projectId, reason, showResolve
         className="h-8 rounded-md border border-input bg-background px-2.5 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
       >
         <option value="">All Reasons</option>
-        {REASONS.map((r) => (
+        {REVIEW_REASONS.map((r) => (
           <option key={r} value={r}>
-            {REASON_LABELS[r]}
+            {REVIEW_REASON_LABELS[r]}
           </option>
         ))}
       </select>

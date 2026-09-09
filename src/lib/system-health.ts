@@ -26,6 +26,7 @@ import { listMeetTranscripts } from '@/lib/integrations/google-drive'
 import { isChatConfigured } from '@/lib/notify/chat'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { leadsDb } from '@/lib/leads/db'
+import { sweepDb } from '@/lib/email-sweep/db'
 
 const PROBE_TIMEOUT_MS = 10_000
 
@@ -283,6 +284,82 @@ export async function probeDriveKnowledge(): Promise<{
       fix = ` The folder is probably owned by another account — share it with ${mailbox} (Viewer is enough).`
     }
     return { state: 'failed', detail: `${raw}${fix}` }
+  }
+}
+
+/**
+ * Is correspondence actually reaching the records it belongs to?
+ *
+ * This exists because the failure it watches for is silent by construction.
+ * Before 2026-09-09 a reply to a stored thread was discarded outright — the
+ * fingerprint is the thread's FIRST Message-ID, so a growing conversation looked
+ * like one already seen. Nothing anywhere reported that, and measured against
+ * live Gmail 3 of 40 sampled threads had quietly gone stale.
+ *
+ * Three numbers, each answering a different question a person would ask:
+ * how much correspondence is filed, how much is waiting on a human, and whether
+ * anything is stuck unrouted.
+ */
+export async function probeThreadRouting(): Promise<{
+  state: 'ok' | 'empty' | 'warn' | 'failed'
+  detail: string
+}> {
+  try {
+    const db = sweepDb()
+    const [linked, inferred, unrouted, pendingUpdates] = await Promise.all([
+      db.from('thread_links').select('id', { count: 'exact', head: true }).eq('certainty', 'linked'),
+      db
+        .from('thread_links')
+        .select('id', { count: 'exact', head: true })
+        .eq('certainty', 'inferred'),
+      db
+        .from('email_threads')
+        .select('id', { count: 'exact', head: true })
+        .eq('summary_state', 'summarized')
+        .is('routed_at', null),
+      createAdminClient()
+        .from('updates')
+        .select('id', { count: 'exact', head: true })
+        .eq('source', 'email')
+        .eq('review_state', 'pending'),
+    ])
+
+    const linkedCount = linked.count ?? 0
+    const inferredCount = inferred.count ?? 0
+    const unroutedCount = unrouted.count ?? 0
+    const awaiting = pendingUpdates.count ?? 0
+
+    if (linkedCount + inferredCount === 0) {
+      return {
+        state: 'empty',
+        detail:
+          'No email thread is tied to a record yet. Links are created when a lead is promoted, when a clustered deal is confirmed, and when routing matches a conversation to an existing project.',
+      }
+    }
+
+    const parts = [
+      `${linkedCount} thread${linkedCount === 1 ? '' : 's'} tied to a record directly, ${inferredCount} matched by inference.`,
+    ]
+    if (awaiting > 0) {
+      parts.push(
+        `${awaiting} email update${awaiting === 1 ? '' : 's'} waiting in the review queue — inferred matches stage there rather than posting straight onto a record.`
+      )
+    }
+    if (unroutedCount > 0) {
+      parts.push(`${unroutedCount} summarized thread${unroutedCount === 1 ? '' : 's'} not yet routed.`)
+    }
+
+    // A large unrouted backlog means the phase is not keeping up, which is worth
+    // saying out loud — it is the shape of a stalled cron, not a quiet inbox.
+    return {
+      state: unroutedCount > 1000 ? 'warn' : 'ok',
+      detail: parts.join(' '),
+    }
+  } catch (err) {
+    return {
+      state: 'failed',
+      detail: err instanceof Error ? err.message : String(err),
+    }
   }
 }
 

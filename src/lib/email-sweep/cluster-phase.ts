@@ -22,9 +22,9 @@ import type { ThreadSummary } from '@/lib/ai/prompts/thread-summary'
 import { sweepDb, type EmailThreadRow, type ThreadClusterRow } from './db'
 
 /** Merge outright at or above this name similarity. */
-const STRONG_NAME_SIM = 0.6
+export const STRONG_NAME_SIM = 0.6
 /** Merge at or above this, but only with a shared external participant. */
-const WEAK_NAME_SIM = 0.34
+export const WEAK_NAME_SIM = 0.34
 
 /** Domains treated as "us" — participants here carry no grouping signal. */
 const INTERNAL_DOMAINS = new Set(
@@ -47,7 +47,8 @@ export function normalizeDealName(name: string): string {
     .trim()
 }
 
-function tokenize(name: string): Set<string> {
+/** Meaningful words in a deal name — the unit both the clusterer and the router compare on. */
+export function tokenize(name: string): Set<string> {
   return new Set(
     normalizeDealName(name)
       .split(' ')
@@ -55,14 +56,19 @@ function tokenize(name: string): Set<string> {
   )
 }
 
-function jaccard(a: Set<string>, b: Set<string>): number {
+/** Token-overlap similarity, 0..1. */
+export function jaccard(a: Set<string>, b: Set<string>): number {
   if (a.size === 0 || b.size === 0) return 0
   let shared = 0
   for (const t of a) if (b.has(t)) shared++
   return shared / (a.size + b.size - shared)
 }
 
-function externalParticipants(addresses: string[]): Set<string> {
+/**
+ * Addresses that are not ours. Internal-only overlap proves nothing — moose@ and
+ * tuaone@ are on everything — so only these carry grouping or matching signal.
+ */
+export function externalParticipants(addresses: string[]): Set<string> {
   const out = new Set<string>()
   for (const a of addresses) {
     const domain = a.split('@')[1]
@@ -72,7 +78,7 @@ function externalParticipants(addresses: string[]): Set<string> {
   return out
 }
 
-function sharesExternal(a: Set<string>, b: Set<string>): boolean {
+export function sharesExternal(a: Set<string>, b: Set<string>): boolean {
   for (const x of a) if (b.has(x)) return true
   return false
 }
@@ -190,12 +196,18 @@ export async function clusterUnassigned(
   // ON it — if it were allowed to form a fresh cluster it would be staged again
   // and propose a SECOND project/opportunity for a deal already under review.
   // Attaching leaves the cluster staged, so nothing is re-proposed.
+  //
+  // 'confirmed' clusters are included for the same reason carried one step
+  // further: that deal is now a real project or opportunity, and a reply on it
+  // must reach THAT record. Attaching here is what puts the thread in front of
+  // the route phase, which sends it to the record the cluster became.
+  //
   // 'dismissed' is excluded: that deal was judged not real, and a new thread
   // there deserves to be reconsidered on its own.
   const { data: openData } = await db
     .from('thread_clusters')
     .select('id, label, participants, first_at, last_at, thread_count')
-    .in('state', ['open', 'staged'])
+    .in('state', ['open', 'staged', 'confirmed'])
 
   const openClusters = ((openData ?? []) as ThreadClusterRow[]).map((c) => ({
     row: c,
@@ -221,7 +233,14 @@ export async function clusterUnassigned(
     }
 
     if (best) {
-      await db.from('email_threads').update({ cluster_id: best.clusterId }).eq('id', cand.id)
+      // routed_at cleared with the assignment: this thread now belongs to a
+      // cluster it did not before, and if that cluster is confirmed the thread
+      // has a record to reach. Routing already decided this thread matched
+      // nothing, so without clearing the marker it would never look again.
+      await db
+        .from('email_threads')
+        .update({ cluster_id: best.clusterId, routed_at: null })
+        .eq('id', cand.id)
       // Widen the cluster so the next thread can match on the new contacts too.
       const target = openClusters.find((o) => o.row.id === best!.clusterId)!
       for (const p of cand.participants) target.candidate.participants.push(p)

@@ -64,7 +64,29 @@ export async function recordSweepUnavailable(
 
 export type SweepState = 'idle' | 'running' | 'complete' | 'failed'
 export type SummaryState = 'pending' | 'summarized' | 'failed' | 'skipped'
-export type ClusterState = 'open' | 'staged' | 'dismissed'
+/**
+ * 'confirmed' is app-level only — thread_clusters.state carries no check
+ * constraint (verified), the same approach the steel pipeline's 'invoiced'
+ * stage took. A confirmed cluster has become a real record; follow-ups still
+ * attach to it, and the route phase sends them to that record rather than
+ * stranding them as the pre-2026-09-09 pipeline did.
+ */
+export type ClusterState = 'open' | 'staged' | 'dismissed' | 'confirmed'
+
+/** Which kind of record a thread has been tied to. */
+export type LinkRecordKind = 'project' | 'opportunity' | 'lead' | 'steel_deal'
+
+/**
+ * How much to trust a thread↔record link.
+ *
+ * 'linked'   — the thread IS that record: its lead was promoted to it, or its
+ *              cluster was confirmed into it. No ambiguity.
+ * 'inferred' — matched on name, participants or solicitation number.
+ *
+ * This drives review posture at every write site, so the judgement is made once
+ * here rather than re-derived per destination.
+ */
+export type LinkCertainty = 'linked' | 'inferred'
 
 export interface MailboxSyncRow {
   mailbox: string
@@ -110,6 +132,47 @@ export interface ThreadClusterRow {
   first_at: string | null
   last_at: string | null
   session_id: string | null
+  /** The record this cluster was confirmed into, once a human confirmed it. */
+  project_id: string | null
+  opportunity_id: string | null
+  confirmed_at: string | null
+  created_at: string | null
+  updated_at: string | null
+}
+
+/**
+ * A thread tied to a record it belongs to.
+ *
+ * The answer to "what record does this reply belong to?", which the platform
+ * could not give before 2026-09-09: linkage existed only as leads.promoted_*_id,
+ * thread_clusters.session_id and email_intake_sessions.created_record_ids, none
+ * of which a follow-up can be routed by.
+ *
+ * A table rather than columns on email_threads because one email legitimately
+ * belongs to several records — a referrer describing five deals becomes five
+ * leads, and every one of them wants that conversation.
+ */
+export interface ThreadLinkRow {
+  id: string
+  thread_id: string
+  record_kind: LinkRecordKind
+  /**
+   * Deliberately NOT a foreign key: it points at four tables and a polymorphic
+   * FK is not expressible. The apply phase drops a link whose record has gone
+   * rather than failing on it.
+   */
+  record_id: string
+  certainty: LinkCertainty
+  confidence: number | null
+  /** Human-readable, so a misfiling can be understood and undone. */
+  reason: string | null
+  /**
+   * How much of the conversation has already been written onto the record.
+   * Without it every refresh re-posts the whole thread and the record's feed
+   * fills with the same correspondence night after night.
+   */
+  applied_message_count: number
+  last_applied_at: string | null
   created_at: string | null
   updated_at: string | null
 }
