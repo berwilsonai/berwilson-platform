@@ -22,6 +22,20 @@ function getClient(): GoogleGenerativeAI {
   return _client
 }
 
+/**
+ * The document cannot be read with what is loaded — a scanned PDF with no
+ * vision model, say. Distinct from a failure, because retrying changes
+ * nothing: without the distinction a nightly sync spends its whole budget
+ * re-attempting the same unreadable files and never reaches the rest.
+ */
+export class UnreadableDocumentError extends Error {
+  readonly unreadable = true
+  constructor(message: string) {
+    super(message)
+    this.name = 'UnreadableDocumentError'
+  }
+}
+
 export interface GeminiCallOptions {
   task: string
   systemPrompt: string
@@ -234,7 +248,9 @@ export async function callGeminiWithFile<T = unknown>(
       // here; callers' existing fallbacks handle that.
       const pdfText = await extractPdfText(file.dataBase64)
       if (!pdfText) {
-        throw new Error('Local AI: could not extract text from PDF (scanned or image-only document?)')
+        throw new UnreadableDocumentError(
+          'No text could be extracted — the PDF is scanned or image-only, and no vision model is loaded.'
+        )
       }
       return callLocalText<T>({
         systemPrompt,

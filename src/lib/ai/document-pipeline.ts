@@ -1,4 +1,4 @@
-import { callGemini, callGeminiWithFile } from '@/lib/ai/gemini'
+import { callGemini, callGeminiWithFile, UnreadableDocumentError } from '@/lib/ai/gemini'
 import { transcribePdfText, extractDocxText, storeExtractedText } from '@/lib/ai/document-text'
 import { embedDocument } from '@/lib/ai/embeddings'
 import type { createAdminClient } from '@/lib/supabase/admin'
@@ -61,7 +61,10 @@ async function setStatus(supabase: AdminClient, documentId: string, status: stri
 
 /**
  * Run the full AI pass on one document and settle its embedding_status.
- * Never throws — every failure path lands on status 'error'.
+ *
+ * Never throws. The end state distinguishes three things that look alike from
+ * the outside: 'complete', 'error' (worth retrying), and 'skipped' (nothing
+ * here can read this file, so retrying is waste).
  */
 export async function runDocumentAiPass(input: {
   supabase: AdminClient
@@ -160,6 +163,15 @@ export async function runDocumentAiPass(input: {
     )
     return { status: ok ? 'complete' : 'error', aiSummary, confidence }
   } catch (err) {
+    // A document nothing here can read is SKIPPED, not failed. Both leave it
+    // unsearchable, but only one of them is worth trying again — and a nightly
+    // sync that cannot tell them apart burns its entire budget re-reading the
+    // same scanned survey plats and never reaches the documents behind them.
+    if (err instanceof UnreadableDocumentError) {
+      console.warn(`[document-pipeline] not indexable (${fileName}): ${err.message}`)
+      await setStatus(supabase, documentId, 'skipped')
+      return { status: 'skipped', aiSummary: null, confidence: null }
+    }
     console.error(`[document-pipeline] AI pass failed (${fileName}):`, err)
     await setStatus(supabase, documentId, 'error')
     return { status: 'error', aiSummary: null, confidence: null }

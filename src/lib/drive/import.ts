@@ -127,6 +127,20 @@ export async function importDriveFolder(opts: {
     known.set(row.drive_file_id, row)
   }
 
+  // `documents.drive_file_id` is UNIQUELY indexed platform-wide, so a file
+  // already imported somewhere else cannot be inserted here. Looked up rather
+  // than discovered by failing: the same document genuinely does appear in two
+  // teams' folders, and letting the insert violate the constraint turns a
+  // routine overlap into a hard failure logged every single night.
+  const { data: elsewhereRows } = await supabase
+    .from('documents')
+    .select('drive_file_id')
+    .not('drive_file_id', 'is', null)
+    .or(`project_id.neq.${projectId},project_id.is.null`)
+  const ownedElsewhere = new Set(
+    ((elsewhereRows ?? []) as { drive_file_id: string }[]).map((r) => r.drive_file_id)
+  )
+
   // Files this platform PUT in Drive must never be read back in as new
   // documents. It cannot happen while publishing targets its own folder, but the
   // day a project's source folder and its published folder are the same one,
@@ -162,6 +176,10 @@ export async function importDriveFolder(opts: {
       continue
     }
     if (published.has(file.id)) {
+      result.skipped++
+      continue
+    }
+    if (!known.has(file.id) && ownedElsewhere.has(file.id)) {
       result.skipped++
       continue
     }
