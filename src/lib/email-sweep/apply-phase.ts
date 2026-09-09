@@ -337,9 +337,13 @@ async function applyToRecord(
       })
       if (error) throw new Error(error.message)
 
-      // Re-triage so the lead's own facts — bid date, scope, value — reflect the
-      // whole conversation rather than its opening message. An expired lead is
-      // deliberately reopened: mail arriving on it usually means the date moved.
+      // Re-SCORE it: the fit assessment was formed from a shorter conversation
+      // than the one that now exists. (Its facts — bid date, scope, value — are
+      // re-read separately: the fetch refresh puts a grown thread back to
+      // summary_state='pending', which is what re-runs triage.)
+      //
+      // An expired lead is deliberately reopened: mail arriving on a lead that
+      // timed out usually means the date moved.
       await db
         .from('leads')
         .update({
