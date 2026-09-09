@@ -183,6 +183,13 @@ export async function importDriveFolder(opts: {
       result.skipped++
       continue
     }
+    // A file reachable by two paths inside one folder tree arrives twice; the
+    // second copy is not in `known` (a pre-loop snapshot) and its insert would
+    // violate the unique index on drive_file_id.
+    if (seenIds.has(file.id)) {
+      result.skipped++
+      continue
+    }
 
     seenIds.add(file.id)
     const prior = known.get(file.id)

@@ -126,6 +126,14 @@ export async function syncDriveKnowledge(
       progress.skipped++
       continue
     }
+    // The same file reaches this loop twice when it sits in two nominated
+    // folders, or in one nested inside another. `known` is a snapshot taken
+    // before the loop, so the second copy looks new and its insert violates the
+    // unique index on drive_file_id — a hard failure logged on every run.
+    if (seenIds.has(file.id)) {
+      progress.skipped++
+      continue
+    }
 
     seenIds.add(file.id)
     const prior = known.get(file.id)
