@@ -105,7 +105,7 @@ export async function PATCH(
   // Post-resolution actions based on source type
   const { data: reviewItem } = await supabase
     .from('review_queue')
-    .select('source_table, record_id, project_id')
+    .select('source_table, record_id, project_id, reason')
     .eq('id', id)
     .single()
 
@@ -162,24 +162,39 @@ export async function PATCH(
   }
 
   // Rejecting an inferred email match means "this conversation does not belong
-  // to this project". Dropping the link is the whole undo: without it the thread
-  // stays attached and posts again the next time it grows, and the reviewer
-  // would have to reject the same misfiling forever.
-  if (resolution === 'rejected' && reviewItem?.source_table === 'updates') {
-    await unlinkRejectedEmailMatch(admin, reviewItem.record_id as string)
+  // to this project". Two things have to happen for that to be true:
+  //
+  //  - the LINK goes, or the thread stays attached and posts again the next
+  //    time it grows, and the reviewer rejects the same misfiling forever;
+  //  - the UPDATE goes, because the project's Updates tab renders every row
+  //    regardless of review_state, so misfiled correspondence would otherwise
+  //    stay on the wrong record having been explicitly rejected.
+  //
+  // Scoped to this reason on purpose: the 33 pending updates from the retired
+  // Outlook scraper keep their existing behavior, where rejecting resolves the
+  // queue item and leaves the row alone.
+  if (
+    resolution === 'rejected' &&
+    reviewItem?.source_table === 'updates' &&
+    reviewItem.reason === 'inferred_email_match'
+  ) {
+    await undoInferredEmailMatch(admin, reviewItem.record_id as string)
   }
 
   return NextResponse.json({ ok: true })
 }
 
 /**
- * Drop the thread→record link behind a rejected email update.
+ * Undo an inferred email match: drop the link, then remove the update it posted.
  *
  * Only ever removes an INFERRED link. A 'linked' one is a fact — the record was
  * created from that conversation — so a reviewer rejecting one stray message
  * must not sever a project from its own origin.
+ *
+ * The correspondence itself is not lost: it lives in email_threads, and if the
+ * thread is later matched correctly it will be posted to the right record.
  */
-async function unlinkRejectedEmailMatch(
+async function undoInferredEmailMatch(
   admin: Awaited<ReturnType<typeof actorAdminClient>>,
   updateId: string
 ): Promise<void> {
@@ -207,7 +222,10 @@ async function unlinkRejectedEmailMatch(
       .eq('record_kind', 'project')
       .eq('record_id', update.project_id)
       .eq('certainty', 'inferred')
+
+    // A pending update was never embedded, so there are no chunks to sweep.
+    await admin.from('updates').delete().eq('id', updateId)
   } catch (err) {
-    console.error('[review] could not unlink rejected email match:', err)
+    console.error('[review] could not undo inferred email match:', err)
   }
 }
