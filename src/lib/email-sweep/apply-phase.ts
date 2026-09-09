@@ -370,18 +370,60 @@ async function importNewAttachments(
   try {
     const messages = await fetchThread(thread.mailbox, thread.gmail_thread_id)
     const fresh = messages.slice(link.applied_message_count)
+
+    // Dedupe on FILE NAME, not name+size. A bid package resends the same
+    // drawing on every reply, and — measured on this corpus — the same document
+    // sent from two different threads arrives at different byte sizes, re-encoded
+    // or lightly revised: one briefing came in at 205,839 and 211,664 bytes, and
+    // a Myton memo at 134,676 and 134,980. Keying on size let both through.
+    //
+    // The trade-off is deliberate. A genuinely different file that happens to
+    // share a name with one already on the record will be skipped, and it stays
+    // in the email where it can still be found. That is the cheaper error: a
+    // near-duplicate doubles the document's chunks and biases every retrieval
+    // toward whatever was duplicated, which degrades the answers this whole
+    // feature exists to improve.
+    const seen = new Set<string>()
     const refs = fresh
       .flatMap((m) => m.attachments)
-      .filter((a) => !a.isInline && a.size > 0 && a.size <= MAX_ATTACHMENT_BYTES)
+      .filter((a) => {
+        if (a.isInline || a.size <= 0 || a.size > MAX_ATTACHMENT_BYTES) return false
+        const key = a.name.toLowerCase()
+        if (seen.has(key)) return false
+        seen.add(key)
+        return true
+      })
       .slice(0, MAX_NEW_ATTACHMENTS)
     if (refs.length === 0) return 0
 
     const supabase = createAdminClient()
     const isProject = link.record_kind === 'project'
     const folder = isProject ? 'projects' : 'opportunities'
+    // What the record already holds, so a file that arrived on one thread is not
+    // imported again from another. Several threads about the same deal routinely
+    // carry the same attachment, and a duplicate is not merely untidy: it doubles
+    // the document's chunks and biases retrieval toward whatever was duplicated.
+    //
+    // Branched rather than parameterised by table name — a union of table names
+    // loses the column types the typed client checks against.
+    const { data: existingDocs } = isProject
+      ? await supabase.from('documents').select('file_name').eq('project_id', link.record_id)
+      : await supabase
+          .from('opportunity_documents')
+          .select('file_name')
+          .eq('opportunity_id', link.record_id)
+
+    const already = new Set(
+      ((existingDocs ?? []) as { file_name: string | null }[]).map((d) =>
+        (d.file_name ?? '').toLowerCase()
+      )
+    )
+
     let imported = 0
 
     for (const ref of refs) {
+      if (already.has(ref.name.toLowerCase())) continue
+      already.add(ref.name.toLowerCase())
       const base64 = await fetchAttachmentBytes(thread.mailbox, ref.messageId, ref.attachmentId)
       if (!base64) continue
       const buffer = Buffer.from(base64, 'base64')
