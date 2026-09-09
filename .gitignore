@@ -51,3 +51,7 @@ supabase/.temp/
 
 # Claude Code local session dir
 .claude/
+
+# Scratch scripts run via the alias loader during a session — never shipped.
+# (Two were swept in by `git add -A` on 2026-09-09; this stops a repeat.)
+*.tmp.mjs
