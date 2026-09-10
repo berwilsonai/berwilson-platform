@@ -116,7 +116,14 @@ export async function reconcileVanished(opts: {
   const vanished = live.filter((d) => !seen.has(d.drive_file_id))
   if (vanished.length === 0) return { superseded: 0, heldBack: null }
 
-  if (vanished.length > live.length / 2) {
+  // A single missing file is a filing decision, not a folder event — and the
+  // guards above have already ruled out the ways a folder breaks: a pass that
+  // stopped early proves nothing, and an empty listing is never evidence.
+  // Without this the majority rule swallowed its own edge case: a folder holding
+  // ONE document could never have it retired (1 is always more than half of 1),
+  // so the archive gesture silently did nothing and the refusal was reported
+  // again every night with no way to ever clear it.
+  if (vanished.length > 1 && vanished.length > live.length / 2) {
     return {
       superseded: 0,
       heldBack: `${vanished.length} of ${live.length} documents vanished at once — treated as a folder problem, not a filing decision`,

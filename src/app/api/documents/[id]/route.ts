@@ -119,16 +119,26 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
     return Response.json({ superseded: true })
   }
 
-  // Restoring clears the flag and queues a re-index: the chunks were deleted on
-  // the way out, so without this the document would come back invisible to the
-  // one thing superseding was protecting.
+  // Restoring clears the flag and marks the document as needing another pass —
+  // its chunks were deleted on the way out, so without a re-index it comes back
+  // invisible to the very thing superseding was protecting.
+  //
+  // 'pending' is a REQUEST, not a queue: nothing in the platform sweeps for it.
+  // A Drive-sourced document is picked up by the next sync (which retries any
+  // unfinished pass), but one that never came from Drive has nothing coming for
+  // it at all — so the caller has to run the re-index, and the response says so
+  // rather than claiming a queue that does not exist.
   const { error } = await admin
     .from('documents')
     .update({ superseded_at: null, superseded_reason: null, embedding_status: 'pending' })
     .eq('id', id)
   if (error) return Response.json({ error: error.message }, { status: 500 })
 
-  return Response.json({ superseded: false, reindex: 'queued' })
+  return Response.json({
+    superseded: false,
+    reindex: 'required',
+    reindex_url: `/api/documents/${id}/reindex`,
+  })
 }
 
 export async function DELETE(_request: NextRequest, { params }: RouteContext) {
