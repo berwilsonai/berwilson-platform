@@ -22,7 +22,7 @@
  */
 
 import { createAdminClient } from '@/lib/supabase/admin'
-import { runDocumentAiPass, documentKind } from '@/lib/ai/document-pipeline'
+import { runDocumentAiPass, documentKind, needsAnotherPass } from '@/lib/ai/document-pipeline'
 import {
   listFolder,
   fetchDriveFile,
@@ -52,6 +52,7 @@ export interface DriveSyncProgress {
 interface KnownDoc extends KnownDriveDoc {
   storage_path: string
   drive_modified_at: string | null
+  embedding_status: string | null
 }
 
 export async function syncDriveKnowledge(
@@ -106,7 +107,7 @@ export async function syncDriveKnowledge(
   // would either steal the row or fail the insert every night forever.
   const { data: existingRows } = await supabase
     .from('documents')
-    .select('id, storage_path, drive_file_id, drive_modified_at, superseded_at, is_company')
+    .select('id, storage_path, drive_file_id, drive_modified_at, superseded_at, is_company, embedding_status')
     .not('drive_file_id', 'is', null)
 
   const known = new Map<string, KnownDoc>()
@@ -144,8 +145,16 @@ export async function syncDriveKnowledge(
     const returning = !!prior?.superseded_at
     if (returning && prior) await restoreDocument(supabase, prior.id)
 
+    // A document whose AI pass never finished has a file but no text and no
+    // chunks, so it is invisible to the search it was imported for — while
+    // change detection correctly reports its bytes as unchanged and never comes
+    // back for it. The project sync has always retried these; this one did not,
+    // and sixteen company documents sat unreadable indefinitely as a result,
+    // including the Tooele Army Depot LOI and two patents.
+    const stranded = !!prior && needsAnotherPass(prior.embedding_status)
+
     // Drive's modifiedTime changes on any edit — same instant means nothing to do.
-    if (prior && !returning && driveFileUnchanged(prior.drive_modified_at, file)) {
+    if (prior && !returning && !stranded && driveFileUnchanged(prior.drive_modified_at, file)) {
       progress.unchanged++
       continue
     }

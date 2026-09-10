@@ -18,7 +18,7 @@
  */
 
 import { createAdminClient } from '@/lib/supabase/admin'
-import { runDocumentAiPass, documentKind } from '@/lib/ai/document-pipeline'
+import { runDocumentAiPass, documentKind, needsAnotherPass } from '@/lib/ai/document-pipeline'
 import {
   listFolder,
   fetchDriveFile,
@@ -60,17 +60,6 @@ export interface DocumentArrival {
 interface KnownDoc extends KnownDriveDoc {
   drive_modified_at: string | null
   embedding_status: string | null
-}
-
-/**
- * A document whose AI pass never finished is worth another try even though its
- * bytes have not changed. This repo has stranded documents at 'processing' twice
- * before — an app restart mid-pass leaves a row that has a file, no text and no
- * chunks, and is therefore invisible to the search it was imported for. Nothing
- * ever comes back for it, because change detection correctly says "unchanged".
- */
-function needsAnotherPass(status: string | null): boolean {
-  return status !== 'complete' && status !== 'skipped'
 }
 
 /** Google Docs arrive as an unsupported mime but export to text — keep them. */

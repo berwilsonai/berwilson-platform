@@ -60,6 +60,23 @@ async function setStatus(supabase: AdminClient, documentId: string, status: stri
 }
 
 /**
+ * Is this document's AI pass unfinished, and therefore worth running again?
+ *
+ * The two settled states are 'complete' and 'skipped'. Everything else —
+ * 'error', 'processing', 'pending', or a row that predates the column — means
+ * the pass never reached an end, and the document has a file but no text and no
+ * chunks: invisible to the search it was imported for, while change detection
+ * correctly reports its bytes as unchanged and never comes back for it.
+ *
+ * Lives here, next to the statuses it interprets, because every sync that
+ * imports documents needs the same answer and one of them not having it is how
+ * sixteen company documents sat unreadable indefinitely.
+ */
+export function needsAnotherPass(status: string | null | undefined): boolean {
+  return status !== 'complete' && status !== 'skipped'
+}
+
+/**
  * Run the full AI pass on one document and settle its embedding_status.
  *
  * Never throws. The end state distinguishes three things that look alike from
@@ -104,30 +121,54 @@ export async function runDocumentAiPass(input: {
       fullText = new TextDecoder().decode(buffer)
     }
 
+    // An empty extraction is not text. Normalized here so the `??` below cannot
+    // treat '' as a usable value and try to embed nothing.
+    if (!fullText?.trim()) fullText = null
+
     // 2. Summary. PDFs go through the file path (Gemini needs the file;
     // local mode extracts text itself); docx/text summarize the extracted text.
+    //
+    // A summary failure must NOT cost the document. Extraction has already
+    // succeeded at this point, and the summary is a convenience — the verbatim
+    // text is what gets embedded and what Ber AI actually answers from. Letting
+    // this throw meant one model hiccup discarded the text as well, leaving a
+    // document with a file, no chunks, and an 'error' that nothing came back
+    // for: exactly the state fifteen company documents were found in, including
+    // the Tooele LOI and a DoD award letter.
+    //
+    // The one exception is a file nothing here can READ at all, which the PDF
+    // path reports as UnreadableDocumentError. That is not a hiccup and there is
+    // no text behind it, so it stays fatal and settles the document as skipped.
     let parsed: DocSummary | null = null
-    if (kind === 'pdf') {
-      const result = await callGeminiWithFile<DocSummary>({
-        systemPrompt: DOC_SUMMARY_SYSTEM,
-        prompt: 'Summarize this document.',
-        file: { mimeType: PDF_MIME_TYPE, dataBase64: pdfBase64! },
-        userId: SYSTEM_USER_ID,
-        logLabel: `Document summary: ${fileName}`,
-        promptVersion: 'doc-summary-1.0',
-        maxTokens: 2048, // Gemini-path cap only; local mode ignores maxTokens (unbudgeted)
-      })
-      parsed = result.data
-    } else if (fullText) {
-      const result = await callGemini<DocSummary>({
-        task: 'doc-summary',
-        systemPrompt: DOC_SUMMARY_SYSTEM,
-        userMessage: fullText.slice(0, 30000),
-        userId: SYSTEM_USER_ID,
-        promptVersion: 'doc-summary-1.0',
-        maxTokens: 2048,
-      })
-      parsed = result.data
+    try {
+      if (kind === 'pdf') {
+        const result = await callGeminiWithFile<DocSummary>({
+          systemPrompt: DOC_SUMMARY_SYSTEM,
+          prompt: 'Summarize this document.',
+          file: { mimeType: PDF_MIME_TYPE, dataBase64: pdfBase64! },
+          userId: SYSTEM_USER_ID,
+          logLabel: `Document summary: ${fileName}`,
+          promptVersion: 'doc-summary-1.0',
+          maxTokens: 2048, // Gemini-path cap only; local mode ignores maxTokens (unbudgeted)
+        })
+        parsed = result.data
+      } else if (fullText) {
+        const result = await callGemini<DocSummary>({
+          task: 'doc-summary',
+          systemPrompt: DOC_SUMMARY_SYSTEM,
+          userMessage: fullText.slice(0, 30000),
+          userId: SYSTEM_USER_ID,
+          promptVersion: 'doc-summary-1.0',
+          maxTokens: 2048,
+        })
+        parsed = result.data
+      }
+    } catch (err) {
+      if (err instanceof UnreadableDocumentError || !fullText) throw err
+      console.warn(
+        `[document-pipeline] summary failed for ${fileName}, indexing the text anyway:`,
+        err instanceof Error ? err.message : String(err)
+      )
     }
 
     let aiSummary: string | null = null
@@ -151,8 +192,13 @@ export async function runDocumentAiPass(input: {
     // 3. Embed — full text when we have it, summary as the fallback.
     const embedText = fullText ?? aiSummary
     if (!embedText) {
-      await setStatus(supabase, documentId, 'error')
-      return { status: 'error', aiSummary, confidence }
+      // Neither text nor summary, and step 2 no longer swallows the text on a
+      // model hiccup — so this is a file whose content genuinely cannot be read
+      // (an empty or image-only docx, a blank export). That is 'skipped', not
+      // 'error': both leave it unsearchable, but only one of them invites a
+      // nightly sync to fetch and re-read it forever.
+      await setStatus(supabase, documentId, 'skipped')
+      return { status: 'skipped', aiSummary, confidence }
     }
     const ok = await embedDocument(
       documentId,
