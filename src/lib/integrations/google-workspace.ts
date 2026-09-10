@@ -135,6 +135,25 @@ export const LEAD_ONLY_SCOPES = [
 ] as const
 
 /**
+ * Scopes for a mailbox that exists ONLY to hold a team member's task list.
+ *
+ * `tasks` is read + write + delete across EVERY list in the account — Google
+ * offers no app-created-only variant the way Drive does with drive.file. The
+ * only control is discipline: this platform addresses exactly one stored list
+ * id and NEVER enumerates a person's lists at runtime. Someone consenting here
+ * is granting access to their private to-dos; say so when you ask them.
+ *
+ * This is a tier of its own, and {@link scopesFor} returns it INSTEAD of
+ * {@link SCOPES} for a member's own account rather than alongside it. A sales
+ * rep should not have to hand over gmail.readonly, calendar.readonly, contacts
+ * (write) and drive.readonly across their whole account in order to see their
+ * task list on their phone.
+ */
+export const TASKS_ONLY_SCOPES = [
+  'https://www.googleapis.com/auth/tasks',
+] as const
+
+/**
  * Mailboxes the platform reads. Order matters only in that the first is the
  * default for calendar/contact lookups that aren't mailbox-specific.
  * Override with GOOGLE_IMPERSONATE_MAILBOXES (comma separated).
@@ -165,9 +184,34 @@ export const LEAD_MAILBOXES: readonly string[] = (
   .map((m) => m.trim().toLowerCase())
   .filter(Boolean)
 
-/** Every mailbox the platform holds a credential for, deduped. */
+/**
+ * Team members' own Google accounts, each holding one platform task list.
+ *
+ * Separate from every list above because these accounts are read for NOTHING —
+ * no mail, no calendar, no contacts. A member joins by having their address
+ * added here and running the consent script once.
+ */
+export const TASK_MAILBOXES: readonly string[] = (process.env.GOOGLE_TASK_MAILBOXES ?? '')
+  .split(',')
+  .map((m) => m.trim().toLowerCase())
+  .filter(Boolean)
+
+/**
+ * Every mailbox the platform holds a credential for, deduped.
+ *
+ * DELIBERATELY EXCLUDES {@link TASK_MAILBOXES}. Its consumers iterate mailboxes
+ * to do work in them — the contacts sync would start pushing the entire parties
+ * directory into every team member's personal Google Contacts, and fail noisily
+ * doing it, since a task-only token carries no contacts scope. Use
+ * {@link everyConsentedMailbox} when you mean "everything we hold a token for".
+ */
 export function allMailboxes(): string[] {
   return [...new Set([...MAILBOXES, ...LEAD_MAILBOXES])]
+}
+
+/** Every mailbox with a stored credential, task-only accounts included. */
+export function everyConsentedMailbox(): string[] {
+  return [...new Set([...MAILBOXES, ...LEAD_MAILBOXES, ...TASK_MAILBOXES])]
 }
 
 /**
@@ -180,10 +224,21 @@ export function allMailboxes(): string[] {
  */
 export function scopesFor(mailbox: string): string[] {
   const m = mailbox.trim().toLowerCase()
+  const isCore = MAILBOXES.includes(m) || LEAD_MAILBOXES.includes(m)
+
+  // A member's own account gets the task scope and NOTHING else. This is a
+  // switch rather than another term in the union on purpose — see
+  // TASKS_ONLY_SCOPES. Keep scripts/setup-google-oauth.mjs's scopesForMailbox()
+  // in step with this branch; its parser removes array drift, not this one.
+  if (!isCore && TASK_MAILBOXES.includes(m)) return [...TASKS_ONLY_SCOPES]
+
   return [
     ...SCOPES,
     ...(m === PRIMARY_MAILBOX ? PRIMARY_ONLY_SCOPES : []),
     ...(LEAD_MAILBOXES.includes(m) ? LEAD_ONLY_SCOPES : []),
+    // A deal or lead mailbox that ALSO belongs to a member (moose@, tuaone@)
+    // adds the task scope to what it already holds.
+    ...(TASK_MAILBOXES.includes(m) ? TASKS_ONLY_SCOPES : []),
   ]
 }
 
@@ -522,6 +577,23 @@ async function oauthAccessToken(mailbox: string): Promise<string> {
   return (JSON.parse(text) as { access_token: string }).access_token
 }
 
+/**
+ * Is there a stored refresh token for this exact mailbox?
+ *
+ * A file-and-key check, never a network call — the task sync asks it once per
+ * member per run to tell "has not connected yet" (the normal state for most of
+ * the team) apart from "connected and broken", which are the same HTTP error
+ * but completely different things to tell a human.
+ */
+export function hasStoredCredential(mailbox: string): boolean {
+  if (!hasOAuthTokens()) return false
+  try {
+    return Boolean(oauthStore().tokens[mailbox.trim().toLowerCase()])
+  } catch {
+    return false
+  }
+}
+
 function explainOAuthError(raw: string, mailbox: string): string {
   if (raw.includes('invalid_grant')) {
     return `the stored consent for ${mailbox} is no longer valid — usually a password change or an admin revoking app access. Re-consent with: node scripts/setup-google-oauth.mjs`
@@ -631,6 +703,9 @@ const RETRY_ATTEMPTS = 5
 const RETRY_BASE_MS = 2_000
 
 function isTransient(status: number, body: string): boolean {
+  // 401 belongs here: an access token can expire mid-loop, and every attempt
+  // re-mints one via getAccessToken — but only if we get as far as retrying.
+  if (status === 401) return true
   if (status === 429 || status === 500 || status === 502 || status === 503) return true
   // 403 is overloaded: throttling, or a genuine permission failure that no
   // amount of waiting fixes. Only the body separates them.
@@ -638,18 +713,99 @@ function isTransient(status: number, body: string): boolean {
   return false
 }
 
-async function googleRequest(url: string, mailbox: string): Promise<Response> {
+/**
+ * Retry policy for a request that is NOT safe to repeat.
+ *
+ * `tasks.insert` — and Google's write endpoints generally — carry no
+ * idempotency key, so retrying a POST after a 500 that actually succeeded
+ * server-side puts a SECOND copy in someone's list. Only two statuses prove
+ * Google rejected the request before executing it: 429, and the 403 that means
+ * "slow down". Everything else is ambiguous and must not be repeated.
+ */
+function isSafeToRepeat(status: number, body: string): boolean {
+  if (status === 429) return true
+  if (status === 403) return /quota|rate limit|rateLimitExceeded|userRateLimitExceeded/i.test(body)
+  return false
+}
+
+/**
+ * A Google call that failed after every retry, carrying the status and body so
+ * a transport module can map it onto its own vocabulary — 404 as "already
+ * gone", 403 as "this mailbox needs to re-consent" — instead of re-parsing a
+ * formatted message. The message is unchanged from what it always was, so a
+ * caller that only reads `.message` is unaffected.
+ */
+export class GoogleHttpError extends Error {
+  // Declared as fields rather than constructor parameter properties: the repo's
+  // standalone verification scripts run under `node --experimental-strip-types`,
+  // which is strip-only and cannot compile a parameter property. Anything in a
+  // module those scripts import has to stay inside that subset.
+  readonly status: number
+  readonly body: string
+
+  constructor(message: string, status: number, body: string) {
+    super(message)
+    this.name = 'GoogleHttpError'
+    this.status = status
+    this.body = body
+  }
+
+  /** A 403 that means "no permission", not the 403 that means "slow down". */
+  get isPermission(): boolean {
+    return (
+      this.status === 403 &&
+      !/quota|rate limit|rateLimitExceeded|userRateLimitExceeded/i.test(this.body)
+    )
+  }
+
+  /** The scope the stored consent predates is missing. */
+  get isScope(): boolean {
+    return (
+      this.isPermission ||
+      /insufficient|insufficientPermissions|ACCESS_TOKEN_SCOPE_INSUFFICIENT/i.test(this.body)
+    )
+  }
+}
+
+export interface GoogleRequestInit {
+  method?: 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE'
+  /** Serialized as JSON. Omit for GET/DELETE. */
+  body?: unknown
+  /**
+   * May this request be repeated after an ambiguous failure? Defaults to true
+   * for every method except POST, which creates.
+   */
+  idempotent?: boolean
+}
+
+async function googleRequest(
+  url: string,
+  mailbox: string,
+  init: GoogleRequestInit = {}
+): Promise<Response> {
   let lastBody = ''
   let lastStatus = 0
 
+  const method = init.method ?? 'GET'
+  const repeatable = init.idempotent ?? method !== 'POST'
+
   for (let attempt = 0; attempt < RETRY_ATTEMPTS; attempt++) {
     const token = await getAccessToken(mailbox)
-    const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } })
+    const headers: Record<string, string> = { Authorization: `Bearer ${token}` }
+    if (init.body !== undefined) headers['Content-Type'] = 'application/json'
+    const res = await fetch(url, {
+      method,
+      headers,
+      ...(init.body !== undefined ? { body: JSON.stringify(init.body) } : {}),
+    })
     if (res.ok) return res
 
     lastBody = await res.text()
     lastStatus = res.status
-    if (!isTransient(res.status, lastBody) || attempt === RETRY_ATTEMPTS - 1) break
+    const retryable = repeatable
+      ? isTransient(res.status, lastBody)
+      : isSafeToRepeat(res.status, lastBody)
+    if (!retryable || attempt === RETRY_ATTEMPTS - 1) break
 
     // Honour Retry-After when Google sends one; otherwise back off
     // exponentially. The per-minute window means the first wait is already
@@ -663,11 +819,21 @@ async function googleRequest(url: string, mailbox: string): Promise<Response> {
   }
 
   const path = url.split('?')[0].replace(/https:\/\/[^/]+/, '')
-  throw new Error(`Google API ${path} failed: ${lastStatus} — ${explainTokenError(lastBody)}`)
+  throw new GoogleHttpError(
+    `Google API ${path} failed: ${lastStatus} — ${explainTokenError(lastBody)}`,
+    lastStatus,
+    lastBody
+  )
 }
 
-export async function googleFetch<T>(url: string, mailbox: string): Promise<T> {
-  const res = await googleRequest(url, mailbox)
+export async function googleFetch<T>(
+  url: string,
+  mailbox: string,
+  init?: GoogleRequestInit
+): Promise<T> {
+  const res = await googleRequest(url, mailbox, init)
+  // 204 has no body, and JSON.parse('') throws. DELETE endpoints return one.
+  if (res.status === 204) return undefined as T
   return res.json() as Promise<T>
 }
 

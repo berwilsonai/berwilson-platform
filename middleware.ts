@@ -49,7 +49,8 @@ export async function middleware(request: NextRequest) {
     pathname === '/api/cron/drive-publish' ||        // Drive document publish cron (self-guards via CRON_SECRET)
     pathname === '/api/cron/contacts-sync' ||        // Directory → Google Contacts cron (self-guards via CRON_SECRET)
     pathname === '/api/cron/meet-import' ||          // Google Meet transcript import cron (self-guards via CRON_SECRET)
-    pathname === '/api/cron/deal-intake'             // Website deal-form intake scan (self-guards via CRON_SECRET)
+    pathname === '/api/cron/deal-intake' ||          // Website deal-form intake scan (self-guards via CRON_SECRET)
+    pathname === '/api/cron/google-tasks'            // Task board <-> Google Tasks sync (self-guards via CRON_SECRET)
 
   if (!user && !isPublicRoute) {
     // API calls must get a real 401 (not an HTML login-page redirect that fetch

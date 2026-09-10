@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.berwilson.cron-google-tasks</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/zsh</string>
+    <string>-c</string>
+    <string>curl -sS -m 850 -H "Authorization: Bearer $(grep '^CRON_SECRET=' __APP_DIR__/.env.local | cut -d= -f2-)" http://localhost:3000/api/cron/google-tasks</string>
+  </array>
+  <!-- Every 15 minutes, all day. StartInterval rather than the
+       StartCalendarInterval every other job here uses, because those are all
+       daily or weekly and this one is not.
+
+       Minutes, not nightly: three confirm routes (meeting intake, email
+       ingestion, action items) create tasks in bulk without going through
+       /api/tasks, so they never fire the immediate push. "The tasks someone
+       assigned you this morning turn up tomorrow" is the wrong answer for a
+       to-do list, and it is the reason those routes were left out of the
+       immediate path rather than made to pay twenty Google round trips inside
+       a human-facing click.
+
+       ThrottleInterval matches, so a run that overruns cannot stack. -->
+  <key>StartInterval</key>
+  <integer>900</integer>
+  <key>ThrottleInterval</key>
+  <integer>900</integer>
+  <key>AbandonProcessGroup</key>
+  <false/>
+  <key>StandardOutPath</key>
+  <string>__LOG_DIR__/cron-google-tasks.log</string>
+  <key>StandardErrorPath</key>
+  <string>__LOG_DIR__/cron-google-tasks.err.log</string>
+</dict>
+</plist>

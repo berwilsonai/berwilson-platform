@@ -3,6 +3,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import type { TablesInsert } from '@/lib/supabase/types'
 import { getViewer, filterTasksForViewer, canCreateTask, forbiddenJson, actorAdminClient } from '@/lib/auth/viewer'
 import { resolveWaitingOn, selfBlockError } from '@/lib/tasks/handoff'
+import { queueTaskPush } from '@/lib/tasks/google-push'
 
 /** GET — list tasks with optional filters (?status=open|done&assignee=<id>&project=<id>&blocking=<id>) */
 export async function GET(request: NextRequest) {
@@ -94,5 +95,9 @@ export async function POST(request: NextRequest) {
     console.error('Create task failed:', error)
     return Response.json({ error: error.message }, { status: 500 })
   }
+
+  // A newly assigned task should be on the assignee's phone now, not tomorrow.
+  if (data?.id) queueTaskPush(data.id)
+
   return Response.json({ task: data })
 }

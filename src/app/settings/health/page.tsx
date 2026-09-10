@@ -20,6 +20,7 @@ import {
   probeCardOcr,
   probeWhisper,
   probeContactsSync,
+  probeGoogleTasks,
   probeDrivePublishing,
   probeDriveKnowledge,
   probeDocumentIndexing,
@@ -95,7 +96,7 @@ async function runChecks(): Promise<HealthCheck[]> {
   const dayAgo = new Date(Date.now() - 86_400_000).toISOString()
   const localAI = process.env.AI_PROVIDER === 'local'
 
-  const [brief, riskScore, lastAi, aiDayCount, failedRuns, mailbox, lmStudio, backups, drive, docIndexing, driveSources, scopes, disk, lastDigest, failedDigests, contacts, drivePublish, meetImport, dealIntake, routing] =
+  const [brief, riskScore, lastAi, aiDayCount, failedRuns, mailbox, lmStudio, backups, drive, docIndexing, driveSources, scopes, disk, lastDigest, failedDigests, contacts, googleTasks, drivePublish, meetImport, dealIntake, routing] =
     await Promise.all([
       supabase
         .from('stored_briefs')
@@ -148,6 +149,7 @@ async function runChecks(): Promise<HealthCheck[]> {
         .eq('status', 'failed')
         .gte('created_at', weekAgo),
       probeContactsSync(),
+      probeGoogleTasks(),
       probeDrivePublishing(),
       probeMeetImport(),
       probeDealIntake(),
@@ -486,6 +488,36 @@ async function runChecks(): Promise<HealthCheck[]> {
             ? 'Some contacts have not reached Google yet'
             : 'Not configured',
       detail: contacts.detail,
+    })
+  }
+
+  // Google Tasks — coverage, not completeness. Most of the team has not
+  // connected an account (six of nine members have no email on file at all),
+  // so "partial" is the correct steady state and renders green with the names
+  // and the exact command. Only a paused/absent list is a real fault.
+  {
+    checks.push({
+      name: 'Google Tasks Sync',
+      status:
+        googleTasks.state === 'failed'
+          ? 'fail'
+          : googleTasks.state === 'stalled'
+            ? 'warn'
+            : 'ok',
+      headline:
+        googleTasks.state === 'ok'
+          ? 'Every member has their tasks in Google'
+          : googleTasks.state === 'partial'
+            ? 'Syncing for the members who have connected'
+            : googleTasks.state === 'stalled'
+              ? 'Connected, but nothing has synced recently'
+              : googleTasks.state === 'unconfigured'
+                ? 'Not switched on'
+                : 'Sync is paused or has no list',
+      detail:
+        googleTasks.state === 'stalled'
+          ? `${googleTasks.detail} ${cronLogsHint}`
+          : googleTasks.detail,
     })
   }
 

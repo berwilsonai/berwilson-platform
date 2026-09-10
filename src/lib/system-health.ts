@@ -15,6 +15,7 @@ import path from 'path'
 import {
   allMailboxes,
   MAILBOXES,
+  TASK_MAILBOXES,
   isGoogleConfigured,
   probeGoogleConnection,
   probeScopeCoverage,
@@ -668,6 +669,117 @@ export async function probeContactsSync(): Promise<{
     return {
       state: 'stale',
       detail: `${detail} The rest go out on the next nightly run (2:45am).`,
+    }
+  }
+  return { state: 'ok', detail }
+}
+
+
+/**
+ * Is each team member's Google Tasks list actually being kept up to date?
+ *
+ * Reports COVERAGE, not completeness, and the distinction is the whole design:
+ * most of the team has not connected a Google account — six of nine members
+ * have no email address on file at all — so "not everyone is synced" is the
+ * correct steady state and must not render red. It names who is missing and
+ * gives the exact command, the way every other Google card here does.
+ *
+ * `detached` is reported and deliberately never affects state. A member
+ * clearing a task off their own list is the feature working, not a fault to be
+ * chased, and a check that goes amber every time somebody tidies up is a check
+ * people stop reading.
+ */
+export async function probeGoogleTasks(): Promise<{
+  state: 'ok' | 'partial' | 'unconfigured' | 'stalled' | 'failed'
+  detail: string
+}> {
+  if (!isGoogleConfigured()) {
+    return { state: 'unconfigured', detail: 'Google Workspace is not configured.' }
+  }
+  if (TASK_MAILBOXES.length === 0) {
+    return {
+      state: 'unconfigured',
+      detail:
+        'Google Tasks sync is off — GOOGLE_TASK_MAILBOXES is unset. Nothing is broken; ' +
+        'tasks simply live only in Ber Intelligence.',
+    }
+  }
+
+  const supabase = createAdminClient()
+  const [members, lists, detached] = await Promise.all([
+    supabase.from('team_members').select('id, name, email').eq('active', true),
+    supabase.from('google_task_lists').select('team_member_id, last_synced_at, missing_at, last_error'),
+    supabase.from('task_google_links').select('id', { count: 'exact', head: true }).eq('state', 'detached'),
+  ])
+
+  if (members.error) {
+    return { state: 'failed', detail: `Could not read the team: ${members.error.message}` }
+  }
+
+  const active = members.data ?? []
+  const listRows = (lists.data ?? []) as {
+    team_member_id: string
+    last_synced_at: string | null
+    missing_at: string | null
+    last_error: string | null
+  }[]
+  const byMember = new Map(listRows.map((r) => [r.team_member_id, r]))
+
+  const connected = active.filter((m) => byMember.has(m.id))
+  const unconnected = active.filter((m) => !byMember.has(m.id))
+  const paused = listRows.filter((r) => r.missing_at)
+  const detachedCount = detached.count ?? 0
+
+  const tail =
+    (detachedCount
+      ? ` ${detachedCount} task${detachedCount === 1 ? ' has' : 's have'} been cleared off a member's own list and ` +
+        `${detachedCount === 1 ? 'is' : 'are'} no longer syncing — that is the sync obeying them, not a fault.`
+      : '')
+
+  if (paused.length > 0) {
+    return {
+      state: 'failed',
+      detail:
+        `${paused.length} member${paused.length === 1 ? "'s" : "s'"} Google list was deleted, so their sync is ` +
+        `paused and nothing was detached. Clear missing_at on google_task_lists to rebuild it.${tail}`,
+    }
+  }
+
+  if (connected.length === 0) {
+    return {
+      state: 'failed',
+      detail:
+        `${TASK_MAILBOXES.length} address${TASK_MAILBOXES.length === 1 ? ' is' : 'es are'} nominated in ` +
+        `GOOGLE_TASK_MAILBOXES but no member has a list yet. Consent them with: ` +
+        `node scripts/setup-google-oauth.mjs --only <address>`,
+    }
+  }
+
+  // A 15-minute cadence, so two hours of silence is many missed runs, not one.
+  const newest = listRows
+    .map((r) => (r.last_synced_at ? new Date(r.last_synced_at).getTime() : 0))
+    .reduce((a, b) => Math.max(a, b), 0)
+  const ageHours = newest ? (Date.now() - newest) / 3_600_000 : Infinity
+  if (Number.isFinite(ageHours) && ageHours > 2) {
+    return {
+      state: 'stalled',
+      detail:
+        `${connected.length} member${connected.length === 1 ? '' : 's'} connected, but nothing has synced in ` +
+        `${Math.round(ageHours)} hours. The job runs every 15 minutes.${tail}`,
+    }
+  }
+
+  const names = unconnected.map((m) => m.name).join(', ')
+  const detail =
+    `${connected.length} of ${active.length} active team member${active.length === 1 ? '' : 's'} ` +
+    `${connected.length === 1 ? 'has' : 'have'} their tasks in Google Tasks.${tail}`
+
+  if (unconnected.length > 0) {
+    return {
+      state: 'partial',
+      detail:
+        `${detail} Not synced anywhere: ${names}. Add their address to GOOGLE_TASK_MAILBOXES, then ` +
+        `node scripts/setup-google-oauth.mjs --only <address>. A member with no email on file needs one first.`,
     }
   }
   return { state: 'ok', detail }

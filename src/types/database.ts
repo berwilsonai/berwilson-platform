@@ -1168,6 +1168,50 @@ export type Database = {
           },
         ]
       }
+      google_task_lists: {
+        Row: {
+          created_at: string | null
+          google_list_id: string
+          last_error: string | null
+          last_synced_at: string | null
+          mailbox: string
+          missing_at: string | null
+          team_member_id: string
+          title: string
+          updated_min: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          google_list_id: string
+          last_error?: string | null
+          last_synced_at?: string | null
+          mailbox: string
+          missing_at?: string | null
+          team_member_id: string
+          title: string
+          updated_min?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          google_list_id?: string
+          last_error?: string | null
+          last_synced_at?: string | null
+          mailbox?: string
+          missing_at?: string | null
+          team_member_id?: string
+          title?: string
+          updated_min?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "google_task_lists_team_member_id_fkey"
+            columns: ["team_member_id"]
+            isOneToOne: true
+            referencedRelation: "team_members"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       investments: {
         Row: {
           amount_committed: number | null
@@ -2965,6 +3009,72 @@ export type Database = {
             columns: ["project_id"]
             isOneToOne: false
             referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      task_google_links: {
+        Row: {
+          base_due: string | null
+          base_status: string | null
+          created_at: string | null
+          detach_reason: string | null
+          detached_at: string | null
+          google_list_id: string
+          google_task_id: string
+          id: string
+          last_error: string | null
+          last_synced_at: string | null
+          origin: string
+          state: string
+          task_id: string
+          team_member_id: string
+        }
+        Insert: {
+          base_due?: string | null
+          base_status?: string | null
+          created_at?: string | null
+          detach_reason?: string | null
+          detached_at?: string | null
+          google_list_id: string
+          google_task_id: string
+          id?: string
+          last_error?: string | null
+          last_synced_at?: string | null
+          origin?: string
+          state?: string
+          task_id: string
+          team_member_id: string
+        }
+        Update: {
+          base_due?: string | null
+          base_status?: string | null
+          created_at?: string | null
+          detach_reason?: string | null
+          detached_at?: string | null
+          google_list_id?: string
+          google_task_id?: string
+          id?: string
+          last_error?: string | null
+          last_synced_at?: string | null
+          origin?: string
+          state?: string
+          task_id?: string
+          team_member_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_google_links_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "task_google_links_team_member_id_fkey"
+            columns: ["team_member_id"]
+            isOneToOne: false
+            referencedRelation: "team_members"
             referencedColumns: ["id"]
           },
         ]
