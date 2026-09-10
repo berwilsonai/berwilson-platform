@@ -118,7 +118,23 @@ ssh "$STUDIO" "
 "
 
 echo "==> Enabling Tailscale serve (HTTPS inside the tailnet only)"
+# BOTH listeners, every time. The app on 443 and self-hosted Supabase on 8443
+# are two halves of one deployment: NEXT_PUBLIC_SUPABASE_URL points at the 8443
+# one, so with it missing the app still answers /login and fails at every single
+# data path — which reads as "the platform is broken", not "a proxy is missing".
+#
+# Restored here rather than assumed because the serve config is Tailscale's
+# state, not ours, and it does not always survive: it was found completely empty
+# on 2026-09-09 with every container healthy and the app running, taking the
+# platform off the tailnet entirely. The 8443 half was set up by hand at the
+# July cutover and had never been in this script, so a redeploy would have
+# restored only half of it.
 ssh "$STUDIO" "$TAILSCALE serve --bg 3000 2>&1 | grep -v '^$' | head -5" || echo "  WARN: tailscale serve failed — app still reachable at http://100.86.79.4:3000 inside the tailnet"
+ssh "$STUDIO" "$TAILSCALE serve --bg --https=8443 http://127.0.0.1:8000 2>&1 | grep -v '^$' | head -5" || echo "  WARN: could not serve Supabase on :8443 — the app will not reach its database"
+
+# Say what is actually being served, so a half-configured proxy is visible in
+# the deploy output instead of being discovered as a mystery outage later.
+ssh "$STUDIO" "$TAILSCALE serve status 2>&1 | head -12"
 
 echo "==> Health check"
 # `next start` needs ~10s to listen. A single probe 5s in reported HTTP 000 on
