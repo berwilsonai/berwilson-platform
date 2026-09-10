@@ -301,6 +301,90 @@ export async function probeDriveKnowledge(): Promise<{
 }
 
 /**
+ * Are the documents we hold actually indexed, or just sitting there?
+ *
+ * A document with a file but no chunks is invisible to Ber AI while looking
+ * perfectly normal everywhere a human looks: it is on the record, it opens, it
+ * downloads. Only a retrieval that should have found it and didn't reveals the
+ * gap, and that surfaces as a wrong answer weeks later rather than as a fault.
+ *
+ * Counted out loud because this has now happened at least four times, most
+ * recently on 2026-09-09 when sixteen company documents — a DoD award letter, a
+ * Phase 1 environmental report, the Tooele LOI — sat unreadable because the
+ * company sync had no retry for an unfinished pass. Everything reported healthy
+ * throughout.
+ *
+ * 'skipped' is deliberately NOT counted as a problem: it is the settled state
+ * for a file nothing here can read, such as a scanned plat with no vision model
+ * loaded, and treating it as a fault would make this permanently red.
+ */
+export async function probeDocumentIndexing(): Promise<{
+  state: 'ok' | 'stalled' | 'failed'
+  detail: string
+}> {
+  const supabase = createAdminClient()
+  try {
+    const { data, error } = await supabase
+      .from('documents')
+      .select('embedding_status')
+      .is('superseded_at', null)
+    if (error) throw new Error(error.message)
+
+    const rows = (data ?? []) as { embedding_status: string | null }[]
+    let complete = 0
+    let skipped = 0
+    const stuck: Record<string, number> = {}
+    for (const r of rows) {
+      const status = r.embedding_status ?? 'pending'
+      if (status === 'complete') complete++
+      else if (status === 'skipped') skipped++
+      else stuck[status] = (stuck[status] ?? 0) + 1
+    }
+
+    const tail = `${complete} indexed, ${skipped} not readable (correctly skipped).`
+
+    // 'processing' means a pass is RUNNING, and the syncs work one document at
+    // a time — so a single one is almost certainly in flight right now, and
+    // calling that stalled would make this check cry wolf through every nightly
+    // run. More than one cannot be in flight, so passes are dying mid-way.
+    //
+    // The table carries no updated_at, so sequential processing is the only
+    // thing available to tell "working" from "stuck". If a parallel importer is
+    // ever added, this rule has to change with it.
+    const inFlight = (stuck.processing ?? 0) === 1 ? 1 : 0
+    const stuckTotal = Object.values(stuck).reduce((a, b) => a + b, 0) - inFlight
+    if (stuckTotal === 0) {
+      return {
+        state: 'ok',
+        detail: inFlight
+          ? `Every document is settled, one pass running now. ${tail}`
+          : `Every document is settled. ${tail}`,
+      }
+    }
+
+    // The in-flight pass is excluded from the breakdown as well as the count,
+    // or the two disagree: "1 document never finished (1 error, 1 processing)".
+    const breakdown = Object.entries(stuck)
+      .map(([k, v]) => [k, k === 'processing' ? v - inFlight : v] as const)
+      .filter(([, v]) => v > 0)
+      .map(([k, v]) => `${v} ${k}`)
+      .join(', ')
+    return {
+      state: 'stalled',
+      detail:
+        `${stuckTotal} document${stuckTotal === 1 ? '' : 's'} never finished indexing (${breakdown}) — ` +
+        `${stuckTotal === 1 ? 'it is' : 'they are'} on the record but invisible to Ber AI. ` +
+        `A Drive-sourced document is retried by its nightly sync; anything else needs the Reindex button on the document. ${tail}`,
+    }
+  } catch (err) {
+    return {
+      state: 'failed',
+      detail: `Could not count document indexing: ${err instanceof Error ? err.message : String(err)}`,
+    }
+  }
+}
+
+/**
  * Are project Drive folders actually linked, and reaching the projects?
  *
  * Coverage, not pass/fail — the same argument as the publishing check beside

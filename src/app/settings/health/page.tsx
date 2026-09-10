@@ -22,6 +22,7 @@ import {
   probeContactsSync,
   probeDrivePublishing,
   probeDriveKnowledge,
+  probeDocumentIndexing,
   probeDriveSourceFolders,
   probeDealIntake,
   probeThreadRouting,
@@ -94,7 +95,7 @@ async function runChecks(): Promise<HealthCheck[]> {
   const dayAgo = new Date(Date.now() - 86_400_000).toISOString()
   const localAI = process.env.AI_PROVIDER === 'local'
 
-  const [brief, riskScore, lastAi, aiDayCount, failedRuns, mailbox, lmStudio, backups, drive, driveSources, scopes, disk, lastDigest, failedDigests, contacts, drivePublish, meetImport, dealIntake, routing] =
+  const [brief, riskScore, lastAi, aiDayCount, failedRuns, mailbox, lmStudio, backups, drive, docIndexing, driveSources, scopes, disk, lastDigest, failedDigests, contacts, drivePublish, meetImport, dealIntake, routing] =
     await Promise.all([
       supabase
         .from('stored_briefs')
@@ -128,6 +129,7 @@ async function runChecks(): Promise<HealthCheck[]> {
       probeLmStudio(),
       probeBackups(),
       probeDriveKnowledge(),
+      probeDocumentIndexing(),
       probeDriveSourceFolders(),
       probeScopeCoverage(),
       probeDisk(),
@@ -342,6 +344,25 @@ async function runChecks(): Promise<HealthCheck[]> {
               ? 'No knowledge folder configured'
               : 'Cannot read the knowledge folder',
       detail: drive.detail,
+    })
+  }
+
+  // Documents that are held but not indexed. Watched because this failure is
+  // completely silent from the outside — the document is on the record, it
+  // opens and it downloads, and only an answer that should have cited it and
+  // didn't ever reveals that it was never readable.
+  {
+    checks.push({
+      name: 'Document Indexing',
+      status:
+        docIndexing.state === 'ok' ? 'ok' : docIndexing.state === 'failed' ? 'fail' : 'warn',
+      headline:
+        docIndexing.state === 'ok'
+          ? 'Every document is indexed or settled'
+          : docIndexing.state === 'failed'
+            ? 'Could not check document indexing'
+            : 'Some documents never finished indexing',
+      detail: docIndexing.detail,
     })
   }
 
