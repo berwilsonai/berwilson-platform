@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   Loader2, CheckCircle2, Building2, ListChecks, Users, FolderKanban,
-  Lightbulb, Plus, X, Trash2, Search, Target, Sparkles, Clock,
+  Lightbulb, Plus, X, Trash2, Search, Target, Sparkles,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
@@ -135,9 +135,6 @@ type TaskRow = MeetingIntakeExtraction['tasks'][number] & {
    */
   assignee_id: string | null
   /** Handoff: this task is blocked waiting on someone (same ref space as assignee). */
-  waiting_on_id: string | null
-  waiting_on_what: string | null
-  showBlocked: boolean
 }
 
 interface NewFields {
@@ -237,9 +234,6 @@ export default function MeetingIntakeReview({
         include: true,
         target_ref: seededRef >= 0 ? `seed-${seededRef}` : null,
         assignee_id: bestMemberId(t.assignee, teamMembers),
-        waiting_on_id: null,
-        waiting_on_what: null,
-        showBlocked: false,
       }
     }),
   )
@@ -274,7 +268,6 @@ export default function MeetingIntakeReview({
         (data.tasks ?? []).map((t: MeetingIntakeExtraction['tasks'][number]) => ({
           ...t, include: true, target_ref: null,
           assignee_id: bestMemberId(t.assignee, teamMembers),
-          waiting_on_id: null, waiting_on_what: null, showBlocked: false,
         })),
       )
       if (Array.isArray(data.attendees)) {
@@ -467,8 +460,6 @@ export default function MeetingIntakeReview({
             title: t.title, what: t.what, why: t.why, how: t.how,
             assignee: t.assignee, assignee_ref: effectiveAssignee(t) || null,
             due_date: t.due_date, include: t.include, target_ref: t.target_ref,
-            waiting_on_ref: t.waiting_on_id && assigneeValues.has(t.waiting_on_id) ? t.waiting_on_id : null,
-            waiting_on_what: t.waiting_on_what,
           })),
         }),
       })
@@ -741,27 +732,7 @@ export default function MeetingIntakeReview({
                       <option value="">No record (executive list)</option>
                       {targets.map((tg) => <option key={tg.ref} value={tg.ref}>{targetLabel(tg)}</option>)}
                     </select>
-                    {!t.showBlocked && !t.waiting_on_id && (
-                      <button type="button" onClick={() => setTask(i, { showBlocked: true })} className="inline-flex items-center gap-1 h-7 px-2 rounded border border-dashed border-input text-[11px] text-muted-foreground hover:bg-accent transition-colors" title="Mark this task as waiting on someone">
-                        <Clock size={11} /> Blocked?
-                      </button>
-                    )}
                   </div>
-                  {(t.showBlocked || t.waiting_on_id) && (
-                    <div className="flex flex-wrap items-center gap-2 pl-0.5">
-                      <span className="text-[11px] text-amber-600 dark:text-amber-400 inline-flex items-center gap-1"><Clock size={11} /> Waiting on</span>
-                      <select
-                        className="h-7 px-2 rounded border border-input bg-background text-xs w-32"
-                        value={t.waiting_on_id && assigneeValues.has(t.waiting_on_id) ? t.waiting_on_id : ''}
-                        onChange={(e) => setTask(i, { waiting_on_id: e.target.value || null })}
-                      >
-                        <option value="">— who</option>
-                        {assigneeOptions.filter((o) => o.value !== effectiveAssignee(t)).map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-                      </select>
-                      <input className="h-7 px-2 rounded border border-input bg-background text-xs flex-1 min-w-[8rem]" placeholder="for what (e.g. the survey)" value={t.waiting_on_what ?? ''} onChange={(e) => setTask(i, { waiting_on_what: e.target.value || null })} />
-                      <button type="button" onClick={() => setTask(i, { showBlocked: false, waiting_on_id: null, waiting_on_what: null })} className="text-muted-foreground hover:text-destructive" title="Clear"><X size={13} /></button>
-                    </div>
-                  )}
                   {!effectiveAssignee(t) && t.assignee && (
                     <p className="text-[11px] text-amber-600 dark:text-amber-400">
                       AI suggested “{t.assignee}” — not a team owner. Pick one, or tick “Can own tasks” on that attendee.

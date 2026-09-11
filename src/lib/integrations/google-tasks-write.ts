@@ -32,12 +32,20 @@ import {
 const TASKS_BASE = 'https://tasks.googleapis.com/tasks/v1'
 
 /**
- * The list created in each member's account.
+ * Google's alias for a person's DEFAULT task list — the one the Gmail sidebar's
+ * ⊕, the phone app's +, and Assistant all write to.
  *
- * Named for the company rather than the platform because it is read by people
- * who have never seen Ber Intelligence and never will.
+ * Syncing that list rather than a dedicated one is the whole reason capture
+ * works: a task jotted anywhere in Google arrives here with no change of habit.
+ * A dedicated list would mean selecting it every time, and forgetting once
+ * means the task silently never syncs — the failure mode this codebase keeps
+ * getting bitten by.
+ *
+ * It also preserves the invariant at the top of this file: addressing `@default`
+ * is a single known list, not an enumeration of everything the person owns.
+ * Anything they want kept private goes in a second list, which is never read.
  */
-export const TASK_LIST_TITLE = 'Ber Wilson'
+export const DEFAULT_LIST_ALIAS = '@default'
 
 /** Google's cap is ~8,192 characters; leave room rather than lose the write. */
 export const NOTES_LIMIT = 6_000
@@ -186,16 +194,13 @@ export async function listTaskLists(mailbox: string): Promise<GoogleTaskList[]> 
   return res?.items ?? []
 }
 
-export async function createTaskList(mailbox: string, title: string): Promise<GoogleTaskList> {
-  return tasksCall<GoogleTaskList>(mailbox, `${TASKS_BASE}/users/@me/lists`, {
-    method: 'POST',
-    body: { title },
-  })
-}
-
 /**
- * Confirm a stored list still exists. Null rather than throwing, because "gone"
- * is a state the caller handles rather than a failure.
+ * Resolve a list, or confirm a stored one still exists.
+ *
+ * Null rather than throwing, because "gone" is a state the caller handles
+ * rather than a failure. Pass {@link DEFAULT_LIST_ALIAS} to resolve the default
+ * list to its real, stable id — which is what gets stored, so a later rename
+ * does not look like a different list.
  */
 export async function getTaskList(
   mailbox: string,

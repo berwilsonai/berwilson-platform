@@ -9,9 +9,20 @@ import {
 import { WeeklyPrintToolbar } from '@/components/reports/WeeklyPrintToolbar'
 import { PreparedDate } from '@/components/objectives/PrintToolbar'
 
+/** Local calendar day — toISOString() would roll over the date after 5pm in Utah. */
+function dayString(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+function shiftDays(days: number): string {
+  const d = new Date()
+  d.setDate(d.getDate() + days)
+  return dayString(d)
+}
+
 /**
  * The weekly report — the artifact that goes out to a team who can't reach the
- * platform. It is deliberately organized objective → person → handoff, not by
+ * platform. It is deliberately organized objective → person, not by
  * project: priority then becomes mechanical (anything under a Now objective)
  * instead of a judgment call every Monday.
  *
@@ -32,11 +43,7 @@ interface ReportTask {
   completed_at: string | null
   objective_id: string | null
   assignee_id: string | null
-  waiting_on_id: string | null
-  waiting_on_what: string | null
-  waiting_on_since: string | null
   assignee: { id: string; name: string } | null
-  blocker: { id: string; name: string } | null
   project: { id: string; name: string } | null
 }
 
@@ -50,32 +57,11 @@ interface ReportObjective {
 }
 
 const TASK_SELECT =
-  'id, title, status, due_date, completed_at, objective_id, assignee_id, waiting_on_id, waiting_on_what, waiting_on_since, ' +
+  'id, title, status, due_date, completed_at, objective_id, assignee_id, ' +
   // Two FKs point at team_members, so PostgREST needs the constraint name to disambiguate.
   'assignee:team_members!tasks_assignee_id_fkey(id, name), ' +
-  'blocker:team_members!tasks_waiting_on_id_fkey(id, name), ' +
   'project:projects(id, name)'
 
-/** Local calendar day — toISOString() would roll over the date after 5pm in Utah. */
-function dayString(d: Date): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-}
-
-function shiftDays(days: number): string {
-  const d = new Date()
-  d.setDate(d.getDate() + days)
-  return dayString(d)
-}
-
-function ageInDays(since: string | null): number | null {
-  if (!since) return null
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  return Math.max(
-    0,
-    Math.round((today.getTime() - new Date(`${since}T00:00:00`).getTime()) / 86_400_000),
-  )
-}
 
 export async function generateMetadata({ searchParams }: PageProps) {
   const { person } = await searchParams
@@ -166,15 +152,6 @@ export default async function WeeklyReportPrintPage({ searchParams }: PageProps)
   // objectives section.
   const nowObjectiveIds = new Set(nowObjectives.map((o) => o.id))
 
-  // ── Handoffs: who owes whom. Oldest first — age is the whole point.
-  const allHandoffs = openTasks
-    .filter((t) => t.waiting_on_id)
-    .sort((a, b) => (a.waiting_on_since ?? '').localeCompare(b.waiting_on_since ?? ''))
-  const handoffs = focus
-    ? allHandoffs.filter((t) => t.waiting_on_id === focus.id || t.assignee_id === focus.id)
-    : allHandoffs
-
-  // ── Per-person pages. With ?person=, the document is just theirs.
   const people = (focus ? [focus] : members).map((m) => {
     const mine = openTasks.filter((t) => t.assignee_id === m.id)
     return {
@@ -182,8 +159,6 @@ export default async function WeeklyReportPrintPage({ searchParams }: PageProps)
       overdue: mine.filter((t) => t.due_date && t.due_date < today),
       dueThisWeek: mine.filter((t) => t.due_date && t.due_date >= today && t.due_date <= weekAhead),
       noDate: mine.filter((t) => !t.due_date),
-      owes: openTasks.filter((t) => t.waiting_on_id === m.id),
-      blockedOn: mine.filter((t) => t.waiting_on_id),
     }
   })
 
@@ -191,7 +166,6 @@ export default async function WeeklyReportPrintPage({ searchParams }: PageProps)
   // the report is theirs, so the first line of their page is about them.
   const scopedOpen = focus ? openTasks.filter((t) => t.assignee_id === focus.id) : openTasks
   const overdueCount = scopedOpen.filter((t) => t.due_date && t.due_date < today).length
-  const staleHandoffs = handoffs.filter((t) => (ageInDays(t.waiting_on_since) ?? 0) >= 7).length
 
   const closedLastWeek = tasks.filter(
     (t) =>
@@ -233,8 +207,7 @@ export default async function WeeklyReportPrintPage({ searchParams }: PageProps)
             </p>
             <p className="text-sm text-slate-700 mt-2 tnum">
               {scopedOpen.length} open task{scopedOpen.length === 1 ? '' : 's'} · {overdueCount}{' '}
-              overdue · {handoffs.length} handoff{handoffs.length === 1 ? '' : 's'}
-              {staleHandoffs > 0 && <> ({staleHandoffs} stale ≥7d)</>}
+              overdue
             </p>
           </div>
           <Image src="/logo.png" alt="Ber Wilson" width={120} height={65} className="object-contain h-9 w-auto" />
@@ -282,63 +255,20 @@ export default async function WeeklyReportPrintPage({ searchParams }: PageProps)
           )}
         </section>
 
-        {/* ── Handoffs ───────────────────────────────────────────────── */}
-        <section className="mt-8 break-inside-avoid-page">
-          <h2 className="text-xs font-semibold uppercase tracking-[0.15em] text-slate-500 pb-2 border-b border-slate-200">
-            Handoffs — what people owe each other
-            <span className="ml-2 font-normal normal-case tracking-normal tnum">
-              {handoffs.length} open
-            </span>
-          </h2>
-          {handoffs.length === 0 ? (
-            <p className="mt-3 text-sm text-slate-400">Nothing is blocked on anyone.</p>
-          ) : (
-            <table className="mt-2 w-full text-sm">
-              <tbody className="divide-y divide-slate-100">
-                {handoffs.map((t) => {
-                  const age = ageInDays(t.waiting_on_since)
-                  const stale = age !== null && age >= 7
-                  return (
-                    <tr key={t.id} className="break-inside-avoid">
-                      <td className="py-2 pr-3 whitespace-nowrap font-medium">
-                        {t.blocker?.name ?? 'Someone'}
-                        <span className="text-slate-400"> → </span>
-                        {t.assignee?.name ?? 'Unassigned'}
-                      </td>
-                      <td className="py-2 pr-3">
-                        {t.waiting_on_what}
-                        <span className="block text-xs text-slate-500">{taskLine(t)}</span>
-                      </td>
-                      <td
-                        className={`py-2 text-right whitespace-nowrap tnum ${
-                          stale ? 'font-semibold text-slate-900' : 'text-slate-500'
-                        }`}
-                      >
-                        {age === null ? '—' : age === 0 ? 'today' : `${age}d`}
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          )}
-        </section>
-
         {/* ── Each person's week ─────────────────────────────────────── */}
         <section className="mt-8">
           <h2 className="text-xs font-semibold uppercase tracking-[0.15em] text-slate-500 pb-2 border-b border-slate-200">
             {focus ? 'Your week' : "Each person's week"}
           </h2>
-          {people.map(({ member, overdue, dueThisWeek, noDate, owes, blockedOn }) => {
+          {people.map(({ member, overdue, dueThisWeek, noDate }) => {
             const nothing =
-              overdue.length + dueThisWeek.length + noDate.length + owes.length === 0
+              overdue.length + dueThisWeek.length + noDate.length === 0
             return (
               <div key={member.id} className="mt-5 break-inside-avoid-page">
                 <h3 className="text-sm font-semibold border-b border-slate-100 pb-1">
                   {member.name}
                   <span className="ml-2 font-normal text-xs text-slate-500 tnum">
                     {overdue.length + dueThisWeek.length + noDate.length} open
-                    {owes.length > 0 && <> · holding up {owes.length}</>}
                   </span>
                 </h3>
 
@@ -372,45 +302,6 @@ export default async function WeeklyReportPrintPage({ searchParams }: PageProps)
                                 {formatDate(t.due_date)}
                               </span>
                               <span>{taskLine(t)}</span>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-
-                    {owes.length > 0 && (
-                      <div>
-                        <p className="label-caps text-slate-500">
-                          Owes others
-                        </p>
-                        <ul className="mt-1 space-y-1">
-                          {owes.map((t) => (
-                            <li key={t.id} className="text-sm">
-                              {nowMark(t)}
-                              {t.waiting_on_what}
-                              <span className="text-slate-500">
-                                {' '}
-                                — for {t.assignee?.name ?? 'the team'}
-                                {(() => {
-                                  const age = ageInDays(t.waiting_on_since)
-                                  return age ? ` · ${age}d` : ''
-                                })()}
-                              </span>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-
-                    {blockedOn.length > 0 && (
-                      <div>
-                        <p className="label-caps text-slate-500">
-                          Waiting on others
-                        </p>
-                        <ul className="mt-1 space-y-1">
-                          {blockedOn.map((t) => (
-                            <li key={t.id} className="text-sm text-slate-600">
-                              {t.blocker?.name ?? 'Someone'} — {t.waiting_on_what}
                             </li>
                           ))}
                         </ul>

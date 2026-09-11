@@ -14,8 +14,6 @@ import {
   Target,
   Send,
   HandCoins,
-  Hourglass,
-  X,
 } from 'lucide-react'
 import {
   Sheet,
@@ -37,7 +35,6 @@ import {
   type ObjectiveOption,
   avatarClasses,
   initials,
-  waitingAge,
   handleAuthError,
 } from './task-utils'
 
@@ -136,8 +133,6 @@ export default function TaskDetailSheet({
   }
   // The handoff is held locally until both halves are present — picking a person
   // with no "what" yet isn't a saveable state, so we don't round-trip it.
-  const [waitingId, setWaitingId] = useState('')
-  const [waitingWhat, setWaitingWhat] = useState('')
   const [newNote, setNewNote] = useState('')
   const [postingNote, setPostingNote] = useState(false)
 
@@ -159,8 +154,6 @@ export default function TaskDetailSheet({
         setWhy(t.why ?? '')
         setHow(t.how ?? '')
         setExpanded({ what: !!t.what, why: !!t.why, how: !!t.how })
-        setWaitingId(t.waiting_on_id ?? '')
-        setWaitingWhat(t.waiting_on_what ?? '')
       })
       .catch(() => toast.error('Could not load task'))
       .finally(() => { if (active) setLoading(false) })
@@ -190,26 +183,6 @@ export default function TaskDetailSheet({
   }
 
   /** The handoff is a triple — the API writes and clears all three together. */
-  async function saveWaitingOn(personId: string | null, what: string) {
-    if (!personId) {
-      setWaitingId('')
-      setWaitingWhat('')
-      await patch({ waiting_on_id: null })
-      return
-    }
-    await patch({ waiting_on_id: personId, waiting_on_what: what.trim() })
-  }
-
-  /** Commit once both halves exist; a person with no "what" can't be chased. */
-  function commitWaitingOn(personId: string, what: string) {
-    if (!task) return
-    if (!personId) return void saveWaitingOn(null, '')
-    if (!what.trim()) return
-    const unchanged = personId === task.waiting_on_id && what.trim() === (task.waiting_on_what ?? '')
-    if (unchanged) return
-    void saveWaitingOn(personId, what)
-  }
-
   async function handleComplete() {
     if (!task) return
     const next = task.status === 'done' ? 'open' : 'done'
@@ -377,62 +350,6 @@ export default function TaskDetailSheet({
                     </select>
                   </div>
                 )}
-              </div>
-
-              {/* Waiting on — who owes the assignee something before this can move. */}
-              <div className="space-y-1.5">
-                <label className="inline-flex items-center gap-1.5 label-caps text-muted-foreground">
-                  <Hourglass size={12} /> Waiting on
-                </label>
-                <div className="flex gap-2">
-                  <select
-                    value={waitingId}
-                    onChange={(e) => {
-                      setWaitingId(e.target.value)
-                      commitWaitingOn(e.target.value, waitingWhat)
-                    }}
-                    className={cn(fieldClass, 'w-36 shrink-0')}
-                  >
-                    <option value="">Nobody</option>
-                    {teamMembers
-                      .filter((m) => m.id !== task.assignee_id)
-                      .map((m) => (
-                        <option key={m.id} value={m.id}>{m.name}</option>
-                      ))}
-                  </select>
-                  <input
-                    type="text"
-                    value={waitingWhat}
-                    onChange={(e) => setWaitingWhat(e.target.value)}
-                    onBlur={() => commitWaitingOn(waitingId, waitingWhat)}
-                    onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur() }}
-                    placeholder={waitingId ? 'What do they owe? (e.g. signed survey)' : 'Not blocked'}
-                    disabled={!waitingId}
-                    className={cn(fieldClass, 'flex-1 min-w-0 disabled:opacity-50')}
-                  />
-                  {task.waiting_on_id && (
-                    <button
-                      onClick={() => saveWaitingOn(null, '')}
-                      className="shrink-0 inline-flex items-center justify-center size-9 rounded-md border border-input text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
-                      aria-label="Clear handoff"
-                      title="Clear — they delivered"
-                    >
-                      <X size={15} />
-                    </button>
-                  )}
-                </div>
-                {task.waiting_on_id && (() => {
-                  const blocker = teamMembers.find((m) => m.id === task.waiting_on_id)
-                  const age = waitingAge(task.waiting_on_since)
-                  return (
-                    <p className={cn(
-                      'text-xs',
-                      age.stale ? 'text-amber-600 dark:text-amber-400 font-medium' : 'text-muted-foreground',
-                    )}>
-                      {blocker?.name ?? 'Someone'} has owed this for {age.label}
-                    </p>
-                  )
-                })()}
               </div>
 
               {/* What / Why / How — empty fields collapse to a subtle add affordance */}

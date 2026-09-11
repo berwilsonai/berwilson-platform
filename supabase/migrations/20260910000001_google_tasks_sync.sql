@@ -33,11 +33,13 @@ create table if not exists google_task_lists (
   -- before. This is the one the credential is filed under.
   mailbox text not null,
 
-  -- Created once and then addressed by id forever. Deliberately NOT resolved by
-  -- title at runtime: unlike Google contact groups, task list titles are not
-  -- unique within an account, so a person may hold three lists called
-  -- "Ber Wilson" and matching by name would pick one at random. This follows
-  -- the Drive folder rule, not the contact group rule.
+  -- The member's DEFAULT list ("My Tasks"), resolved from Google's @default
+  -- alias on first sight and then addressed by its real id forever. We never
+  -- create a list: syncing the default one is what makes capture work, since
+  -- the Gmail sidebar, the phone app and Assistant all write there. Storing the
+  -- resolved id rather than the alias means a rename does not read as a
+  -- different list, and matching by TITLE is never safe here — unlike contact
+  -- groups, task list names are not unique within an account.
   google_list_id text not null,
   title text not null,
 

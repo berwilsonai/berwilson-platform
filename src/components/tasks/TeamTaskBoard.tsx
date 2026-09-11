@@ -15,7 +15,6 @@ import {
   Archive,
   X,
   HandCoins,
-  Hourglass,
   Users2,
   SlidersHorizontal,
 } from 'lucide-react'
@@ -35,7 +34,6 @@ import {
   getDueLabel,
   avatarClasses,
   initials,
-  waitingAge,
   handleAuthError,
 } from './task-utils'
 
@@ -113,7 +111,6 @@ export default function TeamTaskBoard({
   const [opportunityFilter, setOpportunityFilter] = useState('all')
   const [investorFilter, setInvestorFilter] = useState('all')
   const [objectiveFilter, setObjectiveFilter] = useState('all')
-  const [blockedOnly, setBlockedOnly] = useState(false)
   // Record filters are collapsed on phones; `sm:flex` re-reveals them regardless.
   const [filtersOpen, setFiltersOpen] = useState(false)
 
@@ -152,9 +149,6 @@ export default function TeamTaskBoard({
   ].filter(Boolean).length
 
   const openCount = tasks.filter((t) => t.status !== 'done').length
-  const blockedCount = tasks.filter((t) => t.status !== 'done' && t.waiting_on_id).length
-  const memberName = (id: string | null) =>
-    id ? members.find((m) => m.id === id)?.name ?? null : null
 
   async function handleAddTask() {
     if (!title.trim()) return
@@ -313,18 +307,15 @@ export default function TeamTaskBoard({
         objectiveFilter === 'none' ? !t.objective_id : t.objective_id === objectiveFilter,
       )
     }
-    if (blockedOnly) list = list.filter((t) => t.waiting_on_id)
     return [...list].sort((a, b) => {
       if (a.due_date && b.due_date) return a.due_date.localeCompare(b.due_date)
       if (a.due_date) return -1
       if (b.due_date) return 1
       return (b.created_at ?? '').localeCompare(a.created_at ?? '')
     })
-  }, [tasks, status, assigneeFilter, projectFilter, opportunityFilter, investorFilter, objectiveFilter, blockedOnly, showProjectControls, showOpportunityControls, showInvestorControls, showObjectiveControls])
+  }, [tasks, status, assigneeFilter, projectFilter, opportunityFilter, investorFilter, objectiveFilter, showProjectControls, showOpportunityControls, showInvestorControls, showObjectiveControls])
 
-  // Per-person workload (the old Capacity view, folded in) — open + overdue,
-  // plus how many other people's tasks this person is holding up. That last
-  // number is the follow-up list: it's what they owe the rest of the team.
+  // Per-person workload (the old Capacity view, folded in) — open + overdue.
   const workload = useMemo(() => {
     if (scoped) return []
     const today = new Date().toISOString().split('T')[0]
@@ -335,7 +326,6 @@ export default function TeamTaskBoard({
         member: m,
         open: open.length,
         overdue: open.filter((t) => t.due_date && t.due_date < today).length,
-        blocking: openTasks.filter((t) => t.waiting_on_id === m.id).length,
       }
     })
   }, [tasks, members, scoped])
@@ -392,7 +382,7 @@ export default function TeamTaskBoard({
         // itself below the fold — scroll them sideways instead, and only wrap
         // once there's room for it.
         <div className="flex gap-2 overflow-x-auto pb-1 -mx-4 px-4 sm:mx-0 sm:px-0 sm:pb-0 sm:overflow-visible sm:flex-wrap">
-          {workload.map(({ member, open, overdue, blocking }) => {
+          {workload.map(({ member, open, overdue }) => {
             const active = assigneeFilter === member.id
             return (
               <button
@@ -404,7 +394,7 @@ export default function TeamTaskBoard({
                     ? 'border-primary/50 bg-primary/10 text-foreground'
                     : 'border-border bg-card text-muted-foreground hover:text-foreground hover:bg-accent',
                 )}
-                title={`${member.name}: ${open} open${overdue ? `, ${overdue} overdue` : ''}${blocking ? ` · holding up ${blocking} task${blocking === 1 ? '' : 's'} for others` : ''}`}
+                title={`${member.name}: ${open} open${overdue ? `, ${overdue} overdue` : ''}`}
               >
                 <span className={cn('flex items-center justify-center size-6 rounded-full text-[10px] font-semibold', avatarClasses(member.color))}>
                   {initials(member.name)}
@@ -414,11 +404,6 @@ export default function TeamTaskBoard({
                 {overdue > 0 && (
                   <span className="tnum text-[11px] font-semibold text-red-600 dark:text-red-400">
                     {overdue} late
-                  </span>
-                )}
-                {blocking > 0 && (
-                  <span className="inline-flex items-center gap-0.5 tnum text-[11px] font-semibold text-amber-600 dark:text-amber-400">
-                    <Hourglass size={10} /> {blocking}
                   </span>
                 )}
               </button>
@@ -613,21 +598,6 @@ export default function TeamTaskBoard({
           </button>
         </div>
 
-        {blockedCount > 0 && (
-          <button
-            onClick={() => setBlockedOnly((b) => !b)}
-            className={cn(
-              'inline-flex items-center gap-1.5 h-11 sm:h-8 px-2.5 rounded-md border text-xs font-medium transition-colors',
-              blockedOnly
-                ? 'border-amber-300 bg-amber-100 text-amber-800 dark:border-amber-500/40 dark:bg-amber-900/40 dark:text-amber-200'
-                : 'border-input bg-background text-muted-foreground hover:text-foreground hover:bg-muted',
-            )}
-            title="Tasks waiting on someone"
-          >
-            <Hourglass size={12} /> Blocked <span className="tnum">{blockedCount}</span>
-          </button>
-        )}
-
         <select value={assigneeFilter} onChange={(e) => setAssigneeFilter(e.target.value)} className={filterFieldClass}>
           <option value="all">Everyone</option>
           {members.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
@@ -764,24 +734,6 @@ export default function TeamTaskBoard({
                         {due.label}
                       </span>
                     )}
-                    {task.waiting_on_id && !done && (() => {
-                      const age = waitingAge(task.waiting_on_since)
-                      return (
-                        <span
-                          title={task.waiting_on_what ?? undefined}
-                          className={cn(
-                            'inline-flex items-center gap-1 text-xs font-medium rounded-full px-1.5 py-0.5',
-                            age.stale
-                              ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200'
-                              : 'bg-muted text-muted-foreground',
-                          )}
-                        >
-                          <Hourglass size={10} />
-                          {memberName(task.waiting_on_id) ?? 'Someone'}
-                          {age.label && <span className="tnum opacity-70">· {age.label}</span>}
-                        </span>
-                      )
-                    })()}
                   </div>
                 </div>
 

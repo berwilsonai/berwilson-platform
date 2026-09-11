@@ -44,9 +44,8 @@ import {
   TaskGoneError,
   TaskListGoneError,
   TasksScopeError,
-  TASK_LIST_TITLE,
+  DEFAULT_LIST_ALIAS,
   clearTaskDue,
-  createTaskList,
   deleteTask,
   getTaskList,
   insertTask,
@@ -64,6 +63,7 @@ import {
   buildTaskBody,
   parseDue,
   parseTaskIdFromNotes,
+  stripFooter,
   type TaskBodyRow,
   type TaskTagContext,
 } from '@/lib/tasks/google-body'
@@ -76,6 +76,7 @@ export interface TaskSyncResult {
   /** Named, not merely counted: "who is not covered" is the whole question. */
   unconnected: string[]
   skippedMembers: string[]
+  /** Members whose default list was resolved and remembered for the first time. */
   listsCreated: number
   pushedCreated: number
   pushedUpdated: number
@@ -90,8 +91,12 @@ export interface TaskSyncResult {
   detached: number
   /** Links moved between two members' lists. */
   reassigned: number
-  /** Remote tasks with no link — not imported in this build, but counted. */
+  /** Tasks the member typed in Google that became real tasks here. */
+  inboundCreated: number
+  /** Remote tasks carrying our back-pointer that we could not re-adopt. */
   unlinkedRemote: number
+  /** Subtasks and blank titles: nothing here can hold them, so they stay in Google. */
+  skippedRemote: number
   /** Refusals: guard tripped, evidence insufficient. Reported, never obeyed. */
   heldBack: string[]
   failed: number
@@ -145,7 +150,14 @@ interface TaskRow extends TaskBodyRow {
 const TASK_COLUMNS =
   'id, title, what, why, due_date, status, completed_at, assignee_id, project_id, opportunity_id, objective_id, investor_id'
 
-/** Nothing younger than this is ever detached — see detachAbsent(). */
+/**
+ * Most tasks a member can have in their Google list that did not come from here
+ * before the run refuses to import any of them. Someone's personal list, or a
+ * stored id pointing at the wrong list, would otherwise arrive on the board.
+ */
+const INBOUND_LIMIT = 20
+
+/** Nothing younger than this is ever detached — see absenceIsEvidence(). */
 const DETACH_MIN_AGE_MS = 60 * 60 * 1000
 
 type Supabase = ReturnType<typeof createAdminClient>
@@ -254,7 +266,9 @@ export async function syncGoogleTasks(opts: TaskSyncOptions = {}): Promise<TaskS
     relinked: 0,
     detached: 0,
     reassigned: 0,
+    inboundCreated: 0,
     unlinkedRemote: 0,
+    skippedRemote: 0,
     heldBack: [],
     failed: 0,
     errors: [],
@@ -368,12 +382,17 @@ export async function syncGoogleTasks(opts: TaskSyncOptions = {}): Promise<TaskS
 }
 
 /**
- * Find the member's list, creating it the first time.
+ * Resolve the member's default Google list, remembering its real id.
  *
- * Addressed by STORED ID forever after, never resolved by title. Unlike Google
- * contact groups, task list titles are not unique within an account — a person
- * may hold three lists called "Ber Wilson" — so this follows the Drive folder
- * rule (create, remember the id) rather than the contact group rule.
+ * We do NOT create a list. Syncing the default one is what makes capture work:
+ * everything Google writes by default — the Gmail sidebar, the phone app,
+ * Assistant — lands there, so a task jotted anywhere arrives without anyone
+ * changing how they work. A dedicated list would have to be selected every
+ * time, and forgetting once loses the task silently.
+ *
+ * The alias is resolved to the real id on first sight and stored, so renaming
+ * the list does not read as a different list. Anything the member wants kept
+ * out of the CRM goes in a SECOND list, which is never read.
  */
 async function ensureList(
   supabase: Supabase,
@@ -391,39 +410,43 @@ async function ensureList(
   const row = data as ListRow | null
 
   if (row?.missing_at) {
-    result.heldBack.push(`${member.name}: sync paused (their list was deleted); clear missing_at to resume`)
+    result.heldBack.push(
+      `${member.name}: sync paused (their list was deleted); clear missing_at to resume`
+    )
     return null
   }
 
   if (row) {
-    // Confirm it is still there. A 404 here is the list-level event handled by
-    // the caller, and must never be read as "all their tasks were deleted".
+    // Confirm it is still there. A 404 is the list-level event the caller
+    // handles, and must never be read as "all their tasks were deleted".
     const remote = await getTaskList(mailbox, row.google_list_id)
     if (!remote) throw new TaskListGoneError(row.google_list_id)
     return row
   }
+
+  // First sight: resolve @default to the stable id behind it.
+  const resolved = await getTaskList(mailbox, DEFAULT_LIST_ALIAS)
+  if (!resolved) throw new TaskListGoneError(DEFAULT_LIST_ALIAS)
 
   if (dryRun) {
     result.listsCreated++
     return null
   }
 
-  const created = await createTaskList(mailbox, TASK_LIST_TITLE)
-  const fresh: ListRow = {
-    team_member_id: member.id,
-    mailbox,
-    google_list_id: created.id,
-    missing_at: null,
-  }
   const { error } = await supabase.from('google_task_lists').insert({
     team_member_id: member.id,
     mailbox,
-    google_list_id: created.id,
-    title: created.title ?? TASK_LIST_TITLE,
+    google_list_id: resolved.id,
+    title: resolved.title ?? 'My Tasks',
   })
-  if (error) throw new Error(`could not record the new list: ${error.message}`)
+  if (error) throw new Error(`could not record the list: ${error.message}`)
   result.listsCreated++
-  return fresh
+  return {
+    team_member_id: member.id,
+    mailbox,
+    google_list_id: resolved.id,
+    missing_at: null,
+  }
 }
 
 /**
@@ -592,43 +615,93 @@ async function syncMember(
   const tasks = [...byId.values()]
   await tags.prime(tasks)
 
-  // Adopt a remote task that carries our own back-pointer but has no link row —
-  // a link lost to a crash, or to an insert whose response never arrived.
-  // Without this the task below would be pushed again and the member would end
-  // up holding two copies of it.
+  // --- remote tasks with no link row -------------------------------------
+  // Two very different things look identical here, and telling them apart is
+  // what stops the board filling with duplicates:
+  //
+  //  1. One of OURS whose link row we lost — to a crash, or to an insert whose
+  //     response never arrived. It carries our back-pointer in its notes, so it
+  //     is re-adopted. Without this the task would be pushed again and the
+  //     member would end up holding two copies of it.
+  //  2. Something the member actually typed into Google. That becomes a real
+  //     task on the board, which is the point of syncing their default list.
   const claimed = new Set([...activeByTask.values()].map((l) => l.google_task_id))
+  const fresh: GoogleTask[] = []
+
   for (const remote of remoteTasks) {
     if (remote.deleted || claimed.has(remote.id)) continue
+
     const taskId = parseTaskIdFromNotes(remote.notes)
-    if (!taskId) {
-      result.unlinkedRemote++
+    if (taskId) {
+      const task = byId.get(taskId)
+      if (!task || activeByTask.has(taskId) || detachedTasks.has(taskId)) {
+        result.unlinkedRemote++
+        continue
+      }
+      if (ctx.dryRun) {
+        result.relinked++
+        continue
+      }
+      const { data: relinked } = await supabase
+        .from('task_google_links')
+        .insert({
+          task_id: taskId,
+          team_member_id: member.id,
+          google_list_id: list.google_list_id,
+          google_task_id: remote.id,
+          base_status: remote.status === 'completed' ? 'done' : 'open',
+          base_due: parseDue(remote.due),
+        })
+        .select('id, task_id, team_member_id, google_list_id, google_task_id, state, base_status, base_due, created_at')
+        .maybeSingle()
+      if (relinked) {
+        activeByTask.set(taskId, relinked as LinkRow)
+        claimed.add(remote.id)
+        result.relinked++
+      }
       continue
     }
-    const task = byId.get(taskId)
-    if (!task || activeByTask.has(taskId) || detachedTasks.has(taskId)) {
-      result.unlinkedRemote++
+
+    // A subtask has no equivalent here and flattening it would lose the thing
+    // that made it a subtask. A blank title is something Google permits and
+    // tasks.title does not. Both are left alone in Google, never deleted.
+    if (remote.parent) {
+      result.skippedRemote++
       continue
     }
-    if (ctx.dryRun) {
-      result.relinked++
+    if (!remote.title?.trim()) {
+      result.skippedRemote++
       continue
     }
-    const { data: relinked } = await supabase
-      .from('task_google_links')
-      .insert({
-        task_id: taskId,
-        team_member_id: member.id,
-        google_list_id: list.google_list_id,
-        google_task_id: remote.id,
-        base_status: remote.status === 'completed' ? 'done' : 'open',
-        base_due: parseDue(remote.due),
-      })
-      .select('id, task_id, team_member_id, google_list_id, google_task_id, state, base_status, base_due, created_at')
-      .maybeSingle()
-    if (relinked) {
-      activeByTask.set(taskId, relinked as LinkRow)
-      claimed.add(remote.id)
-      result.relinked++
+    fresh.push(remote)
+  }
+
+  // Importing a person's whole list in one go is almost never what happened —
+  // far more likely their default list is full of their own life, or the stored
+  // id now points somewhere else. Report it and import nothing rather than put
+  // dozens of rows in front of the whole team.
+  if (fresh.length > INBOUND_LIMIT) {
+    ctx.hold(
+      `${member.name}: ${fresh.length} tasks in their Google list are not from here — ` +
+        `refusing to import that many at once. Check the list is theirs, then raise INBOUND_LIMIT to let it through.`
+    )
+  } else {
+    for (const remote of fresh) {
+      if (Date.now() > ctx.deadline) {
+        result.outOfTime = true
+        break
+      }
+      if (ctx.dryRun) {
+        result.inboundCreated++
+        continue
+      }
+      try {
+        await importRemoteTask(supabase, member, list, remote, appUrl, result)
+      } catch (err) {
+        ctx.noteFail(
+          `${member.name} / importing "${remote.title}": ${err instanceof Error ? err.message : String(err)}`
+        )
+      }
     }
   }
 
@@ -711,6 +784,69 @@ async function createRemote(
     throw new Error(`could not record the link: ${error.message}`)
   }
   result.pushedCreated++
+}
+
+/**
+ * Turn a task the member typed in Google into a real task on the board.
+ *
+ * Every record tag is left NULL, deliberately. Nothing in "call the surety
+ * broker" says which project it belongs to, and a guess would be invisible:
+ * an untagged task is visibly unfiled and someone fixes it in a second, while
+ * a wrongly-filed one looks correct and quietly distorts a project's picture.
+ *
+ * The shadow is seeded from what Google already holds, so the merge in the same
+ * run sees no change on either side and does not immediately push back. The one
+ * write that does follow is the notes footer, which arms the back-pointer that
+ * lets this task be re-adopted rather than duplicated if its link is ever lost.
+ */
+async function importRemoteTask(
+  supabase: Supabase,
+  member: MemberRow,
+  list: ListRow,
+  remote: GoogleTask,
+  appUrl: string,
+  result: TaskSyncResult
+): Promise<void> {
+  const done = remote.status === 'completed'
+  const { data: task, error } = await supabase
+    .from('tasks')
+    .insert({
+      title: remote.title!.trim(),
+      // Their own notes become the detail, minus any footer of ours.
+      what: stripFooter(remote.notes),
+      assignee_id: member.id,
+      due_date: parseDue(remote.due),
+      status: done ? 'done' : 'open',
+      completed_at: done ? (remote.completed ?? new Date().toISOString()) : null,
+    })
+    .select(TASK_COLUMNS)
+    .single()
+  if (error || !task) throw new Error(error?.message ?? 'insert returned nothing')
+
+  const { error: linkErr } = await supabase.from('task_google_links').insert({
+    task_id: task.id,
+    team_member_id: member.id,
+    google_list_id: list.google_list_id,
+    google_task_id: remote.id,
+    origin: 'google',
+    base_status: done ? 'done' : 'open',
+    base_due: parseDue(remote.due),
+    last_synced_at: new Date().toISOString(),
+  })
+  if (linkErr) {
+    // Without a link this task would be imported again on the next run, and
+    // again after that. Undo rather than leave a duplicate generator behind.
+    await supabase.from('tasks').delete().eq('id', task.id)
+    throw new Error(`could not record the link: ${linkErr.message}`)
+  }
+
+  // Stamp the back-pointer so a future lost link is recovered, not duplicated.
+  const body = buildTaskBody(task as TaskRow, {}, appUrl)
+  if (body.notes !== (remote.notes ?? '')) {
+    await patchTask(list.mailbox, list.google_list_id, remote.id, { notes: body.notes })
+  }
+
+  result.inboundCreated++
 }
 
 /** The three-way merge for one task, plus the platform-owned overwrite. */

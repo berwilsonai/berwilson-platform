@@ -2,7 +2,6 @@ import { NextRequest } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import type { TablesUpdate } from '@/lib/supabase/types'
 import { getViewer, canAccessTask, forbiddenJson, actorAdminClient, type Viewer } from '@/lib/auth/viewer'
-import { resolveWaitingOn, selfBlockError } from '@/lib/tasks/handoff'
 import { queueTaskPush, queueTaskRemoval, readRemovableLink } from '@/lib/tasks/google-push'
 
 interface RouteContext {
@@ -85,24 +84,6 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
     }
   }
 
-  const waitingOn = resolveWaitingOn(body)
-  if (waitingOn.error) return Response.json({ error: waitingOn.error }, { status: 400 })
-
-  // The self-block check runs against the values the task will HAVE after this
-  // patch, so it catches both "block it on its own assignee" and "reassign it
-  // to the person it's already waiting on". Only load the row when we must.
-  if (waitingOn.fields?.waiting_on_id || 'assignee_id' in body) {
-    const { data: current } = await createAdminClient()
-      .from('tasks')
-      .select('assignee_id, waiting_on_id')
-      .eq('id', id)
-      .maybeSingle()
-    const assigneeId = 'assignee_id' in body ? body.assignee_id || null : current?.assignee_id ?? null
-    const waitingOnId = waitingOn.fields ? waitingOn.fields.waiting_on_id : current?.waiting_on_id ?? null
-    const selfBlock = selfBlockError(assigneeId, waitingOnId)
-    if (selfBlock) return Response.json({ error: selfBlock }, { status: 400 })
-  }
-
   const supabase = await actorAdminClient()
 
   const patch: TablesUpdate<'tasks'> = {}
@@ -116,7 +97,6 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
   if ('investor_id' in body) patch.investor_id = body.investor_id || null
   if ('objective_id' in body) patch.objective_id = body.objective_id || null
   if ('due_date' in body) patch.due_date = body.due_date || null
-  if (waitingOn.fields) Object.assign(patch, waitingOn.fields)
   if ('status' in body) {
     patch.status = body.status === 'done' ? 'done' : 'open'
     patch.completed_at = body.status === 'done' ? new Date().toISOString() : null
