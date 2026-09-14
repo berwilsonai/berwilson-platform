@@ -124,7 +124,11 @@ export async function predecidePendingSessions(
       .from('email_intake_sessions')
       .select('id, label, raw_text, extraction_result, match_candidates, fit_assessment')
       .eq('status', 'pending')
-      .is('predecision', null)
+      // Undecided, or decided by a prompt that no longer exists. A verdict is
+      // only as good as the rules that produced it: when those change the old
+      // answers are stale, and leaving them would mean a sharpened prompt never
+      // reaching the backlog it was sharpened for.
+      .or(`predecision.is.null,predecision->>prompt_version.neq.${INTAKE_PREDECIDE_PROMPT_VERSION}`)
       // Newest first: if the run is cut short, the live pipeline is judged
       // before a six-week-old thread that has already waited.
       .order('created_at', { ascending: false })
@@ -205,7 +209,7 @@ export async function predecidePendingSessions(
     .from('email_intake_sessions')
     .select('id', { count: 'exact', head: true })
     .eq('status', 'pending')
-    .is('predecision', null)
+    .or(`predecision.is.null,predecision->>prompt_version.neq.${INTAKE_PREDECIDE_PROMPT_VERSION}`)
   progress.remaining = count ?? 0
 
   return progress

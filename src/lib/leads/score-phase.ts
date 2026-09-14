@@ -156,7 +156,7 @@ async function stageAttachments(
  * The assessor was built for the proposal wizard, so this adapts rather than
  * duplicating it — one scoring model, one prompt, one place to tune.
  */
-function toProposalExtraction(lead: LeadRow, attachmentText: string): ProposalExtraction {
+export function toProposalExtraction(lead: LeadRow, attachmentText: string): ProposalExtraction {
   const scope = [lead.scope, attachmentText].filter(Boolean).join('\n\n')
 
   return {

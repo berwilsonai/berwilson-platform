@@ -17,7 +17,7 @@
  * survive this one.
  */
 
-export const LEAD_TRIAGE_PROMPT_VERSION = 'lead-triage-2.0'
+export const LEAD_TRIAGE_PROMPT_VERSION = 'lead-triage-2.1'
 
 /** Which side of the business an inbound lead belongs to. */
 export type LeadRoute = 'steel' | 'dino' | 'construction' | 'corporate' | 'unknown'
@@ -117,7 +117,11 @@ Write "summary" as 2-4 sentences an executive could read instead of the email: w
 
 Put concrete figures, quantities, named parties, addenda, and scope details in "key_facts". Put conditions that must be MET to bid in "requirements" — bonding, licensing, certifications, insurance limits, prevailing wage, set-aside or small-business status, prequalification, union agreements.
 
-Dates must be ISO YYYY-MM-DD. If a year is not stated, infer it from the email's own date; if that is still ambiguous, return null. Never invent a date, a figure, a party, or a scope item. Leave uncertain facts out entirely.
+Dates must be ISO YYYY-MM-DD. If a year is not stated, infer it from the email's own date; if that is still ambiguous, return null. Never invent a date, a party, or a scope item. Leave uncertain facts out entirely.
+
+"estimated_value" is the ONE exception to that, and it matters more than any other field. Bid invitations almost never state a contract value, but the decision to bid turns on size: Ber Wilson can bond $20M on a single project, so whether a job is a $2M fit or a $60M non-starter is the first thing an executive needs. A null here means nobody can judge it without opening the documents, which is the work this triage exists to save.
+
+So when no value is stated, ESTIMATE the order of magnitude from whatever the scope gives you — square footage, unit count, building type, site acreage, trade package, the owner's own budget language. Rough is fine and expected; being out by a factor of two is far more useful than null. Say so plainly in key_facts (for example "value not stated; ~$8M estimated from 45,000 sf of office TI") so nobody mistakes an estimate for a quoted figure. Only return null when the email gives genuinely nothing to size it from — a request for a capability statement, or an introduction with no scope at all.
 
 Use only these values for sector: government | infrastructure | real_estate | prefab | institutional | technology | health
 

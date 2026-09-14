@@ -111,6 +111,23 @@ function logAiQuery(input: {
 }
 
 /**
+ * Sampling temperature for a call whose answer is structured — a verdict, a
+ * score, an extraction.
+ *
+ * Every AI call here used to run at the server default (~0.8), tuned for prose.
+ * That is what produced the +/-20 point drift already documented on fit scores,
+ * and on 2026-09-14 it was measured doing worse than drift: re-running the same
+ * fit assessment over the same eight leads changed five of the eight VERDICTS,
+ * one of them from pursue to pass. An answer that differs each time it is asked
+ * cannot be acted on.
+ *
+ * Not zero: a reasoning model pinned at 0 can fall into repetition loops. This
+ * is low enough to be near-deterministic on a classification and still leave the
+ * model room to phrase its reasoning.
+ */
+export const JUDGEMENT_TEMPERATURE = 0.15
+
+/**
  * Local-provider path for callGemini/callGeminiWithFile: one text call to the
  * LM Studio OpenAI-compatible endpoint, same result shape + ai_queries logging.
  */
@@ -122,6 +139,7 @@ async function callLocalText<T>(input: {
   promptVersion?: string
   maxTokens?: number
   jsonMode: boolean
+  temperature?: number
 }): Promise<GeminiCallResult<T>> {
   const model = localChatModel()
   const messages: LocalChatMessage[] = [
@@ -133,7 +151,14 @@ async function callLocalText<T>(input: {
   ]
 
   const start = Date.now()
-  const result = await localChat({ messages, maxTokens: input.maxTokens })
+  // JSON mode means the answer is structured, which means it is a judgement or
+  // an extraction rather than prose — so it is pinned unless a caller says
+  // otherwise. A caller wanting creative output passes jsonMode: false.
+  const result = await localChat({
+    messages,
+    maxTokens: input.maxTokens,
+    temperature: input.temperature ?? (input.jsonMode ? JUDGEMENT_TEMPERATURE : undefined),
+  })
   const latencyMs = Date.now() - start
 
   logAiQuery({

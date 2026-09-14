@@ -4,7 +4,7 @@ import { getCompanyKnowledge, formatCompanyKnowledge } from '@/lib/ai/company-kn
 import type { ProposalExtraction } from '@/lib/ai/proposal-matching'
 
 // Bumped to 1.1 when the company knowledge base was wired into the prompt.
-export const FIT_ASSESSMENT_PROMPT_VERSION = 'fit-assessment-1.1'
+export const FIT_ASSESSMENT_PROMPT_VERSION = 'fit-assessment-2.1'
 
 export type FitRecommendation = 'pursue' | 'consider' | 'pass'
 
@@ -34,7 +34,19 @@ You will be given (1) Ber Wilson's company profile and pursuit criteria, and (2)
 - Financial: is it within bonding capacity and a sensible margin profile?
 - Compliance: do we hold (or can we get) the required certifications/qualifications? Any disqualifiers triggered?
 
-Be decisive and honest. If the opportunity trips a stated disqualifier, lean toward "pass". If the company profile lacks the detail needed to judge a dimension, say so in gaps/key_questions and set profile_incomplete=true rather than guessing.
+The recommendation is a DECISION, not a temperature reading. Two executives run this company and they act on this verdict, so it has to tell them what to do:
+
+- **pursue** — worth their limited capacity. Someone should pick this up now. Say this when the work is inside our sectors, size range, geography and bonding, and nothing disqualifying is in the way. It does not have to be a perfect fit, or certain to win — only worth the effort of trying.
+- **pass** — do not spend time on it. Outside our scope, trips a disqualifier, too small to be worth the overhead, or unwinnable from where we stand. Filed, not acted on.
+- **consider** — genuinely on the line, AND there is ONE specific question whose answer would settle it. Name that question first in key_questions.
+
+"consider" is the RAREST of the three, not the safe middle. If you cannot name the single fact that would flip the decision, you do not have a "consider" — you have a pursue or a pass, and must choose one. A verdict of "consider" on everything hands the whole queue back to the humans unread, which is the same as having no triage at all.
+
+If the opportunity trips a stated disqualifier, that is a pass. If the company profile lacks the detail needed to judge a dimension, say so in gaps/key_questions and set profile_incomplete=true rather than guessing — but still commit to a verdict on what you do know.
+
+Treat fit_score as a rough band, not a precise measure: 70+ pursue territory, 40-69 marginal, under 40 poor. Do not agonise over single points; the verdict is what gets read.
+
+SIZE THE JOB YOURSELF. Bonding capacity is usually the binding constraint, and a bid invitation almost never states a contract value — so "what is this worth?" is the question that most often blocks a verdict. Do not hand it back as a key_question when the scope lets you answer it. Estimate the order of magnitude from square footage, unit count, building type, site acreage, trade package, or the owner's own budget language, say in the summary that you did ("~$8M estimated from 45,000 sf of office TI — not a quoted figure"), and decide against that estimate. Being out by a factor of two still tells you whether a $20M bonding cap is anywhere near the issue. Ask about value only when the scope genuinely gives you nothing to size it from.
 
 You may also be given a "RELEVANT BER WILSON EVIDENCE" section containing real excerpts from Ber Wilson's own documents (past performance, capability statements, credentials). When present, ground your strengths and operational judgment in that evidence and reference it specifically. Do not invent past performance that is not in the profile or the evidence.
 

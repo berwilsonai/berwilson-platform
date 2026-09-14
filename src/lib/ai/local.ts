@@ -202,6 +202,18 @@ interface LocalChatOptions {
    * shape with the Gemini path, where maxTokens still applies.
    */
   maxTokens?: number
+  /**
+   * Sampling temperature. Unset uses the server's default, which LM Studio
+   * ships at roughly 0.8 — fine for prose, wrong for judgement.
+   *
+   * Measured on the real lead backlog 2026-09-14: re-running the SAME fit
+   * assessment over the SAME eight leads at the default temperature held only
+   * three of eight verdicts, and one swung from pursue (75) to pass (35). A
+   * triage that answers differently each time it is asked is not a triage. Any
+   * call whose output is a classification, a score, or a structured extraction
+   * should pin this low; drafting and briefs can leave it alone.
+   */
+  temperature?: number
   /** OpenAI-format tool declarations. */
   tools?: Array<{ type: 'function'; function: { name: string; description: string; parameters: unknown } }>
   /** Fired with each answer-text delta (think blocks already filtered out). */
@@ -221,6 +233,7 @@ export async function localChat(options: LocalChatOptions): Promise<LocalChatRes
       body: JSON.stringify({
         model: options.model ?? localChatModel(),
         messages: options.messages,
+        ...(options.temperature !== undefined ? { temperature: options.temperature } : {}),
         ...(options.tools?.length ? { tools: options.tools } : {}),
         stream: false,
       }),
@@ -263,6 +276,7 @@ export async function localChatStream(options: LocalChatOptions): Promise<LocalC
       body: JSON.stringify({
         model: options.model ?? localChatModel(),
         messages: options.messages,
+        ...(options.temperature !== undefined ? { temperature: options.temperature } : {}),
         ...(options.tools?.length ? { tools: options.tools } : {}),
         stream: true,
         stream_options: { include_usage: true },
