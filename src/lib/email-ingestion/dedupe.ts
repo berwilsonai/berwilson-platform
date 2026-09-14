@@ -196,11 +196,15 @@ export async function dedupePendingSessions(
       .map((r) => r.raw_text ?? '')
       .filter(Boolean)
       .join('\n\n---\n\n')
-      .slice(0, cap)
 
     try {
       await analyzeEmailReport({
-        rawText: combined,
+        // The model reads a capped slice — several real groups exceed the local
+        // context — but the session KEEPS the whole thing, because that stored
+        // text becomes the document on the confirmed record. Capping both would
+        // quietly drop correspondence from the deal it was merged to preserve.
+        rawText: combined.slice(0, cap),
+        documentText: combined,
         label: group.title,
         userId,
         sessionId: primary.id,
