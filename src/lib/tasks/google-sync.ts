@@ -93,6 +93,8 @@ export interface TaskSyncResult {
   reassigned: number
   /** Tasks the member typed in Google that became real tasks here. */
   inboundCreated: number
+  /** Finished on both sides and no longer tracked. Not a fault — housekeeping. */
+  retired: number
   /** Remote tasks carrying our back-pointer that we could not re-adopt. */
   unlinkedRemote: number
   /** Subtasks and blank titles: nothing here can hold them, so they stay in Google. */
@@ -267,6 +269,7 @@ export async function syncGoogleTasks(opts: TaskSyncOptions = {}): Promise<TaskS
     detached: 0,
     reassigned: 0,
     inboundCreated: 0,
+    retired: 0,
     unlinkedRemote: 0,
     skippedRemote: 0,
     heldBack: [],
@@ -638,6 +641,9 @@ async function syncMember(
         result.unlinkedRemote++
         continue
       }
+      // Finished on both sides: its link was retired deliberately and
+      // re-adopting it would start that cycle over every run.
+      if (task.status === 'done' && remote.status === 'completed') continue
       if (ctx.dryRun) {
         result.relinked++
         continue
@@ -724,12 +730,27 @@ async function syncMember(
       }
       const remote = remoteById.get(link.google_task_id)
       if (remote?.deleted) {
+        if (task.status === 'done') {
+          if (!ctx.dryRun) await supabase.from('task_google_links').delete().eq('id', link.id)
+          result.retired++
+          continue
+        }
         await detach(supabase, task, link, 'Deleted in Google', result, ctx)
         continue
       }
       if (!remote) {
-        // Trashed long enough ago that Google purged the tombstone. Only acted
-        // on when the listing as a whole was trustworthy, and never for a link
+        // A task that is DONE here and gone from Google is simply finished.
+        // Google's own "Delete all completed tasks" clears dozens at once, and
+        // reporting each one as "removed from your list, no longer syncing"
+        // would bury the reader in notices about work they already completed.
+        // Retire the link instead: there is nothing left to keep in step.
+        if (task.status === 'done') {
+          if (!ctx.dryRun) await supabase.from('task_google_links').delete().eq('id', link.id)
+          result.retired++
+          continue
+        }
+        // An OPEN task that vanished is a real filing decision. Only acted on
+        // when the listing as a whole was trustworthy, and never for a link
         // young enough that a lost insert response would look identical.
         const age = Date.now() - new Date(link.created_at ?? 0).getTime()
         if (mayDetachAbsent && age >= DETACH_MIN_AGE_MS) {

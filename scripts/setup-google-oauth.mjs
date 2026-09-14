@@ -13,7 +13,16 @@
  * client secret is NOT a service account key, so it downloads fine, and the
  * consent happens in a browser — nothing to install.
  *
- * Read-only scopes. Re-run any time to re-consent a mailbox.
+ * Read-only scopes, except where a tier deliberately adds a write (see
+ * scopesFor() in google-workspace.ts). Re-run any time to re-consent a mailbox.
+ *
+ * It loads .env.local ITSELF rather than relying on `node --env-file=`. That is
+ * not convenience: which mailboxes get which scopes is read from environment
+ * variables, and a missing one does not fail — it silently consents the mailbox
+ * with a NARROWER scope set, minting tokens that look fine and 403 on first use.
+ * That has now happened once, to GOOGLE_TASK_MAILBOXES, costing a full round of
+ * browser consents. A script whose correctness depends on how it is invoked
+ * will eventually be invoked wrong.
  */
 
 import { createServer } from 'http'
@@ -23,6 +32,24 @@ import { dirname, join } from 'path'
 import { createInterface } from 'readline/promises'
 import { spawn } from 'child_process'
 import { randomBytes } from 'crypto'
+
+/**
+ * Load .env.local into process.env without overwriting anything already set,
+ * so an explicit `FOO=bar node scripts/...` still wins.
+ */
+function loadEnvLocal() {
+  const envPath = join(dirname(fileURLToPath(import.meta.url)), '../.env.local')
+  if (!existsSync(envPath)) return false
+  for (const line of readFileSync(envPath, 'utf8').split('\n')) {
+    const m = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*)$/)
+    if (!m) continue
+    const [, key, rawValue] = m
+    if (process.env[key] !== undefined) continue
+    process.env[key] = rawValue.trim().replace(/^["']|["']$/g, '')
+  }
+  return true
+}
+const ENV_LOADED = loadEnvLocal()
 
 const TOKEN_ENDPOINT = 'https://oauth2.googleapis.com/token'
 const AUTH_ENDPOINT = 'https://accounts.google.com/o/oauth2/v2/auth'
@@ -283,6 +310,10 @@ async function consentFor(mailbox, client, rl) {
   const authUrl = `${AUTH_ENDPOINT}?${params}`
 
   console.log(`\n${BOLD}--- ${mailbox} ---${OFF}`)
+  // Printed because the failure this guards against is SILENT: a mailbox
+  // consented with a scope missing works for everything it already had and
+  // 403s only on the new feature, weeks later. Seeing the list is the check.
+  console.log(`${DIM}Requesting: ${scopes.map((x) => x.split('/auth/')[1]).join(', ')}${OFF}`)
   console.log('Opening your browser. Sign in as this mailbox and approve.')
   console.log(`${DIM}Close any leftover localhost tabs from the previous step first.${OFF}`)
   console.log(`${DIM}If nothing opens, paste this into a browser:${OFF}`)
