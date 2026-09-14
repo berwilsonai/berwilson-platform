@@ -221,45 +221,24 @@ interface LocalChatOptions {
 }
 
 /**
- * Non-streaming chat completion. Returns think-stripped text.
+ * One chat completion, awaited whole.
+ *
+ * Delegates to the streaming path rather than asking for stream:false, and the
+ * reason is a trap rather than a preference: undici (Node's fetch) applies its
+ * OWN headersTimeout of 300s, independent of the AbortSignal below it. A
+ * non-streamed request produces no headers until the model has finished
+ * thinking and generating, so any call slower than five minutes died with an
+ * opaque "fetch failed" — regardless of LOCAL_AI_TIMEOUT_MS, which is 15
+ * minutes and was therefore never reachable. Measured here: a 104-item grouping
+ * call takes ~4.6 minutes and failed intermittently on exactly this.
+ *
+ * With stream:true the headers arrive at once and tokens keep the connection
+ * fed, so the configured timeout and the idle guard become the real limits —
+ * which is what they were written to be. It also leaves one implementation of
+ * tool-call accumulation and think-filtering instead of two.
  */
 export async function localChat(options: LocalChatOptions): Promise<LocalChatResult> {
-  const timeout = chatTimeoutMs()
-  let res: Response
-  try {
-    res = await fetch(`${localBaseUrl()}/chat/completions`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: options.model ?? localChatModel(),
-        messages: options.messages,
-        ...(options.temperature !== undefined ? { temperature: options.temperature } : {}),
-        ...(options.tools?.length ? { tools: options.tools } : {}),
-        stream: false,
-      }),
-      signal: AbortSignal.timeout(timeout),
-    })
-  } catch (err) {
-    throw localStallError(err, timeout, 'chat completion')
-  }
-
-  if (!res.ok) {
-    const errText = await res.text()
-    throw new Error(`Local AI error ${res.status}: ${errText.slice(0, 500)}`)
-  }
-
-  const data = await res.json() as {
-    choices?: Array<{ message?: { content?: string | null; tool_calls?: LocalToolCall[] } }>
-    usage?: { prompt_tokens?: number; completion_tokens?: number }
-  }
-
-  const message = data.choices?.[0]?.message
-  return {
-    text: stripThink(message?.content ?? ''),
-    toolCalls: message?.tool_calls ?? [],
-    tokensIn: data.usage?.prompt_tokens ?? 0,
-    tokensOut: data.usage?.completion_tokens ?? 0,
-  }
+  return localChatStream(options)
 }
 
 /**
