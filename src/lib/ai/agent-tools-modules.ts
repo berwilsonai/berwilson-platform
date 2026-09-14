@@ -15,6 +15,7 @@
  */
 
 import { createAdminClient } from '@/lib/supabase/admin'
+import { searchCorrespondence, extractPortalLinks } from './thread-embeddings'
 // The sweep tables post-date the last type generation (gen-types is disabled
 // against the self-hosted DB), so they are reached through the sweep's own
 // untyped client rather than the generated Database type.
@@ -146,6 +147,24 @@ export const moduleTools = [
       type: 'object',
       properties: { meeting_id: { type: 'string', description: 'UUID of the meeting.' } },
       required: ['meeting_id'],
+    },
+  },
+  {
+    name: 'search_correspondence',
+    description:
+      "Semantic search over the CONTENT of every swept email — the message bodies and the text of their attachments, not just subjects. Use this to answer questions about what was actually said, agreed, quoted, required, or scheduled in email: site visit dates, bid requirements, who asked for what, what a counterparty committed to. This reads the words themselves, so ask it the real question rather than guessing at keywords. Returns the matching passages with their thread, sender and date, plus any documents the mail REFERS to but the platform does not hold (bid portals like BuildingConnected link files behind a login) — say so when those are where the answer lives. Distinct from search_knowledge_base, which searches curated CRM records; this is raw correspondence.",
+    parameters: {
+      type: 'object',
+      properties: {
+        question: {
+          type: 'string',
+          description: 'The question or topic, in natural language. Matched by meaning, not keywords.',
+        },
+        since_days: { type: 'number', description: 'Optional: only mail from the last N days.' },
+        mailbox: { type: 'string', description: 'Optional: restrict to one mailbox address.' },
+        limit: { type: 'number', description: 'Max passages to return (default 6, max 10).' },
+      },
+      required: ['question'],
     },
   },
   {
@@ -740,6 +759,81 @@ export async function executeModuleTool(
     }
 
     // ── Email intake ─────────────────────────────────────────────────────────
+    case 'search_correspondence': {
+      const question = str(args.question)
+      if (!question) return { error: 'A question is required.' }
+
+      try {
+        // Default 6, hard cap 10. Chunks average ~1,640 chars, so 12 results is
+        // ~5,000 tokens in a single tool response — and the agent typically calls
+        // several tools per turn. Measured: that combination stalled the local
+        // model's stream against its 40,960-token window. Fewer, tighter
+        // passages answer the same question and leave room to reason.
+        const requested = num(args.limit) ?? 6
+        const hits = await searchCorrespondence(question, {
+          limit: Math.min(Math.max(requested, 1), 10),
+          sinceDays: num(args.since_days) ?? undefined,
+          mailbox: str(args.mailbox) ?? undefined,
+        })
+
+        if (hits.length === 0) {
+          return {
+            passages: [],
+            note: 'Nothing in the indexed correspondence matches. The mail may not be indexed yet, or may have been triaged as marketing.',
+          }
+        }
+
+        // Portal references come from the threads the hits landed on, so the
+        // answer can name the document holding what the mail only alludes to.
+        // This is the difference between "no registration is mentioned" and
+        // "the terms are in Section L, which is in BuildingConnected".
+        const threadIds = [...new Set(hits.map((h) => h.threadId))]
+        const { data: threads } = await sweepDb()
+          .from('email_threads')
+          .select('id, raw_markdown')
+          .in('id', threadIds)
+
+        const referenced: Array<{ file: string; held_in: string }> = []
+        const seenRef = new Set<string>()
+        for (const raw of threads ?? []) {
+          const row = raw as { raw_markdown: string | null }
+          for (const ref of extractPortalLinks(row.raw_markdown ?? '')) {
+            if (seenRef.has(ref.fileName)) continue
+            seenRef.add(ref.fileName)
+            referenced.push({ file: ref.fileName, held_in: ref.host })
+          }
+        }
+
+        return {
+          passages: hits.map((h) => ({
+            thread_id: h.threadId,
+            subject: h.subject,
+            from_mailbox: h.mailbox,
+            participants: h.participants.slice(0, 6),
+            date: h.lastAt?.slice(0, 10) ?? null,
+            // Says whether this came from the email itself or from a file it
+            // carried, so a citation can name the source precisely.
+            found_in: h.source === 'attachment' ? `attachment: ${h.attachmentName}` : 'message body',
+            relevance: Number(h.similarity.toFixed(3)),
+            // Trimmed: the retrieved passage is evidence, and a 2,000-char chunk
+            // is mostly headers and quoted reply chains. get_email_thread is the
+            // escape hatch when the full text genuinely matters.
+            text: h.content.length > 1200 ? `${h.content.slice(0, 1200)}…` : h.content,
+            gmail_link: h.gmailThreadId
+              ? `https://mail.google.com/mail/u/?authuser=${h.mailbox}#all/${h.gmailThreadId}`
+              : null,
+          })),
+          referenced_documents_not_held: referenced.slice(0, 12),
+          note:
+            referenced.length > 0
+              ? 'Some documents named in this correspondence are held in an external bid portal, not in the platform. If the answer is in one of them, name the file and where it lives rather than answering from silence.'
+              : undefined,
+        }
+      } catch (err) {
+        return { error: err instanceof Error ? err.message : String(err) }
+      }
+    }
+
     case 'search_email_threads': {
       const limit = num(args.limit) ?? 15
       let q = sweepDb()

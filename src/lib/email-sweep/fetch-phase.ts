@@ -185,7 +185,10 @@ async function persistThreads(
       // routed_at cleared alongside the summary: a conversation that has grown
       // may now match a record it did not before, and its record update is now
       // short of the new messages either way.
-      .update({ ...patch, summary_error: null, routed_at: null })
+      // embedded_at cleared with routed_at: a conversation that has grown is
+      // no longer represented by what was indexed, so it must be re-embedded or
+      // answers would come from a stale copy of it.
+      .update({ ...patch, summary_error: null, routed_at: null, embedded_at: null })
       .eq('fingerprint', t.fingerprint)
     if (error) {
       console.error(`[sweep/fetch] could not refresh ${t.fingerprint}:`, error.message)

@@ -21,7 +21,12 @@ interface Chunk {
   tokenCount: number
 }
 
-function chunkText(text: string): Chunk[] {
+/**
+ * Split text into overlapping chunks. Exported so the correspondence index
+ * (thread-embeddings.ts) chunks identically to the curated one — two indexes
+ * with different chunk geometry would return scores that cannot be compared.
+ */
+export function chunkText(text: string): Chunk[] {
   const normalized = text.replace(/\r\n/g, '\n').trim()
   if (!normalized) return []
 
@@ -53,7 +58,8 @@ function chunkText(text: string): Chunk[] {
 // Embedding generation — direct v1 REST call (SDK uses v1beta which lacks this model)
 // ---------------------------------------------------------------------------
 
-async function generateEmbedding(text: string): Promise<number[]> {
+/** Embed one string. Exported for the correspondence index — same model, same dims. */
+export async function generateEmbedding(text: string): Promise<number[]> {
   if (isLocalEmbeddings()) {
     return localEmbedding(text)
   }

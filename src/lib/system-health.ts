@@ -516,6 +516,63 @@ export async function probeThreadRouting(): Promise<{
 }
 
 /**
+ * Is the correspondence index keeping up with the mailbox?
+ *
+ * Counted out loud because the failure is invisible from the outside: an
+ * unindexed thread does not error, it simply never appears in an answer, and a
+ * question that returns nothing looks identical to a question with no answer.
+ * That is the same argument as the Drive publishing and document indexing cards.
+ */
+export async function probeCorrespondenceIndex(): Promise<{
+  state: 'ok' | 'empty' | 'warn' | 'failed'
+  detail: string
+}> {
+  try {
+    const db = sweepDb()
+    const [indexed, pending, chunks] = await Promise.all([
+      db
+        .from('email_threads')
+        .select('id', { count: 'exact', head: true })
+        .not('embedded_at', 'is', null),
+      db
+        .from('email_threads')
+        .select('id', { count: 'exact', head: true })
+        .eq('summary_state', 'summarized')
+        .is('embedded_at', null)
+        // Same filter as the embedder: lead threads carry no summary, so a
+        // plain .neq() on relevance would drop every one of them and the card
+        // would under-report the backlog by ~1,000 threads.
+        .or('summary->>relevance.is.null,summary->>relevance.neq.noise'),
+      db.from('thread_chunks').select('id', { count: 'exact', head: true }),
+    ])
+
+    const indexedCount = indexed.count ?? 0
+    const pendingCount = pending.count ?? 0
+    const chunkCount = chunks.count ?? 0
+
+    if (indexedCount === 0) {
+      return {
+        state: 'empty',
+        detail:
+          'No correspondence is indexed yet, so Ber AI cannot answer from what was said in email. The sweep indexes a batch each run; run scripts/backfill-thread-embeddings.mjs to catch up at once.',
+      }
+    }
+
+    const detail = `${indexedCount.toLocaleString()} threads indexed (${chunkCount.toLocaleString()} passages). ${
+      pendingCount > 0
+        ? `${pendingCount.toLocaleString()} waiting — the hourly sweep works through them.`
+        : 'Nothing waiting.'
+    }`
+
+    // A large backlog means the phase is not keeping up, which is worth saying
+    // rather than leaving as a number nobody reads.
+    return { state: pendingCount > 500 ? 'warn' : 'ok', detail }
+  } catch (err) {
+    return { state: 'failed', detail: err instanceof Error ? err.message : String(err) }
+  }
+}
+
+/**
  * Is the website deal-intake folder reachable, and is anything waiting?
  *
  * The whole path is a pull: a form writes a folder, a cron reads it. If the

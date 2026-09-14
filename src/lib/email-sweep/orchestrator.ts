@@ -21,6 +21,7 @@ import {
 } from '@/lib/email-ingestion/predecide'
 import { routeThreads, type RouteProgress } from './route-phase'
 import { applyThreadUpdates, type ApplyProgress } from './apply-phase'
+import { embedPendingThreads, type EmbedProgress } from '@/lib/ai/thread-embeddings'
 
 export type SweepPhase =
   | 'fetch'
@@ -29,6 +30,7 @@ export type SweepPhase =
   | 'stage'
   | 'route'
   | 'apply'
+  | 'embed'
   | 'predecide'
 
 export interface SweepRunOptions {
@@ -51,6 +53,7 @@ export interface SweepRunResult {
   stage?: StageProgress
   route?: RouteProgress
   apply?: ApplyProgress
+  embed?: EmbedProgress
   predecide?: PredecideProgress
   elapsedMs: number
   /** True when work remains — the next run should pick up where this left off. */
@@ -64,6 +67,7 @@ const ALL_PHASES: SweepPhase[] = [
   'stage',
   'route',
   'apply',
+  'embed',
   'predecide',
 ]
 
@@ -86,6 +90,10 @@ const APPLY_BATCH = 100
  * not eat the whole hour and starve it.
  */
 const APPLY_MAX_MS = 10 * 60 * 1000
+
+/** Threads indexed per run, and the ceiling on doing it. */
+const EMBED_BATCH = 50
+const EMBED_MAX_MS = 10 * 60 * 1000
 
 /** Share of the budget each phase may consume before yielding to the next. */
 const STAGE_SHARE = 0.25
@@ -156,6 +164,22 @@ export async function runSweep(opts: SweepRunOptions = {}): Promise<SweepRunResu
     if (result.apply.outOfTime || result.apply.linksConsidered >= APPLY_BATCH) {
       result.moreWork = true
     }
+  }
+
+  // ── Embed ─────────────────────────────────────────────────────────────────
+  // After route/apply so a thread is filed before it is indexed, and before
+  // predecide, which deliberately consumes whatever budget is left.
+  //
+  // Cheap by design: embedding is ~220ms per chunk against the local model
+  // (measured), so a normal hourly batch is seconds. The exception is a thread
+  // carrying attachments, where extraction dominates — hence its own ceiling.
+  if (phases.includes('embed')) {
+    result.embed = await embedPendingThreads({
+      limit: EMBED_BATCH,
+      budgetMs: Math.max(0, Math.min(remaining(), EMBED_MAX_MS)),
+    })
+    result.ranPhases.push('embed')
+    if (result.embed.remaining > 0) result.moreWork = true
   }
 
   if (phases.includes('predecide')) {

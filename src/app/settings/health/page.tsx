@@ -27,6 +27,7 @@ import {
   probeDriveSourceFolders,
   probeDealIntake,
   probeThreadRouting,
+  probeCorrespondenceIndex,
   probeMeetImport,
   probeScopeCoverage,
   probeDisk,
@@ -96,7 +97,7 @@ async function runChecks(): Promise<HealthCheck[]> {
   const dayAgo = new Date(Date.now() - 86_400_000).toISOString()
   const localAI = process.env.AI_PROVIDER === 'local'
 
-  const [brief, riskScore, lastAi, aiDayCount, failedRuns, mailbox, lmStudio, backups, drive, docIndexing, driveSources, scopes, disk, lastDigest, failedDigests, contacts, googleTasks, drivePublish, meetImport, dealIntake, routing] =
+  const [brief, riskScore, lastAi, aiDayCount, failedRuns, mailbox, lmStudio, backups, drive, docIndexing, driveSources, scopes, disk, lastDigest, failedDigests, contacts, googleTasks, drivePublish, meetImport, dealIntake, routing, corpus] =
     await Promise.all([
       supabase
         .from('stored_briefs')
@@ -154,6 +155,7 @@ async function runChecks(): Promise<HealthCheck[]> {
       probeMeetImport(),
       probeDealIntake(),
       probeThreadRouting(),
+      probeCorrespondenceIndex(),
     ])
 
   const checks: HealthCheck[] = []
@@ -389,6 +391,25 @@ async function runChecks(): Promise<HealthCheck[]> {
               ? 'Routing is behind'
               : 'Cannot read thread routing',
       detail: routing.detail,
+    })
+  }
+
+  // Correspondence index. Silent by construction: an unindexed thread never
+  // errors, it just never turns up in an answer.
+  {
+    checks.push({
+      name: 'Correspondence Index',
+      status:
+        corpus.state === 'ok' ? 'ok' : corpus.state === 'failed' ? 'fail' : 'warn',
+      headline:
+        corpus.state === 'ok'
+          ? 'Email is searchable by meaning'
+          : corpus.state === 'empty'
+            ? 'No correspondence indexed yet'
+            : corpus.state === 'warn'
+              ? 'Indexing is behind'
+              : 'Cannot read the correspondence index',
+      detail: corpus.detail,
     })
   }
 
