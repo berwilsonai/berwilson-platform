@@ -349,14 +349,12 @@ export async function embedPendingThreads(
     const candidates = (data ?? []) as Array<ThreadForEmbed & { pipeline?: string }>
     if (candidates.length === 0) break
 
-    const rows = await withoutSpamLeads(candidates)
-    if (rows.length === 0) {
-      // Every candidate was spam. Stamp them so the next pass moves on rather
-      // than re-selecting the same page forever.
-      for (const row of candidates) await markEmbedded(row.id)
-      progress.skipped += candidates.length
-      continue
-    }
+    // Spam-filtered threads are stamped inside, so they are counted HERE or the
+    // run reports "0 skipped" while silently passing over hundreds of threads —
+    // a count that disagrees with reality is worse than no count.
+    const { keep: rows, dropped } = await withoutSpamLeads(candidates)
+    progress.skipped += dropped
+    if (rows.length === 0) continue
 
     for (const row of rows) {
       if (Date.now() >= deadline) {
@@ -402,8 +400,10 @@ export async function embedPendingThreads(
  * caught up would be the same class of invisible loss this filter exists to
  * avoid.
  */
-async function withoutSpamLeads<T extends { id: string }>(rows: T[]): Promise<T[]> {
-  if (rows.length === 0) return rows
+async function withoutSpamLeads<T extends { id: string }>(
+  rows: T[]
+): Promise<{ keep: T[]; dropped: number }> {
+  if (rows.length === 0) return { keep: rows, dropped: 0 }
   const db = sweepDb()
   const spam = new Set<string>()
 
@@ -432,11 +432,14 @@ async function withoutSpamLeads<T extends { id: string }>(rows: T[]): Promise<T[
   }
 
   const keep: T[] = []
+  let dropped = 0
   for (const row of rows) {
-    if (spam.has(row.id)) await markEmbedded(row.id)
-    else keep.push(row)
+    if (spam.has(row.id)) {
+      await markEmbedded(row.id)
+      dropped++
+    } else keep.push(row)
   }
-  return keep
+  return { keep, dropped }
 }
 
 /** Retrieval over the correspondence index. */
