@@ -31,13 +31,16 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   }
 
   // Scoped to the viewer's own row: the id alone must never be enough to touch
-  // somebody else's inbox.
-  const { error } = await createAdminClient()
+  // somebody else's inbox. Selected back so somebody else's id answers 404
+  // rather than a 200 that silently did nothing.
+  const { data, error } = await createAdminClient()
     .from('notifications')
     .update(patch)
     .eq('id', id)
     .eq('team_member_id', viewer.teamMemberId)
+    .select('id')
 
   if (error) return Response.json({ error: error.message }, { status: 500 })
+  if (!data?.length) return Response.json({ error: 'Not found' }, { status: 404 })
   return Response.json({ ok: true })
 }
