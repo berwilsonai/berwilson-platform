@@ -52,8 +52,11 @@ const ROLE_PAGE_PREFIXES: Record<Exclude<Role, 'admin'>, string[]> = {
 
 // API path prefixes each non-admin role may call. Fine-grained checks (which
 // project, whose task) happen inside the routes via lib/auth/viewer.
+// Every signed-in role carries the notification bell, so /api/notifications is
+// in all of them. The routes scope every read and write to the viewer's OWN
+// team_member row, so this grants access to one's own inbox and nothing else.
 const ROLE_API_PREFIXES: Record<Exclude<Role, 'admin'>, string[]> = {
-  executive: ['/api/tasks', '/api/objectives', '/api/team-members', '/api/steel'],
+  executive: ['/api/tasks', '/api/objectives', '/api/team-members', '/api/steel', '/api/notifications'],
   project_manager: [
     '/api/tasks',
     '/api/team-members',
@@ -61,9 +64,10 @@ const ROLE_API_PREFIXES: Record<Exclude<Role, 'admin'>, string[]> = {
     '/api/opportunities',
     '/api/documents',
     '/api/milestones',
+    '/api/notifications',
   ],
-  member: ['/api/tasks', '/api/team-members'],
-  steel_sales: ['/api/steel'],
+  member: ['/api/tasks', '/api/team-members', '/api/notifications'],
+  steel_sales: ['/api/steel', '/api/notifications'],
 }
 
 function matchesPrefix(pathname: string, prefixes: string[]): boolean {

@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 import { runDocumentAiPass } from '@/lib/ai/document-pipeline'
 import { getViewer, canAccessProject, forbiddenJson, actorAdminClient } from '@/lib/auth/viewer'
+import { notifyDocumentUpload } from '@/lib/notifications/documents'
 
 // Summary + full-text transcription + embedding can take a few minutes on big PDFs
 export const maxDuration = 300
@@ -110,6 +111,19 @@ export async function POST(request: NextRequest) {
     await supabase.from('documents').update({ embedding_status: 'skipped' }).eq('id', doc.id)
     doc.embedding_status = 'skipped'
   }
+
+  // After the AI pass, so the notification can carry the summary that says what
+  // the document is about. Never fatal — the upload already succeeded.
+  await notifyDocumentUpload({
+    documentId: doc.id,
+    fileName: file.name,
+    summary: doc.ai_summary ?? null,
+    projectId: project_id,
+    entityId: entity_id,
+    isCompany: is_company,
+    actorName: viewer?.teamMemberName ?? null,
+    actorEmail: viewer?.email ?? null,
+  })
 
   return Response.json({ document: doc })
 }

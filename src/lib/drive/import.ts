@@ -55,6 +55,13 @@ export interface DocumentArrival {
   path: string
   kind: 'added' | 'revised'
   summary: string | null
+  /** The platform's own document row — what a notification links to. */
+  documentId: string
+  /** The original in Drive. */
+  webViewLink: string | null
+  /** Who last touched it in Drive; for a new file, who added it. */
+  actorName: string | null
+  actorEmail: string | null
 }
 
 interface KnownDoc extends KnownDriveDoc {
@@ -293,6 +300,10 @@ export async function importDriveFolder(opts: {
           path: file.path ?? '',
           kind: prior ? 'revised' : 'added',
           summary: pass.aiSummary,
+          documentId,
+          webViewLink: file.webViewLink ?? null,
+          actorName: file.modifiedByName ?? null,
+          actorEmail: file.modifiedByEmail ?? null,
         })
       }
     } catch (err) {

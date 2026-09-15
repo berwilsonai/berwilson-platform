@@ -5,11 +5,21 @@ import { usePathname } from 'next/navigation'
 import { useState, useEffect, useCallback } from 'react'
 import { Search, Sparkles } from 'lucide-react'
 import UserMenu from './UserMenu'
+import NotificationBell from './NotificationBell'
 import CommandPalette from './CommandPalette'
 import type { Role } from '@/lib/auth/permissions'
 import { pageTitle } from '@/lib/nav'
 
-export default function AppHeader({ email, role = 'admin' }: { email: string; role?: Role }) {
+export default function AppHeader({
+  email,
+  role = 'admin',
+  unreadNotifications = 0,
+}: {
+  email: string
+  role?: Role
+  /** Resolved server-side so the badge is correct on first paint. */
+  unreadNotifications?: number
+}) {
   const pathname = usePathname()
   const [paletteOpen, setPaletteOpen] = useState(false)
   // Cross-portfolio surfaces (search + Ask Ber AI) are admin-only.
@@ -115,6 +125,11 @@ export default function AppHeader({ email, role = 'admin' }: { email: string; ro
               <path fill="#ffba00" d="m73.4 26.5-12.7-22c-.8-1.4-1.95-2.5-3.3-3.3l-13.75 23.8 16.15 28h27.45c0-1.55-.4-3.1-1.2-4.5z" />
             </svg>
           </a>
+
+          {/* Every role gets the bell — knowing what a teammate just filed is
+              not a cross-portfolio privilege, and the API scopes each inbox to
+              its own team member. */}
+          <NotificationBell initialUnread={unreadNotifications} />
 
           <UserMenu email={email} />
         </div>

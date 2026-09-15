@@ -31,6 +31,7 @@ import {
   type DriveFile,
 } from '@/lib/integrations/google-drive'
 import { reconcileVanished, restoreDocument, type KnownDriveDoc } from '@/lib/drive/supersede'
+import type { DocumentArrival } from '@/lib/drive/import'
 
 /** Nothing bigger — a 100MB video is not knowledge-base material. */
 const MAX_FILE_BYTES = 30 * 1024 * 1024
@@ -47,6 +48,8 @@ export interface DriveSyncProgress {
   supersedeHeldBack: string | null
   errors: string[]
   outOfTime: boolean
+  /** What actually arrived, so the team can be told who added it. */
+  arrivals: DocumentArrival[]
 }
 
 interface KnownDoc extends KnownDriveDoc {
@@ -81,6 +84,7 @@ export async function syncDriveKnowledge(
     supersedeHeldBack: null,
     errors: [],
     outOfTime: false,
+    arrivals: [],
   }
 
   // Nominated folders may nest — "Corporate" holds Board Meetings, Fundraising,
@@ -234,7 +238,7 @@ export async function syncDriveKnowledge(
       }
 
       // Settles embedding_status itself and never throws.
-      await runDocumentAiPass({
+      const pass = await runDocumentAiPass({
         supabase,
         documentId,
         projectId: null,
@@ -243,6 +247,24 @@ export async function syncDriveKnowledge(
         mimeType: content.mimeType,
         buffer: content.buffer,
       })
+
+      // A retry of an unfinished pass is not news — the document was announced
+      // when it first arrived, and re-announcing it every time an index failed
+      // would put the same file in front of people night after night.
+      const retryOnly =
+        stranded && !returning && driveFileUnchanged(prior?.drive_modified_at ?? null, file)
+      if (!retryOnly) {
+        progress.arrivals.push({
+          fileName: content.fileName,
+          path: file.path ?? '',
+          kind: prior ? 'revised' : 'added',
+          summary: pass.aiSummary,
+          documentId,
+          webViewLink: file.webViewLink ?? null,
+          actorName: file.modifiedByName ?? null,
+          actorEmail: file.modifiedByEmail ?? null,
+        })
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err)
       console.error(`[drive-sync] ${file.name} failed:`, message)

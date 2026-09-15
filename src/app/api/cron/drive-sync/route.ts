@@ -3,6 +3,7 @@ import { syncDriveKnowledge } from '@/lib/knowledge/drive-sync'
 import { syncProjectFolders } from '@/lib/drive/project-folder-sync'
 import { isDriveConfigured } from '@/lib/integrations/google-drive'
 import { isGoogleConfigured } from '@/lib/integrations/google-workspace'
+import { notifyArrivals } from '@/lib/notifications/documents'
 
 /**
  * GET /api/cron/drive-sync
@@ -51,6 +52,19 @@ export async function GET(request: NextRequest) {
     const message = err instanceof Error ? err.message : String(err)
     console.error('[cron/drive-sync] knowledge phase failed:', message)
     return NextResponse.json({ error: message }, { status: 500 })
+  }
+
+  // Tell the team what landed in the company knowledge base. The project phase
+  // notifies per project inside syncProjectFolders, where the project's name is
+  // in hand; company documents have no record of their own, so it happens here.
+  // Discriminated on `arrivals`, NOT on `skipped` — DriveSyncProgress has a
+  // `skipped` COUNT of its own, so `'skipped' in knowledge` is true for both
+  // arms and narrows to never.
+  if ('arrivals' in knowledge && knowledge.arrivals.length) {
+    await notifyArrivals(
+      { label: 'the company knowledge base', href: '/company' },
+      knowledge.arrivals
+    )
   }
 
   // Deliberately after, and independently: a knowledge-folder problem must not

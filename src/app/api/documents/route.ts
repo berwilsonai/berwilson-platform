@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 import { runDocumentAiPass } from '@/lib/ai/document-pipeline'
 import { getViewer, canAccessProject, forbiddenJson, actorAdminClient } from '@/lib/auth/viewer'
 import { canAccessMeeting } from '@/lib/meetings/access'
+import { notifyDocumentUpload } from '@/lib/notifications/documents'
 
 // Summary + full-text transcription + embedding can take a few minutes on big PDFs
 export const maxDuration = 300
@@ -100,6 +101,19 @@ export async function POST(request: NextRequest) {
     // No AI requested — don't leave the doc looking like it's indexing.
     await supabase.from('documents').update({ embedding_status: 'skipped' }).eq('id', doc.id)
     doc.embedding_status = 'skipped'
+  }
+
+  // Meeting attachments are not announced: a recording is part of the meeting
+  // flow, which produces its own record, and the bell is for documents.
+  if (!meeting_id) {
+    await notifyDocumentUpload({
+      documentId: doc.id,
+      fileName: file_name,
+      summary: doc.ai_summary ?? null,
+      projectId: project_id ?? null,
+      actorName: viewer?.teamMemberName ?? null,
+      actorEmail: viewer?.email ?? null,
+    })
   }
 
   return Response.json({ document: doc })

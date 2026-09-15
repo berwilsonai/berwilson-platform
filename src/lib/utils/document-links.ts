@@ -45,6 +45,36 @@ export async function viewDocument(apiPath: string, mimeType?: string | null): P
 }
 
 /**
+ * Open a document when the caller does NOT already know its mime type.
+ *
+ * The notification bell has an id and nothing else, and viewDocument has to
+ * decide inline-vs-download before it fetches. This asks first: one round trip
+ * that returns the signed URL and the mime together.
+ */
+export async function openDocumentById(documentId: string): Promise<boolean> {
+  // Opened synchronously so the popup blocker ties the tab to the click.
+  const win = window.open('about:blank', '_blank')
+  try {
+    const res = await fetch(`/api/documents/${documentId}`)
+    if (!res.ok) throw new Error('no link')
+    const { url, mimeType } = await res.json()
+    if (typeof url !== 'string') throw new Error('no link')
+
+    if (isViewableInBrowser(mimeType)) {
+      if (win) win.location.href = url
+      else window.open(url, '_blank')
+      return true
+    }
+    // Not renderable — hand it over as a file instead of a blank tab.
+    win?.close()
+    return downloadDocument(`/api/documents/${documentId}`)
+  } catch {
+    win?.close()
+    return false
+  }
+}
+
+/**
  * Fetch a document's stored readable text (extracted text, AI summary as
  * fallback) for the read-aloud button. Returns null when none is stored.
  */

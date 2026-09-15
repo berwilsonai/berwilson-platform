@@ -25,6 +25,7 @@
 
 import { createAdminClient } from '@/lib/supabase/admin'
 import { importDriveFolder, type DocumentArrival } from './import'
+import { notifyArrivals } from '@/lib/notifications/documents'
 
 export interface ProjectFolderSyncResult {
   projects: number
@@ -202,6 +203,13 @@ export async function syncProjectFolders(
     }
 
     await postArrivalUpdate(row.id, row.name, arrivals, superseded)
+    // The feed update tells the project what arrived; this tells the PEOPLE.
+    // Retirements are deliberately not announced — a document someone dragged
+    // into Archive is a decision they already made, not news for them.
+    await notifyArrivals(
+      { label: row.name, href: `/projects/${row.id}/documents`, projectId: row.id },
+      arrivals
+    )
     if (result.outOfTime) break
   }
 

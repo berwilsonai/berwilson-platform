@@ -49,6 +49,20 @@ export interface DriveFile {
    * the folder name is half of what the document is.
    */
   path?: string
+  /** Opens the file in Drive. Absent from responses that did not ask for it. */
+  webViewLink?: string
+  /**
+   * Who last touched the file — the closest Drive gets to "who uploaded this".
+   * For a file created and never edited, this IS the uploader. Verified to carry
+   * a real Workspace address (`tuaone@berwilson.com`) under `drive.readonly`.
+   */
+  modifiedByName?: string
+  modifiedByEmail?: string
+}
+
+interface DriveUser {
+  displayName?: string
+  emailAddress?: string
 }
 
 interface DriveListResponse {
@@ -58,6 +72,8 @@ interface DriveListResponse {
     mimeType: string
     modifiedTime: string
     size?: string
+    webViewLink?: string
+    lastModifyingUser?: DriveUser
   }>
   nextPageToken?: string
 }
@@ -145,7 +161,11 @@ export async function listFolder(
     do {
       const params = new URLSearchParams({
         q: `'${id}' in parents and trashed = false`,
-        fields: 'nextPageToken, files(id, name, mimeType, modifiedTime, size)',
+        // lastModifyingUser + webViewLink are what let an import say WHO added a
+        // document and link straight to it. Both are free in the same listing —
+        // asking per file afterwards would be one round trip per document.
+        fields:
+          'nextPageToken, files(id, name, mimeType, modifiedTime, size, webViewLink, lastModifyingUser(displayName, emailAddress))',
         pageSize: '200',
         // Shared drives are not the target, but a folder shared INTO the account
         // still needs these to be listable at all.
@@ -172,6 +192,9 @@ export async function listFolder(
           modifiedTime: f.modifiedTime,
           size: f.size ? Number(f.size) : null,
           path: path.join('/'),
+          webViewLink: f.webViewLink,
+          modifiedByName: f.lastModifyingUser?.displayName,
+          modifiedByEmail: f.lastModifyingUser?.emailAddress,
         })
       }
       pageToken = data.nextPageToken

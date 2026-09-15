@@ -44,7 +44,7 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
 
   const { data: doc, error: fetchError } = await supabase
     .from('documents')
-    .select('id, storage_path, file_name, project_id, meeting_id, extracted_text, ai_summary')
+    .select('id, storage_path, file_name, mime_type, project_id, meeting_id, extracted_text, ai_summary')
     .eq('id', id)
     .single()
 
@@ -74,7 +74,10 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
     return Response.json({ error: signError?.message ?? 'Could not create link' }, { status: 500 })
   }
 
-  return Response.json({ url: data.signedUrl })
+  // The mime travels with the link so a caller that does not already hold the
+  // document row (the notification bell) can tell "render this inline" from
+  // "hand it to the user as a file".
+  return Response.json({ url: data.signedUrl, mimeType: doc.mime_type ?? null })
 }
 
 /**
