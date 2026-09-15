@@ -817,12 +817,18 @@ export async function probeGoogleTasks(): Promise<{
     .map((r) => (r.last_synced_at ? new Date(r.last_synced_at).getTime() : 0))
     .reduce((a, b) => Math.max(a, b), 0)
   const ageHours = newest ? (Date.now() - newest) / 3_600_000 : Infinity
-  if (Number.isFinite(ageHours) && ageHours > 2) {
+  // Infinity (nobody has ever synced) must land here too. Excluding it was the
+  // other half of the blind spot: a member connected but never once synced read
+  // as a clean bill of health.
+  if (ageHours > 2) {
     return {
       state: 'stalled',
       detail:
-        `${connected.length} member${connected.length === 1 ? '' : 's'} connected, but nothing has synced in ` +
-        `${Math.round(ageHours)} hours. The job runs every 15 minutes.${tail}`,
+        `${connected.length} member${connected.length === 1 ? '' : 's'} connected, but ` +
+        (Number.isFinite(ageHours)
+          ? `nothing has synced in ${Math.round(ageHours)} hours`
+          : 'no run has ever completed') +
+        `. The job runs every 15 minutes.${tail}`,
     }
   }
 

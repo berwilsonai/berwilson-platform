@@ -354,6 +354,15 @@ export async function syncGoogleTasks(opts: TaskSyncOptions = {}): Promise<TaskS
         noteFail,
         hold,
       })
+      // The health probe tells a working sync from a dead one by this column
+      // alone. Leaving it unwritten is why a cron that never ran once read as
+      // healthy for five days — write it on every completed pass.
+      if (!dryRun) {
+        await supabase
+          .from('google_task_lists')
+          .update({ last_synced_at: new Date().toISOString(), last_error: null })
+          .eq('team_member_id', member.id)
+      }
     } catch (err) {
       if (err instanceof TasksScopeError) {
         // Fails identically for every task in this member's list, so it is one
