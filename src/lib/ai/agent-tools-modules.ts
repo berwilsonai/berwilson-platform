@@ -22,7 +22,7 @@ import { searchCorrespondence, extractPortalLinks } from './thread-embeddings'
 import { sweepDb } from '@/lib/email-sweep/db'
 // Same story for the leads module — it post-dates the last type generation.
 import { leadsDb, parseLeadAttachments, type LeadRow } from '@/lib/leads/db'
-import { ROUTE_LABELS, ROUTE_DESTINATIONS, STATUS_LABELS } from '@/lib/utils/leads'
+import { ROUTE_LABELS, STATUS_LABELS } from '@/lib/utils/leads'
 import {
   STEEL_STAGE_LABELS,
   STEEL_PIPELINE,
@@ -233,32 +233,36 @@ export const moduleTools = [
       properties: {
         route: {
           type: 'string',
-          description:
-            'Optional destination filter: steel, dino, construction, corporate, or unknown.',
+          enum: ['steel', 'dino', 'construction', 'corporate', 'unknown'],
+          description: 'Filter by destination.',
         },
         status: {
           type: 'string',
-          description:
-            'Optional status filter: new, reviewing, promoted, forwarded, ignored, expired, spam.',
+          enum: ['new', 'reviewing', 'promoted', 'forwarded', 'ignored', 'expired', 'spam'],
+          description: 'Filter by status.',
         },
         open_only: {
           type: 'boolean',
-          description: 'Only leads still awaiting a decision (new or reviewing). Default true.',
+          description: 'Only leads awaiting a decision. Default true.',
         },
         recommendation: {
           type: 'string',
-          description: 'Optional fit filter: pursue, consider, or pass.',
+          enum: ['pursue', 'consider', 'pass'],
+          description: 'Filter by fit verdict.',
         },
         due_within_days: {
           type: 'number',
-          description: 'Only leads whose bid date falls within this many days from today.',
+          description: 'Only leads whose bid date falls within N days.',
         },
         include_filtered: {
           type: 'boolean',
           description:
-            'Include leads triage rejected as marketing (status=spam). Default false — ask for these only when checking whether something was wrongly filtered out.',
+            'Include marketing rejects (status=spam). Default false — only when checking whether something was wrongly filtered.',
         },
-        limit: { type: 'number', description: 'Max leads to return (default 50).' },
+        limit: {
+          type: 'number',
+          description: 'Max to return (default 20 of ~190 open; raise only for a full sweep).',
+        },
       },
     },
   },
@@ -311,27 +315,46 @@ const str = (v: unknown): string | undefined =>
 const num = (v: unknown): number | undefined =>
   typeof v === 'number' && Number.isFinite(v) ? v : undefined
 /** Compact lead shape shared by the lead tools. */
+/**
+ * One line per lead, for the LIST view.
+ *
+ * Null and empty fields are OMITTED rather than emitted as `null`. That is not
+ * cosmetic: measured on the live queue, `estimated_value` is null on 186 of 187
+ * open leads and `bid_due_date` on 134 of them, so emitting the keys spent most
+ * of this tool's payload saying nothing. The model reads an absent key the same
+ * way it reads a null one.
+ *
+ * The route's destination sentence ("Prefab steel — quotes in the Steel CRM")
+ * is deliberately NOT here. It is a property of the route, not of the lead, so
+ * repeating it per row restated the same handful of sentences dozens of times.
+ * It is stated once in the tool's own result instead.
+ */
 function leadBrief(row: LeadRow) {
   const days =
     row.bid_due_date !== null
       ? Math.ceil((new Date(row.bid_due_date + 'T00:00:00').getTime() - Date.now()) / 86_400_000)
       : null
-  return {
+  const brief: Record<string, unknown> = {
     id: row.id,
     title: row.title,
-    from: row.sender_company ?? row.sender_name,
     destination: ROUTE_LABELS[row.route] ?? row.route,
-    becomes: ROUTE_DESTINATIONS[row.route] ?? null,
     status: STATUS_LABELS[row.status] ?? row.status,
-    location: row.location,
-    estimated_value: row.estimated_value,
-    solicitation_number: row.solicitation_number,
-    bid_due_date: row.bid_due_date,
-    days_until_bid_due: days,
     fit_score: row.fit_score,
     fit_recommendation: row.fit_recommendation,
-    scored: row.score_state === 'scored',
   }
+  const from = row.sender_company ?? row.sender_name
+  if (from) brief.from = from
+  if (row.location) brief.location = row.location
+  if (row.estimated_value !== null) brief.estimated_value = row.estimated_value
+  if (row.solicitation_number) brief.solicitation_number = row.solicitation_number
+  if (row.bid_due_date) {
+    brief.bid_due_date = row.bid_due_date
+    brief.days_until_bid_due = days
+  }
+  // Only worth saying when it is NOT true — an unscored lead's fit fields are
+  // absent or provisional, which changes how the answer should read.
+  if (row.score_state !== 'scored') brief.scored = false
+  return brief
 }
 
 const money = (n: number): number => Math.round(n * 100) / 100
@@ -1022,7 +1045,10 @@ export async function executeModuleTool(
     case 'list_leads': {
       const openOnly = args.open_only !== false
       const includeFiltered = args.include_filtered === true
-      const limit = num(args.limit) ?? 50
+      // 20, not 50: the queue is ~190 open leads and a list tool is a pointer
+      // into detail, not the detail itself. Measured, 50 rows cost ~6.5k tokens
+      // — 16% of the local model's context window in a single tool call.
+      const limit = num(args.limit) ?? 20
 
       let q = leadsDb().from('leads').select('*')
       if (str(args.route)) q = q.eq('route', str(args.route))
@@ -1042,11 +1068,25 @@ export async function executeModuleTool(
       const { data, error } = await q.order('bid_due_date', { ascending: true, nullsFirst: false })
       if (error) return { error: `Could not read leads: ${error.message}` }
       const rows = (data ?? []) as LeadRow[]
+      const shown = rows.slice(0, limit)
 
+      // The queue runs to ~190 open leads, so this tool is nearly always
+      // returning a slice. Saying so matters: a silently truncated list reads
+      // as the whole queue, and "you have 20 leads" would be wrong by an order
+      // of magnitude. Rows are ordered by bid date, so the slice is the part
+      // with a deadline — the part worth seeing first.
+      const truncated = rows.length > shown.length
       return {
-        count: rows.length,
-        note: 'Leads are UNCLAIMED inbound bid invitations, not pipeline work. Promoting one is what turns it into a project, opportunity, or steel deal.',
-        leads: rows.slice(0, limit).map(leadBrief),
+        matched: rows.length,
+        showing: shown.length,
+        ...(truncated
+          ? {
+              truncated: true,
+              note_on_truncation: `Showing the ${shown.length} soonest-due of ${rows.length} matching leads. Say so rather than implying this is the whole queue. Narrow with route, recommendation, or due_within_days, or raise limit.`,
+            }
+          : {}),
+        note: 'Leads are UNCLAIMED inbound bid invitations, not pipeline work — never count them as pipeline. Promoting one is what turns it into a project (construction), an opportunity (corporate), a steel deal (steel), or a forward to Dino (dino). Use query_lead for the full detail on any one of them.',
+        leads: shown.map(leadBrief),
       }
     }
 

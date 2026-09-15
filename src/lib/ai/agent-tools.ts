@@ -190,49 +190,33 @@ export const agentTools = [
     },
   },
   {
-    name: 'draft_email',
-    description: 'Draft a professional email on behalf of the executive. Use when asked to "draft an email", "write a follow-up", "send a message to", or "compose a response". Returns a ready-to-send email with subject line and body.',
+    name: 'draft',
+    description:
+      'Write a draft on behalf of the executive: an email, a meeting agenda, or a status report. Use when asked to "draft an email", "write a follow-up", "create an agenda", "prep for a meeting", "write a status update", or "summarize progress for the board". Returns ready-to-use text.',
     parameters: {
       type: 'object',
       properties: {
-        instructions: { type: 'string', description: 'What the email should say or accomplish (e.g. "follow up with Turner about the schedule slip and reference the Davis-Bacon delay")' },
-        project_id: { type: 'string', description: 'Optional: project ID for context' },
+        kind: {
+          type: 'string',
+          enum: ['email', 'agenda', 'report'],
+          description: 'What to write.',
+        },
+        instructions: {
+          type: 'string',
+          description:
+            'What it should say or accomplish, e.g. "follow up with Turner about the schedule slip and reference the Davis-Bacon delay".',
+        },
+        project_id: {
+          type: 'string',
+          description: 'Optional project id for context. Omit on a report for portfolio-wide scope.',
+        },
         recipients: {
           type: 'array',
           items: { type: 'string' },
-          description: 'Names or emails of recipients',
+          description: 'Optional names or emails of the recipients (or attendees, for an agenda).',
         },
       },
-      required: ['instructions'],
-    },
-  },
-  {
-    name: 'draft_agenda',
-    description: 'Draft a meeting agenda. Use when asked to "create an agenda", "prep for a meeting", or "outline talking points". Returns a structured agenda with topics, time allocations, and discussion points.',
-    parameters: {
-      type: 'object',
-      properties: {
-        instructions: { type: 'string', description: 'Meeting topic and any specific items to cover' },
-        project_id: { type: 'string', description: 'Optional: project ID for context' },
-        attendees: {
-          type: 'array',
-          items: { type: 'string' },
-          description: 'Names of attendees',
-        },
-      },
-      required: ['instructions'],
-    },
-  },
-  {
-    name: 'draft_status_report',
-    description: 'Draft a status report for stakeholders, board members, or partners. Use when asked to "write a status update", "generate a report", or "summarize progress". Returns a formatted report with project summaries, risks, and upcoming milestones.',
-    parameters: {
-      type: 'object',
-      properties: {
-        instructions: { type: 'string', description: 'Who the report is for and what it should cover' },
-        project_id: { type: 'string', description: 'Optional: scope to a specific project. Omit for portfolio-wide report.' },
-      },
-      required: ['instructions'],
+      required: ['kind', 'instructions'],
     },
   },
   {
@@ -1020,17 +1004,16 @@ export async function executeToolCall(
       }
     }
 
-    case 'draft_email':
-    case 'draft_agenda':
-    case 'draft_status_report': {
-      const typeMap: Record<string, string> = {
-        draft_email: 'email',
-        draft_agenda: 'agenda',
-        draft_status_report: 'report',
+    case 'draft': {
+      const kind = args.kind as string
+      if (!['email', 'agenda', 'report'].includes(kind)) {
+        return { error: 'kind must be one of: email, agenda, report.' }
       }
-      const draftType = typeMap[toolName]
+      const draftType = kind
       const instructions = args.instructions as string
       const projectId = (args.project_id as string) || context.projectId
+      // `attendees` is accepted as an alias so a model that remembers the old
+      // draft_agenda shape still lands its argument somewhere useful.
       const recipients = args.recipients as string[] | undefined
       const attendees = args.attendees as string[] | undefined
 
