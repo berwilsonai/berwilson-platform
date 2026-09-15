@@ -290,12 +290,16 @@ h2{color:${color}}</style></head><body><h2>${title}</h2><p>${body}</p></body></h
 async function consentFor(mailbox, client, rl) {
   const state = randomBytes(16).toString('hex')
   const redirectUri = `http://127.0.0.1:${PORT}`
+  // Resolved ONCE and reused for both the request and the line printed below.
+  // They must be the same list: the printed line is the only check that the
+  // scope actually being asked for is the scope intended.
+  const scopes = scopesForMailbox(mailbox)
 
   const params = new URLSearchParams({
     client_id: client.client_id,
     redirect_uri: redirectUri,
     response_type: 'code',
-    scope: scopesForMailbox(mailbox).join(' '),
+    scope: scopes.join(' '),
     access_type: 'offline',   // this is what yields a refresh token
     // 'select_account' forces the account chooser even when the browser
     // already has a Google session. Without it, a browser signed into an
