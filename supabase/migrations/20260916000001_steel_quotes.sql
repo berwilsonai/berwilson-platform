@@ -173,3 +173,20 @@ create policy "steel_quotes_delete" on steel_quotes for delete using (auth.role(
 -- documents needs no change: steel_deal_id and the widened documents_scope_check
 -- already cover a quote PDF (20260803000001_steel_comp_plan.sql), and doc_type
 -- is free text.
+
+-- ============================================================
+-- steel_deal_services.price_per_sqft — per-line $/SF pricing
+-- ============================================================
+--
+-- Steel is quoted per square foot, so the natural way to price a line is to
+-- type the RATE and let the total follow from the building size. Typing the
+-- extended total instead invites arithmetic mistakes and goes stale the moment
+-- the square footage is corrected.
+--
+-- NULL means the line is a lump sum (freight, a permit fee) typed straight
+-- into `price`. Not to be confused with `cost_per_sqft`, which is the cost side
+-- of the same line.
+alter table steel_deal_services add column if not exists price_per_sqft numeric(15,4);
+
+comment on column steel_deal_services.price_per_sqft is
+  'Customer RATE when the line is priced per square foot; price is derived as deal.square_feet x this. NULL = lump sum typed into price. Not cost_per_sqft, which is the cost side.';

@@ -54,16 +54,9 @@ export function quoteReadiness(
     })
   }
 
-  // v1 produces the TURNKEY quote, whose delivery options, installation
-  // callouts and whole payment-milestone table describe Ber Wilson installing.
-  // With no installation scope, four sections of the document are untrue.
-  if (a.installAmount <= 0) {
-    blockers.push({
-      field: 'lines',
-      label: 'Installation price',
-      reason: 'This template quotes turnkey installation. Add a priced Frame Assembly line item.',
-    })
-  }
+  // NOT a blocker: plenty of deals are material supply only. The generator
+  // removes the installation sections from the document rather than printing
+  // claims about work nobody is doing — see stripInstallSections.
 
   if (!deal.customer?.trim()) {
     blockers.push({

@@ -142,3 +142,118 @@ export async function exportDocAsPdf(
   }
   return buf
 }
+
+/**
+ * Delete every region of a document between a pair of marker strings,
+ * inclusive of the structural elements that contain them.
+ *
+ * This is what lets ONE template serve both a turnkey quote and a supply-only
+ * one. The alternative — a second template — would mean the exclusions, quote
+ * terms and inclusions existed in two Docs, edited separately, free to diverge.
+ *
+ * Verified against the real template (2026-09-16): a single deleteContentRange
+ * spanning three tables removed all of them cleanly and left the neighbouring
+ * sections untouched.
+ *
+ * Two things make this work:
+ *  - ranges are taken from the START of the element holding the opening marker
+ *    to the END of the element holding the closing one, so whole paragraphs,
+ *    list items and tables go rather than leaving empty husks behind;
+ *  - deletions are applied BACK TO FRONT, because every deletion shifts the
+ *    indices of everything after it.
+ *
+ * Markers are matched anywhere in an element's text, so the template can carry
+ * them inline (prefixed to a heading, suffixed to a sentence) — there is no way
+ * to insert a standalone marker paragraph with replaceAllText alone.
+ */
+export async function deleteMarkedSections(
+  documentId: string,
+  openMarker: string,
+  closeMarker: string,
+  mailbox: string = PRIMARY_MAILBOX
+): Promise<number> {
+  const doc = await googleFetch<{
+    body?: { content?: DocElement[] }
+  }>(`${DOCS_BASE}/documents/${documentId}`, mailbox)
+
+  const elements = doc.body?.content ?? []
+  const ranges: { start: number; end: number }[] = []
+  let open: DocElement | null = null
+
+  for (const el of elements) {
+    const text = elementText(el)
+    if (!open && text.includes(openMarker)) open = el
+    // Same element can open and close a one-line section, which is why the
+    // close is checked in the same pass rather than in an else branch.
+    if (open && text.includes(closeMarker)) {
+      if (open.startIndex != null && el.endIndex != null) {
+        ranges.push({ start: open.startIndex, end: el.endIndex })
+      }
+      open = null
+    }
+  }
+
+  if (open) {
+    throw new Error(
+      `The quote template has an unclosed ${openMarker} section — every one needs a matching ${closeMarker}.`
+    )
+  }
+  if (ranges.length === 0) return 0
+
+  // One request per range rather than one batch, because a batch is atomic and
+  // a single rejected range would discard the others — and one of these ranges
+  // reliably needs a second attempt (see below).
+  for (const r of ranges.sort((a, b) => b.start - a.start)) {
+    try {
+      await deleteRange(documentId, r.start, r.end, mailbox)
+    } catch (err) {
+      // ⚠ Docs refuses to delete a range that ends on the newline terminating a
+      // LIST ITEM: measured on the real template, the lone bullet promising
+      // field installation is rejected at [start, end] while every other range
+      // succeeds. Consuming the PRECEDING newline instead removes the bullet
+      // cleanly. Trimming the trailing one instead ([start, end-1]) does not —
+      // it leaves an empty bullet whose marker swallows the next heading, so
+      // "PANEL DELIVERY" renders as a bullet point.
+      if (r.start <= 1) throw err
+      await deleteRange(documentId, r.start - 1, r.end - 1, mailbox)
+    }
+  }
+  return ranges.length
+}
+
+async function deleteRange(
+  documentId: string,
+  startIndex: number,
+  endIndex: number,
+  mailbox: string
+): Promise<void> {
+  await googleFetch(`${DOCS_BASE}/documents/${documentId}:batchUpdate`, mailbox, {
+    method: 'POST',
+    body: { requests: [{ deleteContentRange: { range: { startIndex, endIndex } } }] },
+  })
+}
+
+/** Enough of a structural element to locate and measure it. */
+interface DocElement {
+  startIndex?: number
+  endIndex?: number
+  paragraph?: { elements?: { textRun?: { content?: string } }[] }
+  table?: {
+    tableRows?: { tableCells?: { content?: DocElement[] }[] }[]
+  }
+}
+
+/** All the text inside one structural element, tables included. */
+function elementText(el: DocElement): string {
+  if (el.paragraph) {
+    return (el.paragraph.elements ?? []).map((e) => e.textRun?.content ?? '').join('')
+  }
+  if (el.table) {
+    return (el.table.tableRows ?? [])
+      .flatMap((r) => r.tableCells ?? [])
+      .flatMap((c) => c.content ?? [])
+      .map(elementText)
+      .join('')
+  }
+  return ''
+}

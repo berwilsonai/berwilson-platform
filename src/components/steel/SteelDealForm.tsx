@@ -10,7 +10,7 @@ import { cn } from '@/lib/utils'
 import { createSteelDeal, updateSteelDeal } from '@/app/steel/actions'
 import type { SteelDealFormState } from '@/app/steel/actions'
 import type { SteelDeal, SteelDealService } from '@/lib/supabase/types'
-import { formatValue } from '@/lib/utils/constants'
+import { formatValue, formatMoney} from '@/lib/utils/constants'
 import {
   STEEL_STAGES,
   STEEL_STAGE_LABELS,
@@ -35,6 +35,7 @@ import {
   commissionableMargin,
   isInstallCategory,
   type SteelServiceType,
+  formatSqft,
 } from '@/lib/utils/steel'
 
 const inputClass = cn(
@@ -164,10 +165,18 @@ interface LineInput {
   id: string // existing row id, or '' for a new line
   description: string
   category: SteelServiceType
-  price: string
+  /**
+   * How this line is priced. 'sqft' is the DEFAULT because steel is sold per
+   * square foot — typing the rate and letting the extended total follow is both
+   * how the business thinks and the only way the total cannot go stale when the
+   * building size is corrected. 'lump' is for anything that genuinely is not
+   * per-SF: freight, a permit fee, a one-off engineering charge.
+   */
+  priceMode: 'sqft' | 'lump'
+  rate: string // $/SF, used when priceMode === 'sqft'
+  price: string // extended total; derived when priceMode === 'sqft'
   cost: string
   commissionable: boolean
-  priceTouched: boolean // stops SF×$/SF auto-fill once edited
   costTouched: boolean // stops SF×$20 cost auto-fill once edited
 }
 
@@ -207,7 +216,6 @@ export default function SteelDealForm({
   }, [state, onSaved])
 
   const [sqft, setSqft] = useState(deal?.square_feet != null ? String(deal.square_feet) : '')
-  const [ppsf, setPpsf] = useState(deal?.price_per_sqft != null ? String(deal.price_per_sqft) : '')
 
   // Marketing / referral source — any contact. Hidden input carries the id.
   const [source, setSource] = useState<{ id: string; full_name: string } | null>(referralSource)
@@ -226,13 +234,10 @@ export default function SteelDealForm({
   const newKey = () => `new-${keyRef.current++}`
   const [lines, setLines] = useState<LineInput[]>(() => {
     if (mode === 'edit' && services.length > 0) {
-      // The first materials line stays auto-derivable (untouched) when its
-      // stored price still equals SF × $/SF and its cost equals SF × $20 — so
-      // editing Square Feet / Price-per-SF above recomputes it. A hand-edited
-      // value no longer matches, so it's kept exactly as typed.
+      // A stored price_per_sqft means the line was priced per square foot; its
+      // extended total is derived and re-derives whenever the size changes. No
+      // rate means it was a lump sum and stays exactly as typed.
       const sf = deal?.square_feet ?? 0
-      const pp = deal?.price_per_sqft ?? 0
-      const derivedPrice = sf > 0 && pp > 0 ? Math.round(sf * pp * 100) / 100 : null
       const derivedCost = sf > 0 ? Math.round(sf * DEFAULT_STEEL_COST_PER_SQFT * 100) / 100 : null
       let firstMaterials = true
       return [...services]
@@ -241,19 +246,22 @@ export default function SteelDealForm({
           const category = steelCategory(s.service_type)
           const isFirstMaterials = category === 'materials' && firstMaterials
           if (isFirstMaterials) firstMaterials = false
-          const priceIsDerived =
-            isFirstMaterials && derivedPrice != null && s.price != null && Number(s.price) === derivedPrice
           const costIsDerived =
             isFirstMaterials && derivedCost != null && s.cost != null && Number(s.cost) === derivedCost
+          const rate = s.price_per_sqft
+          // A stored row with neither a rate nor a price is a blank placeholder,
+          // so it follows the new-line default rather than being stuck on lump sum.
+          const blank = rate == null && s.price == null
           return {
             key: s.id,
             id: s.id,
             description: s.description ?? '',
             category,
+            priceMode: (rate != null || blank ? 'sqft' : 'lump') as 'sqft' | 'lump',
+            rate: rate != null ? String(rate) : '',
             price: s.price != null ? String(s.price) : '',
             cost: s.cost != null ? String(s.cost) : '',
             commissionable: s.commissionable ?? true,
-            priceTouched: !priceIsDerived,
             costTouched: !costIsDerived,
           }
         })
@@ -263,10 +271,11 @@ export default function SteelDealForm({
       id: '',
       description: '',
       category,
+      priceMode: 'sqft' as const,
+      rate: '',
       price: '',
       cost: '',
       commissionable: true,
-      priceTouched: false,
       costTouched: false,
     }))
   })
@@ -282,34 +291,41 @@ export default function SteelDealForm({
         id: '',
         description: '',
         category: 'other',
+        priceMode: 'sqft',
+        rate: '',
         price: '',
         cost: '',
         commissionable: true,
-        priceTouched: false,
         costTouched: false,
       },
     ])
 
-  // SF / $/SF drive the first materials line's price (SF × $/SF) and cost
-  // (SF × $20 steel default) until the user edits them.
-  function recompute(nextSqft: string, nextPpsf: string) {
-    const s = parseFloat(nextSqft.replace(/[,\s]/g, ''))
-    const p = parseFloat(nextPpsf.replace(/[$,\s]/g, ''))
-    setLines((prev) => {
-      const idx = prev.findIndex((l) => l.category === 'materials')
-      if (idx === -1) return prev
-      const line = prev[idx]
-      const nextPrice =
-        !line.priceTouched && isFinite(s) && isFinite(p) && s > 0 && p > 0
-          ? String(Math.round(s * p * 100) / 100)
-          : line.price
-      const nextCost =
-        !line.costTouched && canSeeFinancials && isFinite(s) && s > 0
-          ? String(Math.round(s * DEFAULT_STEEL_COST_PER_SQFT * 100) / 100)
-          : line.cost
-      if (nextPrice === line.price && nextCost === line.cost) return prev
-      return prev.map((l, i) => (i === idx ? { ...l, price: nextPrice, cost: nextCost } : l))
-    })
+  /** The extended total for a per-SF line: rate x building size, to the cent. */
+  function derivedPrice(rate: string, sqftRaw: string): string {
+    const sf = parseFloat(sqftRaw.replace(/[,\s]/g, ''))
+    const r = parseFloat(rate.replace(/[$,\s]/g, ''))
+    if (!isFinite(sf) || !isFinite(r) || sf <= 0 || r <= 0) return ''
+    return String(Math.round(sf * r * 100) / 100)
+  }
+
+  /**
+   * Square footage changed, so EVERY per-SF line's total changes with it. This
+   * is the point of the rate-first model: correct the size and no total is left
+   * stating a number that no longer follows from it.
+   */
+  function recompute(nextSqft: string) {
+    setLines((prev) =>
+      prev.map((l) => {
+        const nextCost =
+          !l.costTouched && canSeeFinancials && l.category === 'materials'
+            ? derivedPrice(String(DEFAULT_STEEL_COST_PER_SQFT), nextSqft)
+            : l.cost
+        if (l.priceMode !== 'sqft') return nextCost === l.cost ? l : { ...l, cost: nextCost }
+        const nextPrice = derivedPrice(l.rate, nextSqft)
+        if (nextPrice === l.price && nextCost === l.cost) return l
+        return { ...l, price: nextPrice, cost: nextCost }
+      })
+    )
   }
 
   const [referralType, setReferralType] = useState(deal?.referral_fee_type ?? 'none')
@@ -355,7 +371,9 @@ export default function SteelDealForm({
   const materialsPrice = lines
     .filter((l) => l.category === 'materials')
     .reduce((a, l) => a + parseNum(l.price), 0)
-  const effectivePpsf = effectiveSteelPricePerSqft(materialsPrice, sqftNum, parseNum(ppsf))
+  // Derived from the materials lines, not from a separate field: there is
+  // exactly one steel rate on a deal and it is entered on the line it prices.
+  const effectivePpsf = effectiveSteelPricePerSqft(materialsPrice, sqftNum, null)
   const belowFloor = effectivePpsf != null && effectivePpsf < STEEL_PRICE_FLOOR_PER_SQFT
 
   const cancelHref = mode === 'edit' && deal ? `/steel/${deal.id}` : '/steel'
@@ -533,6 +551,10 @@ export default function SteelDealForm({
       {/* Building size */}
       <section className="space-y-4">
         <h2 className="label-caps text-muted-foreground">Building Size</h2>
+        <p className="-mt-2 text-[11px] text-muted-foreground">
+          Every per-SF line item below is priced off this figure, so correcting it
+          re-derives their totals.
+        </p>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
@@ -563,35 +585,13 @@ export default function SteelDealForm({
               value={sqft}
               onChange={(e) => {
                 setSqft(e.target.value)
-                recompute(e.target.value, ppsf)
+                recompute(e.target.value)
               }}
               placeholder="e.g. 40000"
               className={inputClass}
             />
             <p className="mt-1 text-[11px] text-muted-foreground">
               Sets the commission rate tier: {SIZE_TIER_LABELS[tier]}.
-            </p>
-          </div>
-          <div>
-            <label htmlFor="price_per_sqft" className={labelClass}>
-              Price / SF ($)
-            </label>
-            <input
-              id="price_per_sqft"
-              name="price_per_sqft"
-              type="number"
-              step="any"
-              min="0"
-              value={ppsf}
-              onChange={(e) => {
-                setPpsf(e.target.value)
-                recompute(sqft, e.target.value)
-              }}
-              placeholder="e.g. 45"
-              className={inputClass}
-            />
-            <p className="mt-1 text-[11px] text-muted-foreground">
-              Suggests the materials price below. Floor is ${STEEL_PRICE_FLOOR_PER_SQFT}/SF.
             </p>
           </div>
         </div>
@@ -612,8 +612,8 @@ export default function SteelDealForm({
         <h2 className="label-caps text-muted-foreground">Line Items</h2>
         <p className="-mt-2 text-[11px] text-muted-foreground">
           {canSeeFinancials
-            ? 'Add a line for each priced item. Price − cost = margin. Commission is earned on the deal’s total commissionable margin at the rate set by project size (below). Installation / frame-assembly lines are billed separately and earn the flat install fee, not margin commission. Untick “Commissionable” for pass-through costs (freight, permits). The first Steel line auto-fills from SF × $/SF (cost $20/SF).'
-            : 'Add a line for each priced item on the deal, with its price. Remove any line that isn’t part of this deal.'}
+            ? 'Add a line for each priced item. Price − cost = margin. Commission is earned on the deal’s total commissionable margin at the rate set by project size (below). Installation / frame-assembly lines are billed separately and earn the flat install fee, not margin commission. Untick “Commissionable” for pass-through costs (freight, permits). Lines default to $/SF — enter the rate and the total follows from the building size; switch a line to a lump sum for anything that isn’t priced by the foot.'
+            : 'Add a line for each priced item. Lines default to $/SF — enter the rate and the total follows from the building size; switch a line to a lump sum for anything that isn’t priced by the foot. Remove any line that isn’t part of this deal.'}
         </p>
 
         <input type="hidden" name="line_count" value={lines.length} readOnly />
@@ -626,6 +626,9 @@ export default function SteelDealForm({
             return (
               <div key={line.key} className="rounded-md border border-border bg-muted/30 p-3 space-y-3">
                 <input type="hidden" name={`line_${i}_id`} value={line.id} readOnly />
+                {line.priceMode === 'sqft' && (
+                  <input type="hidden" name={`line_${i}_price`} value={line.price} readOnly />
+                )}
                 {/* Description + category + remove */}
                 <div className="flex items-end gap-2">
                   <div className="flex-1 min-w-0">
@@ -673,20 +676,71 @@ export default function SteelDealForm({
                 {/* Money row */}
                 <div className={cn('grid gap-3', canSeeFinancials ? 'grid-cols-2 sm:grid-cols-3' : 'grid-cols-1')}>
                   <div>
-                    <label htmlFor={`line_${i}_price`} className={labelClass}>
-                      Price ($)
-                    </label>
-                    <input
-                      id={`line_${i}_price`}
-                      name={`line_${i}_price`}
-                      type="number"
-                      step="any"
-                      min="0"
-                      value={line.price}
-                      onChange={(e) => updateLine(i, { price: e.target.value, priceTouched: true })}
-                      placeholder={isMaterials ? 'Auto from SF × $/SF' : '0'}
-                      className={inputClass}
-                    />
+                    <div className="flex items-center justify-between gap-2">
+                      <label
+                        htmlFor={line.priceMode === 'sqft' ? `line_${i}_rate` : `line_${i}_price`}
+                        className={labelClass}
+                      >
+                        {line.priceMode === 'sqft' ? 'Price / SF ($)' : 'Price ($)'}
+                      </label>
+                      {/* Per-line, because a deal legitimately mixes the two:
+                          steel is $/SF, freight is a lump sum. */}
+                      <button
+                        type="button"
+                        onClick={() =>
+                          updateLine(
+                            i,
+                            line.priceMode === 'sqft'
+                              ? { priceMode: 'lump', rate: '' }
+                              : { priceMode: 'sqft', rate: '', price: '' }
+                          )
+                        }
+                        className="mb-1 text-[11px] text-muted-foreground underline underline-offset-2 hover:text-foreground"
+                      >
+                        {line.priceMode === 'sqft' ? 'Use lump sum' : 'Use $/SF'}
+                      </button>
+                    </div>
+                    {line.priceMode === 'sqft' ? (
+                      <>
+                        <input
+                          id={`line_${i}_rate`}
+                          name={`line_${i}_rate`}
+                          type="number"
+                          step="any"
+                          min="0"
+                          value={line.rate}
+                          onChange={(e) =>
+                            updateLine(i, {
+                              rate: e.target.value,
+                              price: derivedPrice(e.target.value, sqft),
+                            })
+                          }
+                          placeholder="e.g. 33"
+                          className={inputClass}
+                        />
+                        {/* The extended total, shown but not typed: it is what
+                            the rate and the building size make it. */}
+                        <p className="mt-1 text-[11px] text-muted-foreground tnum">
+                          {sqftNum > 0
+                            ? line.rate.trim()
+                              ? `× ${formatSqft(sqftNum)} = ${formatMoney(parseNum(line.price))}`
+                              : `× ${formatSqft(sqftNum)}`
+                            : 'Enter square feet above'}
+                        </p>
+                      </>
+                    ) : (
+                      <input
+                        id={`line_${i}_price`}
+                        name={`line_${i}_price`}
+                        type="number"
+                        step="any"
+                        min="0"
+                        value={line.price}
+                        onChange={(e) => updateLine(i, { price: e.target.value })}
+                        placeholder="0"
+                        className={inputClass}
+                      />
+                    )}
                   </div>
                   {canSeeFinancials && (
                     <>
@@ -702,7 +756,7 @@ export default function SteelDealForm({
                           min="0"
                           value={line.cost}
                           onChange={(e) => updateLine(i, { cost: e.target.value, costTouched: true })}
-                          placeholder={isMaterials ? 'Auto from $20/SF' : 'Our cost'}
+                          placeholder={isMaterials ? `Auto from $${DEFAULT_STEEL_COST_PER_SQFT}/SF` : 'Our cost'}
                           className={inputClass}
                         />
                       </div>

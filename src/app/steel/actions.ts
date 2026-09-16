@@ -27,6 +27,8 @@ interface ParsedLine {
   id: string | null
   description: string | null
   category: SteelServiceType
+  /** The $/SF rate when the line is priced per square foot; null = lump sum. */
+  price_per_sqft: number | null
   price: number | null
   // cost / commissionable / commission_pct are null when a non-financials user
   // submits (they never see those fields) → preserved from the existing row.
@@ -63,8 +65,6 @@ function parseFields(formData: FormData, canSeeFinancials: boolean): ParseResult
 
   const square_feet = num('square_feet', 'Square feet')
   if (square_feet && typeof square_feet === 'object') return { ok: false, ...square_feet }
-  const price_per_sqft = num('price_per_sqft', 'Price per square foot')
-  if (price_per_sqft && typeof price_per_sqft === 'object') return { ok: false, ...price_per_sqft }
   const floors = num('floors', 'Floors')
   if (floors && typeof floors === 'object') return { ok: false, ...floors }
   const sqftNum = typeof square_feet === 'number' ? square_feet : 0
@@ -81,11 +81,24 @@ function parseFields(formData: FormData, canSeeFinancials: boolean): ParseResult
       id: str(`line_${i}_id`),
       description: str(`line_${i}_description`),
       category: steelCategory(str(`line_${i}_category`)),
+      // The RATE when the line is priced per SF. The extended total is
+      // recomputed from it below rather than trusted from the form, so a
+      // tampered or stale hidden field cannot put a wrong number on a quote.
+      price_per_sqft: money(`line_${i}_rate`),
       price: money(`line_${i}_price`),
       cost: canSeeFinancials ? money(`line_${i}_cost`) : null,
       commissionable: canSeeFinancials ? formData.has(`line_${i}_commissionable`) : null,
       commission_pct: canSeeFinancials ? money(`line_${i}_commission_pct`) : null,
     })
+  }
+
+  // A per-SF line's total is DERIVED here, not taken from the form: rate x
+  // building size is the single definition of that number, and deriving it
+  // server-side means it cannot disagree with the rate printed on the quote.
+  for (const l of lines) {
+    if (l.price_per_sqft != null && sqftNum > 0) {
+      l.price = Math.round(sqftNum * l.price_per_sqft * 100) / 100
+    }
   }
 
   // Contract value = sum of line prices (the deal's revenue).
@@ -99,7 +112,7 @@ function parseFields(formData: FormData, canSeeFinancials: boolean): ParseResult
   const pricing_below_floor = isPricingBelowFloor(
     materialsPrice,
     sqftNum,
-    typeof price_per_sqft === 'number' ? price_per_sqft : null
+    null
   )
 
   const fields: TablesInsert<'steel_deals'> = {
@@ -118,7 +131,12 @@ function parseFields(formData: FormData, canSeeFinancials: boolean): ParseResult
     icp_segment: str('icp_segment'),
     buying_trigger: str('buying_trigger'),
     square_feet: square_feet as number | null,
-    price_per_sqft: price_per_sqft as number | null,
+    // Derived from the materials lines. It used to be its own input sitting
+    // beside the line that priced the same steel — one number in two boxes,
+    // free to disagree.
+    price_per_sqft: materialsPrice != null && sqftNum > 0
+      ? Math.round((materialsPrice / sqftNum) * 10000) / 10000
+      : null,
     // Quote inputs. Non-financial — a rep writes these, since they are the
     // facts about the building, not the money. `scope_summary` is deliberately
     // separate from `description`: that one is the internal Scope & Notes field
@@ -197,13 +215,21 @@ async function saveServices(
     // Drop blank lines (nothing entered). An existing row that lands here is
     // simply not kept → deleted below.
     const hasData =
-      price != null || cost != null || commission_pct != null || (description ?? '') !== '' || commission_paid
+      price != null ||
+      line.price_per_sqft != null ||
+      cost != null ||
+      commission_pct != null ||
+      (description ?? '') !== '' ||
+      commission_paid
     if (!hasData) return
 
     const row: TablesInsert<'steel_deal_services'> = {
       deal_id: dealId,
       service_type: line.category,
       description,
+      // Kept so the form knows the line was priced per SF and re-derives it
+      // when the building size changes. Null means a lump sum.
+      price_per_sqft: line.price_per_sqft,
       price,
       cost,
       cost_per_sqft:

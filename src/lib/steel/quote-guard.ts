@@ -28,12 +28,15 @@ export class QuoteGuardError extends Error {
  * survived; it cannot catch one a human deleted, because a deleted token leaves
  * no trace — the quote simply goes out missing its total.
  */
-export function assertTemplateHasTokens(templateText: string): void {
-  const missing = QUOTE_TOKENS.filter((t) => !templateText.includes(tokenPlaceholder(t)))
+export function assertTemplateHasTokens(templateText: string, extra: string[] = []): void {
+  const missing: string[] = [
+    ...QUOTE_TOKENS.filter((t) => !templateText.includes(tokenPlaceholder(t))).map(tokenPlaceholder),
+    ...extra.filter((m) => !templateText.includes(m)),
+  ]
   if (missing.length > 0) {
     throw new QuoteGuardError(
       `The quote template is missing ${missing.length} placeholder${missing.length === 1 ? '' : 's'}: ` +
-        `${missing.map(tokenPlaceholder).join(', ')}. ` +
+        `${missing.join(', ')}. ` +
         `Someone has edited the template and removed them. Put them back, or re-seed the template.`
     )
   }

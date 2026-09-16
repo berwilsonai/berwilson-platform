@@ -18,6 +18,7 @@ import {
   trashFile,
 } from '@/lib/integrations/google-drive-write'
 import {
+  deleteMarkedSections,
   exportDocAsPdf,
   getDocPlainText,
   replaceTokensInDoc,
@@ -31,7 +32,7 @@ import {
 import { buildQuoteTokens, type QuoteInput, type QuoteLine } from './quote-tokens'
 import { assertAllTokensReplaced, assertNoCostLeak, assertTemplateHasTokens } from './quote-guard'
 import { quoteReadiness } from './quote-readiness'
-import { findQuoteTemplate } from './quote-template'
+import { INSTALL_CLOSE, INSTALL_OPEN, findQuoteTemplate } from './quote-template'
 
 export class QuoteGenerationError extends Error {
   readonly status: number
@@ -109,7 +110,7 @@ export async function generateQuote(opts: {
   // Checked BEFORE anything is copied. The post-replacement scan catches a
   // token that survived; it cannot catch one a human deleted, because a deleted
   // token leaves no trace — the quote just goes out missing its total.
-  assertTemplateHasTokens(templateText)
+  assertTemplateHasTokens(templateText, [INSTALL_OPEN, INSTALL_CLOSE])
 
   // ── 4. Decide draft-replacement vs new revision, and take the latch ─────
   const { data: priorRows } = await supabase
@@ -220,7 +221,17 @@ export async function generateQuote(opts: {
     const doc = await copyFile(template.id, fileName.replace(/\.pdf$/, ''), folder.id, mailbox)
     docId = doc.id
 
-    // ── 6. Substitute, then verify against the document's own text ────────
+    // ── 6. Drop the sections that do not apply, THEN substitute ───────────
+    // Stripping first means tokens inside a removed section never have to be
+    // resolved, and a supply-only quote cannot carry a figure for work nobody
+    // is doing.
+    if (amounts.hasInstall) {
+      // Nothing to remove — just take the markers out.
+      await replaceTokensInDoc(doc.id, { IF_INSTALL: '', END_INSTALL: '' }, mailbox)
+    } else {
+      await deleteMarkedSections(doc.id, INSTALL_OPEN, INSTALL_CLOSE, mailbox)
+    }
+
     await replaceTokensInDoc(doc.id, tokens, mailbox)
     const renderedText = await getDocPlainText(doc.id, mailbox)
     assertAllTokensReplaced(renderedText)

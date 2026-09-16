@@ -51,6 +51,8 @@ export interface QuoteInput {
 }
 
 export interface QuoteAmounts {
+  /** Is Ber Wilson installing? Drives which sections the document keeps. */
+  hasInstall: boolean
   squareFeet: number
   kitAmount: number
   installAmount: number
@@ -103,6 +105,14 @@ export const QUOTE_TOKENS = [
   'INSTALL_AMOUNT',
   'TOTAL_RATE',
   'TOTAL_AMOUNT',
+  // TURNKEY or MATERIALS. A quote with no installation scope must not call
+  // itself a turnkey quote.
+  'QUOTE_KIND',
+  'QUOTE_KIND_UPPER',
+  // The clause naming installation inside the cover summary sentence, or empty
+  // on a supply-only quote. A token rather than a whole alternative sentence so
+  // the sentence around it stays Richard's to edit.
+  'TURNKEY_INCLUDES_INSTALL',
   // No MILESTONE_TOTAL: it is always exactly INSTALL_AMOUNT, and in the
   // template both render as the same literal string — replaceAllText matches on
   // text, so a separate token for it could never be placed unambiguously.
@@ -150,6 +160,7 @@ export function computeQuoteAmounts(
   const m4 = round2(installAmount - (m1 + m2 + m3))
 
   return {
+    hasInstall: installAmount > 0,
     squareFeet: sf,
     kitAmount,
     installAmount,
@@ -234,15 +245,26 @@ export function buildQuoteTokens(input: QuoteInput): {
     KIT_RATE: formatRatePerSqft(a.kitRate),
     KIT_AMOUNT: formatMoney(a.kitAmount),
 
-    INSTALL_SCOPE: safe(input.installScope) || DEFAULT_INSTALL_SCOPE,
-    INSTALL_RATE: formatRatePerSqft(a.installRate),
+    // On a supply-only quote the installation ROW stays and says so, rather
+    // than being deleted: a customer reading "Installation — by others" learns
+    // something, where a missing row just looks like an omission.
+    INSTALL_SCOPE: a.hasInstall
+      ? safe(input.installScope) || DEFAULT_INSTALL_SCOPE
+      : 'Installation (by others — not included)',
+    INSTALL_RATE: a.hasInstall ? formatRatePerSqft(a.installRate) : 'Not included',
     // Bare dollars, for the prose form "at $15.00 per square foot". On the
     // reference document the rate appears 5 times across these two phrasings.
     INSTALL_RATE_PLAIN: formatMoney(a.installRate, { cents: true }),
-    INSTALL_AMOUNT: formatMoney(a.installAmount),
+    INSTALL_AMOUNT: a.hasInstall ? formatMoney(a.installAmount) : 'By others',
 
     TOTAL_RATE: formatRatePerSqft(a.totalRate),
     TOTAL_AMOUNT: formatMoney(a.total),
+
+    QUOTE_KIND: a.hasInstall ? 'Turnkey' : 'Materials',
+    QUOTE_KIND_UPPER: a.hasInstall ? 'TURNKEY' : 'MATERIALS',
+    TURNKEY_INCLUDES_INSTALL: a.hasInstall
+      ? `, and Ber Wilson installation at ${formatMoney(a.installRate, { cents: true })} per square foot, including framing equipment and crane`
+      : '',
 
     MILESTONE_1_AMOUNT: formatMoney(a.milestones[0]),
     MILESTONE_2_AMOUNT: formatMoney(a.milestones[1]),

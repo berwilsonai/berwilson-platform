@@ -2805,6 +2805,7 @@ export type Database = {
           description: string | null
           id: string
           price: number | null
+          price_per_sqft: number | null
           service_type: string
           sort_order: number
           updated_at: string | null
@@ -2821,6 +2822,7 @@ export type Database = {
           description?: string | null
           id?: string
           price?: number | null
+          price_per_sqft?: number | null
           service_type: string
           sort_order?: number
           updated_at?: string | null
@@ -2837,6 +2839,7 @@ export type Database = {
           description?: string | null
           id?: string
           price?: number | null
+          price_per_sqft?: number | null
           service_type?: string
           sort_order?: number
           updated_at?: string | null

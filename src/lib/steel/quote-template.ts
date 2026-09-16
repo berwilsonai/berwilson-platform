@@ -28,10 +28,23 @@ import {
   ensureRootFolder,
   findFile,
   shareFileWithRole,
+  trashFile,
   type DriveFileRef,
 } from '@/lib/integrations/google-drive-write'
 import { getDocMeta, getDocPlainText, replaceLiteralsInDoc } from '@/lib/integrations/google-docs'
 import { assertTemplateHasTokens } from './quote-guard'
+
+/**
+ * Wraps the parts of the document that are only true when Ber Wilson is doing
+ * the installation. On a supply-only quote the generator deletes these regions
+ * outright rather than printing claims about work nobody is doing.
+ *
+ * Deliberately shaped like the other tokens (`{{UPPER_SNAKE}}`) so that a
+ * marker which somehow survives is caught by the same post-replacement guard
+ * that catches an unreplaced token, instead of reaching a customer.
+ */
+export const INSTALL_OPEN = '{{IF_INSTALL}}'
+export const INSTALL_CLOSE = '{{END_INSTALL}}'
 
 export const TEMPLATE_FOLDER_NAME = 'Templates'
 export const TEMPLATE_DOC_NAME = 'Prefab Steel Quote Template'
@@ -63,6 +76,11 @@ const TOKENIZE: [find: string, replace: string][] = [
   // it to the date cell adds it without having to insert a table row (which
   // text replacement cannot do).
   ['September 16, 2026', '{{QUOTE_DATE}}  ·  Quote {{QUOTE_NUMBER}}'],
+
+  // — The cover summary's installation clause, lifted whole so a supply-only
+  //   quote simply does not claim it. MUST come before the bare rate rules
+  //   below, which would otherwise rewrite its tail first. —
+  [', and Ber Wilson installation at $15.00 per square foot, including framing equipment and crane', '{{TURNKEY_INCLUDES_INSTALL}}'],
 
   // — Prose forms of the installation rate, before the bare figures —
   ['totaling $666,000 for 44,400 square feet', 'totaling {{INSTALL_AMOUNT}} for {{SF_PLAIN}} square feet'],
@@ -96,6 +114,31 @@ const TOKENIZE: [find: string, replace: string][] = [
   ['Ericson Tua’one', '{{ESTIMATOR_NAME}}'],
   ['Email: info@berwilson.com', 'Email: {{ESTIMATOR_EMAIL}}'],
   ['Phone: 385-436-5507', 'Phone: {{ESTIMATOR_PHONE}}'],
+
+  // — "Turnkey" is only true when we are installing. —
+  ['TURNKEY QUOTE', '{{QUOTE_KIND_UPPER}} QUOTE'],
+  ['Included in Turnkey Quote', 'Included in {{QUOTE_KIND}} Quote'],
+
+  // — Install-only regions. The markers sit INLINE on the first and last
+  //   element of each region, because replaceAllText cannot insert a standalone
+  //   marker paragraph. Four regions, none nested, in document order. —
+
+  // 1. The inclusion bullet promising field installation.
+  ['Ber Wilson field installation at', '{{IF_INSTALL}}Ber Wilson field installation at'],
+  ['panel hoisting, assembly, bracing, fastening, and erection.', 'panel hoisting, assembly, bracing, fastening, and erection.{{END_INSTALL}}'],
+
+  // 2. Schedule Comparison — its columns compare OUR installation to wood framing.
+  ['Schedule Comparison', '{{IF_INSTALL}}Schedule Comparison'],
+  ['timely inspections, and uninterrupted work areas.', 'timely inspections, and uninterrupted work areas.{{END_INSTALL}}'],
+
+  // 3. Delivery Options, through the two callouts that follow it.
+  ['Delivery Options', '{{IF_INSTALL}}Delivery Options'],
+  ['week prefab steel panel-installation timeframe.', 'week prefab steel panel-installation timeframe.{{END_INSTALL}}'],
+
+  // 4. The installation payment-milestone table and the sentence after it.
+  //    The materials callout above them stays: it is true on every quote.
+  ['Ber Wilson installation milestone', '{{IF_INSTALL}}Ber Wilson installation milestone'],
+  ['The materials-and-training option will have separate payment terms in the TBQ proposal.', 'The materials-and-training option will have separate payment terms in the TBQ proposal.{{END_INSTALL}}'],
 
   // — The DRAFT banner is a FOOTER PREFIX, so it shows on every page and
   //   collapses to nothing on a clean quote. —
@@ -165,12 +208,19 @@ export async function seedQuoteTemplate(opts: { mailbox?: string } = {}): Promis
     mailbox,
   })
 
-  // One ordered batch. The find side here is the reference document's own
-  // prose, not a token, which is why this uses the literal form.
-  await replaceLiteralsInDoc(created.id, TOKENIZE, mailbox)
+  try {
+    // One ordered batch. The find side here is the reference document's own
+    // prose, not a token, which is why this uses the literal form.
+    await replaceLiteralsInDoc(created.id, TOKENIZE, mailbox)
 
-  const text = await getDocPlainText(created.id, mailbox)
-  assertTemplateHasTokens(text)
+    const text = await getDocPlainText(created.id, mailbox)
+    assertTemplateHasTokens(text, [INSTALL_OPEN, INSTALL_CLOSE])
+  } catch (err) {
+    // Leave nothing behind. A half-built template would be found by name on the
+    // next attempt and make every retry fail with "already exists".
+    await trashFile(created.id, mailbox)
+    throw err
+  }
 
   // Writer, on this one file only. Everything the platform publishes stays
   // reader; the template is the deliberate exception.
