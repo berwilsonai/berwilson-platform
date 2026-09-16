@@ -281,6 +281,8 @@ export interface ReferralSourceCard {
   partyId: string
   name: string
   dealCount: number
+  /** Deals credited to this source that carry NO agreed fee yet. */
+  unpricedDealCount: number
   owed: number
   paid: number
   projected: number
@@ -290,6 +292,12 @@ export interface ReferralSourceCard {
 /**
  * Total referral fees by marketing/referral source across all non-lost deals.
  * `partyName` resolves source party ids to names.
+ *
+ * A source credited on a deal with NO fee agreed is listed too, with zero
+ * money and an unpriced count. Dropping those rows would make an attributed
+ * deal indistinguishable from an unattributed one, which is how a marketing
+ * commission goes unpaid: the source is on the deal, nobody priced it, and no
+ * surface ever says so.
  */
 export function referralSourceRollup(
   rows: DealWithLines[],
@@ -302,7 +310,9 @@ export function referralSourceRollup(
     const { deal } = row
     if (isLostStage(deal.stage)) continue
     const fin = financialsFor(row, accel)
-    if (fin.referralFee <= 0) continue
+    // A deal counts when money is owed to a source, or when a source is
+    // credited at all (even with nothing agreed yet).
+    if (fin.referralFee <= 0 && !deal.referral_party_id) continue
 
     const id = deal.referral_party_id ?? 'unknown'
     let c = cards.get(id)
@@ -311,6 +321,7 @@ export function referralSourceRollup(
         partyId: id,
         name: deal.referral_party_id ? partyName.get(deal.referral_party_id) ?? 'Unknown contact' : 'No source set',
         dealCount: 0,
+        unpricedDealCount: 0,
         owed: 0,
         paid: 0,
         projected: 0,
@@ -319,11 +330,64 @@ export function referralSourceRollup(
       cards.set(id, c)
     }
     c.dealCount += 1
+    if (fin.referralFee <= 0) {
+      c.unpricedDealCount += 1
+      continue
+    }
     c.total += fin.referralFee
     if (!isCommissionPayable(deal.stage)) c.projected += fin.referralFee
     else if (deal.referral_fee_paid) c.paid += fin.referralFee
     else c.owed += fin.referralFee
   }
 
-  return [...cards.values()].sort((a, b) => b.total - a.total)
+  return [...cards.values()].sort(
+    (a, b) => b.total - a.total || b.unpricedDealCount - a.unpricedDealCount
+  )
 }
+
+// ── One person's referral earnings (their own view) ──
+
+export interface ReferralDeal {
+  id: string
+  name: string
+  amount: number
+  payable: boolean
+  paid: boolean
+}
+
+export interface ReferralEarnings {
+  bucket: RepBucket
+  deals: ReferralDeal[]
+}
+
+/**
+ * Referral fees earned by ONE marketing/referral source, for their own
+ * earnings view. Keyed by party id, not team member id — a marketing source is
+ * a contact, and is frequently not a salesperson on the same deal (or a team
+ * member at all), which is exactly why repScorecards cannot answer this.
+ */
+export function referralEarnings(rows: DealWithLines[], partyId: string): ReferralEarnings {
+  const accel = acceleratorMap(rows, new Date().getFullYear())
+  const b = bucket()
+  const deals: ReferralDeal[] = []
+
+  for (const row of rows) {
+    const { deal } = row
+    if (isLostStage(deal.stage) || deal.referral_party_id !== partyId) continue
+    const fin = financialsFor(row, accel)
+    if (fin.referralFee <= 0) continue
+    const payable = isCommissionPayable(deal.stage)
+    add(b, fin.referralFee, payable, deal.referral_fee_paid)
+    deals.push({
+      id: deal.id,
+      name: deal.name,
+      amount: fin.referralFee,
+      payable,
+      paid: deal.referral_fee_paid,
+    })
+  }
+
+  deals.sort((a, c) => Number(a.payable) - Number(c.payable) || c.amount - a.amount)
+  return { bucket: b, deals }
+}
+

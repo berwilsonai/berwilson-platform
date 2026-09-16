@@ -49,12 +49,18 @@ export default async function SteelCommissionsPage() {
   let cost = 0
   let margin = 0
   let totalPayout = 0
+  // Split the payout by role, so the two commission kinds are both stated up
+  // front rather than only the one the scorecards happen to cover.
+  let salesPayout = 0
+  let referralPayout = 0
   for (const row of liveRows) {
     const fin = financialsFor(row, accel)
     revenue += fin.revenue
     cost += fin.cost
     margin += fin.margin
     totalPayout += fin.totalPayout
+    salesPayout += fin.salesCommission + fin.installFee
+    referralPayout += fin.referralFee
   }
   const net = margin - totalPayout
 
@@ -78,17 +84,24 @@ export default async function SteelCommissionsPage() {
       </div>
 
       {/* Headline band */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
         <Stat label="Revenue" value={formatValue(revenue)} sub="Sum of line prices" />
         <Stat label="Cost" value={formatValue(cost)} sub="Our cost / payouts" />
         <Stat label="Margin" value={formatValue(margin)} sub="Revenue − cost" tone="indigo" />
+        <Stat label="Sales commissions" value={formatValue(salesPayout)} sub="To reps, incl. install fees" />
+        <Stat
+          label="Marketing / referral"
+          value={formatValue(referralPayout)}
+          sub={`To ${referralSources.length || 'no'} source${referralSources.length === 1 ? '' : 's'}`}
+        />
         <Stat label="Net after comm." value={formatValue(net)} sub="Margin − all payouts" tone="emerald" />
       </div>
 
       {/* Payout worklist — mark commissions/fees paid */}
       <SteelPayoutList items={payouts} />
 
-      {/* Per-rep scorecards */}
+      {/* Per-rep scorecards — sales + install only; the marketing/referral
+          fee is paid to a contact, rolled up in its own table below. */}
       <RepScorecardTable scorecards={scorecards} year={year} />
 
       {/* Referral fees by marketing / referral source */}

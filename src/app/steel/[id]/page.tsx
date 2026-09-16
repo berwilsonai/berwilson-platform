@@ -3,7 +3,7 @@ import { notFound } from 'next/navigation'
 import { MessageSquare, StickyNote, TriangleAlert, FileText } from 'lucide-react'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { QUOTE_STATUS_LABELS, quoteLabel, quoteStatus } from '@/lib/utils/steel-quotes'
-import { getViewer, canSeeSteelFinancials, canWorkSteel } from '@/lib/auth/viewer'
+import { getViewer, getViewerPartyId, canSeeSteelFinancials, canWorkSteel } from '@/lib/auth/viewer'
 import { leadSourcesInUse } from '@/lib/steel/lead-sources'
 import { cn } from '@/lib/utils'
 import { formatValue, formatDate } from '@/lib/utils/constants'
@@ -126,7 +126,11 @@ export default async function SteelDealDetailPage({ params }: PageProps) {
 
   const canSeeFull = canSeeSteelFinancials(viewer)
   const viewerIsSalesperson = !!viewer?.teamMemberId && viewer.teamMemberId === deal.salesperson_id
-  const showFinancials = canSeeFull || viewerIsSalesperson
+  // A marketing source is a CONTACT, so the viewer's own party row is what
+  // matches — a rep who referred a deal someone else sold still earns on it.
+  const viewerPartyId = await getViewerPartyId()
+  const viewerIsReferralSource = !!viewerPartyId && viewerPartyId === deal.referral_party_id
+  const showFinancials = canSeeFull || viewerIsSalesperson || viewerIsReferralSource
   const salesAccelerated = !!(deal.salesperson_id && accel.get(deal.salesperson_id))
   const canEditFiles = canSeeFull || viewerIsSalesperson
   const canWork = canWorkSteel(viewer)
@@ -318,6 +322,8 @@ export default async function SteelDealDetailPage({ params }: PageProps) {
           referralPaid={deal.referral_fee_paid}
           salesAccelerated={salesAccelerated}
           scope={canSeeFull ? 'full' : 'self'}
+          viewerIsSalesperson={viewerIsSalesperson}
+          viewerIsReferralSource={viewerIsReferralSource}
         />
       )}
 

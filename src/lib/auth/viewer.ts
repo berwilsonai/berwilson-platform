@@ -105,6 +105,26 @@ export const getViewer = cache(async (): Promise<Viewer | null> => {
 })
 
 /**
+ * The `parties` row linked to the viewer's team member, if any.
+ *
+ * Deliberately a separate read rather than a field on getViewer(): that select
+ * drives role resolution and fails OPEN to admin on a missing column (42703),
+ * so widening it with a newer column would turn a stale database into an
+ * escalation. This one is non-critical — it only answers "is this viewer the
+ * marketing source on that deal?" — so it fails closed to null.
+ */
+export const getViewerPartyId = cache(async (): Promise<string | null> => {
+  const viewer = await getViewer()
+  if (!viewer?.teamMemberId) return null
+  const { data } = await createAdminClient()
+    .from('team_members')
+    .select('party_id')
+    .eq('id', viewer.teamMemberId)
+    .maybeSingle()
+  return data?.party_id ?? null
+})
+
+/**
  * Full set of project ids a viewer can access: direct grants plus every
  * descendant (a grant on a parent/program project covers its children).
  * Admin/executive callers shouldn't need this — returns null meaning "all".

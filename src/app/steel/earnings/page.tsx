@@ -1,10 +1,17 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { getViewer, canWorkSteel, canSeeSteelFinancials } from '@/lib/auth/viewer'
+import { getViewer, getViewerPartyId, canWorkSteel, canSeeSteelFinancials } from '@/lib/auth/viewer'
 import { formatValue } from '@/lib/utils/constants'
 import { isLostStage, isCommissionPayable, ACCELERATOR_THRESHOLD } from '@/lib/utils/steel'
-import { groupServices, acceleratorMap, financialsFor, repScorecards, type RepBucket } from '@/lib/steel/rollups'
+import {
+  groupServices,
+  acceleratorMap,
+  financialsFor,
+  repScorecards,
+  referralEarnings,
+  type RepBucket,
+} from '@/lib/steel/rollups'
 import SteelWorkspaceTabs from '@/components/steel/SteelWorkspaceTabs'
 
 export const metadata = { title: 'My Earnings — Ber Wilson Intelligence' }
@@ -54,6 +61,13 @@ export default async function SteelEarningsPage() {
   const accel = acceleratorMap(rows, year)
   const card = repScorecards(rows, members ?? [], year, me)[0]
 
+  // Marketing / referral fees are earned by a CONTACT, not a team member, so
+  // they're looked up by the viewer's linked party — a rep who referred a deal
+  // someone else sold earns on it and would otherwise see nothing here.
+  const myPartyId = await getViewerPartyId()
+  const referral = myPartyId ? referralEarnings(rows, myPartyId) : null
+  const referralBucket: RepBucket = referral?.bucket ?? { owed: 0, paid: 0, projected: 0 }
+
   // My deals: deals I'm the salesperson on, with my cut (sales + install).
   const myDeals: MyDeal[] = []
   for (const row of rows) {
@@ -77,6 +91,17 @@ export default async function SteelEarningsPage() {
     if (amount === 0) continue
     myDeals.push({ id: deal.id, name: deal.name, roles, amount, payable, paid })
   }
+  for (const d of referral?.deals ?? []) {
+    const existing = myDeals.find((m) => m.id === d.id)
+    if (existing) {
+      // Same deal, second role — fold it in so the row shows one total.
+      existing.roles.push('Referral')
+      existing.amount += d.amount
+      existing.paid = existing.paid && d.paid
+    } else {
+      myDeals.push({ id: d.id, name: d.name, roles: ['Referral'], amount: d.amount, payable: d.payable, paid: d.paid })
+    }
+  }
   myDeals.sort((a, b) => Number(a.payable) - Number(b.payable) || b.amount - a.amount)
 
   const accelPct = card ? Math.min(100, (card.collectedProfitYTD / ACCELERATOR_THRESHOLD) * 100) : 0
@@ -96,9 +121,13 @@ export default async function SteelEarningsPage() {
       {/* Totals band */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <Stat label="Total sales" value={formatValue(card?.totalSales ?? 0)} sub="Revenue on my deals" />
-        <Stat label="Owed to me" value={formatValue(card?.totalOwed ?? 0)} tone="amber" />
-        <Stat label="Paid to me" value={formatValue(card?.totalPaid ?? 0)} tone="emerald" />
-        <Stat label="Projected" value={formatValue(card?.totalProjected ?? 0)} sub="If open deals close" />
+        <Stat label="Owed to me" value={formatValue((card?.totalOwed ?? 0) + referralBucket.owed)} tone="amber" />
+        <Stat label="Paid to me" value={formatValue((card?.totalPaid ?? 0) + referralBucket.paid)} tone="emerald" />
+        <Stat
+          label="Projected"
+          value={formatValue((card?.totalProjected ?? 0) + referralBucket.projected)}
+          sub="If open deals close"
+        />
       </div>
 
       {/* Accelerator */}
@@ -129,13 +158,14 @@ export default async function SteelEarningsPage() {
         </div>
       </section>
 
-      {/* Breakdown by role */}
-      {card && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <RoleCard label="Sales commission" bucket={card.sales} />
-          <RoleCard label="Installation fees" bucket={card.install} />
-        </div>
-      )}
+      {/* Breakdown by role — sales/install are earned as the deal's salesperson,
+          the referral fee as its marketing source. Both are shown even at zero
+          so a role that pays nothing reads as "nothing yet", not "not tracked". */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <RoleCard label="Sales commission" bucket={card?.sales ?? EMPTY_BUCKET} />
+        <RoleCard label="Installation fees" bucket={card?.install ?? EMPTY_BUCKET} />
+        <RoleCard label="Marketing / referral" bucket={referralBucket} />
+      </div>
 
       {/* My deals */}
       <section className="rounded-lg border border-border bg-card p-4 elev-1">
@@ -166,7 +196,7 @@ export default async function SteelEarningsPage() {
               {myDeals.length === 0 && (
                 <tr>
                   <td colSpan={4} className="py-3 text-center text-xs text-muted-foreground">
-                    No commissions yet. Deals you sell will appear here.
+                    No commissions yet. Deals you sell or refer will appear here.
                   </td>
                 </tr>
               )}
@@ -193,6 +223,8 @@ function Stat({ label, value, sub, tone }: { label: string; value: string; sub?:
     </div>
   )
 }
+
+const EMPTY_BUCKET: RepBucket = { owed: 0, paid: 0, projected: 0 }
 
 function RoleCard({ label, bucket }: { label: string; bucket: RepBucket }) {
   const total = bucket.owed + bucket.paid + bucket.projected
