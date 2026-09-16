@@ -257,3 +257,64 @@ function elementText(el: DocElement): string {
   }
   return ''
 }
+
+/**
+ * Delete every TABLE ROW whose text contains a marker.
+ *
+ * Sections are removed with deleteContentRange, but a row cannot be: a range
+ * covering part of a table is not deletable, so Docs provides deleteTableRow
+ * for exactly this. Used for the two Payment Summary rows that only mean
+ * something when Ber Wilson is installing — the mobilization payment and the
+ * remaining progress payments.
+ *
+ * Rows are removed back to front within each table, because deleting one
+ * renumbers those after it.
+ */
+export async function deleteMarkedTableRows(
+  documentId: string,
+  marker: string,
+  mailbox: string = PRIMARY_MAILBOX
+): Promise<number> {
+  const doc = await googleFetch<{ body?: { content?: DocElement[] } }>(
+    `${DOCS_BASE}/documents/${documentId}`,
+    mailbox
+  )
+
+  const targets: { tableStart: number; rowIndex: number }[] = []
+  for (const el of doc.body?.content ?? []) {
+    if (!el.table || el.startIndex == null) continue
+    const rows = el.table.tableRows ?? []
+    rows.forEach((row, rowIndex) => {
+      const text = (row.tableCells ?? [])
+        .flatMap((c) => c.content ?? [])
+        .map(elementText)
+        .join('')
+      if (text.includes(marker)) targets.push({ tableStart: el.startIndex!, rowIndex })
+    })
+  }
+  if (targets.length === 0) return 0
+
+  // Descending by row within a table, and by table position, so no index that
+  // still has work pending is invalidated by an earlier deletion.
+  targets.sort((a, b) => b.tableStart - a.tableStart || b.rowIndex - a.rowIndex)
+
+  for (const t of targets) {
+    await googleFetch(`${DOCS_BASE}/documents/${documentId}:batchUpdate`, mailbox, {
+      method: 'POST',
+      body: {
+        requests: [
+          {
+            deleteTableRow: {
+              tableCellLocation: {
+                tableStartLocation: { index: t.tableStart },
+                rowIndex: t.rowIndex,
+                columnIndex: 0,
+              },
+            },
+          },
+        ],
+      },
+    })
+  }
+  return targets.length
+}

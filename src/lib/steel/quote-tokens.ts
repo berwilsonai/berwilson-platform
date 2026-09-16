@@ -60,7 +60,14 @@ export interface QuoteAmounts {
   kitRate: number
   installRate: number
   totalRate: number
-  milestones: [number, number, number, number]
+  /** 50% of installation, collected at signing with the materials. */
+  mobilization: number
+  /** The three progress payments: 25% / 20% / 5% of installation. */
+  milestones: [number, number, number]
+  /** 100% of materials + the mobilization. The cheque written at signing. */
+  dueAtSigning: number
+  /** What is still to come after signing — the three milestones. */
+  remainingPayments: number
 }
 
 export const DEFAULT_KIT_SCOPE = 'Engineering conversion and complete prefab panel material package'
@@ -68,10 +75,13 @@ export const DEFAULT_INSTALL_SCOPE = 'Ber Wilson installation, equipment, and cr
 export const DEFAULT_VALID_DAYS = 30
 
 /**
- * Installation payment milestones, as fractions of the installation amount.
- * Mirrors the template's Payment Terms table (50 / 25 / 20 / 5).
+ * Installation is paid 50 / 25 / 20 / 5. The 50% is a MOBILIZATION payment
+ * collected at signing alongside 100% of the materials, which is why it is
+ * separated here: the document shows one "due upon signing" figure and then
+ * three progress milestones, rather than four undifferentiated milestones.
  */
-export const MILESTONE_FRACTIONS = [0.5, 0.25, 0.2, 0.05] as const
+export const INSTALL_MOBILIZATION_FRACTION = 0.5
+export const MILESTONE_FRACTIONS = [0.25, 0.2, 0.05] as const
 
 const n = (v: number | null | undefined): number => (typeof v === 'number' && isFinite(v) ? v : 0)
 const round2 = (v: number): number => Math.round(v * 100) / 100
@@ -95,13 +105,11 @@ export const QUOTE_TOKENS = [
   'QUOTE_NUMBER',
   'DRAFT_BANNER',
   'SF',
-  'SF_PLAIN',
   'KIT_SCOPE',
   'KIT_RATE',
   'KIT_AMOUNT',
   'INSTALL_SCOPE',
   'INSTALL_RATE',
-  'INSTALL_RATE_PLAIN',
   'INSTALL_AMOUNT',
   'TOTAL_RATE',
   'TOTAL_AMOUNT',
@@ -109,17 +117,24 @@ export const QUOTE_TOKENS = [
   // itself a turnkey quote.
   'QUOTE_KIND',
   'QUOTE_KIND_UPPER',
+  // Mid-sentence, where "the full turnkey contract amount" reads as prose and
+  // "the full Turnkey contract amount" reads as a mistake.
+  'QUOTE_KIND_LOWER',
   // The clause naming installation inside the cover summary sentence, or empty
   // on a supply-only quote. A token rather than a whole alternative sentence so
   // the sentence around it stays Richard's to edit.
   'TURNKEY_INCLUDES_INSTALL',
-  // No MILESTONE_TOTAL: it is always exactly INSTALL_AMOUNT, and in the
-  // template both render as the same literal string — replaceAllText matches on
-  // text, so a separate token for it could never be placed unambiguously.
+  // ── The payment breakdown, which is what the document is really for ──
+  // 100% of materials + 50% of installation, collected at signing.
+  'DUE_AT_SIGNING',
+  // How that figure is arrived at, spelled out in the Calculation column.
+  'EXECUTION_CALC',
+  'INSTALL_MOBILIZATION',
+  'REMAINING_PAYMENTS',
+  // The three progress payments after signing: 25% / 20% / 5% of installation.
   'MILESTONE_1_AMOUNT',
   'MILESTONE_2_AMOUNT',
   'MILESTONE_3_AMOUNT',
-  'MILESTONE_4_AMOUNT',
   'CLIENT_COMPANY',
   'VALID_UNTIL',
 ] as const
@@ -152,12 +167,13 @@ export function computeQuoteAmounts(
   const installRate = sf > 0 ? round2(installAmount / sf) : 0
   const totalRate = round2(kitRate + installRate)
 
-  // The first three milestones round to the dollar; the last absorbs the
-  // remainder so the column sums to the installation amount exactly.
+  // Each payment rounds to the dollar; the LAST milestone absorbs whatever is
+  // left so the Amounts Due column sums to the contract total exactly. A
+  // customer checks that column with a calculator.
+  const mobilization = Math.round(installAmount * INSTALL_MOBILIZATION_FRACTION)
   const m1 = Math.round(installAmount * MILESTONE_FRACTIONS[0])
   const m2 = Math.round(installAmount * MILESTONE_FRACTIONS[1])
-  const m3 = Math.round(installAmount * MILESTONE_FRACTIONS[2])
-  const m4 = round2(installAmount - (m1 + m2 + m3))
+  const m3 = round2(installAmount - (mobilization + m1 + m2))
 
   return {
     hasInstall: installAmount > 0,
@@ -168,7 +184,10 @@ export function computeQuoteAmounts(
     kitRate,
     installRate,
     totalRate,
-    milestones: [m1, m2, m3, m4],
+    mobilization,
+    milestones: [m1, m2, m3],
+    dueAtSigning: round2(kitAmount + mobilization),
+    remainingPayments: round2(m1 + m2 + m3),
   }
 }
 
@@ -236,10 +255,7 @@ export function buildQuoteTokens(input: QuoteInput): {
     // separator for that reason.
     DRAFT_BANNER: input.belowFloor ? 'DRAFT — NOT FOR ISSUE  |  ' : '',
 
-    // Two forms of the same figure, because the template uses both: "44,400 SF"
-    // in the price table's Area column and "for 44,400 square feet" in prose.
     SF: a.squareFeet > 0 ? formatSqft(a.squareFeet) : '—',
-    SF_PLAIN: sfPlain,
 
     KIT_SCOPE: safe(input.kitScope) || DEFAULT_KIT_SCOPE,
     KIT_RATE: formatRatePerSqft(a.kitRate),
@@ -251,10 +267,9 @@ export function buildQuoteTokens(input: QuoteInput): {
     INSTALL_SCOPE: a.hasInstall
       ? safe(input.installScope) || DEFAULT_INSTALL_SCOPE
       : 'Installation (by others — not included)',
+    // The rate now appears ONLY in the price table. The 2026-09-16 template
+    // dropped the prose restatements, which is where a figure goes stale.
     INSTALL_RATE: a.hasInstall ? formatRatePerSqft(a.installRate) : 'Not included',
-    // Bare dollars, for the prose form "at $15.00 per square foot". On the
-    // reference document the rate appears 5 times across these two phrasings.
-    INSTALL_RATE_PLAIN: formatMoney(a.installRate, { cents: true }),
     INSTALL_AMOUNT: a.hasInstall ? formatMoney(a.installAmount) : 'By others',
 
     TOTAL_RATE: formatRatePerSqft(a.totalRate),
@@ -262,14 +277,26 @@ export function buildQuoteTokens(input: QuoteInput): {
 
     QUOTE_KIND: a.hasInstall ? 'Turnkey' : 'Materials',
     QUOTE_KIND_UPPER: a.hasInstall ? 'TURNKEY' : 'MATERIALS',
+    QUOTE_KIND_LOWER: a.hasInstall ? 'turnkey' : 'materials',
+    // Carries the whole tail of the delivery sentence, including the
+    // conjunction, so both readings are grammatical.
     TURNKEY_INCLUDES_INSTALL: a.hasInstall
-      ? `, and Ber Wilson installation at ${formatMoney(a.installRate, { cents: true })} per square foot, including framing equipment and crane`
-      : '',
+      ? ", builder's risk, crane, equipment, and Ber Wilson installation"
+      : " and builder's risk",
 
+    DUE_AT_SIGNING: formatMoney(a.dueAtSigning),
+    // On a supply-only quote there is no mobilization to add, so the sentence
+    // states the materials alone rather than an addition with a zero in it.
+    EXECUTION_CALC: a.hasInstall
+      ? `${formatMoney(a.kitAmount)} materials + ${formatMoney(a.mobilization)} installation mobilization`
+      // Restating the amount would read "$1,020,000 — includes $1,020,000
+      // materials", which is the whole contract said twice.
+      : '100% of the prefab material package',
+    INSTALL_MOBILIZATION: formatMoney(a.mobilization),
+    REMAINING_PAYMENTS: formatMoney(a.remainingPayments),
     MILESTONE_1_AMOUNT: formatMoney(a.milestones[0]),
     MILESTONE_2_AMOUNT: formatMoney(a.milestones[1]),
     MILESTONE_3_AMOUNT: formatMoney(a.milestones[2]),
-    MILESTONE_4_AMOUNT: formatMoney(a.milestones[3]),
 
     CLIENT_COMPANY: safe(input.deal.customer),
     VALID_UNTIL: formatQuoteDate(validUntil),

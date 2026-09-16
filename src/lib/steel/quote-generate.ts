@@ -19,6 +19,7 @@ import {
 } from '@/lib/integrations/google-drive-write'
 import {
   deleteMarkedSections,
+  deleteMarkedTableRows,
   exportDocAsPdf,
   getDocPlainText,
   replaceTokensInDoc,
@@ -32,7 +33,7 @@ import {
 import { buildQuoteTokens, type QuoteInput, type QuoteLine } from './quote-tokens'
 import { assertAllTokensReplaced, assertNoCostLeak, assertTemplateHasTokens } from './quote-guard'
 import { quoteReadiness } from './quote-readiness'
-import { INSTALL_CLOSE, INSTALL_OPEN, findQuoteTemplate } from './quote-template'
+import { INSTALL_CLOSE, INSTALL_OPEN, INSTALL_ROW, findQuoteTemplate } from './quote-template'
 
 export class QuoteGenerationError extends Error {
   readonly status: number
@@ -110,7 +111,7 @@ export async function generateQuote(opts: {
   // Checked BEFORE anything is copied. The post-replacement scan catches a
   // token that survived; it cannot catch one a human deleted, because a deleted
   // token leaves no trace — the quote just goes out missing its total.
-  assertTemplateHasTokens(templateText, [INSTALL_OPEN, INSTALL_CLOSE])
+  assertTemplateHasTokens(templateText, [INSTALL_OPEN, INSTALL_CLOSE, INSTALL_ROW])
 
   // ── 4. Decide draft-replacement vs new revision, and take the latch ─────
   const { data: priorRows } = await supabase
@@ -227,8 +228,12 @@ export async function generateQuote(opts: {
     // is doing.
     if (amounts.hasInstall) {
       // Nothing to remove — just take the markers out.
-      await replaceTokensInDoc(doc.id, { IF_INSTALL: '', END_INSTALL: '' }, mailbox)
+      await replaceTokensInDoc(doc.id, { IF_INSTALL: '', END_INSTALL: '', ROW_IF_INSTALL: '' }, mailbox)
     } else {
+      // Rows first: deleting sections shifts every index after them, and the
+      // row pass re-reads the document anyway, so doing rows first keeps each
+      // pass working from a document it just measured.
+      await deleteMarkedTableRows(doc.id, INSTALL_ROW, mailbox)
       await deleteMarkedSections(doc.id, INSTALL_OPEN, INSTALL_CLOSE, mailbox)
     }
 

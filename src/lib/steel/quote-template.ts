@@ -46,6 +46,14 @@ import { assertTemplateHasTokens } from './quote-guard'
 export const INSTALL_OPEN = '{{IF_INSTALL}}'
 export const INSTALL_CLOSE = '{{END_INSTALL}}'
 
+/**
+ * Marks a single TABLE ROW as install-only — the mobilization and remaining-
+ * payments rows of the Payment Summary. A row cannot be wrapped in an
+ * open/close pair the way a section can, because a range spanning part of a
+ * table is not deletable; rows are removed with deleteTableRow instead.
+ */
+export const INSTALL_ROW = '{{ROW_IF_INSTALL}}'
+
 export const TEMPLATE_FOLDER_NAME = 'Templates'
 export const TEMPLATE_DOC_NAME = 'Prefab Steel Quote Template'
 
@@ -66,82 +74,13 @@ const TEMPLATE_ASSET = path.join(process.cwd(), 'assets', 'steel-quote-template.
  * Get this wrong and a token lands inside another token's text.
  */
 const TOKENIZE: [find: string, replace: string][] = [
-  // — Cover —
-  ['MIRA VISTA', '{{PROJECT_NAME}}'],
-  ['500 South 1040 East, American Fork, Utah', '{{SITE_ADDRESS}}'],
-  ['44,400 square feet • 3 floors', '{{BUILDING_SUMMARY}}'],
-  ['Wood framing converted to engineered prefab steel panels', '{{SCOPE_SUMMARY}}'],
-  ['info@berwilson.com • 385-436-5507', '{{CONTACT_LINE}}'],
-  // The original carries no quote number; generation needs one, and appending
-  // it to the date cell adds it without having to insert a table row (which
-  // text replacement cannot do).
-  ['September 16, 2026', '{{QUOTE_DATE}}  ·  Quote {{QUOTE_NUMBER}}'],
-
-  // — The cover summary's installation clause, lifted whole so a supply-only
-  //   quote simply does not claim it. MUST come before the bare rate rules
-  //   below, which would otherwise rewrite its tail first. —
-  [', and Ber Wilson installation at $15.00 per square foot, including framing equipment and crane', '{{TURNKEY_INCLUDES_INSTALL}}'],
-
-  // — Prose forms of the installation rate, before the bare figures —
-  ['totaling $666,000 for 44,400 square feet', 'totaling {{INSTALL_AMOUNT}} for {{SF_PLAIN}} square feet'],
-  ['$15.00 per square foot', '{{INSTALL_RATE_PLAIN}} per square foot'],
-
-  // — Price table —
-  ['Engineering conversion and complete prefab panel material package', '{{KIT_SCOPE}}'],
-  ['Ber Wilson installation, equipment, and crane', '{{INSTALL_SCOPE}}'],
-  ['44,400 SF', '{{SF}}'],
-  ['$33.00/SF', '{{KIT_RATE}}'],
-  ['$15.00/SF', '{{INSTALL_RATE}}'],
-  ['$48.00/SF', '{{TOTAL_RATE}}'],
-  ['$1,465,200', '{{KIT_AMOUNT}}'],
-  ['$666,000', '{{INSTALL_AMOUNT}}'],
-  ['$2,131,200', '{{TOTAL_AMOUNT}}'],
-
-  // — Payment milestones —
-  ['$333,000', '{{MILESTONE_1_AMOUNT}}'],
-  ['$166,500', '{{MILESTONE_2_AMOUNT}}'],
-  ['$133,200', '{{MILESTONE_3_AMOUNT}}'],
-  ['$33,300', '{{MILESTONE_4_AMOUNT}}'],
-
-  // — Quote terms: state the actual expiry date, not just a duration —
-  ['Quote valid for 30 calendar days and subject', 'Quote valid through {{VALID_UNTIL}} and subject'],
-
-  // — Acceptance block. The anchored forms matter: a bare "info@berwilson.com"
-  //   would also match the page footer, which is the company's own identity and
-  //   stays literal. —
-  ['Company: Four Amigos Development, LLC', 'Company: {{CLIENT_COMPANY}}'],
-  ['Four Amigos Development, LLC', '{{OWNER}}'],
-  ['Ericson Tua’one', '{{ESTIMATOR_NAME}}'],
-  ['Email: info@berwilson.com', 'Email: {{ESTIMATOR_EMAIL}}'],
-  ['Phone: 385-436-5507', 'Phone: {{ESTIMATOR_PHONE}}'],
-
-  // — "Turnkey" is only true when we are installing. —
-  ['TURNKEY QUOTE', '{{QUOTE_KIND_UPPER}} QUOTE'],
-  ['Included in Turnkey Quote', 'Included in {{QUOTE_KIND}} Quote'],
-
-  // — Install-only regions. The markers sit INLINE on the first and last
-  //   element of each region, because replaceAllText cannot insert a standalone
-  //   marker paragraph. Four regions, none nested, in document order. —
-
-  // 1. The inclusion bullet promising field installation.
-  ['Ber Wilson field installation at', '{{IF_INSTALL}}Ber Wilson field installation at'],
-  ['panel hoisting, assembly, bracing, fastening, and erection.', 'panel hoisting, assembly, bracing, fastening, and erection.{{END_INSTALL}}'],
-
-  // 2. Schedule Comparison — its columns compare OUR installation to wood framing.
-  ['Schedule Comparison', '{{IF_INSTALL}}Schedule Comparison'],
-  ['timely inspections, and uninterrupted work areas.', 'timely inspections, and uninterrupted work areas.{{END_INSTALL}}'],
-
-  // 3. Delivery Options, through the two callouts that follow it.
-  ['Delivery Options', '{{IF_INSTALL}}Delivery Options'],
-  ['week prefab steel panel-installation timeframe.', 'week prefab steel panel-installation timeframe.{{END_INSTALL}}'],
-
-  // 4. The installation payment-milestone table and the sentence after it.
-  //    The materials callout above them stays: it is true on every quote.
-  ['Ber Wilson installation milestone', '{{IF_INSTALL}}Ber Wilson installation milestone'],
-  ['The materials-and-training option will have separate payment terms in the TBQ proposal.', 'The materials-and-training option will have separate payment terms in the TBQ proposal.{{END_INSTALL}}'],
-
-  // — The DRAFT banner is a FOOTER PREFIX, so it shows on every page and
-  //   collapses to nothing on a clean quote. —
+  // The BODY already carries every token — `scripts/build-quote-template.mjs`
+  // writes them straight into the .docx. Only the page FOOTER is left, because
+  // it lives in footer1.xml which that script does not rewrite, and because the
+  // DRAFT banner has to appear on every page.
+  //
+  // The banner is a footer PREFIX and carries its own trailing separator, so a
+  // clean quote collapses it to nothing instead of leaving a stray divider.
   ['BER WILSON  |  BUILDING FUTURES', '{{DRAFT_BANNER}}BER WILSON  |  BUILDING FUTURES'],
 ]
 
@@ -214,7 +153,7 @@ export async function seedQuoteTemplate(opts: { mailbox?: string } = {}): Promis
     await replaceLiteralsInDoc(created.id, TOKENIZE, mailbox)
 
     const text = await getDocPlainText(created.id, mailbox)
-    assertTemplateHasTokens(text, [INSTALL_OPEN, INSTALL_CLOSE])
+    assertTemplateHasTokens(text, [INSTALL_OPEN, INSTALL_CLOSE, INSTALL_ROW])
   } catch (err) {
     // Leave nothing behind. A half-built template would be found by name on the
     // next attempt and make every retry fail with "already exists".
