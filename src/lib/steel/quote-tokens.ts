@@ -43,7 +43,11 @@ export interface QuoteInput {
   issuedAt: Date
   /** How long the quote stands. The template's Quote Terms says 30 calendar days. */
   validDays?: number
-  /** Row labels for the price table; fall back to the template's standard wording. */
+  /**
+   * Override the price table's row labels. Normally left unset: the labels are
+   * taken from what the rep actually typed on the line items, which is the
+   * only mapping anyone would guess.
+   */
   kitScope?: string | null
   installScope?: string | null
   /** Below the $30/SF floor — drives the DRAFT banner rather than blocking. */
@@ -200,6 +204,27 @@ function safe(value: string | null | undefined): string {
   return (value ?? '').replace(/[{}]/g, '').trim()
 }
 
+/**
+ * The label for a collapsed price row.
+ *
+ * N line items become ONE row on the quote, so the row has to say what those
+ * lines are. Using the descriptions the rep typed is the behaviour anyone would
+ * expect — the boilerplate is only a fallback for lines left unnamed.
+ * Duplicates are dropped, because two "Prefab panels" lines should not produce
+ * "Prefab panels, Prefab panels".
+ */
+function scopeLabel(lines: QuoteLine[], fallback: string): string {
+  const seen = new Set<string>()
+  const parts: string[] = []
+  for (const l of lines) {
+    const d = safe(l.description)
+    if (!d || seen.has(d.toLowerCase())) continue
+    seen.add(d.toLowerCase())
+    parts.push(d)
+  }
+  return parts.length > 0 ? parts.join(', ') : fallback
+}
+
 function formatQuoteDate(d: Date): string {
   // Server-side and pinned to the company's timezone. The page this replaces
   // computed the date in the BROWSER, so a quote generated at 11pm MST printed
@@ -257,7 +282,12 @@ export function buildQuoteTokens(input: QuoteInput): {
 
     SF: a.squareFeet > 0 ? formatSqft(a.squareFeet) : '—',
 
-    KIT_SCOPE: safe(input.kitScope) || DEFAULT_KIT_SCOPE,
+    KIT_SCOPE:
+      safe(input.kitScope) ||
+      scopeLabel(
+        input.lines.filter((l) => !isInstallCategory(l.service_type) && (l.price ?? 0) !== 0),
+        DEFAULT_KIT_SCOPE
+      ),
     KIT_RATE: formatRatePerSqft(a.kitRate),
     KIT_AMOUNT: formatMoney(a.kitAmount),
 
@@ -265,7 +295,11 @@ export function buildQuoteTokens(input: QuoteInput): {
     // than being deleted: a customer reading "Installation — by others" learns
     // something, where a missing row just looks like an omission.
     INSTALL_SCOPE: a.hasInstall
-      ? safe(input.installScope) || DEFAULT_INSTALL_SCOPE
+      ? safe(input.installScope) ||
+        scopeLabel(
+          input.lines.filter((l) => isInstallCategory(l.service_type) && (l.price ?? 0) !== 0),
+          DEFAULT_INSTALL_SCOPE
+        )
       : 'Installation (by others — not included)',
     // The rate now appears ONLY in the price table. The 2026-09-16 template
     // dropped the prose restatements, which is where a figure goes stale.
