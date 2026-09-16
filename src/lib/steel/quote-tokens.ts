@@ -103,11 +103,13 @@ export const QUOTE_TOKENS = [
   'INSTALL_AMOUNT',
   'TOTAL_RATE',
   'TOTAL_AMOUNT',
+  // No MILESTONE_TOTAL: it is always exactly INSTALL_AMOUNT, and in the
+  // template both render as the same literal string — replaceAllText matches on
+  // text, so a separate token for it could never be placed unambiguously.
   'MILESTONE_1_AMOUNT',
   'MILESTONE_2_AMOUNT',
   'MILESTONE_3_AMOUNT',
   'MILESTONE_4_AMOUNT',
-  'MILESTONE_TOTAL',
   'CLIENT_COMPANY',
   'VALID_UNTIL',
 ] as const
@@ -218,12 +220,10 @@ export function buildQuoteTokens(input: QuoteInput): {
       ? `${safe(input.quoteNumber)} rev ${input.revision}`
       : safe(input.quoteNumber),
 
-    // Empty for a normal quote, so the template's banner line collapses to
-    // nothing. A true diagonal watermark is not reachable through text
-    // replacement; a header line is, and it reaches every page.
-    DRAFT_BANNER: input.belowFloor
-      ? 'DRAFT — PENDING APPROVAL · NOT FOR ISSUE'
-      : '',
+    // Rendered as a prefix to the page footer, so it appears on EVERY page and
+    // collapses to nothing when the quote is clean. It carries its own trailing
+    // separator for that reason.
+    DRAFT_BANNER: input.belowFloor ? 'DRAFT — NOT FOR ISSUE  |  ' : '',
 
     // Two forms of the same figure, because the template uses both: "44,400 SF"
     // in the price table's Area column and "for 44,400 square feet" in prose.
@@ -248,7 +248,6 @@ export function buildQuoteTokens(input: QuoteInput): {
     MILESTONE_2_AMOUNT: formatMoney(a.milestones[1]),
     MILESTONE_3_AMOUNT: formatMoney(a.milestones[2]),
     MILESTONE_4_AMOUNT: formatMoney(a.milestones[3]),
-    MILESTONE_TOTAL: formatMoney(a.installAmount),
 
     CLIENT_COMPANY: safe(input.deal.customer),
     VALID_UNTIL: formatQuoteDate(validUntil),

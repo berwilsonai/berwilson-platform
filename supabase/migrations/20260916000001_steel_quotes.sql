@@ -138,6 +138,13 @@ create unique index if not exists idx_steel_quotes_generating
   on steel_quotes (deal_id)
   where status = 'generating';
 
+-- The number is assigned by the DATABASE, not the app: two reps pressing
+-- Generate in the same second must not be handed the same one. A revision
+-- supplies its parent's number explicitly and so bypasses this default.
+alter table steel_quotes
+  alter column quote_number
+  set default 'Q-' || to_char(now(), 'YYYY') || '-' || nextval('steel_quote_seq');
+
 comment on column steel_quotes.inputs is
   'Frozen resolved token map + narrowed inputs. Contains no cost/margin/commission by construction.';
 comment on column steel_quotes.status is

@@ -32,6 +32,7 @@ const DRIVE_BASE = 'https://www.googleapis.com/drive/v3'
 const DRIVE_UPLOAD = 'https://www.googleapis.com/upload/drive/v3/files'
 const SHEET_MIME = 'application/vnd.google-apps.spreadsheet'
 const FOLDER_MIME = 'application/vnd.google-apps.folder'
+const DOC_MIME = 'application/vnd.google-apps.document'
 
 /** The tree everything the platform publishes lives under. */
 export const ROOT_FOLDER_NAME = 'Ber Intelligence'
@@ -47,7 +48,7 @@ export class DriveScopeError extends Error {
   }
 }
 
-interface DriveFileRef {
+export interface DriveFileRef {
   id: string
   name: string
   webViewLink?: string
@@ -271,7 +272,7 @@ export async function uploadToFolder(input: UploadInput): Promise<DriveFileRef> 
 }
 
 /** Find a non-folder file by exact name under a parent. */
-async function findFile(
+export async function findFile(
   mailbox: string,
   name: string,
   parentId: string
@@ -384,6 +385,125 @@ function hashString(value: string): number {
   let h = 0
   for (let i = 0; i < value.length; i++) h = (Math.imul(31, h) + value.charCodeAt(i)) | 0
   return h
+}
+
+/**
+ * Copy an app-created file into an app-created folder.
+ *
+ * Used to stamp out a quote from the template Doc. Verified to work under
+ * `drive.file` alone (2026-09-16), which is why the template must itself be
+ * app-created: that scope is a per-file grant, and a Doc a human uploaded by
+ * hand is invisible to it however readable it is through drive.readonly.
+ */
+export async function copyFile(
+  fileId: string,
+  name: string,
+  folderId: string,
+  mailbox: string = PRIMARY_MAILBOX
+): Promise<DriveFileRef> {
+  return driveWrite<DriveFileRef>(
+    mailbox,
+    `${DRIVE_BASE}/files/${fileId}/copy?fields=id,name,webViewLink&supportsAllDrives=true`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, parents: [folderId] }),
+    }
+  )
+}
+
+/**
+ * Upload bytes and let Drive convert them into a native Google Doc.
+ *
+ * The same conversion trick `upsertSheetFromCsv` uses for CSV → Sheet. Seeding
+ * the quote template from Richard's own .docx this way preserves the logo,
+ * colour callouts, table shading and footer exactly, which hand-authored HTML
+ * would not.
+ *
+ * ⚠ The source .docx must have a paragraph between every pair of adjacent
+ * tables. Google merges tables that touch, and a merged callout inherits the
+ * width of the table above it — which turned the 4-page reference document into
+ * 5 pages with three collapsed callouts. See scripts/build-quote-template.mjs.
+ */
+export async function createDocFromBytes(input: {
+  name: string
+  folderId: string
+  bytes: Buffer | Uint8Array
+  /** Source type, e.g. the .docx mime. Drive converts it to a Google Doc. */
+  sourceMimeType: string
+  mailbox?: string
+}): Promise<DriveFileRef> {
+  const mailbox = input.mailbox ?? PRIMARY_MAILBOX
+  const buf = Buffer.isBuffer(input.bytes) ? input.bytes : Buffer.from(input.bytes)
+  const boundary = `bwdoc_${Math.abs(hashString(input.name + buf.length)).toString(36)}`
+
+  const metadata = JSON.stringify({
+    name: input.name,
+    parents: [input.folderId],
+    mimeType: DOC_MIME,
+  })
+  const body = Buffer.concat([
+    Buffer.from(
+      `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${metadata}\r\n` +
+        `--${boundary}\r\nContent-Type: ${input.sourceMimeType}\r\n\r\n`,
+      'utf8'
+    ),
+    buf,
+    Buffer.from(`\r\n--${boundary}--\r\n`, 'utf8'),
+  ])
+
+  return driveWrite<DriveFileRef>(
+    mailbox,
+    `${DRIVE_UPLOAD}?uploadType=multipart&fields=id,name,webViewLink&supportsAllDrives=true`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': `multipart/related; boundary=${boundary}` },
+      body: new Uint8Array(body),
+    }
+  )
+}
+
+/**
+ * Grant the Workspace domain a specific role on ONE file.
+ *
+ * `shareWithDomain` above is deliberately reader-only for published documents.
+ * The quote TEMPLATE is the exception: its whole point is that Richard edits the
+ * wording without a deploy, so it needs writer. Scoped to a single file id so
+ * granting it can never widen what the rest of the tree allows.
+ */
+export async function shareFileWithRole(
+  fileId: string,
+  role: 'reader' | 'writer',
+  mailbox: string = PRIMARY_MAILBOX
+): Promise<void> {
+  const domain = workspaceDomain(mailbox)
+  if (!domain) return
+  try {
+    await driveWrite(
+      mailbox,
+      `${DRIVE_BASE}/files/${fileId}/permissions?sendNotificationEmail=false&supportsAllDrives=true`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'domain', role, domain }),
+      }
+    )
+  } catch (err) {
+    console.warn(`[drive] could not grant ${role} on ${fileId}:`, err)
+  }
+}
+
+/** Move a file to the trash. Only ever used to clean up a failed generation. */
+export async function trashFile(fileId: string, mailbox: string = PRIMARY_MAILBOX): Promise<void> {
+  try {
+    await driveWrite(mailbox, `${DRIVE_BASE}/files/${fileId}?supportsAllDrives=true`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ trashed: true }),
+    })
+  } catch (err) {
+    console.warn(`[drive] could not trash ${fileId}:`, err)
+  }
 }
 
 export function folderUrl(folderId: string): string {
