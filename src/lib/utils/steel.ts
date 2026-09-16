@@ -283,6 +283,56 @@ export function isPricingBelowFloor(
 const numOr0 = (v: number | null | undefined): number =>
   typeof v === 'number' && isFinite(v) ? v : 0
 
+/**
+ * The INSTALLATION RATE CHARGED TO THE CUSTOMER, in $/SF — the figure printed
+ * on a quote ("Ber Wilson installation, equipment, and crane · $15.00/SF ·
+ * $666,000"). Derived from the assembly line items, never stored.
+ *
+ * ⚠ NOT `steel_deals.install_fee`. That column is the FLAT $250-500 fee paid TO
+ * THE SALESPERSON for running an install job — commission, not revenue. The two
+ * are three orders of magnitude apart and both are plausibly called "the
+ * install fee", so anything customer-facing must come through here.
+ *
+ * Derived rather than given its own column because `steel_deals.value` is
+ * already defined as the sum of line prices: a second stored copy of the same
+ * money would be free to disagree with the lines, with `value`, and with the
+ * commission math.
+ *
+ * Returns null when there is no installation scope or no square footage — a
+ * rate that cannot be computed must never render as $0.00 or Infinity.
+ */
+export function customerInstallPricePerSqft(
+  lines: Pick<ServiceLine, 'service_type' | 'price'>[],
+  squareFeet: number | null | undefined
+): number | null {
+  const sf = numOr0(squareFeet)
+  if (sf <= 0) return null
+  const amount = lines.reduce(
+    (a, l) => (isInstallCategory(l.service_type) ? a + numOr0(l.price) : a),
+    0
+  )
+  return amount > 0 ? amount / sf : null
+}
+
+/**
+ * The materials/engineering package rate in $/SF — the quote's first price row.
+ * Everything that is not installation, which deliberately includes `other`
+ * lines (freight, permits); `quoteReadiness` warns when any exist so the author
+ * can restate the row label rather than have them silently misdescribed.
+ */
+export function customerKitPricePerSqft(
+  lines: Pick<ServiceLine, 'service_type' | 'price'>[],
+  squareFeet: number | null | undefined
+): number | null {
+  const sf = numOr0(squareFeet)
+  if (sf <= 0) return null
+  const amount = lines.reduce(
+    (a, l) => (isInstallCategory(l.service_type) ? a : a + numOr0(l.price)),
+    0
+  )
+  return amount > 0 ? amount / sf : null
+}
+
 // ─── Referral fee (paid to the marketing / referral source) ──────────────────
 //
 // The marketing / referral source (steel_deals.referral_party_id → parties) can

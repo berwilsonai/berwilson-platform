@@ -2894,7 +2894,10 @@ export type Database = {
           description: string | null
           drive_folder_id: string | null
           drive_folder_url: string | null
+          drive_source_folder_id: string | null
+          drive_source_folder_url: string | null
           expected_delivery_date: string | null
+          floors: number | null
           icp_segment: string | null
           id: string
           install_fee: number | null
@@ -2921,6 +2924,8 @@ export type Database = {
           sales_commission_paid_date: string | null
           sales_rate_override: number | null
           salesperson_id: string | null
+          scope_summary: string | null
+          site_address: string | null
           square_feet: number | null
           stage: string
           updated_at: string | null
@@ -2935,7 +2940,10 @@ export type Database = {
           description?: string | null
           drive_folder_id?: string | null
           drive_folder_url?: string | null
+          drive_source_folder_id?: string | null
+          drive_source_folder_url?: string | null
           expected_delivery_date?: string | null
+          floors?: number | null
           icp_segment?: string | null
           id?: string
           install_fee?: number | null
@@ -2962,6 +2970,8 @@ export type Database = {
           sales_commission_paid_date?: string | null
           sales_rate_override?: number | null
           salesperson_id?: string | null
+          scope_summary?: string | null
+          site_address?: string | null
           square_feet?: number | null
           stage?: string
           updated_at?: string | null
@@ -2976,7 +2986,10 @@ export type Database = {
           description?: string | null
           drive_folder_id?: string | null
           drive_folder_url?: string | null
+          drive_source_folder_id?: string | null
+          drive_source_folder_url?: string | null
           expected_delivery_date?: string | null
+          floors?: number | null
           icp_segment?: string | null
           id?: string
           install_fee?: number | null
@@ -3003,6 +3016,8 @@ export type Database = {
           sales_commission_paid_date?: string | null
           sales_rate_override?: number | null
           salesperson_id?: string | null
+          scope_summary?: string | null
+          site_address?: string | null
           square_feet?: number | null
           stage?: string
           updated_at?: string | null
@@ -3035,6 +3050,109 @@ export type Database = {
             columns: ["referral_party_id"]
             isOneToOne: false
             referencedRelation: "parties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      steel_quotes: {
+        Row: {
+          below_floor: boolean
+          created_at: string | null
+          deal_id: string
+          document_id: string | null
+          drive_file_id: string | null
+          drive_file_url: string | null
+          generated_by: string | null
+          id: string
+          inputs: Json
+          install_amount: number | null
+          install_scope: string | null
+          issued_at: string | null
+          kit_amount: number | null
+          kit_scope: string | null
+          quote_number: string
+          revision: number
+          square_feet: number | null
+          started_at: string | null
+          status: string
+          template_doc_id: string | null
+          template_revision_id: string | null
+          total: number | null
+          updated_at: string | null
+          valid_until: string | null
+        }
+        Insert: {
+          below_floor?: boolean
+          created_at?: string | null
+          deal_id: string
+          document_id?: string | null
+          drive_file_id?: string | null
+          drive_file_url?: string | null
+          generated_by?: string | null
+          id?: string
+          inputs?: Json
+          install_amount?: number | null
+          install_scope?: string | null
+          issued_at?: string | null
+          kit_amount?: number | null
+          kit_scope?: string | null
+          quote_number: string
+          revision?: number
+          square_feet?: number | null
+          started_at?: string | null
+          status?: string
+          template_doc_id?: string | null
+          template_revision_id?: string | null
+          total?: number | null
+          updated_at?: string | null
+          valid_until?: string | null
+        }
+        Update: {
+          below_floor?: boolean
+          created_at?: string | null
+          deal_id?: string
+          document_id?: string | null
+          drive_file_id?: string | null
+          drive_file_url?: string | null
+          generated_by?: string | null
+          id?: string
+          inputs?: Json
+          install_amount?: number | null
+          install_scope?: string | null
+          issued_at?: string | null
+          kit_amount?: number | null
+          kit_scope?: string | null
+          quote_number?: string
+          revision?: number
+          square_feet?: number | null
+          started_at?: string | null
+          status?: string
+          template_doc_id?: string | null
+          template_revision_id?: string | null
+          total?: number | null
+          updated_at?: string | null
+          valid_until?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "steel_quotes_deal_id_fkey"
+            columns: ["deal_id"]
+            isOneToOne: false
+            referencedRelation: "steel_deals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "steel_quotes_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "steel_quotes_generated_by_fkey"
+            columns: ["generated_by"]
+            isOneToOne: false
+            referencedRelation: "team_members"
             referencedColumns: ["id"]
           },
         ]

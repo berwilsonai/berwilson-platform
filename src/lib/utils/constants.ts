@@ -304,6 +304,23 @@ export function parseCompetitors(val: unknown): string[] {
 
 // ─── Formatting helpers ──────────────────────────────────────────────────────
 
+/**
+ * Exact dollars, e.g. "$2,131,200". Use this anywhere a number is contractual —
+ * a quote, an invoice, a signed document. `formatValue` below abbreviates to
+ * "$2.1M", which is right on a dashboard and wrong on a page a customer signs.
+ */
+export function formatMoney(value: number | null | undefined, opts: { cents?: boolean } = {}): string {
+  if (value === null || value === undefined || !isFinite(value)) return '—'
+  const digits = opts.cents ? 2 : 0
+  return `$${value.toLocaleString('en-US', { minimumFractionDigits: digits, maximumFractionDigits: digits })}`
+}
+
+/** A $/SF rate to two decimals, e.g. "$33.00/SF". Null when there is no rate to state. */
+export function formatRatePerSqft(value: number | null | undefined): string {
+  if (value === null || value === undefined || !isFinite(value)) return '—'
+  return `$${value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}/SF`
+}
+
 export function formatValue(value: number | null): string {
   if (value === null || value === undefined) return '—'
   if (value >= 1_000_000_000) return `$${(value / 1_000_000_000).toFixed(2)}B`
