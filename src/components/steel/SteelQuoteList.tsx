@@ -60,10 +60,20 @@ export function SteelQuoteList({ dealId, quotes, blockers, warnings, canApprove,
       })
       const json = await res.json()
       if (!res.ok) throw new Error(json.error ?? 'Generation failed')
+      const label = quoteLabel(json.quote.quoteNumber, json.quote.revision)
       toast.success(
         json.quote.belowFloor
-          ? `${quoteLabel(json.quote.quoteNumber, json.quote.revision)} generated as DRAFT — needs approval before it can be issued.`
-          : `${quoteLabel(json.quote.quoteNumber, json.quote.revision)} generated.`
+          ? `${label} generated as DRAFT — needs approval before it can be issued.`
+          : `${label} generated.`,
+        json.quote.quotesFolderUrl
+          ? {
+              description: 'Filed in the team’s Quotes folder in Drive.',
+              action: {
+                label: 'Open',
+                onClick: () => window.open(json.quote.quotesFolderUrl, '_blank', 'noopener'),
+              },
+            }
+          : undefined
       )
       router.refresh()
     } catch (err) {

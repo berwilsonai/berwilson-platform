@@ -91,6 +91,30 @@ export function dealIntakeFolderId(): string | null {
 }
 
 /**
+ * The team's own folder that generated quote PDFs are filed into —
+ * `Prefab Steel Projects / Utah / Quotes folder` on the shared drive.
+ *
+ * ⚠ WRITING HERE WORKS UNDER `drive.file`, WHICH CONTRADICTS WHAT THIS REPO
+ * PREVIOUSLY RECORDED. The note at CLAUDE.md:389 said the platform could not
+ * write into a folder a human created. Measured on 2026-09-16 against this
+ * exact folder with a token narrowed to `drive.file` alone: creating a file
+ * with `parents: [thatFolder]` returns 200. On a SHARED DRIVE the two
+ * permissions are separate questions — `drive.file` governs which files the app
+ * may touch afterwards (its own), while whether it may add a child is the
+ * impersonated user's own right, and moose@ reports `canAddChildren: true`.
+ * The old note was true of a My Drive folder, not of this.
+ *
+ * One asymmetry that follows and matters: the app can create and TRASH here but
+ * `canDelete` is false, so cleanup has to trash rather than hard-delete.
+ *
+ * Unset means quotes stay in the platform's own deal folder — a configuration
+ * choice, not a fault.
+ */
+export function steelQuotesFolderId(): string | null {
+  return process.env.STEEL_QUOTES_FOLDER_ID?.trim() || null
+}
+
+/**
  * Every nominated knowledge folder, as a list.
  *
  * GOOGLE_DRIVE_KNOWLEDGE_FOLDER_ID accepts comma-separated ids so the corporate

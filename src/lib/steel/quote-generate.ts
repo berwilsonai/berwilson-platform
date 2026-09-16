@@ -25,6 +25,8 @@ import {
   replaceTokensInDoc,
 } from '@/lib/integrations/google-docs'
 import { publishRecordQuietly } from '@/lib/drive/publish'
+import { steelQuotesFolderId } from '@/lib/integrations/google-drive'
+import { uploadToFolder } from '@/lib/integrations/google-drive-write'
 import {
   GENERATING_STALE_MS,
   isReplaceableDraft,
@@ -46,6 +48,8 @@ export class QuoteGenerationError extends Error {
 
 export interface GenerateResult {
   quoteId: string
+  /** Link to the PDF in the team's Quotes folder, when one is configured. */
+  quotesFolderUrl: string | null
   quoteNumber: string
   revision: number
   documentId: string
@@ -300,10 +304,37 @@ export async function generateQuote(opts: {
 
     if (replaceDraft && latest) await retireDraftArtifacts(supabase, latest, mailbox)
 
-    // The Drive copy is free: publishing walks the deal's documents and uploads
-    // anything not yet stamped with a drive_published_id. Quiet, because a Drive
-    // hiccup must never read as "the quote failed" when the PDF is already on
-    // the record.
+    // ── 10. File the PDF in the team's own Quotes folder ─────────────────
+    //
+    // Stamping drive_published_id with the file we put THERE is what stops
+    // publishRecordQuietly below from also copying it into the platform's deal
+    // folder: one deliverable, one copy, in the place people actually look.
+    // Non-fatal — the quote is already on the record, and a Drive hiccup must
+    // not read as "the quote failed".
+    let quotesFolderUrl: string | null = null
+    const quotesFolder = steelQuotesFolderId()
+    if (quotesFolder) {
+      try {
+        const filed = await uploadToFolder({
+          name: fileName,
+          folderId: quotesFolder,
+          bytes: pdf,
+          mimeType: 'application/pdf',
+          mailbox,
+        })
+        quotesFolderUrl = filed.webViewLink ?? null
+        await supabase
+          .from('documents')
+          .update({ drive_published_id: filed.id } as never)
+          .eq('id', docRow.id)
+      } catch (err) {
+        console.warn('[steel/quote] could not file the quote in the Quotes folder:', err)
+      }
+    }
+
+    // Publishing walks the deal's documents and uploads anything not yet
+    // stamped. With the quote stamped above, this only carries the deal's OTHER
+    // attachments across.
     await publishRecordQuietly('steel', opts.dealId)
 
     return {
@@ -313,6 +344,7 @@ export async function generateQuote(opts: {
       documentId: docRow.id,
       driveFileId: doc.id,
       driveFileUrl: doc.webViewLink ?? null,
+      quotesFolderUrl,
       belowFloor,
       replacedDraft: replaceDraft,
     }
@@ -347,13 +379,17 @@ async function retireDraftArtifacts(
   if (draft.document_id) {
     const { data: doc } = await supabase
       .from('documents')
-      .select('storage_path')
+      .select('storage_path, drive_published_id')
       .eq('id', draft.document_id)
       .maybeSingle()
     // Row first, then storage: a DB cascade cannot reach the bucket, and a row
     // pointing at a missing file is worse than a file with no row.
     await supabase.from('documents').delete().eq('id', draft.document_id)
     if (doc?.storage_path) await supabase.storage.from('documents').remove([doc.storage_path])
+    // ⚠ And the copy in Drive, which the row deletion cannot reach. Without
+    // this, regenerating a draft left the superseded PDF sitting in the Quotes
+    // folder beside its replacement, under the same quote number.
+    if (doc?.drive_published_id) await trashFile(doc.drive_published_id, mailbox)
   }
   if (draft.drive_file_id) await trashFile(draft.drive_file_id, mailbox)
 }
