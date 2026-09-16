@@ -25,7 +25,9 @@ git add -A && git commit -m "<what changed>"          # save + version
 git push origin main                                   # back up to GitHub (berwilsonai/berwilson-platform, public)
 export PATH="$HOME/.node/bin:$PATH" && npm run build   # build (PATH must include ~/.node/bin)
 launchctl kickstart -k gui/$(id -u)/com.berwilson.platform   # restart the live app (launchd keeps it on :3000, tailnet-only)
+zsh deploy/tailnet-setup.sh                            # assert both tailscale serve listeners + env/hostname agreement
 ```
+**Why that last line:** the serve config is Tailscale's state, not ours, and a logout/upgrade/reinstall wipes it. The old assertion lived in `deploy-to-studio.sh`, which was retired when the Studio became the repo — so from then until 2026-09-16 **nothing re-established it on a deploy**. `tailnet-setup.sh` restores both listeners (443→app, 8443→kong), warns if the node key has an expiry set (an expired key silently drops the platform off the tailnet), and fails loudly if `NEXT_PUBLIC_SUPABASE_URL`/`APP_URL` no longer match the live hostname. **Changing tailnet changes the MagicDNS suffix, and `NEXT_PUBLIC_*` is baked in at BUILD time — so a tailnet move needs `--fix` then a full rebuild, never just a restart.**
 Then confirm: `git log --oneline -1` and check the app responds. If `npm run build` fails, do NOT kickstart — the old build stays live; fix the error first. Always `git pull --ff-only` before starting a fresh editing session. Full host/infra detail lives in the `self-hosted-mac-studio-deployment` memory.
 
 ---

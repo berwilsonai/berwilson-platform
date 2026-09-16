@@ -4,7 +4,8 @@
 # Idempotent — run again to redeploy after changes.
 set -euo pipefail
 
-STUDIO="${STUDIO_HOST:-richardwhite@100.86.79.4}"
+# MagicDNS name, not a 100.x literal — node IPs are reassigned whenever the tailnet changes.
+STUDIO="${STUDIO_HOST:-richardwhite@richards-mac-studio}"
 APP_DIR='$HOME/berwilson-platform'   # expanded on the Studio
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 TAILSCALE=/Applications/Tailscale.app/Contents/MacOS/Tailscale

@@ -16,16 +16,25 @@
 //    backup item #2.
 //  - Adding a person = invite them as a normal Tailscale user (NOT in group:admins). They
 //    automatically get only the app-access rule below. Nothing else to configure.
+//
+// 2026-09-16: the tailnet moved from the personal Google account to the berwilson.com
+// Workspace org. TWO values below are tailnet-specific and WILL be wrong if pasted from
+// a stale copy — the admin identity and the Studio's IP (every node is renumbered when
+// the tailnet changes). Do NOT hand-edit them; render a correct copy from the live node:
+//     zsh deploy/security/render-acl.sh
+// On a Workspace tailnet ANY berwilson.com user can join by default, so turn on device
+// approval in the admin console BEFORE inviting anyone — rule 2 is what keeps a joiner
+// off Postgres, LM Studio, SSH and Screen Sharing, and it only protects you once saved.
 
 {
   "groups": {
-    // Only Richard is an admin today. Do NOT add Eric / PMs here — that would grant them
+    // Only Richard is an admin. Do NOT add Eric / Colton / Jason / PMs here — that would grant them
     // SSH, Postgres, LM Studio, and Screen Sharing on the Studio.
-    "group:admins": ["richmwhite@gmail.com"],
+    "group:admins": ["__ADMIN__"],
   },
 
   "hosts": {
-    "studio": "100.86.79.4",
+    "studio": "__STUDIO_IP__",
   },
 
   "acls": [
@@ -51,7 +60,7 @@
   // that guarantees this policy can never lock Richard out of the Studio.
   "tests": [
     {
-      "src": "richmwhite@gmail.com",
+      "src": "__ADMIN__",
       "accept": [
         "studio:22",
         "studio:5432",
