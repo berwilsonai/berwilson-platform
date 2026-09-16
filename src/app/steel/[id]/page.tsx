@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { MessageSquare, StickyNote, TriangleAlert, FileText } from 'lucide-react'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { QUOTE_STATUS_LABELS, quoteLabel, quoteStatus } from '@/lib/utils/steel-quotes'
 import { getViewer, canSeeSteelFinancials, canWorkSteel } from '@/lib/auth/viewer'
 import { leadSourcesInUse } from '@/lib/steel/lead-sources'
 import { cn } from '@/lib/utils'
@@ -112,6 +113,17 @@ export default async function SteelDealDetailPage({ params }: PageProps) {
 
   // Financials visibility: management (admin/exec) sees the whole deal; a rep
   // sees only their own cut on deals where they're the salesperson.
+  // The latest quote, so the header can say where this deal stands without
+  // anyone opening the Quotes page.
+  const { data: latestQuote } = await supabase
+    .from('steel_quotes')
+    .select('quote_number, revision, status, below_floor')
+    .eq('deal_id', id)
+    .neq('status', 'generating')
+    .order('revision', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
   const canSeeFull = canSeeSteelFinancials(viewer)
   const viewerIsSalesperson = !!viewer?.teamMemberId && viewer.teamMemberId === deal.salesperson_id
   const showFinancials = canSeeFull || viewerIsSalesperson
@@ -168,9 +180,19 @@ export default async function SteelDealDetailPage({ params }: PageProps) {
           <Link
             href={`/steel/${id}/quote`}
             className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md border border-input bg-background text-xs font-medium hover:bg-accent transition-colors"
+            title={
+              latestQuote
+                ? `${quoteLabel(latestQuote.quote_number, latestQuote.revision)} — ${QUOTE_STATUS_LABELS[quoteStatus(latestQuote.status)]}`
+                : 'No quote generated yet'
+            }
           >
             <FileText size={13} />
-            Quote
+            Quotes
+            {latestQuote && (
+              <span className="tnum text-muted-foreground">
+                · {quoteLabel(latestQuote.quote_number, latestQuote.revision)}
+              </span>
+            )}
           </Link>
           {canWork && (
             <SteelEditDrawer

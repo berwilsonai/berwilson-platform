@@ -67,7 +67,10 @@ export default async function RootLayout({
   const pathname = headersList.get('x-pathname') ?? ''
   const isLoginPage = pathname === '/login' || pathname.startsWith('/auth/')
   // Print views + the steel quote are standalone documents (print / save-as-PDF) — no app chrome.
-  const isPrintPage = pathname.endsWith('/print') || pathname.endsWith('/quote')
+  // `/steel/[id]/quote` used to be a chromeless printable page. It is now the
+  // deal's Quotes surface — a normal page inside the app shell — and the PDF is
+  // generated server-side rather than printed from the browser.
+  const isPrintPage = pathname.endsWith('/print')
 
   // Resolve the signed-in user's role; the middleware already enforces auth
   // and section access — this drives what the shell renders.

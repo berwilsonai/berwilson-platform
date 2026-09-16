@@ -29,6 +29,9 @@ export type NotificationKind =
   | 'document_added'
   | 'document_revised'
   | 'documents_batch'
+  // A rep generated a quote priced below the $30/SF floor. It cannot be issued
+  // until an admin or executive approves it, so somebody has to be told.
+  | 'quote_below_floor'
 
 /** One event, before it is fanned out to recipients. */
 export interface NotificationEvent {

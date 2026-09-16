@@ -489,11 +489,67 @@ export default function SteelDealForm({
         </div>
       </section>
 
+      {/* Quote details — everything here is printed on the customer-facing
+          quote, which is why scope summary is a separate field from the
+          internal Scope & Notes at the bottom of this form. */}
+      <section className="space-y-4">
+        <h2 className="label-caps text-muted-foreground">Quote Details</h2>
+        <p className="-mt-2 text-[11px] text-muted-foreground">
+          Printed on the generated quote. Needed before a quote can be produced.
+        </p>
+
+        <div>
+          <label htmlFor="site_address" className={labelClass}>
+            Site Address
+          </label>
+          <input
+            id="site_address"
+            name="site_address"
+            type="text"
+            defaultValue={deal?.site_address ?? ''}
+            placeholder="e.g. 500 South 1040 East, American Fork, Utah"
+            className={inputClass}
+          />
+        </div>
+
+        <div>
+          <label htmlFor="scope_summary" className={labelClass}>
+            Scope Summary
+          </label>
+          <input
+            id="scope_summary"
+            name="scope_summary"
+            type="text"
+            defaultValue={deal?.scope_summary ?? ''}
+            placeholder="e.g. Wood framing converted to engineered prefab steel panels"
+            className={inputClass}
+          />
+          <p className="mt-1 text-[11px] text-muted-foreground">
+            One customer-facing line describing the work.
+          </p>
+        </div>
+      </section>
+
       {/* Building size */}
       <section className="space-y-4">
         <h2 className="label-caps text-muted-foreground">Building Size</h2>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label htmlFor="floors" className={labelClass}>
+              Floors
+            </label>
+            <input
+              id="floors"
+              name="floors"
+              type="number"
+              min="0"
+              step="1"
+              defaultValue={deal?.floors ?? ''}
+              placeholder="e.g. 3"
+              className={inputClass}
+            />
+          </div>
           <div>
             <label htmlFor="square_feet" className={labelClass}>
               Square Feet

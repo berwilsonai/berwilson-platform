@@ -65,6 +65,8 @@ function parseFields(formData: FormData, canSeeFinancials: boolean): ParseResult
   if (square_feet && typeof square_feet === 'object') return { ok: false, ...square_feet }
   const price_per_sqft = num('price_per_sqft', 'Price per square foot')
   if (price_per_sqft && typeof price_per_sqft === 'object') return { ok: false, ...price_per_sqft }
+  const floors = num('floors', 'Floors')
+  if (floors && typeof floors === 'object') return { ok: false, ...floors }
   const sqftNum = typeof square_feet === 'number' ? square_feet : 0
 
   const rawStage = str('stage') ?? 'quote'
@@ -117,6 +119,13 @@ function parseFields(formData: FormData, canSeeFinancials: boolean): ParseResult
     buying_trigger: str('buying_trigger'),
     square_feet: square_feet as number | null,
     price_per_sqft: price_per_sqft as number | null,
+    // Quote inputs. Non-financial — a rep writes these, since they are the
+    // facts about the building, not the money. `scope_summary` is deliberately
+    // separate from `description`: that one is the internal Scope & Notes field
+    // and must never reach a document the customer signs.
+    site_address: str('site_address'),
+    scope_summary: str('scope_summary'),
+    floors: floors as number | null,
     value,
     pricing_below_floor,
     expected_delivery_date: str('expected_delivery_date'),
