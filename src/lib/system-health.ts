@@ -812,7 +812,11 @@ export async function probeGoogleTasks(): Promise<{
     }
   }
 
-  // A 15-minute cadence, so two hours of silence is many missed runs, not one.
+  // The cadence lives in deploy/com.berwilson.cron-google-tasks.plist
+  // (StartInterval). These two must move together: a threshold under the
+  // interval calls a healthy sync stalled, one far over it hides a dead job.
+  const SYNC_INTERVAL_HOURS = 4
+  const STALE_AFTER_HOURS = SYNC_INTERVAL_HOURS * 2 + 1 // two missed runs, plus slack
   const newest = listRows
     .map((r) => (r.last_synced_at ? new Date(r.last_synced_at).getTime() : 0))
     .reduce((a, b) => Math.max(a, b), 0)
@@ -820,7 +824,7 @@ export async function probeGoogleTasks(): Promise<{
   // Infinity (nobody has ever synced) must land here too. Excluding it was the
   // other half of the blind spot: a member connected but never once synced read
   // as a clean bill of health.
-  if (ageHours > 2) {
+  if (ageHours > STALE_AFTER_HOURS) {
     return {
       state: 'stalled',
       detail:
@@ -828,7 +832,7 @@ export async function probeGoogleTasks(): Promise<{
         (Number.isFinite(ageHours)
           ? `nothing has synced in ${Math.round(ageHours)} hours`
           : 'no run has ever completed') +
-        `. The job runs every 15 minutes.${tail}`,
+        `. The job runs every ${SYNC_INTERVAL_HOURS} hours.${tail}`,
     }
   }
 
