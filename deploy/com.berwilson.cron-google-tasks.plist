@@ -10,19 +10,15 @@
     <string>-c</string>
     <string>curl -sS -m 850 -H "Authorization: Bearer $(grep '^CRON_SECRET=' __APP_DIR__/.env.local | cut -d= -f2-)" http://localhost:3000/api/cron/google-tasks</string>
   </array>
-  <!-- Every 4 hours, all day (Richard, 2026-09-15: a to-do list does not need
-       quarter-hourly polling). Note what this does NOT slow down: anything
-       ticked off inside the platform still reaches Google in seconds via
-       queueTaskPush. This interval only bounds the other direction — how long a
-       task completed on a phone, or created in bulk by a confirm route, waits
-       before the board catches up.
+  <!-- Every 15 minutes, all day (Richard, 2026-09-15, after watching a first
+       successful sync: back to the original cadence). A run costs ~1.4s and
+       about four Google API calls for two members, touches no local model, and
+       so competes with nothing.
 
-       If you change it, change STALE_AFTER_HOURS in src/lib/system-health.ts to
-       match, or the health card reports a healthy sync as stalled.
-
-       StartInterval rather than the
-       StartCalendarInterval every other job here uses, because those are all
-       daily or weekly and this one is not.
+       Note what this interval does NOT govern: anything edited inside the
+       platform reaches Google in seconds via queueTaskPush. It bounds only the
+       other direction — a task completed on a phone, or created in bulk by a
+       confirm route, waiting for the board to catch up.
 
        Minutes, not nightly: three confirm routes (meeting intake, email
        ingestion, action items) create tasks in bulk without going through
@@ -32,11 +28,19 @@
        immediate path rather than made to pay twenty Google round trips inside
        a human-facing click.
 
-       ThrottleInterval matches, so a run that overruns cannot stack. -->
+       If you change it, change STALE_AFTER_MINUTES in src/lib/system-health.ts
+       to match, or the health card reports a healthy sync as stalled.
+
+       StartInterval rather than the StartCalendarInterval every other job here
+       uses, because those are all daily or weekly and this one is not.
+
+       ThrottleInterval matches, so a run that overruns cannot stack — and the
+       curl -m 850 ceiling is under it, so a wedged run cannot straddle the
+       next tick. -->
   <key>StartInterval</key>
-  <integer>14400</integer>
+  <integer>900</integer>
   <key>ThrottleInterval</key>
-  <integer>14400</integer>
+  <integer>900</integer>
   <key>AbandonProcessGroup</key>
   <false/>
   <key>StandardOutPath</key>

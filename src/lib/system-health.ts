@@ -815,24 +815,28 @@ export async function probeGoogleTasks(): Promise<{
   // The cadence lives in deploy/com.berwilson.cron-google-tasks.plist
   // (StartInterval). These two must move together: a threshold under the
   // interval calls a healthy sync stalled, one far over it hides a dead job.
-  const SYNC_INTERVAL_HOURS = 4
-  const STALE_AFTER_HOURS = SYNC_INTERVAL_HOURS * 2 + 1 // two missed runs, plus slack
+  const SYNC_INTERVAL_MINUTES = 15
+  // Deliberately NOT "two missed runs" as it was at the old four-hour cadence:
+  // at this interval that is a 30-minute threshold, and this box DarkWakes and
+  // sleeps through the day, so a couple of skipped ticks is ordinary and would
+  // cry wolf. An hour still names a dead job inside the hour.
+  const STALE_AFTER_MINUTES = 60
   const newest = listRows
     .map((r) => (r.last_synced_at ? new Date(r.last_synced_at).getTime() : 0))
     .reduce((a, b) => Math.max(a, b), 0)
-  const ageHours = newest ? (Date.now() - newest) / 3_600_000 : Infinity
+  const ageMinutes = newest ? (Date.now() - newest) / 60_000 : Infinity
   // Infinity (nobody has ever synced) must land here too. Excluding it was the
   // other half of the blind spot: a member connected but never once synced read
   // as a clean bill of health.
-  if (ageHours > STALE_AFTER_HOURS) {
+  if (ageMinutes > STALE_AFTER_MINUTES) {
     return {
       state: 'stalled',
       detail:
         `${connected.length} member${connected.length === 1 ? '' : 's'} connected, but ` +
-        (Number.isFinite(ageHours)
-          ? `nothing has synced in ${Math.round(ageHours)} hours`
+        (Number.isFinite(ageMinutes)
+          ? `nothing has synced in ${Math.round(ageMinutes)} minutes`
           : 'no run has ever completed') +
-        `. The job runs every ${SYNC_INTERVAL_HOURS} hours.${tail}`,
+        `. The job runs every ${SYNC_INTERVAL_MINUTES} minutes.${tail}`,
     }
   }
 
