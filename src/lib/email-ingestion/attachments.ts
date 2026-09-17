@@ -1,8 +1,5 @@
 import { createAdminClient } from '@/lib/supabase/admin'
-import { callGemini, callGeminiWithFile } from '@/lib/ai/gemini'
-import { transcribePdfText, extractDocxText, storeExtractedText } from '@/lib/ai/document-text'
-import { embedOpportunityDocument } from '@/lib/ai/embeddings'
-import { runDocumentAiPass, documentKind, PDF_MIME_TYPE } from '@/lib/ai/document-pipeline'
+import { runDocumentAiPass } from '@/lib/ai/document-pipeline'
 
 /**
  * Email-intake attachment staging.
@@ -61,14 +58,6 @@ export function sanitizeFileName(name: string): string {
 // ---------------------------------------------------------------------------
 // Confirm-time promotion: staged file → real document on the created record
 // ---------------------------------------------------------------------------
-
-const SYSTEM_USER_ID = '00000000-0000-0000-0000-000000000000'
-
-// Mirrors the doc-summary prompts in api/documents + api/opportunities/documents.
-const DOC_SUMMARY_SYSTEM = `You are a document analyst for a construction executive intelligence platform.
-Summarize the key points of this document in 2-3 sentences. Focus on: parties involved, key obligations or dates, dollar amounts, and critical terms relevant to construction executives.
-Return ONLY valid JSON: {"summary": "..."}
-No explanation. No markdown.`
 
 export interface PromotedDocument {
   table: 'documents' | 'opportunity_documents'
@@ -167,6 +156,14 @@ export async function promoteStagedAttachment(
  * The post-insert AI pass the upload routes run: summary + full-text
  * extraction + embedding, best-effort (PDF, docx, and text files; other
  * types stay as plain stored files). Run sequentially (local model).
+ *
+ * Both document tables go through the SAME pass. This used to be two: a call
+ * into runDocumentAiPass for project documents and a hand-rolled copy here for
+ * opportunity ones. The copy summarized BEFORE storing the extracted text, so a
+ * summary that threw took the text with it — the exact defect fixed in
+ * document-pipeline.ts on 2026-09-09, which never reached this second copy.
+ * Pointed at a real opportunity it discarded 413,000 characters of readable
+ * text across three technical reports while reporting nothing wrong.
  */
 export async function processPromotedDocumentAi(doc: PromotedDocument): Promise<void> {
   const supabase = createAdminClient()
@@ -177,75 +174,18 @@ export async function processPromotedDocumentAi(doc: PromotedDocument): Promise<
     if (downloadError || !fileBlob) return
     const buffer = await fileBlob.arrayBuffer()
 
-    // Project documents share the standard pipeline (incl. embedding_status).
-    if (doc.table === 'documents') {
-      await runDocumentAiPass({
-        supabase,
-        documentId: doc.id,
-        projectId: doc.parentId,
-        fileName: doc.fileName,
-        mimeType: doc.mimeType,
-        buffer,
-      })
-      return
-    }
-
-    // opportunity_documents — no embedding_status column; same pass by hand.
-    const kind = documentKind(doc.mimeType, doc.fileName)
-    if (kind === 'unsupported') return
-
-    let summaryRaw: { summary?: string } | string | null = null
-    let fullTextContent: string | null = null
-
-    if (kind === 'pdf') {
-      const base64 = Buffer.from(buffer).toString('base64')
-      const result = await callGeminiWithFile<{ summary?: string } | string>({
-        systemPrompt: DOC_SUMMARY_SYSTEM,
-        prompt: 'Summarize this document.',
-        file: { mimeType: PDF_MIME_TYPE, dataBase64: base64 },
-        userId: SYSTEM_USER_ID,
-        logLabel: `Email intake doc summary: ${doc.fileName}`,
-        promptVersion: 'doc-summary-1.0',
-        maxTokens: 2048, // Gemini-path cap only; local mode ignores maxTokens (unbudgeted)
-      })
-      summaryRaw = result.data
-      fullTextContent = await transcribePdfText({
-        dataBase64: base64,
-        byteLength: buffer.byteLength,
-        fileName: doc.fileName,
-        userId: SYSTEM_USER_ID,
-      })
-    } else {
-      fullTextContent =
-        kind === 'docx' ? await extractDocxText(buffer) : new TextDecoder().decode(buffer)
-      if (fullTextContent) {
-        const result = await callGemini<{ summary?: string } | string>({
-          task: 'doc-summary',
-          systemPrompt: DOC_SUMMARY_SYSTEM,
-          userMessage: fullTextContent.slice(0, 30000),
-          userId: SYSTEM_USER_ID,
-          promptVersion: 'doc-summary-1.0',
-          maxTokens: 2048,
-        })
-        summaryRaw = result.data
-      }
-    }
-
-    const summary =
-      summaryRaw && typeof summaryRaw === 'object'
-        ? summaryRaw.summary ?? null
-        : String(summaryRaw ?? '').slice(0, 1000) || null
-    if (summary) {
-      await supabase.from(doc.table).update({ ai_summary: summary }).eq('id', doc.id)
-    }
-    if (fullTextContent) {
-      await storeExtractedText(supabase, doc.table, doc.id, fullTextContent)
-    }
-
-    const embedText = fullTextContent ?? summary
-    if (embedText) {
-      await embedOpportunityDocument(doc.id, doc.parentId, embedText)
-    }
+    await runDocumentAiPass({
+      supabase,
+      documentId: doc.id,
+      projectId: doc.table === 'documents' ? doc.parentId : null,
+      fileName: doc.fileName,
+      mimeType: doc.mimeType,
+      buffer,
+      target:
+        doc.table === 'opportunity_documents'
+          ? { table: 'opportunity_documents', opportunityId: doc.parentId }
+          : { table: 'documents' },
+    })
   } catch (err) {
     // Best-effort — the document row exists either way.
     console.error(`[email-intake] AI pass failed (${doc.fileName}):`, err)

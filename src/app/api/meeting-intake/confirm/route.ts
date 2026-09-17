@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 import { actorAdminClient } from '@/lib/auth/viewer'
 import { embedUpdate, embedOpportunityReport, embedOpportunitySnapshot, embedDocument } from '@/lib/ai/embeddings'
+import { publishRecordToDrive } from '@/lib/drive/publish'
 import {
   createRecordFromFields,
   saveReportDocument,
@@ -342,6 +343,30 @@ export async function POST(request: NextRequest) {
       }
       createdRecordIds.task_ids.push(data.id)
     }
+  }
+
+  // ── 4b. Minutes reach the team through Drive ────────────────────────────────
+  // Same reasoning as the email-intake confirm: most of the people who attended
+  // the meeting cannot reach this tailnet-only platform. Company-scoped minutes
+  // are excluded deliberately — they are governance material, not a record's
+  // document set, and publishRecordToDrive has no company shelf.
+  const publishable = targets.filter(
+    (t) => t.kind === 'project' || t.kind === 'opportunity'
+  )
+  if (publishable.length > 0) {
+    void (async () => {
+      for (const tgt of publishable) {
+        try {
+          await publishRecordToDrive(tgt.kind as 'project' | 'opportunity', tgt.id)
+        } catch (err) {
+          // Best-effort — the nightly reconcile retries.
+          console.error(
+            '[meeting-intake] Drive publish failed:',
+            err instanceof Error ? err.message : err
+          )
+        }
+      }
+    })()
   }
 
   // ── 5. Mark session confirmed ────────────────────────────────────────────────

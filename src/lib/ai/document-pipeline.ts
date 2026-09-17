@@ -1,6 +1,6 @@
 import { callGemini, callGeminiWithFile, UnreadableDocumentError } from '@/lib/ai/gemini'
 import { transcribePdfText, extractDocxText, storeExtractedText } from '@/lib/ai/document-text'
-import { embedDocument } from '@/lib/ai/embeddings'
+import { embedDocument, embedOpportunityDocument } from '@/lib/ai/embeddings'
 import type { createAdminClient } from '@/lib/supabase/admin'
 
 // Shared AI pass for rows in the `documents` table: summary + full-text
@@ -55,7 +55,33 @@ export interface AiPassResult {
   confidence: number | null
 }
 
-async function setStatus(supabase: AdminClient, documentId: string, status: string) {
+/**
+ * Which document table this pass is writing to.
+ *
+ * `opportunity_documents` mirrors `documents` closely but has no
+ * embedding_status and no confidence column, and embeds through a different
+ * function. Those three differences are the ONLY ones — and expressing them as
+ * a parameter is the point: email intake used to carry its own hand-rolled copy
+ * of this pass for opportunity attachments, which meant the 2026-09-09 fix (a
+ * failed summary must not discard the extracted text) landed in one copy and
+ * not the other. That second copy silently threw away 413,000 characters of
+ * real text on the first opportunity it was pointed at. One pass, two targets.
+ */
+export type DocumentTarget =
+  | { table: 'documents' }
+  | { table: 'opportunity_documents'; opportunityId: string }
+
+const DEFAULT_TARGET: DocumentTarget = { table: 'documents' }
+
+async function setStatus(
+  supabase: AdminClient,
+  target: DocumentTarget,
+  documentId: string,
+  status: string
+) {
+  // opportunity_documents has no embedding_status column — there is nothing to
+  // settle, and the caller's return value carries the outcome either way.
+  if (target.table !== 'documents') return
   await supabase.from('documents').update({ embedding_status: status }).eq('id', documentId)
 }
 
@@ -92,17 +118,20 @@ export async function runDocumentAiPass(input: {
   fileName: string
   mimeType: string | null
   buffer: ArrayBuffer
+  /** Defaults to the `documents` table. */
+  target?: DocumentTarget
 }): Promise<AiPassResult> {
   const { supabase, documentId, projectId, fileName, mimeType, buffer } = input
+  const target = input.target ?? DEFAULT_TARGET
 
   const kind = documentKind(mimeType, fileName)
   if (kind === 'unsupported') {
-    await setStatus(supabase, documentId, 'skipped')
+    await setStatus(supabase, target, documentId, 'skipped')
     return { status: 'skipped', aiSummary: null, confidence: null }
   }
 
   try {
-    await setStatus(supabase, documentId, 'processing')
+    await setStatus(supabase, target, documentId, 'processing')
 
     // 1. Full text — what actually gets embedded when available.
     let fullText: string | null = null
@@ -180,13 +209,22 @@ export async function runDocumentAiPass(input: {
       aiSummary = String(parsed).trim().slice(0, 1000) || null
     }
     if (aiSummary) {
-      await supabase
-        .from('documents')
-        .update({ ai_summary: aiSummary, confidence })
-        .eq('id', documentId)
+      // Branched rather than passed as a union: opportunity_documents has no
+      // confidence column, and a union update type resolves that field to never.
+      if (target.table === 'documents') {
+        await supabase
+          .from('documents')
+          .update({ ai_summary: aiSummary, confidence })
+          .eq('id', documentId)
+      } else {
+        await supabase
+          .from('opportunity_documents')
+          .update({ ai_summary: aiSummary })
+          .eq('id', documentId)
+      }
     }
     if (fullText) {
-      await storeExtractedText(supabase, 'documents', documentId, fullText)
+      await storeExtractedText(supabase, target.table, documentId, fullText)
     }
 
     // 3. Embed — full text when we have it, summary as the fallback.
@@ -197,16 +235,24 @@ export async function runDocumentAiPass(input: {
       // (an empty or image-only docx, a blank export). That is 'skipped', not
       // 'error': both leave it unsearchable, but only one of them invites a
       // nightly sync to fetch and re-read it forever.
-      await setStatus(supabase, documentId, 'skipped')
+      await setStatus(supabase, target, documentId, 'skipped')
       return { status: 'skipped', aiSummary, confidence }
     }
-    const ok = await embedDocument(
-      documentId,
-      projectId,
-      embedText,
-      input.entityId ?? null,
-      input.isCompany ?? false
-    )
+    // embedOpportunityDocument swallows its own errors and returns void, so a
+    // completed call is the only success signal it offers.
+    let ok: boolean
+    if (target.table === 'opportunity_documents') {
+      await embedOpportunityDocument(documentId, target.opportunityId, embedText)
+      ok = true
+    } else {
+      ok = await embedDocument(
+        documentId,
+        projectId,
+        embedText,
+        input.entityId ?? null,
+        input.isCompany ?? false
+      )
+    }
     return { status: ok ? 'complete' : 'error', aiSummary, confidence }
   } catch (err) {
     // A document nothing here can read is SKIPPED, not failed. Both leave it
@@ -215,11 +261,11 @@ export async function runDocumentAiPass(input: {
     // same scanned survey plats and never reaches the documents behind them.
     if (err instanceof UnreadableDocumentError) {
       console.warn(`[document-pipeline] not indexable (${fileName}): ${err.message}`)
-      await setStatus(supabase, documentId, 'skipped')
+      await setStatus(supabase, target, documentId, 'skipped')
       return { status: 'skipped', aiSummary: null, confidence: null }
     }
     console.error(`[document-pipeline] AI pass failed (${fileName}):`, err)
-    await setStatus(supabase, documentId, 'error')
+    await setStatus(supabase, target, documentId, 'error')
     return { status: 'error', aiSummary: null, confidence: null }
   }
 }

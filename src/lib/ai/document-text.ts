@@ -4,9 +4,18 @@ import type { createAdminClient } from '@/lib/supabase/admin'
 
 // Shared full-text extraction for uploaded PDFs. The 2-3 sentence AI summary
 // stays (card display), but search quality comes from embedding the complete
-// document text. Inline base64 caps out around this size; larger PDFs fall
-// back to summary-only embedding.
+// document text.
+//
+// The size ceiling is PER PATH, because the two paths are limited by different
+// things. Gemini receives the whole file base64-inlined in the request, so it
+// caps out around 15MB. Local mode makes no request at all — `unpdf` reads the
+// buffer in process — so the only real constraint is memory, and applying the
+// API's ceiling there silently cost real documents: a 20.5MB technical report
+// holding 50,000 characters of readable text was stored with a summary and no
+// text, which is the difference between Ber AI quoting a report and merely
+// knowing it exists.
 export const PDF_FULLTEXT_MAX_BYTES = 15 * 1024 * 1024
+export const PDF_FULLTEXT_MAX_BYTES_LOCAL = 100 * 1024 * 1024
 
 // Postgres text/jsonb rejects NUL bytes ("unsupported Unicode escape
 // sequence") and lone surrogates — PDFs with embedded fonts produce both.
@@ -20,9 +29,9 @@ Preserve headings, lists, tables (as markdown tables), dollar figures, dates, na
 Do not summarize, skip sections, or add commentary. Output ONLY the extracted text.`
 
 /**
- * Transcribe a PDF's full text via Gemini. Returns null on failure or when
- * the file is too large for an inline pass — callers fall back to embedding
- * the summary, exactly as before.
+ * Transcribe a PDF's full text. Returns null on failure or when the file is
+ * beyond the active path's ceiling — callers fall back to embedding the
+ * summary, exactly as before.
  */
 export async function transcribePdfText(input: {
   dataBase64: string
@@ -30,15 +39,16 @@ export async function transcribePdfText(input: {
   fileName: string
   userId: string
 }): Promise<string | null> {
-  if (input.byteLength > PDF_FULLTEXT_MAX_BYTES) return null
-
   // Local mode: extract the text directly — no model pass needed for a
   // verbatim transcription, and nothing leaves the machine.
   if (isLocalAI()) {
+    if (input.byteLength > PDF_FULLTEXT_MAX_BYTES_LOCAL) return null
     const raw = await extractPdfText(input.dataBase64)
     const text = raw ? sanitizeExtractedText(raw) : null
     return text && text.length >= 40 ? text : null
   }
+
+  if (input.byteLength > PDF_FULLTEXT_MAX_BYTES) return null
 
   try {
     const result = await callGeminiWithFile<string>({

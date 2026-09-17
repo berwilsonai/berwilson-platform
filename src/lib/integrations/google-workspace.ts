@@ -1110,13 +1110,37 @@ export function htmlToPlainText(html: string): string {
 }
 
 /**
+ * Is this MIME part body chrome (a signature logo, an embedded screenshot the
+ * HTML references) rather than a document someone meant to send?
+ *
+ * Content-Disposition is authoritative when present and is checked FIRST.
+ * A Content-ID on its own means nothing: Gmail's own composer stamps one
+ * (`<f_mu53shjq0>`) on EVERY file a person uploads, so treating a CID as proof
+ * of inlineness silently discarded every attachment sent from Gmail — contracts,
+ * leases and technical reports included. Only when no disposition is stated does
+ * a CID become evidence, and then only under `multipart/related`, which is the
+ * container that actually means "these parts are referenced by the body".
+ */
+export function classifyAttachmentDisposition(
+  headers: GmailHeader[] | undefined,
+  parentMimeType: string
+): boolean {
+  const disposition = headerValue(headers, 'content-disposition').trim().toLowerCase()
+  if (disposition.startsWith('attachment')) return false
+  if (disposition.startsWith('inline')) return true
+  const contentId = headerValue(headers, 'content-id').trim()
+  return Boolean(contentId) && parentMimeType.toLowerCase().startsWith('multipart/related')
+}
+
+/**
  * Walk the MIME tree collecting the best body text and every attachment.
  * Prefers text/plain; falls back to stripped text/html when that's all there is.
  */
 function walkParts(
   part: GmailPart | undefined,
   messageId: string,
-  acc: { plain: string[]; html: string[]; attachments: MailAttachmentRef[] }
+  acc: { plain: string[]; html: string[]; attachments: MailAttachmentRef[] },
+  parentMimeType = ''
 ): void {
   if (!part) return
 
@@ -1125,24 +1149,20 @@ function walkParts(
   const attachmentId = part.body?.attachmentId
 
   if (attachmentId && filename) {
-    // Inline images carry a Content-ID and are referenced from the HTML body;
-    // they're chrome (signatures, logos), not documents worth ingesting.
-    const contentId = headerValue(part.headers, 'content-id')
-    const disposition = headerValue(part.headers, 'content-disposition').toLowerCase()
     acc.attachments.push({
       attachmentId,
       messageId,
       name: filename,
       mimeType: part.mimeType ?? 'application/octet-stream',
       size: part.body?.size ?? 0,
-      isInline: Boolean(contentId) || disposition.startsWith('inline'),
+      isInline: classifyAttachmentDisposition(part.headers, parentMimeType),
     })
   } else if (part.body?.data) {
     if (mime === 'text/plain') acc.plain.push(decodeBase64Url(part.body.data))
     else if (mime === 'text/html') acc.html.push(decodeBase64Url(part.body.data))
   }
 
-  for (const child of part.parts ?? []) walkParts(child, messageId, acc)
+  for (const child of part.parts ?? []) walkParts(child, messageId, acc, mime)
 }
 
 function normalizeMessage(raw: GmailMessageRaw, mailbox: string): MailMessage {

@@ -399,16 +399,29 @@ export default function EmailIngestReview({ sessionId, extraction, partyMatches,
         </div>
       )}
 
-      {/* Attachments pulled from the email threads */}
-      {attachments.length > 0 && (
-        <div className="rounded-lg border border-border bg-card p-4 space-y-3">
-          <div className="flex items-center gap-2">
-            <Paperclip size={15} className="text-muted-foreground" />
-            <h3 className="text-sm font-semibold">
-              Attachments ({attachments.filter((a) => a.include).length} of {attachments.length})
-            </h3>
+      {/* Attachments pulled from the email threads.
+          Rendered even when empty, deliberately. Hiding the section made "the
+          run found no files" indistinguishable from "staging silently dropped
+          every file", which is exactly how a MIME misclassification went
+          unnoticed while it discarded every attachment sent from Gmail. An
+          empty list a reader can disbelieve is worth more than no list. */}
+      <div className="rounded-lg border border-border bg-card p-4 space-y-3">
+        <div className="flex items-center gap-2">
+          <Paperclip size={15} className="text-muted-foreground" />
+          <h3 className="text-sm font-semibold">
+            Attachments{attachments.length > 0 && ` (${attachments.filter((a) => a.include).length} of ${attachments.length})`}
+          </h3>
+          {attachments.length > 0 && (
             <span className="text-xs text-muted-foreground">— checked files are saved to the {kind}&apos;s documents</span>
-          </div>
+          )}
+        </div>
+        {attachments.length === 0 ? (
+          <p className="text-xs text-muted-foreground">
+            No files were found on the email threads this report was built from. If you know a
+            document was sent, it may sit behind a portal link rather than being attached, or be
+            larger than the 25 MB staging limit — the report notes anything it skipped.
+          </p>
+        ) : (
           <div className="space-y-2">
             {attachments.map((a, i) => (
               <div key={a.storage_path} className="flex items-center gap-2.5 p-2 rounded-md border border-border/60">
@@ -441,8 +454,8 @@ export default function EmailIngestReview({ sessionId, extraction, partyMatches,
               </div>
             ))}
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
       {error && <p className="text-sm text-destructive bg-destructive/10 rounded px-3 py-2">{error}</p>}
 

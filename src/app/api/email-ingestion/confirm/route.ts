@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 import { actorAdminClient } from '@/lib/auth/viewer'
 import { embedUpdate, embedOpportunityReport, embedOpportunitySnapshot } from '@/lib/ai/embeddings'
 import { linkClusterToRecord } from '@/lib/email-sweep/cluster-link'
+import { publishRecordToDrive } from '@/lib/drive/publish'
 import {
   parseStagedAttachments,
   promoteStagedAttachment,
@@ -261,13 +262,31 @@ export async function POST(request: NextRequest) {
 
   // Summary + transcription + embedding runs after the response, one document
   // at a time — the local model is slow and the user shouldn't wait on it.
-  if (promoted.length > 0) {
-    void (async () => {
-      for (const doc of promoted) {
-        await processPromotedDocumentAi(doc)
+  //
+  // Drive publishing goes FIRST and does not wait on that pass: most of the
+  // team cannot reach this tailnet-only platform, so these documents are only
+  // useful to them once they are in Drive, and Drive carries the file, not the
+  // AI summary. The nightly reconcile would have caught this record eventually,
+  // but "eventually" is tomorrow morning — a record created at 9am should be
+  // readable by the team at 9am.
+  void (async () => {
+    try {
+      const published = await publishRecordToDrive(target.kind, target.id)
+      if (published.failed > 0) {
+        console.error('[email-intake] Drive publish partial:', published.errors)
       }
-    })()
-  }
+    } catch (err) {
+      // Best-effort: the documents are on the record either way, and the
+      // nightly reconcile retries.
+      console.error(
+        '[email-intake] Drive publish failed:',
+        err instanceof Error ? err.message : err
+      )
+    }
+    for (const doc of promoted) {
+      await processPromotedDocumentAi(doc)
+    }
+  })()
 
   // ── 5. Mark session confirmed ────────────────────────────────────────────────
   await supabase
