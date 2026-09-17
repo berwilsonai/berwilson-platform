@@ -77,7 +77,10 @@ cap() {
 serve_set() { # <label> <args...>
   local label=$1; shift
   local out; out=$(cap 20 $TAILSCALE serve "$@" 2>&1); local rc=$?
-  if [[ $rc -eq 0 && -z "$out" ]]; then ok "$label"; return 0; fi
+  # Exit 0 is the whole signal. Creating a listener prints a success banner while a
+  # no-op re-run is silent, so requiring empty output reported a working listener as
+  # a failure on the very run that established it.
+  if [[ $rc -eq 0 ]]; then ok "$label"; return 0; fi
   bad "$label — could not set listener"
   [[ -n "$out" ]] && print "$out" | sed 's/^/      /'
   if print -r -- "$out" | grep -qi 'not enabled'; then
@@ -120,7 +123,10 @@ PY
 fi
 
 b "\n4. Reachability"
-code() { curl -sk -o /dev/null -m 10 -w '%{http_code}' "$1" 2>/dev/null || echo 000 }
+# 25s, not 10: the FIRST request to a new tailnet hostname blocks while Tailscale
+# provisions the Let's Encrypt certificate. A short timeout reports 000 and reads as
+# "the platform is unreachable" when it is merely issuing a cert.
+code() { curl -sk -o /dev/null -m 25 -w '%{http_code}' "$1" 2>/dev/null || echo 000 }
 C1=$(code http://localhost:3000/login);           [[ $C1 == 200 ]] && ok "localhost:3000/login -> 200" || { bad "localhost:3000/login -> $C1"; FAIL=1 }
 C2=$(code "https://${FQDN}/login");               [[ $C2 == 200 ]] && ok "tailnet 443 /login -> 200"   || { bad "tailnet 443 /login -> $C2"; FAIL=1 }
 C3=$(code "https://${FQDN}:8443/auth/v1/health"); [[ $C3 == 200 || $C3 == 401 ]] && ok "tailnet 8443 supabase -> $C3 (reachable)" || { bad "tailnet 8443 -> $C3"; FAIL=1 }
