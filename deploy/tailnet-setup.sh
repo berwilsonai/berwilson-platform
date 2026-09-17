@@ -59,15 +59,40 @@ else
 fi
 
 b "\n2. Serve listeners"
+# macOS ships no timeout(1). This matters: on a tailnet where Serve has never been
+# enabled, `tailscale serve` prints a one-click enable URL and then BLOCKS, polling
+# until a human clicks it. Capturing that output to /dev/null turns a clear, actionable
+# message into an unexplained hang — which is exactly what happened on 2026-09-16.
+# /usr/local/bin/tailscale is a /bin/sh WRAPPER that execs the real binary inside
+# Tailscale.app — killing the subshell leaves the grandchild polling forever, so the
+# timeout must reap the whole tree. `serve --bg` returns instantly when it works, so a
+# surviving `tailscale serve` process is by definition the stuck one.
+cap() {
+  local s=$1; shift
+  local f=$(mktemp); ( "$@" >$f 2>&1 ) & local p=$! rc=0 i=0
+  while (( i < s )); do kill -0 $p 2>/dev/null || break; sleep 1; (( i++ )); done
+  if kill -0 $p 2>/dev/null; then pkill -f "tailscale serve" 2>/dev/null; rc=143; else wait $p 2>/dev/null; rc=$?; fi
+  cat $f; rm -f $f; return $rc
+}
+serve_set() { # <label> <args...>
+  local label=$1; shift
+  local out; out=$(cap 20 $TAILSCALE serve "$@" 2>&1); local rc=$?
+  if [[ $rc -eq 0 && -z "$out" ]]; then ok "$label"; return 0; fi
+  bad "$label — could not set listener"
+  [[ -n "$out" ]] && print "$out" | sed 's/^/      /'
+  if print -r -- "$out" | grep -qi 'not enabled'; then
+    warn "Serve is not enabled on this tailnet. Open the URL above and click enable"
+    warn "(it turns on HTTPS certificates too), then re-run this script."
+  elif [[ $rc -eq 143 ]]; then
+    warn "timed out — the command was waiting on a browser action. Check the URL above."
+  fi
+  FAIL=1; return 1
+}
 # Idempotent: re-running an identical mapping is a no-op.
-$TAILSCALE serve --bg 3000 >/dev/null 2>&1 \
-  && ok "443  -> 127.0.0.1:3000 (app)" \
-  || { bad "could not set 443 listener — is HTTPS Certificates enabled in DNS settings?"; FAIL=1; }
-$TAILSCALE serve --bg --https=8443 http://localhost:8000 >/dev/null 2>&1 \
-  && ok "8443 -> 127.0.0.1:8000 (supabase/kong)" \
-  || { bad "could not set 8443 listener"; FAIL=1; }
+serve_set "443  -> 127.0.0.1:3000 (app)"            --bg 3000
+serve_set "8443 -> 127.0.0.1:8000 (supabase/kong)"  --bg --https=8443 http://localhost:8000
 print
-$TAILSCALE serve status 2>&1 | sed 's/^/  /'
+cap 10 $TAILSCALE serve status 2>&1 | sed 's/^/  /'
 
 b "\n3. .env.local vs live hostname"
 WANT_SUPA="https://${FQDN}:8443"
