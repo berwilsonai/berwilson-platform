@@ -155,7 +155,7 @@ export default async function ProjectOverviewPage({ params }: PageProps) {
 
       {/* Actions */}
       <div className="flex justify-end gap-2">
-        <GenerateBriefButton projectId={id} projectName={project.name} />
+        <GenerateBriefButton recordId={id} recordName={project.name} />
         <Link
           href={`/projects/${id}/edit`}
           className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md border border-input bg-background text-xs font-medium hover:bg-accent transition-colors"

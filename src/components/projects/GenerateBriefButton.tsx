@@ -7,11 +7,13 @@ import ReadAloudButton from '@/components/shared/ReadAloudButton'
 import { FileText, Loader2, X, Copy, Check, Save, Printer } from 'lucide-react'
 
 interface Props {
-  projectId: string
-  projectName: string
+  recordId: string
+  recordName: string
+  /** Which kind of record the brief covers; decides the API field and print URL. */
+  kind?: 'project' | 'opportunity'
 }
 
-export default function GenerateBriefButton({ projectId, projectName }: Props) {
+export default function GenerateBriefButton({ recordId, recordName, kind = 'project' }: Props) {
   const [loading, setLoading] = useState(false)
   const [brief, setBrief] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -31,7 +33,9 @@ export default function GenerateBriefButton({ projectId, projectName }: Props) {
       const res = await fetch('/api/ai/brief', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ project_id: projectId }),
+        body: JSON.stringify(
+          kind === 'project' ? { project_id: recordId } : { opportunity_id: recordId }
+        ),
       })
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
@@ -62,8 +66,8 @@ export default function GenerateBriefButton({ projectId, projectName }: Props) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          project_id: projectId,
-          file_name: `${projectName} Brief - ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}.md`,
+          project_id: recordId,
+          file_name: `${recordName} Brief - ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}.md`,
           doc_type: 'report',
           ai_summary: brief.slice(0, 500),
           source: 'agent',
@@ -111,7 +115,7 @@ export default function GenerateBriefButton({ projectId, projectName }: Props) {
             <div className="flex items-center justify-between px-5 py-3.5 border-b border-border shrink-0">
               <div>
                 <h3 className="text-sm font-semibold text-foreground">
-                  Executive Brief — {projectName}
+                  Executive Brief — {recordName}
                 </h3>
                 {modelInfo && (
                   <p className="text-xs text-muted-foreground mt-0.5">
@@ -128,7 +132,7 @@ export default function GenerateBriefButton({ projectId, projectName }: Props) {
                       className="h-7 px-2.5 rounded-md text-xs font-medium border border-input hover:bg-accent"
                     />
                     <Link
-                      href={`/projects/${projectId}/brief/print`}
+                      href={`/${kind === 'project' ? 'projects' : 'opportunities'}/${recordId}/brief/print`}
                       target="_blank"
                       className="inline-flex items-center gap-1 h-7 px-2.5 rounded-md text-xs font-medium border border-input hover:bg-accent transition-colors"
                     >
@@ -141,6 +145,7 @@ export default function GenerateBriefButton({ projectId, projectName }: Props) {
                       {copied ? <Check size={11} className="text-emerald-600 dark:text-emerald-400" /> : <Copy size={11} />}
                       {copied ? 'Copied' : 'Copy'}
                     </button>
+                    {kind === 'project' && (
                     <button
                       onClick={handleSave}
                       disabled={saving || saved}
@@ -149,6 +154,7 @@ export default function GenerateBriefButton({ projectId, projectName }: Props) {
                       {saved ? <Check size={11} className="text-emerald-600 dark:text-emerald-400" /> : <Save size={11} />}
                       {saved ? 'Saved' : saving ? 'Saving…' : 'Save'}
                     </button>
+                    )}
                   </>
                 )}
                 <button

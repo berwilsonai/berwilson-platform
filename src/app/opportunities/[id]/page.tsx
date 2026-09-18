@@ -21,6 +21,7 @@ import {
   OPPORTUNITY_STATUS_LABELS,
 } from '@/lib/utils/opportunities'
 import OpportunityStatusControl from '@/components/opportunities/OpportunityStatusControl'
+import GenerateBriefButton from '@/components/projects/GenerateBriefButton'
 import OpportunityDeleteButton from '@/components/opportunities/OpportunityDeleteButton'
 import OpportunityDocuments from '@/components/opportunities/OpportunityDocuments'
 import OpportunityNotes from '@/components/opportunities/OpportunityNotes'
@@ -131,6 +132,7 @@ export default async function OpportunityDetailPage({ params }: PageProps) {
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
+          <GenerateBriefButton recordId={id} recordName={opportunity.name} kind="opportunity" />
           <OpportunityStatusControl opportunityId={id} status={s} />
           <Link
             href={`/opportunities/${id}/edit`}

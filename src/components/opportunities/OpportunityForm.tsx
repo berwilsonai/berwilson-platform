@@ -1,10 +1,11 @@
 'use client'
 
-import { useActionState } from 'react'
+import { useActionState, useState } from 'react'
 import Link from 'next/link'
 import { AlertCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { DatePicker } from '@/components/ui/date-picker'
+import TagInput from '@/components/contacts/TagInput'
 import { cn } from '@/lib/utils'
 import { createOpportunity, updateOpportunity } from '@/app/opportunities/actions'
 import type { OpportunityFormState } from '@/app/opportunities/actions'
@@ -42,6 +43,12 @@ export default function OpportunityForm({ mode, opportunity }: OpportunityFormPr
       : createOpportunity
 
   const [state, formAction, isPending] = useActionState<OpportunityFormState, FormData>(action, null)
+
+  // Short forms the email router should recognise for this deal. Kept in state
+  // and submitted as a hidden JSON field, mirroring the project form.
+  const [aliases, setAliases] = useState<string[]>(
+    (opportunity as { match_aliases?: string[] } | undefined)?.match_aliases ?? []
+  )
 
   const cancelHref = mode === 'edit' && opportunity ? `/opportunities/${opportunity.id}` : '/opportunities'
 
@@ -350,6 +357,21 @@ export default function OpportunityForm({ mode, opportunity }: OpportunityFormPr
               defaultValue={opportunity?.location ?? ''}
               placeholder="e.g. Boise, ID"
               className={inputClass}
+            />
+          </div>
+
+          <div className="sm:col-span-3">
+            <label className={labelClass}>Also known as</label>
+            <p className="text-xs text-muted-foreground mb-2">
+              Short forms people actually write in email — the mail router only files
+              correspondence it can recognise, and most threads never use a deal&rsquo;s full
+              name.
+            </p>
+            <input type="hidden" name="match_aliases" value={JSON.stringify(aliases)} />
+            <TagInput
+              value={aliases}
+              onChange={setAliases}
+              placeholder="Add a short name (GridEdge, Golden Summit…)"
             />
           </div>
 

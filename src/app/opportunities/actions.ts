@@ -5,6 +5,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { embedOpportunitySnapshot } from '@/lib/ai/embeddings'
 import type { TablesInsert } from '@/lib/supabase/types'
 import { getViewer, canAccessOpportunity } from '@/lib/auth/viewer'
+import { requeueThreadsForAliases } from '@/lib/email-sweep/requeue'
 
 export type OpportunityFormState = { error: string } | null
 
@@ -19,6 +20,29 @@ function parseFields(formData: FormData): ParseResult {
   if (!opp_type) return { ok: false, error: 'Opportunity type is required.' }
 
   const str = (key: string) => (formData.get(key) as string | null)?.trim() || null
+
+  // Short forms people actually write for this deal, so the email router can
+  // recognise mail that never uses the record's full name. Same hidden-JSON
+  // contract as the project form.
+  const aliasesRaw = str('match_aliases')
+  let match_aliases: string[] = []
+  if (aliasesRaw) {
+    try {
+      const parsed: unknown = JSON.parse(aliasesRaw)
+      if (Array.isArray(parsed)) {
+        match_aliases = [
+          ...new Set(
+            parsed
+              .filter((a): a is string => typeof a === 'string')
+              .map((a) => a.trim())
+              .filter((a) => a.length > 0)
+          ),
+        ]
+      }
+    } catch {
+      match_aliases = []
+    }
+  }
 
   // Estimated value: positive number or null
   const rawValue = (formData.get('estimated_value') as string | null) ?? ''
@@ -77,6 +101,9 @@ function parseFields(formData: FormData): ParseResult {
       identified_date: str('identified_date'),
       target_close_date: str('target_close_date'),
       next_step: str('next_step'),
+      // Only written when the form actually carried the field — an absent key
+      // must never wipe aliases set through another door.
+      ...(aliasesRaw !== null ? { match_aliases } : {}),
     },
   }
 }
@@ -103,6 +130,9 @@ export async function createOpportunity(
   // Make the opportunity findable by semantic search (skips pre-migration)
   embedOpportunitySnapshot(data.id).catch(console.error)
 
+  const newAliases = (result.fields.match_aliases as string[] | undefined) ?? []
+  if (newAliases.length > 0) await requeueThreadsForAliases(newAliases).catch(() => 0)
+
   redirect(`/opportunities/${data.id}`)
 }
 
@@ -120,12 +150,31 @@ export async function updateOpportunity(
   if (!result.ok) return { error: result.error }
 
   const supabase = createAdminClient()
+
+  // Snapshot the aliases before the write so only genuinely NEW ones trigger a
+  // re-route — an unchanged save should not re-examine the whole mailbox.
+  const { data: prior } = await supabase
+    .from('opportunities')
+    .select('match_aliases')
+    .eq('id', id)
+    .single()
+
   const { error } = await supabase
     .from('opportunities')
     .update(result.fields)
     .eq('id', id)
 
   if (error) return { error: `Failed to update opportunity: ${error.message}` }
+
+  const before = new Set(
+    ((prior as { match_aliases?: string[] } | null)?.match_aliases ?? []).map((a) =>
+      a.toLowerCase()
+    )
+  )
+  const added = ((result.fields.match_aliases as string[] | undefined) ?? []).filter(
+    (a) => !before.has(a.toLowerCase())
+  )
+  if (added.length > 0) await requeueThreadsForAliases(added).catch(() => 0)
 
   // Refresh the searchable snapshot (skips pre-migration)
   embedOpportunitySnapshot(id).catch(console.error)

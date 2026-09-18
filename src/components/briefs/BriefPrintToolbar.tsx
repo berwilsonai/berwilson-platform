@@ -10,15 +10,28 @@ import ReadAloudButton from '@/components/shared/ReadAloudButton'
  * is the "Save as PDF" path, so there is no PDF library to maintain — the same
  * choice the objectives and weekly-report print views make.
  */
-export function BriefPrintToolbar({ projectId, text }: { projectId: string; text: string }) {
+export function BriefPrintToolbar({
+  projectId,
+  backHref,
+  backLabel,
+  text,
+}: {
+  /** Legacy shorthand for a project back-link; prefer backHref/backLabel. */
+  projectId?: string
+  backHref?: string
+  backLabel?: string
+  text: string
+}) {
+  const href = backHref ?? (projectId ? `/projects/${projectId}` : '/')
+  const label = backLabel ?? 'Project'
   return (
     <div className="print:hidden sticky top-0 z-10 border-b border-slate-200 bg-white">
       <div className="mx-auto max-w-3xl px-8 py-3 flex items-center gap-3 flex-wrap">
         <Link
-          href={`/projects/${projectId}`}
+          href={href}
           className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-900 transition-colors"
         >
-          <ArrowLeft size={14} /> Project
+          <ArrowLeft size={14} /> {label}
         </Link>
 
         <div className="ml-auto flex items-center gap-2">

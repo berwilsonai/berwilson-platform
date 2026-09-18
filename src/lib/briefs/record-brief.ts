@@ -138,6 +138,129 @@ function threadGist(summary: unknown): string | null {
 }
 
 /**
+ * Correspondence for one record: every FILED thread, then a semantic sweep for
+ * mail that looks like it belongs here but has not been filed. Shared by the
+ * project and opportunity assemblers so the two kinds of brief cannot drift in
+ * how they treat mail — the sweep phrasing is the caller's, since only the
+ * caller knows what a reader would ask about its record.
+ */
+async function gatherCorrespondence(
+  recordKind: 'project' | 'opportunity',
+  recordId: string,
+  sweepQuery: string
+): Promise<ThreadRecord[]> {
+  const threads: ThreadRecord[] = []
+  const seenThreads = new Set<string>()
+
+  const { data: links } = await sweepDb()
+    .from('thread_links')
+    .select('thread_id, certainty, reason')
+    .eq('record_kind', recordKind)
+    .eq('record_id', recordId)
+
+  const linkRows = (links ?? []) as unknown as Array<{
+    thread_id: string
+    certainty: string
+    reason: string | null
+  }>
+  if (linkRows.length > 0) {
+    const { data: linked } = await sweepDb()
+      .from('email_threads')
+      .select('id, subject, mailbox, last_at, message_count, summary')
+      .in('id', linkRows.map((l) => l.thread_id))
+    const reasonById = new Map(linkRows.map((l) => [l.thread_id, l.reason]))
+    for (const raw of linked ?? []) {
+      const row = raw as unknown as Omit<ThreadRecord, 'linked' | 'reason'>
+      seenThreads.add(row.id)
+      threads.push({ ...row, linked: true, reason: reasonById.get(row.id) ?? null })
+    }
+  }
+
+  // The sweep asks the question a reader would, not the record's formal title:
+  // a thread saying "Water Questions from Ber Wilson" is about this record and
+  // shares no words with its name.
+  let matched: Awaited<ReturnType<typeof searchCorrespondence>> = []
+  try {
+    matched = await searchCorrespondence(sweepQuery, { limit: 10 })
+  } catch (err) {
+    // Correspondence search is an enrichment, not the spine. If the index is
+    // unavailable the brief still stands on the record and its documents, which
+    // is better than failing the whole request.
+    console.error('[brief] correspondence sweep failed:', err)
+  }
+
+  const matchedIds = [...new Set(matched.map((h) => h.threadId))].filter(
+    (id) => !seenThreads.has(id)
+  )
+  if (matchedIds.length > 0) {
+    const { data: extra } = await sweepDb()
+      .from('email_threads')
+      .select('id, subject, mailbox, last_at, message_count, summary')
+      .in('id', matchedIds)
+    for (const raw of extra ?? []) {
+      const row = raw as unknown as Omit<ThreadRecord, 'linked' | 'reason'>
+      threads.push({ ...row, linked: false, reason: null })
+    }
+  }
+
+  threads.sort((a, b) => byDateDesc(a.last_at, b.last_at))
+  return threads
+}
+
+/**
+ * The CONTACT RECENCY block. Recency is measured from FILED correspondence
+ * only — the semantic sweep deliberately casts wide, so it surfaces mail that
+ * merely resembles the record, and letting a loose match set the date would
+ * claim contact that never happened.
+ */
+function contactRecencyLines(
+  threads: ThreadRecord[],
+  now: Date
+): { lines: string[]; lastContact: string | null } {
+  const filed = threads.filter((t) => t.linked)
+  const lastContact = filed[0]?.last_at ?? null
+  if (lastContact) {
+    const age = ageInDays(lastContact, now)
+    return {
+      lastContact,
+      lines: [
+        `## CONTACT RECENCY`,
+        `- Most recent correspondence FILED on this record: ${ymd(lastContact)}${age !== null ? ` (${age} days ago)` : ''} — "${filed[0].subject ?? '(no subject)'}".`,
+        `- Do not describe this record as stalled, quiet or unanswered on any date earlier than that.`,
+        `- Threads above marked "matched, not yet filed" are NOT evidence of contact on this record — they merely resemble it. Do not cite them as activity here.`,
+        '',
+      ],
+    }
+  }
+  return {
+    lastContact: null,
+    lines: [
+      '## CONTACT RECENCY',
+      '- No correspondence is filed on this record.',
+      threads.length > 0
+        ? '- Some mail matched it but none has been filed, so there is no confirmed contact history. Say that the record has no filed correspondence rather than that the deal is quiet.'
+        : '- No correspondence was retrieved at all.',
+      '',
+    ],
+  }
+}
+
+/** Render the CORRESPONDENCE section rows — one thread per bullet, with gist. */
+function correspondenceLines(threads: ThreadRecord[], now: Date): string[] {
+  return threads.map((t) => {
+    const age = ageInDays(t.last_at, now)
+    const gist = threadGist(t.summary)
+    const tag = t.linked ? 'filed on this record' : 'matched, not yet filed'
+    return [
+      `- [${ymd(t.last_at)}${age !== null ? `, ${age}d ago` : ''}] ${t.subject ?? '(no subject)'} — ${t.message_count ?? 1} message(s), ${t.mailbox ?? 'unknown mailbox'} (${tag})`,
+      gist ? `    ${gist.replace(/\s+/g, ' ').slice(0, 400)}` : null,
+    ]
+      .filter(Boolean)
+      .join('\n')
+  })
+}
+
+/**
  * Everything the record knows, plus everything that looks like it belongs to it.
  *
  * Correspondence arrives two ways on purpose. Linked threads are what the
@@ -170,7 +293,6 @@ export async function assembleProjectBrief(
     { data: compliance },
     { data: players },
     { data: documents },
-    { data: links },
   ] = await Promise.all([
     fetchOpenTasks(admin, { projectId, limit: 50 }),
     admin.from('updates')
@@ -199,62 +321,17 @@ export async function assembleProjectBrief(
       .select('id, file_name, doc_type, ai_summary, uploaded_at')
       .eq('project_id', projectId)
       .order('uploaded_at', { ascending: false }),
-    // thread_links and email_threads are deliberately outside the generated
-    // types (gen-types cannot run against this self-hosted stack), so they go
-    // through the sweep's own untyped client.
-    sweepDb().from('thread_links')
-      .select('thread_id, certainty, reason')
-      .eq('record_kind', 'project')
-      .eq('record_id', projectId),
   ])
 
-  // ---- correspondence: filed first, then whatever else is clearly about this
-  const threads: ThreadRecord[] = []
-  const seenThreads = new Set<string>()
-
-  const linkRows = (links ?? []) as unknown as Array<{ thread_id: string; certainty: string; reason: string | null }>
-  if (linkRows.length > 0) {
-    const { data: linked } = await sweepDb()
-      .from('email_threads')
-      .select('id, subject, mailbox, last_at, message_count, summary')
-      .in('id', linkRows.map((l) => l.thread_id))
-    const reasonById = new Map(linkRows.map((l) => [l.thread_id, l.reason]))
-    for (const raw of linked ?? []) {
-      const row = raw as unknown as Omit<ThreadRecord, 'linked' | 'reason'>
-      seenThreads.add(row.id)
-      threads.push({ ...row, linked: true, reason: reasonById.get(row.id) ?? null })
-    }
-  }
-
-  // The sweep asks the question a reader would, not the record's formal title:
-  // a thread saying "Water Questions from Ber Wilson" is about this project and
-  // shares no words with its name.
-  let matched: Awaited<ReturnType<typeof searchCorrespondence>> = []
-  try {
-    matched = await searchCorrespondence(
-      `${name}${project.location ? ` in ${project.location}` : ''} — status, decisions, next steps, open questions, risks`,
-      { limit: 10 }
-    )
-  } catch (err) {
-    // Correspondence search is an enrichment, not the spine. If the index is
-    // unavailable the brief still stands on the record and its documents, which
-    // is better than failing the whole request.
-    console.error('[brief] correspondence sweep failed:', err)
-  }
-
-  const matchedIds = [...new Set(matched.map((h) => h.threadId))].filter((id) => !seenThreads.has(id))
-  if (matchedIds.length > 0) {
-    const { data: extra } = await sweepDb()
-      .from('email_threads')
-      .select('id, subject, mailbox, last_at, message_count, summary')
-      .in('id', matchedIds)
-    for (const raw of extra ?? []) {
-      const row = raw as unknown as Omit<ThreadRecord, 'linked' | 'reason'>
-      threads.push({ ...row, linked: false, reason: null })
-    }
-  }
-
-  threads.sort((a, b) => byDateDesc(a.last_at, b.last_at))
+  // ---- correspondence: filed first, then whatever else is clearly about this.
+  // thread_links and email_threads are deliberately outside the generated types
+  // (gen-types cannot run against this self-hosted stack), so the shared helper
+  // goes through the sweep's own untyped client.
+  const threads = await gatherCorrespondence(
+    'project',
+    projectId,
+    `${name}${project.location ? ` in ${project.location}` : ''} — status, decisions, next steps, open questions, risks`
+  )
 
   // ---- documents, and the passages behind them
   const docs = dedupeDocuments((documents ?? []) as Array<{
@@ -390,45 +467,14 @@ export async function assembleProjectBrief(
     passages.map((p, i) => `- [${i + 1}] ${p.content.replace(/\s+/g, ' ').slice(0, 900)}`)
   )
 
-  const corr = threads.map((t) => {
-    const age = ageInDays(t.last_at, now)
-    const gist = threadGist(t.summary)
-    const tag = t.linked ? 'filed on this record' : 'matched, not yet filed'
-    return [
-      `- [${ymd(t.last_at)}${age !== null ? `, ${age}d ago` : ''}] ${t.subject ?? '(no subject)'} — ${t.message_count ?? 1} message(s), ${t.mailbox ?? 'unknown mailbox'} (${tag})`,
-      gist ? `    ${gist.replace(/\s+/g, ' ').slice(0, 400)}` : null,
-    ].filter(Boolean).join('\n')
-  })
-  push('CORRESPONDENCE (newest first — this is the complete set retrieved)', corr)
+  push(
+    'CORRESPONDENCE (newest first — this is the complete set retrieved)',
+    correspondenceLines(threads, now)
+  )
 
-  // Recency is measured from FILED correspondence only.
-  //
-  // The semantic sweep deliberately casts wide, so it surfaces mail that merely
-  // resembles this record — on the first run it returned an unrelated bid
-  // reminder as the newest thread, and letting that set the date would have said
-  // the deal had been touched nine days ago when nobody had touched it. A loose
-  // match is worth listing as a lead; it is not evidence of contact.
-  const filedThreads = threads.filter((t) => t.linked)
-  const lastContact = filedThreads[0]?.last_at ?? null
-  if (lastContact) {
-    const age = ageInDays(lastContact, now)
-    lines.push(
-      `## CONTACT RECENCY`,
-      `- Most recent correspondence FILED on this record: ${ymd(lastContact)}${age !== null ? ` (${age} days ago)` : ''} — "${filedThreads[0].subject ?? '(no subject)'}".`,
-      `- Do not describe this record as stalled, quiet or unanswered on any date earlier than that.`,
-      `- Threads above marked "matched, not yet filed" are NOT evidence of contact on this record — they merely resemble it. Do not cite them as activity here.`,
-      ''
-    )
-  } else {
-    lines.push(
-      '## CONTACT RECENCY',
-      '- No correspondence is filed on this record.',
-      threads.length > 0
-        ? '- Some mail matched it but none has been filed, so there is no confirmed contact history. Say that the record has no filed correspondence rather than that the deal is quiet.'
-        : '- No correspondence was retrieved at all.',
-      ''
-    )
-  }
+  const recency = contactRecencyLines(threads, now)
+  lines.push(...recency.lines)
+  const lastContact = recency.lastContact
 
   const sources: BriefSource[] = [
     ...docs.map((d) => ({
@@ -450,11 +496,202 @@ export async function assembleProjectBrief(
     sources,
     stats: {
       documents: docs.length,
-      linkedThreads: filedThreads.length,
+      linkedThreads: threads.filter((t) => t.linked).length,
       matchedThreads: threads.filter((t) => !t.linked).length,
       openTasks: openTasks.length,
       updates: (updates ?? []).length,
       lastContact,
+    },
+  }
+}
+
+/**
+ * The opportunity-shaped loader for the same brief.
+ *
+ * Same spine as the project assembler — record fields, stated gaps, documents
+ * by AI summary, ALL filed correspondence plus a labelled semantic sweep, and a
+ * recency block measured from filed mail only. The children differ because the
+ * tables differ: an opportunity's running commentary is `opportunity_notes`
+ * rather than `updates`, its files live in `opportunity_documents`, and it has
+ * no milestones/diligence/financing tables to report on.
+ *
+ * Passages are ranked in code rather than through `match_chunks`, because that
+ * RPC filters by project only. An opportunity's chunk set is small (260 at the
+ * largest today), so pulling its vectors and scoring them here costs less than
+ * a migration buys.
+ */
+export async function assembleOpportunityBrief(
+  admin: Admin,
+  opportunityId: string,
+  now: Date = new Date()
+): Promise<AssembledBrief | null> {
+  const { data: opp } = await admin
+    .from('opportunities')
+    .select('*')
+    .eq('id', opportunityId)
+    .single()
+
+  if (!opp) return null
+
+  const name = opp.name ?? 'Untitled opportunity'
+
+  const [openTasks, { data: notes }, { data: documents }] = await Promise.all([
+    fetchOpenTasks(admin, { opportunityId, limit: 50 }),
+    admin
+      .from('opportunity_notes')
+      .select('body, author, created_at')
+      .eq('opportunity_id', opportunityId)
+      .order('created_at', { ascending: false })
+      .limit(12),
+    admin
+      .from('opportunity_documents')
+      .select('id, file_name, doc_type, ai_summary, uploaded_at')
+      .eq('opportunity_id', opportunityId)
+      .order('uploaded_at', { ascending: false }),
+  ])
+
+  const threads = await gatherCorrespondence(
+    'opportunity',
+    opportunityId,
+    `${name}${opp.counterparty ? ` with ${opp.counterparty}` : ''}${opp.location ? ` in ${opp.location}` : ''} — status, negotiations, terms, next steps, open questions, risks`
+  )
+
+  const docs = dedupeDocuments(
+    (documents ?? []) as Array<{
+      id: string
+      file_name: string | null
+      doc_type: string | null
+      ai_summary: string | null
+      uploaded_at: string | null
+    }>
+  )
+
+  // ---- passages: cosine-rank this record's own chunks in code
+  let passages: Array<{ content: string }> = []
+  try {
+    const embedding = await generateEmbedding(
+      `${name} — deal terms, status, obligations, valuation, risks`
+    )
+    const { data: chunkRows } = await admin
+      .from('chunks')
+      .select('content, embedding')
+      .eq('opportunity_id', opportunityId)
+      .limit(400)
+    const scored = ((chunkRows ?? []) as Array<{ content: string | null; embedding: string | null }>)
+      .map((r) => {
+        let score = 0
+        try {
+          const v = JSON.parse(r.embedding ?? '[]') as number[]
+          // Both vectors are L2-normalized, so the dot product IS the cosine.
+          for (let i = 0; i < Math.min(v.length, embedding.length); i++) score += v[i] * embedding[i]
+        } catch {
+          score = 0
+        }
+        return { content: r.content ?? '', score }
+      })
+      .sort((a, b) => b.score - a.score)
+    passages = dedupeByContent(scored, (p) => p.content, 6)
+  } catch (err) {
+    console.error('[brief] opportunity passage sweep failed:', err)
+  }
+
+  // ---- build the evidence block
+  const lines: string[] = []
+  const push = (heading: string, body: string[]) => {
+    if (body.length === 0) return
+    lines.push(`## ${heading}`, ...body, '')
+  }
+
+  lines.push(`# RECORD: ${name}`, '')
+  const facts: string[] = []
+  const fact = (label: string, value: unknown) => {
+    if (value === null || value === undefined || value === '') return
+    facts.push(`- ${label}: ${String(value)}`)
+  }
+  fact('Kind', 'Strategic opportunity (not a construction project)')
+  fact('Type', opp.opp_type)
+  fact('Status', opp.status)
+  fact('Priority', opp.priority)
+  fact('Sector', opp.sector)
+  fact('Location', opp.location)
+  fact('Target / company', opp.target_name)
+  fact('Counterparty', opp.counterparty)
+  fact('Estimated value', opp.estimated_value)
+  fact('Deal structure', opp.deal_structure)
+  fact('Ownership stake %', opp.ownership_stake)
+  fact('Probability %', opp.probability)
+  fact('Lead', opp.lead)
+  fact('Source', opp.source)
+  fact('Identified', opp.identified_date)
+  fact('Target close', opp.target_close_date)
+  fact('Next step', opp.next_step)
+  fact('Objective', opp.objective)
+  fact('Strategic thesis', opp.thesis)
+  fact('Description', opp.description)
+  push('RECORD FIELDS', facts)
+
+  const gaps: string[] = []
+  if (openTasks.length === 0) gaps.push('- No open tasks are assigned on this record.')
+  if ((notes ?? []).length === 0) gaps.push('- No notes are recorded, so there is no written progress trail here.')
+  if (docs.length === 0) gaps.push('- No documents are attached to this record.')
+  if (opp.estimated_value === null) gaps.push('- No estimated value is recorded.')
+  if (!opp.next_step) gaps.push('- No next step is recorded.')
+  push('RECORDED-DATA GAPS (state these as gaps in tracking, never as good news)', gaps)
+
+  push('OPEN TASKS', openTasks.length > 0 ? [formatTasksForPrompt(openTasks, now)] : [])
+
+  push(
+    'NOTES (newest first)',
+    (notes ?? []).map(
+      (n) => `- [${ymd(n.created_at)}]${n.author ? ` ${n.author}:` : ''} ${(n.body ?? '').replace(/\s+/g, ' ').slice(0, 500)}`
+    )
+  )
+
+  push(
+    'DOCUMENTS ON THIS RECORD',
+    docs.map(
+      (d) => `- ${d.file_name ?? 'Untitled'} [${d.doc_type ?? 'document'}, added ${ymd(d.uploaded_at)}]${d.ai_summary ? `\n    ${d.ai_summary.replace(/\s+/g, ' ').slice(0, 600)}` : '\n    (no summary available)'}`
+    )
+  )
+
+  push(
+    'PASSAGES FROM THOSE DOCUMENTS',
+    passages.map((p, i) => `- [${i + 1}] ${p.content.replace(/\s+/g, ' ').slice(0, 900)}`)
+  )
+
+  push(
+    'CORRESPONDENCE (newest first — this is the complete set retrieved)',
+    correspondenceLines(threads, now)
+  )
+
+  const recency = contactRecencyLines(threads, now)
+  lines.push(...recency.lines)
+
+  const sources: BriefSource[] = [
+    ...docs.map((d) => ({
+      kind: 'document' as const,
+      label: d.file_name ?? 'Untitled document',
+      detail: d.doc_type,
+    })),
+    ...threads.map((t) => ({
+      kind: 'correspondence' as const,
+      label: t.subject ?? '(no subject)',
+      detail: ymd(t.last_at),
+      linked: t.linked,
+    })),
+  ]
+
+  return {
+    projectName: name,
+    prompt: lines.join('\n'),
+    sources,
+    stats: {
+      documents: docs.length,
+      linkedThreads: threads.filter((t) => t.linked).length,
+      matchedThreads: threads.filter((t) => !t.linked).length,
+      openTasks: openTasks.length,
+      updates: (notes ?? []).length,
+      lastContact: recency.lastContact,
     },
   }
 }

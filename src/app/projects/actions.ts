@@ -3,6 +3,7 @@
 import { redirect } from 'next/navigation'
 import type { TablesInsert } from '@/lib/supabase/types'
 import { getViewer, canAccessProject, actorAdminClient } from '@/lib/auth/viewer'
+import { requeueThreadsForAliases } from '@/lib/email-sweep/requeue'
 
 export type ProjectFormState = { error: string } | null
 
@@ -137,6 +138,11 @@ export async function createProject(
 
   if (error) return { error: `Failed to create project: ${error.message}` }
 
+  // A brand-new record may already have months of correspondence sitting
+  // routed-and-unmatched; its aliases are the router's way back to it.
+  const newAliases = (result.fields.match_aliases as string[] | undefined) ?? []
+  if (newAliases.length > 0) await requeueThreadsForAliases(newAliases).catch(() => 0)
+
   const redirectAfterCreate = (formData.get('redirect_after_create') as string | null) ?? ''
   redirect(redirectAfterCreate || `/projects/${data.id}`)
 }
@@ -155,12 +161,31 @@ export async function updateProject(
   if (!result.ok) return { error: result.error }
 
   const supabase = await actorAdminClient()
+
+  // Snapshot the aliases before the write so only genuinely NEW ones trigger a
+  // re-route — an unchanged save should not re-examine the whole mailbox.
+  const { data: prior } = await supabase
+    .from('projects')
+    .select('match_aliases')
+    .eq('id', id)
+    .single()
+
   const { error } = await supabase
     .from('projects')
     .update(result.fields)
     .eq('id', id)
 
   if (error) return { error: `Failed to update project: ${error.message}` }
+
+  const before = new Set(
+    ((prior as { match_aliases?: string[] } | null)?.match_aliases ?? []).map((a) =>
+      a.toLowerCase()
+    )
+  )
+  const added = ((result.fields.match_aliases as string[] | undefined) ?? []).filter(
+    (a) => !before.has(a.toLowerCase())
+  )
+  if (added.length > 0) await requeueThreadsForAliases(added).catch(() => 0)
 
   redirect(`/projects/${id}`)
 }

@@ -22,7 +22,7 @@ import {
   RECORD_BRIEF_SYSTEM_PROMPT,
   RECORD_BRIEF_PROMPT_VERSION,
 } from '@/lib/ai/prompts/record-brief'
-import { assembleProjectBrief } from '@/lib/briefs/record-brief'
+import { assembleProjectBrief, assembleOpportunityBrief } from '@/lib/briefs/record-brief'
 import type { Json } from '@/types/database'
 
 // The brief makes one model call over a large evidence pack. On the local
@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
     )
   }
 
-  let body: { project_id?: string }
+  let body: { project_id?: string; opportunity_id?: string }
   try {
     body = await request.json()
   } catch {
@@ -53,6 +53,9 @@ export async function POST(request: NextRequest) {
 
   if (body.project_id) {
     return generateProjectBrief(admin, user.id, body.project_id)
+  }
+  if (body.opportunity_id) {
+    return generateOpportunityBrief(admin, user.id, body.opportunity_id)
   }
   return generatePortfolioBrief(admin, user.id)
 }
@@ -108,6 +111,57 @@ async function generateProjectBrief(
     brief,
     project_id: projectId,
     project_name: assembled.projectName,
+    sources: assembled.sources,
+    stats: assembled.stats,
+    model_used: result.model,
+    latency_ms: result.latencyMs,
+  })
+}
+
+// ---------------------------------------------------------------------------
+// Single opportunity brief — same writer, opportunity-shaped evidence pack
+// ---------------------------------------------------------------------------
+
+async function generateOpportunityBrief(
+  admin: ReturnType<typeof createAdminClient>,
+  userId: string,
+  opportunityId: string
+) {
+  const assembled = await assembleOpportunityBrief(admin, opportunityId)
+  if (!assembled) {
+    return NextResponse.json({ error: 'Opportunity not found' }, { status: 404 })
+  }
+
+  const result = await callGemini<string>({
+    task: 'synthesize',
+    systemPrompt: RECORD_BRIEF_SYSTEM_PROMPT,
+    userMessage: assembled.prompt,
+    userId,
+    promptVersion: RECORD_BRIEF_PROMPT_VERSION,
+    jsonMode: false,
+  })
+
+  const brief = result.data as string
+
+  const { error: saveError } = await admin.from('stored_briefs').insert({
+    brief_type: 'opportunity',
+    opportunity_id: opportunityId,
+    title: `${assembled.projectName} — Executive Brief`,
+    content: brief,
+    model_used: result.model,
+    latency_ms: result.latencyMs,
+    metadata: {
+      sources: assembled.sources,
+      stats: assembled.stats,
+      prompt_version: RECORD_BRIEF_PROMPT_VERSION,
+    } as unknown as Json,
+  })
+  if (saveError) console.error('[brief] could not store opportunity brief:', saveError.message)
+
+  return NextResponse.json({
+    brief,
+    opportunity_id: opportunityId,
+    opportunity_name: assembled.projectName,
     sources: assembled.sources,
     stats: assembled.stats,
     model_used: result.model,

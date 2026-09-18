@@ -12,7 +12,7 @@
  */
 
 import { fetchAllMailboxes, type FetchProgress } from './fetch-phase'
-import { summarizePending, type SummarizeProgress } from './summarize-phase'
+import { summarizePending, retryStaleFailures, type SummarizeProgress } from './summarize-phase'
 import { clusterUnassigned, type ClusterProgress } from './cluster-phase'
 import { stageOpenClusters, type StageProgress } from './stage-phase'
 import {
@@ -129,6 +129,10 @@ export async function runSweep(opts: SweepRunOptions = {}): Promise<SweepRunResu
   }
 
   if (phases.includes('summarize') && remaining() > 0) {
+    // Give threads that failed on a transient model outage another chance
+    // before draining the queue — bounded to once a day per thread, and only
+    // for recent mail, so a poison thread cannot monopolise the budget.
+    await retryStaleFailures()
     result.summarize = await summarizePending({
       budgetMs: remaining(),
       userId: opts.userId,

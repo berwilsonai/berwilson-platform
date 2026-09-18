@@ -3175,6 +3175,7 @@ export type Database = {
           latency_ms: number | null
           metadata: Json | null
           model_used: string | null
+          opportunity_id: string | null
           project_id: string | null
           title: string
         }
@@ -3186,6 +3187,7 @@ export type Database = {
           latency_ms?: number | null
           metadata?: Json | null
           model_used?: string | null
+          opportunity_id?: string | null
           project_id?: string | null
           title: string
         }
@@ -3197,10 +3199,18 @@ export type Database = {
           latency_ms?: number | null
           metadata?: Json | null
           model_used?: string | null
+          opportunity_id?: string | null
           project_id?: string | null
           title?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "stored_briefs_opportunity_id_fkey"
+            columns: ["opportunity_id"]
+            isOneToOne: false
+            referencedRelation: "opportunities"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "stored_briefs_project_id_fkey"
             columns: ["project_id"]

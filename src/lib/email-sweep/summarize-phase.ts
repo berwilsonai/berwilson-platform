@@ -215,3 +215,41 @@ export async function retryFailedSummaries(): Promise<number> {
   if (error) throw new Error(`Could not requeue failed threads: ${error.message}`)
   return data?.length ?? 0
 }
+
+/**
+ * The automatic version of the above, run by the hourly sweep.
+ *
+ * Every observed failure in this table has been transient — LM Studio unloaded,
+ * `{"error":"terminated"}` during a config drift, a stalled stream — yet a
+ * failed thread stayed failed forever, because the manual retry lives behind an
+ * API flag nobody calls. Retrying is nearly free once the outage is over, so
+ * the sweep now does it itself, bounded two ways so a genuinely poison thread
+ * cannot eat the budget indefinitely:
+ *
+ *   - at most one retry a day per thread (updated_at is stamped on every state
+ *     write, so a fresh failure is left alone until it has aged), and
+ *   - only threads whose mail is under 30 days old. `last_at` never moves on a
+ *     dead thread, so a thread that keeps failing ages out of retry by itself
+ *     instead of being chased forever.
+ */
+export async function retryStaleFailures(): Promise<number> {
+  const db = sweepDb()
+  const dayAgo = new Date(Date.now() - 24 * 3_600_000).toISOString()
+  const monthAgo = new Date(Date.now() - 30 * 86_400_000).toISOString()
+  const { data, error } = await db
+    .from('email_threads')
+    .update({ summary_state: 'pending', summary_error: null })
+    .eq('summary_state', 'failed')
+    .eq('pipeline', 'deal')
+    .lt('updated_at', dayAgo)
+    .gte('last_at', monthAgo)
+    .select('id')
+
+  if (error) {
+    // A failed requeue must not fail the sweep — the retry is a convenience on
+    // top of a pipeline that already works without it.
+    console.error(`[sweep/summarize] retryStaleFailures: ${error.message}`)
+    return 0
+  }
+  return data?.length ?? 0
+}

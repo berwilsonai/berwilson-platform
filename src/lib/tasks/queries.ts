@@ -21,6 +21,8 @@ export interface TaskSummary {
 export interface FetchOpenTasksOptions {
   projectId?: string
   projectIds?: string[]
+  /** Tasks tagged to one opportunity (tasks.opportunity_id). */
+  opportunityId?: string
   /** Inclusive ISO date bounds on due_date; setting either implies requireDueDate. */
   dueBefore?: string
   dueAfter?: string
@@ -46,6 +48,7 @@ export async function fetchOpenTasks(
 
   if (opts.projectId) q = q.eq('project_id', opts.projectId)
   if (opts.projectIds && opts.projectIds.length > 0) q = q.in('project_id', opts.projectIds)
+  if (opts.opportunityId) q = q.eq('opportunity_id', opts.opportunityId)
   if (opts.dueBefore) q = q.lte('due_date', opts.dueBefore)
   if (opts.dueAfter) q = q.gte('due_date', opts.dueAfter)
   if (opts.requireDueDate || opts.dueBefore || opts.dueAfter) q = q.not('due_date', 'is', null)
