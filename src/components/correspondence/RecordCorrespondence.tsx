@@ -32,14 +32,12 @@ export interface CorrespondenceThread {
 interface Props {
   recordKind: 'project' | 'opportunity' | 'steel_deal' | 'lead'
   recordId: string
-  recordName: string
   initialFiled: CorrespondenceThread[]
 }
 
 export default function RecordCorrespondence({
   recordKind,
   recordId,
-  recordName,
   initialFiled,
 }: Props) {
   const [filed, setFiled] = useState<CorrespondenceThread[]>(initialFiled)
@@ -51,7 +49,7 @@ export default function RecordCorrespondence({
     setSearching(true)
     try {
       const res = await fetch(
-        `/api/thread-links?record_kind=${recordKind}&record_id=${recordId}&suggest_for=${encodeURIComponent(recordName)}`
+        `/api/thread-links?record_kind=${recordKind}&record_id=${recordId}&suggest=1`
       )
       if (!res.ok) throw new Error('Search failed')
       const data = (await res.json()) as { candidates: CorrespondenceThread[] }
@@ -62,7 +60,7 @@ export default function RecordCorrespondence({
     } finally {
       setSearching(false)
     }
-  }, [recordKind, recordId, recordName])
+  }, [recordKind, recordId])
 
   async function file(thread: CorrespondenceThread) {
     setBusy(thread.id)

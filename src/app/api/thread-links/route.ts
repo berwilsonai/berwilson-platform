@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
 import { getViewer, forbiddenJson } from '@/lib/auth/viewer'
 import { sweepDb } from '@/lib/email-sweep/db'
-import { searchCorrespondence } from '@/lib/ai/thread-embeddings'
+import { createAdminClient } from '@/lib/supabase/admin'
 
 /**
  * Filing correspondence onto a record, by hand.
@@ -57,24 +57,13 @@ export async function GET(request: NextRequest) {
   const filed = rows.length > 0 ? await loadThreads(rows.map((r) => r.thread_id)) : []
   const meta = new Map(rows.map((r) => [r.thread_id, r]))
 
-  // The candidate sweep costs an embedding call plus a vector search, so it is
-  // opt-in rather than part of every page load.
+  // Suggestions are opt-in: they cost a scan, and the filed list is what the
+  // page is for.
   let candidates: ThreadView[] = []
-  const query = params.get('suggest_for')
-  if (query) {
+  if (params.get('suggest') !== null || params.get('suggest_for')) {
     const filedIds = new Set(rows.map((r) => r.thread_id))
-    try {
-      const hits = await searchCorrespondence(
-        `${query} — status, decisions, next steps, open questions`,
-        { limit: 12 }
-      )
-      const ids = [...new Set(hits.map((h) => h.threadId))].filter((id) => !filedIds.has(id))
-      candidates = await loadThreads(ids)
-    } catch (err) {
-      // A cold or unavailable index must not break the filed list, which is the
-      // part of this page that always works.
-      console.error('[thread-links] candidate sweep failed:', err)
-    }
+    const names = await recordNames(kind, recordId, params.get('suggest_for'))
+    candidates = await suggestThreads(names, filedIds)
   }
 
   return Response.json({
@@ -162,6 +151,92 @@ export async function DELETE(request: NextRequest) {
   if (error) return Response.json({ error: error.message }, { status: 500 })
 
   return Response.json({ ok: true })
+}
+
+
+/**
+ * What this record is called — its name plus any aliases a human has given it.
+ *
+ * Aliases matter more here than anywhere: they exist precisely because people
+ * write "Stockton" and not "Stockton Power Nexus - ER Hospital & Medevac Airport
+ * Tower", and the mail worth filing is the mail that uses the short name.
+ */
+async function recordNames(kind: Kind, recordId: string, override: string | null): Promise<string[]> {
+  if (override) return [override]
+
+  const admin = createAdminClient()
+  const out: string[] = []
+  if (kind === 'project' || kind === 'opportunity') {
+    const { data } = await admin
+      .from(kind === 'project' ? 'projects' : 'opportunities')
+      .select('name, match_aliases')
+      .eq('id', recordId)
+      .maybeSingle()
+    const row = data as { name?: string | null; match_aliases?: string[] | null } | null
+    if (row?.name) out.push(row.name)
+    for (const alias of row?.match_aliases ?? []) out.push(alias)
+  }
+  return out.filter((n) => n.trim().length > 0)
+}
+
+/**
+ * Threads that MENTION this record, by name or alias, anywhere in their text.
+ *
+ * Deliberately a keyword scan rather than the semantic search the brief uses.
+ * The two answer different questions: semantic search is right for "what was
+ * said about water rights", and wrong for "which threads are about this deal" —
+ * asked the latter it returned three unrelated bid invitations, because a
+ * proposal reads like a proposal whatever it is for. Naming the deal is the
+ * signal, and it is one a person can check at a glance before filing.
+ */
+async function suggestThreads(names: string[], filedIds: Set<string>): Promise<ThreadView[]> {
+  if (names.length === 0) return []
+
+  const seen = new Map<string, ThreadView>()
+  for (const name of names) {
+    // Commas, parentheses and quotes are structural in a PostgREST logic tree,
+    // so a record name containing them would be parsed as more filter rather
+    // than as a value. Stripping them widens the match slightly and never
+    // breaks the query.
+    const safe = name.replace(/[(),."']/g, ' ').trim()
+    if (safe.length < 3) continue
+
+    const { data, error } = await sweepDb()
+      .from('email_threads')
+      .select('id, subject, mailbox, last_at, message_count, attachment_count, summary')
+      .or(`subject.ilike."%${safe}%",raw_markdown.ilike."%${safe}%"`)
+      .order('last_at', { ascending: false })
+      .limit(25)
+    if (error) {
+      console.error('[thread-links] suggestion scan failed:', error.message)
+      continue
+    }
+
+    for (const raw of (data ?? []) as unknown as Array<{
+      id: string
+      subject: string | null
+      mailbox: string | null
+      last_at: string | null
+      message_count: number | null
+      attachment_count: number | null
+      summary: { summary?: string } | null
+    }>) {
+      if (filedIds.has(raw.id) || seen.has(raw.id)) continue
+      seen.set(raw.id, {
+        id: raw.id,
+        subject: raw.subject,
+        mailbox: raw.mailbox,
+        last_at: raw.last_at,
+        message_count: raw.message_count,
+        attachment_count: raw.attachment_count,
+        summary: raw.summary?.summary ?? null,
+      })
+    }
+  }
+
+  return [...seen.values()]
+    .sort((a, b) => (b.last_at ?? '').localeCompare(a.last_at ?? ''))
+    .slice(0, 25)
 }
 
 interface ThreadView {

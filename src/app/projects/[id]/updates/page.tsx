@@ -15,13 +15,12 @@ export default async function UpdatesPage({ params }: PageProps) {
   const { id } = await params
   const supabase = createAdminClient()
 
-  const [{ data: updates }, { data: project }, filed] = await Promise.all([
+  const [{ data: updates }, filed] = await Promise.all([
     supabase
       .from('updates')
       .select('*')
       .eq('project_id', id)
       .order('created_at', { ascending: false }),
-    supabase.from('projects').select('name').eq('id', id).single(),
     // Only what is already filed — the sweep for unfiled mail costs an
     // embedding call and is left to an explicit click.
     loadFiledThreads(id),
@@ -29,12 +28,7 @@ export default async function UpdatesPage({ params }: PageProps) {
 
   return (
     <div className="space-y-4">
-      <RecordCorrespondence
-        recordKind="project"
-        recordId={id}
-        recordName={project?.name ?? ''}
-        initialFiled={filed}
-      />
+      <RecordCorrespondence recordKind="project" recordId={id} initialFiled={filed} />
       <UpdatesTab projectId={id} initialUpdates={updates ?? []} />
     </div>
   )
