@@ -71,7 +71,11 @@ export default function HealthPanel({
             <dd className="mt-1 text-3xl font-semibold text-foreground tnum heading-tight">
               {weightedPipelineValue > 0 ? formatValue(weightedPipelineValue) : '—'}
             </dd>
-            <dd className="mt-0.5 text-xs text-muted-foreground">Adjusted for win probability</dd>
+            <dd className="mt-0.5 text-xs text-muted-foreground">
+              {weightedPipelineValue > 0
+                ? 'Adjusted for win probability'
+                : 'Set win probability on a project to weight this'}
+            </dd>
           </div>
         </div>
 

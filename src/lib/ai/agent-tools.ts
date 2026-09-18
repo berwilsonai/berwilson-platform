@@ -11,6 +11,7 @@ import { computeAttention } from '@/lib/attention'
 import { generateDraft } from './draft'
 import { parseTranches, raiseLevels, fillTranches } from '@/lib/investors/raises'
 import { moduleTools, executeModuleTool, MODULE_TOOL_NAMES } from './agent-tools-modules'
+import { correspondenceRecency } from '@/lib/email-sweep/filed-threads'
 import type { AgentContext } from './agent'
 import type { Database } from '@/types/database'
 
@@ -84,7 +85,7 @@ export const agentTools = [
   },
   {
     name: 'query_project_data',
-    description: 'Fetch specific fields from a project record. Use this to get project details like value, dates, status, stage, contract type, delivery method, etc.',
+    description: 'Fetch specific fields from a project record — value, dates, status, stage, contract type, delivery method, etc. For "where does X stand" / "tell me about X" / anything about current status or momentum, use get_record_brief instead — it also carries the correspondence and contact recency this tool does not.',
     parameters: {
       type: 'object',
       properties: {
@@ -269,7 +270,7 @@ export const agentTools = [
   },
   {
     name: 'query_opportunity',
-    description: 'Get the full record for one strategic opportunity: all deal fields (objective, thesis, target, counterparty, value, structure, probability, dates, next step), the latest progress notes, and attached document metadata (white papers, CIMs, teasers). Use whenever asked about a specific named opportunity or deal.',
+    description: 'Get the STRUCTURED record for one strategic opportunity: all deal fields (objective, thesis, target, counterparty, value, structure, probability, dates, next step), the latest progress notes, and attached document metadata. Use for a specific field or fact. For "where does X stand" / "tell me about X" / anything about current status or momentum, use get_record_brief instead — it also carries the correspondence and contact recency this tool does not.',
     parameters: {
       type: 'object',
       properties: {
@@ -409,7 +410,12 @@ export async function executeToolCall(
         .single()
 
       if (error) return { error: error.message }
-      return data
+      // The recency block travels with the record so a status answer built
+      // from this tool alone cannot date the deal from stale notes.
+      return {
+        ...(data as unknown as Record<string, unknown>),
+        correspondence: await correspondenceRecency('project', projectId),
+      }
     }
 
     case 'search_updates': {
@@ -1165,6 +1171,7 @@ export async function executeToolCall(
 
       return {
         opportunity: oppRes.data,
+        correspondence: await correspondenceRecency('opportunity', oppId),
         recent_notes: notesRes.data ?? [],
         documents: (docsRes.data ?? []).map((d) => ({
           id: d.id,

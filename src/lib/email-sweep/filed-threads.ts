@@ -52,3 +52,58 @@ export async function loadFiledThreads(
     why_filed: meta.get(t.id)?.reason ?? null,
   }))
 }
+
+/**
+ * A compact recency block for splicing into record-query tool results.
+ *
+ * The agent's tool CHOICE is nondeterministic — asked "where does X stand" it
+ * reaches for the structured record tool as often as the brief — so the one
+ * fact that corrects a stale-status answer (when the deal was actually last
+ * touched, per FILED mail) has to travel inside whichever tool it picks.
+ */
+export async function correspondenceRecency(
+  recordKind: 'project' | 'opportunity' | 'steel_deal' | 'lead',
+  recordId: string
+): Promise<{
+  filed_threads: number
+  last_contact: string | null
+  latest_subject: string | null
+  note: string
+}> {
+  try {
+    const { data: links } = await sweepDb()
+      .from('thread_links')
+      .select('thread_id')
+      .eq('record_kind', recordKind)
+      .eq('record_id', recordId)
+    const ids = ((links ?? []) as Array<{ thread_id: string }>).map((l) => l.thread_id)
+    if (ids.length === 0) {
+      return {
+        filed_threads: 0,
+        last_contact: null,
+        latest_subject: null,
+        note: 'No correspondence is filed on this record. Do not infer silence — most mail is unfiled; run search_correspondence before any claim about momentum.',
+      }
+    }
+    const { data: newest } = await sweepDb()
+      .from('email_threads')
+      .select('subject, last_at')
+      .in('id', ids)
+      .order('last_at', { ascending: false })
+      .limit(1)
+    const top = (newest?.[0] ?? null) as { subject: string | null; last_at: string | null } | null
+    return {
+      filed_threads: ids.length,
+      last_contact: top?.last_at ?? null,
+      latest_subject: top?.subject ?? null,
+      note: 'AUTHORITATIVE recency: the newest email FILED on this record. Never describe this record as stalled, quiet, or unanswered as of any date earlier than last_contact — use get_record_correspondence to read the threads.',
+    }
+  } catch {
+    return {
+      filed_threads: 0,
+      last_contact: null,
+      latest_subject: null,
+      note: 'Correspondence lookup unavailable.',
+    }
+  }
+}

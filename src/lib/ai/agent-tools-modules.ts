@@ -150,6 +150,26 @@ export const moduleTools = [
     },
   },
   {
+    name: 'get_record_brief',
+    description:
+      'The COMPLETE evidence pack for one project or opportunity, assembled deterministically in a single call: record fields, stated data gaps, open tasks, notes/updates, every document with its summary, top verbatim passages, ALL filed correspondence plus a semantic sweep for unfiled mail, and an authoritative contact-recency block. Use this FIRST for any "tell me about X" / "status of X" / "what do I need to know about X" question on a named record — it retrieves everything the answer needs at once, so you do not have to (and should not) re-fetch the same ground with list_documents, get_record_correspondence or search_correspondence afterwards. Answer from the pack; respect its CONTACT RECENCY section when describing momentum.',
+    parameters: {
+      type: 'object',
+      properties: {
+        record_kind: {
+          type: 'string',
+          enum: ['project', 'opportunity'],
+          description: 'Which kind of record. Defaults to project.',
+        },
+        record_id: { type: 'string', description: 'UUID of the record, if known.' },
+        record_name: {
+          type: 'string',
+          description: 'Name (or distinctive fragment) of the record, resolved fuzzily when no id is given.',
+        },
+      },
+    },
+  },
+  {
     name: 'get_record_correspondence',
     description:
       "Every email thread FILED against one record (project, opportunity, steel deal or lead), newest first, with dates and summaries. This is the record's own correspondence file — deterministic, not a search — so use it whenever you are asked what is happening on a named record, before drawing any conclusion about whether it is moving or has gone quiet. Semantic search (search_correspondence) finds mail by meaning across all mailboxes; this returns what actually belongs to this record. Most mail in this platform has not been filed yet, so the result also tells you how much correspondence exists that is NOT filed here.",
@@ -796,6 +816,52 @@ export async function executeModuleTool(
         content: body.slice(0, 20000) || null,
         truncated: body.length > 20000,
         source: data.minutes ? 'minutes' : data.transcript ? 'transcript' : null,
+      }
+    }
+
+    // ── Record brief ─────────────────────────────────────────────────────────
+    case 'get_record_brief': {
+      const kind = str(args.record_kind) === 'opportunity' ? 'opportunity' : 'project'
+      let recordId = str(args.record_id)
+
+      if (!recordId) {
+        const name = str(args.record_name)
+        if (!name) return { error: 'Provide record_id or record_name.' }
+        const table = kind === 'project' ? 'projects' : 'opportunities'
+        const { data: matches } = await supabase
+          .from(table)
+          .select('id, name')
+          .ilike('name', `%${name.replace(/[%_]/g, '')}%`)
+          .limit(5)
+        if (!matches || matches.length === 0) {
+          return { error: `No ${kind} matches "${name}". Try list_${kind === 'project' ? 'projects' : 'opportunities'}.` }
+        }
+        if (matches.length > 1) {
+          return {
+            error: `Several ${kind}s match "${name}" — pass the record_id of the one you mean.`,
+            candidates: matches.map((m) => ({ id: m.id, name: m.name })),
+          }
+        }
+        recordId = matches[0].id
+      }
+
+      // The same deterministic assembler the Generate Brief button uses, so the
+      // agent's answer and the written brief are built from identical evidence.
+      const { assembleProjectBrief, assembleOpportunityBrief } = await import(
+        '@/lib/briefs/record-brief'
+      )
+      const assembled =
+        kind === 'project'
+          ? await assembleProjectBrief(supabase, recordId)
+          : await assembleOpportunityBrief(supabase, recordId)
+      if (!assembled) return { error: `That ${kind} no longer exists.` }
+
+      return {
+        record_name: assembled.projectName,
+        stats: assembled.stats,
+        evidence_pack: assembled.prompt.slice(0, 26000),
+        truncated: assembled.prompt.length > 26000,
+        note: 'This pack is the complete retrieval for this record. Answer from it directly; do not re-fetch the same ground with other tools.',
       }
     }
 
