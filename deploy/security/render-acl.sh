@@ -7,8 +7,13 @@ cd "$(dirname "$0")"
 eval "$(/usr/local/bin/tailscale status --json | python3 -c '
 import json,sys
 d=json.load(sys.stdin); s=d.get("Self",{})
-u=list((d.get("User") or {}).values())
-print("ADMIN=%s" % (u[0]["LoginName"] if u else "UNKNOWN"))
+# The admin is the OWNER OF THIS NODE, looked up by Self.UserID. Taking the first
+# entry of the User map instead is a coin flip once a tailnet has more than one user
+# (it holds every user with a node here, in unspecified order) — and naming the wrong
+# person admin locks Richard out of SSH/Postgres on his own Studio, while rule 2 keeps
+# 443/8443 working so the mistake looks harmless until it isn'"'"'t.
+u=(d.get("User") or {}).get(str(s.get("UserID","")),{})
+print("ADMIN=%s" % (u.get("LoginName") or "UNKNOWN"))
 print("STUDIO_IP=%s" % (s.get("TailscaleIPs") or ["UNKNOWN"])[0])
 ')"
 print -u2 "# admin=$ADMIN studio=$STUDIO_IP  (paste into https://login.tailscale.com/admin/acls)"
