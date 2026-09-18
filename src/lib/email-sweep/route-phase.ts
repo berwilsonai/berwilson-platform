@@ -82,6 +82,21 @@ export interface Target {
    * but a message from the estimator already on the project settles it.
    */
   contacts: Set<string>
+  /**
+   * Short forms a human asserted for this record ("Stockton" for "Stockton
+   * Power Nexus - ER Hospital & Medevac Airport Tower"), each pre-tokenized.
+   *
+   * Kept as separate candidate names rather than folded into `tokens`: merging
+   * them would quietly inflate every score for this record against every
+   * thread, where scoring each alias on its own answers the actual question —
+   * does this thread call the deal by one of the names we know it by?
+   */
+  aliases: AliasCandidate[]
+}
+
+export interface AliasCandidate {
+  label: string
+  tokens: Set<string>
 }
 
 function target(
@@ -93,6 +108,7 @@ function target(
     location?: string | null
     solicitation?: string | null
     contacts?: Iterable<string>
+    aliases?: string[] | null
   } = {}
 ): Target {
   // The counterparty is part of a deal's identity in practice — "Walmart
@@ -108,6 +124,9 @@ function target(
     location: extra.location ?? null,
     solicitationNumber: normalizeSolicitation(extra.solicitation ?? null),
     contacts: externalParticipants([...(extra.contacts ?? [])]),
+    aliases: (extra.aliases ?? [])
+      .map((label) => ({ label: label.trim(), tokens: tokenize(label) }))
+      .filter((a) => a.label.length > 0 && a.tokens.size > 0),
   }
 }
 
@@ -201,12 +220,31 @@ export function bestMatch(
 
   const scored: MatchResult[] = []
   for (const t of targets) {
+    const sharedContact = sharesExternal(threadExternal, t.contacts)
+
+    // An alias is a human assertion, so it clears the single-word bar that the
+    // derived name cannot: "Stockton" alone is ambiguous evidence when it is
+    // merely part of a record's title, and decisive when someone has said that
+    // is what the deal is called here. Scored slightly below a full-name match
+    // so an exact hit on the real name still wins a tie.
+    for (const alias of t.aliases) {
+      const aliasSim = overlap(threadTokens, alias.tokens)
+      if (aliasSim === 0) continue
+      let aliasShared = 0
+      for (const tok of threadTokens) if (alias.tokens.has(tok)) aliasShared++
+      if (aliasShared < alias.tokens.size) continue
+      scored.push({
+        target: t,
+        confidence: Math.min(aliasSim, 0.99),
+        reason: `known as "${alias.label}"`,
+      })
+    }
+
     const sim = overlap(threadTokens, t.tokens)
     if (sim === 0) continue
 
     let shared = 0
     for (const tok of threadTokens) if (t.tokens.has(tok)) shared++
-    const sharedContact = sharesExternal(threadExternal, t.contacts)
 
     // Either two distinctive words in common, or the record's whole name
     // present. One word out of several is a coincidence: this portfolio holds
@@ -242,13 +280,24 @@ export function bestMatch(
   if (scored.length === 0) return null
   scored.sort((a, b) => b.confidence - a.confidence)
 
+  // A record can score twice — once on its real name, once on an alias. Keep
+  // only its best, or the ambiguity check below would compare a record against
+  // itself and refuse every aliased match.
+  const seen = new Set<string>()
+  const byRecord = scored.filter((m) => {
+    const key = `${m.target.kind}:${m.target.id}`
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+
   // Ambiguity is a reason to do nothing, not to pick one.
   //
   // "Myton Rail" and "Myton Development" are different projects that score
   // identically against a thread that says only "Myton". Choosing whichever
   // sorted first would file real correspondence on the wrong record roughly half
   // the time, and leaving it unmatched costs only that it stays where it is.
-  const [top, runnerUp] = scored
+  const [top, runnerUp] = byRecord
   if (runnerUp && top.confidence - runnerUp.confidence < AMBIGUITY_MARGIN) return null
 
   return top
@@ -597,8 +646,8 @@ export async function loadTargets(): Promise<Target[]> {
   const out: Target[] = []
 
   const [{ data: projects }, { data: opportunities }, { data: players }] = await Promise.all([
-    supabase.from('projects').select('id, name, location, solicitation_number, status'),
-    supabase.from('opportunities').select('id, name, counterparty, location, status'),
+    supabase.from('projects').select('id, name, location, solicitation_number, status, match_aliases'),
+    supabase.from('opportunities').select('id, name, counterparty, location, status, match_aliases'),
     supabase.from('project_players').select('project_id, party:parties(email)'),
   ])
 
@@ -620,6 +669,7 @@ export async function loadTargets(): Promise<Target[]> {
         location: p.location,
         solicitation: p.solicitation_number,
         contacts: projectContacts.get(p.id) ?? [],
+        aliases: (p as { match_aliases?: string[] | null }).match_aliases ?? [],
       })
     )
   }
@@ -631,6 +681,7 @@ export async function loadTargets(): Promise<Target[]> {
       target('opportunity', o.id, o.name ?? '', {
         counterparty: o.counterparty,
         location: o.location,
+        aliases: (o as { match_aliases?: string[] | null }).match_aliases ?? [],
       })
     )
   }

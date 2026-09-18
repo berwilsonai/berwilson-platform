@@ -150,6 +150,24 @@ export const moduleTools = [
     },
   },
   {
+    name: 'get_record_correspondence',
+    description:
+      "Every email thread FILED against one record (project, opportunity, steel deal or lead), newest first, with dates and summaries. This is the record's own correspondence file — deterministic, not a search — so use it whenever you are asked what is happening on a named record, before drawing any conclusion about whether it is moving or has gone quiet. Semantic search (search_correspondence) finds mail by meaning across all mailboxes; this returns what actually belongs to this record. Most mail in this platform has not been filed yet, so the result also tells you how much correspondence exists that is NOT filed here.",
+    parameters: {
+      type: 'object',
+      properties: {
+        record_id: { type: 'string', description: 'UUID of the project, opportunity, steel deal or lead.' },
+        record_kind: {
+          type: 'string',
+          enum: ['project', 'opportunity', 'steel_deal', 'lead'],
+          description: 'Which kind of record the id refers to. Defaults to project.',
+        },
+        limit: { type: 'number', description: 'Max threads to return (default 25).' },
+      },
+      required: ['record_id'],
+    },
+  },
+  {
     name: 'search_correspondence',
     description:
       "Semantic search over the CONTENT of every swept email — the message bodies and the text of their attachments, not just subjects. Use this to answer questions about what was actually said, agreed, quoted, required, or scheduled in email: site visit dates, bid requirements, who asked for what, what a counterparty committed to. This reads the words themselves, so ask it the real question rather than guessing at keywords. Returns the matching passages with their thread, sender and date, plus any documents the mail REFERS to but the platform does not hold (bid portals like BuildingConnected link files behind a login) — say so when those are where the answer lives. Distinct from search_knowledge_base, which searches curated CRM records; this is raw correspondence.",
@@ -782,6 +800,76 @@ export async function executeModuleTool(
     }
 
     // ── Email intake ─────────────────────────────────────────────────────────
+    case 'get_record_correspondence': {
+      const recordId = str(args.record_id)
+      if (!recordId) return { error: 'A record_id is required.' }
+      const kind = str(args.record_kind) ?? 'project'
+      const limit = Math.min(Math.max(num(args.limit) ?? 25, 1), 50)
+
+      const { data: links, error: linkError } = await sweepDb()
+        .from('thread_links')
+        .select('thread_id, certainty, reason')
+        .eq('record_kind', kind)
+        .eq('record_id', recordId)
+      if (linkError) return { error: linkError.message }
+
+      const rows = (links ?? []) as unknown as Array<{
+        thread_id: string
+        certainty: string
+        reason: string | null
+      }>
+      if (rows.length === 0) {
+        return {
+          threads: [],
+          note: 'No correspondence has been FILED against this record. That does not mean none exists — most mail in this platform is unfiled. Run search_correspondence with the record name before concluding anything about whether it is moving.',
+        }
+      }
+
+      const { data: threads } = await sweepDb()
+        .from('email_threads')
+        .select('id, subject, mailbox, last_at, first_at, message_count, attachment_count, summary')
+        .in('id', rows.map((r) => r.thread_id))
+        .order('last_at', { ascending: false })
+        .limit(limit)
+
+      const meta = new Map(rows.map((r) => [r.thread_id, r]))
+      const list = ((threads ?? []) as unknown as Array<{
+        id: string
+        subject: string | null
+        mailbox: string | null
+        last_at: string | null
+        first_at: string | null
+        message_count: number | null
+        attachment_count: number | null
+        summary: Record<string, unknown> | null
+      }>).map((t) => {
+        const link = meta.get(t.id)
+        return {
+          thread_id: t.id,
+          subject: t.subject,
+          mailbox: t.mailbox,
+          last_message: t.last_at,
+          first_message: t.first_at,
+          messages: t.message_count,
+          attachments: t.attachment_count,
+          // 'linked' is derived fact (this thread became this record);
+          // 'inferred' was matched and is still awaiting a human's agreement.
+          certainty: link?.certainty ?? 'inferred',
+          why_filed: link?.reason ?? null,
+          summary: t.summary?.summary ?? null,
+          key_facts: t.summary?.key_facts ?? null,
+        }
+      })
+
+      return {
+        threads: list,
+        filed: rows.length,
+        showing: list.length,
+        most_recent: list[0]?.last_message ?? null,
+        note: 'Ordered newest first. "most_recent" is the latest FILED correspondence — do not describe this record as quiet or unanswered before that date. Use get_email_thread to read any of these in full.',
+      }
+    }
+
     case 'search_correspondence': {
       const question = str(args.question)
       if (!question) return { error: 'A question is required.' }

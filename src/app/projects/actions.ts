@@ -53,6 +53,29 @@ function parseFields(formData: FormData): ParseResult {
         .filter(Boolean)
     : []
 
+  // Short forms people actually write for this project, so the email router can
+  // recognise mail that never uses the full record name. Travels as a JSON array
+  // in a hidden field (the form is uncontrolled and server-action driven).
+  const aliasesRaw = str('match_aliases')
+  let match_aliases: string[] = []
+  if (aliasesRaw) {
+    try {
+      const parsed: unknown = JSON.parse(aliasesRaw)
+      if (Array.isArray(parsed)) {
+        match_aliases = [
+          ...new Set(
+            parsed
+              .filter((a): a is string => typeof a === 'string')
+              .map((a) => a.trim())
+              .filter((a) => a.length > 0)
+          ),
+        ]
+      }
+    } catch {
+      match_aliases = []
+    }
+  }
+
   // Parse applicable standards JSON
   const standardsRaw = str('applicable_standards')
   let applicable_standards: string[] | null = null
@@ -78,6 +101,7 @@ function parseFields(formData: FormData): ParseResult {
       location: str('location'),
       client_entity: str('client_entity'),
       solicitation_number: str('solicitation_number'),
+      match_aliases,
       bid_due_date: str('bid_due_date'),
       award_date: str('award_date'),
       ntp_date: str('ntp_date'),

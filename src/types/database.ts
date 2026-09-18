@@ -1894,6 +1894,7 @@ export type Database = {
       }
       opportunities: {
         Row: {
+          match_aliases: string[]
           counterparty: string | null
           created_at: string | null
           deal_structure: string | null
@@ -1922,6 +1923,7 @@ export type Database = {
           website: string | null
         }
         Insert: {
+          match_aliases?: string[]
           counterparty?: string | null
           created_at?: string | null
           deal_structure?: string | null
@@ -1950,6 +1952,7 @@ export type Database = {
           website?: string | null
         }
         Update: {
+          match_aliases?: string[]
           counterparty?: string | null
           created_at?: string | null
           deal_structure?: string | null
@@ -2411,6 +2414,7 @@ export type Database = {
       }
       projects: {
         Row: {
+          match_aliases: string[]
           applicable_standards: Json | null
           award_date: string | null
           bid_decision: string
@@ -2448,6 +2452,7 @@ export type Database = {
           win_strategy: string | null
         }
         Insert: {
+          match_aliases?: string[]
           applicable_standards?: Json | null
           award_date?: string | null
           bid_decision?: string
@@ -2485,6 +2490,7 @@ export type Database = {
           win_strategy?: string | null
         }
         Update: {
+          match_aliases?: string[]
           applicable_standards?: Json | null
           award_date?: string | null
           bid_decision?: string

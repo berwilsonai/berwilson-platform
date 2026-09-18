@@ -14,12 +14,20 @@ import { callGemini } from '@/lib/ai/gemini'
 import { checkRateLimit } from '@/lib/rate-limit'
 import { fetchOpenTasks } from '@/lib/tasks/queries'
 import {
-  PROJECT_BRIEF_SYSTEM_PROMPT,
   PORTFOLIO_BRIEF_SYSTEM_PROMPT,
   BRIEF_PROMPT_VERSION,
-  buildProjectBriefMessage,
   buildPortfolioBriefMessage,
 } from '@/lib/ai/prompts/brief'
+import {
+  RECORD_BRIEF_SYSTEM_PROMPT,
+  RECORD_BRIEF_PROMPT_VERSION,
+} from '@/lib/ai/prompts/record-brief'
+import { assembleProjectBrief } from '@/lib/briefs/record-brief'
+import type { Json } from '@/types/database'
+
+// The brief makes one model call over a large evidence pack. On the local
+// model that is 60-90s — well past the default ceiling.
+export const maxDuration = 300
 
 export async function POST(request: NextRequest) {
   const supabase = await createClient()
@@ -58,90 +66,50 @@ async function generateProjectBrief(
   userId: string,
   projectId: string
 ) {
-  // Fetch project + all related data in parallel
-  const [
-    { data: project },
-    openTasks,
-    { data: updates },
-    { data: milestones },
-    { data: ddItems },
-    { data: financing },
-    { data: compliance },
-    { data: players },
-  ] = await Promise.all([
-    admin.from('projects').select('*').eq('id', projectId).single(),
-    fetchOpenTasks(admin, { projectId, limit: 50 }),
-    admin.from('updates')
-      .select('summary, waiting_on, risks, decisions, created_at')
-      .eq('project_id', projectId)
-      .eq('review_state', 'approved')
-      .order('created_at', { ascending: false })
-      .limit(10),
-    admin.from('milestones')
-      .select('label, stage, target_date, completed_at')
-      .eq('project_id', projectId)
-      .order('sort_order'),
-    admin.from('dd_items')
-      .select('category, item, status, severity, notes')
-      .eq('project_id', projectId),
-    admin.from('financing_structures')
-      .select('structure_type, senior_debt, equity_amount, equity_pct, lender, pe_partner, notes')
-      .eq('project_id', projectId),
-    admin.from('compliance_items')
-      .select('framework, requirement, status, due_date, notes')
-      .eq('project_id', projectId),
-    admin.from('project_players')
-      .select('role, party:parties(full_name, company)')
-      .eq('project_id', projectId),
-  ])
-
-  if (!project) {
+  // The evidence pack is assembled deterministically — same sources, same order,
+  // every time — so the model's only job is to write. See the header of
+  // src/lib/briefs/record-brief.ts for why this is not an agent loop.
+  const assembled = await assembleProjectBrief(admin, projectId)
+  if (!assembled) {
     return NextResponse.json({ error: 'Project not found' }, { status: 404 })
   }
 
-  const userMessage = buildProjectBriefMessage({
-    name: project.name,
-    sector: project.sector,
-    stage: project.stage,
-    status: project.status,
-    estimated_value: project.estimated_value,
-    location: project.location,
-    contract_type: project.contract_type,
-    delivery_method: project.delivery_method,
-    solicitation_number: project.solicitation_number,
-    open_tasks: openTasks,
-    updates: (updates ?? []).map((u) => ({
-      summary: u.summary,
-      waiting_on: (u.waiting_on ?? []) as unknown[],
-      risks: (u.risks ?? []) as unknown[],
-      decisions: (u.decisions ?? []) as unknown[],
-      created_at: u.created_at,
-    })),
-    milestones: milestones ?? [],
-    dd_items: ddItems ?? [],
-    financing: financing ?? [],
-    compliance: compliance ?? [],
-    players: (players ?? []).map((p) => ({
-      full_name: (p.party as unknown as { full_name: string })?.full_name ?? 'Unknown',
-      company: (p.party as unknown as { company: string | null })?.company ?? null,
-      role: p.role,
-    })),
-  })
-
   const result = await callGemini<string>({
     task: 'synthesize',
-    systemPrompt: PROJECT_BRIEF_SYSTEM_PROMPT,
-    userMessage,
+    systemPrompt: RECORD_BRIEF_SYSTEM_PROMPT,
+    userMessage: assembled.prompt,
     userId,
-    promptVersion: BRIEF_PROMPT_VERSION,
-    maxTokens: 3000,
+    promptVersion: RECORD_BRIEF_PROMPT_VERSION,
     jsonMode: false,
   })
 
-  return NextResponse.json({
-    brief: result.data as string,
+  const brief = result.data as string
+
+  // Persisted so the print/PDF view has something to render without paying for
+  // a second generation, and so a brief taken into a meeting is the same text
+  // that was read on screen. Best-effort: a storage failure must not lose the
+  // brief the caller is waiting on.
+  const { error: saveError } = await admin.from('stored_briefs').insert({
+    brief_type: 'project',
     project_id: projectId,
-    project_name: project.name,
+    title: `${assembled.projectName} — Executive Brief`,
+    content: brief,
+    model_used: result.model,
+    latency_ms: result.latencyMs,
+    metadata: {
+      sources: assembled.sources,
+      stats: assembled.stats,
+      prompt_version: RECORD_BRIEF_PROMPT_VERSION,
+    } as unknown as Json,
+  })
+  if (saveError) console.error('[brief] could not store project brief:', saveError.message)
+
+  return NextResponse.json({
+    brief,
+    project_id: projectId,
+    project_name: assembled.projectName,
+    sources: assembled.sources,
+    stats: assembled.stats,
     model_used: result.model,
     latency_ms: result.latencyMs,
   })

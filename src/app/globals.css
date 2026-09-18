@@ -289,3 +289,32 @@
   }
   .lift:hover { transform: none; }
 }
+/*
+ * Brief print view. The brief is written to be read on screen, aloud, or on
+ * paper, and the on-screen sizing is too tight for the last of those — so the
+ * print pass sizes up and keeps headings attached to the text beneath them.
+ */
+@media print {
+  .brief-print p,
+  .brief-print li {
+    font-size: 11pt;
+    line-height: 1.5;
+  }
+  .brief-print h1 {
+    font-size: 15pt;
+  }
+  .brief-print h2 {
+    font-size: 12pt;
+    /* A section heading stranded at the foot of a page reads as a missing
+       section on the page that follows. */
+    break-after: avoid-page;
+    margin-top: 16pt;
+  }
+  .brief-print ul,
+  .brief-print li {
+    break-inside: avoid;
+  }
+  @page {
+    margin: 16mm;
+  }
+}

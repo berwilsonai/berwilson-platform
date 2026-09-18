@@ -11,6 +11,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Database } from '@/types/database'
+import { dedupeByContent, DEDUPE_OVERFETCH } from './dedupe'
 
 export interface MatchChunksArgs {
   query_embedding: string
@@ -24,7 +25,13 @@ export interface MatchChunksArgs {
 type Admin = SupabaseClient<Database>
 
 export async function matchChunks(client: Admin, args: MatchChunksArgs) {
-  const result = await client.rpc('match_chunks', args)
+  // Ask for more than the caller wants so identical passages can be collapsed
+  // without costing them results. This corpus holds the same document twice
+  // whenever a file arrives both as an email attachment and from the team's
+  // Drive folder, and a duplicate spends a retrieval slot saying nothing new.
+  const wanted = args.match_count
+  const overfetched: MatchChunksArgs = { ...args, match_count: wanted * DEDUPE_OVERFETCH }
+  const result = await client.rpc('match_chunks', overfetched)
 
   // PGRST202 = function with this argument set not found in the schema cache,
   // i.e. the migration adding filter_include_company hasn't run yet.
@@ -34,14 +41,31 @@ export async function matchChunks(client: Admin, args: MatchChunksArgs) {
       /filter_include_company/i.test(result.error.message ?? ''))
 
   if (missingNewArg) {
-    return client.rpc('match_chunks', {
-      query_embedding: args.query_embedding,
-      filter_project_ids: args.filter_project_ids,
-      filter_after: args.filter_after,
-      match_count: args.match_count,
-      filter_entity_ids: args.filter_entity_ids,
+    const legacy = await client.rpc('match_chunks', {
+      query_embedding: overfetched.query_embedding,
+      filter_project_ids: overfetched.filter_project_ids,
+      filter_after: overfetched.filter_after,
+      match_count: overfetched.match_count,
+      filter_entity_ids: overfetched.filter_entity_ids,
     })
+    return collapse(legacy, wanted)
   }
 
-  return result
+  return collapse(result, wanted)
+}
+
+/**
+ * Drop repeated passages and trim back to what the caller asked for.
+ *
+ * An error result passes through untouched — callers branch on `error`, and
+ * rewriting `data` on a failed call would turn a database error into an empty
+ * answer, which reads as "nothing matched".
+ */
+function collapse<T extends { data: unknown; error: unknown }>(result: T, wanted: number): T {
+  if (result.error || !Array.isArray(result.data)) return result
+  const rows = result.data as Array<{ content?: string | null }>
+  return {
+    ...result,
+    data: dedupeByContent(rows, (r) => r.content ?? '', wanted),
+  }
 }

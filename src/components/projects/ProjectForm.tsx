@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { AlertCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { DatePicker } from '@/components/ui/date-picker'
+import TagInput from '@/components/contacts/TagInput'
 import { cn } from '@/lib/utils'
 import { createProject, updateProject } from '@/app/projects/actions'
 import type { ProjectFormState } from '@/app/projects/actions'
@@ -65,6 +66,11 @@ export default function ProjectForm({ mode, project, redirectAfterCreate, availa
 
   // Federal standards default to both enabled
   const existingStandards = project?.applicable_standards as FederalStandard[] | null
+  // Short forms the email router should recognise for this project. Kept in
+  // state and submitted as a hidden JSON field, like applicable_standards.
+  const [aliases, setAliases] = useState<string[]>(
+    (project as { match_aliases?: string[] } | undefined)?.match_aliases ?? []
+  )
   const [selectedStandards, setSelectedStandards] = useState<FederalStandard[]>(
     existingStandards ?? ['usace_qm', 'dod_385']
   )
@@ -457,6 +463,21 @@ export default function ProjectForm({ mode, project, redirectAfterCreate, availa
             />
           </div>
         )}
+
+        <div>
+          <label className={labelClass}>Also known as</label>
+          <p className="text-xs text-muted-foreground mb-2">
+            Short forms people actually write in email — &ldquo;Stockton&rdquo;, &ldquo;Power
+            Nexus&rdquo;. The mail router only files correspondence it can recognise, and most
+            threads never use a project&rsquo;s full name.
+          </p>
+          <input type="hidden" name="match_aliases" value={JSON.stringify(aliases)} />
+          <TagInput
+            value={aliases}
+            onChange={setAliases}
+            placeholder="Add a short name (Stockton, Power Nexus…)"
+          />
+        </div>
       </section>
 
       {/* Federal Standards */}

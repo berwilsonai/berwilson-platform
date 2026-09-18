@@ -17,6 +17,7 @@
 
 import { createAdminClient } from '@/lib/supabase/admin'
 import { chunkText, generateEmbedding } from './embeddings'
+import { dedupeByContent, DEDUPE_OVERFETCH } from './dedupe'
 import { documentKind } from './document-pipeline'
 import { extractDocxText, transcribePdfText } from './document-text'
 import { fetchThread, fetchAttachmentBytes } from '@/lib/integrations/google-workspace'
@@ -466,16 +467,20 @@ export async function searchCorrespondence(
       ? new Date(Date.now() - opts.sinceDays * 86_400_000).toISOString()
       : null
 
+  // Over-fetch so duplicate passages can be collapsed without costing the
+  // caller results: a quoted reply chain repeats its parent message in every
+  // subsequent mail, and 17% of this table is exactly-duplicated text.
+  const limit = opts.limit ?? 12
   const { data, error } = await createAdminClient().rpc('match_thread_chunks' as never, {
     query_embedding: JSON.stringify(embedding),
-    match_count: opts.limit ?? 12,
+    match_count: limit * DEDUPE_OVERFETCH,
     filter_after: filterAfter,
     filter_mailbox: opts.mailbox ?? null,
   } as never)
 
   if (error) throw new Error(`Correspondence search failed: ${error.message}`)
 
-  return ((data ?? []) as Array<Record<string, unknown>>).map((r) => ({
+  const hits = ((data ?? []) as Array<Record<string, unknown>>).map((r) => ({
     threadId: String(r.thread_id),
     subject: (r.subject as string) ?? null,
     mailbox: (r.mailbox as string) ?? null,
@@ -487,4 +492,6 @@ export async function searchCorrespondence(
     content: String(r.content ?? ''),
     similarity: Number(r.similarity ?? 0),
   }))
+
+  return dedupeByContent(hits, (h) => h.content, limit)
 }
