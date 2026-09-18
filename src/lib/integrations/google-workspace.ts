@@ -790,14 +790,43 @@ async function googleRequest(
   const repeatable = init.idempotent ?? method !== 'POST'
 
   for (let attempt = 0; attempt < RETRY_ATTEMPTS; attempt++) {
-    const token = await getAccessToken(mailbox)
-    const headers: Record<string, string> = { Authorization: `Bearer ${token}` }
-    if (init.body !== undefined) headers['Content-Type'] = 'application/json'
-    const res = await fetch(url, {
-      method,
-      headers,
-      ...(init.body !== undefined ? { body: JSON.stringify(init.body) } : {}),
-    })
+    let res: Response
+    try {
+      // Token minting is a network call too, and dies the same way in the same
+      // outage — so it sits inside the retry.
+      const token = await getAccessToken(mailbox)
+      const headers: Record<string, string> = { Authorization: `Bearer ${token}` }
+      if (init.body !== undefined) headers['Content-Type'] = 'application/json'
+      res = await fetch(url, {
+        method,
+        headers,
+        ...(init.body !== undefined ? { body: JSON.stringify(init.body) } : {}),
+      })
+    } catch (err) {
+      // A network-level failure ("TypeError: fetch failed") never reaches the
+      // status-based retry below, so without this branch one momentary outage
+      // — the Studio's DarkWake windows are the live example, where a 3:15am
+      // cron found the network down and every one of 106 file fetches died —
+      // kills the whole run unretried. The socket never connected, so nothing
+      // reached Google and repeating is safe even for a POST.
+      //
+      // Only network-shaped errors retry. getAccessToken also throws for a
+      // revoked or misconfigured credential, and waiting through the backoff
+      // to re-report a config error would just delay the message the operator
+      // needs to read.
+      const message = err instanceof Error ? err.message : String(err)
+      const networkShaped =
+        err instanceof TypeError ||
+        /fetch failed|network|socket|ETIMEDOUT|ECONNRESET|ECONNREFUSED|EAI_AGAIN|ENOTFOUND/i.test(
+          message
+        )
+      if (!networkShaped) throw err
+      lastBody = message
+      lastStatus = 0
+      if (attempt === RETRY_ATTEMPTS - 1) break
+      await new Promise((r) => setTimeout(r, RETRY_BASE_MS * 2 ** attempt))
+      continue
+    }
     if (res.ok) return res
 
     lastBody = await res.text()

@@ -28,6 +28,8 @@ import OpportunityNotes from '@/components/opportunities/OpportunityNotes'
 import OpportunityTasks from '@/components/opportunities/OpportunityTasks'
 import MeetingsView from '@/components/meetings/MeetingsView'
 import { fetchMeetingPickerData } from '@/lib/meetings/picker-data'
+import RecordCorrespondence from '@/components/correspondence/RecordCorrespondence'
+import { loadFiledThreads } from '@/lib/email-sweep/filed-threads'
 import type { Meeting, Document as DocumentRow } from '@/lib/supabase/types'
 
 interface PageProps {
@@ -60,7 +62,7 @@ export default async function OpportunityDetailPage({ params }: PageProps) {
   const viewer = await getViewer()
   if (viewer && !viewer.isAdmin && !canAccessOpportunity(viewer, id)) notFound()
 
-  const [{ data: documents }, { data: notes }, { data: tasks }, { data: members }, { data: meetings }] = await Promise.all([
+  const [{ data: documents }, { data: notes }, { data: tasks }, { data: members }, { data: meetings }, filedThreads] = await Promise.all([
     supabase
       .from('opportunity_documents')
       .select('*')
@@ -88,6 +90,7 @@ export default async function OpportunityDetailPage({ params }: PageProps) {
       .select('*')
       .eq('opportunity_id', id)
       .order('meeting_date', { ascending: false }),
+    loadFiledThreads('opportunity', id),
   ])
 
   const meetingIds = (meetings ?? []).map((m) => m.id)
@@ -287,6 +290,12 @@ export default async function OpportunityDetailPage({ params }: PageProps) {
           canEdit={viewer?.isAdmin ?? false}
           canDelete={viewer?.isAdmin ?? false}
         />
+      </section>
+
+      {/* Correspondence — the mail filed on this deal, and one-click filing of
+          suggested unfiled threads (same panel the project Updates tab uses). */}
+      <section>
+        <RecordCorrespondence recordKind="opportunity" recordId={id} initialFiled={filedThreads} />
       </section>
 
       {/* Notes */}

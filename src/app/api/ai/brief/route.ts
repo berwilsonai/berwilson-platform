@@ -252,6 +252,24 @@ async function generatePortfolioBrief(
     jsonMode: false,
   })
 
+  // Persisted so the dashboard panel — which serves the LATEST stored
+  // portfolio brief — shows this one on every device, not just the browser
+  // that clicked Refresh. Best-effort: storage must not lose the brief the
+  // caller is waiting on.
+  const { error: saveError } = await admin.from('stored_briefs').insert({
+    brief_type: 'portfolio',
+    title: `Portfolio Brief — ${new Date().toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    })}`,
+    content: result.data as string,
+    model_used: result.model,
+    latency_ms: result.latencyMs,
+    metadata: { prompt_version: BRIEF_PROMPT_VERSION, trigger: 'manual' } as unknown as Json,
+  })
+  if (saveError) console.error('[brief] could not store portfolio brief:', saveError.message)
+
   return NextResponse.json({
     brief: result.data as string,
     project_id: null,

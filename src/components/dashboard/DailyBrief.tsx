@@ -1,23 +1,35 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useCallback } from 'react'
 import { toast } from 'sonner'
 import { Sparkles, RefreshCw, ChevronDown, ChevronUp } from 'lucide-react'
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
 import { useStoredState } from '@/hooks/use-stored-state'
+import { BriefMarkdown } from '@/components/briefs/BriefMarkdown'
 
 /**
- * Daily intelligence brief — collapsed by default and generated only on
- * demand. The local model takes 30–60s per generation, so the morning read
- * must never block on it: the cached brief (if any) renders instantly, and a
- * fresh one is a deliberate click.
+ * The intelligence brief panel — collapsed by default and generated only on
+ * demand. The local model takes 60–90s per generation, so the morning read
+ * must never block on it.
+ *
+ * The initial brief comes from the SERVER (latest stored portfolio brief),
+ * not from localStorage. The Monday cron writes a weekly brief every week;
+ * the old localStorage cache meant that brief never appeared unless this
+ * browser had personally generated one, so the flagship morning read was
+ * invisible on every other device. Refresh generates a fresh one in place.
  */
-export default function DailyBrief() {
-  const [brief, setBrief] = useState<string | null>(null)
+
+interface InitialBrief {
+  content: string
+  createdAt: string
+}
+
+export default function DailyBrief({ initial }: { initial?: InitialBrief | null }) {
+  const [brief, setBrief] = useState<string | null>(initial?.content ?? null)
+  const [generatedAt, setGeneratedAt] = useState<string | null>(initial?.createdAt ?? null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [expanded, setExpanded] = useStoredState('bw.brief.expanded', false)
-  const [stale, setStale] = useState(false)
 
   const generateBrief = useCallback(async () => {
     setLoading(true)
@@ -31,24 +43,13 @@ export default function DailyBrief() {
       })
 
       if (!res.ok) {
-        const data = await res.json().catch(() => ({})) as { error?: string }
-        if (res.status === 404) {
-          // No active projects
-          setBrief(null)
-          return
-        }
+        const data = (await res.json().catch(() => ({}))) as { error?: string }
         throw new Error(data.error ?? `Failed (${res.status})`)
       }
 
-      const data = await res.json() as { brief: string }
+      const data = (await res.json()) as { brief: string }
       setBrief(data.brief)
-      setStale(false)
-
-      // Cache with today's date
-      localStorage.setItem('bw-daily-brief', JSON.stringify({
-        brief: data.brief,
-        date: new Date().toISOString().split('T')[0],
-      }))
+      setGeneratedAt(new Date().toISOString())
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Failed to generate brief'
       setError(msg)
@@ -58,18 +59,19 @@ export default function DailyBrief() {
     }
   }, [])
 
-  // Load the cached brief on mount — never auto-generate (30–60s local call).
-  useEffect(() => {
-    const cached = localStorage.getItem('bw-daily-brief')
-    if (cached) {
-      try {
-        const parsed = JSON.parse(cached) as { brief: string; date: string }
-        const today = new Date().toISOString().split('T')[0]
-        setBrief(parsed.brief)
-        setStale(parsed.date !== today)
-      } catch { /* ignore */ }
-    }
-  }, [])
+  // Captured once at mount — render-time Date.now() trips the compiler's
+  // purity rule, and staleness does not need to tick while the page is open.
+  const [mountedAt] = useState(() => Date.now())
+
+  // The brief is written weekly (Mondays), so "old" means more than a week —
+  // a Thursday reading Monday's brief is the normal case, not a stale one.
+  const ageDays = generatedAt
+    ? Math.floor((mountedAt - Date.parse(generatedAt)) / 86_400_000)
+    : null
+  const aging = ageDays !== null && ageDays > 8
+  const generatedLabel = generatedAt
+    ? new Date(generatedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+    : null
 
   return (
     <div className="rounded-xl border border-primary/20 bg-primary/[0.03] elev-1 overflow-hidden">
@@ -82,24 +84,28 @@ export default function DailyBrief() {
           className="flex items-center gap-2 flex-1 min-w-0 text-left"
         >
           <Sparkles size={14} className="text-primary shrink-0" />
-          <span className="text-sm font-semibold text-foreground flex-1 text-left">
-            Daily Intelligence Brief
-          </span>
+          <span className="text-sm font-semibold text-foreground">Intelligence Brief</span>
+          {generatedLabel && (
+            <span className="text-xs text-muted-foreground truncate">{generatedLabel}</span>
+          )}
         </button>
-        {stale && !loading && (
+        {aging && !loading && (
           <Tooltip>
             <TooltipTrigger className="text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 px-1.5 py-0.5 rounded cursor-help">
-              Yesterday
+              {ageDays}d old
             </TooltipTrigger>
             <TooltipContent>
-              This brief is from yesterday. Generate a fresh one — it takes about a minute.
+              The weekly brief normally regenerates on Mondays. This one is {ageDays} days old —
+              refresh for a current read (about a minute on the local model).
             </TooltipContent>
           </Tooltip>
         )}
         {brief && (
           <button
             type="button"
-            onClick={() => { if (!loading) generateBrief() }}
+            onClick={() => {
+              if (!loading) generateBrief()
+            }}
             disabled={loading}
             className="p-1 text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50 disabled:pointer-events-none"
             aria-label="Refresh brief"
@@ -119,7 +125,7 @@ export default function DailyBrief() {
 
       {/* Content */}
       {expanded && (
-        <div className="px-4 pb-4 border-t border-primary/10 max-h-52 overflow-y-auto scrollbar-thin scrollbar-thumb-muted scrollbar-track-transparent">
+        <div className="px-4 pb-4 border-t border-primary/10 max-h-72 overflow-y-auto scrollbar-thin scrollbar-thumb-muted scrollbar-track-transparent">
           {loading && !brief && (
             <div className="space-y-2 pt-3 animate-pulse">
               <div className="h-3 bg-muted rounded w-full" />
@@ -129,14 +135,13 @@ export default function DailyBrief() {
             </div>
           )}
 
-          {error && (
-            <p className="text-xs text-red-600 dark:text-red-400 pt-3">{error}</p>
-          )}
+          {error && <p className="text-xs text-red-600 dark:text-red-400 pt-3">{error}</p>}
 
           {!brief && !loading && !error && (
             <div className="pt-3 flex items-center gap-3">
               <p className="text-xs text-muted-foreground flex-1">
-                No brief yet today. Generating one takes about a minute on the local model.
+                No stored brief yet — one is written every Monday morning, or generate one now
+                (about a minute on the local model).
               </p>
               <button
                 type="button"
@@ -150,8 +155,10 @@ export default function DailyBrief() {
           )}
 
           {brief && (
-            <div className={`pt-3 text-sm text-foreground leading-relaxed prose prose-sm prose-slate max-w-none [&_h1]:text-base [&_h1]:font-bold [&_h1]:mb-2 [&_h2]:text-sm [&_h2]:font-semibold [&_h2]:mt-3 [&_h2]:mb-1 [&_h3]:text-xs [&_h3]:font-semibold [&_h3]:mt-2 [&_h3]:mb-1 [&_p]:my-1 [&_ul]:my-1 [&_li]:my-0.5 [&_strong]:text-foreground whitespace-pre-wrap ${loading ? 'opacity-60' : ''}`}>
-              {brief}
+            <div
+              className={`pt-3 text-sm text-foreground leading-relaxed ${loading ? 'opacity-60' : ''}`}
+            >
+              <BriefMarkdown text={brief} />
             </div>
           )}
         </div>

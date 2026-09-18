@@ -13,3 +13,9 @@ alter table stored_briefs
 create index if not exists idx_stored_briefs_opportunity
   on stored_briefs(opportunity_id, created_at desc)
   where opportunity_id is not null;
+
+-- The column alone is not enough: brief_type carries a CHECK from the original
+-- migration, and 'opportunity' must be a legal value or every insert fails.
+alter table stored_briefs drop constraint if exists stored_briefs_brief_type_check;
+alter table stored_briefs add constraint stored_briefs_brief_type_check
+  check (brief_type in ('portfolio', 'project', 'meeting_prep', 'opportunity'));

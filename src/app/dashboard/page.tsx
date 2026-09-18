@@ -350,6 +350,20 @@ export default async function DashboardPage({ searchParams }: PageProps) {
     }>
   ).map((o) => ({ ...o, openTasks: objectiveTaskCounts[o.id] ?? 0 }))
 
+  // Latest stored portfolio brief — written by the Monday cron or a manual
+  // generate on any device. Served as the panel's initial content so the
+  // weekly brief is actually visible on every device, not just the one that
+  // generated it.
+  const { data: storedBriefRows } = await supabase
+    .from('stored_briefs')
+    .select('content, created_at')
+    .eq('brief_type', 'portfolio')
+    .order('created_at', { ascending: false })
+    .limit(1)
+  const storedBrief = storedBriefRows?.[0]
+    ? { content: storedBriefRows[0].content, createdAt: storedBriefRows[0].created_at }
+    : null
+
   return (
     <div className="space-y-6">
 
@@ -377,10 +391,10 @@ export default async function DashboardPage({ searchParams }: PageProps) {
         />
       </div>
 
-      {/* ── Daily intelligence brief ────────────────────────────────────── */}
+      {/* ── Intelligence brief (latest stored portfolio brief) ──────────── */}
       {activeProjects.length > 0 && (
         <Suspense>
-          <DailyBrief />
+          <DailyBrief initial={storedBrief} />
         </Suspense>
       )}
 
