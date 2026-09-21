@@ -109,7 +109,7 @@ export function renderDigestEmail(
   const overduePart = digest.overdue.length > 0 ? `${digest.overdue.length} overdue` : ''
   const subject =
     digest.overdue.length > 0
-      ? `${total} task${total === 1 ? '' : 's'} need you — ${overduePart}`
+      ? `${total} task${total === 1 ? ' needs' : 's need'} you — ${overduePart}`
       : `${total} task${total === 1 ? '' : 's'} due this week`
 
   const section = (label: string, tasks: DigestTask[]) =>
