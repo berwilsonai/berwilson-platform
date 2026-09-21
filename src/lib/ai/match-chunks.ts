@@ -20,6 +20,15 @@ export interface MatchChunksArgs {
   match_count: number
   filter_entity_ids: string[]
   filter_include_company: boolean
+  /** Scope to one or more opportunities (migration 20260919000001). */
+  filter_opportunity_ids?: string[]
+  /**
+   * Search ONLY the Ber Wilson knowledge base, excluding project and deal
+   * material. `filter_include_company` cannot express this: it is an OR branch
+   * that widens a project-scoped search, so with an empty project filter it is
+   * a no-op and the search covers the whole table.
+   */
+  filter_company_only?: boolean
 }
 
 type Admin = SupabaseClient<Database>
@@ -34,11 +43,15 @@ export async function matchChunks(client: Admin, args: MatchChunksArgs) {
   const result = await client.rpc('match_chunks', overfetched)
 
   // PGRST202 = function with this argument set not found in the schema cache,
-  // i.e. the migration adding filter_include_company hasn't run yet.
+  // i.e. a migration adding one of the newer arguments hasn't run yet. Retry
+  // against the older signature so retrieval keeps working in the window
+  // between a code deploy and the DB migration.
   const missingNewArg =
     result.error &&
     (result.error.code === 'PGRST202' ||
-      /filter_include_company/i.test(result.error.message ?? ''))
+      /filter_include_company|filter_opportunity_ids|filter_company_only/i.test(
+        result.error.message ?? ''
+      ))
 
   if (missingNewArg) {
     const legacy = await client.rpc('match_chunks', {

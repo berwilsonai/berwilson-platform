@@ -172,12 +172,14 @@ export const agentTools = [
   },
   {
     name: 'search_knowledge_base',
-    description: 'Semantic search across all indexed content — project updates, documents, vendor data, contact enrichment, AND the Ber Wilson company knowledge base (capability statements, past performance, credentials, key personnel). When scoped to a project the company knowledge base is automatically included, so use this to evaluate an RFP/opportunity against what Ber Wilson can actually do. Returns the most relevant passages with source attribution.',
+    description: 'Semantic search across indexed content — project updates, documents, vendor data, contact enrichment, and the Ber Wilson company knowledge base (capability statements, past performance, credentials, key personnel). SCOPE IT: an unscoped search covers every chunk in the platform, so a question about Ber Wilson itself competes with every project and deal. Pass company_only for questions about Ber Wilson\'s own capability material, or project_id / opportunity_id to search one record (the company knowledge base is unioned in automatically, so this is the right way to evaluate an RFP against what Ber Wilson can actually do). Returns the most relevant passages with source attribution.',
     parameters: {
       type: 'object',
       properties: {
         query: { type: 'string', description: 'Natural language search query' },
-        project_id: { type: 'string', description: 'Optional: limit to a specific project' },
+        project_id: { type: 'string', description: 'Optional: limit to a specific project (plus the company knowledge base).' },
+        opportunity_id: { type: 'string', description: 'Optional: limit to a specific opportunity (plus the company knowledge base).' },
+        company_only: { type: 'boolean', description: 'Search ONLY the Ber Wilson knowledge base — capability statements, credentials, past performance, business plans. Use for questions about the company itself.' },
       },
       required: ['query'],
     },
@@ -669,22 +671,29 @@ export async function executeToolCall(
     case 'search_knowledge_base': {
       const query = args.query as string
       const projectId = (args.project_id as string) || context.projectId
+      const opportunityId = (args.opportunity_id as string) || null
+      const companyOnly = args.company_only === true
 
       // Embed the query
       try {
         const queryEmbedding = await embedQuery(query)
 
-        // Vector search via RPC. When scoped to a project, union in the
-        // company knowledge base (project filter alone would exclude it since
-        // company chunks carry no project_id). Portfolio scope (empty filter)
-        // already returns company chunks.
+        // Vector search via RPC. When scoped to a record, union in the company
+        // knowledge base (a record filter alone would exclude it, since company
+        // chunks carry no project or opportunity id). company_only is the
+        // opposite direction and deliberately excludes record material: an
+        // unscoped search covers all ~2,700 chunks, which is why a question
+        // about Ber Wilson's own credentials used to lose to a project CSV.
+        const scoped = !!projectId || !!opportunityId
         const { data: chunks, error: rpcError } = await matchChunks(supabase, {
           query_embedding: `[${queryEmbedding.join(',')}]`,
           filter_project_ids: projectId ? [projectId] : [],
+          filter_opportunity_ids: opportunityId ? [opportunityId] : [],
           filter_after: '2000-01-01T00:00:00.000Z',
           match_count: 8,
           filter_entity_ids: [],
-          filter_include_company: !!projectId,
+          filter_include_company: scoped,
+          filter_company_only: companyOnly,
         })
 
         if (rpcError) return { error: rpcError.message }

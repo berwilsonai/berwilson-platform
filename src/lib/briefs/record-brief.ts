@@ -515,10 +515,9 @@ export async function assembleProjectBrief(
  * rather than `updates`, its files live in `opportunity_documents`, and it has
  * no milestones/diligence/financing tables to report on.
  *
- * Passages are ranked in code rather than through `match_chunks`, because that
- * RPC filters by project only. An opportunity's chunk set is small (260 at the
- * largest today), so pulling its vectors and scoring them here costs less than
- * a migration buys.
+ * Passages come from `match_chunks` scoped to this opportunity — the RPC
+ * learned an opportunity filter in migration 20260919000001, so the index does
+ * the ranking rather than Node pulling several hundred vectors to sort by hand.
  */
 export async function assembleOpportunityBrief(
   admin: Admin,
@@ -566,31 +565,26 @@ export async function assembleOpportunityBrief(
     }>
   )
 
-  // ---- passages: cosine-rank this record's own chunks in code
+  // ---- passages: the index does the ranking, scoped to this opportunity
   let passages: Array<{ content: string }> = []
   try {
     const embedding = await generateEmbedding(
       `${name} — deal terms, status, obligations, valuation, risks`
     )
-    const { data: chunkRows } = await admin
-      .from('chunks')
-      .select('content, embedding')
-      .eq('opportunity_id', opportunityId)
-      .limit(400)
-    const scored = ((chunkRows ?? []) as Array<{ content: string | null; embedding: string | null }>)
-      .map((r) => {
-        let score = 0
-        try {
-          const v = JSON.parse(r.embedding ?? '[]') as number[]
-          // Both vectors are L2-normalized, so the dot product IS the cosine.
-          for (let i = 0; i < Math.min(v.length, embedding.length); i++) score += v[i] * embedding[i]
-        } catch {
-          score = 0
-        }
-        return { content: r.content ?? '', score }
-      })
-      .sort((a, b) => b.score - a.score)
-    passages = dedupeByContent(scored, (p) => p.content, 6)
+    const { data } = await matchChunks(admin, {
+      query_embedding: JSON.stringify(embedding),
+      filter_project_ids: [],
+      filter_opportunity_ids: [opportunityId],
+      filter_after: '1900-01-01',
+      match_count: 6,
+      filter_entity_ids: [],
+      filter_include_company: false,
+    })
+    passages = dedupeByContent(
+      ((data ?? []) as Array<{ content?: string | null }>).map((r) => ({ content: r.content ?? '' })),
+      (p) => p.content,
+      6
+    )
   } catch (err) {
     console.error('[brief] opportunity passage sweep failed:', err)
   }

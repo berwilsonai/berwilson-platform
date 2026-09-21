@@ -8,14 +8,11 @@ import { matchChunks } from './match-chunks'
  * credentials, safety record).
  *
  * Company chunks carry no project_id, so match_chunks with an empty project
- * filter would also return project/vendor chunks. To get company-ONLY results
- * we pass a sentinel project filter that matches no real project and turn on
- * filter_include_company — the RPC's WHERE then reduces to "company chunks
- * only" while keeping full vector ordering + the whole match_count budget.
+ * filter would also return project and deal material. `filter_company_only`
+ * (migration 20260919000001) says this directly; before it existed, this file
+ * expressed the same intent by passing a sentinel project id that could never
+ * match, purely to force the RPC down its company branch.
  */
-
-// A UUID no project will ever have (projects use gen_random_uuid()).
-const NO_PROJECT_SENTINEL = '00000000-0000-0000-0000-000000000000'
 
 export interface CompanyKnowledgeSnippet {
   content: string
@@ -45,11 +42,12 @@ export async function getCompanyKnowledge(
   const supabase = createAdminClient()
   const { data, error } = await matchChunks(supabase, {
     query_embedding: `[${embedding.join(',')}]`,
-    filter_project_ids: [NO_PROJECT_SENTINEL],
+    filter_project_ids: [],
     filter_after: '2000-01-01T00:00:00.000Z',
     match_count: limit,
     filter_entity_ids: [],
     filter_include_company: true,
+    filter_company_only: true,
   })
 
   if (error) {
