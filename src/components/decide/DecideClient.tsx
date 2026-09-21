@@ -257,7 +257,7 @@ export default function DecideClient({ items }: { items: DecideItem[] }) {
                   disabled={pending === `${item.kind}:${item.id}`}
                   aria-label={`Set aside: ${item.title}`}
                   title="Set aside — reversible, nothing is deleted"
-                  className="inline-flex items-center justify-center size-8 sm:size-7 rounded-md text-muted-foreground hover:text-foreground hover:bg-background sm:opacity-0 sm:group-hover:opacity-100 focus-visible:opacity-100 transition-opacity disabled:opacity-40"
+                  className="inline-flex items-center justify-center size-11 sm:size-7 -my-1.5 sm:my-0 rounded-md text-muted-foreground hover:text-foreground hover:bg-background sm:opacity-0 sm:group-hover:opacity-100 focus-visible:opacity-100 transition-opacity disabled:opacity-40"
                 >
                   {pending === `${item.kind}:${item.id}` ? (
                     <Loader2 size={13} className="animate-spin" />
