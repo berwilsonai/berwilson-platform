@@ -452,6 +452,43 @@ export async function probeDriveSourceFolders(): Promise<{
  * how much correspondence is filed, how much is waiting on a human, and whether
  * anything is stuck unrouted.
  */
+
+/**
+ * Open projects and opportunities that carry no match alias and have no
+ * correspondence filed against them — the records the mail router is most
+ * likely to be missing, listed so the fix is obvious rather than a chore.
+ */
+async function darkRecords(): Promise<string[]> {
+  try {
+    const admin = createAdminClient()
+    const [{ data: projects }, { data: opportunities }, { data: links }] = await Promise.all([
+      admin.from('projects').select('id, name, match_aliases').eq('status', 'active'),
+      admin
+        .from('opportunities')
+        .select('id, name, match_aliases')
+        .not('status', 'in', '("closed_won","closed_lost")'),
+      sweepDb().from('thread_links').select('record_id'),
+    ])
+
+    const filed = new Set(
+      ((links ?? []) as unknown as Array<{ record_id: string }>).map((l) => l.record_id)
+    )
+    const rows = [...(projects ?? []), ...(opportunities ?? [])] as Array<{
+      id: string
+      name: string | null
+      match_aliases: string[] | null
+    }>
+    return rows
+      .filter((r) => (r.match_aliases ?? []).length === 0 && !filed.has(r.id))
+      .map((r) => r.name ?? 'Untitled')
+      .sort()
+  } catch {
+    // The headline number is the point; a failure to enumerate must not turn a
+    // healthy check into a failed one.
+    return []
+  }
+}
+
 export async function probeThreadRouting(): Promise<{
   state: 'ok' | 'empty' | 'warn' | 'failed'
   detail: string
@@ -499,6 +536,20 @@ export async function probeThreadRouting(): Promise<{
     }
     if (unroutedCount > 0) {
       parts.push(`${unroutedCount} summarized thread${unroutedCount === 1 ? '' : 's'} not yet routed.`)
+    }
+
+    // Name the records that are dark, because the lever here is manual and
+    // otherwise invisible. The router only files mail it can RECOGNISE, and
+    // most threads never use a record's full name — an alias is the human
+    // assertion that closes that gap, and setting one re-examines stored mail
+    // immediately. A record with no alias AND no filed mail is the case where
+    // adding one is most likely to pay.
+    const dark = await darkRecords()
+    if (dark.length > 0) {
+      const shown = dark.slice(0, 5).join(', ')
+      parts.push(
+        `${dark.length} open record${dark.length === 1 ? ' has' : 's have'} no alias and no filed correspondence (${shown}${dark.length > 5 ? `, +${dark.length - 5} more` : ''}) — add short names under "Also known as" on the record and its stored mail is re-examined on save.`
+      )
     }
 
     // A large unrouted backlog means the phase is not keeping up, which is worth
