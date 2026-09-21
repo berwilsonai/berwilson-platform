@@ -20,6 +20,7 @@ import { searchCorrespondence, extractPortalLinks } from './thread-embeddings'
 // against the self-hosted DB), so they are reached through the sweep's own
 // untyped client rather than the generated Database type.
 import { sweepDb } from '@/lib/email-sweep/db'
+import { correspondenceRecency } from '@/lib/email-sweep/filed-threads'
 // Same story for the leads module — it post-dates the last type generation.
 import { leadsDb, parseLeadAttachments, type LeadRow } from '@/lib/leads/db'
 import { ROUTE_LABELS, STATUS_LABELS } from '@/lib/utils/leads'
@@ -507,6 +508,11 @@ export async function executeModuleTool(
         id: deal.id,
         name: deal.name,
         customer: deal.customer,
+        // Recency travels with the record, for the same reason it does on
+        // projects and opportunities: the model's tool choice is
+        // nondeterministic, so the one fact that prevents a confident
+        // "this has gone quiet" has to be in whichever tool it reaches for.
+        correspondence: await correspondenceRecency('steel_deal', deal.id),
         stage: STEEL_STAGE_LABELS[steelStage(deal.stage)],
         building_type: deal.building_type,
         square_feet: deal.square_feet,
@@ -1270,6 +1276,10 @@ export async function executeModuleTool(
 
       return {
         ...leadBrief(row),
+        // Same reasoning as the project, opportunity and steel tools: recency
+        // travels with the record so a stale-status answer cannot be built
+        // from this tool alone.
+        correspondence: await correspondenceRecency('lead', row.id),
         summary: row.summary,
         scope: row.scope,
         sector: row.sector,
