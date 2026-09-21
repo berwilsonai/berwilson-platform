@@ -418,6 +418,7 @@ async function adcAccessToken(): Promise<string> {
   const res = await fetch(TOKEN_ENDPOINT, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    signal: AbortSignal.timeout(tokenTimeoutMs()),
     body: new URLSearchParams({
       grant_type: 'refresh_token',
       client_id: adc.client_id,
@@ -451,6 +452,7 @@ async function signJwtRemotely(payload: Record<string, unknown>): Promise<string
     `${IAM_CREDENTIALS_BASE}/projects/-/serviceAccounts/${encodeURIComponent(sa)}:signJwt`,
     {
       method: 'POST',
+      signal: AbortSignal.timeout(tokenTimeoutMs()),
       headers: {
         Authorization: `Bearer ${caller}`,
         'Content-Type': 'application/json',
@@ -560,6 +562,7 @@ async function oauthAccessToken(mailbox: string): Promise<string> {
   const res = await fetch(TOKEN_ENDPOINT, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    signal: AbortSignal.timeout(tokenTimeoutMs()),
     body: new URLSearchParams({
       grant_type: 'refresh_token',
       client_id: store.client.client_id,
@@ -643,6 +646,9 @@ export async function getAccessToken(mailbox: string = PRIMARY_MAILBOX): Promise
   const res = await fetch(TOKEN_ENDPOINT, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    // This one runs INSIDE googleRequest's retry loop, so a hang here stops
+    // the retry that was meant to rescue the call from ever happening.
+    signal: AbortSignal.timeout(tokenTimeoutMs()),
     body,
   })
 
@@ -701,6 +707,101 @@ export function explainTokenError(raw: string): string {
  */
 const RETRY_ATTEMPTS = 5
 const RETRY_BASE_MS = 2_000
+
+/**
+ * A retryable failure can wait, but it must not wait past the caller's own
+ * ceiling. Google may answer a 429 with `Retry-After: 3600`; obeying that
+ * inside a cron whose curl dies at 280s means the whole run is lost to a sleep
+ * that could never have completed.
+ */
+const MAX_RETRY_AFTER_MS = 60_000
+
+/**
+ * A timed-out request gets ONE retry, not four.
+ *
+ * A hang is not a 429. Backing off and trying again is the right move for a
+ * throttle, which clears; a socket that accepted the connection and then went
+ * quiet usually stays quiet, and every extra attempt spends another full
+ * timeout out of a budget the caller cannot extend. See the wall-clock note on
+ * {@link googleRequest}.
+ */
+const MAX_TIMEOUT_ATTEMPTS = 2
+
+/**
+ * Whole-call cap on one Google API request.
+ *
+ * WHY THIS EXISTS, and why it is not optional: Node's fetch has NO default
+ * timeout. A socket that connects and then never answers hangs the caller
+ * forever — not until some framework gives up, forever — and no try/catch
+ * around the await can see it, because nothing is ever thrown. On 2026-09-21
+ * this took out the Monday brief: the route blocked on a Calendar read, never
+ * reached the model (zero rows in `ai_queries` for the window), and curl gave
+ * up at its own ceiling while the request kept running. `maxDuration` does not
+ * help — it is a Vercel construct with no effect under `next start` — and
+ * neither does curl's `-m`, which kills the client and leaves the route alive.
+ *
+ * This is the same failure `src/lib/ai/local.ts` was hardened against in
+ * Aug 2026, arriving through a different door.
+ */
+const DEFAULT_TIMEOUT_MS = 30_000
+
+/**
+ * Token minting and remote JWT signing. Deliberately tighter than an API call:
+ * a token endpoint that takes fifteen seconds is broken, not busy, and this
+ * one runs INSIDE the retry loop below — so when it hangs, the retry that was
+ * supposed to rescue the call never gets a turn.
+ */
+const TOKEN_TIMEOUT_MS = 15_000
+
+/**
+ * Drive byte downloads, which are legitimately long. A 40MB attachment over a
+ * slow link is not a hang, and a 30s cap would abort work that was going to
+ * succeed.
+ */
+const DOWNLOAD_TIMEOUT_MS = 180_000
+
+function envMs(name: string, fallback: number): number {
+  const raw = Number(process.env[name])
+  return Number.isFinite(raw) && raw > 0 ? raw : fallback
+}
+
+const httpTimeoutMs = () => envMs('GOOGLE_HTTP_TIMEOUT_MS', DEFAULT_TIMEOUT_MS)
+const tokenTimeoutMs = () => envMs('GOOGLE_TOKEN_TIMEOUT_MS', TOKEN_TIMEOUT_MS)
+const downloadTimeoutMs = () => envMs('GOOGLE_DOWNLOAD_TIMEOUT_MS', DOWNLOAD_TIMEOUT_MS)
+
+/** Did this error come from one of our own AbortSignal.timeout() signals? */
+function isTimeoutError(err: unknown): boolean {
+  return err instanceof Error && (err.name === 'TimeoutError' || err.name === 'AbortError')
+}
+
+/** Which Google surface a URL belongs to, for an error a human has to read. */
+function apiNameFor(url: string): string {
+  if (url.includes('gmail.googleapis.com')) return 'Gmail'
+  if (url.includes('/calendar/')) return 'Calendar'
+  if (url.includes('/drive/')) return 'Drive'
+  if (url.includes('/tasks/')) return 'Tasks'
+  if (url.includes('people.googleapis.com')) return 'People'
+  if (url.includes('docs.googleapis.com')) return 'Docs'
+  if (url.includes('sheets.googleapis.com')) return 'Sheets'
+  if (url.includes('oauth2.googleapis.com') || url.includes('iamcredentials')) return 'token'
+  return 'API'
+}
+
+/**
+ * Turn `AbortSignal.timeout`'s "This operation was aborted" into a sentence an
+ * operator can act on. The bare message is indistinguishable from a crash,
+ * which is exactly the complaint `localStallError` was written to answer.
+ */
+function googleTimeoutError(url: string, mailbox: string, ms: number, repeated: boolean): Error {
+  const path = url.split('?')[0].replace(/https:\/\/[^/]+/, '')
+  return new Error(
+    `Google ${apiNameFor(url)} request for ${mailbox} timed out after ${Math.round(ms / 1000)}s — ` +
+      `no response for ${path}.` +
+      (repeated
+        ? ''
+        : ' It was not repeated: the request was sent, so Google may have executed it.')
+  )
+}
 
 function isTransient(status: number, body: string): boolean {
   // 401 belongs here: an access token can expire mid-loop, and every attempt
@@ -776,6 +877,11 @@ export interface GoogleRequestInit {
    * for every method except POST, which creates.
    */
   idempotent?: boolean
+  /**
+   * Whole-call cap for one attempt. Defaults to GOOGLE_HTTP_TIMEOUT_MS (30s).
+   * Byte downloads pass a much larger value — see {@link googleFetchBytes}.
+   */
+  timeoutMs?: number
 }
 
 async function googleRequest(
@@ -788,6 +894,8 @@ async function googleRequest(
 
   const method = init.method ?? 'GET'
   const repeatable = init.idempotent ?? method !== 'POST'
+  const timeout = init.timeoutMs ?? httpTimeoutMs()
+  let timeouts = 0
 
   for (let attempt = 0; attempt < RETRY_ATTEMPTS; attempt++) {
     let res: Response
@@ -801,8 +909,28 @@ async function googleRequest(
         method,
         headers,
         ...(init.body !== undefined ? { body: JSON.stringify(init.body) } : {}),
+        signal: AbortSignal.timeout(timeout),
       })
     } catch (err) {
+      // A TIMEOUT IS NOT A NETWORK ERROR, and the difference decides whether
+      // repeating is safe.
+      //
+      // The branch below argues that a failed connection never reached Google,
+      // so repeating a POST is harmless. A timeout breaks that argument: the
+      // socket opened and the request went out, so Google may well have
+      // executed it. Repeating a timed-out `tasks.insert` is precisely how a
+      // second copy lands in someone's list — the hazard isSafeToRepeat exists
+      // to prevent. So a timeout retries only when the method is repeatable,
+      // and only MAX_TIMEOUT_ATTEMPTS times.
+      if (isTimeoutError(err)) {
+        timeouts++
+        const mayRepeat = repeatable && timeouts < MAX_TIMEOUT_ATTEMPTS
+        if (!mayRepeat || attempt === RETRY_ATTEMPTS - 1) {
+          throw googleTimeoutError(url, mailbox, timeout, repeatable)
+        }
+        await new Promise((r) => setTimeout(r, RETRY_BASE_MS))
+        continue
+      }
       // A network-level failure ("TypeError: fetch failed") never reaches the
       // status-based retry below, so without this branch one momentary outage
       // — the Studio's DarkWake windows are the live example, where a 3:15am
@@ -842,7 +970,10 @@ async function googleRequest(
     const retryAfter = Number(res.headers.get('retry-after'))
     const waitMs =
       Number.isFinite(retryAfter) && retryAfter > 0
-        ? retryAfter * 1000
+        ? // Capped: Google can answer with an hour, and sleeping through it
+          // inside a cron that curl kills at 280s loses the whole run to a
+          // wait that could never have finished.
+          Math.min(retryAfter * 1000, MAX_RETRY_AFTER_MS)
         : RETRY_BASE_MS * 2 ** attempt
     await new Promise((r) => setTimeout(r, waitMs))
   }
@@ -868,7 +999,9 @@ export async function googleFetch<T>(
 
 /** Same auth path as {@link googleFetch}, but for endpoints that return bytes. */
 export async function googleFetchBytes(url: string, mailbox: string): Promise<ArrayBuffer> {
-  const res = await googleRequest(url, mailbox)
+  // A 40MB attachment over a slow link is not a hang; the default 30s cap
+  // would abort work that was going to succeed.
+  const res = await googleRequest(url, mailbox, { timeoutMs: downloadTimeoutMs() })
   return res.arrayBuffer()
 }
 
@@ -974,6 +1107,9 @@ export async function sendMail(opts: {
     `${GMAIL_BASE}/users/${encodeURIComponent(from)}/messages/send`,
     {
       method: 'POST',
+      // notify() wraps this in a try/catch that cannot catch a hang, so the
+      // lead sweep's notify phase could stall here indefinitely.
+      signal: AbortSignal.timeout(httpTimeoutMs()),
       headers: {
         Authorization: `Bearer ${token}`,
         'Content-Type': 'application/json',
@@ -1600,6 +1736,7 @@ export async function upsertCalendarEvent(
     method: 'POST',
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
+    signal: AbortSignal.timeout(httpTimeoutMs()),
   })
   if (insert.ok) return { ok: true, created: true }
 
@@ -1610,6 +1747,7 @@ export async function upsertCalendarEvent(
       method: 'PATCH',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
+      signal: AbortSignal.timeout(httpTimeoutMs()),
     })
     if (patch.ok) return { ok: true, created: false }
     return { ok: false, error: explainTokenError(await patch.text()) }
@@ -1670,6 +1808,9 @@ export async function probeScopeCoverage(): Promise<{
       const res = await fetch(TOKEN_ENDPOINT, {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        // /settings/health is the one screen that reports an outage. Without
+        // this it becomes a casualty of the outage it exists to describe.
+        signal: AbortSignal.timeout(tokenTimeoutMs()),
         body: new URLSearchParams({
           grant_type: 'refresh_token',
           client_id: store.client.client_id,

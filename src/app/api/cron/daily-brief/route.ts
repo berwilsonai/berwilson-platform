@@ -274,10 +274,29 @@ export async function GET(request: NextRequest) {
   // the meetings section from the brief.
   let meetingLines: string[] = []
   try {
-    const events = await fetchCalendarEvents(
-      now.toISOString(),
-      new Date(now.getTime() + 7 * 86_400_000).toISOString()
-    )
+    // Budgeted separately from the request as a whole.
+    //
+    // googleRequest now caps each attempt, so a hung socket can no longer
+    // block here forever (2026-09-21: it did exactly that, and the brief never
+    // reached the model). But "slow yet responding" is a different failure:
+    // retries and backoff can still legitimately add up to minutes, and the
+    // meetings section is the least load-bearing part of the brief. A brief
+    // without its calendar is worth far more than no brief, so this races the
+    // fetch and gives up early. The prompt already renders "(no calendar data
+    // available)" and the section's own rule drops it cleanly.
+    const MEETINGS_BUDGET_MS = 20_000
+    const events = await Promise.race([
+      fetchCalendarEvents(
+        now.toISOString(),
+        new Date(now.getTime() + 7 * 86_400_000).toISOString()
+      ),
+      new Promise<never>((_, reject) =>
+        setTimeout(
+          () => reject(new Error(`calendar did not answer within ${MEETINGS_BUDGET_MS}ms`)),
+          MEETINGS_BUDGET_MS
+        ).unref?.()
+      ),
+    ])
     meetingLines = events.slice(0, 15).map(e => {
       // All-day events carry a bare YYYY-MM-DD; timed ones an RFC 3339 stamp
       // with the offset already applied.
