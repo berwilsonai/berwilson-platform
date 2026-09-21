@@ -2,7 +2,8 @@
 
 import { useMemo, useState } from 'react'
 import Link from 'next/link'
-import { Radar, Inbox, ClipboardCheck, ArrowRight } from 'lucide-react'
+import { toast } from 'sonner'
+import { Radar, Inbox, ClipboardCheck, ArrowRight, X, Loader2 } from 'lucide-react'
 import { Panel } from '@/components/ui/card'
 import EmptyState from '@/components/shared/EmptyState'
 
@@ -64,8 +65,36 @@ function weight(i: Dated): number {
   return overdue + urgent + verdict + (i.score ?? 0)
 }
 
+/**
+ * How each kind of item is set aside, and what that means.
+ *
+ * Every one of these is reversible and none of them delete: a lead becomes
+ * "ignored" (the documented choice on 2026-09-15 — the queue is kept so the
+ * triage can be audited), a staged session is dismissed without creating
+ * anything, and a flagged extraction is rejected, which also drops the
+ * inferred link that put it there.
+ */
+const DISMISS: Record<DecideKind, { url: (id: string) => string; body: unknown; verb: string }> = {
+  lead: { url: (id) => `/api/leads/${id}`, body: { status: 'ignored' }, verb: 'Lead set aside' },
+  intake: {
+    url: (id) => `/api/email-ingestion/sessions/${id}`,
+    body: {},
+    verb: 'Correspondence dismissed',
+  },
+  review: {
+    url: (id) => `/api/review/${id}`,
+    body: { resolution: 'rejected' },
+    verb: 'Flagged item rejected',
+  },
+}
+
 export default function DecideClient({ items }: { items: DecideItem[] }) {
   const [kind, setKind] = useState<DecideKind | 'all'>('all')
+  // Set aside in this session. Optimistic: the row goes immediately and comes
+  // back if the write fails, because a queue that pauses on every dismissal is
+  // one nobody clears.
+  const [dismissed, setDismissed] = useState<Set<string>>(new Set())
+  const [pending, setPending] = useState<string | null>(null)
   // Captured once at mount rather than read during render: a clock read while
   // rendering is impure, and the list must not silently reorder itself between
   // two renders of the same data.
@@ -83,20 +112,54 @@ export default function DecideClient({ items }: { items: DecideItem[] }) {
         .sort((a, b) => weight(b) - weight(a)),
     [items, now]
   )
+  const live = useMemo(
+    () => ranked.filter((i) => !dismissed.has(`${i.kind}:${i.id}`)),
+    [ranked, dismissed]
+  )
   const visible = useMemo(
-    () => (kind === 'all' ? ranked : ranked.filter((i) => i.kind === kind)),
-    [ranked, kind]
+    () => (kind === 'all' ? live : live.filter((i) => i.kind === kind)),
+    [live, kind]
   )
 
   const counts = useMemo(() => {
-    const c: Record<string, number> = { all: items.length, lead: 0, intake: 0, review: 0 }
-    for (const i of items) c[i.kind]++
+    const c: Record<string, number> = { all: live.length, lead: 0, intake: 0, review: 0 }
+    for (const i of live) c[i.kind]++
     return c
-  }, [items])
+  }, [live])
 
-  const urgent = ranked.filter((i) => i.daysLeft !== null && i.daysLeft <= 7).length
+  async function dismiss(item: Dated) {
+    const key = `${item.kind}:${item.id}`
+    const spec = DISMISS[item.kind]
+    setPending(key)
+    setDismissed((prev) => new Set(prev).add(key))
+    try {
+      const res = await fetch(spec.url(item.id), {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(spec.body),
+      })
+      if (!res.ok) {
+        const data = (await res.json().catch(() => ({}))) as { error?: string }
+        throw new Error(data.error ?? `Failed (${res.status})`)
+      }
+      toast.success(spec.verb, { description: item.title })
+    } catch (err) {
+      // Put it back: a row that vanished without being written is worse than
+      // one that never moved, because the reader believes it was handled.
+      setDismissed((prev) => {
+        const next = new Set(prev)
+        next.delete(key)
+        return next
+      })
+      toast.error(err instanceof Error ? err.message : 'Could not set that aside')
+    } finally {
+      setPending(null)
+    }
+  }
 
-  if (items.length === 0) {
+  const urgent = live.filter((i) => i.daysLeft !== null && i.daysLeft <= 7).length
+
+  if (live.length === 0) {
     return (
       <Panel>
         <EmptyState
@@ -139,13 +202,15 @@ export default function DecideClient({ items }: { items: DecideItem[] }) {
           const overdue = item.daysLeft !== null && item.daysLeft < 0
           const soon = item.daysLeft !== null && item.daysLeft >= 0 && item.daysLeft <= 7
           return (
-            <Link
+            <div
               key={`${item.kind}:${item.id}`}
-              href={item.href}
               className="flex items-start gap-3 px-4 py-3 hover:bg-accent transition-colors group"
             >
               <Icon size={14} className="mt-0.5 shrink-0 text-muted-foreground" />
-              <div className="min-w-0 flex-1">
+              {/* The row's own link. The dismiss control is a SIBLING, never
+                  nested — a button inside an anchor is invalid markup and
+                  hydrates badly. */}
+              <Link href={item.href} className="min-w-0 flex-1">
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="text-sm font-medium">{item.title}</span>
                   {item.verdict && (
@@ -180,12 +245,28 @@ export default function DecideClient({ items }: { items: DecideItem[] }) {
                 {item.note && (
                   <p className="text-xs text-muted-foreground/90 mt-1 line-clamp-2">{item.note}</p>
                 )}
+              </Link>
+              <div className="flex items-center gap-1 mt-0.5 shrink-0">
+                <ArrowRight
+                  size={13}
+                  className="hidden sm:block text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity"
+                />
+                <button
+                  type="button"
+                  onClick={() => dismiss(item)}
+                  disabled={pending === `${item.kind}:${item.id}`}
+                  aria-label={`Set aside: ${item.title}`}
+                  title="Set aside — reversible, nothing is deleted"
+                  className="inline-flex items-center justify-center size-8 sm:size-7 rounded-md text-muted-foreground hover:text-foreground hover:bg-background sm:opacity-0 sm:group-hover:opacity-100 focus-visible:opacity-100 transition-opacity disabled:opacity-40"
+                >
+                  {pending === `${item.kind}:${item.id}` ? (
+                    <Loader2 size={13} className="animate-spin" />
+                  ) : (
+                    <X size={13} />
+                  )}
+                </button>
               </div>
-              <ArrowRight
-                size={13}
-                className="mt-1 shrink-0 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity"
-              />
-            </Link>
+            </div>
           )
         })}
       </Panel>
