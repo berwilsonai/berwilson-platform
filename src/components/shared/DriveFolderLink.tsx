@@ -59,6 +59,15 @@ interface Root {
   driveId: string | null
 }
 
+interface Suggestion {
+  id: string
+  name: string
+  parentName: string | null
+  files: number
+  newest: string | null
+  score: number
+}
+
 export default function DriveFolderLink({
   projectId,
   folderId,
@@ -77,6 +86,12 @@ export default function DriveFolderLink({
   const [roots, setRoots] = useState<Root[]>([])
   const [rows, setRows] = useState<Row[]>([])
   const [pasted, setPasted] = useState('')
+  // Candidates matched from the record's own name and aliases. Suggested, not
+  // applied: the folder names in this Drive are genuinely ambiguous ("Myton"
+  // matches five, two of them different real projects), and which one is right
+  // is knowledge only a person has. The hunt is the chore; the decision is not.
+  const [suggestions, setSuggestions] = useState<Suggestion[]>([])
+  const [suggesting, setSuggesting] = useState(false)
 
   const load = useCallback(async (trail: Crumb[]) => {
     setLoading(true)
@@ -100,11 +115,25 @@ export default function DriveFolderLink({
     }
   }, [])
 
+  const suggest = useCallback(async () => {
+    setSuggesting(true)
+    try {
+      const res = await fetch(`/api/drive/suggest?project_id=${projectId}`)
+      const data = await res.json()
+      if (res.ok) setSuggestions(data.candidates ?? [])
+    } catch {
+      // A failed suggestion just leaves the browser, which still works.
+    } finally {
+      setSuggesting(false)
+    }
+  }, [projectId])
+
   function openPicker() {
     setOpen(true)
     // Fetched on open rather than in an effect: the dialog is rarely used and
     // an effect here would be one more setState-in-effect to explain.
     void load([])
+    void suggest()
   }
 
   async function save(id: string | null) {
@@ -204,6 +233,46 @@ export default function DriveFolderLink({
               how the team retires a document without a platform login.
             </DialogDescription>
           </DialogHeader>
+
+          {(suggesting || suggestions.length > 0) && (
+            <div className="rounded-lg border border-border bg-muted/30 p-2.5">
+              <p className="label-caps text-muted-foreground mb-1.5">
+                {suggesting ? 'Looking for matching folders…' : 'Likely matches'}
+              </p>
+              {!suggesting && (
+                <>
+                  <ul className="space-y-1">
+                    {suggestions.map((c) => (
+                      <li key={c.id}>
+                        <button
+                          onClick={() => void save(c.id)}
+                          disabled={saving}
+                          className="w-full text-left rounded-md px-2 py-1.5 hover:bg-background transition-colors disabled:opacity-50"
+                        >
+                          <span className="text-sm font-medium">
+                            {c.parentName ? (
+                              <span className="text-muted-foreground font-normal">
+                                {c.parentName} /{' '}
+                              </span>
+                            ) : null}
+                            {c.name}
+                          </span>
+                          <span className="block text-xs text-muted-foreground tnum">
+                            {c.files} file{c.files === 1 ? '' : 's'}
+                            {c.newest ? ` · newest ${c.newest.slice(0, 10)}` : ''}
+                          </span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="text-xs text-muted-foreground mt-1.5">
+                    Matched on this project&rsquo;s name and aliases. Check the path and file count
+                    before linking — several projects share a place name.
+                  </p>
+                </>
+              )}
+            </div>
+          )}
 
           <div className="flex flex-wrap items-center gap-1 text-xs text-muted-foreground">
             <button className="hover:text-foreground" onClick={() => void load([])}>

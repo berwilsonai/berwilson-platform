@@ -281,6 +281,71 @@ export async function listSubfolders(
   return out
 }
 
+/**
+ * Folders anywhere the mailbox can see whose NAME contains a term.
+ *
+ * The one-level-at-a-time browser is right for exploring, and wrong for "where
+ * is this project's folder" — the team's tree nests business line → project, so
+ * finding one folder is three or four round trips of guessing. Searching by
+ * name gets there in one, and the caller still decides which hit is correct.
+ *
+ * Drive's `contains` is a prefix-ish word match, not a substring match, which
+ * is why callers should pass a distinctive WORD rather than a full record name.
+ * Archive shelves are dropped for the same reason `listFolder` skips them: a
+ * retired copy is never the folder someone means to link.
+ */
+export async function findFoldersByName(
+  term: string,
+  opts: { mailbox?: string; limit?: number } = {}
+): Promise<Array<DriveFile & { parentName: string | null }>> {
+  const mailbox = opts.mailbox ?? PRIMARY_MAILBOX
+  const cleaned = term.replace(/['\\]/g, ' ').trim()
+  if (cleaned.length < 3) return []
+
+  const params = new URLSearchParams({
+    q: `name contains '${cleaned}' and mimeType = '${GOOGLE_FOLDER}' and trashed = false`,
+    fields: 'files(id, name, mimeType, modifiedTime, parents)',
+    pageSize: String(opts.limit ?? 25),
+    supportsAllDrives: 'true',
+    includeItemsFromAllDrives: 'true',
+    corpora: 'allDrives',
+  })
+
+  const data = await googleFetch<{ files?: Array<DriveFile & { parents?: string[] }> }>(
+    `${DRIVE_BASE}/files?${params.toString()}`,
+    mailbox
+  )
+
+  const hits = (data.files ?? []).filter((f) => !isArchiveFolder(f.name))
+
+  // The parent's name is what disambiguates two folders with the same short
+  // name — "Utah / Mira Vista" against "Housing Development / Mira Vista".
+  const parentIds = [...new Set(hits.map((f) => f.parents?.[0]).filter(Boolean))] as string[]
+  const parentName = new Map<string, string>()
+  await Promise.all(
+    parentIds.map(async (id) => {
+      try {
+        const p = await googleFetch<{ name?: string }>(
+          `${DRIVE_BASE}/files/${id}?fields=name&supportsAllDrives=true`,
+          mailbox
+        )
+        if (p.name) parentName.set(id, p.name)
+      } catch {
+        /* a parent we cannot read is not worth failing the search over */
+      }
+    })
+  )
+
+  return hits.map((f) => ({
+    id: f.id,
+    name: f.name,
+    mimeType: f.mimeType,
+    modifiedTime: f.modifiedTime,
+    size: null,
+    parentName: f.parents?.[0] ? parentName.get(f.parents[0]) ?? null : null,
+  }))
+}
+
 export interface SharedDrive {
   id: string
   name: string
