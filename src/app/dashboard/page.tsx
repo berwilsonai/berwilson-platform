@@ -21,6 +21,7 @@ import { fetchOpenTasks } from '@/lib/tasks/queries'
 import { getViewer } from '@/lib/auth/viewer'
 import { mailboxLooksBroken } from '@/lib/system-health'
 import { sweepDb } from '@/lib/email-sweep/db'
+import { countDecideItems } from '@/lib/decide/count'
 import EmptyState from '@/components/shared/EmptyState'
 import type { WaitingOnItem, RiskItem } from '@/types/domain'
 
@@ -295,7 +296,10 @@ export default async function DashboardPage({ searchParams }: PageProps) {
     (sum, p) => sum + weightedValue(p.estimated_value, (p as { win_probability?: number | null }).win_probability ?? null),
     0
   )
-  const pendingReview = reviewCount ?? 0
+  // The KPI counts what the Decide queue holds, not the review table alone —
+  // the same source the sidebar badge uses, so the two agree. The full
+  // review_queue rows above still feed the Needs Attention panel below.
+  const pendingReview = await countDecideItems()
   const overdueCount = overdueRaw?.length ?? 0
 
   // Closing soon: pre-award pursuits with a bid deadline, soonest first

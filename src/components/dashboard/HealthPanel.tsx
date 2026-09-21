@@ -38,7 +38,11 @@ export default function HealthPanel({
   const breakdown = [
     { count: criticalDdCount, label: 'critical', className: 'text-red-600 dark:text-red-400' },
     { count: overdueCount, label: 'overdue', className: 'text-orange-600 dark:text-orange-400' },
-    { count: pendingReview, label: 'in review', className: 'text-amber-600 dark:text-amber-400' },
+    // "waiting to decide", not "in review": this is the whole Decide queue —
+    // inbound bids, staged correspondence and flagged extractions — and it must
+    // be the same number the Decide badge shows, or the two disagree on screen
+    // about what needs the reader.
+    { count: pendingReview, label: 'waiting to decide', className: 'text-amber-600 dark:text-amber-400' },
     { count: expiringCertsCount, label: 'cert expiry', className: 'text-yellow-600 dark:text-yellow-500' },
   ].filter((b) => b.count > 0)
 
