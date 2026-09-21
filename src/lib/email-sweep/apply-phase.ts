@@ -27,6 +27,7 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { embedUpdate, embedOpportunityNote } from '@/lib/ai/embeddings'
 import { runDocumentAiPass } from '@/lib/ai/document-pipeline'
+import { fileRecordDocumentsQuietly } from '@/lib/drive/file-document'
 import { fetchThread, fetchAttachmentBytes } from '@/lib/integrations/google-workspace'
 import type { TablesInsert } from '@/lib/supabase/types'
 import { sweepDb, type EmailThreadRow, type ThreadLinkRow, type LinkRecordKind } from './db'
@@ -474,20 +475,48 @@ async function importNewAttachments(
           ) as ArrayBuffer,
         })
       } else {
-        const { error } = await supabase.from('opportunity_documents').insert({
-          opportunity_id: link.record_id,
-          file_name: ref.name,
-          storage_path: path,
-          mime_type: ref.mimeType || null,
-          file_size_bytes: ref.size,
-          doc_type: 'correspondence',
-        } as never)
-        if (error) {
-          console.error(`[sweep/apply] could not register ${ref.name}:`, error.message)
+        const { data: doc, error } = await supabase
+          .from('opportunity_documents')
+          .insert({
+            opportunity_id: link.record_id,
+            file_name: ref.name,
+            storage_path: path,
+            mime_type: ref.mimeType || null,
+            file_size_bytes: ref.size,
+            doc_type: 'correspondence',
+          } as never)
+          .select('id')
+          .single()
+        if (error || !doc) {
+          console.error(`[sweep/apply] could not register ${ref.name}:`, error?.message)
           continue
         }
         imported++
+        // An opportunity attachment used to get no summary, no extracted text
+        // and no embedding -- the project branch ran the pass and this one just
+        // inserted and stopped. So the M&A material, which is exactly where the
+        // dense documents arrive, was invisible to Ber AI and left the folder
+        // classifier judging on a file name alone.
+        await runDocumentAiPass({
+          supabase,
+          documentId: (doc as { id: string }).id,
+          projectId: null,
+          fileName: ref.name,
+          mimeType: ref.mimeType || null,
+          buffer: buffer.buffer.slice(
+            buffer.byteOffset,
+            buffer.byteOffset + buffer.byteLength
+          ) as ArrayBuffer,
+          target: { table: 'opportunity_documents', opportunityId: link.record_id },
+        })
       }
+    }
+
+    // Filing runs after the loop so the AI summaries exist to classify on, and
+    // once per record rather than once per file. Best-effort by construction: a
+    // Drive outage must never fail an attachment import that already succeeded.
+    if (imported > 0) {
+      await fileRecordDocumentsQuietly(supabase, isProject ? 'project' : 'opportunity', link.record_id)
     }
 
     return imported

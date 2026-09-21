@@ -52,6 +52,35 @@ export interface DriveFileRef {
   id: string
   name: string
   webViewLink?: string
+  /**
+   * Drive's own modified timestamp, requested at upload.
+   *
+   * Load-bearing for anything filed into a folder the importer also READS:
+   * `driveFileUnchanged(null, file)` returns false, so a row stored without
+   * this is re-downloaded, re-summarized and re-embedded on every nightly run.
+   * That exact bug has already been paid for once in this repo.
+   */
+  modifiedTime?: string
+}
+
+/** Drive meters by request; a burst of uploads hits it routinely. */
+const WRITE_ATTEMPTS = 4
+const WRITE_BACKOFF_MS = 2000
+
+/**
+ * A throttled write is not a failed write.
+ *
+ * This had no retry at all, unlike `googleRequest` in google-workspace.ts, so
+ * one 429 during a filing run lost that document until the next nightly pass.
+ * Retried narrowly and deliberately: 429 and a 403 whose body says "quota" mean
+ * slow down, while a 403 that means "no permission" must fail immediately
+ * rather than making the operator wait out the backoff for the message they
+ * need. Network-shaped errors retry too -- the Studio's DarkWake windows
+ * produce them, and that was a whole class of spurious Drive failures.
+ */
+function isRetryableWrite(status: number, body: string): boolean {
+  if (status === 429 || status === 500 || status === 502 || status === 503) return true
+  return status === 403 && /quota|rate limit|userRateLimitExceeded|backendError/i.test(body)
 }
 
 async function driveWrite<T>(
@@ -59,19 +88,38 @@ async function driveWrite<T>(
   url: string,
   init: RequestInit
 ): Promise<T> {
-  const token = await getAccessToken(mailbox)
-  const res = await fetch(url, {
-    ...init,
-    headers: { ...(init.headers ?? {}), Authorization: `Bearer ${token}` },
-  })
+  let lastError: Error | null = null
 
-  if (!res.ok) {
-    const err = await res.text()
-    if (res.status === 403 && /insufficient|scope/i.test(err)) throw new DriveScopeError(mailbox)
+  for (let attempt = 0; attempt < WRITE_ATTEMPTS; attempt++) {
+    if (attempt > 0) {
+      await new Promise((r) => setTimeout(r, WRITE_BACKOFF_MS * 2 ** (attempt - 1)))
+    }
+
+    let res: Response
+    try {
+      // Minted inside the loop: token refresh dies the same network-shaped way
+      // the request does, and a stale token is a reason to try again.
+      const token = await getAccessToken(mailbox)
+      res = await fetch(url, {
+        ...init,
+        headers: { ...(init.headers ?? {}), Authorization: `Bearer ${token}` },
+      })
+    } catch (err) {
+      lastError = err instanceof Error ? err : new Error(String(err))
+      continue
+    }
+
+    if (res.ok) return res.json() as Promise<T>
+
+    const body = await res.text()
+    if (res.status === 403 && /insufficient|scope/i.test(body)) throw new DriveScopeError(mailbox)
+
     const path = url.split('?')[0].replace(/https:\/\/[^/]+/, '')
-    throw new Error(`Drive ${path} failed: ${res.status} — ${explainTokenError(err)}`)
+    lastError = new Error(`Drive ${path} failed: ${res.status} — ${explainTokenError(body)}`)
+    if (!isRetryableWrite(res.status, body)) throw lastError
   }
-  return res.json() as Promise<T>
+
+  throw lastError ?? new Error('Drive write failed')
 }
 
 /** The Workspace domain, taken from the mailbox we act as. */
@@ -180,7 +228,7 @@ async function createFolder(
 ): Promise<DriveFileRef> {
   return driveWrite<DriveFileRef>(
     mailbox,
-    `${DRIVE_BASE}/files?fields=id,name,webViewLink&supportsAllDrives=true`,
+    `${DRIVE_BASE}/files?fields=id,name,webViewLink,modifiedTime&supportsAllDrives=true`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -262,7 +310,7 @@ export async function uploadToFolder(input: UploadInput): Promise<DriveFileRef> 
 
   return driveWrite<DriveFileRef>(
     mailbox,
-    `${DRIVE_UPLOAD}?uploadType=multipart&fields=id,name,webViewLink&supportsAllDrives=true`,
+    `${DRIVE_UPLOAD}?uploadType=multipart&fields=id,name,webViewLink,modifiedTime&supportsAllDrives=true`,
     {
       method: 'POST',
       headers: { 'Content-Type': `multipart/related; boundary=${boundary}` },
@@ -363,7 +411,7 @@ export async function upsertSheetFromCsv(input: {
 
   const ref = await driveWrite<DriveFileRef>(
     mailbox,
-    `${DRIVE_UPLOAD}?uploadType=multipart&fields=id,name,webViewLink&supportsAllDrives=true`,
+    `${DRIVE_UPLOAD}?uploadType=multipart&fields=id,name,webViewLink,modifiedTime&supportsAllDrives=true`,
     {
       method: 'POST',
       headers: { 'Content-Type': `multipart/related; boundary=${boundary}` },
@@ -454,7 +502,7 @@ export async function createDocFromBytes(input: {
 
   return driveWrite<DriveFileRef>(
     mailbox,
-    `${DRIVE_UPLOAD}?uploadType=multipart&fields=id,name,webViewLink&supportsAllDrives=true`,
+    `${DRIVE_UPLOAD}?uploadType=multipart&fields=id,name,webViewLink,modifiedTime&supportsAllDrives=true`,
     {
       method: 'POST',
       headers: { 'Content-Type': `multipart/related; boundary=${boundary}` },

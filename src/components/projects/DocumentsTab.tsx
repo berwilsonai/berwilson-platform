@@ -12,6 +12,7 @@ import {
   File,
   Archive,
   ArchiveRestore,
+  FolderOpen,
 } from 'lucide-react'
 import EmptyState from '@/components/shared/EmptyState'
 import ConfidenceBadge from '@/components/shared/ConfidenceBadge'
@@ -228,6 +229,26 @@ function DocumentRow({
             >
               {docType}
             </span>
+            {/* Where it sits in the team's Drive folder. Shown because filing
+                is otherwise invisible from here, and a document in _Unsorted is
+                asking someone to move it. */}
+            {doc.drive_folder_path && (
+              <span
+                className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs font-medium ring-1 ring-inset ${
+                  doc.drive_folder_path === '_Unsorted'
+                    ? 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 ring-amber-200 dark:ring-amber-800/60'
+                    : 'bg-slate-100 dark:bg-slate-900/40 text-slate-600 dark:text-slate-400 ring-slate-200 dark:ring-slate-800/60'
+                }`}
+                title={
+                  doc.drive_folder_path === '_Unsorted'
+                    ? 'Filed to _Unsorted — the classifier was not confident enough to choose a folder. Move it in Drive.'
+                    : `Filed in Drive under ${doc.drive_folder_path.trim()}`
+                }
+              >
+                <FolderOpen size={10} />
+                {doc.drive_folder_path.trim()}
+              </span>
+            )}
             {/* File size */}
             <span className="text-xs text-muted-foreground">
               {formatBytes(doc.file_size_bytes)}

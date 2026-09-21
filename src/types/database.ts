@@ -825,6 +825,7 @@ export type Database = {
           storage_path: string
           uploaded_at: string | null
           uploaded_by: string | null
+          drive_folder_path: string | null
         }
         Insert: {
           ai_summary?: string | null
@@ -852,6 +853,7 @@ export type Database = {
           storage_path: string
           uploaded_at?: string | null
           uploaded_by?: string | null
+          drive_folder_path?: string | null
         }
         Update: {
           ai_summary?: string | null
@@ -879,6 +881,7 @@ export type Database = {
           storage_path?: string
           uploaded_at?: string | null
           uploaded_by?: string | null
+          drive_folder_path?: string | null
         }
         Relationships: [
           {
@@ -1921,6 +1924,8 @@ export type Database = {
           thesis: string | null
           updated_at: string | null
           website: string | null
+          drive_source_folder_id: string | null
+          drive_source_folder_url: string | null
         }
         Insert: {
           match_aliases?: string[]
@@ -1950,6 +1955,8 @@ export type Database = {
           thesis?: string | null
           updated_at?: string | null
           website?: string | null
+          drive_source_folder_id?: string | null
+          drive_source_folder_url?: string | null
         }
         Update: {
           match_aliases?: string[]
@@ -1979,6 +1986,8 @@ export type Database = {
           thesis?: string | null
           updated_at?: string | null
           website?: string | null
+          drive_source_folder_id?: string | null
+          drive_source_folder_url?: string | null
         }
         Relationships: []
       }
@@ -1995,6 +2004,12 @@ export type Database = {
           opportunity_id: string
           storage_path: string
           uploaded_at: string | null
+          drive_folder_path: string | null
+          drive_file_id: string | null
+          drive_modified_at: string | null
+          embedding_status: string | null
+          superseded_at: string | null
+          superseded_reason: string | null
         }
         Insert: {
           ai_summary?: string | null
@@ -2008,6 +2023,12 @@ export type Database = {
           opportunity_id: string
           storage_path: string
           uploaded_at?: string | null
+          drive_folder_path?: string | null
+          drive_file_id?: string | null
+          drive_modified_at?: string | null
+          embedding_status?: string | null
+          superseded_at?: string | null
+          superseded_reason?: string | null
         }
         Update: {
           ai_summary?: string | null
@@ -2021,6 +2042,12 @@ export type Database = {
           opportunity_id?: string
           storage_path?: string
           uploaded_at?: string | null
+          drive_folder_path?: string | null
+          drive_file_id?: string | null
+          drive_modified_at?: string | null
+          embedding_status?: string | null
+          superseded_at?: string | null
+          superseded_reason?: string | null
         }
         Relationships: [
           {

@@ -3,6 +3,7 @@ import { runDocumentAiPass } from '@/lib/ai/document-pipeline'
 import { getViewer, canAccessProject, forbiddenJson, actorAdminClient } from '@/lib/auth/viewer'
 import { canAccessMeeting } from '@/lib/meetings/access'
 import { notifyDocumentUpload } from '@/lib/notifications/documents'
+import { fileRecordDocumentsQuietly } from '@/lib/drive/file-document'
 
 // Summary + full-text transcription + embedding can take a few minutes on big PDFs
 export const maxDuration = 300
@@ -101,6 +102,14 @@ export async function POST(request: NextRequest) {
     // No AI requested — don't leave the doc looking like it's indexing.
     await supabase.from('documents').update({ embedding_status: 'skipped' }).eq('id', doc.id)
     doc.embedding_status = 'skipped'
+  }
+
+  // File into the team's own Drive folder, after the AI pass so the classifier
+  // has a summary to judge on. Both doors -- this one and the Drive importer --
+  // must treat a document the same way, or people learn that filing in one
+  // place is "seen" and the other is not.
+  if (project_id && !meeting_id) {
+    await fileRecordDocumentsQuietly(supabase, 'project', project_id)
   }
 
   // Meeting attachments are not announced: a recording is part of the meeting

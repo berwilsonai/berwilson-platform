@@ -26,6 +26,7 @@ import {
 import { listMeetTranscripts } from '@/lib/integrations/google-drive'
 import { isChatConfigured } from '@/lib/notify/chat'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { isFileable } from '@/lib/drive/file-document'
 import { leadsDb } from '@/lib/leads/db'
 import { sweepDb } from '@/lib/email-sweep/db'
 
@@ -1108,4 +1109,83 @@ export async function probeWhisper(): Promise<{ state: 'ok' | 'missing' | 'uncon
     state: 'missing',
     detail: `Configured but missing on disk: ${missing.join(', ')}. Re-download the model with \`cd ~/whisper.cpp/models && ./download-ggml-model.sh large-v3-turbo\`. Until then, uploading a recording will fail to transcribe.`,
   }
+}
+
+/**
+ * Are documents actually reaching the team's own Drive folders?
+ *
+ * Filing is silent by construction: it is best-effort, it never fails the
+ * import that called it, and a document that is never filed looks exactly like
+ * a quiet week. This counts it out loud -- the same argument as the Drive
+ * publishing and correspondence-index cards.
+ *
+ * Reports COVERAGE rather than pass/fail, because "not everything is filed" is
+ * the correct steady state: a record with no linked folder has nowhere to file
+ * to, and that is a linking decision a human has to make.
+ */
+export async function probeDriveFiling(): Promise<{
+  state: 'ok' | 'partial' | 'none' | 'empty'
+  detail: string
+}> {
+  const supabase = createAdminClient()
+
+  const { data: projects } = await supabase
+    .from('projects')
+    .select('id, status, drive_source_folder_id')
+  const open = ((projects ?? []) as {
+    id: string
+    status: string | null
+    drive_source_folder_id: string | null
+  }[]).filter((r) => !['closed', 'lost'].includes(r.status ?? ''))
+  const linked = open.filter((r) => r.drive_source_folder_id)
+
+  if (linked.length === 0) {
+    return {
+      state: 'none',
+      detail:
+        `None of the ${open.length} open projects has a Drive folder linked, so no document can be filed ` +
+        `into the team's own folders. Link one from a project's Documents tab.`,
+    }
+  }
+
+  const linkedIds = linked.map((r) => r.id)
+  const { count: filed } = await supabase
+    .from('documents')
+    .select('id', { count: 'exact', head: true })
+    .in('project_id', linkedIds)
+    .not('drive_folder_path', 'is', null)
+  // Counted in code rather than as a filter because "will never be filed" is a
+  // property of the file, not a column: calendar invites arrive as attachments
+  // and become documents, and they are deliberately skipped forever. Counting
+  // them as pending would leave this check permanently reporting a backlog that
+  // no nightly pass will ever clear -- the shape of a silent gap, inverted.
+  const { data: unfiledRows } = await supabase
+    .from('documents')
+    .select('file_name, mime_type')
+    .in('project_id', linkedIds)
+    .is('drive_file_id', null)
+    .is('superseded_at', null)
+  const unfiled = ((unfiledRows ?? []) as { file_name: string; mime_type: string | null }[])
+    .filter((d) => isFileable(d.file_name, d.mime_type)).length
+
+  const { count: unsorted } = await supabase
+    .from('documents')
+    .select('id', { count: 'exact', head: true })
+    .in('project_id', linkedIds)
+    .eq('drive_folder_path', '_Unsorted')
+
+  const scope = `${linked.length} of ${open.length} open projects linked.`
+  const sorted = `${filed ?? 0} document${filed === 1 ? '' : 's'} filed` +
+    ((unsorted ?? 0) > 0 ? `, ${unsorted} waiting in _Unsorted` : '')
+
+  if ((filed ?? 0) === 0 && unfiled === 0) {
+    return { state: 'empty', detail: `${scope} No documents on those projects yet.` }
+  }
+  if (unfiled > 0) {
+    return {
+      state: 'partial',
+      detail: `${scope} ${sorted}. ${unfiled} not filed yet — they go out on the nightly Drive pass.`,
+    }
+  }
+  return { state: 'ok', detail: `${scope} ${sorted}.` }
 }

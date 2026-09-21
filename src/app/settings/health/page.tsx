@@ -25,6 +25,7 @@ import {
   probeDriveKnowledge,
   probeDocumentIndexing,
   probeDriveSourceFolders,
+  probeDriveFiling,
   probeDealIntake,
   probeThreadRouting,
   probeCorrespondenceIndex,
@@ -97,7 +98,7 @@ async function runChecks(): Promise<HealthCheck[]> {
   const dayAgo = new Date(Date.now() - 86_400_000).toISOString()
   const localAI = process.env.AI_PROVIDER === 'local'
 
-  const [brief, riskScore, lastAi, aiDayCount, failedRuns, mailbox, lmStudio, backups, drive, docIndexing, driveSources, scopes, disk, lastDigest, failedDigests, contacts, googleTasks, drivePublish, meetImport, dealIntake, routing, corpus] =
+  const [brief, riskScore, lastAi, aiDayCount, failedRuns, mailbox, lmStudio, backups, drive, docIndexing, driveSources, driveFiling, scopes, disk, lastDigest, failedDigests, contacts, googleTasks, drivePublish, meetImport, dealIntake, routing, corpus] =
     await Promise.all([
       supabase
         .from('stored_briefs')
@@ -133,6 +134,7 @@ async function runChecks(): Promise<HealthCheck[]> {
       probeDriveKnowledge(),
       probeDocumentIndexing(),
       probeDriveSourceFolders(),
+      probeDriveFiling(),
       probeScopeCoverage(),
       probeDisk(),
       supabase
@@ -492,6 +494,25 @@ async function runChecks(): Promise<HealthCheck[]> {
             ? 'Some projects have no Drive folder linked'
             : 'No project folders linked',
       detail: driveSources.detail,
+    })
+  }
+
+  // Documents → the team's own Drive folders. Filing is best-effort and never
+  // fails the import that called it, so an unfiled document looks exactly like
+  // a quiet week unless something counts it.
+  {
+    checks.push({
+      name: 'Drive Filing',
+      status: driveFiling.state === 'ok' || driveFiling.state === 'empty' ? 'ok' : 'warn',
+      headline:
+        driveFiling.state === 'ok'
+          ? 'Documents are filed into the team\'s folders'
+          : driveFiling.state === 'partial'
+            ? 'Some documents are not filed yet'
+            : driveFiling.state === 'empty'
+              ? 'Linked, with nothing to file yet'
+              : 'No project folders linked to file into',
+      detail: driveFiling.detail,
     })
   }
 

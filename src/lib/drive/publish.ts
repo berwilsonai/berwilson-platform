@@ -25,6 +25,7 @@ import {
   uploadToFolder,
 } from '@/lib/integrations/google-drive-write'
 import { PRIMARY_MAILBOX, googleFetch, isGoogleConfigured } from '@/lib/integrations/google-workspace'
+import { fileRecordDocuments } from './file-document'
 
 export type DriveRecordKind = 'project' | 'opportunity' | 'steel'
 
@@ -90,13 +91,40 @@ export async function publishRecordToDrive(
 
   const { data: record, error: recErr } = await supabase
     .from(ref.table)
-    .select('id, name, drive_folder_id')
+    .select('id, name, drive_folder_id, drive_source_folder_id')
     .eq('id', id)
     .maybeSingle()
   if (recErr) throw new Error(recErr.message)
   if (!record) throw new Error('Record not found.')
 
-  const row = record as { id: string; name: string | null; drive_folder_id: string | null }
+  const row = record as {
+    id: string
+    name: string | null
+    drive_folder_id: string | null
+    drive_source_folder_id: string | null
+  }
+
+  // ⚠ DESTINATION BRANCH. When the record is linked to the team's own folder,
+  // that is where its documents belong -- filed into the right subfolder beside
+  // what the team put there by hand, not copied into a parallel tree nobody
+  // opens. Publishing into `Ber Intelligence` remains the behaviour for records
+  // with no link, which is most of them.
+  //
+  // Branching HERE rather than in a separate pass is what keeps every existing
+  // caller correct for free, and it is also the only way to guarantee a
+  // document is never sent to both places: filing stamps drive_published_id, so
+  // whichever runs first, the other skips it.
+  if ((kind === 'project' || kind === 'opportunity') && row.drive_source_folder_id) {
+    const filed = await fileRecordDocuments(supabase, kind, id)
+    return {
+      folderId: row.drive_source_folder_id,
+      folderUrl: folderUrl(row.drive_source_folder_id),
+      uploaded: filed.filed,
+      alreadyPublished: filed.skipped,
+      failed: filed.failed,
+      errors: filed.errors,
+    }
+  }
 
   // Resolve the folder: reuse the stored one when it is still real, otherwise
   // create a fresh one. Created rather than looked up by name — two records may

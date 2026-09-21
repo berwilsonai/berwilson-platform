@@ -79,10 +79,15 @@ async function setStatus(
   documentId: string,
   status: string
 ) {
-  // opportunity_documents has no embedding_status column — there is nothing to
-  // settle, and the caller's return value carries the outcome either way.
-  if (target.table !== 'documents') return
-  await supabase.from('documents').update({ embedding_status: status }).eq('id', documentId)
+  // Both tables carry embedding_status since the Drive-filing migration
+  // (20260921000001). Before it, opportunity_documents had no such column and
+  // this returned early — which meant an opportunity document could never be
+  // seen as stranded and so was never retried.
+  if (target.table === 'documents') {
+    await supabase.from('documents').update({ embedding_status: status }).eq('id', documentId)
+  } else {
+    await supabase.from('opportunity_documents').update({ embedding_status: status }).eq('id', documentId)
+  }
 }
 
 /**

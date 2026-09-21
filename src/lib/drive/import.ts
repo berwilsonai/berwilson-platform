@@ -240,6 +240,7 @@ export async function importDriveFolder(opts: {
             mime_type: content.mimeType,
             file_size_bytes: file.size,
             drive_modified_at: file.modifiedTime,
+            drive_folder_path: file.path || null,
             embedding_status: 'pending',
             extracted_text: null,
             ai_summary: null,
@@ -260,6 +261,11 @@ export async function importDriveFolder(opts: {
             doc_type: docType,
             drive_file_id: file.id,
             drive_modified_at: file.modifiedTime,
+            // The subfolder it was filed under, e.g. "Deeds". Computed from the
+            // Drive listing all along and used only for the arrival notice; now
+            // kept, so the platform knows the team's own taxonomy for a record
+            // and can file new documents into the same places.
+            drive_folder_path: file.path || null,
             // Already in the project's Drive folder — it is where it came from.
             // Without this, reconcileDrivePublishing would upload every imported
             // file straight back into the folder it was read from.

@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 import { runDocumentAiPass } from '@/lib/ai/document-pipeline'
 import { getViewer, canAccessProject, forbiddenJson, actorAdminClient } from '@/lib/auth/viewer'
 import { notifyDocumentUpload } from '@/lib/notifications/documents'
+import { fileRecordDocumentsQuietly } from '@/lib/drive/file-document'
 
 // Summary + full-text transcription + embedding can take a few minutes on big PDFs
 export const maxDuration = 300
@@ -114,6 +115,11 @@ export async function POST(request: NextRequest) {
 
   // After the AI pass, so the notification can carry the summary that says what
   // the document is about. Never fatal — the upload already succeeded.
+  // Same treatment as the JSON register door — see the note there.
+  if (project_id) {
+    await fileRecordDocumentsQuietly(supabase, 'project', project_id)
+  }
+
   await notifyDocumentUpload({
     documentId: doc.id,
     fileName: file.name,
