@@ -458,6 +458,27 @@ export async function probeDriveSourceFolders(): Promise<{
  * correspondence filed against them — the records the mail router is most
  * likely to be missing, listed so the fix is obvious rather than a chore.
  */
+/**
+ * Threads summarized long enough ago that routing should certainly have
+ * reached them. Routing is deterministic and processes hundreds of threads in
+ * seconds, so anything older than a few hours still unrouted means the phase
+ * itself is not running.
+ */
+async function staleUnrouted(): Promise<number> {
+  try {
+    const cutoff = new Date(Date.now() - 6 * 3_600_000).toISOString()
+    const { count } = await sweepDb()
+      .from('email_threads')
+      .select('id', { count: 'exact', head: true })
+      .eq('summary_state', 'summarized')
+      .is('routed_at', null)
+      .lt('updated_at', cutoff)
+    return count ?? 0
+  } catch {
+    return 0
+  }
+}
+
 async function darkRecords(): Promise<string[]> {
   try {
     const admin = createAdminClient()
@@ -552,10 +573,27 @@ export async function probeThreadRouting(): Promise<{
       )
     }
 
+    // AGE, not volume, is what catches a dead phase.
+    //
+    // The volume threshold below only fires on a large backlog, and for nine
+    // days the route/apply/embed phases did not run at all in the hourly cron
+    // (the serving process predated the deploy that added them) while the
+    // backlog sat at a few dozen threads — well under any sensible count. A
+    // count that has stopped growing is indistinguishable from a quiet inbox.
+    // A thread that was summarized hours ago and is STILL unrouted is not:
+    // routing is deterministic and takes seconds, so the only explanation is
+    // that the phase is not running.
+    const stale = await staleUnrouted()
+    if (stale > 0) {
+      parts.push(
+        `${stale} thread${stale === 1 ? ' was summarized' : 's were summarized'} more than six hours ago and ${stale === 1 ? 'has' : 'have'} still not been routed — the route phase of the hourly sweep is not running. Check that the platform service was restarted after the last deploy (launchctl kickstart -k gui/$(id -u)/com.berwilson.platform), then look at ~/Library/Logs/berwilson/cron-email-sweep.log for which phases ran.`
+      )
+    }
+
     // A large unrouted backlog means the phase is not keeping up, which is worth
     // saying out loud — it is the shape of a stalled cron, not a quiet inbox.
     return {
-      state: unroutedCount > 1000 ? 'warn' : 'ok',
+      state: stale > 0 ? 'warn' : unroutedCount > 1000 ? 'warn' : 'ok',
       detail: parts.join(' '),
     }
   } catch (err) {
