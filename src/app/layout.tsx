@@ -3,6 +3,7 @@ import { Geist, Geist_Mono, Newsreader } from "next/font/google"
 import "./globals.css"
 import { headers } from "next/headers"
 import { createAdminClient } from "@/lib/supabase/admin"
+import { countDecideItems } from '@/lib/decide/count'
 import { getViewer } from "@/lib/auth/viewer"
 import { Toaster } from "sonner"
 import AppSidebar from "@/components/layout/AppSidebar"
@@ -105,11 +106,11 @@ export default async function RootLayout({
   if (showShell && isAdmin) {
     const adminClient = createAdminClient()
     const today = new Date().toISOString().split('T')[0]
-    const [{ count: reviewCount }, { count: overdueMs }, { count: criticalDd }, { count: overdueTasks }, { count: dinoRows }] = await Promise.all([
-      adminClient
-        .from('review_queue')
-        .select('id', { count: 'exact', head: true })
-        .is('resolved_at', null),
+    const [decideCount, { count: overdueMs }, { count: criticalDd }, { count: overdueTasks }, { count: dinoRows }] = await Promise.all([
+      // The badge sits on Decide, so it counts what Decide holds — inbound
+      // bids, staged correspondence AND flagged extractions, not the review
+      // queue alone (which was a third of the page it pointed at).
+      countDecideItems(),
       adminClient
         .from('milestones')
         .select('id', { count: 'exact', head: true })
@@ -127,7 +128,7 @@ export default async function RootLayout({
         .lt('due_date', today),
       adminClient.from('dino_revenue').select('id', { count: 'exact', head: true }),
     ])
-    pendingReviewCount = reviewCount ?? 0
+    pendingReviewCount = decideCount
     attentionCount = (overdueMs ?? 0) + (criticalDd ?? 0) + (overdueTasks ?? 0)
     if ((dinoRows ?? 0) === 0) emptyModules.push('dino')
   }
