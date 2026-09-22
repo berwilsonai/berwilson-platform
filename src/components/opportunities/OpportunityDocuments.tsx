@@ -10,15 +10,10 @@ import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import type { OpportunityDocument } from '@/lib/supabase/types'
 import { OPPORTUNITY_DOC_TYPES, OPPORTUNITY_DOC_TYPE_LABELS } from '@/lib/utils/opportunities'
 import DrivePublishButton from '@/components/shared/DrivePublishButton'
+import { formatBytes } from '@/lib/utils/format'
 
 const AI_ELIGIBLE_MIMES = new Set(['text/plain', 'text/markdown', 'text/csv', 'application/pdf'])
 
-function formatBytes(bytes: number | null): string {
-  if (bytes == null) return '—'
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
-}
 
 interface OpportunityDocumentsProps {
   opportunityId: string

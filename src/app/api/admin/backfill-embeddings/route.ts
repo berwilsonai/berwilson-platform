@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { transcribePdfText, storeExtractedText } from '@/lib/ai/document-text'
+import { SYSTEM_USER_ID } from '@/lib/system-user'
 import {
   embedDocument,
   embedOpportunityDocument,
@@ -17,7 +18,6 @@ import {
  */
 export const maxDuration = 300
 
-const SYSTEM_USER_ID = '00000000-0000-0000-0000-000000000000'
 const PDF_MIME_TYPE = 'application/pdf'
 const TEXT_MIME_TYPES = new Set(['text/plain', 'text/markdown', 'text/csv', 'text/html'])
 

@@ -329,13 +329,33 @@ export function formatValue(value: number | null): string {
   return `$${value.toLocaleString()}`
 }
 
-export function formatDate(dateStr: string | null): string {
-  if (!dateStr) return '—'
+/**
+ * The one date formatter. Every surface goes through this.
+ *
+ * There were nine copies of this function, and eight of them lacked the
+ * normalisation below — which exists because it was a real, reported bug. Two
+ * of those copies formatted DATE columns (`tasks.due_date` via `dueLabel`, and
+ * `objectives.target_date`), so a task due the 1st rendered as the 30th for
+ * anyone west of UTC.
+ *
+ * The options exist only to preserve what the call sites already did: some
+ * render an em dash for a missing date and some render nothing, and a task
+ * chip omits the year because the board is a this-quarter view. Consolidating
+ * without them would have silently changed what several screens display.
+ */
+export function formatDate(
+  dateStr: string | null | undefined,
+  opts: { empty?: string; year?: boolean } = {}
+): string {
+  const { empty = '—', year = true } = opts
+  if (!dateStr) return empty
   // Date-only strings (YYYY-MM-DD) parse as UTC midnight, which renders as the
   // previous day in US timezones — pin them to local midnight instead.
   const normalized = /^\d{4}-\d{2}-\d{2}$/.test(dateStr) ? `${dateStr}T00:00:00` : dateStr
-  return new Date(normalized).toLocaleDateString('en-US', {
-    year: 'numeric',
+  const d = new Date(normalized)
+  if (Number.isNaN(d.getTime())) return empty
+  return d.toLocaleDateString('en-US', {
+    ...(year ? { year: 'numeric' as const } : {}),
     month: 'short',
     day: 'numeric',
   })

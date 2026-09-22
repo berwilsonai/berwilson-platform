@@ -2,12 +2,12 @@ import { NextRequest } from 'next/server'
 import { actorAdminClient } from '@/lib/auth/viewer'
 import { embedDocument } from '@/lib/ai/embeddings'
 import { callGeminiWithFile } from '@/lib/ai/gemini'
+import { SYSTEM_USER_ID } from '@/lib/system-user'
 
 type CertSummary = { summary?: string; confidence?: number } | string
 
 const PDF_MIME = 'application/pdf'
 const ALLOWED_TYPES = new Set([PDF_MIME, 'image/jpeg', 'image/png', 'image/webp'])
-const SYSTEM_USER_ID = '00000000-0000-0000-0000-000000000000'
 
 const CERT_SUMMARY_SYSTEM = `You are analyzing a certification or license document for a construction company.
 Extract the key details: certification name, issuing authority, certificate number, issue date, expiration date, and scope of certification.

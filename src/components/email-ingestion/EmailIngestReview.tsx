@@ -13,6 +13,7 @@ import type { EmailIntakeExtraction } from '@/lib/ai/prompts/email-intake'
 import type { PartyMatch } from '@/lib/ai/proposal-matching'
 import type { FitAssessment } from '@/lib/ai/fit-assessment'
 import { SECTORS, SECTOR_LABELS, STAGES, STAGE_LABELS } from '@/lib/utils/constants'
+import { formatBytes } from '@/lib/utils/format'
 import {
   OPPORTUNITY_TYPES,
   OPPORTUNITY_TYPE_LABELS,
@@ -495,10 +496,6 @@ export default function EmailIngestReview({ sessionId, extraction, partyMatches,
   )
 }
 
-function formatBytes(bytes: number): string {
-  if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
-  return `${Math.max(1, Math.round(bytes / 1024))} KB`
-}
 
 function Field({ label, full, children }: { label: string; full?: boolean; children: React.ReactNode }) {
   return (

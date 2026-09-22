@@ -1,24 +1,15 @@
 import { NextRequest } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { callGemini, callGeminiWithFile } from '@/lib/ai/gemini'
-import { transcribePdfText, extractDocxText, storeExtractedText } from '@/lib/ai/document-text'
-import { documentKind } from '@/lib/ai/document-pipeline'
-import { embedOpportunityDocument } from '@/lib/ai/embeddings'
+import { documentKind, runDocumentAiPass } from '@/lib/ai/document-pipeline'
 import { getViewer, canAccessOpportunity, forbiddenJson } from '@/lib/auth/viewer'
 
 // Summary + full-text transcription + embedding can take a few minutes on big PDFs
 export const maxDuration = 300
 
-type DocSummary = { summary?: string } | string
-
-const SYSTEM_USER_ID = '00000000-0000-0000-0000-000000000000'
-
-const DOC_SUMMARY_SYSTEM = `You are an analyst for a construction & development holding company evaluating strategic opportunities (acquisitions, partnerships, JVs, investments).
+const OPPORTUNITY_DOC_SUMMARY = `You are an analyst for a construction & development holding company evaluating strategic opportunities (acquisitions, partnerships, JVs, investments).
 Summarize the key points of this document in 2-3 sentences. Focus on: what the company/asset is, financial highlights (revenue, EBITDA, valuation, deal terms), strategic fit, and any flagged risks.
 Return ONLY valid JSON: {"summary": "..."}
 No explanation. No markdown.`
-
-const PDF_MIME_TYPE = 'application/pdf'
 
 export async function POST(request: NextRequest) {
   const supabase = createAdminClient()
@@ -76,70 +67,32 @@ export async function POST(request: NextRequest) {
     return Response.json({ error: insertError?.message ?? 'Insert failed' }, { status: 500 })
   }
 
-  // Optional AI summary (best-effort; the document is saved regardless)
+  // ⚠ THIS USED TO BE A SECOND COPY OF THE DOCUMENT AI PASS, and it is the
+  // copy `document-pipeline.ts` warns about: "never fork this pass per table;
+  // add a target." It summarized BEFORE storing the extracted text and wrapped
+  // everything in a bare `catch {}`, so a summary hiccup discarded the text
+  // too — the 2026-09-09 failure, which cost 413,000 characters the first time
+  // it was pointed at real files. It also never settled `embedding_status`, so
+  // an opportunity document could not be seen as stranded and was never
+  // retried.
+  //
+  // The shared pass does all of that correctly, embeds through
+  // embedOpportunityDocument via its target, and keeps the opportunity-specific
+  // summary framing as a parameter.
   const docKind = documentKind(file.type, file.name)
   if (extract_ai && docKind !== 'unsupported') {
-    try {
-      let parsed: DocSummary | null = null
-      let fullTextContent: string | null = null
-
-      if (docKind === 'pdf') {
-        const base64 = Buffer.from(fileBuffer).toString('base64')
-        const result = await callGeminiWithFile<DocSummary>({
-          systemPrompt: DOC_SUMMARY_SYSTEM,
-          prompt: 'Summarize this document.',
-          file: { mimeType: PDF_MIME_TYPE, dataBase64: base64 },
-          userId: SYSTEM_USER_ID,
-          logLabel: `Opportunity doc summary: ${file.name}`,
-          promptVersion: 'opp-doc-summary-1.0',
-          maxTokens: 2048, // Gemini-path cap only; local mode ignores maxTokens (unbudgeted)
-        })
-        parsed = result.data
-        // Second pass: full-text transcription so CIMs/teasers/white papers are
-        // searchable by content from /intel and the agent.
-        fullTextContent = await transcribePdfText({
-          dataBase64: base64,
-          byteLength: fileBuffer.byteLength,
-          fileName: file.name,
-          userId: SYSTEM_USER_ID,
-        })
-      } else {
-        fullTextContent =
-          docKind === 'docx'
-            ? await extractDocxText(fileBuffer)
-            : new TextDecoder().decode(fileBuffer)
-        if (fullTextContent) {
-          const result = await callGemini<DocSummary>({
-            task: 'opp-doc-summary',
-            systemPrompt: DOC_SUMMARY_SYSTEM,
-            userMessage: fullTextContent.slice(0, 30000),
-            userId: SYSTEM_USER_ID,
-            promptVersion: 'opp-doc-summary-1.0',
-            maxTokens: 2048, // Gemini-path cap only; local mode ignores maxTokens (unbudgeted)
-          })
-          parsed = result.data
-        }
-      }
-
-      const summary =
-        parsed && typeof parsed === 'object' ? parsed.summary ?? null : String(parsed ?? '').slice(0, 1000)
-      if (summary) {
-        await supabase.from('opportunity_documents').update({ ai_summary: summary }).eq('id', doc.id)
-        doc.ai_summary = summary
-      }
-
-      if (fullTextContent) {
-        await storeExtractedText(supabase, 'opportunity_documents', doc.id, fullTextContent)
-      }
-      // Embed full text when available, else the summary — degrades to a
-      // warn+skip until migration 20260703000001 is applied.
-      const embedText = fullTextContent ?? summary
-      if (embedText) {
-        embedOpportunityDocument(doc.id, opportunity_id, embedText).catch(console.error)
-      }
-    } catch {
-      // AI summary failed — document is still saved
-    }
+    const result = await runDocumentAiPass({
+      supabase,
+      documentId: doc.id,
+      projectId: null,
+      fileName: file.name,
+      mimeType: file.type || null,
+      buffer: fileBuffer,
+      target: { table: 'opportunity_documents', opportunityId: opportunity_id },
+      summaryPrompt: OPPORTUNITY_DOC_SUMMARY,
+      promptVersion: 'opp-doc-summary-1.0',
+    })
+    if (result.aiSummary) doc.ai_summary = result.aiSummary
   }
 
   return Response.json({ document: doc })

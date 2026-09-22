@@ -23,7 +23,6 @@ interface OpportunityNotesProps {
 export default function OpportunityNotes({ opportunityId, notes }: OpportunityNotesProps) {
   const router = useRouter()
   const [body, setBody] = useState('')
-  const [author, setAuthor] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -37,7 +36,7 @@ export default function OpportunityNotes({ opportunityId, notes }: OpportunityNo
       const res = await fetch(`/api/opportunities/${opportunityId}/notes`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ body: text, author: author.trim() || undefined }),
+        body: JSON.stringify({ body: text }),
       })
       if (!res.ok) {
         const { error } = await res.json().catch(() => ({ error: 'Failed to add note' }))
@@ -61,13 +60,7 @@ export default function OpportunityNotes({ opportunityId, notes }: OpportunityNo
           placeholder="Log progress, a call, a decision, or a next step…"
           className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring min-h-[72px] resize-y"
         />
-        <div className="flex items-center gap-2">
-          <input
-            value={author}
-            onChange={(e) => setAuthor(e.target.value)}
-            placeholder="Your name (optional)"
-            className="h-8 flex-1 rounded-md border border-input bg-background px-3 text-xs placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-          />
+        <div className="flex items-center justify-end gap-2">
           <button
             type="submit"
             disabled={submitting || !body.trim()}

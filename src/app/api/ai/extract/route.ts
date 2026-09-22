@@ -6,8 +6,8 @@ import {
   EXTRACTION_PROMPT_VERSION,
 } from '@/lib/ai/prompts/extraction'
 import type { ExtractionResult } from '@/types/domain'
+import { SYSTEM_USER_ID } from '@/lib/system-user'
 
-const SYSTEM_USER_ID = '00000000-0000-0000-0000-000000000000'
 
 export async function POST(request: NextRequest) {
   // Try to get the authenticated user for logging; fall back to system user ID

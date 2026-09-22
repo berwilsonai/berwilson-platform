@@ -16,6 +16,7 @@ import { DatePicker } from '@/components/ui/date-picker'
 import EmptyState from '@/components/shared/EmptyState'
 import type { FinancingWithSchedule } from '@/types/domain'
 import type { DrawScheduleEntry } from '@/types/domain'
+import { formatDate } from '@/lib/utils/constants'
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -34,15 +35,6 @@ function formatPct(n: number | null | undefined): string {
   return `${n.toFixed(2)}%`
 }
 
-function formatDate(d: string | null | undefined): string {
-  if (!d) return '—'
-  const [year, month, day] = d.split('-').map(Number)
-  return new Date(year, month - 1, day).toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  })
-}
 
 function parseNum(s: string): number | null {
   const v = parseFloat(s.replace(/[$,]/g, ''))

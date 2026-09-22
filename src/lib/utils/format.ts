@@ -19,3 +19,27 @@ export function formatCurrencyCompact(value: number): string {
   }
   return formatCurrency(value)
 }
+
+/**
+ * The one file-size formatter.
+ *
+ * There were six copies with three different behaviours, so the same file
+ * rendered differently depending on which screen you were looking at: 800
+ * bytes showed as "800 B" on a project's Documents tab and "1 KB" in email
+ * intake, and 2,048 bytes as "2.0 KB" or "2 KB". Two copies also skipped the
+ * byte tier entirely and returned '' rather than an em dash for a missing
+ * size, so "we don't know" and "it's tiny" looked identical.
+ *
+ * `empty` is an option only because a couple of surfaces render file size as a
+ * quiet sub-label where an em dash would be noise.
+ */
+export function formatBytes(
+  bytes: number | null | undefined,
+  opts: { empty?: string } = {}
+): string {
+  const { empty = '—' } = opts
+  if (bytes === null || bytes === undefined || Number.isNaN(bytes)) return empty
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}

@@ -37,7 +37,9 @@ export default function ConversationList({ activeConversationId, onSelectConvers
     if (activeConversationId === conv.id) onSelectConversation(null)
   }
 
-  function formatDate(dateStr: string) {
+  // Relative, not absolute — deliberately NOT the shared formatDate. A
+  // conversation list reads better as "Yesterday" than as a date.
+  function formatRelative(dateStr: string) {
     const d = new Date(dateStr)
     const now = new Date()
     const diffMs = now.getTime() - d.getTime()
@@ -81,7 +83,7 @@ export default function ConversationList({ activeConversationId, onSelectConvers
                 className="flex-1 min-w-0 text-left px-3 py-2.5"
               >
                 <p className="text-xs font-medium text-foreground truncate pr-5">{conv.title}</p>
-                <p className="text-xs text-muted-foreground mt-0.5">{formatDate(conv.updated_at)}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">{formatRelative(conv.updated_at)}</p>
               </button>
               <button
                 onClick={() => setPendingDelete(conv)}

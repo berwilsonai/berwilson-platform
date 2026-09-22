@@ -2,6 +2,7 @@ import { callGemini, callGeminiWithFile, UnreadableDocumentError } from '@/lib/a
 import { transcribePdfText, extractDocxText, storeExtractedText } from '@/lib/ai/document-text'
 import { embedDocument, embedOpportunityDocument } from '@/lib/ai/embeddings'
 import type { createAdminClient } from '@/lib/supabase/admin'
+import { SYSTEM_USER_ID } from '@/lib/system-user'
 
 // Shared AI pass for rows in the `documents` table: summary + full-text
 // extraction + embedding, with an honest embedding_status at the end —
@@ -11,7 +12,6 @@ import type { createAdminClient } from '@/lib/supabase/admin'
 
 type AdminClient = ReturnType<typeof createAdminClient>
 
-const SYSTEM_USER_ID = '00000000-0000-0000-0000-000000000000'
 
 const DOC_SUMMARY_SYSTEM = `You are a document analyst for a construction executive intelligence platform.
 Summarize the key points of this document in 2-3 sentences. Focus on: parties involved, key obligations or dates, dollar amounts, and critical terms relevant to construction executives.
@@ -125,9 +125,20 @@ export async function runDocumentAiPass(input: {
   buffer: ArrayBuffer
   /** Defaults to the `documents` table. */
   target?: DocumentTarget
+  /**
+   * Override the summarizer's framing. Same argument as `target`: opportunity
+   * attachments are CIMs, teasers and term sheets, where the useful summary
+   * leads with valuation and deal terms rather than scope and schedule. A
+   * parameter cannot drift out of sync the way the second copy of this pass
+   * did.
+   */
+  summaryPrompt?: string
+  promptVersion?: string
 }): Promise<AiPassResult> {
   const { supabase, documentId, projectId, fileName, mimeType, buffer } = input
   const target = input.target ?? DEFAULT_TARGET
+  const summarySystem = input.summaryPrompt ?? DOC_SUMMARY_SYSTEM
+  const summaryVersion = input.promptVersion ?? 'doc-summary-1.0'
 
   const kind = documentKind(mimeType, fileName)
   if (kind === 'unsupported') {
@@ -177,22 +188,22 @@ export async function runDocumentAiPass(input: {
     try {
       if (kind === 'pdf') {
         const result = await callGeminiWithFile<DocSummary>({
-          systemPrompt: DOC_SUMMARY_SYSTEM,
+          systemPrompt: summarySystem,
           prompt: 'Summarize this document.',
           file: { mimeType: PDF_MIME_TYPE, dataBase64: pdfBase64! },
           userId: SYSTEM_USER_ID,
           logLabel: `Document summary: ${fileName}`,
-          promptVersion: 'doc-summary-1.0',
+          promptVersion: summaryVersion,
           maxTokens: 2048, // Gemini-path cap only; local mode ignores maxTokens (unbudgeted)
         })
         parsed = result.data
       } else if (fullText) {
         const result = await callGemini<DocSummary>({
           task: 'doc-summary',
-          systemPrompt: DOC_SUMMARY_SYSTEM,
+          systemPrompt: summarySystem,
           userMessage: fullText.slice(0, 30000),
           userId: SYSTEM_USER_ID,
-          promptVersion: 'doc-summary-1.0',
+          promptVersion: summaryVersion,
           maxTokens: 2048,
         })
         parsed = result.data
@@ -245,10 +256,20 @@ export async function runDocumentAiPass(input: {
     }
     // embedOpportunityDocument swallows its own errors and returns void, so a
     // completed call is the only success signal it offers.
+    //
+    // ⚠ IT ALSO DOES NOT SETTLE embedding_status, and embedDocument does — so
+    // the opportunity path set 'processing' on the way in and nothing ever
+    // moved it off. The column only reached this table in migration
+    // 20260921000001, so no opportunity document had EVER been marked
+    // complete: live counts on 2026-09-21 were 34 pending, 3 processing, 0
+    // complete, which reads to the health check's Document Indexing card as
+    // passes dying mid-run. Settled explicitly here so the contract is this
+    // function's, not a side effect of whichever embedder it happened to call.
     let ok: boolean
     if (target.table === 'opportunity_documents') {
       await embedOpportunityDocument(documentId, target.opportunityId, embedText)
       ok = true
+      await setStatus(supabase, target, documentId, 'complete')
     } else {
       ok = await embedDocument(
         documentId,

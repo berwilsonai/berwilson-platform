@@ -10,7 +10,7 @@ import {
   FileText, Loader2, ShieldCheck,
 } from 'lucide-react'
 import type { CompanyProfile, Certification, ProjectSector } from '@/lib/supabase/types'
-import { SECTORS, SECTOR_LABELS } from '@/lib/utils/constants'
+import { SECTORS, SECTOR_LABELS, formatDate } from '@/lib/utils/constants'
 import {
   updateCompanyProfile,
   createCertification,
@@ -30,10 +30,6 @@ function daysUntil(dateStr: string | null): number | null {
   return Math.ceil(diff / (1000 * 60 * 60 * 24))
 }
 
-function formatDate(dateStr: string | null): string {
-  if (!dateStr) return '—'
-  return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-}
 
 function formatCurrency(val: number | null): string {
   if (!val) return '—'

@@ -17,6 +17,7 @@ import { cn } from '@/lib/utils'
 import { DatePicker } from '@/components/ui/date-picker'
 import type { DdItem, ComplianceItem, Party, Document, DdSeverity, ComplianceStatus, ResearchArtifact } from '@/lib/supabase/types'
 import ResearchPanel from './ResearchPanel'
+import { formatDate } from '@/lib/utils/constants'
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
@@ -137,15 +138,6 @@ const COMPLIANCE_STATUS_SELECT_CLS: Record<ComplianceStatus, string> = {
   waived: 'bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-800/60',
 }
 
-function formatDate(d: string | null | undefined): string {
-  if (!d) return '—'
-  const [year, month, day] = d.split('-').map(Number)
-  return new Date(year, month - 1, day).toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  })
-}
 
 // ── Shared form field ──────────────────────────────────────────────────────────
 

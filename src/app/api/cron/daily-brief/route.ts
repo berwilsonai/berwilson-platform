@@ -22,8 +22,8 @@ import { fetchOpenTasks, formatTaskLine } from '@/lib/tasks/queries'
 import { parseTranches, raiseLevels, fillTranches } from '@/lib/investors/raises'
 import { fetchCalendarEvents } from '@/lib/integrations/google-workspace'
 import { broadcastBrief } from '@/lib/notify/broadcast-brief'
+import { SYSTEM_USER_ID } from '@/lib/system-user'
 
-const SYSTEM_USER_ID = '00000000-0000-0000-0000-000000000000'
 
 const PROACTIVE_BRIEF_PROMPT = `You are a chief of staff for two construction executives managing a multi-billion dollar portfolio.
 Generate the WEEKLY intelligence brief for the week ahead. Be direct, urgent, and actionable.

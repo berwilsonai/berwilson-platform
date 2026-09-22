@@ -1,3 +1,4 @@
+import { SYSTEM_USER_ID } from '@/lib/system-user'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { callGemini } from '@/lib/ai/gemini'
 import { isLocalAI } from '@/lib/ai/local'
@@ -31,7 +32,8 @@ import type { Json } from '@/types/database'
  */
 
 /** Placeholder owner when the ingest wasn't run by a logged-in user. */
-export const SYSTEM_USER_ID = '00000000-0000-0000-0000-000000000000'
+// Re-exported because a dozen modules already import it from here.
+export { SYSTEM_USER_ID }
 
 // Input cap, per provider. gemini-2.5-flash has a huge context window and the
 // reports are already thread-truncated, so 200k chars is a cost guard there.

@@ -2,8 +2,8 @@ import { NextRequest } from 'next/server'
 import { actorAdminClient } from '@/lib/auth/viewer'
 import { createClient } from '@/lib/supabase/server'
 import { embedDocument } from '@/lib/ai/embeddings'
+import { SYSTEM_USER_ID } from '@/lib/system-user'
 
-const SYSTEM_USER_ID = '00000000-0000-0000-0000-000000000000'
 
 const VALID_ENTITY_TYPES = ['llc', 'corp', 'jv', 'subsidiary', 'trust', 'fund', 'other'] as const
 type EntityType = typeof VALID_ENTITY_TYPES[number]

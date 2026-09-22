@@ -23,6 +23,8 @@ import type { Document } from '@/lib/supabase/types'
 import DrivePublishButton from '@/components/shared/DrivePublishButton'
 import DriveImportButton from '@/components/shared/DriveImportButton'
 import DriveFolderLink from '@/components/shared/DriveFolderLink'
+import { formatDate } from '@/lib/utils/constants'
+import { formatBytes } from '@/lib/utils/format'
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -69,21 +71,7 @@ const AI_ELIGIBLE_MIMES = new Set([
 // Helpers
 // ---------------------------------------------------------------------------
 
-function formatBytes(bytes: number | null): string {
-  if (bytes === null || bytes === undefined) return '—'
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
-}
 
-function formatDate(ts: string | null): string {
-  if (!ts) return '—'
-  return new Date(ts).toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  })
-}
 
 function getFileIcon() {
   return <File size={18} className="shrink-0 text-muted-foreground" />

@@ -6,17 +6,8 @@ import { DatePicker } from '@/components/ui/date-picker'
 import { cn } from '@/lib/utils'
 import { STAGES, STAGE_LABELS, STAGE_INDEX } from '@/lib/utils/stages'
 import type { Milestone, ProjectStage } from '@/lib/supabase/types'
+import { formatDate } from '@/lib/utils/constants'
 
-function formatDate(d: string | null): string {
-  if (!d) return ''
-  // Parse as local date to avoid timezone shift
-  const [year, month, day] = d.split('-').map(Number)
-  return new Date(year, month - 1, day).toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  })
-}
 
 interface MilestonesTabProps {
   projectId: string
@@ -362,7 +353,7 @@ export default function MilestonesTab({
                         {m.target_date && (
                           <p className="flex items-center gap-0.5 mt-0.5 text-xs text-muted-foreground">
                             <Calendar size={9} />
-                            {formatDate(m.target_date)}
+                            {formatDate(m.target_date, { empty: '' })}
                           </p>
                         )}
                       </div>

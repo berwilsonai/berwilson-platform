@@ -10,10 +10,10 @@ import { assessFit, type FitAssessment } from '@/lib/ai/fit-assessment'
 import { writeFile, unlink } from 'fs/promises'
 import type { Json } from '@/types/database'
 import { join } from 'path'
+import { SYSTEM_USER_ID } from '@/lib/system-user'
 
 export const maxDuration = 300
 
-const SYSTEM_USER_ID = '00000000-0000-0000-0000-000000000000'
 const GEMINI_MODEL = 'gemini-2.5-flash'
 const PDF_MIME_TYPE = 'application/pdf'
 // Gemini inline data limit — above this we use the File API

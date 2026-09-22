@@ -7,6 +7,7 @@ import { createClient } from '@/lib/supabase/client'
 import { viewDocument, downloadDocument } from '@/lib/utils/document-links'
 import { RECORDING_ACCEPT } from '@/lib/utils/meetings'
 import type { Document } from '@/lib/supabase/types'
+import { formatBytes } from '@/lib/utils/format'
 
 function isAudio(mime: string | null): boolean {
   return !!mime && mime.startsWith('audio/')
@@ -21,11 +22,6 @@ function isMedia(mime: string | null): boolean {
   return isAudio(mime) || isVideo(mime)
 }
 
-function formatBytes(bytes: number | null): string {
-  if (!bytes) return ''
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
-}
 
 interface Props {
   meetingId: string
@@ -178,7 +174,7 @@ export default function MeetingFiles({ meetingId, files, canEdit, onChange, onAu
                 >
                   {doc.file_name}
                 </button>
-                <span className="text-xs text-muted-foreground shrink-0">{formatBytes(doc.file_size_bytes)}</span>
+                <span className="text-xs text-muted-foreground shrink-0">{formatBytes(doc.file_size_bytes, { empty: '' })}</span>
                 {isMedia(doc.mime_type) && !audioUrls[doc.id] && (
                   <button
                     onClick={() => loadAudio(doc)}

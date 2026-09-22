@@ -13,7 +13,7 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
   const viewer = await getViewer()
   if (viewer && !viewer.isAdmin && !canAccessOpportunity(viewer, id)) return forbiddenJson()
 
-  let body: { body?: string; author?: string }
+  let body: { body?: string }
   try {
     body = await request.json()
   } catch {
@@ -29,7 +29,11 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
     .insert({
       opportunity_id: id,
       body: text,
-      author: body.author?.trim() || null,
+      // Stamped from the signed-in viewer, never from the client — otherwise a
+      // note could be posted under someone else's name. The other four notes
+      // tables already did this; these two were the holdouts, and they shipped
+      // a free-text "Your name" box that made the gap look like a feature.
+      author: viewer?.teamMemberName ?? viewer?.email ?? null,
     })
     .select()
     .single()
@@ -40,7 +44,7 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
   await supabase.from('opportunities').update({ updated_at: new Date().toISOString() }).eq('id', id)
 
   // Make the note searchable from /intel and the agent (skips pre-migration)
-  embedOpportunityNote(id, text, body.author?.trim() || null).catch(console.error)
+  embedOpportunityNote(id, text, viewer?.teamMemberName ?? viewer?.email ?? null).catch(console.error)
 
   return Response.json({ note })
 }

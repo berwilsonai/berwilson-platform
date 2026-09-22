@@ -13,6 +13,8 @@ import { toast } from 'sonner'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { viewDocument, downloadDocument } from '@/lib/utils/document-links'
 import type { Document } from '@/lib/supabase/types'
+import { formatDate } from '@/lib/utils/constants'
+import { formatBytes } from '@/lib/utils/format'
 
 const DOC_TYPES = [
   'proposal',
@@ -39,21 +41,7 @@ const AI_ELIGIBLE_MIMES = new Set([
   'application/pdf',
 ])
 
-function formatBytes(bytes: number | null): string {
-  if (bytes === null || bytes === undefined) return '—'
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
-}
 
-function formatDate(ts: string | null): string {
-  if (!ts) return '—'
-  return new Date(ts).toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  })
-}
 
 interface UploadState {
   file: File

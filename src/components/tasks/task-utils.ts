@@ -1,5 +1,7 @@
 // Shared types + helpers for the team task board and the project tasks tab.
 
+import { formatDate as canonicalFormatDate } from '@/lib/utils/constants'
+
 export interface BoardTask {
   id: string
   title: string
@@ -62,9 +64,15 @@ export function handleAuthError(res: Response): boolean {
   return false
 }
 
+/**
+ * Board-flavoured date: no year, blank when absent.
+ *
+ * Delegates to the canonical formatter so it picks up the date-only timezone
+ * normalisation. Without it this rendered `tasks.due_date` and
+ * `objectives.target_date` — both DATE columns — a day early west of UTC.
+ */
 export function formatDate(ts: string | null): string {
-  if (!ts) return ''
-  return new Date(ts).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  return canonicalFormatDate(ts, { empty: '', year: false })
 }
 
 export function getDueLabel(due: string): { label: string; urgent: boolean; overdue: boolean } {

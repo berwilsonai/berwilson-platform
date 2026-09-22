@@ -24,6 +24,7 @@ import {
 } from '@/lib/ai/prompts/lead-reply'
 import { LEAD_MAILBOXES, allMailboxes, fetchThread } from '@/lib/integrations/google-workspace'
 import { GmailScopeError, createDraft } from '@/lib/integrations/gmail-write'
+import { SYSTEM_USER_ID } from '@/lib/system-user'
 import {
   GMAIL_THREAD_EMBED,
   leadsDb,
@@ -54,7 +55,6 @@ export interface LeadDraftProgress {
  */
 const DRAFT_FOR = new Set(['pursue'])
 
-const SYSTEM_USER_ID = '00000000-0000-0000-0000-000000000000'
 
 /**
  * Addresses that cannot receive a reply.

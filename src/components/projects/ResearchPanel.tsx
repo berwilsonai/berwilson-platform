@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { Search, ExternalLink, Save, X, Loader2, ChevronDown, ChevronUp, Plus } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { ResearchArtifact } from '@/lib/supabase/types'
+import { formatDate } from '@/lib/utils/constants'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -44,14 +45,6 @@ function buildSuggestions(
   return suggestions.slice(0, 5)
 }
 
-function formatDate(iso: string | null | undefined): string {
-  if (!iso) return ''
-  return new Date(iso).toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  })
-}
 
 // ── Saved artifact card ───────────────────────────────────────────────────────
 
@@ -70,7 +63,7 @@ function ArtifactCard({ artifact }: { artifact: ResearchArtifact }) {
             {artifact.query_text}
           </p>
           <p className="text-xs text-muted-foreground mt-0.5">
-            {formatDate(artifact.retrieved_at)}
+            {formatDate(artifact.retrieved_at, { empty: '' })}
             {sources.length > 0 && ` · ${sources.length} source${sources.length !== 1 ? 's' : ''}`}
           </p>
         </div>
