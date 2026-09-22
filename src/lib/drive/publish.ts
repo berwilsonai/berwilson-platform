@@ -115,7 +115,10 @@ export async function publishRecordToDrive(
   // document is never sent to both places: filing stamps drive_published_id, so
   // whichever runs first, the other skips it.
   if ((kind === 'project' || kind === 'opportunity') && row.drive_source_folder_id) {
-    const filed = await fileRecordDocuments(supabase, kind, id)
+    // includeDormant: reaching here means either a human pressed Publish or
+    // the nightly reconcile already decided this record is live. Re-deciding
+    // would override the person.
+    const filed = await fileRecordDocuments(supabase, kind, id, { includeDormant: true })
     return {
       folderId: row.drive_source_folder_id,
       folderUrl: folderUrl(row.drive_source_folder_id),

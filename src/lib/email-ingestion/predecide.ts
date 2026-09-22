@@ -39,6 +39,23 @@ const BATCH = 25
  */
 const AUTO_DISMISS_CONFIDENCE = 0.85
 
+/**
+ * ⚠ THERE IS DELIBERATELY NO AGE-OUT ON THIS QUEUE, and the reason is measured.
+ *
+ * A 30-day drain was written on 2026-09-22 by analogy with drainLeadQueue, then
+ * removed before it ever ran: of 74 pending sessions exactly TWO were older than
+ * 30 days, and both were the most substantive things in the queue — "IAN
+ * Acquisition & EMP/Microgrid IDIQ Pursuit" and "Fort Polk Military &
+ * Infrastructure Pursuits", each carrying Ber AI's own `create` recommendation.
+ * Age-out would have silently thrown away the two items that mattered most
+ * while leaving all 72 recent ones untouched.
+ *
+ * The analogy fails because a bid invitation is PERISHABLE — its deadline
+ * passes and it stops being available — while a staged acquisition is not. A
+ * July acquisition thread is still a live acquisition in September. The queue
+ * is not undrained; it is the working set, and it shrinks when a human decides.
+ */
+
 export interface PredecideProgress {
   processed: number
   create: number

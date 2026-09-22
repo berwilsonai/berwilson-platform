@@ -28,6 +28,7 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { isRecordLive } from '@/lib/records/live'
 import type { Database } from '@/types/database'
 import { ensureFolder, uploadToFolder } from '@/lib/integrations/google-drive-write'
 import { listSubfolders } from '@/lib/integrations/google-drive'
@@ -334,7 +335,17 @@ export async function fileRecordDocuments(
   supabase: AdminClient,
   kind: FileableKind,
   recordId: string,
-  opts: { budgetMs?: number; userId?: string } = {}
+  opts: {
+    budgetMs?: number
+    userId?: string
+    /**
+     * File even when the record is lost/closed/on hold. Set by
+     * publishRecordToDrive, whose callers are either an explicit human click or
+     * the nightly reconcile, which does its own filtering — a person pressing
+     * "Publish to Drive" on a parked project means it.
+     */
+    includeDormant?: boolean
+  } = {}
 ): Promise<FileRecordResult> {
   const result: FileRecordResult = {
     filed: 0, unsorted: 0, failed: 0, skipped: 0, errors: [], outOfTime: false,
@@ -345,12 +356,21 @@ export async function fileRecordDocuments(
 
   const { data: record } = await supabase
     .from(RECORD_TABLE[kind])
-    .select('id, name, drive_source_folder_id')
+    .select('id, name, status, drive_source_folder_id')
     .eq('id', recordId)
     .maybeSingle()
 
-  const sourceFolderId = (record as { drive_source_folder_id?: string | null } | null)?.drive_source_folder_id
+  const row = record as { drive_source_folder_id?: string | null; status?: string | null } | null
+  const sourceFolderId = row?.drive_source_folder_id
   if (!record || !sourceFolderId) return result
+
+  // A dead pursuit stops filing into the team's folder. Status is read here
+  // rather than filtered in the query because a NULL status would not match a
+  // PostgREST `not.in` — see src/lib/records/live.ts.
+  if (!opts.includeDormant && !isRecordLive(kind, { status: row?.status ?? null })) {
+    result.skipped += 1
+    return result
+  }
 
   // Branched rather than computed: a union table name makes the column filter
   // a union too, which TypeScript cannot check. The repo is at zero `any`

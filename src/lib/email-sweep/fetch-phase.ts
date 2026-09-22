@@ -21,12 +21,13 @@
 import {
   sweepPage,
   renderThread,
-  leadExclusions,
+  mailExclusions,
   type ResolvedThread,
   type KnownThread,
 } from '@/lib/integrations/gmail-search'
 import { MAILBOXES, LEAD_MAILBOXES } from '@/lib/integrations/google-workspace'
 import { sweepDb, type MailboxSyncRow } from './db'
+import { prefilterThread } from './prefilter'
 
 /** Threads per Gmail page. 100 keeps each checkpoint cheap to redo. */
 const PAGE_SIZE = 100
@@ -132,20 +133,28 @@ async function persistThreads(
   if (threads.length === 0) return { inserted: 0, refreshed: 0 }
   const db = sweepDb()
 
-  const toRow = (t: ResolvedThread) => ({
-    pipeline,
-    fingerprint: t.fingerprint,
-    mailbox: t.mailbox,
-    gmail_thread_id: t.threadId,
-    subject: t.subject,
-    participants: t.participants,
-    first_at: t.firstAt,
-    last_at: t.lastAt,
-    message_count: t.messages.length,
-    attachment_count: t.attachmentCount,
-    raw_markdown: renderThread(t),
-    summary_state: 'pending' as const,
-  })
+  const toRow = (t: ResolvedThread) => {
+    // Settled here rather than in summarize so the thread never enters the
+    // model's queue at all. The reason is stored because a filter you cannot
+    // audit is a filter you cannot trust — the same argument the lead triage
+    // makes for keeping its spam rows.
+    const skipped = prefilterThread(t)
+    return {
+      pipeline,
+      fingerprint: t.fingerprint,
+      mailbox: t.mailbox,
+      gmail_thread_id: t.threadId,
+      subject: t.subject,
+      participants: t.participants,
+      first_at: t.firstAt,
+      last_at: t.lastAt,
+      message_count: t.messages.length,
+      attachment_count: t.attachmentCount,
+      raw_markdown: renderThread(t),
+      summary_state: (skipped ? 'skipped' : 'pending') as 'skipped' | 'pending',
+      summary_error: skipped,
+    }
+  }
 
   const fresh = threads.filter((t) => !grownFingerprints.has(t.fingerprint))
   const grown = threads.filter((t) => grownFingerprints.has(t.fingerprint))
@@ -178,7 +187,11 @@ async function persistThreads(
       message_count: row.message_count,
       attachment_count: row.attachment_count,
       raw_markdown: row.raw_markdown,
+      // Re-decided, not carried over: a human replying to one of the platform's
+      // own digests turns it into a real conversation, and that reply deserves
+      // to be read rather than inheriting the skip.
       summary_state: row.summary_state,
+      summary_error: row.summary_error,
     }
     const { error } = await db
       .from('email_threads')
@@ -278,9 +291,10 @@ export async function fetchMailbox(
         sinceDays: sinceDays ?? undefined,
         pageSize: PAGE_SIZE,
         knownThreads: known,
-        // Marketing is dropped at the Gmail edge on the lead side, so it never
-        // costs a fetch or a model call.
-        exclusions: pipeline === 'lead' ? leadExclusions() : undefined,
+        // Marketing is dropped at the Gmail edge on BOTH sides, so it never
+        // costs a fetch or a model call. See mailExclusions() for why the deal
+        // side needs this as much as the lead side does.
+        exclusions: mailExclusions(pipeline),
       })
 
       const { inserted, refreshed } = await persistThreads(

@@ -29,6 +29,9 @@ import { runDocumentAiPass } from '@/lib/ai/document-pipeline'
 import { fileRecordDocumentsQuietly } from '@/lib/drive/file-document'
 import { fetchThread, fetchAttachmentBytes } from '@/lib/integrations/google-workspace'
 import type { TablesInsert } from '@/lib/supabase/types'
+import { isOpportunityLive, isProjectLive, isSteelDealLive } from '@/lib/records/live'
+import { notifyTeam, type NotificationEvent } from '@/lib/notifications'
+import { broadcastEvents } from '@/lib/notifications/broadcast'
 import { sweepDb, type EmailThreadRow, type ThreadLinkRow, type LinkRecordKind } from './db'
 
 const BATCH = 100
@@ -45,6 +48,8 @@ export interface ApplyProgress {
   leadsTouched: number
   attachmentsImported: number
   staleLinksDropped: number
+  /** Links whose record is lost/closed/on hold — kept, but held back. */
+  dormantSkipped: number
   failed: number
   /** True when the budget ran out with links still to consider. */
   outOfTime: boolean
@@ -115,6 +120,7 @@ export async function applyThreadUpdates(
     leadsTouched: 0,
     attachmentsImported: 0,
     staleLinksDropped: 0,
+    dormantSkipped: 0,
     failed: 0,
     outOfTime: false,
   }
@@ -137,6 +143,11 @@ export async function applyThreadUpdates(
 
   const { data, error } = await query
   if (error) throw new Error(`Could not load links to apply: ${error.message}`)
+
+  // Collected across the run and sent once at the end, for the same reason the
+  // document notifications batch: a sweep that files correspondence onto six
+  // records should be one round of notifications, not six.
+  const events: NotificationEvent[] = []
 
   for (const raw of (data ?? []) as LinkWithThread[]) {
     if (Date.now() >= deadline) {
@@ -163,13 +174,27 @@ export async function applyThreadUpdates(
         continue
       }
 
-      const applied = await applyToRecord(link, thread, delta.text, progress)
+      const applied = await applyToRecord(link, thread, delta.text, progress, events)
       if (applied === 'missing') {
         // The record has gone. The link points at four possible tables so it
         // cannot carry a foreign key; dropping it here is what takes the place
         // of the cascade it never had.
         await db.from('thread_links').delete().eq('id', link.id)
         progress.staleLinksDropped++
+        continue
+      }
+
+      if (applied === 'dormant') {
+        // Lost, closed, on hold. The LINK is kept and applied_message_count is
+        // deliberately NOT advanced, so reviving the record replays everything
+        // it missed — mail that arrives while a pursuit is parked is usually
+        // why it gets un-parked.
+        //
+        // last_applied_at IS stamped, though. The batch is ordered by it with
+        // nulls first, so without this a dormant link would sort to the front
+        // of every run forever and starve the live records behind it.
+        await touch(link.id)
+        progress.dormantSkipped++
         continue
       }
 
@@ -187,7 +212,28 @@ export async function applyThreadUpdates(
     }
   }
 
+  // Both helpers swallow their own failures — a Chat outage or a missing
+  // notifications table must never cost correspondence that is already filed.
+  if (events.length > 0) {
+    await notifyTeam(events)
+    await broadcastEvents(events)
+  }
+
   return progress
+}
+
+/**
+ * Rotate a link to the back of the queue without crediting it any messages.
+ *
+ * Used for a dormant record: it has not received this mail and must not be
+ * recorded as having done so, but it also must not block the batch.
+ */
+async function touch(linkId: string): Promise<void> {
+  const { error } = await sweepDb()
+    .from('thread_links')
+    .update({ last_applied_at: new Date().toISOString() })
+    .eq('id', linkId)
+  if (error) console.error(`[sweep/apply] could not touch ${linkId}:`, error.message)
 }
 
 async function advance(linkId: string, count: number): Promise<void> {
@@ -198,13 +244,72 @@ async function advance(linkId: string, count: number): Promise<void> {
   if (error) console.error(`[sweep/apply] could not advance ${linkId}:`, error.message)
 }
 
-type ApplyOutcome = 'ok' | 'missing' | 'skipped'
+/**
+ * Lines that carry no information to someone glancing at a notification.
+ *
+ * Two sources, both at the TOP of a delta and both mattering: renderThread's own
+ * `### timestamp — sender` / `To:` heading, and the header block an Outlook or
+ * Gmail forward pastes into the body. Without this the notification leads with
+ * "### 2026-09-07 16:05 — BER WILSON COMPANY <info@…> To: From: …" and the
+ * reader learns nothing — which is exactly what it did on the first live run.
+ */
+const HEADER_LINE =
+  /^(###\s|To:|From:|Cc:|CC:|Bcc:|Sent:|Date:|Subject:|-{2,}\s*(Original|Forwarded)|_{3,})/i
+
+/**
+ * The first line of real prose in a message body.
+ *
+ * Bounded at MAX_HEADER_SKIP so a message that genuinely is nothing but headers
+ * still shows something rather than coming back empty.
+ */
+function firstProse(body: string): string {
+  const lines = body.split('\n')
+  let i = 0
+  const limit = Math.min(lines.length, MAX_HEADER_SKIP)
+  while (i < limit && (!lines[i].trim() || HEADER_LINE.test(lines[i].trim()))) i++
+  const rest = lines.slice(i).join(' ').replace(/\s+/g, ' ').trim()
+  return rest || body.replace(/\s+/g, ' ').trim()
+}
+
+const MAX_HEADER_SKIP = 12
+
+/**
+ * One "new correspondence" notification.
+ *
+ * The subject is the headline because it is what a person recognises the
+ * conversation by; the snippet under it is the first line or two of what is
+ * actually new, which is the difference between a notification worth opening
+ * and a bare "something happened".
+ *
+ * No actorName/actorEmail: the platform read this mail, so there is nobody to
+ * exclude and everybody is told — which is the right default for a record whose
+ * counterparty just said something.
+ */
+function correspondenceEvent(
+  recordName: string | null | undefined,
+  subject: string,
+  body: string,
+  href: string,
+  projectId: string | null
+): NotificationEvent {
+  const snippet = firstProse(body).slice(0, 220)
+  return {
+    kind: 'correspondence',
+    title: `${recordName?.trim() || 'A record'} — new correspondence`,
+    body: [subject, snippet].filter(Boolean).join(' · '),
+    href,
+    projectId,
+  }
+}
+
+type ApplyOutcome = 'ok' | 'missing' | 'skipped' | 'dormant'
 
 async function applyToRecord(
   link: ThreadLinkRow,
   thread: NonNullable<LinkWithThread['thread']>,
   text: string,
-  progress: ApplyProgress
+  progress: ApplyProgress,
+  events: NotificationEvent[]
 ): Promise<ApplyOutcome> {
   const supabase = createAdminClient()
   const body = text.slice(0, MAX_UPDATE_CHARS)
@@ -216,10 +321,11 @@ async function applyToRecord(
     case 'project': {
       const { data: project } = await supabase
         .from('projects')
-        .select('id')
+        .select('id, name, status')
         .eq('id', link.record_id)
         .maybeSingle()
       if (!project) return 'missing'
+      if (!isProjectLive(project.status)) return 'dormant'
 
       const row: TablesInsert<'updates'> = {
         project_id: link.record_id,
@@ -258,6 +364,15 @@ async function applyToRecord(
       // directly rather than through vector search.
       if (approved) {
         progress.updatesPosted++
+        events.push(
+          correspondenceEvent(
+            (project as { name?: string | null }).name,
+            label,
+            body,
+            `/projects/${link.record_id}/updates`,
+            link.record_id
+          )
+        )
       } else {
         // A pending review_state is NOT what /review reads — that page is driven
         // by review_queue. Without this row the update would sit pending forever
@@ -280,10 +395,11 @@ async function applyToRecord(
     case 'opportunity': {
       const { data: opportunity } = await supabase
         .from('opportunities')
-        .select('id')
+        .select('id, name, status')
         .eq('id', link.record_id)
         .maybeSingle()
       if (!opportunity) return 'missing'
+      if (!isOpportunityLive(opportunity.status)) return 'dormant'
 
       // Opportunity notes have no review state, so an inferred match says so in
       // the note itself rather than pretending to a certainty it does not have.
@@ -301,18 +417,29 @@ async function applyToRecord(
 
       // Not embedded, for the same reason as the project branch above: this
       // body is mail, and mail is already indexed in `thread_chunks`.
-      if (approved) progress.updatesPosted++
-      else progress.updatesStaged++
+      if (approved) {
+        progress.updatesPosted++
+        events.push(
+          correspondenceEvent(
+            (opportunity as { name?: string | null }).name,
+            label,
+            body,
+            `/opportunities/${link.record_id}`,
+            null
+          )
+        )
+      } else progress.updatesStaged++
       return 'ok'
     }
 
     case 'steel_deal': {
       const { data: deal } = await sweepDb()
         .from('steel_deals')
-        .select('id')
+        .select('id, stage')
         .eq('id', link.record_id)
         .maybeSingle()
       if (!deal) return 'missing'
+      if (!isSteelDealLive(deal.stage as string | null)) return 'dormant'
 
       const prefix = approved ? '' : `[Unconfirmed match — ${link.reason ?? 'inferred'}]\n\n`
       const { error } = await sweepDb()

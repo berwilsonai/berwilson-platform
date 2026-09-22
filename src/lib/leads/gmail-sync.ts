@@ -84,6 +84,24 @@ export function desiredLabel(lead: Pick<LeadRow, 'status' | 'fit_recommendation'
   }
 }
 
+/**
+ * Verdicts that also take the thread OUT of the info@ inbox.
+ *
+ * info@ receives a large majority junk — 886 of 1,261 threads at last measure —
+ * and a label alone leaves every one of them sitting in the inbox of whoever
+ * reads that mailbox. These three all mean "no further action": the filter
+ * rejected it, we judged it out of scope, or it closed. Pursue / Consider /
+ * Promoted deliberately stay in the inbox, because a human still has to act.
+ *
+ * Archiving is reversible, and the row is kept either way, so nothing is lost —
+ * the "Show filtered" toggle on /leads remains the audit of what was rejected.
+ */
+const ARCHIVED_LABELS: ReadonlySet<string> = new Set([
+  LEAD_LABELS.filtered,
+  LEAD_LABELS.pass,
+  LEAD_LABELS.closed,
+])
+
 /** The fields a label decision actually depends on. */
 export type LabelableLead = Pick<
   LeadRow,
@@ -113,11 +131,21 @@ export async function applyLeadLabel(lead: LabelableLead): Promise<string | null
   const gmailThreadId = await resolveGmailThreadId(lead)
   if (!gmailThreadId) return null
 
+  // INBOX is a system label like any other to the API, so archiving needs no
+  // extra scope and no extra call — it rides along with the verdict.
+  //
+  // Restoring it is conditional on the PREVIOUS label having been one we
+  // archived under. That is what distinguishes "the platform changed its mind,
+  // put it back" from "a human archived this and the platform must not undo
+  // it" — and it needs no new column to know the difference.
+  const archiving = ARCHIVED_LABELS.has(want)
+  const weArchivedIt = lead.gmail_label ? ARCHIVED_LABELS.has(lead.gmail_label) : false
+
   await modifyThreadLabels(lead.mailbox ?? LEAD_MAILBOXES[0], gmailThreadId, {
-    add: [want],
+    add: [want, ...(!archiving && weArchivedIt ? ['INBOX'] : [])],
     // Only the label THIS platform last applied is removed. Anything a human
     // filed the thread under is theirs and stays.
-    remove: lead.gmail_label ? [lead.gmail_label] : [],
+    remove: [...(lead.gmail_label ? [lead.gmail_label] : []), ...(archiving ? ['INBOX'] : [])],
   })
 
   await leadsDb()

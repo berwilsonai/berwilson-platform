@@ -3,6 +3,7 @@ import { getViewer } from '@/lib/auth/viewer'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { importDriveFolder } from '@/lib/drive/import'
 import { postArrivalUpdate } from '@/lib/drive/project-folder-sync'
+import { notifyArrivals } from '@/lib/notifications/documents'
 
 /**
  * POST /api/drive/import  { project_id }
@@ -12,8 +13,11 @@ import { postArrivalUpdate } from '@/lib/drive/project-folder-sync'
  * someone has just dropped the appraisal in the folder and wants to ask Ber AI
  * about it now.
  *
- * Posts the same feed update the cron does, so a hand-run import and a nightly
- * one leave the project's history looking identical.
+ * Posts the same feed update AND raises the same notifications the cron does,
+ * so a hand-run import and a nightly one leave the project's history looking
+ * identical. The notifications were missing until 2026-09-22, which meant
+ * pressing the button announced nothing while the identical nightly path rang
+ * everyone's bell.
  *
  * Idempotent: unchanged files cost one list entry and nothing else, so pressing
  * the button twice is free.
@@ -72,7 +76,12 @@ export async function POST(request: NextRequest) {
       if (result.supersedeHeldBack) errors.push(result.supersedeHeldBack)
     }
 
-    await postArrivalUpdate(data.id, data.name ?? 'this project', arrivals, merged.superseded)
+    const name = data.name ?? 'this project'
+    await postArrivalUpdate(data.id, name, arrivals, merged.superseded)
+    await notifyArrivals(
+      { label: name, href: `/projects/${data.id}/documents`, projectId: data.id },
+      arrivals
+    )
     return NextResponse.json({ ...merged, errors })
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)

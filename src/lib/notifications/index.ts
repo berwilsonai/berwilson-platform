@@ -32,6 +32,11 @@ export type NotificationKind =
   // A rep generated a quote priced below the $30/SF floor. It cannot be issued
   // until an admin or executive approves it, so somebody has to be told.
   | 'quote_below_floor'
+  // Mail the sweep filed onto a record with certainty. Deliberately NOT raised
+  // for an inferred match: that is a proposal, and it already has a destination
+  // in the review queue. Announcing a guess to everyone would make the bell the
+  // thing you check to find out what the platform got wrong.
+  | 'correspondence'
 
 /** One event, before it is fanned out to recipients. */
 export interface NotificationEvent {

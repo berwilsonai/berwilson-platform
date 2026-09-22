@@ -93,21 +93,35 @@ function gmailDate(d: Date): string {
 }
 
 /**
- * Gmail-side exclusions applied to the LEAD sweep.
+ * Gmail-side exclusions applied to a sweep.
  *
  * This is the cheapest filter in the whole pipeline and the only one that costs
  * nothing: a thread excluded here is never fetched, never stored, and never
- * scored. Gmail's own `category:promotions` / `category:social` classifiers do
- * most of the work for free, and `-label:bw-filtered` lets a human retire a
- * repeat marketing sender by writing one Gmail filter instead of shipping code.
+ * read by the model. Gmail's own `category:promotions` / `category:social`
+ * classifiers do most of the work for free, and `-label:bw-filtered` lets a
+ * human retire a repeat marketing sender by writing one Gmail filter instead of
+ * shipping code.
  *
- * Override wholesale with GMAIL_LEAD_EXCLUSIONS (space separated).
+ * BOTH pipelines use it. The lead side has since the module was written; the
+ * deal side was added 2026-09-22, after measuring that 743 of 1,054 threads in
+ * moose@/tuaone@ were newsletters the summarizer labelled `noise` — each one
+ * costing a 25-50s local-model call to reach that verdict. The two share a
+ * default but keep separate env overrides, because the mailboxes are read by
+ * different people for different reasons and one may need loosening without
+ * the other.
  */
-export const DEFAULT_LEAD_EXCLUSIONS =
-  '-category:promotions -category:social -label:bw-filtered'
+const DEFAULT_EXCLUSIONS = '-category:promotions -category:social -label:bw-filtered'
 
-export function leadExclusions(): string[] {
-  return (process.env.GMAIL_LEAD_EXCLUSIONS ?? DEFAULT_LEAD_EXCLUSIONS)
+export const DEFAULT_LEAD_EXCLUSIONS = DEFAULT_EXCLUSIONS
+export const DEFAULT_DEAL_EXCLUSIONS = DEFAULT_EXCLUSIONS
+
+/** Exclusions for one pipeline, honouring its env override. */
+export function mailExclusions(pipeline: 'deal' | 'lead'): string[] {
+  const raw =
+    pipeline === 'lead'
+      ? process.env.GMAIL_LEAD_EXCLUSIONS ?? DEFAULT_LEAD_EXCLUSIONS
+      : process.env.GMAIL_DEAL_EXCLUSIONS ?? DEFAULT_DEAL_EXCLUSIONS
+  return raw
     .split(/\s+/)
     .map((s) => s.trim())
     .filter(Boolean)

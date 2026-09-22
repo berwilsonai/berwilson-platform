@@ -98,6 +98,22 @@ const EMBED_MAX_MS = 10 * 60 * 1000
 /** Share of the budget each phase may consume before yielding to the next. */
 const STAGE_SHARE = 0.25
 
+/**
+ * Ceiling on summarize, as a share of what is left when it starts.
+ *
+ * ⚠ WITHOUT THIS, EVERY PHASE AFTER SUMMARIZE GETS ZERO. It used to take
+ * remaining() outright, so the moment there was any backlog apply, embed and
+ * predecide were handed Math.max(0, …) = 0 and tripped outOfTime on their first
+ * iteration. Measured consequence: 269 attachment-bearing threads never
+ * imported their files, and 27 opportunity documents sat at `pending` embedding
+ * with nothing coming for them.
+ *
+ * Halving summarize costs a slower drain on a large backlog. Leaving it uncapped
+ * costs filing, indexing and the only phase that makes the review queue shrink —
+ * indefinitely, and silently, because a phase that never runs reports nothing.
+ */
+const SUMMARIZE_SHARE = 0.5
+
 export async function runSweep(opts: SweepRunOptions = {}): Promise<SweepRunResult> {
   const phases = opts.phases ?? ALL_PHASES
   const budgetMs = opts.budgetMs ?? 55 * 60 * 1000
@@ -117,9 +133,10 @@ export async function runSweep(opts: SweepRunOptions = {}): Promise<SweepRunResu
   }
 
   if (phases.includes('stage') && remaining() > 0) {
-    // Staging runs BEFORE summarize despite being phase 4: summarize will eat
-    // every second it is given, so anything after it would never run. This
-    // drains the review queue built by earlier runs first, then yields.
+    // Staging runs BEFORE summarize despite being phase 4: summarize is the
+    // expensive phase and staging must not queue behind an hour of it. Since
+    // SUMMARIZE_SHARE was introduced the phases after summarize do get a budget,
+    // but this ordering is still the one that drains last run's clusters first.
     result.stage = await stageOpenClusters({
       budgetMs: Math.max(0, remaining() * STAGE_SHARE),
       userId: opts.userId,
@@ -134,7 +151,7 @@ export async function runSweep(opts: SweepRunOptions = {}): Promise<SweepRunResu
     // for recent mail, so a poison thread cannot monopolise the budget.
     await retryStaleFailures()
     result.summarize = await summarizePending({
-      budgetMs: remaining(),
+      budgetMs: Math.max(0, remaining() * SUMMARIZE_SHARE),
       userId: opts.userId,
     })
     result.ranPhases.push('summarize')

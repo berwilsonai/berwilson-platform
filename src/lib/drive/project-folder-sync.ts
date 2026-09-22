@@ -24,6 +24,7 @@
  */
 
 import { createAdminClient } from '@/lib/supabase/admin'
+import { isProjectLive } from '@/lib/records/live'
 import { importDriveFolder, type DocumentArrival } from './import'
 import { notifyArrivals } from '@/lib/notifications/documents'
 
@@ -46,8 +47,6 @@ interface ProjectRow {
   drive_source_folder_id: string | null
 }
 
-/** Finished work stops accumulating documents. */
-const DONE = new Set(['closed', 'lost'])
 
 /**
  * The update posted after a run that changed something.
@@ -154,7 +153,11 @@ export async function syncProjectFolders(
   // Filtered here rather than in the query because `status <> 'closed'` is NULL
   // for a null status and would silently drop those rows — an unset status is
   // not a finished project.
-  const rows = ((data ?? []) as ProjectRow[]).filter((r) => !DONE.has(r.status ?? ''))
+  //
+  // The local 'closed'/'lost' set this used to carry became the shared
+  // definition in src/lib/records/live.ts, which also covers on_hold. Four
+  // places ask this question and they had drifted apart; now they cannot.
+  const rows = ((data ?? []) as ProjectRow[]).filter((r) => isProjectLive(r.status))
 
   for (const row of rows) {
     // Both can be set and be the same folder once a web-form deal's folder is

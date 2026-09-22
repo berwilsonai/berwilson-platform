@@ -426,6 +426,23 @@ export async function routeThreads(
     }
 
     const summary = (row.summary ?? null) as ThreadSummary | null
+
+    // ⚠ DO NOT GATE THIS ON summary.relevance === 'noise'. It was added on
+    // 2026-09-22 on the assumption that the 13 `noise` threads carrying a
+    // thread_link were newsletters filed onto projects by mistake, and reading
+    // them proved the opposite: every one is real deal mail — a DocuSign receipt
+    // for the IAN acquisition LOI, "Fwd: Helper Data Center Risk Analysis", a
+    // Drive share of the Helper UT folder, GridEdge meeting notes, a cancelled
+    // Stockton meeting. ELEVEN OF THE THIRTEEN were matched by a human-set
+    // alias, which is the strongest signal the matcher has.
+    //
+    // `relevance` grades whether a thread is SUBSTANTIVE PROSE, not whether it
+    // is junk. Automated-in-form and about-a-real-deal are independent, and
+    // conflating them silently drops exactly the notices worth keeping on a
+    // record. Marketing is handled a layer earlier and for free by Gmail's own
+    // category filter (see mailExclusions), and the matcher's own guards —
+    // two shared tokens, whole-alias, ambiguity margin — already keep a
+    // newsletter from reaching a record.
     const match = bestMatch(row.subject ?? '', summary, row.participants ?? [], targets)
     if (!match) {
       progress.unmatched++

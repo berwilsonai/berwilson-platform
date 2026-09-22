@@ -24,6 +24,7 @@ import {
   ensureDomainShared,
   ensureRootFolder,
 } from '@/lib/integrations/google-drive-write'
+import { isOpportunityLive, isProjectLive, isSteelDealLive } from '@/lib/records/live'
 import { publishRecordToDrive, type DriveRecordKind } from './publish'
 
 export interface ReconcileResult {
@@ -31,6 +32,8 @@ export interface ReconcileResult {
   published: number
   uploaded: number
   failed: number
+  /** Records held back because they are lost / closed / on hold. */
+  dormantSkipped: number
   /** False when the domain-read permission was missing and had to be restored. */
   wasShared: boolean
   errors: string[]
@@ -73,6 +76,29 @@ async function pendingRecords(kind: DriveRecordKind): Promise<string[]> {
   return [...ids]
 }
 
+/**
+ * Drop records that are no longer live.
+ *
+ * The filter is applied AFTER loading rather than as a PostgREST `not.in`,
+ * because a NULL status does not match one and the row would vanish silently.
+ * See src/lib/records/live.ts.
+ */
+async function liveOnly(kind: DriveRecordKind, ids: string[]): Promise<string[]> {
+  if (ids.length === 0) return ids
+  const supabase = createAdminClient()
+
+  if (kind === 'opportunity') {
+    const { data } = await supabase.from('opportunities').select('id, status').in('id', ids)
+    return (data ?? []).filter((r) => isOpportunityLive(r.status)).map((r) => r.id)
+  }
+  if (kind === 'steel') {
+    const { data } = await supabase.from('steel_deals').select('id, stage').in('id', ids)
+    return (data ?? []).filter((r) => isSteelDealLive(r.stage)).map((r) => r.id)
+  }
+  const { data } = await supabase.from('projects').select('id, status').in('id', ids)
+  return (data ?? []).filter((r) => isProjectLive(r.status)).map((r) => r.id)
+}
+
 export async function reconcileDrivePublishing(
   opts: { budgetMs?: number } = {}
 ): Promise<ReconcileResult> {
@@ -86,6 +112,7 @@ export async function reconcileDrivePublishing(
     published: 0,
     uploaded: 0,
     failed: 0,
+    dormantSkipped: 0,
     wasShared: true,
     errors: [],
     outOfTime: false,
@@ -107,7 +134,9 @@ export async function reconcileDrivePublishing(
   }
 
   for (const kind of Object.keys(SOURCES) as DriveRecordKind[]) {
-    const ids = await pendingRecords(kind)
+    const pending = await pendingRecords(kind)
+    const ids = await liveOnly(kind, pending)
+    result.dormantSkipped += pending.length - ids.length
     result.records += ids.length
 
     for (const id of ids) {

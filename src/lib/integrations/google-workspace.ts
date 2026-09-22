@@ -1025,11 +1025,22 @@ export function buildRawMessage(opts: {
   to: string
   subject: string
   html: string
+  /**
+   * Display name for the From header. Opt-in, and deliberately so: a drafted
+   * reply is written for a human to send under their own name, and stamping it
+   * would be wrong on the wire as well as embarrassing if sent.
+   */
+  fromName?: string
   attachments?: MailAttachment[]
   /** Extra RFC 2822 headers, e.g. In-Reply-To / References for a threaded reply. */
   extraHeaders?: string[]
 }): string {
-  const from = opts.from
+  // A display name containing a comma or angle bracket would break the header
+  // apart, so it is quoted and its own quotes stripped (RFC 2822 has no escape
+  // inside a quoted-string that every parser honours).
+  const from = opts.fromName
+    ? `"${opts.fromName.replace(/["<>,]/g, ' ').trim()}" <${opts.from}>`
+    : opts.from
   // RFC 2822. Subject is RFC 2047 encoded so non-ASCII survives the hop.
   const subject = /^[\x20-\x7E]*$/.test(opts.subject)
     ? opts.subject
@@ -1082,6 +1093,21 @@ export function buildRawMessage(opts: {
 }
 
 /**
+ * Display name every platform-generated email is sent under.
+ *
+ * Load-bearing in two directions. For a person reading the mailbox it says at a
+ * glance that nobody typed this. For the sweep it is the ONLY reliable way to
+ * recognise the platform's own mail: digests go to moose@/tuaone@, which are the
+ * mailboxes the deal sweep reads, so without a marker every brief and lead
+ * digest comes straight back in and is summarised as deal correspondence at
+ * 25-50s of local-model time apiece. Matching on the sender address alone
+ * cannot work — real mail between the two executives has the same shape.
+ *
+ * Changing this string breaks that recognition; see isPlatformMail().
+ */
+export const PLATFORM_SENDER_NAME = 'Ber Intelligence'
+
+/**
  * Send an HTML email as `from` via Gmail (`users.messages.send`).
  *
  * Replaces the Microsoft Graph sendMail removed with the rest of Graph on
@@ -1097,11 +1123,17 @@ export async function sendMail(opts: {
   subject: string
   html: string
   from?: string
+  /** Overrides {@link PLATFORM_SENDER_NAME}; pass '' to send with no display name. */
+  fromName?: string
   attachments?: MailAttachment[]
 }): Promise<void> {
   const from = opts.from ?? PRIMARY_MAILBOX
   const token = await getAccessToken(from)
-  const raw = buildRawMessage({ ...opts, from })
+  const raw = buildRawMessage({
+    ...opts,
+    from,
+    fromName: opts.fromName ?? PLATFORM_SENDER_NAME,
+  })
 
   const res = await fetch(
     `${GMAIL_BASE}/users/${encodeURIComponent(from)}/messages/send`,

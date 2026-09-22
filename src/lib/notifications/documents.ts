@@ -13,6 +13,7 @@
  */
 
 import { notifyTeam, type NotificationEvent } from './index'
+import { broadcastEvents } from './broadcast'
 import type { DocumentArrival } from '@/lib/drive/import'
 
 /**
@@ -98,11 +99,25 @@ export function composeArrivalNotifications(
   }))
 }
 
+/**
+ * Announce document arrivals on BOTH channels.
+ *
+ * The single funnel for every document door — the two Drive syncs, the two
+ * upload routes, and the on-demand import — so a document announces itself
+ * identically however it arrived, in the app and in the Chat space.
+ *
+ * The Chat post is awaited but its failure is swallowed inside
+ * broadcastEvents: the bell row is the record, the post is a convenience, and
+ * losing the space must not lose the notification.
+ */
 export async function notifyArrivals(
   scope: ArrivalScope,
   arrivals: DocumentArrival[]
 ): Promise<number> {
-  return notifyTeam(composeArrivalNotifications(scope, arrivals))
+  const events = composeArrivalNotifications(scope, arrivals)
+  const written = await notifyTeam(events)
+  await broadcastEvents(events)
+  return written
 }
 
 /**
