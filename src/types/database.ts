@@ -3354,6 +3354,7 @@ export type Database = {
           how: string | null
           id: string
           investor_id: string | null
+          lead_id: string | null
           objective_id: string | null
           opportunity_id: string | null
           project_id: string | null
@@ -3371,6 +3372,7 @@ export type Database = {
           how?: string | null
           id?: string
           investor_id?: string | null
+          lead_id?: string | null
           objective_id?: string | null
           opportunity_id?: string | null
           project_id?: string | null
@@ -3388,6 +3390,7 @@ export type Database = {
           how?: string | null
           id?: string
           investor_id?: string | null
+          lead_id?: string | null
           objective_id?: string | null
           opportunity_id?: string | null
           project_id?: string | null
@@ -3398,6 +3401,11 @@ export type Database = {
           why?: string | null
         }
         Relationships: [
+          // tasks_lead_id_fkey exists in the database but is deliberately not
+          // described here: `leads` is not part of this generated type at all
+          // (it goes through the untyped leadsDb() client), so naming it as a
+          // referencedRelation would point PostgREST's embed typing at
+          // something unresolvable. Nothing embeds leads from tasks.
           {
             foreignKeyName: "tasks_assignee_id_fkey"
             columns: ["assignee_id"]

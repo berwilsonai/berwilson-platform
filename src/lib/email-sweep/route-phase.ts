@@ -8,12 +8,30 @@
  *
  * Two kinds of answer, and the difference matters more than the matching does:
  *
- *   'linked'   — derived, not guessed. The thread IS the record: its lead was
- *                promoted to it, or its cluster was confirmed into it. Nothing
- *                here can be wrong, so the apply phase posts it directly.
- *   'inferred' — matched on solicitation number, deal name and shared external
- *                contacts. Good enough to propose, not good enough to assert, so
- *                the apply phase stages it for review.
+ *   'linked'   — derived or asserted, not guessed. The thread IS the record:
+ *                its lead was promoted to it, its cluster was confirmed into
+ *                it, it cites the record's solicitation number, or it uses an
+ *                alias a person deliberately typed onto that record. Nothing
+ *                here is the platform's own guess, so the apply phase posts it
+ *                directly.
+ *   'inferred' — matched on deal-name similarity and shared external contacts.
+ *                Good enough to propose, not good enough to assert, so the
+ *                apply phase stages it for review.
+ *
+ * ⚠ AN ALIAS MATCH IS `linked`, AND THAT IS THE WHOLE POINT OF ALIASES. Setting
+ * "Also known as" on a record is a person stating, in advance, that mail calling
+ * the deal that name belongs there — it is a filing decision expressed as a
+ * rule. Staging it for review asks that person the same question a second time,
+ * which is exactly the argument `/api/thread-links` already makes for storing a
+ * hand-filed link as `linked`. Measured 2026-09-21: 73 of 106 inferred links
+ * were alias matches, and all 75 unresolved review rows were this one reason —
+ * a queue nobody had cleared since 2026-09-09.
+ *
+ * The safety this rests on is unchanged and verified: the whole alias must
+ * appear in the thread (`aliasShared === alias.tokens.size`), and AMBIGUITY_MARGIN
+ * still refuses when a second record scores within 0.1 — so a short name two
+ * records share matches neither. Undo is the same gesture a hand-filed link
+ * uses: unfile it from the record's Correspondence panel.
  *
  * Deliberately NOT an AI pass. `cluster-phase.ts` already proves deterministic
  * name-and-participant scoring works on this mail; reusing it keeps routing free
@@ -164,6 +182,8 @@ export interface MatchResult {
   target: Target
   confidence: number
   reason: string
+  /** Whether this is the platform's guess, or a fact it was handed. */
+  certainty: LinkCertainty
 }
 
 /**
@@ -212,7 +232,7 @@ export function bestMatch(
       return short.length >= 6 && long.includes(short)
     })
     if (exact) {
-      return { target: exact, confidence: 1, reason: `same solicitation number` }
+      return { target: exact, confidence: 1, reason: `same solicitation number`, certainty: 'linked' }
     }
   }
 
@@ -237,6 +257,7 @@ export function bestMatch(
         target: t,
         confidence: Math.min(aliasSim, 0.99),
         reason: `known as "${alias.label}"`,
+        certainty: 'linked',
       })
     }
 
@@ -271,9 +292,9 @@ export function bestMatch(
     // The same two-signal rule the clusterer uses, for the same reason: a
     // strong name match stands alone, a weaker one needs a person in common.
     if (sim >= STRONG_NAME_SIM) {
-      scored.push({ target: t, confidence: sim, reason: 'same deal name' })
+      scored.push({ target: t, confidence: sim, reason: 'same deal name', certainty: 'inferred' })
     } else if (sim >= WEAK_NAME_SIM && sharedContact) {
-      scored.push({ target: t, confidence: sim, reason: 'similar deal name + shared contact' })
+      scored.push({ target: t, confidence: sim, reason: 'similar deal name + shared contact', certainty: 'inferred' })
     }
   }
 
@@ -420,15 +441,20 @@ export async function routeThreads(
       continue
     }
 
+    // applied_message_count is deliberately left at 0 even for a `linked`
+    // match here, unlike the derived branch above: that branch links a record
+    // that already carries the conversation (its lead was promoted from it),
+    // whereas this record has never seen the mail and should receive all of it.
     await upsertLink(
       row.id,
       match.target.kind,
       match.target.id,
-      'inferred',
+      match.certainty,
       match.confidence,
       `${match.reason} — ${match.target.name}`
     )
-    progress.inferred++
+    if (match.certainty === 'linked') progress.linked++
+    else progress.inferred++
     progress.reasons[match.reason] = (progress.reasons[match.reason] ?? 0) + 1
     await markRouted(row.id)
   }

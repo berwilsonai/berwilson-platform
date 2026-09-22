@@ -147,10 +147,11 @@ interface TaskRow extends TaskBodyRow {
   opportunity_id: string | null
   objective_id: string | null
   investor_id: string | null
+  lead_id: string | null
 }
 
 const TASK_COLUMNS =
-  'id, title, what, why, due_date, status, completed_at, assignee_id, project_id, opportunity_id, objective_id, investor_id'
+  'id, title, what, why, due_date, status, completed_at, assignee_id, project_id, opportunity_id, objective_id, investor_id, lead_id'
 
 /**
  * Most tasks a member can have in their Google list that did not come from here
@@ -206,6 +207,9 @@ class TagNames {
       this.load('opportunities', 'name', pick('opportunity_id')),
       this.load('objectives', 'title', pick('objective_id')),
       this.load('investors', 'name', pick('investor_id')),
+      // `leads` is outside the generated Database type, but load() already
+      // casts the table name, so it needs no special handling here.
+      this.load('leads', 'title', pick('lead_id')),
     ])
   }
 
@@ -217,6 +221,7 @@ class TagNames {
       opportunityName: get('opportunities', task.opportunity_id),
       objectiveTitle: get('objectives', task.objective_id),
       investorName: get('investors', task.investor_id),
+      leadTitle: get('leads', task.lead_id),
     }
   }
 }

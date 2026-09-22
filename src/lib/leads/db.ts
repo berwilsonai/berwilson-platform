@@ -161,6 +161,32 @@ export interface LeadRow {
   draft_created_at: string | null
 
   /**
+   * When this lead was last announced. Written only once a channel actually
+   * delivered, which is what makes each lead announce exactly once.
+   *
+   * (It was read and written for a month before it was declared here.)
+   */
+  notified_at: string | null
+
+  /**
+   * The task carrying this lead's bid deadline, and the latch that governs it.
+   *
+   * `task_synced_at` is set the first time a task is written and NEVER
+   * cleared. That is deliberate: it is what makes a task the human DELETED
+   * stay deleted, which the unique index on tasks.lead_id cannot do on its own
+   * — delete the row and nothing blocks tomorrow's insert. Deleting it was the
+   * decision, exactly as with gmail_draft_id.
+   *
+   * `task_bid_date` is the bid date as we last wrote it, so a date that MOVED
+   * (ours to push) can be told apart from a due date a human dragged on their
+   * phone (theirs to keep). Without it the platform would overwrite that edit
+   * every morning.
+   */
+  task_id: string | null
+  task_synced_at: string | null
+  task_bid_date: string | null
+
+  /**
    * The deal folder a web-form lead arrived in, and a link to it.
    *
    * Created by the form under the platform's own OAuth client as moose@, which

@@ -25,7 +25,6 @@
  */
 
 import { createAdminClient } from '@/lib/supabase/admin'
-import { embedUpdate, embedOpportunityNote } from '@/lib/ai/embeddings'
 import { runDocumentAiPass } from '@/lib/ai/document-pipeline'
 import { fileRecordDocumentsQuietly } from '@/lib/drive/file-document'
 import { fetchThread, fetchAttachmentBytes } from '@/lib/integrations/google-workspace'
@@ -239,12 +238,26 @@ async function applyToRecord(
         .single()
       if (error || !update) throw new Error(error?.message ?? 'update insert failed')
 
-      // Only approved content is indexed. Embedding a pending update would put
-      // an unreviewed — possibly misfiled — conversation into Ber AI's answers,
-      // which is the one place a wrong link would be hardest to notice.
+      // ⚠ DELIBERATELY NOT EMBEDDED INTO `chunks`, and this reverses an
+      // earlier call. The mail is already indexed — `thread_chunks` holds the
+      // whole correspondence corpus and is what `search_correspondence` reads
+      // — so embedding the same body here indexed it a second time, in the
+      // CURATED index, which is precisely the pollution the separate table was
+      // created on 2026-09-14 to prevent.
+      //
+      // Measured 2026-09-21 on a real question ("Sandpoint cottage permit set
+      // and lateral takeoff for 15 homes"): the top three hits in `chunks`
+      // were all email chrome — a URL tracking token at 0.740, a signature
+      // block at 0.697, a message header at 0.673 — and the Sandpoint content
+      // itself did not appear in the top eight. Raw mail carries headers,
+      // signatures and tracking URLs that a curated document does not, and
+      // those score well against anything.
+      //
+      // Nothing is lost: the agent already queries both indexes, and
+      // `get_record_correspondence` / `get_record_brief` read filed mail
+      // directly rather than through vector search.
       if (approved) {
         progress.updatesPosted++
-        embedUpdate(update.id, link.record_id, body).catch(console.error)
       } else {
         // A pending review_state is NOT what /review reads — that page is driven
         // by review_queue. Without this row the update would sit pending forever
@@ -286,12 +299,10 @@ async function applyToRecord(
         .single()
       if (error || !note) throw new Error(error?.message ?? 'note insert failed')
 
-      if (approved) {
-        progress.updatesPosted++
-        embedOpportunityNote(note.id, link.record_id, body).catch(console.error)
-      } else {
-        progress.updatesStaged++
-      }
+      // Not embedded, for the same reason as the project branch above: this
+      // body is mail, and mail is already indexed in `thread_chunks`.
+      if (approved) progress.updatesPosted++
+      else progress.updatesStaged++
       return 'ok'
     }
 

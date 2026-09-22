@@ -15,11 +15,11 @@
 
 import { fetchAllMailboxes, type FetchProgress } from '@/lib/email-sweep/fetch-phase'
 import { triagePendingLeads, type TriageProgress } from './triage-phase'
-import { scorePendingLeads, expireStaleLeads, type ScoreProgress } from './score-phase'
+import { scorePendingLeads, drainLeadQueue, type ScoreProgress, type DrainProgress } from './score-phase'
 import { routeThreads, type RouteProgress } from '@/lib/email-sweep/route-phase'
 import { applyThreadUpdates, type ApplyProgress } from '@/lib/email-sweep/apply-phase'
 import { notifyScoredLeads, type LeadNotifyProgress } from './notify-leads'
-import { syncLeadDeadlines, type LeadCalendarProgress } from './calendar'
+import { syncLeadTasks, type LeadTaskProgress } from './tasks'
 import { syncLeadLabels, type LeadLabelProgress } from './gmail-sync'
 import { draftLeadReplies, type LeadDraftProgress } from './draft-reply'
 import { publishLeadSheetsQuietly, type PublishSheetsResult } from './sheet'
@@ -32,7 +32,7 @@ export type LeadPhase =
   | 'apply'
   | 'expire'
   | 'notify'
-  | 'calendar'
+  | 'tasks'
   | 'label'
   | 'draft'
   | 'sheets'
@@ -57,9 +57,9 @@ export interface LeadSweepResult {
   fetch?: FetchProgress[]
   triage?: TriageProgress
   score?: ScoreProgress
-  expired?: number
+  expired?: DrainProgress
   notified?: LeadNotifyProgress
-  calendar?: LeadCalendarProgress
+  tasks?: LeadTaskProgress
   labels?: LeadLabelProgress
   drafts?: LeadDraftProgress
   sheets?: PublishSheetsResult | null
@@ -76,7 +76,7 @@ const ALL_PHASES: LeadPhase[] = [
   'expire',
   'label',
   'draft',
-  'calendar',
+  'tasks',
   'notify',
   'sheets',
 ]
@@ -182,7 +182,11 @@ export async function runLeadSweep(opts: LeadSweepOptions = {}): Promise<LeadSwe
 
   if (phases.includes('expire')) {
     // Cheap and deterministic — always worth running so the queue self-drains.
-    result.expired = await expireStaleLeads()
+    // Position is load-bearing now that this also closes `pass` leads: AFTER
+    // both scoring passes, so fit_recommendation has settled; BEFORE label,
+    // tasks and notify, so a lead closed here is relabelled in Gmail, has its
+    // task closed, and is never announced in a digest it has already left.
+    result.expired = await drainLeadQueue()
     result.ranPhases.push('expire')
   }
 
@@ -206,10 +210,15 @@ export async function runLeadSweep(opts: LeadSweepOptions = {}): Promise<LeadSwe
     if (result.drafts.outOfTime) result.moreWork = true
   }
 
-  if (phases.includes('calendar')) {
-    // Before notify, so the mail and the calendar agree about what is due.
-    result.calendar = await syncLeadDeadlines()
-    result.ranPhases.push('calendar')
+  if (phases.includes('tasks')) {
+    // Where the calendar sync used to sit, and for a sharper version of its
+    // reason. AFTER expire, so a lead whose bid date passed this morning has
+    // its task closed in the same run rather than sitting on someone's phone
+    // for a day; after the tail scoring pass, so fit_recommendation has
+    // settled; BEFORE notify, so the digest and the task board agree about
+    // what is due. Unbudgeted: a handful of DB writes, no model, no network.
+    result.tasks = await syncLeadTasks()
+    result.ranPhases.push('tasks')
   }
 
   if (phases.includes('notify')) {

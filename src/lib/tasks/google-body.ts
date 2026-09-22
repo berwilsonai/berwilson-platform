@@ -40,6 +40,7 @@ export interface TaskTagContext {
   opportunityName?: string | null
   objectiveTitle?: string | null
   investorName?: string | null
+  leadTitle?: string | null
 }
 
 function tagLine(tags: TaskTagContext): string | null {
@@ -47,6 +48,9 @@ function tagLine(tags: TaskTagContext): string | null {
   if (tags.opportunityName) return `Opportunity: ${tags.opportunityName}`
   if (tags.investorName) return `Investor: ${tags.investorName}`
   if (tags.objectiveTitle) return `Objective: ${tags.objectiveTitle}`
+  // Last: a lead is the weakest of these attachments, and a lead that gets
+  // promoted acquires a project or opportunity tag that should outrank it.
+  if (tags.leadTitle) return `Lead: ${tags.leadTitle}`
   return null
 }
 
