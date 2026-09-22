@@ -2827,8 +2827,6 @@ export type Database = {
       }
       steel_deal_services: {
         Row: {
-          commission_paid: boolean
-          commission_paid_date: string | null
           commission_pct: number | null
           commissionable: boolean
           cost: number | null
@@ -2844,8 +2842,6 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
-          commission_paid?: boolean
-          commission_paid_date?: string | null
           commission_pct?: number | null
           commissionable?: boolean
           cost?: number | null
@@ -2861,8 +2857,6 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
-          commission_paid?: boolean
-          commission_paid_date?: string | null
           commission_pct?: number | null
           commissionable?: boolean
           cost?: number | null
@@ -2941,11 +2935,7 @@ export type Database = {
           install_fee_paid_date: string | null
           lead_source: string
           lead_source_detail: string | null
-          lead_source_id: string | null
           marketer_id: string | null
-          marketing_commission_paid: boolean
-          marketing_commission_paid_date: string | null
-          marketing_rate_override: number | null
           name: string
           next_step: string | null
           next_step_date: string | null
@@ -2987,11 +2977,7 @@ export type Database = {
           install_fee_paid_date?: string | null
           lead_source?: string
           lead_source_detail?: string | null
-          lead_source_id?: string | null
           marketer_id?: string | null
-          marketing_commission_paid?: boolean
-          marketing_commission_paid_date?: string | null
-          marketing_rate_override?: number | null
           name: string
           next_step?: string | null
           next_step_date?: string | null
@@ -3033,11 +3019,7 @@ export type Database = {
           install_fee_paid_date?: string | null
           lead_source?: string
           lead_source_detail?: string | null
-          lead_source_id?: string | null
           marketer_id?: string | null
-          marketing_commission_paid?: boolean
-          marketing_commission_paid_date?: string | null
-          marketing_rate_override?: number | null
           name?: string
           next_step?: string | null
           next_step_date?: string | null
@@ -3070,13 +3052,6 @@ export type Database = {
           {
             foreignKeyName: "steel_deals_marketer_id_fkey"
             columns: ["marketer_id"]
-            isOneToOne: false
-            referencedRelation: "team_members"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "steel_deals_lead_source_id_fkey"
-            columns: ["lead_source_id"]
             isOneToOne: false
             referencedRelation: "team_members"
             referencedColumns: ["id"]

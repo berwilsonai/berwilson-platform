@@ -216,17 +216,30 @@ LOCAL_EMBEDDING_MODEL=
 EMBEDDINGS_PROVIDER=             # defaults to AI_PROVIDER; NEVER flip without re-embedding (§2)
 LOCAL_ALLOW_WEB_RESEARCH=        # true = Enrich Profile web research via Gemini (query-only leaves)
 GEMINI_API_KEY=                  # only used for web research when the flag above is true
-MICROSOFT_TENANT_ID=             # Graph OAuth (calendar, enrichment, email research)
-MICROSOFT_CLIENT_ID=
-MICROSOFT_CLIENT_SECRET=
-MICROSOFT_WEBHOOK_SECRET=
+# ── Google Workspace credentials. getAccessToken() picks a MODE by which of
+# ── these are set, so the valid set is mode-dependent — never assert one
+# ── specific var in a health check (that misfire shipped once already).
+#   mode 1: GOOGLE_SERVICE_ACCOUNT_KEY / _KEY_FILE   — blocked by org policy here
+#   mode 2: GOOGLE_SERVICE_ACCOUNT_EMAIL + IAM signJwt — works, unused (needs gcloud)
+#   mode 3: per-mailbox OAuth refresh tokens         — IN USE
+GOOGLE_SERVICE_ACCOUNT_EMAIL=    # set = mode 2 (IAM signJwt, no key downloaded)
+GOOGLE_SERVICE_ACCOUNT_KEY=      # set = mode 1 (raw JSON key) — org policy blocks creating these
+GOOGLE_SERVICE_ACCOUNT_KEY_FILE= # set = mode 1 (path to the JSON key)
+GOOGLE_APPLICATION_CREDENTIALS=  # optional; standard Google fallback for the above
+GOOGLE_OAUTH_TOKENS_FILE=        # mode 3 token store (default ~/berwilson-data/google-oauth-tokens.json, mode 600)
+GOOGLE_IMPERSONATE_MAILBOXES=    # optional; overrides the deal mailboxes swept (moose@, tuaone@)
+GOOGLE_TASK_MAILBOXES=           # optional; whose Google Tasks lists are synced
+LEAD_TASK_SYNC=                  # optional; "off" stops writing lead bid deadlines as tasks
+LEAD_TASK_OWNER=                 # optional; team member a lead's task is assigned to
+WHISPER_BIN=                     # meeting transcription binary (~/whisper.cpp/build/bin/whisper-cli)
+WHISPER_MODEL=                   # ggml model path. BOTH are stat'd at runtime — a missing file is a silent outage
+AFCONVERT_BIN=                   # optional; audio decoder (default /usr/bin/afconvert)
 CRON_SECRET=                     # Bearer auth on cron routes; launchd cron agents on the Studio send it
 APP_URL=                         # tailnet base URL for links in outbound notifications (task digest "Open my tasks")
 SUPABASE_DB_URL=                 # optional; local Postgres URL for `npm run gen-types` (self-hosted, replaces --linked)
 MAP_PMTILES_PATH=                # optional; /map detail basemap archive (default ~/berwilson-data/maps/us.pmtiles)
 MAP_WORLD_PMTILES_PATH=          # optional; /map world-overview archive z0-7 (default ~/berwilson-data/maps/world.pmtiles)
 CARD_OCR_BIN=                    # optional; business-card OCR binary (Apple Vision). Default ~/.local/bin/bw-ocr — build with `zsh scripts/build-ocr.sh`
-MICROSOFT_SECRET_EXPIRES=        # optional YYYY-MM-DD; Azure client secret expiry — /settings/health warns 30d ahead
 BACKUP_DIR=                      # optional; nightly-backup dir the health page checks (default ~/Backups/berwilson)
 GOOGLE_LEAD_MAILBOXES=           # mailbox(es) swept for INBOUND LEADS (default info@berwilson.com) — kept apart from the deal mailboxes
 GMAIL_LEAD_EXCLUSIONS=           # optional; overrides the lead sweep's Gmail-side marketing filter (default: -category:promotions -category:social -label:bw-filtered)
@@ -242,6 +255,8 @@ LEAD_DRAFT_REPLIES=              # optional; "off" stops drafting replies to pur
 LEAD_CALENDAR_SYNC=              # optional; "off" stops writing lead bid/site-visit deadlines to Google Calendar. Unset = sync ON
 STEEL_QUOTES_FOLDER_ID=          # optional; the team's own Drive folder generated quote PDFs are filed into (Prefab Steel Projects / Utah / Quotes folder). UNSET = quotes stay in the platform's own deal folder. Writing here works under drive.file because it is a SHARED DRIVE folder moose@ can add children to — see google-drive.ts
 ```
+**The MICROSOFT_* vars are gone** (2026-09-21): zero references in `src/` and none in `.env.local` since the 2026-08-23 move to Google Workspace. `MICROSOFT_SECRET_EXPIRES` was documented as driving a 30-day health warning; the health page never read it.
+
 `ANTHROPIC_API_KEY` and `PERPLEXITY_API_KEY` are no longer used — remove from any new env files. The n8n-era vars (`N8N_*`, `INGESTION_INBOUND_SECRET`) are gone from Vercel (verified 2026-07-03). `NEXT_PUBLIC_SITE_URL` is no longer referenced anywhere (the agent self-fetches that used it were refactored to direct lib calls 2026-07-03).
 
 ### Git

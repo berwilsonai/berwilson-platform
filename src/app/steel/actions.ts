@@ -169,9 +169,8 @@ function parseFields(formData: FormData, canSeeFinancials: boolean): ParseResult
  * Reconcile the deal's line items against the submitted set. Prices/description/
  * category come from the form; cost / commissionable / commission % are taken
  * from the form only when the editor can see financials — otherwise preserved
- * from the existing row (a sales user can't wipe them). commission_paid / date
- * are always preserved. Lines removed from the form are deleted; empty lines
- * are dropped.
+ * from the existing row (a sales user can't wipe them). Lines removed from the
+ * form are deleted; empty lines are dropped.
  *
  * `squareFeet` exists so a per-SF cost basis can be derived HERE rather than
  * only in the form. A sales rep never sees the cost fields, so nothing on the
@@ -209,7 +208,6 @@ async function saveServices(
         : null)
     const commissionable = canSeeFinancials ? (line.commissionable ?? true) : (ex?.commissionable ?? true)
     const commission_pct = canSeeFinancials ? line.commission_pct : (ex?.commission_pct ?? null)
-    const commission_paid = ex?.commission_paid ?? false
     const description = line.description
 
     // Drop blank lines (nothing entered). An existing row that lands here is
@@ -219,8 +217,7 @@ async function saveServices(
       line.price_per_sqft != null ||
       cost != null ||
       commission_pct != null ||
-      (description ?? '') !== '' ||
-      commission_paid
+      (description ?? '') !== ''
     if (!hasData) return
 
     const row: TablesInsert<'steel_deal_services'> = {
@@ -239,8 +236,6 @@ async function saveServices(
           : null),
       commissionable,
       commission_pct,
-      commission_paid,
-      commission_paid_date: ex?.commission_paid_date ?? null,
       sort_order: i,
     }
 
