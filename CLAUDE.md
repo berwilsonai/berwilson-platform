@@ -242,7 +242,8 @@ MAP_WORLD_PMTILES_PATH=          # optional; /map world-overview archive z0-7 (d
 CARD_OCR_BIN=                    # optional; business-card OCR binary (Apple Vision). Default ~/.local/bin/bw-ocr — build with `zsh scripts/build-ocr.sh`
 BACKUP_DIR=                      # optional; nightly-backup dir the health page checks (default ~/Backups/berwilson)
 GOOGLE_LEAD_MAILBOXES=           # mailbox(es) swept for INBOUND LEADS (default info@berwilson.com) — kept apart from the deal mailboxes
-GMAIL_LEAD_EXCLUSIONS=           # optional; overrides the lead sweep's Gmail-side marketing filter (default: -category:promotions -category:social -label:bw-filtered)
+GMAIL_LEAD_EXCLUSIONS=           # optional; overrides the LEAD sweep's Gmail-side marketing filter (default: -category:promotions -category:social -label:bw-filtered)
+GMAIL_DEAL_EXCLUSIONS=           # optional; the same filter for the DEAL sweep (moose@/tuaone@), added 2026-09-22. Same default. Applying the `bw-filtered` Gmail label to a sender retires them with no code change
 LEADS_NOTIFY_EMAIL=              # optional; where scored leads are announced. UNSET = nothing is sent (the queue still fills)
 GOOGLE_DRIVE_KNOWLEDGE_FOLDER_ID=# optional; COMMA-SEPARATED Drive folder ids indexed nightly into the company KB (nested subfolders included, "Archive" subfolders skipped) so lead fit scores are grounded. UNSET = sync no-ops. Nominating folders IS the control model — never point it at a drive root
 GOOGLE_DEAL_INTAKE_FOLDER_ID=  # optional; Drive parent the berwilson.com deal form creates one folder per submission inside. UNSET = deal intake off (cron 503s). Contract: deploy/deal-intake-form.md
