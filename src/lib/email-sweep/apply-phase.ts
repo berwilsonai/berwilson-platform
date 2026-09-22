@@ -36,6 +36,9 @@ import { sweepDb, type EmailThreadRow, type ThreadLinkRow, type LinkRecordKind }
 
 const BATCH = 100
 
+/** PostgREST caps a response at 1000 rows and says nothing about it. */
+const PAGE = 1000
+
 /** Matches the caps used elsewhere in the sweep. */
 const MAX_UPDATE_CHARS = 100_000
 const MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024
@@ -47,6 +50,8 @@ export interface ApplyProgress {
   updatesStaged: number
   leadsTouched: number
   attachmentsImported: number
+  /** Links with mail still to post, before this run's limit was applied. */
+  pendingFound: number
   staleLinksDropped: number
   /** Links whose record is lost/closed/on hold — kept, but held back. */
   dormantSkipped: number
@@ -103,7 +108,17 @@ type LinkWithThread = ThreadLinkRow & {
 }
 
 export async function applyThreadUpdates(
-  opts: { linkIds?: string[]; limit?: number; budgetMs?: number } = {}
+  opts: { linkIds?: string[]; limit?: number; budgetMs?: number
+    /**
+     * Raise notifications for what is posted. Default true.
+     *
+     * Set false for a deliberate BACKLOG DRAIN: correspondence from three weeks
+     * ago is not news, and announcing forty records at once teaches people to
+     * ignore the bell — which is the one thing a notification channel cannot
+     * recover from. Steady-state runs always announce.
+     */
+    announce?: boolean
+  } = {}
 ): Promise<ApplyProgress> {
   const db = sweepDb()
   // Time-budgeted like every other phase, and for a sharper reason here: writing
@@ -119,29 +134,68 @@ export async function applyThreadUpdates(
     updatesStaged: 0,
     leadsTouched: 0,
     attachmentsImported: 0,
+    pendingFound: 0,
     staleLinksDropped: 0,
     dormantSkipped: 0,
     failed: 0,
     outOfTime: false,
   }
 
-  // Never-applied links first, then least-recently-applied.
+  // ⚠ THE BATCH IS CHOSEN IN TWO STEPS, AND A ONE-STEP VERSION STARVES.
   //
-  // Without an ordering the batch is an arbitrary slice: with 262 links and a
-  // limit of 100, links outside that slice would never be reached, and the
-  // caller's drain loop would stop the moment a batch happened to contain no
-  // outstanding work — reporting "done" with correspondence still unfiled.
-  let query = db
+  // It used to load the 100 links with the oldest last_applied_at and skip the
+  // caught-up ones inside the loop — but a caught-up link is skipped WITHOUT its
+  // cursor moving, so it keeps its place at the front of the order forever. The
+  // same 100 links were re-read every run and everything behind them was
+  // unreachable. Measured 2026-09-22: 44 links held unapplied mail, only 3 of
+  // them fell inside the first 100, and the run reported `linksConsidered: 0`
+  // while Myton Rail sat at 0 of 3 messages and DUBHES at 0 of 7.
+  //
+  // A cross-table comparison (applied_message_count < thread.message_count) is
+  // not expressible in PostgREST, so the delta is computed here from a LIGHT
+  // select — deliberately without raw_markdown, which is the whole body of every
+  // conversation and would be tens of megabytes across the full link set.
+  const candidates: Array<{ id: string; last: string | null }> = []
+  for (let from = 0; ; from += PAGE) {
+    let scan = db
+      .from('thread_links')
+      .select('id, last_applied_at, applied_message_count, thread:email_threads(message_count)')
+      .order('last_applied_at', { ascending: true, nullsFirst: true })
+      .range(from, from + PAGE - 1)
+    if (opts.linkIds?.length) scan = scan.in('id', opts.linkIds)
+
+    const { data: page, error: scanErr } = await scan
+    if (scanErr) throw new Error(`Could not scan links to apply: ${scanErr.message}`)
+    // PostgREST types a to-one embed as an array here even though it returns an
+    // object, so the shape is normalised rather than asserted away.
+    const rows = (page ?? []) as unknown as Array<{
+      id: string
+      last_applied_at: string | null
+      applied_message_count: number
+      thread: { message_count: number | null } | { message_count: number | null }[] | null
+    }>
+    for (const r of rows) {
+      const thread = Array.isArray(r.thread) ? r.thread[0] : r.thread
+      if (!thread) continue
+      if (r.applied_message_count >= (thread.message_count ?? 0)) continue
+      candidates.push({ id: r.id, last: r.last_applied_at })
+    }
+    // Stop as soon as the batch is full: the scan is already in the order the
+    // batch wants, so the first N with a delta ARE the N that should run.
+    if (rows.length < PAGE || candidates.length >= (opts.limit ?? BATCH)) break
+  }
+
+  progress.pendingFound = candidates.length
+  const take = candidates.slice(0, opts.limit ?? BATCH).map((c) => c.id)
+  if (take.length === 0) return progress
+
+  const { data, error } = await db
     .from('thread_links')
     .select(
       '*, thread:email_threads(id, subject, raw_markdown, message_count, attachment_count, mailbox, gmail_thread_id, last_at)'
     )
+    .in('id', take)
     .order('last_applied_at', { ascending: true, nullsFirst: true })
-    .limit(opts.limit ?? BATCH)
-
-  if (opts.linkIds?.length) query = query.in('id', opts.linkIds)
-
-  const { data, error } = await query
   if (error) throw new Error(`Could not load links to apply: ${error.message}`)
 
   // Collected across the run and sent once at the end, for the same reason the
@@ -214,7 +268,7 @@ export async function applyThreadUpdates(
 
   // Both helpers swallow their own failures — a Chat outage or a missing
   // notifications table must never cost correspondence that is already filed.
-  if (events.length > 0) {
+  if (events.length > 0 && opts.announce !== false) {
     await notifyTeam(events)
     await broadcastEvents(events)
   }
