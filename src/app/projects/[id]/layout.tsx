@@ -32,6 +32,35 @@ export default async function ProjectLayout({ children, params }: LayoutProps) {
   const viewer = await getViewer()
   if (viewer && !viewer.isAdmin && !(await canAccessProject(viewer, id))) notFound()
 
+  // Which tabs actually hold anything.
+  //
+  // Measured across all 15 projects on 2026-09-21: Diligence, Financing,
+  // Entities & Vendors and Meetings had rows on ZERO of them, and Milestones
+  // and Tasks on one each — while every project page showed all ten tabs. The
+  // two that carry the work, Updates and Documents, were the 7th and 6th
+  // along a bar you had to scan past seven empty ones to reach.
+  //
+  // Head counts with a filter on an indexed column, run in parallel: the rows
+  // are never fetched, only counted, so this is one cheap round trip.
+  const count = async (
+    table: 'project_players' | 'updates' | 'meetings' | 'tasks' | 'documents' | 'milestones' | 'financing_structures' | 'dd_items' | 'entity_projects'
+  ) => {
+    const { count: n } = await supabase
+      .from(table)
+      .select('id', { count: 'exact', head: true })
+      .eq('project_id', id)
+    return n ?? 0
+  }
+  const [players, updates, meetings, tasks, documents, milestones, financing, diligence, entities] =
+    await Promise.all([
+      count('project_players'), count('updates'), count('meetings'), count('tasks'),
+      count('documents'), count('milestones'), count('financing_structures'),
+      count('dd_items'), count('entity_projects'),
+    ])
+  const tabCounts = {
+    players, updates, meetings, tasks, documents, milestones, financing, diligence, entities,
+  }
+
   const status = project.status ?? 'active'
   const stage = project.stage ?? 'pursuit'
 
@@ -80,7 +109,7 @@ export default async function ProjectLayout({ children, params }: LayoutProps) {
       </div>
 
       {/* Tab bar */}
-      <ProjectTabBar projectId={id} />
+      <ProjectTabBar projectId={id} counts={tabCounts} />
 
       {/* Tab content */}
       <div className="pt-6">{children}</div>
