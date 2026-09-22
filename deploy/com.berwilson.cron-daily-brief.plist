@@ -8,7 +8,7 @@
   <array>
     <string>/bin/zsh</string>
     <string>-c</string>
-    <string>curl -sS -m 290 -H "Authorization: Bearer $(grep '^CRON_SECRET=' __APP_DIR__/.env.local | cut -d= -f2-)" http://localhost:3000/api/cron/daily-brief</string>
+    <string>curl -sS -m 1700 -H "Authorization: Bearer $(grep '^CRON_SECRET=' __APP_DIR__/.env.local | cut -d= -f2-)" http://localhost:3000/api/cron/daily-brief</string>
   </array>
   <!-- Weekly, Monday 6:30am local. Weekday 1 = Monday. -->
   <key>StartCalendarInterval</key>

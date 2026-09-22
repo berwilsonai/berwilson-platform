@@ -24,6 +24,22 @@ import { fetchCalendarEvents } from '@/lib/integrations/google-workspace'
 import { broadcastBrief } from '@/lib/notify/broadcast-brief'
 import { SYSTEM_USER_ID } from '@/lib/system-user'
 
+/**
+ * The brief is one long local-model call and it is not always quick.
+ *
+ * Every other cron route declares a budget and its launchd agent sets curl's
+ * -m just under it; this route declared none, so curl cut at 290s while the
+ * server carried on and wrote the brief anyway (Next does not abort a handler
+ * when the client disconnects). launchd then recorded exit 28 for a run that
+ * had SUCCEEDED — the logs show cut-offs at 452s and 988s against briefs that
+ * exist. An exit code that says failure on success is worse than none: it
+ * teaches you to stop reading exit codes.
+ *
+ * 1800s matches the Drive crons and sits above LOCAL_AI_TIMEOUT_MS, so a
+ * genuinely stalled model is caught by its own guard rather than by this.
+ */
+export const maxDuration = 1800
+
 
 const PROACTIVE_BRIEF_PROMPT = `You are a chief of staff for two construction executives managing a multi-billion dollar portfolio.
 Generate the WEEKLY intelligence brief for the week ahead. Be direct, urgent, and actionable.
