@@ -54,7 +54,7 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
 
   // Scoped users may only open documents on their granted projects / meetings.
   const viewer = await getViewer()
-  if (viewer && !viewer.isAdmin && !(await canViewerAccessDoc(viewer, doc, createAdminClient()))) {
+  if (!viewer || (!viewer.isAdmin && !(await canViewerAccessDoc(viewer, doc, createAdminClient())))) {
     return forbiddenJson()
   }
 
@@ -111,7 +111,7 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
   if (!doc) return Response.json({ error: 'Document not found' }, { status: 404 })
 
   const viewer = await getViewer()
-  if (viewer && !viewer.isAdmin && !(await canViewerAccessDoc(viewer, doc, createAdminClient()))) {
+  if (!viewer || (!viewer.isAdmin && !(await canViewerAccessDoc(viewer, doc, createAdminClient())))) {
     return forbiddenJson()
   }
 
@@ -164,7 +164,7 @@ export async function DELETE(_request: NextRequest, { params }: RouteContext) {
 
   // Scoped users may only delete documents on their granted projects / meetings.
   const viewer = await getViewer()
-  if (viewer && !viewer.isAdmin && !(await canViewerAccessDoc(viewer, doc, createAdminClient()))) {
+  if (!viewer || (!viewer.isAdmin && !(await canViewerAccessDoc(viewer, doc, createAdminClient())))) {
     return forbiddenJson()
   }
 

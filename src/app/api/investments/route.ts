@@ -8,7 +8,7 @@ export async function POST(request: NextRequest) {
   // /api/investments is not in any role allowlist (admin-only via middleware);
   // this check is defense-in-depth.
   const viewer = await getViewer()
-  if (viewer && !viewer.isAdmin) return forbiddenJson()
+  if (!viewer?.isAdmin) return forbiddenJson()
 
   let body: InvestmentBody
   try {

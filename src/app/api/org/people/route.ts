@@ -10,7 +10,7 @@ import { orgTier, orgPersonStatus } from '@/lib/utils/org'
 
 export async function POST(request: NextRequest) {
   const viewer = await getViewer()
-  if (viewer && !viewer.isAdmin) return forbiddenJson()
+  if (!viewer?.isAdmin) return forbiddenJson()
 
   let body: {
     node_id?: string | null

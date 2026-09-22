@@ -21,7 +21,11 @@ export async function POST(request: NextRequest) {
   // Scoped users may only stage uploads into their granted projects' folders
   // (or a meeting they can access — meeting files live under meetings/<id>/).
   const viewer = await getViewer()
-  if (viewer && !viewer.isAdmin) {
+  // Unreachable behind the middleware, which 401s an unauthenticated request
+  // before it reaches here — but this is the layer that must not assume that,
+  // and the early return also narrows `viewer` for everything below.
+  if (!viewer) return forbiddenJson()
+  if (!viewer.isAdmin) {
     const projMatch = /^projects\/([0-9a-f-]{36})\//.exec(storage_path)
     const meetMatch = /^meetings\/([0-9a-f-]{36})\//.exec(storage_path)
     if (projMatch) {

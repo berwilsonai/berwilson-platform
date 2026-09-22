@@ -55,6 +55,21 @@ const ROLE_PAGE_PREFIXES: Record<Exclude<Role, 'admin'>, string[]> = {
 // Every signed-in role carries the notification bell, so /api/notifications is
 // in all of them. The routes scope every read and write to the viewer's OWN
 // team_member row, so this grants access to one's own inbox and nothing else.
+/**
+ * ⚠ ADDING A PREFIX HERE CAN EXPOSE ROUTES THAT HAVE NO CHECK OF THEIR OWN.
+ *
+ * Most API routes are admin-only by DEFAULT-DENY: they are simply absent from
+ * every list below, so the middleware turns a non-admin away and the route
+ * never needs its own guard. Audited 2026-09-21 — 28 routes carry no in-route
+ * check, and exactly three of them (`/api/objectives*`, for `executive`) are
+ * reachable by a non-admin, which is deliberate: the steering board is an
+ * executive surface.
+ *
+ * That safety is a property of this list being restrictive, not of the routes.
+ * So a prefix added here must be checked route by route first — matchesPrefix
+ * is a prefix match and is NOT method-aware, so allowlisting a path to grant a
+ * read also grants every mutation underneath it.
+ */
 const ROLE_API_PREFIXES: Record<Exclude<Role, 'admin'>, string[]> = {
   executive: ['/api/tasks', '/api/objectives', '/api/team-members', '/api/steel', '/api/notifications'],
   project_manager: [

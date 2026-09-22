@@ -5,7 +5,7 @@ import { parsePaymentFields, type Body } from '@/lib/dino/parse'
 
 export async function POST(request: NextRequest) {
   const viewer = await getViewer()
-  if (viewer && !viewer.isAdmin) return forbiddenJson()
+  if (!viewer?.isAdmin) return forbiddenJson()
 
   let body: Body
   try {

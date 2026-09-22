@@ -11,7 +11,7 @@ import { orgNodeKind, orgEntityType } from '@/lib/utils/org'
 
 export async function POST(request: NextRequest) {
   const viewer = await getViewer()
-  if (viewer && !viewer.isAdmin) return forbiddenJson()
+  if (!viewer?.isAdmin) return forbiddenJson()
 
   let body: {
     parent_id?: string | null

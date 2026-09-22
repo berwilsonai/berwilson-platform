@@ -32,7 +32,7 @@ export const maxDuration = 120
 /** Filed threads, plus — on request — unfiled mail that looks like it belongs. */
 export async function GET(request: NextRequest) {
   const viewer = await getViewer()
-  if (viewer && !viewer.isAdmin) return forbiddenJson()
+  if (!viewer?.isAdmin) return forbiddenJson()
 
   const params = request.nextUrl.searchParams
   const kind = readKind(params.get('record_kind'))
@@ -79,7 +79,7 @@ export async function GET(request: NextRequest) {
 /** File a thread onto a record. */
 export async function POST(request: NextRequest) {
   const viewer = await getViewer()
-  if (viewer && !viewer.isAdmin) return forbiddenJson()
+  if (!viewer?.isAdmin) return forbiddenJson()
 
   let body: { record_kind?: string; record_id?: string; thread_id?: string }
   try {
@@ -129,7 +129,7 @@ export async function POST(request: NextRequest) {
 /** Unfile a thread — the correction path for a wrong filing. */
 export async function DELETE(request: NextRequest) {
   const viewer = await getViewer()
-  if (viewer && !viewer.isAdmin) return forbiddenJson()
+  if (!viewer?.isAdmin) return forbiddenJson()
 
   const params = request.nextUrl.searchParams
   const kind = readKind(params.get('record_kind'))

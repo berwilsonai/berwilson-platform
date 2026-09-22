@@ -20,7 +20,7 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
   // /api/investors is not in any role allowlist (admin-only via middleware);
   // this check is defense-in-depth.
   const viewer = await getViewer()
-  if (viewer && !viewer.isAdmin) return forbiddenJson()
+  if (!viewer?.isAdmin) return forbiddenJson()
 
   let body: Record<string, unknown>
   try {
@@ -63,7 +63,7 @@ export async function DELETE(_request: NextRequest, { params }: RouteContext) {
   if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 })
 
   const viewer = await getViewer()
-  if (viewer && !viewer.isAdmin) return forbiddenJson('Only admins can delete investors')
+  if (!viewer?.isAdmin) return forbiddenJson('Only admins can delete investors')
 
   const { id } = await params
   const admin = createAdminClient()

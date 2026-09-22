@@ -99,7 +99,7 @@ export async function DELETE(_request: NextRequest, { params }: RouteContext) {
 
   // Deleting a compliance record stays admin-only.
   const viewer = await getViewer()
-  if (viewer && !viewer.isAdmin) return forbiddenJson()
+  if (!viewer?.isAdmin) return forbiddenJson()
 
   const supabase = await actorAdminClient()
 

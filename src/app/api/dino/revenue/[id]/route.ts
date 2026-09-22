@@ -11,7 +11,7 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
   const { id } = await params
 
   const viewer = await getViewer()
-  if (viewer && !viewer.isAdmin) return forbiddenJson()
+  if (!viewer?.isAdmin) return forbiddenJson()
 
   let body: Body
   try {
@@ -39,7 +39,7 @@ export async function DELETE(_request: NextRequest, { params }: RouteContext) {
   const { id } = await params
 
   const viewer = await getViewer()
-  if (viewer && !viewer.isAdmin) return forbiddenJson()
+  if (!viewer?.isAdmin) return forbiddenJson()
 
   const supabase = createAdminClient()
   const { error } = await supabase.from('dino_revenue').delete().eq('id', id)

@@ -23,7 +23,7 @@ interface PersonItem {
  */
 export async function POST(request: NextRequest) {
   const viewer = await getViewer()
-  if (viewer && !viewer.isAdmin) return forbiddenJson()
+  if (!viewer?.isAdmin) return forbiddenJson()
 
   let body: { nodes?: NodeItem[]; people?: PersonItem[] }
   try {

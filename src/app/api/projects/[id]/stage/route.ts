@@ -14,7 +14,7 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
   const { id } = await params
 
   const viewer = await getViewer()
-  if (viewer && !viewer.isAdmin && !(await canAccessProject(viewer, id))) return forbiddenJson()
+  if (!viewer || (!viewer.isAdmin && !(await canAccessProject(viewer, id)))) return forbiddenJson()
   const body = await request.json()
   const { stage } = body
 

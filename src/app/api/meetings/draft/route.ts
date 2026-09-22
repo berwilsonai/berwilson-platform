@@ -12,7 +12,7 @@ export const maxDuration = 300
 
 export async function POST(request: NextRequest) {
   const viewer = await getViewer()
-  if (viewer && !viewer.isAdmin) return forbiddenJson()
+  if (!viewer?.isAdmin) return forbiddenJson()
 
   let userId = SYSTEM_USER_ID
   try {

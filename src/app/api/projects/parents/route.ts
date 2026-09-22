@@ -1,5 +1,5 @@
 import { createAdminClient } from '@/lib/supabase/admin'
-import { getViewer } from '@/lib/auth/viewer'
+import { getViewer, forbiddenJson } from '@/lib/auth/viewer'
 
 export async function GET() {
   const supabase = createAdminClient()
@@ -18,7 +18,11 @@ export async function GET() {
 
   // Don't leak the rest of the pipeline to scoped users.
   const viewer = await getViewer()
-  if (viewer && !viewer.isAdmin) {
+  // Unreachable behind the middleware, which 401s an unauthenticated request
+  // before it reaches here — but this is the layer that must not assume that,
+  // and the early return also narrows `viewer` for everything below.
+  if (!viewer) return forbiddenJson()
+  if (!viewer.isAdmin) {
     return Response.json((data || []).filter((p) => viewer.grantedProjectIds.includes(p.id)))
   }
 

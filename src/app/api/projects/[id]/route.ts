@@ -30,7 +30,7 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
   const { id } = await params
 
   const viewer = await getViewer()
-  if (viewer && !viewer.isAdmin && !(await canAccessProject(viewer, id))) return forbiddenJson()
+  if (!viewer || (!viewer.isAdmin && !(await canAccessProject(viewer, id)))) return forbiddenJson()
 
   const body = await request.json().catch(() => ({}))
 
@@ -73,7 +73,7 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
   const MAP_FIELDS = ['latitude', 'longitude', 'map_icon', 'map_geometry'] as const
   const touchesMap = MAP_FIELDS.some((f) => f in body)
   if (touchesMap) {
-    if (viewer && !viewer.isAdmin) return forbiddenJson('Only admins can edit map placement')
+    if (!viewer?.isAdmin) return forbiddenJson('Only admins can edit map placement')
 
     if ('latitude' in body) {
       const v = body.latitude
@@ -150,7 +150,7 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
 export async function DELETE(_request: NextRequest, { params }: RouteContext) {
   const { id } = await params
   const viewer = await getViewer()
-  if (viewer && !viewer.isAdmin) return forbiddenJson('Only admins can delete projects')
+  if (!viewer?.isAdmin) return forbiddenJson('Only admins can delete projects')
   const supabase = await actorAdminClient()
 
   const { error } = await supabase

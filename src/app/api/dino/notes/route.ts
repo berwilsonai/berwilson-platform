@@ -4,7 +4,7 @@ import { getViewer, forbiddenJson } from '@/lib/auth/viewer'
 
 export async function POST(request: NextRequest) {
   const viewer = await getViewer()
-  if (viewer && !viewer.isAdmin) return forbiddenJson()
+  if (!viewer?.isAdmin) return forbiddenJson()
 
   let body: { body?: string }
   try {

@@ -22,7 +22,11 @@ export async function POST(request: NextRequest) {
   if (!result.ok) return Response.json({ error: result.error }, { status: 400 })
 
   const viewer = await getViewer()
-  if (viewer && !viewer.isAdmin) {
+  // Unreachable behind the middleware, which 401s an unauthenticated request
+  // before it reaches here — but this is the layer that must not assume that,
+  // and the early return also narrows `viewer` for everything below.
+  if (!viewer) return forbiddenJson()
+  if (!viewer.isAdmin) {
     if (result.fields.scope === 'company') return forbiddenJson()
     if (result.fields.scope === 'project') {
       if (!result.fields.project_id || !(await canAccessProject(viewer, result.fields.project_id))) {

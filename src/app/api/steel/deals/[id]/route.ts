@@ -82,7 +82,7 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
 
 export async function DELETE(_request: NextRequest, { params }: RouteContext) {
   const viewer = await getViewer()
-  if (viewer && !viewer.isAdmin) return forbiddenJson('Only admins can delete deals')
+  if (!viewer?.isAdmin) return forbiddenJson('Only admins can delete deals')
 
   const { id } = await params
   const admin = createAdminClient()

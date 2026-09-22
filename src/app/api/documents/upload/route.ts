@@ -30,7 +30,11 @@ export async function POST(request: NextRequest) {
 
   // Scoped users may only upload into their granted projects (never entity/company docs).
   const viewer = await getViewer()
-  if (viewer && !viewer.isAdmin) {
+  // Unreachable behind the middleware, which 401s an unauthenticated request
+  // before it reaches here — but this is the layer that must not assume that,
+  // and the early return also narrows `viewer` for everything below.
+  if (!viewer) return forbiddenJson()
+  if (!viewer.isAdmin) {
     if (!project_id || entity_id || is_company || !(await canAccessProject(viewer, project_id))) {
       return forbiddenJson()
     }

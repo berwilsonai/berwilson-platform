@@ -30,7 +30,11 @@ export async function POST(_request: NextRequest, { params }: RouteContext) {
 
   // Scoped users may only reindex documents on their granted projects.
   const viewer = await getViewer()
-  if (viewer && !viewer.isAdmin) {
+  // Unreachable behind the middleware, which 401s an unauthenticated request
+  // before it reaches here — but this is the layer that must not assume that,
+  // and the early return also narrows `viewer` for everything below.
+  if (!viewer) return forbiddenJson()
+  if (!viewer.isAdmin) {
     if (!doc.project_id || !(await canAccessProject(viewer, doc.project_id))) return forbiddenJson()
   }
 

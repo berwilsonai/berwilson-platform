@@ -31,7 +31,7 @@ export async function POST(request: NextRequest) {
   }
 
   const viewer = await getViewer()
-  if (viewer && !viewer.isAdmin && !canAccessOpportunity(viewer, opportunity_id)) return forbiddenJson()
+  if (!viewer || (!viewer.isAdmin && !canAccessOpportunity(viewer, opportunity_id))) return forbiddenJson()
 
   const timestamp = Date.now()
   const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_')

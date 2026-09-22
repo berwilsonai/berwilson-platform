@@ -16,7 +16,11 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
   const { id } = await params
 
   const viewer = await getViewer()
-  if (viewer && !viewer.isAdmin) {
+  // Unreachable behind the middleware, which 401s an unauthenticated request
+  // before it reaches here — but this is the layer that must not assume that,
+  // and the early return also narrows `viewer` for everything below.
+  if (!viewer) return forbiddenJson()
+  if (!viewer.isAdmin) {
     const { data: ms } = await createAdminClient().from('milestones').select('project_id').eq('id', id).maybeSingle()
     if (!ms?.project_id || !(await canAccessProject(viewer, ms.project_id))) return forbiddenJson()
   }

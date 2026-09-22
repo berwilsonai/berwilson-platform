@@ -11,7 +11,7 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
   const { id } = await params
 
   const viewer = await getViewer()
-  if (viewer && !viewer.isAdmin && !canAccessOpportunity(viewer, id)) return forbiddenJson()
+  if (!viewer || (!viewer.isAdmin && !canAccessOpportunity(viewer, id))) return forbiddenJson()
 
   let body: { body?: string }
   try {

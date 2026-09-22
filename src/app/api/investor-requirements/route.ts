@@ -10,7 +10,7 @@ import { requirementCategory, requirementStatus } from '@/lib/utils/investors'
 
 export async function POST(request: NextRequest) {
   const viewer = await getViewer()
-  if (viewer && !viewer.isAdmin) return forbiddenJson()
+  if (!viewer?.isAdmin) return forbiddenJson()
 
   let body: {
     investor_id?: string

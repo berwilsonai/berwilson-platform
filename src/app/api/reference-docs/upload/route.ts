@@ -10,7 +10,7 @@ export const maxDuration = 300
 export async function POST(request: NextRequest) {
   // Reference documents are an admin-only surface (default-deny).
   const viewer = await getViewer()
-  if (viewer && !viewer.isAdmin) return forbiddenJson()
+  if (!viewer?.isAdmin) return forbiddenJson()
 
   const supabase = await actorAdminClient()
 

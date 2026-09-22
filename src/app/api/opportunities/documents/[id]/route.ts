@@ -28,7 +28,7 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
   }
 
   const viewer = await getViewer()
-  if (viewer && !viewer.isAdmin && !canAccessOpportunity(viewer, doc.opportunity_id)) return forbiddenJson()
+  if (!viewer || (!viewer.isAdmin && !canAccessOpportunity(viewer, doc.opportunity_id))) return forbiddenJson()
 
   const download = request.nextUrl.searchParams.get('download') === '1'
   const { data, error: signError } = await admin.storage
@@ -61,7 +61,7 @@ export async function DELETE(_request: NextRequest, { params }: RouteContext) {
   }
 
   const viewer = await getViewer()
-  if (viewer && !viewer.isAdmin && !canAccessOpportunity(viewer, doc.opportunity_id)) return forbiddenJson()
+  if (!viewer || (!viewer.isAdmin && !canAccessOpportunity(viewer, doc.opportunity_id))) return forbiddenJson()
 
   // DB row first (cascades the document's chunks), storage cleanup after —
   // if the row delete fails we must not have already destroyed the file.

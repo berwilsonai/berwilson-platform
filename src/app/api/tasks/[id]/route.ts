@@ -68,12 +68,16 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
 export async function PATCH(request: NextRequest, { params }: RouteContext) {
   const { id } = await params
   const viewer = await getViewer()
+  // Unreachable behind the middleware, which 401s an unauthenticated request
+  // before it reaches here — but this is the layer that must not assume that,
+  // and the early return also narrows `viewer` for everything below.
+  if (!viewer) return forbiddenJson()
   const guard = await guardTask(viewer, id)
   if (guard) return guard
   const body = await request.json()
 
   // Non-executives can't retag a task onto a project/opportunity they don't have.
-  if (viewer && !viewer.isAdmin && viewer.role !== 'executive') {
+  if (!viewer || (!viewer.isAdmin && viewer.role !== 'executive')) {
     const retagged = {
       assignee_id: viewer.teamMemberId,
       project_id: 'project_id' in body ? body.project_id || null : null,

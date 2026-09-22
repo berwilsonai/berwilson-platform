@@ -11,7 +11,7 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
   const { id } = await params
 
   const viewer = await getViewer()
-  if (viewer && !viewer.isAdmin) return forbiddenJson()
+  if (!viewer?.isAdmin) return forbiddenJson()
 
   let body: RaiseBody
   try {
@@ -53,7 +53,7 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
 
 export async function DELETE(_request: NextRequest, { params }: RouteContext) {
   const viewer = await getViewer()
-  if (viewer && !viewer.isAdmin) return forbiddenJson('Only admins can delete raises')
+  if (!viewer?.isAdmin) return forbiddenJson('Only admins can delete raises')
 
   const { id } = await params
   const supabase = createAdminClient()

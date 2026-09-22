@@ -7,7 +7,7 @@ import { parseRevenueFields, type Body } from '@/lib/dino/parse'
 // getViewer check is defense-in-depth.
 export async function POST(request: NextRequest) {
   const viewer = await getViewer()
-  if (viewer && !viewer.isAdmin) return forbiddenJson()
+  if (!viewer?.isAdmin) return forbiddenJson()
 
   let body: Body
   try {

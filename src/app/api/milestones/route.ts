@@ -19,7 +19,7 @@ export async function POST(request: NextRequest) {
   }
 
   const viewer = await getViewer()
-  if (viewer && !viewer.isAdmin && !(await canAccessProject(viewer, project_id))) return forbiddenJson()
+  if (!viewer || (!viewer.isAdmin && !(await canAccessProject(viewer, project_id)))) return forbiddenJson()
 
   const row: TablesInsert<'milestones'> = {
     project_id,

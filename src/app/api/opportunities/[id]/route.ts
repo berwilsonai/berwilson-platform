@@ -18,7 +18,7 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
   const { id } = await params
 
   const viewer = await getViewer()
-  if (viewer && !viewer.isAdmin && !canAccessOpportunity(viewer, id)) return forbiddenJson()
+  if (!viewer || (!viewer.isAdmin && !canAccessOpportunity(viewer, id))) return forbiddenJson()
 
   let body: Record<string, unknown>
   try {
@@ -61,7 +61,7 @@ export async function DELETE(_request: NextRequest, { params }: RouteContext) {
   if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 })
 
   const viewer = await getViewer()
-  if (viewer && !viewer.isAdmin) return forbiddenJson('Only admins can delete opportunities')
+  if (!viewer?.isAdmin) return forbiddenJson('Only admins can delete opportunities')
 
   const { id } = await params
   const admin = createAdminClient()

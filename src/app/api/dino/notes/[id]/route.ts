@@ -10,7 +10,7 @@ export async function DELETE(_request: NextRequest, { params }: RouteContext) {
   const { id } = await params
 
   const viewer = await getViewer()
-  if (viewer && !viewer.isAdmin) return forbiddenJson()
+  if (!viewer?.isAdmin) return forbiddenJson()
 
   const supabase = createAdminClient()
   const { error } = await supabase.from('dino_notes').delete().eq('id', id)
