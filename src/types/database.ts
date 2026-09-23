@@ -1895,6 +1895,68 @@ export type Database = {
           },
         ]
       }
+      dev_notes: {
+        Row: {
+          body: string | null
+          created_at: string | null
+          id: string
+          kind: string
+          page_path: string | null
+          priority: string
+          reporter_id: string | null
+          reporter_name: string | null
+          resolution: string | null
+          resolved_at: string | null
+          resolved_by: string | null
+          status: string
+          title: string
+          updated_at: string | null
+          user_agent: string | null
+        }
+        Insert: {
+          body?: string | null
+          created_at?: string | null
+          id?: string
+          kind?: string
+          page_path?: string | null
+          priority?: string
+          reporter_id?: string | null
+          reporter_name?: string | null
+          resolution?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          status?: string
+          title: string
+          updated_at?: string | null
+          user_agent?: string | null
+        }
+        Update: {
+          body?: string | null
+          created_at?: string | null
+          id?: string
+          kind?: string
+          page_path?: string | null
+          priority?: string
+          reporter_id?: string | null
+          reporter_name?: string | null
+          resolution?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          status?: string
+          title?: string
+          updated_at?: string | null
+          user_agent?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dev_notes_reporter_id_fkey"
+            columns: ["reporter_id"]
+            isOneToOne: false
+            referencedRelation: "team_members"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       objectives: {
         Row: {
           bucket: string
