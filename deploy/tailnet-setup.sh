@@ -122,7 +122,43 @@ PY
   DRIFT=2
 fi
 
-b "\n4. Reachability"
+b "\n4. Supabase (GoTrue) vs live hostname"
+# .env.local is only HALF the hostname config. GoTrue keeps its own copy in the
+# self-hosted stack's .env, and that is what gets baked into every recovery / invite /
+# magic link it generates. When the tailnet moved on 2026-09-16 this half was missed, so
+# GoTrue kept minting links pointing at a hostname that no longer resolved — clicking one
+# gives "site can't be reached", which reads to a user as a broken password. Nothing else
+# asserted this, so it is asserted here beside its counterpart.
+SUPA_ENV="$HOME/supabase-selfhost/docker/.env"
+SDRIFT=0
+if [[ -f $SUPA_ENV ]]; then
+  for k w in API_EXTERNAL_URL "$WANT_SUPA" SUPABASE_PUBLIC_URL "$WANT_SUPA" SITE_URL "$WANT_APP"; do
+    c=$(grep -m1 "^${k}=" "$SUPA_ENV" | cut -d= -f2-)
+    if [[ "$c" == "$w" ]]; then ok "$k matches"
+    else SDRIFT=1; bad "$k is ${c:-<unset>}"; print "      want: $w"; fi
+  done
+
+  if (( SDRIFT )) && (( FIX )); then
+    cp "$SUPA_ENV" "$SUPA_ENV.bak-$(date +%Y%m%d-%H%M%S)"
+    sed -i '' \
+      -e "s|^API_EXTERNAL_URL=.*|API_EXTERNAL_URL=${WANT_SUPA}|" \
+      -e "s|^SUPABASE_PUBLIC_URL=.*|SUPABASE_PUBLIC_URL=${WANT_SUPA}|" \
+      -e "s|^SITE_URL=.*|SITE_URL=${WANT_APP}|" \
+      "$SUPA_ENV"
+    ok "rewrote supabase .env (backup kept alongside it)"
+    # GoTrue reads these only at container start — recreate, a restart is not enough.
+    if ( export PATH="$HOME/.local/bin:$PATH" DOCKER_HOST="unix://$HOME/.colima/default/docker.sock"
+         cd "$HOME/supabase-selfhost/docker" && docker compose -f docker-compose.lean.yml up -d auth ) >/dev/null 2>&1
+    then ok "recreated supabase-auth on the new hostname"
+    else bad "could not recreate supabase-auth — do it by hand"; FAIL=1; fi
+    SDRIFT=0
+  fi
+else
+  warn "no supabase .env at $SUPA_ENV — skipping (not the Studio?)"
+fi
+(( SDRIFT )) && FAIL=1
+
+b "\n5. Reachability"
 # 25s, not 10: the FIRST request to a new tailnet hostname blocks while Tailscale
 # provisions the Let's Encrypt certificate. A short timeout reports 000 and reads as
 # "the platform is unreachable" when it is merely issuing a cert.
@@ -131,7 +167,7 @@ C1=$(code http://localhost:3000/login);           [[ $C1 == 200 ]] && ok "localh
 C2=$(code "https://${FQDN}/login");               [[ $C2 == 200 ]] && ok "tailnet 443 /login -> 200"   || { bad "tailnet 443 /login -> $C2"; FAIL=1 }
 C3=$(code "https://${FQDN}:8443/auth/v1/health"); [[ $C3 == 200 || $C3 == 401 ]] && ok "tailnet 8443 supabase -> $C3 (reachable)" || { bad "tailnet 8443 -> $C3"; FAIL=1 }
 
-b "\n5. Next step"
+b "\n6. Next step"
 if (( DRIFT == 1 )); then
   print "  .env.local is STALE. Re-run with --fix, then REBUILD (a restart is not enough —"
   print "  NEXT_PUBLIC_* is baked into the bundle at build time):"
