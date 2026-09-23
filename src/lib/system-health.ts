@@ -390,13 +390,23 @@ export async function probeDocumentIndexing(): Promise<{
 }> {
   const supabase = createAdminClient()
   try {
-    const { data, error } = await supabase
-      .from('documents')
-      .select('embedding_status')
-      .is('superseded_at', null)
-    if (error) throw new Error(error.message)
+    // BOTH document tables. This read `documents` alone until 2026-09-23, so
+    // the card reported "Every document is settled" while 28 opportunity
+    // documents — the whole M&A file for the Englert / Gold mine deal — had
+    // never been indexed and one had been stranded mid-pass since 09-22.
+    // A record kind the check cannot see is a record kind that goes dark
+    // quietly, which is the exact failure this card exists to prevent.
+    const [docsRes, oppRes] = await Promise.all([
+      supabase.from('documents').select('embedding_status').is('superseded_at', null),
+      supabase.from('opportunity_documents').select('embedding_status').is('superseded_at', null),
+    ])
+    if (docsRes.error) throw new Error(docsRes.error.message)
+    if (oppRes.error) throw new Error(oppRes.error.message)
 
-    const rows = (data ?? []) as { embedding_status: string | null }[]
+    const rows = [
+      ...((docsRes.data ?? []) as { embedding_status: string | null }[]),
+      ...((oppRes.data ?? []) as { embedding_status: string | null }[]),
+    ]
     let complete = 0
     let skipped = 0
     const stuck: Record<string, number> = {}
@@ -417,13 +427,15 @@ export async function probeDocumentIndexing(): Promise<{
     // The table carries no updated_at, so sequential processing is the only
     // thing available to tell "working" from "stuck". If a parallel importer is
     // ever added, this rule has to change with it.
-    const inFlight = (stuck.processing ?? 0) === 1 ? 1 : 0
+    // One pass may legitimately be in flight per table (each importer works
+    // sequentially), so allow up to two before calling passes dead.
+    const inFlight = Math.min(stuck.processing ?? 0, 2)
     const stuckTotal = Object.values(stuck).reduce((a, b) => a + b, 0) - inFlight
     if (stuckTotal === 0) {
       return {
         state: 'ok',
         detail: inFlight
-          ? `Every document is settled, one pass running now. ${tail}`
+          ? `Every document is settled, ${inFlight} pass${inFlight === 1 ? '' : 'es'} running now. ${tail}`
           : `Every document is settled. ${tail}`,
       }
     }
@@ -440,7 +452,8 @@ export async function probeDocumentIndexing(): Promise<{
       detail:
         `${stuckTotal} document${stuckTotal === 1 ? '' : 's'} never finished indexing (${breakdown}) — ` +
         `${stuckTotal === 1 ? 'it is' : 'they are'} on the record but invisible to Ber AI. ` +
-        `A Drive-sourced document is retried by its nightly sync; anything else needs the Reindex button on the document. ${tail}`,
+        `A Drive-sourced document is retried by its nightly sync; anything else needs the Reindex button on the document ` +
+        `(an OPPORTUNITY document has no nightly retry at all — run scripts/reindex-opportunity-documents.mts). ${tail}`,
     }
   } catch (err) {
     return {
