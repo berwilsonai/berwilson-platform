@@ -106,6 +106,10 @@ export const NAV_GROUP_ORDER: { group: NavGroup; label: string | null }[] = [
 
 /** Title-only routes that aren't nav destinations. */
 export const TITLE_EXTRAS: { href: string; title: string }[] = [
+  // Developer Notes is reached from the sidebar footer button / mobile More,
+  // not from the nav list — a feedback channel belongs beside the chrome, not
+  // among the company's working surfaces.
+  { href: '/dev-notes', title: 'Developer Notes' },
   { href: '/timeline', title: 'Timeline' },
   { href: '/vendors', title: 'Vendors & Contractors' },
   { href: '/calendar', title: 'Calendar' },
@@ -115,6 +119,7 @@ export const TITLE_EXTRAS: { href: string; title: string }[] = [
 
 /** Palette-only rows (query-param destinations, secondary tabs). */
 export const PALETTE_EXTRAS: { href: string; label: string; keywords: string }[] = [
+  { href: '/dev-notes', label: 'Developer Notes', keywords: 'bug report feedback feature request issue broken problem suggestion improvement developer notes' },
   { href: '/timeline', label: 'Timeline', keywords: 'gantt schedule' },
   { href: '/contacts?tab=vendors', label: 'Vendors & Contractors', keywords: 'companies organizations subs partners entities' },
   { href: '/calendar', label: 'Calendar', keywords: 'schedule dates milestones meeting google gmail' },

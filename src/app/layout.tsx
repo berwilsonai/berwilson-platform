@@ -11,6 +11,8 @@ import AppHeader from "@/components/layout/AppHeader"
 import MobileNav from "@/components/layout/MobileNav"
 import MobileQuickUpload from "@/components/layout/MobileQuickUpload"
 import AskBerAIDock from "@/components/agent/AskBerAIDock"
+import DevNoteDock from "@/components/dev-notes/DevNoteDock"
+import { countOpenDevNotes } from "@/lib/dev-notes/queries"
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -93,6 +95,10 @@ export default async function RootLayout({
   // block. One indexed count; skipped entirely for an account with no linked
   // team member, which can have no notifications by construction.
   let unreadNotifications = 0
+  // Open bug reports / feature requests. Admin-only, like the other sidebar
+  // counts — it is the builder's queue, and a number nobody can act on is
+  // decoration on everyone else's screen.
+  let openDevNoteCount = 0
   if (showShell && viewer?.teamMemberId) {
     const { count, error } = await createAdminClient()
       .from('notifications')
@@ -106,7 +112,7 @@ export default async function RootLayout({
   if (showShell && isAdmin) {
     const adminClient = createAdminClient()
     const today = new Date().toISOString().split('T')[0]
-    const [decideCount, { count: overdueMs }, { count: criticalDd }, { count: overdueTasks }, { count: dinoRows }] = await Promise.all([
+    const [decideCount, { count: overdueMs }, { count: criticalDd }, { count: overdueTasks }, { count: dinoRows }, devNotes] = await Promise.all([
       // The badge sits on Decide, so it counts what Decide holds — inbound
       // bids, staged correspondence AND flagged extractions, not the review
       // queue alone (which was a third of the page it pointed at).
@@ -127,10 +133,12 @@ export default async function RootLayout({
         .eq('status', 'open')
         .lt('due_date', today),
       adminClient.from('dino_revenue').select('id', { count: 'exact', head: true }),
+      countOpenDevNotes(),
     ])
     pendingReviewCount = decideCount
     attentionCount = (overdueMs ?? 0) + (criticalDd ?? 0) + (overdueTasks ?? 0)
     if ((dinoRows ?? 0) === 0) emptyModules.push('dino')
+    openDevNoteCount = devNotes
   }
 
   return (
@@ -148,7 +156,7 @@ export default async function RootLayout({
         />
         {showShell ? (
           <div className="flex h-full">
-            <AppSidebar pendingReviewCount={pendingReviewCount} attentionCount={attentionCount} role={role} emptyModules={emptyModules} />
+            <AppSidebar pendingReviewCount={pendingReviewCount} attentionCount={attentionCount} openDevNoteCount={openDevNoteCount} role={role} emptyModules={emptyModules} />
             <div className="flex flex-1 flex-col min-w-0">
               <AppHeader email={viewer?.email ?? ""} role={role} unreadNotifications={unreadNotifications} />
               <main className="flex-1 overflow-y-auto overflow-x-hidden p-5 sm:p-6 pb-24 md:pb-6 scrollbar-thin animate-fade-in-up">
@@ -164,6 +172,8 @@ export default async function RootLayout({
             <MobileNav pendingCount={pendingReviewCount} role={role} emptyModules={emptyModules} />
             {isAdmin && <MobileQuickUpload />}
             {isAdmin && <AskBerAIDock />}
+            {/* Every role, deliberately — see DevNoteDock / AppSidebar. */}
+            <DevNoteDock />
           </div>
         ) : (
           children

@@ -4,7 +4,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useState } from 'react'
-import { ChevronLeft, ChevronRight, Settings } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Settings, Bug } from 'lucide-react'
 import { canAccessPage, type Role } from '@/lib/auth/permissions'
 import { NAV_ITEMS, NAV_GROUP_ORDER, navItemActive, resolveNavItem } from '@/lib/nav'
 
@@ -13,10 +13,12 @@ interface AppSidebarProps {
   emptyModules?: string[]
   pendingReviewCount?: number
   attentionCount?: number
+  /** Open developer notes. Admin-only count; everyone gets the button. */
+  openDevNoteCount?: number
   role?: Role
 }
 
-export default function AppSidebar({ pendingReviewCount = 0, attentionCount = 0, role = 'admin', emptyModules = [] }: AppSidebarProps) {
+export default function AppSidebar({ pendingReviewCount = 0, attentionCount = 0, openDevNoteCount = 0, role = 'admin', emptyModules = [] }: AppSidebarProps) {
   const pathname = usePathname()
   const [collapsed, setCollapsed] = useState(false)
   const [systemOpen, setSystemOpen] = useState(false)
@@ -118,6 +120,37 @@ export default function AppSidebar({ pendingReviewCount = 0, attentionCount = 0,
           </div>
         ))}
       </nav>
+
+      {/*
+        Developer notes — bottom-left, above the System gear.
+        Every role gets this, deliberately: the people most likely to hit a bug
+        are the ones with the least access, and a feedback channel gated to
+        admins has no reporters. The button OPENS A DIALOG rather than
+        navigating, so the report carries the page the reporter was standing on
+        (see DevNoteDock); the count below links through to the full list.
+      */}
+      <div className="px-2 pt-2 border-t border-sidebar-border">
+        <button
+          onClick={() => window.dispatchEvent(new Event('open-dev-note'))}
+          title={collapsed ? 'Report a bug or request a feature' : undefined}
+          className="w-full flex items-center gap-3 px-2.5 py-2 rounded text-sm font-medium text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent transition-colors"
+        >
+          <Bug size={16} className="shrink-0" />
+          {!collapsed && <span className="truncate flex-1 text-left">Report an issue</span>}
+        </button>
+        {!collapsed && openDevNoteCount > 0 && (
+          <Link
+            href="/dev-notes"
+            className={`block px-2.5 pb-1 text-xs transition-colors ${
+              pathname.startsWith('/dev-notes')
+                ? 'text-sidebar-foreground'
+                : 'text-sidebar-foreground/45 hover:text-sidebar-foreground'
+            }`}
+          >
+            {openDevNoteCount} open {openDevNoteCount === 1 ? 'report' : 'reports'}
+          </Link>
+        )}
+      </div>
 
       {/* System — tucked behind the gear; expands in place when needed */}
       {systemItems.length > 0 && (

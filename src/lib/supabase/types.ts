@@ -72,6 +72,7 @@ export type DinoPayment = Tables<'dino_payments'>
 export type DinoNote = Tables<'dino_notes'>
 export type GoogleTaskList = Tables<'google_task_lists'>
 export type TaskGoogleLink = Tables<'task_google_links'>
+export type DevNote = Tables<'dev_notes'>
 
 // ---------------------------------------------------------------------------
 // Enum aliases — import these instead of Enums<'project_sector'> everywhere

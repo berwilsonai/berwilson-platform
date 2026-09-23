@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useState } from 'react'
-import { MoreHorizontal, FileUp, X } from 'lucide-react'
+import { MoreHorizontal, FileUp, X, Bug } from 'lucide-react'
 import { canAccessPage, type Role } from '@/lib/auth/permissions'
 import { NAV_ITEMS, navItemActive, resolveNavItem } from '@/lib/nav'
 
@@ -74,6 +74,22 @@ export default function MobileNav({ pendingCount = 0, role = 'admin', emptyModul
               Upload
             </button>
           )}
+          {/*
+            Report an issue — the mobile half of the sidebar footer button.
+            Not a NAV_ITEM: it opens the report dialog in place so the report
+            carries the page the reporter was on, exactly like Upload above.
+            Every role gets it.
+          */}
+          <button
+            onClick={() => {
+              setMoreOpen(false)
+              window.dispatchEvent(new Event('open-dev-note'))
+            }}
+            className="flex flex-col items-center gap-1.5 py-4 text-xs font-medium transition-colors bg-sidebar text-sidebar-foreground/75 hover:text-sidebar-foreground"
+          >
+            <Bug size={22} className="text-sidebar-foreground/70" />
+            Report
+          </button>
           {moreNav.map((item) => {
             const { href, label, icon: Icon } = item
             const active = navItemActive(item, pathname)
@@ -132,8 +148,8 @@ export default function MobileNav({ pendingCount = 0, role = 'admin', emptyModul
             )
           })}
 
-          {/* More button — hidden when the drawer would be empty */}
-          {(moreNav.length > 0 || isAdmin) && (
+          {/* More button. The drawer is never empty — every role carries the
+              Report action — so this renders unconditionally. */}
           <button
             onClick={() => setMoreOpen(!moreOpen)}
             className={`flex-1 flex flex-col items-center gap-1 py-3 text-xs font-medium transition-colors ${
@@ -148,7 +164,6 @@ export default function MobileNav({ pendingCount = 0, role = 'admin', emptyModul
             />
             More
           </button>
-          )}
         </div>
       </nav>
     </>

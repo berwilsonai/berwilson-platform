@@ -43,11 +43,17 @@ export function isRole(value: unknown): value is Role {
 // stays admin-only (the /api/org mutation routes are not allowlisted below and
 // carry in-route admin guards). The rest of /company remains admin-only —
 // prefix matching means '/company/structure' does not grant '/company'.
+// Every role carries /dev-notes — the in-app bug / feature reporter. The
+// people most likely to hit a bug are the ones with the least access, so a
+// feedback channel gated to admins is a feedback channel with no reporters.
+// The routes scope what each viewer may CHANGE (admin triages; a reporter edits
+// their own report); everyone may read the list, which is what stops the same
+// bug being filed five times.
 const ROLE_PAGE_PREFIXES: Record<Exclude<Role, 'admin'>, string[]> = {
-  executive: ['/tasks', '/objectives', '/company/structure', '/steel'],
-  project_manager: ['/tasks', '/projects', '/opportunities', '/company/structure'],
-  member: ['/tasks', '/company/structure'],
-  steel_sales: ['/steel'],
+  executive: ['/tasks', '/objectives', '/company/structure', '/steel', '/dev-notes'],
+  project_manager: ['/tasks', '/projects', '/opportunities', '/company/structure', '/dev-notes'],
+  member: ['/tasks', '/company/structure', '/dev-notes'],
+  steel_sales: ['/steel', '/dev-notes'],
 }
 
 // API path prefixes each non-admin role may call. Fine-grained checks (which
@@ -71,7 +77,7 @@ const ROLE_PAGE_PREFIXES: Record<Exclude<Role, 'admin'>, string[]> = {
  * read also grants every mutation underneath it.
  */
 const ROLE_API_PREFIXES: Record<Exclude<Role, 'admin'>, string[]> = {
-  executive: ['/api/tasks', '/api/objectives', '/api/team-members', '/api/steel', '/api/notifications'],
+  executive: ['/api/tasks', '/api/objectives', '/api/team-members', '/api/steel', '/api/notifications', '/api/dev-notes'],
   project_manager: [
     '/api/tasks',
     '/api/team-members',
@@ -80,9 +86,10 @@ const ROLE_API_PREFIXES: Record<Exclude<Role, 'admin'>, string[]> = {
     '/api/documents',
     '/api/milestones',
     '/api/notifications',
+    '/api/dev-notes',
   ],
-  member: ['/api/tasks', '/api/team-members', '/api/notifications'],
-  steel_sales: ['/api/steel', '/api/notifications'],
+  member: ['/api/tasks', '/api/team-members', '/api/notifications', '/api/dev-notes'],
+  steel_sales: ['/api/steel', '/api/notifications', '/api/dev-notes'],
 }
 
 function matchesPrefix(pathname: string, prefixes: string[]): boolean {

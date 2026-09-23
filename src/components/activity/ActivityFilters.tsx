@@ -15,6 +15,7 @@ const TABLE_OPTIONS = [
   { value: 'compliance_items', label: 'Compliance' },
   { value: 'review_queue', label: 'Review Queue' },
   { value: 'parties', label: 'Parties' },
+  { value: 'dev_notes', label: 'Developer Notes' },
 ]
 
 const ACTOR_OPTIONS = [

@@ -176,7 +176,12 @@ async function probeOffsite(dir: string): Promise<BackupProbe['offsite']> {
   if (!parsed.ok) {
     return {
       state: 'failing',
-      detail: `Last offsite push FAILED — ${parsed.detail ?? 'reason not recorded'}. The Mac mini is usually asleep at 2:30am; wake it, or check ~/Library/Logs/berwilson/backup.err.log on the Studio. Until this clears, the only copy of the database lives on this machine.`,
+      // Do NOT blame the mini being asleep. That was the first guess on
+      // 2026-09-23 and measuring killed it: the mini reported `sleep 0` and 7
+      // days uptime across the whole 6-night outage. Both real causes were
+      // addressing — a tailnet renumber leaving a stale IP, then MagicDNS
+      // short names failing to resolve under launchd — so point there first.
+      detail: `Last offsite push FAILED — ${parsed.detail ?? 'reason not recorded'}. Check ~/Library/Logs/berwilson/backup.err.log on the Studio: "Operation timed out" or "Could not resolve hostname" means the Mac mini moved or cannot be addressed (the backup script resolves it via \`tailscale ip\`; confirm the mini is still in the tailnet), and "Host key verification failed" means known_hosts no longer matches. Until this clears, the ONLY copy of the database is on this machine.`,
       ageHours,
     }
   }

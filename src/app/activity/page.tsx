@@ -19,6 +19,7 @@ const TABLE_LABELS: Record<string, string> = {
   review_queue: 'Review Queue',
   parties: 'Parties',
   project_players: 'Team',
+  dev_notes: 'Developer Notes',
 }
 
 const ACTION_STYLES: Record<string, string> = {
@@ -45,6 +46,8 @@ function recordLink(tableName: string, recordId: string | null, projectId: strin
       return projectId ? `/projects/${projectId}/milestones` : null
     case 'review_queue':
       return '/review'
+    case 'dev_notes':
+      return recordId ? `/dev-notes?note=${recordId}` : '/dev-notes'
     default:
       return null
   }

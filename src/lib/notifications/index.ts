@@ -37,6 +37,11 @@ export type NotificationKind =
   // in the review queue. Announcing a guess to everyone would make the bell the
   // thing you check to find out what the platform got wrong.
   | 'correspondence'
+  // A teammate filed a bug report or feature request from inside the app.
+  // Raised to ADMINS ONLY (devNoteRecipients) — it is addressed to whoever
+  // fixes the platform, and fanning it to everyone would put one person's UI
+  // complaint in front of people who can do nothing with it.
+  | 'dev_note'
 
 /** One event, before it is fanned out to recipients. */
 export interface NotificationEvent {
