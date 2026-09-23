@@ -99,7 +99,7 @@ async function runChecks(): Promise<HealthCheck[]> {
   const dayAgo = new Date(Date.now() - 86_400_000).toISOString()
   const localAI = process.env.AI_PROVIDER === 'local'
 
-  const [brief, riskScore, lastAi, aiDayCount, failedRuns, mailbox, lmStudio, backups, drive, leadInbox, docIndexing, driveSources, driveFiling, scopes, disk, lastDigest, failedDigests, contacts, googleTasks, drivePublish, meetImport, dealIntake, routing, corpus] =
+  const [brief, riskScore, lastAi, aiDayCount, failedRuns, mailbox, lmStudio, backups, drive, leadInbox, docIndexing, driveSources, driveFiling, scopes, disk, lastDigest, failedDigests, contacts, googleTasks, drivePublish, meetImport, dealIntake, routing, corpus, dailyDigest, commitmentBacklog, openCommitments] =
     await Promise.all([
       supabase
         .from('stored_briefs')
@@ -160,6 +160,25 @@ async function runChecks(): Promise<HealthCheck[]> {
       probeDealIntake(),
       probeThreadRouting(),
       probeCorrespondenceIndex(),
+      // The daily digest: newest one, whatever day it landed.
+      supabase
+        .from('stored_briefs')
+        .select('created_at')
+        .eq('brief_type', 'daily_digest')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+      // Threads still awaiting a commitments reading.
+      sweepDb()
+        .from('email_threads')
+        .select('id', { count: 'exact', head: true })
+        .is('commitments_at', null)
+        .eq('summary_state', 'summarized')
+        .eq('pipeline', 'deal'),
+      sweepDb()
+        .from('commitments')
+        .select('id', { count: 'exact', head: true })
+        .eq('status', 'open'),
     ])
 
   const checks: HealthCheck[] = []
@@ -233,6 +252,47 @@ async function runChecks(): Promise<HealthCheck[]> {
       detail: fresh
         ? 'Generating on schedule (Mondays at 6:30am on the Studio).'
         : `Expected weekly on Monday at 6:30am. ${cronLogsHint}`,
+    })
+  }
+
+  // 3b. Daily digest cron (launchd, weekdays 7:00am local on the Studio).
+  //
+  // Threshold is 4 days, not 36 hours: the digest is WEEKDAYS ONLY, so a run on
+  // Friday morning must still read as healthy through Sunday night. A 36-hour
+  // bar would report a false failure every single weekend and train the reader
+  // to ignore a red card here.
+  {
+    const h = hoursAgo(dailyDigest.data?.created_at)
+    const fresh = h !== null && h < 4 * 24
+    checks.push({
+      name: 'Daily Digest Cron',
+      status: fresh ? 'ok' : 'fail',
+      headline: h === null ? 'Never run' : `Last digest ${ageLabel(dailyDigest.data?.created_at)}`,
+      detail: fresh
+        ? 'Posting on schedule (weekday mornings at 7:00am, to the Google Chat space).'
+        : `Expected every weekday at 7:00am. ${cronLogsHint}`,
+    })
+  }
+
+  // 3c. Commitment extraction.
+  //
+  // Counted out loud because this failure is SILENT by construction: a thread
+  // whose commitments were never read does not error, it simply never produces
+  // a reminder — so an outage here looks exactly like a week in which nobody
+  // promised anybody anything.
+  {
+    const pending = commitmentBacklog.count ?? 0
+    const open = openCommitments.count ?? 0
+    // A backlog is normal and drains hourly; only a large one means the phase
+    // is not actually running.
+    const stalled = pending > 400
+    checks.push({
+      name: 'Commitment Extraction',
+      status: stalled ? 'warn' : 'ok',
+      headline: `${open} open · ${pending} threads awaiting a reading`,
+      detail: stalled
+        ? `The backlog is large enough that the commitments phase may not be running. Check the sweep log (${cronLogsHint}) and confirm the deployed build includes the phase — \`next start\` loads the build at boot, so a rebuild without a launchctl kickstart changes nothing.`
+        : 'Reading commitments out of correspondence as threads are summarized.',
     })
   }
 

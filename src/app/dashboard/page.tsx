@@ -14,6 +14,8 @@ import HealthPanel from '@/components/dashboard/HealthPanel'
 import RiskOverview from '@/components/dashboard/RiskOverview'
 import NeedsAttention, { type LeadDue } from '@/components/dashboard/NeedsAttention'
 import NowObjectives, { type NowObjectiveItem } from '@/components/dashboard/NowObjectives'
+import Commitments from '@/components/dashboard/Commitments'
+import { loadOpenCommitments } from '@/lib/commitments/load'
 import VerticalRollup from '@/components/dashboard/VerticalRollup'
 import ClosingSoon, { type ClosingSoonItem } from '@/components/dashboard/ClosingSoon'
 import { weightedValue } from '@/lib/utils/constants'
@@ -76,6 +78,10 @@ export default async function DashboardPage({ searchParams }: PageProps) {
   // Greeting is rendered in the executives' timezone, not the server's.
   const denverHour = Number(now.toLocaleString('en-US', { hour: 'numeric', hour12: false, timeZone: 'America/Denver' }))
   const greeting = denverHour < 12 ? 'Good morning' : denverHour < 17 ? 'Good afternoon' : 'Good evening'
+  // Best-effort: loadOpenCommitments never throws, so a missing table or a
+  // failed read costs this panel and nothing else on the page.
+  const commitments = await loadOpenCommitments()
+
   const dateLine = now.toLocaleDateString('en-US', {
     weekday: 'long', month: 'long', day: 'numeric', timeZone: 'America/Denver',
   })
@@ -459,6 +465,11 @@ export default async function DashboardPage({ searchParams }: PageProps) {
           <Suspense>
             <RiskOverview />
           </Suspense>
+
+          {/* Obligations read out of correspondence. Above NeedsAttention
+              because a promise with a date on it outranks a queue count, and
+              these exist nowhere else in the platform. */}
+          {commitments.length > 0 && <Commitments items={commitments} />}
 
           <NeedsAttention
             reviewItems={reviewItems}

@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.berwilson.cron-daily-digest</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/zsh</string>
+    <string>-c</string>
+    <string>curl -sS -m 1700 -H "Authorization: Bearer $(grep '^CRON_SECRET=' __APP_DIR__/.env.local | cut -d= -f2-)" http://localhost:3000/api/cron/daily-digest</string>
+  </array>
+  <!--
+    Weekdays at 7:00am local. StartCalendarInterval takes an ARRAY of dicts for
+    a set of days; one dict per weekday, 1 = Monday.
+
+    7:00 rather than 6:30 on purpose, two reasons:
+      - the overnight lead sweep (4:30) and the hourly email sweep have both run
+        by then, so the digest reads mail that is already summarized and has had
+        its commitments extracted. Firing earlier would report a quieter night
+        than actually happened.
+      - Monday's weekly brief fires at 6:30 and LM Studio serves ONE request at
+        a time (parallel 1). Overlapping them would queue the digest behind a
+        ~90s brief and burn its own curl budget waiting.
+
+    No weekend entries, deliberately: a Saturday digest over 16-28 threads of
+    near-zero deal content is how a channel teaches people to skip Monday's.
+    Monday's run reaches back across the weekend instead.
+  -->
+  <key>StartCalendarInterval</key>
+  <array>
+    <dict><key>Weekday</key><integer>1</integer><key>Hour</key><integer>7</integer><key>Minute</key><integer>0</integer></dict>
+    <dict><key>Weekday</key><integer>2</integer><key>Hour</key><integer>7</integer><key>Minute</key><integer>0</integer></dict>
+    <dict><key>Weekday</key><integer>3</integer><key>Hour</key><integer>7</integer><key>Minute</key><integer>0</integer></dict>
+    <dict><key>Weekday</key><integer>4</integer><key>Hour</key><integer>7</integer><key>Minute</key><integer>0</integer></dict>
+    <dict><key>Weekday</key><integer>5</integer><key>Hour</key><integer>7</integer><key>Minute</key><integer>0</integer></dict>
+  </array>
+  <key>StandardOutPath</key>
+  <string>__LOG_DIR__/cron-daily-digest.log</string>
+  <key>StandardErrorPath</key>
+  <string>__LOG_DIR__/cron-daily-digest.err.log</string>
+</dict>
+</plist>

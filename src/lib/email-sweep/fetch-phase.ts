@@ -201,7 +201,18 @@ async function persistThreads(
       // embedded_at cleared with routed_at: a conversation that has grown is
       // no longer represented by what was indexed, so it must be re-embedded or
       // answers would come from a stale copy of it.
-      .update({ ...patch, summary_error: null, routed_at: null, embedded_at: null })
+      // commitments_at cleared for the sharpest version of the same reason: the
+      // newest message is precisely where an outstanding obligation gets met
+      // ("signed and returned"), so a ledger that is not re-read after a reply
+      // will go on chasing something already settled — and two of those is all
+      // it takes for nobody to trust a reminder again.
+      .update({
+        ...patch,
+        summary_error: null,
+        routed_at: null,
+        embedded_at: null,
+        commitments_at: null,
+      })
       .eq('fingerprint', t.fingerprint)
     if (error) {
       console.error(`[sweep/fetch] could not refresh ${t.fingerprint}:`, error.message)

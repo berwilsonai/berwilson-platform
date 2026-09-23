@@ -22,6 +22,7 @@ import {
 import { routeThreads, type RouteProgress } from './route-phase'
 import { applyThreadUpdates, type ApplyProgress } from './apply-phase'
 import { embedPendingThreads, type EmbedProgress } from '@/lib/ai/thread-embeddings'
+import { extractCommitments, type CommitmentProgress } from '@/lib/commitments/extract-phase'
 
 export type SweepPhase =
   | 'fetch'
@@ -31,6 +32,7 @@ export type SweepPhase =
   | 'route'
   | 'apply'
   | 'embed'
+  | 'commitments'
   | 'predecide'
 
 export interface SweepRunOptions {
@@ -54,6 +56,7 @@ export interface SweepRunResult {
   route?: RouteProgress
   apply?: ApplyProgress
   embed?: EmbedProgress
+  commitments?: CommitmentProgress
   predecide?: PredecideProgress
   elapsedMs: number
   /** True when work remains — the next run should pick up where this left off. */
@@ -68,6 +71,7 @@ const ALL_PHASES: SweepPhase[] = [
   'route',
   'apply',
   'embed',
+  'commitments',
   'predecide',
 ]
 
@@ -94,6 +98,18 @@ const APPLY_MAX_MS = 10 * 60 * 1000
 /** Threads indexed per run, and the ceiling on doing it. */
 const EMBED_BATCH = 50
 const EMBED_MAX_MS = 10 * 60 * 1000
+
+/**
+ * Ceiling on commitment extraction.
+ *
+ * Model-bound, so it needs a ceiling for the same reason summarize does: it
+ * runs before predecide, which deliberately takes whatever is left, and a phase
+ * that consumes the remainder starves every phase after it. Cheaper per thread
+ * than summarize (a 12k-char tail, not a 40k-char body) and most threads are
+ * skipped without an AI call at all, so ten minutes drains a normal day many
+ * times over.
+ */
+const COMMITMENTS_MAX_MS = 10 * 60 * 1000
 
 /** Share of the budget each phase may consume before yielding to the next. */
 const STAGE_SHARE = 0.25
@@ -201,6 +217,19 @@ export async function runSweep(opts: SweepRunOptions = {}): Promise<SweepRunResu
     })
     result.ranPhases.push('embed')
     if (result.embed.remaining > 0) result.moreWork = true
+  }
+
+  // ── Commitments ───────────────────────────────────────────────────────────
+  // After route, so a thread already filed to a record hands its scope to the
+  // commitments it produces — a commitment that knows its deal is worth far
+  // more than a floating one. Before predecide, which takes the remainder.
+  if (phases.includes('commitments')) {
+    result.commitments = await extractCommitments({
+      budgetMs: Math.max(0, Math.min(remaining(), COMMITMENTS_MAX_MS)),
+      userId: opts.userId,
+    })
+    result.ranPhases.push('commitments')
+    if (result.commitments.remaining > 0) result.moreWork = true
   }
 
   if (phases.includes('predecide')) {
