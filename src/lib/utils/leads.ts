@@ -107,6 +107,39 @@ export const ROUTE_TABS: LeadRoute[] = [
 ]
 
 /**
+ * Which record a lead becomes, derived from the route triage already chose.
+ *
+ * ⚠ Across 1,268 leads scored, ZERO were ever promoted or forwarded. Part of
+ * that was surfacing, but part was this: the detail sheet offered four
+ * destination buttons and nothing anywhere recommended one, so every promotion
+ * asked a question the pipeline had in fact already answered. `route` IS that
+ * answer — it is what the triage prompt is FOR.
+ *
+ * `unknown` deliberately maps to null. A lead the triage could not place is
+ * exactly the one a human should place, and offering a one-click Accept that
+ * guesses between four record types would file deals into the wrong module
+ * silently. Null means "open the sheet", not "do nothing".
+ */
+export type LeadPromoteTarget = 'project' | 'opportunity' | 'steel' | 'forward'
+
+export function promoteTargetFor(route: string | null | undefined): LeadPromoteTarget | null {
+  switch (route) {
+    case 'construction':
+      return 'project'
+    case 'steel':
+      return 'steel'
+    case 'corporate':
+      return 'opportunity'
+    // Dino has no platform access, so its leads leave by email rather than
+    // becoming a record here — the same exit the detail sheet offers.
+    case 'dino':
+      return 'forward'
+    default:
+      return null
+  }
+}
+
+/**
  * Deep link to the lead's conversation in Gmail.
  *
  * `authuser=<address>` rather than a `/u/0/` index: the reader may well be

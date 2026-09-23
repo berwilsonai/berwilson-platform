@@ -14,42 +14,11 @@ import {
   createRecordFromFields,
   saveReportDocument,
   str,
-  type RecordKind,
 } from '@/lib/email-ingestion/confirm-helpers'
 import type { TablesInsert } from '@/lib/supabase/types'
+import type { ConfirmBody } from '@/lib/email-ingestion/defaults'
 
 export const maxDuration = 300
-
-interface PartyAction {
-  name: string
-  email: string | null
-  company: string | null
-  title: string | null
-  role: string | null
-  is_organization: boolean
-  action: 'create' | 'link' | 'skip'
-  existing_party_id?: string | null
-}
-
-interface TaskAction {
-  title: string
-  what: string | null
-  why: string | null
-  how: string | null
-  assignee: string | null
-  due_date: string | null
-  include: boolean
-}
-
-interface ConfirmBody {
-  session_id: string
-  record_kind: RecordKind
-  record_fields: Record<string, unknown>
-  party_actions: PartyAction[]
-  task_actions: TaskAction[]
-  /** Storage paths of staged attachments to promote onto the created record. */
-  attachment_paths?: string[]
-}
 
 export async function POST(request: NextRequest) {
   const supabase = await actorAdminClient()

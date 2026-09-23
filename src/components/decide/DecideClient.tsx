@@ -3,9 +3,11 @@
 import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import { toast } from 'sonner'
-import { Radar, Inbox, ClipboardCheck, ArrowRight, X, Loader2 } from 'lucide-react'
+import { Radar, Inbox, ClipboardCheck, ArrowRight, X, Loader2, Check } from 'lucide-react'
 import { Panel } from '@/components/ui/card'
 import EmptyState from '@/components/shared/EmptyState'
+import { decideWeight, daysUntil } from '@/lib/decide/rank'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 
 export type DecideKind = 'lead' | 'intake' | 'review'
 
@@ -20,7 +22,31 @@ export interface DecideItem {
   score: number | null
   note: string | null
   deadline: string | null
+  /**
+   * What accepting this row does, or null when it cannot be accepted from the
+   * list. Computed server-side — the client is never handed enough of the
+   * record to decide for itself.
+   */
+  accept: AcceptAction | null
+  /** The record's name, so the confirmation can say what it will create. */
+  acceptName?: string | null
+  /** Why Accept is unavailable. Shown in place of the button. */
+  blocker?: string | null
 }
+
+/**
+ * ⚠ Until now this queue could only DISMISS. Every "yes" meant leaving the
+ * page, opening a form on another route — which dropped the recommendation on
+ * the way in — and re-forming a judgement the model had already made. Measured
+ * on 2026-09-23: 5 intake sessions confirmed ever against 136 decided, and
+ * 0 leads promoted out of 1,268. The recommendations were good; agreeing with
+ * one was just more expensive than ignoring it.
+ *
+ * ⚠ This does NOT create anything on its own — CLAUDE.md §11 is untouched.
+ * The click IS the human review the invariant requires; what changed is where
+ * the click lives. The review screens remain for when you want to edit first.
+ */
+export type AcceptAction = 'project' | 'opportunity' | 'merge' | 'steel' | 'forward' | 'approve'
 
 /** An item with its days-to-deadline resolved against a fixed clock. */
 type Dated = DecideItem & { daysLeft: number | null }
@@ -51,21 +77,6 @@ const VERDICT_TONE: Record<string, string> = {
 }
 
 /**
- * Urgency ranks above quality, but only when a real deadline exists.
- *
- * A bid closing in three days outranks a better one closing in a month, because
- * the first can stop being available. Everything without a deadline falls back
- * to quality, so the list stays "most consequential first" rather than "most
- * recently arrived".
- */
-function weight(i: Dated): number {
-  const urgent = i.daysLeft !== null && i.daysLeft <= 7 ? 1000 : 0
-  const overdue = i.daysLeft !== null && i.daysLeft < 0 ? 2000 : 0
-  const verdict = i.verdict === 'pursue' || i.verdict === 'create' ? 100 : 0
-  return overdue + urgent + verdict + (i.score ?? 0)
-}
-
-/**
  * How each kind of item is set aside, and what that means.
  *
  * Every one of these is reversible and none of them delete: a lead becomes
@@ -88,6 +99,77 @@ const DISMISS: Record<DecideKind, { url: (id: string) => string; body: unknown; 
   },
 }
 
+async function readError(res: Response): Promise<never> {
+  const data = (await res.json().catch(() => ({}))) as { error?: string }
+  throw new Error(data.error ?? `Failed (${res.status})`)
+}
+
+async function post(url: string, body: unknown): Promise<unknown> {
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) await readError(res)
+  return res.json().catch(() => ({}))
+}
+
+async function patch(url: string, body: unknown): Promise<unknown> {
+  const res = await fetch(url, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) await readError(res)
+  return res.json().catch(() => ({}))
+}
+
+async function getJson(url: string): Promise<unknown> {
+  const res = await fetch(url)
+  if (!res.ok) await readError(res)
+  return res.json()
+}
+
+/**
+ * What each accept says before it happens, and what it says afterwards.
+ *
+ * Accept confirms once; dismiss does not. The asymmetry is the point — setting
+ * something aside is reversible and creates nothing, while accepting writes a
+ * record, contacts, tasks and documents, and publishes to Drive.
+ */
+const ACCEPT_COPY: Record<AcceptAction, { verb: string; ask: (n: string) => string; done: string }> = {
+  project: {
+    verb: 'Create project',
+    ask: (n) => `Create the project “${n}” from this correspondence, with its people, tasks and attachments?`,
+    done: 'Project created',
+  },
+  opportunity: {
+    verb: 'Create opportunity',
+    ask: (n) => `Create the opportunity “${n}” from this correspondence, with its people, tasks and attachments?`,
+    done: 'Opportunity created',
+  },
+  merge: {
+    verb: 'Merge',
+    ask: (n) => `File this correspondence onto “${n}”? Nothing new is created — the conversation and its attachments join the existing record.`,
+    done: 'Filed onto the existing record',
+  },
+  steel: {
+    verb: 'Add to Steel CRM',
+    ask: (n) => `Create the steel deal “${n}” from this bid invitation?`,
+    done: 'Steel deal created',
+  },
+  forward: {
+    verb: 'Send to Dino',
+    ask: (n) => `Forward “${n}” to Dino by email, with its attachments? Dino has no access here, so this leaves the platform.`,
+    done: 'Sent to Dino',
+  },
+  approve: {
+    verb: 'Approve',
+    ask: (n) => `Approve this match${n ? ` onto “${n}”` : ''}? The correspondence is posted to the record and indexed.`,
+    done: 'Match approved',
+  },
+}
+
 export default function DecideClient({ items }: { items: DecideItem[] }) {
   const [kind, setKind] = useState<DecideKind | 'all'>('all')
   // Set aside in this session. Optimistic: the row goes immediately and comes
@@ -95,6 +177,7 @@ export default function DecideClient({ items }: { items: DecideItem[] }) {
   // one nobody clears.
   const [dismissed, setDismissed] = useState<Set<string>>(new Set())
   const [pending, setPending] = useState<string | null>(null)
+  const [asking, setAsking] = useState<Dated | null>(null)
   // Captured once at mount rather than read during render: a clock read while
   // rendering is impure, and the list must not silently reorder itself between
   // two renders of the same data.
@@ -105,11 +188,9 @@ export default function DecideClient({ items }: { items: DecideItem[] }) {
       items
         .map((i) => ({
           ...i,
-          daysLeft: i.deadline
-            ? Math.ceil((new Date(i.deadline + 'T00:00:00').getTime() - now) / 86_400_000)
-            : null,
+          daysLeft: daysUntil(i.deadline, now),
         }))
-        .sort((a, b) => weight(b) - weight(a)),
+        .sort((a, b) => decideWeight(b) - decideWeight(a)),
     [items, now]
   )
   const live = useMemo(
@@ -154,6 +235,44 @@ export default function DecideClient({ items }: { items: DecideItem[] }) {
       toast.error(err instanceof Error ? err.message : 'Could not set that aside')
     } finally {
       setPending(null)
+    }
+  }
+
+  /**
+   * Carry out an accept. Optimistic like dismiss, and reverted the same way —
+   * but the toast names what was created, because a row that simply disappears
+   * gives no evidence that a record now exists somewhere.
+   */
+  async function accept(item: Dated) {
+    if (!item.accept) return
+    const key = `${item.kind}:${item.id}`
+    const copy = ACCEPT_COPY[item.accept]
+    setPending(key)
+    try {
+      if (item.kind === 'intake' && item.accept === 'merge') {
+        await post('/api/email-ingestion/merge', { session_id: item.id })
+      } else if (item.kind === 'intake') {
+        // Fetched rather than reconstructed here: the draft is built from the
+        // full extraction by the same function the review form uses, so the
+        // two paths cannot produce different records.
+        const draft = await getJson(`/api/email-ingestion/sessions/${item.id}`)
+        await post('/api/email-ingestion/confirm', (draft as { body: unknown }).body)
+      } else if (item.kind === 'lead') {
+        if (item.accept === 'forward') {
+          await post(`/api/leads/${item.id}/forward`, {})
+        } else {
+          await post(`/api/leads/${item.id}/promote`, { target: item.accept })
+        }
+      } else {
+        await patch(`/api/review/${item.id}`, { resolution: 'approved' })
+      }
+      setDismissed((prev) => new Set(prev).add(key))
+      toast.success(copy.done, { description: item.acceptName ?? item.title })
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Could not accept that')
+    } finally {
+      setPending(null)
+      setAsking(null)
     }
   }
 
@@ -247,6 +366,33 @@ export default function DecideClient({ items }: { items: DecideItem[] }) {
                 )}
               </Link>
               <div className="flex items-center gap-1 mt-0.5 shrink-0">
+                {item.accept ? (
+                  <button
+                    type="button"
+                    onClick={() => setAsking(item)}
+                    disabled={pending === `${item.kind}:${item.id}`}
+                    title={ACCEPT_COPY[item.accept].verb}
+                    className="inline-flex items-center gap-1 h-11 sm:h-7 px-3 sm:px-2 rounded-md text-xs font-medium bg-primary/10 text-primary hover:bg-primary/20 disabled:opacity-40 transition-colors"
+                  >
+                    {pending === `${item.kind}:${item.id}` ? (
+                      <Loader2 size={13} className="animate-spin" />
+                    ) : (
+                      <Check size={13} />
+                    )}
+                    <span className="hidden sm:inline">{ACCEPT_COPY[item.accept].verb}</span>
+                  </button>
+                ) : (
+                  item.blocker && (
+                    // Never an Accept that would 400. The row says what it
+                    // needs and sends you to the one screen that can supply it.
+                    <span
+                      className="hidden sm:block max-w-[14rem] text-[11px] text-amber-700 dark:text-amber-400 text-right leading-tight"
+                      title={item.blocker}
+                    >
+                      {item.blocker}
+                    </span>
+                  )
+                )}
                 <ArrowRight
                   size={13}
                   className="hidden sm:block text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity"
@@ -270,6 +416,17 @@ export default function DecideClient({ items }: { items: DecideItem[] }) {
           )
         })}
       </Panel>
+
+      {asking && asking.accept && (
+        <ConfirmDialog
+          open
+          onOpenChange={(o) => !o && setAsking(null)}
+          title={ACCEPT_COPY[asking.accept].verb}
+          description={ACCEPT_COPY[asking.accept].ask(asking.acceptName ?? asking.title)}
+          confirmLabel={ACCEPT_COPY[asking.accept].verb}
+          onConfirm={() => accept(asking)}
+        />
+      )}
     </div>
   )
 }

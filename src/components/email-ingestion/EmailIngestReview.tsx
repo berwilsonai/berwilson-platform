@@ -12,6 +12,7 @@ import type { StagedAttachment } from '@/lib/email-ingestion/attachments'
 import type { EmailIntakeExtraction } from '@/lib/ai/prompts/email-intake'
 import type { PartyMatch } from '@/lib/ai/proposal-matching'
 import type { FitAssessment } from '@/lib/ai/fit-assessment'
+import { recordFieldsFor } from '@/lib/email-ingestion/defaults'
 import { SECTORS, SECTOR_LABELS, STAGES, STAGE_LABELS } from '@/lib/utils/constants'
 import { formatBytes } from '@/lib/utils/format'
 import {
@@ -27,6 +28,26 @@ interface Props {
   fit: FitAssessment | null
   label: string | null
   stagedAttachments: StagedAttachment[]
+  /**
+   * Ber AI's own recommendation for this session. The page selected it and
+   * then dropped it, so the verdict you were shown on /decide vanished at
+   * exactly the moment you needed it — leaving a 25-input form and no reason
+   * why you were looking at it.
+   */
+  predecision?: unknown
+}
+
+interface Predecision {
+  disposition?: string
+  reason?: string | null
+  headline?: string | null
+  merge_target_name?: string | null
+}
+
+function readPredecision(raw: unknown): Predecision | null {
+  if (!raw || typeof raw !== 'object') return null
+  const o = raw as Predecision
+  return o.disposition ? o : null
 }
 
 type PersonRow = EmailIntakeExtraction['people'][number] & {
@@ -40,7 +61,8 @@ type TaskRow = EmailIntakeExtraction['tasks'][number] & { include: boolean }
 const inputCls = 'w-full h-9 px-3 rounded-md border border-input bg-background text-sm'
 const labelCls = 'label-caps text-muted-foreground'
 
-export default function EmailIngestReview({ sessionId, extraction, partyMatches, fit, label, stagedAttachments }: Props) {
+export default function EmailIngestReview({ sessionId, extraction, partyMatches, fit, label, stagedAttachments, predecision }: Props) {
+  const pre = readPredecision(predecision)
   const router = useRouter()
   const [kind, setKind] = useState<'opportunity' | 'project'>(extraction.suggested_record)
   const [opp, setOpp] = useState({ ...extraction.opportunity })
@@ -125,31 +147,9 @@ export default function EmailIngestReview({ sessionId, extraction, partyMatches,
   }
 
   async function confirm() {
-    const record_fields =
-      kind === 'project'
-        ? {
-            name: proj.name,
-            sector: proj.sector,
-            stage: proj.stage,
-            description: proj.description,
-            estimated_value: proj.estimated_value,
-            contract_type: proj.contract_type,
-            delivery_method: proj.delivery_method,
-            location: proj.location,
-            client_entity: proj.client_entity,
-          }
-        : {
-            name: opp.name,
-            opp_type: opp.opp_type,
-            sector: opp.sector,
-            location: opp.location,
-            objective: opp.objective,
-            thesis: opp.thesis,
-            target_name: opp.target_name,
-            counterparty: opp.counterparty,
-            estimated_value: opp.estimated_value,
-            next_step: opp.next_step,
-          }
+    // Built by the same function the Decide queue's Accept button uses, so a
+    // field added to the record can never reach one path and not the other.
+    const record_fields = recordFieldsFor(kind, { ...extraction, project: proj, opportunity: opp })
 
     if (!record_fields.name || !String(record_fields.name).trim()) {
       setError(`A ${kind} name is required.`)
@@ -203,6 +203,18 @@ export default function EmailIngestReview({ sessionId, extraction, partyMatches,
         <p className="text-sm text-muted-foreground">
           Research package: <span className="font-medium text-foreground">{label}</span>
         </p>
+      )}
+
+      {pre && (
+        <div className="rounded-lg border border-border bg-muted/30 p-4 space-y-1">
+          <p className={labelCls}>Ber AI recommends</p>
+          <p className="text-sm font-medium capitalize">
+            {pre.disposition}
+            {pre.merge_target_name ? ` into ${pre.merge_target_name}` : ''}
+          </p>
+          {pre.headline && <p className="text-sm text-foreground">{pre.headline}</p>}
+          {pre.reason && <p className="text-xs text-muted-foreground">{pre.reason}</p>}
+        </div>
       )}
 
       {fit && <FitAssessmentCard fit={fit} />}

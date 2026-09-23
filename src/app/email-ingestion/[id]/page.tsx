@@ -97,6 +97,7 @@ export default async function EmailIngestReviewPage({ params }: PageProps) {
           partyMatches={partyMatches}
           fit={fit}
           label={session.label}
+          predecision={session.predecision}
           stagedAttachments={parseStagedAttachments(session.staged_attachments)}
         />
       )}

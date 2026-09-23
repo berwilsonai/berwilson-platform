@@ -23,6 +23,7 @@ import { parseTranches, raiseLevels, fillTranches } from '@/lib/investors/raises
 import { fetchCalendarEvents } from '@/lib/integrations/google-workspace'
 import { broadcastBrief } from '@/lib/notify/broadcast-brief'
 import { SYSTEM_USER_ID } from '@/lib/system-user'
+import { summarizeDecideQueue } from '@/lib/decide/count'
 
 /**
  * The brief is one long local-model call and it is not always quick.
@@ -52,7 +53,7 @@ Structure — sections appear in this order, which is priority order. Do not reo
 (3-5 bullets, the whole week at a glance, MOST CONSEQUENTIAL FIRST. Each bullet is one line: what, who owns it, by when. Someone who reads only this section should know what matters this week and what they personally have to move.)
 
 ### Decide This Week
-(Items that need a decision or an action from an executive in the next seven days — max 5, ranked by consequence then deadline. Say what the decision is, not just that one is pending.)
+(Items that need a decision or an action from an executive in the next seven days — max 5, ranked by consequence then deadline. Say what the decision is, not just that one is pending. START this section with one line stating how many items are waiting in the Decide queue and linking to it, then list the named ones. Each of those can now be accepted or set aside in one click from that page — say so once, do not repeat it per item.)
 
 ### Overdue and Slipping
 (What is already late or going stale: overdue tasks, stale blockers, relationships going cold. Ranked by how many days late. Name the person and the number of days.)
@@ -333,6 +334,12 @@ export async function GET(request: NextRequest) {
     console.warn('[daily-brief] meetings fetch failed:', err instanceof Error ? err.message : err)
   }
 
+  // The one queue nobody was looking at. Read after everything else so a
+  // failure here cannot cost the rest of the brief — summarizeDecideQueue
+  // swallows its own errors and returns an empty queue.
+  const decide = await summarizeDecideQueue(now.getTime())
+  const appUrl = process.env.APP_URL ?? ''
+
   const userMessage = `This is the weekly brief for the week beginning ${now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}. It covers the week ahead.
 
 COMPANY OBJECTIVES (steering board — Now/Soon):
@@ -369,7 +376,11 @@ DECISIONS PENDING FOLLOW-THROUGH (${staleDecisions.length}, >14 days):
 ${staleDecisions.slice(0, 8).join('\n') || '(none)'}
 
 CROSS-PROJECT DEPENDENCY RISKS:
-${depRisks.join('\n') || '(none)'}`
+${depRisks.join('\n') || '(none)'}
+
+DECISION QUEUE (${decide.total} waiting: ${decide.leads} inbound bids, ${decide.intake} staged conversations, ${decide.review} flagged matches) — ${appUrl}/decide
+Each can be accepted or set aside in one click from that page; nothing has been created yet.
+${decide.top.join('\n') || '(nothing waiting)'}`
 
   const result = await callGemini<string>({
     task: 'synthesize',

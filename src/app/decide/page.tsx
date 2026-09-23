@@ -5,6 +5,11 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { leadsDb, type LeadRow } from '@/lib/leads/db'
 import DecideClient, { type DecideItem } from '@/components/decide/DecideClient'
 import { reviewReasonLabel } from '@/lib/utils/review'
+import { buildConfirmBody } from '@/lib/email-ingestion/defaults'
+import { parseStagedAttachments } from '@/lib/email-ingestion/attachments'
+import { promoteTargetFor } from '@/lib/utils/leads'
+import type { EmailIntakeExtraction } from '@/lib/ai/prompts/email-intake'
+import type { PartyMatch } from '@/lib/ai/proposal-matching'
 
 export const metadata = { title: 'Decide — Ber Wilson Intelligence' }
 
@@ -33,7 +38,9 @@ export default async function DecidePage() {
   const [{ data: sessions }, { data: leadRows }, { data: reviewRows }] = await Promise.all([
     supabase
       .from('email_intake_sessions')
-      .select('id, label, status, updated_at, predecision, fit_assessment, intake_kind')
+      .select(
+        'id, label, status, updated_at, predecision, fit_assessment, intake_kind, extraction_result, party_matches, staged_attachments'
+      )
       .eq('status', 'pending')
       .order('updated_at', { ascending: false })
       .limit(200),
@@ -45,7 +52,7 @@ export default async function DecidePage() {
       .limit(200),
     supabase
       .from('review_queue')
-      .select('id, source_table, reason, confidence, created_at')
+      .select('id, source_table, reason, confidence, created_at, ai_explanation, project:projects(name)')
       .is('resolved_at', null)
       .order('created_at', { ascending: false })
       .limit(100),
@@ -69,6 +76,13 @@ export default async function DecidePage() {
       // is derived client-side from a clock captured once at mount, rather than
       // during a server render — see DecideClient.
       deadline: raw.bid_due_date,
+      // The route the triage already chose says which record this becomes; an
+      // unrouted lead offers no Accept rather than guessing between four.
+      accept: promoteTargetFor(raw.route),
+      blocker:
+        promoteTargetFor(raw.route) === null
+          ? 'Unrouted — open the lead and choose where it belongs.'
+          : null,
     })
   }
 
@@ -78,6 +92,18 @@ export default async function DecidePage() {
     if (pre?.disposition === 'dismiss') continue // auto-handled or low value
     const fit = (s.fit_assessment ?? {}) as Record<string, unknown>
     const score = Number(fit.fit_score)
+    // Derived here rather than in the browser: the draft is built from the full
+    // extraction, which has no business being shipped to a page that shows one
+    // line per row. Only the verdict travels.
+    const draft =
+      pre?.disposition === 'create'
+        ? buildConfirmBody({
+            sessionId: s.id,
+            extraction: s.extraction_result as unknown as EmailIntakeExtraction,
+            partyMatches: (s.party_matches ?? []) as unknown as PartyMatch[],
+            stagedAttachments: parseStagedAttachments(s.staged_attachments),
+          })
+        : null
     items.push({
       id: s.id,
       kind: 'intake',
@@ -88,21 +114,39 @@ export default async function DecidePage() {
       score: Number.isFinite(score) ? score : null,
       note: pre?.headline ?? pre?.reason ?? null,
       deadline: null,
+      accept:
+        pre?.disposition === 'merge'
+          ? 'merge'
+          : draft?.ready
+            ? draft.body.record_kind
+            : null,
+      acceptName: draft?.recordName ?? pre?.merge_target_name ?? null,
+      blocker: draft && !draft.ready ? draft.blocker : null,
     })
   }
 
   // --- Low-confidence AI extractions awaiting a human ----------------------
   for (const r of reviewRows ?? []) {
+    // ⚠ These rows used to arrive with no title, no note and no verdict — 38
+    // of them reading "Inferred email match" and nothing else, which is not a
+    // decision anyone can make from a list. `ai_explanation` has held a
+    // complete sentence naming the record all along ("Matched to this project
+    // by same deal name — Myton Rail. Approve to post it and index it…"); the
+    // page simply never selected it.
+    const projectName = (r as { project?: { name?: string } | null }).project?.name ?? null
     items.push({
       id: r.id,
       kind: 'review',
-      title: reviewReasonLabel(r.reason),
-      subtitle: r.source_table,
+      title: projectName ?? reviewReasonLabel(r.reason),
+      subtitle: projectName ? reviewReasonLabel(r.reason) : r.source_table,
       href: '/review',
       verdict: null,
       score: r.confidence !== null ? Math.round(Number(r.confidence) * 100) : null,
-      note: null,
+      note: r.ai_explanation,
       deadline: null,
+      accept: 'approve',
+      acceptName: projectName,
+      blocker: null,
     })
   }
 
