@@ -59,12 +59,24 @@ export default function LoginForm() {
         <div className="rounded-2xl bg-card elev-3 border border-border/60 px-7 py-8 space-y-6">
           {/* Brand */}
           <div className="flex flex-col items-center text-center gap-3">
+            {/* The card is `bg-card`, which flips with the theme even though
+                the page behind it is always navy — so the lockup follows the
+                card, not the page. */}
             <Image
-              src="/logo.png"
+              src="/logo-light.png"
               alt="Ber Wilson"
-              width={150}
-              height={80}
-              className="object-contain h-11 w-auto"
+              width={640}
+              height={339}
+              className="object-contain h-11 w-auto dark:hidden"
+              priority
+            />
+            <Image
+              src="/logo-dark.png"
+              alt=""
+              aria-hidden
+              width={640}
+              height={343}
+              className="object-contain h-11 w-auto hidden dark:block"
               priority
             />
             <p className="label-caps text-muted-foreground">

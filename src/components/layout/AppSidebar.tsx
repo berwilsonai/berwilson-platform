@@ -4,7 +4,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useState } from 'react'
-import { ChevronLeft, ChevronRight, Settings, Bug } from 'lucide-react'
+import { ChevronLeft, Settings, Bug } from 'lucide-react'
 import { canAccessPage, type Role } from '@/lib/auth/permissions'
 import { NAV_ITEMS, NAV_GROUP_ORDER, navItemActive, resolveNavItem } from '@/lib/nav'
 
@@ -55,18 +55,36 @@ export default function AppSidebar({ pendingReviewCount = 0, attentionCount = 0,
           collapsed ? 'justify-center' : 'justify-between'
         }`}
       >
+        {/* The rail is navy in both themes, so it always takes the cream
+            wordmark.
+
+            Collapsed, the chevron BECOMES the expand control rather than
+            sitting next to one. The rail is 56px, 32px of it inside the
+            padding, and the chevron is nearly twice as wide as it is tall —
+            beside a 27px button it overflowed the rail by 21px. Folding the
+            two together is also the better read: a chevron logo next to a
+            chevron-right icon is two chevrons arguing in one 56px row. */}
         {!collapsed ? (
-          <Image src="/logo.png" alt="Ber Wilson" width={120} height={65} className="object-contain h-8 w-auto" priority />
+          <>
+            <Image src="/logo-dark.png" alt="Ber Wilson" width={640} height={343} className="object-contain h-8 w-auto" priority />
+            <button
+              onClick={() => setCollapsed(true)}
+              className="p-1.5 rounded text-sidebar-foreground/50 hover:text-sidebar-foreground hover:bg-sidebar-accent transition-colors"
+              aria-label="Collapse sidebar"
+            >
+              <ChevronLeft size={15} />
+            </button>
+          </>
         ) : (
-          <Image src="/logo.png" alt="Ber Wilson" width={28} height={28} className="object-contain h-6 w-auto" priority />
+          <button
+            onClick={() => setCollapsed(false)}
+            className="flex opacity-80 hover:opacity-100 transition-opacity"
+            aria-label="Expand sidebar"
+            title="Expand sidebar"
+          >
+            <Image src="/logo-mark.png" alt="Ber Wilson" width={256} height={132} className="object-contain h-4 w-auto" priority />
+          </button>
         )}
-        <button
-          onClick={() => setCollapsed(!collapsed)}
-          className="p-1.5 rounded text-sidebar-foreground/50 hover:text-sidebar-foreground hover:bg-sidebar-accent transition-colors"
-          aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-        >
-          {collapsed ? <ChevronRight size={15} /> : <ChevronLeft size={15} />}
-        </button>
       </div>
 
       {/* Nav items */}

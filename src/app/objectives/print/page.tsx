@@ -85,7 +85,7 @@ export default async function ObjectivesPrintPage({ searchParams }: PageProps) {
               Ber Wilson · Prepared <PreparedDate />
             </p>
           </div>
-          <Image src="/logo.png" alt="Ber Wilson" width={120} height={65} className="object-contain h-9 w-auto" />
+          <Image src="/logo-light.png" alt="Ber Wilson" width={640} height={339} className="object-contain h-9 w-auto" />
         </header>
 
         {/* Sections */}

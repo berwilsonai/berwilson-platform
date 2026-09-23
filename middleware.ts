@@ -42,6 +42,7 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith('/auth/set-password') ||
     pathname === '/api/cron/risk-scores' ||         // Risk scoring cron job (self-guards via CRON_SECRET)
     pathname === '/api/cron/daily-brief' ||          // Daily brief cron job (self-guards via CRON_SECRET)
+    pathname === '/api/cron/daily-digest' ||         // Daily email digest cron job (self-guards via CRON_SECRET)
     pathname === '/api/cron/email-sweep' ||          // Mailbox sweep cron job (self-guards via CRON_SECRET)
     pathname === '/api/cron/task-digest' ||          // Per-member task digest cron (self-guards via CRON_SECRET)
     pathname === '/api/cron/lead-sweep' ||           // Inbound lead sweep cron (self-guards via CRON_SECRET)
@@ -127,7 +128,13 @@ export const config = {
      * - _next/image (image optimization)
      * - favicon.ico
      * - public folder assets
+     *
+     * `.webmanifest` is in that list because a browser fetches the manifest
+     * WITHOUT credentials unless the link says otherwise, so gating it meant
+     * every fetch 307'd to /login and the install name, icons and standalone
+     * display were silently discarded. It carries no data a login protects —
+     * the app's name, description and icon paths.
      */
-    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|webmanifest)$).*)',
   ],
 }

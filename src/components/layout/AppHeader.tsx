@@ -45,14 +45,31 @@ export default function AppHeader({
       <header className="h-14 flex items-center justify-between px-4 sm:px-6 border-b border-border bg-background/80 backdrop-blur-sm shrink-0 sticky top-0 z-10">
         {/* Logo + page title */}
         <div className="flex items-center gap-2.5 min-w-0">
-          <Image
-            src="/logo.png"
-            alt="Ber Wilson"
-            width={100}
-            height={54}
-            className="object-contain h-5 w-auto md:hidden shrink-0"
-            priority
-          />
+          {/* The wordmark is cream on the supplied artwork, which disappears
+              on the light header, so each theme gets the variant it can show.
+              Two tags rather than one recoloured by CSS: the chevron beside it
+              keeps its own three colours on both. The `md:hidden` lives on the
+              wrapper, so the breakpoint and the theme never have to out-specify
+              each other. */}
+          <span className="md:hidden shrink-0">
+            <Image
+              src="/logo-light.png"
+              alt="Ber Wilson"
+              width={640}
+              height={339}
+              className="object-contain h-5 w-auto dark:hidden"
+              priority
+            />
+            <Image
+              src="/logo-dark.png"
+              alt=""
+              aria-hidden
+              width={640}
+              height={343}
+              className="object-contain h-5 w-auto hidden dark:block"
+              priority
+            />
+          </span>
           {/* `tracking-[-0.02em]`, not `heading-tight`: that utility also sets
               `text-wrap: balance`, which resets the wrap half of `white-space`
               and so silently defeated `truncate` — the title wrapped to two

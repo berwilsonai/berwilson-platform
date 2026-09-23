@@ -36,8 +36,16 @@ export const metadata: Metadata = {
   title: "Ber Wilson Intelligence",
   description: "Executive Intelligence Platform",
   manifest: "/site.webmanifest",
+  // iOS takes the home-screen icon from `apple-touch-icon`, never from the
+  // manifest, so that link is what actually puts the black lockup on the
+  // phone. No favicon.ico entry here: the app/favicon.ico file convention
+  // emits its own link alongside this metadata rather than being replaced by
+  // it, so listing it again just duplicates the tag.
   icons: {
-    icon: "/icon-192x192.png",
+    icon: [
+      { url: "/icon-192x192.png", type: "image/png", sizes: "192x192" },
+      { url: "/icon-512x512.png", type: "image/png", sizes: "512x512" },
+    ],
     apple: "/apple-touch-icon.png",
   },
   appleWebApp: {

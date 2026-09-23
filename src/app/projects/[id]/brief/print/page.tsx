@@ -95,10 +95,10 @@ export default async function BriefPrintPage({ params }: PageProps) {
             )}
           </div>
           <Image
-            src="/logo.png"
+            src="/logo-light.png"
             alt="Ber Wilson"
-            width={120}
-            height={65}
+            width={640}
+            height={339}
             className="object-contain h-9 w-auto"
           />
         </header>
