@@ -251,6 +251,7 @@ GOOGLE_MEET_FOLDER_ID=           # optional; where Meet files recordings/transcr
 DINO_LEAD_EMAIL=                 # optional; where plumbing/HVAC leads are forwarded (Dino has no platform access). UNSET = Forward errors
 GOOGLE_CHAT_WEBHOOK_URL=         # optional; Chat space lead digests are ALSO posted to. Carries its own auth token — treat as a secret. UNSET = email only
 GOOGLE_CHAT_WEBHOOK_URL_<KEY>=   # optional; a second space, addressed by <KEY> (e.g. STEEL) without touching the notify layer
+LEAD_MAILBOX_HYGIENE=            # optional; "off" stops the platform unsubscribing from marketing and spamming junk in info@. Unset = ON. Scoped to the LEAD mailbox only — moose@/tuaone@ are Eric's and Richard's own and hold read-only Gmail scopes anyway
 LEAD_GMAIL_LABELS=               # optional; "off" stops writing the triage verdict back as a Gmail label on info@ threads. Unset = labelling ON
 LEAD_DRAFT_REPLIES=              # optional; "off" stops drafting replies to pursue leads. Unset = drafting ON (a draft is never sent)
 LEAD_CALENDAR_SYNC=              # optional; "off" stops writing lead bid/site-visit deadlines to Google Calendar. Unset = sync ON

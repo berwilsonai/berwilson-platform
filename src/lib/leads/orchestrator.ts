@@ -23,6 +23,7 @@ import { syncLeadTasks, type LeadTaskProgress } from './tasks'
 import { syncLeadLabels, type LeadLabelProgress } from './gmail-sync'
 import { draftLeadReplies, type LeadDraftProgress } from './draft-reply'
 import { publishLeadSheetsQuietly, type PublishSheetsResult } from './sheet'
+import { runMailboxHygiene, type HygieneProgress } from './mailbox-hygiene'
 
 export type LeadPhase =
   | 'fetch'
@@ -36,6 +37,7 @@ export type LeadPhase =
   | 'label'
   | 'draft'
   | 'sheets'
+  | 'hygiene'
 
 export interface LeadSweepOptions {
   phases?: LeadPhase[]
@@ -63,6 +65,7 @@ export interface LeadSweepResult {
   labels?: LeadLabelProgress
   drafts?: LeadDraftProgress
   sheets?: PublishSheetsResult | null
+  hygiene?: HygieneProgress
   elapsedMs: number
   moreWork: boolean
 }
@@ -79,9 +82,19 @@ const ALL_PHASES: LeadPhase[] = [
   'tasks',
   'notify',
   'sheets',
+  'hygiene',
 ]
 
 export const DEFAULT_LEAD_HISTORY_DAYS = 90
+
+/**
+ * How far back the routine hygiene pass looks.
+ *
+ * Wider than a day on purpose: a sender only becomes junk once it has sent
+ * JUNK_MIN_THREADS messages, and a one-day window would never see three of them
+ * together. Wide enough to spot a pattern, narrow enough to stay cheap.
+ */
+const HYGIENE_WINDOW_DAYS = 30
 
 /** Deterministic phases, sized to drain a backlog over a few daily runs. */
 const ROUTE_BATCH = 500
@@ -235,6 +248,27 @@ export async function runLeadSweep(opts: LeadSweepOptions = {}): Promise<LeadSwe
     // phase that gets skipped when a long triage overruns.
     result.sheets = await publishLeadSheetsQuietly()
     result.ranPhases.push('sheets')
+  }
+
+  if (phases.includes('hygiene') && process.env.LEAD_MAILBOX_HYGIENE !== 'off') {
+    // LAST, and on a window rather than the whole inbox.
+    //
+    // The one-time backfill reads all 8,045 threads and takes ~35 minutes; the
+    // routine pass only has to look at what has arrived since, which on a clean
+    // inbox is a handful. Running it last also means every other phase has
+    // already had its say about this mail — a thread that became a lead today
+    // is protected by the time hygiene looks at it.
+    try {
+      result.hygiene = await runMailboxHygiene({
+        sinceDays: HYGIENE_WINDOW_DAYS,
+        budgetMs: 10 * 60 * 1000,
+      })
+      result.ranPhases.push('hygiene')
+    } catch (err) {
+      // Never fatal: the leads are already fetched, scored and announced, and
+      // a tidy inbox is worth less than any of that.
+      console.error('[leads/hygiene] failed:', err instanceof Error ? err.message : String(err))
+    }
   }
 
   result.elapsedMs = Date.now() - started

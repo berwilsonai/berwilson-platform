@@ -20,6 +20,7 @@ import {
   probeGoogleConnection,
   probeScopeCoverage,
   googleFetch,
+  LEAD_MAILBOXES,
   PRIMARY_MAILBOX,
   type GoogleProbe,
 } from '@/lib/integrations/google-workspace'
@@ -1188,4 +1189,64 @@ export async function probeDriveFiling(): Promise<{
     }
   }
   return { state: 'ok', detail: `${scope} ${sorted}.` }
+}
+
+/**
+ * Is the lead mailbox actually staying clean?
+ *
+ * Directly measures the thing the hygiene pass exists to produce. Its failure
+ * mode is otherwise silent: the phase is wrapped in a try/catch so a revoked
+ * gmail.modify scope, or Gmail refusing the SPAM label, would stop the cleanup
+ * without stopping the sweep — and the only symptom would be an inbox slowly
+ * filling back up, which nobody notices until it is thousands deep again.
+ *
+ * One Gmail call. The inbox held 8,045 threads before the first backfill, of
+ * which 7,613 predated the lead sweep's 90-day horizon entirely.
+ */
+export async function probeLeadInbox(): Promise<{
+  state: 'ok' | 'warn' | 'unconfigured' | 'failed'
+  detail: string
+}> {
+  if (!isGoogleConfigured()) {
+    return { state: 'unconfigured', detail: 'Google Workspace is not configured.' }
+  }
+  if (process.env.LEAD_MAILBOX_HYGIENE === 'off') {
+    return {
+      state: 'unconfigured',
+      detail: 'LEAD_MAILBOX_HYGIENE=off — the inbox is not being tidied. Unset it to resume.',
+    }
+  }
+
+  const mailbox = LEAD_MAILBOXES[0]
+  try {
+    let count = 0
+    let page: string | undefined
+    // Paged rather than trusting resultSizeEstimate, which is an estimate and
+    // was measured returning a flat 201 for two very different mailboxes.
+    do {
+      const d = await googleFetch<{ threads?: unknown[]; nextPageToken?: string }>(
+        `https://gmail.googleapis.com/gmail/v1/users/${encodeURIComponent(mailbox)}` +
+          `/threads?maxResults=500&q=${encodeURIComponent('in:inbox')}` +
+          (page ? `&pageToken=${page}` : ''),
+        mailbox
+      )
+      count += d.threads?.length ?? 0
+      page = d.nextPageToken
+      // A runaway inbox is the thing being detected; do not page it forever.
+      if (count > 5000) break
+    } while (page)
+
+    if (count > 1500) {
+      return {
+        state: 'warn',
+        detail: `${mailbox} holds ${count > 5000 ? 'over 5,000' : count} inbox threads. The hygiene pass may have stopped — check the lead sweep log for [leads/hygiene].`,
+      }
+    }
+    return { state: 'ok', detail: `${mailbox}: ${count} threads in the inbox.` }
+  } catch (err) {
+    return {
+      state: 'failed',
+      detail: `Could not read ${mailbox}: ${err instanceof Error ? err.message : String(err)}`,
+    }
+  }
 }

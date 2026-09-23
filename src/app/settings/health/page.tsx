@@ -23,6 +23,7 @@ import {
   probeGoogleTasks,
   probeDrivePublishing,
   probeDriveKnowledge,
+  probeLeadInbox,
   probeDocumentIndexing,
   probeDriveSourceFolders,
   probeDriveFiling,
@@ -98,7 +99,7 @@ async function runChecks(): Promise<HealthCheck[]> {
   const dayAgo = new Date(Date.now() - 86_400_000).toISOString()
   const localAI = process.env.AI_PROVIDER === 'local'
 
-  const [brief, riskScore, lastAi, aiDayCount, failedRuns, mailbox, lmStudio, backups, drive, docIndexing, driveSources, driveFiling, scopes, disk, lastDigest, failedDigests, contacts, googleTasks, drivePublish, meetImport, dealIntake, routing, corpus] =
+  const [brief, riskScore, lastAi, aiDayCount, failedRuns, mailbox, lmStudio, backups, drive, leadInbox, docIndexing, driveSources, driveFiling, scopes, disk, lastDigest, failedDigests, contacts, googleTasks, drivePublish, meetImport, dealIntake, routing, corpus] =
     await Promise.all([
       supabase
         .from('stored_briefs')
@@ -132,6 +133,7 @@ async function runChecks(): Promise<HealthCheck[]> {
       probeLmStudio(),
       probeBackups(),
       probeDriveKnowledge(),
+      probeLeadInbox(),
       probeDocumentIndexing(),
       probeDriveSourceFolders(),
       probeDriveFiling(),
@@ -350,6 +352,26 @@ async function runChecks(): Promise<HealthCheck[]> {
               ? 'No knowledge folder configured'
               : 'Cannot read the knowledge folder',
       detail: drive.detail,
+    })
+  }
+
+  // The lead mailbox's own cleanliness. The hygiene pass is deliberately
+  // non-fatal inside the sweep, so its failure is silent by construction — the
+  // only symptom is an inbox filling back up, which nobody notices in time.
+  {
+    checks.push({
+      name: 'Lead Inbox Hygiene',
+      status:
+        leadInbox.state === 'ok' ? 'ok' : leadInbox.state === 'failed' ? 'fail' : 'warn',
+      headline:
+        leadInbox.state === 'ok'
+          ? 'Inbox is clean'
+          : leadInbox.state === 'warn'
+            ? 'Inbox is filling up'
+            : leadInbox.state === 'unconfigured'
+              ? 'Inbox tidying is switched off'
+              : 'Cannot read the lead mailbox',
+      detail: leadInbox.detail,
     })
   }
 

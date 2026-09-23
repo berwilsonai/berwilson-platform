@@ -549,7 +549,38 @@ function oauthStore(): OAuthStore {
   return parsed
 }
 
-/** Exchange a mailbox's stored refresh token for a fresh access token. */
+/**
+ * A failure that is about the link, not about us.
+ *
+ * This box's network drops briefly and often (the Studio DarkWake-cycles all
+ * day), and a dropped connection surfaces as a bare `TypeError: fetch failed`
+ * with the real cause nested underneath — which is why the string is searched
+ * rather than the error type inspected.
+ */
+function isTransientNetwork(err: unknown): boolean {
+  return /fetch failed|ETIMEDOUT|EHOSTUNREACH|ENOTFOUND|ECONNRESET|ECONNREFUSED|EAI_AGAIN|socket hang up|aborted|timeout/i.test(
+    String(err) + String((err as { cause?: unknown })?.cause ?? '')
+  )
+}
+
+/** Attempts at minting a token before giving up. */
+const TOKEN_ATTEMPTS = 4
+
+/**
+ * Exchange a mailbox's stored refresh token for a fresh access token.
+ *
+ * ⚠ RETRIES NETWORK FAILURES, AND ONLY NETWORK FAILURES. Every Google feature
+ * in the platform starts here, so a single dropped connection used to fail the
+ * whole thing — a sweep, a brief, a Drive sync — with an error that reads like a
+ * credential problem. `googleRequest` was given this treatment on 2026-09-20 by
+ * moving its token mint inside its own retry loop; every OTHER caller of
+ * getAccessToken was still exposed until this.
+ *
+ * A real auth failure (invalid_grant — consent revoked, password changed) is
+ * thrown immediately and never retried: it needs a human, and making the
+ * operator wait out a backoff for the message that tells them so is worse than
+ * failing fast.
+ */
 async function oauthAccessToken(mailbox: string): Promise<string> {
   const store = oauthStore()
   const refreshToken = store.tokens[mailbox.toLowerCase()]
@@ -559,25 +590,41 @@ async function oauthAccessToken(mailbox: string): Promise<string> {
     )
   }
 
-  const res = await fetch(TOKEN_ENDPOINT, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    signal: AbortSignal.timeout(tokenTimeoutMs()),
-    body: new URLSearchParams({
-      grant_type: 'refresh_token',
-      client_id: store.client.client_id,
-      client_secret: store.client.client_secret,
-      refresh_token: refreshToken,
-    }),
-  })
+  let lastErr: unknown
+  for (let attempt = 0; attempt < TOKEN_ATTEMPTS; attempt++) {
+    if (attempt > 0) await new Promise((r) => setTimeout(r, 1500 * attempt))
+    let res: Response
+    try {
+      res = await fetch(TOKEN_ENDPOINT, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        signal: AbortSignal.timeout(tokenTimeoutMs()),
+        body: new URLSearchParams({
+          grant_type: 'refresh_token',
+          client_id: store.client.client_id,
+          client_secret: store.client.client_secret,
+          refresh_token: refreshToken,
+        }),
+      })
+    } catch (err) {
+      lastErr = err
+      if (isTransientNetwork(err)) continue
+      throw err
+    }
 
-  const text = await res.text()
-  if (!res.ok) {
-    throw new Error(
+    const text = await res.text()
+    if (res.ok) return (JSON.parse(text) as { access_token: string }).access_token
+
+    // 5xx and 429 are Google having a moment; 4xx is us.
+    const retryable = res.status === 429 || res.status >= 500
+    lastErr = new Error(
       `Google token request for ${mailbox} failed: ${res.status} — ${explainOAuthError(text, mailbox)}`
     )
+    if (!retryable) throw lastErr
   }
-  return (JSON.parse(text) as { access_token: string }).access_token
+  throw lastErr instanceof Error
+    ? new Error(`Google token request for ${mailbox} failed after ${TOKEN_ATTEMPTS} attempts — ${lastErr.message}`)
+    : new Error(`Google token request for ${mailbox} failed after ${TOKEN_ATTEMPTS} attempts`)
 }
 
 /**
