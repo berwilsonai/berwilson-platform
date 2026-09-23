@@ -25,13 +25,40 @@ export type SenderVerdict = 'protected' | 'junk' | 'unknown'
 export interface SenderFacts {
   /** Lowercased envelope address. */
   address: string
-  /** True when the mail carries List-Unsubscribe, i.e. it was sent to a list. */
-  bulk: boolean
+  /**
+   * What share of this sender's threads carry List-Unsubscribe.
+   *
+   * ⚠ A SHARE, NOT A BOOLEAN, AND THAT IS THE WHOLE POINT. "Any thread is bulk"
+   * condemns a domain that sends marketing AND something else — google.com
+   * sends Google Ads promotions (bulk) and "Folder shared with you" notices
+   * from real people (not bulk); microsoft.com sends Microsoft Learn promos and
+   * account security codes. Judged by the marketing alone, both families were
+   * classified junk and 56 threads of real notices would have gone to spam.
+   */
+  bulkShare: number
   /** True when any message from this sender became a non-spam lead. */
   everProducedLead: boolean
   /** How many threads from this sender are in the mailbox. */
   threads: number
 }
+
+/**
+ * Below this share of list mail, a family is MIXED and left alone.
+ *
+ * ⚠ THIS IS NOT WHAT PROTECTS TRANSACTIONAL MAIL — the per-thread check is.
+ * Only threads that individually carry List-Unsubscribe are ever acted on, so a
+ * Home Depot order receipt or a Google Drive share survives even when its
+ * domain is condemned. That is what lets this bar be a judgement about the
+ * SENDER rather than a safety margin.
+ *
+ * Measured against the real inbox, the distribution is clearly bimodal: the
+ * mixed platforms sit at 13-50% (google.com 13%, microsoft.com 13%,
+ * verizonwireless 25%, eventbrite 38%, alignable 50%) and the marketing
+ * senders at 63-100% (zillow 63%, adobe 75%, houzz 88%, and 25 families at
+ * 100%). 0.6 sits in the gap. An earlier 0.95 spared Houzz, Home Depot and
+ * Total Wine on a single non-bulk message each.
+ */
+export const BULK_SHARE_REQUIRED = 0.6
 
 /**
  * Bid boards, plan rooms and procurement portals.
@@ -61,8 +88,41 @@ const INTERNAL = /(^|\.)berwilson\.com$/i
  */
 const PUBLIC_SECTOR = /\.(gov|mil)(\.[a-z]{2})?$/i
 
+/**
+ * Bulk-mail relays. Many unrelated organisations send through one of these, so
+ * the domain identifies the PLUMBING, not the sender.
+ *
+ * Found the hard way: 14 inbox threads on ccsend.com (Constant Contact) turned
+ * out to be four different organisations — a contractor lead service, the Utah
+ * Valley Chamber of Commerce, and an Arizona licensing school. Condemning
+ * "ccsend.com" as a family would have spammed all of them on one decision.
+ */
+const RELAY =
+  /(^|\.)(ccsend|sendgrid|mailgun|rsgsv|mcsv|mcdlv|sparkpostmail|mktdns|createsend|icptrack|cmail\d*|mailchimpapp|hubspotemail|pardot|exacttarget|mandrillapp|amazonses|postmarkapp|mailjet|braze|customeriomail|outreachsystems)\./i
+
+/**
+ * VERP / sender-rewriting envelopes, where the REAL sender is encoded into the
+ * local part: `sender+sortiz=utah.gov@outreachsystems.net`.
+ *
+ * ⚠ THIS ONE NEARLY COST 94 THREADS OF GOVERNMENT CONTRACTING MAIL. Those are
+ * Utah APEX Accelerator bulletins and Hill AFB Industry Partner Exchange
+ * invitations — squarely "leads and RFPs" — sent by utah.gov through a bulk
+ * relay. Read as `outreachsystems.net` they looked like marketing; read as
+ * `utah.gov` they are protected by the public-sector rule.
+ */
+function encodedSenderDomain(address: string): string | null {
+  const local = address.split('@')[0] ?? ''
+  const m = local.match(/=([A-Za-z0-9.-]+\.[A-Za-z]{2,})$/)
+  return m ? m[1].toLowerCase() : null
+}
+
+/**
+ * The domain a sender should be JUDGED by — the encoded original where there is
+ * one, otherwise the envelope domain.
+ */
 function domainOf(address: string): string {
-  return (address.split('@')[1] ?? address).toLowerCase().trim()
+  const envelope = (address.split('@')[1] ?? address).toLowerCase().trim()
+  return encodedSenderDomain(address) ?? envelope
 }
 
 /**
@@ -79,10 +139,24 @@ export function classifySender(facts: SenderFacts): { verdict: SenderVerdict; re
   if (BID_SOURCE.test(domain)) return { verdict: 'protected', reason: 'bid board or plan room' }
   if (facts.everProducedLead) return { verdict: 'protected', reason: 'has produced a real lead' }
 
+  // A shared relay identifies the plumbing, not the sender: several unrelated
+  // organisations arrive under one domain and must not share one verdict.
+  if (RELAY.test(domain) || RELAY.test((facts.address.split('@')[1] ?? ''))) {
+    return { verdict: 'unknown', reason: 'shared bulk relay — several senders behind one domain' }
+  }
+
   // Not bulk mail means a person, or a transactional notice addressed to us.
   // Unsubscribing is impossible and marking it spam is the worst error available,
   // so it is never junk however unwelcome it is.
-  if (!facts.bulk) return { verdict: 'unknown', reason: 'not list mail — person or transactional' }
+  if (facts.bulkShare <= 0) {
+    return { verdict: 'unknown', reason: 'not list mail — person or transactional' }
+  }
+  if (facts.bulkShare < BULK_SHARE_REQUIRED) {
+    return {
+      verdict: 'unknown',
+      reason: `mixed sender — only ${Math.round(facts.bulkShare * 100)}% of its mail is a list`,
+    }
+  }
 
   // One promotional email is not a pattern. Three from the same sender, none of
   // which ever became a lead, is.

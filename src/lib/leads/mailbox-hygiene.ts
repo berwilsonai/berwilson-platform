@@ -194,13 +194,15 @@ export async function runMailboxHygiene(
   }
 
   // ── 4. Decide per FAMILY, not per address ─────────────────────────────────
-  const fams = new Map<string, { threads: ThreadFacts[]; bulk: boolean; linked: boolean }>()
+  const fams = new Map<string, { threads: ThreadFacts[]; bulkCount: number; linked: boolean }>()
   for (const f of facts) {
     if (!f.address) continue
     const key = senderFamily(f.address)
-    const e = fams.get(key) ?? { threads: [], bulk: false, linked: false }
+    const e = fams.get(key) ?? { threads: [], bulkCount: 0, linked: false }
     e.threads.push(f)
-    if (f.listUnsubscribe) e.bulk = true
+    // COUNTED, not flagged: a family that sends marketing and transactional
+    // mail under one domain must not be condemned by the marketing half.
+    if (f.listUnsubscribe) e.bulkCount++
     if (linked.has(f.id)) e.linked = true
     fams.set(key, e)
   }
@@ -218,7 +220,7 @@ export async function runMailboxHygiene(
 
     const { verdict, reason } = classifySender({
       address: e.threads[0].address,
-      bulk: e.bulk,
+      bulkShare: e.threads.length ? e.bulkCount / e.threads.length : 0,
       everProducedLead: producers.has(family),
       threads: e.threads.length,
     })
