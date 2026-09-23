@@ -3,6 +3,8 @@ import { createClient } from '@/lib/supabase/server'
 import type { TablesInsert } from '@/lib/supabase/types'
 import { getViewer, canAccessRecord, forbiddenJson } from '@/lib/auth/viewer'
 import { scopeFromBody } from '@/lib/records/scope'
+import { SEVERITIES } from '@/lib/utils/constants'
+import type { DdSeverity } from '@/lib/supabase/types'
 
 export async function POST(request: NextRequest) {
   const supabase = await createClient()
@@ -20,6 +22,19 @@ export async function POST(request: NextRequest) {
       { status: 400 }
     )
   }
+
+  // `severity` is a Postgres ENUM, so an unrecognised value is a 22P02 from the
+  // database and used to surface as a 500 with the raw Postgres text — a client
+  // mistake reported as a server fault. Observed live on 2026-09-23 with
+  // severity "high", which is not in the vocabulary (info/watch/critical/blocker).
+  // Validate at the edge, against the same list the UI offers.
+  if (severity !== undefined && severity !== null && !SEVERITIES.includes(severity as DdSeverity)) {
+    return Response.json(
+      { error: `severity must be one of: ${SEVERITIES.join(', ')}` },
+      { status: 400 }
+    )
+  }
+
 
   const viewer = await getViewer()
   if (!viewer || !(await canAccessRecord(viewer, scope.kind, scope.id))) return forbiddenJson()

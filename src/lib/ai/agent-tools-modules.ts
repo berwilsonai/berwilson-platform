@@ -15,6 +15,7 @@
  */
 
 import { createAdminClient } from '@/lib/supabase/admin'
+import { orIlike } from '@/lib/utils/postgrest'
 import { searchCorrespondence, extractPortalLinks } from './thread-embeddings'
 // The sweep tables post-date the last type generation (gen-types is disabled
 // against the self-hosted DB), so they are reached through the sweep's own
@@ -758,8 +759,8 @@ export async function executeModuleTool(
 
       const query = str(args.query)
       if (query) {
-        const like = `%${query}%`
-        q = q.or(`title.ilike.${like},summary.ilike.${like},minutes.ilike.${like},transcript.ilike.${like}`)
+        const meetingFilter = orIlike(['title', 'summary', 'minutes', 'transcript'], query)
+        if (meetingFilter) q = q.or(meetingFilter)
       }
 
       const { data, error } = await q

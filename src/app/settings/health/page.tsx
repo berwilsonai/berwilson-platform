@@ -280,6 +280,29 @@ async function runChecks(): Promise<HealthCheck[]> {
             : 'Backup directory not found',
       detail: backups.detail,
     })
+
+    // Offsite gets its OWN card, because it fails independently of the local
+    // backup and is the half that matters if the Studio is lost. Folding it
+    // into the line above is how six consecutive nights without a
+    // disaster-recovery copy read as "Backups running" (found 2026-09-23).
+    checks.push({
+      name: 'Offsite Backup Copy',
+      status:
+        backups.offsite.state === 'ok'
+          ? 'ok'
+          : backups.offsite.state === 'unknown'
+            ? 'warn'
+            : 'fail',
+      headline:
+        backups.offsite.state === 'ok'
+          ? 'Encrypted copy is offsite'
+          : backups.offsite.state === 'failing'
+            ? 'Offsite copy is NOT being made'
+            : backups.offsite.state === 'stale'
+              ? 'Offsite copy has stopped'
+              : 'Offsite status unknown',
+      detail: backups.offsite.detail,
+    })
   }
 
   // 7. Disk space on the box (app + database + models + backups + map tiles)

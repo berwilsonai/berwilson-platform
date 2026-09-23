@@ -10,14 +10,20 @@
     <string>-c</string>
     <string>curl -sS -m 3500 -H "Authorization: Bearer $(grep '^CRON_SECRET=' __APP_DIR__/.env.local | cut -d= -f2-)" http://localhost:3000/api/cron/lead-sweep</string>
   </array>
-  <!-- Daily at 5:30am, ahead of the workday: bid invitations that arrived
+  <!-- Daily at 4:30am, ahead of the workday: bid invitations that arrived
        overnight are triaged and scored before anyone opens the queue.
        Deliberately separate from the hourly deal sweep so the two never
-       compete for the local model. -->
+       compete for the local model.
+
+       Moved from 5:30 on 2026-09-23. The sweep runs the better part of an
+       hour, so at 5:30 it was still issuing model calls when the Monday
+       weekly brief started at 6:30 — and LM Studio serves one request at a
+       time. The brief timed out and no brief was written that week. A 45-min
+       run budget (RUN_BUDGET_MS) plus this start time leaves a clear hour. -->
   <key>StartCalendarInterval</key>
   <dict>
     <key>Hour</key>
-    <integer>5</integer>
+    <integer>4</integer>
     <key>Minute</key>
     <integer>30</integer>
   </dict>

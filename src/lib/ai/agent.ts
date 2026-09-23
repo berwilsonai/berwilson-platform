@@ -51,6 +51,31 @@ export interface AgentStreamCallbacks {
  * Run the agent loop: send user message, execute any tool calls, return final response.
  * Pass `callbacks` to receive tool-call and text-delta events as they happen.
  */
+/**
+ * Run a tool and turn any throw into a normal error result.
+ *
+ * Tool implementations are expected to RETURN `{ error }` rather than throw,
+ * but there are 40+ of them and the model supplies their arguments — so a
+ * missing or null-valued param is a routine event, not an exceptional one.
+ * Without this, one such tool takes the whole turn down and the user sees the
+ * assistant fail rather than the tool fail, which is both worse and much
+ * harder to diagnose. The model can recover from an error result; it cannot
+ * recover from a dead turn.
+ */
+async function runTool(
+  name: string,
+  args: Record<string, unknown>,
+  context: AgentContext
+): Promise<unknown> {
+  try {
+    return await executeToolCall(name, args, context)
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err)
+    console.error(`[agent] tool ${name} threw:`, message)
+    return { error: `Tool ${name} failed: ${message}` }
+  }
+}
+
 export async function runAgent(
   userMessage: string,
   context: AgentContext,
@@ -182,7 +207,7 @@ You are helping the user read and understand this specific document. Answer ques
     for (const fc of functionCalls) {
       const call = (fc as { functionCall: { name: string; args: Record<string, unknown> } }).functionCall
       callbacks?.onToolCall?.(call.name, call.args)
-      const result = await executeToolCall(call.name, call.args, context)
+      const result = await runTool(call.name, call.args, context)
       toolCallLog.push({ name: call.name, args: call.args, result })
 
       toolResponseParts.push({
@@ -291,7 +316,7 @@ async function runAgentLocal(
         // malformed args from the model — run the tool with none
       }
       callbacks?.onToolCall?.(tc.function.name, args)
-      const toolResult = await executeToolCall(tc.function.name, args, context)
+      const toolResult = await runTool(tc.function.name, args, context)
       toolCallLog.push({ name: tc.function.name, args, result: toolResult })
 
       messages.push({

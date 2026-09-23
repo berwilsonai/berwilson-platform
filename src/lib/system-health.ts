@@ -135,6 +135,65 @@ export interface BackupProbe {
   detail: string
   newestAgeHours?: number
   dir: string
+  /** The encrypted copy on the Mac mini — the only protection against losing the Studio. */
+  offsite: {
+    state: 'ok' | 'stale' | 'failing' | 'unknown'
+    detail: string
+    ageHours?: number
+  }
+}
+
+/**
+ * Freshness of the OFFSITE copy, read from the marker the backup script writes.
+ *
+ * This exists because the local check above cannot see it. On 2026-09-23 the
+ * offsite push had failed 6 of the previous 8 nights — the mini is asleep at
+ * 2:30am — while this card reported "ok" throughout, because the local
+ * artifacts were written perfectly every night. A local-only backup is not a
+ * backup against the failure that actually destroys it (the Studio itself),
+ * and the 2026-08-25 data loss showed that failure is not hypothetical.
+ */
+async function probeOffsite(dir: string): Promise<BackupProbe['offsite']> {
+  const marker = path.join(dir, '.offsite-status')
+  let raw: string
+  try {
+    raw = await fs.readFile(marker, 'utf8')
+  } catch {
+    return {
+      state: 'unknown',
+      detail:
+        'No offsite marker yet — the encrypted copy to the Mac mini has not run since this check was added. It is written by ~/supabase-selfhost/backup.sh at 2:30am.',
+    }
+  }
+  let parsed: { ok?: boolean; at?: string; detail?: string; secrets?: boolean; target?: string }
+  try {
+    parsed = JSON.parse(raw) as typeof parsed
+  } catch {
+    return { state: 'unknown', detail: `Offsite marker at ${marker} is unreadable.` }
+  }
+  const at = parsed.at ? Date.parse(parsed.at) : NaN
+  const ageHours = Number.isNaN(at) ? undefined : (Date.now() - at) / 3_600_000
+  if (!parsed.ok) {
+    return {
+      state: 'failing',
+      detail: `Last offsite push FAILED — ${parsed.detail ?? 'reason not recorded'}. The Mac mini is usually asleep at 2:30am; wake it, or check ~/Library/Logs/berwilson/backup.err.log on the Studio. Until this clears, the only copy of the database lives on this machine.`,
+      ageHours,
+    }
+  }
+  if (ageHours !== undefined && ageHours > 30) {
+    return {
+      state: 'stale',
+      detail: `Newest offsite copy is ${Math.round(ageHours / 24)}d old — the encrypted push to the Mac mini has stopped even though local backups are fine.`,
+      ageHours,
+    }
+  }
+  return {
+    state: 'ok',
+    detail: `Encrypted copy pushed to ${parsed.target ?? 'the Mac mini'} ${
+      ageHours !== undefined && ageHours < 1 ? 'under an hour' : `${Math.round(ageHours ?? 0)}h`
+    } ago${parsed.secrets === false ? ' (WITHOUT the secrets bundle)' : ''}.`,
+    ageHours,
+  }
 }
 
 /**
@@ -160,7 +219,8 @@ export async function probeBackups(): Promise<BackupProbe> {
         }
       }
     }
-    if (newest === 0) return { state: 'missing', detail: 'Backup directory exists but is empty.', dir }
+    const offsite = await probeOffsite(dir)
+    if (newest === 0) return { state: 'missing', detail: 'Backup directory exists but is empty.', dir, offsite }
 
     const ageHours = (Date.now() - newest) / 3_600_000
     if (ageHours > 30) {
@@ -169,6 +229,7 @@ export async function probeBackups(): Promise<BackupProbe> {
         detail: `Newest backup file is ${Math.round(ageHours / 24)}d old — the nightly backup has stopped. Check ~/Library/Logs/berwilson/backup.err.log on the Studio.`,
         newestAgeHours: ageHours,
         dir,
+        offsite,
       }
     }
     return {
@@ -176,12 +237,14 @@ export async function probeBackups(): Promise<BackupProbe> {
       detail: `Newest backup ${ageHours < 1 ? 'under an hour' : `${Math.round(ageHours)}h`} old.`,
       newestAgeHours: ageHours,
       dir,
+      offsite,
     }
   } catch {
     return {
       state: 'missing',
       detail: `Backup directory not found at ${dir}. Expected on the Studio (this warning is normal on a dev machine).`,
       dir,
+      offsite: { state: 'unknown', detail: 'No backup directory, so no offsite copy either.' },
     }
   }
 }

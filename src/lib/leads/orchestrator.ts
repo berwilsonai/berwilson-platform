@@ -116,13 +116,43 @@ const SCORE_SHARE = 0.4
  */
 const TAIL_SHARE = 0.25
 
+/**
+ * Ceiling on the WHOLE run, not just the model-bound phases.
+ *
+ * `budgetMs` used to govern only scoring/triage/drafting, while label, tasks,
+ * notify, sheets and hygiene ran after it and added their own time — hygiene
+ * alone carried a flat 10-minute budget. So a 50-minute budget produced runs
+ * over 60 minutes, past the cron's client timeout, and every single run was
+ * recorded as a failure (curl exit 28) despite completing its work. Same shape
+ * as the weekly-brief cron fixed on 2026-09-22.
+ *
+ * Keep this comfortably under the caller's timeout (`-m` in the launchd plist
+ * and `maxDuration` on the route), since the deterministic tail is bounded but
+ * not instant.
+ */
+const RUN_BUDGET_MS = 45 * 60 * 1000
+
+/**
+ * Held back from the model phases for the deterministic tail.
+ *
+ * Those phases are what make the run useful to a human — the Gmail labels, the
+ * task board, the digest, the rep sheets — so they must never be the part that
+ * a long triage squeezes out.
+ */
+const TAIL_RESERVE_MS = 12 * 60 * 1000
+
 export async function runLeadSweep(opts: LeadSweepOptions = {}): Promise<LeadSweepResult> {
   const phases = opts.phases ?? ALL_PHASES
-  const budgetMs = opts.budgetMs ?? 50 * 60 * 1000
+  const runBudgetMs = opts.budgetMs ?? RUN_BUDGET_MS
+  // The model phases get the run budget less the tail reserve; the tail then
+  // spends what is genuinely left against the same clock.
+  const budgetMs = Math.max(0, runBudgetMs - TAIL_RESERVE_MS)
   const started = Date.now()
   const result: LeadSweepResult = { ranPhases: [], elapsedMs: 0, moreWork: false }
 
   const remaining = () => budgetMs - (Date.now() - started)
+  /** What is left of the WHOLE run — the tail phases measure against this. */
+  const runRemaining = () => runBudgetMs - (Date.now() - started)
 
   if (phases.includes('fetch')) {
     result.fetch = await fetchAllMailboxes({
@@ -261,7 +291,10 @@ export async function runLeadSweep(opts: LeadSweepOptions = {}): Promise<LeadSwe
     try {
       result.hygiene = await runMailboxHygiene({
         sinceDays: HYGIENE_WINDOW_DAYS,
-        budgetMs: 10 * 60 * 1000,
+        // Bounded by what is left of the whole run, not a flat ten minutes on
+        // top of it — hygiene is the least valuable phase here and must never
+        // be what pushes the run past its caller's timeout.
+        budgetMs: Math.max(0, Math.min(runRemaining(), 10 * 60 * 1000)),
       })
       result.ranPhases.push('hygiene')
     } catch (err) {

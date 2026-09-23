@@ -3,6 +3,7 @@
  */
 
 import { createAdminClient } from '@/lib/supabase/admin'
+import { orIlike, orIlikeAnyWord } from '@/lib/utils/postgrest'
 import { researchQuery } from './research'
 import { matchChunks } from './match-chunks'
 import { embedQuery } from './embeddings'
@@ -395,7 +396,10 @@ export async function executeToolCall(
       const projectId = (args.project_id as string) || context.projectId
       if (!projectId) return { error: 'No project_id provided or available in context' }
 
-      const fields = args.fields as string[]
+      // The model can omit a required param, and runAgent deliberately falls
+      // back to `{}` when tool-call JSON is malformed — so this must answer,
+      // never throw. A throw here kills the whole turn (see agent.ts).
+      const fields = Array.isArray(args.fields) ? (args.fields as string[]) : []
       const validFields = [
         'id', 'name', 'sector', 'status', 'stage', 'description', 'location',
         'client_entity', 'estimated_value', 'contract_type', 'delivery_method',
@@ -403,7 +407,9 @@ export async function executeToolCall(
         'created_at', 'updated_at', 'parent_project_id',
       ]
       const safeFields = fields.filter(f => validFields.includes(f))
-      if (safeFields.length === 0) return { error: 'No valid fields requested' }
+      if (safeFields.length === 0) {
+        return { error: `No valid fields requested. Choose from: ${validFields.join(', ')}` }
+      }
 
       const { data, error } = await supabase
         .from('projects')
@@ -421,7 +427,8 @@ export async function executeToolCall(
     }
 
     case 'search_updates': {
-      const query = args.query as string
+      const query = args.query as string | undefined
+      if (!query) return { error: 'A query is required.' }
       const projectId = (args.project_id as string) || context.projectId
       const includeChildren = args.include_children as boolean | undefined
       const dateRange = args.date_range as { after?: string; before?: string } | undefined
@@ -449,15 +456,11 @@ export async function executeToolCall(
       if (dateRange?.after) q = q.gte('created_at', dateRange.after)
       if (dateRange?.before) q = q.lte('created_at', dateRange.before)
 
-      // Text search via ilike across summary and raw_content (raw_content has full email body)
-      const keywords = query.split(/\s+/).slice(0, 3).map(k => `%${k}%`)
-      if (keywords.length > 0) {
-        const conditions = keywords.flatMap(k => [
-          `summary.ilike.${k}`,
-          `raw_content.ilike.${k}`,
-        ])
-        q = q.or(conditions.join(','))
-      }
+      // Text search via ilike across summary and raw_content (raw_content has
+      // full email body). Built through orIlikeAnyWord so a term carrying a
+      // comma or parenthesis is a VALUE and not more logic tree.
+      const updateFilter = orIlikeAnyWord(['summary', 'raw_content'], query)
+      if (updateFilter) q = q.or(updateFilter)
 
       const { data, error } = await q
 
@@ -466,13 +469,15 @@ export async function executeToolCall(
     }
 
     case 'search_parties': {
-      const query = args.query as string
-      const pattern = `%${query}%`
+      const query = args.query as string | undefined
+      if (!query) return { error: 'A query is required.' }
+      const partyFilter = orIlike(['full_name', 'company', 'title'], query)
+      if (!partyFilter) return { count: 0, parties: [] }
 
       const { data, error } = await supabase
         .from('parties')
         .select('id, full_name, company, title, email, phone, is_organization, relationship_notes, government_contract_history')
-        .or(`full_name.ilike.${pattern},company.ilike.${pattern},title.ilike.${pattern}`)
+        .or(partyFilter)
         .limit(10)
 
       if (error) return { error: error.message }
@@ -1389,8 +1394,8 @@ export async function executeToolCall(
       if (args.investor_id) q = q.eq('investor_id', args.investor_id as string)
       if (args.due_before) q = q.lte('due_date', args.due_before as string)
       if (args.query) {
-        const term = (args.query as string).replace(/[%,]/g, '')
-        q = q.or(`title.ilike.%${term}%,what.ilike.%${term}%,why.ilike.%${term}%,how.ilike.%${term}%`)
+        const taskFilter = orIlike(['title', 'what', 'why', 'how'], args.query as string)
+        if (taskFilter) q = q.or(taskFilter)
       }
 
       const { data: tasks, error } = await q

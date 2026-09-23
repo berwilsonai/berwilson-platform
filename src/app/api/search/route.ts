@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server'
+import { orIlike } from '@/lib/utils/postgrest'
 import { createAdminClient } from '@/lib/supabase/admin'
 import {
   oppType,
@@ -35,6 +36,10 @@ export async function GET(request: NextRequest) {
   if (q.length < 2) return Response.json({ results: [] })
 
   const pattern = `%${q}%`
+  // `.ilike()` takes the term as a value, but `.or()` parses a LOGIC TREE — so
+  // the steel branch below needs the quoted, sanitized form or a query
+  // containing a comma silently returns nothing for that type.
+  const steelFilter = orIlike(['name', 'customer'], q) ?? 'name.ilike."%%"'
   const supabase = createAdminClient()
 
   const [
@@ -97,7 +102,7 @@ export async function GET(request: NextRequest) {
     supabase
       .from('steel_deals')
       .select('id, name, stage, customer, value')
-      .or(`name.ilike.${pattern},customer.ilike.${pattern}`)
+      .or(steelFilter)
       .order('updated_at', { ascending: false })
       .limit(6),
   ])

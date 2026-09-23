@@ -662,7 +662,7 @@ export type Database = {
           project_id: string | null
           resolved_at: string | null
           severity: Database["public"]["Enums"]["dd_severity"] | null
-          status: string | null
+          status: string
         }
         Insert: {
           opportunity_id?: string | null

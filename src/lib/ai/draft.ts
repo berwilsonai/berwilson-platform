@@ -5,6 +5,7 @@
  */
 
 import { createAdminClient } from '@/lib/supabase/admin'
+import { orIlike } from '@/lib/utils/postgrest'
 import { callGemini } from '@/lib/ai/gemini'
 import { fetchOpenTasks, formatTasksForPrompt } from '@/lib/tasks/queries'
 
@@ -138,11 +139,12 @@ ${(milestones ?? []).map(m => `- ${m.label} — ${m.target_date}`).join('\n') ||
   let recipientContext = ''
   if (recipients && recipients.length > 0) {
     for (const r of recipients.slice(0, 5)) {
-      const pattern = `%${r.split(' ')[0]}%`
+      const recipientFilter = orIlike(['full_name', 'email'], r.split(' ')[0])
+      if (!recipientFilter) continue
       const { data: parties } = await admin
         .from('parties')
         .select('full_name, company, title, email')
-        .or(`full_name.ilike.${pattern},email.ilike.${pattern}`)
+        .or(recipientFilter)
         .limit(1)
       if (parties && parties.length > 0) {
         const p = parties[0]
