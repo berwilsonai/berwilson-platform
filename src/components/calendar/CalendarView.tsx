@@ -14,6 +14,9 @@ export interface CalendarEvent {
   time?: string | null
   project_id: string
   project_name: string
+  /** Where the row links to. Defaults to the project it hangs off; an
+   *  opportunity-scoped milestone sets it explicitly. */
+  href?: string
   detail: string
   overdue: boolean
   completed: boolean
@@ -222,9 +225,10 @@ export default function CalendarView({ events: serverEvents }: CalendarViewProps
                   const isMeeting = event.type === 'meeting'
                   const href = isMeeting
                     ? (event.webLink ?? '#')
-                    : event.type === 'milestone'
-                      ? `/projects/${event.project_id}/milestones`
-                      : `/projects/${event.project_id}`
+                    : event.href
+                      ?? (event.type === 'milestone'
+                        ? `/projects/${event.project_id}/milestones`
+                        : `/projects/${event.project_id}`)
 
                   const wrapperProps = isMeeting && event.webLink
                     ? { href, target: '_blank', rel: 'noopener noreferrer' }

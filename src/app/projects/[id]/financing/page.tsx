@@ -55,7 +55,7 @@ export default async function FinancingPage({ params }: PageProps) {
 
   return (
     <div className="space-y-6">
-      <FinancingTab projectId={id} initialFinancing={financing} />
+      <FinancingTab recordKind="project" recordId={id} initialFinancing={financing} />
 
       {/* Investors targeting this project / its SPV */}
       {invRows.length > 0 && (

@@ -16,7 +16,7 @@ export default async function CalendarPage() {
   const [milestonesResult, complianceResult, dueTasks, bidsResult] = await Promise.all([
     supabase
       .from('milestones')
-      .select('id, label, stage, target_date, completed_at, project_id, project:projects(id, name, sector)')
+      .select('id, label, stage, target_date, completed_at, project_id, opportunity_id, project:projects(id, name, sector), opportunity:opportunities(id, name)')
       .gte('target_date', thirtyDaysAgo)
       .lte('target_date', sixtyDaysOut)
       .order('target_date', { ascending: true }),
@@ -52,6 +52,7 @@ export default async function CalendarPage() {
     date: string
     project_id: string
     project_name: string
+    href?: string
     detail: string
     overdue: boolean
     completed: boolean
@@ -77,13 +78,22 @@ export default async function CalendarPage() {
 
   for (const m of milestonesResult.data ?? []) {
     if (!m.target_date) continue
+    // A milestone hangs off a project or an opportunity — the calendar shows
+    // both, linking each back to where it is edited.
+    const opp = m.opportunity as unknown as { id: string; name: string } | null
+    const proj = m.project as unknown as { name: string } | null
     events.push({
       id: `ms-${m.id}`,
       type: 'milestone',
       title: m.label,
       date: m.target_date,
-      project_id: m.project_id,
-      project_name: (m.project as unknown as { name: string })?.name ?? 'Unknown',
+      project_id: m.project_id ?? opp?.id ?? '',
+      project_name: proj?.name ?? opp?.name ?? 'Unknown',
+      href: m.project_id
+        ? `/projects/${m.project_id}/milestones`
+        : opp
+          ? `/opportunities/${opp.id}/milestones`
+          : undefined,
       detail: `${m.stage} gate`,
       overdue: !m.completed_at && new Date(m.target_date) < now,
       completed: !!m.completed_at,

@@ -1,6 +1,8 @@
 import { NextRequest } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import type { TablesInsert } from '@/lib/supabase/types'
+import { getViewer, canAccessRecord, forbiddenJson } from '@/lib/auth/viewer'
+import { scopeFromBody } from '@/lib/records/scope'
 
 export async function POST(request: NextRequest) {
   const supabase = await createClient()
@@ -8,17 +10,23 @@ export async function POST(request: NextRequest) {
   if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body = await request.json()
-  const { project_id, category, item, severity, status, assigned_to, notes } = body
+  const { category, item, severity, status, assigned_to, notes } = body
 
-  if (!project_id || !category || !item) {
+  // Exactly one of project_id / opportunity_id, matching the table's own check.
+  const scope = scopeFromBody(body as Record<string, unknown>)
+  if (!scope || !category || !item) {
     return Response.json(
-      { error: 'project_id, category, and item are required' },
+      { error: 'exactly one of project_id or opportunity_id, plus category and item, are required' },
       { status: 400 }
     )
   }
 
+  const viewer = await getViewer()
+  if (!viewer || !(await canAccessRecord(viewer, scope.kind, scope.id))) return forbiddenJson()
+
   const row: TablesInsert<'dd_items'> = {
-    project_id,
+    project_id: scope.kind === 'project' ? scope.id : null,
+    opportunity_id: scope.kind === 'opportunity' ? scope.id : null,
     category,
     item: item.trim(),
     severity: severity ?? 'info',

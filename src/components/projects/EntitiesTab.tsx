@@ -1,5 +1,7 @@
 'use client'
 
+import { scopeBody, type RecordKind } from '@/lib/records/scope'
+
 import { useState } from 'react'
 import {
   Building2,
@@ -390,14 +392,16 @@ function EntityTreeNode({
 // ── Main component ────────────────────────────────────────────────────────────
 
 interface EntitiesTabProps {
-  projectId: string
+  recordKind: RecordKind
+  recordId: string
   initialLinked: EntityProjectWithEntity[]
   initialAllEntities: Entity[]
   initialResearchArtifacts?: ResearchArtifact[]
 }
 
 export default function EntitiesTab({
-  projectId,
+  recordKind,
+  recordId,
   initialLinked,
   initialAllEntities,
   initialResearchArtifacts = [],
@@ -491,7 +495,7 @@ export default function EntitiesTab({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           entity_id: linkForm.entity_id,
-          project_id: projectId,
+          ...scopeBody(recordKind, recordId),
           relationship: linkForm.relationship,
           equity_pct: linkForm.equity_pct || null,
           notes: linkForm.notes || null,
@@ -643,9 +647,10 @@ export default function EntitiesTab({
           </button>
         </div>
         <ResearchPanel
-          projectId={projectId}
-          projectName={entity.name}
-          clientEntity={entity.name}
+          recordKind={recordKind}
+          recordId={recordId}
+          recordName={entity.name}
+          counterparty={entity.name}
           initialArtifacts={initialResearchArtifacts}
         />
       </div>

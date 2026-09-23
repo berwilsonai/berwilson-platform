@@ -1,5 +1,7 @@
 'use client'
 
+import { scopeBody, type RecordKind } from '@/lib/records/scope'
+
 import { useState } from 'react'
 import { Search, ExternalLink, Save, X, Loader2, ChevronDown, ChevronUp, Plus } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -16,31 +18,50 @@ interface ResearchResult {
 }
 
 interface ResearchPanelProps {
-  projectId: string
-  projectName: string
-  clientEntity?: string | null
+  recordKind: RecordKind
+  recordId: string
+  recordName: string
+  /** The project's client, or the opportunity's counterparty / target. */
+  counterparty?: string | null
+  /** A solicitation number on a project; unused on an opportunity. */
   solicitationNumber?: string | null
   initialArtifacts: ResearchArtifact[]
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
+/**
+ * What is worth asking differs by record: a bid wants the client's contracting
+ * history and who else is chasing the solicitation; a deal wants the target's
+ * financial standing and whatever is on its record.
+ */
 function buildSuggestions(
-  projectName: string,
-  clientEntity?: string | null,
+  kind: RecordKind,
+  recordName: string,
+  counterparty?: string | null,
   solicitationNumber?: string | null
 ): string[] {
   const suggestions: string[] = []
-  if (clientEntity) {
-    suggestions.push(`Background and reputation of ${clientEntity}`)
-    suggestions.push(`${clientEntity} government contracts history`)
-    suggestions.push(`${clientEntity} construction projects news`)
+  if (kind === 'opportunity') {
+    if (counterparty) {
+      suggestions.push(`Background, ownership and reputation of ${counterparty}`)
+      suggestions.push(`${counterparty} revenue, financial condition and recent funding`)
+      suggestions.push(`${counterparty} litigation, liens and regulatory actions`)
+      suggestions.push(`${counterparty} leadership team and key personnel`)
+    }
+    suggestions.push(`${recordName} market and comparable transactions`)
+    return suggestions.slice(0, 5)
+  }
+  if (counterparty) {
+    suggestions.push(`Background and reputation of ${counterparty}`)
+    suggestions.push(`${counterparty} government contracts history`)
+    suggestions.push(`${counterparty} construction projects news`)
   }
   if (solicitationNumber) {
     suggestions.push(`${solicitationNumber} bidders competitors`)
     suggestions.push(`${solicitationNumber} procurement history`)
   }
-  suggestions.push(`${projectName} project overview market analysis`)
+  suggestions.push(`${recordName} project overview market analysis`)
   suggestions.push(`Construction market conditions ${new Date().getFullYear()}`)
   return suggestions.slice(0, 5)
 }
@@ -109,13 +130,14 @@ function ArtifactCard({ artifact }: { artifact: ResearchArtifact }) {
 // ── Main ResearchPanel ────────────────────────────────────────────────────────
 
 export default function ResearchPanel({
-  projectId,
-  projectName,
-  clientEntity,
+  recordKind,
+  recordId,
+  recordName,
+  counterparty,
   solicitationNumber,
   initialArtifacts,
 }: ResearchPanelProps) {
-  const suggestions = buildSuggestions(projectName, clientEntity, solicitationNumber)
+  const suggestions = buildSuggestions(recordKind, recordName, counterparty, solicitationNumber)
 
   const [panelOpen, setPanelOpen] = useState(false)
   const [query, setQuery] = useState('')
@@ -139,7 +161,7 @@ export default function ResearchPanel({
       const res = await fetch('/api/ai/research', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query: submittedQuery, project_id: projectId }),
+        body: JSON.stringify({ query: submittedQuery, ...scopeBody(recordKind, recordId) }),
       })
 
       const data = await res.json()
@@ -162,7 +184,7 @@ export default function ResearchPanel({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          project_id: projectId,
+          ...scopeBody(recordKind, recordId),
           query_text: pendingQuery,
           response_text: result.text,
           source_urls: result.sources,

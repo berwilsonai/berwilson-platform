@@ -181,6 +181,22 @@ export function canAccessOpportunity(viewer: Viewer, opportunityId: string): boo
   return viewer.role === 'project_manager' && viewer.grantedOpportunityIds.includes(opportunityId)
 }
 
+/**
+ * Scope check for a child row that may hang off either kind of record.
+ * Projects and opportunities share their child tables (players, milestones,
+ * diligence, financing, entities), so every route guarding one of them asks
+ * this one question rather than branching on the kind itself.
+ */
+export async function canAccessRecord(
+  viewer: Viewer,
+  kind: 'project' | 'opportunity',
+  id: string
+): Promise<boolean> {
+  return kind === 'opportunity'
+    ? canAccessOpportunity(viewer, id)
+    : canAccessProject(viewer, id)
+}
+
 /** Task-level check given the task's tags. Executives manage the whole board. */
 export async function canAccessTask(
   viewer: Viewer,

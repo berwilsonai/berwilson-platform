@@ -11,6 +11,7 @@ export async function POST(request: NextRequest) {
 
   let body: {
     project_id?: string
+    opportunity_id?: string
     query_text?: string
     response_text?: string
     source_urls?: unknown
@@ -22,7 +23,7 @@ export async function POST(request: NextRequest) {
     return Response.json({ error: 'Invalid JSON' }, { status: 400 })
   }
 
-  const { project_id, query_text, response_text, source_urls, model_used } = body
+  const { project_id, opportunity_id, query_text, response_text, source_urls, model_used } = body
   if (!query_text?.trim() || !response_text?.trim()) {
     return Response.json({ error: 'query_text and response_text are required' }, { status: 400 })
   }
@@ -32,6 +33,7 @@ export async function POST(request: NextRequest) {
     .from('research_artifacts')
     .insert({
       project_id: project_id ?? null,
+      opportunity_id: opportunity_id ?? null,
       query_text: query_text.trim(),
       response_text: response_text.trim(),
       source_urls: (source_urls ?? []) as import('@/lib/supabase/types').Json,

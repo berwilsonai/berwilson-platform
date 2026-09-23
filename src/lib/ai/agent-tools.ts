@@ -272,7 +272,7 @@ export const agentTools = [
   },
   {
     name: 'query_opportunity',
-    description: 'Get the STRUCTURED record for one strategic opportunity: all deal fields (objective, thesis, target, counterparty, value, structure, probability, dates, next step), the latest progress notes, and attached document metadata. Use for a specific field or fact. For "where does X stand" / "tell me about X" / anything about current status or momentum, use get_record_brief instead — it also carries the correspondence and contact recency this tool does not.',
+    description: 'Get the STRUCTURED record for one strategic opportunity: all deal fields (objective, thesis, target, counterparty, value, structure, probability, dates, next step), the people on the deal, its milestones, its due-diligence checklist, its capital structure, the latest progress notes, and attached document metadata. Use for a specific field or fact. For "where does X stand" / "tell me about X" / anything about current status or momentum, use get_record_brief instead — it also carries the correspondence and contact recency this tool does not.',
     parameters: {
       type: 'object',
       properties: {
@@ -1170,10 +1170,16 @@ export async function executeToolCall(
       }
       if (!oppId) return { error: 'Provide opportunity_id or name' }
 
-      const [oppRes, notesRes, docsRes] = await Promise.all([
+      // An opportunity carries the same child records a project does — players,
+      // milestones, diligence, capital structure — since 2026-09-23.
+      const [oppRes, notesRes, docsRes, playersRes, milestonesRes, ddRes, finRes] = await Promise.all([
         supabase.from('opportunities').select('*').eq('id', oppId).single(),
         supabase.from('opportunity_notes').select('body, author, created_at').eq('opportunity_id', oppId).order('created_at', { ascending: false }).limit(10),
         supabase.from('opportunity_documents').select('id, file_name, doc_type, ai_summary, uploaded_at').eq('opportunity_id', oppId).order('uploaded_at', { ascending: false }),
+        supabase.from('project_players').select('role, is_primary, party:parties(full_name, company, title, email)').eq('opportunity_id', oppId),
+        supabase.from('milestones').select('label, stage, target_date, completed_at').eq('opportunity_id', oppId).order('sort_order'),
+        supabase.from('dd_items').select('category, item, status, severity, notes').eq('opportunity_id', oppId),
+        supabase.from('financing_structures').select('structure_type, senior_debt, mezzanine, equity_amount, equity_pct, lender, pe_partner, notes').eq('opportunity_id', oppId),
       ])
 
       if (oppRes.error || !oppRes.data) return { error: `Opportunity not found: ${oppRes.error?.message ?? oppId}` }
@@ -1181,6 +1187,10 @@ export async function executeToolCall(
       return {
         opportunity: oppRes.data,
         correspondence: await correspondenceRecency('opportunity', oppId),
+        players: playersRes.data ?? [],
+        milestones: milestonesRes.data ?? [],
+        diligence: ddRes.data ?? [],
+        capital_structure: finRes.data ?? [],
         recent_notes: notesRes.data ?? [],
         documents: (docsRes.data ?? []).map((d) => ({
           id: d.id,

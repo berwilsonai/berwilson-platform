@@ -549,6 +549,7 @@ export type Database = {
       }
       compliance_items: {
         Row: {
+          opportunity_id: string | null
           created_at: string | null
           due_date: string | null
           evidence_doc_id: string | null
@@ -562,6 +563,7 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
+          opportunity_id?: string | null
           created_at?: string | null
           due_date?: string | null
           evidence_doc_id?: string | null
@@ -575,6 +577,7 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
+          opportunity_id?: string | null
           created_at?: string | null
           due_date?: string | null
           evidence_doc_id?: string | null
@@ -588,6 +591,13 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "compliance_items_opportunity_id_fkey"
+            columns: ["opportunity_id"]
+            isOneToOne: false
+            referencedRelation: "opportunities"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "compliance_items_evidence_doc_id_fkey"
             columns: ["evidence_doc_id"]
@@ -642,42 +652,52 @@ export type Database = {
       }
       dd_items: {
         Row: {
+          opportunity_id: string | null
           assigned_to: string | null
           category: string
           created_at: string | null
           id: string
           item: string
           notes: string | null
-          project_id: string
+          project_id: string | null
           resolved_at: string | null
           severity: Database["public"]["Enums"]["dd_severity"] | null
           status: string | null
         }
         Insert: {
+          opportunity_id?: string | null
           assigned_to?: string | null
           category: string
           created_at?: string | null
           id?: string
           item: string
           notes?: string | null
-          project_id: string
+          project_id?: string | null
           resolved_at?: string | null
           severity?: Database["public"]["Enums"]["dd_severity"] | null
           status?: string | null
         }
         Update: {
+          opportunity_id?: string | null
           assigned_to?: string | null
           category?: string
           created_at?: string | null
           id?: string
           item?: string
           notes?: string | null
-          project_id?: string
+          project_id?: string | null
           resolved_at?: string | null
           severity?: Database["public"]["Enums"]["dd_severity"] | null
           status?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "dd_items_opportunity_id_fkey"
+            columns: ["opportunity_id"]
+            isOneToOne: false
+            referencedRelation: "opportunities"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "dd_items_assigned_to_fkey"
             columns: ["assigned_to"]
@@ -1063,33 +1083,43 @@ export type Database = {
       }
       entity_projects: {
         Row: {
+          opportunity_id: string | null
           created_at: string | null
           entity_id: string
           equity_pct: number | null
           id: string
           notes: string | null
-          project_id: string
+          project_id: string | null
           relationship: string
         }
         Insert: {
+          opportunity_id?: string | null
           created_at?: string | null
           entity_id: string
           equity_pct?: number | null
           id?: string
           notes?: string | null
-          project_id: string
+          project_id?: string | null
           relationship: string
         }
         Update: {
+          opportunity_id?: string | null
           created_at?: string | null
           entity_id?: string
           equity_pct?: number | null
           id?: string
           notes?: string | null
-          project_id?: string
+          project_id?: string | null
           relationship?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "entity_projects_opportunity_id_fkey"
+            columns: ["opportunity_id"]
+            isOneToOne: false
+            referencedRelation: "opportunities"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "entity_projects_entity_id_fkey"
             columns: ["entity_id"]
@@ -1108,6 +1138,7 @@ export type Database = {
       }
       financing_structures: {
         Row: {
+          opportunity_id: string | null
           created_at: string | null
           draw_schedule: Json | null
           equity_amount: number | null
@@ -1119,13 +1150,14 @@ export type Database = {
           mezzanine: number | null
           notes: string | null
           pe_partner: string | null
-          project_id: string
+          project_id: string | null
           senior_debt: number | null
           structure_type: string | null
           updated_at: string | null
           waterfall_notes: string | null
         }
         Insert: {
+          opportunity_id?: string | null
           created_at?: string | null
           draw_schedule?: Json | null
           equity_amount?: number | null
@@ -1137,13 +1169,14 @@ export type Database = {
           mezzanine?: number | null
           notes?: string | null
           pe_partner?: string | null
-          project_id: string
+          project_id?: string | null
           senior_debt?: number | null
           structure_type?: string | null
           updated_at?: string | null
           waterfall_notes?: string | null
         }
         Update: {
+          opportunity_id?: string | null
           created_at?: string | null
           draw_schedule?: Json | null
           equity_amount?: number | null
@@ -1155,13 +1188,20 @@ export type Database = {
           mezzanine?: number | null
           notes?: string | null
           pe_partner?: string | null
-          project_id?: string
+          project_id?: string | null
           senior_debt?: number | null
           structure_type?: string | null
           updated_at?: string | null
           waterfall_notes?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "financing_structures_opportunity_id_fkey"
+            columns: ["opportunity_id"]
+            isOneToOne: false
+            referencedRelation: "opportunities"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "financing_structures_project_id_fkey"
             columns: ["project_id"]
@@ -1689,39 +1729,49 @@ export type Database = {
       }
       milestones: {
         Row: {
+          opportunity_id: string | null
           completed_at: string | null
           created_at: string | null
           id: string
           label: string
           notes: string | null
-          project_id: string
+          project_id: string | null
           sort_order: number | null
-          stage: Database["public"]["Enums"]["project_stage"]
+          stage: string
           target_date: string | null
         }
         Insert: {
+          opportunity_id?: string | null
           completed_at?: string | null
           created_at?: string | null
           id?: string
           label: string
           notes?: string | null
-          project_id: string
+          project_id?: string | null
           sort_order?: number | null
-          stage: Database["public"]["Enums"]["project_stage"]
+          stage: string
           target_date?: string | null
         }
         Update: {
+          opportunity_id?: string | null
           completed_at?: string | null
           created_at?: string | null
           id?: string
           label?: string
           notes?: string | null
-          project_id?: string
+          project_id?: string | null
           sort_order?: number | null
-          stage?: Database["public"]["Enums"]["project_stage"]
+          stage?: string
           target_date?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "milestones_opportunity_id_fkey"
+            columns: ["opportunity_id"]
+            isOneToOne: false
+            referencedRelation: "opportunities"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "milestones_project_id_fkey"
             columns: ["project_id"]
@@ -2396,33 +2446,43 @@ export type Database = {
       }
       project_players: {
         Row: {
+          opportunity_id: string | null
           created_at: string | null
           id: string
           is_primary: boolean | null
           notes: string | null
           party_id: string
-          project_id: string
+          project_id: string | null
           role: string
         }
         Insert: {
+          opportunity_id?: string | null
           created_at?: string | null
           id?: string
           is_primary?: boolean | null
           notes?: string | null
           party_id: string
-          project_id: string
+          project_id?: string | null
           role: string
         }
         Update: {
+          opportunity_id?: string | null
           created_at?: string | null
           id?: string
           is_primary?: boolean | null
           notes?: string | null
           party_id?: string
-          project_id?: string
+          project_id?: string | null
           role?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "project_players_opportunity_id_fkey"
+            columns: ["opportunity_id"]
+            isOneToOne: false
+            referencedRelation: "opportunities"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "project_players_party_id_fkey"
             columns: ["party_id"]
@@ -2672,6 +2732,7 @@ export type Database = {
       }
       research_artifacts: {
         Row: {
+          opportunity_id: string | null
           id: string
           model_used: string | null
           project_id: string | null
@@ -2681,6 +2742,7 @@ export type Database = {
           source_urls: Json | null
         }
         Insert: {
+          opportunity_id?: string | null
           id?: string
           model_used?: string | null
           project_id?: string | null
@@ -2690,6 +2752,7 @@ export type Database = {
           source_urls?: Json | null
         }
         Update: {
+          opportunity_id?: string | null
           id?: string
           model_used?: string | null
           project_id?: string | null
@@ -2699,6 +2762,13 @@ export type Database = {
           source_urls?: Json | null
         }
         Relationships: [
+          {
+            foreignKeyName: "research_artifacts_opportunity_id_fkey"
+            columns: ["opportunity_id"]
+            isOneToOne: false
+            referencedRelation: "opportunities"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "research_artifacts_project_id_fkey"
             columns: ["project_id"]

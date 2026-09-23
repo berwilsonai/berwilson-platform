@@ -6,7 +6,8 @@ import { Chip } from '@/components/ui/chip'
 import { SECTOR_BADGE, SECTOR_LABELS } from '@/lib/utils/sectors'
 import { STAGE_LABELS, STAGE_BADGE } from '@/lib/utils/stages'
 import { STATUS_BADGE, STATUS_LABELS } from '@/lib/utils/constants'
-import ProjectTabBar from '@/components/projects/ProjectTabBar'
+import RecordTabBar from '@/components/records/RecordTabBar'
+import { PROJECT_TABS } from '@/components/records/tabs'
 import { getViewer, canAccessProject } from '@/lib/auth/viewer'
 
 interface LayoutProps {
@@ -109,7 +110,7 @@ export default async function ProjectLayout({ children, params }: LayoutProps) {
       </div>
 
       {/* Tab bar */}
-      <ProjectTabBar projectId={id} counts={tabCounts} />
+      <RecordTabBar basePath={`/projects/${id}`} tabs={PROJECT_TABS} counts={tabCounts} />
 
       {/* Tab content */}
       <div className="pt-6">{children}</div>

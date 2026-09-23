@@ -10,7 +10,7 @@ interface PageProps {
   params: Promise<{ id: string }>
 }
 
-export default async function EntitiesPage({ params }: PageProps) {
+export default async function OpportunityEntitiesPage({ params }: PageProps) {
   const { id } = await params
   const supabase = createAdminClient()
 
@@ -19,18 +19,18 @@ export default async function EntitiesPage({ params }: PageProps) {
     supabase
       .from('entity_projects')
       .select('*, entity:entities(*)')
-      .eq('project_id', id)
+      .eq('opportunity_id', id)
       .order('created_at', { ascending: true }),
     supabase
       .from('research_artifacts')
       .select('*')
-      .eq('project_id', id)
+      .eq('opportunity_id', id)
       .order('retrieved_at', { ascending: false }),
   ])
 
   return (
     <EntitiesTab
-      recordKind="project"
+      recordKind="opportunity"
       recordId={id}
       initialLinked={(linkedRaw ?? []) as EntityProjectWithEntity[]}
       initialAllEntities={allEntities ?? []}

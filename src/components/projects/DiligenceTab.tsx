@@ -1,5 +1,7 @@
 'use client'
 
+import { scopeBody, type RecordKind } from '@/lib/records/scope'
+
 import { useState } from 'react'
 import {
   Plus,
@@ -182,12 +184,13 @@ function ddItemToForm(d: DdItem): DdFormState {
 }
 
 interface DdSectionProps {
-  projectId: string
+  recordKind: RecordKind
+  recordId: string
   initialItems: DdItem[]
   parties: Party[]
 }
 
-function DdSection({ projectId, initialItems, parties }: DdSectionProps) {
+function DdSection({ recordKind, recordId, initialItems, parties }: DdSectionProps) {
   const [items, setItems] = useState(initialItems)
   const [categoryFilter, setCategoryFilter] = useState('all')
   const [mode, setMode] = useState<'list' | 'add' | 'edit'>('list')
@@ -252,7 +255,7 @@ function DdSection({ projectId, initialItems, parties }: DdSectionProps) {
         res = await fetch('/api/dd-items', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ project_id: projectId, ...payload }),
+          body: JSON.stringify({ ...scopeBody(recordKind, recordId), ...payload }),
         })
       }
 
@@ -647,14 +650,16 @@ function complianceItemToForm(c: ComplianceItem): ComplianceFormState {
 }
 
 interface ComplianceSectionProps {
-  projectId: string
+  recordKind: RecordKind
+  recordId: string
   initialItems: ComplianceItem[]
   parties: Party[]
   documents: Document[]
 }
 
 function ComplianceSection({
-  projectId,
+  recordKind,
+  recordId,
   initialItems,
   parties,
   documents,
@@ -726,7 +731,7 @@ function ComplianceSection({
         res = await fetch('/api/compliance-items', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ project_id: projectId, ...payload }),
+          body: JSON.stringify({ ...scopeBody(recordKind, recordId), ...payload }),
         })
       }
 
@@ -1114,9 +1119,10 @@ function ComplianceSection({
 // ── Main DiligenceTab ──────────────────────────────────────────────────────────
 
 export interface DiligenceTabProps {
-  projectId: string
-  projectName: string
-  clientEntity?: string | null
+  recordKind: RecordKind
+  recordId: string
+  recordName: string
+  counterparty?: string | null
   solicitationNumber?: string | null
   initialDdItems: DdItem[]
   initialComplianceItems: ComplianceItem[]
@@ -1126,9 +1132,10 @@ export interface DiligenceTabProps {
 }
 
 export default function DiligenceTab({
-  projectId,
-  projectName,
-  clientEntity,
+  recordKind,
+  recordId,
+  recordName,
+  counterparty,
   solicitationNumber,
   initialDdItems,
   initialComplianceItems,
@@ -1205,7 +1212,8 @@ export default function DiligenceTab({
 
       {section === 'dd' && (
         <DdSection
-          projectId={projectId}
+          recordKind={recordKind}
+          recordId={recordId}
           initialItems={initialDdItems}
           parties={parties}
         />
@@ -1213,7 +1221,8 @@ export default function DiligenceTab({
 
       {section === 'compliance' && (
         <ComplianceSection
-          projectId={projectId}
+          recordKind={recordKind}
+          recordId={recordId}
           initialItems={initialComplianceItems}
           parties={parties}
           documents={documents}
@@ -1222,9 +1231,10 @@ export default function DiligenceTab({
 
       {section === 'research' && (
         <ResearchPanel
-          projectId={projectId}
-          projectName={projectName}
-          clientEntity={clientEntity}
+          recordKind={recordKind}
+          recordId={recordId}
+          recordName={recordName}
+          counterparty={counterparty}
           solicitationNumber={solicitationNumber}
           initialArtifacts={initialResearchArtifacts}
         />

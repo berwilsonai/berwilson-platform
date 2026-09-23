@@ -60,9 +60,10 @@ export default async function DiligencePage({ params }: PageProps) {
 
   return (
     <DiligenceTab
-      projectId={id}
-      projectName={project?.name ?? ''}
-      clientEntity={project?.client_entity ?? null}
+      recordKind="project"
+      recordId={id}
+      recordName={project?.name ?? ''}
+      counterparty={project?.client_entity ?? null}
       solicitationNumber={project?.solicitation_number ?? null}
       initialDdItems={ddItems ?? []}
       initialComplianceItems={complianceItems ?? []}

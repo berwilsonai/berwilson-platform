@@ -1,6 +1,8 @@
 import { NextRequest } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import type { TablesInsert } from '@/lib/supabase/types'
+import { getViewer, canAccessRecord, forbiddenJson } from '@/lib/auth/viewer'
+import { scopeFromBody } from '@/lib/records/scope'
 
 export async function POST(request: NextRequest) {
   const supabase = await createClient()
@@ -8,14 +10,20 @@ export async function POST(request: NextRequest) {
   if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body = await request.json()
-  const { project_id, ...fields } = body
+  const fields = body
 
-  if (!project_id) {
-    return Response.json({ error: 'project_id is required' }, { status: 400 })
+  // Exactly one of project_id / opportunity_id, matching the table's own check.
+  const scope = scopeFromBody(body as Record<string, unknown>)
+  if (!scope) {
+    return Response.json({ error: 'exactly one of project_id or opportunity_id is required' }, { status: 400 })
   }
 
+  const viewer = await getViewer()
+  if (!viewer || !(await canAccessRecord(viewer, scope.kind, scope.id))) return forbiddenJson()
+
   const row: TablesInsert<'financing_structures'> = {
-    project_id,
+    project_id: scope.kind === 'project' ? scope.id : null,
+    opportunity_id: scope.kind === 'opportunity' ? scope.id : null,
     structure_type: fields.structure_type || null,
     senior_debt: fields.senior_debt ?? null,
     mezzanine: fields.mezzanine ?? null,

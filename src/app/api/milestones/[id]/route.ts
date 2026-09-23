@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import type { TablesUpdate } from '@/lib/supabase/types'
-import { getViewer, canAccessProject, forbiddenJson } from '@/lib/auth/viewer'
+import { getViewer, canAccessRecord, forbiddenJson } from '@/lib/auth/viewer'
 
 interface RouteContext {
   params: Promise<{ id: string }>
@@ -21,8 +21,20 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
   // and the early return also narrows `viewer` for everything below.
   if (!viewer) return forbiddenJson()
   if (!viewer.isAdmin) {
-    const { data: ms } = await createAdminClient().from('milestones').select('project_id').eq('id', id).maybeSingle()
-    if (!ms?.project_id || !(await canAccessProject(viewer, ms.project_id))) return forbiddenJson()
+    // A milestone hangs off either a project or an opportunity (never both —
+    // the table's scope check enforces that), so the guard follows whichever
+    // one is set.
+    const { data: ms } = await createAdminClient()
+      .from('milestones')
+      .select('project_id, opportunity_id')
+      .eq('id', id)
+      .maybeSingle()
+    const allowed = ms?.project_id
+      ? await canAccessRecord(viewer, 'project', ms.project_id)
+      : ms?.opportunity_id
+        ? await canAccessRecord(viewer, 'opportunity', ms.opportunity_id)
+        : false
+    if (!allowed) return forbiddenJson()
   }
 
   const body = await request.json()

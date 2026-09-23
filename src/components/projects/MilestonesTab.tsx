@@ -4,25 +4,48 @@ import { Fragment, useState } from 'react'
 import { Check, Plus, Calendar, ArrowRight, Loader2, X } from 'lucide-react'
 import { DatePicker } from '@/components/ui/date-picker'
 import { cn } from '@/lib/utils'
-import { STAGES, STAGE_LABELS, STAGE_INDEX } from '@/lib/utils/stages'
-import type { Milestone, ProjectStage } from '@/lib/supabase/types'
+import type { Milestone } from '@/lib/supabase/types'
 import { formatDate } from '@/lib/utils/constants'
+import { scopeBody, type RecordKind } from '@/lib/records/scope'
 
 
+/**
+ * Milestones are grouped under the phases of their record's own pipeline —
+ * a project's 7 construction stages, an opportunity's 6 deal stages. The
+ * vocabulary arrives as a prop rather than being imported, so one component
+ * serves both instead of the two drifting apart (`milestones.stage` became
+ * plain text on 2026-09-23 for exactly this reason).
+ */
 interface MilestonesTabProps {
-  projectId: string
+  recordKind: RecordKind
+  recordId: string
   initialMilestones: Milestone[]
-  initialStage: ProjectStage
+  /** Pipeline phases in order. */
+  stages: readonly string[]
+  stageLabels: Record<string, string>
+  /** Where the record stands now. */
+  initialStage: string
+  /** PATCH endpoint + body key that moves the record to the next phase. */
+  advance: { url: string; field: string }
+  canEdit?: boolean
 }
 
 export default function MilestonesTab({
-  projectId,
+  recordKind,
+  recordId,
   initialMilestones,
+  stages,
+  stageLabels,
   initialStage,
+  advance,
+  canEdit = true,
 }: MilestonesTabProps) {
+  const STAGES = stages
+  const STAGE_LABELS = stageLabels
+  const STAGE_INDEX: Record<string, number> = Object.fromEntries(stages.map((s, i) => [s, i]))
   const [milestones, setMilestones] = useState(initialMilestones)
   const [currentStage, setCurrentStage] = useState(initialStage)
-  const [addingToStage, setAddingToStage] = useState<ProjectStage | null>(null)
+  const [addingToStage, setAddingToStage] = useState<string | null>(null)
   const [newLabel, setNewLabel] = useState('')
   const [newTargetDate, setNewTargetDate] = useState('')
   const [savingAdd, setSavingAdd] = useState(false)
@@ -31,19 +54,22 @@ export default function MilestonesTab({
   const [advancingSaving, setAdvancingSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const currentIndex = STAGE_INDEX[currentStage]
-  const nextStage = STAGES[currentIndex + 1] as ProjectStage | undefined
+  // A record parked off the pipeline (an opportunity on hold) has no index —
+  // treat it as "before the first phase" rather than letting -1 mark every
+  // stage as past.
+  const currentIndex = STAGE_INDEX[currentStage] ?? -1
+  const nextStage: string | undefined = STAGES[currentIndex + 1]
 
   const byStage = Object.fromEntries(
     STAGES.map((s) => [s, milestones.filter((m) => m.stage === s)])
-  ) as Record<ProjectStage, Milestone[]>
+  ) as Record<string, Milestone[]>
 
   const currentStageMilestones = byStage[currentStage]
   const allCurrentComplete =
     currentStageMilestones.length > 0 &&
     currentStageMilestones.every((m) => m.completed_at !== null)
 
-  function openAddForm(stage: ProjectStage) {
+  function openAddForm(stage: string) {
     setAddingToStage(stage)
     setNewLabel('')
     setNewTargetDate('')
@@ -96,7 +122,7 @@ export default function MilestonesTab({
     }
   }
 
-  async function addMilestone(stage: ProjectStage) {
+  async function addMilestone(stage: string) {
     if (!newLabel.trim() || savingAdd) return
     setSavingAdd(true)
     setError(null)
@@ -106,7 +132,7 @@ export default function MilestonesTab({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          project_id: projectId,
+          ...scopeBody(recordKind, recordId),
           stage,
           label: newLabel.trim(),
           target_date: newTargetDate || null,
@@ -134,10 +160,10 @@ export default function MilestonesTab({
     setError(null)
 
     try {
-      const res = await fetch(`/api/projects/${projectId}/stage`, {
+      const res = await fetch(advance.url, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ stage: nextStage }),
+        body: JSON.stringify({ [advance.field]: nextStage }),
       })
       if (!res.ok) {
         const data = await res.json()
@@ -192,7 +218,7 @@ export default function MilestonesTab({
       </div>
 
       {/* ── Advance stage suggestion ── */}
-      {allCurrentComplete && nextStage && (
+      {canEdit && allCurrentComplete && nextStage && (
         <div className="rounded-lg border border-emerald-200 dark:border-emerald-800/60 bg-emerald-50 dark:bg-emerald-950/40 px-4 py-3 flex items-center justify-between gap-4 flex-wrap">
           <div className="flex items-center gap-2 text-sm text-emerald-800 dark:text-emerald-300 min-w-0">
             <Check size={15} className="text-emerald-600 dark:text-emerald-400 shrink-0" />

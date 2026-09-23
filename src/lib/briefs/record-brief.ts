@@ -113,6 +113,48 @@ function dedupeDocuments<T extends { file_name: string | null; ai_summary: strin
   return [...seen.values()]
 }
 
+/**
+ * The child records a project and an opportunity now share (2026-09-23) are
+ * formatted once, here, so a deal's diligence reads to the writer exactly the
+ * way a project's does. Two copies of these lambdas is how the two assemblers
+ * would quietly start reporting different things.
+ */
+type MilestoneLine = { label: string | null; target_date: string | null; completed_at: string | null }
+type DdLine = { category: string | null; item: string | null; status: string | null; severity: string | null; notes: string | null }
+type FinancingLine = {
+  structure_type: string | null; senior_debt: number | null; equity_amount: number | null
+  equity_pct: number | null; lender: string | null; pe_partner: string | null; notes: string | null
+}
+type ComplianceLine = { framework: string | null; requirement: string | null; status: string | null; due_date: string | null }
+type PlayerLine = { role: string | null; party: unknown }
+
+function milestoneLines(rows: MilestoneLine[]): string[] {
+  return rows.map(
+    (m) => `- ${m.label ?? 'Unnamed'} — target ${ymd(m.target_date)}${m.completed_at ? ` (completed ${ymd(m.completed_at)})` : ' (open)'}`
+  )
+}
+function ddLines(rows: DdLine[]): string[] {
+  return rows.map(
+    (d) => `- [${d.status ?? 'unknown'}${d.severity ? `/${d.severity}` : ''}] ${d.category ?? ''}: ${d.item ?? ''}${d.notes ? ` — ${d.notes}` : ''}`
+  )
+}
+function financingLines(rows: FinancingLine[]): string[] {
+  return rows.map(
+    (f) => `- ${f.structure_type ?? 'structure'}: senior ${f.senior_debt ?? 'n/a'}, equity ${f.equity_amount ?? 'n/a'} (${f.equity_pct ?? '?'}%), lender ${f.lender ?? 'n/a'}, partner ${f.pe_partner ?? 'n/a'}${f.notes ? ` — ${f.notes}` : ''}`
+  )
+}
+function complianceLines(rows: ComplianceLine[]): string[] {
+  return rows.map(
+    (c) => `- [${c.status ?? 'unknown'}] ${c.framework ?? ''}: ${c.requirement ?? ''}${c.due_date ? ` (due ${ymd(c.due_date)})` : ''}`
+  )
+}
+function playerLines(rows: PlayerLine[]): string[] {
+  return rows.map((p) => {
+    const party = p.party as { full_name?: string; company?: string | null } | null
+    return `- ${party?.full_name ?? 'Unknown'}${party?.company ? ` (${party.company})` : ''} — ${p.role ?? 'unspecified role'}`
+  })
+}
+
 interface ThreadRecord {
   id: string
   subject: string | null
@@ -423,37 +465,11 @@ export async function assembleProjectBrief(
     })
   )
 
-  push(
-    'MILESTONES',
-    (milestones ?? []).map(
-      (m) => `- ${m.label ?? 'Unnamed'} — target ${ymd(m.target_date)}${m.completed_at ? ` (completed ${ymd(m.completed_at)})` : ' (open)'}`
-    )
-  )
-  push(
-    'DUE DILIGENCE',
-    (ddItems ?? []).map(
-      (d) => `- [${d.status ?? 'unknown'}${d.severity ? `/${d.severity}` : ''}] ${d.category ?? ''}: ${d.item ?? ''}${d.notes ? ` — ${d.notes}` : ''}`
-    )
-  )
-  push(
-    'FINANCING',
-    (financing ?? []).map(
-      (f) => `- ${f.structure_type ?? 'structure'}: senior ${f.senior_debt ?? 'n/a'}, equity ${f.equity_amount ?? 'n/a'} (${f.equity_pct ?? '?'}%), lender ${f.lender ?? 'n/a'}, partner ${f.pe_partner ?? 'n/a'}${f.notes ? ` — ${f.notes}` : ''}`
-    )
-  )
-  push(
-    'COMPLIANCE',
-    (compliance ?? []).map(
-      (c) => `- [${c.status ?? 'unknown'}] ${c.framework ?? ''}: ${c.requirement ?? ''}${c.due_date ? ` (due ${ymd(c.due_date)})` : ''}`
-    )
-  )
-  push(
-    'PEOPLE ON THIS RECORD',
-    (players ?? []).map((p) => {
-      const party = p.party as unknown as { full_name?: string; company?: string | null } | null
-      return `- ${party?.full_name ?? 'Unknown'}${party?.company ? ` (${party.company})` : ''} — ${p.role ?? 'unspecified role'}`
-    })
-  )
+  push('MILESTONES', milestoneLines(milestones ?? []))
+  push('DUE DILIGENCE', ddLines(ddItems ?? []))
+  push('FINANCING', financingLines(financing ?? []))
+  push('COMPLIANCE', complianceLines(compliance ?? []))
+  push('PEOPLE ON THIS RECORD', playerLines(players ?? []))
 
   push(
     'DOCUMENTS ON THIS RECORD',
@@ -512,8 +528,10 @@ export async function assembleProjectBrief(
  * by AI summary, ALL filed correspondence plus a labelled semantic sweep, and a
  * recency block measured from filed mail only. The children differ because the
  * tables differ: an opportunity's running commentary is `opportunity_notes`
- * rather than `updates`, its files live in `opportunity_documents`, and it has
- * no milestones/diligence/financing tables to report on.
+ * rather than `updates` and its files live in `opportunity_documents`. Since
+ * 2026-09-23 it shares the rest of the child tables with projects, so its
+ * players, milestones, diligence, financing and compliance are reported the
+ * same way and through the same formatters.
  *
  * Passages come from `match_chunks` scoped to this opportunity — the RPC
  * learned an opportunity filter in migration 20260919000001, so the index does
@@ -534,7 +552,16 @@ export async function assembleOpportunityBrief(
 
   const name = opp.name ?? 'Untitled opportunity'
 
-  const [openTasks, { data: notes }, { data: documents }] = await Promise.all([
+  const [
+    openTasks,
+    { data: notes },
+    { data: documents },
+    { data: milestones },
+    { data: ddItems },
+    { data: financing },
+    { data: compliance },
+    { data: players },
+  ] = await Promise.all([
     fetchOpenTasks(admin, { opportunityId, limit: 50 }),
     admin
       .from('opportunity_notes')
@@ -547,6 +574,22 @@ export async function assembleOpportunityBrief(
       .select('id, file_name, doc_type, ai_summary, uploaded_at')
       .eq('opportunity_id', opportunityId)
       .order('uploaded_at', { ascending: false }),
+    admin.from('milestones')
+      .select('label, stage, target_date, completed_at')
+      .eq('opportunity_id', opportunityId)
+      .order('sort_order'),
+    admin.from('dd_items')
+      .select('category, item, status, severity, notes')
+      .eq('opportunity_id', opportunityId),
+    admin.from('financing_structures')
+      .select('structure_type, senior_debt, equity_amount, equity_pct, lender, pe_partner, notes')
+      .eq('opportunity_id', opportunityId),
+    admin.from('compliance_items')
+      .select('framework, requirement, status, due_date, notes')
+      .eq('opportunity_id', opportunityId),
+    admin.from('project_players')
+      .select('role, party:parties(full_name, company, email)')
+      .eq('opportunity_id', opportunityId),
   ])
 
   const threads = await gatherCorrespondence(
@@ -628,6 +671,10 @@ export async function assembleOpportunityBrief(
   if (openTasks.length === 0) gaps.push('- No open tasks are assigned on this record.')
   if ((notes ?? []).length === 0) gaps.push('- No notes are recorded, so there is no written progress trail here.')
   if (docs.length === 0) gaps.push('- No documents are attached to this record.')
+  if ((players ?? []).length === 0) gaps.push('- No people are recorded on this deal.')
+  if ((milestones ?? []).length === 0) gaps.push('- No milestones are recorded, so there is no tracked deal timeline.')
+  if ((ddItems ?? []).length === 0) gaps.push('- No due-diligence items are recorded.')
+  if ((financing ?? []).length === 0) gaps.push('- No capital structure is recorded.')
   if (opp.estimated_value === null) gaps.push('- No estimated value is recorded.')
   if (!opp.next_step) gaps.push('- No next step is recorded.')
   push('RECORDED-DATA GAPS (state these as gaps in tracking, never as good news)', gaps)
@@ -640,6 +687,12 @@ export async function assembleOpportunityBrief(
       (n) => `- [${ymd(n.created_at)}]${n.author ? ` ${n.author}:` : ''} ${(n.body ?? '').replace(/\s+/g, ' ').slice(0, 500)}`
     )
   )
+
+  push('MILESTONES', milestoneLines(milestones ?? []))
+  push('DUE DILIGENCE', ddLines(ddItems ?? []))
+  push('CAPITAL STRUCTURE', financingLines(financing ?? []))
+  push('COMPLIANCE', complianceLines(compliance ?? []))
+  push('PEOPLE ON THIS RECORD', playerLines(players ?? []))
 
   push(
     'DOCUMENTS ON THIS RECORD',

@@ -23,7 +23,9 @@ export default async function TimelinePage() {
   // Group open milestones by project
   const msByProject = new Map<string, { label: string; target_date: string }[]>()
   for (const m of milestones ?? []) {
-    if (!m.target_date) continue
+    // Milestones are shared with opportunities since 2026-09-23; this is the
+    // project Gantt, so a deal milestone has no row to sit on here.
+    if (!m.target_date || !m.project_id) continue
     const arr = msByProject.get(m.project_id) ?? []
     arr.push({ label: m.label, target_date: m.target_date })
     msByProject.set(m.project_id, arr)

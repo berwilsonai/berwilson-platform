@@ -1,5 +1,7 @@
 'use client'
 
+import { scopeBody, type RecordKind } from '@/lib/records/scope'
+
 import { useState } from 'react'
 import {
   DollarSign,
@@ -457,12 +459,14 @@ function DrawScheduleEditor({
 // ---------------------------------------------------------------------------
 
 interface FinancingTabProps {
-  projectId: string
+  recordKind: RecordKind
+  recordId: string
   initialFinancing: FinancingWithSchedule | null
 }
 
 export default function FinancingTab({
-  projectId,
+  recordKind,
+  recordId,
   initialFinancing,
 }: FinancingTabProps) {
   const [financing, setFinancing] = useState(initialFinancing)
@@ -512,7 +516,7 @@ export default function FinancingTab({
         res = await fetch('/api/financing', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ project_id: projectId, ...payload }),
+          body: JSON.stringify({ ...scopeBody(recordKind, recordId), ...payload }),
         })
       }
 

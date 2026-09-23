@@ -8,7 +8,7 @@ export async function POST(request: NextRequest) {
   if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body = await request.json()
-  const { project_id, framework, requirement, status, due_date, responsible_party, evidence_doc_id, notes } = body
+  const { project_id, opportunity_id, framework, requirement, status, due_date, responsible_party, evidence_doc_id, notes } = body
 
   if (!framework || !requirement) {
     return Response.json(
@@ -18,7 +18,10 @@ export async function POST(request: NextRequest) {
   }
 
   const row: TablesInsert<'compliance_items'> = {
+    // At most one scope: a compliance item with neither is a company-level
+    // obligation, which is a legitimate state here (unlike dd_items).
     project_id: project_id || null,
+    opportunity_id: opportunity_id || null,
     framework,
     requirement: requirement.trim(),
     status: status ?? 'not_started',

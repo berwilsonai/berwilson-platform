@@ -7,39 +7,38 @@ import { ChevronDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 /**
- * `always` tabs are shown whatever the project holds.
+ * The tab bar for a project or an opportunity. Both carry the same child
+ * records — players, documents, milestones, diligence, financing, entities —
+ * so they share one bar, differing only in the base path and in which tabs
+ * the record always shows.
  *
- * Overview is derived from the project row itself, and Updates and Documents
- * are where the work actually lands — measured across all 15 projects, they
- * were the only two with rows on more than one. Everything else appears when
- * that project has something in it, and otherwise waits under More.
+ * `always` tabs are shown whatever the record holds. Overview is derived from
+ * the record row itself, and the two where the work actually lands stay put:
+ * measured across all 15 projects, Updates and Documents were the only tabs
+ * with rows on more than one. Everything else appears when that record has
+ * something in it, and otherwise waits under More — so a page never shows ten
+ * tabs of which eight are empty.
  */
-const TABS: { label: string; segment: string; key?: TabKey; always?: true }[] = [
-  { label: 'Overview', segment: '', always: true },
-  { label: 'Updates', segment: 'updates', key: 'updates', always: true },
-  { label: 'Documents', segment: 'documents', key: 'documents', always: true },
-  { label: 'Players', segment: 'players', key: 'players' },
-  { label: 'Meetings', segment: 'meetings', key: 'meetings' },
-  { label: 'Tasks', segment: 'tasks', key: 'tasks' },
-  { label: 'Milestones', segment: 'milestones', key: 'milestones' },
-  { label: 'Financing', segment: 'financing', key: 'financing' },
-  { label: 'Diligence', segment: 'diligence', key: 'diligence' },
-  { label: 'Entities & Vendors', segment: 'entities', key: 'entities' },
-]
-
 export type TabKey =
   | 'players' | 'updates' | 'meetings' | 'tasks' | 'documents'
   | 'milestones' | 'financing' | 'diligence' | 'entities'
 
-interface ProjectTabBarProps {
-  projectId: string
-  counts: Record<TabKey, number>
+export interface RecordTab {
+  label: string
+  segment: string
+  key?: TabKey
+  always?: true
 }
 
-export default function ProjectTabBar({ projectId, counts }: ProjectTabBarProps) {
+interface RecordTabBarProps {
+  basePath: string
+  tabs: RecordTab[]
+  counts: Partial<Record<TabKey, number>>
+}
+
+export default function RecordTabBar({ basePath: base, tabs, counts }: RecordTabBarProps) {
   const pathname = usePathname()
   const [moreOpen, setMoreOpen] = useState(false)
-  const base = `/projects/${projectId}`
 
   const hrefFor = (segment: string) => (segment ? `${base}/${segment}` : base)
   const isActiveTab = (segment: string) =>
@@ -47,15 +46,15 @@ export default function ProjectTabBar({ projectId, counts }: ProjectTabBarProps)
 
   // An empty tab you are standing on must stay in the bar — otherwise it
   // disappears from under you the moment you navigate to it.
-  const visible = TABS.filter((t) => t.always || (t.key && counts[t.key] > 0) || isActiveTab(t.segment))
-  const hidden = TABS.filter((t) => !visible.includes(t))
+  const visible = tabs.filter((t) => t.always || (t.key && (counts[t.key] ?? 0) > 0) || isActiveTab(t.segment))
+  const hidden = tabs.filter((t) => !visible.includes(t))
 
   return (
     <div className="border-b border-border flex items-stretch">
       <nav className="flex min-w-max -mb-px overflow-x-auto scrollbar-none">
         {visible.map(({ label, segment, key }) => {
           const href = hrefFor(segment)
-          const n = key ? counts[key] : 0
+          const n = key ? (counts[key] ?? 0) : 0
           return (
             <Link
               key={href}

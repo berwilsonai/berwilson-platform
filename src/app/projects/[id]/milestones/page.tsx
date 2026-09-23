@@ -1,5 +1,6 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import MilestonesTab from '@/components/projects/MilestonesTab'
+import { STAGES, STAGE_LABELS } from '@/lib/utils/stages'
 
 export const metadata = { title: 'Milestones — Ber Wilson Intelligence' }
 
@@ -27,9 +28,13 @@ export default async function MilestonesPage({ params }: PageProps) {
 
   return (
     <MilestonesTab
-      projectId={id}
+      recordKind="project"
+      recordId={id}
       initialMilestones={milestones ?? []}
+      stages={STAGES}
+      stageLabels={STAGE_LABELS}
       initialStage={project?.stage ?? 'pursuit'}
+      advance={{ url: `/api/projects/${id}/stage`, field: 'stage' }}
     />
   )
 }

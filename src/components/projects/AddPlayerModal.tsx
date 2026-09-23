@@ -12,6 +12,7 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog'
 import { PROJECT_PLAYER_ROLES, PROJECT_PLAYER_ROLE_GROUPS } from '@/lib/utils/constants'
+import { scopeBody, type RecordKind } from '@/lib/records/scope'
 
 type Party = {
   id: string
@@ -23,10 +24,12 @@ type Party = {
 type Phase = 'idle' | 'saving'
 
 interface AddPlayerModalProps {
-  projectId: string
+  /** Players hang off either a project or an opportunity — same table, one scope column. */
+  recordKind: RecordKind
+  recordId: string
 }
 
-export default function AddPlayerModal({ projectId }: AddPlayerModalProps) {
+export default function AddPlayerModal({ recordKind, recordId }: AddPlayerModalProps) {
   const router = useRouter()
   const [open, setOpen] = useState(false)
   const [phase, setPhase] = useState<Phase>('idle')
@@ -83,7 +86,7 @@ export default function AddPlayerModal({ projectId }: AddPlayerModalProps) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          project_id: projectId,
+          ...scopeBody(recordKind, recordId),
           party_id: selected.id,
           role: finalRole,
           is_primary: isPrimary,
