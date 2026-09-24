@@ -239,15 +239,32 @@ export default function DecideClient({ items }: { items: DecideItem[] }) {
   /**
    * The rows the machine already decided on and was confident about.
    *
-   * ⚠ Measured on 2026-09-24, not guessed: of 80 staged sessions, 74 were
-   * `create` and 6 `merge`, none said dismiss, and the average confidence was
-   * 0.93 with 74 of 80 at or above this threshold. The oldest had been waiting
-   * since 12 July. This button is what that backlog was waiting for.
+   * ⚠ Measured on 2026-09-24, not guessed: of 81 staged sessions, 75 were
+   * `create` and 6 `merge`, NONE said dismiss, and EVERY ONE scored at or above
+   * this threshold (average 0.93). 77 of them were accept-ready; the other four
+   * are the known sessions whose correspondence never states a record name. The
+   * oldest had been waiting since 12 July.
+   *
+   * So on today's data the threshold selects everything, which is the honest
+   * situation rather than a reason to drop it: it is what keeps a future batch
+   * from sweeping up a session the model was unsure about, and the reader still
+   * sees every row it ticked before confirming.
    */
   const confident = useMemo(
     () => selectable.filter((i) => (i.confidence ?? 0) >= 0.85),
     [selectable]
   )
+
+  /**
+   * Whether every acceptable row CURRENTLY SHOWN is ticked.
+   *
+   * Compared row by row rather than by count: selection survives a filter
+   * change (deliberately — you can gather a batch across tabs), so comparing
+   * `selected.size` against the visible total says "Clear" as soon as the two
+   * numbers happen to coincide, on a tab where nothing is ticked at all.
+   */
+  const allShownSelected =
+    selectable.length > 0 && selectable.every((i) => selected.has(`${i.kind}:${i.id}`))
 
   function toggle(key: string) {
     setSelected((prev) => {
@@ -463,15 +480,19 @@ export default function DecideClient({ items }: { items: DecideItem[] }) {
                 <button
                   type="button"
                   onClick={() =>
-                    setSelected(
-                      selected.size >= selectable.length
-                        ? new Set()
-                        : new Set(selectable.map((i) => `${i.kind}:${i.id}`))
-                    )
+                    setSelected((prev) => {
+                      const next = new Set(prev)
+                      for (const i of selectable) {
+                        const key = `${i.kind}:${i.id}`
+                        if (allShownSelected) next.delete(key)
+                        else next.add(key)
+                      }
+                      return next
+                    })
                   }
                   className="inline-flex items-center h-11 sm:h-7 px-3 sm:px-2.5 rounded-md text-xs font-medium bg-card ring-1 ring-inset ring-border hover:bg-accent transition-colors"
                 >
-                  {selected.size >= selectable.length ? 'Clear' : 'Select all shown'}
+                  {allShownSelected ? 'Clear shown' : 'Select all shown'}
                 </button>
                 <button
                   type="button"

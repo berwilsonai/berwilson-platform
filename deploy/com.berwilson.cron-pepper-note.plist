@@ -25,9 +25,13 @@
 
     6:50 leaves the brief time to finish and puts this in front of the digest
     rather than behind it, because the digest is the one message that must not
-    slip — it is what the space is used to seeing at 7. Two people at roughly
-    60-170s each fits the gap; a third executive would not, and the right answer
-    then is an earlier slot, never a parallel one.
+    slip — it is what the space is used to seeing at 7.
+
+    MEASURED on the real ledger, 2026-09-24: 123s, 131s and 170s per note on
+    inputs of ~2,800 tokens. Two people is ~250-340s and fits the ten-minute
+    gap with margin. A THIRD EXECUTIVE WOULD NOT — the answer then is an earlier
+    slot, never a parallel one, because the model serves one request at a time
+    whatever this file says.
 
     No weekend entries, matching the digest: a Saturday note listing the same
     commitments as Friday's is how a reader learns to filter it.

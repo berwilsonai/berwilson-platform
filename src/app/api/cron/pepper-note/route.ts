@@ -76,6 +76,20 @@ export async function GET(request: NextRequest) {
     (m) => !m.isAssistantSeat && (!only || m.email === only || m.name.toLowerCase() === only)
   )
 
+  /**
+   * Pepper sends as herself.
+   *
+   * The first live note arrived From "Ber Intelligence <moose@berwilson.com>",
+   * which is Richard's OWN address — so a note written to him looked like mail
+   * he had sent himself. The assistant seat is a real mailbox holding real
+   * send scope, and a note signed by a name is the whole premise.
+   *
+   * Falls back to the platform sender only when no assistant seat exists at
+   * all; a seat that exists but cannot send fails loudly, because a silent
+   * fallback would quietly restore exactly the confusion this fixes.
+   */
+  const seat = common.members.find((m) => m.isAssistantSeat)
+
   // Who already got today's note? Tolerates the table being unreadable.
   const alreadySent = new Set<string>()
   if (!force && !dryRun) {
@@ -187,7 +201,14 @@ export async function GET(request: NextRequest) {
       continue
     }
 
-    const result = await notify({ channel: CHANNEL, to: member.email, subject, html })
+    const result = await notify({
+      channel: CHANNEL,
+      to: member.email,
+      subject,
+      html,
+      from: seat?.email,
+      fromName: seat ? seat.name.split(' ')[0] : undefined,
+    })
 
     // This write IS the once-per-day guarantee, so a failure has to be loud.
     // The same guard on the task digest failed silently for five weeks because

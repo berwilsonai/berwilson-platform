@@ -26,6 +26,18 @@ export interface NotifyOptions {
   text?: string
   /** Email only. Ignored by channels that cannot carry files. */
   attachments?: MailAttachment[]
+  /**
+   * Email only. Which mailbox the message is sent AS, and the display name on
+   * it. Defaults to the platform sender.
+   *
+   * Exposed because a message from a named assistant is a different object from
+   * a system notification: the morning note arrived From "Ber Intelligence
+   * <moose@berwilson.com>" — that is Richard's own address, so his own note
+   * looked like mail he had sent himself. The sending mailbox must hold
+   * gmail.send; one that does not fails loudly rather than falling back.
+   */
+  from?: string
+  fromName?: string
   /** Chat only. Groups related posts into one thread in the space. */
   threadKey?: string
 }
@@ -44,6 +56,8 @@ export async function notify(opts: NotifyOptions): Promise<NotifyResult> {
           subject: opts.subject,
           html: opts.html,
           attachments: opts.attachments,
+          from: opts.from,
+          fromName: opts.fromName,
         })
         return { ok: true }
       case 'chat':
