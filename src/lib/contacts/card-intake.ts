@@ -14,14 +14,20 @@
  *                     already do), then the local model writes the summary and
  *                     the fit read against the real company profile.
  *
+ *   4. Match        — the directory is asked whether this contact already
+ *                     exists, so a stack of cards from a repeat event does not
+ *                     silently double the rolodex.
+ *
  * Stage 3 degrades: with web research off or failing, the draft is still built
  * from the card alone and says so. Nothing here writes to the database — the
- * caller stages a draft the human confirms.
+ * caller stages a draft the human confirms (see card-save.ts for the one write
+ * path, shared by the single scan and the batch).
  */
 
 import { callGemini } from '@/lib/ai/gemini'
 import { researchQuery, type ResearchSource } from '@/lib/ai/research'
 import { getCompanyContext } from '@/lib/ai/company-context'
+import { matchDirectory, NO_DIRECTORY_MATCH, type DirectoryMatch } from '@/lib/contacts/directory-match'
 
 export interface CardFields {
   full_name: string | null
@@ -47,6 +53,13 @@ export interface CardScanDraft extends CardFields {
   researched: boolean
   /** Set when research was attempted and failed, for the reviewer to see. */
   research_error: string | null
+  /** The contact this card already is, if the directory says so. */
+  existing_party_id: string | null
+  existing_party_name: string | null
+  match_type: DirectoryMatch['match_type']
+  /** Several contacts fit equally well — the draft refuses to choose. */
+  ambiguous: boolean
+  candidates: DirectoryMatch['candidates']
 }
 
 // ── Stage 2: parse the recognized text ───────────────────────────────────────
@@ -159,14 +172,39 @@ async function researchWithRetry(query: string) {
   }
 }
 
+export interface CompanyResearch {
+  text: string
+  sources: ResearchSource[]
+  error: string | null
+}
+
+/**
+ * A batch of cards collected at one event is routinely three people from the
+ * same firm. Keyed by lowercased company name, so the second and third cost
+ * nothing.
+ */
+export type ResearchCache = Map<string, Promise<CompanyResearch>>
+
 /** Company research only — the person is not searched. That is Enrich Profile's job. */
-async function researchCompany(fields: CardFields): Promise<{ text: string; sources: ResearchSource[]; error: string | null }> {
+async function researchCompany(fields: CardFields, cache?: ResearchCache): Promise<CompanyResearch> {
   const company = fields.company
   if (!company) {
     return { text: '', sources: [], error: null }
   }
 
-  const site = fields.website ? ` ${fields.website}` : ''
+  const key = company.toLowerCase()
+  if (cache) {
+    const hit = cache.get(key)
+    if (hit) return hit
+    const pending = runCompanyResearch(company, fields.website)
+    cache.set(key, pending)
+    return pending
+  }
+  return runCompanyResearch(company, fields.website)
+}
+
+async function runCompanyResearch(company: string, website: string | null): Promise<CompanyResearch> {
+  const site = website ? ` ${website}` : ''
   const queries = [
     `${company}${site} — what does this company do, services, markets, size, location`,
     `${company} construction projects clients news`,
@@ -208,16 +246,32 @@ function normalizeTags(raw: unknown): string[] {
 
 // ── Orchestration ────────────────────────────────────────────────────────────
 
+export interface BuildCardDraftOptions {
+  /** Share one company lookup across a stack of cards from the same firm. */
+  researchCache?: ResearchCache
+  /** Skip the web entirely — card text and the local model only. */
+  skipWeb?: boolean
+}
+
 /**
  * Run the whole pipeline over already-recognized card text. Never throws for a
  * research failure: a contact drafted from the card alone is still worth having.
  */
-export async function buildCardDraft(rawText: string, userId: string): Promise<CardScanDraft> {
+export async function buildCardDraft(
+  rawText: string,
+  userId: string,
+  options: BuildCardDraftOptions = {}
+): Promise<CardScanDraft> {
   const fields = await parseCardText(rawText, userId)
 
-  const [research, companyContext] = await Promise.all([
-    researchCompany(fields),
+  const [research, companyContext, match] = await Promise.all([
+    options.skipWeb
+      ? Promise.resolve<CompanyResearch>({ text: '', sources: [], error: null })
+      : researchCompany(fields, options.researchCache),
     getCompanyContext().catch(() => null),
+    // Checked here rather than at save time so the reviewer sees "already in the
+    // directory" while deciding, not after creating the duplicate.
+    matchDirectory(fields.email, fields.full_name, fields.company).catch(() => NO_DIRECTORY_MATCH),
   ])
 
   let fit: FitResult = {}
@@ -248,5 +302,10 @@ export async function buildCardDraft(rawText: string, userId: string): Promise<C
     sources: research.sources,
     researched: research.text.length > 0,
     research_error: research.error,
+    existing_party_id: match.existing_party_id,
+    existing_party_name: match.existing_party_name,
+    match_type: match.match_type,
+    ambiguous: match.ambiguous,
+    candidates: match.candidates,
   }
 }

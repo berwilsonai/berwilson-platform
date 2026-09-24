@@ -2,9 +2,10 @@
 
 import { useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Camera, Loader2, Check, X, ExternalLink, AlertTriangle, Sparkles } from 'lucide-react'
+import { Camera, Loader2, Check, X, ExternalLink, AlertTriangle, Sparkles, UserCheck } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
+import Link from 'next/link'
 
 // The draft shape returned by /api/contacts/scan-card (see lib/contacts/card-intake).
 interface CardScanDraft {
@@ -22,6 +23,11 @@ interface CardScanDraft {
   sources: Array<{ url: string; title?: string }>
   researched: boolean
   research_error: string | null
+  existing_party_id: string | null
+  existing_party_name: string | null
+  match_type: 'exact_email' | 'exact_name' | 'fuzzy_name' | 'none'
+  ambiguous: boolean
+  candidates: Array<{ id: string; full_name: string; company: string | null; email: string | null }>
 }
 
 type Stage = 'idle' | 'scanning' | 'review' | 'saving'
@@ -48,16 +54,69 @@ export default function ScanCardButton() {
   const [stage, setStage] = useState<Stage>('idle')
   const [draft, setDraft] = useState<CardScanDraft | null>(null)
   const [error, setError] = useState<string | null>(null)
+  // Default to filling in the contact already on file — but never when two
+  // records fit equally well; that case asks rather than guesses.
+  const [linkExisting, setLinkExisting] = useState(false)
+  /** >1 means this scan became a batch, which the waiting panel says out loud. */
+  const [batchCount, setBatchCount] = useState(0)
 
   function set<K extends keyof CardScanDraft>(key: K, value: CardScanDraft[K]) {
     setDraft((d) => (d ? { ...d, [key]: value } : d))
   }
 
+  /**
+   * More than one photo is a stack, not a scan. A stack goes to the batch,
+   * which reads the cards on the server and leaves a review waiting — holding
+   * this dialog open for twelve cards in series is the thing that made the
+   * feature unusable for a conference.
+   */
+  async function handleBatch(files: File[]) {
+    setBatchCount(files.length)
+    setStage('scanning')
+    setError(null)
+    setDraft(null)
+
+    try {
+      const cards: Array<{ raw_text: string; file_name: string }> = []
+      for (const file of files) {
+        const body = new FormData()
+        body.append('image', file)
+        const res = await fetch('/api/contacts/scan-card/ocr', { method: 'POST', body })
+        const json = await res.json()
+        // An unreadable photo is dropped here rather than failing the stack;
+        // the review screen's count is what says how many made it.
+        if (res.ok && typeof json.raw_text === 'string') {
+          cards.push({ raw_text: json.raw_text, file_name: file.name })
+        }
+      }
+
+      if (cards.length === 0) {
+        throw new Error('None of those photos could be read. Fill the frame with the card, in even light.')
+      }
+
+      const res = await fetch('/api/contacts/scan-card/batch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cards }),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error ?? 'Could not start the batch.')
+      router.push(`/intake/cards/${json.session_id}`)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not read the cards.')
+      setStage('idle')
+    }
+  }
+
   async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
+    const files = Array.from(e.target.files ?? [])
     // Reset immediately so re-picking the same photo still fires a change event.
     e.target.value = ''
-    if (!file) return
+    if (files.length === 0) return
+    if (files.length > 1) return handleBatch(files)
+
+    const file = files[0]
+    setBatchCount(0)
 
     setStage('scanning')
     setError(null)
@@ -69,7 +128,9 @@ export default function ScanCardButton() {
       const res = await fetch('/api/contacts/scan-card', { method: 'POST', body })
       const json = await res.json()
       if (!res.ok) throw new Error(json.error ?? 'Could not read the card.')
-      setDraft(json.draft as CardScanDraft)
+      const next = json.draft as CardScanDraft
+      setDraft(next)
+      setLinkExisting(Boolean(next.existing_party_id) && !next.ambiguous)
       setStage('review')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not read the card.')
@@ -85,7 +146,7 @@ export default function ScanCardButton() {
       const res = await fetch('/api/contacts/scan-card/confirm', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ draft }),
+        body: JSON.stringify({ draft, action: linkExisting ? 'link' : 'create' }),
       })
       const json = await res.json()
       if (!res.ok) throw new Error(json.error ?? 'Could not save the contact.')
@@ -100,6 +161,7 @@ export default function ScanCardButton() {
     setStage('idle')
     setDraft(null)
     setError(null)
+    setLinkExisting(false)
   }
 
   return (
@@ -107,9 +169,10 @@ export default function ScanCardButton() {
       <input
         ref={fileRef}
         type="file"
-        accept="image/*"
-        // On a phone this opens the camera directly, which is the whole point.
-        capture="environment"
+        accept="image/*,.heic,.heif"
+        // Several at once goes to the batch. No `capture` here: forcing the
+        // camera would take the camera roll — and therefore a stack — away.
+        multiple
         onChange={handleFile}
         className="hidden"
       />
@@ -136,7 +199,7 @@ export default function ScanCardButton() {
           className="sm:max-w-2xl max-h-[88vh] overflow-y-auto"
         >
           {!draft ? (
-            <ScanningPanel />
+            <ScanningPanel batchCount={batchCount} />
           ) : (
             <div className="space-y-4">
           <div className="flex items-center justify-between">
@@ -154,6 +217,37 @@ export default function ScanCardButton() {
               <AlertTriangle size={12} className="shrink-0 mt-0.5" />
               <span>
                 Built from the card alone — no web research{draft.research_error ? `: ${draft.research_error}` : '.'}
+              </span>
+            </p>
+          )}
+
+          {draft.existing_party_id && !draft.ambiguous && (
+            <label className="flex items-start gap-2 text-xs bg-muted/40 border border-border rounded px-2 py-1.5 cursor-pointer relative">
+              <span className="absolute -inset-1" aria-hidden />
+              <input
+                type="checkbox"
+                checked={linkExisting}
+                onChange={(e) => setLinkExisting(e.target.checked)}
+                className="mt-0.5 size-4 rounded border-input shrink-0"
+              />
+              <span className="text-muted-foreground">
+                <UserCheck size={12} className="inline mr-1 -mt-0.5" />
+                Already in the directory as{' '}
+                <Link href={`/contacts/${draft.existing_party_id}`} target="_blank" className="text-primary hover:underline">
+                  {draft.existing_party_name}
+                </Link>
+                . Fill that contact in rather than creating a second one — only the fields it is
+                missing are touched.
+              </span>
+            </label>
+          )}
+
+          {draft.ambiguous && draft.candidates.length > 0 && (
+            <p className="flex items-start gap-1.5 text-xs text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 rounded px-2 py-1.5">
+              <AlertTriangle size={12} className="shrink-0 mt-0.5" />
+              <span>
+                {draft.candidates.length} contacts fit this card equally well, so none was chosen.
+                Saving creates a new contact — check the Directory first if that is wrong.
               </span>
             </p>
           )}
@@ -253,7 +347,7 @@ export default function ScanCardButton() {
               className="inline-flex items-center gap-1.5 h-11 sm:h-9 px-3 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-60"
             >
               {stage === 'saving' ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
-              Save contact
+              {linkExisting ? 'Fill in contact' : 'Save contact'}
             </button>
             <button
               onClick={discard}
@@ -274,7 +368,21 @@ export default function ScanCardButton() {
   )
 }
 
-function ScanningPanel() {
+function ScanningPanel({ batchCount }: { batchCount: number }) {
+  if (batchCount > 1) {
+    return (
+      <div className="space-y-2">
+        <DialogTitle className="flex items-center gap-2 text-sm font-medium">
+          <Loader2 size={14} className="animate-spin text-purple-500 dark:text-purple-400" />
+          Reading {batchCount} cards…
+        </DialogTitle>
+        <p className="text-xs text-muted-foreground">
+          Recognizing the text on this machine — a second or so each. The research then runs on the
+          server and you will land on the review, which is safe to leave and come back to.
+        </p>
+      </div>
+    )
+  }
   return (
     <div className="space-y-2">
       <DialogTitle className="flex items-center gap-2 text-sm font-medium">

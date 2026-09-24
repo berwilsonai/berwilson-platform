@@ -1,16 +1,18 @@
 import Link from 'next/link'
-import { Inbox, FileUp, Users, FileText, Loader2, UserSearch } from 'lucide-react'
+import { Inbox, FileUp, Users, FileText, Loader2, UserSearch, Camera } from 'lucide-react'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { cn } from '@/lib/utils'
 import EmailResearchForm from '@/components/email-ingestion/EmailResearchForm'
 import EmailIngestForm from '@/components/email-ingestion/EmailIngestForm'
 import MeetingIntakeForm from '@/components/meeting-intake/MeetingIntakeForm'
 import ProfileIntakeForm from '@/components/contacts/ProfileIntakeForm'
+import CardBatchUpload from '@/components/contacts/CardBatchUpload'
 import SessionsAutoRefresh from '@/components/email-ingestion/SessionsAutoRefresh'
 import DismissSessionButton from '@/components/email-ingestion/DismissSessionButton'
 import ProposalIntakeWizard from '@/components/proposals/ProposalIntakeWizard'
 import ReferenceDocForm from '@/components/reference-docs/ReferenceDocForm'
 import { formatDate } from '@/lib/utils/constants'
+import { readCardBatch } from '@/lib/contacts/card-batch'
 import {
   effectiveEmailIntakeStatus,
   EMAIL_INTAKE_STATUS_LABELS,
@@ -26,6 +28,7 @@ interface PageProps {
 const TABS = [
   { key: 'email', label: 'Email', icon: Inbox },
   { key: 'people', label: 'People', icon: UserSearch },
+  { key: 'cards', label: 'Cards', icon: Camera },
   { key: 'meeting', label: 'Meeting', icon: Users },
   { key: 'proposal', label: 'Proposal', icon: FileUp },
   { key: 'document', label: 'Document', icon: FileText },
@@ -40,6 +43,8 @@ export default async function IntakePage({ searchParams }: PageProps) {
       ? 'proposal'
       : params.tab === 'people'
       ? 'people'
+      : params.tab === 'cards'
+      ? 'cards'
       : params.tab === 'meeting'
       ? 'meeting'
       : params.tab === 'document'
@@ -73,6 +78,8 @@ export default async function IntakePage({ searchParams }: PageProps) {
         <EmailTab supabase={supabase} />
       ) : tab === 'people' ? (
         <PeopleTab supabase={supabase} />
+      ) : tab === 'cards' ? (
+        <CardsTab supabase={supabase} />
       ) : tab === 'meeting' ? (
         <MeetingTab supabase={supabase} />
       ) : tab === 'document' ? (
@@ -369,6 +376,87 @@ async function PeopleTab({ supabase }: { supabase: ReturnType<typeof createAdmin
                   <span className="flex items-center gap-1.5 shrink-0">
                     {badge}
                     {st === 'pending' && <DismissSessionButton sessionId={s.id} />}
+                  </span>
+                </Link>
+              )
+            })}
+          </div>
+        </div>
+      )}
+    </>
+  )
+}
+
+async function CardsTab({ supabase }: { supabase: ReturnType<typeof createAdminClient> }) {
+  const { data: sessions } = await supabase
+    .from('email_intake_sessions')
+    .select('id, label, status, updated_at, extraction_result, created_record_ids')
+    .eq('intake_kind', 'cards')
+    .neq('status', 'dismissed')
+    .order('updated_at', { ascending: false })
+    .limit(25)
+
+  const rows = (sessions ?? []).map((s) => {
+    const effective = effectiveEmailIntakeStatus(s.status, s.updated_at)
+    const draft = readCardBatch(s.extraction_result)
+    const total = draft?.items.length ?? 0
+    const ready = draft?.items.filter((i) => i.state === 'ready').length ?? 0
+    const confirmed = (s.created_record_ids ?? {}) as { party_ids?: string[] }
+
+    let summary: string | null = null
+    if (effective === 'confirmed') {
+      const n = confirmed.party_ids?.length ?? 0
+      summary = `${n} contact${n === 1 ? '' : 's'} saved`
+    } else if (total > 0) {
+      // The honest progress number, because a batch that has stopped moving and
+      // one that is simply slow look identical without it.
+      summary = `${ready} of ${total} card${total === 1 ? '' : 's'} researched`
+    }
+    return { ...s, effective, summary }
+  })
+
+  const anyRunning = rows.some((r) => r.effective === 'running')
+
+  return (
+    <>
+      {anyRunning && <SessionsAutoRefresh />}
+      <div>
+        <p className="text-sm text-muted-foreground">
+          Photograph a stack of business cards and drop the lot here. Each one is read on this
+          machine, its company researched on the web, and its fit for Ber Wilson assessed against
+          the company profile — then you review the whole stack at once. Cards already in the
+          directory are flagged rather than duplicated. Nothing is created until you confirm.
+        </p>
+      </div>
+
+      <CardBatchUpload />
+
+      {rows.length > 0 && (
+        <div className="space-y-2">
+          <h2 className="label-caps text-muted-foreground">Recent</h2>
+          <div className="rounded-lg border border-border bg-card divide-y divide-border">
+            {rows.map((s) => {
+              const st = s.effective
+              const badge = (
+                <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full ring-1 ring-inset shrink-0 inline-flex items-center gap-1 ${EMAIL_INTAKE_STATUS_BADGE[st]}`}>
+                  {st === 'running' && <Loader2 size={10} className="animate-spin" />}
+                  {EMAIL_INTAKE_STATUS_LABELS[st]}
+                </span>
+              )
+
+              return (
+                <Link
+                  key={s.id}
+                  href={`/intake/cards/${s.id}`}
+                  className="flex items-center justify-between gap-3 px-4 py-2.5 hover:bg-accent transition-colors"
+                >
+                  <span className="min-w-0">
+                    <span className="text-sm font-medium truncate block">{s.label || 'Business cards'}</span>
+                    {s.summary && <span className="text-xs text-muted-foreground">{s.summary}</span>}
+                  </span>
+                  <span className="flex items-center gap-1.5 shrink-0">
+                    {badge}
+                    {(st === 'pending' || st === 'failed') && <DismissSessionButton sessionId={s.id} />}
                   </span>
                 </Link>
               )
