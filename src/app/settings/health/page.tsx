@@ -291,7 +291,7 @@ async function runChecks(): Promise<HealthCheck[]> {
       status: stalled ? 'warn' : 'ok',
       headline: `${open} open · ${pending} threads awaiting a reading`,
       detail: stalled
-        ? `The backlog is large enough that the commitments phase may not be running. Check the sweep log (${cronLogsHint}) and confirm the deployed build includes the phase — \`next start\` loads the build at boot, so a rebuild without a launchctl kickstart changes nothing.`
+        ? `Large backlog. Two causes look identical here: a first run after deployment legitimately has every summarized thread to read, and drains over a day or two — or the phase is not running at all. Check whether the number is FALLING between sweeps; if it is flat, check the sweep log (${cronLogsHint}) and confirm the deployed build includes the phase, since \`next start\` loads the build at boot and a rebuild without a launchctl kickstart changes nothing.`
         : 'Reading commitments out of correspondence as threads are summarized.',
     })
   }

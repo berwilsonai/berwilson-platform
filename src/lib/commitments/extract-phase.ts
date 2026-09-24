@@ -24,7 +24,14 @@ import {
   type CommitmentExtraction,
   type ExtractedCommitment,
 } from './prompt'
-import { commitmentKey, HUMAN_SETTLED, type CommitmentRow, type CommitmentSide } from './db'
+import {
+  commitmentKey,
+  commitmentSimilarity,
+  COMMITMENT_MATCH_THRESHOLD,
+  HUMAN_SETTLED,
+  type CommitmentRow,
+  type CommitmentSide,
+} from './db'
 
 /**
  * How much of the conversation the model reads, taken from the END.
@@ -260,11 +267,40 @@ async function reconcileThread(
 ): Promise<void> {
   const { data: existingRaw } = await db
     .from('commitments')
-    .select('id, item_key, status')
+    .select('id, item_key, status, what')
     .eq('thread_id', threadId)
 
-  const existing = (existingRaw ?? []) as Pick<CommitmentRow, 'id' | 'item_key' | 'status'>[]
+  const existing = (existingRaw ?? []) as Pick<CommitmentRow, 'id' | 'item_key' | 'status' | 'what'>[]
   const byKey = new Map(existing.map((r) => [r.item_key, r]))
+
+  // Ids already claimed this pass, so two freshly-worded items can never both
+  // fold into the same existing row and silently erase one of them.
+  const claimed = new Set<string>()
+
+  /**
+   * Find the row this commitment already is, tolerating a reworded phrasing.
+   *
+   * Exact key first — free, and the common case when the model is stable. Then
+   * the best fuzzy match among the handful of rows on THIS thread, which is
+   * what stops an "oct 1"/"october 1" rewrite from resolving a live obligation
+   * and recreating it with its age reset to zero.
+   */
+  const findPrior = (what: string, key: string) => {
+    const exact = byKey.get(key)
+    if (exact && !claimed.has(exact.id)) return exact
+
+    let best: (typeof existing)[number] | undefined
+    let bestScore = 0
+    for (const row of existing) {
+      if (claimed.has(row.id)) continue
+      const score = commitmentSimilarity(what, row.what ?? row.item_key)
+      if (score > bestScore) {
+        bestScore = score
+        best = row
+      }
+    }
+    return bestScore >= COMMITMENT_MATCH_THRESHOLD ? best : undefined
+  }
 
   // Scope the ledger to whatever record the thread is already filed against, so
   // a commitment shows up on the deal it belongs to. Read from thread_links
@@ -286,10 +322,14 @@ async function reconcileThread(
     if (!key || seen.has(key)) continue
     seen.add(key)
 
-    const prior = byKey.get(key)
+    const prior = findPrior(c.what, key)
 
-    // A human already ruled on this one. Their decision stands.
-    if (prior && HUMAN_SETTLED.includes(prior.status)) continue
+    // A human already ruled on this one. Their decision stands — and the row is
+    // claimed so the auto-resolve sweep below cannot touch it either.
+    if (prior && HUMAN_SETTLED.includes(prior.status)) {
+      claimed.add(prior.id)
+      continue
+    }
 
     const fields = {
       what: c.what,
@@ -303,7 +343,13 @@ async function reconcileThread(
     }
 
     if (prior) {
-      const { error } = await db.from('commitments').update(fields).eq('id', prior.id)
+      claimed.add(prior.id)
+      // item_key travels with the update, so the row adopts the latest phrasing
+      // rather than drifting further from it on every pass.
+      const { error } = await db
+        .from('commitments')
+        .update({ ...fields, item_key: key })
+        .eq('id', prior.id)
       if (!error) progress.updated++
     } else {
       const { error } = await db
@@ -316,7 +362,10 @@ async function reconcileThread(
   // Anything still open that this reading no longer sees has been met, dropped,
   // or overtaken. Closed as `resolved` rather than deleted: the row is the
   // evidence of what was tracked and when it stopped mattering.
-  const stale = existing.filter((r) => r.status === 'open' && !seen.has(r.item_key))
+  // Keyed on what was CLAIMED, not on item_key: a row whose wording changed was
+  // matched fuzzily and updated, and comparing keys here would resolve it a
+  // moment after updating it.
+  const stale = existing.filter((r) => r.status === 'open' && !claimed.has(r.id))
   if (stale.length > 0) {
     const { error } = await db
       .from('commitments')
