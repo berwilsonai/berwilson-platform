@@ -94,16 +94,21 @@ export async function POST(request: NextRequest) {
     createdRecordIds.party_ids.push(partyId)
     linkedPeople.push({ id: partyId, name: p.name, role: str(p.role) })
 
-    if (projectId) {
-      await supabase.from('project_players').insert({
-        project_id: projectId,
-        party_id: partyId,
-        role: str(p.role) ?? 'Contact',
-      })
-    }
+    // project_players hangs off EITHER a project or an opportunity since
+    // 20260923000002 (nullable project_id + nullable opportunity_id, exactly-one
+    // check). Until 2026-09-24 this branch only handled projects and the
+    // comment below said opportunities had no player table — so everyone
+    // confirmed onto an opportunity landed in a text note that nothing reads,
+    // and the opportunity's Players tab stayed empty.
+    await supabase.from('project_players').insert({
+      project_id: projectId,
+      opportunity_id: opportunityId,
+      party_id: partyId,
+      role: str(p.role) ?? 'Contact',
+    })
   }
 
-  // Opportunities have no player link table — record the people in a note instead.
+  // A readable roll-call on the opportunity's feed, alongside the real links.
   if (opportunityId && linkedPeople.length > 0) {
     const bodyText = `Players from email ingestion:\n${linkedPeople
       .map((p) => `• ${p.name}${p.role ? ` — ${p.role}` : ''}`)

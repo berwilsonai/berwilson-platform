@@ -1,10 +1,11 @@
 import Link from 'next/link'
-import { Inbox, FileUp, Users, FileText, Loader2 } from 'lucide-react'
+import { Inbox, FileUp, Users, FileText, Loader2, UserSearch } from 'lucide-react'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { cn } from '@/lib/utils'
 import EmailResearchForm from '@/components/email-ingestion/EmailResearchForm'
 import EmailIngestForm from '@/components/email-ingestion/EmailIngestForm'
 import MeetingIntakeForm from '@/components/meeting-intake/MeetingIntakeForm'
+import ProfileIntakeForm from '@/components/contacts/ProfileIntakeForm'
 import SessionsAutoRefresh from '@/components/email-ingestion/SessionsAutoRefresh'
 import DismissSessionButton from '@/components/email-ingestion/DismissSessionButton'
 import ProposalIntakeWizard from '@/components/proposals/ProposalIntakeWizard'
@@ -24,6 +25,7 @@ interface PageProps {
 
 const TABS = [
   { key: 'email', label: 'Email', icon: Inbox },
+  { key: 'people', label: 'People', icon: UserSearch },
   { key: 'meeting', label: 'Meeting', icon: Users },
   { key: 'proposal', label: 'Proposal', icon: FileUp },
   { key: 'document', label: 'Document', icon: FileText },
@@ -36,6 +38,8 @@ export default async function IntakePage({ searchParams }: PageProps) {
   const tab: TabKey =
     params.tab === 'proposal'
       ? 'proposal'
+      : params.tab === 'people'
+      ? 'people'
       : params.tab === 'meeting'
       ? 'meeting'
       : params.tab === 'document'
@@ -67,6 +71,8 @@ export default async function IntakePage({ searchParams }: PageProps) {
 
       {tab === 'email' ? (
         <EmailTab supabase={supabase} />
+      ) : tab === 'people' ? (
+        <PeopleTab supabase={supabase} />
       ) : tab === 'meeting' ? (
         <MeetingTab supabase={supabase} />
       ) : tab === 'document' ? (
@@ -237,6 +243,130 @@ async function EmailTab({ supabase }: { supabase: ReturnType<typeof createAdminC
                           : DISPOSITION_LABEL[s.pre.disposition]}
                       </span>
                     )}
+                    {badge}
+                    {st === 'pending' && <DismissSessionButton sessionId={s.id} />}
+                  </span>
+                </Link>
+              )
+            })}
+          </div>
+        </div>
+      )}
+    </>
+  )
+}
+
+async function PeopleTab({ supabase }: { supabase: ReturnType<typeof createAdminClient> }) {
+  const { data: sessions } = await supabase
+    .from('email_intake_sessions')
+    .select('id, label, status, updated_at, extraction_result, created_record_ids')
+    .eq('intake_kind', 'people')
+    .neq('status', 'dismissed')
+    .order('updated_at', { ascending: false })
+    .limit(25)
+
+  const rows = (sessions ?? []).map((s) => {
+    const effective = effectiveEmailIntakeStatus(s.status, s.updated_at)
+    // One line that says whether this is worth opening: how many people were
+    // actually found in the mail, not how many were asked for.
+    const draft = (s.extraction_result ?? {}) as {
+      people?: { evidence?: string }[]
+      cast?: unknown[]
+      error?: unknown
+    }
+    const asked = draft.people?.length ?? 0
+    const found = (draft.people ?? []).filter((p) => p.evidence === 'mail').length
+    const castCount = draft.cast?.length ?? 0
+    const confirmed = (s.created_record_ids ?? {}) as { party_ids?: string[] }
+
+    let summary: string | null = null
+    if (effective === 'confirmed') {
+      const n = confirmed.party_ids?.length ?? 0
+      summary = `${n} contact${n === 1 ? '' : 's'} saved`
+    } else if (effective === 'pending' && asked > 0) {
+      summary =
+        `${found} of ${asked} profiled from mail` +
+        (castCount > 0 ? ` · ${castCount} more in the same threads` : '')
+    }
+    return { ...s, effective, summary }
+  })
+
+  const anyRunning = rows.some((r) => r.effective === 'running')
+
+  return (
+    <>
+      {anyRunning && <SessionsAutoRefresh />}
+      <div>
+        <p className="text-sm text-muted-foreground">
+          Enter the people on a deal — names, email addresses, or a pasted To: line. Ber AI reads the
+          correspondence the platform has already swept, pulls their title, employer and direct
+          number out of their own signatures, works out what each of them is doing on the deal, and
+          finds everyone else on the same threads. You review it and pick the record they all attach
+          to. Nothing is created until you confirm.
+        </p>
+      </div>
+
+      <ProfileIntakeForm />
+
+      {rows.length > 0 && (
+        <div className="space-y-2">
+          <h2 className="label-caps text-muted-foreground">Recent</h2>
+          <div className="rounded-lg border border-border bg-card divide-y divide-border">
+            {rows.map((s) => {
+              const st = s.effective
+              const badge = (
+                <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full ring-1 ring-inset shrink-0 inline-flex items-center gap-1 ${EMAIL_INTAKE_STATUS_BADGE[st]}`}>
+                  {st === 'running' && <Loader2 size={10} className="animate-spin" />}
+                  {EMAIL_INTAKE_STATUS_LABELS[st]}
+                </span>
+              )
+
+              if (st === 'running') {
+                return (
+                  <div key={s.id} className="flex items-center justify-between gap-3 px-4 py-2.5">
+                    <div className="min-w-0">
+                      <span className="text-sm font-medium truncate block">{s.label || 'Profiling people'}</span>
+                      <span className="text-xs text-muted-foreground">
+                        Reading the mail — about a minute per person. Safe to leave this page.
+                      </span>
+                    </div>
+                    {badge}
+                  </div>
+                )
+              }
+
+              if (st === 'failed') {
+                const err =
+                  s.extraction_result && typeof s.extraction_result === 'object' && 'error' in s.extraction_result
+                    ? String((s.extraction_result as { error?: unknown }).error ?? '')
+                    : ''
+                return (
+                  <div key={s.id} className="flex items-center justify-between gap-3 px-4 py-2.5">
+                    <div className="min-w-0">
+                      <span className="text-sm font-medium truncate block">{s.label || 'Profiling people'}</span>
+                      <span className="text-xs text-muted-foreground line-clamp-2">
+                        {err || 'The run never finished — try fewer people at once.'}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {badge}
+                      <DismissSessionButton sessionId={s.id} />
+                    </div>
+                  </div>
+                )
+              }
+
+              return (
+                <Link
+                  key={s.id}
+                  href={`/intake/people/${s.id}`}
+                  className="flex items-center justify-between gap-3 px-4 py-2.5 hover:bg-accent transition-colors"
+                >
+                  <span className="min-w-0">
+                    <span className="text-sm font-medium truncate block">{s.label || 'People'}</span>
+                    {s.summary && <span className="text-xs text-muted-foreground">{s.summary}</span>}
+                  </span>
+                  <span className="flex items-center gap-1.5 shrink-0">
                     {badge}
                     {st === 'pending' && <DismissSessionButton sessionId={s.id} />}
                   </span>

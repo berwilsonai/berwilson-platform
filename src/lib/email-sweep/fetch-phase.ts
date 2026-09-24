@@ -224,6 +224,53 @@ async function persistThreads(
   return { inserted, refreshed }
 }
 
+/**
+ * Store threads fetched OUTSIDE the page-by-page sweep — a targeted search that
+ * went to Gmail directly (People Intake, Email Research).
+ *
+ * A target on the sweep's own persist pass rather than a second copy of it: the
+ * skip-vs-refresh judgement, the prefilter and the stale-derivative clearing
+ * are the whole substance of storing a thread, and a forked copy of that is how
+ * 413,000 characters went missing once already. The only difference here is
+ * scale — a handful of fingerprints, so growth is checked with one `in` query
+ * rather than a full table load.
+ *
+ * Threads land with `summary_state = 'pending'`, so the sweep's own summarize
+ * phase picks them up on its next run and the correspondence a targeted search
+ * surfaced becomes part of the corpus instead of being read once and dropped.
+ */
+export async function storeFetchedThreads(
+  threads: ResolvedThread[],
+  pipeline: ThreadPipeline = 'deal'
+): Promise<PersistResult> {
+  if (threads.length === 0) return { inserted: 0, refreshed: 0 }
+  const db = sweepDb()
+
+  const fingerprints = threads.map((t) => t.fingerprint)
+  const { data, error } = await db
+    .from('email_threads')
+    .select('fingerprint, message_count')
+    .in('fingerprint', fingerprints)
+  if (error) throw new Error(`Could not check stored threads: ${error.message}`)
+
+  const stored = new Map<string, number>(
+    (data ?? []).map((r) => {
+      const row = r as { fingerprint: string; message_count: number | null }
+      return [row.fingerprint, row.message_count ?? 0]
+    })
+  )
+
+  // Already held at the same length or longer: nothing to write, and a
+  // needless upsert would reset the summary the corpus already paid for.
+  const changed = threads.filter((t) => {
+    const held = stored.get(t.fingerprint)
+    return held === undefined || t.messages.length > held
+  })
+  const grown = new Set(changed.filter((t) => stored.has(t.fingerprint)).map((t) => t.fingerprint))
+
+  return persistThreads(changed, pipeline, grown)
+}
+
 async function readSync(mailbox: string): Promise<MailboxSyncRow | null> {
   const db = sweepDb()
   const { data } = await db.from('mailbox_sync').select('*').eq('mailbox', mailbox).maybeSingle()

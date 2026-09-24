@@ -10,6 +10,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { upsertAliases } from '@/lib/contacts/aliases'
 
 export async function POST(request: NextRequest) {
   const supabase = await createClient()
@@ -43,18 +44,15 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Party not found' }, { status: 404 })
   }
 
-  // Upsert the alias — if it already points to a different party, update it.
   // Cast to unknown because contact_aliases is a new table not yet in generated types.
   const db = admin as unknown as import('@supabase/supabase-js').SupabaseClient
-  const { error } = await db
-    .from('contact_aliases')
-    .upsert(
-      { alias: alias.toLowerCase(), party_id: partyId },
-      { onConflict: 'alias', ignoreDuplicates: false }
-    )
+  const written = await upsertAliases(db, partyId, party.full_name, [alias])
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+  if (written.length === 0) {
+    return NextResponse.json(
+      { error: `"${alias}" is not a usable alias — it needs a first and last name, and must differ from the contact's own name.` },
+      { status: 400 }
+    )
   }
 
   return NextResponse.json({ ok: true, party_id: partyId, full_name: party.full_name }, { status: 200 })

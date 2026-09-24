@@ -1,6 +1,6 @@
 import { Suspense } from 'react'
 import Link from 'next/link'
-import { Plus, Users, Building2, Clock } from 'lucide-react'
+import { Plus, Users, Building2, Clock, UserSearch } from 'lucide-react'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { cn } from '@/lib/utils'
 import ContactsClient from '@/components/contacts/ContactsClient'
@@ -144,6 +144,17 @@ export default async function DirectoryPage({ searchParams }: PageProps) {
         <div className="flex items-center gap-2 shrink-0">
           {/* Photograph a card on a phone and the contact drafts itself. */}
           {activeTab === 'contacts' && <ScanCardButton />}
+          {/* The third door into the directory: an email address in, a whole
+              profile out, read from the correspondence already on file. */}
+          {activeTab === 'contacts' && (
+            <Link
+              href="/intake?tab=people"
+              className="inline-flex items-center gap-1.5 h-11 sm:h-8 px-3 rounded-md border border-input bg-background text-xs font-medium hover:bg-accent transition-colors"
+            >
+              <UserSearch size={14} />
+              <span className="whitespace-nowrap">Profile from Email</span>
+            </Link>
+          )}
           <Link
             href={activeTab === 'vendors' ? '/vendors/new' : '/contacts/new'}
             className="inline-flex items-center gap-1.5 h-11 sm:h-8 px-3 rounded-md bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors"

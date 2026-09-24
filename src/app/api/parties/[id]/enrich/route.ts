@@ -12,9 +12,13 @@
 import { NextRequest } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { researchQuery } from '@/lib/ai/research'
-import { callGemini } from '@/lib/ai/gemini'
 import { embedPartyEnrichment } from '@/lib/ai/embeddings'
+import {
+  lookupDirectoryContact,
+  directoryPhone,
+  researchPersonWeb,
+  type DirectoryContactResult,
+} from '@/lib/contacts/web-enrichment'
 import type { TablesUpdate } from '@/lib/supabase/types'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -58,83 +62,6 @@ export interface EnrichPreviewResponse {
     linkedin_url: string | null
     government_contract_history: string | null
   }
-}
-
-// ── Google contact lookup ─────────────────────────────────────────────────────
-
-interface DirectoryContactResult {
-  displayName?: string
-  jobTitle?: string
-  companyName?: string
-  businessPhones?: string[]
-  mobilePhone?: string
-}
-
-/**
- * Look the person up in the mailbox's Google Contacts, including "other
- * contacts" — people corresponded with but never saved, which is where most
- * counterparties actually live. Silent null on any failure: this is one
- * optional signal among several the enrichment blends.
- */
-async function queryDirectoryForContact(email: string): Promise<DirectoryContactResult | null> {
-  try {
-    // Dynamic import so an unconfigured integration can't break the build.
-    const { lookupContactByEmail } = await import('@/lib/integrations/google-workspace')
-    const contact = await lookupContactByEmail(email)
-    if (!contact) return null
-
-    return {
-      displayName: contact.displayName,
-      jobTitle: contact.jobTitle,
-      companyName: contact.companyName,
-      mobilePhone: contact.phone,
-    }
-  } catch {
-    return null
-  }
-}
-
-// ── Gemini structuring ────────────────────────────────────────────────────────
-
-interface StructuredEnrichment {
-  linkedin_url?: string | null
-  years_of_experience?: string | null
-  past_projects?: string[] | null
-  government_contract_history?: string | null
-  certifications?: string[] | null
-  news_mentions?: string[] | null
-  notable_affiliations?: string[] | null
-  phone?: string | null
-  address?: string | null
-  litigation_history?: string[] | null
-  personal_credentials?: string[] | null
-}
-
-async function structureWithGemini(
-  personTexts: string[],
-  companyTexts: string[],
-  userId: string
-): Promise<StructuredEnrichment> {
-  const personSection = personTexts.length > 0
-    ? `=== PERSON SEARCH RESULTS (PRIMARY) ===\n${personTexts.join('\n\n---\n\n').slice(0, 6000)}`
-    : ''
-  const companySection = companyTexts.length > 0
-    ? `\n\n=== COMPANY CONTEXT (SECONDARY — use only to fill gaps about the person's role) ===\n${companyTexts.join('\n\n---\n\n').slice(0, 2000)}`
-    : ''
-  const combined = personSection + companySection
-
-  const result = await callGemini<StructuredEnrichment>({
-    task: 'extract',
-    systemPrompt:
-      'You are a data extraction engine focused on extracting information about a SPECIFIC PERSON — not their company. ' +
-      'Prioritize personal details: their individual phone number, address, professional licenses, certifications they personally hold, litigation they are personally named in, and their career history. ' +
-      'Company information should only be included to contextualize the person\'s role or tenure. ' +
-      'Return ONLY valid JSON. No explanation. No markdown fences.',
-    userMessage: `Extract information about this specific person from the text below. Prioritize the PERSON SEARCH RESULTS section. Use COMPANY CONTEXT only to fill gaps about the person's role.\n\nReturn as JSON with these keys:\n- linkedin_url (string)\n- years_of_experience (string)\n- past_projects (array of project names they personally worked on)\n- government_contract_history (string — their personal involvement)\n- certifications (array — professional certs like PE, PMP, LEED AP, etc.)\n- personal_credentials (array — licenses, security clearances, degrees)\n- litigation_history (array — lawsuits, liens, court cases they are named in)\n- phone (string — personal or direct phone number)\n- address (string — personal or business address)\n- news_mentions (array)\n- notable_affiliations (array — boards, associations, memberships)\n\nIf a field is not found, set it to null.\n\nText:\n${combined}`,
-    userId,
-    promptVersion: 'enrich-v2',
-  })
-  return (result.data ?? {}) as StructuredEnrichment
 }
 
 // ── Conflict detection ────────────────────────────────────────────────────────
@@ -240,76 +167,23 @@ export async function POST(
 
   // ── PREVIEW: run enrichment pipeline ────────────────────────────────────
   let directoryResult: DirectoryContactResult | null = null
-  let directoryDone = false
+  if (party.email) directoryResult = await lookupDirectoryContact(party.email)
+  const directoryDone = directoryResult !== null
 
-  if (party.email) {
-    directoryResult = await queryDirectoryForContact(party.email)
-    directoryDone = directoryResult !== null
-  }
-
-  // Build person-focused research queries
-  const namePart = party.full_name
-  const companyPart = directoryResult?.companyName ?? party.company ?? ''
-
-  // Person queries (primary — these results get priority in extraction)
-  const personQueries = [
-    // LinkedIn + professional profile
-    `"${namePart}"${companyPart ? ` "${companyPart}"` : ''} site:linkedin.com OR site:usaspending.gov OR site:sam.gov`,
-    // Contact info + credentials
-    `"${namePart}"${companyPart ? ` "${companyPart}"` : ''} phone address license credentials certification`,
-    // Litigation + court records
-    `"${namePart}"${companyPart ? ` ${companyPart}` : ''} litigation lawsuit lien court records`,
-  ]
-  // Company query (secondary context only)
-  const companyQuery = companyPart
-    ? `${companyPart} government contracts construction history`
-    : null
-
-  const allSources: Array<{ url: string; title?: string }> = []
-  const personTexts: string[] = []
-  const companyTexts: string[] = []
-
-  // Run person queries in parallel
-  const personResults = await Promise.allSettled(
-    personQueries.map((q) => researchQuery(q))
-  )
-  for (const result of personResults) {
-    if (result.status === 'fulfilled') {
-      personTexts.push(result.value.text)
-      allSources.push(...result.value.sources)
-    } else {
-      console.error('[enrich] person query failed', result.reason)
-    }
-  }
-
-  if (companyQuery) {
-    try {
-      const companyRes = await researchQuery(companyQuery)
-      companyTexts.push(companyRes.text)
-      allSources.push(...companyRes.sources)
-    } catch (err) {
-      console.error('[enrich] company query failed', err)
-    }
-  }
-
-  // Structure the results — person texts get priority
-  let structured: StructuredEnrichment = {}
-  if (personTexts.length > 0 || companyTexts.length > 0) {
-    try {
-      structured = await structureWithGemini(personTexts, companyTexts, user.id)
-    } catch (err) {
-      console.error('[enrich] structuring failed', err)
-    }
-  }
+  const web = await researchPersonWeb({
+    fullName: party.full_name,
+    company: directoryResult?.companyName ?? party.company,
+    userId: user.id,
+  })
+  const structured = web.structured
 
   // Build preview
-  const directoryPhone = directoryResult?.mobilePhone ?? directoryResult?.businessPhones?.[0] ?? null
   const preview: EnrichmentPreview = {
     linkedin_url: structured.linkedin_url ?? null,
     title: directoryResult?.jobTitle ?? null,
     company: directoryResult?.companyName ?? null,
     full_name: directoryResult?.displayName ?? null,
-    phone: directoryPhone ?? structured.phone ?? null,
+    phone: directoryPhone(directoryResult) ?? structured.phone ?? null,
     government_contract_history: structured.government_contract_history ?? null,
     enrichment_notes: {
       years_of_experience: structured.years_of_experience ?? null,
@@ -321,7 +195,7 @@ export async function POST(
       notable_affiliations: structured.notable_affiliations ?? null,
       address: structured.address ?? null,
     },
-    sources: allSources.filter((s, i, arr) => arr.findIndex((x) => x.url === s.url) === i).slice(0, 20),
+    sources: web.sources,
     directory_done: directoryDone,
   }
 
