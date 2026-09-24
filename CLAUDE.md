@@ -129,7 +129,11 @@ src/
 
 ## 4. DATABASE SCHEMA
 
-**Source of truth is `src/types/database.ts` (generated).** Run `npm run gen-types` after every migration. The schema has expanded far past the original core tables; do not trust a hand-maintained list — read the generated types.
+**Source of truth is `src/types/database.ts` (generated) for everything it covers — but it does NOT cover everything.**
+
+⚠ **`npm run gen-types` is a hard-disabled stub** (`echo … && exit 1`): it used to run `--linked`, which points at the retired cloud project rather than the self-hosted DB. `SUPABASE_DB_URL` is documented in §7 as the replacement and is **referenced nowhere in the repo** — nothing reads it. So the generated types are frozen at whenever they were last produced by hand, and several live tables are simply absent from them: `email_threads`, `mailbox_sync`, `thread_clusters`, `thread_links`, `leads`, `commitments`.
+
+**How to work with that, rather than around it:** code touching those tables uses the deliberately untyped `sweepDb()` client (`src/lib/email-sweep/db.ts`), whose hand-maintained row interfaces carry the contract instead. Follow that convention for any new table until gen-types is repaired; do not scatter `as never` casts. The schema has expanded far past the original core tables, so do not trust a hand-maintained list — read the generated types AND check `docker exec supabase-db psql -U postgres -c '\d <table>'` for anything they do not mention.
 
 Migrations live in `supabase/migrations/` (41 as of this writing, numbered chronologically).
 
@@ -144,7 +148,7 @@ Migrations live in `supabase/migrations/` (41 as of this writing, numbered chron
 - **Core CRM:** `projects` (with `parent_project_id` hierarchy, `bid_due_date`, `win_probability`, capture fields), `project_players`, `milestones`, `updates`, `documents`, `dd_items`, `financing_structures`, `compliance_items`, `project_dependencies`.
 - **Tasks (2026-06-25):** `tasks` (real task model — title/what/why/how/assignee_id/project_id/due_date/status/completed_at), `task_notes` (per-task notes feed), `team_members` (assignee list, seeded Richard/Eric). Replaces the old `updates.action_items` JSON for the task UI.
 - **Shared children (2026-09-23):** `project_players`, `milestones`, `dd_items`, `financing_structures`, `entity_projects`, `compliance_items` and `research_artifacts` hang off **either** a project or an opportunity — nullable `project_id` + nullable `opportunity_id`, with a check constraint (exactly-one for the first five, at-most-one for the last two). `milestones.stage` is plain **text**, not the `project_stage` enum, so one table carries both pipelines. Never assume `project_id` is set on these.
-- **Directory:** `parties` (people + orgs via `is_organization`), `contact_aliases`, `entities` (legal entities/vendors), `entity_projects`, `party_entities`, `certifications`.
+- **Directory:** `parties` (people + orgs via `is_organization`), `contact_aliases` (uniqueness is on the generated `alias_key` = `lower(alias)`; conflict on `alias_key`, never `alias`), `entities` (legal entities/vendors), `entity_projects`, `party_entities`, `certifications`.
 - **Capital raise (2026-07-10):** `investors` (relationship pipeline, links to `parties`), `investments` (investor × target: parent company or project, optional `spv_entity_id` → `entities`), `investor_notes`.
 - **Steel CRM (2026-07-25):** `steel_deals` (prefab steel deal pipeline: quote→engineering→order_placed→delivered→paid, lead source, salesperson FK→team_members, sqft/$SF/value), `steel_deal_notes`. Own role `steel_sales` sees only this module.
 - **Dino (2026-07-28):** internal operating company (acquired plumbing/HVAC co, dinoservicepros.com — NOT a vendor). `dino_revenue` (source_type internal|external; internal → FK project_id, external → client_name; per-job or periodic lump), `dino_payments` (the $150k/12-mo obligation schedule), `dino_notes`. Tracks the internal-vs-external revenue split (show Dino its revenue increasingly comes from Ber Wilson) + money we owe them. Admin-only. See build-status.
@@ -239,7 +243,7 @@ WHISPER_MODEL=                   # ggml model path. BOTH are stat'd at runtime �
 AFCONVERT_BIN=                   # optional; audio decoder (default /usr/bin/afconvert)
 CRON_SECRET=                     # Bearer auth on cron routes; launchd cron agents on the Studio send it
 APP_URL=                         # tailnet base URL for links in outbound notifications (task digest "Open my tasks")
-SUPABASE_DB_URL=                 # optional; local Postgres URL for `npm run gen-types` (self-hosted, replaces --linked)
+SUPABASE_DB_URL=                 # ⚠ ASPIRATIONAL — nothing reads this, and `npm run gen-types` is a disabled stub. See §4
 MAP_PMTILES_PATH=                # optional; /map detail basemap archive (default ~/berwilson-data/maps/us.pmtiles)
 MAP_WORLD_PMTILES_PATH=          # optional; /map world-overview archive z0-7 (default ~/berwilson-data/maps/world.pmtiles)
 CARD_OCR_BIN=                    # optional; business-card OCR binary (Apple Vision). Default ~/.local/bin/bw-ocr — build with `zsh scripts/build-ocr.sh`
@@ -333,6 +337,7 @@ Distilled from the build log. Each line is a bug that cost real hours — severa
 - **Never `NULL || array`** on a bucket's `allowed_mime_types`: NULL means unrestricted, and the concat collapses it to just the appended list — silently rejecting every other type platform-wide. — 07-28
 - **A multi-row insert is ONE statement with a uniform column list.** Rows that omit a column get an explicit NULL, not the default. — 09-15
 - **PostgREST truncates at 1000 rows, silently.** Paginate any select that could exceed it. — 09-22
+- **A UNIQUE INDEX on an EXPRESSION is not a conflict target PostgREST can name.** `onConflict: 'alias'` against a `unique(lower(alias))` index fails every call with "no unique or exclusion constraint matching the ON CONFLICT specification". A UNIQUE CONSTRAINT cannot sit on an expression either — add a generated stored column and constrain that. — 09-24
 - **Never string-compare a Drive `modifiedTime` against a stored `timestamptz`** — PostgREST round-trips with an offset (`…Z` vs `…+00:00`), so they are never equal. Compare instants. — 09-05
 - **Check what a table CONTAINS, not just how many rows it has, before calling it unused.** — 09-22
 
@@ -382,6 +387,9 @@ Distilled from the build log. Each line is a bug that cost real hours — severa
 - **Measure before building.** Repeatedly the premise was wrong: the Drive was already clean, the local model is 93% idle because it has FINISHED, and three planned passes were built and then REMOVED after measuring them. — 09-22, 09-23
 - **`fit_score` carries ±20 points of sampling noise.** Read the pursue/consider/pass verdict, never the number; do not sort or threshold on it. — 08-26
 - **Ambiguity must mean NO match.** Two records scoring identically on a name is the case that must refuse, not guess. — 09-09
+- **One match is not a unique match — it is an unchallenged one.** A lone hit on a weak key (a bare first name) resolved "Cliff" to an unrelated academic on a live deal. Require a strong key, or refuse and say what was found. — 09-24
+- **A fuzzy threshold is measured against the real corpus, never chosen.** And a score too low to act on is still worth SUGGESTING — "closest in the mail" costs the reader a glance; an auto-resolve at the same confidence files the wrong person. — 09-24
+- **A thread with more than ~15 participants is a distribution list, not a conversation.** Its recipients are not a deal cast: two 35-recipient invitations buried the five people who mattered under thirty strangers. Measured — 2,391 of 2,436 threads have five or fewer. — 09-24
 - **`matchesPrefix` is NOT method-aware** — allowlisting a read path grants every mutation under it. Routes carry their own guards regardless. — 09-22
 - **User-initiated mutations on tracked tables use `actorAdminClient()`**, not `createAdminClient()`, or the activity log says "system". — 07-03
 - **Task owners and contacts are one person** — `team_members.party_id` ties them; adding or using an owner maintains the contact. — 07-21
@@ -394,9 +402,9 @@ Distilled from the build log. Each line is a bug that cost real hours — severa
 
 **Reality:** well beyond the original Phase 1/2 plan. Live and in daily use, **self-hosted on the Mac Studio** (`100.86.79.4`, Tailscale-only) against self-hosted Supabase under Colima, with AI served by LM Studio on the same machine. Vercel is no longer the runtime.
 
-**Working:** projects (CRUD, pipeline/program views, hierarchy, all detail tabs), **interactive project map (/map — offline basemap, illustrated markers, rail corridors, present mode)**, **task handoffs (waiting-on) + printable weekly report (/reports/weekly/print, per-person pages)**, **opportunities**, **investors (capital raise pipeline: relationship stages + per-deal commitments vs parent co / project SPVs; named raises w/ tranche schedules + per-raise dashboards; task tags, Ber AI tools + RAG, attention + daily-brief wiring)**, **objectives steering board (Now/Soon/Possibly + PDF export, wired into tasks/dashboard/brief)**, **steel CRM (/steel — prefab steel deal pipeline w/ its own `steel_sales` role, 2026-07-25; one-click quote generation from a Drive-hosted Google Doc template → PDF on the deal + in Drive, 2026-09-16)**, **dino (/dino — internal operating-company revenue tracker: internal-vs-external split + $150k payment schedule, admin-only, 2026-07-28)**, dashboard (single attention surface, opens with Now objectives), timeline, **team tasks** (per-person workload, project/opportunity/objective tags), **one Directory (Contacts | Vendors tabs) + business-card scanner (photo → on-device OCR → researched contact)**, company profile (thin), review queue, activity log, manual-paste extraction (action items → real tasks), intel (RAG + streaming agent) + **ambient Ask Ber AI dock (⌘J, every page)**, **one Intake destination (`/intake`: Email | Proposal tabs, 2026-07-17)** — proposal intake → assessment → project creation, and Email Intake (in-platform **Gmail** sweep → report → opportunity/project + people + tasks). **Calendar/meeting-prep and mail both run on Google Workspace via per-mailbox OAuth (Microsoft Graph removed 2026-08-23); the email-to-task scraper was removed (see below).** Equity & Portfolio modules removed 2026-07-03 (see below).
+**Working:** projects (CRUD, pipeline/program views, hierarchy, all detail tabs), **interactive project map (/map — offline basemap, illustrated markers, rail corridors, present mode)**, **task handoffs (waiting-on) + printable weekly report (/reports/weekly/print, per-person pages)**, **opportunities**, **investors (capital raise pipeline: relationship stages + per-deal commitments vs parent co / project SPVs; named raises w/ tranche schedules + per-raise dashboards; task tags, Ber AI tools + RAG, attention + daily-brief wiring)**, **objectives steering board (Now/Soon/Possibly + PDF export, wired into tasks/dashboard/brief)**, **steel CRM (/steel — prefab steel deal pipeline w/ its own `steel_sales` role, 2026-07-25; one-click quote generation from a Drive-hosted Google Doc template → PDF on the deal + in Drive, 2026-09-16)**, **dino (/dino — internal operating-company revenue tracker: internal-vs-external split + $150k payment schedule, admin-only, 2026-07-28)**, dashboard (single attention surface, opens with Now objectives), timeline, **team tasks** (per-person workload, project/opportunity/objective tags), **one Directory (Contacts | Vendors tabs) + business-card scanner (photo → on-device OCR → researched contact)**, company profile (thin), review queue, activity log, manual-paste extraction (action items → real tasks), intel (RAG + streaming agent) + **ambient Ask Ber AI dock (⌘J, every page)**, **one Intake destination (`/intake`: Email | People | Meeting | Proposal | Document tabs)** — including **People Intake (2026-09-24: a cast of names or addresses in → profiles read out of the stored mail, their employers linked, and everyone attached to a project or opportunity as players, on one confirm)** — proposal intake → assessment → project creation, and Email Intake (in-platform **Gmail** sweep → report → opportunity/project + people + tasks). **Calendar/meeting-prep and mail both run on Google Workspace via per-mailbox OAuth (Microsoft Graph removed 2026-08-23); the email-to-task scraper was removed (see below).** Equity & Portfolio modules removed 2026-07-03 (see below).
 
-**Full history: [`docs/BUILD-LOG.md`](docs/BUILD-LOG.md)** — 119 dated entries, 2026-06-22 → 2026-09-24, carrying the reasoning, the measurements and the verification behind every decision. Not auto-loaded into a session; grep it when you need the "why" (*"why is the digest at 7:00am?"*, *"have we hit this bug before?"*).
+**Full history: [`docs/BUILD-LOG.md`](docs/BUILD-LOG.md)** — 120 dated entries, 2026-06-22 → 2026-09-24, carrying the reasoning, the measurements and the verification behind every decision. Not auto-loaded into a session; grep it when you need the "why" (*"why is the digest at 7:00am?"*, *"have we hit this bug before?"*).
 
 ### Open items (Richard)
 
@@ -414,6 +422,8 @@ Env vars re-checked against `.env.local` on 2026-09-23. Everything else is **as 
 | `deploy/backup.sh` and `~/supabase-selfhost/backup.sh` are synced BY HAND — copy across after editing either | 09-23 | standing |
 | 3 senders could not be auto-unsubscribed (officedepot, jooble, mccleerycompany); 5 professional bodies were spammed but deliberately not unsubscribed | 09-22 | optional |
 | One test message remains in `moose@` ("Ber Intelligence self-loop verification") — the platform cannot delete it, by design | 09-22 | cosmetic |
+| `npm run gen-types` is a disabled stub and `SUPABASE_DB_URL` is read by nothing, so the generated types are frozen and six live tables are missing from them — repairing it against the self-hosted DB is a small un-done job (§4 now says so) | 09-24 | as reported |
+| **One People Intake session is staged and un-confirmed** at `/intake?tab=people` — Seth Lloyd and Trevor Burton ready to save. Attaching them to the existing **Elite Solutions** opportunity is one dropdown; there is still no Eagle Mountain record, and the Attach picker creates nothing, so make that record first if the cast should land there | 09-24 | **action** |
 | **Sign in as `moose@berwilson.com`, not `info@`** — info@ is now the "Pepper Potts" seat for a future executive assistant, so logging in there greets you as her with an empty task list. Both remain working admin logins; nothing was deactivated. `/settings/users` parks the seat in one toggle when you want it held | 09-24 | **action** |
 
 `GOOGLE_CHAT_WEBHOOK_URL` is now **set**, so the 09-23 manual step is done — but if you created a dedicated "Ber Wilson Updates" space, confirm it points there rather than at the old room.
@@ -428,6 +438,7 @@ Env vars re-checked against `.env.local` on 2026-09-23. Everything else is **as 
 
 Newest first; full entries in `docs/BUILD-LOG.md`.
 
+- **09-24** — People Intake: enter a cast, get their profiles out of the mail already on file, attach them to the deal (DEPLOYED + MIGRATED)
 - **09-24** — simplification pass: a table with no grants, a bell with no audience, three dashboard panels that could never show anything
 - **09-23** — daily email digest to Google Chat, plus a `commitments` ledger read out of mail (DEPLOYED + MIGRATED)
 - **09-23** — the new logo across app chrome, home screen, favicon and PWA
