@@ -328,6 +328,8 @@ Distilled from the build log. Each line is a bug that cost real hours — severa
 - **`.neq()` is NULL — and therefore not true — for a NULL column**, so a nullable status silently hides rows from every reader that filters on it. Make the column NOT NULL, or handle NULL explicitly. — 09-23
 - **`ON CONFLICT` cannot use a partial unique index** — PostgREST has no way to repeat the predicate. Postgres already treats NULLs as distinct, so the predicate is usually unnecessary anyway. — 09-09
 - **Adding a discriminator column means checking for a CHECK constraint on it.** A new value typechecks, deploys, then fails at every INSERT. — 09-19
+- **A table created by a migration applied as anything but `postgres` gets NO API GRANTS.** The default privileges that grant anon/authenticated/service_role hang off `postgres`, so a table owned by `supabase_admin` silently receives none — every PostgREST call answers `42501`, and `postgres` cannot even grant on it afterwards (`WARNING: no privileges were granted`). Apply migrations as `postgres`; if a feature "does nothing", check `information_schema.role_table_grants` before reading its code. — 09-24
+- **`pg_stat_user_tables.n_live_tup` IS A STALE ESTIMATE.** It reported `projects` at 1 against a real 15 and `risk_scores` at 110 against 947. Never let it drive a decision — `count(*)`. — 09-24
 - **Never `NULL || array`** on a bucket's `allowed_mime_types`: NULL means unrestricted, and the concat collapses it to just the appended list — silently rejecting every other type platform-wide. — 07-28
 - **A multi-row insert is ONE statement with a uniform column list.** Rows that omit a column get an explicit NULL, not the default. — 09-15
 - **PostgREST truncates at 1000 rows, silently.** Paginate any select that could exceed it. — 09-22
@@ -394,7 +396,7 @@ Distilled from the build log. Each line is a bug that cost real hours — severa
 
 **Working:** projects (CRUD, pipeline/program views, hierarchy, all detail tabs), **interactive project map (/map — offline basemap, illustrated markers, rail corridors, present mode)**, **task handoffs (waiting-on) + printable weekly report (/reports/weekly/print, per-person pages)**, **opportunities**, **investors (capital raise pipeline: relationship stages + per-deal commitments vs parent co / project SPVs; named raises w/ tranche schedules + per-raise dashboards; task tags, Ber AI tools + RAG, attention + daily-brief wiring)**, **objectives steering board (Now/Soon/Possibly + PDF export, wired into tasks/dashboard/brief)**, **steel CRM (/steel — prefab steel deal pipeline w/ its own `steel_sales` role, 2026-07-25; one-click quote generation from a Drive-hosted Google Doc template → PDF on the deal + in Drive, 2026-09-16)**, **dino (/dino — internal operating-company revenue tracker: internal-vs-external split + $150k payment schedule, admin-only, 2026-07-28)**, dashboard (single attention surface, opens with Now objectives), timeline, **team tasks** (per-person workload, project/opportunity/objective tags), **one Directory (Contacts | Vendors tabs) + business-card scanner (photo → on-device OCR → researched contact)**, company profile (thin), review queue, activity log, manual-paste extraction (action items → real tasks), intel (RAG + streaming agent) + **ambient Ask Ber AI dock (⌘J, every page)**, **one Intake destination (`/intake`: Email | Proposal tabs, 2026-07-17)** — proposal intake → assessment → project creation, and Email Intake (in-platform **Gmail** sweep → report → opportunity/project + people + tasks). **Calendar/meeting-prep and mail both run on Google Workspace via per-mailbox OAuth (Microsoft Graph removed 2026-08-23); the email-to-task scraper was removed (see below).** Equity & Portfolio modules removed 2026-07-03 (see below).
 
-**Full history: [`docs/BUILD-LOG.md`](docs/BUILD-LOG.md)** — 118 dated entries, 2026-06-22 → 2026-09-23, carrying the reasoning, the measurements and the verification behind every decision. Not auto-loaded into a session; grep it when you need the "why" (*"why is the digest at 7:00am?"*, *"have we hit this bug before?"*).
+**Full history: [`docs/BUILD-LOG.md`](docs/BUILD-LOG.md)** — 119 dated entries, 2026-06-22 → 2026-09-24, carrying the reasoning, the measurements and the verification behind every decision. Not auto-loaded into a session; grep it when you need the "why" (*"why is the digest at 7:00am?"*, *"have we hit this bug before?"*).
 
 ### Open items (Richard)
 
@@ -412,6 +414,7 @@ Env vars re-checked against `.env.local` on 2026-09-23. Everything else is **as 
 | `deploy/backup.sh` and `~/supabase-selfhost/backup.sh` are synced BY HAND — copy across after editing either | 09-23 | standing |
 | 3 senders could not be auto-unsubscribed (officedepot, jooble, mccleerycompany); 5 professional bodies were spammed but deliberately not unsubscribed | 09-22 | optional |
 | One test message remains in `moose@` ("Ber Intelligence self-loop verification") — the platform cannot delete it, by design | 09-22 | cosmetic |
+| **Sign in as `moose@berwilson.com`, not `info@`** — info@ is now the "Pepper Potts" seat for a future executive assistant, so logging in there greets you as her with an empty task list. Both remain working admin logins; nothing was deactivated. `/settings/users` parks the seat in one toggle when you want it held | 09-24 | **action** |
 
 `GOOGLE_CHAT_WEBHOOK_URL` is now **set**, so the 09-23 manual step is done — but if you created a dedicated "Ber Wilson Updates" space, confirm it points there rather than at the old room.
 
@@ -425,6 +428,7 @@ Env vars re-checked against `.env.local` on 2026-09-23. Everything else is **as 
 
 Newest first; full entries in `docs/BUILD-LOG.md`.
 
+- **09-24** — simplification pass: a table with no grants, a bell with no audience, three dashboard panels that could never show anything
 - **09-23** — daily email digest to Google Chat, plus a `commitments` ledger read out of mail (DEPLOYED + MIGRATED)
 - **09-23** — the new logo across app chrome, home screen, favicon and PWA
 - **09-23** — debug pass: a comma broke six searches, a tool throw killed the agent turn, the offsite backup had been failing for a week
