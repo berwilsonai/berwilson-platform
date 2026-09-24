@@ -58,9 +58,11 @@ const ROLE_PAGE_PREFIXES: Record<Exclude<Role, 'admin'>, string[]> = {
 
 // API path prefixes each non-admin role may call. Fine-grained checks (which
 // project, whose task) happen inside the routes via lib/auth/viewer.
-// Every signed-in role carries the notification bell, so /api/notifications is
-// in all of them. The routes scope every read and write to the viewer's OWN
-// team_member row, so this grants access to one's own inbox and nothing else.
+//
+// `/api/dev-notes` is in every list on purpose: the people most likely to hit a
+// bug are the ones with the least access, and a feedback channel gated to admins
+// has no reporters. (`/api/notifications` used to be here too, for the header
+// bell; the bell was removed 2026-09-24 — see lib/notifications/index.ts.)
 /**
  * ⚠ ADDING A PREFIX HERE CAN EXPOSE ROUTES THAT HAVE NO CHECK OF THEIR OWN.
  *
@@ -77,7 +79,7 @@ const ROLE_PAGE_PREFIXES: Record<Exclude<Role, 'admin'>, string[]> = {
  * read also grants every mutation underneath it.
  */
 const ROLE_API_PREFIXES: Record<Exclude<Role, 'admin'>, string[]> = {
-  executive: ['/api/tasks', '/api/objectives', '/api/team-members', '/api/steel', '/api/notifications', '/api/dev-notes'],
+  executive: ['/api/tasks', '/api/objectives', '/api/team-members', '/api/steel', '/api/dev-notes'],
   project_manager: [
     '/api/tasks',
     '/api/team-members',
@@ -85,11 +87,10 @@ const ROLE_API_PREFIXES: Record<Exclude<Role, 'admin'>, string[]> = {
     '/api/opportunities',
     '/api/documents',
     '/api/milestones',
-    '/api/notifications',
     '/api/dev-notes',
   ],
-  member: ['/api/tasks', '/api/team-members', '/api/notifications', '/api/dev-notes'],
-  steel_sales: ['/api/steel', '/api/notifications', '/api/dev-notes'],
+  member: ['/api/tasks', '/api/team-members', '/api/dev-notes'],
+  steel_sales: ['/api/steel', '/api/dev-notes'],
 }
 
 function matchesPrefix(pathname: string, prefixes: string[]): boolean {

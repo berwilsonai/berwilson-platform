@@ -1,29 +1,31 @@
 /**
- * In-app activity notifications — the bell in the header.
+ * Activity announcements — "something arrived, and you were not looking at it".
  *
  * The problem this solves: two executives work the same portfolio from
  * different places, and neither could see what the other had just done. A
  * document Eric filed in Drive reached the project silently — the sync posted a
  * line to that project's feed, which you only see if you are already on that
- * project. This turns "something arrived" into something that finds you.
+ * project.
  *
- * Recipients are team members who can ACTUALLY SEE a bell: active, and linked to
- * an auth account. Writing rows for someone with no login would fill a table
- * nobody will ever read, and would make the unread counts meaningless the day
- * somebody does get a login.
+ * ⚠ GOOGLE CHAT IS THE CHANNEL. THE IN-APP BELL WAS REMOVED 2026-09-24, and the
+ * reason is measured rather than assumed: across the 8 days it ran it wrote 52
+ * rows and **0 were ever read or dismissed**. It could not have been otherwise —
+ * the bell lives inside a tailnet-only platform that most of the company cannot
+ * reach, so it was a channel with no audience, while the same events had been
+ * mirrored to Chat since 2026-09-22 and Chat is where they actually get read.
  *
- * The actor is excluded by email. Matching is case-insensitive against
- * `team_members.email`, which is exactly what Drive returns in
- * `lastModifyingUser.emailAddress` for a Workspace user. An actor who matches
- * NOBODY — info@, an outside collaborator on a shared folder — means everyone is
- * notified, which is correct: an upload by someone outside the team is the
- * activity most worth knowing about, not the least.
+ * ⚠ AND MIRRORING WAS OPT-IN PER CALL SITE, WHICH IS WHY THIS IS ONE FUNCTION
+ * NOW. Only 2 of the 4 callers paired their bell write with `broadcastEvents`,
+ * so a dev-note report and a below-floor quote needing approval reached NOBODY
+ * AT ALL — bell unread, no post. A second channel a caller can forget is a
+ * channel that will be forgotten, so the fan-out lives here and callers get no
+ * say in it.
  *
- * Nothing here ever throws. A missing notification must never fail the import,
+ * Nothing here ever throws. A missing announcement must never fail the import,
  * the upload, or the sync that produced it.
  */
 
-import { createAdminClient } from '@/lib/supabase/admin'
+import { broadcastEvents } from './broadcast'
 
 export type NotificationKind =
   | 'document_added'
@@ -59,82 +61,25 @@ export interface NotificationEvent {
   projectId?: string | null
 }
 
-interface Recipient {
-  id: string
-  email: string | null
-}
-
 /**
- * Everyone who can see a notification.
- *
- * Exported so a caller can decide there is no audience before doing work to
- * describe an event nobody will read.
- */
-export async function notificationRecipients(): Promise<Recipient[]> {
-  const supabase = createAdminClient()
-  const { data, error } = await supabase
-    .from('team_members')
-    .select('id, email')
-    .eq('active', true)
-    .not('auth_user_id', 'is', null)
-
-  if (error) {
-    console.error('[notifications] could not load recipients:', error.message)
-    return []
-  }
-  return (data ?? []) as Recipient[]
-}
-
-/**
- * Fan a batch of events out to every eligible recipient except each event's own
- * actor, in one insert.
+ * Announce a batch of events.
  *
  * Batched deliberately: a Drive sync produces a run's worth of arrivals at once,
- * and one insert per document per person would be dozens of round trips for a
- * single folder link.
+ * and one post per document would turn a single folder link into a wall of
+ * messages — which is how a channel teaches people to mute it. Grouping above a
+ * threshold is the caller's job (see `composeArrivalNotifications`).
  *
- * @returns how many notification rows were written.
+ * `actorEmail` is still carried on the event because callers use it to decide
+ * whether an event is worth describing at all; a Chat space has one audience, so
+ * there is no per-person actor exclusion to apply here.
+ *
+ * @returns how many events were announced — 0 when Chat is not configured.
  */
-export async function notifyTeam(
-  events: NotificationEvent[],
-  opts: { recipients?: Recipient[] } = {}
-): Promise<number> {
+export async function notifyTeam(events: NotificationEvent[]): Promise<number> {
   if (events.length === 0) return 0
-
   try {
-    const recipients = opts.recipients ?? (await notificationRecipients())
-    if (recipients.length === 0) return 0
-
-    const rows = []
-    for (const event of events) {
-      const actor = event.actorEmail?.trim().toLowerCase() || null
-      for (const person of recipients) {
-        if (actor && person.email?.trim().toLowerCase() === actor) continue
-        rows.push({
-          team_member_id: person.id,
-          kind: event.kind,
-          title: event.title,
-          body: event.body ?? null,
-          href: event.href ?? null,
-          external_url: event.externalUrl ?? null,
-          actor_name: event.actorName ?? null,
-          document_id: event.documentId ?? null,
-          project_id: event.projectId ?? null,
-        })
-      }
-    }
-    if (rows.length === 0) return 0
-
-    const { error } = await createAdminClient().from('notifications').insert(rows)
-    if (error) {
-      // 42P01 = the table does not exist yet. The code ships before the
-      // migration is applied, and a missing bell must not break a Drive sync.
-      if (error.code !== '42P01') {
-        console.error('[notifications] insert failed:', error.message)
-      }
-      return 0
-    }
-    return rows.length
+    const posted = await broadcastEvents(events)
+    return posted ? events.length : 0
   } catch (err) {
     console.error('[notifications] failed:', err instanceof Error ? err.message : String(err))
     return 0

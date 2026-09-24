@@ -5,7 +5,6 @@ import { usePathname } from 'next/navigation'
 import { useState, useEffect, useCallback } from 'react'
 import { Search, Sparkles } from 'lucide-react'
 import UserMenu from './UserMenu'
-import NotificationBell from './NotificationBell'
 import CommandPalette from './CommandPalette'
 import type { Role } from '@/lib/auth/permissions'
 import { pageTitle } from '@/lib/nav'
@@ -13,12 +12,10 @@ import { pageTitle } from '@/lib/nav'
 export default function AppHeader({
   email,
   role = 'admin',
-  unreadNotifications = 0,
 }: {
   email: string
   role?: Role
   /** Resolved server-side so the badge is correct on first paint. */
-  unreadNotifications?: number
 }) {
   const pathname = usePathname()
   const [paletteOpen, setPaletteOpen] = useState(false)
@@ -146,7 +143,6 @@ export default function AppHeader({
           {/* Every role gets the bell — knowing what a teammate just filed is
               not a cross-portfolio privilege, and the API scopes each inbox to
               its own team member. */}
-          <NotificationBell initialUnread={unreadNotifications} />
 
           <UserMenu email={email} />
         </div>

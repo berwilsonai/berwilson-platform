@@ -1,0 +1,17 @@
+-- The in-app notification bell is removed; Google Chat is the channel.
+--
+-- ⚠ MEASURED, NOT ASSUMED: across the 8 days the bell ran it wrote 52 rows and
+-- **0 were ever read or dismissed**. It could not have been otherwise — the bell
+-- lives inside a tailnet-only platform that most of the company cannot reach, so
+-- it was a channel with no audience. The same events have been mirrored to the
+-- Chat space since 2026-09-22, and that is where they actually get read.
+--
+-- ⚠ AND MIRRORING WAS OPT-IN PER CALL SITE, which is why the fan-out now lives
+-- in one function. Only 2 of the 4 callers paired their bell write with
+-- `broadcastEvents`, so a dev-note report and a below-floor quote needing
+-- approval reached NOBODY AT ALL — bell unread, no post. Both now announce.
+--
+-- All 52 rows were backed up and read back before this ran:
+--   ~/berwilson-data/backups/notifications-predrop-20260924-073146.sql.gz
+-- Nothing referenced the table (no FKs in, no triggers, no views).
+drop table if exists public.notifications;

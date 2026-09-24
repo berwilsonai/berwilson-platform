@@ -31,7 +31,6 @@ import { fetchThread, fetchAttachmentBytes } from '@/lib/integrations/google-wor
 import type { TablesInsert } from '@/lib/supabase/types'
 import { isOpportunityLive, isProjectLive, isSteelDealLive } from '@/lib/records/live'
 import { notifyTeam, type NotificationEvent } from '@/lib/notifications'
-import { broadcastEvents } from '@/lib/notifications/broadcast'
 import { sweepDb, type EmailThreadRow, type ThreadLinkRow, type LinkRecordKind } from './db'
 
 const BATCH = 100
@@ -266,11 +265,10 @@ export async function applyThreadUpdates(
     }
   }
 
-  // Both helpers swallow their own failures — a Chat outage or a missing
-  // notifications table must never cost correspondence that is already filed.
+  // Swallows its own failures — a Chat outage must never cost correspondence
+  // that is already filed.
   if (events.length > 0 && opts.announce !== false) {
     await notifyTeam(events)
-    await broadcastEvents(events)
   }
 
   return progress

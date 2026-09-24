@@ -99,24 +99,10 @@ export default async function RootLayout({
   let attentionCount = 0
   // Modules with nothing in them are hidden rather than shown as dead ends.
   let emptyModules: string[] = []
-  // The bell is for every role, so its count is resolved outside the admin-only
-  // block. One indexed count; skipped entirely for an account with no linked
-  // team member, which can have no notifications by construction.
-  let unreadNotifications = 0
   // Open bug reports / feature requests. Admin-only, like the other sidebar
   // counts — it is the builder's queue, and a number nobody can act on is
   // decoration on everyone else's screen.
   let openDevNoteCount = 0
-  if (showShell && viewer?.teamMemberId) {
-    const { count, error } = await createAdminClient()
-      .from('notifications')
-      .select('id', { count: 'exact', head: true })
-      .eq('team_member_id', viewer.teamMemberId)
-      .is('dismissed_at', null)
-      .is('read_at', null)
-    // 42P01 = migration not applied yet. An empty bell, not a broken shell.
-    if (!error) unreadNotifications = count ?? 0
-  }
   if (showShell && isAdmin) {
     const adminClient = createAdminClient()
     const today = new Date().toISOString().split('T')[0]
@@ -166,7 +152,7 @@ export default async function RootLayout({
           <div className="flex h-full">
             <AppSidebar pendingReviewCount={pendingReviewCount} attentionCount={attentionCount} openDevNoteCount={openDevNoteCount} role={role} emptyModules={emptyModules} />
             <div className="flex flex-1 flex-col min-w-0">
-              <AppHeader email={viewer?.email ?? ""} role={role} unreadNotifications={unreadNotifications} />
+              <AppHeader email={viewer?.email ?? ""} role={role} />
               <main className="flex-1 overflow-y-auto overflow-x-hidden p-5 sm:p-6 pb-24 md:pb-6 scrollbar-thin animate-fade-in-up">
                 {children}
                 {/* Mobile footer disclaimer */}

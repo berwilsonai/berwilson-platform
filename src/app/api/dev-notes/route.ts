@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getViewer, actorAdminClient } from '@/lib/auth/viewer'
 import { notifyTeam } from '@/lib/notifications'
-import { DEV_NOTE_SELECT, devNoteRecipients } from '@/lib/dev-notes/queries'
+import { DEV_NOTE_SELECT } from '@/lib/dev-notes/queries'
 import {
   DEV_NOTE_KINDS,
   DEV_NOTE_PRIORITIES,
@@ -101,28 +101,22 @@ export async function POST(request: NextRequest) {
     return Response.json({ error: error.message }, { status: 500 })
   }
 
-  // Tell the admins. A report nobody is told about sits in a table nobody
-  // opens — the silent-queue failure this platform has hit repeatedly.
-  // Best-effort in the strongest sense: it must never fail the report.
+  // A report nobody is told about sits in a table nobody opens — the
+  // silent-queue failure this platform has hit repeatedly, and this call site
+  // was one of its victims: until 2026-09-24 it wrote a bell row and nothing
+  // else, so every report reached an inbox with no reader. Best-effort in the
+  // strongest sense: it must never fail the report.
   try {
-    const admins = await devNoteRecipients()
-    if (admins.length > 0) {
-      await notifyTeam(
-        [
-          {
-            kind: 'dev_note',
-            title: `${DEV_NOTE_KIND_LABELS[kind]} reported: ${row.title}`,
-            body: row.body ? row.body.slice(0, 280) : row.page_path ? `On ${row.page_path}` : null,
-            href: `/dev-notes?note=${data.id}`,
-            actorName: row.reporter_name,
-            // Excludes the reporter from their own bell row when they are
-            // themselves an admin.
-            actorEmail: viewer.email,
-          },
-        ],
-        { recipients: admins }
-      )
-    }
+    await notifyTeam([
+      {
+        kind: 'dev_note',
+        title: `${DEV_NOTE_KIND_LABELS[kind]} reported: ${row.title}`,
+        body: row.body ? row.body.slice(0, 280) : row.page_path ? `On ${row.page_path}` : null,
+        href: `/dev-notes?note=${data.id}`,
+        actorName: row.reporter_name,
+        actorEmail: viewer.email,
+      },
+    ])
   } catch (err) {
     console.error('[dev-notes] notify failed:', err instanceof Error ? err.message : String(err))
   }

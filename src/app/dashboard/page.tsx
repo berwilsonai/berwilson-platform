@@ -11,13 +11,10 @@ import SortControls from '@/components/dashboard/SortControls'
 import PortfolioBriefButton from '@/components/dashboard/PortfolioBriefButton'
 import DailyBrief from '@/components/dashboard/DailyBrief'
 import HealthPanel from '@/components/dashboard/HealthPanel'
-import RiskOverview from '@/components/dashboard/RiskOverview'
 import NeedsAttention, { type LeadDue } from '@/components/dashboard/NeedsAttention'
 import NowObjectives, { type NowObjectiveItem } from '@/components/dashboard/NowObjectives'
 import Commitments from '@/components/dashboard/Commitments'
 import { loadOpenCommitments } from '@/lib/commitments/load'
-import VerticalRollup from '@/components/dashboard/VerticalRollup'
-import ClosingSoon, { type ClosingSoonItem } from '@/components/dashboard/ClosingSoon'
 import { weightedValue } from '@/lib/utils/constants'
 import { fetchOpenTasks } from '@/lib/tasks/queries'
 import { getViewer } from '@/lib/auth/viewer'
@@ -308,27 +305,6 @@ export default async function DashboardPage({ searchParams }: PageProps) {
   const pendingReview = await countDecideItems()
   const overdueCount = overdueRaw?.length ?? 0
 
-  // Closing soon: pre-award pursuits with a bid deadline, soonest first
-  const PRE_AWARD = new Set(['pursuit', 'capture', 'bid'])
-  const closingSoon: ClosingSoonItem[] = activeProjects
-    .filter((p) => {
-      const due = (p as { bid_due_date?: string | null }).bid_due_date
-      return due && PRE_AWARD.has(p.stage ?? 'pursuit')
-    })
-    .sort((a, b) => {
-      const da = (a as { bid_due_date?: string | null }).bid_due_date ?? ''
-      const db = (b as { bid_due_date?: string | null }).bid_due_date ?? ''
-      return da.localeCompare(db)
-    })
-    .slice(0, 8)
-    .map((p) => ({
-      id: p.id,
-      name: p.name,
-      bid_due_date: (p as { bid_due_date?: string | null }).bid_due_date ?? null,
-      estimated_value: p.estimated_value,
-      win_probability: (p as { win_probability?: number | null }).win_probability ?? null,
-    }))
-
   // Needs Attention data (cap display at 6 each). Critical system/compliance
   // items (mailbox, certs) render at the top of the same rail card.
   const overdueTasks = overdueTasksAll.filter((t) => t.due_date && t.due_date < today)
@@ -447,24 +423,23 @@ export default async function DashboardPage({ searchParams }: PageProps) {
 
         {/* Needs Attention — right on desktop, below cards on mobile */}
         <div className="w-full lg:w-72 xl:w-80 shrink-0 space-y-3">
-          {/* Closing soon — bid deadlines across the portfolio */}
-          <ClosingSoon items={closingSoon} />
+          {/* ⚠ THREE PANELS WERE REMOVED FROM THIS RAIL 2026-09-24, each for a
+              measured reason rather than for tidiness:
 
-          {/* How each vertical is doing */}
-          {activeProjects.length > 0 && (
-            <VerticalRollup
-              projects={activeProjects.map((p) => ({
-                sector: p.sector,
-                estimated_value: p.estimated_value,
-                win_probability: (p as { win_probability?: number | null }).win_probability ?? null,
-              }))}
-            />
-          )}
+              ClosingSoon — rendered unconditionally while **0 of 15 projects
+              have ever carried a bid_due_date**, so it was permanently empty
+              dead space at the top of the morning read.
 
-          {/* Risk overview */}
-          <Suspense>
-            <RiskOverview />
-          </Suspense>
+              VerticalRollup — a four-row breakdown of fourteen projects, for
+              two executives who know the portfolio by heart.
+
+              RiskOverview — a synthetic 0-100 score. The same argument retired
+              the synthetic health score from HealthPanel on 2026-07-03: show
+              real numbers, not a composite nobody can act on.
+
+              The components are deleted, not hidden. If bid dates ever start
+              landing on projects, the deadline belongs on the Projects list and
+              in the weekly brief, which already read that column. */}
 
           {/* Obligations read out of correspondence. Above NeedsAttention
               because a promise with a date on it outranks a queue count, and
