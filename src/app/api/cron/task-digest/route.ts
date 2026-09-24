@@ -60,7 +60,11 @@ export async function GET(request: NextRequest) {
     const result = await notify({ channel: CHANNEL, to: digest.email, subject, html })
 
     const taskCount = digest.overdue.length + digest.dueSoon.length
-    await supabase.from('notification_log').insert({
+    // This write IS the once-per-day guarantee, so a failure has to be loud.
+    // It failed silently from 2026-08-18 until 2026-09-24 (the table had no API
+    // grants), and because the error was discarded the run still reported a
+    // successful send while the guarantee did not hold.
+    const { error: logError } = await supabase.from('notification_log').insert({
       team_member_id: digest.memberId,
       channel: CHANNEL,
       kind: KIND,
@@ -69,6 +73,11 @@ export async function GET(request: NextRequest) {
       status: result.ok ? 'sent' : 'failed',
       error: result.ok ? null : result.error ?? 'unknown',
     })
+    if (logError) {
+      console.error(
+        `[task-digest] could not record the send for ${digest.email} — the once-per-day guard is not holding: ${logError.message}`,
+      )
+    }
 
     if (result.ok) sent++
     else {
