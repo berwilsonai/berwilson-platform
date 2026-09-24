@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.berwilson.cron-pepper-note</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/zsh</string>
+    <string>-c</string>
+    <string>curl -sS -m 1700 -H "Authorization: Bearer $(grep '^CRON_SECRET=' __APP_DIR__/.env.local | cut -d= -f2-)" http://localhost:3000/api/cron/pepper-note</string>
+  </array>
+  <!--
+    Weekdays at 6:50am local — Pepper's morning note, one email per executive.
+
+    ⚠ THE SLOT IS A CORRECTNESS CONSTRAINT, NOT A PREFERENCE. LM Studio serves
+    ONE request at a time (parallel 1) and nothing in this codebase queues or
+    throttles calls to it; pacing is wall-clock budgets alone. The morning is
+    already crowded:
+
+      04:30  lead sweep      (long, many calls)
+      06:30  weekly brief    (Mondays only, one ~90s call)
+      06:50  THIS            (one call per person, run sequentially)
+      07:00  daily digest    (one call)
+
+    6:50 leaves the brief time to finish and puts this in front of the digest
+    rather than behind it, because the digest is the one message that must not
+    slip — it is what the space is used to seeing at 7. Two people at roughly
+    60-170s each fits the gap; a third executive would not, and the right answer
+    then is an earlier slot, never a parallel one.
+
+    No weekend entries, matching the digest: a Saturday note listing the same
+    commitments as Friday's is how a reader learns to filter it.
+  -->
+  <key>StartCalendarInterval</key>
+  <array>
+    <dict><key>Weekday</key><integer>1</integer><key>Hour</key><integer>6</integer><key>Minute</key><integer>50</integer></dict>
+    <dict><key>Weekday</key><integer>2</integer><key>Hour</key><integer>6</integer><key>Minute</key><integer>50</integer></dict>
+    <dict><key>Weekday</key><integer>3</integer><key>Hour</key><integer>6</integer><key>Minute</key><integer>50</integer></dict>
+    <dict><key>Weekday</key><integer>4</integer><key>Hour</key><integer>6</integer><key>Minute</key><integer>50</integer></dict>
+    <dict><key>Weekday</key><integer>5</integer><key>Hour</key><integer>6</integer><key>Minute</key><integer>50</integer></dict>
+  </array>
+  <key>StandardOutPath</key>
+  <string>__LOG_DIR__/cron-pepper-note.log</string>
+  <key>StandardErrorPath</key>
+  <string>__LOG_DIR__/cron-pepper-note.err.log</string>
+</dict>
+</plist>

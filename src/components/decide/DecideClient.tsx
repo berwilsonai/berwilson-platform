@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import { toast } from 'sonner'
-import { Radar, Inbox, ClipboardCheck, ArrowRight, X, Loader2, Check } from 'lucide-react'
+import { Radar, Inbox, ClipboardCheck, ArrowRight, X, Loader2, Check, CheckCheck } from 'lucide-react'
 import { Panel } from '@/components/ui/card'
 import EmptyState from '@/components/shared/EmptyState'
 import { decideWeight, daysUntil } from '@/lib/decide/rank'
@@ -32,6 +32,16 @@ export interface DecideItem {
   acceptName?: string | null
   /** Why Accept is unavailable. Shown in place of the button. */
   blocker?: string | null
+  /**
+   * 0-1 — how sure the pre-decision was, where one was made.
+   *
+   * Used to draw the batch, never shown as a number. §12 says a fit_score
+   * carries ±20 points of noise and must not be sorted or thresholded on; this
+   * is a different quantity (the intake pre-decision's own confidence, measured
+   * at 0.93 average across the 80-item backlog) and it is still only ever used
+   * to pick a default selection a human then looks at.
+   */
+  confidence?: number | null
 }
 
 /**
@@ -178,6 +188,17 @@ export default function DecideClient({ items }: { items: DecideItem[] }) {
   const [dismissed, setDismissed] = useState<Set<string>>(new Set())
   const [pending, setPending] = useState<string | null>(null)
   const [asking, setAsking] = useState<Dated | null>(null)
+  // Rows ticked for a batch accept, keyed `kind:id` like everything else here.
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [askingBatch, setAskingBatch] = useState(false)
+  // Progress through a running batch. Null when none is running — a batch of
+  // seventy takes long enough that a silent page would look frozen.
+  const [bulk, setBulk] = useState<{
+    total: number
+    done: number
+    failed: number
+    label: string
+  } | null>(null)
   // Captured once at mount rather than read during render: a clock read while
   // rendering is impure, and the list must not silently reorder itself between
   // two renders of the same data.
@@ -207,6 +228,35 @@ export default function DecideClient({ items }: { items: DecideItem[] }) {
     for (const i of live) c[i.kind]++
     return c
   }, [live])
+
+  /** Only a row that can actually be accepted from the list can be ticked. */
+  const selectable = useMemo(() => visible.filter((i) => i.accept), [visible])
+  const selectedItems = useMemo(
+    () => live.filter((i) => selected.has(`${i.kind}:${i.id}`) && i.accept),
+    [live, selected]
+  )
+
+  /**
+   * The rows the machine already decided on and was confident about.
+   *
+   * ⚠ Measured on 2026-09-24, not guessed: of 80 staged sessions, 74 were
+   * `create` and 6 `merge`, none said dismiss, and the average confidence was
+   * 0.93 with 74 of 80 at or above this threshold. The oldest had been waiting
+   * since 12 July. This button is what that backlog was waiting for.
+   */
+  const confident = useMemo(
+    () => selectable.filter((i) => (i.confidence ?? 0) >= 0.85),
+    [selectable]
+  )
+
+  function toggle(key: string) {
+    setSelected((prev) => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  }
 
   async function dismiss(item: Dated) {
     const key = `${item.kind}:${item.id}`
@@ -239,6 +289,31 @@ export default function DecideClient({ items }: { items: DecideItem[] }) {
   }
 
   /**
+   * The write behind an accept. Throws on failure so both the single-row path
+   * and the batch can decide for themselves what to say about it.
+   */
+  async function performAccept(item: Dated) {
+    if (!item.accept) return
+    if (item.kind === 'intake' && item.accept === 'merge') {
+      await post('/api/email-ingestion/merge', { session_id: item.id })
+    } else if (item.kind === 'intake') {
+      // Fetched rather than reconstructed here: the draft is built from the
+      // full extraction by the same function the review form uses, so the
+      // two paths cannot produce different records.
+      const draft = await getJson(`/api/email-ingestion/sessions/${item.id}`)
+      await post('/api/email-ingestion/confirm', (draft as { body: unknown }).body)
+    } else if (item.kind === 'lead') {
+      if (item.accept === 'forward') {
+        await post(`/api/leads/${item.id}/forward`, {})
+      } else {
+        await post(`/api/leads/${item.id}/promote`, { target: item.accept })
+      }
+    } else {
+      await patch(`/api/review/${item.id}`, { resolution: 'approved' })
+    }
+  }
+
+  /**
    * Carry out an accept. Optimistic like dismiss, and reverted the same way —
    * but the toast names what was created, because a row that simply disappears
    * gives no evidence that a record now exists somewhere.
@@ -249,23 +324,7 @@ export default function DecideClient({ items }: { items: DecideItem[] }) {
     const copy = ACCEPT_COPY[item.accept]
     setPending(key)
     try {
-      if (item.kind === 'intake' && item.accept === 'merge') {
-        await post('/api/email-ingestion/merge', { session_id: item.id })
-      } else if (item.kind === 'intake') {
-        // Fetched rather than reconstructed here: the draft is built from the
-        // full extraction by the same function the review form uses, so the
-        // two paths cannot produce different records.
-        const draft = await getJson(`/api/email-ingestion/sessions/${item.id}`)
-        await post('/api/email-ingestion/confirm', (draft as { body: unknown }).body)
-      } else if (item.kind === 'lead') {
-        if (item.accept === 'forward') {
-          await post(`/api/leads/${item.id}/forward`, {})
-        } else {
-          await post(`/api/leads/${item.id}/promote`, { target: item.accept })
-        }
-      } else {
-        await patch(`/api/review/${item.id}`, { resolution: 'approved' })
-      }
+      await performAccept(item)
       setDismissed((prev) => new Set(prev).add(key))
       toast.success(copy.done, { description: item.acceptName ?? item.title })
     } catch (err) {
@@ -273,6 +332,55 @@ export default function DecideClient({ items }: { items: DecideItem[] }) {
     } finally {
       setPending(null)
       setAsking(null)
+    }
+  }
+
+  /**
+   * Accept everything selected, ONE AT A TIME.
+   *
+   * ⚠ Sequential on purpose, and it is not a UI preference. Each accept writes
+   * a record with its people, tasks and attachments, publishes documents to
+   * Drive, and on this box shares one local model that serves a single request
+   * at a time. Firing seventy of those at once queues them behind each other
+   * with seventy open transactions and no way to say which one failed.
+   *
+   * A failure does NOT stop the run — the rest of the batch is still good work,
+   * and the failed rows stay in the queue where they can be looked at one by
+   * one. What must never happen is a row vanishing without being written, so
+   * only rows that actually succeeded are marked done.
+   */
+  async function acceptSelected(batch: Dated[]) {
+    setAskingBatch(false)
+    setBulk({ total: batch.length, done: 0, failed: 0, label: batch[0]?.title ?? '' })
+    let done = 0
+    let failed = 0
+    const failures: string[] = []
+
+    for (const item of batch) {
+      setBulk({ total: batch.length, done, failed, label: item.title })
+      try {
+        await performAccept(item)
+        done++
+        const key = `${item.kind}:${item.id}`
+        setDismissed((prev) => new Set(prev).add(key))
+        setSelected((prev) => {
+          const next = new Set(prev)
+          next.delete(key)
+          return next
+        })
+      } catch (err) {
+        failed++
+        failures.push(`${item.title}: ${err instanceof Error ? err.message : 'failed'}`)
+      }
+    }
+
+    setBulk(null)
+    if (failed === 0) {
+      toast.success(`${done} accepted`, { description: 'Records created and filed.' })
+    } else {
+      toast.warning(`${done} accepted, ${failed} could not be`, {
+        description: `${failures[0]}${failures.length > 1 ? ` (+${failures.length - 1} more)` : ''}`,
+      })
     }
   }
 
@@ -314,6 +422,72 @@ export default function DecideClient({ items }: { items: DecideItem[] }) {
         )}
       </div>
 
+      {/* The batch bar. Present whenever there is anything to batch, because a
+          control that only appears once you have already started selecting is
+          one nobody discovers — and the whole point is to offer the shortcut
+          before the reader resigns themselves to clicking seventy times. */}
+      {(selectable.length > 0 || bulk) && (
+        <Panel className="px-4 py-2.5 flex flex-wrap items-center gap-x-3 gap-y-2">
+          {bulk ? (
+            <>
+              <Loader2 size={14} className="animate-spin text-primary shrink-0" />
+              <span className="text-sm">
+                Accepting {bulk.done + bulk.failed + 1} of {bulk.total}
+                <span className="text-muted-foreground"> — {bulk.label}</span>
+              </span>
+              {bulk.failed > 0 && (
+                <span className="text-xs text-amber-700 dark:text-amber-400 tnum">
+                  {bulk.failed} failed, continuing
+                </span>
+              )}
+            </>
+          ) : (
+            <>
+              <span className="text-sm text-muted-foreground">
+                {selected.size > 0
+                  ? `${selectedItems.length} selected`
+                  : `${selectable.length} can be accepted from here`}
+              </span>
+              <div className="flex flex-wrap items-center gap-1.5 ml-auto">
+                {confident.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setSelected(new Set(confident.map((i) => `${i.kind}:${i.id}`)))
+                    }
+                    className="inline-flex items-center h-11 sm:h-7 px-3 sm:px-2.5 rounded-md text-xs font-medium bg-card ring-1 ring-inset ring-border hover:bg-accent transition-colors"
+                  >
+                    Select the {confident.length} Ber AI is sure about
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() =>
+                    setSelected(
+                      selected.size >= selectable.length
+                        ? new Set()
+                        : new Set(selectable.map((i) => `${i.kind}:${i.id}`))
+                    )
+                  }
+                  className="inline-flex items-center h-11 sm:h-7 px-3 sm:px-2.5 rounded-md text-xs font-medium bg-card ring-1 ring-inset ring-border hover:bg-accent transition-colors"
+                >
+                  {selected.size >= selectable.length ? 'Clear' : 'Select all shown'}
+                </button>
+                <button
+                  type="button"
+                  disabled={selectedItems.length === 0}
+                  onClick={() => setAskingBatch(true)}
+                  className="inline-flex items-center gap-1.5 h-11 sm:h-7 px-3 sm:px-2.5 rounded-md text-xs font-medium bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-40 transition-colors"
+                >
+                  <CheckCheck size={13} />
+                  Accept {selectedItems.length > 0 ? selectedItems.length : ''}
+                </button>
+              </div>
+            </>
+          )}
+        </Panel>
+      )}
+
       <Panel className="divide-y divide-border">
         {visible.map((item) => {
           const meta = KIND_META[item.kind]
@@ -325,7 +499,26 @@ export default function DecideClient({ items }: { items: DecideItem[] }) {
               key={`${item.kind}:${item.id}`}
               className="flex items-start gap-3 px-4 py-3 hover:bg-accent transition-colors group"
             >
-              <Icon size={14} className="mt-0.5 shrink-0 text-muted-foreground" />
+              {/* Only acceptable rows get a tick box. A checkbox that selects
+                  something the batch would then refuse is a promise the list
+                  cannot keep, so a blocked row keeps its icon and its reason. */}
+              {item.accept ? (
+                <label className="relative mt-0.5 shrink-0 inline-flex items-center justify-center cursor-pointer">
+                  {/* 44px hit area via an overlay, never padding — padding here
+                      shifts the row under the next tap. */}
+                  <span className="absolute -inset-3" aria-hidden />
+                  <input
+                    type="checkbox"
+                    checked={selected.has(`${item.kind}:${item.id}`)}
+                    onChange={() => toggle(`${item.kind}:${item.id}`)}
+                    disabled={Boolean(bulk)}
+                    aria-label={`Select: ${item.title}`}
+                    className="relative size-3.5 accent-primary cursor-pointer disabled:opacity-40"
+                  />
+                </label>
+              ) : (
+                <Icon size={14} className="mt-0.5 shrink-0 text-muted-foreground" />
+              )}
               {/* The row's own link. The dismiss control is a SIBLING, never
                   nested — a button inside an anchor is invalid markup and
                   hydrates badly. */}
@@ -416,6 +609,17 @@ export default function DecideClient({ items }: { items: DecideItem[] }) {
           )
         })}
       </Panel>
+
+      {askingBatch && selectedItems.length > 0 && (
+        <ConfirmDialog
+          open
+          onOpenChange={(o) => !o && setAskingBatch(false)}
+          title={`Accept ${selectedItems.length} items`}
+          description={`Create the records for all ${selectedItems.length} selected items, with their people, tasks and attachments? They are written one at a time and anything that fails stays in the queue.`}
+          confirmLabel={`Accept ${selectedItems.length}`}
+          onConfirm={() => acceptSelected(selectedItems)}
+        />
+      )}
 
       {asking && asking.accept && (
         <ConfirmDialog

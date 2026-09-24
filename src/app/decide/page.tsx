@@ -113,6 +113,7 @@ export default async function DecidePage() {
       verdict: pre?.disposition ?? null,
       score: Number.isFinite(score) ? score : null,
       note: pre?.headline ?? pre?.reason ?? null,
+      confidence: pre?.confidence ?? null,
       deadline: null,
       accept:
         pre?.disposition === 'merge'
@@ -176,6 +177,8 @@ function readPredecision(raw: unknown): {
   merge_target_name?: string | null
   headline?: string | null
   reason?: string | null
+  /** 0-1. How sure the pre-decision was — read but never shown as a number. */
+  confidence?: number | null
 } | null {
   if (!raw || typeof raw !== 'object') return null
   const o = raw as Record<string, unknown>
@@ -186,5 +189,6 @@ function readPredecision(raw: unknown): {
     merge_target_name: typeof o.merge_target_name === 'string' ? o.merge_target_name : null,
     headline: typeof o.headline === 'string' ? o.headline : null,
     reason: typeof o.reason === 'string' ? o.reason : null,
+    confidence: typeof o.confidence === 'number' && isFinite(o.confidence) ? o.confidence : null,
   }
 }
