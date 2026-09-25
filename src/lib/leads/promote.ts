@@ -413,6 +413,11 @@ export async function promoteLead(
     }
   } else {
     const leadSource = canonicalLeadSource('Inbound Email', await leadSourcesInUse(supabase))
+    // Carry across every field the quote generator asks for. A steel deal is
+    // promoted in order to be QUOTED, and quoteReadiness() blocks on the site
+    // address, the scope line and a named estimator — all three of which the
+    // lead already knows. Leaving them null meant a promotion that looked
+    // successful and then produced a Quote button that could not be pressed.
     const { data, error } = await supabase
       .from('steel_deals')
       .insert({
@@ -424,6 +429,12 @@ export async function promoteLead(
         description: originNote(lead),
         value: lead.estimated_value,
         salesperson_id: opts.salespersonId ?? null,
+        site_address: lead.location,
+        scope_summary: lead.scope,
+        // The bid date is the whole reason this is urgent; without it the deal
+        // lands with no next step and sinks to the bottom of its column.
+        next_step: 'Price the steel package and return a quote',
+        next_step_date: lead.bid_due_date ?? lead.site_visit_date,
       })
       .select('id')
       .single()

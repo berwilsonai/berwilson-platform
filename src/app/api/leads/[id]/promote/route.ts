@@ -48,7 +48,15 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         (typeof body.capture_lead === 'string' && body.capture_lead.trim()) ||
         viewer.teamMemberName ||
         null,
-      salespersonId: typeof body.salesperson_id === 'string' ? body.salesperson_id : null,
+      // Same reasoning as capture_lead: a steel deal with no salesperson is
+      // owned by nobody, and "My Pipeline" — the board's default scope — filters
+      // on exactly that column, so an unassigned deal is created and then
+      // invisible to everyone who looks for it. Whoever promoted it owns it
+      // until they hand it over.
+      salespersonId:
+        (typeof body.salesperson_id === 'string' && body.salesperson_id.trim()) ||
+        viewer.teamMemberId ||
+        null,
     })
     // The thread now reads "Promoted" in the mailbox, so nobody works it twice.
     refreshLeadLabel({ ...lead, status: 'promoted' })

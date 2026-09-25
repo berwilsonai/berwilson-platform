@@ -13,6 +13,7 @@ import {
   CircleAlert,
   CircleDashed,
   Clock,
+  UserRoundX,
   GripVertical,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -43,7 +44,7 @@ const BOARD_STAGES: SteelStage[] = [...STEEL_PIPELINE, 'lost']
 
 type Scope = 'mine' | 'all'
 type View = 'board' | 'list'
-type Attn = '' | 'overdue' | 'no_next' | 'stale'
+type Attn = '' | 'overdue' | 'no_next' | 'stale' | 'unowned'
 
 interface SteelPipelineBoardProps {
   items: SteelDealCardData[]
@@ -98,14 +99,24 @@ export default function SteelPipelineBoard({
     [items]
   )
 
-  // Scope → "my book" (deals I'm the salesperson on) or everyone's.
-  const scoped = useMemo(
-    () =>
-      effScope === 'mine' && myMemberId
-        ? items.filter((i) => i.deal.salesperson_id === myMemberId)
-        : items,
-    [items, effScope, myMemberId]
+  // Deals with no salesperson at all. Counted over EVERY deal, never the
+  // scoped set: an unowned deal is in nobody's book, so "My Pipeline" — the
+  // default scope — filters it out of existence. A lead promoted to steel
+  // without an estimator was created, was correct, and was visible to no one.
+  // Scoping is deliberately bypassed when this chip is on, or the chip could
+  // only ever reveal what the scope had already discarded.
+  const unowned = useMemo(
+    () => new Set(items.filter((i) => !i.deal.salesperson_id).map((i) => i.deal.id)),
+    [items]
   )
+
+  // Scope → "my book" (deals I'm the salesperson on) or everyone's.
+  const scoped = useMemo(() => {
+    if (attn === 'unowned') return items.filter((i) => unowned.has(i.deal.id))
+    return effScope === 'mine' && myMemberId
+      ? items.filter((i) => i.deal.salesperson_id === myMemberId)
+      : items
+  }, [items, effScope, myMemberId, attn, unowned])
 
   // Attention counts computed on the scoped set (before the source/sales narrowing
   // so the chips reflect the whole book being viewed).
@@ -130,6 +141,7 @@ export default function SteelPipelineBoard({
         if (attn === 'overdue' && !attnStats.overdue.has(deal.id)) return false
         if (attn === 'no_next' && !attnStats.noNext.has(deal.id)) return false
         if (attn === 'stale' && !attnStats.stale.has(deal.id)) return false
+        // 'unowned' is applied in `scoped`, above — it has to outrank the scope.
         return true
       }),
     [scoped, source, sales, effScope, attn, attnStats]
@@ -240,12 +252,16 @@ export default function SteelPipelineBoard({
       </div>
 
       {/* Needs-attention chips */}
-      {(attnStats.overdue.size > 0 || attnStats.noNext.size > 0 || attnStats.stale.size > 0) && (
+      {(attnStats.overdue.size > 0 ||
+        attnStats.noNext.size > 0 ||
+        attnStats.stale.size > 0 ||
+        unowned.size > 0) && (
         <div className="flex items-center gap-2 flex-wrap">
           <span className="label-caps text-muted-foreground mr-0.5">Needs attention</span>
           {chip('overdue', 'overdue', attnStats.overdue.size, CircleAlert, 'bg-red-50 text-red-700 ring-red-200 dark:bg-red-500/15 dark:text-red-300 dark:ring-red-500/30')}
           {chip('no_next', 'no next step', attnStats.noNext.size, CircleDashed, 'bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-500/15 dark:text-amber-300 dark:ring-amber-500/30')}
           {chip('stale', `stale (>${STALE_DAYS}d)`, attnStats.stale.size, Clock, 'bg-slate-100 text-slate-700 ring-slate-200 dark:bg-slate-400/15 dark:text-slate-300 dark:ring-slate-400/25')}
+          {chip('unowned', 'unassigned', unowned.size, UserRoundX, 'bg-violet-50 text-violet-700 ring-violet-200 dark:bg-violet-500/15 dark:text-violet-300 dark:ring-violet-500/30')}
           {attn && (
             <button onClick={() => setAttn('')} className="text-xs text-muted-foreground hover:text-foreground transition-colors">
               Clear
