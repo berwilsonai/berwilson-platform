@@ -11,7 +11,22 @@ Split out of `CLAUDE.md` on 2026-09-23, when that file reached 606k characters a
 - A block of **2026-08-23 → 2026-08-31** entries sits *after* the June entries, near the end of the file.
 - One **2026-07-03** entry ("migrations applied + pursuit profile seeded") is last in the file.
 
-122 entries, 2026-06-22 → 2026-09-24.
+123 entries, 2026-06-22 → 2026-09-24.
+
+---
+
+**Done 2026-09-24 (a lead promoted to the Steel CRM disappeared; DEPLOYED):**
+- **Richard's report: "I had a lead come through and I sent it to the Steel CRM. The problem is it just disappeared. It should have gone and created an opportunity in the steel CRM with all the information possible. In an ideal world it then just gets quoted by clicking our quoting tool."**
+- **⚠ THE RECORD WAS CREATED, WAS CORRECT, AND WAS VISIBLE TO NOBODY.** `steel_deals` held the deal — *Bid Solicitation & Site Walk · Silo Park Place Adaptive Reuse*, Kier Construction, $8M, stage `quote`, created 11:53:58, Drive folder published, the lead marked `promoted` and its thread linked. Nothing had failed. But `SteelPipelineBoard` defaults `scope` to **`'mine'` whenever the viewer is linked to a `team_member`**, and `'mine'` filters on `deal.salesperson_id === myMemberId` — while `/api/leads/[id]/promote` **never sent a `salesperson_id`**. `LeadDetailSheet.promote()` posts `{ target }` and nothing else. So the deal was created **unassigned**, and an unassigned deal is in nobody's book: not Richard's, not Eric's, not the default view of either. **Measured across the whole table: 2 of 7 steel deals had no salesperson, and both were invisible to every viewer who opened the page** (the other being *Hawaii home*).
+- **The one-field-over comparison is the tell.** The same route already defaults `capture_lead` to `viewer.teamMemberName` for exactly this reason — *"an owner-less pursuit is the thing this replaces"*. The steel branch took `opts.salespersonId ?? null` and no caller ever passed one.
+- **⚠ AND THE QUOTE BUTTON COULD NOT HAVE BEEN PRESSED EITHER.** `quoteReadiness()` blocks on **square footage, a priced material line, the owner, the site address, the scope summary, a named estimator, and company contact details**. The promoted deal carried the owner and nothing else — `site_address`, `scope_summary`, `salesperson_id`, `next_step` and `next_step_date` were all NULL — **while the lead itself already held two of them**: `location` = *470 West 600 South, Salt Lake City, UT 84101* and `scope` = *"Adaptive reuse of two adjacent buildings including demolition, structural metal framing, roofing, HVAC, MEP, and finish trades."* A promotion that reports success and then hands over a disabled button is the same failure as the invisible card, one screen later.
+- **Three changes.**
+  - The promote route **defaults `salesperson_id` to whoever clicked**, beside the `capture_lead` default it mirrors.
+  - `promoteLead`'s steel branch **carries `site_address` from the lead's location, `scope_summary` from its scope, and the bid date into `next_step_date`** under a named next step (*"Price the steel package and return a quote"*). The bid date is the reason the deal is urgent; without it the card sorted to the bottom of its own column under `next_step_date ?? '9999-99-99'`.
+  - The board grows an **"unassigned" attention chip**, counted over **every** deal and **bypassing the owner scope when active** — a chip computed on the scoped set could only ever reveal what the scope had already discarded. A deal in nobody's book can no longer be hidden from everybody.
+- **The swallowed deal was backfilled from its own lead** (owner, address, scope, next step + the 2026-09-22 site-walk date), so it is now in Richard's pipeline with two honest blockers left: **square footage and a priced line**. Neither is inventable — the email never states a building size. Confirmed the quoting tool itself is fine: `company_profile` carries email and phone, and `steel_quotes` already holds 2 generated quotes.
+- **Verified:** `tsc --noEmit` clean, `next build` clean, deployed with `launchctl kickstart`, `deploy/tailnet-setup.sh` green on all three endpoints.
+- **Note on the ask's wording:** "created an opportunity in the steel CRM" — the Steel CRM has no `opportunities`; its record type is a `steel_deal`, which is what promotion creates. Nothing is missing there.
 
 ---
 

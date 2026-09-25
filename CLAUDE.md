@@ -396,6 +396,8 @@ Distilled from the build log. Each line is a bug that cost real hours — severa
 - **A fuzzy threshold is measured against the real corpus, never chosen.** And a score too low to act on is still worth SUGGESTING — "closest in the mail" costs the reader a glance; an auto-resolve at the same confidence files the wrong person. — 09-24
 - **A thread with more than ~15 participants is a distribution list, not a conversation.** Its recipients are not a deal cast: two 35-recipient invitations buried the five people who mattered under thirty strangers. Measured — 2,391 of 2,436 threads have five or fewer. — 09-24
 - **`matchesPrefix` is NOT method-aware** — allowlisting a read path grants every mutation under it. Routes carry their own guards regardless. — 09-22
+- **A record created with no owner is invisible under a default "mine" scope.** A lead promoted to steel landed with `salesperson_id` NULL against a board that defaults to filtering on exactly that column — created, correct, and in nobody's pipeline. Default the owner to whoever acted, and never let an unowned record be hideable: count it over the WHOLE set, outside the scope. — 09-24
+- **A promotion that creates a record must carry everything the record's next button needs.** The steel deal's Quote button is gated by `quoteReadiness()`, and two of its blockers (site address, scope line) were sitting on the lead unread. Reporting success and then handing over a disabled button is the same failure one screen later. — 09-24
 - **User-initiated mutations on tracked tables use `actorAdminClient()`**, not `createAdminClient()`, or the activity log says "system". — 07-03
 - **Task owners and contacts are one person** — `team_members.party_id` ties them; adding or using an owner maintains the contact. — 07-21
 - **New UI uses the Panel / Chip / `label-caps` idiom and `.elev-*`, never raw `shadow-*`.** No glassmorphism, no animated numbers, color only for status meaning. Date fields use `DatePicker`, never a native `<input type="date">`. — 07-17, 07-10
@@ -448,6 +450,7 @@ Env vars re-checked against `.env.local` on 2026-09-23. Everything else is **as 
 
 Newest first; full entries in `docs/BUILD-LOG.md`.
 
+- **09-24** — a lead promoted to the Steel CRM disappeared: created, correct, and in nobody's pipeline (DEPLOYED)
 - **09-24** — Pepper: a morning note addressed to a person, and one stack to approve (DEPLOYED)
 - **09-24** — a stack of business cards, scanned at once and reviewed once; the scanner finally asks whether it already has the person (DEPLOYED + MIGRATED)
 - **09-24** — People Intake: enter a cast, get their profiles out of the mail already on file, attach them to the deal (DEPLOYED + MIGRATED)
