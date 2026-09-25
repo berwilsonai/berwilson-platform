@@ -9,6 +9,7 @@
 
 import { sweepDb } from './db'
 import { upsertLink } from './route-phase'
+import { learnIdentifiers } from './identifiers'
 
 /**
  * Tie every thread in the confirmed cluster to the record it became.
@@ -78,6 +79,13 @@ export async function linkClusterToRecord(
             seed
           )
         }
+
+        // Confirming or merging is the same statement the hand-file button makes,
+        // so it teaches the same thing: the parcels and owning entities this
+        // conversation was identified by, so the next email about that ground
+        // files itself rather than staging a second proposal for the same deal.
+        if (projectId) await learnIdentifiers(thread.id, 'project', projectId)
+        if (opportunityId) await learnIdentifiers(thread.id, 'opportunity', opportunityId)
       }
     }
   } catch (err) {

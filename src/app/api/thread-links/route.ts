@@ -2,6 +2,8 @@ import { NextRequest } from 'next/server'
 import { getViewer, forbiddenJson } from '@/lib/auth/viewer'
 import { sweepDb } from '@/lib/email-sweep/db'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { learnIdentifiers, threadsMatchingIdentifiers } from '@/lib/email-sweep/identifiers'
+import { routeThreads } from '@/lib/email-sweep/route-phase'
 
 /**
  * Filing correspondence onto a record, by hand.
@@ -100,6 +102,12 @@ export async function POST(request: NextRequest) {
   // Filing a conversation is saying it belongs here, not asking for its whole
   // history to be re-posted into the record's feed — only what arrives next
   // should appear as new activity.
+  //
+  // ATTACHMENTS ARE THE OPPOSITE, and left at the column default of 0 so they
+  // all import. That asymmetry is the point: the text of old mail is not news,
+  // but a deed, a plat map or a title commitment is a permanent artifact and
+  // belongs on the record whenever it arrived. Sharing one cursor is why filing
+  // a thread used to bring no documents with it at all.
   const { data: thread } = await sweepDb()
     .from('email_threads')
     .select('message_count')
@@ -123,7 +131,35 @@ export async function POST(request: NextRequest) {
     )
   if (error) return Response.json({ error: error.message }, { status: 500 })
 
-  return Response.json({ ok: true })
+  // Filing is a statement about what this conversation IS, so it is worth
+  // learning from. A title company's mail names a parcel and an owner and never
+  // the deal, so nothing in it will ever match a record by name — but the parcel
+  // belongs to that ground permanently. Recording it turns this one click into a
+  // rule, and re-routing the threads that carry it means the siblings already
+  // refused by the router land too, rather than only the next email.
+  const learned = await learnIdentifiers(body.thread_id, kind, body.record_id)
+  let alsoFiled = 0
+  if (learned.length > 0) {
+    const siblings = await threadsMatchingIdentifiers(learned)
+    const others = siblings.filter((id) => id !== body.thread_id)
+    if (others.length > 0) {
+      // Non-fatal, and bounded by the caller's own patience: the filing itself
+      // has already succeeded, so a routing failure costs only that the siblings
+      // need the same click.
+      try {
+        const routed = await routeThreads({ threadIds: others, includeRouted: true })
+        alsoFiled = routed.linked
+      } catch (err) {
+        console.error('[thread-links] could not re-route siblings:', err)
+      }
+    }
+  }
+
+  return Response.json({
+    ok: true,
+    learned: learned.map((i) => i.value),
+    also_filed: alsoFiled,
+  })
 }
 
 /** Unfile a thread — the correction path for a wrong filing. */
@@ -203,7 +239,7 @@ async function suggestThreads(names: string[], filedIds: Set<string>): Promise<T
 
     const { data, error } = await sweepDb()
       .from('email_threads')
-      .select('id, subject, mailbox, last_at, message_count, attachment_count, summary')
+      .select('id, subject, mailbox, gmail_thread_id, last_at, message_count, attachment_count, summary')
       .or(`subject.ilike."%${safe}%",raw_markdown.ilike."%${safe}%"`)
       .order('last_at', { ascending: false })
       .limit(25)
@@ -216,6 +252,7 @@ async function suggestThreads(names: string[], filedIds: Set<string>): Promise<T
       id: string
       subject: string | null
       mailbox: string | null
+      gmail_thread_id: string | null
       last_at: string | null
       message_count: number | null
       attachment_count: number | null
@@ -226,6 +263,7 @@ async function suggestThreads(names: string[], filedIds: Set<string>): Promise<T
         id: raw.id,
         subject: raw.subject,
         mailbox: raw.mailbox,
+        gmail_thread_id: raw.gmail_thread_id,
         last_at: raw.last_at,
         message_count: raw.message_count,
         attachment_count: raw.attachment_count,
@@ -243,6 +281,8 @@ interface ThreadView {
   id: string
   subject: string | null
   mailbox: string | null
+  /** Carried so the panel can link straight to the conversation in Gmail. */
+  gmail_thread_id: string | null
   last_at: string | null
   message_count: number | null
   attachment_count: number | null
@@ -253,7 +293,7 @@ async function loadThreads(ids: string[]): Promise<ThreadView[]> {
   if (ids.length === 0) return []
   const { data } = await sweepDb()
     .from('email_threads')
-    .select('id, subject, mailbox, last_at, message_count, attachment_count, summary')
+    .select('id, subject, mailbox, gmail_thread_id, last_at, message_count, attachment_count, summary')
     .in('id', ids)
     .order('last_at', { ascending: false })
 
@@ -261,6 +301,7 @@ async function loadThreads(ids: string[]): Promise<ThreadView[]> {
     id: string
     subject: string | null
     mailbox: string | null
+    gmail_thread_id: string | null
     last_at: string | null
     message_count: number | null
     attachment_count: number | null
@@ -269,6 +310,7 @@ async function loadThreads(ids: string[]): Promise<ThreadView[]> {
     id: t.id,
     subject: t.subject,
     mailbox: t.mailbox,
+    gmail_thread_id: t.gmail_thread_id,
     last_at: t.last_at,
     message_count: t.message_count,
     attachment_count: t.attachment_count,

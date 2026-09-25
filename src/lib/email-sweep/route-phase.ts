@@ -57,6 +57,18 @@ import {
   type LinkRecordKind,
   type LinkCertainty,
 } from './db'
+/**
+ * Identifiers are READ here and LEARNED elsewhere, deliberately.
+ *
+ * Only a human filing decision teaches one — the hand-file button, a confirmed
+ * or merged intake session. The router matching on an identifier it had taught
+ * itself would compound: a forwarded chain that mentions the neighbouring parcel
+ * in passing would attach that parcel to the record, and the next deal about the
+ * neighbour would file here. Every identifier traces back to someone saying
+ * "this thread belongs on this record", which is what makes a misfiling
+ * correctable by undoing that one act.
+ */
+import { extractIdentifiers, loadIdentifiers } from './identifiers'
 
 /**
  * PostgREST takes filters in the query string, so a `.in()` over a few hundred
@@ -101,6 +113,17 @@ export interface Target {
    */
   contacts: Set<string>
   /**
+   * Hard identifiers learned from a filing decision — parcel numbers and the
+   * entities that own them (`identifiers.ts`).
+   *
+   * These answer the case name matching cannot: a title company's mail names a
+   * parcel and an owner and never the deal, so "62831 | Parcel No 02-0138-0000 /
+   * Carbon County | NPS Holdings, LLC" shares no word with "DUBHES Helper /
+   * Giovanni Resilience Campus". Keyed by normalized value, matched like a
+   * solicitation number — an identity, not a similarity.
+   */
+  identifiers: Map<string, string>
+  /**
    * Short forms a human asserted for this record ("Stockton" for "Stockton
    * Power Nexus - ER Hospital & Medevac Airport Tower"), each pre-tokenized.
    *
@@ -127,6 +150,7 @@ function target(
     solicitation?: string | null
     contacts?: Iterable<string>
     aliases?: string[] | null
+    identifiers?: Iterable<[string, string]>
   } = {}
 ): Target {
   // The counterparty is part of a deal's identity in practice — "Walmart
@@ -142,6 +166,7 @@ function target(
     location: extra.location ?? null,
     solicitationNumber: normalizeSolicitation(extra.solicitation ?? null),
     contacts: externalParticipants([...(extra.contacts ?? [])]),
+    identifiers: new Map(extra.identifiers ?? []),
     aliases: (extra.aliases ?? [])
       .map((label) => ({ label: label.trim(), tokens: tokenize(label) }))
       .filter((a) => a.label.length > 0 && a.tokens.size > 0),
@@ -234,6 +259,46 @@ export function bestMatch(
     if (exact) {
       return { target: exact, confidence: 1, reason: `same solicitation number`, certainty: 'linked' }
     }
+  }
+
+  // A LEARNED IDENTIFIER, for the same reason and with the same standing as a
+  // solicitation number: it is an identity rather than a description, so it
+  // outranks every similarity score — including a name that looks unrelated,
+  // which is exactly the case name matching cannot solve.
+  //
+  // Read from the SUBJECT and the summary's key facts, not the raw body. Two
+  // reasons, and they point the same way: routing loads a page of threads at a
+  // time and `raw_markdown` is the whole of every conversation (tens of megabytes
+  // across a batch), and a body match sweeps up every parcel quoted in a forwarded
+  // chain — including the neighbouring one a surveyor mentioned in passing. The
+  // subject is where the party that filed the document put the identifier.
+  // Learning reads the body, because that is one thread at a time and the reader
+  // is about to check it.
+  const threadIdentifiers = extractIdentifiers({
+    subject: [subject, ...(summary?.key_facts ?? [])].join(' \n '),
+    rawMarkdown: null,
+    summary,
+  })
+  if (threadIdentifiers.length > 0) {
+    const byRecord = new Map<string, MatchResult>()
+    for (const t of targets) {
+      for (const id of threadIdentifiers) {
+        const label = t.identifiers.get(`${id.kind}:${id.normalized}`)
+        if (!label) continue
+        byRecord.set(`${t.kind}:${t.id}`, {
+          target: t,
+          confidence: 1,
+          reason: id.kind === 'parcel' ? `parcel ${label}` : `${label} is on this record`,
+          certainty: 'linked',
+        })
+        break
+      }
+    }
+    // Ambiguity means no match, here as everywhere. Two records answering to one
+    // parcel is a data problem to look at, not a coin to flip — and unlike a
+    // name it cannot be resolved by scoring, because both are exact.
+    if (byRecord.size === 1) return [...byRecord.values()][0]
+    if (byRecord.size > 1) return null
   }
 
   if (threadTokens.size === 0) return null
@@ -688,11 +753,22 @@ export async function loadTargets(): Promise<Target[]> {
   const supabase = createAdminClient()
   const out: Target[] = []
 
-  const [{ data: projects }, { data: opportunities }, { data: players }] = await Promise.all([
-    supabase.from('projects').select('id, name, location, solicitation_number, status, match_aliases'),
-    supabase.from('opportunities').select('id, name, counterparty, location, status, match_aliases'),
-    supabase.from('project_players').select('project_id, party:parties(email)'),
-  ])
+  const [{ data: projects }, { data: opportunities }, { data: players }, identifierRows] =
+    await Promise.all([
+      supabase.from('projects').select('id, name, location, solicitation_number, status, match_aliases'),
+      supabase.from('opportunities').select('id, name, counterparty, location, status, match_aliases'),
+      supabase.from('project_players').select('project_id, party:parties(email)'),
+      loadIdentifiers(),
+    ])
+
+  // Identifiers learned from past filings, keyed the way bestMatch looks them up.
+  const recordIdentifiers = new Map<string, Map<string, string>>()
+  for (const row of identifierRows) {
+    const key = `${row.record_kind}:${row.record_id}`
+    const set = recordIdentifiers.get(key) ?? new Map<string, string>()
+    set.set(`${row.kind}:${row.normalized}`, row.value)
+    recordIdentifiers.set(key, set)
+  }
 
   // Who is already on each project, so a message from a known counterparty can
   // carry a name match that is close but not decisive.
@@ -713,6 +789,7 @@ export async function loadTargets(): Promise<Target[]> {
         solicitation: p.solicitation_number,
         contacts: projectContacts.get(p.id) ?? [],
         aliases: (p as { match_aliases?: string[] | null }).match_aliases ?? [],
+        identifiers: recordIdentifiers.get(`project:${p.id}`) ?? [],
       })
     )
   }
@@ -725,6 +802,7 @@ export async function loadTargets(): Promise<Target[]> {
         counterparty: o.counterparty,
         location: o.location,
         aliases: (o as { match_aliases?: string[] | null }).match_aliases ?? [],
+        identifiers: recordIdentifiers.get(`opportunity:${o.id}`) ?? [],
       })
     )
   }
@@ -732,7 +810,12 @@ export async function loadTargets(): Promise<Target[]> {
   const steel = await sweepDb().from('steel_deals').select('id, name, customer')
   for (const raw of steel.data ?? []) {
     const d = raw as { id: string; name: string | null; customer: string | null }
-    out.push(target('steel_deal', d.id, d.name ?? '', { counterparty: d.customer }))
+    out.push(
+      target('steel_deal', d.id, d.name ?? '', {
+        counterparty: d.customer,
+        identifiers: recordIdentifiers.get(`steel_deal:${d.id}`) ?? [],
+      })
+    )
   }
 
   return out.filter((t) => t.name.trim().length > 0)

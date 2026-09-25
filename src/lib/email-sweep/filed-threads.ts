@@ -27,7 +27,7 @@ export async function loadFiledThreads(
 
   const { data: threads } = await sweepDb()
     .from('email_threads')
-    .select('id, subject, mailbox, last_at, message_count, attachment_count, summary')
+    .select('id, subject, mailbox, gmail_thread_id, last_at, message_count, attachment_count, summary')
     .in('id', rows.map((r) => r.thread_id))
     .order('last_at', { ascending: false })
 
@@ -36,6 +36,7 @@ export async function loadFiledThreads(
     id: string
     subject: string | null
     mailbox: string | null
+    gmail_thread_id: string | null
     last_at: string | null
     message_count: number | null
     attachment_count: number | null
@@ -44,6 +45,7 @@ export async function loadFiledThreads(
     id: t.id,
     subject: t.subject,
     mailbox: t.mailbox,
+    gmail_thread_id: t.gmail_thread_id,
     last_at: t.last_at,
     message_count: t.message_count,
     attachment_count: t.attachment_count,

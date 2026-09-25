@@ -172,6 +172,21 @@ export interface ThreadLinkRow {
    * fills with the same correspondence night after night.
    */
   applied_message_count: number
+  /**
+   * How many messages have had their ATTACHMENTS considered — a second cursor,
+   * and it has to be separate.
+   *
+   * Every filing path but the router's own inferred match seeds
+   * `applied_message_count` at the thread's current length, so that filing a
+   * conversation does not replay years of mail into a record's feed as new
+   * activity. Correct for the feed and wrong for files: sharing the cursor meant
+   * the attachment slice was always empty, and a thread's existing documents
+   * could never arrive at all. Old mail is not news; a deed is still a deed.
+   *
+   * Advanced per message rather than per thread, so a run interrupted by a deploy
+   * resumes where it stopped (§12).
+   */
+  attachments_through: number
   last_applied_at: string | null
   created_at: string | null
   updated_at: string | null

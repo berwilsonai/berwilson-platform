@@ -6,6 +6,7 @@ import { toast } from 'sonner'
 import { Panel, PanelHeader } from '@/components/ui/card'
 import { Chip } from '@/components/ui/chip'
 import { formatDate } from '@/lib/utils/constants'
+import { gmailThreadUrl } from '@/lib/utils/leads'
 
 /**
  * A record's correspondence file, and the way to add to it.
@@ -21,6 +22,8 @@ export interface CorrespondenceThread {
   id: string
   subject: string | null
   mailbox: string | null
+  /** Gmail's own thread id, so the row can link to the conversation itself. */
+  gmail_thread_id?: string | null
   last_at: string | null
   message_count: number | null
   attachment_count: number | null
@@ -181,15 +184,40 @@ function ThreadRow({
   busy: boolean
   action: React.ReactNode
 }) {
+  const href = gmailThreadUrl(thread.mailbox, thread.gmail_thread_id ?? null)
   return (
     <li className={busy ? 'opacity-50' : undefined}>
       <div className="flex items-start gap-2.5">
         <Mail size={13} className="mt-1 shrink-0 text-muted-foreground" />
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-sm font-medium text-foreground truncate">
-              {thread.subject ?? '(no subject)'}
-            </span>
+            {/*
+              The subject IS the link. A filed thread was previously a dead line
+              of text: the panel knew which conversation it was and offered no way
+              to read it, so answering "what did she actually send?" meant
+              searching the mailbox by hand for mail the platform had already
+              found. The permalink carries `authuser=<mailbox>` rather than a
+              positional /u/0/ index, because the reader is signed into several
+              Google accounts and the index is per-browser-session.
+            */}
+            {href ? (
+              <a
+                href={href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="relative text-sm font-medium text-foreground truncate hover:underline"
+                title="Open this conversation in Gmail"
+              >
+                {thread.subject ?? '(no subject)'}
+                {/* 44px is this app's minimum touch target, grown with an inset
+                    overlay so the row does not shift under the next tap. */}
+                <span className="absolute -inset-3 md:hidden" aria-hidden />
+              </a>
+            ) : (
+              <span className="text-sm font-medium text-foreground truncate">
+                {thread.subject ?? '(no subject)'}
+              </span>
+            )}
             {thread.certainty === 'inferred' && (
               <Chip tone="bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300">
                 matched
@@ -208,6 +236,17 @@ function ThreadRow({
           </p>
           {thread.summary && (
             <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{thread.summary}</p>
+          )}
+          {/*
+            Why this conversation is on this record. Surfaced because the router
+            now files on a learned parcel number or owning entity — a reason a
+            reader cannot reconstruct from the subject, and the thing they need in
+            order to disagree with it.
+          */}
+          {thread.why_filed && (
+            <p className="text-[11px] text-muted-foreground/70 mt-0.5 truncate">
+              {thread.why_filed}
+            </p>
           )}
         </div>
         {action}

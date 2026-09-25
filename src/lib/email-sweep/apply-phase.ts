@@ -24,6 +24,7 @@
  * in the review queue, which is exactly what that rule asks for.
  */
 
+import { createHash } from 'node:crypto'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { runDocumentAiPass } from '@/lib/ai/document-pipeline'
 import { fileRecordDocumentsQuietly } from '@/lib/drive/file-document'
@@ -32,6 +33,7 @@ import type { TablesInsert } from '@/lib/supabase/types'
 import { isOpportunityLive, isProjectLive, isSteelDealLive } from '@/lib/records/live'
 import { notifyTeam, type NotificationEvent } from '@/lib/notifications'
 import { sweepDb, type EmailThreadRow, type ThreadLinkRow, type LinkRecordKind } from './db'
+import { extractIdentifiers } from './identifiers'
 
 const BATCH = 100
 
@@ -158,7 +160,9 @@ export async function applyThreadUpdates(
   for (let from = 0; ; from += PAGE) {
     let scan = db
       .from('thread_links')
-      .select('id, last_applied_at, applied_message_count, thread:email_threads(message_count)')
+      .select(
+        'id, last_applied_at, applied_message_count, attachments_through, record_kind, thread:email_threads(message_count, attachment_count)'
+      )
       .order('last_applied_at', { ascending: true, nullsFirst: true })
       .range(from, from + PAGE - 1)
     if (opts.linkIds?.length) scan = scan.in('id', opts.linkIds)
@@ -167,16 +171,32 @@ export async function applyThreadUpdates(
     if (scanErr) throw new Error(`Could not scan links to apply: ${scanErr.message}`)
     // PostgREST types a to-one embed as an array here even though it returns an
     // object, so the shape is normalised rather than asserted away.
+    type ScanThread = { message_count: number | null; attachment_count: number | null }
     const rows = (page ?? []) as unknown as Array<{
       id: string
       last_applied_at: string | null
       applied_message_count: number
-      thread: { message_count: number | null } | { message_count: number | null }[] | null
+      attachments_through: number | null
+      record_kind: LinkRecordKind
+      thread: ScanThread | ScanThread[] | null
     }>
     for (const r of rows) {
       const thread = Array.isArray(r.thread) ? r.thread[0] : r.thread
       if (!thread) continue
-      if (r.applied_message_count >= (thread.message_count ?? 0)) continue
+      const messages = thread.message_count ?? 0
+      // ⚠ TWO CURSORS, AND BOTH HAVE TO BE ABLE TO SELECT A LINK. The scan used
+      // to ask only whether there was mail to post, so a link that was caught up
+      // on text was skipped entirely — and since every filing path but one seeds
+      // the text cursor at the thread's current length, a freshly filed thread is
+      // caught up the instant it is filed. Its attachments were therefore
+      // unreachable by construction: the one pass that could have imported them
+      // never looked at the link again.
+      const needsText = r.applied_message_count < messages
+      const needsAttachments =
+        (r.record_kind === 'project' || r.record_kind === 'opportunity') &&
+        (thread.attachment_count ?? 0) > 0 &&
+        (r.attachments_through ?? 0) < messages
+      if (!needsText && !needsAttachments) continue
       candidates.push({ id: r.id, last: r.last_applied_at })
     }
     // Stop as soon as the batch is full: the scan is already in the order the
@@ -211,51 +231,75 @@ export async function applyThreadUpdates(
     const thread = link.thread
     if (!thread) continue
 
-    // Nothing new on this thread — the common case, and it must stay cheap.
-    if (link.applied_message_count >= (thread.message_count ?? 0)) continue
+    const messages = thread.message_count ?? 0
+    const needsText = link.applied_message_count >= messages ? false : true
+    const needsAttachments = attachmentsPending(link, thread)
+
+    // Nothing new on this thread by either cursor — the common case, and it must
+    // stay cheap.
+    if (!needsText && !needsAttachments) continue
 
     progress.linksConsidered++
 
     try {
-      const delta = deltaFor(
-        thread.raw_markdown ?? '',
-        link.applied_message_count,
-        thread.message_count ?? 0
-      )
-      if (!delta) {
-        await advance(link.id, thread.message_count ?? 0)
-        continue
+      // Liveness is settled ONCE, before either job, because a link can now be
+      // selected for its attachments alone and a closed project must not receive
+      // documents any more than it receives updates. applyToRecord still makes
+      // its own check — cheap, and it is the function that writes.
+      if (needsAttachments && !needsText) {
+        const state = await recordLiveness(link)
+        if (state === 'missing') {
+          await db.from('thread_links').delete().eq('id', link.id)
+          progress.staleLinksDropped++
+          continue
+        }
+        if (state === 'dormant') {
+          await touch(link.id)
+          progress.dormantSkipped++
+          continue
+        }
       }
 
-      const applied = await applyToRecord(link, thread, delta.text, progress, events)
-      if (applied === 'missing') {
-        // The record has gone. The link points at four possible tables so it
-        // cannot carry a foreign key; dropping it here is what takes the place
-        // of the cascade it never had.
-        await db.from('thread_links').delete().eq('id', link.id)
-        progress.staleLinksDropped++
-        continue
+      if (needsText) {
+        const delta = deltaFor(thread.raw_markdown ?? '', link.applied_message_count, messages)
+        if (!delta) {
+          await advance(link.id, messages)
+        } else {
+          const applied = await applyToRecord(link, thread, delta.text, progress, events)
+          if (applied === 'missing') {
+            // The record has gone. The link points at four possible tables so it
+            // cannot carry a foreign key; dropping it here is what takes the place
+            // of the cascade it never had.
+            await db.from('thread_links').delete().eq('id', link.id)
+            progress.staleLinksDropped++
+            continue
+          }
+
+          if (applied === 'dormant') {
+            // Lost, closed, on hold. The LINK is kept and applied_message_count is
+            // deliberately NOT advanced, so reviving the record replays everything
+            // it missed — mail that arrives while a pursuit is parked is usually
+            // why it gets un-parked.
+            //
+            // last_applied_at IS stamped, though. The batch is ordered by it with
+            // nulls first, so without this a dormant link would sort to the front
+            // of every run forever and starve the live records behind it.
+            await touch(link.id)
+            progress.dormantSkipped++
+            continue
+          }
+
+          await advance(link.id, delta.newCount)
+        }
       }
 
-      if (applied === 'dormant') {
-        // Lost, closed, on hold. The LINK is kept and applied_message_count is
-        // deliberately NOT advanced, so reviving the record replays everything
-        // it missed — mail that arrives while a pursuit is parked is usually
-        // why it gets un-parked.
-        //
-        // last_applied_at IS stamped, though. The batch is ordered by it with
-        // nulls first, so without this a dormant link would sort to the front
-        // of every run forever and starve the live records behind it.
-        await touch(link.id)
-        progress.dormantSkipped++
-        continue
+      // Attachments run on their OWN cursor and independently of whether there
+      // was any new text. That independence is the fix: the previous version
+      // called this only after posting an update, so a thread filed onto a record
+      // — which is caught up on text by definition — never reached it.
+      if (needsAttachments) {
+        progress.attachmentsImported += await importThreadAttachments(link, thread, deadline)
       }
-
-      if (applied === 'ok' && (thread.attachment_count ?? 0) > 0) {
-        progress.attachmentsImported += await importNewAttachments(link, thread)
-      }
-
-      await advance(link.id, delta.newCount)
     } catch (err) {
       progress.failed++
       console.error(
@@ -294,6 +338,73 @@ async function advance(linkId: string, count: number): Promise<void> {
     .update({ applied_message_count: count, last_applied_at: new Date().toISOString() })
     .eq('id', linkId)
   if (error) console.error(`[sweep/apply] could not advance ${linkId}:`, error.message)
+}
+
+/**
+ * Move the ATTACHMENT cursor, written after every message rather than once per
+ * thread.
+ *
+ * Work fired off after a route handler returns dies with the next `launchctl
+ * kickstart`, and a deploy IS a kickstart (§12) — so a thread carrying ten
+ * drawings, at roughly thirty seconds of local-model time each, must not lose
+ * five minutes of imports because the sixth was in flight. Checkpointing per
+ * message makes an interrupted run indistinguishable from a slow one.
+ */
+async function advanceAttachments(linkId: string, through: number): Promise<void> {
+  const { error } = await sweepDb()
+    .from('thread_links')
+    .update({ attachments_through: through, last_applied_at: new Date().toISOString() })
+    .eq('id', linkId)
+  if (error) {
+    console.error(`[sweep/apply] could not advance attachments on ${linkId}:`, error.message)
+  }
+}
+
+/**
+ * A cursor position that never passes an unfinished message.
+ *
+ * `blockedAt` is the index BEFORE the message that failed, so the failed message
+ * itself is read again next run.
+ */
+function capped(through: number, blockedAt: number | null): number {
+  return blockedAt === null ? through : Math.min(through, blockedAt)
+}
+
+/** Whether this link has attachments the record has not been offered yet. */
+function attachmentsPending(
+  link: ThreadLinkRow,
+  thread: NonNullable<LinkWithThread['thread']>
+): boolean {
+  if (link.record_kind !== 'project' && link.record_kind !== 'opportunity') return false
+  if ((thread.attachment_count ?? 0) <= 0) return false
+  return (link.attachments_through ?? 0) < (thread.message_count ?? 0)
+}
+
+/**
+ * Whether the record is there and still active, without writing anything.
+ *
+ * Needed because a link can now be selected for its attachments alone, and the
+ * liveness rules used to live inside the function that posts the update. Narrow
+ * on purpose — only the two kinds that can hold documents.
+ */
+async function recordLiveness(link: ThreadLinkRow): Promise<'live' | 'missing' | 'dormant'> {
+  const supabase = createAdminClient()
+  if (link.record_kind === 'project') {
+    const { data } = await supabase
+      .from('projects')
+      .select('id, status')
+      .eq('id', link.record_id)
+      .maybeSingle()
+    if (!data) return 'missing'
+    return isProjectLive(data.status) ? 'live' : 'dormant'
+  }
+  const { data } = await supabase
+    .from('opportunities')
+    .select('id, status')
+    .eq('id', link.record_id)
+    .maybeSingle()
+  if (!data) return 'missing'
+  return isOpportunityLive(data.status) ? 'live' : 'dormant'
 }
 
 /**
@@ -550,46 +661,77 @@ async function applyToRecord(
 }
 
 /**
- * Copy files that arrived on the new messages onto the record.
+ * Copy the files on this thread onto the record, from the attachment cursor on.
  *
- * Bounded and best-effort: promotion already carries a lead's evidence across,
- * so this is about the drawing that turns up in reply eleven, and a failure here
- * must never cost the correspondence that came with it.
+ * ⚠ THIS USED TO SLICE AT `applied_message_count` AND THEREFORE ALMOST NEVER RAN.
+ * Every filing path but the router's own inferred match seeds that cursor at the
+ * thread's current length — deliberately, so filing a conversation does not
+ * replay years of mail into the record's feed as new activity. The slice was
+ * therefore empty, and a thread's existing attachments could never arrive: only a
+ * message landing AFTER the link was created brought a document in. Measured
+ * 2026-09-25, 178 attachments sat on project- and opportunity-linked threads
+ * against 30 correspondence documents ever imported — including four Highland
+ * Title threads carrying fourteen preliminary reports and plat maps for a
+ * Carbon County parcel assembly, filed nowhere.
+ *
+ * The cursors are separate now, and the asymmetry is the point: the TEXT of old
+ * mail is not news, but a deed, a plat map or a title commitment is a permanent
+ * artifact and belongs on the record whenever it arrived.
+ *
+ * Walks message by message and checkpoints after each, so an interrupted run
+ * resumes rather than restarts. Bounded and best-effort throughout: a failure
+ * here must never cost the correspondence that came with it.
  */
-async function importNewAttachments(
+async function importThreadAttachments(
   link: ThreadLinkRow,
-  thread: NonNullable<LinkWithThread['thread']>
+  thread: NonNullable<LinkWithThread['thread']>,
+  deadline: number
 ): Promise<number> {
   if (link.record_kind !== 'project' && link.record_kind !== 'opportunity') return 0
 
   try {
     const messages = await fetchThread(thread.mailbox, thread.gmail_thread_id)
-    const fresh = messages.slice(link.applied_message_count)
+    const from = Math.min(link.attachments_through ?? 0, messages.length)
 
-    // Dedupe on FILE NAME, not name+size. A bid package resends the same
-    // drawing on every reply, and — measured on this corpus — the same document
-    // sent from two different threads arrives at different byte sizes, re-encoded
-    // or lightly revised: one briefing came in at 205,839 and 211,664 bytes, and
-    // a Myton memo at 134,676 and 134,980. Keying on size let both through.
-    //
-    // The trade-off is deliberate. A genuinely different file that happens to
-    // share a name with one already on the record will be skipped, and it stays
-    // in the email where it can still be found. That is the cheaper error: a
-    // near-duplicate doubles the document's chunks and biases every retrieval
-    // toward whatever was duplicated, which degrades the answers this whole
-    // feature exists to improve.
+    // Dedupe WITHIN the thread on file name — a bid package resends the same
+    // drawing on every reply, and inside one conversation a repeated name really
+    // is a repeat. Across threads the decision is made on CONTENT further down,
+    // because a name cannot carry it: Highland Title sends one thread per parcel
+    // and every one of them attaches a "Title Commitment - AS.pdf".
     const seen = new Set<string>()
-    const refs = fresh
-      .flatMap((m) => m.attachments)
-      .filter((a) => {
-        if (a.isInline || a.size <= 0 || a.size > MAX_ATTACHMENT_BYTES) return false
+    const refs: Array<{
+      messageId: string
+      attachmentId: string
+      name: string
+      mimeType: string
+      size: number
+      /** How far the cursor may advance once this file is done. */
+      through: number
+    }> = []
+    for (let i = from; i < messages.length; i++) {
+      for (const a of messages[i].attachments) {
+        if (a.isInline || a.size <= 0 || a.size > MAX_ATTACHMENT_BYTES) continue
+        if (isMailChrome(a.name, a.mimeType, a.size)) continue
         const key = a.name.toLowerCase()
-        if (seen.has(key)) return false
+        if (seen.has(key)) continue
         seen.add(key)
-        return true
-      })
-      .slice(0, MAX_NEW_ATTACHMENTS)
-    if (refs.length === 0) return 0
+        refs.push({
+          messageId: a.messageId,
+          attachmentId: a.attachmentId,
+          name: a.name,
+          mimeType: a.mimeType,
+          size: a.size,
+          through: i + 1,
+        })
+      }
+    }
+    if (refs.length === 0) {
+      // Nothing to take — every attachment on these messages was inline chrome
+      // or oversized. Settle the cursor anyway, or the link is reconsidered on
+      // every run forever for a thread that will never yield a file.
+      await advanceAttachments(link.id, messages.length)
+      return 0
+    }
 
     const supabase = createAdminClient()
     const isProject = link.record_kind === 'project'
@@ -602,34 +744,96 @@ async function importNewAttachments(
     // Branched rather than parameterised by table name — a union of table names
     // loses the column types the typed client checks against.
     const { data: existingDocs } = isProject
-      ? await supabase.from('documents').select('file_name').eq('project_id', link.record_id)
+      ? await supabase
+          .from('documents')
+          .select('file_name, content_sha256')
+          .eq('project_id', link.record_id)
       : await supabase
           .from('opportunity_documents')
-          .select('file_name')
+          .select('file_name, content_sha256')
           .eq('opportunity_id', link.record_id)
 
-    const already = new Set(
-      ((existingDocs ?? []) as { file_name: string | null }[]).map((d) =>
-        (d.file_name ?? '').toLowerCase()
-      )
+    // `content_sha256` is absent from the generated types — `npm run gen-types`
+    // is a disabled stub (§4), so they are frozen at whenever they were last
+    // produced by hand. Cast through unknown rather than scatter `as never`.
+    const existing = (existingDocs ?? []) as unknown as {
+      file_name: string | null
+      content_sha256: string | null
+    }[]
+    const already = new Set(existing.map((d) => (d.file_name ?? '').toLowerCase()))
+    // The set that actually decides a skip. A name collision only renames.
+    const hashes = new Set(
+      existing.map((d) => d.content_sha256).filter((h): h is string => !!h)
     )
 
     let imported = 0
+    /** How far the cursor has actually been carried, for the checkpoint. */
+    let through = from
+    let taken = 0
+    /**
+     * The message index a failure is holding the cursor at, if any. The cursor
+     * may never pass it, so the next run retries what could not be fetched.
+     */
+    let blockedAt: number | null = null
 
     for (const ref of refs) {
-      if (already.has(ref.name.toLowerCase())) continue
-      already.add(ref.name.toLowerCase())
+      // Out of time, or enough for one run. Either way the cursor has already
+      // been written for everything finished, so the rest is picked up next run
+      // rather than lost or repeated. MAX_NEW_ATTACHMENTS is a per-RUN ceiling
+      // now, not a per-thread one: a thread carrying thirty drawings used to have
+      // twenty of them silently discarded.
+      if (Date.now() >= deadline || taken >= MAX_NEW_ATTACHMENTS) break
+
+      taken++
       const base64 = await fetchAttachmentBytes(thread.mailbox, ref.messageId, ref.attachmentId)
-      if (!base64) continue
+      if (!base64) {
+        // ⚠ A FAILED FETCH MUST HOLD THE CURSOR BACK, or the file is lost rather
+        // than retried — and lost silently, which is worse. Gmail meters by
+        // cost-units-per-MINUTE (§12), so pulling four 1MB title commitments in
+        // a row is exactly when a byte fetch comes back empty. Measured on this
+        // run: the plat map for parcel 02-0140-0000 failed here, the loop
+        // `continue`d, the cursor advanced to the end of the thread anyway, and
+        // the document was unreachable by any later pass.
+        console.error(
+          `[sweep/apply] no bytes for ${ref.name} on ${thread.gmail_thread_id} — holding the cursor`
+        )
+        blockedAt = blockedAt === null ? ref.through - 1 : Math.min(blockedAt, ref.through - 1)
+        continue
+      }
       const buffer = Buffer.from(base64, 'base64')
-      const safe = ref.name.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 120)
+
+      // ⚠ THE DEDUPE DECISION IS MADE ON CONTENT, AFTER FETCHING — which is why
+      // the name check no longer short-circuits the download. The bytes are cheap
+      // next to the document AI pass that follows, and a name is not evidence of
+      // sameness: four parcels' title commitments are all called "Title
+      // Commitment - AS.pdf" and sit within 1.1% of each other in size, so the
+      // old name-only skip discarded three real documents per file type with no
+      // error anywhere.
+      const digest = createHash('sha256').update(buffer).digest('hex')
+      if (hashes.has(digest)) {
+        // The same FILE, whatever it is called or which thread carried it. This is
+        // the case the name rule was reaching for, answered exactly.
+        through = capped(Math.max(through, ref.through), blockedAt)
+        await advanceAttachments(link.id, through)
+        continue
+      }
+      hashes.add(digest)
+
+      // Different bytes under a name the record already holds: a real document
+      // that needs to say which one it is.
+      const fileName = already.has(ref.name.toLowerCase())
+        ? disambiguateName(ref.name, thread.subject)
+        : ref.name
+      already.add(fileName.toLowerCase())
+
+      const safe = fileName.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 120)
       const path = `${folder}/${link.record_id}/${Date.now()}-${safe}`
 
       const { error: upErr } = await supabase.storage
         .from('documents')
         .upload(path, buffer, { contentType: ref.mimeType || 'application/octet-stream' })
       if (upErr) {
-        console.error(`[sweep/apply] could not upload ${ref.name}:`, upErr.message)
+        console.error(`[sweep/apply] could not upload ${fileName}:`, upErr.message)
         continue
       }
 
@@ -638,17 +842,18 @@ async function importNewAttachments(
           .from('documents')
           .insert({
             project_id: link.record_id,
-            file_name: ref.name,
+            file_name: fileName,
             storage_path: path,
             mime_type: ref.mimeType || null,
             file_size_bytes: ref.size,
             doc_type: 'correspondence',
             source: 'document',
+            content_sha256: digest,
           } as never)
           .select('id')
           .single()
         if (error || !doc) {
-          console.error(`[sweep/apply] could not register ${ref.name}:`, error?.message)
+          console.error(`[sweep/apply] could not register ${fileName}:`, error?.message)
           continue
         }
         imported++
@@ -657,7 +862,7 @@ async function importNewAttachments(
           supabase,
           documentId: (doc as { id: string }).id,
           projectId: link.record_id,
-          fileName: ref.name,
+          fileName,
           mimeType: ref.mimeType || null,
           buffer: buffer.buffer.slice(
             buffer.byteOffset,
@@ -669,16 +874,17 @@ async function importNewAttachments(
           .from('opportunity_documents')
           .insert({
             opportunity_id: link.record_id,
-            file_name: ref.name,
+            file_name: fileName,
             storage_path: path,
             mime_type: ref.mimeType || null,
             file_size_bytes: ref.size,
             doc_type: 'correspondence',
+            content_sha256: digest,
           } as never)
           .select('id')
           .single()
         if (error || !doc) {
-          console.error(`[sweep/apply] could not register ${ref.name}:`, error?.message)
+          console.error(`[sweep/apply] could not register ${fileName}:`, error?.message)
           continue
         }
         imported++
@@ -691,7 +897,7 @@ async function importNewAttachments(
           supabase,
           documentId: (doc as { id: string }).id,
           projectId: null,
-          fileName: ref.name,
+          fileName,
           mimeType: ref.mimeType || null,
           buffer: buffer.buffer.slice(
             buffer.byteOffset,
@@ -700,7 +906,20 @@ async function importNewAttachments(
           target: { table: 'opportunity_documents', opportunityId: link.record_id },
         })
       }
+
+      // Checkpoint. The document is registered and its AI pass has run, so this
+      // file is done whatever happens next — and a deploy IS a kickstart (§12),
+      // which is exactly what happens next often enough to matter.
+      through = capped(Math.max(through, ref.through), blockedAt)
+      await advanceAttachments(link.id, through)
     }
+
+    // Only when the whole thread was walked AND nothing was left behind. Stopping
+    // on the budget, on the per-run ceiling, or on a file whose bytes would not
+    // come leaves the cursor where the last finished file put it, so the next run
+    // resumes there instead of skipping what it never got.
+    const finished = taken < MAX_NEW_ATTACHMENTS && Date.now() < deadline && blockedAt === null
+    if (finished) await advanceAttachments(link.id, messages.length)
 
     // Filing runs after the loop so the AI summaries exist to classify on, and
     // once per record rather than once per file. Best-effort by construction: a
@@ -717,6 +936,63 @@ async function importNewAttachments(
     )
     return 0
   }
+}
+
+/**
+ * A signature logo or a mail client's own artefact, dressed as an attachment.
+ *
+ * ⚠ `isInline` IS NOT SUFFICIENT, AND THE REASON IS THE MIRROR OF AN EXISTING
+ * RULE. §12 says Gmail's composer stamps a Content-ID on every attached file, so
+ * Content-Disposition must be checked first or real files are discarded as inline
+ * chrome. The reverse also happens: when someone REPLIES from Gmail, the sender's
+ * signature images are re-attached with `Content-Disposition: attachment` and
+ * lose their inline marker entirely. Measured on the Highland threads —
+ * `image001.png` (56,496 bytes) and `image002.png` (14,317) arrive inline on the
+ * original message and as plain attachments on the reply, and both were imported
+ * onto the project as documents, then filed into Drive.
+ *
+ * The signal that survives is the NAME. `image001.png`, `ATT00002.png`,
+ * `oledata.mso` are generated by a mail client and never by a person, so a real
+ * drawing is never called that. Bounded by size as well, so that a genuine photo
+ * someone happened to leave named `image001.png` off a phone still comes through.
+ */
+const CHROME_NAME = /^(?:image\d{2,4}|ATT\d{4,6}|oledata|~WRD\d+|Outlook-[a-z0-9]+)\.\w+$/i
+const CHROME_MAX_BYTES = 200 * 1024
+
+export function isMailChrome(name: string, mimeType: string, size: number): boolean {
+  if (!CHROME_NAME.test(name.trim())) return false
+  // A large file is somebody's actual document whatever it is called.
+  if (size > CHROME_MAX_BYTES) return false
+  // Only images and mail-client blobs; a PDF named image001.pdf is a document.
+  return mimeType.startsWith('image/') || mimeType === 'application/octet-stream'
+}
+
+/**
+ * A name that says WHICH ONE, for a file whose own name does not.
+ *
+ * Four parcels, four files called "Plat Map.pdf". Skipping the later three was
+ * the old behaviour and it lost real documents; importing them under the same
+ * name would leave a reader four identical rows with no way to tell which parcel
+ * each covers. So the record's own identifier goes in front — the parcel number
+ * when the thread carries one, and otherwise the leading run of the subject,
+ * which for an escrow file is its order number.
+ */
+export function disambiguateName(name: string, subject: string | null): string {
+  const parcel = extractIdentifiers({ subject, rawMarkdown: null, summary: null }).find(
+    (i) => i.kind === 'parcel'
+  )
+  const tag =
+    parcel?.value ??
+    (subject ?? '')
+      .split(/[|/–—-]/)[0]
+      .replace(/[^A-Za-z0-9 ._-]/g, '')
+      .trim()
+      .slice(0, 40)
+  if (!tag) return name
+  const dot = name.lastIndexOf('.')
+  const stem = dot > 0 ? name.slice(0, dot) : name
+  const ext = dot > 0 ? name.slice(dot) : ''
+  return `${stem} (${tag})${ext}`
 }
 
 /** Record kinds this phase knows how to write to. */
