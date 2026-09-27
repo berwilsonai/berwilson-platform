@@ -66,6 +66,25 @@ const chatTimeoutMs = () => envMs('LOCAL_AI_TIMEOUT_MS', 900_000)
  */
 const streamIdleTimeoutMs = () => envMs('LOCAL_AI_STREAM_IDLE_TIMEOUT_MS', 180_000)
 
+/**
+ * Cap on the wait for the FIRST chunk, which is a different wait entirely.
+ *
+ * Nothing is streamed while the server ingests the prompt, and prompt
+ * processing scales with the prompt — so the silence before the first token
+ * grows with the conversation, while the silence between tokens does not
+ * (generation holds ~75 tok/s whatever the context). One number for both meant
+ * the gap cap had to be set by the worst case of the first wait, and it was
+ * still too small: a real Ber AI turn — 19 tool calls, several 40,000-character
+ * document windows against the 131,072-token window — died on
+ * "Local AI stream stalled — no data for 180s" after six minutes of work, with
+ * the model still reading. The same error is in the production log twice.
+ *
+ * So the first wait is generous and the gap stays tight, which is what actually
+ * distinguishes a loaded model from a dead socket.
+ */
+const streamFirstChunkTimeoutMs = () =>
+  envMs('LOCAL_AI_STREAM_FIRST_CHUNK_TIMEOUT_MS', 600_000)
+
 /** Embeddings are small and fast; a slow one means something is wrong. */
 const embeddingTimeoutMs = () => envMs('LOCAL_AI_EMBEDDING_TIMEOUT_MS', 120_000)
 
@@ -329,10 +348,13 @@ export async function localChatStream(options: LocalChatOptions): Promise<LocalC
   }
 
   const idle = streamIdleTimeoutMs()
+  const firstChunk = streamFirstChunkTimeoutMs()
+  let started = false
   try {
     for (;;) {
-      const { done, value } = await readWithIdleTimeout(reader, idle)
+      const { done, value } = await readWithIdleTimeout(reader, started ? idle : firstChunk)
       if (done) break
+      started = true
       buffer += decoder.decode(value, { stream: true })
       let nl: number
       while ((nl = buffer.indexOf('\n')) !== -1) {
@@ -343,7 +365,11 @@ export async function localChatStream(options: LocalChatOptions): Promise<LocalC
   } catch (err) {
     // Release the socket — an abandoned reader keeps the connection open.
     await reader.cancel().catch(() => {})
-    throw localStallError(err, idle, 'chat stream')
+    // Named apart so a log reader can tell "the model never started" (a prompt
+    // too big, or a model still loading) from "it stopped mid-answer".
+    throw started
+      ? localStallError(err, idle, 'chat stream')
+      : localStallError(err, firstChunk, 'chat stream (no first token)')
   }
   if (buffer) handleLine(buffer)
 
