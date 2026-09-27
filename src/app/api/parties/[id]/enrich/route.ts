@@ -1,9 +1,12 @@
 /**
  * POST /api/parties/[id]/enrich
  *
- * Two-step enrichment pipeline:
+ * Three-step enrichment pipeline:
  *   1. Google People API — query the mailbox's contacts by email
  *   2. Gemini grounded search — person + company queries → structured extraction
+ *   3. Profile photo — a verified headshot from their employer's bio page or a
+ *      public LinkedIn profile, falling back to their company's mark
+ *      (`lib/contacts/profile-photo.ts`, which explains why those and no others)
  *
  * Body: {} → returns preview (does NOT save)
  * Body: { confirm: true, enriched: {...} } → saves to DB
@@ -19,6 +22,12 @@ import {
   researchPersonWeb,
   type DirectoryContactResult,
 } from '@/lib/contacts/web-enrichment'
+import {
+  findProfilePhoto,
+  photoProvenance,
+  storeProfilePhoto,
+  type PhotoCandidate,
+} from '@/lib/contacts/profile-photo'
 import type { TablesUpdate } from '@/lib/supabase/types'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -43,6 +52,8 @@ export interface EnrichmentPreview {
   }
   sources: Array<{ url: string; title?: string }>
   directory_done: boolean
+  /** A verified image, or null when the person has no public one. */
+  photo: PhotoCandidate | null
 }
 
 export interface EnrichmentConflict {
@@ -98,7 +109,7 @@ export async function POST(
   // Load current party record
   const { data: party } = await admin
     .from('parties')
-    .select('id, full_name, title, company, email, phone, linkedin_url, government_contract_history, enrichment_notes, enrichment_conflicts')
+    .select('id, full_name, title, company, email, phone, linkedin_url, avatar_url, is_organization, government_contract_history, enrichment_notes, enrichment_conflicts')
     .eq('id', id)
     .single()
 
@@ -138,14 +149,36 @@ export async function POST(
       // If currentVal === newVal: already set correctly, skip
     }
 
-    if (enriched.enrichment_notes) {
-      update.enrichment_notes = enriched.enrichment_notes as import('@/lib/supabase/types').Json
+    // Provenance rides along in enrichment_notes so a face that turns out to be
+    // the wrong person can always be traced back to the page it came from.
+    const notes: Record<string, unknown> = { ...(enriched.enrichment_notes ?? {}) }
+
+    // The photo is fetched a second time here rather than held in the preview:
+    // bytes do not belong in a JSON round-trip, and a link that has gone dead
+    // between review and save should fail here rather than store a broken URL.
+    let photoSaved: 'saved' | 'kept-existing' | 'failed' | null = null
+    if (enriched.photo && !party.avatar_url) {
+      try {
+        const publicUrl = await storeProfilePhoto(id, enriched.photo)
+        update.avatar_url = publicUrl
+        notes.profile_photo = photoProvenance(enriched.photo) as unknown as import('@/lib/supabase/types').Json
+        photoSaved = 'saved'
+      } catch (err) {
+        console.error('[enrich] photo save failed:', err)
+        photoSaved = 'failed'
+      }
+    } else if (enriched.photo) {
+      photoSaved = 'kept-existing'
     }
 
     update.perplexity_enriched_at = new Date().toISOString()
 
     if (conflicts.length > 0) {
       update.enrichment_conflicts = conflicts as unknown as import('@/lib/supabase/types').Json
+    }
+
+    if (Object.keys(notes).length > 0) {
+      update.enrichment_notes = notes as import('@/lib/supabase/types').Json
     }
 
     if (Object.keys(update).length > 0) {
@@ -162,7 +195,7 @@ export async function POST(
     // Embed enrichment data into vector store for intelligence queries
     embedPartyEnrichment(id).catch(console.error)
 
-    return Response.json({ saved: true, conflicts })
+    return Response.json({ saved: true, conflicts, photo: photoSaved })
   }
 
   // ── PREVIEW: run enrichment pipeline ────────────────────────────────────
@@ -170,11 +203,21 @@ export async function POST(
   if (party.email) directoryResult = await lookupDirectoryContact(party.email)
   const directoryDone = directoryResult !== null
 
-  const web = await researchPersonWeb({
-    fullName: party.full_name,
-    company: directoryResult?.companyName ?? party.company,
-    userId: user.id,
-  })
+  // Both passes are grounded searches against the same person; running them
+  // together halves the wait on a button a human is sitting in front of.
+  const [web, photoResult] = await Promise.all([
+    researchPersonWeb({
+      fullName: party.full_name,
+      company: directoryResult?.companyName ?? party.company,
+      userId: user.id,
+    }),
+    findProfilePhoto({
+      fullName: party.full_name,
+      company: directoryResult?.companyName ?? party.company,
+      email: party.email,
+      isOrganization: party.is_organization,
+    }),
+  ])
   const structured = web.structured
 
   // Build preview
@@ -197,6 +240,7 @@ export async function POST(
     },
     sources: web.sources,
     directory_done: directoryDone,
+    photo: photoResult.candidate,
   }
 
   // Detect conflicts

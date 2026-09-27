@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Sparkles, Loader2, Check, X, AlertTriangle, ExternalLink } from 'lucide-react'
+import { Sparkles, Loader2, Check, X, AlertTriangle, ExternalLink, Building2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -17,6 +17,16 @@ interface EnrichmentNotes {
   address?: string | null
 }
 
+interface PhotoCandidate {
+  kind: 'headshot' | 'logo'
+  source: 'bio_page' | 'linkedin' | 'site_logo' | 'favicon'
+  imageUrl: string
+  pageUrl: string | null
+  width: number
+  height: number
+  note: string
+}
+
 interface EnrichmentPreview {
   linkedin_url: string | null
   title: string | null
@@ -27,6 +37,7 @@ interface EnrichmentPreview {
   enrichment_notes: EnrichmentNotes
   sources: Array<{ url: string; title?: string }>
   directory_done: boolean
+  photo: PhotoCandidate | null
 }
 
 interface EnrichmentConflict {
@@ -173,11 +184,91 @@ function NotesPreview({ notes }: { notes: EnrichmentNotes }) {
   )
 }
 
+// ── Photo preview ─────────────────────────────────────────────────────────────
+
+const PHOTO_SOURCE_LABELS: Record<PhotoCandidate['source'], string> = {
+  bio_page: 'Employer bio page',
+  linkedin: 'Public LinkedIn profile',
+  site_logo: 'Company website',
+  favicon: 'Company site icon',
+}
+
+/**
+ * The found image, at the size it will actually be used, next to where it came
+ * from. A face is the one enrichment field a reader can check at a glance — so
+ * show the picture, and name the page under it rather than a confidence score.
+ */
+function PhotoPreview({ photo, hasExisting }: { photo: PhotoCandidate; hasExisting: boolean }) {
+  const isLogo = photo.kind === 'logo'
+  return (
+    <div
+      className={cn(
+        'rounded-md border px-3 py-2.5 space-y-2',
+        hasExisting
+          ? 'border-border bg-muted/30'
+          : isLogo
+          ? 'border-border bg-muted/30'
+          : 'border-emerald-200 dark:border-emerald-800/60 bg-emerald-50/40 dark:bg-emerald-950/40'
+      )}
+    >
+      <div className="flex items-center gap-1.5">
+        <span className="label-caps text-muted-foreground">
+          {isLogo ? 'Company Logo' : 'Profile Photo'}
+        </span>
+        {hasExisting ? (
+          <span className="inline-flex items-center gap-1 text-xs text-muted-foreground font-medium">
+            <AlertTriangle size={10} />
+            Already has a photo — will not overwrite
+          </span>
+        ) : isLogo ? (
+          <span className="inline-flex items-center gap-1 text-xs text-muted-foreground font-medium">
+            <Building2 size={10} />
+            No headshot found — logo instead
+          </span>
+        ) : (
+          <span className="text-xs text-emerald-700 dark:text-emerald-300 font-medium">New</span>
+        )}
+      </div>
+
+      <div className="flex items-start gap-3">
+        {/* eslint-disable-next-line @next/next/no-img-element -- remote source, one-off preview */}
+        <img
+          src={photo.imageUrl}
+          alt={isLogo ? 'Company logo found on the web' : 'Profile photo found on the web'}
+          className={cn(
+            'size-14 shrink-0 rounded-full border border-border bg-background',
+            isLogo ? 'object-contain p-1' : 'object-cover'
+          )}
+        />
+        <div className="min-w-0 space-y-1">
+          <p className="text-xs text-foreground">{photo.note}</p>
+          <p className="text-xs text-muted-foreground">
+            {PHOTO_SOURCE_LABELS[photo.source]} · {photo.width}×{photo.height}
+          </p>
+          {photo.pageUrl && (
+            <a
+              href={photo.pageUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-xs text-primary hover:underline truncate max-w-full"
+            >
+              <ExternalLink size={10} className="shrink-0" />
+              <span className="truncate">{photo.pageUrl.replace(/^https?:\/\/(www\.)?/, '')}</span>
+            </a>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 
 interface EnrichProfileButtonProps {
   partyId: string
   lastEnrichedAt?: string | null
+  /** Drives the "will not overwrite" note — a photo already on the record. */
+  hasAvatar?: boolean
 }
 
 type Stage = 'idle' | 'loading' | 'review' | 'saving' | 'done'
@@ -185,6 +276,7 @@ type Stage = 'idle' | 'loading' | 'review' | 'saving' | 'done'
 export default function EnrichProfileButton({
   partyId,
   lastEnrichedAt,
+  hasAvatar = false,
 }: EnrichProfileButtonProps) {
   const [stage, setStage] = useState<Stage>('idle')
   const [data, setData] = useState<PreviewResponse | null>(null)
@@ -275,6 +367,7 @@ export default function EnrichProfileButton({
         <div className="space-y-1.5">
           <p className="text-xs text-muted-foreground">Searching Google Contacts…</p>
           <p className="text-xs text-muted-foreground">Running web research queries…</p>
+          <p className="text-xs text-muted-foreground">Looking for a profile photo…</p>
           <p className="text-xs text-muted-foreground">Structuring results…</p>
         </div>
       </div>
@@ -291,7 +384,7 @@ export default function EnrichProfileButton({
       (f) => preview[f as keyof EnrichmentPreview] !== null
     )
     const hasNotes = Object.values(preview.enrichment_notes).some((v) => v !== null && (Array.isArray(v) ? v.length > 0 : true))
-    const hasAnything = hasAnyScalar || hasNotes
+    const hasAnything = hasAnyScalar || hasNotes || preview.photo !== null
 
     return (
       <div className="rounded-md border border-border bg-card p-4 space-y-4">
@@ -318,6 +411,7 @@ export default function EnrichProfileButton({
           </p>
         ) : (
           <div className="space-y-2">
+            {preview.photo && <PhotoPreview photo={preview.photo} hasExisting={hasAvatar} />}
             {scalarFields.map((field) => {
               const enrichedVal = preview[field as keyof EnrichmentPreview] as string | null
               return (

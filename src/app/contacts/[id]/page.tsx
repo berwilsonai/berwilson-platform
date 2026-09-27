@@ -567,6 +567,7 @@ export default async function ContactDetailPage({ params, searchParams }: PagePr
                   <EnrichProfileButton
                     partyId={id}
                     lastEnrichedAt={party.perplexity_enriched_at ?? null}
+                    hasAvatar={!!party.avatar_url}
                   />
                 </div>
               </section>

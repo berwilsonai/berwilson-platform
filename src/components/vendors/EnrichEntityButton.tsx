@@ -8,6 +8,18 @@ interface EnrichEntityButtonProps {
   entityName: string
   websiteUrl: string | null
   enrichedAt: string | null
+  /** Drives the "won't overwrite" note — a logo already on the record. */
+  hasLogo?: boolean
+}
+
+interface LogoCandidate {
+  kind: 'headshot' | 'logo'
+  source: 'bio_page' | 'linkedin' | 'site_logo' | 'favicon'
+  imageUrl: string
+  pageUrl: string | null
+  width: number
+  height: number
+  note: string
 }
 
 type State = 'idle' | 'loading' | 'review' | 'saving' | 'done'
@@ -19,12 +31,14 @@ interface EnrichmentPreview {
   website_url: string | null
   enrichment_notes: Record<string, unknown>
   sources: Array<{ url: string; title?: string }>
+  logo: LogoCandidate | null
 }
 
 export default function EnrichEntityButton({
   entityId,
   entityName,
   enrichedAt,
+  hasLogo = false,
 }: EnrichEntityButtonProps) {
   const [state, setState] = useState<State>('idle')
   const [preview, setPreview] = useState<EnrichmentPreview | null>(null)
@@ -98,6 +112,31 @@ export default function EnrichEntityButton({
     return (
       <div className="rounded-lg border border-border p-3 space-y-3 bg-muted/30">
         <h4 className="text-xs font-semibold">Research Results for {entityName}</h4>
+
+        {preview.logo && (
+          <div>
+            <p className="text-xs text-muted-foreground font-medium">
+              Logo
+              {hasLogo && <span className="ml-1 font-normal">— won&apos;t overwrite the existing one</span>}
+            </p>
+            <div className="flex items-center gap-2 mt-1">
+              {/* eslint-disable-next-line @next/next/no-img-element -- remote source, one-off preview */}
+              <img
+                src={preview.logo.imageUrl}
+                alt={`Logo found for ${entityName}`}
+                className="size-10 shrink-0 rounded border border-border bg-background object-contain p-0.5"
+              />
+              <div className="min-w-0">
+                <p className="text-xs">{preview.logo.note}</p>
+                {preview.logo.pageUrl && (
+                  <p className="text-xs text-muted-foreground truncate">
+                    {preview.logo.pageUrl.replace(/^https?:\/\/(www\.)?/, '')} · {preview.logo.width}×{preview.logo.height}
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
 
         {preview.description && (
           <div>

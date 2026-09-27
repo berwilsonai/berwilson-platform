@@ -4,6 +4,8 @@
  * AI-powered vendor enrichment pipeline:
  *   1. Gemini grounded search — company name + website queries
  *   2. Gemini structuring — extract description, specialties, headquarters
+ *   3. Logo — the mark the company publishes on its own site, verified by
+ *      downloading it (`lib/contacts/profile-photo.ts`)
  *
  * Body: {} → returns preview (does NOT save)
  * Body: { confirm: true, enriched: {...} } → saves to DB
@@ -15,6 +17,12 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { researchQuery } from '@/lib/ai/research'
 import { callGemini } from '@/lib/ai/gemini'
 import { embedEntityEnrichment } from '@/lib/ai/embeddings'
+import {
+  findProfilePhoto,
+  photoProvenance,
+  storeProfilePhoto,
+  type PhotoCandidate,
+} from '@/lib/contacts/profile-photo'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -33,6 +41,8 @@ export interface EntityEnrichmentPreview {
     government_contract_history?: string | null
   }
   sources: Array<{ url: string; title?: string }>
+  /** The company's own mark, already downloaded once to prove it resolves. */
+  logo: PhotoCandidate | null
 }
 
 export interface EntityEnrichmentConflict {
@@ -106,7 +116,7 @@ export async function POST(
   // Load current entity record
   const { data: entity } = await admin
     .from('entities')
-    .select('id, name, website_url, description, specialties, headquarters, enrichment_data, enriched_at')
+    .select('id, name, website_url, logo_url, description, specialties, headquarters, enrichment_data, enriched_at')
     .eq('id', id)
     .single()
 
@@ -152,8 +162,26 @@ export async function POST(
       updates.specialties = merged
     }
 
-    if (enriched.enrichment_notes) {
-      updates.enrichment_data = enriched.enrichment_notes as import('@/lib/supabase/types').Json
+    // Where the logo came from is kept beside the research notes, so a mark
+    // that turns out to belong to a similarly-named company is traceable.
+    const notes: Record<string, unknown> = { ...(enriched.enrichment_notes ?? {}) }
+
+    let logoSaved: 'saved' | 'kept-existing' | 'failed' | null = null
+    if (enriched.logo && !entity.logo_url) {
+      try {
+        updates.logo_url = await storeProfilePhoto(id, enriched.logo)
+        notes.logo_source = photoProvenance(enriched.logo)
+        logoSaved = 'saved'
+      } catch (err) {
+        console.error('[entity-enrich] logo save failed:', err)
+        logoSaved = 'failed'
+      }
+    } else if (enriched.logo) {
+      logoSaved = 'kept-existing'
+    }
+
+    if (Object.keys(notes).length > 0) {
+      updates.enrichment_data = notes as import('@/lib/supabase/types').Json
     }
 
     updates.enriched_at = new Date().toISOString()
@@ -170,7 +198,7 @@ export async function POST(
     // Embed enrichment data into vector store for intelligence queries
     embedEntityEnrichment(id).catch(console.error)
 
-    return Response.json({ saved: true, conflicts })
+    return Response.json({ saved: true, conflicts, logo: logoSaved })
   }
 
   // ── PREVIEW: run enrichment pipeline ────────────────────────────────────
@@ -183,6 +211,17 @@ export async function POST(
 
   const allSources: Array<{ url: string; title?: string }> = []
   const rawTexts: string[] = []
+
+  // Started now, awaited after the text research: it is network-bound and has
+  // nothing to do with the model, so it costs no extra wall clock.
+  const logoSearch = findProfilePhoto({
+    fullName: companyName,
+    email: null,
+    isOrganization: true,
+  }).catch((err) => {
+    console.error('[entity-enrich] logo search failed', err)
+    return { candidate: null, tried: [], error: null }
+  })
 
   try {
     const primaryRes = await researchQuery(primaryQuery)
@@ -226,6 +265,7 @@ export async function POST(
       government_contract_history: structured.government_contract_history ?? null,
     },
     sources: allSources.filter((s, i, arr) => arr.findIndex((x) => x.url === s.url) === i).slice(0, 20),
+    logo: (await logoSearch).candidate,
   }
 
   // Detect conflicts with existing data

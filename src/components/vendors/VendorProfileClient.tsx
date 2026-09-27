@@ -174,6 +174,7 @@ export default function VendorProfileClient({
             entityName={entity.name as string}
             websiteUrl={entity.website_url as string | null}
             enrichedAt={entity.enriched_at as string | null}
+            hasLogo={!!entity.logo_url}
           />
         </div>
 
