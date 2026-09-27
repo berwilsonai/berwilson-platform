@@ -236,7 +236,8 @@ export async function runDocumentAiPass(input: {
         const result = await callGemini<DocSummary>({
           task: 'doc-summary',
           systemPrompt: summarySystem,
-          userMessage: fullText.slice(0, 30000),
+          // Same cap and same reasoning as LOCAL_PDF_SUMMARY_CHARS in gemini.ts.
+          userMessage: fullText.slice(0, Number(process.env.LOCAL_SUMMARY_INPUT_CHARS) || 30_000),
           userId: SYSTEM_USER_ID,
           promptVersion: summaryVersion,
           maxTokens: 2048,

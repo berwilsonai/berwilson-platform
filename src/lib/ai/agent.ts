@@ -398,7 +398,9 @@ function historyToLocalMessages(history: Content[]): LocalChatMessage[] {
 // Raising the round budget without this would trade one silent failure for a
 // worse one. Measured on this box: the system prompt is ~17.5k characters, the
 // company context ~4.9k and the 42 tool declarations ~30.2k — about 13k tokens
-// of fixed overhead on every request, against a 65,536-token window (`lms ps`).
+// of fixed overhead on every request, against the model's context window (read
+// it off `lms ps` — 131,072 as configured on 2026-09-26, and it was 65,536 when
+// these figures were first measured).
 // A single get_document_content window is 20k characters (~5k tokens), so ten
 // document reads fill the rest, and a thorough investigation now makes more
 // calls than that by design.
@@ -420,12 +422,13 @@ function historyToLocalMessages(history: Content[]): LocalChatMessage[] {
  *
  * This one CANNOT be raised by fiat — it is set by the model's context window,
  * which is LM Studio's setting, not ours. At the 65,536-token window the Studio
- * shipped with, 120,000 characters of conversation plus ~13k tokens of fixed
- * overhead is already most of the window. Doubling the window to 131,072 costs
- * 2.12 GiB (`lms load --estimate-only`, measured — the hand-computed KV figure
- * overstates it by more than double) and is what makes a bigger figure here
- * safe, so this is env-tunable and documented in CLAUDE.md §7 beside the LM
- * Studio context it depends on. Raise it WITH that change, never ahead of it.
+ * shipped with, this 120,000-character default plus ~13k tokens of fixed overhead
+ * was already most of the window. **The window is 131,072 as of 2026-09-26** —
+ * `--ctx-size 131072` with a q8_0 K/V cache, which cost +2.12 GiB rather than the
+ * +5 hand arithmetic predicted (`lms load --estimate-only`) — and `.env.local`
+ * therefore sets this to 300,000. The default here stays at the conservative
+ * figure so a machine without that configuration cannot overflow; §7 documents
+ * the pair. Raise it WITH the LM Studio context, never ahead of it.
  */
 const contextBudgetChars = () => envInt('AGENT_CONTEXT_BUDGET_CHARS', 120_000)
 

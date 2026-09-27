@@ -27,8 +27,16 @@ function getClient(): GoogleGenerativeAI {
  *
  * Matches the cap the plain-text path already applies. Roughly 7.5k tokens,
  * which leaves the context comfortable regardless of how it is configured.
+ *
+ * Deliberately NOT raised when the LM Studio window doubled on 2026-09-26. A
+ * summary's job is to tell the agent what a document IS so it decides whether to
+ * open it — `list_documents` and `get_record_brief` present a document by its
+ * summary and nothing else. 30k characters answers that for a 150k-character
+ * survey record, while quadrupling it quadruples the prompt on every document
+ * pass on a box that is already 22GB of model against 36GB of RAM. Tunable for
+ * the case where a summary genuinely needs to see more of the document.
  */
-const LOCAL_PDF_SUMMARY_CHARS = 30_000
+const LOCAL_PDF_SUMMARY_CHARS = Number(process.env.LOCAL_SUMMARY_INPUT_CHARS) || 30_000
 
 /**
  * The document cannot be read with what is loaded — a scanned PDF with no
