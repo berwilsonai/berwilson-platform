@@ -42,6 +42,15 @@ export interface DriveSyncProgress {
   updated: number
   unchanged: number
   skipped: number
+  /**
+   * WHY each skipped file was skipped, counted by reason.
+   *
+   * `skipped` alone is six different outcomes in one number, and it sat at 26
+   * every night for weeks while two investor decks and three building-code
+   * manuals were silently absent from the knowledge base. A count whose failure
+   * mode is doing nothing has to say what it did nothing about.
+   */
+  skippedReasons: Record<string, number>
   failed: number
   /** Retired because they are no longer in any nominated folder. */
   superseded: number
@@ -79,12 +88,18 @@ export async function syncDriveKnowledge(
     updated: 0,
     unchanged: 0,
     skipped: 0,
+    skippedReasons: {},
     failed: 0,
     superseded: 0,
     supersedeHeldBack: null,
     errors: [],
     outOfTime: false,
     arrivals: [],
+  }
+
+  const skip = (reason: string) => {
+    progress.skipped++
+    progress.skippedReasons[reason] = (progress.skippedReasons[reason] ?? 0) + 1
   }
 
   // Nominated folders may nest — "Corporate" holds Board Meetings, Fundraising,
@@ -128,7 +143,7 @@ export async function syncDriveKnowledge(
     }
 
     if (ownedElsewhere.has(file.id)) {
-      progress.skipped++
+      skip('already imported on a project')
       continue
     }
     // The same file reaches this loop twice when it sits in two nominated
@@ -136,7 +151,7 @@ export async function syncDriveKnowledge(
     // before the loop, so the second copy looks new and its insert violates the
     // unique index on drive_file_id — a hard failure logged on every run.
     if (seenIds.has(file.id)) {
-      progress.skipped++
+      skip('listed in two nominated folders')
       continue
     }
 
@@ -164,18 +179,18 @@ export async function syncDriveKnowledge(
     }
 
     if (file.size != null && file.size > MAX_FILE_BYTES) {
-      progress.skipped++
+      skip(`over ${MAX_FILE_BYTES / 1024 / 1024}MB`)
       continue
     }
     if (documentKind(file.mimeType, file.name) === 'unsupported' && !EXPORTABLE(file)) {
-      progress.skipped++
+      skip(`unreadable type: ${file.mimeType ?? 'unknown'}`)
       continue
     }
 
     try {
       const content = await fetchDriveFile(file)
       if (!content) {
-        progress.skipped++
+        skip('Drive returned no content')
         continue
       }
 
@@ -228,7 +243,7 @@ export async function syncDriveKnowledge(
           // a client that disconnected without stopping the server handler.
           // Losing the race is not a failure — the document is imported.
           if (error.code === '23505') {
-            progress.skipped++
+            skip('imported by a concurrent run')
             continue
           }
           throw new Error(error.message)

@@ -18,6 +18,7 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { chunkText, generateEmbedding } from './embeddings'
 import { dedupeByContent, DEDUPE_OVERFETCH } from './dedupe'
+import { scrubMailText, unwrapSafeLinks, isLowSignalPassage } from './text-noise'
 import { documentKind } from './document-pipeline'
 import { extractDocxText, transcribePdfText } from './document-text'
 import { fetchThread, fetchAttachmentBytes } from '@/lib/integrations/google-workspace'
@@ -92,6 +93,16 @@ export function extractPortalLinks(markdown: string): PortalReference[] {
   const out: PortalReference[] = []
   const seen = new Set<string>()
 
+  // Undo the mail gateway's link rewriting FIRST, and do it here rather than at
+  // index time so the fix reaches the mail already swept without a re-embed —
+  // this function reads `raw_markdown` live on every call.
+  //
+  // A rewritten link is 300-400 characters, which is the whole filename window
+  // below, so the name is never found and the reference is discarded. Measured
+  // over 1,000 threads before this line: 74 carried proofpoint-wrapped links
+  // and produced ZERO portal references between them.
+  markdown = unwrapSafeLinks(markdown)
+
   const urlRe = /https?:\/\/[^\s)<>"']+/g
   let m: RegExpExecArray | null
   while ((m = urlRe.exec(markdown)) !== null) {
@@ -145,7 +156,9 @@ export async function embedThread(
     skipped: false,
   }
 
-  const body = (thread.raw_markdown ?? '').slice(0, MAX_BODY_CHARS)
+  // Scrubbed before the cap, so the budget is spent on the conversation rather
+  // than on gateway link wrappers and encoded blobs — 14.8% of this corpus.
+  const body = scrubMailText(thread.raw_markdown ?? '').slice(0, MAX_BODY_CHARS)
   if (!body.trim()) {
     // Stamped anyway: a thread with no readable text will never become
     // embeddable, and leaving embedded_at null would re-select it every run.
@@ -175,7 +188,7 @@ export async function embedThread(
     const attachments = await readAttachmentText(thread)
     result.attachmentsRead = attachments.length
     for (const file of attachments) {
-      for (const chunk of chunkText(file.text.slice(0, MAX_ATTACHMENT_CHARS))) {
+      for (const chunk of chunkText(scrubMailText(file.text).slice(0, MAX_ATTACHMENT_CHARS))) {
         const embedding = await generateEmbedding(chunk.content)
         rows.push({
           thread_id: thread.id,
@@ -493,5 +506,21 @@ export async function searchCorrespondence(
     similarity: Number(r.similarity ?? 0),
   }))
 
-  return dedupeByContent(hits, (h) => h.content, limit)
+  // Clean each passage on the way out. The index-time scrub above only reaches
+  // mail swept from now on, and ~6,000 chunks predate it.
+  //
+  // Scrubbing rather than withholding, because the passage that prompted this
+  // was not junk: "what did the title company say about the parcels?" returned
+  // a chunk LEADING with a 300-character hex run — the tail of a spam-report
+  // link cut at a chunk boundary — and behind it, Ericson writing to Highland
+  // Title about getting the title together. Dropping the passage would have
+  // cost the answer; dropping the run costs nothing.
+  const cleaned = hits.map((h) => ({ ...h, content: scrubMailText(h.content) }))
+
+  // What is left after scrubbing is sometimes nothing but an encoded blob.
+  // Withhold those — but never the last of them, because an empty result reads
+  // as "there is no correspondence on this", which is the one wrong answer.
+  const readable = cleaned.filter((h) => h.content.length > 0 && !isLowSignalPassage(h.content))
+
+  return dedupeByContent(readable.length > 0 ? readable : cleaned, (h) => h.content, limit)
 }

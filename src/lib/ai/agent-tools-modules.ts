@@ -15,7 +15,7 @@
  */
 
 import { createAdminClient } from '@/lib/supabase/admin'
-import { orIlike } from '@/lib/utils/postgrest'
+import { orIlike, orIlikeAnyWord, sanitizeFilterTerm } from '@/lib/utils/postgrest'
 import { searchCorrespondence, extractPortalLinks } from './thread-embeddings'
 // The sweep tables post-date the last type generation (gen-types is disabled
 // against the self-hosted DB), so they are reached through the sweep's own
@@ -1020,41 +1020,69 @@ export async function executeModuleTool(
 
     case 'search_email_threads': {
       const limit = num(args.limit) ?? 15
-      let q = sweepDb()
-        .from('email_threads')
-        .select('id, subject, participants, mailbox, first_at, last_at, message_count, attachment_count, summary, cluster_id')
-        .eq('summary_state', 'summarized')
-        .order('last_at', { ascending: false })
-        .limit(limit)
-
       const query = str(args.query)
-      if (query) {
-        // summary is jsonb. A `summary::text` cast reads naturally but is NOT
-        // valid inside an or() logic tree — PostgREST rejects the whole request
-        // with "failed to parse logic tree", so this tool errored on every
-        // search. Reach into the jsonb with ->> instead, which the logic-tree
-        // parser does accept. key_facts is an array; ->> serialises it to JSON
-        // text, so an ilike still matches inside it.
-        //
-        // The value is double-quoted because a query containing a comma or a
-        // paren would otherwise be parsed as more logic-tree structure.
-        const like = `"*${query.replace(/["\\]/g, '')}*"`
-        q = q.or(
-          [
-            `subject.ilike.${like}`,
-            `summary->>deal_name.ilike.${like}`,
-            `summary->>counterparty.ilike.${like}`,
-            `summary->>summary.ilike.${like}`,
-            `summary->>key_facts.ilike.${like}`,
-          ].join(','),
-        )
-      }
       const participant = str(args.participant)
-      if (participant) q = q.filter('participants', 'cs', `{${participant}}`)
       const relevance = str(args.relevance)
-      if (relevance) q = q.filter('summary->>relevance', 'eq', relevance)
 
-      const { data, error } = await q
+      // summary is jsonb. A `summary::text` cast reads naturally but is NOT
+      // valid inside an or() logic tree — PostgREST rejects the whole request
+      // with "failed to parse logic tree". Reach into the jsonb with ->>
+      // instead, which the logic-tree parser does accept. key_facts is an
+      // array; ->> serialises it to JSON text, so an ilike matches inside it.
+      const COLUMNS = [
+        'subject',
+        'summary->>deal_name',
+        'summary->>counterparty',
+        'summary->>summary',
+        'summary->>key_facts',
+      ] as const
+
+      const run = async (filter: string | null, rows = limit) => {
+        let q = sweepDb()
+          .from('email_threads')
+          .select('id, subject, participants, mailbox, first_at, last_at, message_count, attachment_count, summary, cluster_id')
+          .eq('summary_state', 'summarized')
+          .order('last_at', { ascending: false })
+          .limit(rows)
+        if (filter) q = q.or(filter)
+        if (participant) q = q.filter('participants', 'cs', `{${participant}}`)
+        if (relevance) q = q.filter('summary->>relevance', 'eq', relevance)
+        return q
+      }
+
+      // The phrase first — an exact hit is the better answer when there is one.
+      let { data, error } = await run(query ? orIlike(COLUMNS, query) : null)
+
+      // Then every word, because this is a KEYWORD tool and the model asks it
+      // questions. `ilike '%title commitment%'` needs those two words adjacent,
+      // so a live corpus holding five Highland Title threads about title
+      // commitments answered that search with nothing at all, while the
+      // semantic tool found them instantly. A caller who gets zero rows reads
+      // it as "there is no such correspondence", which is the one wrong answer.
+      if (!error && (data?.length ?? 0) === 0 && query) {
+        const words = sanitizeFilterTerm(query).split(' ').filter(Boolean).slice(0, 3)
+        const anyWord = orIlikeAnyWord(COLUMNS, query)
+        if (anyWord) {
+          // Over-fetch, because the fallback is a much wider net and the base
+          // query orders by DATE. Ranked on recency alone, "Hill AFB site
+          // visit" answered with three meeting-notes threads that merely said
+          // "site", while the Hill AFB threads fell off the end of the limit.
+          const widened = await run(anyWord, limit * 4)
+          error = widened.error
+          // Rank by how many of the asked-for words a thread actually carries,
+          // then by date. A thread matching two words is a better answer than a
+          // newer one matching one, and the phrase search has already failed.
+          data = (widened.data ?? [])
+            .map((row) => {
+              const hay = JSON.stringify([row.subject, row.summary]).toLowerCase()
+              return { row, hits: words.filter((w) => hay.includes(w.toLowerCase())).length }
+            })
+            .sort((a, b) => b.hits - a.hits)
+            .slice(0, limit)
+            .map((r) => r.row)
+        }
+      }
+
       if (error) return { error: `Email search failed: ${error.message}` }
 
       type Summary = {

@@ -192,6 +192,83 @@ export async function extractXlsxText(buffer: ArrayBuffer): Promise<string | nul
   }
 }
 
+/**
+ * Extract the text of a .pptx deck — slide by slide, with speaker notes.
+ *
+ * Added because two investor decks sat in a nominated Drive knowledge folder
+ * and never reached the platform at all: `documentKind` had no pptx branch, so
+ * the nightly sync counted them as "unsupported", skipped them, and created no
+ * `documents` row to come back for. They were invisible rather than unreadable
+ * — nothing listed them, and the skip count that hid them was a single opaque
+ * number covering six different reasons.
+ *
+ * A deck is where a company states its own numbers, so this is exactly the
+ * material a fit assessment or a capability answer should be grounded in.
+ *
+ * Same idiom as the xlsx reader above: a .pptx is a zip of XML, `fflate`
+ * inflates it, and the slide XML is read directly. Text lives in <a:t> runs.
+ * Slides are numbered so a citation can name one, and speaker notes are kept
+ * because a deck's actual argument is often only written there.
+ */
+export async function extractPptxText(buffer: ArrayBuffer): Promise<string | null> {
+  try {
+    const { unzipSync } = await import('fflate')
+    const files = unzipSync(new Uint8Array(buffer))
+
+    // Runs within one <a:p> are a paragraph — a title or a bullet — and are
+    // joined without a separator, because PowerPoint splits a single line into
+    // several runs wherever its formatting changes mid-word.
+    const textOf = (xml: string): string[] => {
+      const lines: string[] = []
+      for (const para of xml.match(/<a:p\b[\s\S]*?<\/a:p>/g) ?? []) {
+        const runs = para.match(/<a:t\b[^>]*>([\s\S]*?)<\/a:t>/g) ?? []
+        const line = runs.map((r) => unescapeXml(r.replace(/<[^>]+>/g, ''))).join('').trim()
+        if (line) lines.push(line)
+      }
+      return lines
+    }
+
+    const slideNumber = (path: string): number =>
+      Number(path.match(/(\d+)\.xml$/)?.[1] ?? 0)
+
+    const slidePaths = Object.keys(files)
+      .filter((n) => /^ppt\/slides\/slide\d+\.xml$/.test(n))
+      .sort((a, b) => slideNumber(a) - slideNumber(b))
+
+    const parts: string[] = []
+    for (const path of slidePaths) {
+      const bytes = files[path]
+      if (!bytes) continue
+      const lines = textOf(new TextDecoder().decode(bytes))
+
+      const n = slideNumber(path)
+      const notesBytes = files[`ppt/notesSlides/notesSlide${n}.xml`]
+      const notes = notesBytes ? textOf(new TextDecoder().decode(notesBytes)) : []
+      // PowerPoint puts the slide number itself in the notes placeholder, so a
+      // notes body that is only that is not a note.
+      const realNotes = notes.filter((l) => l !== String(n))
+
+      if (lines.length === 0 && realNotes.length === 0) continue
+      parts.push(
+        [`## Slide ${n}`, ...lines, ...(realNotes.length ? ['', 'Speaker notes:', ...realNotes] : [])]
+          .join('\n')
+      )
+    }
+
+    // Stated rather than left to be counted, for the same reason the sheet
+    // reader states its row count: it is the figure a reader repeats, and a
+    // language model is unreliable at arriving at it by counting.
+    if (parts.length === 0) return null
+    const header = `${parts.length} slide${parts.length === 1 ? '' : 's'}. This deck is complete — use this count rather than counting the slides below.`
+
+    const text = sanitizeExtractedText([header, ...parts].join('\n\n').trim())
+    return text.length >= 40 ? text : null
+  } catch (err) {
+    console.error('[document-text] pptx extraction failed:', err)
+    return null
+  }
+}
+
 function sheetNumber(path: string): number {
   return Number(path.match(/sheet(\d+)\.xml$/)?.[1] ?? 0)
 }

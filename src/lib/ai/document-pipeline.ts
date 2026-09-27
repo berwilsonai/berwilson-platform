@@ -1,5 +1,5 @@
 import { callGemini, callGeminiWithFile, UnreadableDocumentError } from '@/lib/ai/gemini'
-import { transcribePdfText, extractDocxText, extractXlsxText, extractImageText, storeExtractedText } from '@/lib/ai/document-text'
+import { transcribePdfText, extractDocxText, extractXlsxText, extractPptxText, extractImageText, storeExtractedText } from '@/lib/ai/document-text'
 import { isLocalAI } from '@/lib/ai/local'
 import { embedDocument, embedOpportunityDocument } from '@/lib/ai/embeddings'
 import type { createAdminClient } from '@/lib/supabase/admin'
@@ -25,6 +25,8 @@ export const DOCX_MIME_TYPE =
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
 export const XLSX_MIME_TYPE =
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+export const PPTX_MIME_TYPE =
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation'
 export const TEXT_MIME_TYPES = new Set([
   'text/plain',
   'text/markdown',
@@ -35,7 +37,7 @@ export const TEXT_MIME_TYPES = new Set([
 /** Types Apple Vision can recognize text in (see card-ocr.ts). */
 export const IMAGE_MIME_PREFIX = 'image/'
 
-export type DocumentKind = 'pdf' | 'docx' | 'xlsx' | 'image' | 'text' | 'unsupported'
+export type DocumentKind = 'pdf' | 'docx' | 'xlsx' | 'pptx' | 'image' | 'text' | 'unsupported'
 
 /** Internal control-flow marker for `skipSummary` — never surfaces to a caller. */
 class SkipSummary extends Error {}
@@ -48,6 +50,7 @@ export function documentKind(
   if (mime === PDF_MIME_TYPE) return 'pdf'
   if (mime === DOCX_MIME_TYPE) return 'docx'
   if (mime === XLSX_MIME_TYPE) return 'xlsx'
+  if (mime === PPTX_MIME_TYPE) return 'pptx'
   if (TEXT_MIME_TYPES.has(mime)) return 'text'
   if (mime.startsWith(IMAGE_MIME_PREFIX)) return 'image'
   // Fall back on the extension — browsers/Graph sometimes send octet-stream.
@@ -55,6 +58,7 @@ export function documentKind(
   if (name.endsWith('.pdf')) return 'pdf'
   if (name.endsWith('.docx')) return 'docx'
   if (/\.(xlsx|xlsm)$/.test(name)) return 'xlsx'
+  if (name.endsWith('.pptx')) return 'pptx'
   if (/\.(txt|md|markdown|csv|html)$/.test(name)) return 'text'
   if (/\.(jpg|jpeg|png|heic|heif|webp|tif|tiff|gif|bmp)$/.test(name)) return 'image'
   return 'unsupported'
@@ -188,6 +192,8 @@ export async function runDocumentAiPass(input: {
       fullText = await extractDocxText(buffer)
     } else if (kind === 'xlsx') {
       fullText = await extractXlsxText(buffer)
+    } else if (kind === 'pptx') {
+      fullText = await extractPptxText(buffer)
     } else if (kind === 'image') {
       fullText = await extractImageText(buffer, fileName)
     } else {
