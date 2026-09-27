@@ -213,6 +213,16 @@ export default function AgentChat({
         }
       }
 
+      // The agent narrated ("Let me pull the lease...") and then went back for
+      // more evidence. That narration is worth seeing while it works, but it is
+      // not the answer — keeping it would leave the rendered message reading
+      // differently from the one stored, the moment the page reloads.
+      const resetText = () => {
+        started = false
+        setMessages(prev => prev.filter(m => m.id !== streamId))
+        setActivity('still working')
+      }
+
       while (true) {
         const { done, value } = await reader.read()
         if (done) break
@@ -241,6 +251,8 @@ export default function AgentChat({
             setActivity(event.name.replace(/_/g, ' '))
           } else if (event.type === 'text' && event.delta) {
             appendDelta(event.delta)
+          } else if (event.type === 'reset') {
+            resetText()
           } else if (event.type === 'done') {
             if (event.conversationId) {
               if (!conversationId) onConversationCreated?.(event.conversationId)

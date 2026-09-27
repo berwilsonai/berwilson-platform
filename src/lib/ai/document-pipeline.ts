@@ -1,5 +1,5 @@
 import { callGemini, callGeminiWithFile, UnreadableDocumentError } from '@/lib/ai/gemini'
-import { transcribePdfText, extractDocxText, storeExtractedText } from '@/lib/ai/document-text'
+import { transcribePdfText, extractDocxText, extractXlsxText, storeExtractedText } from '@/lib/ai/document-text'
 import { embedDocument, embedOpportunityDocument } from '@/lib/ai/embeddings'
 import type { createAdminClient } from '@/lib/supabase/admin'
 import { SYSTEM_USER_ID } from '@/lib/system-user'
@@ -22,6 +22,8 @@ Return ONLY valid JSON. No explanation. No markdown.`
 export const PDF_MIME_TYPE = 'application/pdf'
 export const DOCX_MIME_TYPE =
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+export const XLSX_MIME_TYPE =
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
 export const TEXT_MIME_TYPES = new Set([
   'text/plain',
   'text/markdown',
@@ -29,7 +31,7 @@ export const TEXT_MIME_TYPES = new Set([
   'text/html',
 ])
 
-export type DocumentKind = 'pdf' | 'docx' | 'text' | 'unsupported'
+export type DocumentKind = 'pdf' | 'docx' | 'xlsx' | 'text' | 'unsupported'
 
 export function documentKind(
   mimeType: string | null | undefined,
@@ -38,11 +40,13 @@ export function documentKind(
   const mime = mimeType ?? ''
   if (mime === PDF_MIME_TYPE) return 'pdf'
   if (mime === DOCX_MIME_TYPE) return 'docx'
+  if (mime === XLSX_MIME_TYPE) return 'xlsx'
   if (TEXT_MIME_TYPES.has(mime)) return 'text'
   // Fall back on the extension — browsers/Graph sometimes send octet-stream.
   const name = (fileName ?? '').toLowerCase()
   if (name.endsWith('.pdf')) return 'pdf'
   if (name.endsWith('.docx')) return 'docx'
+  if (/\.(xlsx|xlsm)$/.test(name)) return 'xlsx'
   if (/\.(txt|md|markdown|csv|html)$/.test(name)) return 'text'
   return 'unsupported'
 }
@@ -162,6 +166,8 @@ export async function runDocumentAiPass(input: {
       })
     } else if (kind === 'docx') {
       fullText = await extractDocxText(buffer)
+    } else if (kind === 'xlsx') {
+      fullText = await extractXlsxText(buffer)
     } else {
       fullText = new TextDecoder().decode(buffer)
     }

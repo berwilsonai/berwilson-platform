@@ -2,9 +2,10 @@
  * POST /api/ai/agent — Run the Construction Executive Agent
  *
  * Body: { message: string, conversationId?: string, projectId?: string, stream?: boolean }
- * - stream: true → Server-Sent Events: {type:'tool'|'text'|'done'|'error', ...}
+ * - stream: true → Server-Sent Events: {type:'tool'|'text'|'reset'|'done'|'error', ...}
  *   Tool events arrive as the agent works; text deltas stream the answer;
- *   'done' carries conversationId/messageId/toolCalls for the finished message.
+ *   'reset' discards text streamed so far (it was narration before more tool
+ *   work, not the answer); 'done' carries conversationId/messageId/toolCalls.
  * - stream omitted → legacy JSON response { response, conversationId, toolCalls? }
  */
 
@@ -121,6 +122,10 @@ export async function POST(request: NextRequest) {
           const result = await runAgent(body.message!, agentContext, history, {
             onToolCall: (name) => send({ type: 'tool', name }),
             onTextDelta: (delta) => send({ type: 'text', delta }),
+            // The agent narrated before going back for more evidence. Clear
+            // what the client has rendered so the visible message matches the
+            // one about to be stored.
+            onTextReset: () => send({ type: 'reset' }),
           })
 
           // Persist assistant message (same contract as the JSON path)

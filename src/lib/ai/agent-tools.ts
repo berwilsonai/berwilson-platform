@@ -360,7 +360,7 @@ export const agentTools = [
   },
   {
     name: 'get_document_content',
-    description: 'Fetch the stored full text of an uploaded document so you can quote or analyze its actual contents (proposals, contracts, RFPs, CIMs). Use after search_knowledge_base or query_opportunity surfaces a relevant document. Returns the file name, AI summary, and extracted text.',
+    description: 'Fetch the stored full text of an uploaded document so you can quote or analyze its actual contents (proposals, contracts, RFPs, CIMs). Use after search_knowledge_base or query_opportunity surfaces a relevant document. Returns the file name, AI summary, and a window of extracted text. Long documents come back one window at a time: when the result says truncated, call this again with the offset it gives you and keep going until you reach the end or have found what you need — a legal description, an acreage schedule or a payment table is often far past the first window.',
     parameters: {
       type: 'object',
       properties: {
@@ -369,6 +369,14 @@ export const agentTools = [
           type: 'string',
           enum: ['project', 'opportunity'],
           description: 'Which document store: "project" for the main documents table (projects/vendors/company), "opportunity" for opportunity documents (default: project)',
+        },
+        offset: {
+          type: 'number',
+          description: 'Character offset to start reading from (default 0). Use next_offset from a truncated result to read the following window.',
+        },
+        find: {
+          type: 'string',
+          description: 'Optional case-insensitive phrase to locate first. When given, the window is centred on the first match instead of starting at offset — the fastest way to reach a specific clause, township/range description, acreage figure or dollar amount inside a long document.',
         },
       },
       required: ['document_id'],
@@ -383,6 +391,33 @@ export const agentTools = [
 // ---------------------------------------------------------------------------
 // Tool Execution
 // ---------------------------------------------------------------------------
+
+/**
+ * Why a stored document has no extractable text. The distinction the agent
+ * needs is permanent-vs-transient: a scan and an unsupported file type will
+ * never answer the question no matter how many times it is asked for, so the
+ * right move is to name the file as a gap and move on.
+ */
+function unreadableReason(mimeType: string | null | undefined, fileName: string | null): string {
+  const mime = (mimeType ?? '').toLowerCase()
+  const name = (fileName ?? '').toLowerCase()
+  const is = (m: string, ...ext: string[]) => mime === m || ext.some((e) => name.endsWith(e))
+
+  if (mime.startsWith('image/') || is('', '.jpg', '.jpeg', '.png', '.heic', '.tif', '.tiff')) {
+    return 'image file — needs a vision model to read; nothing is indexed'
+  }
+  if (is('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', '.xlsx', '.xls', '.xlsm')) {
+    return 'spreadsheet — text extraction not yet supported for this file type'
+  }
+  if (mime === 'application/pdf' || name.endsWith('.pdf')) {
+    return 'scanned/image-only PDF — no text layer to extract; needs a vision model'
+  }
+  if (mime === 'text/calendar' || name.endsWith('.ics')) return 'calendar invite — no document text'
+  if (mime === 'message/rfc822' || name.endsWith('.eml')) {
+    return 'raw email file — read it through the correspondence tools instead'
+  }
+  return 'no text extracted (unsupported file type, or extraction failed)'
+}
 
 export async function executeToolCall(
   toolName: string,
@@ -1458,7 +1493,7 @@ export async function executeToolCall(
 
       let q = supabase
         .from('documents')
-        .select('id, file_name, doc_type, classification, ai_summary, uploaded_at, project_id')
+        .select('id, file_name, doc_type, classification, ai_summary, uploaded_at, project_id, mime_type')
         // Retired documents are deliberately absent. Their chunks are already
         // deleted, so search cannot surface them; listing them here would let
         // the agent fetch a superseded revision by name and answer from it —
@@ -1517,12 +1552,18 @@ export async function executeToolCall(
           classification: d.classification,
           ai_summary: d.ai_summary,
           has_full_text: hasText.has(d.id),
+          // Why a document has no text, not just that it hasn't. Without the
+          // reason the agent keeps fetching an empty document — twice in one
+          // turn, on the Alaska lease — because "no text" reads as a transient
+          // miss. An image-only scan and an unsupported file type are both
+          // permanent, and saying which one is the useful answer.
+          ...(hasText.has(d.id) ? {} : { unreadable_because: unreadableReason(d.mime_type, d.file_name) }),
           uploaded_at: d.uploaded_at,
           ...(projectIds.length > 1 && d.project_id
             ? { project: projName.get(d.project_id) ?? null }
             : {}),
         })),
-        hint: 'Call get_document_content with a document id to read the full stored text. You can fetch several documents in one turn.',
+        hint: 'Call get_document_content with a document id to read its stored text; long documents return one window at a time, so follow next_offset (or pass find:"<phrase>") until you have what you need. Documents carrying unreadable_because hold NO text — never fetch those twice; report them as gaps naming the file and why.',
       }
     }
 
@@ -1560,16 +1601,53 @@ export async function executeToolCall(
       if (!doc) return { error: `Document not found: ${docId}` }
 
       const raw = doc.extracted_text ?? ''
-      const text = raw.slice(0, 20000)
+
+      // A window, not a prefix. This used to hand back `raw.slice(0, 20000)`
+      // with `truncated: true` and no way to ask for the rest, so a document
+      // could only ever be read 20k characters deep — 8% of a 240,000-character
+      // lode report, and 26% of the Felix PSA. The agent said so out loud ("the
+      // Felix PSA is the most detailed document, but it's truncated") and had
+      // nowhere to go with it. A legal description or an acreage schedule sits
+      // wherever it sits; reading only the front of the file is not reading it.
+      const WINDOW = 20_000
+      const total = raw.length
+
+      let start = Math.max(0, Math.floor(Number(args.offset) || 0))
+      let foundAt: number | null = null
+      const find = typeof args.find === 'string' ? args.find.trim() : ''
+      if (find) {
+        foundAt = raw.toLowerCase().indexOf(find.toLowerCase())
+        // Centre the window on the hit so the surrounding clause comes with it.
+        if (foundAt >= 0) start = Math.max(0, foundAt - Math.floor(WINDOW / 4))
+      }
+      if (start >= total) start = total > 0 ? Math.max(0, total - WINDOW) : 0
+
+      const text = raw.slice(start, start + WINDOW)
+      const end = start + text.length
+      const more = end < total
+
       return {
         file_name: doc.file_name,
         doc_type: doc.doc_type,
         ai_summary: doc.ai_summary,
         extracted_text: text || null,
-        truncated: raw.length > 20000,
-        note: text
-          ? undefined
-          : 'No stored full text for this document (uploaded before full-text indexing, or extraction failed). The ai_summary above is all that is indexed.',
+        ...(total > 0
+          ? {
+              window: { offset: start, returned: text.length, total_chars: total },
+              truncated: more,
+              ...(more ? { next_offset: end } : {}),
+            }
+          : {}),
+        ...(find
+          ? foundAt !== null && foundAt >= 0
+            ? { found: { phrase: find, at: foundAt } }
+            : { found: null, found_note: `"${find}" does not appear in this document's stored text.` }
+          : {}),
+        note: !text
+          ? 'No stored full text for this document. Either it is a scanned/image-only PDF, a file type the platform cannot yet extract (e.g. .xlsx), or extraction failed. The ai_summary above is all that is indexed — do not keep re-fetching this document; say which file holds the answer and that it is unreadable here.'
+          : more
+            ? `Characters ${start}-${end} of ${total}. Call get_document_content again with offset ${end} to continue, or pass find:"<phrase>" to jump straight to a clause.`
+            : undefined,
       }
     }
 
