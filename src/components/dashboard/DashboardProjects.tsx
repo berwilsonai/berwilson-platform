@@ -28,9 +28,18 @@ const PRESET_LABELS: Record<Preset, string> = {
 interface DashboardProjectsProps {
   projects: Project[]
   counts: Record<string, ProjectCardCounts>
+  /**
+   * The sort control, rendered into this component's own toolbar.
+   *
+   * It lives in the server page because its state is a URL param, but it
+   * belongs in the same row as the filter and the grouping: three controls
+   * over one grid, stacked in three bands at three different alignments, read
+   * as three unrelated features.
+   */
+  sortControl?: React.ReactNode
 }
 
-export default function DashboardProjects({ projects, counts }: DashboardProjectsProps) {
+export default function DashboardProjects({ projects, counts, sortControl }: DashboardProjectsProps) {
   const [view, setView] = useStoredState<ViewMode>('bw.dashboard.view', 'program')
   const [preset, setPreset] = useStoredState<Preset>('bw.dashboard.preset', 'all')
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
@@ -84,8 +93,9 @@ export default function DashboardProjects({ projects, counts }: DashboardProject
 
   return (
     <div className="space-y-4">
-      {/* Controls: role preset + view toggle */}
-      <div className="flex items-center justify-between gap-3 flex-wrap">
+      {/* One toolbar, one alignment, read left to right: which projects →
+          how they are grouped → how they are ordered. */}
+      <div className="flex items-center gap-2 flex-wrap">
         <div className="flex items-center rounded-md border border-border overflow-hidden text-xs">
           {(['all', 'sales', 'ops'] as Preset[]).map(p => (
             <button
@@ -122,6 +132,7 @@ export default function DashboardProjects({ projects, counts }: DashboardProject
             Stage
           </button>
         </div>
+        {sortControl}
       </div>
 
       {filtered.length === 0 && (

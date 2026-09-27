@@ -6,7 +6,6 @@ import Link from 'next/link'
 import { AlertCircle, Link2, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { DatePicker } from '@/components/ui/date-picker'
-import { cn } from '@/lib/utils'
 import { createInvestor, updateInvestor } from '@/app/investors/actions'
 import type { InvestorFormState } from '@/app/investors/actions'
 import type { Investor } from '@/lib/supabase/types'
@@ -21,17 +20,14 @@ import {
   INSTRUMENTS,
   INSTRUMENT_LABELS,
 } from '@/lib/utils/investors'
+import { FIELD_CONTROL_CLASS, FIELD_TEXTAREA_CLASS, FIELD_LABEL_CLASS } from '@/lib/utils/field-classes'
 
-const inputClass = cn(
-  'h-9 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground',
-  'placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50'
-)
-const textareaClass = cn(
-  'w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground',
-  'placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50',
-  'min-h-[80px] resize-y'
-)
-const labelClass = 'block text-xs font-medium text-foreground mb-1'
+// The app's one field language — see src/lib/utils/field-classes.ts. These
+// were five byte-identical local copies; the aliases stay so the markup below
+// is untouched.
+const inputClass = FIELD_CONTROL_CLASS
+const textareaClass = FIELD_TEXTAREA_CLASS
+const labelClass = FIELD_LABEL_CLASS
 
 export interface PartyOption {
   id: string

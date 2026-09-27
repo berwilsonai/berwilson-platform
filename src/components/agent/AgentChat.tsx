@@ -2,6 +2,8 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { Send, Bot, User, Loader2, AlertCircle, ThumbsUp, ThumbsDown, Trash2 } from 'lucide-react'
+
+import { BriefMarkdown } from '@/components/briefs/BriefMarkdown'
 import ReadAloudButton from '@/components/shared/ReadAloudButton'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 
@@ -401,9 +403,14 @@ export default function AgentChat({
                   : 'bg-muted/60 text-foreground'
               }`}
             >
+              {/* The agent answers in markdown. Rendered as a raw string under a
+                  `prose` wrapper, every `##` and `**` reached the reader as a
+                  literal character — and none of those child selectors could
+                  match, because no element they name was ever produced. The
+                  user's own message stays a plain string: they typed it. */}
               {msg.role === 'assistant' ? (
-                <div className="prose prose-sm prose-slate max-w-none [&_p]:my-1 [&_ul]:my-1 [&_ol]:my-1 [&_li]:my-0.5 [&_strong]:text-foreground whitespace-pre-wrap">
-                  {msg.content}
+                <div className="[&>*:first-child]:mt-0">
+                  <BriefMarkdown text={msg.content} />
                 </div>
               ) : (
                 <p className="whitespace-pre-wrap">{msg.content}</p>

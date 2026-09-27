@@ -5,7 +5,7 @@ export const metadata = { title: 'Intel — Ber Wilson Intelligence' }
 
 export default function IntelPage() {
   return (
-    <div className="max-w-5xl mx-auto space-y-6">
+    <div className="space-y-5">
       <IntelSectionTabs active="intel" />
 
       <p className="text-xs text-muted-foreground">

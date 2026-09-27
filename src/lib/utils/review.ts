@@ -1,3 +1,5 @@
+import { enumLabel } from '@/lib/utils/constants'
+
 /**
  * Vocabulary for the review queue.
  *
@@ -21,5 +23,5 @@ export const REVIEW_REASONS = Object.keys(REVIEW_REASON_LABELS)
 
 export function reviewReasonLabel(reason: string | null | undefined): string {
   if (!reason) return 'Needs review'
-  return REVIEW_REASON_LABELS[reason] ?? reason
+  return enumLabel(reason, REVIEW_REASON_LABELS)
 }

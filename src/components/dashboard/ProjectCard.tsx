@@ -10,7 +10,7 @@ import { Chip } from '@/components/ui/chip'
 import { SECTOR_BADGE, SECTOR_SHORT } from '@/lib/utils/sectors'
 import {
   STATUS_BADGE, STATUS_LABELS,
-  bidDueLabel, daysUntilDate,
+  bidDueLabel, daysUntilDate, formatValue
 } from '@/lib/utils/constants'
 import { STAGE_BORDER } from '@/lib/utils/stages'
 import StageIndicator from './StageIndicator'
@@ -39,14 +39,6 @@ function deadlineLabel(d: ProjectDeadline): string {
   if (d.daysUntil === 1) return 'Due tomorrow'
   if (d.daysUntil <= 14) return `Due in ${d.daysUntil}d`
   return `Due ${new Date(d.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
-}
-
-function formatValue(value: number | null): string {
-  if (value === null) return '—'
-  if (value >= 1_000_000_000) return `$${(value / 1_000_000_000).toFixed(1)}B`
-  if (value >= 1_000_000) return `$${(value / 1_000_000).toFixed(1)}M`
-  if (value >= 1_000) return `$${(value / 1_000).toFixed(0)}K`
-  return `$${value.toLocaleString()}`
 }
 
 // Wrap the matched portion of a string in a <mark> so search hits stand out on
@@ -163,10 +155,17 @@ export default function ProjectCard({ project, counts, isProgram, parentName, hi
               </p>
             )}
           </div>
+          {/* A bare em dash at the value's own weight reads as a rendering
+              failure, not as "nobody has priced this yet". Say nothing where
+              there is nothing, and say it in words where there is room. */}
           <div className="flex flex-col items-end shrink-0">
-            <span className="text-sm font-bold tnum text-foreground">
-              {formatValue(project.estimated_value)}
-            </span>
+            {project.estimated_value != null ? (
+              <span className="text-sm font-bold tnum text-foreground">
+                {formatValue(project.estimated_value)}
+              </span>
+            ) : (
+              <span className="text-[11px] text-muted-foreground/70">No value set</span>
+            )}
             {winProb != null && (
               <span className="text-[11px] text-muted-foreground tnum" title={`Win probability ${winProb}%`}>
                 {winProb}% win

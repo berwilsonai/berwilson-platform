@@ -2,6 +2,10 @@ import Link from 'next/link'
 import { AlertTriangle, CalendarClock, ClipboardCheck, ListChecks, TrendingUp, HandCoins, MailWarning, BadgeAlert, Wrench, Radar } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { SECTOR_BADGE, SECTOR_SHORT } from '@/lib/utils/sectors'
+import { SEVERITY_BADGE, SEVERITY_LABELS } from '@/lib/utils/constants'
+import type { DdSeverity } from '@/lib/supabase/types'
+import { reviewReasonLabel } from '@/lib/utils/review'
+import { Chip } from '@/components/ui/chip'
 import type { TaskSummary } from '@/lib/tasks/queries'
 
 type ReviewWithProject = {
@@ -26,7 +30,7 @@ type MilestoneWithProject = {
 type DdWithProject = {
   id: string
   item: string
-  severity: string
+  severity: DdSeverity
   category: string
   project_id: string
   project: { id: string; name: string } | null
@@ -345,8 +349,8 @@ export default function NeedsAttention({ reviewItems, overdueItems, ddItems, rev
                       <p className="text-xs font-medium text-foreground truncate">
                         {item.project?.name ?? 'Unknown project'}
                       </p>
-                      <p className="text-xs text-muted-foreground mt-0.5 capitalize">
-                        {item.reason.replace(/_/g, ' ')}
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        {reviewReasonLabel(item.reason)}
                         {item.confidence != null && (
                           <span className="ml-1 text-amber-600 dark:text-amber-400">
                             {Math.round(item.confidence * 100)}%
@@ -435,14 +439,9 @@ export default function NeedsAttention({ reviewItems, overdueItems, ddItems, rev
                         {dd.project?.name ?? 'Unknown project'}
                       </p>
                     </div>
-                    <span className={cn(
-                      'shrink-0 inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium ring-1 ring-inset',
-                      dd.severity === 'blocker'
-                        ? 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 ring-red-200 dark:ring-red-800/60'
-                        : 'bg-orange-50 dark:bg-orange-950/40 text-orange-700 dark:text-orange-300 ring-orange-200 dark:ring-orange-800/60'
-                    )}>
-                      {dd.severity}
-                    </span>
+                    <Chip tone={SEVERITY_BADGE[dd.severity]} className="shrink-0">
+                      {SEVERITY_LABELS[dd.severity]}
+                    </Chip>
                   </Link>
                 ))}
               </div>

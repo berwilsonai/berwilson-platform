@@ -7,9 +7,23 @@ import { Radar, Inbox, ClipboardCheck, ArrowRight, X, Loader2, Check, CheckCheck
 import { Panel } from '@/components/ui/card'
 import EmptyState from '@/components/shared/EmptyState'
 import { decideWeight, daysUntil } from '@/lib/decide/rank'
+import { enumLabel, formatValue, formatDate } from '@/lib/utils/constants'
+import { SECTOR_LABELS } from '@/lib/utils/sectors'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 
 export type DecideKind = 'lead' | 'intake' | 'review'
+
+export interface DecideFacts {
+  /** Estimated contract value in dollars. */
+  value?: number | null
+  location?: string | null
+  /** A stored sector enum — rendered through SECTOR_LABELS, never raw. */
+  sector?: string | null
+  /** Solicitation / reference number, when the source carries one. */
+  ref?: string | null
+  /** A second date that is not the bid deadline, already labelled. */
+  extraDate?: { label: string; date: string } | null
+}
 
 export interface DecideItem {
   id: string
@@ -22,6 +36,22 @@ export interface DecideItem {
   score: number | null
   note: string | null
   deadline: string | null
+  /**
+   * The facts the decision actually turns on.
+   *
+   * These were always available — `leads` carries `estimated_value`,
+   * `location`, `sector` and `solicitation_number` as columns and the page
+   * already does `select('*')` — but the row flattened everything into a
+   * paragraph and then clipped the paragraph at three lines. The reader was
+   * being asked to find "$12M, Mapleton, UT, education" inside a sentence that
+   * ran off the right edge.
+   *
+   * Not every source can fill these. A `review_queue` row genuinely has
+   * nothing but a confidence and an explanation, so the strip renders what
+   * exists and the prose carries the rest — the row degrades, it does not
+   * invent parity.
+   */
+  facts?: DecideFacts | null
   /**
    * What accepting this row does, or null when it cannot be accepted from the
    * list. Computed server-side — the client is never handed enough of the
@@ -77,6 +107,48 @@ const KIND_META: Record<DecideKind, { label: string; icon: typeof Radar; tone: s
     icon: ClipboardCheck,
     tone: 'bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:ring-amber-900',
   },
+}
+
+/**
+ * What each verdict is CALLED. `pursue` is a stored token; "Pursue" is what a
+ * person reads. The score that used to follow it is gone on purpose —
+ * CLAUDE.md §12: a fit score carries ±20 points of sampling noise, so read the
+ * verdict, never the number. Four consecutive rows reading `pursue 85` was the
+ * proof: the digits were discriminating nothing.
+ */
+/**
+ * The decision's facts, in the order they get read: what is it worth, where is
+ * it, what kind of work, what is it called, and any date that is not the bid
+ * deadline (that one is already beside the title).
+ *
+ * Absent fields are OMITTED, never dashed. An em dash at the value's weight
+ * reads as a broken render; saying nothing reads as nothing to say.
+ */
+function factStrip(
+  facts: DecideFacts | null | undefined
+): { key: string; text: string; strong?: boolean }[] {
+  if (!facts) return []
+  const out: { key: string; text: string; strong?: boolean }[] = []
+  if (facts.value != null && facts.value > 0) {
+    out.push({ key: 'value', text: formatValue(facts.value), strong: true })
+  }
+  if (facts.location) out.push({ key: 'location', text: facts.location })
+  if (facts.sector) out.push({ key: 'sector', text: enumLabel(facts.sector, SECTOR_LABELS) })
+  if (facts.extraDate) {
+    out.push({
+      key: 'extraDate',
+      text: `${facts.extraDate.label} ${formatDate(facts.extraDate.date, { year: false })}`,
+    })
+  }
+  if (facts.ref) out.push({ key: 'ref', text: facts.ref })
+  return out
+}
+
+const VERDICT_LABEL: Record<string, string> = {
+  pursue: 'Pursue',
+  consider: 'Consider',
+  create: 'Create',
+  merge: 'Merge',
 }
 
 const VERDICT_TONE: Record<string, string> = {
@@ -210,6 +282,8 @@ export default function DecideClient({ items }: { items: DecideItem[] }) {
         .map((i) => ({
           ...i,
           daysLeft: daysUntil(i.deadline, now),
+          // Money breaks ties inside a band — see decideWeight.
+          value: i.facts?.value ?? null,
         }))
         .sort((a, b) => decideWeight(b) - decideWeight(a)),
     [items, now]
@@ -463,7 +537,7 @@ export default function DecideClient({ items }: { items: DecideItem[] }) {
               <span className="text-sm text-muted-foreground">
                 {selected.size > 0
                   ? `${selectedItems.length} selected`
-                  : `${selectable.length} can be accepted from here`}
+                  : `${selectable.length} of ${visible.length} can be accepted without opening them`}
               </span>
               <div className="flex flex-wrap items-center gap-1.5 ml-auto">
                 {confident.length > 0 && (
@@ -474,7 +548,7 @@ export default function DecideClient({ items }: { items: DecideItem[] }) {
                     }
                     className="inline-flex items-center h-11 sm:h-7 px-3 sm:px-2.5 rounded-md text-xs font-medium bg-card ring-1 ring-inset ring-border hover:bg-accent transition-colors"
                   >
-                    Select the {confident.length} Ber AI is sure about
+                    Select {confident.length} high-confidence
                   </button>
                 )}
                 <button
@@ -552,8 +626,7 @@ export default function DecideClient({ items }: { items: DecideItem[] }) {
                         VERDICT_TONE[item.verdict] ?? VERDICT_TONE.consider
                       }`}
                     >
-                      {item.verdict}
-                      {item.score !== null && ` ${item.score}`}
+                      {VERDICT_LABEL[item.verdict] ?? enumLabel(item.verdict)}
                     </span>
                   )}
                   {item.deadline && (
@@ -575,8 +648,27 @@ export default function DecideClient({ items }: { items: DecideItem[] }) {
                 {item.subtitle && (
                   <p className="text-xs text-muted-foreground mt-0.5">{item.subtitle}</p>
                 )}
+                {factStrip(item.facts).length > 0 && (
+                  <p className="text-xs text-foreground/80 mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
+                    {factStrip(item.facts).map((f, i) => (
+                      <span key={f.key} className="inline-flex items-center gap-1.5">
+                        {i > 0 && <span className="text-muted-foreground/40" aria-hidden>·</span>}
+                        <span className={f.strong ? 'font-medium tnum' : undefined}>{f.text}</span>
+                      </span>
+                    ))}
+                  </p>
+                )}
+                {/* Prose is the FALLBACK, not the row. A row with facts gets one
+                    line of the model's reasoning; a row that has no facts to
+                    show (review_queue carries none) keeps two. */}
                 {item.note && (
-                  <p className="text-xs text-muted-foreground/90 mt-1 line-clamp-2">{item.note}</p>
+                  <p
+                    className={`text-xs text-muted-foreground/90 mt-1 ${
+                      factStrip(item.facts).length > 0 ? 'line-clamp-1' : 'line-clamp-2'
+                    }`}
+                  >
+                    {item.note}
+                  </p>
                 )}
               </Link>
               <div className="flex items-center gap-1 mt-0.5 shrink-0">
@@ -599,8 +691,11 @@ export default function DecideClient({ items }: { items: DecideItem[] }) {
                   item.blocker && (
                     // Never an Accept that would 400. The row says what it
                     // needs and sends you to the one screen that can supply it.
+                    // Not `hidden sm:block`. A blocked row on a phone showed no
+                    // button and no reason — an inert row with nothing to say
+                    // for itself. The reason is the whole point of the row.
                     <span
-                      className="hidden sm:block max-w-[14rem] text-[11px] text-amber-700 dark:text-amber-400 text-right leading-tight"
+                      className="block max-w-[10rem] sm:max-w-[14rem] text-[11px] text-amber-700 dark:text-amber-400 text-right leading-tight"
                       title={item.blocker}
                     >
                       {item.blocker}

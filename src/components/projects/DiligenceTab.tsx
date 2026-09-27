@@ -598,7 +598,7 @@ function DdSection({ recordKind, recordId, initialItems, parties }: DdSectionPro
                 <div className="px-2 py-3 flex items-center justify-center">
                   <button
                     onClick={() => openEdit(item)}
-                    className="text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100 transition-all"
+                    className="text-muted-foreground hover:text-foreground sm:opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-all"
                     title="Edit"
                   >
                     <Pencil size={13} />
@@ -1099,7 +1099,7 @@ function ComplianceSection({
                     <td className="px-2 py-3">
                       <button
                         onClick={() => openEdit(item)}
-                        className="text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100 transition-all"
+                        className="text-muted-foreground hover:text-foreground sm:opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-all"
                         title="Edit"
                       >
                         <Pencil size={13} />

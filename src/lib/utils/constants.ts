@@ -321,12 +321,31 @@ export function formatRatePerSqft(value: number | null | undefined): string {
   return `$${value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}/SF`
 }
 
+/**
+ * Money, abbreviated. The dashboard/card/KPI form.
+ *
+ * ONE DECIMAL AT EVERY TIER. It used to be two at the billion mark and one at
+ * the million, which is why the same figure read `$2.1M` on the Projects page
+ * and `$2.13M` on the Financing tab — three shadow copies of this function
+ * each picked their own precision.
+ *
+ * The magnitude tests take the ABSOLUTE value. Unsigned guards sent every
+ * negative straight to the last line, so a −$2.5M variance rendered as the
+ * unreadable `$-2,500,000`.
+ */
 export function formatValue(value: number | null): string {
-  if (value === null || value === undefined) return '—'
-  if (value >= 1_000_000_000) return `$${(value / 1_000_000_000).toFixed(2)}B`
-  if (value >= 1_000_000) return `$${(value / 1_000_000).toFixed(1)}M`
-  if (value >= 1_000) return `$${(value / 1_000).toFixed(0)}K`
-  return `$${value.toLocaleString()}`
+  if (value === null || value === undefined || !isFinite(value)) return '—'
+  // The sign goes OUTSIDE the currency symbol — `-$2.5M`, never `$-2.5M`.
+  const sign = value < 0 ? '-' : ''
+  const mag = Math.abs(value)
+  // One decimal, and never a trailing `.0` — a round twelve million is
+  // "$12M", not "$12.0M". The decimal is there to distinguish 12.4 from 12.8,
+  // and a zero after the point distinguishes nothing.
+  const trim = (n: number) => n.toFixed(1).replace(/\.0$/, '')
+  if (mag >= 1_000_000_000) return `${sign}$${trim(mag / 1_000_000_000)}B`
+  if (mag >= 1_000_000) return `${sign}$${trim(mag / 1_000_000)}M`
+  if (mag >= 1_000) return `${sign}$${(mag / 1_000).toFixed(0)}K`
+  return `${sign}$${mag.toLocaleString()}`
 }
 
 /**
@@ -359,6 +378,39 @@ export function formatDate(
     month: 'short',
     day: 'numeric',
   })
+}
+
+// ─── Enum labels ─────────────────────────────────────────────────────────────
+
+/**
+ * Render a stored enum value as English.
+ *
+ * Pass the matching `*_LABELS` map where one exists. The fallback matters as
+ * much as the map: several of these columns are NOT controlled enums —
+ * `projects.contract_type` offers FFP/CPFF/GMP through the form, while email
+ * intake and lead promotion write values like `joint_venture`. A map-only
+ * lookup renders those blank; a humanising fallback renders "Joint Venture".
+ *
+ * Never print a raw stored value at a reader. `joint_venture` on a contract
+ * line is the schema leaking through the page.
+ */
+export function enumLabel(
+  value: string | null | undefined,
+  map?: Record<string, string>,
+  opts: { empty?: string } = {}
+): string {
+  const { empty = '—' } = opts
+  if (!value) return empty
+  const mapped = map?.[value]
+  if (mapped) return mapped
+  return value
+    .replace(/[_-]+/g, ' ')
+    .trim()
+    .replace(/\s+/g, ' ')
+    .split(' ')
+    // An all-caps token is already an acronym (FFP, GMP, T&M) — leave it.
+    .map((w) => (w === w.toUpperCase() ? w : w.charAt(0).toUpperCase() + w.slice(1)))
+    .join(' ')
 }
 
 // ─── Project Player Roles ────────────────────────────────────────────────────

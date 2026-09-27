@@ -23,7 +23,10 @@ export default function IntelTabs() {
   }
 
   return (
-    <div className="flex gap-4 h-[650px]">
+    /* A chat fills the viewport it is in. A fixed 650px left dead space below
+       it on a laptop and pushed the composer under the browser chrome on a
+       phone, where `dvh` is the unit that accounts for the collapsing toolbar. */
+    <div className="flex gap-4 h-[calc(100dvh-13rem)] min-h-[28rem]">
       {/* Conversation history sidebar */}
       <aside className="hidden lg:block w-56 shrink-0">
         <ConversationList

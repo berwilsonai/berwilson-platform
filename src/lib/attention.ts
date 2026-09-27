@@ -46,6 +46,58 @@ export interface AttentionSummary {
   lead_reviews: number
 }
 
+/**
+ * The one "needs attention" count.
+ *
+ * ⚠ THREE DEFINITIONS OF THIS NUMBER WERE ON SCREEN AT ONCE. The sidebar's
+ * Dashboard badge summed overdue milestones + critical diligence + overdue
+ * tasks; the dashboard's KPI tile summed critical diligence + overdue
+ * milestones + expiring certs + THE WHOLE DECIDE QUEUE; and the Needs
+ * Attention rail summed nine sub-lists, several of them already sliced to six,
+ * so its own header under-reported by construction. A reader saw 1, 197 and a
+ * third number on one page and could not trust any of them.
+ *
+ * Four cheap head counts, deliberately NOT `computeAttention()`: that engine
+ * runs a dozen queries and includes `lead_reviews`, which would fold the
+ * Decide backlog back into a number that exists precisely to be separate from
+ * it — and this runs in the root layout on every page.
+ *
+ * "Attention" is work falling through the cracks. The Decide queue is inbound
+ * work awaiting a call, it is counted by `countDecideItems()`, and the two are
+ * never summed.
+ */
+export async function countAttention(): Promise<number> {
+  const supabase = createAdminClient()
+  const today = new Date().toISOString().split('T')[0]
+  const in90Days = new Date(Date.now() + 90 * 86_400_000).toISOString().split('T')[0]
+
+  const [{ count: overdueMilestones }, { count: criticalDd }, { count: overdueTasks }, { count: expiringCerts }] =
+    await Promise.all([
+      supabase
+        .from('milestones')
+        .select('id', { count: 'exact', head: true })
+        .is('completed_at', null)
+        .lt('target_date', today),
+      supabase
+        .from('dd_items')
+        .select('id', { count: 'exact', head: true })
+        .neq('status', 'resolved')
+        .in('severity', ['critical', 'blocker']),
+      supabase
+        .from('tasks')
+        .select('id', { count: 'exact', head: true })
+        .eq('status', 'open')
+        .lt('due_date', today),
+      supabase
+        .from('certifications')
+        .select('id', { count: 'exact', head: true })
+        .eq('is_active', true)
+        .lte('expiration_date', in90Days),
+    ])
+
+  return (overdueMilestones ?? 0) + (criticalDd ?? 0) + (overdueTasks ?? 0) + (expiringCerts ?? 0)
+}
+
 export async function computeAttention(): Promise<{ items: AttentionItem[]; summary: AttentionSummary }> {
   const supabase = createAdminClient()
   const now = new Date()

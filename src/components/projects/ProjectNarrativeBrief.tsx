@@ -3,13 +3,26 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Sparkles, RefreshCw, ChevronDown, ChevronUp } from 'lucide-react'
 
+import { BriefMarkdown } from '@/components/briefs/BriefMarkdown'
+
 interface ProjectNarrativeBriefProps {
   projectId: string
-  projectName: string
+  /**
+   * The last brief the platform stored for this record, read server-side.
+   *
+   * ⚠ Until now the panel's ONLY source was `localStorage`. Every brief this
+   * app generates is written to `stored_briefs` and was never read back, so
+   * the panel was empty for any browser that had not personally generated it
+   * — a second executive, a new laptop, a cleared cache — and it went empty
+   * again the moment a regeneration failed, discarding a perfectly good brief
+   * that was sitting in the database. The stored copy is the floor now;
+   * regeneration can only improve on it.
+   */
+  initialBrief?: { content: string; createdAt: string } | null
 }
 
-export default function ProjectNarrativeBrief({ projectId, projectName }: ProjectNarrativeBriefProps) {
-  const [brief, setBrief] = useState<string | null>(null)
+export default function ProjectNarrativeBrief({ projectId, initialBrief = null }: ProjectNarrativeBriefProps) {
+  const [brief, setBrief] = useState<string | null>(initialBrief?.content ?? null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [expanded, setExpanded] = useState(true)
@@ -44,24 +57,29 @@ export default function ProjectNarrativeBrief({ projectId, projectName }: Projec
     }
   }, [projectId])
 
-  // Load cached brief on mount
+  // Refresh on mount, but only when what we already have is out of date.
   useEffect(() => {
-    const key = `bw-project-brief-${projectId}`
-    const cached = localStorage.getItem(key)
+    const today = new Date().toISOString().split('T')[0]
+
+    // A brief stored today is today's brief. Nothing to do — and on this
+    // stack a regeneration is 30-60s of the local model, so asking for one we
+    // do not need also queues behind (and delays) every other AI job.
+    if (initialBrief && initialBrief.createdAt.slice(0, 10) === today) return
+
+    const cached = localStorage.getItem(`bw-project-brief-${projectId}`)
     if (cached) {
       try {
         const parsed = JSON.parse(cached) as { brief: string; date: string }
-        const today = new Date().toISOString().split('T')[0]
         if (parsed.date === today) {
           setBrief(parsed.brief)
           return
         }
-        // Show stale brief while loading
-        setBrief(parsed.brief)
-      } catch { /* ignore */ }
+        // Older than today: show it while the new one is written.
+        if (!initialBrief) setBrief(parsed.brief)
+      } catch { /* ignore corrupt storage */ }
     }
     generateBrief()
-  }, [projectId, generateBrief])
+  }, [projectId, generateBrief, initialBrief])
 
   return (
     <div className="rounded-lg border border-primary/20 bg-primary/[0.03] overflow-hidden">
@@ -74,7 +92,7 @@ export default function ProjectNarrativeBrief({ projectId, projectName }: Projec
         >
           <Sparkles size={14} className="text-primary shrink-0" />
           <span className="text-sm font-semibold text-foreground flex-1 text-left">
-            Executive Brief — {projectName}
+            Executive Brief
           </span>
         </button>
         <button
@@ -106,11 +124,21 @@ export default function ProjectNarrativeBrief({ projectId, projectName }: Projec
             </div>
           )}
 
-          {error && <p className="text-xs text-red-600 dark:text-red-400 pt-3">{error}</p>}
+          {/* When there is a stored brief, a failed refresh is a footnote, not
+              the content — the brief below is still the last good one. */}
+          {error && (
+            <p className={`text-xs pt-3 ${brief ? 'text-muted-foreground' : 'text-red-600 dark:text-red-400'}`}>
+              {brief ? `Could not refresh — showing the last brief. ${error}` : error}
+            </p>
+          )}
 
+          {/* The same renderer the print view uses. Until 2026-09-26 this was
+              the raw string under a `prose [&_h1]:…` wrapper, so every `#` and
+              `[CRITICAL]` reached the reader as a literal character and not one
+              of those child selectors could ever match. */}
           {brief && (
-            <div className={`pt-3 text-sm text-foreground leading-relaxed prose prose-sm prose-slate max-w-none [&_h1]:text-base [&_h1]:font-bold [&_h1]:mb-2 [&_h2]:text-sm [&_h2]:font-semibold [&_h2]:mt-3 [&_h2]:mb-1 [&_h3]:text-xs [&_h3]:font-semibold [&_h3]:mt-2 [&_h3]:mb-1 [&_p]:my-1 [&_ul]:my-1 [&_li]:my-0.5 [&_strong]:text-foreground whitespace-pre-wrap ${loading ? 'opacity-60' : ''}`}>
-              {brief}
+            <div className={`pt-3 text-foreground ${loading ? 'opacity-60' : ''}`}>
+              <BriefMarkdown text={brief} suppressTitle />
             </div>
           )}
         </div>

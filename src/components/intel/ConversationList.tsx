@@ -89,7 +89,7 @@ export default function ConversationList({ activeConversationId, onSelectConvers
                 onClick={() => setPendingDelete(conv)}
                 title="Delete conversation"
                 aria-label="Delete conversation"
-                className="absolute right-1.5 top-1.5 p-1 rounded text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-destructive hover:bg-destructive/10 transition"
+                className="absolute right-1.5 top-1.5 p-1 rounded text-muted-foreground sm:opacity-0 group-hover:opacity-100 focus-visible:opacity-100 hover:text-destructive hover:bg-destructive/10 transition"
               >
                 <Trash2 size={13} />
               </button>

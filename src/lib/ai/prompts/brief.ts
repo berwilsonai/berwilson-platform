@@ -38,7 +38,7 @@ Any situations where the same party, subcontractor, or resource is committed to 
 RULES:
 - Every claim must come from the data provided. Do not invent.
 - Use construction terminology correctly.
-- Distinguish FACTS vs ESTIMATES vs JUDGMENTS.
+- Distinguish FACTS vs ESTIMATES vs JUDGMENTS — in the prose ("proposed", "our reading is", "not confirmed"), never as a bracketed label. Bracketed ALL-CAPS tags are reserved for severity markers and mean nothing here.
 - Flag stale data (>30 days old).
 - Write tight. This covers the whole portfolio in one read.`
 

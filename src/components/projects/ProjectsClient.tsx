@@ -353,28 +353,51 @@ export default function ProjectsClient({ projects: initialProjects, stageFilter 
               (sum, p) => sum + weightedValue(p.estimated_value, (p as { win_probability?: number | null }).win_probability ?? null),
               0
             )
+            const empty = items.length === 0
             return (
-              <div key={stage} className="flex flex-col w-[300px] shrink-0">
+              /*
+                An empty stage keeps its place but not its width. Award and
+                Mobilization held nothing and still took 300px each, squeezing
+                the three columns that had all twelve projects into a third of
+                the board and pushing the rest off-screen. The stage stays
+                visible — a funnel with a missing rung misleads — it just stops
+                charging full rent for nothing.
+              */
+              <div
+                key={stage}
+                className={cn('flex flex-col shrink-0', empty ? 'w-[92px]' : 'w-[300px]')}
+              >
                 {/* Column header */}
-                <div className="sticky top-0 z-10 rounded-t-lg border border-b-0 border-border bg-muted/40 backdrop-blur px-3 py-2.5">
-                  <div className="flex items-center gap-2">
+                <div
+                  className="sticky top-0 z-10 rounded-t-lg border border-b-0 border-border bg-muted/40 backdrop-blur px-3 py-2.5"
+                  title={empty ? `${STAGE_LABELS[stage]} — no projects` : undefined}
+                >
+                  <div className="flex items-center gap-2 min-w-0">
                     <span className={cn('inline-block w-2 h-2 rounded-full shrink-0', STAGE_COLOR[stage])} />
-                    <h2 className="text-sm font-semibold text-foreground">{STAGE_LABELS[stage]}</h2>
-                    <span className={cn('inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium ring-1 ring-inset', STAGE_BADGE[stage])}>
-                      {items.length}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between mt-1.5 text-xs">
-                    <span className="font-semibold tnum text-foreground">{formatValue(colValue)}</span>
-                    {colWeighted > 0 && (
-                      <span className="tnum text-emerald-600 dark:text-emerald-400">{formatValue(colWeighted)} wtd</span>
+                    <h2 className={cn('font-semibold text-foreground min-w-0 truncate', empty ? 'text-xs' : 'text-sm')}>
+                      {STAGE_LABELS[stage]}
+                    </h2>
+                    {!empty && (
+                      <span className={cn('inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium ring-1 ring-inset', STAGE_BADGE[stage])}>
+                        {items.length}
+                      </span>
                     )}
                   </div>
+                  {/* An empty stage has no total worth stating; "$0" is noise
+                      dressed as a figure. */}
+                  {!empty && (
+                    <div className="flex items-center justify-between mt-1.5 text-xs">
+                      <span className="font-semibold tnum text-foreground">{formatValue(colValue)}</span>
+                      {colWeighted > 0 && (
+                        <span className="tnum text-emerald-600 dark:text-emerald-400">{formatValue(colWeighted)} wtd</span>
+                      )}
+                    </div>
+                  )}
                 </div>
                 {/* Column body */}
                 <div className="flex-1 space-y-3 rounded-b-lg border border-t-0 border-border bg-muted/10 p-2 min-h-[120px]">
-                  {items.length === 0 ? (
-                    <p className="text-xs text-muted-foreground/60 text-center py-6">No projects</p>
+                  {empty ? (
+                    <p className="text-xs text-muted-foreground/50 text-center py-6">—</p>
                   ) : (
                     items.map((project) => (
                       <DeletableCard
@@ -638,7 +661,7 @@ function DeletableCard({
       <button
         title="Quick edit: bid date & win %"
         onClick={e => { e.preventDefault(); e.stopPropagation(); setEditing(true) }}
-        className="absolute top-3 right-9 z-10 opacity-0 group-hover/card:opacity-100 transition-opacity text-muted-foreground hover:text-primary bg-card rounded p-0.5"
+        className="absolute top-3 right-9 z-10 sm:opacity-0 group-hover/card:opacity-100 focus-visible:opacity-100 transition-opacity text-muted-foreground hover:text-primary bg-card rounded p-0.5"
       >
         <SlidersHorizontal size={13} />
       </button>
@@ -647,7 +670,7 @@ function DeletableCard({
       <button
         title="Delete project"
         onClick={e => { e.preventDefault(); e.stopPropagation(); setConfirming(true) }}
-        className="absolute top-3 right-3 z-10 opacity-0 group-hover/card:opacity-100 transition-opacity text-muted-foreground hover:text-destructive bg-card rounded p-0.5"
+        className="absolute top-3 right-3 z-10 sm:opacity-0 group-hover/card:opacity-100 focus-visible:opacity-100 transition-opacity text-muted-foreground hover:text-destructive bg-card rounded p-0.5"
       >
         <Trash2 size={13} />
       </button>

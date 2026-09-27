@@ -47,6 +47,12 @@ function dueLabel(date: string | null): { text: string; tone: string } | null {
   if (!date) return { text: 'no date agreed', tone: 'text-muted-foreground' }
   const d = daysUntil(date)
   if (d === null) return { text: date, tone: 'text-muted-foreground' }
+  // ⚠ RED FOR EVERY OVERDUE ROW MEANT RED FOR NOTHING. Nine consecutive rows
+  // read 227d, 218d, 117d, 116d, 101d, 72d, 72d, 71d, 60d — all in alarm red,
+  // so the colour stopped distinguishing the one you could still act on from
+  // the eight that are a backlog. Past a month it is history: still listed,
+  // still settleable, no longer shouting.
+  if (d < -30) return { text: `${Math.abs(d)}d overdue`, tone: 'text-muted-foreground' }
   if (d < 0) return { text: `${Math.abs(d)}d overdue`, tone: 'text-red-600 dark:text-red-400' }
   if (d === 0) return { text: 'due today', tone: 'text-amber-600 dark:text-amber-400' }
   if (d <= 3) return { text: `in ${d}d`, tone: 'text-amber-600 dark:text-amber-400' }
@@ -115,9 +121,17 @@ export default function Commitments({ items }: { items: CommitmentItem[] }) {
                   <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
                     {c.owner_name && <span className="text-muted-foreground">{c.owner_name}</span>}
                     {due && <span className={cn('tnum', due.tone)}>{due.text}</span>}
+                    {/* A clock glyph and a bare "2d" beside "227d overdue"
+                        says nothing a reader can use — it is how long ago the
+                        commitment was READ OUT OF THE MAIL, not a deadline.
+                        Kept, because a freshly-found commitment is worth
+                        distinguishing, but now it says which it is. */}
                     {age && (
-                      <span className="inline-flex items-center gap-1 text-muted-foreground tnum">
-                        <Clock className="size-3" /> {age}
+                      <span
+                        className="inline-flex items-center gap-1 text-muted-foreground/70 tnum"
+                        title={`Found in correspondence ${age} ago`}
+                      >
+                        <Clock className="size-3" aria-hidden /> found {age} ago
                       </span>
                     )}
                     {href && c.record_name && (

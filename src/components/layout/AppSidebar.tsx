@@ -126,7 +126,7 @@ export default function AppSidebar({ pendingReviewCount = 0, attentionCount = 0,
                           <span className={`ml-auto text-xs font-mono font-semibold px-1.5 py-0.5 rounded-full leading-none ${
                             badge === 'attention' ? 'bg-destructive text-white' : 'bg-amber-400 text-sidebar'
                           }`}>
-                            {badgeCount > 99 ? '99+' : badgeCount}
+                            {badgeCount > 999 ? '999+' : badgeCount}
                           </span>
                         )}
                       </>
@@ -196,7 +196,7 @@ export default function AppSidebar({ pendingReviewCount = 0, attentionCount = 0,
                         <span className="truncate flex-1">{label}</span>
                         {badgeCount > 0 && (
                           <span className="ml-auto text-xs font-mono font-semibold px-1.5 py-0.5 rounded-full leading-none bg-amber-400 text-sidebar">
-                            {badgeCount > 99 ? '99+' : badgeCount}
+                            {badgeCount > 999 ? '999+' : badgeCount}
                           </span>
                         )}
                       </>

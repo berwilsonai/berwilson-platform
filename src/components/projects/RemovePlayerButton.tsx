@@ -51,7 +51,7 @@ export default function RemovePlayerButton({
     <button
       onClick={() => setConfirming(true)}
       title={`Remove ${playerName} from project`}
-      className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
+      className="sm:opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
     >
       <X size={14} />
     </button>

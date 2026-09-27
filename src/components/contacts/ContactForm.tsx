@@ -4,22 +4,18 @@ import { useActionState, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { AlertCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { cn } from '@/lib/utils'
 import { createContact } from '@/app/contacts/actions'
 import type { ContactFormState } from '@/app/contacts/actions'
 import CompanyAutocomplete from './CompanyAutocomplete'
 import TagInput from './TagInput'
+import { FIELD_CONTROL_CLASS, FIELD_TEXTAREA_CLASS, FIELD_LABEL_CLASS } from '@/lib/utils/field-classes'
 
-const inputClass = cn(
-  'h-9 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground',
-  'placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50'
-)
-const textareaClass = cn(
-  'w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground',
-  'placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50',
-  'min-h-[80px] resize-y'
-)
-const labelClass = 'block text-xs font-medium text-foreground mb-1'
+// The app's one field language — see src/lib/utils/field-classes.ts. These
+// were five byte-identical local copies; the aliases stay so the markup below
+// is untouched.
+const inputClass = FIELD_CONTROL_CLASS
+const textareaClass = FIELD_TEXTAREA_CLASS
+const labelClass = FIELD_LABEL_CLASS
 
 export default function ContactForm() {
   const [state, formAction, isPending] = useActionState<ContactFormState, FormData>(

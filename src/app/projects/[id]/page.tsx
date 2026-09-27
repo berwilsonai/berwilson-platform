@@ -14,7 +14,7 @@ import {
   ENTITY_TYPE_LABELS, ENTITY_TYPE_BADGE, RELATIONSHIP_LABELS,
   ACTIVITY_TABLE_LABELS, ACTIVITY_ACTION_STYLES,
   FEDERAL_STANDARD_LABELS, FEDERAL_STANDARD_DESCRIPTIONS, FEDERAL_STANDARD_BADGE,
-  formatValue, parseCompetitors,
+  formatValue, parseCompetitors, enumLabel,
   type FederalStandard,
 } from '@/lib/utils/constants'
 import PursuitSnapshot from '@/components/projects/PursuitSnapshot'
@@ -28,13 +28,22 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
 
 type EntityProjectWithEntity = EntityProject & { entity: Entity }
 
+/**
+ * One labelled fact.
+ *
+ * Renders NOTHING when there is no value. A lone em dash sitting under a
+ * heading is not information — it reserves space to tell the reader the app
+ * has nothing to say, and at a glance it reads like a failed render rather
+ * than an unfilled field. Absence is better stated by the row's absence.
+ */
 function Field({ label, value }: { label: string; value: string | null | undefined }) {
+  if (!value) return null
   return (
     <div className="space-y-0.5">
       <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
         {label}
       </dt>
-      <dd className="text-sm text-foreground">{value || '—'}</dd>
+      <dd className="text-sm text-foreground">{value}</dd>
     </div>
   )
 }
@@ -71,7 +80,7 @@ export default async function ProjectOverviewPage({ params }: PageProps) {
   const { id } = await params
   const supabase = createAdminClient()
 
-  const [{ data: project }, { data: activityLogs }, { data: entityLinksRaw }, { data: childProjects }, { data: projectPhotos }, { data: allProjectsRaw }] = await Promise.all([
+  const [{ data: project }, { data: activityLogs }, { data: entityLinksRaw }, { data: childProjects }, { data: projectPhotos }, { data: allProjectsRaw }, { data: storedBrief }] = await Promise.all([
     supabase.from('projects').select('*').eq('id', id).single(),
     supabase
       .from('activity_log')
@@ -101,6 +110,16 @@ export default async function ProjectOverviewPage({ params }: PageProps) {
       .select('id, name')
       .eq('status', 'active')
       .order('name'),
+    // The brief the platform already wrote. Read here rather than left to the
+    // browser's own localStorage — see ProjectNarrativeBrief.
+    supabase
+      .from('stored_briefs')
+      .select('content, created_at')
+      .eq('project_id', id)
+      .eq('brief_type', 'project')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
   ])
 
   if (!project) notFound()
@@ -123,6 +142,7 @@ export default async function ProjectOverviewPage({ params }: PageProps) {
   // Cast activity logs to include new columns (may not be in generated types until gen-types runs)
   type ActivityLogWithExtras = typeof activityLogs extends (infer T)[] | null ? T & { actor_email?: string | null; field_changes?: Record<string, { old: unknown; new: unknown }> | null } : never
   const typedLogs = (activityLogs ?? []) as ActivityLogWithExtras[]
+  const hasPhotos = (projectPhotos ?? []).length > 0
 
   function displayActor(log: { actor_type: string | null; actor_id: string | null; actor_email?: string | null }): string {
     if (!log.actor_type || log.actor_type === 'system') return 'System'
@@ -147,11 +167,18 @@ export default async function ProjectOverviewPage({ params }: PageProps) {
         </div>
       )}
 
-      {/* Photo gallery */}
-      <MediaGallery
-        initialPhotos={projectPhotos ?? []}
-        scope={{ projectId: id }}
-      />
+      {/*
+        Site photos lead the page when there ARE any — a project with photos
+        should open with them. An EMPTY dropzone leading the page is 140px of
+        nothing ranked above the brief, so when there are none the gallery
+        moves to the foot of the column and the reader meets the brief first.
+      */}
+      {hasPhotos && (
+        <MediaGallery
+          initialPhotos={projectPhotos ?? []}
+          scope={{ projectId: id }}
+        />
+      )}
 
       {/* Actions */}
       <div className="flex justify-end gap-2">
@@ -170,7 +197,12 @@ export default async function ProjectOverviewPage({ params }: PageProps) {
         <div className="space-y-8 min-w-0">
 
       {/* Narrative brief — AI-generated executive summary */}
-      <ProjectNarrativeBrief projectId={id} projectName={project.name} />
+      <ProjectNarrativeBrief
+        projectId={id}
+        initialBrief={
+          storedBrief ? { content: storedBrief.content, createdAt: storedBrief.created_at } : null
+        }
+      />
 
       {/* Description */}
       {project.description && (
@@ -247,9 +279,12 @@ export default async function ProjectOverviewPage({ params }: PageProps) {
           Contract
         </h2>
         <dl className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-4">
-          <Field label="Estimated Value" value={formatValue(project.estimated_value)} />
-          <Field label="Contract Type" value={project.contract_type} />
-          <Field label="Delivery Method" value={project.delivery_method} />
+          <Field
+            label="Estimated Value"
+            value={project.estimated_value != null ? formatValue(project.estimated_value) : null}
+          />
+          <Field label="Contract Type" value={enumLabel(project.contract_type, undefined, { empty: '' })} />
+          <Field label="Delivery Method" value={enumLabel(project.delivery_method, undefined, { empty: '' })} />
           <Field label="Client Entity" value={project.client_entity} />
           <Field label="Location" value={project.location} />
           {project.solicitation_number && (
@@ -472,6 +507,14 @@ export default async function ProjectOverviewPage({ params }: PageProps) {
           <p className="text-xs text-muted-foreground">No activity recorded yet.</p>
         )}
       </section>
+
+      {/* Photos — see the note above; only reached when the project has none. */}
+      {!hasPhotos && (
+        <MediaGallery
+          initialPhotos={[]}
+          scope={{ projectId: id }}
+        />
+      )}
 
         </div>{/* end left column */}
 

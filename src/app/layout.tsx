@@ -4,6 +4,7 @@ import "./globals.css"
 import { headers } from "next/headers"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { countDecideItems } from '@/lib/decide/count'
+import { countAttention } from '@/lib/attention'
 import { getViewer } from "@/lib/auth/viewer"
 import { Toaster } from "sonner"
 import AppSidebar from "@/components/layout/AppSidebar"
@@ -105,32 +106,20 @@ export default async function RootLayout({
   let openDevNoteCount = 0
   if (showShell && isAdmin) {
     const adminClient = createAdminClient()
-    const today = new Date().toISOString().split('T')[0]
-    const [decideCount, { count: overdueMs }, { count: criticalDd }, { count: overdueTasks }, { count: dinoRows }, devNotes] = await Promise.all([
+    const [decideCount, attention, { count: dinoRows }, devNotes] = await Promise.all([
       // The badge sits on Decide, so it counts what Decide holds — inbound
       // bids, staged correspondence AND flagged extractions, not the review
       // queue alone (which was a third of the page it pointed at).
       countDecideItems(),
-      adminClient
-        .from('milestones')
-        .select('id', { count: 'exact', head: true })
-        .is('completed_at', null)
-        .lt('target_date', today),
-      adminClient
-        .from('dd_items')
-        .select('id', { count: 'exact', head: true })
-        .neq('status', 'resolved')
-        .in('severity', ['critical', 'blocker']),
-      adminClient
-        .from('tasks')
-        .select('id', { count: 'exact', head: true })
-        .eq('status', 'open')
-        .lt('due_date', today),
+      // One definition, shared with the dashboard's KPI tile. This used to be
+      // three ad-hoc counts inlined here and they disagreed on screen — see
+      // countAttention.
+      countAttention(),
       adminClient.from('dino_revenue').select('id', { count: 'exact', head: true }),
       countOpenDevNotes(),
     ])
     pendingReviewCount = decideCount
-    attentionCount = (overdueMs ?? 0) + (criticalDd ?? 0) + (overdueTasks ?? 0)
+    attentionCount = attention
     if ((dinoRows ?? 0) === 0) emptyModules.push('dino')
     openDevNoteCount = devNotes
   }

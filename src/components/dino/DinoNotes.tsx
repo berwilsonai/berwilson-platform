@@ -102,7 +102,7 @@ export default function DinoNotes({ notes }: { notes: DinoNoteRow[] }) {
                   <p className="text-xs text-foreground whitespace-pre-wrap flex-1 min-w-0">{n.body}</p>
                   <button
                     onClick={() => setDeleteTarget(n)}
-                    className="p-1 rounded text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-all shrink-0"
+                    className="p-1 rounded text-muted-foreground hover:text-destructive sm:opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-all shrink-0"
                     aria-label="Delete note"
                   >
                     <Trash2 size={12} />

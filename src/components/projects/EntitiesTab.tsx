@@ -344,7 +344,7 @@ function EntityTreeNode({
         )}
 
         {/* Hover actions */}
-        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+        <div className="flex items-center gap-1 sm:opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity shrink-0">
           {!isLinked && (
             <button
               onClick={() => onLinkDirect(node.id)}
@@ -941,7 +941,7 @@ export default function EntitiesTab({
                         </span>
                       )}
                       {/* Row actions */}
-                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                      <div className="flex items-center gap-1 sm:opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity shrink-0">
                         <button
                           onClick={() => openEditLink(ep)}
                           title="Edit link"

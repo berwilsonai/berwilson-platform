@@ -63,8 +63,12 @@ type StatusFilter = 'open' | 'done'
 const fieldClass =
   'h-8 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring'
 
+// A `<select>` sizes itself to its WIDEST option, so a project list holding
+// "DUBHES Helper / Giovanni Resilience Campus" stretched the control to half
+// the row and the four filters wrapped onto three lines of ragged widths.
+// Bound them and let the native control truncate its own label.
 const filterFieldClass =
-  'h-11 sm:h-8 max-w-full rounded-md border border-input bg-background px-2 text-sm sm:text-xs focus:outline-none focus:ring-2 focus:ring-ring'
+  'h-11 sm:h-8 w-[10.5rem] sm:w-[9.5rem] max-w-full rounded-md border border-input bg-background px-2 text-sm sm:text-xs outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50'
 
 // 44px on touch (Apple HIG / WCAG 2.5.5 target size), the tighter 32px on
 // pointer devices. `whitespace-nowrap` keeps a two-word label off two lines.
@@ -331,14 +335,21 @@ export default function TeamTaskBoard({
   }, [tasks, members, scoped])
 
   return (
-    <div className={cn('space-y-5', !scoped && 'max-w-4xl')}>
+    /* No max-width when this IS the page. A list whose rows truncate must not
+       also reserve empty space: the cap left ~400px unused at 1440 while every
+       task's `why` line was being clipped mid-sentence. Scoped/embedded boards
+       still sit inside someone else's column and keep their own bounds. */
+    <div className={cn('space-y-5', !scoped && !embedded && 'max-w-6xl')}>
       {/* Header */}
       <div className={cn('flex flex-wrap items-center gap-3', embedded ? 'justify-end' : 'justify-between')}>
         {!embedded && (
           <div>
-            <h1 className={cn('font-semibold text-foreground whitespace-nowrap', scoped ? 'text-base' : 'text-xl')}>
-              {scoped ? 'Tasks' : 'Team Tasks'}
-            </h1>
+            {/* Only a SCOPED board titles itself. Unscoped, this is the whole
+                page and AppHeader already renders "Team Tasks" from nav.ts —
+                the two sat one line apart saying the same words twice. */}
+            {scoped && (
+              <h1 className="text-base font-semibold text-foreground whitespace-nowrap">Tasks</h1>
+            )}
             <p className="text-sm text-muted-foreground">
               {openCount} open{scoped ? '' : ' across the team'}
             </p>

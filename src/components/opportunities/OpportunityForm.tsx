@@ -6,7 +6,6 @@ import { AlertCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { DatePicker } from '@/components/ui/date-picker'
 import TagInput from '@/components/contacts/TagInput'
-import { cn } from '@/lib/utils'
 import { createOpportunity, updateOpportunity } from '@/app/opportunities/actions'
 import type { OpportunityFormState } from '@/app/opportunities/actions'
 import type { Opportunity } from '@/lib/supabase/types'
@@ -19,17 +18,14 @@ import {
   OPPORTUNITY_PRIORITIES,
   OPPORTUNITY_PRIORITY_LABELS,
 } from '@/lib/utils/opportunities'
+import { FIELD_CONTROL_CLASS, FIELD_TEXTAREA_CLASS, FIELD_LABEL_CLASS } from '@/lib/utils/field-classes'
 
-const inputClass = cn(
-  'h-9 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground',
-  'placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50'
-)
-const textareaClass = cn(
-  'w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground',
-  'placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50',
-  'min-h-[80px] resize-y'
-)
-const labelClass = 'block text-xs font-medium text-foreground mb-1'
+// The app's one field language — see src/lib/utils/field-classes.ts. These
+// were five byte-identical local copies; the aliases stay so the markup below
+// is untouched.
+const inputClass = FIELD_CONTROL_CLASS
+const textareaClass = FIELD_TEXTAREA_CLASS
+const labelClass = FIELD_LABEL_CLASS
 
 interface OpportunityFormProps {
   mode: 'create' | 'edit'
@@ -337,7 +333,7 @@ export default function OpportunityForm({ mode, opportunity }: OpportunityFormPr
               defaultValue={opportunity?.sector ?? ''}
               className={inputClass}
             >
-              <option value="">—</option>
+              <option value="">Not set</option>
               {SECTORS.map((s) => (
                 <option key={s} value={s}>
                   {SECTOR_LABELS[s]}

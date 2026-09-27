@@ -20,6 +20,7 @@
 
 import { createAdminClient } from '@/lib/supabase/admin'
 import { leadsDb, type LeadRow } from './db'
+import { enumLabel, formatValue, SECTOR_LABELS } from '@/lib/utils/constants'
 
 export interface LeadTaskProgress {
   considered: number
@@ -66,9 +67,21 @@ function todayISO(): string {
   return `${y}-${m}-${d}`
 }
 
+/** A stored sector token as English — never `real_estate` in a reader's line. */
+function sectorLabel(sector: string | null): string | null {
+  if (!sector) return null
+  return enumLabel(sector, SECTOR_LABELS)
+}
+
+/**
+ * The value, abbreviated the way every other surface abbreviates it.
+ *
+ * `est. $12,000,000` and `$12M` are the same fact in two dialects, and the
+ * board shows this line beside cards that use the short one.
+ */
 function money(value: number | null): string | null {
   if (value === null) return null
-  return `est. $${Number(value).toLocaleString('en-US', { maximumFractionDigits: 0 })}`
+  return `est. ${formatValue(value)}`
 }
 
 /**
@@ -116,13 +129,24 @@ function describeLead(lead: LeadRow): string {
   return lines.join('\n')
 }
 
-/** The one-line justification the board renders as a card subtitle. */
+/**
+ * The one-line justification the board renders as a card subtitle.
+ *
+ * ⚠ FACTS, NOT A SCORE. This used to write `Ber AI: PURSUE (82/100). <first
+ * concern>` into every lead task, which put two problems on the board at once:
+ * a number CLAUDE.md §12 says carries ±20 points of noise, frozen into a text
+ * column where it can never be re-read; and the reader's whole subtitle spent
+ * on a verdict instead of on what the bid IS. Money, place and sector are what
+ * someone scanning a list of bid deadlines needs. The concern still follows,
+ * because "why might we not" is worth one clause.
+ */
 function whyLine(lead: LeadRow): string {
-  const verdict = lead.fit_recommendation ? lead.fit_recommendation.toUpperCase() : 'UNSCORED'
-  const score = lead.fit_score !== null ? ` (${lead.fit_score}/100)` : ''
+  const facts = [money(lead.estimated_value), lead.location, sectorLabel(lead.sector)]
+    .filter((v): v is string => Boolean(v))
+    .join(' · ')
   const concerns = Array.isArray(lead.fit_concerns) ? lead.fit_concerns : []
-  const first = concerns.length > 0 ? ` ${String(concerns[0])}` : ''
-  return `Ber AI: ${verdict}${score}.${first}`.slice(0, 500)
+  const first = concerns.length > 0 ? String(concerns[0]) : ''
+  return [facts, first].filter(Boolean).join(' — ').slice(0, 500)
 }
 
 /**
@@ -262,7 +286,11 @@ export async function syncLeadTasks(): Promise<LeadTaskProgress> {
       const { data: created, error: insErr } = await supabase
         .from('tasks')
         .insert({
-          title: `Bid due — ${lead.title}`.slice(0, 200),
+          // No "Bid due — " prefix. Five of nine rows on the board opened with
+          // the identical ten characters, so the distinguishing part of every
+          // title started where the truncation was already biting. The row
+          // shows a due date and a red border; it does not also need the words.
+          title: lead.title.slice(0, 200),
           due_date: lead.bid_due_date,
           assignee_id: owner.id,
           status: 'open',

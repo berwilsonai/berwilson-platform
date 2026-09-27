@@ -67,7 +67,7 @@ export default function EditRoleButton({ playerId, currentRole, playerName }: Ed
     <>
       <button
         onClick={handleOpen}
-        className="ml-1.5 opacity-0 group-hover:opacity-100 inline-flex items-center justify-center size-5 rounded hover:bg-muted transition-colors"
+        className="ml-1.5 sm:opacity-0 group-hover:opacity-100 focus-visible:opacity-100 inline-flex items-center justify-center size-5 rounded hover:bg-muted transition-colors"
         aria-label={`Edit role for ${playerName}`}
       >
         <Pencil size={11} className="text-muted-foreground" />

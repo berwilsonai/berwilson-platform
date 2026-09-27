@@ -18,6 +18,7 @@ import {
   FEDERAL_STANDARD_DESCRIPTIONS,
   type FederalStandard,
 } from '@/lib/utils/constants'
+import { FIELD_CONTROL_CLASS, FIELD_TEXTAREA_CLASS, FIELD_LABEL_CLASS } from '@/lib/utils/field-classes'
 
 const SECTORS: ProjectSector[] = ['government', 'infrastructure', 'real_estate', 'prefab', 'institutional']
 const STATUSES: ProjectStatus[] = ['active', 'on_hold', 'won', 'lost', 'closed']
@@ -31,16 +32,12 @@ const STATUS_LABELS: Record<ProjectStatus, string> = {
 const CONTRACT_TYPES = ['FFP', 'CPFF', 'T&M', 'GMP', 'Lump Sum', 'Cost Plus']
 const DELIVERY_METHODS = ['Design-Build', 'Design-Bid-Build', 'CMAR']
 
-const inputClass = cn(
-  'h-9 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground',
-  'placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50'
-)
-const textareaClass = cn(
-  'w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground',
-  'placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50',
-  'min-h-[80px] resize-y'
-)
-const labelClass = 'block text-xs font-medium text-foreground mb-1'
+// The app's one field language — see src/lib/utils/field-classes.ts. These
+// were five byte-identical local copies; the aliases stay so the markup below
+// is untouched.
+const inputClass = FIELD_CONTROL_CLASS
+const textareaClass = FIELD_TEXTAREA_CLASS
+const labelClass = FIELD_LABEL_CLASS
 
 type ParentOption = Pick<Project, 'id' | 'name'>
 
@@ -180,7 +177,7 @@ export default function ProjectForm({ mode, project, redirectAfterCreate, availa
               defaultValue={project?.status ?? ''}
               className={inputClass}
             >
-              <option value="">—</option>
+              <option value="">Not set</option>
               {STATUSES.map((s) => (
                 <option key={s} value={s}>
                   {STATUS_LABELS[s]}
@@ -200,7 +197,7 @@ export default function ProjectForm({ mode, project, redirectAfterCreate, availa
               defaultValue={project?.stage ?? ''}
               className={inputClass}
             >
-              <option value="">—</option>
+              <option value="">Not set</option>
               {STAGES.map((s) => (
                 <option key={s} value={s}>
                   {STAGE_LABELS[s as ProjectStage]}
@@ -380,7 +377,7 @@ export default function ProjectForm({ mode, project, redirectAfterCreate, availa
               defaultValue={project?.contract_type ?? ''}
               className={inputClass}
             >
-              <option value="">—</option>
+              <option value="">Not set</option>
               {CONTRACT_TYPES.map((ct) => (
                 <option key={ct} value={ct}>
                   {ct}
@@ -400,7 +397,7 @@ export default function ProjectForm({ mode, project, redirectAfterCreate, availa
               defaultValue={project?.delivery_method ?? ''}
               className={inputClass}
             >
-              <option value="">—</option>
+              <option value="">Not set</option>
               {DELIVERY_METHODS.map((dm) => (
                 <option key={dm} value={dm}>
                   {dm}

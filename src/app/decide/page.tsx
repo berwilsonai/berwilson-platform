@@ -5,6 +5,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { leadsDb, type LeadRow } from '@/lib/leads/db'
 import DecideClient, { type DecideItem } from '@/components/decide/DecideClient'
 import { reviewReasonLabel } from '@/lib/utils/review'
+import { enumLabel, ACTIVITY_TABLE_LABELS } from '@/lib/utils/constants'
 import { buildConfirmBody } from '@/lib/email-ingestion/defaults'
 import { parseStagedAttachments } from '@/lib/email-ingestion/attachments'
 import { promoteTargetFor } from '@/lib/utils/leads'
@@ -48,7 +49,11 @@ export default async function DecidePage() {
       .from('leads')
       .select('*')
       .in('status', ['new', 'reviewing'])
-      .order('fit_score', { ascending: false, nullsFirst: false })
+      // NOT by fit_score. The list is ranked by decideWeight (deadline, then
+      // verdict band, then value) in the client; ordering the fetch by a noisy
+      // score only decided which 200 rows survived the limit. Newest first is
+      // the honest cut.
+      .order('received_at', { ascending: false, nullsFirst: false })
       .limit(200),
     supabase
       .from('review_queue')
@@ -76,6 +81,19 @@ export default async function DecidePage() {
       // is derived client-side from a clock captured once at mount, rather than
       // during a server render — see DecideClient.
       deadline: raw.bid_due_date,
+      // Already on the row — the select above is `*`. These used to be thrown
+      // away here and left for the reader to find inside `fit_summary`.
+      facts: {
+        value: raw.estimated_value,
+        location: raw.location,
+        sector: raw.sector,
+        ref: raw.solicitation_number,
+        extraDate: raw.site_visit_date
+          ? { label: 'site visit', date: raw.site_visit_date }
+          : raw.rfi_due_date
+            ? { label: 'RFI by', date: raw.rfi_due_date }
+            : null,
+      },
       // The route the triage already chose says which record this becomes; an
       // unrouted lead offers no Accept rather than guessing between four.
       accept: promoteTargetFor(raw.route),
@@ -139,7 +157,11 @@ export default async function DecidePage() {
       id: r.id,
       kind: 'review',
       title: projectName ?? reviewReasonLabel(r.reason),
-      subtitle: projectName ? reviewReasonLabel(r.reason) : r.source_table,
+      // Never a bare `source_table`. Without a project name the reason IS the
+      // title, so the subtitle says which record type it came off, in English.
+      subtitle: projectName
+        ? reviewReasonLabel(r.reason)
+        : `from ${enumLabel(r.source_table, ACTIVITY_TABLE_LABELS).toLowerCase()}`,
       href: '/review',
       verdict: null,
       score: r.confidence !== null ? Math.round(Number(r.confidence) * 100) : null,

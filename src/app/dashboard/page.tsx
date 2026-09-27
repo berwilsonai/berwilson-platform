@@ -23,6 +23,7 @@ import { sweepDb } from '@/lib/email-sweep/db'
 import { countDecideItems } from '@/lib/decide/count'
 import EmptyState from '@/components/shared/EmptyState'
 import type { WaitingOnItem, RiskItem } from '@/types/domain'
+import type { DdSeverity } from '@/lib/supabase/types'
 
 // ─── types for joined queries ────────────────────────────────────────────────
 
@@ -48,7 +49,7 @@ type MilestoneWithProject = {
 type DdWithProject = {
   id: string
   item: string
-  severity: string
+  severity: DdSeverity
   category: string
   project_id: string
   project: { id: string; name: string } | null
@@ -372,6 +373,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
           weightedPipelineValue={weightedPipelineValue}
           pendingReview={pendingReview}
           overdueCount={overdueCount}
+          overdueTaskCount={overdueTasks.length}
           criticalDdCount={ddRaw?.length ?? 0}
           expiringCertsCount={expiringCerts?.length ?? 0}
         />
@@ -390,16 +392,11 @@ export default async function DashboardPage({ searchParams }: PageProps) {
         {/* Cards grid — left on desktop, first on mobile */}
         <div className="flex-1 min-w-0 space-y-3">
           {/* Toolbar */}
-          <div className="flex items-center justify-between gap-3 flex-wrap">
-            <div className="flex items-center gap-3">
-              <span className="text-xs text-muted-foreground">
-                {activeProjects.length} active project{activeProjects.length !== 1 ? 's' : ''}
-              </span>
-              {activeProjects.length > 0 && <PortfolioBriefButton />}
-            </div>
-            <Suspense>
-              <SortControls current={sort} />
-            </Suspense>
+          <div className="flex items-center gap-3 flex-wrap">
+            <span className="text-xs text-muted-foreground">
+              {activeProjects.length} active project{activeProjects.length !== 1 ? 's' : ''}
+            </span>
+            {activeProjects.length > 0 && <PortfolioBriefButton />}
           </div>
 
           {activeProjects.length === 0 ? (
@@ -417,7 +414,15 @@ export default async function DashboardPage({ searchParams }: PageProps) {
               }
             />
           ) : (
-            <DashboardProjects projects={sorted} counts={countMap} />
+            <DashboardProjects
+              projects={sorted}
+              counts={countMap}
+              sortControl={
+                <Suspense>
+                  <SortControls current={sort} />
+                </Suspense>
+              }
+            />
           )}
         </div>
 
