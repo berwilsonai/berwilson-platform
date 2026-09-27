@@ -1,5 +1,5 @@
 /**
- * Local text recognition for the business-card scanner.
+ * Local text recognition — business cards, scanned documents and images.
  *
  * Spawns `bw-ocr` (scripts/ocr/card-ocr.swift), a tiny binary around Apple's
  * Vision framework. Fully offline — no model, no RAM held resident, nothing
@@ -8,6 +8,14 @@
  * LM Studio (that was Richard's call — one is 36GB of contention), and shipping
  * a photo of someone's card to a cloud model would be the one place this
  * feature leaked real data.
+ *
+ * **Measured 2026-09-26, which is why documents came here rather than to a VL
+ * model:** the 11-page scanned Alaska upland mining lease recognized in **3
+ * seconds** at 200 DPI, 26,103 characters, including the line the agent had
+ * been asked for three times — *"containing approximately 665 acres, more or
+ * less"*. A 7B vision model would have taken minutes per page, held ~6GB
+ * resident against a 22GB text model on a 36GB box, and transcribed dense
+ * printed text less faithfully.
  *
  * Configured via CARD_OCR_BIN; defaults to ~/.local/bin/bw-ocr, where
  * scripts/build-ocr.sh installs it.
@@ -69,6 +77,97 @@ function run(cmd: string, args: string[], timeoutMs: number): Promise<RunResult>
       resolve({ code, stdout, stderr })
     })
   })
+}
+
+/** What Vision can read as a scanned document, on top of the image types above. */
+export const OCR_DOCUMENT_TYPES = ['application/pdf']
+
+/**
+ * A multi-page scan is not a business card. The lease above took 3s for 11
+ * pages, but a 300-page title exhibit at 200 DPI is minutes of rendering, and
+ * the binary is spawned from a request handler or a cron.
+ */
+const DOC_OCR_TIMEOUT_MS = Number(process.env.OCR_DOCUMENT_TIMEOUT_MS) || 900_000
+
+/** Render resolution. 72 DPI reads body text but is marginal on small print; 200 is reliable. */
+const DOC_OCR_DPI = Number(process.env.OCR_DPI) || 200
+
+/** Page ceiling per document, so one enormous exhibit cannot run unbounded. */
+const DOC_OCR_MAX_PAGES = Number(process.env.OCR_MAX_PAGES) || 300
+
+/**
+ * Raised when the recognizer failed for a reason that may not recur — it was
+ * killed, it timed out, the render ran out of memory.
+ *
+ * The distinction from "read it, found nothing" is the whole point and it was
+ * learned the hard way on 2026-09-26: with the Studio 20GB into swap, rendering
+ * an 18.5MB scan at 200 DPI failed intermittently, and because both outcomes
+ * came back as null the pipeline settled those documents as `skipped` — the same
+ * state it uses for a file it can never read. `R0170 (1).pdf` was marked
+ * permanently unreadable while OCR'ing perfectly by hand a minute later
+ * (105,063 characters). A transient failure recorded as a permanent one is the
+ * silent-failure pattern this whole session was about.
+ */
+export class OcrFailedError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'OcrFailedError'
+  }
+}
+
+/**
+ * OCR a scanned document (PDF or image) that carries no extractable text layer.
+ *
+ * Returns null ONLY when the recognizer read the file and found nothing legible
+ * — a blank or purely graphical scan, which is a fact to record rather than an
+ * error to retry forever. Anything else throws, so a caller can leave the
+ * document retryable instead of writing it off.
+ */
+export async function ocrDocument(
+  buffer: ArrayBuffer | Buffer,
+  fileName: string
+): Promise<string | null> {
+  if (!(await ocrAvailable())) {
+    throw new Error(
+      `OCR is not set up on this host: no binary at ${OCR_BIN}. ` +
+        'Build it with `zsh scripts/build-ocr.sh` (needs the macOS Command Line Tools).',
+    )
+  }
+
+  const dir = await fs.mkdtemp(join(tmpdir(), 'bw-ocr-doc-'))
+  const path = join(dir, `scan${extname(fileName) || '.pdf'}`)
+
+  try {
+    await fs.writeFile(path, Buffer.isBuffer(buffer) ? buffer : Buffer.from(buffer))
+    const { code, stdout, stderr } = await run(
+      OCR_BIN,
+      [path, '--dpi', String(DOC_OCR_DPI), '--max-pages', String(DOC_OCR_MAX_PAGES)],
+      DOC_OCR_TIMEOUT_MS,
+    )
+
+    // 5 is the binary's "read it, found no text" code — a blank or purely
+    // graphical scan, and the only outcome that is a property of the document.
+    if (code === 5) {
+      console.log(`[ocr] ${fileName}: no text recognized (blank or graphical scan)`)
+      return null
+    }
+    // 3 means the file itself could not be decoded — also permanent.
+    if (code === 3) {
+      console.log(`[ocr] ${fileName}: could not decode — ${stderr.trim()}`)
+      return null
+    }
+    if (code !== 0) {
+      throw new OcrFailedError(
+        `OCR of ${fileName} exited ${code}${stderr.trim() ? ` — ${stderr.trim()}` : ''}` +
+          ' (killed, out of memory, or timed out — retryable)',
+      )
+    }
+
+    const text = stdout.trim()
+    return text.length >= 40 ? text : null
+  } finally {
+    await fs.rm(dir, { recursive: true, force: true }).catch(() => {})
+  }
 }
 
 /**

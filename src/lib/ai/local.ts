@@ -406,8 +406,21 @@ export async function localEmbedding(text: string): Promise<number[]> {
 // PDF text extraction — local replacement for Gemini's native PDF reading.
 // ---------------------------------------------------------------------------
 
-/** Cap document text fed into the local model (~60k tokens of a 256k window). */
-export const LOCAL_PDF_TEXT_MAX_CHARS = 240_000
+/**
+ * Cap on STORED document text.
+ *
+ * Raised from 240,000 on 2026-09-26 (Richard: "I don't care how long it takes, I
+ * just want the most accurate answers as possible"). The old figure was chosen
+ * when the whole document was fed to the model in one go, so it doubled as a
+ * context guard — and it silently truncated: `SOO lode report.pdf` was stored at
+ * exactly 240,000 characters, meaning the tail was simply gone.
+ *
+ * It is no longer a context guard, because `get_document_content` now reads in
+ * windows and the agent follows `next_offset`. So the only thing this bounds is
+ * a Postgres text column and an embedding pass, both of which are cheap. A
+ * document the platform holds should be held whole.
+ */
+export const LOCAL_PDF_TEXT_MAX_CHARS = Number(process.env.LOCAL_PDF_TEXT_MAX_CHARS) || 2_000_000
 
 export async function extractPdfText(dataBase64: string): Promise<string | null> {
   try {

@@ -1,5 +1,5 @@
 import { callGeminiWithFile } from '@/lib/ai/gemini'
-import { isLocalAI, extractPdfText } from '@/lib/ai/local'
+import { isLocalAI, extractPdfText, LOCAL_PDF_TEXT_MAX_CHARS } from '@/lib/ai/local'
 import type { createAdminClient } from '@/lib/supabase/admin'
 
 // Shared full-text extraction for uploaded PDFs. The 2-3 sentence AI summary
@@ -32,6 +32,13 @@ Do not summarize, skip sections, or add commentary. Output ONLY the extracted te
  * Transcribe a PDF's full text. Returns null on failure or when the file is
  * beyond the active path's ceiling — callers fall back to embedding the
  * summary, exactly as before.
+ *
+ * In local mode this is two attempts, not one: the embedded text layer first,
+ * then Apple Vision OCR over rendered pages when there is no text layer. **30 of
+ * 315 live PDFs were in exactly that state** — scanned leases, plat maps, title
+ * commitments and assay letters, stored with a file and no text, invisible to
+ * Ber AI. The lease that prompted this read in 3 seconds and held the acreage
+ * the agent had been asked for three times.
  */
 export async function transcribePdfText(input: {
   dataBase64: string
@@ -45,7 +52,26 @@ export async function transcribePdfText(input: {
     if (input.byteLength > PDF_FULLTEXT_MAX_BYTES_LOCAL) return null
     const raw = await extractPdfText(input.dataBase64)
     const text = raw ? sanitizeExtractedText(raw) : null
-    return text && text.length >= 40 ? text : null
+    if (text && text.length >= 40) return text
+
+    // No text layer — the PDF is a scan. Render and recognize it.
+    //
+    // A transient failure (OcrFailedError: killed, out of memory, timed out) is
+    // deliberately allowed to PROPAGATE, so the caller records the document as
+    // an error to retry rather than as permanently unreadable. Only a missing
+    // binary is swallowed, because that is a host setup problem which would
+    // otherwise fail every document in a backfill one at a time.
+    const { ocrDocument, OcrFailedError } = await import('@/lib/ai/card-ocr')
+    try {
+      const ocr = await ocrDocument(Buffer.from(input.dataBase64, 'base64'), input.fileName)
+      if (!ocr) return null
+      const cleaned = sanitizeExtractedText(ocr)
+      return cleaned.length >= 40 ? cleaned.slice(0, LOCAL_PDF_TEXT_MAX_CHARS) : null
+    } catch (err) {
+      if (err instanceof OcrFailedError) throw err
+      console.error('[document-text] OCR unavailable:', err instanceof Error ? err.message : err)
+      return null
+    }
   }
 
   if (input.byteLength > PDF_FULLTEXT_MAX_BYTES) return null
@@ -231,6 +257,29 @@ function cellValue(cellXml: string, shared: string[]): string {
     return Number.isInteger(idx) && idx >= 0 && idx < shared.length ? shared[idx] : ''
   }
   return value
+}
+
+/**
+ * Extract the text of an image (a photographed page, a screenshot, a map with
+ * labels) through Apple Vision. Returns null when nothing legible was found —
+ * for a photograph that is a fact about the file, not a failure to retry.
+ */
+export async function extractImageText(
+  buffer: ArrayBuffer,
+  fileName: string
+): Promise<string | null> {
+  if (!isLocalAI()) return null
+  const { ocrDocument, OcrFailedError } = await import('@/lib/ai/card-ocr')
+  try {
+    const ocr = await ocrDocument(buffer, fileName)
+    if (!ocr) return null
+    const text = sanitizeExtractedText(ocr)
+    return text.length >= 40 ? text : null
+  } catch (err) {
+    if (err instanceof OcrFailedError) throw err
+    console.error('[document-text] OCR unavailable:', err instanceof Error ? err.message : err)
+    return null
+  }
 }
 
 /**

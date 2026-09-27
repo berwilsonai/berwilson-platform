@@ -1,5 +1,6 @@
 import { callGemini, callGeminiWithFile, UnreadableDocumentError } from '@/lib/ai/gemini'
-import { transcribePdfText, extractDocxText, extractXlsxText, storeExtractedText } from '@/lib/ai/document-text'
+import { transcribePdfText, extractDocxText, extractXlsxText, extractImageText, storeExtractedText } from '@/lib/ai/document-text'
+import { isLocalAI } from '@/lib/ai/local'
 import { embedDocument, embedOpportunityDocument } from '@/lib/ai/embeddings'
 import type { createAdminClient } from '@/lib/supabase/admin'
 import { SYSTEM_USER_ID } from '@/lib/system-user'
@@ -31,7 +32,13 @@ export const TEXT_MIME_TYPES = new Set([
   'text/html',
 ])
 
-export type DocumentKind = 'pdf' | 'docx' | 'xlsx' | 'text' | 'unsupported'
+/** Types Apple Vision can recognize text in (see card-ocr.ts). */
+export const IMAGE_MIME_PREFIX = 'image/'
+
+export type DocumentKind = 'pdf' | 'docx' | 'xlsx' | 'image' | 'text' | 'unsupported'
+
+/** Internal control-flow marker for `skipSummary` — never surfaces to a caller. */
+class SkipSummary extends Error {}
 
 export function documentKind(
   mimeType: string | null | undefined,
@@ -42,12 +49,14 @@ export function documentKind(
   if (mime === DOCX_MIME_TYPE) return 'docx'
   if (mime === XLSX_MIME_TYPE) return 'xlsx'
   if (TEXT_MIME_TYPES.has(mime)) return 'text'
+  if (mime.startsWith(IMAGE_MIME_PREFIX)) return 'image'
   // Fall back on the extension — browsers/Graph sometimes send octet-stream.
   const name = (fileName ?? '').toLowerCase()
   if (name.endsWith('.pdf')) return 'pdf'
   if (name.endsWith('.docx')) return 'docx'
   if (/\.(xlsx|xlsm)$/.test(name)) return 'xlsx'
   if (/\.(txt|md|markdown|csv|html)$/.test(name)) return 'text'
+  if (/\.(jpg|jpeg|png|heic|heif|webp|tif|tiff|gif|bmp)$/.test(name)) return 'image'
   return 'unsupported'
 }
 
@@ -138,6 +147,17 @@ export async function runDocumentAiPass(input: {
    */
   summaryPrompt?: string
   promptVersion?: string
+  /**
+   * Skip the AI summary and only extract + embed the text.
+   *
+   * For the OCR backfill on this box. Extraction is Apple Vision, which needs no
+   * model and holds no RAM; the summary is a 30-60s call to a 22GB model that
+   * has the Mac Studio 20GB into swap. With the LLM unloaded, 39 scanned
+   * documents extract and embed in minutes instead of forty — and the searchable
+   * text, not the summary, is what Ber AI answers from. The summary can be
+   * filled in later by re-running the pass without this flag.
+   */
+  skipSummary?: boolean
 }): Promise<AiPassResult> {
   const { supabase, documentId, projectId, fileName, mimeType, buffer } = input
   const target = input.target ?? DEFAULT_TARGET
@@ -168,6 +188,8 @@ export async function runDocumentAiPass(input: {
       fullText = await extractDocxText(buffer)
     } else if (kind === 'xlsx') {
       fullText = await extractXlsxText(buffer)
+    } else if (kind === 'image') {
+      fullText = await extractImageText(buffer, fileName)
     } else {
       fullText = new TextDecoder().decode(buffer)
     }
@@ -192,7 +214,14 @@ export async function runDocumentAiPass(input: {
     // no text behind it, so it stays fatal and settles the document as skipped.
     let parsed: DocSummary | null = null
     try {
-      if (kind === 'pdf') {
+      if (input.skipSummary) throw new SkipSummary()
+      // A PDF normally summarizes through the file path (Gemini needs the file;
+      // local mode extracts the text layer itself). But when the text above came
+      // from OCR there IS no text layer, so that path would render and recognize
+      // the whole scan a second time only to throw UnreadableDocumentError. If
+      // we already hold the text, summarize from it.
+      const summarizeFromText = kind !== 'pdf' || (isLocalAI() && fullText !== null)
+      if (!summarizeFromText && kind === 'pdf') {
         const result = await callGeminiWithFile<DocSummary>({
           systemPrompt: summarySystem,
           prompt: 'Summarize this document.',
@@ -215,11 +244,16 @@ export async function runDocumentAiPass(input: {
         parsed = result.data
       }
     } catch (err) {
-      if (err instanceof UnreadableDocumentError || !fullText) throw err
-      console.warn(
-        `[document-pipeline] summary failed for ${fileName}, indexing the text anyway:`,
-        err instanceof Error ? err.message : String(err)
-      )
+      if (err instanceof SkipSummary) {
+        // Asked for deliberately — not a failure, and not worth a warning.
+      } else if (err instanceof UnreadableDocumentError || !fullText) {
+        throw err
+      } else {
+        console.warn(
+          `[document-pipeline] summary failed for ${fileName}, indexing the text anyway:`,
+          err instanceof Error ? err.message : String(err)
+        )
+      }
     }
 
     let aiSummary: string | null = null

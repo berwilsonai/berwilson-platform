@@ -1609,7 +1609,11 @@ export async function executeToolCall(
       // Felix PSA is the most detailed document, but it's truncated") and had
       // nowhere to go with it. A legal description or an acreage schedule sits
       // wherever it sits; reading only the front of the file is not reading it.
-      const WINDOW = 20_000
+      // Tunable because its ceiling is the model's context window, not a
+      // preference: one window is roughly WINDOW/4 tokens, and the agent may
+      // hold several at once alongside ~13k tokens of fixed overhead. Raise it
+      // with the LM Studio context, not ahead of it (CLAUDE.md §7).
+      const WINDOW = Number(process.env.AGENT_DOC_WINDOW_CHARS) || 20_000
       const total = raw.length
 
       let start = Math.max(0, Math.floor(Number(args.offset) || 0))

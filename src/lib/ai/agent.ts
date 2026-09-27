@@ -44,8 +44,13 @@ function envInt(name: string, fallback: number): number {
   return Number.isFinite(raw) && raw > 0 ? raw : fallback
 }
 
-const maxToolRounds = () => envInt('AGENT_MAX_TOOL_ROUNDS', 12)
-const timeBudgetMs = () => envInt('AGENT_TIME_BUDGET_MS', 240_000)
+// Raised 2026-09-26 on Richard's instruction — "I don't care how long it takes,
+// I just want the most accurate answers as possible." 30 rounds and 30 minutes
+// are a runaway guard, not a budget: a turn that genuinely needs 25 rounds of
+// evidence now gets them, and the closing round still guarantees an answer at
+// the end of whichever limit is reached first.
+const maxToolRounds = () => envInt('AGENT_MAX_TOOL_ROUNDS', 30)
+const timeBudgetMs = () => envInt('AGENT_TIME_BUDGET_MS', 1_800_000)
 
 /**
  * Appended as a user turn for the closing round. It has to do two jobs: forbid
@@ -410,7 +415,18 @@ function historyToLocalMessages(history: Content[]): LocalChatMessage[] {
 // investigation.
 // ---------------------------------------------------------------------------
 
-/** Chars of conversation (excluding the system prompt) to keep in play. */
+/**
+ * Chars of conversation (excluding the system prompt) to keep in play.
+ *
+ * This one CANNOT be raised by fiat — it is set by the model's context window,
+ * which is LM Studio's setting, not ours. At the 65,536-token window the Studio
+ * shipped with, 120,000 characters of conversation plus ~13k tokens of fixed
+ * overhead is already most of the window. Doubling the window to 131,072 costs
+ * 2.12 GiB (`lms load --estimate-only`, measured — the hand-computed KV figure
+ * overstates it by more than double) and is what makes a bigger figure here
+ * safe, so this is env-tunable and documented in CLAUDE.md §7 beside the LM
+ * Studio context it depends on. Raise it WITH that change, never ahead of it.
+ */
 const contextBudgetChars = () => envInt('AGENT_CONTEXT_BUDGET_CHARS', 120_000)
 
 /** Most recent tool results always kept in full — the evidence being reasoned from. */
