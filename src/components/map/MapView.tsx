@@ -6,7 +6,7 @@ import maplibregl from 'maplibre-gl'
 // ssr:false dynamic chunk) builds but never gets linked into the page.
 import { buildMapStyle, type MapFlavor } from '@/lib/map/style'
 import { MAP_HOME } from '@/lib/map/constants'
-import type { MapProject, LineStringGeometry } from '@/lib/map/types'
+import type { MapProject, LineStringGeometry, MapParcel } from '@/lib/map/types'
 import {
   buildClusterElement,
   buildMarkerElement,
@@ -23,6 +23,8 @@ export interface MapApi {
 
 interface MapViewProps {
   projects: MapProject[] // placed projects only (after sector filter)
+  /** Parcel polygons for the visible projects — the land itself, under the pins. */
+  parcels: MapParcel[]
   selectedId: string | null
   onSelect: (id: string) => void
   /** When set, next map click places this project. */
@@ -47,7 +49,28 @@ function currentFlavor(): MapFlavor {
 }
 
 const LINE_SOURCE = 'project-lines'
+const PARCEL_SOURCE = 'project-parcels'
 const DRAW_SOURCE = 'draw-temp'
+// Parcel labels only once a parcel is big enough on screen to carry one. Below
+// this the fills still draw — the shape of an assemblage reads from a distance
+// long before its parcel numbers do.
+const PARCEL_LABEL_ZOOM = 12
+
+/**
+ * "Is this parcel's project the selected one" as a paint expression.
+ *
+ * Deliberately not feature-state: that needs every feature to carry a stable
+ * numeric id through promoteId, and the highlight here is per-PROJECT, not
+ * per-parcel — selecting a project lights all 11 of its parcels at once, which
+ * a per-feature state would have to set and clear one by one.
+ */
+function parcelSelectExpr(
+  selectedId: string | null,
+  on: number,
+  off: number
+): maplibregl.ExpressionSpecification {
+  return ['case', ['==', ['get', 'projectId'], selectedId ?? '\u0000'], on, off]
+}
 const DASH_LAYER = 'project-lines-dash'
 // Above this zoom, marker labels stay visible (not just on hover)
 const LABEL_ZOOM = 9
@@ -63,8 +86,103 @@ const DASH_SEQUENCE: number[][] = [
   [0, 0.5, 3, 3.5], [0, 1, 3, 3], [0, 1.5, 3, 2.5], [0, 2, 3, 2], [0, 2.5, 3, 1.5], [0, 3, 3, 1], [0, 3.5, 3, 0.5],
 ]
 
+/**
+ * Create (once) and feed the parcel fill/outline/label layers.
+ *
+ * Module scope, not the component body, and deliberately so: closing over the
+ * component made `ensureOverlays` un-inferrable as stable, which turned two
+ * long-standing effects into exhaustive-deps warnings. Everything this needs
+ * arrives as an argument.
+ */
+function ensureParcelLayers(
+  map: maplibregl.Map,
+  parcels: MapParcel[],
+  selectedId: string | null,
+  interaction: { onSelect: (projectId: string) => void; busy: () => boolean }
+) {
+  const data = {
+    type: 'FeatureCollection' as const,
+    features: parcels.map((parcel) => ({
+      type: 'Feature' as const,
+      properties: {
+        id: parcel.id,
+        projectId: parcel.projectId,
+        color: parcel.color ?? '#64748b',
+        // Composed here, not in the style expression: MapLibre's number
+        // formatting cannot put a thousands separator on an acreage, and a
+        // parcel reading "1400 ac" where it means "1,400" is a figure someone
+        // repeats wrong in a hearing.
+        label:
+          parcel.acres != null
+            ? `${parcel.label ?? parcel.parcelId}\n${parcel.acres.toLocaleString('en-US')} ac`
+            : (parcel.label ?? parcel.parcelId),
+      },
+      geometry: parcel.geometry,
+    })),
+  }
+
+  const existing = map.getSource(PARCEL_SOURCE) as maplibregl.GeoJSONSource | undefined
+  if (existing) {
+    existing.setData(data)
+    return
+  }
+
+  map.addSource(PARCEL_SOURCE, { type: 'geojson', data })
+  map.addLayer({
+    id: 'project-parcels-fill',
+    type: 'fill',
+    source: PARCEL_SOURCE,
+    paint: {
+      'fill-color': ['get', 'color'],
+      // Low enough that the base detail underneath still reads — a site plan
+      // you cannot see the ground through is a picture again.
+      'fill-opacity': parcelSelectExpr(selectedId, 0.5, 0.3),
+    },
+  })
+  map.addLayer({
+    id: 'project-parcels-outline',
+    type: 'line',
+    source: PARCEL_SOURCE,
+    paint: {
+      'line-color': ['get', 'color'],
+      'line-width': parcelSelectExpr(selectedId, 2.5, 1.2),
+    },
+  })
+  map.addLayer({
+    id: 'project-parcels-label',
+    type: 'symbol',
+    source: PARCEL_SOURCE,
+    minzoom: PARCEL_LABEL_ZOOM,
+    layout: {
+      'text-field': ['get', 'label'],
+      'text-font': ['Noto Sans Medium'],
+      'text-size': 11,
+      'text-line-height': 1.2,
+      'text-allow-overlap': false,
+    },
+    paint: {
+      'text-color': '#1f2937',
+      'text-halo-color': '#ffffff',
+      'text-halo-width': 1.4,
+    },
+  })
+
+  map.on('click', 'project-parcels-fill', (e) => {
+    if (interaction.busy()) return
+    const projectId = e.features?.[0]?.properties?.projectId
+    if (typeof projectId === 'string') interaction.onSelect(projectId)
+  })
+  map.on('mouseenter', 'project-parcels-fill', () => {
+    if (!interaction.busy()) map.getCanvas().style.cursor = 'pointer'
+  })
+  map.on('mouseleave', 'project-parcels-fill', () => {
+    map.getCanvas().style.cursor = ''
+  })
+}
+
 export default function MapView({
   projects,
+  parcels,
   selectedId,
   onSelect,
   placing,
@@ -84,6 +202,8 @@ export default function MapView({
   const clustersRef = useRef<Map<string, maplibregl.Marker>>(new Map())
   const projectsRef = useRef(projects)
   projectsRef.current = projects
+  const parcelsRef = useRef(parcels)
+  parcelsRef.current = parcels
   const selectedRef = useRef(selectedId)
   selectedRef.current = selectedId
   const animateRef = useRef(animateLines)
@@ -268,6 +388,10 @@ export default function MapView({
 
   // ── Line overlays (rail corridors etc.) ────────────────────────────────────
   function ensureOverlays(map: maplibregl.Map) {
+    ensureParcelLayers(map, parcelsRef.current, selectedRef.current, {
+      onSelect: (projectId) => handlersRef.current.onSelect(projectId),
+      busy: () => handlersRef.current.drawing || handlersRef.current.placing,
+    })
     const features = projectsRef.current
       .filter((p): p is MapProject & { map_geometry: LineStringGeometry } => !!p.map_geometry)
       // Hide the saved route while it's being redrawn — the dashed draw line replaces it
@@ -424,11 +548,14 @@ export default function MapView({
       }
     }
 
-    // Refresh line overlays when geometry-bearing projects change
+    // Refresh line and parcel overlays when the drawn set changes.
+    // `parcels` rides this effect rather than owning one: ensureOverlays calls
+    // ensureParcels, and the marker diff below is keyed by project id, so a
+    // parcel-only change re-runs it without disturbing a single marker.
     if (map.isStyleLoaded()) ensureOverlays(map)
     refreshClusters(map)
 
-  }, [projects])
+  }, [projects, parcels])
 
   // ── Selection highlight + fly ──────────────────────────────────────────────
   useEffect(() => {
@@ -439,7 +566,53 @@ export default function MapView({
     // Selected marker is exempt from clustering — pull it out immediately
     // (the flyTo's moveend refreshes again once the camera settles)
     if (mapRef.current) refreshClusters(mapRef.current)
+
+    // Repaint the parcel highlight for the newly selected project.
+    const paintMap = mapRef.current
+    if (paintMap?.getLayer('project-parcels-fill')) {
+      paintMap.setPaintProperty(
+        'project-parcels-fill',
+        'fill-opacity',
+        parcelSelectExpr(selectedId, 0.5, 0.3)
+      )
+      paintMap.setPaintProperty(
+        'project-parcels-outline',
+        'line-width',
+        parcelSelectExpr(selectedId, 2.5, 1.2)
+      )
+    }
+
     if (selectedId) {
+      // A project that owns land is framed by its LAND, not by its pin. Flying
+      // to a centroid at a fixed zoom either buries a 929-acre assemblage off
+      // screen or leaves a single lot as a speck; fitting the polygons answers
+      // "how big is this" in the same gesture that answers "where is this".
+      const own = parcelsRef.current.filter((x) => x.projectId === selectedId)
+      if (own.length > 0 && mapRef.current) {
+        const bounds = new maplibregl.LngLatBounds()
+        for (const parcel of own) {
+          const polys =
+            parcel.geometry.type === 'Polygon'
+              ? [parcel.geometry.coordinates]
+              : parcel.geometry.coordinates
+          for (const poly of polys) for (const ring of poly) for (const c of ring) bounds.extend(c)
+        }
+        if (!bounds.isEmpty()) {
+          mapRef.current.fitBounds(bounds, {
+            speed: 1.2,
+            curve: 1.4,
+            maxZoom: 15,
+            padding: {
+              top: 60,
+              bottom: 60,
+              left: 60,
+              right: window.innerWidth >= 640 ? 384 + 60 : 60,
+            },
+          })
+          return
+        }
+      }
+
       const p = projects.find((x) => x.id === selectedId)
       if (p && p.latitude != null && p.longitude != null && mapRef.current) {
         const currentZoom = mapRef.current.getZoom()

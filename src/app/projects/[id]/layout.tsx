@@ -9,6 +9,7 @@ import { STATUS_BADGE, STATUS_LABELS } from '@/lib/utils/constants'
 import RecordTabBar from '@/components/records/RecordTabBar'
 import { PROJECT_TABS } from '@/components/records/tabs'
 import { getViewer, canAccessProject } from '@/lib/auth/viewer'
+import { parcelDb } from '@/lib/parcels/queries'
 
 interface LayoutProps {
   children: React.ReactNode
@@ -52,14 +53,25 @@ export default async function ProjectLayout({ children, params }: LayoutProps) {
       .eq('project_id', id)
     return n ?? 0
   }
-  const [players, updates, meetings, tasks, documents, milestones, financing, diligence, entities] =
+  // project_parcels is absent from the generated types (gen-types is a disabled
+  // stub, §4), so it counts through its own untyped client rather than the
+  // helper above.
+  const countParcels = async () => {
+    const { count: n } = await parcelDb()
+      .from('project_parcels')
+      .select('id', { count: 'exact', head: true })
+      .eq('project_id', id)
+    return n ?? 0
+  }
+
+  const [players, updates, meetings, tasks, documents, milestones, financing, diligence, entities, parcels] =
     await Promise.all([
       count('project_players'), count('updates'), count('meetings'), count('tasks'),
       count('documents'), count('milestones'), count('financing_structures'),
-      count('dd_items'), count('entity_projects'),
+      count('dd_items'), count('entity_projects'), countParcels(),
     ])
   const tabCounts = {
-    players, updates, meetings, tasks, documents, milestones, financing, diligence, entities,
+    players, updates, meetings, tasks, documents, milestones, financing, diligence, entities, parcels,
   }
 
   const status = project.status ?? 'active'

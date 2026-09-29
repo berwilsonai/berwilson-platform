@@ -8,6 +8,7 @@ export const PROJECT_TABS: RecordTab[] = [
   { label: 'Overview', segment: '', always: true },
   { label: 'Updates', segment: 'updates', key: 'updates', always: true },
   { label: 'Documents', segment: 'documents', key: 'documents', always: true },
+  { label: 'Land', segment: 'parcels', key: 'parcels' },
   { label: 'Players', segment: 'players', key: 'players' },
   { label: 'Meetings', segment: 'meetings', key: 'meetings' },
   { label: 'Tasks', segment: 'tasks', key: 'tasks' },

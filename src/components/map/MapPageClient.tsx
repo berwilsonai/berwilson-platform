@@ -20,7 +20,7 @@ import {
   type MapIconType,
   type MapPhase,
 } from '@/lib/map/constants'
-import type { MapProject, LineStringGeometry } from '@/lib/map/types'
+import type { MapProject, LineStringGeometry, MapParcel } from '@/lib/map/types'
 import type { MapApi } from './MapView'
 import ProjectMapSheet from './ProjectMapSheet'
 import PlacementPanel from './PlacementPanel'
@@ -36,6 +36,7 @@ const MapView = dynamic(() => import('./MapView'), { ssr: false, loading: MapSke
 
 interface MapPageClientProps {
   projects: MapProject[]
+  parcels: MapParcel[]
   photoUrls: Record<string, string[]>
   isAdmin: boolean
   /** Deep link (/map?project=<id>) — opens selected + flown-to. */
@@ -48,6 +49,7 @@ type Override = Partial<
 
 export default function MapPageClient({
   projects,
+  parcels,
   photoUrls,
   isAdmin,
   initialProjectId,
@@ -96,6 +98,13 @@ export default function MapPageClient({
       ),
     [placed, hiddenSectors, phaseFilter]
   )
+  // Parcels follow their project through the sector and phase filters — land
+  // left drawn under a hidden project would contradict the legend beside it.
+  const visibleParcels = useMemo(() => {
+    const shown = new Set(visible.map((p) => p.id))
+    return parcels.filter((parcel) => shown.has(parcel.projectId))
+  }, [parcels, visible])
+
   const sectorsInUse = useMemo(
     () => SECTORS.filter((s) => placed.some((p) => p.sector === s)),
     [placed]
@@ -355,6 +364,7 @@ export default function MapPageClient({
     >
       <MapView
         projects={visible}
+        parcels={visibleParcels}
         selectedId={selectedId}
         onSelect={setSelectedId}
         placing={!!placingId}
