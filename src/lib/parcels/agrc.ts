@@ -115,7 +115,14 @@ interface EsriFeature {
 function ringArea(ring: [number, number][]): number {
   let sum = 0
   for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
-    sum += (ring[j][0] + ring[i][0]) * (ring[j][1] - ring[i][1])
+    // Positive for counter-clockwise, matching the cross-product convention
+    // the centroid sum below uses. ⚠ The trapezoid form with (y_j - y_i) is
+    // the SAME area with the OPPOSITE sign, and pairing it with that centroid
+    // sum negates both coordinates — which is a parcel in Utah reported in the
+    // southern hemisphere, off the coast of Western Australia. Caught only by
+    // reading the imported rows back; nothing else complains, because the
+    // geometry itself is stored raw and draws perfectly.
+    sum += (ring[j][0] + ring[i][0]) * (ring[i][1] - ring[j][1])
   }
   return sum / 2
 }
