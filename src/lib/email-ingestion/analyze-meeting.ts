@@ -54,6 +54,29 @@ export interface AnalyzeMeetingInput {
    * run racing the first loses at the database, not halfway through.
    */
   driveFileId?: string | null
+  /**
+   * A record the CALLER already resolved — for Meet, the deal named in the
+   * meeting title. Folded into `referenced_records` with its match pre-filled so
+   * the review screen opens with the target selected instead of making the
+   * reviewer find it. The AI's own references still stand on their own; this only
+   * adds one it may have missed, and never overrides a match it made.
+   */
+  seedTarget?: SeedTarget | null
+  /**
+   * What to STORE as the session's raw_text, when that differs from what the
+   * model was given. Meet's note document holds a recap and the verbatim
+   * transcript; only the recap is worth a model pass, but throwing the
+   * transcript away would lose the evidence for any meeting the reviewer has yet
+   * to file. The model reads `rawText`; the row keeps this.
+   */
+  retainText?: string | null
+}
+
+/** A project or opportunity resolved before the AI pass ran. */
+export interface SeedTarget {
+  kind: 'project' | 'opportunity'
+  id: string
+  name: string
 }
 
 export interface AnalyzeMeetingResult {
@@ -152,6 +175,59 @@ function toProjectStub(name: string): ExtractedProject {
 
 /** Pre-match referenced records to existing projects (trigram/name via
  *  findMatchingProjects) and opportunities (name ilike). Non-fatal. */
+/**
+ * Words that carry no identity in a Ber Wilson record name.
+ *
+ * Four live projects are called Heber Development, Myton Development, Tonga
+ * Development Project and American Energy Rail Corridor - Community Development,
+ * so "Development" is shared vocabulary, not a name. §12 already records the same
+ * trap for company domains: a shared industry word is the one thing an identifier
+ * must not be.
+ *
+ * Place names are deliberately NOT here. Myton, Delta, Heber, Tooele and West
+ * Wendover are exactly what distinguishes these projects from each other.
+ */
+const GENERIC_NAME_WORDS = new Set([
+  'development', 'developments', 'project', 'projects', 'site', 'sites', 'campus',
+  'expansion', 'portfolio', 'initiative', 'phase', 'center', 'centre', 'complex',
+  'park', 'building', 'buildings', 'construction', 'community', 'corridor',
+  'industrial', 'group', 'holdings', 'company', 'the', 'and', 'for', 'llc', 'inc',
+])
+
+/** Identity-bearing words in a record name, lowercased. */
+function distinguishingWords(name: string): Set<string> {
+  return new Set(
+    name
+      .toLowerCase()
+      .split(/[^a-z0-9]+/)
+      .filter((w) => w.length >= 3 && !GENERIC_NAME_WORDS.has(w)),
+  )
+}
+
+/**
+ * Is this trigram hit strong enough to PRE-SELECT the record for the reviewer?
+ *
+ * ⚠ A score threshold cannot answer this, which was measured rather than assumed.
+ * On the live corpus "Eagle Mountain Development" matched **Myton Development at
+ * 0.487** — wrong — while "Delta, Utah Campus" matched **Delta Industrial Campus
+ * — Daves Farms at 0.390** — right. The wrong match scores HIGHER, because the
+ * only thing it shares is the word every fourth project here contains.
+ *
+ * What separates them is WHICH word matched. A pre-selection therefore requires
+ * at least one shared identity-bearing word. Records that fail this still appear
+ * in the review screen as suggestions the reviewer can add in one click, so
+ * nothing is hidden — it just is not ticked on their behalf. §12: ambiguity must
+ * mean no match, and one hit on a weak key is an unchallenged match, not a
+ * unique one.
+ */
+function isConfidentNameMatch(extracted: string, candidate: string): boolean {
+  const a = distinguishingWords(extracted)
+  if (a.size === 0) return false
+  const b = distinguishingWords(candidate)
+  for (const w of a) if (b.has(w)) return true
+  return false
+}
+
 async function matchReferencedRecords(
   extraction: MeetingIntakeExtraction,
 ): Promise<ReferencedMatch[]> {
@@ -176,6 +252,9 @@ async function matchReferencedRecords(
       }
       bestByStub.forEach((best, stubIdx) => {
         const refIndex = projectRefIndices[stubIdx]
+        // Pre-select only on a shared identity-bearing word — see
+        // isConfidentNameMatch. Everything else stays a suggestion.
+        if (!isConfidentNameMatch(refs[refIndex].name, best.name)) return
         out[refIndex] = { index: refIndex, matched_id: best.id, matched_name: best.name }
       })
     } catch {
@@ -211,6 +290,44 @@ async function matchReferencedRecords(
  * pending review session. Throws {@link EmailIntakeError} (with an HTTP status) on
  * failure so callers can translate it to a Response.
  */
+/**
+ * Add a caller-resolved target to the extraction's referenced records, matched.
+ *
+ * If the AI already named the same record AND that reference resolved to the same
+ * row, nothing is added — the reviewer would see it twice. If the AI named it but
+ * the name did not resolve, the match is filled in rather than duplicated: that
+ * is the common case, a deal the model spelled slightly differently.
+ */
+function mergeSeedTarget(
+  extraction: MeetingIntakeExtraction,
+  matches: ReferencedMatch[],
+  seed: SeedTarget,
+): void {
+  const already = matches.find((m) => m.matched_id === seed.id)
+  if (already) return
+
+  const sameName = extraction.referenced_records.findIndex(
+    (r) => r.kind === seed.kind && r.name.trim().toLowerCase() === seed.name.trim().toLowerCase(),
+  )
+  if (sameName >= 0) {
+    const m = matches.find((x) => x.index === sameName)
+    if (m && !m.matched_id) {
+      m.matched_id = seed.id
+      m.matched_name = seed.name
+      return
+    }
+    if (m) return
+  }
+
+  const index = extraction.referenced_records.length
+  extraction.referenced_records.push({
+    kind: seed.kind,
+    name: seed.name,
+    note: 'Named in the meeting title.',
+  })
+  matches.push({ index, matched_id: seed.id, matched_name: seed.name })
+}
+
 /** Merge calendar-known attendees into the AI extraction (dedupe by email/name). */
 function mergeSeedAttendees(extraction: MeetingIntakeExtraction, seeds: SeedAttendee[]): void {
   for (const s of seeds) {
@@ -299,6 +416,8 @@ export async function analyzeMeetingNotes(input: AnalyzeMeetingInput): Promise<A
     matchReferencedRecords(extraction).catch(() => []),
   ])
 
+  if (input.seedTarget) mergeSeedTarget(extraction, referencedMatches, input.seedTarget)
+
   // 3. Stage the session for review (never auto-confirmed).
   const label = extraction.title ?? title
   const { data: session, error } = await supabase
@@ -309,7 +428,7 @@ export async function analyzeMeetingNotes(input: AnalyzeMeetingInput): Promise<A
       status: 'pending',
       drive_file_id: input.driveFileId ?? null,
       label,
-      raw_text: text,
+      raw_text: input.retainText ?? text,
       extraction_result: extraction as unknown as Json,
       match_candidates: referencedMatches as unknown as Json,
       party_matches: partyMatches as unknown as Json,

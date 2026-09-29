@@ -10,6 +10,7 @@ import {
   type RecordKind,
   type TargetKind,
 } from '@/lib/email-ingestion/confirm-helpers'
+import { fileMeetingDocument } from '@/lib/meetings/file-notes'
 import type { TablesInsert } from '@/lib/supabase/types'
 
 export const maxDuration = 300
@@ -350,6 +351,40 @@ export async function POST(request: NextRequest) {
   // the meeting cannot reach this tailnet-only platform. Company-scoped minutes
   // are excluded deliberately — they are governance material, not a record's
   // document set, and publishRecordToDrive has no company shelf.
+  // ── Verbatim transcript, for a Meet session that was not filed at import ────
+  //
+  // When the meeting title named a record unambiguously, the importer already
+  // filed the full export and this is a no-op. When it did not, this is the
+  // moment the record becomes known — so the transcript lands now rather than
+  // living only in Drive.
+  //
+  // One record, not every target: `drive_file_id` carries a platform-wide unique
+  // index, so a Drive file can be filed exactly once. The minutes document still
+  // goes on all of them; the verbatim goes on the first real record.
+  if (session.drive_file_id && session.raw_text) {
+    const primary = targets.find((t) => t.kind === 'project' || t.kind === 'opportunity')
+    if (primary) {
+      const filed = await fileMeetingDocument({
+        // `name` is only used for the storage path/label; ConfirmTarget carries
+        // just a kind and an id, and the meeting's own title is the better label.
+        target: {
+          kind: primary.kind as 'project' | 'opportunity',
+          id: primary.id,
+          name: str(meeting.title) || session.label || 'meeting',
+        },
+        driveFileId: session.drive_file_id,
+        title: str(meeting.title) || session.label || 'meeting',
+        content: session.raw_text,
+        summary: str(meeting.summary),
+        meetingDate: str(meeting.date),
+      }).catch((err) => {
+        console.error('[meeting-confirm] verbatim filing failed:', err)
+        return null
+      })
+      if (filed && !filed.alreadyFiled) createdRecordIds.document_ids.push(filed.documentId)
+    }
+  }
+
   const publishable = targets.filter(
     (t) => t.kind === 'project' || t.kind === 'opportunity'
   )

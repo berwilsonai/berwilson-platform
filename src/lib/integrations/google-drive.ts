@@ -462,15 +462,26 @@ export async function fetchDriveFile(
 // ---------------------------------------------------------------------------
 
 /**
- * Where Google Meet drops recordings and transcripts: a "Meet Recordings" folder
- * in the ORGANIZER's My Drive. There is no API to ask for it by role, and the
- * name is locale-dependent, so it is resolved by name with an env override for
- * the case where a Workspace has been configured to file them elsewhere.
+ * Where Google Meet drops recordings and transcripts: a folder in the
+ * ORGANIZER's My Drive. There is no API to ask for it by role, so it is resolved
+ * by name, with an env override for a Workspace that files them elsewhere.
+ *
+ * ⚠ The name is not stable. Google has used both "Meet Recordings" and, more
+ * recently, "Google Meet", and it is locale-dependent besides. Matching only the
+ * older name is why this importer ran 192 times and imported nothing: it
+ * reported "no Meet folder" against a Drive that had one, under the newer name,
+ * holding every meeting. Hence a LIST — add to it rather than swapping it.
  */
-const MEET_FOLDER_NAME = 'Meet Recordings'
+export const MEET_FOLDER_NAMES = ['Meet Recordings', 'Google Meet'] as const
 
-/** Meet names its transcript docs "<title> - <timestamp> - Transcript". */
+/**
+ * Meet names its artifact docs "<title> - <timestamp> - Transcript" or
+ * "<title> - <timestamp> - Notes by Gemini". Both are wanted: where Gemini took
+ * notes, ITS document is the better one — the recap and the full transcript
+ * arrive in a single file, so the transcript-only doc is redundant.
+ */
 const TRANSCRIPT_MARKER = 'Transcript'
+const NOTES_MARKER = 'Notes by Gemini'
 
 export interface MeetArtifacts {
   /** Google Docs holding the verbatim transcript of a call. */
@@ -482,7 +493,7 @@ export interface MeetArtifacts {
    * console" from looking identical to "nobody had any meetings".
    */
   recordingsWithoutTranscript: number
-  /** True when no Meet Recordings folder exists in this Drive at all. */
+  /** True when no Meet folder exists in this Drive at all. */
   noMeetFolder: boolean
 }
 
@@ -491,13 +502,14 @@ export function meetFolderIdOverride(): string | null {
   return process.env.GOOGLE_MEET_FOLDER_ID?.trim() || null
 }
 
-/** Resolve the "Meet Recordings" folder id in a mailbox's Drive, if it exists. */
+/** Resolve the Meet output folder id in a mailbox's Drive, if it exists. */
 async function findMeetFolder(mailbox: string): Promise<string | null> {
   const override = meetFolderIdOverride()
   if (override) return override
 
+  const byName = MEET_FOLDER_NAMES.map((n) => `name = '${n}'`).join(' or ')
   const params = new URLSearchParams({
-    q: `mimeType = '${GOOGLE_FOLDER}' and name = '${MEET_FOLDER_NAME}' and trashed = false`,
+    q: `mimeType = '${GOOGLE_FOLDER}' and (${byName}) and trashed = false`,
     fields: 'files(id, name)',
     pageSize: '5',
     supportsAllDrives: 'true',
@@ -530,54 +542,87 @@ export async function listMeetTranscripts(
     return { transcripts: [], recordingsWithoutTranscript: 0, noMeetFolder: true }
   }
 
-  const clauses = [`'${folderId}' in parents`, 'trashed = false']
-  if (opts.since) clauses.push(`modifiedTime > '${opts.since}'`)
-
-  const params = new URLSearchParams({
-    q: clauses.join(' and '),
-    fields: 'nextPageToken, files(id, name, mimeType, modifiedTime, size)',
-    pageSize: '200',
-    orderBy: 'modifiedTime desc',
-    supportsAllDrives: 'true',
-    includeItemsFromAllDrives: 'true',
-  })
+  // Meet writes one SUBFOLDER per meeting ("<title> - 2026/09/25 10:58 MDT")
+  // and puts the artifacts inside it. A flat `'<folderId>' in parents` listing
+  // therefore sees nothing but folders — which is the second half of why this
+  // importer never returned a file.
+  //
+  // maxDepth 2, not 1: listFolder counts the folder it was handed as level 1, so
+  // 2 is "this folder and the meeting folders in it" and stops there. Measured
+  // against the live Drive — 1 returns nothing at all.
+  const files = await listFolder(folderId, { mailbox, maxDepth: 2 })
 
   const transcripts: DriveFile[] = []
   const recordings: DriveFile[] = []
-  let pageToken: string | undefined
+  const sinceMs = opts.since ? Date.parse(opts.since) : 0
 
-  do {
-    if (pageToken) params.set('pageToken', pageToken)
-    const data = await googleFetch<DriveListResponse>(
-      `${DRIVE_BASE}/files?${params.toString()}`,
-      mailbox
-    )
-    for (const f of data.files ?? []) {
-      const file: DriveFile = {
-        id: f.id,
-        name: f.name,
-        mimeType: f.mimeType,
-        modifiedTime: f.modifiedTime,
-        size: f.size ? Number(f.size) : null,
-      }
-      if (f.mimeType === GOOGLE_DOC && f.name.includes(TRANSCRIPT_MARKER)) transcripts.push(file)
-      else if (f.mimeType.startsWith('video/')) recordings.push(file)
+  for (const file of files) {
+    // Drive has no server-side filter here (listFolder lists a tree), so the
+    // first-run bound is applied in memory. A Meet folder holds one small
+    // listing per meeting, never the thousands that made this worth pushing
+    // server-side elsewhere. Compared as INSTANTS — never string-compare two
+    // timestamps that may not share a format (§12).
+    if (opts.since && Date.parse(file.modifiedTime) <= sinceMs) continue
+
+    // GOOGLE_DOC only, which quietly does one more job: when several people on
+    // the call are executives, Meet puts the real document in the ORGANIZER's
+    // Drive and a `…apps.shortcut` to it in each other participant's. Both
+    // mailboxes are read, so the real document is always seen once — and
+    // ignoring shortcuts is what stops one meeting importing twice. (Verified
+    // live: moose@ holds the three documents, tuaone@ holds three shortcuts.)
+    if (file.mimeType === GOOGLE_DOC && isMeetArtifactName(file.name)) transcripts.push(file)
+    else if (file.mimeType.startsWith('video/')) recordings.push(file)
+  }
+
+  // Newest first — the same order the old server-side query returned, and the
+  // order the per-run limit should truncate.
+  transcripts.sort((a, b) => b.modifiedTime.localeCompare(a.modifiedTime))
+
+  // ONE MEETING MUST YIELD ONE SESSION. Where Gemini took notes, Meet may file
+  // both "<title> - Notes by Gemini" and "<title> - Transcript"; the notes
+  // document already contains the transcript, so keeping both would stage every
+  // meeting twice and put the reviewer in front of the same call written two
+  // ways. Group on the meeting title and prefer the notes document.
+  const byMeeting = new Map<string, DriveFile>()
+  for (const f of transcripts) {
+    const key = meetArtifactKey(f.name)
+    const held = byMeeting.get(key)
+    if (!held || (!isGeminiNotesName(held.name) && isGeminiNotesName(f.name))) {
+      byMeeting.set(key, f)
     }
-    pageToken = data.nextPageToken
-  } while (pageToken && transcripts.length < (opts.limit ?? 200))
-
-  // A recording is "covered" when a transcript shares its meeting title — Meet
-  // names the pair identically up to the trailing " - Transcript".
-  const covered = new Set(
-    transcripts.map((t) => t.name.replace(/\s*-\s*Transcript\s*$/i, '').trim().toLowerCase())
+  }
+  const chosen = [...byMeeting.values()].sort((a, b) =>
+    b.modifiedTime.localeCompare(a.modifiedTime)
   )
+
+  // A recording is "covered" when an artifact shares its meeting title.
+  const covered = new Set(chosen.map((t) => meetArtifactKey(t.name)))
   const uncovered = recordings.filter(
-    (r) => !covered.has(r.name.replace(/\.[a-z0-9]+$/i, '').trim().toLowerCase())
+    (r) => !covered.has(meetArtifactKey(r.name.replace(/\.[a-z0-9]+$/i, '')))
   ).length
 
   return {
-    transcripts: opts.limit ? transcripts.slice(0, opts.limit) : transcripts,
+    transcripts: opts.limit ? chosen.slice(0, opts.limit) : chosen,
     recordingsWithoutTranscript: uncovered,
     noMeetFolder: false,
   }
+}
+
+/** True when a Drive file name looks like Meet's Gemini note-taker output. */
+function isGeminiNotesName(name: string): boolean {
+  return name.includes(NOTES_MARKER)
+}
+
+/** True for either kind of Meet artifact document. */
+function isMeetArtifactName(name: string): boolean {
+  return name.includes(TRANSCRIPT_MARKER) || isGeminiNotesName(name)
+}
+
+/** The meeting a Meet artifact belongs to: its name with the artifact suffix
+ *  stripped. Two files sharing this key describe the same call. */
+function meetArtifactKey(name: string): string {
+  return name
+    .replace(/\s*-\s*(Notes by Gemini|Transcript)\s*$/i, '')
+    .trim()
+    .toLowerCase()
 }
