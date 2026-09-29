@@ -55,10 +55,21 @@ export default async function LeadsPage({
   // rather than behind a search endpoint: 15 projects and a handful of
   // opportunities is one small query, and a type-ahead that has to round-trip is
   // one the reader stops using.
-  const [{ data: projectRows }, { data: opportunityRows }] = await Promise.all([
-    db.from('projects').select('id, name').neq('status', 'archived').order('name').limit(500),
+  //
+  // ⚠ Deliberately UNFILTERED on status. `.neq('status','archived')` looked like
+  // the obvious hygiene and was two bugs at once: `project_status` has no
+  // 'archived' member, so PostgREST failed the whole query with 22P02 and the
+  // picker silently held opportunities only — and `projects.status` is nullable,
+  // so even a valid value would have dropped every NULL-status row (§12). A
+  // closed project is a legitimate thing to attach a late bid invitation to, and
+  // the reader is picking by name from a type-ahead over fifteen records.
+  const [{ data: projectRows, error: projectErr }, { data: opportunityRows }] = await Promise.all([
+    db.from('projects').select('id, name').order('name').limit(500),
     db.from('opportunities').select('id, name').order('name').limit(500),
   ])
+  // A picker that quietly holds half the records is worse than one that is
+  // obviously empty, so say so rather than rendering a shorter list.
+  if (projectErr) console.error('[leads] could not load attach targets:', projectErr.message)
   const attachOptions: AttachOption[] = [
     ...((projectRows ?? []) as { id: string; name: string }[]).map((r) => ({
       id: r.id,
@@ -86,6 +97,23 @@ export default async function LeadsPage({
     ((rows ?? []) as LeadRow[]).map((r) => ({ ...r, gmail_thread_id: embeddedGmailThreadId(r) }))
 
   const leads = [...flatten(openRows), ...flatten(filteredRows)]
+
+  // A deep-linked lead that fell outside the windows above, fetched by id.
+  //
+  // ⚠ The queue is capped at 300 and ordered by bid date then fit score, both
+  // nullsFirst:false — so a lead with NEITHER sorts dead last and is the first
+  // thing the cap drops. That is exactly the shape of a freshly staged meeting
+  // lead, and of anything not yet scored: the sheet would simply never open,
+  // silently, for the one lead the link was about. The digest email's links have
+  // the same exposure whenever the queue is long.
+  if (initialOpenLeadId && !leads.some((l) => l.id === initialOpenLeadId)) {
+    const { data: deepRow } = await db
+      .from('leads')
+      .select(`*, ${GMAIL_THREAD_EMBED}`)
+      .eq('id', initialOpenLeadId)
+      .maybeSingle()
+    if (deepRow) leads.unshift(...flatten([deepRow]))
+  }
 
   return (
     <div className="space-y-5">
