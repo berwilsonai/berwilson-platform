@@ -14,8 +14,16 @@ import { oppType } from '@/lib/utils/opportunities'
 type AdminClient = ReturnType<typeof createAdminClient>
 
 export type RecordKind = 'opportunity' | 'project'
-/** 'company' = Ber Wilson itself (documents land in the company Knowledge Base). */
-export type TargetKind = RecordKind | 'company'
+/**
+ * Where a confirmed intake lands.
+ *
+ * 'company' = Ber Wilson itself (documents land in the company Knowledge Base).
+ * 'lead'    = staged in the lead queue rather than created as a record — a
+ *             candidate deal named on a call that nobody has decided to pursue.
+ *             A lead has no document shelf, so {@link saveReportDocument}
+ *             refuses it; what it carries instead is a note.
+ */
+export type TargetKind = RecordKind | 'company' | 'lead'
 export type ConfirmTarget = { kind: TargetKind; id: string }
 
 export const str = (v: unknown): string | null =>
@@ -103,6 +111,12 @@ export async function saveReportDocument(
   target: ConfirmTarget,
   opts: { title: string; content: string; aiSummary: string | null; fileSlug?: string },
 ): Promise<string | null> {
+  // A lead is a queue entry, not a record: it has no storage folder and no
+  // documents table, and the `else` below would quietly file its minutes into
+  // the COMPANY knowledge base — evidence about a deal nobody has decided to
+  // pursue, indexed as if it were Ber Wilson's own. Refuse rather than guess.
+  if (target.kind === 'lead') return null
+
   const slug = opts.fileSlug ?? 'report'
   const folder =
     target.kind === 'project' ? `projects/${target.id}` :

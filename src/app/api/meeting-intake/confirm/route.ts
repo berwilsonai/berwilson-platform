@@ -5,12 +5,14 @@ import { publishRecordToDrive } from '@/lib/drive/publish'
 import {
   createRecordFromFields,
   saveReportDocument,
+  num,
   str,
   type ConfirmTarget,
   type RecordKind,
   type TargetKind,
 } from '@/lib/email-ingestion/confirm-helpers'
-import { fileMeetingDocument } from '@/lib/meetings/file-notes'
+import { fileMeetingDocument, type FileTarget } from '@/lib/meetings/file-notes'
+import { createLeadFromMeeting } from '@/lib/leads/from-meeting'
 import type { TablesInsert } from '@/lib/supabase/types'
 
 export const maxDuration = 300
@@ -58,6 +60,12 @@ interface TargetInput {
   kind: TargetKind
   /** Existing record id — omit/null to create a new record from `new_fields`. Ignored for 'company'. */
   id?: string | null
+  /**
+   * Fields for a target being created. For 'lead' these are the candidate deal's
+   * own facts — name, note, location, sector, estimated_value — plus
+   * `origin_kind` ('project' | 'opportunity'), which picks the lead's queue lane
+   * and nothing else. A lead is neither of those things yet; that is the point.
+   */
   new_fields?: Record<string, unknown> | null
 }
 
@@ -135,18 +143,57 @@ export async function POST(request: NextRequest) {
   const createdRecordIds: {
     project_ids: string[]
     opportunity_ids: string[]
+    lead_ids: string[]
     party_ids: string[]
     task_ids: string[]
     document_ids: string[]
-  } = { project_ids: [], opportunity_ids: [], party_ids: [], task_ids: [], document_ids: [] }
+  } = {
+    project_ids: [],
+    opportunity_ids: [],
+    lead_ids: [],
+    party_ids: [],
+    task_ids: [],
+    document_ids: [],
+  }
 
-  // ── 1. Resolve targets → record ids (existing, create new, or the company) ───
+  // ── 1. Resolve targets → record ids (existing, create new, lead, or company) ─
   const resolved = new Map<string, ConfirmTarget>() // client ref → {kind, id}
   for (const t of body.targets ?? []) {
     if (!t || !t.ref) continue
 
     if (t.kind === 'company') {
       resolved.set(t.ref, { kind: 'company', id: 'company' })
+    } else if (t.kind === 'lead') {
+      if (!t.new_fields) continue
+      // Follow-ups about THIS candidate deal travel with it as text, because
+      // `tasks.lead_id` carries a UNIQUE index — one task per lead, reserved for
+      // the bid-deadline sync latch. Three follow-ups about one site cannot all
+      // be tasks, and keeping one of the three silently would be worse than
+      // keeping none. They become real tasks when somebody promotes it and owns
+      // it; see createLeadFromMeeting.
+      const followUps = (body.task_actions ?? [])
+        .filter((task) => task.include && task.target_ref === t.ref && str(task.title))
+        .map((task) => task.title.trim())
+
+      const f = t.new_fields
+      const created = await createLeadFromMeeting(
+        {
+          name: str(f.name) ?? '',
+          note: str(f.note),
+          location: str(f.location),
+          sector: str(f.sector),
+          estimated_value: num(f.estimated_value),
+          kind: f.origin_kind === 'opportunity' ? 'opportunity' : 'project',
+        },
+        {
+          title: str(meeting.title) || session.label || 'meeting',
+          date: str(meeting.date),
+          minutes: str(meeting.minutes),
+          followUps,
+        }
+      )
+      if (created.id) resolved.set(t.ref, { kind: 'lead', id: created.id })
+      else console.error('Meeting lead create failed:', created.error)
     } else if (t.kind === 'project' || t.kind === 'opportunity') {
       if (t.id) {
         resolved.set(t.ref, { kind: t.kind, id: t.id })
@@ -165,6 +212,7 @@ export async function POST(request: NextRequest) {
   for (const tgt of targets) {
     if (tgt.kind === 'project') createdRecordIds.project_ids.push(tgt.id)
     else if (tgt.kind === 'opportunity') createdRecordIds.opportunity_ids.push(tgt.id)
+    else if (tgt.kind === 'lead') createdRecordIds.lead_ids.push(tgt.id)
   }
 
   // ── 2. Attendees → parties (match/create) + promote owners → team_members ────
@@ -238,6 +286,10 @@ export async function POST(request: NextRequest) {
       : null
 
   for (const tgt of targets) {
+    // A lead already carries the meeting in its own note (createLeadFromMeeting)
+    // and has no update feed, players list or document shelf to fan out onto.
+    if (tgt.kind === 'lead') continue
+
     if (tgt.kind === 'project') {
       // Update feed + embedding
       if (body_feed) {
@@ -313,6 +365,10 @@ export async function POST(request: NextRequest) {
 
     for (const t of includedTasks) {
       const tgt = t.target_ref ? resolved.get(t.target_ref) : undefined
+      // A follow-up about a staged lead was already written into that lead's
+      // note at creation. Creating it again here as an unlinked task would put
+      // an orphan on somebody's board with no record to open.
+      if (tgt?.kind === 'lead') continue
       // Resolve the owner: an attendee promoted this pass → a real member id →
       // finally the AI's free-text name as a fallback.
       let assigneeId: string | null = null
@@ -362,16 +418,26 @@ export async function POST(request: NextRequest) {
   // index, so a Drive file can be filed exactly once. The minutes document still
   // goes on all of them; the verbatim goes on the first real record.
   if (session.drive_file_id && session.raw_text) {
-    const primary = targets.find((t) => t.kind === 'project' || t.kind === 'opportunity')
+    // A record first; failing that, the company shelf. A broker call that named
+    // a dozen sites has NO project or opportunity — every one of them was staged
+    // as a lead, and a lead has no document shelf. Without this fallback the
+    // verbatim transcript of that call would exist only in Drive, unsearchable
+    // and unquotable, which is the one outcome the import was built to prevent.
+    const primary =
+      targets.find((t) => t.kind === 'project' || t.kind === 'opportunity') ??
+      (targets.some((t) => t.kind === 'lead' || t.kind === 'company')
+        ? ({ kind: 'company', id: 'company' } as ConfirmTarget)
+        : null)
     if (primary) {
+      // `name` is only used for the storage path/label; ConfirmTarget carries
+      // just a kind and an id, and the meeting's own title is the better label.
+      const label = str(meeting.title) || session.label || 'meeting'
+      const fileTarget: FileTarget =
+        primary.kind === 'company'
+          ? { kind: 'company', id: 'company', name: label }
+          : { kind: primary.kind as 'project' | 'opportunity', id: primary.id, name: label }
       const filed = await fileMeetingDocument({
-        // `name` is only used for the storage path/label; ConfirmTarget carries
-        // just a kind and an id, and the meeting's own title is the better label.
-        target: {
-          kind: primary.kind as 'project' | 'opportunity',
-          id: primary.id,
-          name: str(meeting.title) || session.label || 'meeting',
-        },
+        target: fileTarget,
         driveFileId: session.drive_file_id,
         title: str(meeting.title) || session.label || 'meeting',
         content: session.raw_text,
@@ -420,13 +486,24 @@ export async function POST(request: NextRequest) {
       ? `/projects/${singleTarget.id}`
       : singleTarget.kind === 'opportunity'
         ? `/opportunities/${singleTarget.id}`
-        : '/company'
-    : targets.length === 0 && createdRecordIds.task_ids.length > 0
-      ? '/tasks' // pure executive-team meeting — land on the task board
-      : null
+        : singleTarget.kind === 'lead'
+          ? `/leads?lead=${singleTarget.id}`
+          : '/company'
+    : // A site-selection call stages several leads and touches no record. The
+      // queue is where the reader continues, and it is the one destination that
+      // holds all of them.
+      createdRecordIds.lead_ids.length > 0 &&
+        createdRecordIds.project_ids.length === 0 &&
+        createdRecordIds.opportunity_ids.length === 0
+      ? '/leads'
+      : targets.length === 0 && createdRecordIds.task_ids.length > 0
+        ? '/tasks' // pure executive-team meeting — land on the task board
+        : null
   return Response.json({
     ok: true,
-    records_updated: targets.length,
+    // Leads are counted apart: nothing was UPDATED for them, they were staged.
+    records_updated: targets.filter((t) => t.kind !== 'lead').length,
+    leads_staged: createdRecordIds.lead_ids.length,
     tasks_created: createdRecordIds.task_ids.length,
     parties_created: createdRecordIds.party_ids.length,
     documents_created: createdRecordIds.document_ids.length,

@@ -60,7 +60,7 @@ export interface LeadNote {
 }
 
 /** Where the lead came in from. */
-export type LeadSource = 'email' | 'web_form'
+export type LeadSource = 'email' | 'web_form' | 'meeting'
 
 /** One answered (or explicitly unanswered) intake checklist question. */
 export interface IntakeAnswer {
@@ -91,6 +91,10 @@ export interface LeadRow {
    * 'email'   — swept out of info@ by the lead pipeline
    * 'web_form'— submitted through the berwilson.com deal form, which created a
    *             Drive folder and wrote its checklist into _intake.json
+   * 'meeting' — a candidate deal named in a call, staged from the meeting review
+   *             screen. Has no thread and no mailbox, like a web-form lead; what
+   *             it carries instead is the meeting it was spoken about in, in its
+   *             first lead_note.
    */
   source: LeadSource
 

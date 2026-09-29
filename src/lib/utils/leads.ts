@@ -42,12 +42,15 @@ export const ROUTE_BADGE: Record<LeadRoute, string> = {
 
 /**
  * Where a lead came in from. Worth showing: a web-form deal arrives with a
- * checklist and a Drive folder behind it, an email lead with a thread — they
- * are read and acted on differently.
+ * checklist and a Drive folder behind it, an email lead with a thread, a
+ * meeting lead with neither — only what somebody said on a call. They are read
+ * and acted on differently, and a meeting lead in particular has no sender to
+ * chase and no attachment to price.
  */
 export const SOURCE_LABELS: Record<LeadSource, string> = {
   email: 'Email',
   web_form: 'Deal form',
+  meeting: 'Meeting',
 }
 
 export const SOURCE_BADGE: Record<LeadSource, string> = {
@@ -55,6 +58,8 @@ export const SOURCE_BADGE: Record<LeadSource, string> = {
     'bg-slate-50 text-slate-600 ring-slate-200 dark:bg-slate-500/15 dark:text-slate-300 dark:ring-slate-500/30',
   web_form:
     'bg-sky-50 text-sky-700 ring-sky-200 dark:bg-sky-500/15 dark:text-sky-300 dark:ring-sky-500/30',
+  meeting:
+    'bg-violet-50 text-violet-700 ring-violet-200 dark:bg-violet-500/15 dark:text-violet-300 dark:ring-violet-500/30',
 }
 
 export const STATUS_LABELS: Record<LeadStatus, string> = {

@@ -1,13 +1,13 @@
 'use client'
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { toast } from 'sonner'
 import {
   Paperclip, Download, Mail, Phone, Building2, MapPin, Calendar,
   FolderKanban, Lightbulb, Factory, Send, Archive, Undo2, ExternalLink,
-  FolderOpen, Check, Minus,
+  FolderOpen, Check, Minus, Link2, Search, X,
 } from 'lucide-react'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Button } from '@/components/ui/button'
@@ -23,7 +23,69 @@ import { LEAD_ROUTES, type LeadRoute } from '@/lib/ai/prompts/lead-triage'
 import { DEAL_CHECKLIST, CHECKLIST_BY_KEY } from '@/lib/deal-intake/checklist'
 import type { LeadRow, LeadNote, IntakeAnswer } from '@/lib/leads/db'
 
-type PromoteTarget = 'project' | 'opportunity' | 'steel'
+type PromoteTarget = 'project' | 'opportunity' | 'steel' | 'attach'
+
+/** An existing record a lead can be attached to instead of creating a new one. */
+export interface AttachOption {
+  id: string
+  name: string
+  kind: 'project' | 'opportunity'
+}
+
+/**
+ * Type-ahead over the records a lead could already belong to.
+ *
+ * The same shape as the meeting review's record picker, and deliberately a
+ * filter over a list already in memory rather than a search endpoint — fifteen
+ * projects is not a query, and a picker that has to round-trip is one nobody
+ * waits for.
+ */
+function RecordPicker({
+  options, onPick,
+}: {
+  options: AttachOption[]
+  onPick: (o: AttachOption) => void
+}) {
+  const [q, setQ] = useState('')
+  const [open, setOpen] = useState(false)
+  const matches = useMemo(() => {
+    const needle = q.trim().toLowerCase()
+    if (!needle) return options.slice(0, 8)
+    return options.filter((o) => o.name.toLowerCase().includes(needle)).slice(0, 8)
+  }, [q, options])
+
+  return (
+    <div className="relative">
+      <Search className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+      <input
+        className="h-9 w-full rounded-md border border-input bg-background pl-8 pr-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+        placeholder="Find the project or opportunity…"
+        value={q}
+        onFocus={() => setOpen(true)}
+        onChange={(e) => { setQ(e.target.value); setOpen(true) }}
+        onBlur={() => setTimeout(() => setOpen(false), 150)}
+      />
+      {open && matches.length > 0 && (
+        <div className="absolute z-30 mt-1 max-h-60 w-full overflow-auto rounded-md border border-border bg-card shadow-lg">
+          {matches.map((o) => (
+            <button
+              key={`${o.kind}-${o.id}`}
+              type="button"
+              onMouseDown={(e) => { e.preventDefault(); onPick(o) }}
+              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-accent outline-none focus-visible:bg-accent"
+            >
+              {o.kind === 'project'
+                ? <FolderKanban className="size-3.5 shrink-0 text-muted-foreground" />
+                : <Lightbulb className="size-3.5 shrink-0 text-muted-foreground" />}
+              <span className="flex-1 truncate">{o.name}</span>
+              <span className="text-[11px] text-muted-foreground">{o.kind}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
 
 function Fact({ icon: Icon, label, children }: {
   icon: typeof Mail
@@ -140,6 +202,7 @@ export default function LeadDetailSheet({
   siblings = [],
   onSelectSibling,
   notes = [],
+  attachOptions = [],
 }: {
   lead: LeadRow | null
   open: boolean
@@ -156,10 +219,16 @@ export default function LeadDetailSheet({
   onSelectSibling?: (lead: LeadRow) => void
   /** Activity written when later mail landed on this lead's thread. */
   notes?: LeadNote[]
+  /** Existing records this lead can be attached to rather than duplicating. */
+  attachOptions?: AttachOption[]
 }) {
   const router = useRouter()
   const [busy, setBusy] = useState<string | null>(null)
   const [confirmTarget, setConfirmTarget] = useState<PromoteTarget | null>(null)
+  // The record picked for an 'attach'. Also what the confirm dialog names, so
+  // the reader is told which record is about to receive the files.
+  const [attachTo, setAttachTo] = useState<AttachOption | null>(null)
+  const [attachOpen, setAttachOpen] = useState(false)
   if (!lead) return null
 
   const isOpenStatus = lead.status === 'new' || lead.status === 'reviewing'
@@ -186,24 +255,37 @@ export default function LeadDetailSheet({
 
   async function promote(target: PromoteTarget) {
     if (!lead) return
+    if (target === 'attach' && !attachTo) {
+      toast.error('Pick the record to attach this lead to.')
+      return
+    }
     setBusy(target)
     try {
       const res = await fetch(`/api/leads/${lead.id}/promote`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ target }),
+        body: JSON.stringify(
+          target === 'attach'
+            ? { target, attach_to: { kind: attachTo!.kind, id: attachTo!.id } }
+            : { target }
+        ),
       })
       const json = await res.json()
       if (!res.ok) throw new Error(json.error ?? 'Promotion failed.')
 
+      // `recordKind` rather than `target`: an attach lands on whichever kind the
+      // picked record is, which is not knowable from the button that was pressed.
+      const kind: string = json.recordKind ?? target
       const where =
-        target === 'project' ? 'projects' : target === 'opportunity' ? 'opportunities' : 'steel'
+        kind === 'project' ? 'projects' : kind === 'opportunity' ? 'opportunities' : 'steel'
       // Say what actually landed. A promotion that pulled in 14 documents and
       // seeded a diligence checklist deserves more than "Created".
       const parts = [`${json.documentsCopied} file(s) attached`]
       if (json.diligenceCreated > 0) parts.push(`${json.diligenceCreated} diligence item(s)`)
       toast.success(
-        `Created — ${parts.join(', ')}.`,
+        target === 'attach'
+          ? `Attached to ${json.attachedToName ?? 'the record'} — ${parts.join(', ')}.`
+          : `Created — ${parts.join(', ')}.`,
         {
           action: {
             label: 'Open',
@@ -219,6 +301,8 @@ export default function LeadDetailSheet({
     } finally {
       setBusy(null)
       setConfirmTarget(null)
+      setAttachTo(null)
+      setAttachOpen(false)
     }
   }
 
@@ -583,6 +667,70 @@ export default function LeadDetailSheet({
                         {busy === 'forward' ? 'Sending…' : 'Send to Dino'}
                       </Button>
                     </div>
+
+                    {/* Attach to a record that already exists.
+                        The fourth answer, and the one the buttons above cannot
+                        give: a GC re-inviting us to a job we are already bidding
+                        is a real deal with a real record, and promoting it makes
+                        a second one — splitting the deal's documents and its mail
+                        across both. */}
+                    {attachOptions.length > 0 && (
+                      attachOpen ? (
+                        <div className="space-y-2 rounded-md border border-border/60 p-2.5">
+                          <div className="flex items-center gap-2">
+                            <Link2 className="size-3.5 text-muted-foreground" />
+                            <p className="text-xs font-medium flex-1">Attach to an existing record</p>
+                            <button
+                              type="button"
+                              onClick={() => { setAttachOpen(false); setAttachTo(null) }}
+                              className="text-muted-foreground transition-colors hover:text-foreground outline-none focus-visible:text-foreground"
+                              title="Cancel"
+                            >
+                              <X className="size-3.5" />
+                            </button>
+                          </div>
+                          {attachTo ? (
+                            <div className="flex items-center gap-2 rounded-md border border-emerald-300 bg-emerald-50/60 px-2 py-1.5 text-xs text-emerald-700 dark:border-emerald-700/60 dark:bg-emerald-950/40 dark:text-emerald-300">
+                              <Check className="size-3.5 shrink-0" />
+                              <span className="flex-1 truncate">{attachTo.name}</span>
+                              <button
+                                type="button"
+                                onClick={() => setAttachTo(null)}
+                                className="shrink-0 transition-colors hover:text-destructive outline-none focus-visible:text-destructive"
+                                title="Pick a different record"
+                              >
+                                <X className="size-3.5" />
+                              </button>
+                            </div>
+                          ) : (
+                            <RecordPicker options={attachOptions} onPick={setAttachTo} />
+                          )}
+                          <Button
+                            className="w-full"
+                            disabled={busy !== null || !attachTo}
+                            onClick={() => setConfirmTarget('attach')}
+                          >
+                            <Link2 className="size-4" />
+                            Attach this lead
+                          </Button>
+                          <p className="text-[11px] text-muted-foreground">
+                            Adds this lead&rsquo;s summary and files to that record and drains it from the
+                            queue. Nothing on the record is overwritten.
+                          </p>
+                        </div>
+                      ) : (
+                        <Button
+                          variant="ghost"
+                          className="w-full text-muted-foreground"
+                          disabled={busy !== null}
+                          onClick={() => setAttachOpen(true)}
+                        >
+                          <Link2 className="size-4" />
+                          Already have a record for this — attach it
+                        </Button>
+                      )
+                    )}
+
                     <Button
                       variant="ghost"
                       className="w-full text-muted-foreground"
@@ -615,20 +763,24 @@ export default function LeadDetailSheet({
         open={confirmTarget !== null}
         onOpenChange={(o) => !o && setConfirmTarget(null)}
         title={
-          confirmTarget === 'project'
-            ? 'Create a project?'
-            : confirmTarget === 'opportunity'
-              ? 'Create an opportunity?'
-              : 'Create a steel deal?'
+          confirmTarget === 'attach'
+            ? `Attach to ${attachTo?.name ?? 'this record'}?`
+            : confirmTarget === 'project'
+              ? 'Create a project?'
+              : confirmTarget === 'opportunity'
+                ? 'Create an opportunity?'
+                : 'Create a steel deal?'
         }
         description={
-          confirmTarget === 'project'
-            ? 'This starts a project at the Pursuit stage with you as capture lead, and copies the files onto it. It will appear in pipeline value and on the dashboard.'
-            : confirmTarget === 'opportunity'
-              ? 'This creates an opportunity at the Identified stage and copies the files onto it.'
-              : 'This creates a steel deal at the Quote stage and copies the files onto it.'
+          confirmTarget === 'attach'
+            ? 'The lead’s summary is posted to that record’s feed and its files are copied onto it. The record’s own stage, value and owner are left exactly as they are — nothing is overwritten. The lead leaves the queue.'
+            : confirmTarget === 'project'
+              ? 'This starts a project at the Pursuit stage with you as capture lead, and copies the files onto it. It will appear in pipeline value and on the dashboard.'
+              : confirmTarget === 'opportunity'
+                ? 'This creates an opportunity at the Identified stage and copies the files onto it.'
+                : 'This creates a steel deal at the Quote stage and copies the files onto it.'
         }
-        confirmLabel={busy ? 'Creating…' : 'Create'}
+        confirmLabel={busy ? (confirmTarget === 'attach' ? 'Attaching…' : 'Creating…') : confirmTarget === 'attach' ? 'Attach' : 'Create'}
         onConfirm={() => {
           if (confirmTarget) return promote(confirmTarget)
         }}

@@ -18,7 +18,7 @@
 
 import type { EmailIntakePerson } from './email-intake'
 
-export const MEETING_INTAKE_PROMPT_VERSION = 'meeting-intake-1.0'
+export const MEETING_INTAKE_PROMPT_VERSION = 'meeting-intake-1.1'
 
 export interface MeetingIntakeTask {
   title: string
@@ -43,6 +43,22 @@ export interface MeetingReferencedRecord {
   name: string
   /** How the meeting touched it (e.g. "reviewed schedule slip", "discussed teaming terms"). */
   note: string | null
+  /**
+   * Descriptive facts about the deal itself, when the meeting stated them.
+   *
+   * ⚠ Deliberately NOT part of `kind`. The model is asked what a record IS, never
+   * whether it EXISTS — it has no sight of the database, and a call about a live
+   * project reads exactly like a call about a site nobody has heard of. The
+   * reviewer decides the destination (existing record / new record / lead) in the
+   * review screen, where the match result is on screen beside the name.
+   *
+   * These three exist because that decision is usually "stage it as a lead", and
+   * a lead with no location, sector or value is one the fit assessment has to
+   * judge blind. Absent on sessions staged before 2026-09-29; treat as null.
+   */
+  location?: string | null
+  sector?: string | null
+  estimated_value?: number | null
 }
 
 export interface MeetingIntakeExtraction {
@@ -76,7 +92,7 @@ Produce:
 - "minutes": a clean multi-paragraph narrative of what was discussed, in logical order — the situation, what each topic covered, positions taken, dollar figures and terms, and open questions. Write it to stand alone for someone who wasn't in the room.
 - "attendees": every distinguishable person (and organization) present or referenced. Set is_organization=true for companies. Give each a short role (e.g. "Ber Wilson EVP", "GC principal", "lender", "owner's rep").
 - "decisions": the concrete decisions the group reached, one clear statement each. Omit if none were made.
-- "referenced_records": the specific projects and opportunities the meeting was about. Use "project" for built work Ber Wilson would build/bid/develop/deliver; use "opportunity" ONLY for a corporate transaction (acquiring a company, merger, divestiture, equity investment in a business). Give the record's name as spoken and a short note on how the meeting touched it. Include a record even if you're only fairly sure it exists — the human will match it.
+- "referenced_records": the specific projects and opportunities the meeting was about. Use "project" for built work Ber Wilson would build/bid/develop/deliver; use "opportunity" ONLY for a corporate transaction (acquiring a company, merger, divestiture, equity investment in a business). Give the record's name as spoken and a short note on how the meeting touched it. Include a record even if you're only fairly sure it exists — the human will match it. Also fill "location", "sector" and "estimated_value" from what the meeting actually said about that deal, and null for any the meeting did not state. A broker or site-selection call names many properties in one hour: list every one as its own referenced record rather than folding them into a single entry, because each is a separate decision.
 - "tasks": the follow-up action items. Each gets a crisp title and, where supported, what/why/how, a due_date (YYYY-MM-DD), a best-guess assignee name, and "record_hint" = the name of the referenced project/opportunity it belongs to (exactly as in referenced_records), or null if it isn't about a specific record.
 
 Ground everything strictly in the notes — never invent people, dollar figures, dates, decisions, or scope. If a fact is uncertain, omit it rather than guessing. When you propose enum-constrained values for a brand-new record, use only:
@@ -91,7 +107,7 @@ Return ONLY valid JSON matching exactly this shape (no markdown, no commentary):
   "minutes": string,
   "attendees": [{ "name": string, "email": string|null, "company": string|null, "title": string|null, "role": string|null, "is_organization": boolean }],
   "decisions": [string],
-  "referenced_records": [{ "kind": "project" | "opportunity", "name": string, "note": string|null }],
+  "referenced_records": [{ "kind": "project" | "opportunity", "name": string, "note": string|null, "location": string|null, "sector": string|null, "estimated_value": number|null }],
   "tasks": [{ "title": string, "what": string|null, "why": string|null, "how": string|null, "assignee": string|null, "due_date": string|null, "record_hint": string|null }],
   "confidence": 0.0
 }`

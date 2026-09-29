@@ -81,6 +81,21 @@ export interface FiledDocument {
 }
 
 /**
+ * Where a verbatim transcript can be filed.
+ *
+ * Wider than {@link SeedTarget} by one arm. A call that named a dozen candidate
+ * sites has no single record to sit on — every one of them was staged as a lead,
+ * and a lead has no document shelf. Copying the same hour-long transcript onto
+ * twelve records would be worse: the same evidence twelve times, each copy
+ * claiming to be about one site.
+ *
+ * So the company shelf is the honest home for it. It is one verbatim copy,
+ * indexed and quotable, and the per-deal reading of it lives on each lead as
+ * its note.
+ */
+export type FileTarget = SeedTarget | { kind: 'company'; id: 'company'; name: string }
+
+/**
  * Store the meeting note as a document on its target and index it.
  *
  * Idempotent through `drive_file_id`, which carries a platform-wide partial
@@ -89,7 +104,7 @@ export interface FiledDocument {
  * than as a failure.
  */
 export async function fileMeetingDocument(opts: {
-  target: SeedTarget
+  target: FileTarget
   driveFileId: string
   title: string
   /** The whole export: recap plus verbatim transcript. */
@@ -111,7 +126,9 @@ export async function fileMeetingDocument(opts: {
   const folder =
     opts.target.kind === 'opportunity'
       ? `opportunities/${opts.target.id}`
-      : `projects/${opts.target.id}`
+      : opts.target.kind === 'company'
+        ? 'company'
+        : `projects/${opts.target.id}`
   const safeTitle = opts.title.replace(/[^\w.-]+/g, '_').slice(0, 80) || 'meeting'
   const path = `${folder}/${Date.now()}_${safeTitle}.md`
 
@@ -149,11 +166,17 @@ export async function fileMeetingDocument(opts: {
           .insert({ ...base, opportunity_id: opts.target.id })
           .select('id')
           .single()
-      : supabase
-          .from('documents')
-          .insert({ ...base, project_id: opts.target.id, source: 'document' })
-          .select('id')
-          .single()
+      : opts.target.kind === 'company'
+        ? supabase
+            .from('documents')
+            .insert({ ...base, is_company: true, source: 'document' })
+            .select('id')
+            .single()
+        : supabase
+            .from('documents')
+            .insert({ ...base, project_id: opts.target.id, source: 'document' })
+            .select('id')
+            .single()
 
   const { data: doc, error } = await insert
   if (error || !doc) {
@@ -177,7 +200,9 @@ export async function fileMeetingDocument(opts: {
   // Embedding is what makes the transcript answerable. Non-fatal: the document
   // and its text are already filed either way.
   try {
-    if (opts.target.kind === 'opportunity') {
+    if (opts.target.kind === 'company') {
+      await embedDocument(doc.id, null, opts.content, null, true)
+    } else if (opts.target.kind === 'opportunity') {
       await embedOpportunityDocument(doc.id, opts.target.id, opts.content)
       // ⚠ embedOpportunityDocument inserts chunks but does NOT settle
       // embedding_status, and the column defaults to 'pending' — which the UI

@@ -8,6 +8,7 @@ import {
   type LeadRow,
 } from '@/lib/leads/db'
 import LeadsClient from '@/components/leads/LeadsClient'
+import type { AttachOption } from '@/components/leads/LeadDetailSheet'
 
 export const metadata = { title: 'Leads — Ber Wilson Intelligence' }
 
@@ -50,6 +51,27 @@ export default async function LeadsPage({
     )
   }
 
+  // Records a lead can be ATTACHED to instead of creating a new one. Read here
+  // rather than behind a search endpoint: 15 projects and a handful of
+  // opportunities is one small query, and a type-ahead that has to round-trip is
+  // one the reader stops using.
+  const [{ data: projectRows }, { data: opportunityRows }] = await Promise.all([
+    db.from('projects').select('id, name').neq('status', 'archived').order('name').limit(500),
+    db.from('opportunities').select('id, name').order('name').limit(500),
+  ])
+  const attachOptions: AttachOption[] = [
+    ...((projectRows ?? []) as { id: string; name: string }[]).map((r) => ({
+      id: r.id,
+      name: r.name,
+      kind: 'project' as const,
+    })),
+    ...((opportunityRows ?? []) as { id: string; name: string }[]).map((r) => ({
+      id: r.id,
+      name: r.name,
+      kind: 'opportunity' as const,
+    })),
+  ]
+
   const { data: filteredRows } = await db
     .from('leads')
     .select(`*, ${GMAIL_THREAD_EMBED}`)
@@ -76,13 +98,18 @@ export default async function LeadsPage({
           <p className="text-sm text-muted-foreground">
             Bid invitations arriving at info@ and deals submitted through the website form, read
             and scored against what Ber Wilson actually pursues. Promote one and it becomes a
-            project, an opportunity, or a steel deal.
+            project, an opportunity, or a steel deal — or attach it to the record it already
+            belongs to.
           </p>
         </div>
       </div>
 
       <LeadsClient
-        initialOpenLeadId={initialOpenLeadId ?? null} initialLeads={leads} filteredCount={filteredCount ?? 0} />
+        initialOpenLeadId={initialOpenLeadId ?? null}
+        initialLeads={leads}
+        filteredCount={filteredCount ?? 0}
+        attachOptions={attachOptions}
+      />
     </div>
   )
 }

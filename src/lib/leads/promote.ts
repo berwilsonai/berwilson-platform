@@ -13,7 +13,7 @@
 
 import { createAdminClient } from '@/lib/supabase/admin'
 import { runDocumentAiPass } from '@/lib/ai/document-pipeline'
-import { embedOpportunitySnapshot } from '@/lib/ai/embeddings'
+import { embedOpportunitySnapshot, embedUpdate } from '@/lib/ai/embeddings'
 import { leadSourcesInUse } from '@/lib/steel/lead-sources'
 import { canonicalLeadSource } from '@/lib/utils/steel'
 import type { Database } from '@/types/database'
@@ -25,11 +25,36 @@ import { LEAD_FOLDER } from './score-phase'
 import { upsertLink } from '@/lib/email-sweep/route-phase'
 import type { LinkRecordKind } from '@/lib/email-sweep/db'
 
-export type PromoteTarget = 'project' | 'opportunity' | 'steel'
+/**
+ * What a lead becomes.
+ *
+ * 'attach' is the fourth answer and the one the first three could not give: the
+ * deal is REAL but it is not NEW. A GC re-invites us to a job we are already
+ * bidding, a broker re-circulates a site already in the pipeline, a referrer
+ * forwards the same opportunity twice. Promoting any of those creates a second
+ * record for one deal, splitting its documents and its correspondence across
+ * both — and the only way out was to promote, then merge by hand.
+ *
+ * Attaching adds the lead's evidence to the record that already exists and
+ * drains the lead. Deliberately ADDITIVE: it never rewrites the record's stage,
+ * value, dates or owner. Somebody decided those; a later bid invitation is not a
+ * reason to overrule them.
+ */
+export type PromoteTarget = 'project' | 'opportunity' | 'steel' | 'attach'
+
+/** The existing record an 'attach' promotion folds the lead into. */
+export interface AttachTo {
+  kind: 'project' | 'opportunity'
+  id: string
+}
 
 export interface PromoteResult {
   target: PromoteTarget
   id: string
+  /** Which kind of record the lead actually landed on. */
+  recordKind: 'project' | 'opportunity' | 'steel'
+  /** Set for an 'attach': the record's name, so the caller can say where it went. */
+  attachedToName?: string | null
   documentsCopied: number
   /** Directory contacts created or matched for the sender. */
   contactsLinked: number
@@ -132,15 +157,36 @@ async function copyAttachments(
   return copied
 }
 
-/** A readable record of where this came from, saved onto the created record. */
+/**
+ * A readable record of where this came from, saved onto the created record.
+ *
+ * ⚠ Every arm of this must be true for every source. The two-way version said
+ * "Inbound lead from an email enquiry" on a lead staged from a MEETING — no
+ * sender, no mailbox, no email, and the sentence written onto the project as
+ * its description. A provenance line that invents a provenance is worse than no
+ * line, because a reader has no way to tell it is wrong.
+ */
 export function originNote(lead: LeadRow): string {
   const web = lead.source === 'web_form'
+  const meeting = lead.source === 'meeting'
+  const whoDefault = web
+    ? 'the website deal form'
+    : meeting
+      ? 'a meeting'
+      : 'an email enquiry'
+  const via = web
+    ? 'via the berwilson.com deal intake form'
+    : meeting
+      // The meeting's own name is on the lead's first note, not here: this line
+      // is written once onto a record that may outlive the lead.
+      ? 'raised on a call and staged for review'
+      : lead.mailbox
+        ? `via ${lead.mailbox}`
+        : null
   const bits = [
-    `Inbound lead from ${
-      lead.sender_company ?? lead.sender_email ?? (web ? 'the website deal form' : 'an email enquiry')
-    }`,
+    `Inbound lead from ${lead.sender_company ?? lead.sender_email ?? whoDefault}`,
     lead.received_at ? `received ${lead.received_at.slice(0, 10)}` : null,
-    web ? 'via the berwilson.com deal intake form' : lead.mailbox ? `via ${lead.mailbox}` : null,
+    via,
   ].filter(Boolean)
 
   const lines = [`${bits.join(' ')}.`, '']
@@ -202,7 +248,7 @@ async function linkSenderToDirectory(
         email: contact.email,
         phone: contact.phone,
         relationship_notes: `Added from an inbound ${
-          lead.source === 'web_form' ? 'deal submission' : 'lead'
+          lead.source === 'web_form' ? 'deal submission' : lead.source === 'meeting' ? 'deal raised in a meeting' : 'lead'
         }: ${lead.title}`,
         tags: ['inbound-lead'],
       })
@@ -218,17 +264,20 @@ async function linkSenderToDirectory(
   // project_players.role is free text and the existing rows read as prose
   // ("Client Principal", "Co-Developer"), so these match that voice rather than
   // introducing a slug vocabulary the rest of the directory does not use.
-  //
-  // The two sources are genuinely different relationships and must not share
-  // wording: an email lead is a GC inviting us to bid, while a web-form deal is
-  // a sponsor bringing us their own project. Calling the sponsor an "Inviting
-  // Contractor" would be wrong on the face of the project.
+  // Three genuinely different relationships, which must not share wording: an
+  // email lead is a GC inviting us to bid, a web-form deal is a sponsor bringing
+  // us their own project, and a meeting lead is whoever put the deal in front of
+  // us on a call. Calling a broker an "Inviting Contractor" would be wrong on
+  // the face of the project.
   const web = lead.source === 'web_form'
-  const orgRole = web ? 'Sponsor / Developer' : 'Inviting Contractor'
-  const personRole = web ? 'Deal Contact' : 'Bid Contact'
+  const meeting = lead.source === 'meeting'
+  const orgRole = web ? 'Sponsor / Developer' : meeting ? 'Introduced By' : 'Inviting Contractor'
+  const personRole = web ? 'Deal Contact' : meeting ? 'Introduced By' : 'Bid Contact'
   const playerNote = web
     ? 'Submitted the deal this project was created from.'
-    : 'Sent the bid invitation this project was created from.'
+    : meeting
+      ? 'Raised this deal in a meeting.'
+      : 'Sent the bid invitation this project was created from.'
   const players: { id: string; role: string }[] = []
 
   try {
@@ -277,18 +326,113 @@ async function linkSenderToDirectory(
 export async function promoteLead(
   lead: LeadRow,
   target: PromoteTarget,
-  opts: { captureLead?: string | null; salespersonId?: string | null } = {}
+  opts: {
+    captureLead?: string | null
+    salespersonId?: string | null
+    /** Required when target is 'attach' — the record to fold this lead into. */
+    attachTo?: AttachTo | null
+  } = {}
 ): Promise<PromoteResult> {
   const supabase = createAdminClient()
   const db = leadsDb()
   const attachments = parseLeadAttachments(lead.attachments)
 
   let id: string
+  /**
+   * Which kind of record the lead landed on. Diverges from `target` only for
+   * 'attach', where the kind comes from the record the human picked — and every
+   * step after the branch (directory link, promoted_*_id, thread link, Drive
+   * publish) keys off THIS, not off the target.
+   */
+  let recordKind: 'project' | 'opportunity' | 'steel'
+  let attachedToName: string | null = null
   let documentsCopied = 0
   let driveImported = 0
   let diligenceCreated = 0
 
-  if (target === 'project') {
+  if (target === 'attach') {
+    const to = opts.attachTo
+    if (!to) throw new Error('Attaching a lead needs a record to attach it to.')
+
+    // Read the record first. Attaching to an id that no longer exists would
+    // otherwise copy the files into a folder nothing points at and mark the lead
+    // promoted — drained from the queue, with nowhere to click through to.
+    const found =
+      to.kind === 'project'
+        ? await supabase.from('projects').select('id, name').eq('id', to.id).maybeSingle()
+        : await supabase.from('opportunities').select('id, name').eq('id', to.id).maybeSingle()
+    if (found.error) throw new Error(`Could not read that record: ${found.error.message}`)
+    if (!found.data) throw new Error('That record no longer exists.')
+
+    id = found.data.id
+    recordKind = to.kind
+    attachedToName = found.data.name
+
+    // The lead's own story, posted to the record's feed. `originNote` is the
+    // same text a created record gets as its description, so the evidence reads
+    // identically however the lead arrived.
+    const note = originNote(lead)
+    if (to.kind === 'project') {
+      const { data: update, error: updateErr } = await supabase
+        .from('updates')
+        .insert({
+          project_id: id,
+          // Honest about where it came from: an email lead IS email, a web-form
+          // or meeting lead is the closest thing the enum has to "a person put
+          // this here". No new enum value for a distinction nobody reads.
+          source: lead.source === 'email' ? 'email' : 'manual_paste',
+          raw_content: note,
+          summary: `Inbound lead — ${lead.title}`,
+          review_state: 'approved',
+        })
+        .select('id')
+        .single()
+      if (updateErr) console.error('[leads/promote] attach update failed:', updateErr.message)
+      else await embedUpdate(update.id, id, note).catch(console.error)
+
+      documentsCopied = await copyAttachments(
+        attachments,
+        `projects/${id}`,
+        (path, a) => ({
+          project_id: id,
+          storage_path: path,
+          file_name: a.name,
+          file_size_bytes: a.size_bytes,
+          mime_type: a.mime_type,
+          doc_type: 'solicitation',
+        }),
+        'documents',
+        { projectId: id, index: true }
+      )
+    } else {
+      const { error: noteErr } = await supabase.from('opportunity_notes').insert({
+        opportunity_id: id,
+        body: `Inbound lead — ${lead.title}\n\n${note}`,
+        author: 'Lead intake',
+      })
+      if (noteErr) console.error('[leads/promote] attach note failed:', noteErr.message)
+
+      documentsCopied = await copyAttachments(
+        attachments,
+        `opportunities/${id}`,
+        (path, a) => ({
+          opportunity_id: id,
+          storage_path: path,
+          file_name: a.name,
+          file_size_bytes: a.size_bytes,
+          mime_type: a.mime_type,
+          doc_type: 'other',
+        }),
+        'opportunity_documents'
+      )
+
+      // Refresh the snapshot so the new evidence is retrievable from Ber AI.
+      await embedOpportunitySnapshot(id).catch((err) =>
+        console.error('[leads/promote] attach snapshot embed failed:', err)
+      )
+    }
+  } else if (target === 'project') {
+    recordKind = 'project'
     const { data, error } = await supabase
       .from('projects')
       .insert({
@@ -367,6 +511,7 @@ export async function promoteLead(
       diligenceCreated = seeded.created
     }
   } else if (target === 'opportunity') {
+    recordKind = 'opportunity'
     const { data, error } = await supabase
       .from('opportunities')
       .insert({
@@ -412,6 +557,7 @@ export async function promoteLead(
       )
     }
   } else {
+    recordKind = 'steel'
     const leadSource = canonicalLeadSource('Inbound Email', await leadSourcesInUse(supabase))
     // Carry across every field the quote generator asks for. A steel deal is
     // promoted in order to be QUOTED, and quoteReadiness() blocks on the site
@@ -464,7 +610,7 @@ export async function promoteLead(
   const { partyIds } = await linkSenderToDirectory(
     supabase,
     lead,
-    target === 'project' ? id : null
+    recordKind === 'project' ? id : null
   )
 
   const { error: markErr } = await db
@@ -472,9 +618,9 @@ export async function promoteLead(
     .update({
       status: 'promoted',
       promoted_at: new Date().toISOString(),
-      promoted_project_id: target === 'project' ? id : null,
-      promoted_opportunity_id: target === 'opportunity' ? id : null,
-      promoted_steel_deal_id: target === 'steel' ? id : null,
+      promoted_project_id: recordKind === 'project' ? id : null,
+      promoted_opportunity_id: recordKind === 'opportunity' ? id : null,
+      promoted_steel_deal_id: recordKind === 'steel' ? id : null,
     })
     .eq('id', lead.id)
   if (markErr) {
@@ -493,7 +639,7 @@ export async function promoteLead(
   // this moment is new.
   if (lead.thread_id) {
     const kind: LinkRecordKind =
-      target === 'project' ? 'project' : target === 'opportunity' ? 'opportunity' : 'steel_deal'
+      recordKind === 'project' ? 'project' : recordKind === 'opportunity' ? 'opportunity' : 'steel_deal'
     const { data: thread } = await db
       .from('email_threads')
       .select('message_count')
@@ -506,7 +652,7 @@ export async function promoteLead(
       id,
       'linked',
       1,
-      'promoted from this lead',
+      target === 'attach' ? 'attached to this record from a lead' : 'promoted from this lead',
       (thread as { message_count: number | null } | null)?.message_count ?? 0
     ).catch((err) =>
       // Non-fatal: the record exists and is correct. A missing link is repaired
@@ -525,11 +671,13 @@ export async function promoteLead(
   // is already working in is the answer.
   const published = lead.drive_folder_id
     ? null
-    : await publishRecordQuietly(target as DriveRecordKind, id)
+    : await publishRecordQuietly(recordKind as DriveRecordKind, id)
 
   return {
     target,
     id,
+    recordKind,
+    attachedToName,
     documentsCopied,
     contactsLinked: partyIds.length,
     driveFolderUrl: published?.folderUrl ?? lead.drive_folder_url ?? null,

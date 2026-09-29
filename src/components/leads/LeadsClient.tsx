@@ -8,7 +8,7 @@ import { Panel } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import EmptyState from '@/components/shared/EmptyState'
 import LeadCard from './LeadCard'
-import LeadDetailSheet from './LeadDetailSheet'
+import LeadDetailSheet, { type AttachOption } from './LeadDetailSheet'
 import { ROUTE_TABS, ROUTE_LABELS } from '@/lib/utils/leads'
 import { formatValue } from '@/lib/utils/constants'
 import type { LeadRoute } from '@/lib/ai/prompts/lead-triage'
@@ -27,11 +27,14 @@ export default function LeadsClient({
   initialLeads,
   filteredCount,
   initialOpenLeadId = null,
+  attachOptions = [],
 }: {
   initialLeads: LeadRow[]
   filteredCount: number
   /** From ?lead=<id> — the digest email links straight to one lead. */
   initialOpenLeadId?: string | null
+  /** Existing projects and opportunities a lead can be attached to. */
+  attachOptions?: AttachOption[]
 }) {
   const router = useRouter()
   const [leads, setLeads] = useState(initialLeads)
@@ -272,6 +275,7 @@ export default function LeadsClient({
         siblings={siblings}
         onSelectSibling={(l) => void openLead(l)}
         notes={notes}
+        attachOptions={attachOptions}
       />
     </div>
   )

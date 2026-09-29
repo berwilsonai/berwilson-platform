@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   Loader2, CheckCircle2, Building2, ListChecks, Users, FolderKanban,
-  Lightbulb, Plus, X, Trash2, Search, Target, Sparkles,
+  Lightbulb, Plus, X, Trash2, Search, Target, Sparkles, Radar,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
@@ -112,8 +112,18 @@ function bestMemberId(guess: string | null | undefined, members: TeamMember[]): 
 }
 
 type Kind = 'project' | 'opportunity'
-/** 'company' = Ber Wilson itself (minutes land in the company Knowledge Base). */
-type TargetKind = Kind | 'company'
+/**
+ * Where the meeting lands.
+ *
+ * 'company' = Ber Wilson itself (minutes land in the company Knowledge Base).
+ * 'lead'    = staged in the lead queue instead of created as a record. The right
+ *             home for a deal that was merely NAMED on a call: a site-selection
+ *             or brokerage hour produces a dozen of them, none of which anybody
+ *             has decided to pursue, and creating a dozen projects is what puts
+ *             notional pipeline on the dashboard. A lead gets fit-scored
+ *             overnight and promoted by hand if it earns it.
+ */
+type TargetKind = Kind | 'company' | 'lead'
 const COMPANY_REF = 'company'
 
 type PersonRow = MeetingIntakeExtraction['attendees'][number] & {
@@ -144,6 +154,14 @@ interface NewFields {
   opp_type: string | null
   location: string | null
   description: string | null
+  /** Lead only: what the deal is worth, as the meeting stated it. */
+  estimated_value: number | null
+  /**
+   * Lead only: which queue lane it belongs in — built work or a corporate
+   * transaction. It picks the lead's route and nothing else; a lead is neither
+   * of those records yet.
+   */
+  origin_kind: Kind
 }
 
 interface SelectedTarget {
@@ -330,7 +348,39 @@ export default function MeetingIntakeReview({
         kind,
         name: name || `New ${kind}`,
         isNew: true,
-        fields: { name, sector: null, stage: null, opp_type: null, location: null, description },
+        fields: {
+          name, sector: null, stage: null, opp_type: null, location: null, description,
+          estimated_value: null, origin_kind: kind,
+        },
+      },
+    ])
+  }
+
+  /**
+   * Stage a candidate deal in the lead queue rather than creating a record.
+   *
+   * Seeded from whatever the meeting actually said about it — the note, the
+   * location, the sector, the value. Those are exactly what the fit assessment
+   * reads, and a lead staged without them is one it has to judge blind.
+   */
+  function addLead(rec: MeetingIntakeExtraction['referenced_records'][number]) {
+    setTargets((prev) => [
+      ...prev,
+      {
+        ref: nextRef(),
+        kind: 'lead',
+        name: rec.name || 'New lead',
+        isNew: true,
+        fields: {
+          name: rec.name ?? '',
+          sector: rec.sector ?? null,
+          stage: null,
+          opp_type: null,
+          location: rec.location ?? null,
+          description: rec.note ?? null,
+          estimated_value: rec.estimated_value ?? null,
+          origin_kind: rec.kind,
+        },
       },
     ])
   }
@@ -435,9 +485,18 @@ export default function MeetingIntakeReview({
       if (!t.isNew) return { ref: t.ref, kind: t.kind, id: t.id, new_fields: null }
       const f = t.fields!
       const new_fields: Record<string, unknown> =
-        t.kind === 'project'
-          ? { name: f.name, sector: f.sector, stage: f.stage, location: f.location, description: f.description }
-          : { name: f.name, opp_type: f.opp_type, sector: f.sector, location: f.location, objective: f.description }
+        t.kind === 'lead'
+          ? {
+              name: f.name,
+              note: f.description,
+              location: f.location,
+              sector: f.sector,
+              estimated_value: f.estimated_value,
+              origin_kind: f.origin_kind,
+            }
+          : t.kind === 'project'
+            ? { name: f.name, sector: f.sector, stage: f.stage, location: f.location, description: f.description }
+            : { name: f.name, opp_type: f.opp_type, sector: f.sector, location: f.location, objective: f.description }
       return { ref: t.ref, kind: t.kind, id: null, new_fields }
     })
 
@@ -465,7 +524,11 @@ export default function MeetingIntakeReview({
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Processing failed.')
-      toast.success(`Updated ${data.records_updated} record${data.records_updated === 1 ? '' : 's'} · ${data.tasks_created} task${data.tasks_created === 1 ? '' : 's'} created.`)
+      const parts: string[] = []
+      if (data.records_updated > 0) parts.push(`${data.records_updated} record${data.records_updated === 1 ? '' : 's'} updated`)
+      if (data.leads_staged > 0) parts.push(`${data.leads_staged} lead${data.leads_staged === 1 ? '' : 's'} staged`)
+      if (data.tasks_created > 0) parts.push(`${data.tasks_created} task${data.tasks_created === 1 ? '' : 's'} created`)
+      toast.success(parts.length ? `${parts.join(' · ')}.` : 'Meeting processed.')
       if (data.redirect) router.push(data.redirect)
       else { router.push('/intake?tab=meeting'); router.refresh() }
     } catch (err) {
@@ -474,7 +537,14 @@ export default function MeetingIntakeReview({
     }
   }
 
-  const targetLabel = (t: SelectedTarget) => (t.isNew ? `New: ${t.fields?.name || t.name}` : t.name)
+  // "New:" would say the wrong thing about a lead — nothing is created, it is
+  // staged in a queue — and that distinction is the whole point of the choice.
+  const targetLabel = (t: SelectedTarget) =>
+    t.kind === 'lead'
+      ? `Lead: ${t.fields?.name || t.name}`
+      : t.isNew
+        ? `New: ${t.fields?.name || t.name}`
+        : t.name
 
   return (
     <div className="space-y-5">
@@ -540,14 +610,49 @@ export default function MeetingIntakeReview({
               return (
                 <div key={t.ref} className="rounded-md border border-border/60 p-2 space-y-2">
                   <div className="flex items-center gap-2">
-                    {t.kind === 'project' ? <FolderKanban size={13} className="text-muted-foreground shrink-0" /> : t.kind === 'company' ? <Building2 size={13} className="text-muted-foreground shrink-0" /> : <Lightbulb size={13} className="text-muted-foreground shrink-0" />}
+                    {t.kind === 'project' ? <FolderKanban size={13} className="text-muted-foreground shrink-0" /> : t.kind === 'company' ? <Building2 size={13} className="text-muted-foreground shrink-0" /> : t.kind === 'lead' ? <Radar size={13} className="text-muted-foreground shrink-0" /> : <Lightbulb size={13} className="text-muted-foreground shrink-0" />}
                     <span className="text-sm font-medium truncate flex-1">{targetLabel(t)}</span>
-                    <span className="text-[11px] text-muted-foreground shrink-0">{t.kind === 'company' ? 'company' : t.kind}{taskCount > 0 ? ` · ${taskCount} task${taskCount === 1 ? '' : 's'}` : ''}</span>
+                    {/* A lead's tagged items are NOT tasks — they are written into
+                        its note, because tasks.lead_id is unique and only one
+                        could ever be created. Say "follow-ups" so the count is
+                        not read as a promise of task rows. */}
+                    <span className="text-[11px] text-muted-foreground shrink-0">{t.kind === 'company' ? 'company' : t.kind}{taskCount > 0 ? ` · ${taskCount} ${t.kind === 'lead' ? `follow-up${taskCount === 1 ? '' : 's'}` : `task${taskCount === 1 ? '' : 's'}`}` : ''}</span>
                     <button type="button" onClick={() => removeTarget(t.ref)} className="text-muted-foreground hover:text-destructive shrink-0" title="Remove">
                       <X size={15} />
                     </button>
                   </div>
-                  {t.isNew && t.fields && (
+                  {t.isNew && t.kind === 'lead' && t.fields && (
+                    <div className="space-y-2 pl-5">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <input className={`${inputCls} h-8`} placeholder="Deal name" value={t.fields.name} onChange={(e) => setTargetFields(t.ref, { name: e.target.value })} />
+                        <input className={`${inputCls} h-8`} placeholder="Location" value={t.fields.location ?? ''} onChange={(e) => setTargetFields(t.ref, { location: e.target.value || null })} />
+                        <select className={`${inputCls} h-8`} value={t.fields.sector ?? ''} onChange={(e) => setTargetFields(t.ref, { sector: e.target.value || null })}>
+                          <option value="">Sector — not stated</option>
+                          {SECTORS.map((sec) => <option key={sec} value={sec}>{SECTOR_LABELS[sec]}</option>)}
+                        </select>
+                        <input
+                          className={`${inputCls} h-8`}
+                          type="number"
+                          inputMode="decimal"
+                          placeholder="Estimated value ($)"
+                          value={t.fields.estimated_value ?? ''}
+                          onChange={(e) => setTargetFields(t.ref, { estimated_value: e.target.value === '' ? null : Number(e.target.value) })}
+                        />
+                      </div>
+                      <textarea
+                        className={`${inputCls} h-auto py-2`}
+                        rows={2}
+                        placeholder="What the meeting said about this deal — this is what the fit assessment reads."
+                        value={t.fields.description ?? ''}
+                        onChange={(e) => setTargetFields(t.ref, { description: e.target.value || null })}
+                      />
+                      <p className="text-[11px] text-muted-foreground">
+                        Goes to the lead queue as a {t.fields.origin_kind === 'opportunity' ? 'corporate' : 'construction'} lead
+                        and is fit-scored on the next sweep. Nothing enters the pipeline until you promote it.
+                      </p>
+                    </div>
+                  )}
+                  {t.isNew && t.kind !== 'lead' && t.fields && (
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pl-5">
                       <input className={`${inputCls} h-8`} placeholder="Name" value={t.fields.name} onChange={(e) => setTargetFields(t.ref, { name: e.target.value })} />
                       {t.kind === 'project' ? (
@@ -573,21 +678,38 @@ export default function MeetingIntakeReview({
           </div>
         )}
 
-        {/* Unmatched suggestions from the meeting */}
+        {/* Unmatched suggestions from the meeting.
+            Two destinations, not one. A name the matcher could not place is
+            usually a deal that was merely MENTIONED, and staging it as a lead is
+            both the commoner answer and the cheaper mistake — a lead that turns
+            out to be real is one promotion away, while a project that turns out
+            to be talk is already in the pipeline figure. So "Stage as lead"
+            leads, and creating the record outright sits behind it. */}
         {suggestions.filter((s) => !dismissedSuggestions.has(s.i)).length > 0 && (
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-[11px] text-muted-foreground">Mentioned, not matched:</span>
-            {suggestions.filter((s) => !dismissedSuggestions.has(s.i)).map(({ rec, i }) => (
-              <button
-                key={i}
-                type="button"
-                onClick={() => { addNew(rec.kind, rec.name, rec.note); setDismissedSuggestions((prev) => new Set(prev).add(i)) }}
-                className="inline-flex items-center gap-1 h-7 px-2.5 rounded-full border border-dashed border-input text-xs hover:bg-accent transition-colors"
-                title={`Create "${rec.name}" as a new ${rec.kind}`}
-              >
-                <Plus size={12} /> {rec.name} <span className="text-muted-foreground">({rec.kind})</span>
-              </button>
-            ))}
+          <div className="space-y-1.5">
+            <span className="text-[11px] text-muted-foreground">Mentioned, not matched — stage each as a lead, or create the record now:</span>
+            <div className="flex flex-wrap items-center gap-2">
+              {suggestions.filter((s) => !dismissedSuggestions.has(s.i)).map(({ rec, i }) => (
+                <span key={i} className="inline-flex items-center rounded-full border border-dashed border-input text-xs overflow-hidden">
+                  <button
+                    type="button"
+                    onClick={() => { addLead(rec); setDismissedSuggestions((prev) => new Set(prev).add(i)) }}
+                    className="inline-flex items-center gap-1 h-7 pl-2.5 pr-2 hover:bg-accent transition-colors outline-none focus-visible:bg-accent"
+                    title={`Stage "${rec.name}" in the lead queue — fit-scored, not yet pipeline`}
+                  >
+                    <Radar size={12} /> {rec.name}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { addNew(rec.kind, rec.name, rec.note); setDismissedSuggestions((prev) => new Set(prev).add(i)) }}
+                    className="inline-flex items-center gap-1 h-7 px-2 border-l border-dashed border-input text-muted-foreground hover:bg-accent hover:text-foreground transition-colors outline-none focus-visible:bg-accent"
+                    title={`Create "${rec.name}" as a new ${rec.kind} instead`}
+                  >
+                    <Plus size={12} /> {rec.kind}
+                  </button>
+                </span>
+              ))}
+            </div>
           </div>
         )}
 
@@ -630,6 +752,14 @@ export default function MeetingIntakeReview({
           </button>
           <button type="button" onClick={() => addNew('opportunity')} className="inline-flex items-center gap-1 h-8 px-2.5 rounded-md border border-input bg-background text-xs hover:bg-accent transition-colors">
             <Plus size={13} /> New opportunity
+          </button>
+          <button
+            type="button"
+            onClick={() => addLead({ kind: 'project', name: '', note: null })}
+            className="inline-flex items-center gap-1 h-8 px-2.5 rounded-md border border-input bg-background text-xs hover:bg-accent transition-colors"
+            title="Stage a candidate deal in the lead queue — scored against the pursuit profile, promoted by hand if it earns it"
+          >
+            <Radar size={13} /> New lead
           </button>
         </div>
       </div>
@@ -728,11 +858,16 @@ export default function MeetingIntakeReview({
                     <div className="w-36">
                       <DatePicker value={t.due_date ?? ''} onChange={(v) => setTask(i, { due_date: v || null })} placeholder="Due date" className="h-7 rounded px-2 text-xs" />
                     </div>
-                    <select className="h-7 px-2 rounded border border-input bg-background text-xs" value={t.target_ref ?? ''} onChange={(e) => setTask(i, { target_ref: e.target.value || null })}>
+                    <select className="h-7 px-2 rounded border border-input bg-background text-xs max-w-[14rem]" value={t.target_ref ?? ''} onChange={(e) => setTask(i, { target_ref: e.target.value || null })}>
                       <option value="">No record (executive list)</option>
                       {targets.map((tg) => <option key={tg.ref} value={tg.ref}>{targetLabel(tg)}</option>)}
                     </select>
                   </div>
+                  {t.include && targets.find((tg) => tg.ref === t.target_ref)?.kind === 'lead' && (
+                    <p className="text-[11px] text-muted-foreground">
+                      Kept on the lead as a follow-up note, not created as a task — it becomes a real task when the lead is promoted.
+                    </p>
+                  )}
                   {!effectiveAssignee(t) && t.assignee && (
                     <p className="text-[11px] text-amber-600 dark:text-amber-400">
                       AI suggested “{t.assignee}” — not a team owner. Pick one, or tick “Can own tasks” on that attendee.
@@ -752,7 +887,9 @@ export default function MeetingIntakeReview({
 
       <div className="flex items-center justify-end gap-3">
         <p className="text-[11px] text-muted-foreground mr-auto">
-          The meeting minutes are saved to each record as a document and indexed for Ber AI.
+          The minutes are saved to each record as a document and indexed for Ber AI. Leads get the
+          minutes as a note; if no record is selected, the verbatim transcript is filed to the company
+          knowledge base so it stays searchable.
         </p>
         <button
           type="button"
