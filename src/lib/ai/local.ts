@@ -1,9 +1,11 @@
 /**
  * Local AI provider — OpenAI-compatible client for LM Studio on the Mac Studio.
  *
- * Activated by AI_PROVIDER=local (+ LOCAL_AI_BASE_URL). Plain fetch, no SDK —
- * runtime AI stays a single provider surface (§11): gemini.ts / embeddings.ts /
- * agent.ts branch here when local mode is on, and nothing else changes.
+ * Activated by AI_PROVIDER=local (+ LOCAL_AI_BASE_URL). No SDK — runtime AI
+ * stays a single provider surface (§11): gemini.ts / embeddings.ts / agent.ts
+ * branch here when local mode is on, and nothing else changes. Embeddings go
+ * over plain fetch; the chat stream does not, for the reason set out above
+ * `postJsonStream`.
  */
 
 export function isLocalAI(): boolean {
@@ -56,9 +58,6 @@ function envMs(name: string, fallback: number): number {
   return Number.isFinite(raw) && raw > 0 ? raw : fallback
 }
 
-/** Whole-call cap for a non-streaming completion. */
-const chatTimeoutMs = () => envMs('LOCAL_AI_TIMEOUT_MS', 900_000)
-
 /**
  * Gap cap BETWEEN stream chunks. Deliberately not a whole-call cap: a long
  * answer is legitimate, a silent socket is not, and only the gap tells them
@@ -81,12 +80,139 @@ const streamIdleTimeoutMs = () => envMs('LOCAL_AI_STREAM_IDLE_TIMEOUT_MS', 180_0
  *
  * So the first wait is generous and the gap stays tight, which is what actually
  * distinguishes a loaded model from a dead socket.
+ *
+ * SIZED FROM MEASUREMENTS, 2026-09-29. Three of them, because the first was
+ * misleading and the third is the one that explains the bug:
+ *
+ *   prefill, uncontended  — 21,025 prompt tokens → first token at 68.3s
+ *                           (~308 tok/s). A FULL 131,072-token window is
+ *                           therefore ~425s of silence before the first token.
+ *   prefill, queued       — the same test behind an in-flight request measured
+ *                           29,121 tokens at 135.5s (~215 tok/s). LM Studio
+ *                           serves ONE request at a time, so a cron holding the
+ *                           model is added to the caller's own wait.
+ *   prefix cache          — the SAME prefix re-sent came back in 3.2s against
+ *                           68.3s cold. Reuse works, and is worth 21x.
+ *
+ * That cache is why a round is normally fast and why the ceiling below still
+ * bit: an agent turn only re-pays full prefill when the prefix CHANGES, which
+ * is exactly what shrinking the oldest tool results to stubs does
+ * (AGENT_CONTEXT_BUDGET_CHARS). Rewriting the middle of the conversation
+ * invalidates the cache from that point, so the next round re-prefills ~88k
+ * tokens — ~285s uncontended, and over 300s the moment anything else is using
+ * the model. Which is to say the failure landed precisely on the longest,
+ * best-evidenced turns, and was worse whenever a cron was running.
+ *
+ * 900s clears a full window with margin even under contention.
  */
 const streamFirstChunkTimeoutMs = () =>
-  envMs('LOCAL_AI_STREAM_FIRST_CHUNK_TIMEOUT_MS', 600_000)
+  envMs('LOCAL_AI_STREAM_FIRST_CHUNK_TIMEOUT_MS', 900_000)
 
 /** Embeddings are small and fast; a slow one means something is wrong. */
 const embeddingTimeoutMs = () => envMs('LOCAL_AI_EMBEDDING_TIMEOUT_MS', 120_000)
+
+/**
+ * Cap on the wait for response HEADERS, which with stream:true arrive at once
+ * (measured: 0.1s). A wait here means LM Studio is not answering at all, which
+ * is a different thing from a model that is thinking — so this stays modest
+ * while the body guards above stay generous.
+ */
+const headersTimeoutMs = () => envMs('LOCAL_AI_TIMEOUT_MS', 900_000)
+
+// ---------------------------------------------------------------------------
+// Why this is `node:http` and not `fetch`.
+//
+// undici — the HTTP client behind Node's global fetch — enforces TWO timeouts
+// of its OWN, both defaulting to 300s and NEITHER of them reachable from the
+// AbortSignal or from any option this code can pass:
+//
+//   headersTimeout — dodged already, by asking for stream:true so the headers
+//                    come back immediately instead of after generation.
+//   bodyTimeout    — the gap between BODY chunks, and the trap that replaced
+//                    it. With stream:true the headers arrive in 0.1s and the
+//                    socket then goes deliberately silent while the server
+//                    ingests the prompt. undici reads that silence as a dead
+//                    body and destroys the socket at 300s, surfacing as a bare
+//                    `TypeError: terminated` with cause UND_ERR_BODY_TIMEOUT.
+//
+// That is a hard five-minute ceiling on prompt processing, and prompt
+// processing is exactly what scales with the conversation: a real Ber AI turn
+// over a deal's full correspondence spends minutes in prefill before the first
+// token. So the 600s first-chunk guard written on 2026-09-27 to allow for that
+// was never once reachable — undici killed the socket at 300s first, the turn's
+// tool work was discarded, and the reader saw the answer stop dead.
+//
+// `node:http` applies no such timeout, which makes the guards in this file the
+// only limits — which is what they were written to be. Fixing it by raising an
+// undici setting would have meant adding a dependency (§11) to configure a
+// client we do not otherwise want.
+// ---------------------------------------------------------------------------
+
+/**
+ * POST JSON and hand back the response stream, with a timeout on the HEADERS
+ * only. The body is left entirely to the caller's own guards.
+ */
+async function postJsonStream(
+  url: string,
+  payload: unknown,
+  ms: number,
+): Promise<{ status: number; reader: ChunkReader }> {
+  const { request: httpRequest } = await import('node:http')
+  const { request: httpsRequest } = await import('node:https')
+  const target = new URL(url)
+  const send = target.protocol === 'https:' ? httpsRequest : httpRequest
+  const data = Buffer.from(JSON.stringify(payload))
+
+  return new Promise((resolve, reject) => {
+    const req = send(
+      target,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Content-Length': data.byteLength },
+      },
+      (res) => {
+        clearTimeout(timer)
+        const iterator = res[Symbol.asyncIterator]()
+        resolve({
+          status: res.statusCode ?? 0,
+          reader: {
+            async read() {
+              const next = await iterator.next()
+              return next.done ? { done: true } : { done: false, value: next.value }
+            },
+            async cancel() {
+              res.destroy()
+            },
+          },
+        })
+      },
+    )
+
+    // Explicitly disable the socket-level inactivity timeout: silence during
+    // prompt processing is normal and must not close the connection.
+    req.setTimeout(0)
+    const timer = setTimeout(() => {
+      req.destroy(new Error(`Local AI sent no response headers within ${Math.round(ms / 1000)}s`))
+    }, ms)
+    req.on('error', (err) => {
+      clearTimeout(timer)
+      reject(err)
+    })
+    req.end(data)
+  })
+}
+
+/** Drain a reader to a string — used only for error bodies. */
+async function readAllText(reader: ChunkReader): Promise<string> {
+  const decoder = new TextDecoder()
+  let out = ''
+  for (;;) {
+    const { done, value } = await reader.read()
+    if (done) break
+    if (value) out += decoder.decode(value, { stream: true })
+  }
+  return out + decoder.decode()
+}
 
 /**
  * Turn an abort into something a log reader can act on. `AbortSignal.timeout`
@@ -103,13 +229,23 @@ function localStallError(err: unknown, ms: number, what: string): Error {
 }
 
 /**
+ * The minimal reader shape the stream loop needs. Deliberately not
+ * `ReadableStreamDefaultReader`: the chat stream is read straight off a
+ * `node:http` response (see `postJsonStream`), and this is the common surface.
+ */
+interface ChunkReader {
+  read(): Promise<{ done: boolean; value?: Uint8Array }>
+  cancel(): Promise<void>
+}
+
+/**
  * One `reader.read()`, bounded by an idle timeout. Rejects rather than hanging
  * when the stream goes quiet.
  */
-async function readWithIdleTimeout<T>(
-  reader: ReadableStreamDefaultReader<T>,
+async function readWithIdleTimeout(
+  reader: ChunkReader,
   ms: number,
-): Promise<ReadableStreamReadResult<T>> {
+): Promise<{ done: boolean; value?: Uint8Array }> {
   let timer: ReturnType<typeof setTimeout> | undefined
   try {
     return await Promise.race([
@@ -243,18 +379,19 @@ interface LocalChatOptions {
  * One chat completion, awaited whole.
  *
  * Delegates to the streaming path rather than asking for stream:false, and the
- * reason is a trap rather than a preference: undici (Node's fetch) applies its
- * OWN headersTimeout of 300s, independent of the AbortSignal below it. A
- * non-streamed request produces no headers until the model has finished
- * thinking and generating, so any call slower than five minutes died with an
- * opaque "fetch failed" — regardless of LOCAL_AI_TIMEOUT_MS, which is 15
- * minutes and was therefore never reachable. Measured here: a 104-item grouping
- * call takes ~4.6 minutes and failed intermittently on exactly this.
+ * reason is a trap rather than a preference: a non-streamed request produces no
+ * headers until the model has finished thinking and generating, so any call
+ * slower than five minutes died with an opaque "fetch failed" on undici's
+ * headersTimeout — regardless of LOCAL_AI_TIMEOUT_MS, which is 15 minutes and
+ * was therefore never reachable. Measured here: a 104-item grouping call takes
+ * ~4.6 minutes and failed intermittently on exactly this.
  *
- * With stream:true the headers arrive at once and tokens keep the connection
- * fed, so the configured timeout and the idle guard become the real limits —
- * which is what they were written to be. It also leaves one implementation of
- * tool-call accumulation and think-filtering instead of two.
+ * With stream:true the headers arrive at once (0.1s), so the guards in this
+ * file become the real limits — which is what they were written to be. That
+ * only actually held once the transport stopped being fetch: see the comment
+ * above `postJsonStream` for the second, longer-lived half of the same trap.
+ * It also leaves one implementation of tool-call accumulation and
+ * think-filtering instead of two.
  */
 export async function localChat(options: LocalChatOptions): Promise<LocalChatResult> {
   return localChatStream(options)
@@ -265,29 +402,29 @@ export async function localChat(options: LocalChatOptions): Promise<LocalChatRes
  * think-filtered before reaching onTextDelta and the returned text.
  */
 export async function localChatStream(options: LocalChatOptions): Promise<LocalChatResult> {
-  const timeout = chatTimeoutMs()
-  let res: Response
+  const timeout = headersTimeoutMs()
+  let status: number
+  let reader: ChunkReader
   try {
-    res = await fetch(`${localBaseUrl()}/chat/completions`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
+    ;({ status, reader } = await postJsonStream(
+      `${localBaseUrl()}/chat/completions`,
+      {
         model: options.model ?? localChatModel(),
         messages: options.messages,
         ...(options.temperature !== undefined ? { temperature: options.temperature } : {}),
         ...(options.tools?.length ? { tools: options.tools } : {}),
         stream: true,
         stream_options: { include_usage: true },
-      }),
-      signal: AbortSignal.timeout(timeout),
-    })
+      },
+      timeout,
+    ))
   } catch (err) {
     throw localStallError(err, timeout, 'chat completion')
   }
 
-  if (!res.ok || !res.body) {
-    const errText = await res.text()
-    throw new Error(`Local AI error ${res.status}: ${errText.slice(0, 500)}`)
+  if (status < 200 || status >= 300) {
+    const errText = await readAllText(reader)
+    throw new Error(`Local AI error ${status}: ${errText.slice(0, 500)}`)
   }
 
   const filter = createThinkFilter()
@@ -297,7 +434,6 @@ export async function localChatStream(options: LocalChatOptions): Promise<LocalC
   // tool-call fragments accumulate by index across deltas
   const toolAccum = new Map<number, { id: string; name: string; args: string }>()
 
-  const reader = res.body.getReader()
   const decoder = new TextDecoder()
   let buffer = ''
 
@@ -355,7 +491,7 @@ export async function localChatStream(options: LocalChatOptions): Promise<LocalC
       const { done, value } = await readWithIdleTimeout(reader, started ? idle : firstChunk)
       if (done) break
       started = true
-      buffer += decoder.decode(value, { stream: true })
+      if (value) buffer += decoder.decode(value, { stream: true })
       let nl: number
       while ((nl = buffer.indexOf('\n')) !== -1) {
         handleLine(buffer.slice(0, nl))
@@ -367,9 +503,17 @@ export async function localChatStream(options: LocalChatOptions): Promise<LocalC
     await reader.cancel().catch(() => {})
     // Named apart so a log reader can tell "the model never started" (a prompt
     // too big, or a model still loading) from "it stopped mid-answer".
-    throw started
-      ? localStallError(err, idle, 'chat stream')
-      : localStallError(err, firstChunk, 'chat stream (no first token)')
+    //
+    // The phase is prefixed onto EVERY failure here, not just the timeouts:
+    // a socket that dies during prompt processing arrives as a bare
+    // `terminated` or `ECONNRESET`, which is what the reader saw for this bug
+    // — a one-word error where an explanation should be. Whatever went wrong,
+    // the message should at least say which wait it went wrong in.
+    const phase = started ? 'chat stream' : 'chat stream (no first token)'
+    const named = localStallError(err, started ? idle : firstChunk, phase)
+    throw /timed out after/.test(named.message)
+      ? named
+      : new Error(`Local AI ${phase} failed: ${named.message}`, { cause: err })
   }
   if (buffer) handleLine(buffer)
 
