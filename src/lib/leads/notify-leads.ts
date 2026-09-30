@@ -21,7 +21,9 @@
 import { notify } from '@/lib/notify'
 import { isChatConfigured } from '@/lib/notify/chat'
 import { leadsDb, type LeadRow } from './db'
-import { ROUTE_LABELS } from '@/lib/utils/leads'
+import { categoryLookup, type LeadCategoryView } from '@/lib/utils/leads'
+import { listCategories } from './categories'
+import { toCategoryViews } from './category-view'
 
 export interface LeadNotifyProgress {
   considered: number
@@ -86,7 +88,17 @@ function due(lead: LeadRow): { text: string; urgent: boolean } {
   return { text: `bid due in ${d}d (${lead.bid_due_date})`, urgent: d <= 7 }
 }
 
-export function renderLeadEmail(input: LeadRow[]): { subject: string; html: string } {
+export function renderLeadEmail(
+  input: LeadRow[],
+  /**
+   * The taxonomy, so a lane's label is the one Richard typed rather than its
+   * key. Defaulted to empty so a caller that has not loaded it still renders —
+   * `categoryLookup` humanises an unknown key rather than printing it raw
+   * (§12: never print a stored key at a reader).
+   */
+  categories: LeadCategoryView[] = []
+): { subject: string; html: string } {
+  const cat = categoryLookup(categories)
   // Sorted here as well as at the query, so any caller gets the same order.
   const leads = [...input].sort(byQuality)
   const urgent = leads.filter((l) => due(l).urgent).length
@@ -111,7 +123,7 @@ export function renderLeadEmail(input: LeadRow[]): { subject: string; html: stri
         lead.sender_company,
         lead.location,
         value,
-        ROUTE_LABELS[lead.route] ?? lead.route,
+        cat.label(lead.route),
       ]
         .filter(Boolean)
         .map((f) => escapeHtml(String(f)))
@@ -169,7 +181,8 @@ export function renderLeadEmail(input: LeadRow[]): { subject: string; html: stri
  * name, deadline, one line of why. The full case lives one tap away in the
  * platform, and the reader who needs it will follow the link.
  */
-export function renderLeadChat(input: LeadRow[]): string {
+export function renderLeadChat(input: LeadRow[], categories: LeadCategoryView[] = []): string {
+  const cat = categoryLookup(categories)
   const leads = [...input].sort(byQuality)
   const appUrl = process.env.APP_URL?.trim().replace(/\/$/, '')
 
@@ -177,7 +190,7 @@ export function renderLeadChat(input: LeadRow[]): string {
     const d = due(lead)
     const verdict = String(lead.fit_recommendation ?? '').toUpperCase()
     const title = appUrl ? `<${appUrl}/leads?lead=${lead.id}|${lead.title}>` : lead.title
-    const facts = [lead.sender_company, lead.location, ROUTE_LABELS[lead.route] ?? lead.route]
+    const facts = [lead.sender_company, lead.location, cat.label(lead.route)]
       .filter(Boolean)
       .join(' · ')
 
@@ -231,7 +244,8 @@ export async function notifyScoredLeads(): Promise<LeadNotifyProgress> {
       .sort(byQuality)
     if (rows.length === 0) return { considered: 0, sent: 0, skipped: false }
 
-    const { subject, html } = renderLeadEmail(rows)
+    const categories = toCategoryViews(await listCategories())
+    const { subject, html } = renderLeadEmail(rows, categories)
     const delivered: string[] = []
     const failures: string[] = []
 
@@ -247,7 +261,7 @@ export async function notifyScoredLeads(): Promise<LeadNotifyProgress> {
         to: 'default',
         subject,
         html,
-        text: renderLeadChat(rows),
+        text: renderLeadChat(rows, categories),
         // One running thread per day, so the space shows a digest rather than a
         // scroll of separate posts.
         threadKey: `leads-${new Date().toISOString().slice(0, 10)}`,

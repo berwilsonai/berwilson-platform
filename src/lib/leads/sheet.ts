@@ -1,9 +1,10 @@
 /**
- * Publish the lead queue to Drive as one read-only Google Sheet per route.
+ * Publish the lead queue to Drive as one read-only Google Sheet per lane.
  *
  * The audience is the people who will never have a platform login: the steel
- * reps, and Dino — who are a separate company entirely and will never be given
- * one. A sheet is the right shape for them in a way a folder of files is not.
+ * reps, Dino's plumbing and HVAC teams, the flooring crew, and whoever the next
+ * line of business turns out to be. A sheet is the right shape for them in a way
+ * a folder of files is not.
  * Bid invitations almost never arrive as attachments; they arrive as a message
  * with a bid date, a contact, and a link to a plan room. What a rep needs is the
  * LIST — sortable, filterable, and importable into whatever they already use.
@@ -11,6 +12,11 @@
  * Read-only is structural, not a setting anyone has to remember: the sheets sit
  * under the Ber Intelligence root, which is shared with the domain as reader,
  * so everyone at berwilson.com can open them and only the platform can write.
+ *
+ * ⚠ DOMAIN SHARING REACHES NOBODY OUTSIDE berwilson.com, which is most of this
+ * audience. A lane's `share_with` addresses are granted reader on its own sheet
+ * explicitly — without that, the sheet published FOR a flooring subcontractor
+ * is one they cannot open, and nothing anywhere reports it.
  * Nothing here is ever read back — an edit made in the sheet is overwritten on
  * the next run, and that is the intended behaviour, not a limitation.
  *
@@ -20,13 +26,16 @@
  * both survive the rebuild.
  */
 
-import type { LeadRoute } from '@/lib/ai/prompts/lead-triage'
 import { GMAIL_THREAD_EMBED, embeddedGmailThreadId, leadsDb, type LeadRow } from './db'
+import { listCategories, type LeadCategory } from './categories'
 import {
   DriveScopeError,
   ensureDomainShared,
   ensureFolder,
   ensureRootFolder,
+  listSheetsInFolder,
+  renameFile,
+  shareWithAddresses,
   upsertSheetFromCsv,
 } from '@/lib/integrations/google-drive-write'
 import { PRIMARY_MAILBOX, isGoogleConfigured } from '@/lib/integrations/google-workspace'
@@ -35,17 +44,69 @@ import { PRIMARY_MAILBOX, isGoogleConfigured } from '@/lib/integrations/google-w
 const SECTION = 'Lead Lists'
 
 /**
- * Which routes get a sheet, and what it is called.
+ * Which lanes get a sheet — `publish_sheet` on the category row.
  *
- * Only the two routes whose audience cannot reach the platform. Construction
- * and corporate leads are worked by people who have logins, so a sheet for them
- * would be a second place to look at the same queue — which is how a projection
- * stops being trusted.
+ * Was a hardcoded pair (steel, dino). The rule it encoded still holds and is
+ * now a per-lane decision: a sheet is for an audience that cannot reach the
+ * platform. Construction and corporate leads are worked by people who have
+ * logins, so a sheet for them would be a second place to look at the same
+ * queue — which is how a projection stops being trusted.
+ *
+ * A RETIRED lane is skipped even if it still asks for a sheet: publishing a
+ * list nobody is meant to work any more is worse than not publishing it.
  */
-export const SHEET_ROUTES: { route: LeadRoute; name: string }[] = [
-  { route: 'steel', name: 'Steel Leads' },
-  { route: 'dino', name: 'Dino Leads' },
-]
+function sheetLanes(categories: LeadCategory[]): LeadCategory[] {
+  return categories.filter((c) => c.publish_sheet && c.active)
+}
+
+/** What the lane's sheet is called in Drive. */
+function sheetName(c: LeadCategory): string {
+  return `${c.label} Leads`
+}
+
+/** Marker appended to a sheet the platform has stopped maintaining. */
+const RETIRED_SUFFIX = ' (no longer updated)'
+
+/**
+ * Mark sheets for lanes that no longer publish.
+ *
+ * ⚠ THE FAILURE THIS PREVENTS. Retiring or renaming a lane leaves its sheet
+ * sitting in Drive, full, shared, bookmarked — and frozen at the moment the lane
+ * closed. It looks exactly like a live list. That is the worst shape a
+ * projection can fail in, and it will recur every time a line of business
+ * changes, which on this platform is the expected case rather than the unusual
+ * one. (Concretely: splitting Dino into Plumbing and HVAC orphaned "Dino
+ * Leads", which had been updated by that morning's sweep.)
+ *
+ * Renamed, never trashed: the link keeps working for whoever has it, and the
+ * title now says what happened. Idempotent — a sheet already marked is left
+ * alone rather than re-suffixed on every run.
+ */
+async function markOrphanedSheets(
+  folderId: string,
+  liveNames: Set<string>
+): Promise<string[]> {
+  const marked: string[] = []
+  let sheets: { id: string; name: string }[]
+  try {
+    sheets = await listSheetsInFolder(folderId)
+  } catch {
+    // A failed listing must never fail the publish — the live sheets are
+    // already written by the time this runs.
+    return marked
+  }
+
+  for (const sheet of sheets) {
+    if (liveNames.has(sheet.name) || sheet.name.endsWith(RETIRED_SUFFIX)) continue
+    try {
+      await renameFile(sheet.id, `${sheet.name}${RETIRED_SUFFIX}`)
+      marked.push(sheet.name)
+    } catch (err) {
+      console.warn(`[leads/sheet] could not mark ${sheet.name} as retired:`, err)
+    }
+  }
+  return marked
+}
 
 /**
  * Statuses kept off the sheet.
@@ -76,14 +137,18 @@ const COLUMNS = [
 ] as const
 
 export interface LeadSheetResult {
-  route: LeadRoute
+  route: string
   name: string
   rows: number
   url: string
   created: boolean
+  /** Outside addresses newly granted reader on this sheet. */
+  shared: string[]
 }
 
 export interface PublishSheetsResult {
+  /** Sheets whose lane no longer publishes, retitled so they cannot read as live. */
+  retired?: string[]
   sheets: LeadSheetResult[]
   folderUrl: string | null
   errors: string[]
@@ -172,12 +237,15 @@ export async function publishLeadSheets(): Promise<PublishSheetsResult> {
 
   // leadsDb() rather than the typed admin client: `leads` post-dates the last
   // type generation, which is blocked while the DB is self-hosted under Colima.
+  const lanes = sheetLanes(await listCategories())
+  if (lanes.length === 0) return result
+
   const { data, error } = await leadsDb()
     .from('leads')
     .select(`*, ${GMAIL_THREAD_EMBED}`)
     .in(
       'route',
-      SHEET_ROUTES.map((r) => r.route)
+      lanes.map((c) => c.key)
     )
   if (error) throw new Error(error.message)
 
@@ -188,9 +256,10 @@ export async function publishLeadSheets(): Promise<PublishSheetsResult> {
   const folder = await ensureFolder(SECTION, root.id)
   result.folderUrl = `https://drive.google.com/drive/folders/${folder.id}`
 
-  for (const { route, name } of SHEET_ROUTES) {
+  for (const lane of lanes) {
+    const name = sheetName(lane)
     const rows = all
-      .filter((l) => l.route === route && !HIDDEN_STATUSES.has(l.status))
+      .filter((l) => l.route === lane.key && !HIDDEN_STATUSES.has(l.status))
       .sort(byUrgency)
 
     try {
@@ -199,19 +268,38 @@ export async function publishLeadSheets(): Promise<PublishSheetsResult> {
         name,
         csv: buildLeadCsv(rows),
       })
+
+      // Granted on the SHEET, not only the folder: a lane's recipients should
+      // see their own list and no other lane's. Asserted every run because a
+      // grant removed by hand in Drive is invisible from here — a content hash
+      // cannot detect a change made on the far side of the API (§12, 08-26).
+      const shared =
+        lane.share_with.length > 0
+          ? (await shareWithAddresses(ref.id, lane.share_with).catch(() => ({ granted: [] })))
+              .granted
+          : []
+
       result.sheets.push({
-        route,
+        route: lane.key,
         name,
         rows: rows.length,
         url: ref.webViewLink ?? `https://docs.google.com/spreadsheets/d/${ref.id}`,
         created,
+        shared,
       })
     } catch (err) {
-      // A missing scope fails identically for the other sheet, so stop.
+      // A missing scope fails identically for every other sheet, so stop.
       if (err instanceof DriveScopeError) throw err
       result.errors.push(`${name}: ${err instanceof Error ? err.message : String(err)}`)
     }
   }
+
+  // ⚠ The live set is every lane that SHOULD publish, not the ones that
+  // succeeded this run. Built from `result.sheets` it would mark a perfectly
+  // live sheet "no longer updated" the first time its write hit a transient
+  // Drive error — turning one failed request into a lane the reader is told to
+  // stop trusting.
+  result.retired = await markOrphanedSheets(folder.id, new Set(lanes.map(sheetName)))
 
   return result
 }

@@ -1,3 +1,5 @@
+import type { LeadCategory } from '@/lib/leads/categories'
+
 /**
  * Lead triage prompt — the first pass over info@berwilson.com.
  *
@@ -17,18 +19,39 @@
  * survive this one.
  */
 
-export const LEAD_TRIAGE_PROMPT_VERSION = 'lead-triage-2.1'
+/**
+ * Which line of business an inbound lead belongs to — a `lead_categories.key`.
+ *
+ * Deliberately `string` and not a union: the taxonomy is DATA now, and a union
+ * would be a second list to keep in step with the table. What guarantees the
+ * value is real is the FK on `leads.route`, plus `resolveRoute()` on every
+ * write path. Labels and tones come from the category row, never from a map
+ * keyed by this type.
+ */
+export type LeadRoute = string
 
-/** Which side of the business an inbound lead belongs to. */
-export type LeadRoute = 'steel' | 'dino' | 'construction' | 'corporate' | 'unknown'
+/**
+ * Fingerprint of the category set a verdict was produced under.
+ *
+ * Appended to the prompt version so `ai_queries` records WHICH taxonomy the
+ * model was shown. Without it, a lead routed before flooring existed is
+ * indistinguishable from one the model saw flooring and declined — and that is
+ * exactly the question to ask when a category looks like it is under-firing.
+ *
+ * A pure hash rather than node:crypto: this module is imported by client
+ * components, and a `node:` import in the browser bundle is a build error.
+ */
+function fingerprint(keys: string[]): string {
+  let h = 5381
+  for (const ch of keys.join(',')) h = ((h << 5) + h + ch.charCodeAt(0)) | 0
+  return (h >>> 0).toString(36)
+}
 
-export const LEAD_ROUTES: LeadRoute[] = [
-  'steel',
-  'dino',
-  'construction',
-  'corporate',
-  'unknown',
-]
+export const LEAD_TRIAGE_PROMPT_BASE = 'lead-triage-3.0'
+
+export function leadTriagePromptVersion(categories: LeadCategory[]): string {
+  return `${LEAD_TRIAGE_PROMPT_BASE}+${fingerprint(categories.map((c) => c.key))}`
+}
 
 export interface LeadTriage {
   /** False for marketing, prospecting, newsletters, receipts, and automation. */
@@ -75,7 +98,34 @@ export interface LeadTriageBatch {
   leads: LeadTriage[]
 }
 
-export const LEAD_TRIAGE_SYSTEM_PROMPT = `You are the first reader of every email arriving at info@berwilson.com, the general inbox of Ber Wilson — a vertically integrated construction, development, and prefab steel manufacturing company in Salt Lake City, Utah.
+/**
+ * Build the triage system prompt for a given taxonomy.
+ *
+ * The routing section is GENERATED from `lead_categories`, which is what makes
+ * a new line of business an INSERT rather than a prompt edit. It used to be five
+ * hardcoded paragraphs here, so adding flooring meant editing prose in a file
+ * that nobody would think to open — and a category the model was never told
+ * about simply never fires, with nothing anywhere reporting it.
+ *
+ * Only ACTIVE categories are listed. A retired one must keep labelling the leads
+ * it already owns but must never receive a new one, and the cheapest way to
+ * guarantee that is for the model not to know it exists.
+ */
+export function buildLeadTriageSystemPrompt(categories: LeadCategory[]): string {
+  const active = categories.filter((c) => c.active)
+  const fallback = active.find((c) => c.destination === 'manual')
+
+  // Every category gets a line; the rule is the sentence Richard wrote in
+  // settings. A category with no rule still appears, because being listed with
+  // only its label is what stops the model inventing a key — but it will
+  // under-fire, which is why the settings screen asks for the rule.
+  const routes = active
+    .map((c) => `- "${c.key}" — ${c.routing_rule?.trim() || `${c.label}. No routing rule has been written for this category yet.`}`)
+    .join('\n')
+
+  const keys = active.map((c) => `"${c.key}"`).join(' | ')
+
+  return `You are the first reader of every email arriving at info@berwilson.com, the general inbox of Ber Wilson — a vertically integrated construction, development, and prefab steel manufacturing company in Salt Lake City, Utah.
 
 WHAT BER WILSON DOES (use this to judge relevance and routing):
 - Development: originates projects, carries them through entitlement, structures the capital.
@@ -104,12 +154,15 @@ The cost of a false positive is high: it clutters the executives' queue and erod
 
 YOUR SECOND JOB — where does it belong?
 
-route:
-- "steel" — prefab or pre-engineered metal buildings, a structural steel package, steel framing, or a building-kit quote. Anything the steel plant would price.
-- "dino" — plumbing, HVAC, or mechanical service and repair work standing on its own. Ber Wilson's operating company Dino Service Pros handles these. Note: MEP inside a larger building project is NOT "dino" — that is part of the construction job.
-- "construction" — general contracting, design-build, EPC, infrastructure, rail, site work, federal/military construction, multifamily and commercial builds. This is the default for real solicitations.
-- "corporate" — someone selling a business, proposing a joint venture, a teaming agreement, an equity investment, or a merger. Not built work.
-- "unknown" — a real lead whose category genuinely cannot be told from the thread. Use sparingly.
+Pick exactly ONE of these categories for "route". Answer what the work IS; you are not deciding who it gets sent to.
+
+${routes}
+
+Two rules that decide most of the hard cases:
+- A TRADE INSIDE A BUILDING PROJECT IS THE BUILDING PROJECT. Plumbing, HVAC, electrical, flooring and the rest are scopes within a construction job; they only get their own category when the trade IS the whole job — a service call, a repair, a replacement, a standalone package somebody is buying on its own.
+- WHO IS BUYING TELLS YOU MORE THAN WHAT IS MENTIONED. A general contractor inviting bids on a school is construction even though the email lists twelve trades. A building owner asking someone to come and fix a rooftop unit is a service lead even though the building is commercial.
+
+If two categories both fit, prefer the more specific one; if you cannot tell, use "${fallback?.key ?? 'unknown'}" rather than guessing — a human reads those, and a wrong confident answer costs more than an admitted one.
 
 YOUR THIRD JOB — extract the decision facts.
 
@@ -145,7 +198,7 @@ Return ONLY valid JSON matching exactly this shape (no markdown, no commentary).
   {
   "is_lead": true | false,
   "spam_reason": string|null,
-  "route": "steel" | "dino" | "construction" | "corporate" | "unknown",
+  "route": ${keys},
   "title": string,
   "sender_name": string|null,
   "sender_email": string|null,
@@ -166,3 +219,4 @@ Return ONLY valid JSON matching exactly this shape (no markdown, no commentary).
   }
  ]
 }`
+}

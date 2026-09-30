@@ -16,13 +16,12 @@
 
 import { callGemini } from '@/lib/ai/gemini'
 import {
-  LEAD_TRIAGE_SYSTEM_PROMPT,
-  LEAD_TRIAGE_PROMPT_VERSION,
-  LEAD_ROUTES,
+  buildLeadTriageSystemPrompt,
+  leadTriagePromptVersion,
   type LeadTriage,
   type LeadTriageBatch,
-  type LeadRoute,
 } from '@/lib/ai/prompts/lead-triage'
+import { FALLBACK_ROUTE, listCategories, type LeadCategory } from './categories'
 import { SYSTEM_USER_ID } from '@/lib/email-ingestion/analyze'
 import { sweepDb, type EmailThreadRow } from '@/lib/email-sweep/db'
 import { leadsDb } from './db'
@@ -40,7 +39,8 @@ export interface TriageProgress {
   rejected: number
   failed: number
   remaining: number
-  byRoute: Record<LeadRoute, number>
+  /** Keyed by lead_categories.key — built from the live taxonomy, not a union. */
+  byRoute: Record<string, number>
   outOfTime: boolean
 }
 
@@ -67,8 +67,17 @@ function isoDate(v: unknown): string | null {
   return isNaN(d.getTime()) || d.toISOString().slice(0, 10) !== s ? null : s
 }
 
-function route(v: unknown): LeadRoute {
-  return LEAD_ROUTES.includes(v as LeadRoute) ? (v as LeadRoute) : 'unknown'
+/**
+ * Coerce the model's answer to a real, ACTIVE category key.
+ *
+ * A retired category still labels the leads it already owns, but must never
+ * receive a new one — so an inactive key coerces to the fallback exactly as a
+ * hallucinated one does. The FK on `leads.route` would otherwise reject the
+ * whole insert (23503) and lose the lead.
+ */
+function route(v: unknown, activeKeys: Set<string>): string {
+  const key = typeof v === 'string' ? v.trim().toLowerCase() : ''
+  return activeKeys.has(key) ? key : FALLBACK_ROUTE
 }
 
 /**
@@ -78,14 +87,18 @@ function route(v: unknown): LeadRoute {
  * local model occasionally answers in the 1.0 single-object form, and losing a
  * real bid invitation to a shape mismatch is far worse than accepting either.
  */
-function normalizeBatch(raw: unknown, fallbackTitle: string): LeadTriage[] {
+function normalizeBatch(
+  raw: unknown,
+  fallbackTitle: string,
+  activeKeys: Set<string>
+): LeadTriage[] {
   const batch = (raw ?? {}) as Partial<LeadTriageBatch>
   const list = Array.isArray(batch.leads) ? batch.leads : [raw]
 
   const normalized = list
     .filter((item) => item && typeof item === 'object')
-    .map((item) => normalize(item, fallbackTitle))
-  if (normalized.length === 0) return [normalize(raw, fallbackTitle)]
+    .map((item) => normalize(item, fallbackTitle, activeKeys))
+  if (normalized.length === 0) return [normalize(raw, fallbackTitle, activeKeys)]
 
   // A rejection is a statement about the whole thread, so it cannot be one of
   // several. If the model marked anything as spam alongside real leads, trust
@@ -94,7 +107,7 @@ function normalizeBatch(raw: unknown, fallbackTitle: string): LeadTriage[] {
   return real.length > 0 ? real : normalized.slice(0, 1)
 }
 
-function normalize(raw: unknown, fallbackTitle: string): LeadTriage {
+function normalize(raw: unknown, fallbackTitle: string, activeKeys: Set<string>): LeadTriage {
   const r = (raw ?? {}) as Partial<LeadTriage>
   const isLead = r.is_lead === true
 
@@ -103,7 +116,7 @@ function normalize(raw: unknown, fallbackTitle: string): LeadTriage {
     spam_reason: isLead ? null : nullableStr(r.spam_reason) ?? 'Not a lead.',
     // A route on a rejected thread is meaningless and would show up in the
     // route tab counts.
-    route: isLead ? route(r.route) : 'unknown',
+    route: isLead ? route(r.route, activeKeys) : FALLBACK_ROUTE,
     title: nullableStr(r.title) ?? fallbackTitle,
     sender_name: nullableStr(r.sender_name),
     sender_email: nullableStr(r.sender_email)?.toLowerCase() ?? null,
@@ -149,6 +162,17 @@ export async function triagePendingLeads(
   const db = leadsDb()
   const deadline = Date.now() + budgetMs
 
+  // The taxonomy, read ONCE per run rather than per thread. Two reasons beyond
+  // the obvious: the prompt is rebuilt from it, so re-reading mid-run could
+  // change the category set between two threads of the same sweep and make the
+  // progress tally incoherent; and the system prompt is the KV cache prefix, so
+  // holding it identical across the run is what keeps every thread after the
+  // first off a cold prefill (§12, 09-29).
+  const categories: LeadCategory[] = await listCategories()
+  const activeKeys = new Set(categories.filter((c) => c.active).map((c) => c.key))
+  const systemPrompt = buildLeadTriageSystemPrompt(categories)
+  const promptVersion = leadTriagePromptVersion(categories)
+
   const progress: TriageProgress = {
     processed: 0,
     split: 0,
@@ -156,7 +180,7 @@ export async function triagePendingLeads(
     rejected: 0,
     failed: 0,
     remaining: 0,
-    byRoute: { steel: 0, dino: 0, construction: 0, corporate: 0, unknown: 0 },
+    byRoute: Object.fromEntries(categories.map((c) => [c.key, 0])),
     outOfTime: false,
   }
 
@@ -199,16 +223,16 @@ export async function triagePendingLeads(
       try {
         const { data: raw } = await callGemini<Partial<LeadTriageBatch>>({
           task: 'lead-triage',
-          systemPrompt: LEAD_TRIAGE_SYSTEM_PROMPT,
+          systemPrompt,
           userMessage: text,
           userId,
-          promptVersion: LEAD_TRIAGE_PROMPT_VERSION,
+          promptVersion,
           maxTokens: 4096,
         })
 
         if (!raw || typeof raw !== 'object') throw new Error('Model did not return JSON.')
 
-        const found = normalizeBatch(raw, row.subject ?? '(no subject)')
+        const found = normalizeBatch(raw, row.subject ?? '(no subject)', activeKeys)
         if (found.length > 1) progress.split++
 
         for (const [index, t] of found.entries()) {
@@ -249,7 +273,7 @@ export async function triagePendingLeads(
 
         if (t.is_lead) {
           progress.leads++
-          progress.byRoute[t.route]++
+          progress.byRoute[t.route] = (progress.byRoute[t.route] ?? 0) + 1
         } else {
           progress.rejected++
         }

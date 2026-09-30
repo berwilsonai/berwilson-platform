@@ -7,37 +7,92 @@
  * bg/text/ring triple with dark variants.
  */
 
-import type { LeadRoute } from '@/lib/ai/prompts/lead-triage'
+import { enumLabel } from '@/lib/utils/constants'
 import type { LeadStatus, FitRecommendation, LeadSource } from '@/lib/leads/db'
 
-export const ROUTE_LABELS: Record<LeadRoute, string> = {
-  steel: 'Steel',
-  dino: 'Dino',
-  construction: 'Construction',
-  corporate: 'Corporate',
-  unknown: 'Unsorted',
+/**
+ * What a lead of a category becomes when a human accepts it.
+ *
+ * Defined HERE rather than in `src/lib/leads/categories.ts` so the dependency
+ * points the right way: this module is pure and imported by client components,
+ * the registry holds the service-role client and is server-only. The registry
+ * imports this type; nothing imports the registry from the browser.
+ */
+export type LeadDestination = 'project' | 'opportunity' | 'steel_deal' | 'handoff' | 'manual'
+
+/**
+ * A category as a client component sees it — plain data, passed down as props.
+ *
+ * A deliberate subset: the handoff address, the Drive folder id and the share
+ * list never reach the browser. A lead's queue card has no use for them, and an
+ * outside collaborator's address is not something to ship into a page.
+ */
+export interface LeadCategoryView {
+  key: string
+  label: string
+  destination: LeadDestination
+  /** One line under the lead's title saying where this is headed. */
+  destination_note: string | null
+  /** Whether a handoff address is configured — not the address itself. */
+  handoff_ready: boolean
+  tone: string
+  active: boolean
 }
 
-/** Where a lead of each route is destined to land, in plain words. */
-export const ROUTE_DESTINATIONS: Record<LeadRoute, string> = {
-  steel: 'Prefab steel — quotes in the Steel CRM',
-  dino: 'Plumbing / HVAC — forwarded to Dino Service Pros',
-  construction: 'General construction & infrastructure — becomes a project',
-  corporate: 'Acquisitions, JVs, equity — becomes an opportunity',
-  unknown: 'A real lead the AI could not categorize',
-}
-
-export const ROUTE_BADGE: Record<LeadRoute, string> = {
-  steel:
+/**
+ * The badge palette, keyed by tone NAME.
+ *
+ * ⚠ These class strings must be literal in this file. Tailwind v4 emits only
+ * the classes it finds by scanning source, so a class string stored in the
+ * database and interpolated at runtime would produce an unstyled chip with no
+ * error anywhere. The database stores the tone's NAME; this maps it.
+ *
+ * Adding a line of business therefore picks a tone from this list rather than
+ * inventing one — which is also why the settings screen offers them as a
+ * dropdown instead of a text field.
+ */
+export const TONE_BADGE: Record<string, string> = {
+  blue: 'bg-blue-50 text-blue-700 ring-blue-200 dark:bg-blue-500/15 dark:text-blue-300 dark:ring-blue-500/30',
+  violet:
     'bg-violet-50 text-violet-700 ring-violet-200 dark:bg-violet-500/15 dark:text-violet-300 dark:ring-violet-500/30',
-  dino:
-    'bg-cyan-50 text-cyan-700 ring-cyan-200 dark:bg-cyan-500/15 dark:text-cyan-300 dark:ring-cyan-500/30',
-  construction:
-    'bg-blue-50 text-blue-700 ring-blue-200 dark:bg-blue-500/15 dark:text-blue-300 dark:ring-blue-500/30',
-  corporate:
+  cyan: 'bg-cyan-50 text-cyan-700 ring-cyan-200 dark:bg-cyan-500/15 dark:text-cyan-300 dark:ring-cyan-500/30',
+  teal: 'bg-teal-50 text-teal-700 ring-teal-200 dark:bg-teal-500/15 dark:text-teal-300 dark:ring-teal-500/30',
+  amber:
     'bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-500/15 dark:text-amber-300 dark:ring-amber-500/30',
-  unknown:
+  rose: 'bg-rose-50 text-rose-700 ring-rose-200 dark:bg-rose-500/15 dark:text-rose-300 dark:ring-rose-500/30',
+  emerald:
+    'bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-500/15 dark:text-emerald-300 dark:ring-emerald-500/30',
+  indigo:
+    'bg-indigo-50 text-indigo-700 ring-indigo-200 dark:bg-indigo-500/15 dark:text-indigo-300 dark:ring-indigo-500/30',
+  sky: 'bg-sky-50 text-sky-700 ring-sky-200 dark:bg-sky-500/15 dark:text-sky-300 dark:ring-sky-500/30',
+  slate:
     'bg-slate-50 text-slate-600 ring-slate-200 dark:bg-slate-500/15 dark:text-slate-300 dark:ring-slate-500/30',
+}
+
+/** Tone names offered in the settings screen, in the order they are shown. */
+export const TONE_NAMES = Object.keys(TONE_BADGE)
+
+/**
+ * Read a lead's category vocabulary without every caller writing the same
+ * `?? fallback` chain.
+ *
+ * Built over a list the server already loaded, so it is a Map lookup rather
+ * than a round trip. Every accessor degrades: a lead whose category was renamed
+ * out from under it still renders a humanised key and a slate chip rather than
+ * a blank cell (§12 — never print a stored key at a reader).
+ */
+export type CategoryLookup = ReturnType<typeof categoryLookup>
+
+export function categoryLookup(categories: LeadCategoryView[]) {
+  const map = new Map(categories.map((c) => [c.key, c]))
+  return {
+    all: categories,
+    get: (key: string): LeadCategoryView | null => map.get(key) ?? null,
+    label: (key: string): string => map.get(key)?.label ?? enumLabel(key),
+    tone: (key: string): string => TONE_BADGE[map.get(key)?.tone ?? 'slate'] ?? TONE_BADGE.slate,
+    note: (key: string): string | null => map.get(key)?.destination_note ?? null,
+    destination: (key: string): LeadDestination => map.get(key)?.destination ?? 'manual',
+  }
 }
 
 /**
@@ -102,43 +157,36 @@ export const FIT_LABELS: Record<FitRecommendation, string> = {
   pass: 'Pass',
 }
 
-/** Route tab order — the two operating-company lanes first, then the pipeline. */
-export const ROUTE_TABS: LeadRoute[] = [
-  'construction',
-  'steel',
-  'dino',
-  'corporate',
-  'unknown',
-]
-
 /**
- * Which record a lead becomes, derived from the route triage already chose.
+ * Which one-click destination a lead offers, derived from its category.
  *
  * ⚠ Across 1,268 leads scored, ZERO were ever promoted or forwarded. Part of
  * that was surfacing, but part was this: the detail sheet offered four
  * destination buttons and nothing anywhere recommended one, so every promotion
- * asked a question the pipeline had in fact already answered. `route` IS that
- * answer — it is what the triage prompt is FOR.
+ * asked a question the pipeline had in fact already answered. The category IS
+ * that answer — it is what the triage prompt is FOR.
  *
- * `unknown` deliberately maps to null. A lead the triage could not place is
- * exactly the one a human should place, and offering a one-click Accept that
- * guesses between four record types would file deals into the wrong module
- * silently. Null means "open the sheet", not "do nothing".
+ * `manual` deliberately maps to null. A lead the triage could not place is
+ * exactly the one a human should place, and a one-click Accept that guessed
+ * between five record types would file deals into the wrong module silently.
+ * Null means "open the sheet", not "do nothing".
  */
-export type LeadPromoteTarget = 'project' | 'opportunity' | 'steel' | 'forward'
+export type LeadPromoteTarget = 'project' | 'opportunity' | 'steel' | 'handoff'
 
-export function promoteTargetFor(route: string | null | undefined): LeadPromoteTarget | null {
-  switch (route) {
-    case 'construction':
+export function promoteTargetFor(
+  destination: LeadDestination | null | undefined
+): LeadPromoteTarget | null {
+  switch (destination) {
+    case 'project':
       return 'project'
-    case 'steel':
+    case 'steel_deal':
       return 'steel'
-    case 'corporate':
+    case 'opportunity':
       return 'opportunity'
-    // Dino has no platform access, so its leads leave by email rather than
-    // becoming a record here — the same exit the detail sheet offers.
-    case 'dino':
-      return 'forward'
+    // A handoff lane's audience has no platform login, so its leads leave by
+    // email rather than becoming a record here.
+    case 'handoff':
+      return 'handoff'
     default:
       return null
   }

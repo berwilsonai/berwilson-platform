@@ -16,6 +16,7 @@
  */
 
 import { leadsDb } from '@/lib/leads/db'
+import { FALLBACK_ROUTE, resolveRoute } from '@/lib/leads/categories'
 import {
   listSubfolders,
   listFolder,
@@ -48,12 +49,26 @@ function folderUrl(id: string): string {
 }
 
 /**
+ * Resolve the form's route against the live registry.
+ *
+ * The web form's default is `construction` rather than `unknown`: a deal
+ * submitted through berwilson.com's own form is by definition built work
+ * somebody is bringing us, so parking it in the unsorted pile would be an
+ * invented uncertainty. An explicit, still-active category on the form always
+ * wins.
+ */
+async function intakeRoute(raw: string | null): Promise<string> {
+  const resolved = await resolveRoute(raw)
+  return resolved === FALLBACK_ROUTE ? 'construction' : resolved
+}
+
+/**
  * Turn the parsed manifest into a `leads` row.
  *
  * Field names mirror what triage writes for an email lead, so the queue, the
  * detail sheet, promotion, and the agent tools all treat both sources alike.
  */
-function leadFromManifest(intake: DealIntake, folder: DriveFile) {
+function leadFromManifest(intake: DealIntake, folder: DriveFile, route: string) {
   // The checklist is what the fit assessor should weigh, so it is folded into
   // key_facts in the same string[] shape triage produces for email leads.
   // Written out with the question's LABEL, not its key: `fin_capital_stack` is
@@ -73,7 +88,7 @@ function leadFromManifest(intake: DealIntake, folder: DriveFile) {
     thread_id: null,
     source: 'web_form',
     mailbox: null,
-    route: intake.route === 'unknown' ? 'construction' : intake.route,
+    route,
     status: 'new',
     title: intake.title,
     received_at: intake.submitted_at ?? folder.modifiedTime ?? new Date().toISOString(),
@@ -175,7 +190,7 @@ export async function scanDealIntake(
 
       const { error: insertErr } = await db
         .from('leads')
-        .insert(leadFromManifest(parsed.value, folder))
+        .insert(leadFromManifest(parsed.value, folder, await intakeRoute(parsed.value.route)))
       if (insertErr) {
         // 23505: the unique index on drive_folder_id caught a double-insert
         // (two runs overlapping). That is the latch working, not a failure.

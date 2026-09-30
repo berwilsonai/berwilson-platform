@@ -5,8 +5,7 @@ import { Paperclip, Building2, MapPin, X, Loader2, ListChecks } from 'lucide-rea
 import { Chip } from '@/components/ui/chip'
 import { formatValue, bidDueLabel, bidDueColor } from '@/lib/utils/constants'
 import {
-  ROUTE_LABELS,
-  ROUTE_BADGE,
+  type CategoryLookup,
   FIT_BADGE,
   FIT_LABELS,
   STATUS_BADGE,
@@ -21,11 +20,14 @@ import type { LeadRow } from '@/lib/leads/db'
  * we scored it, what it is, who sent it, and when it closes.
  */
 export default function LeadCard({
+  cat,
   lead,
   onOpen,
   onDelete,
 }: {
   lead: LeadRow
+  /** Category vocabulary from categoryLookup() — label and tone for this lane. */
+  cat: CategoryLookup
   onOpen: (lead: LeadRow) => void
   onDelete: (lead: LeadRow) => Promise<void>
 }) {
@@ -107,7 +109,7 @@ export default function LeadCard({
         </div>
 
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-          <Chip tone={ROUTE_BADGE[lead.route]}>{ROUTE_LABELS[lead.route]}</Chip>
+          <Chip tone={cat.tone(lead.route)}>{cat.label(lead.route)}</Chip>
           {/* Only the non-default source is worth a chip — most leads are mail,
               and labelling every one of them says nothing. */}
           {lead.source === 'web_form' && (

@@ -17,9 +17,9 @@ import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { viewDocument, downloadDocument } from '@/lib/utils/document-links'
 import { formatValue, formatDate, bidDueLabel, bidDueColor } from '@/lib/utils/constants'
 import {
-  ROUTE_LABELS, ROUTE_BADGE, ROUTE_DESTINATIONS, STATUS_BADGE, STATUS_LABELS, gmailThreadUrl,
+  categoryLookup, promoteTargetFor, STATUS_BADGE, STATUS_LABELS, gmailThreadUrl,
+  type LeadCategoryView,
 } from '@/lib/utils/leads'
-import { LEAD_ROUTES, type LeadRoute } from '@/lib/ai/prompts/lead-triage'
 import { DEAL_CHECKLIST, CHECKLIST_BY_KEY } from '@/lib/deal-intake/checklist'
 import type { LeadRow, LeadNote, IntakeAnswer } from '@/lib/leads/db'
 
@@ -203,6 +203,7 @@ export default function LeadDetailSheet({
   onSelectSibling,
   notes = [],
   attachOptions = [],
+  categories = [],
 }: {
   lead: LeadRow | null
   open: boolean
@@ -221,6 +222,8 @@ export default function LeadDetailSheet({
   notes?: LeadNote[]
   /** Existing records this lead can be attached to rather than duplicating. */
   attachOptions?: AttachOption[]
+  /** The routing registry, in display order. */
+  categories?: LeadCategoryView[]
 }) {
   const router = useRouter()
   const [busy, setBusy] = useState<string | null>(null)
@@ -232,6 +235,13 @@ export default function LeadDetailSheet({
   if (!lead) return null
 
   const isOpenStatus = lead.status === 'new' || lead.status === 'reviewing'
+
+  const cat = categoryLookup(categories)
+  const category = cat.get(lead.route)
+  // What this lead's OWN category says it becomes. The buttons follow this
+  // rather than offering all five destinations at once: the route is the answer
+  // the triage pass exists to produce, and asking again discards it.
+  const recommended = promoteTargetFor(category?.destination)
 
   async function patch(body: Record<string, unknown>, message: string) {
     if (!lead) return
@@ -310,14 +320,21 @@ export default function LeadDetailSheet({
     if (!lead) return
     setBusy('forward')
     try {
-      const res = await fetch(`/api/leads/${lead.id}/forward`, {
+      const res = await fetch(`/api/leads/${lead.id}/handoff`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({}),
       })
       const json = await res.json()
       if (!res.ok) throw new Error(json.error ?? 'Send failed.')
-      toast.success(`Sent to ${json.to} with ${json.attachmentsSent} file(s).`)
+      // Names the lane and the address: two lanes can go to the same company,
+      // and "sent to Dino" would not say which team now owns it.
+      toast.success(
+        `Handed to ${json.label} at ${json.to} — ${json.attachmentsSent} file(s).`,
+        json.folderUrl
+          ? { action: { label: 'Open in Drive', onClick: () => window.open(json.folderUrl, '_blank') } }
+          : undefined
+      )
       onChanged(null)
       onOpenChange(false)
       router.refresh()
@@ -367,7 +384,7 @@ export default function LeadDetailSheet({
 
           <div className="px-4 pb-8 space-y-5">
             <div className="flex flex-wrap items-center gap-2">
-              <Chip tone={ROUTE_BADGE[lead.route]}>{ROUTE_LABELS[lead.route]}</Chip>
+              <Chip tone={cat.tone(lead.route)}>{cat.label(lead.route)}</Chip>
               <Chip tone={STATUS_BADGE[lead.status]}>{STATUS_LABELS[lead.status]}</Chip>
               {lead.bid_due_date && (
                 <span className={`text-sm font-medium ${bidDueColor(lead.bid_due_date)}`}>
@@ -375,8 +392,6 @@ export default function LeadDetailSheet({
                 </span>
               )}
             </div>
-
-            <p className="text-xs text-muted-foreground">{ROUTE_DESTINATIONS[lead.route]}</p>
 
             {lead.status === 'spam' && lead.spam_reason && (
               <div className="rounded-md bg-muted/30 p-3 text-sm">
@@ -521,7 +536,7 @@ export default function LeadDetailSheet({
                         {s.title}
                       </button>
                       <span className="ml-2 text-xs text-muted-foreground">
-                        {s.route}
+                        {cat.label(s.route)}
                         {s.estimated_value ? ` · ${formatValue(s.estimated_value)}` : ''}
                       </span>
                     </li>
@@ -609,19 +624,29 @@ export default function LeadDetailSheet({
             {/* ── Actions ───────────────────────────────────────────────── */}
             <div className="space-y-3 border-t border-border pt-4">
               <div className="space-y-1">
-                <p className="label-caps text-muted-foreground">Route</p>
+                <p className="label-caps text-muted-foreground">Line of business</p>
                 <select
                   value={lead.route}
-                  onChange={(e) => patch({ route: e.target.value }, 'Route updated.')}
+                  onChange={(e) => patch({ route: e.target.value }, 'Category updated.')}
                   disabled={busy !== null}
-                  className="h-8 w-full rounded-md border border-border bg-background px-2 text-sm"
+                  className="h-8 w-full rounded-md border border-border bg-background px-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
                 >
-                  {LEAD_ROUTES.map((r) => (
-                    <option key={r} value={r}>
-                      {ROUTE_LABELS[r as LeadRoute]}
-                    </option>
-                  ))}
+                  {/* Active lanes, plus this lead's own if it has been retired —
+                      a retired category must stay selected on the leads it
+                      already owns, or opening one silently re-routes it to
+                      whatever happens to sort first. */}
+                  {categories
+                    .filter((c) => c.active || c.key === lead.route)
+                    .map((c) => (
+                      <option key={c.key} value={c.key}>
+                        {c.label}
+                        {!c.active ? ' (retired)' : ''}
+                      </option>
+                    ))}
                 </select>
+                {cat.note(lead.route) && (
+                  <p className="text-xs text-muted-foreground">{cat.note(lead.route)}</p>
+                )}
               </div>
 
               {lead.status === 'spam' ? (
@@ -637,36 +662,125 @@ export default function LeadDetailSheet({
               ) : (
                 isOpenStatus && (
                   <>
-                    <div className="grid grid-cols-2 gap-2">
+                    {/* THE CATEGORY IS THE RECOMMENDATION, so its own
+                        destination is the primary button and the rest are a
+                        disclosure. Offering all five at equal weight is what had
+                        1,268 scored leads and zero ever promoted: every
+                        promotion re-asked a question the triage pass had already
+                        answered, so the reader answered none of them. */}
+                    {recommended === 'handoff' ? (
+                      category?.handoff_ready ? (
+                        <Button className="w-full" disabled={busy !== null} onClick={forward}>
+                          <Send className="size-4" />
+                          {busy === 'forward'
+                            ? 'Sending…'
+                            : `Hand off to ${category.label}`}
+                        </Button>
+                      ) : (
+                        // Named rather than disabled-and-silent: this is exactly
+                        // the failure DINO_LEAD_EMAIL produced for a year — a
+                        // button that looked live and 400'd on press.
+                        <div className="space-y-1.5 rounded-md border border-amber-300 bg-amber-50/60 p-2.5 dark:border-amber-700/60 dark:bg-amber-950/30">
+                          <p className="text-xs text-amber-800 dark:text-amber-200">
+                            {category?.label ?? 'This category'} has no handoff address yet, so
+                            there is nobody to send it to.
+                          </p>
+                          <Link
+                            href="/settings/lead-categories"
+                            className="inline-flex items-center gap-1 text-xs font-medium text-amber-900 underline dark:text-amber-100"
+                          >
+                            Add one in Lead categories
+                            <ExternalLink className="size-3" />
+                          </Link>
+                        </div>
+                      )
+                    ) : recommended ? (
                       <Button
-                        variant="outline"
+                        className="w-full"
                         disabled={busy !== null}
-                        onClick={() => setConfirmTarget('project')}
+                        onClick={() => setConfirmTarget(recommended)}
                       >
-                        <FolderKanban className="size-4" />
-                        To project
+                        {recommended === 'project' ? (
+                          <FolderKanban className="size-4" />
+                        ) : recommended === 'steel' ? (
+                          <Factory className="size-4" />
+                        ) : (
+                          <Lightbulb className="size-4" />
+                        )}
+                        {recommended === 'project'
+                          ? 'Create project'
+                          : recommended === 'steel'
+                            ? 'Create steel deal'
+                            : 'Create opportunity'}
                       </Button>
-                      <Button
-                        variant="outline"
-                        disabled={busy !== null}
-                        onClick={() => setConfirmTarget('opportunity')}
-                      >
-                        <Lightbulb className="size-4" />
-                        To opportunity
-                      </Button>
-                      <Button
-                        variant="outline"
-                        disabled={busy !== null}
-                        onClick={() => setConfirmTarget('steel')}
-                      >
-                        <Factory className="size-4" />
-                        To Steel CRM
-                      </Button>
-                      <Button variant="outline" disabled={busy !== null} onClick={forward}>
-                        <Send className="size-4" />
-                        {busy === 'forward' ? 'Sending…' : 'Send to Dino'}
-                      </Button>
-                    </div>
+                    ) : (
+                      // `manual` — the triage could not place it, which is
+                      // precisely when a one-click destination would file a deal
+                      // into the wrong module silently.
+                      <p className="text-xs text-muted-foreground">
+                        Unsorted. Pick a line of business above, or choose a destination below.
+                      </p>
+                    )}
+
+                    {/* Never a dead end: every other destination stays one
+                        disclosure away, for the lead whose category is right but
+                        whose destination this time is not. */}
+                    <details className="group">
+                      <summary className="cursor-pointer list-none text-xs text-muted-foreground underline decoration-dotted outline-none focus-visible:text-foreground">
+                        Other destinations
+                      </summary>
+                      <div className="mt-2 grid grid-cols-2 gap-2">
+                        {recommended !== 'project' && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={busy !== null}
+                            onClick={() => setConfirmTarget('project')}
+                          >
+                            <FolderKanban className="size-4" />
+                            To project
+                          </Button>
+                        )}
+                        {recommended !== 'opportunity' && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={busy !== null}
+                            onClick={() => setConfirmTarget('opportunity')}
+                          >
+                            <Lightbulb className="size-4" />
+                            To opportunity
+                          </Button>
+                        )}
+                        {recommended !== 'steel' && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={busy !== null}
+                            onClick={() => setConfirmTarget('steel')}
+                          >
+                            <Factory className="size-4" />
+                            To Steel CRM
+                          </Button>
+                        )}
+                        {recommended !== 'handoff' && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={busy !== null || !category?.handoff_ready}
+                            onClick={forward}
+                            title={
+                              category?.handoff_ready
+                                ? undefined
+                                : 'This category has no handoff address configured.'
+                            }
+                          >
+                            <Send className="size-4" />
+                            {busy === 'forward' ? 'Sending…' : 'Hand off by email'}
+                          </Button>
+                        )}
+                      </div>
+                    </details>
 
                     {/* Attach to a record that already exists.
                         The fourth answer, and the one the buttons above cannot

@@ -9,6 +9,8 @@ import {
 } from '@/lib/leads/db'
 import LeadsClient from '@/components/leads/LeadsClient'
 import type { AttachOption } from '@/components/leads/LeadDetailSheet'
+import { listCategories } from '@/lib/leads/categories'
+import { toCategoryViews } from '@/lib/leads/category-view'
 
 export const metadata = { title: 'Leads — Ber Wilson Intelligence' }
 
@@ -30,6 +32,12 @@ export default async function LeadsPage({
   if (viewer && !viewer.isAdmin) redirect('/tasks')
 
   const db = leadsDb()
+
+  // The taxonomy, shipped down as props. `listCategories` holds the service-role
+  // client, so it is server-only and must not be reached from the client bundle
+  // (§12); `toCategoryViews` drops the handoff addresses and Drive ids on the
+  // way out, so the browser sees labels and tones and nothing operational.
+  const categories = toCategoryViews(await listCategories())
 
   // Open queue plus everything triage rejected, in one trip. The client hides
   // the rejected rows behind a toggle; they're loaded so that toggle is instant
@@ -125,8 +133,9 @@ export default async function LeadsPage({
           <h1 className="text-2xl">Leads</h1>
           <p className="text-sm text-muted-foreground">
             Bid invitations arriving at info@ and deals submitted through the website form, read
-            and scored against what Ber Wilson actually pursues. Promote one and it becomes a
-            project, an opportunity, or a steel deal — or attach it to the record it already
+            and scored against what Ber Wilson actually pursues. Each lead is sorted into a line
+            of business, which decides where it goes: a project, an opportunity, a steel deal, a
+            handoff to the trade that does the work — or attached to the record it already
             belongs to.
           </p>
         </div>
@@ -137,6 +146,7 @@ export default async function LeadsPage({
         initialLeads={leads}
         filteredCount={filteredCount ?? 0}
         attachOptions={attachOptions}
+        categories={categories}
       />
     </div>
   )

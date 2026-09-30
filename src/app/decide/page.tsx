@@ -3,12 +3,13 @@ import { redirect } from 'next/navigation'
 import { getViewer } from '@/lib/auth/viewer'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { leadsDb, type LeadRow } from '@/lib/leads/db'
-import DecideClient, { type DecideItem } from '@/components/decide/DecideClient'
+import DecideClient, { type DecideItem, type AcceptAction } from '@/components/decide/DecideClient'
 import { reviewReasonLabel } from '@/lib/utils/review'
 import { enumLabel, ACTIVITY_TABLE_LABELS } from '@/lib/utils/constants'
 import { buildConfirmBody } from '@/lib/email-ingestion/defaults'
 import { parseStagedAttachments } from '@/lib/email-ingestion/attachments'
 import { promoteTargetFor } from '@/lib/utils/leads'
+import { listCategories } from '@/lib/leads/categories'
 import type { EmailIntakeExtraction } from '@/lib/ai/prompts/email-intake'
 import type { PartyMatch } from '@/lib/ai/proposal-matching'
 
@@ -66,6 +67,43 @@ export default async function DecidePage() {
   const items: DecideItem[] = []
 
   // --- Inbound leads: unclaimed bid invitations, best first -----------------
+  // The routing registry, read once for the whole page.
+  const categories = await listCategories()
+  const byKey = new Map(categories.map((c) => [c.key, c]))
+
+  /**
+   * What accepting a lead from this queue does, and why it sometimes cannot.
+   *
+   * Three distinct outcomes, and they must not collapse into one: a lane with a
+   * destination is acceptable in place; an unsorted lead needs a human to place
+   * it; and a handoff lane with no address configured is acceptable in
+   * principle but would fail on press. That last one is the case worth naming —
+   * it is the DINO_LEAD_EMAIL failure, where a live-looking button 400'd.
+   */
+  function leadAccept(route: string): {
+    action: AcceptAction | null
+    to: string | null
+    blocker: string | null
+  } {
+    const category = byKey.get(route)
+    const action = promoteTargetFor(category?.destination)
+    if (!action) {
+      return {
+        action: null,
+        to: null,
+        blocker: 'Unsorted — open the lead and choose its line of business.',
+      }
+    }
+    if (action === 'handoff' && !category?.handoff_email?.includes('@')) {
+      return {
+        action: null,
+        to: null,
+        blocker: `${category?.label ?? 'This line of business'} has no handoff address — add one in Settings → Lead categories.`,
+      }
+    }
+    return { action, to: action === 'handoff' ? (category?.label ?? null) : null, blocker: null }
+  }
+
   for (const raw of (leadRows ?? []) as LeadRow[]) {
     if (raw.fit_recommendation === 'pass') continue
     items.push({
@@ -94,13 +132,12 @@ export default async function DecidePage() {
             ? { label: 'RFI by', date: raw.rfi_due_date }
             : null,
       },
-      // The route the triage already chose says which record this becomes; an
-      // unrouted lead offers no Accept rather than guessing between four.
-      accept: promoteTargetFor(raw.route),
-      blocker:
-        promoteTargetFor(raw.route) === null
-          ? 'Unrouted — open the lead and choose where it belongs.'
-          : null,
+      // The line of business the triage already chose says which record this
+      // becomes; an unsorted lead offers no Accept rather than guessing between
+      // five destinations.
+      accept: leadAccept(raw.route).action,
+      acceptTo: leadAccept(raw.route).to,
+      blocker: leadAccept(raw.route).blocker,
     })
   }
 

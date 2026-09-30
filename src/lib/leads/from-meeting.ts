@@ -21,6 +21,7 @@
 
 import { leadsDb } from './db'
 import type { LeadRoute } from '@/lib/ai/prompts/lead-triage'
+import { FALLBACK_ROUTE, listActiveCategories } from './categories'
 
 /** What the reviewer confirmed about one candidate deal from the call. */
 export interface MeetingLeadInput {
@@ -56,14 +57,26 @@ export interface MeetingLeadResult {
 /**
  * Route a meeting lead into the same lanes the email triage uses.
  *
- * Mirrors `promoteTargetFor` in reverse: construction leads become projects,
- * corporate leads become opportunities. Steel and Dino are deliberately absent —
+ * Mirrors `promoteTargetFor` in reverse: the reviewer said this site should
+ * become a project or an opportunity, so it lands in the lane whose destination
+ * IS that. The service trades and steel are deliberately unreachable here —
  * they are decided by what the WORK is, which a reviewer tagging a site on a
  * portfolio call has not said. `unknown` would bury these in the Unsorted tab,
- * so the reviewer's own project/opportunity choice is honoured instead.
+ * so the reviewer's own choice is honoured instead.
+ *
+ * Resolved against the registry rather than returning a literal: `leads.route`
+ * is an FK now, so a renamed or retired lane would make every insert here fail
+ * with a 23503 and lose the lead. Finding the lane BY ITS DESTINATION also
+ * means a lane renamed from "Construction" to something else still works,
+ * because what this function actually knows is "becomes a project".
  */
-function routeFor(kind: 'project' | 'opportunity'): LeadRoute {
-  return kind === 'opportunity' ? 'corporate' : 'construction'
+async function routeFor(kind: 'project' | 'opportunity'): Promise<LeadRoute> {
+  const wanted = kind === 'opportunity' ? 'opportunity' : 'project'
+  const categories = await listActiveCategories()
+  const match =
+    categories.find((c) => c.destination === wanted && c.key === (kind === 'opportunity' ? 'corporate' : 'construction')) ??
+    categories.find((c) => c.destination === wanted)
+  return match?.key ?? FALLBACK_ROUTE
 }
 
 /**
@@ -113,7 +126,7 @@ export async function createLeadFromMeeting(
       thread_id: null,
       mailbox: null,
       source: 'meeting',
-      route: routeFor(input.kind),
+      route: await routeFor(input.kind),
       status: 'new',
       title: name,
       // The call is when we heard about it, which is what the queue sorts on.

@@ -23,6 +23,8 @@ import { syncLeadTasks, type LeadTaskProgress } from './tasks'
 import { syncLeadLabels, type LeadLabelProgress } from './gmail-sync'
 import { draftLeadReplies, type LeadDraftProgress } from './draft-reply'
 import { publishLeadSheetsQuietly, type PublishSheetsResult } from './sheet'
+import { assertCategoryFolderSharing } from './drive'
+import { listCategories } from './categories'
 import { runMailboxHygiene, type HygieneProgress } from './mailbox-hygiene'
 
 export type LeadPhase =
@@ -65,6 +67,8 @@ export interface LeadSweepResult {
   labels?: LeadLabelProgress
   drafts?: LeadDraftProgress
   sheets?: PublishSheetsResult | null
+  /** Outside addresses granted reader on each lane's Drive folder this run. */
+  folderSharing?: { folder: string; granted: string[]; failed: string[] }[]
   hygiene?: HygieneProgress
   elapsedMs: number
   moreWork: boolean
@@ -272,11 +276,22 @@ export async function runLeadSweep(opts: LeadSweepOptions = {}): Promise<LeadSwe
   }
 
   if (phases.includes('sheets')) {
-    // Also outside the budget check, and also cheap: two Drive writes. This is
-    // the only way the steel reps and Dino — none of whom have a platform
-    // login, and Dino never will — see the queue at all, so it must not be the
+    // Also outside the budget check, and also cheap: one Drive write per lane
+    // that asks for a sheet. This is the only way the steel reps, Dino's two
+    // teams and the flooring crew — none of whom have a platform login, and
+    // most of whom never will — see the queue at all, so it must not be the
     // phase that gets skipped when a long triage overruns.
     result.sheets = await publishLeadSheetsQuietly()
+
+    // Re-assert sharing on each lane's own Drive FOLDER, where the handed-off
+    // files live. The sheets assert their own; the folders have no other
+    // occasion to, because a handoff only touches the one lane it went to.
+    result.folderSharing = await assertCategoryFolderSharing(await listCategories()).catch(
+      (err: unknown) => {
+        console.warn('[leads] could not assert lane folder sharing:', err)
+        return []
+      }
+    )
     result.ranPhases.push('sheets')
   }
 

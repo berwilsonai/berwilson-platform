@@ -60,6 +60,13 @@ export interface DecideItem {
   accept: AcceptAction | null
   /** The record's name, so the confirmation can say what it will create. */
   acceptName?: string | null
+  /**
+   * Who a `handoff` goes to, in words — the lane's label ("Dino Plumbing").
+   *
+   * Server-supplied: the address itself never reaches the page, only the name
+   * of the team it belongs to.
+   */
+  acceptTo?: string | null
   /** Why Accept is unavailable. Shown in place of the button. */
   blocker?: string | null
   /**
@@ -86,7 +93,15 @@ export interface DecideItem {
  * The click IS the human review the invariant requires; what changed is where
  * the click lives. The review screens remain for when you want to edit first.
  */
-export type AcceptAction = 'project' | 'opportunity' | 'merge' | 'steel' | 'forward' | 'approve'
+/**
+ * `handoff` was `forward`, renamed when Dino became two lanes.
+ *
+ * The word matters at the reader: "Send to Dino" was accurate while Dino was
+ * the only destination outside the platform, and became a lie the moment a
+ * flooring lead could take the same exit. What the button now says is the lane's
+ * own name, carried on the row as `acceptTo`.
+ */
+export type AcceptAction = 'project' | 'opportunity' | 'merge' | 'steel' | 'handoff' | 'approve'
 
 /** An item with its days-to-deadline resolved against a fixed clock. */
 type Dated = DecideItem & { daysLeft: number | null }
@@ -240,16 +255,32 @@ const ACCEPT_COPY: Record<AcceptAction, { verb: string; ask: (n: string) => stri
     ask: (n) => `Create the steel deal “${n}” from this bid invitation?`,
     done: 'Steel deal created',
   },
-  forward: {
-    verb: 'Send to Dino',
-    ask: (n) => `Forward “${n}” to Dino by email, with its attachments? Dino has no access here, so this leaves the platform.`,
-    done: 'Sent to Dino',
+  handoff: {
+    verb: 'Hand off',
+    ask: (n) => `Send “${n}” by email, with its attachments? The team that does this work has no access here, so this leaves the platform.`,
+    done: 'Handed off',
   },
   approve: {
     verb: 'Approve',
     ask: (n) => `Approve this match${n ? ` onto “${n}”` : ''}? The correspondence is posted to the record and indexed.`,
     done: 'Match approved',
   },
+}
+
+/**
+ * The button's words.
+ *
+ * A handoff names its destination — "Hand off to Dino Plumbing" — because the
+ * row above it may hand off to somebody else entirely, and "Hand off" alone
+ * would make three different exits look like one.
+ */
+function acceptVerb(item: { accept: AcceptAction | null; acceptTo?: string | null }): string {
+  // Nullable rather than narrowed at each call site: every caller already sits
+  // behind an `item.accept &&` guard, but the guard is on a property of an
+  // object and TypeScript cannot narrow the object from it.
+  if (!item.accept) return 'Accept'
+  const base = ACCEPT_COPY[item.accept].verb
+  return item.accept === 'handoff' && item.acceptTo ? `${base} to ${item.acceptTo}` : base
 }
 
 export default function DecideClient({ items }: { items: DecideItem[] }) {
@@ -394,8 +425,8 @@ export default function DecideClient({ items }: { items: DecideItem[] }) {
       const draft = await getJson(`/api/email-ingestion/sessions/${item.id}`)
       await post('/api/email-ingestion/confirm', (draft as { body: unknown }).body)
     } else if (item.kind === 'lead') {
-      if (item.accept === 'forward') {
-        await post(`/api/leads/${item.id}/forward`, {})
+      if (item.accept === 'handoff') {
+        await post(`/api/leads/${item.id}/handoff`, {})
       } else {
         await post(`/api/leads/${item.id}/promote`, { target: item.accept })
       }
@@ -677,7 +708,7 @@ export default function DecideClient({ items }: { items: DecideItem[] }) {
                     type="button"
                     onClick={() => setAsking(item)}
                     disabled={pending === `${item.kind}:${item.id}`}
-                    title={ACCEPT_COPY[item.accept].verb}
+                    title={acceptVerb(item)}
                     className="inline-flex items-center gap-1 h-11 sm:h-7 px-3 sm:px-2 rounded-md text-xs font-medium bg-primary/10 text-primary hover:bg-primary/20 disabled:opacity-40 transition-colors"
                   >
                     {pending === `${item.kind}:${item.id}` ? (
@@ -685,7 +716,7 @@ export default function DecideClient({ items }: { items: DecideItem[] }) {
                     ) : (
                       <Check size={13} />
                     )}
-                    <span className="hidden sm:inline">{ACCEPT_COPY[item.accept].verb}</span>
+                    <span className="hidden sm:inline">{acceptVerb(item)}</span>
                   </button>
                 ) : (
                   item.blocker && (
@@ -741,9 +772,9 @@ export default function DecideClient({ items }: { items: DecideItem[] }) {
         <ConfirmDialog
           open
           onOpenChange={(o) => !o && setAsking(null)}
-          title={ACCEPT_COPY[asking.accept].verb}
+          title={acceptVerb(asking)}
           description={ACCEPT_COPY[asking.accept].ask(asking.acceptName ?? asking.title)}
-          confirmLabel={ACCEPT_COPY[asking.accept].verb}
+          confirmLabel={acceptVerb(asking)}
           onConfirm={() => accept(asking)}
         />
       )}

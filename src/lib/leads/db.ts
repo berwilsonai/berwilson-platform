@@ -20,6 +20,29 @@ export function leadsDb() {
   )
 }
 
+/**
+ * The same untyped client, carrying the acting user for the activity log.
+ *
+ * `actorAdminClient()` is the typed equivalent and cannot be used on these
+ * tables — `leads` and `lead_categories` post-date the last type generation
+ * (§4). The mechanism is identical: `log_activity` falls back to the
+ * `x-actor-id` request header when `auth.uid()` is null, which it always is on
+ * a service-role write. Without this a human editing a lead category is
+ * recorded as "system" (§12).
+ */
+export function leadsDbAs(actor: { id: string; email?: string | null }) {
+  const headers: Record<string, string> = { 'x-actor-id': actor.id }
+  if (actor.email) headers['x-actor-email'] = actor.email
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    {
+      auth: { autoRefreshToken: false, persistSession: false },
+      global: { headers },
+    }
+  )
+}
+
 export type LeadStatus =
   | 'new'
   | 'reviewing'

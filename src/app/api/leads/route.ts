@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getViewer } from '@/lib/auth/viewer'
 import { leadsDb, OPEN_LEAD_STATUSES, type LeadRow } from '@/lib/leads/db'
-import { LEAD_ROUTES, type LeadRoute } from '@/lib/ai/prompts/lead-triage'
+import { categoriesByKey } from '@/lib/leads/categories'
 
 /**
  * GET /api/leads
@@ -10,7 +10,7 @@ import { LEAD_ROUTES, type LeadRoute } from '@/lib/ai/prompts/lead-triage'
  * so the middleware already blocks every non-admin role. The in-route guard is
  * belt-and-braces, matching the investors/org precedent.
  *
- * ?route=  steel|dino|construction|corporate|unknown
+ * ?route=  any lead_categories.key (see /settings/lead-categories)
  * ?status= a lead status, or 'open' (the default working queue)
  * ?q=      free text over title / sender / summary
  */
@@ -30,8 +30,11 @@ export async function GET(request: NextRequest) {
     query = query.eq('status', status)
   }
 
+  // Checked against the registry rather than a baked-in list. An unknown key
+  // is ignored rather than 400'd, matching how ?status= behaves — a stale
+  // bookmark from a renamed category should show the whole queue, not an error.
   const route = params.get('route')
-  if (route && LEAD_ROUTES.includes(route as LeadRoute)) query = query.eq('route', route)
+  if (route && (await categoriesByKey()).has(route)) query = query.eq('route', route)
 
   const q = params.get('q')?.trim()
   if (q) {

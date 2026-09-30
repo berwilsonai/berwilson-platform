@@ -24,7 +24,9 @@ import { sweepDb } from '@/lib/email-sweep/db'
 import { correspondenceRecency } from '@/lib/email-sweep/filed-threads'
 // Same story for the leads module — it post-dates the last type generation.
 import { leadsDb, parseLeadAttachments, type LeadRow } from '@/lib/leads/db'
-import { ROUTE_LABELS, STATUS_LABELS } from '@/lib/utils/leads'
+import { listCategories } from '@/lib/leads/categories'
+import { toCategoryViews } from '@/lib/leads/category-view'
+import { categoryLookup, STATUS_LABELS } from '@/lib/utils/leads'
 import {
   STEEL_STAGE_LABELS,
   STEEL_PIPELINE,
@@ -273,8 +275,14 @@ export const moduleTools = [
       properties: {
         route: {
           type: 'string',
-          enum: ['steel', 'dino', 'construction', 'corporate', 'unknown'],
-          description: 'Filter by destination.',
+          // Deliberately no `enum`: the taxonomy is data and grows with the
+          // company, while tool declarations are a static array re-sent on
+          // every request. A stale enum would be worse than none — it would
+          // tell the model a lane it must not use and hide one it should.
+          // The executor matches leniently on key OR label, and
+          // get_leads_summary names the live lanes in its own result.
+          description:
+            'Filter by line of business — a lead category key or label, e.g. construction, steel, plumbing, hvac, flooring, corporate. Call get_leads_summary with no arguments to see the lanes that exist and how many open leads each holds.',
         },
         status: {
           type: 'string',
@@ -369,7 +377,7 @@ const num = (v: unknown): number | undefined =>
  * repeating it per row restated the same handful of sentences dozens of times.
  * It is stated once in the tool's own result instead.
  */
-function leadBrief(row: LeadRow) {
+function leadBrief(row: LeadRow, label: (key: string) => string) {
   const days =
     row.bid_due_date !== null
       ? Math.ceil((new Date(row.bid_due_date + 'T00:00:00').getTime() - Date.now()) / 86_400_000)
@@ -377,7 +385,7 @@ function leadBrief(row: LeadRow) {
   const brief: Record<string, unknown> = {
     id: row.id,
     title: row.title,
-    destination: ROUTE_LABELS[row.route] ?? row.route,
+    destination: label(row.route),
     status: STATUS_LABELS[row.status] ?? row.status,
     fit_score: row.fit_score,
     fit_recommendation: row.fit_recommendation,
@@ -1239,8 +1247,18 @@ export async function executeModuleTool(
       // — 16% of the local model's context window in a single tool call.
       const limit = num(args.limit) ?? 20
 
+      // Matched leniently on key OR label, case-insensitively: the tool
+      // declaration carries no enum (the taxonomy is data), so the model may
+      // well say "Dino Plumbing" where the column holds `plumbing`. An
+      // unrecognised value filters on nothing rather than silently returning an
+      // empty queue, which would read as "no leads" instead of "no such lane".
+      const cat = categoryLookup(toCategoryViews(await listCategories()))
       let q = leadsDb().from('leads').select('*')
-      if (str(args.route)) q = q.eq('route', str(args.route))
+      const wanted = str(args.route)?.trim().toLowerCase()
+      const matched = wanted
+        ? cat.all.find((c) => c.key === wanted || c.label.toLowerCase() === wanted)
+        : null
+      if (matched) q = q.eq('route', matched.key)
       if (str(args.status)) q = q.eq('status', str(args.status))
       else if (openOnly) q = q.in('status', ['new', 'reviewing'])
       // Marketing rejects are kept as rows so the filter can be audited, but
@@ -1274,8 +1292,16 @@ export async function executeModuleTool(
               note_on_truncation: `Showing the ${shown.length} soonest-due of ${rows.length} matching leads. Say so rather than implying this is the whole queue. Narrow with route, recommendation, or due_within_days, or raise limit.`,
             }
           : {}),
-        note: 'Leads are UNCLAIMED inbound bid invitations, not pipeline work — never count them as pipeline. Promoting one is what turns it into a project (construction), an opportunity (corporate), a steel deal (steel), or a forward to Dino (dino). Use query_lead for the full detail on any one of them.',
-        leads: shown.map(leadBrief),
+        ...(wanted && !matched
+          ? {
+              unknown_route: `There is no line of business called "${wanted}". This result is the WHOLE queue, not that lane — say so. The lanes that exist are: ${cat.all
+                .filter((c) => c.active)
+                .map((c) => `${c.label} (${c.key})`)
+                .join(', ')}.`,
+            }
+          : {}),
+        note: 'Leads are UNCLAIMED inbound bid invitations, not pipeline work — never count them as pipeline. Each lead carries a line of business, and that is what decides where accepting it sends it: a project, an opportunity, a steel deal, or a handoff by email to the trade that does the work. Use query_lead for the full detail on any one of them.',
+        leads: shown.map((r) => leadBrief(r, cat.label)),
       }
     }
 
@@ -1303,8 +1329,9 @@ export async function executeModuleTool(
       }
       if (!row) return { error: 'No matching lead found.' }
 
+      const queryCat = categoryLookup(toCategoryViews(await listCategories()))
       return {
-        ...leadBrief(row),
+        ...leadBrief(row, queryCat.label),
         // Same reasoning as the project, opportunity and steel tools: recency
         // travels with the record so a stale-status answer cannot be built
         // from this tool alone.
@@ -1351,11 +1378,12 @@ export async function executeModuleTool(
       if (error) return { error: `Could not read leads: ${error.message}` }
       const rows = (data ?? []) as LeadRow[]
 
+      const cat = categoryLookup(toCategoryViews(await listCategories()))
       const open = rows.filter((r) => r.status === 'new' || r.status === 'reviewing')
       const byRoute: Record<string, number> = {}
       for (const r of open) {
-        const label = ROUTE_LABELS[r.route] ?? r.route
-        byRoute[label] = (byRoute[label] ?? 0) + 1
+        const name = cat.label(r.route)
+        byRoute[name] = (byRoute[name] ?? 0) + 1
       }
 
       const cutoff = new Date(Date.now() + windowDays * 86_400_000).toISOString().split('T')[0]
@@ -1371,11 +1399,16 @@ export async function executeModuleTool(
         recommended_consider: open.filter((r) => r.fit_recommendation === 'consider').length,
         not_yet_scored: open.filter((r) => r.score_state !== 'scored').length,
         promoted: rows.filter((r) => r.status === 'promoted').length,
-        forwarded_to_dino: rows.filter((r) => r.status === 'forwarded').length,
+        // Renamed from forwarded_to_dino: a handoff now goes to whichever
+        // trade owns the lane, and Dino is two of them rather than the only one.
+        handed_off_to_a_trade: rows.filter((r) => r.status === 'forwarded').length,
         expired_undecided: rows.filter((r) => r.status === 'expired').length,
         filtered_as_marketing: rows.filter((r) => r.status === 'spam').length,
         overdue_bids: closing.filter((r) => (r.bid_due_date ?? '') < today).length,
-        closing_bids: closing.slice(0, 20).map(leadBrief),
+        closing_bids: closing.slice(0, 20).map((r) => leadBrief(r, cat.label)),
+        lines_of_business: cat.all
+          .filter((c) => c.active)
+          .map((c) => ({ key: c.key, label: c.label, becomes: c.destination })),
       }
     }
 

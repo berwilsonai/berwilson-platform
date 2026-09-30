@@ -541,6 +541,72 @@ export async function shareFileWithRole(
   }
 }
 
+/**
+ * Grant named OUTSIDE addresses reader on one file or folder.
+ *
+ * `shareWithDomain` reaches everyone at berwilson.com and nobody else, which is
+ * the right default and is exactly wrong for the audience this exists to serve:
+ * a flooring subcontractor, or Dino's technicians, are not on the domain. Their
+ * leads were published into a folder they could not open.
+ *
+ * Idempotent by reading the existing grants first — re-sharing on every publish
+ * would re-notify, and a lane's Drive folder is published to hourly.
+ *
+ * `sendNotificationEmail=true` here, unlike everywhere else in this file: an
+ * outside collaborator has no reason to be watching a Drive they have never
+ * seen, so the one-time "you now have access" mail is the only thing that tells
+ * them the folder exists. It fires once per address, on first grant.
+ */
+export async function shareWithAddresses(
+  fileId: string,
+  addresses: string[],
+  mailbox: string = PRIMARY_MAILBOX
+): Promise<{ granted: string[]; failed: string[] }> {
+  const wanted = [...new Set(addresses.map((a) => a.trim().toLowerCase()).filter((a) => a.includes('@')))]
+  const out = { granted: [] as string[], failed: [] as string[] }
+  if (wanted.length === 0) return out
+
+  let existing = new Set<string>()
+  try {
+    const data = await googleFetch<{
+      permissions?: { type?: string; emailAddress?: string }[]
+    }>(
+      `${DRIVE_BASE}/files/${fileId}/permissions?fields=permissions(type,emailAddress)&supportsAllDrives=true`,
+      mailbox
+    )
+    existing = new Set(
+      (data.permissions ?? [])
+        .filter((p) => p.type === 'user' && p.emailAddress)
+        .map((p) => p.emailAddress!.toLowerCase())
+    )
+  } catch {
+    // A failed read must not skip sharing on the assumption it was already
+    // done; Drive rejects a duplicate grant harmlessly.
+  }
+
+  for (const email of wanted) {
+    if (existing.has(email)) continue
+    try {
+      await driveWrite(
+        mailbox,
+        `${DRIVE_BASE}/files/${fileId}/permissions?sendNotificationEmail=true&supportsAllDrives=true`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ type: 'user', role: 'reader', emailAddress: email }),
+        }
+      )
+      out.granted.push(email)
+    } catch (err) {
+      // Named rather than thrown: one bad address must not stop the other
+      // recipients getting access, and the caller reports what did not land.
+      console.warn(`[drive-write] could not share ${fileId} with ${email}:`, err)
+      out.failed.push(email)
+    }
+  }
+  return out
+}
+
 /** Move a file to the trash. Only ever used to clean up a failed generation. */
 export async function trashFile(fileId: string, mailbox: string = PRIMARY_MAILBOX): Promise<void> {
   try {
@@ -552,6 +618,43 @@ export async function trashFile(fileId: string, mailbox: string = PRIMARY_MAILBO
   } catch (err) {
     console.warn(`[drive] could not trash ${fileId}:`, err)
   }
+}
+
+/**
+ * Rename a file. Used to mark a projection the platform has stopped updating.
+ *
+ * Deliberately a rename rather than a trash: somebody may have the link
+ * bookmarked, and a file that vanishes tells them nothing while a file titled
+ * "(no longer updated)" tells them exactly what happened and still opens.
+ */
+export async function renameFile(
+  fileId: string,
+  name: string,
+  mailbox: string = PRIMARY_MAILBOX
+): Promise<void> {
+  await driveWrite(mailbox, `${DRIVE_BASE}/files/${fileId}?supportsAllDrives=true`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name }),
+  })
+}
+
+/** Spreadsheets directly inside one folder, among files the app created. */
+export async function listSheetsInFolder(
+  folderId: string,
+  mailbox: string = PRIMARY_MAILBOX
+): Promise<DriveFileRef[]> {
+  const q = [
+    `'${folderId}' in parents`,
+    "mimeType = 'application/vnd.google-apps.spreadsheet'",
+    'trashed = false',
+  ].join(' and ')
+  const data = await googleFetch<{ files?: DriveFileRef[] }>(
+    `${DRIVE_BASE}/files?q=${encodeURIComponent(q)}&fields=files(id,name,webViewLink,modifiedTime)` +
+      '&supportsAllDrives=true&includeItemsFromAllDrives=true',
+    mailbox
+  )
+  return data.files ?? []
 }
 
 export function folderUrl(folderId: string): string {

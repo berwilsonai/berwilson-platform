@@ -9,12 +9,11 @@ import { Button } from '@/components/ui/button'
 import EmptyState from '@/components/shared/EmptyState'
 import LeadCard from './LeadCard'
 import LeadDetailSheet, { type AttachOption } from './LeadDetailSheet'
-import { ROUTE_TABS, ROUTE_LABELS } from '@/lib/utils/leads'
+import { categoryLookup, type LeadCategoryView } from '@/lib/utils/leads'
 import { formatValue } from '@/lib/utils/constants'
-import type { LeadRoute } from '@/lib/ai/prompts/lead-triage'
 import type { LeadRow, LeadNote } from '@/lib/leads/db'
 
-type RouteFilter = LeadRoute | 'all'
+type RouteFilter = string
 
 /**
  * The inbound lead queue.
@@ -28,6 +27,7 @@ export default function LeadsClient({
   filteredCount,
   initialOpenLeadId = null,
   attachOptions = [],
+  categories,
 }: {
   initialLeads: LeadRow[]
   filteredCount: number
@@ -35,6 +35,8 @@ export default function LeadsClient({
   initialOpenLeadId?: string | null
   /** Existing projects and opportunities a lead can be attached to. */
   attachOptions?: AttachOption[]
+  /** The routing registry, in display order. Server-loaded; see category-view.ts. */
+  categories: LeadCategoryView[]
 }) {
   const router = useRouter()
   const [leads, setLeads] = useState(initialLeads)
@@ -52,6 +54,20 @@ export default function LeadsClient({
   // Server-supplied, then maintained locally so deleting a filtered row does
   // not leave the toggle advertising a count that is no longer true.
   const [filtered, setFiltered] = useState(filteredCount)
+  const cat = useMemo(() => categoryLookup(categories), [categories])
+
+  /**
+   * Which lanes get a tab.
+   *
+   * Active categories, plus any RETIRED one that still owns a lead in view —
+   * otherwise the tab counts do not add up to the "All" count and the leads in a
+   * closed lane become unreachable, which is how a lane gets quietly abandoned
+   * with work still in it.
+   */
+  const tabs = useMemo(() => {
+    const occupied = new Set(leads.filter((l) => l.status !== 'spam').map((l) => l.route))
+    return categories.filter((c) => c.active || occupied.has(c.key)).map((c) => c.key)
+  }, [categories, leads])
 
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -68,9 +84,9 @@ export default function LeadsClient({
   const counts = useMemo(() => {
     const open = leads.filter((l) => l.status !== 'spam')
     const map: Record<string, number> = { all: open.length }
-    for (const r of ROUTE_TABS) map[r] = open.filter((l) => l.route === r).length
+    for (const r of tabs) map[r] = open.filter((l) => l.route === r).length
     return map
-  }, [leads])
+  }, [leads, tabs])
 
   // Captured once at mount rather than read during render — "now" moving under
   // a memo is exactly the impurity the React Compiler rejects.
@@ -199,7 +215,7 @@ export default function LeadsClient({
       {/* Toolbar */}
       <div className="flex flex-wrap items-center gap-2">
         <div className="flex flex-wrap items-center gap-1">
-          {(['all', ...ROUTE_TABS] as RouteFilter[]).map((r) => (
+          {['all', ...tabs].map((r) => (
             <button
               key={r}
               type="button"
@@ -208,7 +224,7 @@ export default function LeadsClient({
                 route === r ? 'bg-primary text-primary-foreground' : 'hover:bg-accent'
               }`}
             >
-              {r === 'all' ? 'All' : ROUTE_LABELS[r]}
+              {r === 'all' ? 'All' : cat.label(r)}
               <span className="tnum ml-1.5 opacity-70">{counts[r] ?? 0}</span>
             </button>
           ))}
@@ -258,6 +274,7 @@ export default function LeadsClient({
             <LeadCard
               key={lead.id}
               lead={lead}
+              cat={cat}
               onOpen={(l) => {
                 void openLead(l)
               }}
@@ -276,6 +293,7 @@ export default function LeadsClient({
         onSelectSibling={(l) => void openLead(l)}
         notes={notes}
         attachOptions={attachOptions}
+        categories={categories}
       />
     </div>
   )

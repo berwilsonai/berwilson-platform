@@ -13,7 +13,6 @@
  * cast at promotion by toSector(), exactly as email leads already are.
  */
 
-import { LEAD_ROUTES, type LeadRoute } from '@/lib/ai/prompts/lead-triage'
 
 export type Manifest = Record<string, unknown>
 
@@ -31,7 +30,8 @@ export interface ChecklistAnswer {
 export interface DealIntake {
   title: string
   submitted_at: string | null
-  route: LeadRoute
+  /** Raw, unvalidated key from the form — resolved against the registry on insert. */
+  route: string | null
   contact: {
     name: string | null
     email: string | null
@@ -80,9 +80,18 @@ function isoDate(source: Record<string, unknown>, key: string): string | null {
   return v && ISO_DATE.test(v) ? v : null
 }
 
-function route(value: string | null): LeadRoute {
-  const v = (value ?? '').trim().toLowerCase() as LeadRoute
-  return LEAD_ROUTES.includes(v) ? v : 'unknown'
+/**
+ * Normalize the form's route field WITHOUT validating it.
+ *
+ * Deliberately not checked against the taxonomy here: the categories live in
+ * the database, reading them is async, and this is a pure synchronous parser
+ * over one JSON manifest. `scanDealIntake` resolves the key against the live
+ * registry before insert, which is also the only place that can know whether a
+ * category is still active.
+ */
+function route(value: string | null): string | null {
+  const v = (value ?? '').trim().toLowerCase()
+  return v || null
 }
 
 /**

@@ -43,7 +43,11 @@ export const LEAD_LABELS = {
   pass: `${LABEL_PREFIX}/Pass`,
   filtered: `${LABEL_PREFIX}/Filtered`,
   promoted: `${LABEL_PREFIX}/Promoted`,
-  forwarded: `${LABEL_PREFIX}/Forwarded — Dino`,
+  // Was "Forwarded — Dino". Renamed when Dino became two lanes and flooring a
+  // third; verified free to rename because no thread had ever carried it — zero
+  // leads reached `forwarded` status in the whole life of the old button, which
+  // took its address from an env var that was never set.
+  forwarded: `${LABEL_PREFIX}/Handed off`,
   closed: `${LABEL_PREFIX}/Closed`,
 } as const
 

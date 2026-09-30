@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getViewer } from '@/lib/auth/viewer'
 import { GMAIL_THREAD_EMBED, leadsDb, type LeadRow, type LeadStatus } from '@/lib/leads/db'
-import { LEAD_ROUTES, type LeadRoute } from '@/lib/ai/prompts/lead-triage'
+import { categoriesByKey } from '@/lib/leads/categories'
 import { refreshLeadLabel } from '@/lib/leads/gmail-sync'
 import { refreshLeadTask } from '@/lib/leads/tasks'
 
@@ -51,10 +51,19 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   }
 
   if ('route' in body) {
-    if (!LEAD_ROUTES.includes(body.route as LeadRoute)) {
-      return NextResponse.json({ error: 'Unknown route.' }, { status: 400 })
+    // A human re-routing a lead may legitimately pick a RETIRED category —
+    // "this one really was the old Dino lane" — so unlike the model's own
+    // answer this accepts any key that exists, active or not. What it must not
+    // accept is a key that does not exist: the FK would reject it as a 23503
+    // and the reader would see a raw Postgres error.
+    const category = (await categoriesByKey()).get(String(body.route))
+    if (!category) {
+      return NextResponse.json(
+        { error: 'Unknown category. It may have been renamed — reload the page.' },
+        { status: 400 }
+      )
     }
-    patch.route = body.route
+    patch.route = category.key
   }
 
   if ('notes' in body) {

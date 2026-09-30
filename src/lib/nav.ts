@@ -13,6 +13,7 @@ import {
   Target,
   UserCog,
   HeartPulse,
+  Split,
   Map as MapIcon,
   HandCoins,
   Factory,
@@ -93,6 +94,7 @@ export const NAV_ITEMS: NavItem[] = [
   { href: '/company', label: 'Ber Wilson', icon: Shield, group: 'directory', keywords: 'company profile capabilities certs', fallback: { href: '/company/structure', label: 'Org Structure' } },
   { href: '/activity', label: 'Activity', icon: Activity, group: 'system', keywords: 'audit log history changes' },
   { href: '/settings/users', label: 'Users & Access', icon: UserCog, group: 'system', keywords: 'roles invite permissions team accounts' },
+  { href: '/settings/lead-categories', label: 'Lead Categories', icon: Split, group: 'system', keywords: 'routing lines of business trades lanes flooring plumbing hvac steel construction corporate handoff destinations categories where leads go' },
   { href: '/settings/health', label: 'System Health', icon: HeartPulse, group: 'system', keywords: 'status probes mailbox backups disk checks' },
 ]
 
