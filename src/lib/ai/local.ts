@@ -38,6 +38,22 @@ export function localEmbeddingModel(): string {
   return process.env.LOCAL_EMBEDDING_MODEL ?? 'text-embedding-qwen3-embedding-0.6b'
 }
 
+/**
+ * Stored embedding width, and the ONE place it is written down.
+ *
+ * Must equal `vector(N)` on `chunks.embedding` and `thread_chunks.embedding`.
+ * Every stored vector is only meaningful against the model AND the width that
+ * produced it, so changing either means wipe + re-embed both tables
+ * (`deploy/reembed.mjs`) — never a half migration, or one index silently holds
+ * two incompatible vector spaces.
+ *
+ * 1024 is `text-embedding-qwen3-embedding-0.6b`'s NATIVE width. It was 768
+ * until 2026-09-30, which meant `localEmbedding` truncated a quarter of every
+ * vector away (Matryoshka-legal, but 256 dimensions of real signal discarded
+ * on every chunk and every query). At the native width nothing is truncated.
+ */
+export const EMBEDDING_DIMS = 1024
+
 // ---------------------------------------------------------------------------
 // Hang guards.
 //
@@ -536,8 +552,14 @@ export async function localChatStream(options: LocalChatOptions): Promise<LocalC
 }
 
 // ---------------------------------------------------------------------------
-// Embeddings — truncate + renormalize to 768 dims (MRL) so the pgvector
-// schema stays unchanged. Qwen3-Embedding outputs 1024 by default.
+// Embeddings.
+//
+// The schema width (EMBEDDING_DIMS) now matches Qwen3-Embedding's native 1024,
+// so the common path returns the model's vector untouched. The truncate +
+// renormalize branch is kept for the case where EMBEDDING_DIMS is narrower than
+// the model (Matryoshka Representation Learning makes the leading slice a valid
+// embedding), and a model NARROWER than the schema is a hard error rather than a
+// silently short vector Postgres would reject row by row.
 // ---------------------------------------------------------------------------
 
 export async function localEmbedding(text: string): Promise<number[]> {
@@ -562,12 +584,15 @@ export async function localEmbedding(text: string): Promise<number[]> {
   const data = await res.json() as { data?: Array<{ embedding: number[] }> }
   const values = data.data?.[0]?.embedding
   if (!values?.length) throw new Error('Local embedding returned no vector')
-  if (values.length < 768) {
-    throw new Error(`Local embedding model returns ${values.length} dims — need >= 768 (schema is vector(768))`)
+  if (values.length < EMBEDDING_DIMS) {
+    throw new Error(
+      `Local embedding model returns ${values.length} dims — need >= ${EMBEDDING_DIMS} ` +
+        `(schema is vector(${EMBEDDING_DIMS})). Check LOCAL_EMBEDDING_MODEL.`
+    )
   }
-  if (values.length === 768) return values
+  if (values.length === EMBEDDING_DIMS) return values
 
-  const truncated = values.slice(0, 768)
+  const truncated = values.slice(0, EMBEDDING_DIMS)
   const norm = Math.sqrt(truncated.reduce((sum, v) => sum + v * v, 0)) || 1
   return truncated.map((v) => v / norm)
 }

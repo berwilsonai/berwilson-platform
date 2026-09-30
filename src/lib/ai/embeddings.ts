@@ -1,10 +1,11 @@
 import { createAdminClient } from '@/lib/supabase/admin'
-import { isLocalEmbeddings, localEmbedding } from './local'
+import { EMBEDDING_DIMS, isLocalEmbeddings, localEmbedding } from './local'
 import type { Database } from '@/types/database'
 
 type ChunkInsert = Database['public']['Tables']['chunks']['Insert']
 
-// gemini-embedding-001 — 768 dimensions, v1beta endpoint, drop-in for text-embedding-004
+// gemini-embedding-001 — v1beta endpoint, drop-in for text-embedding-004. Width comes
+// from EMBEDDING_DIMS so both providers write the same shape into vector(N).
 const EMBEDDING_MODEL = 'gemini-embedding-001'
 
 // ~500 tokens ≈ 2000 chars; ~50 tokens overlap ≈ 200 chars
@@ -72,7 +73,7 @@ export async function generateEmbedding(text: string): Promise<number[]> {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       content: { parts: [{ text }] },
-      outputDimensionality: 768,
+      outputDimensionality: EMBEDDING_DIMS,
     }),
   })
 
@@ -82,12 +83,22 @@ export async function generateEmbedding(text: string): Promise<number[]> {
   }
 
   const data = await res.json() as { embedding: { values: number[] } }
-  return data.embedding.values
+  const values = data.embedding.values
+
+  // gemini-embedding-001 only returns a UNIT vector at its native 3072 dims; at
+  // any requested outputDimensionality it is truncated and left unnormalized.
+  // match_chunks ranks by cosine distance, so an unnormalized vector would score
+  // against a corpus of normalized ones. The local path already returns unit
+  // vectors, so normalizing here keeps the two providers comparable.
+  const norm = Math.sqrt(values.reduce((sum, v) => sum + v * v, 0)) || 1
+  return values.map((v) => v / norm)
 }
 
 /**
- * Embed a query string for vector search (768-dim, gemini-embedding-001).
- * Shared by the agent, the /intel synthesize route, and company-knowledge retrieval.
+ * Embed a query string for vector search (EMBEDDING_DIMS wide, whichever provider
+ * EMBEDDINGS_PROVIDER selects). Shared by the agent, the /intel synthesize route,
+ * and company-knowledge retrieval. A query MUST come from the same model and width
+ * as the stored chunks or retrieval silently degrades to noise.
  */
 export async function embedQuery(text: string): Promise<number[]> {
   return generateEmbedding(text)
