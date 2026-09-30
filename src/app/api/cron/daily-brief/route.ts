@@ -378,7 +378,7 @@ ${staleDecisions.slice(0, 8).join('\n') || '(none)'}
 CROSS-PROJECT DEPENDENCY RISKS:
 ${depRisks.join('\n') || '(none)'}
 
-DECISION QUEUE (${decide.total} waiting: ${decide.leads} inbound bids, ${decide.intake} staged conversations, ${decide.review} flagged matches) — ${appUrl}/decide
+DECISION QUEUE (${decide.total} waiting: ${decide.leads} inbound bids, ${decide.intake} staged conversations, ${decide.review} flagged matches, ${decide.documents} unfiled documents) — ${appUrl}/decide
 Each can be accepted or set aside in one click from that page; nothing has been created yet.
 ${decide.top.join('\n') || '(nothing waiting)'}`
 

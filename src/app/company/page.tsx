@@ -5,6 +5,11 @@ import MediaGallery from '@/components/shared/MediaGallery'
 import CompanyProfileClient from '@/components/company/CompanyProfileClient'
 import CompanyKnowledgeBase from '@/components/company/CompanyKnowledgeBase'
 import CompanySectionTabs from '@/components/company/CompanySectionTabs'
+import {
+  loadCompanyKnowledge,
+  loadSetAsideCompanyDocuments,
+  listFilingTargets,
+} from '@/lib/documents/unfiled'
 
 export const metadata: Metadata = {
   title: 'Company Profile — Ber Wilson Intelligence',
@@ -17,7 +22,9 @@ export default async function CompanyPage() {
     { data: profile },
     { data: certifications },
     { data: photos },
-    { data: companyDocs },
+    companyDocs,
+    setAside,
+    filingTargets,
   ] = await Promise.all([
     supabase.from('company_profile').select('*').limit(1).single(),
     supabase
@@ -33,11 +40,12 @@ export default async function CompanyPage() {
       .order('is_primary', { ascending: false })
       .order('sort_order')
       .order('created_at'),
-    supabase
-      .from('documents')
-      .select('id, file_name, doc_type, mime_type, ai_summary, embedding_status, uploaded_at, superseded_at')
-      .eq('is_company', true)
-      .order('uploaded_at', { ascending: false }),
+    // Annotated with each document's retrieval footprint and, where one clears
+    // the bar, the record it probably belongs on. The same pass backs the
+    // /decide queue, so the two can never disagree about what is waiting.
+    loadCompanyKnowledge(),
+    loadSetAsideCompanyDocuments(),
+    listFilingTargets(),
   ])
 
   if (!profile) {
@@ -84,7 +92,11 @@ export default async function CompanyPage() {
       />
 
       {/* Knowledge base — Ber Wilson's own corpus, fed to Ber AI */}
-      <CompanyKnowledgeBase documents={companyDocs ?? []} />
+      <CompanyKnowledgeBase
+        documents={companyDocs}
+        setAside={setAside}
+        targets={filingTargets}
+      />
     </div>
   )
 }

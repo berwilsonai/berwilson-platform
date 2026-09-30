@@ -10,6 +10,7 @@ import { buildConfirmBody } from '@/lib/email-ingestion/defaults'
 import { parseStagedAttachments } from '@/lib/email-ingestion/attachments'
 import { promoteTargetFor } from '@/lib/utils/leads'
 import { listCategories } from '@/lib/leads/categories'
+import { findMisfiledCompanyDocuments } from '@/lib/documents/unfiled'
 import type { EmailIntakeExtraction } from '@/lib/ai/prompts/email-intake'
 import type { PartyMatch } from '@/lib/ai/proposal-matching'
 
@@ -37,7 +38,7 @@ export default async function DecidePage() {
 
   const supabase = createAdminClient()
 
-  const [{ data: sessions }, { data: leadRows }, { data: reviewRows }] = await Promise.all([
+  const [{ data: sessions }, { data: leadRows }, { data: reviewRows }, unfiledDocs] = await Promise.all([
     supabase
       .from('email_intake_sessions')
       .select(
@@ -62,6 +63,10 @@ export default async function DecidePage() {
       .is('resolved_at', null)
       .order('created_at', { ascending: false })
       .limit(100),
+    // Company documents that belong on a deal, or are not documents at all.
+    // The same pass backs the knowledge-base list on /company, so the queue and
+    // that page can never disagree about what is waiting (§12).
+    findMisfiledCompanyDocuments(),
   ])
 
   const items: DecideItem[] = []
@@ -206,6 +211,43 @@ export default async function DecidePage() {
       deadline: null,
       accept: 'approve',
       acceptName: projectName,
+      blocker: null,
+    })
+  }
+
+  // --- Misfiled company documents ------------------------------------------
+  //
+  // Why these belong in a DECISION queue rather than a cleanup script: a
+  // company-scoped passage is ORed into every project-scoped question
+  // (`filter_include_company`) and handed to assessFit() as "RELEVANT BER
+  // WILSON EVIDENCE". So a Phase 1 environmental report or a counterparty's
+  // patents sitting in the company corpus quietly shape answers about other
+  // deals — and where a document belongs is a judgement, never a
+  // classification the model should make on its own (§12).
+  for (const doc of unfiledDocs) {
+    const isNotADocument = doc.target === null
+    items.push({
+      id: doc.id,
+      kind: 'document',
+      title: doc.fileName,
+      // The Drive shelf it came off. Often the only thing that says which deal
+      // it is about — "Business Plan.docx" in "Corporate /M & A/GridEdge
+      // Modular Datacenter" is unambiguous and its file name says nothing.
+      subtitle: doc.folderPath,
+      href: '/company',
+      verdict: null,
+      score: null,
+      // What it costs to leave it: how many passages answer from the company
+      // corpus today. This is the fact the decision turns on.
+      note: doc.chunks > 0
+        ? `${doc.chunks} indexed passage${doc.chunks === 1 ? '' : 's'} answering as Ber Wilson company knowledge${doc.reason ? ` — ${doc.reason}` : ''}`
+        : doc.reason,
+      deadline: null,
+      accept: isNotADocument ? 'setaside' : 'file',
+      acceptName: isNotADocument ? doc.fileName : (doc.target?.name ?? null),
+      fileTarget: doc.target ? { kind: doc.target.kind, id: doc.target.id } : null,
+      // Never thresholded as a number at the reader; it only draws the batch.
+      confidence: doc.confidence ?? (isNotADocument ? 1 : null),
       blocker: null,
     })
   }

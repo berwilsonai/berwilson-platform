@@ -93,7 +93,21 @@ export interface FiledDocument {
  * indexed and quotable, and the per-deal reading of it lives on each lead as
  * its note.
  */
-export type FileTarget = SeedTarget | { kind: 'company'; id: 'company'; name: string }
+export type FileTarget =
+  | SeedTarget
+  | { kind: 'company'; id: 'company'; name: string }
+  /**
+   * A transcript with no deal behind it — a portfolio or brokerage call whose
+   * sites were all staged as leads.
+   *
+   * Filed as REFERENCE, never as company knowledge. A company-scoped chunk is
+   * presented to assessFit() as "RELEVANT BER WILSON EVIDENCE", so filing a
+   * call about a dozen sites nobody chose to pursue there would have every
+   * future lead scored partly against it. Reference keeps the transcript
+   * searchable and quotable, which is the whole point of filing it, without
+   * making it a claim about the company's capabilities.
+   */
+  | { kind: 'reference'; id: 'reference'; name: string }
 
 /**
  * Store the meeting note as a document on its target and index it.
@@ -172,6 +186,12 @@ export async function fileMeetingDocument(opts: {
             .insert({ ...base, is_company: true, source: 'document' })
             .select('id')
             .single()
+        : opts.target.kind === 'reference'
+          ? supabase
+              .from('documents')
+              .insert({ ...base, is_reference: true, source: 'document' })
+              .select('id')
+              .single()
         : supabase
             .from('documents')
             .insert({ ...base, project_id: opts.target.id, source: 'document' })
@@ -202,6 +222,9 @@ export async function fileMeetingDocument(opts: {
   try {
     if (opts.target.kind === 'company') {
       await embedDocument(doc.id, null, opts.content, null, true)
+    } else if (opts.target.kind === 'reference') {
+      // isCompany=false: findable across the portfolio, not company evidence.
+      await embedDocument(doc.id, null, opts.content, null, false)
     } else if (opts.target.kind === 'opportunity') {
       await embedOpportunityDocument(doc.id, opts.target.id, opts.content)
       // ⚠ embedOpportunityDocument inserts chunks but does NOT settle

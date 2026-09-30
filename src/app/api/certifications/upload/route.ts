@@ -77,7 +77,14 @@ export async function POST(request: NextRequest) {
     return Response.json({ error: storageError.message }, { status: 500 })
   }
 
-  // Insert document record (no project_id or entity_id — company-level)
+  // Company-level: no project_id or entity_id.
+  //
+  // ⚠ `is_company` IS REQUIRED, not optional. `documents_scope_check` demands
+  // one of project_id / entity_id / is_company / is_reference / meeting_id /
+  // steel_deal_id, so this insert set NONE of them and failed on every call
+  // since the constraint was amended — reported to the user as a bare "Insert
+  // failed". There were zero rows with doc_type 'certification' in the
+  // database, which is what a feature that never once worked looks like.
   const { data: doc, error: insertError } = await supabase
     .from('documents')
     .insert({
@@ -87,6 +94,7 @@ export async function POST(request: NextRequest) {
       mime_type: file.type,
       doc_type: 'certification',
       source: 'document',
+      is_company: true,
     })
     .select()
     .single()

@@ -138,7 +138,7 @@ export function renderDigestInput(d: DigestData): string {
   }
 
   parts.push(
-    `DECIDE QUEUE: ${d.decide.total} items waiting (${d.decide.intake} staged records, ${d.decide.leads} leads, ${d.decide.review} flagged matches).`
+    `DECIDE QUEUE: ${d.decide.total} items waiting (${d.decide.intake} staged records, ${d.decide.leads} leads, ${d.decide.review} flagged matches, ${d.decide.documents} unfiled documents).`
   )
 
   // A failure that produced no data must be stated, or it is indistinguishable

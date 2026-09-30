@@ -14,11 +14,15 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { leadsDb } from '@/lib/leads/db'
 import { decideWeight, daysUntil } from '@/lib/decide/rank'
+import {
+  countMisfiledCompanyDocuments,
+  findMisfiledCompanyDocuments,
+} from '@/lib/documents/unfiled'
 
 export async function countDecideItems(): Promise<number> {
   const supabase = createAdminClient()
   try {
-    const [intake, leads, review] = await Promise.all([
+    const [intake, leads, review, documents] = await Promise.all([
       supabase
         .from('email_intake_sessions')
         .select('id', { count: 'exact', head: true })
@@ -36,8 +40,14 @@ export async function countDecideItems(): Promise<number> {
         .from('review_queue')
         .select('id', { count: 'exact', head: true })
         .is('resolved_at', null),
+      // ⚠ NOT a head:true count of its own. Unfiled documents are decided by a
+      // matcher, not a WHERE clause — the question is "does this document have
+      // a deal home", which no SQL predicate can answer. So this calls the same
+      // pass the page renders. A second definition would drift, and then the
+      // badge and the page report different numbers for one quantity (§12).
+      countMisfiledCompanyDocuments(),
     ])
-    return (intake.count ?? 0) + (leads.count ?? 0) + (review.count ?? 0)
+    return (intake.count ?? 0) + (leads.count ?? 0) + (review.count ?? 0) + documents
   } catch {
     // The shell must render even if a count fails; a missing badge is a far
     // smaller problem than a missing sidebar.
@@ -51,6 +61,8 @@ export interface DecideSummary {
   leads: number
   intake: number
   review: number
+  /** Company documents that belong on a deal, or are not documents at all. */
+  documents: number
   /** The most consequential items, already ranked, as prose lines. */
   top: string[]
 }
@@ -71,9 +83,9 @@ export interface DecideSummary {
  */
 export async function summarizeDecideQueue(now = Date.now()): Promise<DecideSummary> {
   const supabase = createAdminClient()
-  const empty: DecideSummary = { total: 0, leads: 0, intake: 0, review: 0, top: [] }
+  const empty: DecideSummary = { total: 0, leads: 0, intake: 0, review: 0, documents: 0, top: [] }
   try {
-    const [intake, leads, review] = await Promise.all([
+    const [intake, leads, review, unfiledDocs] = await Promise.all([
       supabase
         .from('email_intake_sessions')
         .select('id, label, predecision, fit_assessment')
@@ -89,6 +101,7 @@ export async function summarizeDecideQueue(now = Date.now()): Promise<DecideSumm
         .from('review_queue')
         .select('id', { count: 'exact', head: true })
         .is('resolved_at', null),
+      findMisfiledCompanyDocuments(),
     ])
 
     const rows: Array<{ line: string; daysLeft: number | null; verdict: string | null; score: number | null }> = []
@@ -125,16 +138,32 @@ export async function summarizeDecideQueue(now = Date.now()): Promise<DecideSumm
       })
     }
 
+    // Ranked by retrieval footprint: the document polluting the most answers
+    // is the one worth reading about first. No deadline and no verdict, so it
+    // sorts below anything with a date — correctly, since nothing expires.
+    for (const doc of unfiledDocs.slice(0, 5)) {
+      rows.push({
+        line: `Unfiled document: ${doc.fileName}${
+          doc.target ? ` — probably ${doc.target.name}` : ''
+        }${doc.chunks > 0 ? ` (${doc.chunks} passages answering as company knowledge)` : ''}`,
+        daysLeft: null,
+        verdict: null,
+        score: null,
+      })
+    }
+
     rows.sort((a, b) => decideWeight(b) - decideWeight(a))
 
     const intakeCount = (intake.data ?? []).length
     const leadCount = (leads.data ?? []).length
     const reviewCount = review.count ?? 0
+    const documentCount = unfiledDocs.length
     return {
-      total: intakeCount + leadCount + reviewCount,
+      total: intakeCount + leadCount + reviewCount + documentCount,
       leads: leadCount,
       intake: intakeCount,
       review: reviewCount,
+      documents: documentCount,
       top: rows.slice(0, 5).map((r) => r.line),
     }
   } catch {

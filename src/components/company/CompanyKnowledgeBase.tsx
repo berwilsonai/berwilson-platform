@@ -13,25 +13,20 @@ import {
   MinusCircle,
   RefreshCw,
   Download,
+  FolderInput,
+  Archive,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import ReadAloudButton from '@/components/shared/ReadAloudButton'
 import { viewDocument, downloadDocument, fetchDocumentText } from '@/lib/utils/document-links'
+import type { CompanyKnowledgeDoc, SetAsideDoc } from '@/lib/documents/unfiled'
 
-export interface CompanyDoc {
-  id: string
-  file_name: string
-  doc_type: string | null
-  mime_type: string | null
-  ai_summary: string | null
-  embedding_status: string | null
-  uploaded_at: string | null
-  /** Retired: kept in the library, no longer used to answer questions. */
-  superseded_at?: string | null
-}
+export type FilingTarget = { kind: 'project' | 'opportunity' | 'steel_deal'; id: string; name: string }
 
 interface CompanyKnowledgeBaseProps {
-  documents: CompanyDoc[]
+  documents: CompanyKnowledgeDoc[]
+  setAside: SetAsideDoc[]
+  targets: FilingTarget[]
 }
 
 // Company-relevant document types — drives how the corpus is organized.
@@ -60,7 +55,7 @@ function guessType(name: string): string {
   return 'other'
 }
 
-export default function CompanyKnowledgeBase({ documents }: CompanyKnowledgeBaseProps) {
+export default function CompanyKnowledgeBase({ documents, setAside, targets }: CompanyKnowledgeBaseProps) {
   const router = useRouter()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [uploading, setUploading] = useState(false)
@@ -70,18 +65,81 @@ export default function CompanyKnowledgeBase({ documents }: CompanyKnowledgeBase
   const [reindexingId, setReindexingId] = useState<string | null>(null)
   const [viewingId, setViewingId] = useState<string | null>(null)
   const [downloadingId, setDownloadingId] = useState<string | null>(null)
+  const [filingId, setFilingId] = useState<string | null>(null)
+  /** Which row has its record picker open. */
+  const [pickerId, setPickerId] = useState<string | null>(null)
 
-  async function handleView(doc: CompanyDoc) {
+  /**
+   * File a document onto a record, or set it aside.
+   *
+   * Both go through one route because they are the same act from the reader's
+   * chair: deciding where this document belongs, with "nowhere" as a valid
+   * answer. Setting aside keeps the file and drops only its chunks, so it is
+   * reversible — which is what makes it safe to do in bulk.
+   */
+  async function fileTo(doc: CompanyKnowledgeDoc, target: FilingTarget) {
+    setFilingId(doc.id)
+    try {
+      const res = await fetch(`/api/documents/${doc.id}/refile`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ target: { kind: target.kind, id: target.id } }),
+      })
+      const body = await res.json().catch(() => null)
+      if (!res.ok) {
+        toast.error(body?.error ?? 'Could not file the document')
+        return
+      }
+      toast.success(
+        body?.chunks
+          ? `Filed on ${target.name} — ${body.chunks} passage${body.chunks === 1 ? '' : 's'} moved with it`
+          : `Filed on ${target.name}`
+      )
+      setPickerId(null)
+      router.refresh()
+    } finally {
+      setFilingId(null)
+    }
+  }
+
+  async function setAsideDoc(doc: CompanyKnowledgeDoc) {
+    setFilingId(doc.id)
+    try {
+      const res = await fetch(`/api/documents/${doc.id}/refile`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          exclude: true,
+          reason: doc.reason ?? 'Set aside from the company knowledge base by hand.',
+        }),
+      })
+      const body = await res.json().catch(() => null)
+      if (!res.ok) {
+        toast.error(body?.error ?? 'Could not set the document aside')
+        return
+      }
+      toast.success(
+        body?.chunks
+          ? `Set aside — ${body.chunks} passage${body.chunks === 1 ? '' : 's'} left the corpus`
+          : 'Set aside'
+      )
+      router.refresh()
+    } finally {
+      setFilingId(null)
+    }
+  }
+
+  async function handleView(doc: CompanyKnowledgeDoc) {
     setViewingId(doc.id)
     try {
-      const ok = await viewDocument(`/api/documents/${doc.id}`, doc.mime_type)
+      const ok = await viewDocument(`/api/documents/${doc.id}`, doc.mimeType)
       if (!ok) toast.error('Could not open the document. Please try again.')
     } finally {
       setViewingId(null)
     }
   }
 
-  async function handleDownload(doc: CompanyDoc) {
+  async function handleDownload(doc: CompanyKnowledgeDoc) {
     setDownloadingId(doc.id)
     try {
       const ok = await downloadDocument(`/api/documents/${doc.id}`)
@@ -114,15 +172,15 @@ export default function CompanyKnowledgeBase({ documents }: CompanyKnowledgeBase
     }
   }
 
-  async function handleReindex(doc: CompanyDoc) {
+  async function handleReindex(doc: CompanyKnowledgeDoc) {
     setReindexingId(doc.id)
     try {
       const res = await fetch(`/api/documents/${doc.id}/reindex`, { method: 'POST' })
       const body = await res.json().catch(() => null)
       if (res.ok && body?.status === 'complete') {
-        toast.success(`${doc.file_name} indexed`)
+        toast.success(`${doc.fileName} indexed`)
       } else if (res.ok && body?.status === 'skipped') {
-        toast.info(`${doc.file_name} — this file type can't be read for AI search`)
+        toast.info(`${doc.fileName} — this file type can't be read for AI search`)
       } else {
         toast.error(`Indexing failed${body?.error ? `: ${body.error}` : ''} — try re-uploading the file`)
       }
@@ -152,9 +210,13 @@ export default function CompanyKnowledgeBase({ documents }: CompanyKnowledgeBase
           Knowledge Base
         </h2>
         <p className="text-xs text-muted-foreground mt-1">
-          Upload Ber Wilson&apos;s own documents — capability statements, past performance, resumes,
+          Ber Wilson&apos;s own documents — capability statements, past performance, resumes,
           credentials, safety record. Ber AI reads these when answering portfolio questions and when
-          assessing whether to pursue an RFP.
+          assessing whether to pursue an RFP, so a document about one deal belongs on that deal
+          instead: <strong className="font-medium text-foreground/80">file it on the record</strong>{' '}
+          and its passages move with it, or{' '}
+          <strong className="font-medium text-foreground/80">set it aside</strong> to keep the file
+          without answering questions from it.
         </p>
       </div>
 
@@ -219,83 +281,196 @@ export default function CompanyKnowledgeBase({ documents }: CompanyKnowledgeBase
           {documents.map((doc) => (
             <div
               key={doc.id}
-              className="group flex items-start gap-3 rounded-xl border border-border bg-card px-4 py-3 elev-1"
+              className="group rounded-xl border border-border bg-card px-4 py-3 elev-1"
             >
-              <FileText size={18} className="shrink-0 mt-0.5 text-muted-foreground" />
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <button
-                    onClick={() => handleView(doc)}
-                    disabled={viewingId === doc.id}
-                    className="max-w-full text-left text-sm font-medium text-foreground truncate hover:underline disabled:opacity-50"
-                    title="Open document"
-                  >
-                    {doc.file_name}
-                  </button>
-                  {doc.doc_type && (
-                    <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[11px] font-medium bg-muted text-muted-foreground">
-                      {label(doc.doc_type)}
-                    </span>
-                  )}
-                  {doc.superseded_at ? (
-                    // Shown INSTEAD of the index status, not beside it: a retired
-                    // document reads "Not indexed", which is true but sounds like
-                    // a fault rather than a decision.
-                    <span
-                      className="inline-flex items-center rounded px-1.5 py-0.5 text-[11px] font-medium bg-muted text-muted-foreground"
-                      title="No longer in a nominated Drive folder, or retired by hand. Still here, not used for answers."
+              <div className="flex items-start gap-3">
+                <FileText size={18} className="shrink-0 mt-0.5 text-muted-foreground" />
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <button
+                      onClick={() => handleView(doc)}
+                      disabled={viewingId === doc.id}
+                      className="max-w-full text-left text-sm font-medium text-foreground truncate hover:underline disabled:opacity-50"
+                      title="Open document"
                     >
-                      Retired
-                    </span>
-                  ) : (
-                    <EmbedStatus status={doc.embedding_status} />
+                      {doc.fileName}
+                    </button>
+                    {doc.docType && (
+                      <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[11px] font-medium bg-muted text-muted-foreground">
+                        {label(doc.docType)}
+                      </span>
+                    )}
+                    <EmbedStatus status={doc.embeddingStatus} />
+                    {/*
+                      How much of the searchable corpus this one document is.
+                      Company passages widen every project-scoped question, so
+                      the footprint is the fact that decides whether a document
+                      is worth moving — and it was nowhere on screen.
+                    */}
+                    {doc.chunks > 0 && (
+                      <span
+                        className="text-[11px] text-muted-foreground"
+                        title={`${doc.chunks} indexed passage${doc.chunks === 1 ? '' : 's'} — Ber AI can retrieve these when answering`}
+                      >
+                        {doc.chunks} passage{doc.chunks === 1 ? '' : 's'}
+                      </span>
+                    )}
+                  </div>
+                  {/* WHICH nominated Drive folder this came off. */}
+                  {doc.folderPath && (
+                    <p className="text-[11px] text-muted-foreground/80 mt-0.5 truncate" title={doc.folderPath}>
+                      {doc.folderPath}
+                    </p>
+                  )}
+                  {doc.aiSummary && (
+                    <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{doc.aiSummary}</p>
                   )}
                 </div>
-                {doc.ai_summary && (
-                  <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{doc.ai_summary}</p>
+                <ReadAloudButton
+                  getText={async () => {
+                    const text = await fetchDocumentText(doc.id)
+                    if (!text) toast.info('No readable text stored for this file — open it and use the Mac\u2019s built-in reader instead.')
+                    return text
+                  }}
+                  iconSize={15}
+                  className="shrink-0 p-1.5 rounded-md hover:bg-muted"
+                />
+                <button
+                  onClick={() => handleDownload(doc)}
+                  disabled={downloadingId === doc.id}
+                  className="shrink-0 p-1.5 rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors disabled:opacity-50"
+                  aria-label="Download document"
+                  title="Download"
+                >
+                  {downloadingId === doc.id ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} />}
+                </button>
+                {doc.embeddingStatus !== 'complete' && (
+                  <button
+                    onClick={() => handleReindex(doc)}
+                    disabled={reindexingId === doc.id}
+                    className="shrink-0 p-1.5 rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors disabled:opacity-50"
+                    aria-label="Reindex document"
+                    title="Re-run AI indexing from the stored file"
+                  >
+                    <RefreshCw size={15} className={reindexingId === doc.id ? 'animate-spin' : ''} />
+                  </button>
+                )}
+                {/*
+                  Delete is offered ONLY for a document that did not come from
+                  Drive. Deleting a synced one looks like it works and changes
+                  nothing: the row goes, the file is still in the nominated
+                  folder, and tonight's sync re-imports it as new. "Set aside"
+                  is the removal that holds, so it is the only one shown.
+                */}
+                {!doc.fromDrive && (
+                  <button
+                    onClick={() => handleDelete(doc.id)}
+                    disabled={deletingId === doc.id}
+                    className="shrink-0 p-1.5 rounded-md text-muted-foreground hover:bg-muted hover:text-red-500 transition-colors disabled:opacity-50"
+                    aria-label="Delete document permanently"
+                    title="Delete the file permanently. To take it out of the corpus but keep it, use Set aside."
+                  >
+                    {deletingId === doc.id ? <Loader2 size={15} className="animate-spin" /> : <Trash2 size={15} />}
+                  </button>
                 )}
               </div>
-              <ReadAloudButton
-                getText={async () => {
-                  const text = await fetchDocumentText(doc.id)
-                  if (!text) toast.info('No readable text stored for this file — open it and use the Mac’s built-in reader instead.')
-                  return text
-                }}
-                iconSize={15}
-                className="shrink-0 p-1.5 rounded-md hover:bg-muted"
-              />
-              <button
-                onClick={() => handleDownload(doc)}
-                disabled={downloadingId === doc.id}
-                className="shrink-0 p-1.5 rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors disabled:opacity-50"
-                aria-label="Download document"
-                title="Download"
-              >
-                {downloadingId === doc.id ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} />}
-              </button>
-              {doc.embedding_status !== 'complete' && (
+
+              {/* Filing row. Never hidden behind hover — a control that only
+                  appears on hover does not exist on a phone (§12). */}
+              <div className="mt-2 flex items-center gap-2 flex-wrap pl-[30px]">
+                {doc.target && (
+                  <button
+                    onClick={() => fileTo(doc, doc.target!)}
+                    disabled={filingId === doc.id}
+                    className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-2 py-1 text-[11px] font-medium hover:bg-accent disabled:opacity-50 outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                    title={doc.reason ? `Ber AI: ${doc.reason}` : undefined}
+                  >
+                    {filingId === doc.id ? (
+                      <Loader2 size={12} className="animate-spin" />
+                    ) : (
+                      <FolderInput size={12} />
+                    )}
+                    File on {doc.target.name}
+                  </button>
+                )}
+
+                {pickerId === doc.id ? (
+                  <select
+                    autoFocus
+                    defaultValue=""
+                    onChange={(e) => {
+                      const t = targets.find((x) => `${x.kind}:${x.id}` === e.target.value)
+                      if (t) fileTo(doc, t)
+                    }}
+                    onBlur={() => setPickerId(null)}
+                    aria-label={`File ${doc.fileName} on a record`}
+                    /* Bounded: a native select sizes to its widest option, and
+                       one long project name otherwise stretches the row (§12). */
+                    className="h-7 max-w-[260px] rounded-md border border-input bg-background px-2 text-[11px] outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                  >
+                    <option value="" disabled>
+                      Choose a record…
+                    </option>
+                    {targets.map((t) => (
+                      <option key={`${t.kind}:${t.id}`} value={`${t.kind}:${t.id}`}>
+                        {t.name} ({t.kind === 'steel_deal' ? 'steel' : t.kind})
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <button
+                    onClick={() => setPickerId(doc.id)}
+                    className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-[11px] text-muted-foreground hover:bg-muted hover:text-foreground outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                  >
+                    <FolderInput size={12} />
+                    {doc.target ? 'File elsewhere' : 'File on a record'}
+                  </button>
+                )}
+
                 <button
-                  onClick={() => handleReindex(doc)}
-                  disabled={reindexingId === doc.id}
-                  className="shrink-0 p-1.5 rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors disabled:opacity-50"
-                  aria-label="Reindex document"
-                  title="Re-run AI indexing from the stored file"
+                  onClick={() => setAsideDoc(doc)}
+                  disabled={filingId === doc.id}
+                  className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-[11px] text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-50 outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                  title="Take it out of the corpus and keep the file. Reversible, and the nightly Drive sync will not bring it back."
                 >
-                  <RefreshCw size={15} className={reindexingId === doc.id ? 'animate-spin' : ''} />
+                  <Archive size={12} />
+                  Set aside
                 </button>
-              )}
-              <button
-                onClick={() => handleDelete(doc.id)}
-                disabled={deletingId === doc.id}
-                className="shrink-0 p-1.5 rounded-md text-muted-foreground hover:bg-muted hover:text-red-500 transition-colors disabled:opacity-50"
-                aria-label="Delete document"
-              >
-                {deletingId === doc.id ? <Loader2 size={15} className="animate-spin" /> : <Trash2 size={15} />}
-              </button>
+
+                {/* Why this is proposed. The reason is what a reader can check;
+                    the score is not, so it is not printed (§12). */}
+                {doc.reason && !doc.target && (
+                  <span className="text-[11px] text-muted-foreground/80">{doc.reason}</span>
+                )}
+              </div>
             </div>
           ))}
         </div>
       )}
+
+      {/* Set aside — a count, not nine more rows in the corpus list. */}
+      {setAside.length > 0 && (
+        <details className="rounded-xl border border-border bg-card px-4 py-3">
+          <summary className="cursor-pointer text-xs text-muted-foreground">
+            {setAside.filter((d) => d.state === 'excluded').length} set aside,{' '}
+            {setAside.filter((d) => d.state === 'retired').length} retired — not used for answers
+          </summary>
+          <ul className="mt-2 space-y-1">
+            {setAside.map((d) => (
+              <li key={d.id} className="text-[11px] text-muted-foreground flex items-start gap-2">
+                <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 font-medium">
+                  {d.state === 'excluded' ? 'Set aside' : 'Retired'}
+                </span>
+                <span className="min-w-0">
+                  <span className="text-foreground/80">{d.fileName}</span>
+                  {d.folderPath && <span className="text-muted-foreground/70"> — {d.folderPath}</span>}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
+
     </section>
   )
 }

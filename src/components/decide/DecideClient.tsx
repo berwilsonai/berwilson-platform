@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import { toast } from 'sonner'
-import { Radar, Inbox, ClipboardCheck, ArrowRight, X, Loader2, Check, CheckCheck } from 'lucide-react'
+import { Radar, Inbox, ClipboardCheck, FileText, ArrowRight, X, Loader2, Check, CheckCheck } from 'lucide-react'
 import { Panel } from '@/components/ui/card'
 import EmptyState from '@/components/shared/EmptyState'
 import { decideWeight, daysUntil } from '@/lib/decide/rank'
@@ -11,7 +11,7 @@ import { enumLabel, formatValue, formatDate } from '@/lib/utils/constants'
 import { SECTOR_LABELS } from '@/lib/utils/sectors'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 
-export type DecideKind = 'lead' | 'intake' | 'review'
+export type DecideKind = 'lead' | 'intake' | 'review' | 'document'
 
 export interface DecideFacts {
   /** Estimated contract value in dollars. */
@@ -67,6 +67,15 @@ export interface DecideItem {
    * of the team it belongs to.
    */
   acceptTo?: string | null
+  /**
+   * Where a `file` accept sends the document.
+   *
+   * Carried on the row rather than re-derived in the client, for the same
+   * reason `accept` is computed server-side: the browser never sees enough of
+   * the portfolio to choose a record, and a filing decision that guessed would
+   * be indistinguishable from one that knew.
+   */
+  fileTarget?: { kind: 'project' | 'opportunity' | 'steel_deal'; id: string } | null
   /** Why Accept is unavailable. Shown in place of the button. */
   blocker?: string | null
   /**
@@ -101,7 +110,15 @@ export interface DecideItem {
  * flooring lead could take the same exit. What the button now says is the lane's
  * own name, carried on the row as `acceptTo`.
  */
-export type AcceptAction = 'project' | 'opportunity' | 'merge' | 'steel' | 'handoff' | 'approve'
+export type AcceptAction =
+  | 'project'
+  | 'opportunity'
+  | 'merge'
+  | 'steel'
+  | 'handoff'
+  | 'approve'
+  | 'file'
+  | 'setaside'
 
 /** An item with its days-to-deadline resolved against a fixed clock. */
 type Dated = DecideItem & { daysLeft: number | null }
@@ -116,6 +133,11 @@ const KIND_META: Record<DecideKind, { label: string; icon: typeof Radar; tone: s
     label: 'Correspondence',
     icon: Inbox,
     tone: 'bg-violet-50 text-violet-700 ring-violet-200 dark:bg-violet-950/40 dark:text-violet-300 dark:ring-violet-900',
+  },
+  document: {
+    label: 'Unfiled document',
+    icon: FileText,
+    tone: 'bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:ring-amber-900',
   },
   review: {
     label: 'Needs a check',
@@ -194,6 +216,20 @@ const DISMISS: Record<DecideKind, { url: (id: string) => string; body: unknown; 
     body: { resolution: 'rejected' },
     verb: 'Flagged item rejected',
   },
+  /**
+   * Dismissing an unfiled document means "it is right where it is".
+   *
+   * That is a real answer, not an absence of one — so it is RECORDED
+   * (filing_confirmed_at) rather than merely hidden. The queue is computed
+   * from the records rather than stored, so anything not written down comes
+   * back on the next page load, and a queue that cannot reach zero teaches
+   * people to accept rows just to clear them.
+   */
+  document: {
+    url: (id) => `/api/documents/${id}/refile`,
+    body: { confirm: true },
+    verb: 'Kept as company knowledge',
+  },
 }
 
 async function readError(res: Response): Promise<never> {
@@ -264,6 +300,18 @@ const ACCEPT_COPY: Record<AcceptAction, { verb: string; ask: (n: string) => stri
     verb: 'Approve',
     ask: (n) => `Approve this match${n ? ` onto “${n}”` : ''}? The correspondence is posted to the record and indexed.`,
     done: 'Match approved',
+  },
+  file: {
+    verb: 'File on record',
+    ask: (n) =>
+      `File this document on “${n}”? Its indexed passages move with it, so it stops widening every other project's answers and starts answering for this one. Nothing is re-read and nothing is deleted.`,
+    done: 'Filed on the record',
+  },
+  setaside: {
+    verb: 'Set aside',
+    ask: (n) =>
+      `Set “${n}” aside? The file is kept and only its indexed passages go, so Ber AI stops answering from it. Reversible, and the nightly Drive sync will not bring it back.`,
+    done: 'Set aside',
   },
 }
 
@@ -430,6 +478,16 @@ export default function DecideClient({ items }: { items: DecideItem[] }) {
       } else {
         await post(`/api/leads/${item.id}/promote`, { target: item.accept })
       }
+    } else if (item.kind === 'document') {
+      if (item.accept === 'setaside') {
+        await post(`/api/documents/${item.id}/refile`, { exclude: true, reason: item.note })
+      } else if (item.fileTarget) {
+        await post(`/api/documents/${item.id}/refile`, { target: item.fileTarget })
+      } else {
+        // No target and not a set-aside is not a row that should have been
+        // acceptable. Refuse loudly rather than silently doing nothing.
+        throw new Error('This document has no record to file it on.')
+      }
     } else {
       await patch(`/api/review/${item.id}`, { resolution: 'approved' })
     }
@@ -523,7 +581,7 @@ export default function DecideClient({ items }: { items: DecideItem[] }) {
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-1.5">
-        {(['all', 'lead', 'intake', 'review'] as const).map((k) => (
+        {(['all', 'lead', 'intake', 'review', 'document'] as const).map((k) => (
           <button
             key={k}
             onClick={() => setKind(k)}

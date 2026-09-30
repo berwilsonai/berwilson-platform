@@ -28,6 +28,7 @@ import {
   fetchDriveFile,
   driveKnowledgeFolderIds,
   driveFileUnchanged,
+  getFolderName,
   type DriveFile,
 } from '@/lib/integrations/google-drive'
 import { reconcileVanished, restoreDocument, type KnownDriveDoc } from '@/lib/drive/supersede'
@@ -65,6 +66,7 @@ interface KnownDoc extends KnownDriveDoc {
   storage_path: string
   drive_modified_at: string | null
   embedding_status: string | null
+  excluded_at: string | null
 }
 
 export async function syncDriveKnowledge(
@@ -111,7 +113,15 @@ export async function syncDriveKnowledge(
     // One unreadable folder must not cost the others: a mistyped id in a list of
     // five would otherwise take the whole knowledge base down every night.
     try {
-      files.push(...(await listFolder(id, { maxDepth: 4 })))
+      // `listFolder` paths are relative to the folder it was handed, so a file
+      // sitting directly in a nominated folder comes back with an empty path.
+      // Prefixing the folder's own name is what makes the recorded path say
+      // WHICH shelf a document came off — the question the whole company
+      // knowledge list could not answer.
+      const shelf = (await getFolderName(id)) ?? id
+      for (const f of await listFolder(id, { maxDepth: 4 })) {
+        files.push({ ...f, path: [shelf, f.path].filter(Boolean).join('/') })
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err)
       console.error(`[drive-sync] could not list folder ${id}:`, message)
@@ -124,16 +134,45 @@ export async function syncDriveKnowledge(
   // Company documents only. A file already imported onto a PROJECT is owned
   // there — `documents.drive_file_id` is uniquely indexed, so claiming it here
   // would either steal the row or fail the insert every night forever.
-  const { data: existingRows } = await supabase
+  const { data: existingRows, error: existingErr } = await supabase
     .from('documents')
-    .select('id, storage_path, drive_file_id, drive_modified_at, superseded_at, is_company, embedding_status')
+    .select(
+      'id, storage_path, drive_file_id, drive_modified_at, superseded_at, is_company, embedding_status, excluded_at'
+    )
     .not('drive_file_id', 'is', null)
+  if (existingErr) {
+    // Without this snapshot every file looks new, and the whole knowledge base
+    // is re-inserted (or fails the unique index) on one bad query. Refuse.
+    throw new Error(`could not read existing documents: ${existingErr.message}`)
+  }
+
+  // An opportunity's Drive files live in a DIFFERENT TABLE, which this check
+  // never consulted — so a file already filed on an opportunity was invisible
+  // here and got claimed as company knowledge too, giving one file two rows and
+  // two sets of chunks. Latent until documents started being filed to
+  // opportunities by hand, which is exactly what refileDocument now does.
+  const { data: oppRows, error: oppErr } = await supabase
+    .from('opportunity_documents')
+    .select('drive_file_id')
+    .not('drive_file_id', 'is', null)
+  if (oppErr) throw new Error(`could not read opportunity documents: ${oppErr.message}`)
 
   const known = new Map<string, KnownDoc>()
   const ownedElsewhere = new Set<string>()
+  /**
+   * Files a human has said are not knowledge. Held APART from `known` so
+   * reconcileVanished never reconsiders them, and checked before anything else
+   * in the loop — after the restore branch the check would do nothing, because
+   * `returning` would already have un-retired the row.
+   */
+  const excluded = new Set<string>()
   for (const row of (existingRows ?? []) as (KnownDoc & { is_company: boolean })[]) {
-    if (row.is_company) known.set(row.drive_file_id, row)
+    if (row.excluded_at) excluded.add(row.drive_file_id)
+    else if (row.is_company) known.set(row.drive_file_id, row)
     else ownedElsewhere.add(row.drive_file_id)
+  }
+  for (const row of (oppRows ?? []) as { drive_file_id: string }[]) {
+    ownedElsewhere.add(row.drive_file_id)
   }
 
   for (const file of files) {
@@ -142,8 +181,16 @@ export async function syncDriveKnowledge(
       break
     }
 
+    // A human said this is not knowledge. The row is kept as a tombstone, so
+    // its drive_file_id still blocks a re-insert; this skip is what stops the
+    // sync re-indexing and re-announcing it every night regardless.
+    if (excluded.has(file.id)) {
+      skip('excluded by hand')
+      continue
+    }
+
     if (ownedElsewhere.has(file.id)) {
-      skip('already imported on a project')
+      skip('already imported on a record')
       continue
     }
     // The same file reaches this loop twice when it sits in two nominated
@@ -182,6 +229,14 @@ export async function syncDriveKnowledge(
       skip(`over ${MAX_FILE_BYTES / 1024 / 1024}MB`)
       continue
     }
+    // A site photo and a logo SVG are not capability evidence. They were being
+    // imported, listed among the company documents, and (when OCR read one)
+    // embedded into the corpus that grounds every fit assessment — one badge
+    // usage sheet alone was 54 chunks. Photos belong on a project or in `media`.
+    if (documentKind(file.mimeType, file.name) === 'image') {
+      skip('image — not knowledge-base material')
+      continue
+    }
     if (documentKind(file.mimeType, file.name) === 'unsupported' && !EXPORTABLE(file)) {
       skip(`unreadable type: ${file.mimeType ?? 'unknown'}`)
       continue
@@ -212,6 +267,7 @@ export async function syncDriveKnowledge(
             file_name: content.fileName,
             mime_type: content.mimeType,
             file_size_bytes: file.size,
+            drive_folder_path: file.path ?? null,
             drive_modified_at: file.modifiedTime,
             embedding_status: 'pending',
             extracted_text: null,
@@ -232,6 +288,12 @@ export async function syncDriveKnowledge(
             is_company: true,
             doc_type: 'capability',
             drive_file_id: file.id,
+            // WHICH nominated folder this came from. Already in hand (it is
+            // passed to `arrivals` below) and was simply dropped from the row,
+            // so the company list had no origin to show or group by while the
+            // project importer recorded it all along. It is the evidence for
+            // deciding which folders should stay nominated at all.
+            drive_folder_path: file.path ?? null,
             drive_modified_at: file.modifiedTime,
           })
           .select('id')

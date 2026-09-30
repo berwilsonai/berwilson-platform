@@ -418,16 +418,28 @@ export async function POST(request: NextRequest) {
   // index, so a Drive file can be filed exactly once. The minutes document still
   // goes on all of them; the verbatim goes on the first real record.
   if (session.drive_file_id && session.raw_text) {
-    // A record first; failing that, the company shelf. A broker call that named
-    // a dozen sites has NO project or opportunity — every one of them was staged
-    // as a lead, and a lead has no document shelf. Without this fallback the
-    // verbatim transcript of that call would exist only in Drive, unsearchable
-    // and unquotable, which is the one outcome the import was built to prevent.
-    const primary =
-      targets.find((t) => t.kind === 'project' || t.kind === 'opportunity') ??
-      (targets.some((t) => t.kind === 'lead' || t.kind === 'company')
+    // A record first. A broker call that named a dozen sites has NO project or
+    // opportunity — every one of them was staged as a lead, and a lead has no
+    // document shelf. The transcript must still land somewhere: existing only
+    // in Drive, unsearchable and unquotable, is the one outcome the import was
+    // built to prevent.
+    //
+    // ⚠ BUT NOT ON THE COMPANY SHELF, which is where this used to send it.
+    // A company-scoped chunk is handed to assessFit() as "RELEVANT BER WILSON
+    // EVIDENCE", so a call about a dozen sites nobody chose to pursue would
+    // have been scoring every future lead — and with ~25 more sites coming
+    // from one broker, it would have become a large share of the corpus that
+    // decides what Ber Wilson pursues. A transcript is a record of what was
+    // said, not a claim about the company's capabilities. Reference keeps it
+    // searchable without making it evidence.
+    const onARecord = targets.find((t) => t.kind === 'project' || t.kind === 'opportunity')
+    const primary: ConfirmTarget | null =
+      onARecord ??
+      (targets.some((t) => t.kind === 'company')
         ? ({ kind: 'company', id: 'company' } as ConfirmTarget)
-        : null)
+        : targets.some((t) => t.kind === 'lead')
+          ? ({ kind: 'reference', id: 'reference' } as unknown as ConfirmTarget)
+          : null)
     if (primary) {
       // `name` is only used for the storage path/label; ConfirmTarget carries
       // just a kind and an id, and the meeting's own title is the better label.
@@ -435,7 +447,9 @@ export async function POST(request: NextRequest) {
       const fileTarget: FileTarget =
         primary.kind === 'company'
           ? { kind: 'company', id: 'company', name: label }
-          : { kind: primary.kind as 'project' | 'opportunity', id: primary.id, name: label }
+          : (primary.kind as string) === 'reference'
+            ? { kind: 'reference', id: 'reference', name: label }
+            : { kind: primary.kind as 'project' | 'opportunity', id: primary.id, name: label }
       const filed = await fileMeetingDocument({
         target: fileTarget,
         driveFileId: session.drive_file_id,

@@ -392,6 +392,35 @@ export async function summarizeFolder(
 }
 
 /**
+ * A folder's own name.
+ *
+ * `listFolder` returns each file's path BELOW the folder it was handed, so a
+ * file sitting directly in a nominated folder has an empty path — which tells a
+ * reader nothing about where it came from. The nominated folder's own name is
+ * the missing half, and it is what makes "which shelf is leaking deal
+ * material" an answerable question.
+ *
+ * Returns null rather than throwing: an unreadable folder should cost the path
+ * label on its files, never the whole sync.
+ */
+export async function getFolderName(
+  folderId: string,
+  opts: { mailbox?: string } = {}
+): Promise<string | null> {
+  const mailbox = opts.mailbox ?? PRIMARY_MAILBOX
+  try {
+    const data = await googleFetch<{ name?: string }>(
+      `${DRIVE_BASE}/files/${folderId}?fields=name&supportsAllDrives=true`,
+      mailbox
+    )
+    return data.name ?? null
+  } catch (err) {
+    console.error(`[drive] could not read folder name for ${folderId}:`, err)
+    return null
+  }
+}
+
+/**
  * Has a Drive file changed since it was last imported?
  *
  * Compared as instants, NOT as strings. Drive returns RFC 3339 with a `Z`

@@ -62,7 +62,7 @@ export interface DigestData {
   bidsClosing: { title: string; bidDue: string; company: string | null }[]
   tasksDue: { title: string; dueDate: string; assignee: string | null }[]
   meetings: { subject: string; start: string; attendees: number }[]
-  decide: { total: number; leads: number; intake: number; review: number }
+  decide: { total: number; leads: number; intake: number; review: number; documents: number }
   /** Stated out loud so a silent failure never reads as a quiet day. */
   notes: string[]
 }
@@ -215,7 +215,13 @@ export async function assembleDigest(now = new Date()): Promise<DigestData> {
       assignee: Array.isArray(t.assignee) ? (t.assignee[0]?.name ?? null) : (t.assignee?.name ?? null),
     })),
     meetings,
-    decide: { total: decide.total, leads: decide.leads, intake: decide.intake, review: decide.review },
+    decide: {
+      total: decide.total,
+      leads: decide.leads,
+      intake: decide.intake,
+      review: decide.review,
+      documents: decide.documents,
+    },
     notes,
   }
 }

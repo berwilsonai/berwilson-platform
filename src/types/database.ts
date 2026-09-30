@@ -908,6 +908,10 @@ export type Database = {
           uploaded_at: string | null
           uploaded_by: string | null
           drive_folder_path: string | null
+          content_sha256: string | null
+          excluded_at: string | null
+          excluded_reason: string | null
+          filing_confirmed_at: string | null
         }
         Insert: {
           ai_summary?: string | null
@@ -936,6 +940,10 @@ export type Database = {
           uploaded_at?: string | null
           uploaded_by?: string | null
           drive_folder_path?: string | null
+          content_sha256?: string | null
+          excluded_at?: string | null
+          excluded_reason?: string | null
+          filing_confirmed_at?: string | null
         }
         Update: {
           ai_summary?: string | null
@@ -964,6 +972,10 @@ export type Database = {
           uploaded_at?: string | null
           uploaded_by?: string | null
           drive_folder_path?: string | null
+          content_sha256?: string | null
+          excluded_at?: string | null
+          excluded_reason?: string | null
+          filing_confirmed_at?: string | null
         }
         Relationships: [
           {
@@ -2052,6 +2064,7 @@ export type Database = {
           embedding_status: string | null
           superseded_at: string | null
           superseded_reason: string | null
+          content_sha256: string | null
         }
         Insert: {
           ai_summary?: string | null
@@ -2071,6 +2084,7 @@ export type Database = {
           embedding_status?: string | null
           superseded_at?: string | null
           superseded_reason?: string | null
+          content_sha256?: string | null
         }
         Update: {
           ai_summary?: string | null
@@ -2090,6 +2104,7 @@ export type Database = {
           embedding_status?: string | null
           superseded_at?: string | null
           superseded_reason?: string | null
+          content_sha256?: string | null
         }
         Relationships: [
           {
