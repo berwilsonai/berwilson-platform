@@ -1,8 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Loader2, CheckCircle2, Building2, Lightbulb, FolderKanban, User, ListChecks, Paperclip, Eye, Trash2 } from 'lucide-react'
+import { Loader2, CheckCircle2, Building2, Lightbulb, FolderKanban, User, ListChecks, Paperclip, Eye, Trash2, Link2, Search, Sparkles, X } from 'lucide-react'
 import { toast } from 'sonner'
 import FitAssessmentCard from '@/components/proposals/FitAssessmentCard'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
@@ -21,6 +21,14 @@ import {
   type OpportunityType,
 } from '@/lib/utils/opportunities'
 
+export interface RecordOption {
+  id: string
+  name: string
+  location?: string | null
+  stage?: string | null
+  status?: string | null
+}
+
 interface Props {
   sessionId: string
   extraction: EmailIntakeExtraction
@@ -28,6 +36,12 @@ interface Props {
   fit: FitAssessment | null
   label: string | null
   stagedAttachments: StagedAttachment[]
+  /** Every project this package could be sent to instead of creating one. */
+  projects: RecordOption[]
+  /** Every open opportunity, same purpose. */
+  opportunities: RecordOption[]
+  /** The matcher's own candidate projects for this package (jsonb). */
+  matchCandidates?: unknown
   /**
    * Ber AI's own recommendation for this session. The page selected it and
    * then dropped it, so the verdict you were shown on /decide vanished at
@@ -61,10 +75,39 @@ type TaskRow = EmailIntakeExtraction['tasks'][number] & { include: boolean }
 const inputCls = 'w-full h-9 px-3 rounded-md border border-input bg-background text-sm'
 const labelCls = 'label-caps text-muted-foreground'
 
-export default function EmailIngestReview({ sessionId, extraction, partyMatches, fit, label, stagedAttachments, predecision }: Props) {
+/** Where this package lands: a new record, or one that already exists. */
+type Destination =
+  | { mode: 'create' }
+  | { mode: 'existing'; kind: 'opportunity' | 'project'; id: string; name: string }
+
+/**
+ * Names the matcher already put forward for this package, in the order it
+ * ranked them. Read tolerantly — `match_candidates` is jsonb, predates the
+ * generated types, and holds a different shape per intake kind.
+ */
+function readCandidateNames(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return []
+  const seen = new Set<string>()
+  for (const c of raw) {
+    if (!c || typeof c !== 'object') continue
+    const o = c as Record<string, unknown>
+    const name = [o.project_name, o.opportunity_name, o.name]
+      .find((v) => typeof v === 'string' && v.trim())
+    if (typeof name === 'string') seen.add(name.trim())
+  }
+  return [...seen].slice(0, 6)
+}
+
+export default function EmailIngestReview({
+  sessionId, extraction, partyMatches, fit, label, stagedAttachments, predecision,
+  projects, opportunities, matchCandidates,
+}: Props) {
   const pre = readPredecision(predecision)
   const router = useRouter()
   const [kind, setKind] = useState<'opportunity' | 'project'>(extraction.suggested_record)
+  const [destination, setDestination] = useState<Destination>({ mode: 'create' })
+  const [recordQuery, setRecordQuery] = useState('')
+  const [recordOpen, setRecordOpen] = useState(false)
   const [opp, setOpp] = useState({ ...extraction.opportunity })
   const [proj, setProj] = useState({ ...extraction.project })
   const [attachments, setAttachments] = useState(
@@ -90,6 +133,57 @@ export default function EmailIngestReview({ sessionId, extraction, partyMatches,
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [discardOpen, setDiscardOpen] = useState(false)
+
+  /** One flat, searchable list of every record this could be sent to. */
+  const allRecords = useMemo(
+    () => [
+      ...projects.map((p) => ({ ...p, kind: 'project' as const })),
+      ...opportunities.map((o) => ({ ...o, kind: 'opportunity' as const })),
+    ],
+    [projects, opportunities]
+  )
+
+  /**
+   * Records Ber AI already thinks this is about — the merge target it named,
+   * then whatever the matcher scored. Shown as one-click chips because the
+   * common case is that the reader agrees with it, and making them retype a
+   * name the system already knows is the work we are trying to remove.
+   */
+  const suggested = useMemo(() => {
+    const wanted = [pre?.merge_target_name, ...readCandidateNames(matchCandidates)]
+      .filter((n): n is string => !!n && !!n.trim())
+      .map((n) => n.trim().toLowerCase())
+    const out: typeof allRecords = []
+    for (const w of wanted) {
+      const hit = allRecords.find((r) => r.name.trim().toLowerCase() === w)
+      if (hit && !out.some((o) => o.id === hit.id)) out.push(hit)
+    }
+    return out
+  }, [pre?.merge_target_name, matchCandidates, allRecords])
+
+  const recordOptions = useMemo(() => {
+    const q = recordQuery.trim().toLowerCase()
+    if (!q) return allRecords.slice(0, 12)
+    return allRecords
+      .filter(
+        (r) =>
+          r.name.toLowerCase().includes(q) ||
+          (r.location ?? '').toLowerCase().includes(q)
+      )
+      .slice(0, 12)
+  }, [recordQuery, allRecords])
+
+  function pickExisting(r: { id: string; name: string; kind: 'project' | 'opportunity' }) {
+    setDestination({ mode: 'existing', kind: r.kind, id: r.id, name: r.name })
+    // switchKind, not setKind: it carries the shared facts across into the
+    // target kind's blanks. Attaching an opportunity-shaped extraction to a
+    // PROJECT with a bare setKind would hand the fill pass an empty project
+    // form, and the blank columns it was meant to fill would stay blank.
+    switchKind(r.kind)
+    setRecordQuery('')
+    setRecordOpen(false)
+    setError(null)
+  }
 
   /** Switch record kind, carrying shared facts into the other record's blanks
    *  so toggling never loses prepopulated data. Never overwrites edits. */
@@ -151,7 +245,14 @@ export default function EmailIngestReview({ sessionId, extraction, partyMatches,
     // field added to the record can never reach one path and not the other.
     const record_fields = recordFieldsFor(kind, { ...extraction, project: proj, opportunity: opp })
 
-    if (!record_fields.name || !String(record_fields.name).trim()) {
+    // A name is required to CREATE a record and irrelevant when attaching to
+    // one — the target already has a name, and attaching never renames it.
+    // Four of the 81 staged sessions have no name for their suggested kind
+    // (measured 2026-09-24); for those, attaching is now the way through.
+    if (
+      destination.mode === 'create' &&
+      (!record_fields.name || !String(record_fields.name).trim())
+    ) {
       setError(`A ${kind} name is required.`)
       return
     }
@@ -186,10 +287,29 @@ export default function EmailIngestReview({ sessionId, extraction, partyMatches,
             include: t.include,
           })),
           attachment_paths: attachments.filter((a) => a.include).map((a) => a.storage_path),
+          target_record:
+            destination.mode === 'existing'
+              ? { kind: destination.kind, id: destination.id }
+              : null,
         }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Confirmation failed.')
+
+      // Say what landed. A row that simply disappears gives no evidence that
+      // anything reached the record — and on an attach the whole question the
+      // reader has is whether their existing project actually changed.
+      if (data.attached) {
+        const parts: string[] = []
+        if (data.fields_filled?.length) parts.push(`${data.fields_filled.length} blank field${data.fields_filled.length === 1 ? '' : 's'} filled`)
+        if (data.tasks_created) parts.push(`${data.tasks_created} task${data.tasks_created === 1 ? '' : 's'}`)
+        if (data.documents_created) parts.push(`${data.documents_created} document${data.documents_created === 1 ? '' : 's'}`)
+        if (data.parties_created) parts.push(`${data.parties_created} ${data.parties_created === 1 ? 'person' : 'people'}`)
+        const targetName = destination.mode === 'existing' ? destination.name : 'the record'
+        toast.success(`Added to ${data.record_name ?? targetName}`, {
+          description: parts.length ? parts.join(' · ') : 'The research report is on the record.',
+        })
+      }
       router.push(data.project_id ? `/projects/${data.project_id}` : `/opportunities/${data.opportunity_id}`)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Confirmation failed.')
@@ -225,33 +345,157 @@ export default function EmailIngestReview({ sessionId, extraction, partyMatches,
         </div>
       )}
 
-      {/* Record kind toggle */}
-      <div className="flex items-center gap-2">
-        <span className={labelCls}>Create as</span>
-        <div className="inline-flex rounded-md border border-input overflow-hidden">
-          <button
-            type="button"
-            onClick={() => switchKind('opportunity')}
-            className={`inline-flex items-center gap-1.5 h-8 px-3 text-sm font-medium transition-colors ${
-              kind === 'opportunity' ? 'bg-primary text-primary-foreground' : 'bg-background hover:bg-accent'
-            }`}
-          >
-            <Lightbulb size={14} /> Opportunity
-          </button>
-          <button
-            type="button"
-            onClick={() => switchKind('project')}
-            className={`inline-flex items-center gap-1.5 h-8 px-3 text-sm font-medium transition-colors ${
-              kind === 'project' ? 'bg-primary text-primary-foreground' : 'bg-background hover:bg-accent'
-            }`}
-          >
-            <FolderKanban size={14} /> Project
-          </button>
+      {/* ── Where this package lands ──────────────────────────────────────────
+          The queue proposes one record per CLUSTER of correspondence, not one
+          per deal, so a long-running programme arrives as several proposals.
+          Without a way to say "this is the Myton project you already have",
+          agreeing with each of them created a second, third and eighth Myton.
+          Attaching is therefore a first-class destination, not a special case. */}
+      <div className="space-y-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className={labelCls}>Send to</span>
+          <div className="inline-flex rounded-md border border-input overflow-hidden">
+            <button
+              type="button"
+              onClick={() => { setDestination({ mode: 'create' }); switchKind('opportunity') }}
+              className={`inline-flex items-center gap-1.5 h-8 px-3 text-sm font-medium transition-colors ${
+                destination.mode === 'create' && kind === 'opportunity'
+                  ? 'bg-primary text-primary-foreground'
+                  : 'bg-background hover:bg-accent'
+              }`}
+            >
+              <Lightbulb size={14} /> New opportunity
+            </button>
+            <button
+              type="button"
+              onClick={() => { setDestination({ mode: 'create' }); switchKind('project') }}
+              className={`inline-flex items-center gap-1.5 h-8 px-3 text-sm font-medium transition-colors border-l border-input ${
+                destination.mode === 'create' && kind === 'project'
+                  ? 'bg-primary text-primary-foreground'
+                  : 'bg-background hover:bg-accent'
+              }`}
+            >
+              <FolderKanban size={14} /> New project
+            </button>
+            <button
+              type="button"
+              onClick={() => { setRecordOpen(true) }}
+              className={`inline-flex items-center gap-1.5 h-8 px-3 text-sm font-medium transition-colors border-l border-input ${
+                destination.mode === 'existing'
+                  ? 'bg-primary text-primary-foreground'
+                  : 'bg-background hover:bg-accent'
+              }`}
+            >
+              <Link2 size={14} /> Existing record
+            </button>
+          </div>
         </div>
+
+        {destination.mode === 'existing' ? (
+          <div className="rounded-lg border border-indigo-300 dark:border-indigo-800/60 bg-indigo-50/50 dark:bg-indigo-950/30 p-3 space-y-1.5">
+            <div className="flex items-center gap-2">
+              {destination.kind === 'project' ? (
+                <FolderKanban size={15} className="text-indigo-600 dark:text-indigo-400 shrink-0" />
+              ) : (
+                <Lightbulb size={15} className="text-indigo-600 dark:text-indigo-400 shrink-0" />
+              )}
+              <p className="text-sm font-medium truncate flex-1">{destination.name}</p>
+              <button
+                type="button"
+                onClick={() => { setDestination({ mode: 'create' }); setRecordOpen(true) }}
+                className="text-xs text-muted-foreground hover:text-foreground underline shrink-0"
+              >
+                Change
+              </button>
+              <button
+                type="button"
+                onClick={() => { setDestination({ mode: 'create' }); setRecordOpen(false) }}
+                title="Create a new record instead"
+                className="inline-flex items-center justify-center size-6 rounded hover:bg-accent text-muted-foreground shrink-0"
+              >
+                <X size={13} />
+              </button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Nothing new is created. The report, the people, the tasks and the checked
+              attachments go onto this {destination.kind}, and its conversation is linked so later
+              replies post here too. Blank fields are filled from the correspondence —
+              anything already set is left alone.
+            </p>
+          </div>
+        ) : (
+          recordOpen && (
+            <div className="rounded-lg border border-border bg-card p-3 space-y-2">
+              {suggested.length > 0 && (
+                <div className="space-y-1.5">
+                  <p className="text-[11px] text-muted-foreground inline-flex items-center gap-1">
+                    <Sparkles size={11} /> Ber AI matched this package to
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {suggested.map((r) => (
+                      <button
+                        key={`${r.kind}-${r.id}`}
+                        type="button"
+                        onClick={() => pickExisting(r)}
+                        className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-full border border-input bg-background text-xs hover:bg-accent transition-colors"
+                      >
+                        {r.kind === 'project' ? <FolderKanban size={11} /> : <Lightbulb size={11} />}
+                        {r.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              <div className="relative">
+                <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                <input
+                  autoFocus
+                  className="w-full h-9 pl-8 pr-3 rounded-md border border-input bg-background text-sm"
+                  placeholder="Search projects and opportunities by name or location…"
+                  value={recordQuery}
+                  onChange={(e) => setRecordQuery(e.target.value)}
+                />
+              </div>
+              <div className="max-h-60 overflow-auto rounded-md border border-border divide-y divide-border">
+                {recordOptions.length === 0 ? (
+                  <p className="px-3 py-2 text-xs text-muted-foreground">
+                    No record matches “{recordQuery}”.
+                  </p>
+                ) : (
+                  recordOptions.map((r) => (
+                    <button
+                      key={`${r.kind}-${r.id}`}
+                      type="button"
+                      onClick={() => pickExisting(r)}
+                      className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-accent transition-colors"
+                    >
+                      {r.kind === 'project' ? (
+                        <FolderKanban size={13} className="text-muted-foreground shrink-0" />
+                      ) : (
+                        <Lightbulb size={13} className="text-muted-foreground shrink-0" />
+                      )}
+                      <span className="text-sm truncate flex-1">{r.name}</span>
+                      {r.location && (
+                        <span className="text-[11px] text-muted-foreground truncate max-w-[10rem]">{r.location}</span>
+                      )}
+                    </button>
+                  ))
+                )}
+              </div>
+            </div>
+          )
+        )}
       </div>
 
       {/* Record fields */}
       <div className="rounded-lg border border-border bg-card p-4 space-y-3">
+        {destination.mode === 'existing' && (
+          <p className="text-xs text-muted-foreground">
+            What the correspondence says. Used only to fill columns that are still blank on{' '}
+            <span className="font-medium text-foreground">{destination.name}</span> — the name and
+            anything already set stay as they are.
+          </p>
+        )}
         {kind === 'opportunity' ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Field label="Name" full>
@@ -474,7 +718,9 @@ export default function EmailIngestReview({ sessionId, extraction, partyMatches,
 
       <div className="flex items-center justify-end gap-3">
         <p className="text-[11px] text-muted-foreground mr-auto">
-          The full research report is saved to the {kind} as a document.
+          {destination.mode === 'existing'
+            ? `The full research report is saved to ${destination.name} as a document.`
+            : `The full research report is saved to the ${kind} as a document.`}
         </p>
         <button
           type="button"
@@ -490,8 +736,18 @@ export default function EmailIngestReview({ sessionId, extraction, partyMatches,
           disabled={submitting}
           className="inline-flex items-center gap-1.5 h-9 px-4 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-60"
         >
-          {submitting ? <Loader2 size={15} className="animate-spin" /> : <CheckCircle2 size={15} />}
-          {submitting ? 'Creating…' : `Create ${kind}`}
+          {submitting ? (
+            <Loader2 size={15} className="animate-spin" />
+          ) : destination.mode === 'existing' ? (
+            <Link2 size={15} />
+          ) : (
+            <CheckCircle2 size={15} />
+          )}
+          {submitting
+            ? destination.mode === 'existing' ? 'Adding…' : 'Creating…'
+            : destination.mode === 'existing'
+              ? <span className="truncate max-w-[16rem]">Add to {destination.name}</span>
+              : `Create ${kind}`}
         </button>
       </div>
 

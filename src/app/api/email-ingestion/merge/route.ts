@@ -7,20 +7,32 @@
  * the review form and no merge branch in the confirm route. Six sessions were
  * sitting on a recommendation whose only available action was to dismiss it.
  *
- * The machinery was already written and simply never called this way:
- * `linkClusterToRecord` ties a session's threads to a record with `linked`
- * certainty, the apply phase then posts the correspondence and imports the
- * attachments, and the confirm route has called it since day one — with the id
- * of a record it had just CREATED. Handing it an EXISTING id is the merge.
+ * ⚠ AND THEN IT ONLY LINKED THE THREADS. The first version of this route called
+ * `linkClusterToRecord` and stopped, so merging silently discarded the report,
+ * the people, the tasks and the attachments the run had already assembled —
+ * everything a create would have carried. From the chair that is indistinguishable
+ * from losing the work: the correspondence pointed at the right deal and the
+ * deal never heard what it said. Since 2026-09-30 a merge runs the SAME pass a
+ * create runs (`applySession`), with an existing record as the target — which
+ * is also what the review screen's "Add to existing" does, so the two cannot
+ * drift apart.
  *
- * Nothing new is created here. That is the point of merging.
+ * No record is created here. That is still the point of merging: blank columns
+ * on the target are filled from the mail, nothing already set is overwritten,
+ * and the record is never renamed.
  */
 
 import { NextRequest } from 'next/server'
 import { actorAdminClient } from '@/lib/auth/viewer'
 import { getViewer } from '@/lib/auth/viewer'
-import { linkClusterToRecord } from '@/lib/email-sweep/cluster-link'
+import { applySession } from '@/lib/email-ingestion/apply-session'
+import { buildConfirmBody } from '@/lib/email-ingestion/defaults'
+import { parseStagedAttachments } from '@/lib/email-ingestion/attachments'
 import { resolveMergeTarget } from '@/lib/email-ingestion/merge-target'
+import type { EmailIntakeExtraction } from '@/lib/ai/prompts/email-intake'
+import type { PartyMatch } from '@/lib/ai/proposal-matching'
+
+export const maxDuration = 300
 
 interface MergeBody {
   session_id?: string
@@ -47,7 +59,7 @@ export async function POST(request: NextRequest) {
   const supabase = await actorAdminClient()
   const { data: session } = await supabase
     .from('email_intake_sessions')
-    .select('id, status, predecision, match_candidates')
+    .select('*')
     .eq('id', sessionId)
     .single()
 
@@ -55,38 +67,47 @@ export async function POST(request: NextRequest) {
     return Response.json({ error: 'Session not found' }, { status: 404 })
   }
   if (session.status !== 'pending') {
-    return Response.json(
-      { error: `Session is already ${session.status}.` },
-      { status: 409 }
-    )
+    return Response.json({ error: `Session is already ${session.status}.` }, { status: 409 })
   }
 
   const target = resolveMergeTarget(session.predecision, session.match_candidates)
   if (!target.ok) {
     // Ambiguity means no match — the same refusal the thread router makes when
     // two records answer to one name. Guessing here would file a conversation
-    // onto the wrong deal, which is the expensive half of the trade.
+    // onto the wrong deal, which is the expensive half of the trade. The review
+    // screen's "Add to existing" picker is where a human resolves it.
     return Response.json({ error: target.reason }, { status: 400 })
   }
 
-  await linkClusterToRecord(sessionId, target.projectId, target.opportunityId)
+  // The default actions — every person, task and attachment the run staged.
+  // `ready` is deliberately ignored: it only reports a missing record NAME, and
+  // a merge target already has one.
+  const draft = buildConfirmBody({
+    sessionId: session.id,
+    extraction: session.extraction_result as unknown as EmailIntakeExtraction,
+    partyMatches: (session.party_matches ?? []) as unknown as PartyMatch[],
+    stagedAttachments: parseStagedAttachments(session.staged_attachments),
+  })
 
-  await supabase
-    .from('email_intake_sessions')
-    .update({
-      status: 'confirmed',
-      created_record_ids: {
-        merged_into: target.projectId ?? target.opportunityId,
-        merged_kind: target.projectId ? 'project' : 'opportunity',
-        merged_name: target.name,
-      } as unknown as never,
-      confirmed_at: new Date().toISOString(),
-    })
-    .eq('id', sessionId)
+  const kind = target.projectId ? 'project' : 'opportunity'
+  const id = target.projectId ?? target.opportunityId!
+
+  const result = await applySession(supabase, session, draft.body, {
+    mode: 'existing',
+    kind,
+    id,
+  })
+  if (!result.ok) {
+    return Response.json({ error: result.error }, { status: result.status })
+  }
 
   return Response.json({
-    merged_into: target.projectId ?? target.opportunityId,
-    kind: target.projectId ? 'project' : 'opportunity',
-    name: target.name,
+    merged_into: result.id,
+    kind: result.kind,
+    name: result.name,
+    fields_filled: result.ids.fields_filled ?? [],
+    parties_created: result.ids.party_ids.length,
+    tasks_created: result.ids.task_ids.length,
+    documents_created: result.ids.document_ids.length,
   })
 }

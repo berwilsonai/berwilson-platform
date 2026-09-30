@@ -50,6 +50,15 @@ export interface ConfirmBody {
   task_actions: TaskAction[]
   /** Storage paths of staged attachments to promote onto the created record. */
   attachment_paths?: string[]
+  /**
+   * Send this session to a record that ALREADY EXISTS instead of creating one.
+   *
+   * When set, `record_kind` and `record_fields` still describe what the
+   * correspondence says — the fields are used to fill columns that are blank on
+   * the target, and nothing already set is overwritten. Absent means create,
+   * which is what every caller written before 2026-09-30 did.
+   */
+  target_record?: { kind: RecordKind; id: string } | null
 }
 
 export interface SessionDraft {
