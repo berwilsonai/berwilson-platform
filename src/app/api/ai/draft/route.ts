@@ -14,6 +14,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
+import { requireProjectAccess } from '@/lib/security/guard'
 import { createClient } from '@/lib/supabase/server'
 import { checkRateLimit } from '@/lib/rate-limit'
 import { generateDraft } from '@/lib/ai/draft'
@@ -37,6 +38,12 @@ export async function POST(request: NextRequest) {
 
   const context = body.context?.trim()
   if (!context) return NextResponse.json({ error: 'context is required' }, { status: 400 })
+
+  // generateDraft pulls the project's tasks, updates and risks into the prompt
+  // and hands back prose meant to be SENT. The project id is in the body, so the
+  // middleware gate cannot see it.
+  const denied = await requireProjectAccess(body.project_id)
+  if (denied) return denied
 
   const result = await generateDraft({
     type: body.type ?? 'email',

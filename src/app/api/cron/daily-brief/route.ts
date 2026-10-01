@@ -16,6 +16,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
+import { dropHidden, hiddenProjectIds } from '@/lib/security/confidential'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { callGemini } from '@/lib/ai/gemini'
 import { fetchOpenTasks, formatTaskLine } from '@/lib/tasks/queries'
@@ -116,16 +117,16 @@ export async function GET(request: NextRequest) {
 
   // Gather all the intelligence data
   const [
-    openTasks,
-    { data: projects },
-    { data: updates },
-    { data: milestones },
-    { data: ddItems },
-    { data: complianceItems },
-    { data: dependencies },
+    openTasksAll,
+    { data: projectsAll },
+    { data: updatesAll },
+    { data: milestonesAll },
+    { data: ddItemsAll },
+    { data: complianceItemsAll },
+    { data: dependenciesAll },
     { data: objectives },
     { data: investors },
-    { data: investments },
+    { data: investmentsAll },
     { data: raiseRows },
   ] = await Promise.all([
     fetchOpenTasks(supabase, { limit: 300 }),
@@ -170,12 +171,37 @@ export async function GET(request: NextRequest) {
       .not('stage', 'in', '(passed,dormant)'),
     supabase
       .from('investments')
-      .select('investor_id, raise_id, target_kind, stage, amount_indicated, amount_committed, amount_funded, project:projects(name)'),
+      .select('investor_id, raise_id, target_kind, stage, amount_indicated, amount_committed, amount_funded, project_id, project:projects(name)'),
     supabase
       .from('raises')
       .select('id, name, status, target_amount, tranches')
       .neq('status', 'closed'),
   ])
+
+  // ── Protected projects never reach an email ─────────────────────────────────
+  //
+  // This brief is SENT. Whatever reaches it has left the platform and cannot be
+  // locked afterwards, so the filter runs here, once, over every list — not at
+  // the surfaces that read them.
+  //
+  // hiddenProjectIds(null) — no user, so no step-up can apply. A cron has
+  // nobody to step up, which is exactly why its answer is "every confidential
+  // project" and why the parameter is explicit rather than inferred.
+  const hidden = await hiddenProjectIds(null)
+  const visible = <T extends { project_id?: string | null }>(rows: readonly T[] | null) =>
+    dropHidden(rows ?? [], (r) => r.project_id, hidden)
+
+  const projects = dropHidden(projectsAll ?? [], (p) => p.id, hidden)
+  const openTasks = visible(openTasksAll)
+  const updates = visible(updatesAll)
+  const milestones = visible(milestonesAll)
+  const ddItems = visible(ddItemsAll)
+  const complianceItems = visible(complianceItemsAll)
+  const investments = visible(investmentsAll)
+  // A dependency names BOTH ends, so either end being protected removes the row.
+  const dependencies = (dependenciesAll ?? []).filter(
+    (d) => !hidden.has(d.upstream_project_id) && !hidden.has(d.downstream_project_id)
+  )
 
   const projectMap: Record<string, string> = {}
   for (const p of projects ?? []) projectMap[p.id] = p.name

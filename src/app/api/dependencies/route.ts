@@ -5,6 +5,8 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { requireProjectAccessAll } from '@/lib/security/guard'
+import { viewerHiddenProjectIds } from '@/lib/security/request'
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
@@ -23,7 +25,15 @@ export async function GET(request: NextRequest) {
   const { data, error } = await q
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  return NextResponse.json({ dependencies: data ?? [] })
+  // A dependency names BOTH ends and embeds both names, so either end being
+  // protected removes the row — the point of the record is the relationship, and
+  // half of it is not a dependency.
+  const hidden = await viewerHiddenProjectIds()
+  const visible = (data ?? []).filter(
+    (d) => !hidden.has(d.upstream_project_id) && !hidden.has(d.downstream_project_id)
+  )
+
+  return NextResponse.json({ dependencies: visible })
 }
 
 export async function POST(request: NextRequest) {
@@ -48,6 +58,14 @@ export async function POST(request: NextRequest) {
   if (body.upstream_project_id === body.downstream_project_id) {
     return NextResponse.json({ error: 'A project cannot depend on itself' }, { status: 400 })
   }
+
+  // Both ends, because linking a protected project to an open one makes the
+  // protected one readable from the open one's dependency list.
+  const denied = await requireProjectAccessAll([
+    body.upstream_project_id,
+    body.downstream_project_id,
+  ])
+  if (denied) return denied
 
   const supabase = createAdminClient()
 

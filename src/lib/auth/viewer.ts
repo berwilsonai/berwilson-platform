@@ -192,9 +192,22 @@ export async function canAccessRecord(
   kind: 'project' | 'opportunity',
   id: string
 ): Promise<boolean> {
-  return kind === 'opportunity'
-    ? canAccessOpportunity(viewer, id)
-    : canAccessProject(viewer, id)
+  if (kind === 'opportunity') return canAccessOpportunity(viewer, id)
+  if (!(await canAccessProject(viewer, id))) return false
+
+  // Confidentiality, asked HERE because this is the one question the seven
+  // child-record routes already ask — milestones, diligence, financing, players,
+  // entity links, profile intake. Checking it in each of them is seven chances to
+  // miss one, and the eighth route added next year would miss it by default.
+  //
+  // An admin's own live step-up counts; nobody else can hold one, so a
+  // project_manager with a grant on a protected project is refused. The caller
+  // answers `forbiddenJson()` — plain "Not authorized" rather than "protected",
+  // which is the right thing to say to someone who can never open it. A route
+  // that wants the helpful version calls requireProjectAccess() instead.
+  const { hiddenProjectIds } = await import('@/lib/security/confidential')
+  const hidden = await hiddenProjectIds(viewer.isAdmin ? viewer.authUserId : null)
+  return !hidden.has(id)
 }
 
 /** Task-level check given the task's tags. Executives manage the whole board. */

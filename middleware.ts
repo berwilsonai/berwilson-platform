@@ -3,6 +3,12 @@ import { createServerClient } from '@supabase/ssr'
 import { NextResponse } from 'next/dist/server/web/spec-extension/response'
 import type { NextRequest } from 'next/dist/server/web/spec-extension/request'
 import { canAccessApi, canAccessPage, isRole, landingFor, type Role } from '@/lib/auth/permissions'
+import {
+  isLockExemptApiPath,
+  isLockedPath,
+  lockedPathFor,
+  projectIdFromPath,
+} from '@/lib/security/path'
 
 export async function middleware(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request })
@@ -76,8 +82,10 @@ export async function middleware(request: NextRequest) {
   // Role-based section gating. Resolution mirrors lib/auth/viewer.ts:
   // pre-migration (columns missing) or bootstrap (nobody linked yet) → admin,
   // so behavior is unchanged until users are actually linked in /settings/users.
+  // Resolved once and shared with the confidential-project gate below, so the
+  // two gates can never disagree about who is an admin.
+  let role: Role = 'admin'
   if (user && !isPublicRoute && !pathname.startsWith('/auth/')) {
-    let role: Role = 'admin'
     const { data: me, error } = await supabase
       .from('team_members')
       .select('role, active')
@@ -112,6 +120,76 @@ export async function middleware(request: NextRequest) {
         // there would redirect-loop — landingFor keeps it in-allowlist.
         url.pathname = landingFor(role)
         return NextResponse.redirect(url)
+      }
+    }
+  }
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // Confidential projects: the step-up gate.
+  //
+  // Here rather than in the project layout because a Next layout is not a data
+  // boundary — layout and page render in PARALLEL, so a layout that decides to
+  // show an unlock prompt has not stopped the page beneath it from fetching the
+  // project. A rewrite replaces the whole tree before any of it runs, and keeps
+  // the URL, so the address bar still reads /projects/<id> while the response is
+  // the prompt.
+  //
+  // RLS is not the boundary on this platform (CLAUDE.md §8) — app traffic is
+  // service-role — so this gate is load-bearing, not belt-and-braces. It runs on
+  // the two paths an id can arrive on. Routes that take a project id in a BODY
+  // instead (documents, milestones, tasks) cannot be seen from here and carry
+  // their own checks.
+  // ───────────────────────────────────────────────────────────────────────────
+  if (user && !isPublicRoute && !isLockedPath(pathname)) {
+    const projectId = projectIdFromPath(pathname)
+    if (projectId) {
+      const { data: project } = await supabase
+        .from('projects')
+        .select('confidential')
+        .eq('id', projectId)
+        .maybeSingle()
+
+      if (project?.confidential) {
+        // Only an admin can ever hold a step-up (lib/security/request.ts), so
+        // anyone else is turned away without being told the project exists.
+        const isAdmin = role === 'admin'
+
+        let unlocked = false
+        if (isAdmin) {
+          const { data: session } = await supabase
+            .from('step_up_sessions')
+            .select('id')
+            .eq('auth_user_id', user.id)
+            .eq('project_id', projectId)
+            .gt('expires_at', new Date().toISOString())
+            .limit(1)
+          unlocked = (session ?? []).length > 0
+        }
+
+        if (!unlocked) {
+          if (pathname.startsWith('/api/')) {
+            if (!isLockExemptApiPath(pathname)) {
+              return NextResponse.json(
+                {
+                  error: isAdmin
+                    ? 'This project is protected. Unlock it with your authenticator.'
+                    : 'Not authorized',
+                  needsStepUp: isAdmin,
+                },
+                { status: 403 }
+              )
+            }
+          } else if (isAdmin) {
+            const url = request.nextUrl.clone()
+            url.pathname = lockedPathFor()
+            url.searchParams.set('id', projectId)
+            return NextResponse.rewrite(url)
+          } else {
+            const url = request.nextUrl.clone()
+            url.pathname = '/projects'
+            return NextResponse.redirect(url)
+          }
+        }
       }
     }
   }

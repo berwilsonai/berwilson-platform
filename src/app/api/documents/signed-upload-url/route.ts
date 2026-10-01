@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server'
+import { requireProjectAccess } from '@/lib/security/guard'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getViewer, canAccessProject, forbiddenJson } from '@/lib/auth/viewer'
 import { canAccessMeeting } from '@/lib/meetings/access'
@@ -30,6 +31,10 @@ export async function POST(request: NextRequest) {
     const meetMatch = /^meetings\/([0-9a-f-]{36})\//.exec(storage_path)
     if (projMatch) {
       if (!(await canAccessProject(viewer, projMatch[1]))) return forbiddenJson()
+      // The upload path names the project, so a protected one must be open
+      // before a URL that can write into it is handed out.
+      const denied = await requireProjectAccess(projMatch[1])
+      if (denied) return denied
     } else if (meetMatch) {
       const { data: meeting } = await supabase
         .from('meetings')

@@ -3,6 +3,8 @@ import { getViewer } from '@/lib/auth/viewer'
 import type { MapProject, MapParcel } from '@/lib/map/types'
 import { getAllDrawableParcels } from '@/lib/parcels/queries'
 import MapPageClient from '@/components/map/MapPageClient'
+import { dropHidden } from '@/lib/security/confidential'
+import { viewerHiddenProjectIds } from '@/lib/security/request'
 
 export const metadata = { title: 'Map — Ber Wilson Intelligence' }
 
@@ -24,13 +26,19 @@ export default async function MapPage({ searchParams }: MapPageProps) {
     throw new Error(`Failed to load projects: ${error.message}`)
   }
 
-  const rows = (projects ?? []) as MapProject[]
+  // Protected projects are not placed on the map, and neither are their
+  // parcels. A pin plus a parcel boundary is the project's LOCATION — the one
+  // attribute a military site most obviously should not publish to a screen
+  // anyone can walk past.
+  const hidden = await viewerHiddenProjectIds()
+  const rows = dropHidden((projects ?? []) as MapProject[], (p) => p.id, hidden)
 
   // Narrowed to what the map draws — see MapParcel. An excluded parcel is
   // deliberately dropped: it was considered and is not part of the deal, and
   // drawing it would overstate the assemblage to anyone reading the screen.
   const parcels: MapParcel[] = parcelRows
     .filter((p) => p.status !== 'excluded' && p.geometry && p.project_id)
+    .filter((p) => !hidden.has(p.project_id!))
     .map((p) => ({
       id: p.id,
       projectId: p.project_id!,

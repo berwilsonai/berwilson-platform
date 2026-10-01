@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server'
+import { requireProjectAccess } from '@/lib/security/guard'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getViewer, canAccessProject, forbiddenJson, actorAdminClient, type Viewer } from '@/lib/auth/viewer'
@@ -58,6 +59,12 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
     return forbiddenJson()
   }
 
+  // A protected project's documents are the files themselves — the signed URL
+  // below hands over the bytes. The middleware gate cannot see this route (the
+  // id in the path is the DOCUMENT's), so the check has to be here.
+  const denied = await requireProjectAccess(doc.project_id)
+  if (denied) return denied
+
   if (request.nextUrl.searchParams.get('text') === '1') {
     const text = doc.extracted_text?.trim() || doc.ai_summary?.trim() || null
     if (!text) return Response.json({ error: 'No readable text stored for this document' }, { status: 404 })
@@ -115,6 +122,9 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
     return forbiddenJson()
   }
 
+  const denied = await requireProjectAccess(doc.project_id)
+  if (denied) return denied
+
   if (body.superseded) {
     const { supersedeDocument } = await import('@/lib/drive/supersede')
     const ok = await supersedeDocument(admin, id, 'Retired by hand in the platform.')
@@ -167,6 +177,9 @@ export async function DELETE(_request: NextRequest, { params }: RouteContext) {
   if (!viewer || (!viewer.isAdmin && !(await canViewerAccessDoc(viewer, doc, createAdminClient())))) {
     return forbiddenJson()
   }
+
+  const denied = await requireProjectAccess(doc.project_id)
+  if (denied) return denied
 
   // Delete the DB record first (cascades the document's chunks, so the
   // indexed content dies with it) via user client so activity_log captures

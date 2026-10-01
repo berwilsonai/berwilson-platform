@@ -1,6 +1,8 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import TimelineView, { type TimelineRow, type TimelineMarker } from '@/components/timeline/TimelineView'
 import type { ProjectStage } from '@/lib/supabase/types'
+import { dropHidden } from '@/lib/security/confidential'
+import { viewerHiddenProjectIds } from '@/lib/security/request'
 
 export const metadata = { title: 'Timeline — Ber Wilson Intelligence' }
 
@@ -31,8 +33,14 @@ export default async function TimelinePage() {
     msByProject.set(m.project_id, arr)
   }
 
+  // Protected projects are off the Gantt. A bar on a timeline is labelled with
+  // the project's name and dated by its award and completion — the shape of the
+  // deal, readable at a glance by anyone looking at the screen.
+  const hidden = await viewerHiddenProjectIds()
+  const visibleProjects = dropHidden(projects ?? [], (p) => p.id, hidden)
+
   const rows: TimelineRow[] = []
-  for (const p of projects ?? []) {
+  for (const p of visibleProjects) {
     const markers: TimelineMarker[] = []
     const proj = p as typeof p & { bid_due_date?: string | null }
     if (proj.bid_due_date) markers.push({ date: proj.bid_due_date, type: 'bid_due', label: 'Proposal submission' })

@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server'
+import { requireProjectAccess } from '@/lib/security/guard'
 import { actorAdminClient } from '@/lib/auth/viewer'
 import { embedUpdate } from '@/lib/ai/embeddings'
 import { createTasksFromActionItems, type ActionItemLike } from '@/lib/tasks/from-action-items'
@@ -21,6 +22,12 @@ export async function POST(request: NextRequest) {
   if (!project_id || !raw_content) {
     return Response.json({ error: 'project_id and raw_content are required' }, { status: 400 })
   }
+
+  // This route writes an update AND embeds it into `chunks`, so it is one of the
+  // two doors content enters retrieval through. The project id is in the body,
+  // where the middleware gate cannot see it.
+  const denied = await requireProjectAccess(project_id)
+  if (denied) return denied
 
   const supabase = await actorAdminClient()
 

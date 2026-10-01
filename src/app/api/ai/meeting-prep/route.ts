@@ -18,6 +18,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { callGemini } from '@/lib/ai/gemini'
 import { checkRateLimit } from '@/lib/rate-limit'
 import { fetchOpenTasks, formatTasksForPrompt } from '@/lib/tasks/queries'
+import { hiddenProjectIds } from '@/lib/security/confidential'
 
 const MEETING_PREP_PROMPT = `You are a chief of staff preparing an executive for a meeting.
 Generate a concise meeting prep brief. Be specific, name names, cite exact numbers and dates.
@@ -134,6 +135,21 @@ export async function POST(request: NextRequest) {
     if (nameParts.some(part => part.length > 3 && subjectLower.includes(part))) {
       if (!relatedProjectIds.includes(p.id)) relatedProjectIds.push(p.id)
     }
+  }
+
+  // Protected projects drop out of the meeting pack.
+  //
+  // Meeting prep is a document a person reads in a room, often on a shared
+  // screen, and it is assembled from whoever is ATTENDING — so a protected
+  // project reaches it sideways, through a player link or a fuzzy subject match,
+  // without anyone asking for it. Both routes are cut here, before the three
+  // project-scoped reads below (fetchOpenTasks is exempt from its own filter
+  // when scoped by projectIds, which is exactly this call).
+  const hidden = await hiddenProjectIds(null)
+  for (const id of [...relatedProjectIds]) {
+    if (!hidden.has(id)) continue
+    relatedProjectIds.splice(relatedProjectIds.indexOf(id), 1)
+    delete projectMap[id]
   }
 
   // 3. Pull recent updates, open tasks, open items for matched projects

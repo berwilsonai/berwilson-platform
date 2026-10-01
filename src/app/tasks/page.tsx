@@ -2,6 +2,8 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import TeamTaskBoard from '@/components/tasks/TeamTaskBoard'
 import type { BoardTask, TeamMember, ProjectOption, OpportunityOption, InvestorOption, ObjectiveOption } from '@/components/tasks/task-utils'
 import { getViewer, filterTasksForViewer, accessibleProjectIds } from '@/lib/auth/viewer'
+import { dropHidden } from '@/lib/security/confidential'
+import { viewerHiddenProjectIds } from '@/lib/security/request'
 
 export const metadata = { title: 'Team Tasks — Ber Wilson Intelligence' }
 
@@ -78,6 +80,14 @@ export default async function TasksPage({
       opportunityOptions = []
     }
   }
+
+  // Protected projects leave the board entirely — their tasks AND their entry in
+  // the project picker. A task title is written by whoever typed it and routinely
+  // names the deal ("Send Hill AFB the bonding letter"), so the tag is not the
+  // only thing that would carry.
+  const hidden = await viewerHiddenProjectIds()
+  boardTasks = dropHidden(boardTasks, (t) => t.project_id, hidden)
+  projectOptions = dropHidden(projectOptions, (p) => p.id, hidden)
 
   return (
     <TeamTaskBoard

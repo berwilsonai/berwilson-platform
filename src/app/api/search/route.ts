@@ -1,6 +1,8 @@
 import { NextRequest } from 'next/server'
 import { orIlike } from '@/lib/utils/postgrest'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { dropHidden } from '@/lib/security/confidential'
+import { viewerHiddenProjectIds } from '@/lib/security/request'
 import {
   oppType,
   oppStatus,
@@ -77,7 +79,7 @@ export async function GET(request: NextRequest) {
       .limit(6),
     supabase
       .from('tasks')
-      .select('id, title, status, assignee:team_members!tasks_assignee_id_fkey(name)')
+      .select('id, title, status, project_id, assignee:team_members!tasks_assignee_id_fkey(name)')
       .ilike('title', pattern)
       .order('updated_at', { ascending: false })
       .limit(6),
@@ -107,9 +109,23 @@ export async function GET(request: NextRequest) {
       .limit(6),
   ])
 
+  // ── Protected projects ──────────────────────────────────────────────────────
+  //
+  // The command palette searches by NAME across every record area, which makes
+  // it the shortest path to a protected project from anywhere in the app. It is
+  // viewer-aware rather than absolute: a project the caller has stepped up to is
+  // theirs to find, and ⌘K is how they would look for it.
+  //
+  // Three of the nine areas carry a project: the project itself, its tasks
+  // (whose titles name the deal), and its documents (whose file names do too).
+  const hidden = await viewerHiddenProjectIds()
+  const visibleProjects = dropHidden(projects ?? [], (p) => p.id, hidden)
+  const visibleTasks = dropHidden(tasks ?? [], (t) => t.project_id, hidden)
+  const visibleDocuments = dropHidden(documents ?? [], (d) => d.project_id, hidden)
+
   const results: SearchResult[] = []
 
-  for (const p of projects ?? []) {
+  for (const p of visibleProjects) {
     results.push({
       id: p.id,
       type: 'project',
@@ -148,7 +164,7 @@ export async function GET(request: NextRequest) {
       href: `/vendors/${e.id}`,
     })
   }
-  for (const t of tasks ?? []) {
+  for (const t of visibleTasks) {
     results.push({
       id: t.id,
       type: 'task',
@@ -178,7 +194,7 @@ export async function GET(request: NextRequest) {
       href: '/objectives',
     })
   }
-  for (const d of documents ?? []) {
+  for (const d of visibleDocuments) {
     // Link to the surface the document lives on; skip rows with no destination.
     const href = d.project_id
       ? `/projects/${d.project_id}/documents`

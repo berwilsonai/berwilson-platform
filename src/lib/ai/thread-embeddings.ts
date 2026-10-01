@@ -16,6 +16,7 @@
  */
 
 import { createAdminClient } from '@/lib/supabase/admin'
+import { hiddenProjectIds } from '@/lib/security/confidential'
 import { chunkText, generateEmbedding } from './embeddings'
 import { dedupeByContent, DEDUPE_OVERFETCH } from './dedupe'
 import { scrubMailText, unwrapSafeLinks, isLowSignalPassage } from './text-noise'
@@ -522,5 +523,47 @@ export async function searchCorrespondence(
   // as "there is no correspondence on this", which is the one wrong answer.
   const readable = cleaned.filter((h) => h.content.length > 0 && !isLowSignalPassage(h.content))
 
-  return dedupeByContent(readable.length > 0 ? readable : cleaned, (h) => h.content, limit)
+  const kept = await withoutProtectedThreads(readable.length > 0 ? readable : cleaned)
+  return dedupeByContent(kept, (h) => h.content, limit)
+}
+
+/**
+ * Drop passages from mail that has been FILED on a protected project.
+ *
+ * `thread_chunks` has no project column — correspondence reaches a record
+ * through `thread_links` — so the exclusion cannot live in the RPC the way it
+ * does for `match_chunks`. It is one indexed read over the thread ids that came
+ * back, which is at most a few dozen.
+ *
+ * A thread with no link to anything is kept: it belongs to no record, so there
+ * is no protection to inherit. That is the right answer and also the common one.
+ *
+ * ⚠ This covers mail a human FILED on the project. Mail about a protected deal
+ * that nobody has filed anywhere is not reachable from here, because nothing in
+ * the database says which deal it is about. Filing it is what protects it.
+ */
+async function withoutProtectedThreads<T extends { threadId: string }>(hits: T[]): Promise<T[]> {
+  if (hits.length === 0) return hits
+  const hidden = await hiddenProjectIds(null)
+  if (hidden.size === 0) return hits
+
+  const threadIds = [...new Set(hits.map((h) => h.threadId))]
+  const { data, error } = await sweepDb()
+    .from('thread_links')
+    .select('thread_id, record_kind, record_id')
+    .in('thread_id', threadIds)
+    .eq('record_kind', 'project')
+  if (error) {
+    // Fail closed on the only question that matters: we cannot tell which of
+    // these threads is filed on a protected project, so none of them answer.
+    console.error('[correspondence] could not read thread links; withholding:', error.message)
+    return []
+  }
+
+  const protectedThreads = new Set(
+    (data ?? [])
+      .filter((r) => hidden.has((r as { record_id: string }).record_id))
+      .map((r) => (r as { thread_id: string }).thread_id)
+  )
+  return hits.filter((h) => !protectedThreads.has(h.threadId))
 }

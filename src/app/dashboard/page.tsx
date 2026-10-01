@@ -18,6 +18,8 @@ import { loadOpenCommitments } from '@/lib/commitments/load'
 import { weightedValue } from '@/lib/utils/constants'
 import { fetchOpenTasks } from '@/lib/tasks/queries'
 import { getViewer } from '@/lib/auth/viewer'
+import { dropHidden } from '@/lib/security/confidential'
+import { viewerHiddenProjectIds } from '@/lib/security/request'
 import { mailboxLooksBroken } from '@/lib/system-health'
 import { sweepDb } from '@/lib/email-sweep/db'
 import { countDecideItems } from '@/lib/decide/count'
@@ -93,7 +95,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
   const [
     { data: projectsRaw },
     overdueTasksAll,
-    { data: reviewRaw, count: reviewCount },
+    { data: reviewRaw },
     { data: overdueRaw },
     { data: ddRaw },
     { data: expiringCerts },
@@ -108,7 +110,9 @@ export default async function DashboardPage({ searchParams }: PageProps) {
     fetchOpenTasks(supabase, { dueBefore: today }),
     supabase
       .from('review_queue')
-      .select('id, reason, source_table, confidence, created_at, project_id, project:projects(id, name, sector)', { count: 'exact' })
+      // No `count: 'exact'` any more: the exact count counted rows on protected
+      // projects too, and the only consumer now reads the filtered list's length.
+      .select('id, reason, source_table, confidence, created_at, project_id, project:projects(id, name, sector)')
       .is('resolved_at', null)
       .order('created_at', { ascending: false }),
     supabase
@@ -178,8 +182,24 @@ export default async function DashboardPage({ searchParams }: PageProps) {
       .maybeSingle(),
   ])
 
-  const activeProjects = projectsRaw ?? []
+  // ── Protected projects ──────────────────────────────────────────────────────
+  //
+  // The dashboard is the one surface where EVERY number is a sum, so a
+  // protected project is withheld from all of them rather than redacted in
+  // place. Filtering activeProjects here cascades: projectIds below drives the
+  // updates, milestones and tasks reads, so none of them can reach a hidden
+  // project either. The four lists fetched independently above are filtered
+  // beside their own consumers.
+  //
+  // The withholding is REPORTED, not silent — an unlabelled count is not a
+  // coverage signal (§12), and a portfolio value quietly missing a project is
+  // worse than one that says so.
+  const hidden = await viewerHiddenProjectIds()
+  const activeProjects = dropHidden(projectsRaw ?? [], (p) => p.id, hidden)
+  const protectedCount = (projectsRaw ?? []).length - activeProjects.length
   const projectIds = activeProjects.map((p) => p.id)
+  const visibleProject = (row: { project_id?: string | null }) =>
+    !row.project_id || !hidden.has(row.project_id)
 
   // Fetch approved updates to compute per-project action counts
   let updatesRaw: Array<{ project_id: string | null; waiting_on: unknown; risks: unknown }> = []
@@ -277,7 +297,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
     }
   }
   // Open critical/blocker diligence items per project
-  for (const dd of ddRaw ?? []) {
+  for (const dd of (ddRaw ?? []).filter(visibleProject)) {
     if (dd.project_id) {
       const e = ensureEntry(dd.project_id)
       e.blockingCount = (e.blockingCount ?? 0) + 1
@@ -304,14 +324,19 @@ export default async function DashboardPage({ searchParams }: PageProps) {
   // the same source the sidebar badge uses, so the two agree. The full
   // review_queue rows above still feed the Needs Attention panel below.
   const pendingReview = await countDecideItems()
-  const overdueCount = overdueRaw?.length ?? 0
+  const overdueMilestones = (overdueRaw ?? []).filter(visibleProject)
+  const overdueCount = overdueMilestones.length
 
   // Needs Attention data (cap display at 6 each). Critical system/compliance
   // items (mailbox, certs) render at the top of the same rail card.
-  const overdueTasks = overdueTasksAll.filter((t) => t.due_date && t.due_date < today)
-  const reviewItems = (reviewRaw ?? []).slice(0, 6) as ReviewWithProject[]
-  const overdueItems = (overdueRaw ?? []).slice(0, 6) as MilestoneWithProject[]
-  const ddItems = (ddRaw ?? []).slice(0, 6) as DdWithProject[]
+  const overdueTasks = overdueTasksAll
+    .filter(visibleProject)
+    .filter((t) => t.due_date && t.due_date < today)
+  const visibleReview = (reviewRaw ?? []).filter(visibleProject)
+  const reviewItems = visibleReview.slice(0, 6) as ReviewWithProject[]
+  const overdueItems = overdueMilestones.slice(0, 6) as MilestoneWithProject[]
+  const visibleDd = (ddRaw ?? []).filter(visibleProject)
+  const ddItems = visibleDd.slice(0, 6) as DdWithProject[]
   const syncRow = mailboxSyncRow as { mailbox: string; state: string; last_error: string | null } | null
   // Carry the recorded reason onto the card. During an outage "why" is the
   // whole question, and making the reader open another page to find it is how
@@ -362,6 +387,22 @@ export default async function DashboardPage({ searchParams }: PageProps) {
         <p className="mt-1 text-sm text-muted-foreground">{dateLine}</p>
       </div>
 
+      {/*
+        Say what is missing. Every figure below is a sum, and a sum quietly
+        short of a project is worse than one that names the gap — §12: an
+        unlabelled count is not a coverage signal.
+      */}
+      {protectedCount > 0 && (
+        <p className="text-xs text-muted-foreground">
+          {protectedCount} protected project{protectedCount === 1 ? ' is' : 's are'} not included
+          in anything on this page.{' '}
+          <Link href="/projects" className="underline underline-offset-2 hover:text-foreground">
+            Open it from Projects
+          </Link>
+          .
+        </p>
+      )}
+
       {/* ── Steering board: Now objectives lead the morning read ─────────── */}
       {nowObjectives.length > 0 && <NowObjectives items={nowObjectives} />}
 
@@ -374,7 +415,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
           pendingReview={pendingReview}
           overdueCount={overdueCount}
           overdueTaskCount={overdueTasks.length}
-          criticalDdCount={ddRaw?.length ?? 0}
+          criticalDdCount={visibleDd.length}
           expiringCertsCount={expiringCerts?.length ?? 0}
         />
       </div>
@@ -455,7 +496,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
             reviewItems={reviewItems}
             overdueItems={overdueItems}
             ddItems={ddItems}
-            reviewCount={reviewCount ?? 0}
+            reviewCount={visibleReview.length}
             overdueTasks={overdueTasks}
             investorFollowUps={investorFollowUpsRaw ?? []}
             mailboxAlert={mailboxAlert}

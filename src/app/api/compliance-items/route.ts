@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server'
+import { requireProjectAccess } from '@/lib/security/guard'
 import { createClient } from '@/lib/supabase/server'
 import type { TablesInsert } from '@/lib/supabase/types'
 
@@ -16,6 +17,12 @@ export async function POST(request: NextRequest) {
       { status: 400 }
     )
   }
+
+  // This route takes its scope in the body and does not go through
+  // canAccessRecord (a compliance item may legitimately have no project at all),
+  // so it asks for itself.
+  const denied = await requireProjectAccess(project_id)
+  if (denied) return denied
 
   const row: TablesInsert<'compliance_items'> = {
     // At most one scope: a compliance item with neither is a company-level

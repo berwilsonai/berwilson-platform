@@ -95,8 +95,21 @@ async function liveOnly(kind: DriveRecordKind, ids: string[]): Promise<string[]>
     const { data } = await supabase.from('steel_deals').select('id, stage').in('id', ids)
     return (data ?? []).filter((r) => isSteelDealLive(r.stage)).map((r) => r.id)
   }
-  const { data } = await supabase.from('projects').select('id, status').in('id', ids)
-  return (data ?? []).filter((r) => isProjectLive(r.status)).map((r) => r.id)
+  // `confidential` is read alongside `status` because publishing is the one
+  // containment hole a lock cannot close after the fact: once a file is in a
+  // shared Drive folder it is shared with whoever has that folder, and removing
+  // it here would not un-share it. A protected project is therefore treated
+  // exactly like a dormant one — nothing new goes out.
+  //
+  // ⚠ This does NOT retract what was already published. The toggle route says so
+  // at the moment protection is switched on, naming the project's Drive folder.
+  const { data } = await supabase
+    .from('projects')
+    .select('id, status, confidential')
+    .in('id', ids)
+  return (data ?? [])
+    .filter((r) => isProjectLive(r.status) && r.confidential !== true)
+    .map((r) => r.id)
 }
 
 export async function reconcileDrivePublishing(

@@ -39,6 +39,7 @@
  */
 
 import { createAdminClient } from '@/lib/supabase/admin'
+import { dropHidden, hiddenProjectIds } from '@/lib/security/confidential'
 import type { TablesUpdate } from '@/lib/supabase/types'
 import {
   TaskGoneError,
@@ -629,7 +630,17 @@ async function syncMember(
 
   const byId = new Map<string, TaskRow>()
   for (const t of [...(openData ?? []), ...(linkedData ?? [])] as TaskRow[]) byId.set(t.id, t)
-  const tasks = [...byId.values()]
+  // A protected project's tasks never leave for Google.
+  //
+  // This sync writes task titles into a member's Google Tasks list, which is on
+  // their phone, outside the tailnet and outside this platform entirely. A title
+  // routinely names the deal, and once pushed there is no lock that reaches it —
+  // so the row is dropped before the push rather than redacted.
+  //
+  // Note what this does NOT do: a task already pushed before the project was
+  // protected stays in Google. Its link row survives, so the next edit still
+  // tracks it; withdrawing published copies is a separate decision.
+  const tasks = dropHidden([...byId.values()], (t) => t.project_id, await hiddenProjectIds(null))
   await tags.prime(tasks)
 
   // --- remote tasks with no link row -------------------------------------

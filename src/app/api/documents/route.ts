@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server'
+import { requireProjectAccess } from '@/lib/security/guard'
 import { runDocumentAiPass } from '@/lib/ai/document-pipeline'
 import { getViewer, canAccessProject, forbiddenJson, actorAdminClient } from '@/lib/auth/viewer'
 import { canAccessMeeting } from '@/lib/meetings/access'
@@ -53,6 +54,12 @@ export async function POST(request: NextRequest) {
       return forbiddenJson()
     }
   }
+
+  // Filing a document ONTO a protected project needs the project open — the
+  // upload also triggers extraction and embedding, so this is the moment the
+  // content enters the index.
+  const denied = await requireProjectAccess(project_id)
+  if (denied) return denied
 
   // Meeting attachments (audio, exhibits) are pure storage — never AI-embedded
   // here (they carry no valid chunk scope; the meeting's minutes document holds

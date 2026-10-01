@@ -10,6 +10,9 @@ export const metadata = { title: 'Projects — Ber Wilson Intelligence' }
 import EmptyState from '@/components/shared/EmptyState'
 import ProjectFilters from '@/components/projects/ProjectFilters'
 import ProjectsClient from '@/components/projects/ProjectsClient'
+import ProtectedProjectList from '@/components/security/ProtectedProjectList'
+import { dropHidden } from '@/lib/security/confidential'
+import { viewerHiddenProjectIds } from '@/lib/security/request'
 
 interface PageProps {
   searchParams: Promise<{ sector?: string; status?: string; stage?: string }>
@@ -52,6 +55,16 @@ export default async function ProjectsPage({ searchParams }: PageProps) {
     const allowed = await accessibleProjectIds(viewer)
     if (allowed) projects = projects.filter((p) => allowed.has(p.id))
   }
+
+  // Protected projects come out of the portfolio and go into their own block —
+  // by NAME only, so an admin can still find and unlock one. For anyone who
+  // could never hold a step-up, viewerHiddenProjectIds() returns every
+  // confidential project and they simply are not here.
+  const hidden = await viewerHiddenProjectIds()
+  const protectedProjects = isAdmin
+    ? projects.filter((p) => hidden.has(p.id)).map((p) => ({ id: p.id, name: p.name }))
+    : []
+  projects = dropHidden(projects, (p) => p.id, hidden)
 
   const count = projects?.length ?? 0
   const hasFilters = sector || status || stage
@@ -116,6 +129,8 @@ export default async function ProjectsPage({ searchParams }: PageProps) {
       ) : (
         <ProjectsClient projects={projects} stageFilter={stage} />
       )}
+
+      <ProtectedProjectList projects={protectedProjects} />
     </div>
   )
 }

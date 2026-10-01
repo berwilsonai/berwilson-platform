@@ -9,6 +9,7 @@ import { matchChunks } from './match-chunks'
 import { embedQuery } from './embeddings'
 import { fetchOpenTasks } from '@/lib/tasks/queries'
 import { computeAttention } from '@/lib/attention'
+import { hiddenProjectIds, scrubHiddenProjects } from '@/lib/security/confidential'
 import { generateDraft } from './draft'
 import { parseTranches, raiseLevels, fillTranches } from '@/lib/investors/raises'
 import { moduleTools, executeModuleTool, MODULE_TOOL_NAMES } from './agent-tools-modules'
@@ -419,7 +420,62 @@ function unreadableReason(mimeType: string | null | undefined, fileName: string 
   return 'no text extracted (unsupported file type, or extraction failed)'
 }
 
+/**
+ * Ber AI never sees a protected project — not even one the reader has stepped
+ * up to.
+ *
+ * That is stricter than the rest of the platform, and deliberately so. An agent
+ * turn is streamed into a transcript and PERSISTED to agent_conversations /
+ * agent_messages, where it is read by surfaces that know nothing about the lock;
+ * the dock is on every page under ⌘J; and the model paraphrases, so there is no
+ * reliable way to un-say a figure once it is in the thread. A protected project
+ * is read on its own pages, where the lock is.
+ *
+ * Both halves matter. The pre-check refuses a tool call that NAMES a protected
+ * project, so the model gets told rather than being handed a silent empty
+ * result; the scrub takes care of every list the tools return.
+ */
 export async function executeToolCall(
+  toolName: string,
+  args: Record<string, unknown>,
+  context: AgentContext
+): Promise<unknown> {
+  const hidden = await hiddenProjectIds(null)
+
+  if (hidden.size > 0) {
+    const named = [args.project_id, args.projectId, context.projectId]
+      .filter((v): v is string => typeof v === 'string')
+      .filter((v) => hidden.has(v))
+    if (named.length > 0) {
+      // Said plainly, because an empty result reads as "there is nothing on
+      // file" — the one wrong answer (§12). The model should relay this, not
+      // work around it.
+      return {
+        error:
+          'That project is protected. Its records are not available to Ber AI at all — ' +
+          'open the project in the platform and unlock it with an authenticator to read them. ' +
+          'Say so plainly rather than answering from other sources.',
+      }
+    }
+  }
+
+  const result = await executeToolCallInner(toolName, args, context)
+  const { value, removed } = scrubHiddenProjects(result, hidden)
+  if (removed === 0) return value
+
+  const note =
+    `${removed} record${removed === 1 ? '' : 's'} belonging to protected project${removed === 1 ? '' : 's'} ` +
+    'were withheld. Never state a total or a count from this result as if it were complete — ' +
+    'say that some records are protected.'
+
+  if (Array.isArray(value)) return { results: value, withheld_protected: removed, note }
+  if (value && typeof value === 'object') {
+    return { ...(value as Record<string, unknown>), withheld_protected: removed, note }
+  }
+  return value
+}
+
+async function executeToolCallInner(
   toolName: string,
   args: Record<string, unknown>,
   context: AgentContext

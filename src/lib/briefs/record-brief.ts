@@ -389,14 +389,23 @@ export async function assembleProjectBrief(
     const embedding = await generateEmbedding(
       `${name} — scope, status, obligations, deadlines, financials, risks`
     )
-    const { data } = await matchChunks(admin, {
-      query_embedding: JSON.stringify(embedding),
-      filter_project_ids: [projectId],
-      filter_after: '1900-01-01',
-      match_count: 6,
-      filter_entity_ids: [],
-      filter_include_company: false,
-    })
+    const { data } = await matchChunks(
+      admin,
+      {
+        query_embedding: JSON.stringify(embedding),
+        filter_project_ids: [projectId],
+        filter_after: '1900-01-01',
+        match_count: 6,
+        filter_entity_ids: [],
+        filter_include_company: false,
+      },
+      // This brief is ABOUT one named project, and /api/ai/brief has already run
+      // requireProjectAccess() on it — so if that project is protected, the
+      // caller is holding a live step-up. Without this the brief for a protected
+      // project would come back with no passages at all, which reads as "there
+      // is nothing on file" (§12) rather than "you are not allowed".
+      { unlockedProjectIds: [projectId] }
+    )
     passages = dedupeByContent(
       ((data ?? []) as Array<{ content?: string | null }>).map((r) => ({ content: r.content ?? '' })),
       (p) => p.content,

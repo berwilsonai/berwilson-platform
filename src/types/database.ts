@@ -2518,6 +2518,7 @@ export type Database = {
       projects: {
         Row: {
           match_aliases: string[]
+          confidential: boolean
           applicable_standards: Json | null
           award_date: string | null
           bid_decision: string
@@ -2556,6 +2557,7 @@ export type Database = {
         }
         Insert: {
           match_aliases?: string[]
+          confidential?: boolean
           applicable_standards?: Json | null
           award_date?: string | null
           bid_decision?: string
@@ -2594,6 +2596,7 @@ export type Database = {
         }
         Update: {
           match_aliases?: string[]
+          confidential?: boolean
           applicable_standards?: Json | null
           award_date?: string | null
           bid_decision?: string

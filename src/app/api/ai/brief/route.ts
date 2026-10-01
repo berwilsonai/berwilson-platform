@@ -8,6 +8,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
+import { requireProjectAccess } from '@/lib/security/guard'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { callGemini } from '@/lib/ai/gemini'
@@ -52,6 +53,13 @@ export async function POST(request: NextRequest) {
   const admin = createAdminClient()
 
   if (body.project_id) {
+    // A brief is generated, STORED, and then read on screen, printed and
+    // emailed. The middleware gate never sees this route — the project id
+    // arrives in the body — so without this a protected project would be
+    // summarised into stored_briefs, where surfaces that know nothing about the
+    // lock will read it.
+    const denied = await requireProjectAccess(body.project_id)
+    if (denied) return denied
     return generateProjectBrief(admin, user.id, body.project_id)
   }
   if (body.opportunity_id) {

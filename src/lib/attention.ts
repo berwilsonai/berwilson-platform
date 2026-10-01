@@ -16,6 +16,7 @@
  */
 
 import { createAdminClient } from '@/lib/supabase/admin'
+import { dropHidden, hiddenProjectIds } from '@/lib/security/confidential'
 import { leadsDb } from '@/lib/leads/db'
 import { fetchOpenTasks } from '@/lib/tasks/queries'
 
@@ -450,23 +451,36 @@ export async function computeAttention(): Promise<{ items: AttentionItem[]; summ
     })
   }
 
+  // ── Protected projects, removed once at the end ─────────────────────────────
+  //
+  // Here rather than in each of the ten fetches above, because every item
+  // already carries project_id and every one of this function's three callers
+  // wants the same answer: the /attention API, Ber AI's get_attention_items, and
+  // Pepper's morning EMAIL. The email is why there is no option to opt out — a
+  // note that has been sent cannot be locked afterwards.
+  //
+  // An item with no project (a lead, a Dino payment) is never withheld; it
+  // belongs to nothing that can be protected.
+  const hidden = await hiddenProjectIds(null)
+  const visible = dropHidden(items, (i) => i.project_id, hidden)
+
   // Sort by urgency descending
-  items.sort((a, b) => b.urgency - a.urgency)
+  visible.sort((a, b) => b.urgency - a.urgency)
 
   // Summary counts
   const summary: AttentionSummary = {
-    total: items.length,
-    overdue_actions: items.filter(i => i.category === 'overdue_action').length,
-    stale_waiting: items.filter(i => i.category === 'stale_waiting').length,
-    approaching_milestones: items.filter(i => i.category === 'approaching_milestone').length,
-    critical_dd: items.filter(i => i.category === 'critical_dd').length,
-    expiring_compliance: items.filter(i => i.category === 'expiring_compliance').length,
-    stale_decisions: items.filter(i => i.category === 'stale_decision').length,
-    dependency_risks: items.filter(i => i.category === 'dependency_risk').length,
-    investor_followups: items.filter(i => i.category === 'investor_followup').length,
-    dino_payments: items.filter(i => i.category === 'dino_payment').length,
-    lead_reviews: items.filter(i => i.category === 'lead_review').length,
+    total: visible.length,
+    overdue_actions: visible.filter(i => i.category === 'overdue_action').length,
+    stale_waiting: visible.filter(i => i.category === 'stale_waiting').length,
+    approaching_milestones: visible.filter(i => i.category === 'approaching_milestone').length,
+    critical_dd: visible.filter(i => i.category === 'critical_dd').length,
+    expiring_compliance: visible.filter(i => i.category === 'expiring_compliance').length,
+    stale_decisions: visible.filter(i => i.category === 'stale_decision').length,
+    dependency_risks: visible.filter(i => i.category === 'dependency_risk').length,
+    investor_followups: visible.filter(i => i.category === 'investor_followup').length,
+    dino_payments: visible.filter(i => i.category === 'dino_payment').length,
+    lead_reviews: visible.filter(i => i.category === 'lead_review').length,
   }
 
-  return { items, summary }
+  return { items: visible, summary }
 }

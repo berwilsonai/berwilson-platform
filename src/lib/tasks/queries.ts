@@ -4,6 +4,7 @@
  * (Replaces the legacy `updates.action_items` JSON reads, removed 2026-07-02.)
  */
 
+import { dropHidden, hiddenProjectIds } from '@/lib/security/confidential'
 import type { createAdminClient } from '@/lib/supabase/admin'
 
 type AdminClient = ReturnType<typeof createAdminClient>
@@ -56,7 +57,24 @@ export async function fetchOpenTasks(
   const { data: tasks, error } = await q
   if (error || !tasks || tasks.length === 0) return []
 
-  const projectIds = [...new Set(tasks.map((t) => t.project_id).filter(Boolean))] as string[]
+  // ── Protected projects ──────────────────────────────────────────────────────
+  //
+  // An UNSCOPED read is a portfolio read — the dashboard, the weekly brief, the
+  // agent's search_tasks — and never sees a confidential project's tasks. A read
+  // explicitly scoped to a project (projectId/projectIds) is left alone, because
+  // the caller has already been through that project's own gate: the project
+  // page and its tabs are behind the middleware rewrite.
+  //
+  // ⚠ That exemption is only true for callers that ARE gated. A route taking a
+  // project id in its BODY is not reached by the middleware, so it must call
+  // requireProjectAccess() itself — see src/lib/security/guard.ts.
+  const scopedToProjects = !!opts.projectId || (opts.projectIds?.length ?? 0) > 0
+  const visibleTasks = scopedToProjects
+    ? tasks
+    : dropHidden(tasks, (t) => t.project_id, await hiddenProjectIds(null))
+  if (visibleTasks.length === 0) return []
+
+  const projectIds = [...new Set(visibleTasks.map((t) => t.project_id).filter(Boolean))] as string[]
 
   const [{ data: members }, { data: projects }] = await Promise.all([
     supabase.from('team_members').select('id, name'),
@@ -68,7 +86,7 @@ export async function fetchOpenTasks(
   const memberName = new Map((members ?? []).map((m) => [m.id, m.name]))
   const projectName = new Map((projects ?? []).map((p) => [p.id, p.name]))
 
-  return tasks.map((t) => ({
+  return visibleTasks.map((t) => ({
     id: t.id,
     title: t.title,
     assignee: t.assignee_id ? memberName.get(t.assignee_id) ?? null : null,
@@ -107,8 +125,21 @@ export async function fetchTasksForDigest(supabase: AdminClient): Promise<Digest
 
   if (error || !tasks || tasks.length === 0) return []
 
-  const projectIds = [...new Set(tasks.map((t) => t.project_id).filter(Boolean))] as string[]
-  const opportunityIds = [...new Set(tasks.map((t) => t.opportunity_id).filter(Boolean))] as string[]
+  // ── Protected projects ──────────────────────────────────────────────────────
+  //
+  // This function exists only to build the digests that go out by EMAIL —
+  // Pepper's morning note and the per-member task digest. A task's own TITLE
+  // routinely names the deal ("Send Hill AFB the bonding letter"), so dropping
+  // the project tag would not be enough; the row goes.
+  //
+  // Unconditional, with no opt-out: a cron has nobody to step up, and a sent
+  // email cannot be locked afterwards.
+  const hidden = await hiddenProjectIds(null)
+  const visibleTasks = dropHidden(tasks, (t) => t.project_id, hidden)
+  if (visibleTasks.length === 0) return []
+
+  const projectIds = [...new Set(visibleTasks.map((t) => t.project_id).filter(Boolean))] as string[]
+  const opportunityIds = [...new Set(visibleTasks.map((t) => t.opportunity_id).filter(Boolean))] as string[]
 
   const [{ data: projects }, { data: opportunities }] = await Promise.all([
     projectIds.length > 0
@@ -122,7 +153,7 @@ export async function fetchTasksForDigest(supabase: AdminClient): Promise<Digest
   const projectName = new Map((projects ?? []).map((p) => [p.id, p.name]))
   const opportunityName = new Map((opportunities ?? []).map((o) => [o.id, o.name]))
 
-  return tasks.map((t) => ({
+  return visibleTasks.map((t) => ({
     id: t.id,
     title: t.title,
     why: t.why,

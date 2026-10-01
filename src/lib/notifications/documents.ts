@@ -112,6 +112,19 @@ export async function notifyArrivals(
   scope: ArrivalScope,
   arrivals: DocumentArrival[]
 ): Promise<number> {
+  // A protected project announces nothing.
+  //
+  // This is the choke point for both doors — a file dropped in Drive and a file
+  // uploaded in the platform — and what comes out of it is an email and a Google
+  // Chat post naming the project and the file. Both leave the platform, so
+  // neither can be unlocked afterwards; a notification is the one place where
+  // withholding entirely is the only correct behaviour.
+  if (scope.projectId) {
+    const { hiddenProjectIds } = await import('@/lib/security/confidential')
+    const hidden = await hiddenProjectIds(null)
+    if (hidden.has(scope.projectId)) return 0
+  }
+
   const events = composeArrivalNotifications(scope, arrivals)
   const written = await notifyTeam(events)
   return written

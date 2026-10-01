@@ -18,6 +18,8 @@ import {
   type FederalStandard,
 } from '@/lib/utils/constants'
 import PursuitSnapshot from '@/components/projects/PursuitSnapshot'
+import ProjectProtection from '@/components/security/ProjectProtection'
+import { getViewer } from '@/lib/auth/viewer'
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params
@@ -79,6 +81,9 @@ interface PageProps {
 export default async function ProjectOverviewPage({ params }: PageProps) {
   const { id } = await params
   const supabase = createAdminClient()
+  // Only an admin sees the protection control — mirrors mayStepUp(), which is
+  // the one place that decides who can hold a step-up.
+  const viewer = await getViewer()
 
   const [{ data: project }, { data: activityLogs }, { data: entityLinksRaw }, { data: childProjects }, { data: projectPhotos }, { data: allProjectsRaw }, { data: storedBrief }] = await Promise.all([
     supabase.from('projects').select('*').eq('id', id).single(),
@@ -181,7 +186,10 @@ export default async function ProjectOverviewPage({ params }: PageProps) {
       )}
 
       {/* Actions */}
-      <div className="flex justify-end gap-2">
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        {viewer?.isAdmin && (
+          <ProjectProtection projectId={id} confidential={project.confidential === true} />
+        )}
         <GenerateBriefButton recordId={id} recordName={project.name} />
         <Link
           href={`/projects/${id}/edit`}
