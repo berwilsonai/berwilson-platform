@@ -671,9 +671,16 @@ Write the full entry to **`docs/BUILD-LOG.md`** (newest first, same voice and de
 
 In **`CLAUDE.md`**, update only:
 - one line under **Recent sessions**,
-- any genuinely new durable rule in **§12**,
+- any genuinely new durable rule in **§12** — but hold it to the bar below,
 - **§9** if debt was resolved, and the reference sections (§1–§11) if the architecture actually moved.
 
 Open items go in **`docs/OPEN-ITEMS.md`**; promote a row into §13 only when it needs a decision from Richard.
 
-**CLAUDE.md is a reference, not a journal.** It is loaded in full at the start of every session and is silently truncated above 150,000 characters — which is how a project loses its own operating instructions without anything reporting an error. **It was 143k on 2026-10-01 and was cut to 110k**; two sessions on 2026-09-30 added 5k between them, so that headroom is roughly eight sessions. When it passes ~120k, measure before pruning — the bloat has never once been where the rule assumed it was. On 10-01 **Recent sessions was 5.5k and entirely inside two weeks**, while §12 and the open-items table held 85k of the 143k.
+**THE BAR FOR A NEW §12 RULE.** Measured 2026-10-01 across the twelve commits from 09-29: the file took on **~5,400 characters per commit**, of which **~3,200 was §12 — about five new rules each time**, at ~650 characters apiece. That rate is what put the file 7k from silent truncation in four days, so the rule for adding rules is:
+
+- **Grep §12 first.** If an existing rule covers it, extend that line — do not add a sibling. Several near-duplicates have been merged out already.
+- **Ask whether it is a rule or a finding.** *"`.neq()` is NULL for a NULL column"* changes how code gets written here and belongs in §12. *"NARN's `BRANCH` holds the literal `#N\A` 42,448 times"* is a fact about one dataset — it belongs in `docs/BUILD-LOG.md`, where the session that next touches that dataset will grep for it. When in doubt it is a finding.
+- **One rule is one bullet: the claim, the fix, the date.** The evidence, the measurement and the story go in the log. §12's floor is ~290 characters a rule; anything much past that is narrative that has escaped.
+- **A rule that cost no hours is not a hard-won rule.**
+
+**CLAUDE.md is a reference, not a journal.** It is loaded in full at the start of every session and is silently truncated above 150,000 characters — which is how a project loses its own operating instructions without anything reporting an error. **It was 143k on 2026-10-01 and was cut to 110k**; two sessions on 2026-09-30 added 5k between them, so that headroom is roughly eight sessions. **Re-measure at 125k** — that is roughly twelve commits' headroom at the measured §12 rate, and the prune is cheaper done early than at 148k mid-feature. Measure before pruning — the bloat has never once been where the rule assumed it was. On 10-01 **Recent sessions was 5.5k and entirely inside two weeks**, while §12 and the open-items table held 85k of the 143k.
