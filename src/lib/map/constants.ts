@@ -58,3 +58,22 @@ export const MAP_HOME = { center: [-111.6, 39.4] as [number, number], zoom: 6.3 
 
 // Max stored GeoJSON size for map_geometry (rail corridors etc.)
 export const MAP_GEOMETRY_MAX_BYTES = 100_000
+
+// Rail display. The North American Rail Network is context under the
+// portfolio, so it is off by default; STRACNET — the DoD strategic corridor
+// network — is the layer that matters for a government-contracting siting
+// question, and the whole network is there for the follow-up ("is there any
+// rail at all near this parcel").
+export type RailMode = 'off' | 'stracnet' | 'all'
+
+export const RAIL_MODES: RailMode[] = ['off', 'stracnet', 'all']
+
+export const RAIL_MODE_LABELS: Record<RailMode, string> = {
+  off: 'Off',
+  stracnet: 'STRACNET',
+  all: 'All rail',
+}
+
+export function isRailMode(v: unknown): v is RailMode {
+  return typeof v === 'string' && (RAIL_MODES as string[]).includes(v)
+}

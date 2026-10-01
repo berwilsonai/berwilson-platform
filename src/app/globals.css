@@ -318,3 +318,42 @@
     margin: 16mm;
   }
 }
+
+/*
+ * Rail inspection popup on /map. maplibre-gl.css hard-codes a white bubble
+ * with a white tip, which is a bright rectangle on the dark basemap — so the
+ * popup takes the app's own card tokens, tip included (the tip is a border
+ * triangle, hence border-*-color rather than background).
+ */
+.bw-rail-popup .maplibregl-popup-content {
+  background: var(--card);
+  color: var(--card-foreground);
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  box-shadow: 0 4px 12px rgb(0 0 0 / 0.18);
+}
+/* The tip is a CSS triangle: three of its four borders are transparent and
+   the fourth carries the colour, and WHICH one depends on the anchor class.
+   Recolouring all four turns the triangle into a square blob — so each anchor
+   is overridden on its own side. */
+.bw-rail-popup.maplibregl-popup-anchor-top .maplibregl-popup-tip,
+.bw-rail-popup.maplibregl-popup-anchor-top-left .maplibregl-popup-tip,
+.bw-rail-popup.maplibregl-popup-anchor-top-right .maplibregl-popup-tip {
+  border-bottom-color: var(--card);
+}
+.bw-rail-popup.maplibregl-popup-anchor-bottom .maplibregl-popup-tip,
+.bw-rail-popup.maplibregl-popup-anchor-bottom-left .maplibregl-popup-tip,
+.bw-rail-popup.maplibregl-popup-anchor-bottom-right .maplibregl-popup-tip {
+  border-top-color: var(--card);
+}
+.bw-rail-popup.maplibregl-popup-anchor-left .maplibregl-popup-tip {
+  border-right-color: var(--card);
+}
+.bw-rail-popup.maplibregl-popup-anchor-right .maplibregl-popup-tip {
+  border-left-color: var(--card);
+}
+.bw-rail-popup .maplibregl-popup-close-button {
+  color: var(--muted-foreground);
+  padding: 0 0.25rem;
+}

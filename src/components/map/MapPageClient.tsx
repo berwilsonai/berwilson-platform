@@ -3,7 +3,7 @@
 import { useMemo, useRef, useState, useEffect, useCallback } from 'react'
 import dynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
-import { ChevronLeft, ChevronRight, Home, Presentation, X } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Home, Presentation, TrainFront, X } from 'lucide-react'
 import { toast } from 'sonner'
 import type { ProjectSector } from '@/lib/supabase/types'
 import {
@@ -16,9 +16,13 @@ import {
 import {
   MAP_PHASES,
   MAP_PHASE_LABELS,
+  RAIL_MODES,
+  RAIL_MODE_LABELS,
+  isRailMode,
   projectPhase,
   type MapIconType,
   type MapPhase,
+  type RailMode,
 } from '@/lib/map/constants'
 import type { MapProject, LineStringGeometry, MapParcel } from '@/lib/map/types'
 import type { MapApi } from './MapView'
@@ -26,6 +30,7 @@ import ProjectMapSheet from './ProjectMapSheet'
 import PlacementPanel from './PlacementPanel'
 import MapSearch from './MapSearch'
 import MapLegend from './MapLegend'
+import { useStoredState } from '@/hooks/use-stored-state'
 
 function MapSkeleton() {
   return <div className="absolute inset-0 animate-pulse bg-muted" />
@@ -71,6 +76,10 @@ export default function MapPageClient({
   const [phaseFilter, setPhaseFilter] = useState<'all' | MapPhase>('all')
   const [photoLightbox, setPhotoLightbox] = useState(false)
   const [basemapMissing, setBasemapMissing] = useState(false)
+  // A view preference, not a record — localStorage is the right home for it
+  // (§12: per-viewer convenience, nothing another reader needs to see).
+  const [storedRail, setStoredRail] = useStoredState<string>('map.rail', 'off')
+  const railMode: RailMode = isRailMode(storedRail) ? storedRail : 'off'
 
   const merged = useMemo(
     () => projects.map((p) => (overrides[p.id] ? { ...p, ...overrides[p.id] } : p)),
@@ -377,6 +386,7 @@ export default function MapPageClient({
         apiRef={apiRef}
         onBasemapError={() => setBasemapMissing(true)}
         animateLines={present}
+        railMode={railMode}
       />
 
       {/* Toolbar */}
@@ -413,6 +423,37 @@ export default function MapPageClient({
               }`}
             >
               {ph === 'all' ? 'All' : MAP_PHASE_LABELS[ph]}
+            </button>
+          ))}
+        </div>
+
+        {/* Rail network — STRACNET on its own, or the whole NARN underneath */}
+        <div className="flex items-center gap-0.5 rounded-lg border border-border bg-card p-1 elev-1">
+          <span
+            className="mx-1 flex shrink-0 items-center text-muted-foreground"
+            title="Rail network — BTS/NTAD North American Rail Network"
+          >
+            <TrainFront size={13} aria-hidden />
+            <span className="sr-only">Rail network</span>
+          </span>
+          {RAIL_MODES.map((mode) => (
+            <button
+              key={mode}
+              onClick={() => setStoredRail(mode)}
+              title={
+                mode === 'stracnet'
+                  ? 'Strategic Rail Corridor Network — the DoD-designated lines'
+                  : mode === 'all'
+                    ? 'Every line in the North American Rail Network'
+                    : 'Hide the rail network'
+              }
+              className={`rounded-md px-2 py-0.5 text-xs font-medium transition-colors ${
+                railMode === mode
+                  ? 'bg-accent text-foreground'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              {RAIL_MODE_LABELS[mode]}
             </button>
           ))}
         </div>
@@ -499,7 +540,7 @@ export default function MapPageClient({
       {/* Marker-language legend — for audiences who don't know the encoding */}
       {!activeTarget && (
         <div className="absolute bottom-10 right-4 z-10 hidden sm:block">
-          <MapLegend />
+          <MapLegend railMode={railMode} />
         </div>
       )}
 

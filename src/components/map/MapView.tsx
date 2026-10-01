@@ -4,8 +4,21 @@ import { useEffect, useRef } from 'react'
 import maplibregl from 'maplibre-gl'
 // maplibre-gl.css is imported in globals.css — a CSS import here (inside the
 // ssr:false dynamic chunk) builds but never gets linked into the page.
-import { buildMapStyle, type MapFlavor } from '@/lib/map/style'
-import { MAP_HOME } from '@/lib/map/constants'
+import {
+  buildMapStyle,
+  BASEMAP_RAIL_LAYER,
+  RAIL_LAYERS,
+  type MapFlavor,
+} from '@/lib/map/style'
+import { MAP_HOME, type RailMode } from '@/lib/map/constants'
+import {
+  railLineName,
+  railNetLabel,
+  railOwnerName,
+  railPassengerLabel,
+  STRACNET_LABELS,
+  type RailFeatureProps,
+} from '@/lib/map/rail'
 import type { MapProject, LineStringGeometry, MapParcel } from '@/lib/map/types'
 import {
   buildClusterElement,
@@ -42,6 +55,8 @@ interface MapViewProps {
   onBasemapError: () => void
   /** Animate a dash-flow along route lines (present mode). */
   animateLines: boolean
+  /** Which slice of the North American Rail Network to draw underneath. */
+  railMode: RailMode
 }
 
 function currentFlavor(): MapFlavor {
@@ -180,6 +195,60 @@ function ensureParcelLayers(
   })
 }
 
+/**
+ * Show/hide the NARN rail layers for the current mode.
+ *
+ * Module scope for the same reason as ensureParcelLayers — everything it needs
+ * arrives as an argument, so it stays out of the component's dependency graph.
+ */
+function applyRailMode(map: maplibregl.Map, mode: RailMode) {
+  const vis = (on: boolean) => (on ? 'visible' : 'none')
+  const strategic = mode !== 'off'
+  for (const id of [RAIL_LAYERS.strac, RAIL_LAYERS.connector]) {
+    if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', vis(strategic))
+  }
+  if (map.getLayer(RAIL_LAYERS.other)) {
+    map.setLayoutProperty(RAIL_LAYERS.other, 'visibility', vis(mode === 'all'))
+  }
+  // The basemap carries its own OSM rail hairline. Two renderings of the same
+  // track, captured by different surveys, draw as a doubled line a few metres
+  // apart — so the basemap's yields while ours is on, and comes back when the
+  // rail layer is off (leaving the map exactly as it was before).
+  if (map.getLayer(BASEMAP_RAIL_LAYER)) {
+    map.setLayoutProperty(BASEMAP_RAIL_LAYER, 'visibility', vis(!strategic))
+  }
+}
+
+/** The popup body for a clicked rail segment — who owns it, and is it STRACNET. */
+function railPopupHtml(props: RailFeatureProps): string {
+  const esc = (v: string) =>
+    v.replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[ch]!)
+  const owner = railOwnerName(props.owner) ?? 'Owner not recorded'
+  const rows: string[] = []
+  const line = railLineName(props)
+  if (line) rows.push(esc(line))
+  const net = railNetLabel(props.net)
+  if (net) rows.push(esc(net))
+  if (props.tracks && props.tracks > 1) rows.push(`${props.tracks} tracks`)
+  const passenger = railPassengerLabel(props.passenger)
+  if (passenger) rows.push(esc(passenger))
+  const rights = railOwnerName(props.rights)
+  if (rights) rows.push(`Trackage rights: ${esc(rights)}`)
+  const badge = props.strac ? STRACNET_LABELS[props.strac] : null
+  return [
+    badge
+      ? `<div class="mb-1 inline-flex rounded bg-slate-800 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white dark:bg-slate-200 dark:text-slate-900">${esc(badge)}</div>`
+      : '',
+    `<div class="text-[13px] font-medium text-foreground">${esc(owner)}</div>`,
+    rows.length
+      ? `<div class="mt-0.5 text-[11px] leading-snug text-muted-foreground">${rows.join(' · ')}</div>`
+      : '',
+    props.id != null
+      ? `<div class="mt-1 text-[10px] text-muted-foreground/70">FRA arc ${props.id}</div>`
+      : '',
+  ].join('')
+}
+
 export default function MapView({
   projects,
   parcels,
@@ -195,6 +264,7 @@ export default function MapView({
   apiRef,
   onBasemapError,
   animateLines,
+  railMode,
 }: MapViewProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<maplibregl.Map | null>(null)
@@ -208,6 +278,9 @@ export default function MapView({
   selectedRef.current = selectedId
   const animateRef = useRef(animateLines)
   animateRef.current = animateLines
+  const railRef = useRef(railMode)
+  railRef.current = railMode
+  const railPopupRef = useRef<maplibregl.Popup | null>(null)
   const drawCoordsRef = useRef<[number, number][]>([])
   // Keep latest callbacks reachable from stable map listeners
   const handlersRef = useRef({ onSelect, onPlace, onDrawComplete, onDrawCancel, placing, drawing, drawingProjectId, drawColor })
@@ -235,8 +308,39 @@ export default function MapView({
       if (status === 503) onBasemapError()
     })
 
-    const overlays = () => ensureOverlays(map)
+    // Rail layers ship inside the style, so a flavor change rebuilds them —
+    // re-assert the current mode alongside the overlays it also destroys.
+    const overlays = () => {
+      ensureOverlays(map)
+      applyRailMode(map, railRef.current)
+    }
     map.on('style.load', overlays)
+
+    // Rail inspection: who owns this track, and is it strategic. Bound to the
+    // layer ids rather than a generic click so it never fires where no rail is.
+    for (const layerId of [RAIL_LAYERS.strac, RAIL_LAYERS.connector, RAIL_LAYERS.other]) {
+      map.on('click', layerId, (e) => {
+        if (handlersRef.current.drawing || handlersRef.current.placing) return
+        const feature = e.features?.[0]
+        if (!feature) return
+        railPopupRef.current?.remove()
+        railPopupRef.current = new maplibregl.Popup({
+          closeButton: true,
+          className: 'bw-rail-popup',
+          maxWidth: '260px',
+        })
+          .setLngLat(e.lngLat)
+          .setHTML(railPopupHtml(feature.properties as RailFeatureProps))
+          .addTo(map)
+      })
+      map.on('mouseenter', layerId, () => {
+        if (handlersRef.current.drawing || handlersRef.current.placing) return
+        map.getCanvas().style.cursor = 'pointer'
+      })
+      map.on('mouseleave', layerId, () => {
+        map.getCanvas().style.cursor = ''
+      })
+    }
 
     // Persistent marker labels when zoomed in — markers.tsx keys off this attr
     const syncLabels = () => {
@@ -670,6 +774,29 @@ export default function MapView({
       if (map.getLayer(DASH_LAYER)) map.setLayoutProperty(DASH_LAYER, 'visibility', 'none')
     }
   }, [animateLines])
+
+  // ── Rail layer visibility ──────────────────────────────────────────────────
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map) return
+    // Before style.load the layers do not exist yet; the style.load handler
+    // applies the mode instead, so this is a no-op rather than a lost setting.
+    if (map.isStyleLoaded()) applyRailMode(map, railMode)
+    if (railMode === 'off') {
+      railPopupRef.current?.remove()
+      railPopupRef.current = null
+    }
+  }, [railMode])
+
+  // Close the rail popup on unmount — a maplibre Popup outlives the component
+  // that opened it.
+  useEffect(
+    () => () => {
+      railPopupRef.current?.remove()
+      railPopupRef.current = null
+    },
+    []
+  )
 
   // ── Mode side-effects (cursor, draw reset, Esc/Enter) ─────────────────────
   useEffect(() => {
