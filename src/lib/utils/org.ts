@@ -113,10 +113,32 @@ export function groupOrg(nodes: OrgNode[], people: OrgPerson[]): OrgGroups {
 
 // ─── Person status ───────────────────────────────────────────────────────────
 
-export type OrgPersonStatus = 'active' | 'open'
+/**
+ * `departed` added 2026-09-30 with the personnel register.
+ *
+ * ⚠ WHY IT HAD TO EXIST. The chart's only states were active and open (a vacant
+ * seat), so there was no way to say somebody had LEFT — and the delete route
+ * took that literally: a person resigned, the row was deleted, and nothing
+ * anywhere recorded that they had ever held the box. The register's rule is
+ * §12's: the row is the tombstone. A departed person keeps their place in the
+ * history of the chart and stops being drawn in the live one.
+ *
+ * org_people.status has no CHECK constraint, so this list is the only thing
+ * defining the allowed set — which is exactly why the coercion below must know
+ * all three. Before it did, a 'departed' write round-tripped as 'active'.
+ */
+export type OrgPersonStatus = 'active' | 'open' | 'departed'
 
-export const ORG_PERSON_STATUSES: OrgPersonStatus[] = ['active', 'open']
+export const ORG_PERSON_STATUSES: OrgPersonStatus[] = ['active', 'open', 'departed']
+
+export const ORG_PERSON_STATUS_LABELS: Record<OrgPersonStatus, string> = {
+  active: 'Active',
+  open: 'Open seat',
+  departed: 'Departed',
+}
 
 export function orgPersonStatus(value: string | null | undefined): OrgPersonStatus {
-  return value === 'open' ? 'open' : 'active'
+  return ORG_PERSON_STATUSES.includes(value as OrgPersonStatus)
+    ? (value as OrgPersonStatus)
+    : 'active'
 }

@@ -1,6 +1,5 @@
 import { NextRequest } from 'next/server'
-import { createAdminClient } from '@/lib/supabase/admin'
-import { getViewer, forbiddenJson } from '@/lib/auth/viewer'
+import { getViewer, forbiddenJson, actorAdminClient } from '@/lib/auth/viewer'
 import { ORG_TIERS, type OrgTier } from '@/lib/utils/org'
 
 // Admin-only by default-deny (see api/org/nodes/route.ts).
@@ -53,7 +52,7 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  const supabase = createAdminClient()
+  const supabase = await actorAdminClient()
   const results = await Promise.all([
     ...nodes.map((item) =>
       supabase.from('org_nodes').update({ sort_order: item.sort_order }).eq('id', item.id),

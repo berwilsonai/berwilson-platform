@@ -1,6 +1,5 @@
 import { NextRequest } from 'next/server'
-import { createAdminClient } from '@/lib/supabase/admin'
-import { getViewer, forbiddenJson } from '@/lib/auth/viewer'
+import { getViewer, forbiddenJson, actorAdminClient } from '@/lib/auth/viewer'
 import { orgNodeKind, orgEntityType } from '@/lib/utils/org'
 
 // Org structure nodes (arms / management / divisions / SPVs).
@@ -35,7 +34,7 @@ export async function POST(request: NextRequest) {
   }
   const kind = orgNodeKind(body.kind)
 
-  const supabase = createAdminClient()
+  const supabase = await actorAdminClient()
   const { data, error } = await supabase
     .from('org_nodes')
     .insert({

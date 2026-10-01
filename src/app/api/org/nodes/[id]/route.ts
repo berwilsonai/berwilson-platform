@@ -1,6 +1,5 @@
 import { NextRequest } from 'next/server'
-import { createAdminClient } from '@/lib/supabase/admin'
-import { getViewer, forbiddenJson } from '@/lib/auth/viewer'
+import { getViewer, forbiddenJson, actorAdminClient } from '@/lib/auth/viewer'
 import { orgEntityType } from '@/lib/utils/org'
 import type { TablesUpdate } from '@/lib/supabase/types'
 
@@ -23,7 +22,7 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
     return Response.json({ error: 'Invalid JSON body' }, { status: 400 })
   }
 
-  const supabase = createAdminClient()
+  const supabase = await actorAdminClient()
 
   const update: TablesUpdate<'org_nodes'> = {}
   if (body.name !== undefined) {
@@ -70,7 +69,7 @@ export async function DELETE(_request: NextRequest, { params }: RouteContext) {
 
   const { id } = await params
 
-  const supabase = createAdminClient()
+  const supabase = await actorAdminClient()
   // FK cascade removes child SPVs and any staff allocated to this subtree.
   const { error } = await supabase.from('org_nodes').delete().eq('id', id)
 

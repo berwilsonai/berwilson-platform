@@ -198,6 +198,30 @@ export const ACTIVITY_TABLE_LABELS: Record<string, string> = {
   review_queue: 'Review Queue',
   parties: 'Parties',
   project_players: 'Team',
+  // Governance, 2026-09-30. The first seven of these were already live tables
+  // with no activity trigger at all, so /activity has never had a reason to
+  // label them; enumLabel's humanising fallback would print "Org People" and
+  // "Personnel Note Kinds", which is the schema leaking through the page (§7).
+  team_members: 'Team access',
+  access_grants: 'Access grants',
+  org_people: 'Org chart — people',
+  org_nodes: 'Org chart — entities',
+  meetings: 'Meetings',
+  company_profile: 'Company profile',
+  certifications: 'Certifications',
+  personnel: 'Personnel',
+  personnel_notes: 'Personnel file',
+  personnel_agreements: 'Personnel agreements',
+  personnel_offboarding: 'Offboarding',
+  personnel_note_kinds: 'Note kinds',
+  resolutions: 'Resolutions',
+  org_roles: 'Appointments',
+  ownership_interests: 'Ownership',
+  entity_obligations: 'Filing calendar',
+  conflict_disclosures: 'Conflict disclosures',
+  related_party_transactions: 'Related-party',
+  policies: 'Policies',
+  policy_acknowledgements: 'Policy acknowledgements',
 }
 
 export const ACTIVITY_ACTION_STYLES: Record<string, string> = {

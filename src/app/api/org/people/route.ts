@@ -1,6 +1,5 @@
 import { NextRequest } from 'next/server'
-import { createAdminClient } from '@/lib/supabase/admin'
-import { getViewer, forbiddenJson } from '@/lib/auth/viewer'
+import { getViewer, forbiddenJson, actorAdminClient } from '@/lib/auth/viewer'
 import { orgTier, orgPersonStatus } from '@/lib/utils/org'
 
 // Org chart people — free-text allocations, deliberately NOT linked to
@@ -42,7 +41,7 @@ export async function POST(request: NextRequest) {
     return Response.json({ error: 'roster people need a tier (leadership | director)' }, { status: 400 })
   }
 
-  const supabase = createAdminClient()
+  const supabase = await actorAdminClient()
   const { data, error } = await supabase
     .from('org_people')
     .insert({

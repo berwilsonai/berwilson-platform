@@ -1718,6 +1718,7 @@ export type Database = {
           transcript: string | null
           transcription_status: string | null
           updated_at: string | null
+          minutes_approved_at_meeting_id: string | null
         }
         Insert: {
           approved_at?: string | null
@@ -1747,6 +1748,7 @@ export type Database = {
           transcript?: string | null
           transcription_status?: string | null
           updated_at?: string | null
+          minutes_approved_at_meeting_id?: string | null
         }
         Update: {
           approved_at?: string | null
@@ -1776,6 +1778,7 @@ export type Database = {
           transcript?: string | null
           transcription_status?: string | null
           updated_at?: string | null
+          minutes_approved_at_meeting_id?: string | null
         }
         Relationships: [
           {
@@ -2210,6 +2213,8 @@ export type Database = {
           status: string
           tier: string | null
           updated_at: string | null
+          departed_on: string | null
+          personnel_id: string | null
         }
         Insert: {
           created_at?: string | null
@@ -2222,6 +2227,8 @@ export type Database = {
           status?: string
           tier?: string | null
           updated_at?: string | null
+          departed_on?: string | null
+          personnel_id?: string | null
         }
         Update: {
           created_at?: string | null
@@ -2234,6 +2241,8 @@ export type Database = {
           status?: string
           tier?: string | null
           updated_at?: string | null
+          departed_on?: string | null
+          personnel_id?: string | null
         }
         Relationships: [
           {
@@ -3507,6 +3516,10 @@ export type Database = {
           name: string
           party_id: string | null
           role: string
+          deactivated_at: string | null
+          deactivated_by: string | null
+          personnel_id: string | null
+          revoked_grants: Json | null
         }
         Insert: {
           active?: boolean
@@ -3519,6 +3532,10 @@ export type Database = {
           name: string
           party_id?: string | null
           role?: string
+          deactivated_at?: string | null
+          deactivated_by?: string | null
+          personnel_id?: string | null
+          revoked_grants?: Json | null
         }
         Update: {
           active?: boolean
@@ -3531,6 +3548,10 @@ export type Database = {
           name?: string
           party_id?: string | null
           role?: string
+          deactivated_at?: string | null
+          deactivated_by?: string | null
+          personnel_id?: string | null
+          revoked_grants?: Json | null
         }
         Relationships: [
           {

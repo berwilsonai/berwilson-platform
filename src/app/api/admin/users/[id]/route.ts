@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
-import { createAdminClient } from '@/lib/supabase/admin'
-import { getViewer, forbiddenJson } from '@/lib/auth/viewer'
+import { getViewer, forbiddenJson, actorAdminClient } from '@/lib/auth/viewer'
 import { isRole } from '@/lib/auth/permissions'
+import type { Json } from '@/lib/supabase/types'
 
 interface RouteContext {
   params: Promise<{ id: string }>
@@ -31,7 +31,7 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
     return Response.json({ error: 'Invalid JSON body' }, { status: 400 })
   }
 
-  const admin = createAdminClient()
+  const admin = await actorAdminClient()
 
   // Set a password directly through the auth admin API — the self-hosted stack
   // can't send reset emails, so admin-set passwords are the access path. When
@@ -85,7 +85,14 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
     }
   }
 
-  const update: { role?: string; active?: boolean; is_steel_rep?: boolean } = {}
+  const update: {
+    role?: string
+    active?: boolean
+    is_steel_rep?: boolean
+    deactivated_at?: string | null
+    deactivated_by?: string | null
+    revoked_grants?: Json | null
+  } = {}
   if ('is_steel_rep' in body) update.is_steel_rep = !!body.is_steel_rep
   if ('role' in body) {
     if (!isRole(body.role)) return Response.json({ error: 'Invalid role' }, { status: 400 })
@@ -103,7 +110,48 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
     }
     update.role = body.role
   }
+  /**
+   * Deactivating IS revoking platform access, so this is the offboarding
+   * evidence date — the answer to "when did their access go away", which for a
+   * federal contractor is the question most often asked about a departed
+   * employee and which nothing recorded before 2026-09-30.
+   *
+   * ⚠ AND IT SNAPSHOTS THE GRANTS. access_grants is `on delete cascade` from
+   * team_members, so a later permanent delete destroys the record of WHAT the
+   * person could see. Taking the snapshot at deactivation — the step that
+   * always happens first — means the evidence exists before anything can eat
+   * it. Deliberately no reason column here: a reason is an HR fact and lives in
+   * exactly one place, personnel_notes on /company/people.
+   */
+  const deactivating = 'active' in body && !body.active
+  const reactivating = 'active' in body && !!body.active
+  let grantSnapshot: { resource_type: string; resource_id: string }[] = []
+
   if ('active' in body) update.active = !!body.active
+
+  if (deactivating) {
+    const { data: current } = await admin
+      .from('team_members')
+      .select('active, deactivated_at')
+      .eq('id', id)
+      .maybeSingle()
+    // Fill, never overwrite (§12): re-pressing deactivate must not move the
+    // date access actually ended.
+    if (current && !current.deactivated_at) {
+      const { data: grants } = await admin
+        .from('access_grants')
+        .select('resource_type, resource_id, created_at')
+        .eq('team_member_id', id)
+      grantSnapshot = (grants ?? []) as { resource_type: string; resource_id: string }[]
+      update.deactivated_at = new Date().toISOString()
+      update.deactivated_by = viewer.teamMemberName ?? viewer.email ?? null
+      update.revoked_grants = grantSnapshot as unknown as Json
+    }
+  }
+  if (reactivating) {
+    update.deactivated_at = null
+    update.deactivated_by = null
+  }
 
   if (Object.keys(update).length > 0) {
     const { error } = await admin.from('team_members').update(update).eq('id', id)
@@ -128,12 +176,25 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
 
 /**
  * DELETE — permanently remove a team_member (and their auth login, if any).
- * Guarded: the member must be deactivated first, so a permanent delete is
- * always a deliberate two-step action. FKs to team_members are ON DELETE SET
- * NULL (tasks/deals/objectives/investors just lose the assignee) or CASCADE
+ *
+ * Still guarded by deactivation first, so a permanent delete is always a
+ * deliberate two-step action. FKs to team_members are ON DELETE SET NULL
+ * (tasks/deals/objectives/investors just lose the assignee) or CASCADE
  * (access_grants), so this never orphans or blocks.
+ *
+ * ⚠ CHANGED 2026-09-30. Someone who ever held a LOGIN is no longer deletable on
+ * a single press. The cascade on access_grants means deleting them destroys the
+ * record of what they could see, and that record is the point: a deactivated row
+ * carrying deactivated_at and revoked_grants answers "when did their access end
+ * and what did it reach", and a deleted row answers nothing. §12's rule is that
+ * the row is the tombstone.
+ *
+ * `?purge=1` is the deliberate override, for a genuine mis-entry rather than a
+ * person who left. Even then the row survives in activity_log.metadata, because
+ * log_activity now fires on team_members and writes to_jsonb(old) on DELETE into
+ * a table with no UPDATE or DELETE policy.
  */
-export async function DELETE(_request: NextRequest, { params }: RouteContext) {
+export async function DELETE(request: NextRequest, { params }: RouteContext) {
   const viewer = await getViewer()
   if (!viewer) return Response.json({ error: 'Not authenticated' }, { status: 401 })
   if (!viewer.isAdmin) return forbiddenJson('Admin only')
@@ -143,10 +204,12 @@ export async function DELETE(_request: NextRequest, { params }: RouteContext) {
     return Response.json({ error: "You can't delete your own account." }, { status: 400 })
   }
 
-  const admin = createAdminClient()
+  const purge = new URL(request.url).searchParams.get('purge') === '1'
+
+  const admin = await actorAdminClient()
   const { data: member, error: memberError } = await admin
     .from('team_members')
-    .select('active, auth_user_id, name')
+    .select('active, auth_user_id, name, deactivated_at')
     .eq('id', id)
     .single()
   if (memberError) return Response.json({ error: memberError.message }, { status: 500 })
@@ -155,6 +218,33 @@ export async function DELETE(_request: NextRequest, { params }: RouteContext) {
       { error: 'Deactivate this user before deleting them permanently.' },
       { status: 400 }
     )
+  }
+
+  const everHadALogin = Boolean(member.auth_user_id) || Boolean(member.deactivated_at)
+  if (everHadALogin && !purge) {
+    return Response.json(
+      {
+        error:
+          `${member.name} held a login, so their deactivated record is the evidence of when their access ended and what it reached. ` +
+          'Keep it, and record why they left on /company/people. Delete permanently only if this row was created in error.',
+        requiresPurge: true,
+      },
+      { status: 409 }
+    )
+  }
+
+  // Last chance to record what the cascade is about to destroy. The UPDATE
+  // fires log_activity, so the grants land in the append-only log even though
+  // the row itself is a moment from being gone.
+  const { data: grants } = await admin
+    .from('access_grants')
+    .select('resource_type, resource_id, created_at')
+    .eq('team_member_id', id)
+  if ((grants ?? []).length > 0) {
+    await admin
+      .from('team_members')
+      .update({ revoked_grants: (grants ?? []) as unknown as Json })
+      .eq('id', id)
   }
 
   // Remove the auth login first (frees the email for reuse); non-fatal.
