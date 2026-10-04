@@ -78,7 +78,7 @@ export function resolveNavItem(item: NavItem, allowed: (href: string) => boolean
 }
 
 export const NAV_ITEMS: NavItem[] = [
-  { href: '/decide', label: 'Decide', title: 'Decide', icon: Gavel, group: 'primary', keywords: 'review queue approve confirm pending inbox decisions bids intake what needs me triage backlog', mobilePrimary: true, badge: 'review', alsoMatches: ['/leads', '/intake', '/review', '/email-ingestion'] },
+  { href: '/decide', label: 'Decide', title: 'Decide', icon: Gavel, group: 'primary', keywords: 'review queue approve confirm pending inbox decisions bids intake what needs me triage backlog', mobilePrimary: true, badge: 'review', alsoMatches: ['/review'] },
   { href: '/tasks', label: 'Tasks', title: 'Team Tasks', icon: ListChecks, group: 'primary', keywords: 'todo action items team workload capacity', mobilePrimary: true },
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, group: 'primary', keywords: 'home overview alerts urgent overdue attention', mobilePrimary: true, badge: 'attention' },
   { href: '/objectives', label: 'Objectives', icon: Target, group: 'primary', keywords: 'priorities goals strategy steering now soon possibly focus' },
@@ -133,6 +133,15 @@ export const PALETTE_EXTRAS: { href: string; label: string; keywords: string }[]
 ]
 
 /** True when `pathname` belongs to `item` (exact, child path, or alsoMatches). */
+/**
+ * Is this nav item the one for `pathname`?
+ *
+ * ⚠ `alsoMatches` must only name paths that have NO nav item of their own.
+ * /decide claimed /leads, /intake and /email-ingestion, all three of which are
+ * their own destinations — so standing on /leads lit BOTH "Decide" and "Leads",
+ * and a highlighted Decide is what a reader takes to mean "this is where I am".
+ * Leads was in the sidebar the whole time and read as a sub-view of the queue.
+ */
 export function navItemActive(item: NavItem, pathname: string): boolean {
   if (pathname === item.href || pathname.startsWith(item.href + '/')) return true
   return (item.alsoMatches ?? []).some((p) => pathname === p || pathname.startsWith(p + '/'))

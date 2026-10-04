@@ -24,10 +24,14 @@ export const metadata = { title: 'Leads — Ber Wilson Intelligence' }
 export default async function LeadsPage({
   searchParams,
 }: {
-  /** ?lead=<id> opens that lead on mount — the target of the digest email's links. */
-  searchParams: Promise<{ lead?: string }>
+  /**
+   * `?lead=<id>` opens that lead on mount — the target of the digest email's
+   * links. `?route=<key>` opens one division, so a lane is a bookmarkable view
+   * and not just a tab you have to find again.
+   */
+  searchParams: Promise<{ lead?: string; route?: string }>
 }) {
-  const { lead: initialOpenLeadId } = await searchParams
+  const { lead: initialOpenLeadId, route: requestedRoute } = await searchParams
   const viewer = await getViewer()
   if (viewer && !viewer.isAdmin) redirect('/tasks')
 
@@ -38,6 +42,12 @@ export default async function LeadsPage({
   // (§12); `toCategoryViews` drops the handoff addresses and Drive ids on the
   // way out, so the browser sees labels and tones and nothing operational.
   const categories = toCategoryViews(await listCategories())
+
+  // Validated against the registry rather than trusted: an unknown ?route would
+  // select a tab that does not exist, leaving the queue looking empty with every
+  // tab unlit and nothing saying why. An unrecognised value falls back to 'all'.
+  const initialRoute =
+    requestedRoute && categories.some((c) => c.key === requestedRoute) ? requestedRoute : 'all'
 
   // Open queue plus everything triage rejected, in one trip. The client hides
   // the rejected rows behind a toggle; they're loaded so that toggle is instant
@@ -143,6 +153,7 @@ export default async function LeadsPage({
 
       <LeadsClient
         initialOpenLeadId={initialOpenLeadId ?? null}
+        initialRoute={initialRoute}
         initialLeads={leads}
         filteredCount={filteredCount ?? 0}
         attachOptions={attachOptions}

@@ -16,16 +16,40 @@ import type { LeadRow, LeadNote } from '@/lib/leads/db'
 type RouteFilter = string
 
 /**
+ * Put the chosen division in the address bar, so the view can be bookmarked.
+ *
+ * Module scope, not the component body: it needs nothing but its argument, and
+ * a helper defined inside the body destabilises what it is passed to (§12).
+ */
+function syncRouteToUrl(route: string): void {
+  const url = new URL(window.location.href)
+  if (route === 'all') url.searchParams.delete('route')
+  else url.searchParams.set('route', route)
+  // ?lead is consumed once, on mount. Left in place, a bookmark taken after
+  // following a digest link would reopen a sheet the reader has since closed.
+  url.searchParams.delete('lead')
+  window.history.replaceState(null, '', url)
+}
+
+/**
  * The inbound lead queue.
  *
  * Everything filters in memory — the server ships the open queue plus filtered
  * rows in one go, and the volume (a quarter of one inbox) is small enough that
  * a round trip per tab would be pure latency.
+ *
+ * The division tab is nonetheless kept in the URL as `?route=<key>`, because a
+ * view somebody wants to return to is a view they want to bookmark: "the Dino
+ * HVAC leads" was a tab you could reach but not link to, which reads as the
+ * division having no page at all. Written with `history.replaceState` rather
+ * than `router.replace` deliberately — the latter re-runs the server component
+ * and would reintroduce exactly the round trip per tab this design avoids.
  */
 export default function LeadsClient({
   initialLeads,
   filteredCount,
   initialOpenLeadId = null,
+  initialRoute = 'all',
   attachOptions = [],
   categories,
 }: {
@@ -33,6 +57,8 @@ export default function LeadsClient({
   filteredCount: number
   /** From ?lead=<id> — the digest email links straight to one lead. */
   initialOpenLeadId?: string | null
+  /** From ?route=<key> — a bookmark or a link that opens one division. */
+  initialRoute?: string
   /** Existing projects and opportunities a lead can be attached to. */
   attachOptions?: AttachOption[]
   /** The routing registry, in display order. Server-loaded; see category-view.ts. */
@@ -40,7 +66,7 @@ export default function LeadsClient({
 }) {
   const router = useRouter()
   const [leads, setLeads] = useState(initialLeads)
-  const [route, setRoute] = useState<RouteFilter>('all')
+  const [route, setRoute] = useState<RouteFilter>(initialRoute)
   const [query, setQuery] = useState('')
   const [showFiltered, setShowFiltered] = useState(false)
   // Seeded from the URL so a link in the digest email lands on the lead itself
@@ -219,7 +245,10 @@ export default function LeadsClient({
             <button
               key={r}
               type="button"
-              onClick={() => setRoute(r)}
+              onClick={() => {
+                setRoute(r)
+                syncRouteToUrl(r)
+              }}
               className={`h-8 rounded-md px-2.5 text-sm ${
                 route === r ? 'bg-primary text-primary-foreground' : 'hover:bg-accent'
               }`}

@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { ExternalLink, Wrench, Network } from 'lucide-react'
+import { ExternalLink, Wrench, Network, Radar } from 'lucide-react'
 import { createAdminClient } from '@/lib/supabase/admin'
 import DinoDashboard from '@/components/dino/DinoDashboard'
 import type { DinoRevenueRow } from '@/components/dino/RevenueLedger'
@@ -52,6 +52,26 @@ export default async function DinoPage() {
           </div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
+          {/*
+            The two lead lanes, linked from the page named after the company
+            they belong to. This page is the money side — revenue split and the
+            payment schedule — and the leads live in the queue under their own
+            division tab, which is not a place anyone thinks to look for "Dino".
+          */}
+          <Link
+            href="/leads?route=plumbing"
+            className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md border border-input bg-background text-xs font-medium hover:bg-accent transition-colors"
+          >
+            <Radar size={13} />
+            Plumbing leads
+          </Link>
+          <Link
+            href="/leads?route=hvac"
+            className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md border border-input bg-background text-xs font-medium hover:bg-accent transition-colors"
+          >
+            <Radar size={13} />
+            HVAC leads
+          </Link>
           <Link
             href="/company/structure"
             className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md border border-input bg-background text-xs font-medium hover:bg-accent transition-colors"
