@@ -21,6 +21,20 @@ import type { LeadStatus, FitRecommendation, LeadSource } from '@/lib/leads/db'
 export type LeadDestination = 'project' | 'opportunity' | 'steel_deal' | 'handoff' | 'manual'
 
 /**
+ * A handoff lane as the SIDEBAR needs it — a key and a label, nothing else.
+ *
+ * Here rather than exported from `AppSidebar.tsx` for the same reason as
+ * `LeadCategoryView` above: the layout is a server component, and a type
+ * imported out of a `'use client'` file invites a value to follow it one day
+ * (§12). Narrower than `LeadCategoryView` on purpose — a nav row renders a
+ * label and a link, and nothing in the menu should depend on more than that.
+ */
+export interface LeadLane {
+  key: string
+  label: string
+}
+
+/**
  * A category as a client component sees it — plain data, passed down as props.
  *
  * A deliberate subset: the handoff address, the Drive folder id and the share

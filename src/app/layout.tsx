@@ -14,6 +14,8 @@ import MobileQuickUpload from "@/components/layout/MobileQuickUpload"
 import AskBerAIDock from "@/components/agent/AskBerAIDock"
 import DevNoteDock from "@/components/dev-notes/DevNoteDock"
 import { countOpenDevNotes } from "@/lib/dev-notes/queries"
+import { listCategories } from "@/lib/leads/categories"
+import type { LeadLane } from "@/lib/utils/leads"
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -104,9 +106,13 @@ export default async function RootLayout({
   // counts — it is the builder's queue, and a number nobody can act on is
   // decoration on everyone else's screen.
   let openDevNoteCount = 0
+  // The trade divisions, nested under Leads in the sidebar. Read from the
+  // routing registry rather than listed in nav.ts, so a new line of business
+  // appears the moment someone adds the row (§12) — see LEAD_LANE_NOTE.
+  let leadLanes: LeadLane[] = []
   if (showShell && isAdmin) {
     const adminClient = createAdminClient()
-    const [decideCount, attention, { count: dinoRows }, devNotes] = await Promise.all([
+    const [decideCount, attention, { count: dinoRows }, devNotes, categories] = await Promise.all([
       // The badge sits on Decide, so it counts what Decide holds — inbound
       // bids, staged correspondence AND flagged extractions, not the review
       // queue alone (which was a third of the page it pointed at).
@@ -117,11 +123,19 @@ export default async function RootLayout({
       countAttention(),
       adminClient.from('dino_revenue').select('id', { count: 'exact', head: true }),
       countOpenDevNotes(),
+      // Cached for 60s inside listCategories, so this is not a query per render.
+      listCategories(),
     ])
     pendingReviewCount = decideCount
     attentionCount = attention
     if ((dinoRows ?? 0) === 0) emptyModules.push('dino')
     openDevNoteCount = devNotes
+    // Handoff lanes only: the other destinations (project, opportunity, steel)
+    // already have their own nav rows, and listing them twice would make the
+    // menu two routes to one place.
+    leadLanes = categories
+      .filter((c) => c.active && c.destination === 'handoff')
+      .map((c) => ({ key: c.key, label: c.label }))
   }
 
   return (
@@ -139,7 +153,7 @@ export default async function RootLayout({
         />
         {showShell ? (
           <div className="flex h-full">
-            <AppSidebar pendingReviewCount={pendingReviewCount} attentionCount={attentionCount} openDevNoteCount={openDevNoteCount} role={role} emptyModules={emptyModules} />
+            <AppSidebar pendingReviewCount={pendingReviewCount} attentionCount={attentionCount} openDevNoteCount={openDevNoteCount} role={role} emptyModules={emptyModules} leadLanes={leadLanes} />
             <div className="flex flex-1 flex-col min-w-0">
               <AppHeader email={viewer?.email ?? ""} role={role} />
               <main className="flex-1 overflow-y-auto overflow-x-hidden p-5 sm:p-6 pb-24 md:pb-6 scrollbar-thin animate-fade-in-up">

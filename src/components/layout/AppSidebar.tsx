@@ -2,11 +2,13 @@
 
 import Image from 'next/image'
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useSearchParams } from 'next/navigation'
 import { useState } from 'react'
-import { ChevronLeft, Settings, Bug } from 'lucide-react'
+import { ChevronLeft, ChevronDown, Settings, Bug, Dot } from 'lucide-react'
 import { canAccessPage, type Role } from '@/lib/auth/permissions'
 import { NAV_ITEMS, NAV_GROUP_ORDER, navItemActive, resolveNavItem } from '@/lib/nav'
+import { useStoredState } from '@/hooks/use-stored-state'
+import type { LeadLane } from '@/lib/utils/leads'
 
 interface AppSidebarProps {
   /** Module keys with no data — their nav rows are hidden. */
@@ -16,12 +18,33 @@ interface AppSidebarProps {
   /** Open developer notes. Admin-only count; everyone gets the button. */
   openDevNoteCount?: number
   role?: Role
+  /**
+   * LEAD_LANE_NOTE — the trade divisions, nested under Leads.
+   *
+   * Read from `lead_categories` in the layout, never listed here: the whole
+   * point of the routing registry is that adding a line of business is an
+   * INSERT (§12), and a hardcoded trio in the sidebar would quietly make the
+   * next trade invisible. Only `destination: 'handoff'` lanes appear —
+   * construction, steel and corporate already have their own destinations in
+   * this same menu, so repeating them here would be two routes to one place.
+   */
+  leadLanes?: LeadLane[]
 }
 
-export default function AppSidebar({ pendingReviewCount = 0, attentionCount = 0, openDevNoteCount = 0, role = 'admin', emptyModules = [] }: AppSidebarProps) {
+export default function AppSidebar({ pendingReviewCount = 0, attentionCount = 0, openDevNoteCount = 0, role = 'admin', emptyModules = [], leadLanes = [] }: AppSidebarProps) {
   const pathname = usePathname()
+  // The lead queue keeps its chosen division in `?route=`. Next 16 reflects a
+  // `history.replaceState` into useSearchParams without a server round trip, so
+  // clicking a division TAB on the page moves this highlight too — the sidebar
+  // and the page can never disagree about where the reader is.
+  const searchParams = useSearchParams()
   const [collapsed, setCollapsed] = useState(false)
   const [systemOpen, setSystemOpen] = useState(false)
+  // Remembered per browser. A disclosure is exactly the per-viewer convenience
+  // localStorage is for; nothing here needs to survive a cleared cache.
+  const [lanesOpen, setLanesOpen] = useStoredState('sidebar-lead-lanes-open', true)
+
+  const activeLane = pathname === '/leads' ? searchParams.get('route') : null
 
   // Only show sections this role can actually visit; drop emptied groups.
   // The System group lives behind the gear at the bottom, not in the main list.
@@ -102,7 +125,10 @@ export default function AppSidebar({ pendingReviewCount = 0, attentionCount = 0,
                 const active = navItemActive(item, pathname)
                 const badgeCount = badge ? badgeCounts[badge] : 0
                 const showBadge = badgeCount > 0
-                return (
+                // Leads carries the trade divisions beneath it. Everything else
+                // renders as a plain row, exactly as before.
+                const withLanes = href === '/leads' && !collapsed && leadLanes.length > 0
+                const row = (
                   <Link
                     key={href}
                     href={href}
@@ -132,6 +158,59 @@ export default function AppSidebar({ pendingReviewCount = 0, attentionCount = 0,
                       </>
                     )}
                   </Link>
+                )
+
+                if (!withLanes) return row
+
+                /*
+                  The divisions, nested.
+                  Open when the reader is standing in one, whatever the stored
+                  preference says — the same rule the System group uses below.
+                  Collapsing a section must never hide the row that is currently
+                  highlighted, or the highlight is somewhere the reader cannot
+                  see and the menu looks like it has lost its place.
+                */
+                const open = lanesOpen || !!activeLane
+                return (
+                  <div key={href}>
+                    <div className="flex items-center gap-0.5">
+                      <span className="flex-1 min-w-0">{row}</span>
+                      <button
+                        type="button"
+                        onClick={() => setLanesOpen(!open)}
+                        aria-expanded={open}
+                        aria-label={open ? 'Hide divisions' : 'Show divisions'}
+                        title={open ? 'Hide divisions' : 'Show divisions'}
+                        className="shrink-0 rounded p-1.5 text-sidebar-foreground/45 outline-none transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
+                      >
+                        <ChevronDown
+                          size={14}
+                          className={`transition-transform duration-150 ${open ? '' : '-rotate-90'}`}
+                        />
+                      </button>
+                    </div>
+                    {open && (
+                      <div className="mt-0.5 space-y-0.5 border-l border-sidebar-border/70 ml-4 pl-1">
+                        {leadLanes.map((lane) => {
+                          const laneActive = activeLane === lane.key
+                          return (
+                            <Link
+                              key={lane.key}
+                              href={`/leads?route=${lane.key}`}
+                              className={`flex items-center gap-1 rounded py-1.5 pl-1 pr-2.5 text-[13px] transition-colors ${
+                                laneActive
+                                  ? 'sidebar-nav-active text-sidebar-foreground'
+                                  : 'text-sidebar-foreground/65 hover:bg-sidebar-accent hover:text-sidebar-foreground'
+                              }`}
+                            >
+                              <Dot size={14} className="shrink-0 opacity-70" />
+                              <span className="truncate">{lane.label}</span>
+                            </Link>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </div>
                 )
               })}
             </div>
