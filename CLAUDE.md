@@ -421,6 +421,7 @@ Distilled from the build log. Each line is a bug that cost real hours — severa
 - **The Tailscale serve config is Tailscale's state, not ours.** Assert BOTH listeners on every deploy (`zsh deploy/tailnet-setup.sh`). Losing them takes the platform down while every local check still reports healthy. — 09-09
 - **Changing tailnet changes the MagicDNS suffix, and `NEXT_PUBLIC_*` is baked in at BUILD time** — a tailnet move needs `--fix` then a full rebuild, never just a restart. — 09-16
 - **A PIPELINE'S EXIT STATUS IS THE LAST COMMAND'S, SO `npm run build | grep … && launchctl kickstart` RESTARTS ON A FAILED BUILD.** grep matched, grep exited 0, the `&&` fired — and the failed build had already removed `.next/BUILD_ID`, so there was no old build to stay live: the service exited 1 and the platform answered 000. **Capture `$?` from an UNPIPED build and gate on it** (`npm run build > /tmp/build.log 2>&1; rc=$?`), then grep the log. Took production down once. — 09-30
+- **THE DEPLOY RUNBOOK BUILDS THE WORKING TREE, NOT `HEAD`, SO A COMMIT THAT DOES NOT COMPILE SHIPS GREEN.** A rename left one import pointing at a deleted module; the migrated file sat uncommitted as the only modified path, so every build and every deploy passed while `main` was broken for four days. A fresh clone is where it surfaces. After committing a rename, verify the COMMIT builds. — 10-03
 - **`next start` loads the build at boot.** A rebuild without `launchctl kickstart` changes nothing — three sweep phases ran only by hand for nine days because of this. — 09-20
 - **Work fired off after a route handler returns dies with the next `launchctl kickstart`** — and a deploy IS a kickstart. Store what the pass would need to resume and write progress back after every unit, or an interrupted run is indistinguishable from a lost one. — 09-24
 - **Do not run a backfill and a deploy at the same time on this box.** If the app 000s after a kickstart, check free memory and the service's exit code (−9 = OOM-killed) before suspecting Supabase. — 09-14
@@ -585,7 +586,7 @@ Calendar/meeting-prep and mail both run on Google Workspace via per-mailbox OAut
 
 | Item | Where | Raised |
 |---|---|---|
-| Three lead lanes have no handoff address, so Forward fails on press — `plumbing`, `hvac`, `flooring` (each also wants a hand-made Drive folder + outside addresses) | `/settings/lead-categories` | 09-30 |
+| Flooring has a Drive folder and a sheet but no handoff address, so its button stays disabled — nothing in the mail names a flooring contractor. Both Dino lanes are live (`dinoservicepros@gmail.com`) | `/settings/lead-categories` | 10-03 |
 | Sign in as `moose@berwilson.com`, not `info@` — info@ is the Pepper seat and greets you as her | — | 09-24 |
 | 77 of 81 staged intake sessions are accept-ready at ≥0.85 — "Select the N Ber AI is sure about" clears them in one sitting | `/decide` | 09-24 |
 | One People Intake session staged and un-confirmed (Seth Lloyd, Trevor Burton) | `/intake?tab=people` | 09-24 |
@@ -624,6 +625,7 @@ Calendar/meeting-prep and mail both run on Google Workspace via per-mailbox OAut
 
 Newest first; full entries in `docs/BUILD-LOG.md`.
 
+- **10-03** — the Dino lead lanes turned on: a Drive folder id that could not be typed into the screen, and a commit that did not build because the runbook builds the working tree (DEPLOYED, NOT PUSHED)
 - **10-01** — CLAUDE.md pruned 143k → 110k against the 150k truncation limit: open items split to `docs/OPEN-ITEMS.md`, §12 compressed and re-filed, §9's resolved entries retired
 - **09-30** — a project can be protected: containment everywhere, and a local-TOTP step-up to open it (DEPLOYED + MIGRATED)
 - **09-30** — a departure becomes a record instead of a deletion: the personnel, corporate and compliance registers, and an audit trail on the tables that had none (DEPLOYED + MIGRATED)
