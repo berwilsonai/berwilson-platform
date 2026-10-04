@@ -541,6 +541,7 @@ Distilled from the build log. Each line is a bug that cost real hours — severa
 - **DEFINING A HELPER IN THE COMPONENT BODY CAN DESTABILISE A FUNCTION IT CALLS**, and the React Compiler's exhaustive-deps rule then reports it against effects you did not touch. The warning is a design signal, not noise to suppress: a layer builder needing only its arguments belongs at module scope. — 09-28
 - **A SECOND RENDERING OF THE SAME REAL-WORLD THING IS NOT AN ADDITION, IT IS A DOUBLED LINE.** The Protomaps basemap already draws OSM rail as `roads_rail`; the NARN layer over it is the same track from a different survey, a few metres off. Hide the basemap's while ours draws and restore it when ours is off. Before adding an authoritative layer, grep the basemap's layer list for what it already covers. — 09-30
 - **WHAT A TILE LAYER DROPS AT LOW ZOOM MUST BE DECIDED BY WHAT A FEATURE IS, NOT BY DENSITY.** `--drop-densest-as-needed` is blind to kind, so it thins a strategic corridor through a busy terminal district while keeping the yard tracks beside it. Set a per-feature `tippecanoe.minzoom` from the attributes (STRACNET z2, main line z4, yard track z9). **Then check the toggle at every zoom** — the first build made "All rail" do nothing below z6. — 09-30
+- **A NAV ITEM'S `alsoMatches` MAY ONLY NAME PATHS WITH NO NAV ITEM OF THEIR OWN.** `navItemActive` is per-item with no dedupe, so `/decide` claiming `/leads` lit two sidebar items at once — and the reader believes the one that is highlighted, so a destination that was there all along read as a sub-view of the queue. **And a filter kept only in component state is not a view:** it cannot be linked, bookmarked or sent to anyone, which reads as the thing having no page. Put it in the URL with `history.replaceState` to keep it off the server. — 10-03
 - **New UI uses the Panel / Chip / `label-caps` idiom and `.elev-*`, never raw `shadow-*`.** No glassmorphism, no animated numbers, color only for status meaning. Date fields use `DatePicker`, never a native `<input type="date">`. — 07-17, 07-10
 - **Task owners and contacts are one person** — `team_members.party_id` ties them; adding or using an owner maintains the contact. — 07-21
 
@@ -625,7 +626,7 @@ Calendar/meeting-prep and mail both run on Google Workspace via per-mailbox OAut
 
 Newest first; full entries in `docs/BUILD-LOG.md`.
 
-- **10-03** — the Dino lead lanes turned on: a Drive folder id that could not be typed into the screen, and a commit that did not build because the runbook builds the working tree (DEPLOYED, NOT PUSHED)
+- **10-03** — the Dino lead lanes turned on (a Drive folder id that could not be typed into the screen; a commit that did not build because the runbook builds the working tree), and a division became a view you can link to — `/leads?route=<key>` (DEPLOYED, NOT PUSHED)
 - **10-01** — CLAUDE.md pruned 143k → 110k against the 150k truncation limit: open items split to `docs/OPEN-ITEMS.md`, §12 compressed and re-filed, §9's resolved entries retired
 - **09-30** — a project can be protected: containment everywhere, and a local-TOTP step-up to open it (DEPLOYED + MIGRATED)
 - **09-30** — a departure becomes a record instead of a deletion: the personnel, corporate and compliance registers, and an audit trail on the tables that had none (DEPLOYED + MIGRATED)
