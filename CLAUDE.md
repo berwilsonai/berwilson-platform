@@ -626,7 +626,7 @@ Calendar/meeting-prep and mail both run on Google Workspace via per-mailbox OAut
 
 Newest first; full entries in `docs/BUILD-LOG.md`.
 
-- **10-03** — the Dino lead lanes turned on (a Drive folder id that could not be typed into the screen; a commit that did not build because the runbook builds the working tree), and a division became a view you can link to — `/leads?route=<key>` (DEPLOYED, NOT PUSHED)
+- **10-03** — the Dino lead lanes turned on (a Drive folder id that could not be typed into the screen; a commit that did not build because the runbook builds the working tree), and a division became a view you can link to — `/leads?route=<key>`, plus the trade divisions as a collapsible list in the sidebar, driven by the registry (DEPLOYED, NOT PUSHED)
 - **10-01** — CLAUDE.md pruned 143k → 110k against the 150k truncation limit: open items split to `docs/OPEN-ITEMS.md`, §12 compressed and re-filed, §9's resolved entries retired
 - **09-30** — a project can be protected: containment everywhere, and a local-TOTP step-up to open it (DEPLOYED + MIGRATED)
 - **09-30** — a departure becomes a record instead of a deletion: the personnel, corporate and compliance registers, and an audit trail on the tables that had none (DEPLOYED + MIGRATED)

@@ -43,6 +43,19 @@ On integrating with Dino's own platform, which Richard raised as the alternative
 
 tsc clean, build exit 0, kickstarted, tailnet green.
 
+**Then: shortcuts in the left menu.** `/leads?route=` made a division linkable but you still had to know the URL, so the three trades are now a collapsible list nested under *Leads* in the sidebar: Dino Plumbing, Dino HVAC, Flooring.
+
+**Driven by `lead_categories`, filtered to `destination: 'handoff'`** — not a trio typed into `nav.ts`. The 09-30 rule is that a line of business is an INSERT, and a hardcoded list in the menu would have quietly made the next trade invisible; the filter is also what keeps construction, steel and corporate out, since each already has its own row in the same menu and two routes to one place is how a menu stops being trusted. `LeadLane` went in `src/lib/utils/leads.ts` rather than being exported from `AppSidebar.tsx`, beside `LeadCategoryView`, whose own comment already explains the dependency direction: the layout is a server component and a type imported out of a `'use client'` file invites a value to follow it (§12).
+
+**The highlight tracks the page's own tabs.** The sub-row's active state reads `?route=` through `useSearchParams`, and Next 16 reflects a `history.replaceState` into that hook with no server round trip — so clicking a division tab *on the page* moves the sidebar highlight too. Without that the sidebar would have kept pointing at whichever lane was in the URL at navigation time, which is precisely the stale-highlight failure written into §12 an hour earlier: the reader believes the row that is lit.
+
+The disclosure is remembered in `localStorage` via `useStoredState`, and is **forced open whenever a division is active** — the same `systemOpen || systemActive` rule the System group already uses. Collapsing a section must never hide the row that is currently highlighted, or the menu looks like it has lost its place.
+
+**Deliberately no per-lane count.** A badge was the obvious addition and was left out: the page's tab counts are computed client-side from a 300-row capped fetch (465 non-spam leads exist), so a DB count in the sidebar would be a second definition of one quantity and the two would disagree on screen as the queue grows — §12, "one quantity, one definition, or the reader trusts none of them". Worth doing when both read the same source.
+
+Verified: `listCategories()` returns exactly `plumbing` / `hvac` / `flooring`; tsc clean, build exit 0, kickstarted, tailnet green. Pre-existing and untouched: `prefer-const` on `emptyModules` in `layout.tsx`, which lints the same before the change.
+
+
 Deployed: build exit 0, `launchctl kickstart`, `tailnet-setup.sh` all green (both listeners, env matches, three endpoints answer), `lmstudio-check.sh` matching the documented config — with its standing swap warning at 19.6GB used / 1.4GB free. **Not pushed:** the box holds no GitHub credential (`credential-osxkeychain` returns nothing for github.com, and both `gh` tokens are invalid), so `git push` failed with *"could not read Username"*. Two commits are local-only — `913fd27` and `3322bd9`.
 
 **Done 2026-10-01 (CLAUDE.md pruned 143k → 110k against the 150k truncation limit; open items split out):**
