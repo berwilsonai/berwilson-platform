@@ -402,24 +402,43 @@ export async function probeDocumentIndexing(): Promise<{
     // A record kind the check cannot see is a record kind that goes dark
     // quietly, which is the exact failure this card exists to prevent.
     const [docsRes, oppRes] = await Promise.all([
-      supabase.from('documents').select('embedding_status').is('superseded_at', null),
-      supabase.from('opportunity_documents').select('embedding_status').is('superseded_at', null),
+      supabase.from('documents').select('embedding_status, uploaded_at').is('superseded_at', null),
+      supabase.from('opportunity_documents').select('embedding_status, uploaded_at').is('superseded_at', null),
     ])
     if (docsRes.error) throw new Error(docsRes.error.message)
     if (oppRes.error) throw new Error(oppRes.error.message)
 
-    const rows = [
-      ...((docsRes.data ?? []) as { embedding_status: string | null }[]),
-      ...((oppRes.data ?? []) as { embedding_status: string | null }[]),
-    ]
+    type Row = { embedding_status: string | null; uploaded_at: string | null }
+    const rows = [...((docsRes.data ?? []) as Row[]), ...((oppRes.data ?? []) as Row[])]
     let complete = 0
     let skipped = 0
     const stuck: Record<string, number> = {}
+    // A 'processing' row that is genuinely in flight was touched by the pass
+    // running right now, and a pass only ever touches a document it has just
+    // read — so an old upload still sitting in 'processing' is a corpse, not a
+    // worker. Neither table has an updated_at (checked 2026-10-05), so
+    // uploaded_at is the only clock available; it is a FLOOR on the row's age,
+    // which is the safe direction: it can make a stranded row look young, never
+    // a live one look old.
+    const PASS_IN_FLIGHT_MS = 24 * 60 * 60 * 1000
+    let processingFresh = 0
+    let processingStaleOldestDays = 0
     for (const r of rows) {
       const status = r.embedding_status ?? 'pending'
       if (status === 'complete') complete++
       else if (status === 'skipped') skipped++
-      else stuck[status] = (stuck[status] ?? 0) + 1
+      else {
+        stuck[status] = (stuck[status] ?? 0) + 1
+        if (status === 'processing') {
+          const ageMs = r.uploaded_at ? Date.now() - new Date(r.uploaded_at).getTime() : Infinity
+          if (ageMs < PASS_IN_FLIGHT_MS) processingFresh++
+          else
+            processingStaleOldestDays = Math.max(
+              processingStaleOldestDays,
+              Math.floor(ageMs / 86_400_000)
+            )
+        }
+      }
     }
 
     const tail = `${complete} indexed, ${skipped} not readable (correctly skipped).`
@@ -427,14 +446,16 @@ export async function probeDocumentIndexing(): Promise<{
     // 'processing' means a pass is RUNNING, and the syncs work one document at
     // a time — so a single one is almost certainly in flight right now, and
     // calling that stalled would make this check cry wolf through every nightly
-    // run. More than one cannot be in flight, so passes are dying mid-way.
+    // run. One pass may legitimately be in flight per table, so up to two are
+    // excused. If a parallel importer is ever added, this rule has to change.
     //
-    // The table carries no updated_at, so sequential processing is the only
-    // thing available to tell "working" from "stuck". If a parallel importer is
-    // ever added, this rule has to change with it.
-    // One pass may legitimately be in flight per table (each importer works
-    // sequentially), so allow up to two before calling passes dead.
-    const inFlight = Math.min(stuck.processing ?? 0, 2)
+    // ⚠ EXCUSING BY COUNT ALONE HID A STRANDED ROW FOR THIRTEEN DAYS. The
+    // comment above this check already named it — "one had been stranded
+    // mid-pass since 09-22" — and the rule then excused that very row as a
+    // pass running now, every night, while `GridEdge DC Use of Funds` sat at 0
+    // chunks and 0 characters with nothing on earth due to retry it. A row is
+    // only in flight if it is ALSO recent.
+    const inFlight = Math.min(processingFresh, 2)
     const stuckTotal = Object.values(stuck).reduce((a, b) => a + b, 0) - inFlight
     if (stuckTotal === 0) {
       return {
@@ -458,7 +479,11 @@ export async function probeDocumentIndexing(): Promise<{
         `${stuckTotal} document${stuckTotal === 1 ? '' : 's'} never finished indexing (${breakdown}) — ` +
         `${stuckTotal === 1 ? 'it is' : 'they are'} on the record but invisible to Ber AI. ` +
         `A Drive-sourced document is retried by its nightly sync; anything else needs the Reindex button on the document ` +
-        `(an OPPORTUNITY document has no nightly retry at all — run scripts/reindex-opportunity-documents.mts). ${tail}`,
+        `(an OPPORTUNITY document has no nightly retry at all — run scripts/reindex-opportunity-documents.mts). ` +
+        (processingStaleOldestDays > 0
+          ? `The oldest mid-pass row has been stranded ${processingStaleOldestDays} days, so no pass is coming back for it. `
+          : '') +
+        tail,
     }
   } catch (err) {
     return {

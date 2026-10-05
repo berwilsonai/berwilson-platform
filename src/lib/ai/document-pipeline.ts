@@ -304,14 +304,11 @@ export async function runDocumentAiPass(input: {
     // embedOpportunityDocument swallows its own errors and returns void, so a
     // completed call is the only success signal it offers.
     //
-    // ⚠ IT ALSO DOES NOT SETTLE embedding_status, and embedDocument does — so
-    // the opportunity path set 'processing' on the way in and nothing ever
-    // moved it off. The column only reached this table in migration
-    // 20260921000001, so no opportunity document had EVER been marked
-    // complete: live counts on 2026-09-21 were 34 pending, 3 processing, 0
-    // complete, which reads to the health check's Document Indexing card as
-    // passes dying mid-run. Settled explicitly here so the contract is this
-    // function's, not a side effect of whichever embedder it happened to call.
+    // It settles embedding_status itself as of 2026-10-05, so the setStatus
+    // below is this pipeline keeping its own status machine consistent (it
+    // also owns 'skipped' and the error path) rather than the only thing
+    // moving the row off 'pending' — which is what it was until a fourth
+    // caller, api/admin/backfill-embeddings, forgot the same obligation.
     let ok: boolean
     if (target.table === 'opportunity_documents') {
       await embedOpportunityDocument(documentId, target.opportunityId, embedText)

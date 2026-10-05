@@ -226,15 +226,10 @@ export async function fileMeetingDocument(opts: {
       // isCompany=false: findable across the portfolio, not company evidence.
       await embedDocument(doc.id, null, opts.content, null, false)
     } else if (opts.target.kind === 'opportunity') {
+      // embedOpportunityDocument settles embedding_status itself as of
+      // 2026-10-05 (it used to leave the row 'pending' and oblige every
+      // caller), so there is nothing to follow up with here.
       await embedOpportunityDocument(doc.id, opts.target.id, opts.content)
-      // ⚠ embedOpportunityDocument inserts chunks but does NOT settle
-      // embedding_status, and the column defaults to 'pending' — which the UI
-      // renders as "Indexing…" forever for a row nothing will come back to.
-      // embedDocument (the project path) settles its own.
-      await supabase
-        .from('opportunity_documents')
-        .update({ embedding_status: 'complete' })
-        .eq('id', doc.id)
     } else {
       await embedDocument(doc.id, opts.target.id, opts.content)
     }

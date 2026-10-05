@@ -310,13 +310,29 @@ async function insertOpportunityChunks(
   return true
 }
 
-/** Embed the full text of an opportunity document (replaces its prior chunks). */
+/**
+ * Embed the full text of an opportunity document (replaces its prior chunks).
+ *
+ * ⚠ THIS SETTLES `embedding_status` ITSELF, AND IT DID NOT USED TO.
+ * The obligation used to sit on every caller, and `embedDocument` (the project
+ * path) settled its own — so the asymmetry was invisible at the call site.
+ * Three of the four callers remembered; `api/admin/backfill-embeddings` did
+ * not, which left `Email research — englertmining@gmail.com` with 4 chunks,
+ * 7,125 characters of text and a status of `pending` — indexed, searchable,
+ * and rendered as "Indexing…" forever by a UI waiting on a row nothing would
+ * come back to. A per-caller obligation is forgotten exactly once and then
+ * never reported, so the contract belongs here.
+ */
 export async function embedOpportunityDocument(
   oppDocId: string,
   opportunityId: string,
   textContent: string
 ): Promise<void> {
   const supabase = createAdminClient()
+  const settle = (status: 'processing' | 'complete' | 'error') =>
+    supabase.from('opportunity_documents').update({ embedding_status: status }).eq('id', oppDocId)
+
+  await settle('processing')
   try {
     const { error: delErr } = await supabase
       .from('chunks')
@@ -324,11 +340,16 @@ export async function embedOpportunityDocument(
       .eq('opportunity_document_id', oppDocId)
     if (delErr) {
       console.warn(`[embeddings] embedOpportunityDocument skipped (migration pending?): ${delErr.message}`)
+      // Back to 'pending', not 'error': the next pass should retry this, and
+      // leaving it 'processing' makes it look like a run that is still going.
+      await supabase.from('opportunity_documents').update({ embedding_status: 'pending' }).eq('id', oppDocId)
       return
     }
     await insertOpportunityChunks(supabase, opportunityId, textContent, 'opportunity_document', oppDocId)
+    await settle('complete')
   } catch (err) {
     console.error('[embeddings] embedOpportunityDocument failed:', err)
+    await settle('error')
   }
 }
 
