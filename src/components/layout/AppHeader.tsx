@@ -3,7 +3,7 @@
 import Image from 'next/image'
 import { usePathname } from 'next/navigation'
 import { useState, useEffect, useCallback } from 'react'
-import { Search, Sparkles } from 'lucide-react'
+import { Search, Sparkles, Calculator} from 'lucide-react'
 import UserMenu from './UserMenu'
 import CommandPalette from './CommandPalette'
 import type { Role } from '@/lib/auth/permissions'
@@ -95,6 +95,18 @@ export default function AppHeader({
             aria-label="Ask Ber AI"
           >
             <Sparkles size={16} />
+          </button>
+
+          {/* Quick calc — the same engine the Economics tab uses, in a dock.
+              Icon-only on desktop too: it sits beside a labelled button and a
+              second label there crowds the search box off narrow screens. */}
+          <button
+            onClick={() => window.dispatchEvent(new CustomEvent('open-quick-calc'))}
+            className="p-2 rounded-md text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+            aria-label="Quick calc (Command + slash)"
+            title="Quick calc  ⌘/"
+          >
+            <Calculator size={16} />
           </button>
 
           {/* Desktop search trigger — looks like a search box, opens the palette */}

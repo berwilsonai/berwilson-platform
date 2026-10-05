@@ -13,6 +13,7 @@ import MobileNav from "@/components/layout/MobileNav"
 import MobileQuickUpload from "@/components/layout/MobileQuickUpload"
 import AskBerAIDock from "@/components/agent/AskBerAIDock"
 import DevNoteDock from "@/components/dev-notes/DevNoteDock"
+import QuickCalcDock from "@/components/economics/QuickCalcDock"
 import { countOpenDevNotes } from "@/lib/dev-notes/queries"
 import { listCategories } from "@/lib/leads/categories"
 import type { LeadLane } from "@/lib/utils/leads"
@@ -169,6 +170,9 @@ export default async function RootLayout({
             <MobileNav pendingCount={pendingReviewCount} role={role} emptyModules={emptyModules} />
             {isAdmin && <MobileQuickUpload />}
             {isAdmin && <AskBerAIDock />}
+            {/* Reachable from any page with Cmd+/ or the header button. Stays
+                mounted while closed so a half-entered calculation survives. */}
+            {isAdmin && <QuickCalcDock />}
             {/* Every role, deliberately — see DevNoteDock / AppSidebar. */}
             <DevNoteDock />
           </div>

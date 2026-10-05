@@ -20,6 +20,7 @@ import {
   Factory,
   Wrench,
   type LucideIcon,
+  Calculator,
 } from 'lucide-react'
 
 /**
@@ -88,6 +89,7 @@ export const NAV_ITEMS: NavItem[] = [
   { href: '/investors', label: 'Investors', icon: HandCoins, group: 'primary', keywords: 'capital raise fundraising equity spv commitments funding money lp' },
   { href: '/steel', label: 'Steel CRM', icon: Factory, group: 'primary', keywords: 'prefab steel sales deals quotes square feet sqft plant manufacturing buildings customers' },
   { href: '/dino', label: 'Dino', title: 'Dino Service Pros', icon: Wrench, group: 'primary', hideWhenEmpty: 'dino', keywords: 'dino service pros plumbing hvac mechanical revenue operating company internal trades payments' },
+  { href: '/calc', label: 'Quick Calc', title: 'Quick Calc', icon: Calculator, group: 'intelligence', keywords: 'calculator economics deal size megawatts mw price per kwh kw-month lease rate capture margin fee npv escalator pue load factor scratchpad back of envelope how big is this quick math' },
   { href: '/map', label: 'Map', title: 'Project Map', icon: MapIcon, group: 'primary', keywords: 'map geography utah locations sites markers rail corridors presentation visualize' },
   { href: '/intel', label: 'Intel', icon: Brain, group: 'intelligence', keywords: 'ask query search ai agent calendar meetings', mobilePrimary: true, alsoMatches: ['/calendar'] },
   { href: '/intake', label: 'Intake', icon: Inbox, group: 'intelligence', keywords: 'email inbox ingest gmail sweep research proposal rfp upload document intake meeting notes minutes attendees follow-up transcript recap digest summarize read aloud understand', alsoMatches: ['/email-ingestion', '/proposals/intake', '/intake/meeting', '/intake/document'] },
