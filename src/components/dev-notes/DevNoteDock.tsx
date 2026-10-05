@@ -139,7 +139,7 @@ export default function DevNoteDock() {
                   ? 'e.g. The task due date saves a day early'
                   : 'e.g. Let me filter tasks by project on mobile'
               }
-              className="mt-1 w-full h-11 sm:h-9 px-2.5 rounded-md border border-border bg-background text-base sm:text-sm outline-none focus:ring-2 focus:ring-ring/40"
+              className="mt-1 w-full h-11 sm:h-9 px-2.5 rounded-md border border-border bg-background text-base sm:text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
             />
           </div>
 
@@ -158,7 +158,7 @@ export default function DevNoteDock() {
                   ? 'What you were doing, what you expected, what happened instead.'
                   : 'Why it would help, and what it would let you do.'
               }
-              className="mt-1 w-full px-2.5 py-2 rounded-md border border-border bg-background text-base sm:text-sm outline-none focus:ring-2 focus:ring-ring/40 resize-y"
+              className="mt-1 w-full px-2.5 py-2 rounded-md border border-border bg-background text-base sm:text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/40 resize-y"
             />
           </div>
 

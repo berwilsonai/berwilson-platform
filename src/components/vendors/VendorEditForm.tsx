@@ -73,7 +73,7 @@ export default function VendorEditForm({ entity, onClose }: VendorEditFormProps)
         <select
           value={category}
           onChange={e => setCategory(e.target.value as EntityCategory)}
-          className="h-8 w-full rounded-md border border-input bg-background px-2 text-xs focus:outline-none focus:ring-2 focus:ring-ring"
+          className="h-8 w-full rounded-md border border-input bg-background px-2 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           {ENTITY_CATEGORIES.map(c => (
             <option key={c} value={c}>{ENTITY_CATEGORY_LABELS[c]}</option>
@@ -87,7 +87,7 @@ export default function VendorEditForm({ entity, onClose }: VendorEditFormProps)
           value={websiteUrl}
           onChange={e => setWebsiteUrl(e.target.value)}
           placeholder="https://example.com"
-          className="h-8 w-full rounded-md border border-input bg-background px-3 text-xs focus:outline-none focus:ring-2 focus:ring-ring"
+          className="h-8 w-full rounded-md border border-input bg-background px-3 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring"
         />
       </Field>
 
@@ -97,7 +97,7 @@ export default function VendorEditForm({ entity, onClose }: VendorEditFormProps)
           onChange={e => setDescription(e.target.value)}
           rows={3}
           placeholder="What does this company do?"
-          className="w-full rounded-md border border-input bg-background px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-ring resize-none"
+          className="w-full rounded-md border border-input bg-background px-3 py-2 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring resize-none"
         />
       </Field>
 
@@ -107,7 +107,7 @@ export default function VendorEditForm({ entity, onClose }: VendorEditFormProps)
           value={specialties}
           onChange={e => setSpecialties(e.target.value)}
           placeholder="HVAC, Plumbing, Electrical"
-          className="h-8 w-full rounded-md border border-input bg-background px-3 text-xs focus:outline-none focus:ring-2 focus:ring-ring"
+          className="h-8 w-full rounded-md border border-input bg-background px-3 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring"
         />
       </Field>
 
@@ -121,7 +121,7 @@ export default function VendorEditForm({ entity, onClose }: VendorEditFormProps)
             value={qualityScore}
             onChange={e => setQualityScore(e.target.value)}
             placeholder="—"
-            className="h-8 w-full rounded-md border border-input bg-background px-3 text-xs focus:outline-none focus:ring-2 focus:ring-ring"
+            className="h-8 w-full rounded-md border border-input bg-background px-3 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring"
           />
         </Field>
         <Field label="Confidence (1-5)">
@@ -133,7 +133,7 @@ export default function VendorEditForm({ entity, onClose }: VendorEditFormProps)
             value={confidenceScore}
             onChange={e => setConfidenceScore(e.target.value)}
             placeholder="—"
-            className="h-8 w-full rounded-md border border-input bg-background px-3 text-xs focus:outline-none focus:ring-2 focus:ring-ring"
+            className="h-8 w-full rounded-md border border-input bg-background px-3 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring"
           />
         </Field>
       </div>
@@ -144,7 +144,7 @@ export default function VendorEditForm({ entity, onClose }: VendorEditFormProps)
           value={headquarters}
           onChange={e => setHeadquarters(e.target.value)}
           placeholder="City, State"
-          className="h-8 w-full rounded-md border border-input bg-background px-3 text-xs focus:outline-none focus:ring-2 focus:ring-ring"
+          className="h-8 w-full rounded-md border border-input bg-background px-3 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring"
         />
       </Field>
 
@@ -154,7 +154,7 @@ export default function VendorEditForm({ entity, onClose }: VendorEditFormProps)
           value={logoUrl}
           onChange={e => setLogoUrl(e.target.value)}
           placeholder="https://example.com/logo.png"
-          className="h-8 w-full rounded-md border border-input bg-background px-3 text-xs focus:outline-none focus:ring-2 focus:ring-ring"
+          className="h-8 w-full rounded-md border border-input bg-background px-3 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring"
         />
       </Field>
 

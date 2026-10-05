@@ -66,7 +66,7 @@ export default function ActivityFilters({
       <select
         value={project}
         onChange={(e) => setParam('project', e.target.value)}
-        className="h-8 rounded-md border border-input bg-background px-2.5 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+        className="h-8 rounded-md border border-input bg-background px-2.5 text-xs text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         <option value="">All Projects</option>
         {projects.map((p) => (
@@ -79,7 +79,7 @@ export default function ActivityFilters({
       <select
         value={table}
         onChange={(e) => setParam('table', e.target.value)}
-        className="h-8 rounded-md border border-input bg-background px-2.5 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+        className="h-8 rounded-md border border-input bg-background px-2.5 text-xs text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         <option value="">All Tables</option>
         {TABLE_OPTIONS.map((t) => (
@@ -92,7 +92,7 @@ export default function ActivityFilters({
       <select
         value={actorType}
         onChange={(e) => setParam('actor_type', e.target.value)}
-        className="h-8 rounded-md border border-input bg-background px-2.5 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+        className="h-8 rounded-md border border-input bg-background px-2.5 text-xs text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         <option value="">All Actors</option>
         {ACTOR_OPTIONS.map((a) => (

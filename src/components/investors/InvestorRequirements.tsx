@@ -28,7 +28,7 @@ const STATUS_SELECT_CLS: Record<RequirementStatus, string> = {
 }
 
 const inputCls =
-  'w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring'
+  'w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm placeholder:text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring'
 
 function FormField({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -265,7 +265,7 @@ export default function InvestorRequirements({
             <select
               value={projectFilter}
               onChange={(e) => setProjectFilter(e.target.value)}
-              className="h-7 rounded-full border border-input bg-background px-2 text-xs font-medium text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+              className="h-7 rounded-full border border-input bg-background px-2 text-xs font-medium text-muted-foreground outline-none focus-visible:ring-1 focus-visible:ring-ring"
             >
               <option value="all">All deals</option>
               <option value="standard">Standard (every deal)</option>
@@ -472,7 +472,7 @@ export default function InvestorRequirements({
                           value={status}
                           onChange={(e) => updateStatus(item, e.target.value as RequirementStatus)}
                           className={cn(
-                            'rounded px-1.5 py-0.5 text-xs font-semibold uppercase tracking-wide cursor-pointer border focus:outline-none focus:ring-1 focus:ring-ring',
+                            'rounded px-1.5 py-0.5 text-xs font-semibold uppercase tracking-wide cursor-pointer border outline-none focus-visible:ring-1 focus-visible:ring-ring',
                             STATUS_SELECT_CLS[status]
                           )}
                         >

@@ -178,7 +178,7 @@ export function DatePicker({
               setOpen(false)
             }
           }}
-          className="flex-1 min-w-0 bg-transparent focus:outline-none placeholder:text-muted-foreground"
+          className="flex-1 min-w-0 bg-transparent outline-none placeholder:text-muted-foreground"
         />
         {current && (
           <button

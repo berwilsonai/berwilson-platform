@@ -45,7 +45,7 @@ interface OrgStructureBoardProps {
 }
 
 const fieldClass =
-  'h-8 rounded-md border border-input bg-background px-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring'
+  'h-8 rounded-md border border-input bg-background px-2.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring'
 
 const OPEN_BADGE =
   'bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-500/15 dark:text-amber-300 dark:ring-amber-500/30'
@@ -531,7 +531,7 @@ function ArmCard({
       <Panel className="p-3.5 space-y-2">
         <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Entity name" autoFocus className={cn(fieldClass, 'w-full font-medium')} />
         <input value={entityType} onChange={(e) => setEntityType(e.target.value)} placeholder="Entity type (e.g. Wyoming C-Corporation)" className={cn(fieldClass, 'w-full')} />
-        <textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="Note" rows={2} className="w-full rounded-md border border-input bg-background px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring resize-none" />
+        <textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="Note" rows={2} className="w-full rounded-md border border-input bg-background px-2.5 py-1.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring resize-none" />
         <FormActions
           onCancel={() => {
             setEditing(false)
@@ -592,7 +592,7 @@ function ManagementNote({
     return (
       <div className="rounded-md bg-muted/30 p-3 space-y-2">
         <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Entity name" autoFocus className={cn(fieldClass, 'w-full font-medium')} />
-        <textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="Employment / liability-wall note" rows={3} className="w-full rounded-md border border-input bg-background px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring resize-none" />
+        <textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="Employment / liability-wall note" rows={3} className="w-full rounded-md border border-input bg-background px-2.5 py-1.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring resize-none" />
         <FormActions
           onCancel={() => {
             setEditing(false)
@@ -996,7 +996,7 @@ function PersonEditForm({
         onChange={(e) => setDetail(e.target.value)}
         placeholder="Detail — responsibilities, scope…"
         rows={2}
-        className="w-full rounded-md border border-input bg-background px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring resize-none"
+        className="w-full rounded-md border border-input bg-background px-2.5 py-1.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring resize-none"
       />
       {showTier && (
         <select value={tier} onChange={(e) => setTier(e.target.value as OrgTier)} className={cn(fieldClass, 'w-full')}>

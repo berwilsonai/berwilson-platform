@@ -146,7 +146,7 @@ export default function CompanyLinkEditor({ partyId, linkedEntity, companyText }
         disabled={saving}
         className={cn(
           'h-8 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground',
-          'placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50'
+          'placeholder:text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50'
         )}
         autoComplete="off"
       />

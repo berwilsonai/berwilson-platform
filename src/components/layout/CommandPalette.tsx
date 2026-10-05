@@ -212,7 +212,7 @@ export default function CommandPalette({ onClose }: { onClose: () => void }) {
               setActive(0)
             }}
             placeholder="Search everything — projects, tasks, people, investors, documents…"
-            className="flex-1 bg-transparent text-base text-foreground placeholder:text-muted-foreground focus:outline-none"
+            className="flex-1 bg-transparent text-base text-foreground placeholder:text-muted-foreground outline-none"
           />
           <kbd className="hidden sm:inline-flex items-center rounded border border-border bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
             ESC

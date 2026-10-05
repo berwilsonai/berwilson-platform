@@ -144,7 +144,7 @@ const COMPLIANCE_STATUS_SELECT_CLS: Record<ComplianceStatus, string> = {
 // ── Shared form field ──────────────────────────────────────────────────────────
 
 const inputCls =
-  'w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring'
+  'w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm placeholder:text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring'
 
 function FormField({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -567,7 +567,7 @@ function DdSection({ recordKind, recordId, initialItems, parties }: DdSectionPro
                       value={item.status ?? 'open'}
                       onChange={(e) => updateStatus(item, e.target.value)}
                       className={cn(
-                        'rounded px-1.5 py-0.5 text-xs font-semibold uppercase tracking-wide cursor-pointer border focus:outline-none focus:ring-1 focus:ring-ring',
+                        'rounded px-1.5 py-0.5 text-xs font-semibold uppercase tracking-wide cursor-pointer border outline-none focus-visible:ring-1 focus-visible:ring-ring',
                         DD_STATUS_SELECT_CLS[item.status ?? 'open']
                       )}
                     >
@@ -1048,7 +1048,7 @@ function ComplianceSection({
                             updateStatus(item, e.target.value as ComplianceStatus)
                           }
                           className={cn(
-                            'rounded px-1.5 py-0.5 text-xs font-semibold uppercase tracking-wide cursor-pointer border focus:outline-none focus:ring-1 focus:ring-ring',
+                            'rounded px-1.5 py-0.5 text-xs font-semibold uppercase tracking-wide cursor-pointer border outline-none focus-visible:ring-1 focus-visible:ring-ring',
                             COMPLIANCE_STATUS_SELECT_CLS[item.status ?? 'not_started']
                           )}
                         >

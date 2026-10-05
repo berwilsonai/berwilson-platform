@@ -81,7 +81,7 @@ export default function DinoNotes({ notes }: { notes: DinoNoteRow[] }) {
             placeholder="Log a call, a handoff, integration progress…"
             className={cn(
               'w-full min-h-[56px] rounded-md border border-input bg-background px-2.5 py-2 text-xs',
-              'placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring resize-y'
+              'placeholder:text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring resize-y'
             )}
           />
           <button

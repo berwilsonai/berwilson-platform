@@ -501,7 +501,7 @@ function UploadZone({
                       )
                     )
                   }
-                  className="h-7 rounded-md border border-input bg-background px-2 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
+                  className="h-7 rounded-md border border-input bg-background px-2 text-xs outline-none focus-visible:ring-1 focus-visible:ring-ring"
                 >
                   {DOC_TYPES.map((t) => (
                     <option key={t} value={t}>

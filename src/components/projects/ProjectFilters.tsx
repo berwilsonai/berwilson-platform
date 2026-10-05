@@ -94,7 +94,7 @@ export default function ProjectFilters({ sector, status, stage }: ProjectFilters
       <select
         value={sector}
         onChange={(e) => setParam('sector', e.target.value)}
-        className="h-8 rounded-md border border-input bg-background px-2.5 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+        className="h-8 rounded-md border border-input bg-background px-2.5 text-xs text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         <option value="">All Sectors</option>
         {SECTORS.map((s) => (
@@ -108,7 +108,7 @@ export default function ProjectFilters({ sector, status, stage }: ProjectFilters
       <select
         value={status}
         onChange={(e) => setParam('status', e.target.value)}
-        className="h-8 rounded-md border border-input bg-background px-2.5 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+        className="h-8 rounded-md border border-input bg-background px-2.5 text-xs text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         <option value="">All Statuses</option>
         {STATUSES.map((s) => (
@@ -122,7 +122,7 @@ export default function ProjectFilters({ sector, status, stage }: ProjectFilters
       <select
         value={stage}
         onChange={(e) => setParam('stage', e.target.value)}
-        className="h-8 rounded-md border border-input bg-background px-2.5 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+        className="h-8 rounded-md border border-input bg-background px-2.5 text-xs text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         <option value="">All Stages</option>
         {STAGES.map((s) => (

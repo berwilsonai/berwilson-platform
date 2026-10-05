@@ -226,7 +226,7 @@ export default function SteelPipelineBoard({
     ) : null
 
   const selectClass =
-    'h-8 rounded-md border border-input bg-background px-2.5 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-ring'
+    'h-8 rounded-md border border-input bg-background px-2.5 text-xs text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring'
 
   return (
     <div className="space-y-4">

@@ -161,7 +161,7 @@ function PartyChip({
               placeholder="Search contacts…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full text-xs px-2 py-1 rounded border border-border bg-background outline-none focus:ring-1 focus:ring-primary"
+              className="w-full text-xs px-2 py-1 rounded border border-border bg-background outline-none focus-visible:ring-1 focus-visible:ring-primary"
             />
           </div>
           <div className="max-h-40 overflow-y-auto p-1">

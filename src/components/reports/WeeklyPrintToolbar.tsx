@@ -47,7 +47,7 @@ export function WeeklyPrintToolbar({ people, selected }: WeeklyPrintToolbarProps
             }}
             className={cn(
               'h-11 sm:h-9 min-w-0 rounded-lg border border-slate-200 bg-white px-2 text-sm text-slate-900',
-              'focus:outline-none focus:ring-2 focus:ring-slate-900/20',
+              'outline-none focus-visible:ring-2 focus-visible:ring-slate-900/20',
             )}
           >
             <option value="all">Everyone</option>

@@ -64,7 +64,7 @@ function toForm(row: DinoRevenueRow): FormValues {
 
 const inputClass = cn(
   'h-8 w-full rounded-md border border-input bg-background px-2.5 text-xs text-foreground',
-  'placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring'
+  'placeholder:text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring'
 )
 const labelClass = 'block text-[11px] font-medium text-foreground mb-1'
 

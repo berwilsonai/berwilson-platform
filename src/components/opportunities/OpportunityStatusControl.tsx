@@ -36,7 +36,7 @@ export default function OpportunityStatusControl({ opportunityId, status }: Oppo
         value={value}
         onChange={(e) => change(e.target.value)}
         disabled={saving}
-        className="h-8 rounded-md border border-input bg-background px-2.5 text-xs font-medium text-foreground focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-60"
+        className="h-8 rounded-md border border-input bg-background px-2.5 text-xs font-medium text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
       >
         {OPPORTUNITY_STATUSES.map((s) => (
           <option key={s} value={s}>

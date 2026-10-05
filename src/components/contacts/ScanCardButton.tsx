@@ -46,7 +46,7 @@ const FIELDS: Array<{ key: TextField; label: string; type?: string; wide?: boole
 
 const inputClass =
   'w-full h-11 sm:h-9 px-2.5 rounded-md border border-input bg-background text-sm ' +
-  'focus:outline-none focus:ring-2 focus:ring-ring'
+  'outline-none focus-visible:ring-2 focus-visible:ring-ring'
 
 export default function ScanCardButton() {
   const router = useRouter()
@@ -275,7 +275,7 @@ export default function ScanCardButton() {
               value={draft.company_summary ?? ''}
               onChange={(e) => set('company_summary', e.target.value || null)}
               placeholder="Nothing found — add a line yourself"
-              className="w-full px-2.5 py-2 rounded-md border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+              className="w-full px-2.5 py-2 rounded-md border border-input bg-background text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
             />
           </label>
 
@@ -285,7 +285,7 @@ export default function ScanCardButton() {
               rows={3}
               value={draft.fit_notes ?? ''}
               onChange={(e) => set('fit_notes', e.target.value || null)}
-              className="w-full px-2.5 py-2 rounded-md border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+              className="w-full px-2.5 py-2 rounded-md border border-input bg-background text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
             />
           </label>
 

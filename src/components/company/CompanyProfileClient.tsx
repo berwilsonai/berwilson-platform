@@ -80,7 +80,7 @@ function InputRow({ label, name, defaultValue, type = 'text', placeholder }: {
           type={type}
           defaultValue={defaultValue ?? ''}
           placeholder={placeholder}
-          className="w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+          className="w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
         />
       )}
     </div>
@@ -98,7 +98,7 @@ function TextAreaRow({ label, name, defaultValue, rows = 4, placeholder }: {
         rows={rows}
         defaultValue={defaultValue ?? ''}
         placeholder={placeholder}
-        className="w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring resize-y"
+        className="w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring resize-y"
       />
     </div>
   )

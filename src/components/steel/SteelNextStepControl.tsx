@@ -99,7 +99,7 @@ export default function SteelNextStepControl({ dealId, nextStep, nextStepDate, o
             }
           }}
           placeholder="The single next action…"
-          className="h-9 flex-1 rounded-md border border-input bg-background px-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+          className="h-9 flex-1 rounded-md border border-input bg-background px-3 text-sm text-foreground placeholder:text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
         />
         <DatePicker
           value={date}

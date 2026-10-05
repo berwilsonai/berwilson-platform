@@ -273,13 +273,13 @@ function FormField({
 }
 
 const inputCls =
-  'w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring'
+  'w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm placeholder:text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring'
 
 const prefixInputCls =
-  'w-full rounded-md border border-input bg-background pl-7 pr-3 py-1.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring'
+  'w-full rounded-md border border-input bg-background pl-7 pr-3 py-1.5 text-sm placeholder:text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring'
 
 const suffixInputCls =
-  'w-full rounded-md border border-input bg-background pl-3 pr-7 py-1.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring'
+  'w-full rounded-md border border-input bg-background pl-3 pr-7 py-1.5 text-sm placeholder:text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring'
 
 function CurrencyField({
   label,
@@ -396,7 +396,7 @@ function DrawScheduleEditor({
                   value={row.milestone}
                   onChange={(e) => update(idx, { milestone: e.target.value })}
                   placeholder="e.g. Foundation pour"
-                  className="w-full px-2 py-1.5 text-xs bg-background focus:outline-none focus:ring-1 focus:ring-inset focus:ring-ring"
+                  className="w-full px-2 py-1.5 text-xs bg-background outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring"
                 />
               </div>
               <div className="relative border-r border-border">
@@ -410,7 +410,7 @@ function DrawScheduleEditor({
                   value={row.amount}
                   onChange={(e) => update(idx, { amount: e.target.value })}
                   placeholder="0"
-                  className="w-full pl-5 pr-2 py-1.5 text-xs bg-background focus:outline-none focus:ring-1 focus:ring-inset focus:ring-ring"
+                  className="w-full pl-5 pr-2 py-1.5 text-xs bg-background outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring"
                 />
               </div>
               <div className="flex items-center justify-center border-r border-border">

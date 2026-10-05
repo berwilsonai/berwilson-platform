@@ -494,7 +494,7 @@ export default function AgentChat({
             // placeholder was being clipped by the box. Keeping the placeholder
             // on one line (ellipsised) is what actually fixes that; the 44px
             // floor on touch is the tap-target minimum.
-            className="flex-1 min-w-0 resize-none rounded-lg border bg-muted/30 px-3 py-2 text-base sm:text-sm placeholder:text-muted-foreground placeholder:whitespace-nowrap placeholder:overflow-hidden placeholder:text-ellipsis focus:outline-none focus:ring-1 focus:ring-primary/40 min-h-11 sm:min-h-[36px] max-h-[120px]"
+            className="flex-1 min-w-0 resize-none rounded-lg border bg-muted/30 px-3 py-2 text-base sm:text-sm placeholder:text-muted-foreground placeholder:whitespace-nowrap placeholder:overflow-hidden placeholder:text-ellipsis outline-none focus-visible:ring-1 focus-visible:ring-primary/40 min-h-11 sm:min-h-[36px] max-h-[120px]"
             style={{ height: 'auto', overflow: 'hidden' }}
             onInput={(e) => {
               const el = e.currentTarget

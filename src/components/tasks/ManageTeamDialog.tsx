@@ -127,7 +127,7 @@ export default function ManageTeamDialog({ open, onOpenChange, members, tasks, o
                 <select
                   value={reassignTo}
                   onChange={(e) => setReassignTo(e.target.value)}
-                  className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                  className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
                   <option value="">Leave unassigned</option>
                   {members
@@ -220,7 +220,7 @@ export default function ManageTeamDialog({ open, onOpenChange, members, tasks, o
                     }
                   }}
                   placeholder="Full name…"
-                  className="h-9 flex-1 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                  className="h-9 flex-1 rounded-md border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 />
                 <Button disabled={!name.trim() || adding} onClick={add}>
                   {adding ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />} Add

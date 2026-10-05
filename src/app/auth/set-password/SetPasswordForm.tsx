@@ -65,7 +65,7 @@ export default function SetPasswordForm() {
               required
               minLength={8}
               autoComplete="new-password"
-              className="w-full h-10 rounded-md border border-slate-300 dark:border-slate-700/60 bg-white dark:bg-slate-900 px-3 text-sm text-slate-900 dark:text-slate-200 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900 focus:border-transparent"
+              className="w-full h-10 rounded-md border border-slate-300 dark:border-slate-700/60 bg-white dark:bg-slate-900 px-3 text-sm text-slate-900 dark:text-slate-200 placeholder:text-slate-400 outline-none focus-visible:ring-2 focus-visible:ring-slate-900 focus-visible:border-transparent"
               placeholder="At least 8 characters"
             />
           </div>
@@ -81,7 +81,7 @@ export default function SetPasswordForm() {
               onChange={(e) => setConfirm(e.target.value)}
               required
               autoComplete="new-password"
-              className="w-full h-10 rounded-md border border-slate-300 dark:border-slate-700/60 bg-white dark:bg-slate-900 px-3 text-sm text-slate-900 dark:text-slate-200 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900 focus:border-transparent"
+              className="w-full h-10 rounded-md border border-slate-300 dark:border-slate-700/60 bg-white dark:bg-slate-900 px-3 text-sm text-slate-900 dark:text-slate-200 placeholder:text-slate-400 outline-none focus-visible:ring-2 focus-visible:ring-slate-900 focus-visible:border-transparent"
               placeholder="Repeat password"
             />
           </div>

@@ -398,7 +398,7 @@ export default function MilestonesTab({
                           if (e.key === 'Escape') cancelAdd()
                         }}
                         placeholder="Milestone label"
-                        className="w-full rounded border border-input bg-background px-2 py-1 text-xs placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                        className="w-full rounded border border-input bg-background px-2 py-1 text-xs placeholder:text-muted-foreground outline-none focus-visible:ring-1 focus-visible:ring-ring"
                       />
                       <DatePicker
                         value={newTargetDate}

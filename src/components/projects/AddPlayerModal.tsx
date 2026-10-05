@@ -108,7 +108,7 @@ export default function AddPlayerModal({ recordKind, recordId }: AddPlayerModalP
   }
 
   const inputClass =
-    'w-full rounded-md border border-input bg-background px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50'
+    'w-full rounded-md border border-input bg-background px-2.5 py-1.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50'
   const effectiveRole = role === '__custom__' ? customRole.trim() : role.trim()
   const canSave = selected && effectiveRole && phase !== 'saving'
 

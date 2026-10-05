@@ -76,7 +76,7 @@ interface TaskDetailSheetProps {
 }
 
 const fieldClass =
-  'w-full rounded-md border border-input bg-background px-3 h-9 text-sm focus:outline-none focus:ring-2 focus:ring-ring'
+  'w-full rounded-md border border-input bg-background px-3 h-9 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring'
 
 type DetailKey = 'what' | 'why' | 'how'
 
@@ -260,7 +260,7 @@ export default function TaskDetailSheet({
                   onBlur={() => title.trim() !== task.title && patch({ title })}
                   rows={1}
                   className={cn(
-                    'flex-1 resize-none bg-transparent text-base font-semibold text-foreground focus:outline-none',
+                    'flex-1 resize-none bg-transparent text-base font-semibold text-foreground outline-none',
                     done && 'line-through text-muted-foreground',
                   )}
                 />
@@ -371,7 +371,7 @@ export default function TaskDetailSheet({
                       placeholder={placeholder}
                       rows={2}
                       autoFocus
-                      className="w-full resize-y rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring placeholder:text-muted-foreground"
+                      className="w-full resize-y rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring placeholder:text-muted-foreground"
                     />
                   </div>
                 )
@@ -509,7 +509,7 @@ export default function TaskDetailSheet({
                     onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); handleAddNote() } }}
                     placeholder="Add an update or note…  (⌘↵ to post)"
                     rows={2}
-                    className="flex-1 resize-y rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring placeholder:text-muted-foreground"
+                    className="flex-1 resize-y rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring placeholder:text-muted-foreground"
                   />
                   <button
                     onClick={handleAddNote}

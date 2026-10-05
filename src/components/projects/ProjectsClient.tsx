@@ -285,7 +285,7 @@ export default function ProjectsClient({ projects: initialProjects, stageFilter 
               placeholder="Search by name, location, client, sector, stage…"
               value={search}
               onChange={e => setSearch(e.target.value)}
-              className="h-8 pl-8 pr-8 w-full sm:w-72 rounded-md border border-input bg-background text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+              className="h-8 pl-8 pr-8 w-full sm:w-72 rounded-md border border-input bg-background text-xs text-foreground placeholder:text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
             />
             {search && (
               <button
@@ -628,7 +628,7 @@ function DeletableCard({
                 onChange={e => setWinProb(e.target.value)}
                 onClick={e => e.stopPropagation()}
                 placeholder="0–100"
-                className="h-8 w-full rounded-md border border-input bg-background px-2 text-xs focus:outline-none focus:ring-2 focus:ring-ring"
+                className="h-8 w-full rounded-md border border-input bg-background px-2 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring"
               />
             </div>
           </div>

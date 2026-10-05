@@ -37,7 +37,7 @@ export default function OpportunityFilters({ type, status }: OpportunityFiltersP
       <select
         value={type}
         onChange={(e) => setParam('type', e.target.value)}
-        className="h-8 rounded-md border border-input bg-background px-2.5 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+        className="h-8 rounded-md border border-input bg-background px-2.5 text-xs text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         <option value="">All Types</option>
         {OPPORTUNITY_TYPES.map((t) => (
@@ -50,7 +50,7 @@ export default function OpportunityFilters({ type, status }: OpportunityFiltersP
       <select
         value={status}
         onChange={(e) => setParam('status', e.target.value)}
-        className="h-8 rounded-md border border-input bg-background px-2.5 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+        className="h-8 rounded-md border border-input bg-background px-2.5 text-xs text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         <option value="">All Statuses</option>
         {OPPORTUNITY_STATUSES.map((s) => (

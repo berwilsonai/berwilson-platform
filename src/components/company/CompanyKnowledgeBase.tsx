@@ -227,7 +227,7 @@ export default function CompanyKnowledgeBase({ documents, setAside, targets }: C
           <select
             value={docType}
             onChange={(e) => setDocType(e.target.value)}
-            className="h-9 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+            className="h-9 rounded-md border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             {DOC_TYPES.map((t) => (
               <option key={t} value={t}>{label(t)}</option>

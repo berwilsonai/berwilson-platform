@@ -170,7 +170,7 @@ export default function ContactsClient({ contacts: initialContacts }: ContactsCl
             placeholder="Search name, company, tag, email, notes…"
             value={search}
             onChange={e => setSearch(e.target.value)}
-            className="h-8 pl-8 pr-8 w-64 rounded-md border border-input bg-background text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+            className="h-8 pl-8 pr-8 w-64 rounded-md border border-input bg-background text-xs text-foreground placeholder:text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
           />
           {search && (
             <button
@@ -188,7 +188,7 @@ export default function ContactsClient({ contacts: initialContacts }: ContactsCl
           <select
             value={tagFilter}
             onChange={e => setTagFilter(e.target.value)}
-            className="h-8 rounded-md border border-input bg-background px-2 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+            className="h-8 rounded-md border border-input bg-background px-2 text-xs text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             <option value="">All Tags</option>
             {allTags.map(({ tag, count }) => (
@@ -203,7 +203,7 @@ export default function ContactsClient({ contacts: initialContacts }: ContactsCl
         <select
           value={sort}
           onChange={e => setSort(e.target.value as SortKey)}
-          className="h-8 rounded-md border border-input bg-background px-2.5 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+          className="h-8 rounded-md border border-input bg-background px-2.5 text-xs text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           <option value="name">Sort: Name</option>
           <option value="company">Sort: Company</option>

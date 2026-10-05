@@ -95,7 +95,7 @@ export default function NewVendorPage() {
             value={name}
             onChange={e => setName(e.target.value)}
             placeholder="Acme Construction Co."
-            className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+            className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
             autoFocus
           />
         </Field>
@@ -104,7 +104,7 @@ export default function NewVendorPage() {
           <select
             value={category}
             onChange={e => setCategory(e.target.value as EntityCategory)}
-            className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+            className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             {ENTITY_CATEGORIES.map(c => (
               <option key={c} value={c}>{ENTITY_CATEGORY_LABELS[c]}</option>
@@ -119,7 +119,7 @@ export default function NewVendorPage() {
           <select
             value={entityType}
             onChange={e => setEntityType(e.target.value)}
-            className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+            className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             {ENTITY_TYPES.map(t => (
               <option key={t.value} value={t.value}>{t.label}</option>
@@ -133,7 +133,7 @@ export default function NewVendorPage() {
             value={websiteUrl}
             onChange={e => setWebsiteUrl(e.target.value)}
             placeholder="https://example.com"
-            className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+            className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
           />
         </Field>
 
@@ -143,7 +143,7 @@ export default function NewVendorPage() {
             onChange={e => setDescription(e.target.value)}
             rows={3}
             placeholder="What does this company do?"
-            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring resize-none"
+            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring resize-none"
           />
         </Field>
 
@@ -153,7 +153,7 @@ export default function NewVendorPage() {
             value={specialties}
             onChange={e => setSpecialties(e.target.value)}
             placeholder="HVAC, MEP, Electrical"
-            className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+            className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
           />
         </Field>
 
@@ -163,7 +163,7 @@ export default function NewVendorPage() {
             value={headquarters}
             onChange={e => setHeadquarters(e.target.value)}
             placeholder="Salt Lake City, UT"
-            className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+            className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
           />
         </Field>
 

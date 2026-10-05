@@ -377,7 +377,7 @@ function ResolutionEditor({ value, onSave }: { value: string; onSave: (text: str
         rows={2}
         autoFocus
         placeholder="What was done about it — the reporter sees this."
-        className="w-full px-2.5 py-2 rounded-md border border-border bg-background text-base sm:text-sm outline-none focus:ring-2 focus:ring-ring/40"
+        className="w-full px-2.5 py-2 rounded-md border border-border bg-background text-base sm:text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
       />
       <div className="flex gap-2">
         <Button

@@ -297,7 +297,7 @@ export default function ResearchPanel({
             }}
             rows={3}
             placeholder="Enter a research question about this project, entity, or market…"
-            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring resize-none"
+            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring resize-none"
             autoFocus
           />
 

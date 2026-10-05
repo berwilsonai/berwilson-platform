@@ -101,7 +101,7 @@ export default async function RootLayout({
   let pendingReviewCount = 0
   let attentionCount = 0
   // Modules with nothing in them are hidden rather than shown as dead ends.
-  let emptyModules: string[] = []
+  const emptyModules: string[] = []
   // Open bug reports / feature requests. Admin-only, like the other sidebar
   // counts — it is the builder's queue, and a number nobody can act on is
   // decoration on everyone else's screen.

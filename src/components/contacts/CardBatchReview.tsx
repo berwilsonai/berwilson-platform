@@ -84,7 +84,7 @@ const FIELDS: Array<{ key: TextField; label: string; type?: string; wide?: boole
 
 const inputClass =
   'w-full h-11 sm:h-9 px-2.5 rounded-md border border-input bg-background text-sm ' +
-  'focus:outline-none focus:ring-2 focus:ring-ring'
+  'outline-none focus-visible:ring-2 focus-visible:ring-ring'
 
 const MATCH_LABEL: Record<CardDraft['match_type'], string> = {
   exact_email: 'same email address',
@@ -330,7 +330,7 @@ export default function CardBatchReview({
                         value={row.company_summary ?? ''}
                         onChange={(e) => set(row.ref, 'company_summary', e.target.value || null)}
                         placeholder="Nothing found — add a line yourself"
-                        className="w-full px-2.5 py-2 rounded-md border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                        className="w-full px-2.5 py-2 rounded-md border border-input bg-background text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
                       />
                     </label>
 
@@ -340,7 +340,7 @@ export default function CardBatchReview({
                         rows={3}
                         value={row.fit_notes ?? ''}
                         onChange={(e) => set(row.ref, 'fit_notes', e.target.value || null)}
-                        className="w-full px-2.5 py-2 rounded-md border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                        className="w-full px-2.5 py-2 rounded-md border border-input bg-background text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
                       />
                     </label>
 

@@ -54,7 +54,7 @@ export default function ReviewFilters({ projects, projectId, reason, showResolve
       <select
         value={projectId}
         onChange={(e) => setParam('project_id', e.target.value)}
-        className="h-8 rounded-md border border-input bg-background px-2.5 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+        className="h-8 rounded-md border border-input bg-background px-2.5 text-xs text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         <option value="">All Projects</option>
         {projects.map((p) => (
@@ -67,7 +67,7 @@ export default function ReviewFilters({ projects, projectId, reason, showResolve
       <select
         value={reason}
         onChange={(e) => setParam('reason', e.target.value)}
-        className="h-8 rounded-md border border-input bg-background px-2.5 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+        className="h-8 rounded-md border border-input bg-background px-2.5 text-xs text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         <option value="">All Reasons</option>
         {REVIEW_REASONS.map((r) => (

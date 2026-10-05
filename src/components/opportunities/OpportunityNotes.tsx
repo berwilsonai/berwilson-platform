@@ -58,7 +58,7 @@ export default function OpportunityNotes({ opportunityId, notes }: OpportunityNo
           value={body}
           onChange={(e) => setBody(e.target.value)}
           placeholder="Log progress, a call, a decision, or a next step…"
-          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring min-h-[72px] resize-y"
+          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring min-h-[72px] resize-y"
         />
         <div className="flex items-center justify-end gap-2">
           <button

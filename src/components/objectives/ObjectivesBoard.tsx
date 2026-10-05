@@ -67,7 +67,7 @@ interface DropTarget {
 }
 
 const fieldClass =
-  'h-9 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring'
+  'h-9 rounded-md border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring'
 
 export default function ObjectivesBoard({ initialObjectives, teamMembers }: ObjectivesBoardProps) {
   const [objectives, setObjectives] = useState<BoardObjective[]>(initialObjectives)
@@ -664,14 +664,14 @@ function ObjectiveEditForm({
         onChange={(e) => setTitle(e.target.value)}
         placeholder="Objective"
         autoFocus
-        className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-ring"
+        className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring"
       />
       <textarea
         value={note}
         onChange={(e) => setNote(e.target.value)}
         placeholder="Note — context, numbers, options…"
         rows={2}
-        className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring resize-none"
+        className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring resize-none"
       />
       <div className="grid grid-cols-2 gap-2">
         <select value={ownerId} onChange={(e) => setOwnerId(e.target.value)} className={fieldClass}>

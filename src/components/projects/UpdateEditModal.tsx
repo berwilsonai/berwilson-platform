@@ -100,7 +100,7 @@ export default function UpdateEditModal({ updateId, onSaved }: UpdateEditModalPr
     setDecisions((prev) => prev.map((item, i) => i === idx ? { ...item, [field]: value } : item))
   }
 
-  const inputClass = 'w-full rounded-md border border-input bg-background px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50'
+  const inputClass = 'w-full rounded-md border border-input bg-background px-2.5 py-1.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50'
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
