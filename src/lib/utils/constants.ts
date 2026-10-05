@@ -222,6 +222,23 @@ export const ACTIVITY_TABLE_LABELS: Record<string, string> = {
   related_party_transactions: 'Related-party',
   policies: 'Policies',
   policy_acknowledgements: 'Policy acknowledgements',
+  // Was only in /activity's own local copy of this map, which is how the two
+  // drifted: governance existed here and not there, dev_notes there and not
+  // here. The page now reads this map and the duplicate is gone.
+  dev_notes: 'Developer Notes',
+  // Deal economics, 2026-10-05. Nine tables carry the audit trigger, so all
+  // nine can appear here; without a label enumLabel's humanising fallback
+  // prints "Economics Capacity Sources", which is the schema leaking through
+  // the page (§7).
+  deal_economics: 'Deal economics',
+  economics_capacity_sources: 'Economics — capacity',
+  economics_buckets: 'Economics — allocation',
+  economics_spvs: 'Economics — SPVs',
+  economics_lines: 'Economics — revenue lines',
+  economics_line_schedule: 'Economics — schedules',
+  economics_provenance: 'Economics — sources',
+  economics_benchmarks: 'Benchmark library',
+  economics_templates: 'Deal templates',
 }
 
 export const ACTIVITY_ACTION_STYLES: Record<string, string> = {

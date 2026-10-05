@@ -3,24 +3,20 @@ import Link from 'next/link'
 import { ExternalLink } from 'lucide-react'
 import { createAdminClient } from '@/lib/supabase/admin'
 import ActivityFilters from '@/components/activity/ActivityFilters'
+import { ACTIVITY_TABLE_LABELS } from '@/lib/utils/constants'
 
 export const metadata = { title: 'Activity — Ber Wilson Intelligence' }
 
 const PAGE_SIZE = 50
 
-const TABLE_LABELS: Record<string, string> = {
-  projects: 'Projects',
-  updates: 'Updates',
-  documents: 'Documents',
-  milestones: 'Milestones',
-  dd_items: 'Diligence',
-  financing_structures: 'Financing',
-  compliance_items: 'Compliance',
-  review_queue: 'Review Queue',
-  parties: 'Parties',
-  project_players: 'Team',
-  dev_notes: 'Developer Notes',
-}
+/**
+ * ⚠ THIS WAS A LOCAL COPY OF `ACTIVITY_TABLE_LABELS` AND THE TWO HAD ALREADY
+ * DRIFTED: the shared map had the twenty governance tables and not `dev_notes`,
+ * this one had `dev_notes` and none of the governance tables. A table audited
+ * but unlabelled prints its own raw name at the reader, which §7 forbids. One
+ * map now, in src/lib/utils/constants.ts.
+ */
+const TABLE_LABELS = ACTIVITY_TABLE_LABELS
 
 const ACTION_STYLES: Record<string, string> = {
   INSERT: 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 ring-emerald-200 dark:ring-emerald-800/60',
