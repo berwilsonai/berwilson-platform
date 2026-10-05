@@ -710,23 +710,43 @@ export function lineInsert(
 }
 
 /**
- * Whether a record has an economics model, for the tab bar's count.
+ * How many revenue lines a record's economics model holds, for the tab bar.
  *
- * Head count on an indexed column, so the row is never fetched. Returns 0 or 1:
- * there is at most one model per record, and the tab appears when there is one.
+ * ⚠ LINES, NOT MODELS, AND THAT IS WHY. The tab bar renders this number as a
+ * badge, so returning 0-or-1 would print "Economics 1" on every modelled deal:
+ * a count of something there can only ever be one of, which tells the reader
+ * nothing. "Economics 7" says what is in there.
+ *
+ * It also gets the promotion right. A tab with a count of 0 sits in the More
+ * dropdown and is still reachable, so a deal with no model offers one without
+ * taking a slot on the main bar, and the tab promotes exactly when there is
+ * something to look at. A model that exists but holds no lines yet has nothing
+ * to show, and the reader is on the tab anyway while they fill it in.
  *
  * ⚠ Swallows an error as 0 rather than throwing, UNLIKE `loadEconomics`. The
  * difference is what each failure costs: a count that fails hides a tab the
- * reader can still reach by URL, while a load that fails silently would show an
- * empty model and read as a $0 deal.
+ * reader can still reach from More, while a load that fails silently would
+ * show an empty model and read as a deal worth nothing.
  */
 export async function hasEconomics(kind: RecordKind, recordId: string): Promise<number> {
-  const { count, error } = await calcDb()
+  const db = calcDb()
+  const { data, error } = await db
     .from('deal_economics')
-    .select('id', { count: 'exact', head: true })
+    .select('id')
     .eq(RECORD_SCOPE_COLUMN[kind], recordId)
+    .maybeSingle()
   if (error) {
     console.error('[economics] tab count failed:', error.message)
+    return 0
+  }
+  if (!data) return 0
+
+  const { count, error: lineError } = await db
+    .from('economics_lines')
+    .select('id', { count: 'exact', head: true })
+    .eq('economics_id', (data as { id: string }).id)
+  if (lineError) {
+    console.error('[economics] line count failed:', lineError.message)
     return 0
   }
   return count ?? 0
