@@ -81,8 +81,11 @@ const { data: existingDocs } = await supabase
   .from(docTable)
   .select('file_name, file_size_bytes')
   .eq(fk, target.id)
+// Hand-maintained row shape: the table is chosen at runtime, so the client
+// cannot type the select (CLAUDE.md §4).
+type DocKeyRow = { file_name: string | null; file_size_bytes: number | null }
 const existing = new Set(
-  (existingDocs ?? []).map((d: any) => `${d.file_name}|${d.file_size_bytes}`)
+  ((existingDocs ?? []) as unknown as DocKeyRow[]).map((d) => `${d.file_name}|${d.file_size_bytes}`)
 )
 
 // Collect the real attachments, deduped across the reply chain and mailboxes.

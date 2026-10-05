@@ -82,7 +82,14 @@ for (const mailbox of mailboxes) {
       .select('id, gmail_thread_id, attachment_count, subject')
       .eq('mailbox', mailbox)
       .in('gmail_thread_id', ids.slice(i, i + 100))
-    for (const r of (data ?? []) as any[]) {
+    // `email_threads` is absent from the generated types (CLAUDE.md §4).
+    type ThreadRow = {
+      id: string
+      gmail_thread_id: string
+      attachment_count: number | null
+      subject: string
+    }
+    for (const r of (data ?? []) as unknown as ThreadRow[]) {
       stored.set(r.gmail_thread_id, {
         id: r.id,
         attachment_count: r.attachment_count ?? 0,

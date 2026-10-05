@@ -19,6 +19,22 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { processPromotedDocumentAi } from '@/lib/email-ingestion/attachments'
 
+/**
+ * `opportunity_documents` is absent from the generated types (CLAUDE.md §4), so
+ * the row contract is hand-maintained here — the same convention `sweepDb()`
+ * uses. It was four `any` escapes until 2026-10-05, against a repo rule of
+ * zero.
+ */
+type OppDocRow = {
+  id: string
+  opportunity_id: string
+  file_name: string
+  mime_type: string | null
+  storage_path: string
+  file_size_bytes: number | null
+  extracted_text: string | null
+}
+
 const dry = process.argv.includes('--dry')
 const oppIdx = process.argv.indexOf('--opportunity')
 const onlyOpportunity = oppIdx >= 0 ? process.argv[oppIdx + 1] : null
@@ -36,9 +52,10 @@ if (error) {
   process.exit(1)
 }
 
-const stale = (data ?? []).filter((d: any) => !d.extracted_text || d.extracted_text.length === 0)
-console.log(`${data?.length ?? 0} opportunity document(s); ${stale.length} with no stored text`)
-for (const d of stale as any[]) {
+const rows = (data ?? []) as unknown as OppDocRow[]
+const stale = rows.filter((d) => !d.extracted_text || d.extracted_text.length === 0)
+console.log(`${rows.length} opportunity document(s); ${stale.length} with no stored text`)
+for (const d of stale) {
   console.log(`  ${d.file_name} (${Math.round((d.file_size_bytes ?? 0) / 1024)}KB, ${d.mime_type})`)
 }
 if (dry || stale.length === 0) {
@@ -48,7 +65,7 @@ if (dry || stale.length === 0) {
 
 console.log('\nRe-running the AI pass one at a time…')
 let recovered = 0
-for (const [i, d] of (stale as any[]).entries()) {
+for (const [i, d] of stale.entries()) {
   const t0 = Date.now()
   await processPromotedDocumentAi({
     table: 'opportunity_documents',
@@ -63,7 +80,7 @@ for (const [i, d] of (stale as any[]).entries()) {
     .select('extracted_text')
     .eq('id', d.id)
     .single()
-  const len = (after as any)?.extracted_text?.length ?? 0
+  const len = (after as unknown as { extracted_text: string | null } | null)?.extracted_text?.length ?? 0
   if (len > 0) recovered++
   console.log(
     `  [${i + 1}/${stale.length}] ${d.file_name} — ${Math.round((Date.now() - t0) / 1000)}s, text ${len}`

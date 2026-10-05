@@ -49,7 +49,8 @@ function loadEnvLocal() {
   }
   return true
 }
-const ENV_LOADED = loadEnvLocal()
+// Called for its side effect: it populates process.env from .env.local.
+loadEnvLocal()
 
 const TOKEN_ENDPOINT = 'https://oauth2.googleapis.com/token'
 const AUTH_ENDPOINT = 'https://accounts.google.com/o/oauth2/v2/auth'
