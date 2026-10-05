@@ -15,7 +15,7 @@
  * Pure, no imports beyond sibling modules. Safe for a verification script.
  */
 
-import type { CapacityBucket, CapacitySource } from './types'
+import type { CapacityBucket, CapacitySource, CapacitySourceKind } from './types'
 import { weakestStatus, type ProvenanceStatus } from './provenance'
 
 export interface CapacityDraw {
@@ -38,6 +38,8 @@ export const UNALLOCATED_BUCKET_ID = '__unallocated__'
 export interface SourceFirmResult {
   sourceId: string
   label: string
+  /** Carried through so a reader can be told what kind of plant this is. */
+  kind: CapacitySourceKind
   nameplateMw: number | null
   firmMw: number | null
   /** How firm was arrived at, so a reader can see a block design was used. */
@@ -142,6 +144,7 @@ export function sourceFirmMw(source: CapacitySource): SourceFirmResult {
   return {
     sourceId: source.id,
     label: source.label,
+    kind: source.kind,
     nameplateMw: nameplate,
     firmMw: firm,
     basis,

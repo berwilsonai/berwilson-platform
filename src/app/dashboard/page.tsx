@@ -16,6 +16,7 @@ import NowObjectives, { type NowObjectiveItem } from '@/components/dashboard/Now
 import Commitments from '@/components/dashboard/Commitments'
 import { loadOpenCommitments } from '@/lib/commitments/load'
 import { weightedValue } from '@/lib/utils/constants'
+import { mixedTotalNote, pipelineTotal, pipelineValue } from '@/lib/economics/pipeline'
 import { fetchOpenTasks } from '@/lib/tasks/queries'
 import { getViewer } from '@/lib/auth/viewer'
 import { dropHidden } from '@/lib/security/confidential'
@@ -306,7 +307,12 @@ export default async function DashboardPage({ searchParams }: PageProps) {
 
   // Sort projects
   const sorted = [...activeProjects].sort((a, b) => {
-    if (sort === 'value') return (b.estimated_value ?? 0) - (a.estimated_value ?? 0)
+    if (sort === 'value') {
+      // Sorts on whatever figure each project actually has, so a modelled deal
+      // and an unmodelled one rank by the same call rather than the modelled
+      // one sorting last for having a smaller, truer number.
+      return (pipelineValue(b).amount ?? -1) - (pipelineValue(a).amount ?? -1)
+    }
     if (sort === 'actions') {
       return (countMap[b.id]?.actionCount ?? 0) - (countMap[a.id]?.actionCount ?? 0)
     }
@@ -315,9 +321,20 @@ export default async function DashboardPage({ searchParams }: PageProps) {
   })
 
   // Stats
-  const pipelineValue = activeProjects.reduce((sum, p) => sum + (p.estimated_value ?? 0), 0)
+  //
+  // ⚠ THE TOTAL NAMES WHAT IT IS MADE OF. `estimated_value` was one unlabelled
+  // column holding $57.5B of plainly different quantities, so a figure that
+  // mixes a computed Ber Wilson capture with a hand-entered estimate must say
+  // so rather than presenting itself as one authoritative number.
+  const pipeline = pipelineTotal(activeProjects)
+  const pipelineValueTotal = pipeline.amount
   const weightedPipelineValue = activeProjects.reduce(
-    (sum, p) => sum + weightedValue(p.estimated_value, (p as { win_probability?: number | null }).win_probability ?? null),
+    (sum, p) =>
+      sum +
+      weightedValue(
+        pipelineValue(p).amount,
+        (p as { win_probability?: number | null }).win_probability ?? null
+      ),
     0
   )
   // The KPI counts what the Decide queue holds, not the review table alone —
@@ -410,7 +427,9 @@ export default async function DashboardPage({ searchParams }: PageProps) {
       <div>
         <HealthPanel
           activeProjects={activeProjects.length}
-          pipelineValue={pipelineValue}
+          pipelineValue={pipelineValueTotal}
+          pipelineNote={mixedTotalNote(pipeline)}
+          unpricedCount={pipeline.unpriced}
           weightedPipelineValue={weightedPipelineValue}
           pendingReview={pendingReview}
           overdueCount={overdueCount}

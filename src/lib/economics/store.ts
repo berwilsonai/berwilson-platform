@@ -27,6 +27,7 @@ import {
   type ScheduleRow,
   type SpvRow,
 } from './db'
+import { RECORD_SCOPE_COLUMN, type RecordKind } from '@/lib/records/scope'
 import { computeDealEconomics, type DealEconomicsResult } from './compute'
 import { isProvenanceStatus, type Provenance, type ProvenanceStatus } from './provenance'
 import {
@@ -40,13 +41,15 @@ import {
   type Spv,
 } from './types'
 
-export type RecordKind = 'project' | 'opportunity'
-
-/** The scope column for a record kind. One spelling, so a third cannot appear. */
-export const SCOPE_COLUMN: Record<RecordKind, 'project_id' | 'opportunity_id'> = {
-  project: 'project_id',
-  opportunity: 'opportunity_id',
-}
+/**
+ * `RecordKind` and the scope column come from src/lib/records/scope.ts, which
+ * already defines them for every shared child table in the app.
+ *
+ * ⚠ THIS FILE ONCE DECLARED ITS OWN COPY OF BOTH, which is the drift that
+ * module exists to prevent: its header says a component or route must not be
+ * able to invent a third spelling, and a second copy here was exactly that.
+ */
+export type { RecordKind } from '@/lib/records/scope'
 
 export interface LoadedEconomics {
   economicsId: string
@@ -360,7 +363,7 @@ export async function loadEconomics(
   const { data: header, error } = await db
     .from('deal_economics')
     .select('*')
-    .eq(SCOPE_COLUMN[kind], recordId)
+    .eq(RECORD_SCOPE_COLUMN[kind], recordId)
     .maybeSingle()
 
   // ⚠ Throw rather than return null on an error. A 42703 from a renamed column
@@ -704,4 +707,27 @@ export function lineInsert(
     sort_order: 0,
     ...over,
   }
+}
+
+/**
+ * Whether a record has an economics model, for the tab bar's count.
+ *
+ * Head count on an indexed column, so the row is never fetched. Returns 0 or 1:
+ * there is at most one model per record, and the tab appears when there is one.
+ *
+ * ⚠ Swallows an error as 0 rather than throwing, UNLIKE `loadEconomics`. The
+ * difference is what each failure costs: a count that fails hides a tab the
+ * reader can still reach by URL, while a load that fails silently would show an
+ * empty model and read as a $0 deal.
+ */
+export async function hasEconomics(kind: RecordKind, recordId: string): Promise<number> {
+  const { count, error } = await calcDb()
+    .from('deal_economics')
+    .select('id', { count: 'exact', head: true })
+    .eq(RECORD_SCOPE_COLUMN[kind], recordId)
+  if (error) {
+    console.error('[economics] tab count failed:', error.message)
+    return 0
+  }
+  return count ?? 0
 }

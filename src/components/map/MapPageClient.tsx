@@ -31,6 +31,7 @@ import PlacementPanel from './PlacementPanel'
 import MapSearch from './MapSearch'
 import MapLegend from './MapLegend'
 import { useStoredState } from '@/hooks/use-stored-state'
+import { pipelineValue } from '@/lib/economics/pipeline'
 
 function MapSkeleton() {
   return <div className="absolute inset-0 animate-pulse bg-muted" />
@@ -125,18 +126,29 @@ export default function MapPageClient({
     let awarded = 0
     let pursuit = 0
     let weighted = 0
+    let modelled = 0
+    let estimated = 0
     for (const p of visible) {
-      const v = p.estimated_value ?? 0
+      // The figure each project actually has: a computed Ber Wilson capture
+      // where there is a model, a hand-entered estimate where there is not.
+      // Mixed is better than wrong, and `mixed` says so beside the headline.
+      const value = pipelineValue(p)
+      const v = value.amount ?? 0
       if (projectPhase(p.stage) === 'awarded') awarded += v
       else pursuit += v
-      weighted += weightedValue(p.estimated_value, p.win_probability)
+      weighted += weightedValue(value.amount, p.win_probability)
+      if (value.source === 'capture') modelled += 1
+      else if (value.source === 'estimated') estimated += 1
     }
-    return { awarded, pursuit, weighted }
+    return { awarded, pursuit, weighted, mixed: modelled > 0 && estimated > 0 }
   }, [visible])
 
   // Present-mode tour: biggest projects first; arrow keys step through
   const tour = useMemo(
-    () => [...visible].sort((a, b) => (b.estimated_value ?? -1) - (a.estimated_value ?? -1)),
+    () =>
+      [...visible].sort(
+        (a, b) => (pipelineValue(b).amount ?? -1) - (pipelineValue(a).amount ?? -1)
+      ),
     [visible]
   )
 

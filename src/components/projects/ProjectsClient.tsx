@@ -9,6 +9,7 @@ import type { Project, ProjectStage } from '@/lib/supabase/types'
 import { DatePicker } from '@/components/ui/date-picker'
 import { cn } from '@/lib/utils'
 import { useStoredState } from '@/hooks/use-stored-state'
+import { mixedTotalNote, pipelineTotal, pipelineValue } from '@/lib/economics/pipeline'
 import { SECTOR_BADGE, SECTOR_SHORT } from '@/lib/utils/sectors'
 import {
   STATUS_BADGE, STATUS_LABELS, formatValue, weightedValue,
@@ -78,8 +79,11 @@ function ProgramBanner({
           >
             {STATUS_LABELS[status]}
           </span>
-          <span className="text-sm font-bold tnum text-foreground">
-            {formatValue(program.estimated_value)}
+          <span
+            className="text-sm font-bold tnum text-foreground"
+            title={pipelineValue(program).hint}
+          >
+            {formatValue(pipelineValue(program).amount)}
           </span>
           <span className="hidden md:inline-flex items-center gap-1 text-xs text-muted-foreground border border-border rounded px-2 py-0.5 bg-background">
             <FolderOpen size={11} />
@@ -348,9 +352,20 @@ export default function ProjectsClient({ projects: initialProjects, stageFilter 
           {stageColumns.map((s) => {
             const stage = s as ProjectStage
             const items = byStage.get(stage) ?? []
-            const colValue = items.reduce((sum, p) => sum + (p.estimated_value ?? 0), 0)
+            // Whatever figure each project actually has, with the column
+            // saying when it is made of more than one kind. A total that
+            // silently mixes a computed Ber Wilson capture with a hand-entered
+            // estimate is neither quantity.
+            const colTotal = pipelineTotal(items)
+            const colValue = colTotal.amount
+            const colNote = mixedTotalNote(colTotal)
             const colWeighted = items.reduce(
-              (sum, p) => sum + weightedValue(p.estimated_value, (p as { win_probability?: number | null }).win_probability ?? null),
+              (sum, p) =>
+                sum +
+                weightedValue(
+                  pipelineValue(p).amount,
+                  (p as { win_probability?: number | null }).win_probability ?? null
+                ),
               0
             )
             const empty = items.length === 0
@@ -386,10 +401,20 @@ export default function ProjectsClient({ projects: initialProjects, stageFilter 
                   {/* An empty stage has no total worth stating; "$0" is noise
                       dressed as a figure. */}
                   {!empty && (
-                    <div className="flex items-center justify-between mt-1.5 text-xs">
-                      <span className="font-semibold tnum text-foreground">{formatValue(colValue)}</span>
-                      {colWeighted > 0 && (
-                        <span className="tnum text-emerald-600 dark:text-emerald-400">{formatValue(colWeighted)} wtd</span>
+                    <div className="mt-1.5 text-xs">
+                      <div className="flex items-center justify-between">
+                        <span
+                          className="font-semibold tnum text-foreground"
+                          title={colNote ? `Mixed: ${colNote}` : 'Ber Wilson capture'}
+                        >
+                          {formatValue(colValue)}
+                        </span>
+                        {colWeighted > 0 && (
+                          <span className="tnum text-emerald-600 dark:text-emerald-400">{formatValue(colWeighted)} wtd</span>
+                        )}
+                      </div>
+                      {colNote && (
+                        <p className="mt-0.5 truncate text-[10px] text-muted-foreground">{colNote}</p>
                       )}
                     </div>
                   )}

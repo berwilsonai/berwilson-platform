@@ -7,6 +7,7 @@ import {
   pwinBadge, weightedValue,
   bidDecision, BID_DECISION_LABELS, BID_DECISION_BADGE,
 } from '@/lib/utils/constants'
+import { pipelineValue } from '@/lib/economics/pipeline'
 
 type ProjectWithCapture = Project & {
   bid_due_date?: string | null
@@ -24,7 +25,9 @@ export default function PursuitSnapshot({ project }: { project: ProjectWithCaptu
   const bidDueDays = daysUntilDate(bidDue)
   const winProb = project.win_probability ?? null
   const decision = bidDecision(project.bid_decision)
-  const weighted = weightedValue(project.estimated_value, winProb)
+  // Whichever figure this project actually has, named on screen below.
+  const value = pipelineValue(project)
+  const weighted = weightedValue(value.amount, winProb)
 
   const dates = [
     { label: 'Bid Due', value: bidDue, highlight: true },
@@ -101,8 +104,10 @@ export default function PursuitSnapshot({ project }: { project: ProjectWithCaptu
 
           {/* Value + weighted */}
           <div className="flex items-center justify-between px-4 py-2.5">
-            <span className="text-xs text-muted-foreground">Est. Value</span>
-            <span className="text-sm font-bold tnum">{formatValue(project.estimated_value)}</span>
+            <span className="text-xs text-muted-foreground" title={value.hint}>
+              {value.definition}
+            </span>
+            <span className="text-sm font-bold tnum">{formatValue(value.amount)}</span>
           </div>
           {weighted > 0 && (
             <div className="flex items-center justify-between px-4 py-2.5">

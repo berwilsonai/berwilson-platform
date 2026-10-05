@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { Pencil } from 'lucide-react'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { hasEconomics } from '@/lib/economics/store'
 import { getViewer, canAccessOpportunity } from '@/lib/auth/viewer'
 import { cn } from '@/lib/utils'
 import {
@@ -66,14 +67,17 @@ export default async function OpportunityDetailLayout({ children, params }: Layo
       .eq('opportunity_id', id)
     return n ?? 0
   }
-  const [players, notes, meetings, tasks, documents, milestones, financing, diligence, entities] =
+  const [players, notes, meetings, tasks, documents, milestones, financing, diligence, entities, economics] =
     await Promise.all([
       count('project_players'), count('opportunity_notes'), count('meetings'), count('tasks'),
       count('opportunity_documents'), count('milestones'), count('financing_structures'),
       count('dd_items'), count('entity_projects'),
+      // Absent from the generated types, so it counts through its own client.
+      hasEconomics('opportunity', id),
     ])
   const tabCounts: Partial<Record<TabKey, number>> = {
     players, updates: notes, meetings, tasks, documents, milestones, financing, diligence, entities,
+    economics,
   }
 
   const t = oppType(opportunity.opp_type)

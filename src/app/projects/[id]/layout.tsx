@@ -10,6 +10,7 @@ import RecordTabBar from '@/components/records/RecordTabBar'
 import { PROJECT_TABS } from '@/components/records/tabs'
 import { getViewer, canAccessProject } from '@/lib/auth/viewer'
 import { parcelDb } from '@/lib/parcels/queries'
+import { hasEconomics } from '@/lib/economics/store'
 
 interface LayoutProps {
   children: React.ReactNode
@@ -64,14 +65,18 @@ export default async function ProjectLayout({ children, params }: LayoutProps) {
     return n ?? 0
   }
 
-  const [players, updates, meetings, tasks, documents, milestones, financing, diligence, entities, parcels] =
+  const [players, updates, meetings, tasks, documents, milestones, financing, diligence, entities, parcels, economics] =
     await Promise.all([
       count('project_players'), count('updates'), count('meetings'), count('tasks'),
       count('documents'), count('milestones'), count('financing_structures'),
       count('dd_items'), count('entity_projects'), countParcels(),
+      // deal_economics is also absent from the generated types, so it counts
+      // through its own untyped client, same as project_parcels above.
+      hasEconomics('project', id),
     ])
   const tabCounts = {
     players, updates, meetings, tasks, documents, milestones, financing, diligence, entities, parcels,
+    economics,
   }
 
   const status = project.status ?? 'active'

@@ -363,6 +363,27 @@ export function formatRatePerSqft(value: number | null | undefined): string {
 }
 
 /**
+ * A percentage, for a reader rather than for arithmetic.
+ *
+ * The repo had no percent formatter at all and every call site did its own
+ * `(a / b) * 100` with its own rounding, which is how `FinancingTab` ended up
+ * showing two decimals where the projects list showed none. One decimal, the
+ * sign kept, and `'—'` for null so a missing figure cannot read as 0%.
+ *
+ * ⚠ The caller passes 0 to 100, NOT 0 to 1. Every percent column in this
+ * schema is stored that way (`equity_pct`, `win_probability`,
+ * `bw_ownership_pct`), so a helper that expected a fraction would silently
+ * render 60% as 0.6%.
+ */
+export function formatPercent(
+  value: number | null | undefined,
+  opts: { decimals?: number; empty?: string } = {}
+): string {
+  if (value == null || !Number.isFinite(value)) return opts.empty ?? '—'
+  return `${value.toFixed(opts.decimals ?? 1)}%`
+}
+
+/**
  * Money, abbreviated. The dashboard/card/KPI form.
  *
  * ONE DECIMAL AT EVERY TIER. It used to be two at the billion mark and one at

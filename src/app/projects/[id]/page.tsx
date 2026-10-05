@@ -18,6 +18,7 @@ import {
   type FederalStandard,
 } from '@/lib/utils/constants'
 import PursuitSnapshot from '@/components/projects/PursuitSnapshot'
+import { mixedTotalNote, pipelineTotal, pipelineValue } from '@/lib/economics/pipeline'
 import ProjectProtection from '@/components/security/ProjectProtection'
 import { getViewer } from '@/lib/auth/viewer'
 
@@ -100,7 +101,7 @@ export default async function ProjectOverviewPage({ params }: PageProps) {
       .order('created_at', { ascending: true }),
     supabase
       .from('projects')
-      .select('id, name, sector, status, stage, estimated_value, location')
+      .select('id, name, sector, status, stage, estimated_value, economics_capture_value, location')
       .eq('parent_project_id', id)
       .order('name'),
     supabase
@@ -263,21 +264,39 @@ export default async function ProjectOverviewPage({ params }: PageProps) {
                     {STAGE_LABELS[child.stage]}
                   </span>
                 )}
-                <span className="text-sm font-semibold tnum text-foreground shrink-0">
-                  {formatValue(child.estimated_value)}
+                <span
+                  className="text-sm font-semibold tnum text-foreground shrink-0"
+                  title={pipelineValue(child).hint}
+                >
+                  {formatValue(pipelineValue(child).amount)}
                 </span>
                 <ChevronRight size={14} className="text-muted-foreground shrink-0" />
               </Link>
             ))}
           </div>
-          <div className="text-xs text-muted-foreground">
-            Aggregated value: <span className="font-semibold text-foreground">
-              {formatValue(
-                (project.estimated_value ?? 0) +
-                (childProjects ?? []).reduce((sum, c) => sum + (c.estimated_value ?? 0), 0)
-              )}
-            </span>
-          </div>
+          {/* ⚠ Names what the aggregate is made of. A program total that mixes
+              a computed Ber Wilson capture on one sub-project with a
+              hand-entered estimate on another is neither quantity, and the
+              reader cannot tell from the figure alone. */}
+          {(() => {
+            const total = pipelineTotal([project, ...(childProjects ?? [])])
+            const note = mixedTotalNote(total)
+            return (
+              <div className="text-xs text-muted-foreground">
+                Aggregated value:{' '}
+                <span className="font-semibold tnum text-foreground">
+                  {formatValue(total.amount)}
+                </span>
+                {note ? <span> · {note}</span> : <span> · Ber Wilson capture</span>}
+                {total.unpriced > 0 ? (
+                  <span>
+                    {' · '}
+                    {total.unpriced} with no value yet
+                  </span>
+                ) : null}
+              </div>
+            )
+          })()}
         </section>
       )}
 
@@ -287,9 +306,15 @@ export default async function ProjectOverviewPage({ params }: PageProps) {
           Contract
         </h2>
         <dl className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-4">
+          {/* Named by which quantity it is, so a computed capture figure and a
+              hand-entered guess cannot be mistaken for one another. */}
           <Field
-            label="Estimated Value"
-            value={project.estimated_value != null ? formatValue(project.estimated_value) : null}
+            label={pipelineValue(project).definition}
+            value={
+              pipelineValue(project).amount != null
+                ? formatValue(pipelineValue(project).amount)
+                : null
+            }
           />
           <Field label="Contract Type" value={enumLabel(project.contract_type, undefined, { empty: '' })} />
           <Field label="Delivery Method" value={enumLabel(project.delivery_method, undefined, { empty: '' })} />

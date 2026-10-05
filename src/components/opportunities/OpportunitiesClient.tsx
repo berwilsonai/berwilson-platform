@@ -18,6 +18,7 @@ import {
   OPPORTUNITY_PRIORITY_BADGE,
   OPPORTUNITY_PRIORITY_LABELS,
 } from '@/lib/utils/opportunities'
+import { pipelineValue } from '@/lib/economics/pipeline'
 
 interface OpportunitiesClientProps {
   opportunities: Opportunity[]
@@ -101,8 +102,11 @@ export default function OpportunitiesClient({ opportunities }: OpportunitiesClie
 
             {/* Footer: value + sector + probability */}
             <div className="mt-3 pt-3 border-t border-border flex items-center justify-between gap-2">
-              <span className="text-sm font-semibold tnum text-foreground">
-                {formatValue(opp.estimated_value)}
+              <span
+                className="text-sm font-semibold tnum text-foreground"
+                title={pipelineValue(opp).hint}
+              >
+                {formatValue(pipelineValue(opp).amount)}
               </span>
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
                 {opp.sector && SECTOR_LABELS[opp.sector as ProjectSector] && (

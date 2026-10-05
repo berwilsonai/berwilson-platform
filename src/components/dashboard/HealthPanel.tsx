@@ -15,6 +15,17 @@ interface HealthPanelProps {
   overdueTaskCount: number
   criticalDdCount: number
   expiringCertsCount: number
+  /**
+   * What the pipeline total is made of, when it is made of more than one kind
+   * of figure. Null when every contributing project is modelled, or every one
+   * is a hand-entered estimate.
+   *
+   * ⚠ A TOTAL THAT MIXES A COMPUTED BER WILSON CAPTURE WITH A HAND-ENTERED
+   * ESTIMATE IS NEITHER QUANTITY, and the tile must not present it as one.
+   */
+  pipelineNote?: string | null
+  /** Active projects nobody has priced, so the tile's denominator is honest. */
+  unpricedCount?: number
 }
 
 /**
@@ -31,6 +42,8 @@ export default function HealthPanel({
   overdueTaskCount,
   criticalDdCount,
   expiringCertsCount,
+  pipelineNote,
+  unpricedCount,
 }: HealthPanelProps) {
   /*
     TWO QUANTITIES, NEVER ONE NUMBER.
@@ -72,7 +85,17 @@ export default function HealthPanel({
             <dd className="mt-1 text-3xl font-semibold text-foreground tnum heading-tight">
               {pipelineValue > 0 ? formatValue(pipelineValue) : 'Not set'}
             </dd>
-            <dd className="mt-0.5 text-xs text-muted-foreground">Total across active projects</dd>
+            <dd className="mt-0.5 text-xs text-muted-foreground">
+              {pipelineNote
+                ? `Across active projects · ${pipelineNote}`
+                : 'Ber Wilson capture across active projects'}
+            </dd>
+            {unpricedCount && unpricedCount > 0 ? (
+              <dd className="mt-0.5 text-xs text-muted-foreground">
+                {unpricedCount} active {unpricedCount === 1 ? 'project has' : 'projects have'} no
+                value yet
+              </dd>
+            ) : null}
           </div>
         </div>
 

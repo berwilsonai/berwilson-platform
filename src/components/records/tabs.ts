@@ -3,6 +3,12 @@ import type { RecordTab } from './RecordTabBar'
 /**
  * A project's tabs. Overview / Updates / Documents always show; the rest
  * appear once that project has rows in them.
+ *
+ * Economics is counted rather than `always`, deliberately. Measured on
+ * 2026-09-21, four of ten tabs had rows on zero of fifteen projects while
+ * every project showed all ten, so the two tabs that carry the work sat sixth
+ * and seventh along a bar you had to scan past seven empty ones to reach. A
+ * deal with no economics model is offered one from the Overview instead.
  */
 export const PROJECT_TABS: RecordTab[] = [
   { label: 'Overview', segment: '', always: true },
@@ -13,6 +19,7 @@ export const PROJECT_TABS: RecordTab[] = [
   { label: 'Meetings', segment: 'meetings', key: 'meetings' },
   { label: 'Tasks', segment: 'tasks', key: 'tasks' },
   { label: 'Milestones', segment: 'milestones', key: 'milestones' },
+  { label: 'Economics', segment: 'economics', key: 'economics' },
   { label: 'Financing', segment: 'financing', key: 'financing' },
   { label: 'Diligence', segment: 'diligence', key: 'diligence' },
   { label: 'Entities & Vendors', segment: 'entities', key: 'entities' },
@@ -32,6 +39,7 @@ export const OPPORTUNITY_TABS: RecordTab[] = [
   { label: 'Meetings', segment: 'meetings', key: 'meetings' },
   { label: 'Tasks', segment: 'tasks', key: 'tasks' },
   { label: 'Milestones', segment: 'milestones', key: 'milestones' },
+  { label: 'Economics', segment: 'economics', key: 'economics' },
   { label: 'Financing', segment: 'financing', key: 'financing' },
   { label: 'Diligence', segment: 'diligence', key: 'diligence' },
   { label: 'Entities & Vendors', segment: 'entities', key: 'entities' },

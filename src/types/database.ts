@@ -1954,6 +1954,21 @@ export type Database = {
       }
       opportunities: {
         Row: {
+          /**
+           * Ber Wilson NET capture, written only by a saved economics model.
+           *
+           * ⚠ NOT `estimated_value`, AND NOT A REPLACEMENT FOR IT IN PLACE.
+           * The name IS the definition: this column is contract value plus
+           * one-time revenue plus credits, net of SPV ownership, and nothing
+           * else. `estimated_value` stays as whatever a human typed, because
+           * filling a blank and overwriting a value are different acts. Read
+           * both through `pipelineValue()` in src/lib/economics/pipeline.ts,
+           * which returns the figure AND which quantity it is.
+           */
+          economics_capture_value: number | null
+          /** The weakest provenance in the model behind that figure. */
+          economics_status: string | null
+          economics_computed_at: string | null
           match_aliases: string[]
           counterparty: string | null
           created_at: string | null
@@ -1985,6 +2000,9 @@ export type Database = {
           drive_source_folder_url: string | null
         }
         Insert: {
+          economics_capture_value?: number | null
+          economics_status?: string | null
+          economics_computed_at?: string | null
           match_aliases?: string[]
           counterparty?: string | null
           created_at?: string | null
@@ -2016,6 +2034,9 @@ export type Database = {
           drive_source_folder_url?: string | null
         }
         Update: {
+          economics_capture_value?: number | null
+          economics_status?: string | null
+          economics_computed_at?: string | null
           match_aliases?: string[]
           counterparty?: string | null
           created_at?: string | null
@@ -2517,6 +2538,21 @@ export type Database = {
       }
       projects: {
         Row: {
+          /**
+           * Ber Wilson NET capture, written only by a saved economics model.
+           *
+           * ⚠ NOT `estimated_value`, AND NOT A REPLACEMENT FOR IT IN PLACE.
+           * The name IS the definition: this column is contract value plus
+           * one-time revenue plus credits, net of SPV ownership, and nothing
+           * else. `estimated_value` stays as whatever a human typed, because
+           * filling a blank and overwriting a value are different acts. Read
+           * both through `pipelineValue()` in src/lib/economics/pipeline.ts,
+           * which returns the figure AND which quantity it is.
+           */
+          economics_capture_value: number | null
+          /** The weakest provenance in the model behind that figure. */
+          economics_status: string | null
+          economics_computed_at: string | null
           match_aliases: string[]
           confidential: boolean
           applicable_standards: Json | null
@@ -2556,6 +2592,9 @@ export type Database = {
           win_strategy: string | null
         }
         Insert: {
+          economics_capture_value?: number | null
+          economics_status?: string | null
+          economics_computed_at?: string | null
           match_aliases?: string[]
           confidential?: boolean
           applicable_standards?: Json | null
@@ -2595,6 +2634,9 @@ export type Database = {
           win_strategy?: string | null
         }
         Update: {
+          economics_capture_value?: number | null
+          economics_status?: string | null
+          economics_computed_at?: string | null
           match_aliases?: string[]
           confidential?: boolean
           applicable_standards?: Json | null
