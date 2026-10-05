@@ -11,6 +11,7 @@ import { parseStagedAttachments } from '@/lib/email-ingestion/attachments'
 import { promoteTargetFor } from '@/lib/utils/leads'
 import { listCategories } from '@/lib/leads/categories'
 import { findMisfiledCompanyDocuments } from '@/lib/documents/unfiled'
+import { pendingProposalGroups } from '@/lib/economics/store'
 import type { EmailIntakeExtraction } from '@/lib/ai/prompts/email-intake'
 import type { PartyMatch } from '@/lib/ai/proposal-matching'
 
@@ -38,7 +39,7 @@ export default async function DecidePage() {
 
   const supabase = createAdminClient()
 
-  const [{ data: sessions }, { data: leadRows }, { data: reviewRows }, unfiledDocs] = await Promise.all([
+  const [{ data: sessions }, { data: leadRows }, { data: reviewRows }, unfiledDocs, economicsGroups] = await Promise.all([
     supabase
       .from('email_intake_sessions')
       .select(
@@ -67,6 +68,7 @@ export default async function DecidePage() {
     // The same pass backs the knowledge-base list on /company, so the queue and
     // that page can never disagree about what is waiting (§12).
     findMisfiledCompanyDocuments(),
+    pendingProposalGroups().catch(() => []),
   ])
 
   const items: DecideItem[] = []
@@ -249,6 +251,32 @@ export default async function DecidePage() {
       // Never thresholded as a number at the reader; it only draws the batch.
       confidence: doc.confidence ?? (isNotADocument ? 1 : null),
       blocker: null,
+    })
+  }
+
+  // ⚠ ONE ROW PER DEAL, NOT PER FIGURE, matching what the badge counts. Forty
+  // figures read out of one proposal document are one sitting, and a global
+  // queue row saying "accept 145 $/kW-month" has no model beside it, which is
+  // precisely where that decision cannot be made. This points at the tab, the
+  // same way an unfiled document points at /company: the queue aggregates and
+  // the deciding happens where the detail is.
+  for (const group of economicsGroups) {
+    items.push({
+      id: `economics-${group.economicsId}`,
+      kind: 'economics',
+      title: `${group.count} economics figure${group.count === 1 ? '' : 's'} read from ${group.recordName}`,
+      subtitle: group.recordName,
+      href: group.path,
+      verdict: null,
+      score: null,
+      note: 'Each one carries the sentence it came from. Accepting records the figure and its source together; nothing has been written yet.',
+      deadline: null,
+      // Deliberately not acceptable from this list: the quote has to be read
+      // against the model, and a batch accept here would write figures nobody
+      // had looked at.
+      accept: null,
+      blocker: 'Open the deal to read each figure against its quote',
+      confidence: null,
     })
   }
 

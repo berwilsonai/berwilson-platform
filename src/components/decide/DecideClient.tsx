@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import { toast } from 'sonner'
-import { Radar, Inbox, ClipboardCheck, FileText, ArrowRight, X, Loader2, Check, CheckCheck } from 'lucide-react'
+import { Radar, Inbox, ClipboardCheck, FileText, ArrowRight, X, Loader2, Check, CheckCheck, Calculator} from 'lucide-react'
 import { Panel } from '@/components/ui/card'
 import EmptyState from '@/components/shared/EmptyState'
 import { decideWeight, daysUntil } from '@/lib/decide/rank'
@@ -11,7 +11,7 @@ import { enumLabel, formatValue, formatDate } from '@/lib/utils/constants'
 import { SECTOR_LABELS } from '@/lib/utils/sectors'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 
-export type DecideKind = 'lead' | 'intake' | 'review' | 'document'
+export type DecideKind = 'lead' | 'intake' | 'review' | 'document' | 'economics'
 
 export interface DecideFacts {
   /** Estimated contract value in dollars. */
@@ -139,6 +139,11 @@ const KIND_META: Record<DecideKind, { label: string; icon: typeof Radar; tone: s
     icon: FileText,
     tone: 'bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:ring-amber-900',
   },
+  economics: {
+    label: 'Deal figures',
+    icon: Calculator,
+    tone: 'bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:ring-emerald-900',
+  },
   review: {
     label: 'Needs a check',
     icon: ClipboardCheck,
@@ -204,7 +209,18 @@ const VERDICT_TONE: Record<string, string> = {
  * anything, and a flagged extraction is rejected, which also drops the
  * inferred link that put it there.
  */
-const DISMISS: Record<DecideKind, { url: (id: string) => string; body: unknown; verb: string }> = {
+/**
+ * ⚠ PARTIAL, AND THE GAP IS DELIBERATE. An economics proposal cannot be set
+ * aside from this list: it belongs to a deal, its figures are judged against
+ * the model and the quote they came from, and "dismiss these 12 figures"
+ * without reading them is not a decision anyone should be able to make from an
+ * aggregate. A kind with no entry here renders no Set-aside button rather than
+ * one that fails, which is why this is Partial rather than a fifth row that
+ * points at nothing.
+ */
+const DISMISS: Partial<
+  Record<DecideKind, { url: (id: string) => string; body: unknown; verb: string }>
+> = {
   lead: { url: (id) => `/api/leads/${id}`, body: { status: 'ignored' }, verb: 'Lead set aside' },
   intake: {
     url: (id) => `/api/email-ingestion/sessions/${id}`,
@@ -431,6 +447,10 @@ export default function DecideClient({ items }: { items: DecideItem[] }) {
   async function dismiss(item: Dated) {
     const key = `${item.kind}:${item.id}`
     const spec = DISMISS[item.kind]
+    // A kind with no dismiss path renders no button, so this is unreachable.
+    // Guarded anyway rather than asserted: the cost of being wrong is a row
+    // that disappears from the reader's list without anything being written.
+    if (!spec) return
     setPending(key)
     setDismissed((prev) => new Set(prev).add(key))
     try {
@@ -581,7 +601,7 @@ export default function DecideClient({ items }: { items: DecideItem[] }) {
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-1.5">
-        {(['all', 'lead', 'intake', 'review', 'document'] as const).map((k) => (
+        {(['all', 'lead', 'intake', 'review', 'document', 'economics'] as const).map((k) => (
           <button
             key={k}
             onClick={() => setKind(k)}
@@ -795,6 +815,11 @@ export default function DecideClient({ items }: { items: DecideItem[] }) {
                   size={13}
                   className="hidden sm:block text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity"
                 />
+                {/* No Set-aside button for a kind that has no reversible
+                    dismiss path. Rendering a button that cannot do anything is
+                    worse than rendering none: the reader clicks it, the row
+                    appears to clear, and nothing was written down. */}
+                {DISMISS[item.kind] ? (
                 <button
                   type="button"
                   onClick={() => dismiss(item)}
@@ -809,6 +834,7 @@ export default function DecideClient({ items }: { items: DecideItem[] }) {
                     <X size={13} />
                   )}
                 </button>
+                ) : null}
               </div>
             </div>
           )

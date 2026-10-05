@@ -731,3 +731,93 @@ export async function hasEconomics(kind: RecordKind, recordId: string): Promise<
   }
   return count ?? 0
 }
+
+export interface PendingProposalGroup {
+  economicsId: string
+  recordKind: RecordKind
+  recordId: string
+  recordName: string
+  path: string
+  count: number
+}
+
+/**
+ * Deals with economics figures proposed and nobody deciding, one row per DEAL.
+ *
+ * ⚠ GROUPED BY DEAL, NOT BY FIGURE, AND THAT IS THE WHOLE DESIGN. Forty figures
+ * read out of one proposal document are one sitting, not forty queue items, and
+ * a global queue listing "accept 145 $/kW-month" with no model beside it is
+ * precisely where that decision CANNOT be made. /decide aggregates and links;
+ * the deciding happens on the tab where the quote sits next to the figure.
+ *
+ * ⚠ CONFIDENTIAL PROJECTS ARE DROPPED. The queue is a cross-portfolio surface,
+ * which is containment territory: `hiddenProjectIds(null)` is used because a
+ * count that reaches a brief or a digest can never be stepped up after the fact.
+ */
+export async function pendingProposalGroups(): Promise<PendingProposalGroup[]> {
+  const db = calcDb()
+  const { data, error } = await db
+    .from('economics_input_proposals')
+    .select('economics_id')
+    .eq('status', 'pending')
+    .limit(5000)
+  if (error) throw new Error(`Could not read proposals: ${error.message}`)
+
+  const counts = new Map<string, number>()
+  for (const row of (data ?? []) as { economics_id: string }[]) {
+    counts.set(row.economics_id, (counts.get(row.economics_id) ?? 0) + 1)
+  }
+  if (counts.size === 0) return []
+
+  const { data: models, error: modelError } = await db
+    .from('deal_economics')
+    .select('id,project_id,opportunity_id')
+    .in('id', Array.from(counts.keys()))
+  if (modelError) throw new Error(`Could not resolve the models: ${modelError.message}`)
+
+  const { hiddenProjectIds } = await import('@/lib/security/confidential')
+  const hidden = await hiddenProjectIds(null)
+
+  const rows = (models ?? []) as {
+    id: string
+    project_id: string | null
+    opportunity_id: string | null
+  }[]
+  const projectIds = rows.map((r) => r.project_id).filter((v): v is string => v != null)
+  const opportunityIds = rows.map((r) => r.opportunity_id).filter((v): v is string => v != null)
+
+  const { createAdminClient } = await import('@/lib/supabase/admin')
+  const admin = createAdminClient()
+  const [projects, opportunities] = await Promise.all([
+    projectIds.length > 0
+      ? admin.from('projects').select('id,name').in('id', projectIds)
+      : Promise.resolve({ data: [] as { id: string; name: string }[], error: null }),
+    opportunityIds.length > 0
+      ? admin.from('opportunities').select('id,name').in('id', opportunityIds)
+      : Promise.resolve({ data: [] as { id: string; name: string }[], error: null }),
+  ])
+
+  const names = new Map<string, string>()
+  for (const p of (projects.data ?? []) as { id: string; name: string }[]) names.set(p.id, p.name)
+  for (const o of (opportunities.data ?? []) as { id: string; name: string }[]) {
+    names.set(o.id, o.name)
+  }
+
+  const groups: PendingProposalGroup[] = []
+  for (const row of rows) {
+    const kind: RecordKind = row.project_id ? 'project' : 'opportunity'
+    const recordId = row.project_id ?? row.opportunity_id
+    if (!recordId) continue
+    if (kind === 'project' && hidden.has(recordId)) continue
+    groups.push({
+      economicsId: row.id,
+      recordKind: kind,
+      recordId,
+      recordName: names.get(recordId) ?? 'a deal',
+      path: `${kind === 'project' ? '/projects' : '/opportunities'}/${recordId}/economics`,
+      count: counts.get(row.id) ?? 0,
+    })
+  }
+
+  return groups.sort((a, b) => b.count - a.count)
+}

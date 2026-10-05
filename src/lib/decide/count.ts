@@ -18,11 +18,12 @@ import {
   countMisfiledCompanyDocuments,
   findMisfiledCompanyDocuments,
 } from '@/lib/documents/unfiled'
+import { pendingProposalGroups } from '@/lib/economics/store'
 
 export async function countDecideItems(): Promise<number> {
   const supabase = createAdminClient()
   try {
-    const [intake, leads, review, documents] = await Promise.all([
+    const [intake, leads, review, documents, economics] = await Promise.all([
       supabase
         .from('email_intake_sessions')
         .select('id', { count: 'exact', head: true })
@@ -46,8 +47,13 @@ export async function countDecideItems(): Promise<number> {
       // pass the page renders. A second definition would drift, and then the
       // badge and the page report different numbers for one quantity (§12).
       countMisfiledCompanyDocuments(),
+      // Economics figures the AI proposed and nobody has decided. Counted as
+      // one item per DEAL, not per figure: forty figures out of one proposal
+      // document are one sitting, and counting them individually would make
+      // this badge read 40 for what is one decision.
+      pendingProposalGroups().then((g) => g.length).catch(() => 0),
     ])
-    return (intake.count ?? 0) + (leads.count ?? 0) + (review.count ?? 0) + documents
+    return (intake.count ?? 0) + (leads.count ?? 0) + (review.count ?? 0) + documents + economics
   } catch {
     // The shell must render even if a count fails; a missing badge is a far
     // smaller problem than a missing sidebar.
@@ -63,6 +69,8 @@ export interface DecideSummary {
   review: number
   /** Company documents that belong on a deal, or are not documents at all. */
   documents: number
+  /** Deals with economics figures proposed and undecided. One per DEAL. */
+  economics: number
   /** The most consequential items, already ranked, as prose lines. */
   top: string[]
 }
@@ -83,9 +91,9 @@ export interface DecideSummary {
  */
 export async function summarizeDecideQueue(now = Date.now()): Promise<DecideSummary> {
   const supabase = createAdminClient()
-  const empty: DecideSummary = { total: 0, leads: 0, intake: 0, review: 0, documents: 0, top: [] }
+  const empty: DecideSummary = { total: 0, leads: 0, intake: 0, review: 0, documents: 0, economics: 0, top: [] }
   try {
-    const [intake, leads, review, unfiledDocs] = await Promise.all([
+    const [intake, leads, review, unfiledDocs, economicsGroups] = await Promise.all([
       supabase
         .from('email_intake_sessions')
         .select('id, label, predecision, fit_assessment')
@@ -102,6 +110,7 @@ export async function summarizeDecideQueue(now = Date.now()): Promise<DecideSumm
         .select('id', { count: 'exact', head: true })
         .is('resolved_at', null),
       findMisfiledCompanyDocuments(),
+      pendingProposalGroups().catch(() => []),
     ])
 
     const rows: Array<{ line: string; daysLeft: number | null; verdict: string | null; score: number | null }> = []
@@ -152,18 +161,31 @@ export async function summarizeDecideQueue(now = Date.now()): Promise<DecideSumm
       })
     }
 
+    // One line per deal, naming the deal rather than the figures: the decision
+    // needs the model beside it, so this points at the tab.
+    for (const group of economicsGroups.slice(0, 5)) {
+      rows.push({
+        line: `Economics figures to confirm: ${group.count} read from ${group.recordName}'s documents`,
+        daysLeft: null,
+        verdict: null,
+        score: null,
+      })
+    }
+
     rows.sort((a, b) => decideWeight(b) - decideWeight(a))
 
     const intakeCount = (intake.data ?? []).length
     const leadCount = (leads.data ?? []).length
     const reviewCount = review.count ?? 0
     const documentCount = unfiledDocs.length
+    const economicsCount = economicsGroups.length
     return {
-      total: intakeCount + leadCount + reviewCount + documentCount,
+      total: intakeCount + leadCount + reviewCount + documentCount + economicsCount,
       leads: leadCount,
       intake: intakeCount,
       review: reviewCount,
       documents: documentCount,
+      economics: economicsCount,
       top: rows.slice(0, 5).map((r) => r.line),
     }
   } catch {
