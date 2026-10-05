@@ -13,6 +13,7 @@
 
 import { computeDealEconomics } from '@/lib/economics'
 import { loadEconomics } from '@/lib/economics/store'
+import { listActiveBenchmarks } from '@/lib/economics/benchmarks'
 import type { RecordKind } from '@/lib/records/scope'
 import ConfidencePanel from './ConfidencePanel'
 import DealSizePanel from './DealSizePanel'
@@ -35,7 +36,12 @@ export default async function EconomicsView({
   recordName,
   canEdit,
 }: EconomicsViewProps) {
-  const loaded = await loadEconomics(recordKind, recordId)
+  const [loaded, benchmarks] = await Promise.all([
+    loadEconomics(recordKind, recordId),
+    // Read once here rather than in the client: the library holds a
+    // service-role client and must never be imported from a 'use client' file.
+    listActiveBenchmarks(),
+  ])
 
   if (!loaded) {
     return (
@@ -65,6 +71,7 @@ export default async function EconomicsView({
           result={result}
           notes={loaded.notes}
           statedShape={loaded.input.statedTotal?.shape ?? null}
+          benchmarks={benchmarks}
         />
       ) : null}
     </div>

@@ -19,6 +19,7 @@ import {
 } from '@/lib/economics/collections'
 import { calcDb, calcDbAs } from '@/lib/economics/db'
 import { lineInsert } from '@/lib/economics/store'
+import { getBenchmark } from '@/lib/economics/benchmarks'
 
 type Params = { params: Promise<{ id: string; collection: string }> }
 
@@ -70,14 +71,61 @@ export async function POST(request: NextRequest, { params }: Params) {
         )
       : { ...normalized.value, economics_id: id }
 
-  const { data, error } = await calcDbAs(actorFrom(access.viewer))
-    .from(spec.table)
-    .insert(row)
-    .select('*')
-    .single()
+  const db = calcDbAs(actorFrom(access.viewer))
+  const { data, error } = await db.from(spec.table).insert(row).select('*').single()
 
   if (error) {
     return Response.json({ error: explainEconomicsError(error.message, error.code) }, { status: 400 })
   }
-  return Response.json({ row: data })
+
+  // ── Benchmark citations ───────────────────────────────────────────────────
+  //
+  // ⚠ FILLING AN INPUT FROM A BENCHMARK IS ONLY HALF THE ACT. The other half is
+  // recording WHICH benchmark, so the figure reads as sourced rather than as a
+  // number somebody typed. Without this the provenance ladder is decoration:
+  // every input would sit at "planning assumption" however carefully it was
+  // researched. `_sources` is a map of field name to benchmark key, outside the
+  // whitelist because it writes to a different table.
+  let citations = 0
+  const sources = body._sources
+  if (collection === 'lines' && sources && typeof sources === 'object' && !Array.isArray(sources)) {
+    const lineId = (data as { id: string }).id
+    const rows: Record<string, unknown>[] = []
+    for (const [field, key] of Object.entries(sources as Record<string, unknown>)) {
+      if (typeof key !== 'string' || !key) continue
+      // Resolved server-side: a client cannot assert a source and a date the
+      // library does not actually hold.
+      const benchmark = await getBenchmark(key)
+      if (!benchmark) continue
+      rows.push({
+        economics_id: id,
+        line_id: lineId,
+        field_key: field,
+        status: 'benchmark',
+        source: benchmark.label + (benchmark.source ? ` — ${benchmark.source}` : ''),
+        source_ref: benchmark.key,
+        as_of: benchmark.asOf,
+        note: benchmark.needsReview
+          ? 'This benchmark is still marked for review, so the figure is not yet a checked market rate.'
+          : null,
+      })
+    }
+    if (rows.length > 0) {
+      const { error: provError } = await db.from('economics_provenance').insert(rows)
+      // Non-fatal and SAID OUT LOUD. The line is already saved and discarding
+      // it would be worse, but a figure that silently lost its citation reads
+      // as researched when it is not.
+      if (provError) {
+        console.error('[economics] line saved but its benchmark citations were not:', provError.message)
+        return Response.json({
+          row: data,
+          citations: 0,
+          warning: 'The line was saved, but its benchmark sources were not recorded. Set them by hand so the figure does not read as unsourced.',
+        })
+      }
+      citations = rows.length
+    }
+  }
+
+  return Response.json({ row: data, citations })
 }

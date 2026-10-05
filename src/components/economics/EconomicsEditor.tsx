@@ -34,7 +34,13 @@ import {
   type DealEconomicsResult,
   type RevenueLineType,
 } from '@/lib/economics'
-import { LINE_COMMON_FIELDS, LINE_FORM_FIELDS, type LineFieldDef } from '@/lib/economics/line-fields'
+import {
+  benchmarkUnitFor,
+  LINE_COMMON_FIELDS,
+  LINE_FORM_FIELDS,
+  type LineFieldDef,
+} from '@/lib/economics/line-fields'
+import { benchmarkFigure, type Benchmark } from '@/lib/economics/benchmarks'
 
 interface EconomicsEditorProps {
   economicsId: string
@@ -43,6 +49,8 @@ interface EconomicsEditorProps {
   result: DealEconomicsResult
   notes: string | null
   statedShape: string | null
+  /** The active library, for filling a field from a market figure. */
+  benchmarks: Benchmark[]
 }
 
 type Draft = Record<string, string | boolean>
@@ -64,6 +72,7 @@ export default function EconomicsEditor({
   result,
   notes,
   statedShape,
+  benchmarks,
 }: EconomicsEditorProps) {
   const router = useRouter()
   const [busy, setBusy] = useState<string | null>(null)
@@ -79,6 +88,10 @@ export default function EconomicsEditor({
 
   const [lineType, setLineType] = useState<RevenueLineType>('energy_sale')
   const [lineDraft, setLineDraft] = useState<Draft>({})
+  // field name -> benchmark key. Sent as `_sources` so the server can resolve
+  // each key and write the provenance row itself: a client must not be able to
+  // assert a source and a date the library does not hold.
+  const [lineSources, setLineSources] = useState<Record<string, string>>({})
   const [spvDraft, setSpvDraft] = useState<Draft>({ label: '', purpose: 'other', bw_ownership_pct: '' })
   const [sourceDraft, setSourceDraft] = useState<Draft>({
     label: '',
@@ -208,6 +221,16 @@ export default function EconomicsEditor({
       )
     }
 
+    const unit = benchmarkUnitFor(
+      field.name,
+      typeof lineDraft.price_unit === 'string' ? lineDraft.price_unit : undefined
+    )
+    // ⚠ Offered ONLY where the benchmark's unit matches the field's. A
+    // $/kW-month rate filling a $/kWh price is a 1,000-fold error that reads
+    // as a plausible number.
+    const matching = unit ? benchmarks.filter((b) => b.unit === unit) : []
+    const cited = lineSources[field.name]
+
     return (
       <Field
         key={field.name}
@@ -221,8 +244,48 @@ export default function EconomicsEditor({
           inputMode={field.kind === 'text' ? undefined : 'decimal'}
           placeholder={field.placeholder}
           value={typeof value === 'string' ? value : ''}
-          onChange={(e) => setLineDraft((d) => ({ ...d, [field.name]: e.target.value }))}
+          onChange={(e) => {
+            // Typing over a filled figure drops the citation: the number is no
+            // longer the benchmark's, so claiming its source would be a lie.
+            setLineSources((m) => {
+              if (!(field.name in m)) return m
+              const next = { ...m }
+              delete next[field.name]
+              return next
+            })
+            setLineDraft((d) => ({ ...d, [field.name]: e.target.value }))
+          }}
         />
+        {matching.length > 0 ? (
+          <div className="mt-1 flex flex-wrap items-center gap-1.5">
+            {matching.map((b) => {
+              const figure = benchmarkFigure(b)
+              if (figure.value == null) return null
+              return (
+                <button
+                  key={b.id}
+                  type="button"
+                  className="relative rounded border border-border px-1.5 py-0.5 text-[11px] text-muted-foreground outline-none hover:bg-accent hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
+                  title={`${figure.display}${b.source ? ` — ${b.source}` : ''}${
+                    b.needsReview ? ' (still marked for review)' : ''
+                  }`}
+                  onClick={() => {
+                    setLineDraft((d) => ({ ...d, [field.name]: String(figure.value) }))
+                    setLineSources((m) => ({ ...m, [field.name]: b.key }))
+                  }}
+                >
+                  {b.label}
+                  {figure.isMidpointOfBand ? ' (mid)' : ''}
+                </button>
+              )
+            })}
+          </div>
+        ) : null}
+        {cited ? (
+          <p className="mt-1 text-[11px] text-emerald-700 dark:text-emerald-300">
+            Will be recorded as sourced from {cited}
+          </p>
+        ) : null}
       </Field>
     )
   }
@@ -622,6 +685,7 @@ export default function EconomicsEditor({
                   // unit mix-up this feature exists to prevent.
                   setLineType(e.target.value as RevenueLineType)
                   setLineDraft({})
+                  setLineSources({})
                 }}
               >
                 {REVENUE_LINE_TYPES.map((t) => (
@@ -643,10 +707,17 @@ export default function EconomicsEditor({
                   'line',
                   `${base}/lines`,
                   'POST',
-                  { ...outbound(lineDraft), line_type: lineType },
+                  {
+                    ...outbound(lineDraft),
+                    line_type: lineType,
+                    _sources: Object.keys(lineSources).length > 0 ? lineSources : undefined,
+                  },
                   'Line added'
                 )
-                if (ok) setLineDraft({})
+                if (ok) {
+                  setLineDraft({})
+                  setLineSources({})
+                }
               }}
             >
               <Plus className="size-4" />

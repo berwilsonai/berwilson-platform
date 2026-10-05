@@ -322,3 +322,53 @@ export const LINE_COMMON_FIELDS: LineFieldDef[] = [
   },
   { name: 'notes', label: 'Notes', kind: 'text', wide: true },
 ]
+
+/**
+ * Which benchmark unit can legitimately fill each field.
+ *
+ * ⚠ A BENCHMARK IS OFFERED ONLY WHERE ITS UNIT MATCHES THE FIELD. Letting a
+ * $/kW-month lease rate fill a $/kWh energy price is a 1,000-fold error that
+ * reads as a plausible number, which is the single failure this whole engine is
+ * built around. Matching on the unit string makes the filter the same question
+ * the reader would ask.
+ *
+ * A field absent from this map gets no picker. That is the safe default: a
+ * missing entry costs a convenience, a wrong one costs the deal.
+ */
+export const BENCHMARK_UNIT_FOR_FIELD: Record<string, string> = {
+  price_per_mw: '$/MW',
+  rate_per_kw_month: '$/kW-month',
+  price_per_mwh: '$/MWh',
+  price_per_unit_month: '$/unit-month',
+  heat_rate: 'Btu/kWh',
+  fixed_om_per_kw_year: '$/kW-year',
+  variable_om_per_mwh: '$/MWh',
+}
+
+/**
+ * `price` and `price_unit` travel together, so the benchmark unit a `price`
+ * field accepts depends on what the reader selected beside it.
+ */
+export function benchmarkUnitFor(field: string, selectedPriceUnit?: string): string | null {
+  if (field === 'price') {
+    switch (selectedPriceUnit) {
+      case 'per_kwh':
+        return '$/kWh'
+      case 'per_mwh':
+        return '$/MWh'
+      case 'per_kw_month':
+        return '$/kW-month'
+      case 'per_kw_year':
+        return '$/kW-year'
+      case 'per_mw_year':
+        return '$/MW-year'
+      case 'per_acre':
+        return '$/acre'
+      case 'per_mw':
+        return '$/MW'
+      default:
+        return null
+    }
+  }
+  return BENCHMARK_UNIT_FOR_FIELD[field] ?? null
+}

@@ -21,6 +21,7 @@ import {
   Wrench,
   type LucideIcon,
   Calculator,
+  Ruler,
 } from 'lucide-react'
 
 /**
@@ -97,6 +98,7 @@ export const NAV_ITEMS: NavItem[] = [
   { href: '/company', label: 'Ber Wilson', icon: Shield, group: 'directory', keywords: 'company profile capabilities certs', fallback: { href: '/company/structure', label: 'Org Structure' } },
   { href: '/activity', label: 'Activity', icon: Activity, group: 'system', keywords: 'audit log history changes' },
   { href: '/settings/users', label: 'Users & Access', icon: UserCog, group: 'system', keywords: 'roles invite permissions team accounts' },
+  { href: '/settings/economics', label: 'Benchmarks', title: 'Benchmark Library', icon: Ruler, group: 'system', keywords: 'benchmarks market rates lease rate cap rate powered land development cost per mw heat rate o&m comparables economics library sources provenance' },
   { href: '/settings/lead-categories', label: 'Lead Categories', icon: Split, group: 'system', keywords: 'routing lines of business trades lanes flooring plumbing hvac steel construction corporate handoff destinations categories where leads go' },
   { href: '/settings/security', label: 'Security', icon: KeyRound, group: 'system', keywords: 'mfa totp authenticator two factor 2fa protected confidential project password lock unlock step up code military classified' },
   { href: '/settings/health', label: 'System Health', icon: HeartPulse, group: 'system', keywords: 'status probes mailbox backups disk checks' },
