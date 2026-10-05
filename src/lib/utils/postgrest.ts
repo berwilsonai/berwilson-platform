@@ -7,20 +7,47 @@
  * structure and the whole query fails with `failed to parse logic tree` —
  * which the callers surface as "no results" rather than as an error.
  *
- * Two defences, both needed:
- *   1. Quote the value, so a comma inside it is a comma and not a separator.
- *   2. Strip the characters a quoted value still cannot carry safely
- *      (quotes themselves, parentheses, backslash), because there is no
- *      escaping syntax to fall back on.
- *
  * This has now been fixed one site at a time three times — `search_email_threads`
  * (2026-08-28) and the thread-link scan before it — so it lives in one place.
  * Build every `.or()` whose value comes from user or model input through here.
+ *
+ * ⚠ QUOTING IS THE DEFENCE; STRIPPING IS NOT. Measured against live PostgREST
+ * 2026-10-05, a DOUBLE-QUOTED value carries `( ) , . ' / &` as plain text —
+ * `name.ilike."%IAN (EMP)%"` matches, and a comma inside the quotes stays a
+ * comma (the same filter unquoted answers PGRST100). Only three characters
+ * genuinely cannot survive: `"` ends the quote, `\` escapes, and `*` is
+ * PostgREST's own wildcard. This function used to strip parentheses and
+ * periods too, and that cost real matches rather than widening them:
+ * `Arthur P. Valencia`, `Paul Hunsaker (Vancon Inc.)` and `PrivateLenders.com`
+ * are all live `parties` rows that could not be found by their own exact names.
  */
 
-/** Strip what a PostgREST logic tree cannot carry, even inside quotes. */
+/**
+ * Strip only what a DOUBLE-QUOTED PostgREST value cannot carry.
+ *
+ * Everything else is left alone on purpose — see the note above. The result is
+ * only ever safe inside quotes, which is what `orIlike` builds.
+ */
 export function sanitizeFilterTerm(term: string): string {
-  return term.replace(/[(),."'\\*]/g, ' ').replace(/\s+/g, ' ').trim()
+  return term.replace(/["\\*]/g, ' ').replace(/\s+/g, ' ').trim()
+}
+
+/**
+ * Split a term into words for MATCHING and RANKING, not for a phrase filter.
+ *
+ * Punctuation goes here, where `orIlike` keeps it: a word carrying a trailing
+ * comma matches nothing, and `hay.includes('commitment,')` is false for text
+ * that says "commitment". Kept separate from `sanitizeFilterTerm` so the
+ * phrase search can stay exact while the word search stays forgiving.
+ */
+export function filterWords(term: string, maxWords = 3): string[] {
+  return term
+    .replace(/[(),."'\\*/&]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .split(' ')
+    .filter(Boolean)
+    .slice(0, maxWords)
 }
 
 /**
@@ -40,7 +67,7 @@ export function orIlike(columns: readonly string[], term: string): string | null
  * (a row matching any word in any column is a hit).
  */
 export function orIlikeAnyWord(columns: readonly string[], term: string, maxWords = 3): string | null {
-  const words = sanitizeFilterTerm(term).split(' ').filter(Boolean).slice(0, maxWords)
+  const words = filterWords(term, maxWords)
   if (words.length === 0) return null
   return words.flatMap((w) => columns.map((c) => `${c}.ilike."%${w}%"`)).join(',')
 }

@@ -1249,10 +1249,17 @@ async function executeToolCallInner(
       let oppId = (args.opportunity_id as string) || null
 
       if (!oppId && args.name) {
+        // ⚠ UNQUOTED, THIS ANSWERED `[]` FOR A REAL RECORD AND REPORTED NO ERROR.
+        // Stripping `%` and `,` leaves `(` and `)`, which PostgREST reads as
+        // logic-tree grouping: `name.ilike.%IAN (EMP)%` matches nothing against
+        // the live opportunity actually called "IAN (EMP) Technology aquisition",
+        // so Ber AI concluded the deal did not exist. orIlike quotes the value.
+        const nameFilter = orIlike(['name', 'target_name'], args.name as string)
+        if (!nameFilter) return { error: 'Provide a usable opportunity_id or name' }
         const { data: matches, error } = await supabase
           .from('opportunities')
           .select('id, name, target_name, status')
-          .or(`name.ilike.%${(args.name as string).replace(/[%,]/g, '')}%,target_name.ilike.%${(args.name as string).replace(/[%,]/g, '')}%`)
+          .or(nameFilter)
           .limit(5)
         if (error) return { error: `Opportunities unavailable: ${error.message}` }
         if (!matches || matches.length === 0) return { error: `No opportunity found matching "${args.name}". Try list_opportunities.` }

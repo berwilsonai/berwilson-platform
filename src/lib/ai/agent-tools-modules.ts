@@ -15,7 +15,7 @@
  */
 
 import { createAdminClient } from '@/lib/supabase/admin'
-import { orIlike, orIlikeAnyWord, sanitizeFilterTerm } from '@/lib/utils/postgrest'
+import { orIlike, orIlikeAnyWord, filterWords } from '@/lib/utils/postgrest'
 import { searchCorrespondence, extractPortalLinks } from './thread-embeddings'
 // The sweep tables post-date the last type generation (gen-types is disabled
 // against the self-hosted DB), so they are reached through the sweep's own
@@ -1068,7 +1068,7 @@ export async function executeModuleTool(
       // semantic tool found them instantly. A caller who gets zero rows reads
       // it as "there is no such correspondence", which is the one wrong answer.
       if (!error && (data?.length ?? 0) === 0 && query) {
-        const words = sanitizeFilterTerm(query).split(' ').filter(Boolean).slice(0, 3)
+        const words = filterWords(query)
         const anyWord = orIlikeAnyWord(COLUMNS, query)
         if (anyWord) {
           // Over-fetch, because the fallback is a much wider net and the base
