@@ -25,9 +25,11 @@ import {
   type LineRow,
   type ProvenanceRow,
   type ScheduleRow,
-  type SpvRow,
 } from './db'
 import { RECORD_SCOPE_COLUMN, type RecordKind } from '@/lib/records/scope'
+import { resolveBwShare } from '@/lib/spvs/ownership'
+import { loadProjectSpvs } from '@/lib/spvs/queries'
+import type { ProjectSpv } from '@/lib/spvs/types'
 import { computeDealEconomics, type DealEconomicsResult } from './compute'
 import { isProvenanceStatus, type Provenance, type ProvenanceStatus } from './provenance'
 import {
@@ -90,22 +92,26 @@ function toBucket(row: BucketRow): CapacityBucket {
   }
 }
 
-function toSpv(row: SpvRow): Spv {
-  const purpose = row.purpose
+/**
+ * The engine's view of a vehicle.
+ *
+ * ⚠ `bwOwnershipPct` IS DERIVED, NOT READ. `resolveBwShare` prefers the
+ * participant ledger and falls back to the figure typed on the vehicle, so the
+ * engine keeps taking exactly one number and `ownershipWeight` is untouched —
+ * but there is now ONE definition of that number, in src/lib/spvs/ownership.ts,
+ * rather than a column the ledger silently disagrees with.
+ *
+ * A null still means "not yet determined" and is held OUT of the net figures,
+ * never folded in as 100%.
+ */
+function toSpv(spv: ProjectSpv): Spv {
   return {
-    id: row.id,
-    label: row.label,
-    purpose:
-      purpose === 'land' ||
-      purpose === 'energy' ||
-      purpose === 'data_center' ||
-      purpose === 'housing'
-        ? purpose
-        : 'other',
-    entityId: row.entity_id,
-    // ⚠ Not defaulted. An unknown share must never read as 100%.
-    bwOwnershipPct: num(row.bw_ownership_pct),
-    status: status(row.status),
+    id: spv.id,
+    label: spv.label,
+    purpose: spv.purpose,
+    entityId: spv.entityId,
+    bwOwnershipPct: resolveBwShare(spv, spv.participants).pct,
+    status: spv.status,
   }
 }
 
@@ -373,10 +379,15 @@ export async function loadEconomics(
   if (!header) return null
 
   const row = header as DealEconomicsRow
-  const [sources, buckets, spvs, lines, provenance] = await Promise.all([
+  // ⚠ THE VEHICLES ARE READ BY THE RECORD, NOT BY THE MODEL. They are children
+  // of the project or opportunity (20261006000001_project_spvs.sql), so they
+  // exist before an economics model does and survive one being rebuilt.
+  // `loadProjectSpvs` throws on a database error rather than returning [],
+  // because an empty array here would read as "this deal has no vehicles".
+  const [sources, buckets, vehicles, lines, provenance] = await Promise.all([
     db.from('economics_capacity_sources').select('*').eq('economics_id', row.id),
     db.from('economics_buckets').select('*').eq('economics_id', row.id),
-    db.from('economics_spvs').select('*').eq('economics_id', row.id),
+    loadProjectSpvs(kind, recordId),
     db.from('economics_lines').select('*').eq('economics_id', row.id).order('sort_order'),
     db.from('economics_provenance').select('*').eq('economics_id', row.id),
   ])
@@ -384,7 +395,6 @@ export async function loadEconomics(
   for (const [name, res] of [
     ['capacity sources', sources],
     ['buckets', buckets],
-    ['SPVs', spvs],
     ['lines', lines],
     ['provenance', provenance],
   ] as const) {
@@ -448,10 +458,8 @@ export async function loadEconomics(
         .sort((a, b) => a.sort_order - b.sort_order)
         .map(toSource),
       buckets: ((buckets.data ?? []) as BucketRow[]).map(toBucket),
-      spvs: ((spvs.data ?? []) as SpvRow[])
-        .slice()
-        .sort((a, b) => a.sort_order - b.sort_order)
-        .map(toSpv),
+      // Already ordered by `sort_order` in the query.
+      spvs: vehicles.map(toSpv),
       lines: mapped.filter((l): l is RevenueLine => l != null),
       discountRatePct: num(row.discount_rate_pct),
       capRatePct: num(row.cap_rate_pct),

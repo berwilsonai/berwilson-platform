@@ -11,6 +11,7 @@ import { PROJECT_TABS } from '@/components/records/tabs'
 import { getViewer, canAccessProject } from '@/lib/auth/viewer'
 import { parcelDb } from '@/lib/parcels/queries'
 import { hasEconomics } from '@/lib/economics/store'
+import { countProjectSpvs } from '@/lib/spvs/queries'
 
 interface LayoutProps {
   children: React.ReactNode
@@ -65,7 +66,7 @@ export default async function ProjectLayout({ children, params }: LayoutProps) {
     return n ?? 0
   }
 
-  const [players, updates, meetings, tasks, documents, milestones, financing, diligence, entities, parcels, economics] =
+  const [players, updates, meetings, tasks, documents, milestones, financing, diligence, entities, parcels, economics, vehicles] =
     await Promise.all([
       count('project_players'), count('updates'), count('meetings'), count('tasks'),
       count('documents'), count('milestones'), count('financing_structures'),
@@ -73,10 +74,14 @@ export default async function ProjectLayout({ children, params }: LayoutProps) {
       // deal_economics is also absent from the generated types, so it counts
       // through its own untyped client, same as project_parcels above.
       hasEconomics('project', id),
+      // And so are project_spvs. A vehicle is a child of the PROJECT, not of
+      // the economics model, so this count is independent of the one above: a
+      // deal can have its structure settled with nothing priced yet.
+      countProjectSpvs('project', id),
     ])
   const tabCounts = {
     players, updates, meetings, tasks, documents, milestones, financing, diligence, entities, parcels,
-    economics,
+    economics, vehicles,
   }
 
   const status = project.status ?? 'active'

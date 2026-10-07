@@ -4,6 +4,11 @@ import type { RecordTab } from './RecordTabBar'
  * A project's tabs. Overview / Updates / Documents always show; the rest
  * appear once that project has rows in them.
  *
+ * Vehicles sits before Economics because the structure is decided first: which
+ * SPV holds the land is settled long before anyone prices the deal, and a
+ * revenue line cannot name a vehicle that does not exist yet. It is counted
+ * like the rest, so it appears only once a deal has one.
+ *
  * Economics is counted rather than `always`, deliberately. Measured on
  * 2026-09-21, four of ten tabs had rows on zero of fifteen projects while
  * every project showed all ten, so the two tabs that carry the work sat sixth
@@ -19,6 +24,7 @@ export const PROJECT_TABS: RecordTab[] = [
   { label: 'Meetings', segment: 'meetings', key: 'meetings' },
   { label: 'Tasks', segment: 'tasks', key: 'tasks' },
   { label: 'Milestones', segment: 'milestones', key: 'milestones' },
+  { label: 'Vehicles', segment: 'vehicles', key: 'vehicles' },
   { label: 'Economics', segment: 'economics', key: 'economics' },
   { label: 'Financing', segment: 'financing', key: 'financing' },
   { label: 'Diligence', segment: 'diligence', key: 'diligence' },
@@ -39,6 +45,7 @@ export const OPPORTUNITY_TABS: RecordTab[] = [
   { label: 'Meetings', segment: 'meetings', key: 'meetings' },
   { label: 'Tasks', segment: 'tasks', key: 'tasks' },
   { label: 'Milestones', segment: 'milestones', key: 'milestones' },
+  { label: 'Vehicles', segment: 'vehicles', key: 'vehicles' },
   { label: 'Economics', segment: 'economics', key: 'economics' },
   { label: 'Financing', segment: 'financing', key: 'financing' },
   { label: 'Diligence', segment: 'diligence', key: 'diligence' },

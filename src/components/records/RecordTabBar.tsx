@@ -22,7 +22,7 @@ import { cn } from '@/lib/utils'
 export type TabKey =
   | 'players' | 'updates' | 'meetings' | 'tasks' | 'documents'
   | 'milestones' | 'financing' | 'diligence' | 'entities' | 'parcels'
-  | 'economics'
+  | 'economics' | 'vehicles'
 
 export interface RecordTab {
   label: string

@@ -107,17 +107,11 @@ export interface BucketRow {
   peak_mw: number | null
 }
 
-export interface SpvRow {
-  id: string
-  economics_id: string
-  label: string
-  purpose: string
-  entity_id: string | null
-  /** NULL is "not yet determined". It is never 100. */
-  bw_ownership_pct: number | null
-  status: string
-  sort_order: number
-}
+// ⚠ `SpvRow` LIVED HERE AND NOW LIVES IN src/lib/spvs/db.ts, because a vehicle
+// stopped being a child of the economics model on 2026-10-06. It hangs off the
+// project or opportunity instead, so it outlives a model being rebuilt and can
+// exist before one is built at all. `economics_lines.spv_id` still points at
+// it; the engine reads it through `loadProjectSpvs`.
 
 export interface LineRow {
   id: string

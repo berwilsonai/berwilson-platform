@@ -17,7 +17,7 @@ import { listActiveBenchmarks } from '@/lib/economics/benchmarks'
 import { calcDb, type InputProposalRow } from '@/lib/economics/db'
 import { createAdminClient } from '@/lib/supabase/admin'
 import ProposalsPanel, { type ProposalView } from './ProposalsPanel'
-import type { RecordKind } from '@/lib/records/scope'
+import { RECORD_BASE_PATH, type RecordKind } from '@/lib/records/scope'
 import ConfidencePanel from './ConfidencePanel'
 import DealSizePanel from './DealSizePanel'
 import EconomicsEditor from './EconomicsEditor'
@@ -102,7 +102,7 @@ export default async function EconomicsView({
       {canEdit ? (
         <EconomicsEditor
           economicsId={loaded.economicsId}
-          recordName={recordName}
+          recordBase={`${RECORD_BASE_PATH[recordKind]}/${recordId}`}
           input={loaded.input}
           result={result}
           notes={loaded.notes}

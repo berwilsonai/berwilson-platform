@@ -100,18 +100,6 @@ test('a date must be YYYY-MM-DD', () => {
   assert.ok(!bad.ok)
 })
 
-test('an SPV ownership split can be cleared back to undetermined', () => {
-  const result = normalizeCollectionPayload(
-    COLLECTIONS.spvs,
-    { bw_ownership_pct: '' },
-    { partial: true }
-  )
-  assert.ok(result.ok)
-  // ⚠ Null, not 0. A cleared split means "not yet determined", and 0 would
-  // mean Ber Wilson owns none of the vehicle, which is a different claim.
-  assert.equal(result.value.bw_ownership_pct, null)
-})
-
 test('getCollection is prototype-pollution safe', () => {
   assert.equal(getCollection('lines')?.table, 'economics_lines')
   assert.equal(getCollection('__proto__'), null)

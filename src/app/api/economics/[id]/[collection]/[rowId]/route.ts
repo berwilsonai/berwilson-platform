@@ -18,6 +18,7 @@ import {
   normalizeCollectionPayload,
 } from '@/lib/economics/collections'
 import { calcDbAs } from '@/lib/economics/db'
+import { assertSpvBelongs } from '@/lib/spvs/access'
 
 type Params = { params: Promise<{ id: string; collection: string; rowId: string }> }
 
@@ -37,6 +38,11 @@ export async function PATCH(request: NextRequest, { params }: Params) {
   if (Object.keys(normalized.value).length === 0) {
     return Response.json({ error: 'Nothing to update' }, { status: 400 })
   }
+
+  // A PATCH can MOVE a line onto another vehicle, so it needs the same check
+  // the create does. The guard is shared for exactly this reason.
+  const spvCheck = await assertSpvBelongs(normalized.value.spv_id, access.owner)
+  if (spvCheck) return spvCheck
 
   const { data, error } = await calcDbAs(actorFrom(access.viewer))
     .from(spec.table)

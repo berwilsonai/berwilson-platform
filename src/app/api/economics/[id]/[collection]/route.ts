@@ -1,8 +1,8 @@
 /**
- * POST /api/economics/[id]/[collection] — add a source, bucket, SPV, line or
+ * POST /api/economics/[id]/[collection] — add a source, bucket, line or
  * provenance record to a model.
  *
- * One route for five collections, driven by the specs in
+ * One route for four collections, driven by the specs in
  * src/lib/economics/collections.ts. Nothing reaches PostgREST that is not named
  * in that spec's `fields`, which is a security boundary and not a convenience:
  * `economics_id` is absent from every whitelist, so a body cannot move a row
@@ -20,6 +20,7 @@ import {
 import { calcDb, calcDbAs } from '@/lib/economics/db'
 import { lineInsert } from '@/lib/economics/store'
 import { getBenchmark } from '@/lib/economics/benchmarks'
+import { assertSpvBelongs } from '@/lib/spvs/access'
 
 type Params = { params: Promise<{ id: string; collection: string }> }
 
@@ -56,6 +57,15 @@ export async function POST(request: NextRequest, { params }: Params) {
   const body = (await request.json()) as Record<string, unknown>
   const normalized = normalizeCollectionPayload(spec, body)
   if (!normalized.ok) return Response.json({ error: normalized.error }, { status: 400 })
+
+  // ⚠ A VEHICLE IS NO LONGER A CHILD OF THIS MODEL, SO ITS ID MUST BE CHECKED.
+  // `spv_id` is a whitelisted uuid and vehicles hang off the project instead
+  // (20261006000001_project_spvs.sql), so without this a body could attribute
+  // this deal's revenue to another deal's vehicle — and the ownership weight
+  // would then come from a split nobody on this deal agreed to. Same reasoning
+  // that keeps `economics_id` off the whitelist in the first place.
+  const spvCheck = await assertSpvBelongs(normalized.value.spv_id, access.owner)
+  if (spvCheck) return spvCheck
 
   // ⚠ A LINE GOES THROUGH `lineInsert` SO ITS COLUMN LIST IS COMPLETE. The
   // table has four NOT NULL booleans with defaults, and a partial column list

@@ -233,7 +233,11 @@ export const ACTIVITY_TABLE_LABELS: Record<string, string> = {
   deal_economics: 'Deal economics',
   economics_capacity_sources: 'Economics — capacity',
   economics_buckets: 'Economics — allocation',
-  economics_spvs: 'Economics — SPVs',
+  // Vehicles moved off the economics model on 2026-10-06 and hang off the
+  // project instead, so they are labelled as what they are rather than as an
+  // economics input.
+  project_spvs: 'Vehicles (SPVs)',
+  project_spv_participants: 'Vehicle participants',
   economics_lines: 'Economics — revenue lines',
   economics_line_schedule: 'Economics — schedules',
   economics_provenance: 'Economics — sources',

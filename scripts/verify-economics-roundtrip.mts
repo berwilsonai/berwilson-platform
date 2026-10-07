@@ -71,11 +71,12 @@ try {
     `${bucketRows.length} buckets, first is "${bucketRows[0]?.label}"`
   )
 
+  // Vehicles hang off the PROJECT, not the model (20261006000001_project_spvs).
   const { data: spvs, error: spvError } = await write
-    .from('economics_spvs')
+    .from('project_spvs')
     .insert([
-      { economics_id: economicsId, label: 'Verify Energy LLC', purpose: 'energy', bw_ownership_pct: 60, sort_order: 1 },
-      { economics_id: economicsId, label: 'Verify Data Center LLC', purpose: 'data_center', sort_order: 2 },
+      { project_id: projectId, label: 'Verify Energy LLC', purpose: 'energy', bw_ownership_pct: 60, sort_order: 1 },
+      { project_id: projectId, label: 'Verify Data Center LLC', purpose: 'data_center', sort_order: 2 },
     ])
     .select('id,label,bw_ownership_pct')
   if (spvError) throw new Error(`SPV insert: ${spvError.message}`)

@@ -1,5 +1,11 @@
 /**
- * The four child collections of a deal economics model, declared once.
+ * The child collections of a deal economics model, declared once.
+ *
+ * ⚠ VEHICLES ARE NOT ONE OF THEM ANY MORE. An SPV became a child of the
+ * project rather than of the model on 2026-10-06 and is edited through
+ * /api/spvs with its own whitelist in src/lib/spvs/collections.ts. A revenue
+ * line still names one through `spv_id`, which is why the route validates that
+ * the vehicle belongs to this deal.
  *
  * ⚠ THE FIELD WHITELIST IS A SECURITY BOUNDARY, NOT A CONVENIENCE. A request
  * body reaches PostgREST only through the columns named below. `id`,
@@ -70,27 +76,6 @@ export const COLLECTIONS: Record<string, CollectionSpec> = {
     fields: { label: 'text', priority: 'int', peak_mw: 'number' },
     required: ['label'],
     orderBy: { column: 'priority', ascending: true },
-  },
-
-  spvs: {
-    table: 'economics_spvs',
-    label: 'SPV',
-    fields: {
-      label: 'text',
-      purpose: 'text',
-      entity_id: 'uuid',
-      // Left nullable on purpose. An unset split means "not yet determined"
-      // and is reported as undetermined, never as 100%.
-      bw_ownership_pct: 'number',
-      status: 'text',
-      sort_order: 'int',
-    },
-    enums: {
-      purpose: ['land', 'energy', 'data_center', 'housing', 'other'],
-      status: PROVENANCE_STATUSES,
-    },
-    required: ['label'],
-    orderBy: { column: 'sort_order', ascending: true },
   },
 
   lines: {
@@ -304,7 +289,21 @@ export function normalizeCollectionPayload(
   const value: Record<string, unknown> = {}
 
   for (const [field, kind] of Object.entries(spec.fields)) {
-    if (opts.partial && !(field in body)) continue
+    // ⚠ A FIELD THE BODY NEVER MENTIONED IS OMITTED, NOT SET TO NULL — ON A
+    // CREATE AS WELL AS ON A PATCH. Writing an explicit NULL does not fall back
+    // to the column's DEFAULT, it violates its NOT NULL: `POST /sources` with
+    // no `status` answered *null value in column "status" … violates not-null
+    // constraint*, and `POST /buckets` the same for `priority`. Both had a
+    // perfectly good default sitting unused, and neither had ever worked.
+    //
+    // This is NOT the multi-row rule in CLAUDE.md §12 (09-15) reversed. That
+    // one is about one INSERT statement carrying several rows, where Postgres
+    // demands a uniform column list and the rows that omit a column get an
+    // explicit NULL. A writer building many rows still spells every column out
+    // — `lineInsert` and the standard-vehicle bootstrap both do. What is wrong
+    // is doing it from a single request body, where "absent" means "the caller
+    // did not say" and the default is the right answer.
+    if (!(field in body)) continue
     const coerced = coerce(kind, body[field])
     if (coerced === 'invalid') {
       return { ok: false, error: `"${field}" is not a valid ${kind}` }
@@ -343,9 +342,6 @@ export function explainEconomicsError(message: string, code?: string): string {
   }
   if (code === '23505' && message.includes('economics_buckets_economics_id_label')) {
     return 'An allocation bucket with that name already exists on this model.'
-  }
-  if (code === '23505' && message.includes('economics_spvs_economics_id_label')) {
-    return 'An SPV with that name already exists on this model.'
   }
   if (code === '23514' && message.includes('stated_total_check')) {
     return 'A stated deal total needs both an amount and which figure it is (annual, contract, one-time, asset or capture).'

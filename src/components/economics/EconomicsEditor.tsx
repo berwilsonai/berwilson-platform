@@ -15,6 +15,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { Loader2, Plus, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Panel } from '@/components/ui/card'
@@ -28,7 +29,6 @@ import {
   PROVENANCE_ORDER,
   REVENUE_LINE_LABELS,
   REVENUE_LINE_TYPES,
-  SPV_PURPOSES,
   SPV_PURPOSE_LABELS,
   type DealEconomicsInput,
   type DealEconomicsResult,
@@ -41,10 +41,12 @@ import {
   type LineFieldDef,
 } from '@/lib/economics/line-fields'
 import { benchmarkFigure, type Benchmark } from '@/lib/economics/benchmarks'
+import { formatValue } from '@/lib/utils/constants'
 
 interface EconomicsEditorProps {
   economicsId: string
-  recordName: string
+  /** `/projects/<id>` or `/opportunities/<id>`, for the link to Vehicles. */
+  recordBase: string
   input: DealEconomicsInput
   result: DealEconomicsResult
   notes: string | null
@@ -67,7 +69,7 @@ function outbound(draft: Draft): Record<string, unknown> {
 
 export default function EconomicsEditor({
   economicsId,
-  recordName,
+  recordBase,
   input,
   result,
   notes,
@@ -92,7 +94,6 @@ export default function EconomicsEditor({
   // each key and write the provenance row itself: a client must not be able to
   // assert a source and a date the library does not hold.
   const [lineSources, setLineSources] = useState<Record<string, string>>({})
-  const [spvDraft, setSpvDraft] = useState<Draft>({ label: '', purpose: 'other', bw_ownership_pct: '' })
   const [sourceDraft, setSourceDraft] = useState<Draft>({
     label: '',
     kind: 'grid_interconnect',
@@ -416,111 +417,61 @@ export default function EconomicsEditor({
         <FormSection
           title="Vehicles"
           description="Which SPV earns each line. An ownership split left empty means not yet determined, and revenue there is held out of the net figure rather than counted as all ours."
-          collapsible
-          defaultOpen={input.spvs.length === 0}
         >
+          {/*
+            ⚠ VEHICLES ARE EDITED ON THE VEHICLES TAB, NOT HERE. They stopped
+            being children of the economics model on 2026-10-06 — they hang off
+            the project, so they exist before anything is priced and survive a
+            model being rebuilt — and each one now carries a participant ledger
+            that this form has no room for. What is left here is the read: which
+            vehicles a revenue line can name, and what our share of each is.
+          */}
           {input.spvs.length > 0 ? (
-            <ul className="mb-4 space-y-1.5 text-sm">
-              {input.spvs.map((spv) => (
-                <li key={spv.id} className="group flex items-center justify-between gap-2">
-                  <span>
-                    {spv.label}
-                    <span className="text-muted-foreground">
-                      {' · '}
-                      {SPV_PURPOSE_LABELS[spv.purpose]}
-                      {' · '}
-                      {spv.bwOwnershipPct == null
-                        ? 'split not set'
-                        : `${spv.bwOwnershipPct}% ours`}
+            <ul className="space-y-1.5 text-sm">
+              {input.spvs.map((spv) => {
+                // ⚠ `byEntity` WAS COMPUTED BY THE ENGINE AND RENDERED NOWHERE.
+                // It is what answers "how much of this vehicle is ours in
+                // dollars", which is the question the ownership split exists to
+                // settle — so the split is shown with its consequence beside it.
+                const entity = result.byEntity.find((e) => e.spvId === spv.id)
+                const net = entity?.berWilsonNet?.contractValue ?? entity?.berWilsonNet?.oneTimeRevenue ?? null
+                return (
+                  <li key={spv.id} className="flex flex-wrap items-baseline justify-between gap-x-4">
+                    <span>
+                      {spv.label}
+                      <span className="text-muted-foreground">
+                        {' · '}
+                        {SPV_PURPOSE_LABELS[spv.purpose]}
+                        {' · '}
+                        {spv.bwOwnershipPct == null
+                          ? 'split not set'
+                          : `${Number(spv.bwOwnershipPct.toFixed(4))}% ours`}
+                      </span>
                     </span>
-                  </span>
-                  <button
-                    type="button"
-                    aria-label={`Remove ${spv.label}`}
-                    className="relative rounded p-1 text-muted-foreground opacity-100 outline-none focus-visible:ring-3 focus-visible:ring-ring/50 sm:opacity-0 sm:group-hover:opacity-100 sm:focus-visible:opacity-100"
-                    onClick={() =>
-                      void call('spv-del', `${base}/spvs/${spv.id}`, 'DELETE', undefined, 'Removed')
-                    }
-                  >
-                    <span className="absolute -inset-3" />
-                    <Trash2 className="size-4" />
-                  </button>
-                </li>
-              ))}
+                    {/* Null is unfinished, not zero, so it is named in words. */}
+                    <span className="tnum text-xs text-muted-foreground">
+                      {net == null
+                        ? spv.bwOwnershipPct == null
+                          ? 'net undetermined'
+                          : 'nothing earned here yet'
+                        : `${formatValue(net)} net to us`}
+                    </span>
+                  </li>
+                )
+              })}
             </ul>
           ) : (
-            <div className="mb-4 rounded-md bg-muted/40 p-3 text-sm">
-              <p>
-                This deal has no vehicles yet, so every line is earned by Ber Wilson Corporation
-                and is wholly ours.
-              </p>
-              <Button
-                size="sm"
-                variant="outline"
-                className="mt-2"
-                disabled={busy === 'spv-standard'}
-                onClick={() =>
-                  void call(
-                    'spv-standard',
-                    `${base}/spvs-standard`,
-                    'POST',
-                    { prefix: recordName },
-                    'Land, Energy and Data Center added'
-                  )
-                }
-              >
-                Set up Land, Energy and Data Center
-              </Button>
-              <p className="mt-2 text-[11px] text-muted-foreground">
-                Model vehicles only. No legal entity is created and no ownership split is assumed.
-              </p>
-            </div>
+            <p className="rounded-md bg-muted/40 p-3 text-sm">
+              This deal has no vehicles, so every line is earned by Ber Wilson Corporation and is
+              wholly ours.
+            </p>
           )}
-
-          <FormGrid cols={3}>
-            <Field id="spvlabel" label="Name">
-              <Input
-                id="spvlabel"
-                value={spvDraft.label as string}
-                onChange={(e) => setSpvDraft((d) => ({ ...d, label: e.target.value }))}
-              />
-            </Field>
-            <Field id="spvpurpose" label="Purpose">
-              <Select
-                id="spvpurpose"
-                value={spvDraft.purpose as string}
-                onChange={(e) => setSpvDraft((d) => ({ ...d, purpose: e.target.value }))}
-              >
-                {SPV_PURPOSES.map((p) => (
-                  <option key={p} value={p}>
-                    {SPV_PURPOSE_LABELS[p]}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-            <Field id="spvpct" label="Ber Wilson share, %" hint="leave empty if undecided">
-              <Input
-                id="spvpct"
-                inputMode="decimal"
-                value={spvDraft.bw_ownership_pct as string}
-                onChange={(e) => setSpvDraft((d) => ({ ...d, bw_ownership_pct: e.target.value }))}
-              />
-            </Field>
-          </FormGrid>
-          <div className="mt-3">
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={busy === 'spv' || !(spvDraft.label as string).trim()}
-              onClick={async () => {
-                const ok = await call('spv', `${base}/spvs`, 'POST', outbound(spvDraft), 'Added')
-                if (ok) setSpvDraft({ label: '', purpose: 'other', bw_ownership_pct: '' })
-              }}
-            >
-              <Plus className="size-4" />
-              Add a vehicle
-            </Button>
-          </div>
+          <p className="mt-3 text-xs text-muted-foreground">
+            <Link href={`${recordBase}/vehicles`} className="underline underline-offset-2">
+              Open the Vehicles tab
+            </Link>{' '}
+            to add one, set who is in it, and record the splits and the capital.
+          </p>
         </FormSection>
       </Panel>
 
