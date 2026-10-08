@@ -413,6 +413,11 @@ async function importOne(
       userId: SYSTEM_USER_ID,
       seedAttendees,
       driveFileId: file.id,
+      // The INVITATION title, kept so the confirm step learns a key future
+      // meetings will actually present — the model renames these (§ migration
+      // 20261008000004). `title` below is deliberately the same string; what
+      // must never be stored here is `extraction.title`.
+      sourceTitle: title,
       seedTarget: target ?? suggestion,
       // The recap goes to the model; the whole export is kept on the row, so a
       // meeting the reviewer has not filed yet still has its transcript.

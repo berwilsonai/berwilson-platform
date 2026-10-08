@@ -565,7 +565,13 @@ export async function POST(request: NextRequest) {
   // second occurrence onward instead of waiting in the queue every time.
   const learnFrom = targets.find((t) => t.kind === 'project' || t.kind === 'opportunity')
   if (learnFrom) {
-    const titleForLearning = str(meeting.title) || session.label
+    // ⚠ `source_title` FIRST, AND THE ORDER IS THE WHOLE POINT. The model
+    // rewrites these titles — "Ber Wilson / Zenthium" became "Steelton &
+    // Riverdale Site Reviews & Power Capacity Analysis" — so learning
+    // `meeting.title` would store a key no future call can present, and the
+    // matcher would keep missing while the table filled with plausible rows.
+    // The invitation title is what Meet stamps on the next transcript.
+    const titleForLearning = session.source_title || str(meeting.title) || session.label
     if (titleForLearning) {
       const learned = await learnMeetingTitles(
         meetingTargetFromTitle(titleForLearning),

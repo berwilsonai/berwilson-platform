@@ -1023,6 +1023,7 @@ export type Database = {
           party_matches: Json | null
           predecision: Json | null
           raw_text: string | null
+          source_title: string | null
           staged_attachments: Json | null
           status: string
           updated_at: string | null
@@ -1042,6 +1043,7 @@ export type Database = {
           party_matches?: Json | null
           predecision?: Json | null
           raw_text?: string | null
+          source_title?: string | null
           staged_attachments?: Json | null
           status?: string
           updated_at?: string | null
@@ -1061,6 +1063,7 @@ export type Database = {
           party_matches?: Json | null
           predecision?: Json | null
           raw_text?: string | null
+          source_title?: string | null
           staged_attachments?: Json | null
           status?: string
           updated_at?: string | null

@@ -43,7 +43,7 @@ export default async function DecidePage() {
     supabase
       .from('email_intake_sessions')
       .select(
-        'id, label, status, updated_at, predecision, fit_assessment, intake_kind, extraction_result, party_matches, staged_attachments'
+        'id, label, status, updated_at, predecision, fit_assessment, intake_kind, extraction_result, party_matches, staged_attachments, source_title'
       )
       .eq('status', 'pending')
       .order('updated_at', { ascending: false })
@@ -168,13 +168,22 @@ export default async function DecidePage() {
       const when = typeof extraction.meeting_date === 'string' ? extraction.meeting_date : null
       const attendees = Array.isArray(extraction.attendees) ? extraction.attendees.length : 0
       const tasks = Array.isArray(extraction.tasks) ? extraction.tasks.length : 0
+      // ⚠ THE INVITATION TITLE LEADS, because it is the one Richard will
+      // recognise from his own calendar — and because the model's rewrite can
+      // be actively misleading: the call titled "Ber Wilson / Zenthium" came
+      // back as "Steelton & Riverdale Site Reviews & Power Capacity Analysis".
+      // The rewrite is still shown, in the subtitle, where it earns its place
+      // by saying what the call turned out to be about.
+      const invitation = s.source_title?.trim() || null
+      const modelTitle = s.label?.trim() || null
       items.push({
         id: s.id,
         kind: 'intake',
-        title: s.label || 'Recorded meeting',
+        title: invitation || modelTitle || 'Recorded meeting',
         // Says what confirming it will DO, which is the decision being asked.
         subtitle: [
           when,
+          invitation && modelTitle && modelTitle !== invitation ? `“${modelTitle}”` : null,
           attendees > 0 ? `${attendees} attendee${attendees === 1 ? '' : 's'}` : null,
           tasks > 0 ? `${tasks} follow-up${tasks === 1 ? '' : 's'}` : null,
         ]

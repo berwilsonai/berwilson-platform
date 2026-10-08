@@ -63,6 +63,20 @@ export interface AnalyzeMeetingInput {
    */
   seedTarget?: SeedTarget | null
   /**
+   * The title as the ORGANIZER typed it into the calendar invitation.
+   *
+   * ⚠ KEPT APART FROM `title` AND FROM THE MODEL'S OWN `extraction.title`, which
+   * is a rewrite: "Ber Wilson / Zenthium" came back as "Steelton & Riverdale
+   * Site Reviews & Power Capacity Analysis". Both are wanted and they do
+   * different jobs — the rewrite is what a human reads in the queue, the
+   * invitation is what the matcher FILES on and what meeting-title learning
+   * stores, because it is the string the next call in the series will arrive
+   * under. See the 20261008000004 migration.
+   *
+   * Null for pasted notes, which have no invitation.
+   */
+  sourceTitle?: string | null
+  /**
    * What to STORE as the session's raw_text, when that differs from what the
    * model was given. Meet's note document holds a recap and the verbatim
    * transcript; only the recap is worth a model pass, but throwing the
@@ -427,6 +441,7 @@ export async function analyzeMeetingNotes(input: AnalyzeMeetingInput): Promise<A
       intake_kind: 'meeting',
       status: 'pending',
       drive_file_id: input.driveFileId ?? null,
+      source_title: input.sourceTitle ?? null,
       label,
       raw_text: input.retainText ?? text,
       extraction_result: extraction as unknown as Json,

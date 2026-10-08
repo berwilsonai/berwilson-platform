@@ -106,7 +106,7 @@ export async function summarizeDecideQueue(now = Date.now()): Promise<DecideSumm
     const [intake, leads, review, unfiledDocs, economicsGroups] = await Promise.all([
       supabase
         .from('email_intake_sessions')
-        .select('id, label, predecision, fit_assessment, intake_kind, extraction_result')
+        .select('id, label, predecision, fit_assessment, intake_kind, extraction_result, source_title')
         .eq('status', 'pending')
         .limit(200),
       leadsDb()
@@ -164,7 +164,10 @@ export async function summarizeDecideQueue(now = Date.now()): Promise<DecideSumm
         const tasks = Array.isArray(extraction.tasks) ? extraction.tasks.length : 0
         rows.push({
           line:
-            `Meeting to file: ${s.label || 'Recorded meeting'}` +
+            // The invitation title, for the same reason /decide leads with it:
+            // it is the name on his own calendar. The model's rewrite is not
+            // repeated here — the note has one line and the date is worth more.
+            `Meeting to file: ${s.source_title?.trim() || s.label || 'Recorded meeting'}` +
             (when ? ` (${when})` : '') +
             (tasks > 0 ? ` — ${tasks} follow-up${tasks === 1 ? '' : 's'} waiting on a record` : ''),
           daysLeft: null,

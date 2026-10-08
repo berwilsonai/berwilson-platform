@@ -32,7 +32,9 @@ import {
   findFiledTranscript,
   type FileTarget,
 } from '@/lib/meetings/file-notes'
-import { meetingTargetFromTitle } from '@/lib/meetings/meet-import'
+import { meetingTargetFromTitle, meetingTitleFromFileName } from '@/lib/meetings/meet-import'
+import { listMeetTranscripts } from '@/lib/integrations/google-drive'
+import { MAILBOXES } from '@/lib/integrations/google-workspace'
 import type { MeetingIntakeExtraction } from '@/lib/ai/prompts/meeting-intake'
 
 const check = process.argv.includes('--check')
@@ -40,9 +42,33 @@ const check = process.argv.includes('--check')
 async function main() {
   const supabase = createAdminClient()
 
+  // ── The invitation titles, recovered from Drive ────────────────────────────
+  //
+  // ⚠ WITHOUT THIS STEP THE BACKFILL RESOLVES THE WRONG TITLE, which is how the
+  // bug was found. The model rewrites these: Drive holds
+  // "Ber Wilson / Zenthium" and the session's own label says "Steelton &
+  // Riverdale Site Reviews & Power Capacity Analysis". Only the first can match
+  // a record (`Zenthium Partnership`) or be learned as a key the NEXT call will
+  // present. `source_title` now stores it at import; these five pre-date the
+  // column, so it is read back off the file name.
+  const invitationTitles = new Map<string, string>()
+  for (const mailbox of MAILBOXES) {
+    try {
+      const listed = await listMeetTranscripts(mailbox, { limit: 200 })
+      for (const f of listed.transcripts) {
+        invitationTitles.set(f.id, meetingTitleFromFileName(f.name))
+      }
+    } catch (err) {
+      // Non-fatal, but say so: without it the titles fall back to the model's
+      // rewrite and the resolutions below are worth less than they look.
+      console.error(`! could not list ${mailbox}'s Meet folder — titles for its meetings fall back to the model's rewrite:`, err instanceof Error ? err.message : err)
+    }
+  }
+  console.log(`${invitationTitles.size} invitation title(s) recovered from Drive.`)
+
   const { data: sessions, error } = await supabase
     .from('email_intake_sessions')
-    .select('id, label, status, raw_text, extraction_result, drive_file_id, created_at')
+    .select('id, label, status, raw_text, extraction_result, drive_file_id, source_title, created_at')
     .eq('intake_kind', 'meeting')
     .not('drive_file_id', 'is', null)
     .order('created_at', { ascending: true })
@@ -55,13 +81,18 @@ async function main() {
 
   let meetingsCreated = 0
   let documentsFiled = 0
+  let sourceTitlesStored = 0
   let alreadyComplete = 0
   const skipped: string[] = []
 
   for (const s of rows) {
     const driveFileId = s.drive_file_id as string
     const extraction = (s.extraction_result ?? {}) as Partial<MeetingIntakeExtraction>
+    // Two titles, two jobs (§ migration 20261008000004): the READING title is
+    // the model's, the FILING title is the organizer's.
     const title = extraction.title || s.label || 'Recorded meeting'
+    const filingTitle =
+      s.source_title || invitationTitles.get(driveFileId) || title
     const meetingDate =
       extraction.meeting_date || String(s.created_at ?? '').slice(0, 10) || null
 
@@ -83,7 +114,7 @@ async function main() {
     // back when the title happened to match — so the meeting they describe
     // belongs to that opportunity as a FACT, and re-deriving it from a name
     // match would be guessing at something already known.
-    const resolution = await resolveMeetingTarget(meetingTargetFromTitle(title)).catch(() => ({
+    const resolution = await resolveMeetingTarget(meetingTargetFromTitle(filingTitle)).catch(() => ({
       target: null,
       suggestion: null,
       ambiguous: null,
@@ -110,13 +141,31 @@ async function main() {
     const needsMeeting = !existingMeeting
     const needsDoc = !existingDoc
 
+    // Backfilled whether or not anything else is needed: a session that is
+    // otherwise complete still has to carry the key its own confirm will learn.
+    const recovered = invitationTitles.get(driveFileId)
+    if (!s.source_title && recovered && !check) {
+      const { error: stErr } = await supabase
+        .from('email_intake_sessions')
+        .update({ source_title: recovered })
+        .eq('id', s.id)
+      if (stErr) skipped.push(`${title}: source_title could not be stored — ${stErr.message}`)
+      else sourceTitlesStored++
+    } else if (!s.source_title && recovered && check) {
+      console.log(`· ${title}\n    WOULD store the invitation title "${recovered}"`)
+    }
+
     if (!needsMeeting && !needsDoc) {
       alreadyComplete++
       console.log(`· ${title}\n    already has both a meeting record and a filed transcript`)
+      if (filingTitle !== title) console.log(`    invitation title: "${filingTitle}"`)
+      if (via) console.log(`    resolves via ${via}: ${target?.name ?? resolution.suggestion?.name}`)
+      else if (resolution.suggestion) console.log(`    closest record: ${resolution.suggestion.name} (a suggestion, not filed on)`)
       continue
     }
 
     console.log(`· ${title}  (${meetingDate})`)
+    if (filingTitle !== title) console.log(`    invitation title: "${filingTitle}"`)
     if (via) console.log(`    resolves via ${via}: ${target?.name ?? resolution.suggestion?.name}`)
     else if (resolution.ambiguous) console.log(`    title is ambiguous — ${resolution.ambiguous}`)
     else console.log(`    title matches no record`)
@@ -187,6 +236,7 @@ async function main() {
   console.log(`meeting records created: ${meetingsCreated}`)
   console.log(`transcripts filed:      ${documentsFiled}`)
   console.log(`already complete:       ${alreadyComplete}`)
+  console.log(`invitation titles kept: ${sourceTitlesStored}`)
   if (skipped.length) {
     console.log(`\nskipped (${skipped.length}):`)
     for (const line of skipped) console.log(`  - ${line}`)
