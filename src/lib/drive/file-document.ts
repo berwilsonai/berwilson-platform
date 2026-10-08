@@ -33,7 +33,15 @@ import type { Database } from '@/types/database'
 import { ensureFolder, uploadToFolder } from '@/lib/integrations/google-drive-write'
 import { listSubfolders } from '@/lib/integrations/google-drive'
 import { PRIMARY_MAILBOX, googleFetch, isGoogleConfigured } from '@/lib/integrations/google-workspace'
-import { chooseFolder, STANDARD_FOLDERS, UNSORTED_FOLDER, type FolderChoice } from './classify'
+import {
+  chooseFolder,
+  folderSegments,
+  isDiligencePath,
+  DILIGENCE_PATHS,
+  STANDARD_FOLDERS,
+  UNSORTED_FOLDER,
+  type FolderChoice,
+} from './classify'
 
 type AdminClient = SupabaseClient<Database>
 
@@ -120,10 +128,19 @@ export function isStandardSet(candidates: string[]): boolean {
   // Compared by content rather than by "did we just create it": `created` is
   // true only for the very first document filed, so relying on it would file
   // the first generated summary to Correspondence and every later one to
-  // _Unsorted. A folder set is the platform's own iff it is exactly ours.
-  if (candidates.length !== STANDARD_FOLDERS.length) return false
+  // _Unsorted.
+  //
+  // ⚠ This asked whether the set is EXACTLY ours until 2026-10-08, when the
+  // standard set became a floor ensured alongside a record's own folders
+  // (resolveCandidateFolders). Exact equality would then be false on every
+  // project that has any curated folder at all -- which is every project worth
+  // protecting -- so platform artifacts would stop being held out of those
+  // folders, the precise behaviour this predicate exists to produce. The
+  // question it must answer is "are ALL the human's folders gone from here",
+  // and that is containment, not equality.
+  if (candidates.length === 0) return true
   const mine = new Set<string>(STANDARD_FOLDERS)
-  return candidates.every((c) => mine.has(c))
+  return candidates.every((c) => mine.has(c) || isDiligencePath(c))
 }
 
 export function isPlatformArtifact(fileName: string, mimeType: string | null): boolean {
@@ -183,10 +200,21 @@ export async function resolveFilingRoot(sourceFolderId: string): Promise<string>
 /**
  * The folders this record can be filed into.
  *
- * Hybrid by design, and the survey is why: of 15 project folders, exactly one
- * had subfolders, and its names ("Deeds", "Previous Land Offers") reflect how
- * that particular deal is run. So a record that already has folders keeps them
- * untouched and is never given the standard set; only a bare folder gets one.
+ * ⚠ CHANGED 2026-10-08, and the old comment is kept here because the reasoning
+ * it records was sound and still lost. It read: "of 15 project folders, exactly
+ * one had subfolders, and its names ('Deeds', 'Previous Land Offers') reflect
+ * how that particular deal is run. So a record that already has folders keeps
+ * them untouched and is never given the standard set." The deference was right;
+ * making it EXCLUSIVE was not. Measured on the real drive: the three deals with
+ * the most paperwork -- Steelton (13 folders), Helper (11), Stockton (3) --
+ * were exactly the three that could never receive the standard set, so each
+ * offered the classifier a different menu and the same document filed three
+ * different ways.
+ *
+ * So the standard set is now a FLOOR: ensured alongside the human's folders,
+ * never instead of them, and the candidate list is the union. A curated name
+ * still wins on its merits, because the classifier picks on fit and a folder
+ * called "Deeds" beats "Land & Title" for a quitclaim every time.
  */
 export async function resolveCandidateFolders(
   folderId: string,
@@ -202,18 +230,59 @@ export async function resolveCandidateFolders(
   // convention is that dragging something in RETIRES it.
   const usable = existing.map((f) => f.name).filter((n) => !isArchiveName(n))
 
-  if (usable.length > 0) return { candidates: usable, created: false }
-  if (!opts.createStandard) return { candidates: [], created: false }
+  if (!opts.createStandard) {
+    // Read-only callers get what is actually there, plus the diligence lanes
+    // that already exist -- never a name we have not created.
+    return { candidates: usable, created: false }
+  }
 
-  for (const name of STANDARD_FOLDERS) {
+  const present = new Set(usable)
+  const missing = STANDARD_FOLDERS.filter((n) => !present.has(n))
+  for (const name of missing) {
     await ensureFolder(name, folderId)
   }
-  return { candidates: [...STANDARD_FOLDERS], created: true }
+
+  // Diligence lanes are offered without being created: the folder is made by
+  // ensureFolderPath when a document actually lands in one. Offering all seven
+  // costs the model seven lines; creating all seven on every record would put
+  // empty "Fiber & Telecom" folders on a garage remodel.
+  const candidates = [...new Set([...usable, ...STANDARD_FOLDERS, ...DILIGENCE_PATHS])]
+
+  return { candidates, created: missing.length > 0 }
 }
 
-/** Mirrors isArchiveFolder in google-drive.ts, which is not exported for names. */
+/**
+ * Ensure every segment of a chosen candidate and return the leaf folder.
+ *
+ * One hop for an ordinary folder -- INCLUDING one whose own name contains a
+ * slash, which this drive really has ("Fort Polk / Johnson - Design Build
+ * Matocc"). Only a candidate we generated is treated as nested; see
+ * FOLDER_PATH_SEP in classify.ts.
+ */
+export async function ensureFolderPath(
+  candidate: string,
+  rootId: string
+): Promise<{ id: string }> {
+  let parent = rootId
+  let folder: { id: string } = { id: rootId }
+  for (const segment of folderSegments(candidate)) {
+    folder = await ensureFolder(segment, parent)
+    parent = folder.id
+  }
+  return folder
+}
+
+/**
+ * Mirrors isArchiveFolder in google-drive.ts, which is not exported for names.
+ *
+ * Also excludes the redirect stubs the 2026-10-08 migration leaves behind. An
+ * emptied folder is KEPT and renamed "… (moved — see …)" so a bookmark lands
+ * somewhere that explains itself -- but it must never be offered as a filing
+ * destination again, or the migration would quietly refill what it just drained.
+ */
 function isArchiveName(name: string): boolean {
   const n = name.trim().toLowerCase()
+  if (n.includes('(moved —') || n.includes('(moved -')) return true
   return ['archive', 'archived', 'archives', 'old', 'obsolete', 'superseded', 'deprecated', 'do not use'].includes(n)
 }
 
@@ -270,7 +339,7 @@ export async function fileDocumentToDrive(
   // misfiled into a folder the team trusts is worse than one waiting to be
   // sorted, because nobody looks for a file they believe is already filed.
   const folderName = choice.folderName ?? UNSORTED_FOLDER
-  const folder = await ensureFolder(folderName, filingRoot)
+  const folder = await ensureFolderPath(folderName, filingRoot)
 
   const { data: blob, error: dlError } = await supabase.storage
     .from('documents')

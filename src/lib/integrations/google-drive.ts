@@ -49,6 +49,15 @@ export interface DriveFile {
    * the folder name is half of what the document is.
    */
   path?: string
+  /**
+   * The folder this file was listed from.
+   *
+   * Set by {@link listFolder}'s walk, which knows it for free — it is the folder
+   * whose children it is reading. Carried because Drive's legacy multi-parent
+   * model makes a move a PATCH with BOTH `addParents` and `removeParents`, and
+   * a move that only adds leaves the file in two places while reporting success.
+   */
+  parentId?: string
   /** Opens the file in Drive. Absent from responses that did not ask for it. */
   webViewLink?: string
   /**
@@ -153,7 +162,14 @@ const ARCHIVE_FOLDER_NAMES = new Set([
 ])
 
 export function isArchiveFolder(name: string): boolean {
-  return ARCHIVE_FOLDER_NAMES.has(name.trim().toLowerCase())
+  const n = name.trim().toLowerCase()
+  // The redirect stubs left by the 2026-10-08 restructure. An emptied folder is
+  // KEPT and renamed "… (moved — see …)" so a bookmark still opens and explains
+  // itself; descending into one would re-import whatever has since been dropped
+  // in it under the OLD record's name. Treated as an archive for the same
+  // reason archives are: the convention is that putting something there retires it.
+  if (n.includes('(moved —') || n.includes('(moved -')) return true
+  return ARCHIVE_FOLDER_NAMES.has(n)
 }
 
 /** The archive folder names, for UI copy that has to tell people the convention. */
@@ -216,6 +232,7 @@ export async function listFolder(
           modifiedTime: f.modifiedTime,
           size: f.size ? Number(f.size) : null,
           path: path.join('/'),
+          parentId: id,
           webViewLink: f.webViewLink,
           modifiedByName: f.lastModifyingUser?.displayName,
           modifiedByEmail: f.lastModifyingUser?.emailAddress,

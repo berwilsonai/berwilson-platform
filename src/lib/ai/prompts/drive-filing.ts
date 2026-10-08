@@ -16,7 +16,7 @@
  * is discarded rather than fuzzy-matched.
  */
 
-export const DRIVE_FILING_PROMPT_VERSION = 'drive-filing-1.0'
+export const DRIVE_FILING_PROMPT_VERSION = 'drive-filing-1.1'
 
 export interface DriveFilingDecision {
   /** Verbatim one of the candidate folder names, or null when unsure. */
@@ -33,6 +33,7 @@ You are given a document (its file name, and usually a summary of its contents) 
 
 RULES
 - Answer with a folder name copied EXACTLY from the candidate list, character for character. Do not reword, re-case, pluralise, or tidy it.
+- Some candidates are two levels deep and are written "Parent/Child". Copy the whole thing including the slash. Do not answer with just the parent or just the child, and do not treat a slash inside any other candidate as nesting — folder names here sometimes contain one.
 - Never invent a folder. If none of the candidates is clearly right, answer null.
 - Answer null when the document could reasonably belong in two or more of the candidates. An ambiguous document is not a failure; filing it somewhere plausible but wrong is.
 - Judge by what the document IS, not by who sent it or which company is named in it. A deed is a deed whoever emailed it.

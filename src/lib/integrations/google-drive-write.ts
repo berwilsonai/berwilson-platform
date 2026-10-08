@@ -639,6 +639,42 @@ export async function renameFile(
   })
 }
 
+/**
+ * Move a file or folder from one parent to another.
+ *
+ * ⚠ THIS IS THE ONE CALL IN THIS FILE THAT `drive.file` CANNOT MAKE on a file a
+ * PERSON created. Adding a child to a human's folder on a shared drive is the
+ * impersonated user's right, so `ensureFolder` and `uploadToFolder` work there —
+ * but re-parenting an existing file is an edit OF that file, and drive.file
+ * reaches only what this app created. Against the team's own documents it 403s
+ * with `insufficientFilePermissions`, which `driveWrite` correctly refuses to
+ * retry. Callers that need it hold the full `drive` scope temporarily; see
+ * scripts/migrate-drive-structure.mts.
+ *
+ * `removeParents` is required and explicit: Drive's legacy model allows several
+ * parents, so a PATCH that only adds one leaves the file in BOTH places — which
+ * looks like a successful move right up until someone opens the old folder and
+ * finds everything still there.
+ */
+export async function moveFile(
+  fileId: string,
+  fromParentId: string,
+  toParentId: string,
+  mailbox: string = PRIMARY_MAILBOX
+): Promise<void> {
+  const params = new URLSearchParams({
+    addParents: toParentId,
+    removeParents: fromParentId,
+    supportsAllDrives: 'true',
+    fields: 'id,parents',
+  })
+  await driveWrite(mailbox, `${DRIVE_BASE}/files/${fileId}?${params.toString()}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: '{}',
+  })
+}
+
 /** Spreadsheets directly inside one folder, among files the app created. */
 export async function listSheetsInFolder(
   folderId: string,

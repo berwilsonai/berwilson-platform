@@ -115,6 +115,22 @@ export const PRIMARY_ONLY_SCOPES = [
   // the spreadsheet exports (the Sheets API accepts drive.file for app-created
   // files, so no broader spreadsheets scope is needed).
   'https://www.googleapis.com/auth/drive.file',
+  // ⚠⚠ TEMPORARY — REMOVE AFTER THE 2026-10-08 DRIVE RESTRUCTURE ⚠⚠
+  //
+  // The broadest grant in this file by a wide margin: read, write, move, rename
+  // and trash ANYTHING moose@ can reach, held by a long-running server. It is
+  // here for exactly one job — scripts/migrate-drive-structure.mts has to
+  // re-parent ~264 files that PEOPLE created, and drive.file reaches only what
+  // this app created, so every move 403s without it.
+  //
+  // Nothing in src/ asks for it and nothing should. Hand it back the way this
+  // block's own doc comment describes: delete this line, re-run
+  // `node scripts/setup-google-oauth.mjs --only moose@berwilson.com`, then
+  // `launchctl kickstart -k gui/$(id -u)/com.berwilson.platform`. Re-consenting
+  // without an entry REMOVES the grant; that is the mechanism, not a side effect.
+  //
+  // Check with: node --env-file=.env.local scripts/verify-google-auth.mjs
+  'https://www.googleapis.com/auth/drive',
 ] as const
 
 /**
