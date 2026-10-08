@@ -16,6 +16,7 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { storeExtractedText } from '@/lib/ai/document-text'
 import { embedDocument, embedOpportunityDocument } from '@/lib/ai/embeddings'
+import { matchLearnedMeetingTitle } from '@/lib/email-sweep/identifiers'
 import type { SeedTarget } from '@/lib/email-ingestion/analyze-meeting'
 
 /** Match names case-insensitively but EXACTLY — see resolveMeetingTarget. */
@@ -24,23 +25,130 @@ function escapeLike(s: string): string {
 }
 
 /**
- * Resolve a meeting-title segment to exactly one project or opportunity.
+ * Words that carry no identity in a Ber Wilson record name.
  *
- * The bar is an EXACT name match, case-insensitive, and a single hit across both
- * tables. That is deliberately stricter than the trigram matcher the review
- * screen uses, because this decides an automatic action: §12 — ambiguity must
- * mean NO match, and one hit on a weak key is an unchallenged match, not a
- * unique one. A title segment is a label a person typed, so exact is the right
- * bar; anything softer belongs in front of the reviewer, which is where it goes.
+ * The same list, and the same argument, as analyze-meeting.ts: four live
+ * projects are called Heber Development, Myton Development, Tonga Development
+ * Project and American Energy Rail Corridor - Community Development, so
+ * "Development" is shared vocabulary rather than a name. Place names are
+ * deliberately absent — Myton, Delta, Heber and Tooele are exactly what
+ * distinguishes these records from each other.
+ */
+const GENERIC_NAME_WORDS = new Set([
+  'development', 'developments', 'project', 'projects', 'site', 'sites', 'campus',
+  'expansion', 'portfolio', 'initiative', 'phase', 'center', 'centre', 'complex',
+  'park', 'building', 'buildings', 'construction', 'community', 'corridor',
+  'industrial', 'group', 'holdings', 'company', 'the', 'and', 'for', 'llc', 'inc',
+  // Calendar vocabulary, which a meeting title carries and a record name does not.
+  'meeting', 'call', 'sync', 'review', 'reviews', 'update', 'updates', 'discuss',
+  'discussion', 'intro', 'kickoff', 'weekly', 'notes', 'analysis', 'joint',
+  'strategic', 'partnership', 'partnerships', 'coordination', 'acquisition',
+  'solutions', 'services', 'systems', 'capacity', 'technology',
+  // ⚠ INDUSTRY WORDS, AND THE FIRST DRY RUN IS WHY THEY ARE HERE. Without them
+  // "Steelton & Riverdale Site Reviews & Power Capacity Analysis" was suggested
+  // as "Stockton Power Nexus - ER Hospital & Medevac Airport Tower" — two deals
+  // in different states, matched on the word *power*. This is the §12 rule that
+  // already governs company domains ("a shared industry word is the one thing an
+  // identifier must not be"), and a vertically integrated energy and
+  // construction business has a portfolio full of them.
+  //
+  // PLACE NAMES STAY OUT OF THIS LIST on purpose: Myton, Delta, Heber, Tooele,
+  // Steelton and Stockton are precisely what distinguishes these records.
+  'power', 'energy', 'mining', 'capital', 'steel', 'rail', 'solar', 'gas',
+  'oil', 'grid', 'water', 'land', 'data', 'quantum', 'resilience',
+])
+
+/** Identity-bearing words in a name, lowercased. */
+function distinguishingWords(name: string): Set<string> {
+  return new Set(
+    name
+      .toLowerCase()
+      .split(/[^a-z0-9]+/)
+      .filter((w) => w.length >= 3 && !GENERIC_NAME_WORDS.has(w))
+  )
+}
+
+export interface MeetingTargetResolution {
+  /**
+   * Strong enough to FILE the transcript onto automatically: an exact record
+   * name, or a title a human has filed before.
+   */
+  target: SeedTarget | null
+  /**
+   * Good enough to PRE-TICK in the review screen and never to file on. The
+   * distinction is the whole design — see resolveMeetingTarget.
+   */
+  suggestion: SeedTarget | null
+  /** Why nothing was chosen, when that is worth saying out loud. */
+  ambiguous: string | null
+  /** Which key decided, so the import log can be believed rather than guessed at. */
+  via: 'learned_title' | 'exact_name' | 'suggested' | null
+}
+
+/**
+ * Resolve a meeting-title segment to a project or opportunity.
  *
- * Candidates are tried in order and the first unambiguous hit wins. Two records
- * sharing a name refuses outright rather than picking one.
+ * Three bars, and the gap between them is deliberate — a FILING is an automatic
+ * action and a PRE-TICK is a suggestion a human confirms, so they cannot share
+ * one threshold:
+ *
+ *   1. A LEARNED TITLE — this exact title was filed onto this record by a person
+ *      before. Strongest key available, because it is not a guess at all: it is
+ *      somebody's past decision, replayed. This is what makes a recurring call
+ *      file itself from its second occurrence onward.
+ *   2. An EXACT record name, case-insensitive, unique across both tables. A
+ *      title segment is a label a person typed, so exact is the right bar.
+ *   3. A SHARED IDENTITY-BEARING WORD — suggestion only. ⚠ A score threshold
+ *      cannot do this job and that was measured, not assumed: "Eagle Mountain
+ *      Development" matched Myton Development at 0.487 (wrong) while "Delta,
+ *      Utah Campus" matched Delta Industrial Campus at 0.390 (right). The wrong
+ *      match scores higher, because the only thing it shares is the word every
+ *      fourth project here contains. WHICH word matched is the real signal — and
+ *      even that is not enough to file on, because a transcript filed onto the
+ *      wrong deal answers questions about that deal until somebody notices.
+ *
+ * Ambiguity at any bar refuses rather than picking (§12), and the refusal says
+ * which records collided.
  */
 export async function resolveMeetingTarget(
-  candidates: string[],
-): Promise<{ target: SeedTarget | null; ambiguous: string | null }> {
+  candidates: string[]
+): Promise<MeetingTargetResolution> {
   const supabase = createAdminClient()
+  const none: MeetingTargetResolution = {
+    target: null,
+    suggestion: null,
+    ambiguous: null,
+    via: null,
+  }
 
+  // ── 1. A title a human already filed ──────────────────────────────────────
+  const learned = await matchLearnedMeetingTitle(candidates).catch(() => null)
+  if (learned === 'ambiguous') {
+    return {
+      ...none,
+      ambiguous: 'this title has been filed onto more than one record before',
+    }
+  }
+  if (learned && (learned.kind === 'project' || learned.kind === 'opportunity')) {
+    const table = learned.kind === 'project' ? 'projects' : 'opportunities'
+    const { data } = await supabase
+      .from(table)
+      .select('id, name')
+      .eq('id', learned.id)
+      .maybeSingle()
+    // A learned title whose record has since been deleted falls through to the
+    // name bars rather than refusing — the identifier is stale, not wrong.
+    if (data) {
+      return {
+        target: { kind: learned.kind, id: data.id, name: data.name },
+        suggestion: null,
+        ambiguous: null,
+        via: 'learned_title',
+      }
+    }
+  }
+
+  // ── 2. An exact record name ────────────────────────────────────────────────
   for (const name of candidates) {
     const needle = escapeLike(name.trim())
     if (needle.length < 3) continue // "JV", "Q3" — too thin to act on
@@ -59,12 +167,14 @@ export async function resolveMeetingTarget(
       })),
     ]
 
-    if (hits.length === 1) return { target: hits[0], ambiguous: null }
+    if (hits.length === 1) {
+      return { target: hits[0], suggestion: null, ambiguous: null, via: 'exact_name' }
+    }
     if (hits.length > 1) {
       // Say WHICH records collided. "Could not file" with no reason is the kind
       // of silence that let the folder-name bug survive 192 runs.
       return {
-        target: null,
+        ...none,
         ambiguous: `"${name}" matches ${hits.length} records (${hits
           .map((h) => `${h.name} [${h.kind}]`)
           .join(', ')})`,
@@ -72,12 +182,142 @@ export async function resolveMeetingTarget(
     }
   }
 
-  return { target: null, ambiguous: null }
+  // ── 3. A shared identity-bearing word — suggestion only ───────────────────
+  //
+  // Read whole rather than searched: both tables together are a couple of dozen
+  // rows, so one select each is cheaper than a trigram call per candidate and
+  // treats projects and opportunities by the same rule. (`match_projects_by_name`
+  // exists but has no opportunity twin, and a score is the wrong signal here
+  // anyway — see the bars above.)
+  const [allProjects, allOpportunities] = await Promise.all([
+    supabase.from('projects').select('id, name').limit(500),
+    supabase.from('opportunities').select('id, name').limit(500),
+  ])
+  const everything: SeedTarget[] = [
+    ...(allProjects.data ?? []).map((r) => ({ kind: 'project' as const, id: r.id, name: r.name })),
+    ...(allOpportunities.data ?? []).map((r) => ({
+      kind: 'opportunity' as const,
+      id: r.id,
+      name: r.name,
+    })),
+  ]
+
+  for (const name of candidates) {
+    const words = distinguishingWords(name)
+    if (words.size === 0) continue
+    const hits = everything.filter((r) => {
+      const theirs = distinguishingWords(r.name)
+      for (const w of words) if (theirs.has(w)) return true
+      return false
+    })
+    if (hits.length === 1) {
+      return { target: null, suggestion: hits[0], ambiguous: null, via: 'suggested' }
+    }
+    if (hits.length > 1) {
+      return {
+        ...none,
+        ambiguous: `"${name}" looks like ${hits.length} records (${hits
+          .map((h) => h.name)
+          .join(', ')})`,
+      }
+    }
+  }
+
+  return none
 }
+
+/** Which shelf a transcript is sitting on. */
+export type DocumentShelf =
+  | 'project'
+  | 'opportunity'
+  | 'company'
+  | 'reference'
+  | 'steel_deal'
+  | 'unknown'
 
 export interface FiledDocument {
   documentId: string
   alreadyFiled: boolean
+  /**
+   * Where it actually is — which is not always where the caller asked for it.
+   *
+   * The import files every transcript immediately, on `reference` when the title
+   * names no record (see meet-import), so by the time a human confirms the
+   * session the document already exists somewhere. The confirm step reads this
+   * to decide whether to MOVE it onto the record that has just been chosen.
+   */
+  shelf: DocumentShelf
+  /**
+   * The project or opportunity it is filed on, when the shelf is one of those.
+   *
+   * Worth carrying because an EXISTING FILING IS A DECISION SOMEBODY ALREADY
+   * MADE, and it beats re-deriving one from the title. The backfill uses it to
+   * put a meeting row on the record its own transcript is already sitting on,
+   * rather than re-running a name match that is weaker than the fact in hand.
+   */
+  recordId: string | null
+}
+
+/** Read the shelf off a `documents` row. */
+function shelfOf(row: {
+  is_company?: boolean | null
+  is_reference?: boolean | null
+  project_id?: string | null
+  steel_deal_id?: string | null
+}): DocumentShelf {
+  if (row.is_company) return 'company'
+  if (row.is_reference) return 'reference'
+  if (row.project_id) return 'project'
+  if (row.steel_deal_id) return 'steel_deal'
+  return 'unknown'
+}
+
+/**
+ * The transcript already filed for this Drive file, wherever it lives.
+ *
+ * ⚠ READS BOTH TABLES, ALWAYS. `drive_file_id` carries a partial unique index on
+ * `documents` AND on `opportunity_documents`, and the parallel-table split (§9)
+ * means "is this already filed" is always two questions — the same trap that had
+ * drive-sync re-claiming opportunity documents as company knowledge. Checking
+ * only the table the CALLER asked for is worse than not checking: the insert
+ * then fails on the other table's unique index, and the 23505 recovery looks in
+ * the wrong place and reports the filing as impossible.
+ */
+export async function findFiledTranscript(
+  supabase: ReturnType<typeof createAdminClient>,
+  driveFileId: string
+): Promise<FiledDocument | null> {
+  const [docs, oppDocs] = await Promise.all([
+    supabase
+      .from('documents')
+      .select('id, is_company, is_reference, project_id, steel_deal_id')
+      .eq('drive_file_id', driveFileId)
+      .maybeSingle(),
+    supabase
+      .from('opportunity_documents')
+      .select('id, opportunity_id')
+      .eq('drive_file_id', driveFileId)
+      .maybeSingle(),
+  ])
+
+  if (docs.data) {
+    const shelf = shelfOf(docs.data)
+    return {
+      documentId: docs.data.id,
+      alreadyFiled: true,
+      shelf,
+      recordId: shelf === 'project' ? docs.data.project_id : null,
+    }
+  }
+  if (oppDocs.data) {
+    return {
+      documentId: oppDocs.data.id,
+      alreadyFiled: true,
+      shelf: 'opportunity',
+      recordId: oppDocs.data.opportunity_id,
+    }
+  }
+  return null
 }
 
 /**
@@ -130,12 +370,8 @@ export async function fileMeetingDocument(opts: {
   const supabase = createAdminClient()
   const table = opts.target.kind === 'opportunity' ? 'opportunity_documents' : 'documents'
 
-  const { data: existing } = await supabase
-    .from(table)
-    .select('id')
-    .eq('drive_file_id', opts.driveFileId)
-    .maybeSingle()
-  if (existing) return { documentId: existing.id, alreadyFiled: true }
+  const existing = await findFiledTranscript(supabase, opts.driveFileId)
+  if (existing) return existing
 
   const folder =
     opts.target.kind === 'opportunity'
@@ -202,13 +438,11 @@ export async function fileMeetingDocument(opts: {
   if (error || !doc) {
     if (error?.code === '23505') {
       // A concurrent run filed it. Drop our orphaned upload and report the win.
+      // Searched across both tables for the same reason the pre-check is —
+      // the winner may have filed it on the other shelf entirely.
       await supabase.storage.from('documents').remove([path])
-      const { data: winner } = await supabase
-        .from(table)
-        .select('id')
-        .eq('drive_file_id', opts.driveFileId)
-        .maybeSingle()
-      if (winner) return { documentId: winner.id, alreadyFiled: true }
+      const winner = await findFiledTranscript(supabase, opts.driveFileId)
+      if (winner) return winner
     }
     console.error('[meet-import] note insert failed:', error?.message)
     await supabase.storage.from('documents').remove([path])
@@ -238,5 +472,13 @@ export async function fileMeetingDocument(opts: {
     await supabase.from(table).update({ embedding_status: 'error' }).eq('id', doc.id)
   }
 
-  return { documentId: doc.id, alreadyFiled: false }
+  return {
+    documentId: doc.id,
+    alreadyFiled: false,
+    shelf: opts.target.kind,
+    recordId:
+      opts.target.kind === 'project' || opts.target.kind === 'opportunity'
+        ? opts.target.id
+        : null,
+  }
 }

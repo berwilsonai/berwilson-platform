@@ -11,7 +11,12 @@ import {
   type RecordKind,
   type TargetKind,
 } from '@/lib/email-ingestion/confirm-helpers'
-import { fileMeetingDocument, type FileTarget } from '@/lib/meetings/file-notes'
+import { fileMeetingDocument, findFiledTranscript, type FileTarget } from '@/lib/meetings/file-notes'
+import { refileDocument } from '@/lib/documents/refile'
+import { attachMeetingToRecord, linkDocumentToMeeting } from '@/lib/meetings/record'
+import { learnMeetingTitles } from '@/lib/email-sweep/identifiers'
+import { meetingTargetFromTitle } from '@/lib/meetings/meet-import'
+import { parseAttendees } from '@/lib/utils/meetings'
 import { createLeadFromMeeting } from '@/lib/leads/from-meeting'
 import type { TablesInsert } from '@/lib/supabase/types'
 
@@ -444,24 +449,134 @@ export async function POST(request: NextRequest) {
       // `name` is only used for the storage path/label; ConfirmTarget carries
       // just a kind and an id, and the meeting's own title is the better label.
       const label = str(meeting.title) || session.label || 'meeting'
-      const fileTarget: FileTarget =
-        primary.kind === 'company'
-          ? { kind: 'company', id: 'company', name: label }
-          : (primary.kind as string) === 'reference'
-            ? { kind: 'reference', id: 'reference', name: label }
-            : { kind: primary.kind as 'project' | 'opportunity', id: primary.id, name: label }
-      const filed = await fileMeetingDocument({
-        target: fileTarget,
-        driveFileId: session.drive_file_id,
-        title: str(meeting.title) || session.label || 'meeting',
-        content: session.raw_text,
-        summary: str(meeting.summary),
-        meetingDate: str(meeting.date),
-      }).catch((err) => {
-        console.error('[meeting-confirm] verbatim filing failed:', err)
-        return null
+
+      // ── Already filed? MOVE it rather than refusing ─────────────────────────
+      //
+      // ⚠ THIS IS THE STEP THE IMPORT'S "FILE EVERYTHING" CHANGE MADE NECESSARY.
+      // The importer now files every transcript immediately — on the record when
+      // the title matched, on the reference shelf when it did not — so by the
+      // time anyone confirms, a document already exists for this Drive file.
+      // `drive_file_id` carries a platform-wide unique index, so a plain
+      // re-file attempt reports `alreadyFiled` and the transcript would sit on
+      // the reference shelf forever while the reviewer believed they had filed
+      // it on the deal.
+      //
+      // refileDocument re-points the chunks instead of rebuilding them: the text
+      // has not changed, so the stored vectors are exactly valid at the new
+      // address (§12) — instant and exact, where re-embedding is minutes of
+      // contended GPU for identical numbers.
+      const existing = await findFiledTranscript(supabase, session.drive_file_id)
+      const wantsRecord = primary.kind === 'project' || primary.kind === 'opportunity'
+
+      if (existing && wantsRecord && existing.shelf !== primary.kind) {
+        try {
+          const moved = await refileDocument(supabase, existing.documentId, {
+            kind: primary.kind as 'project' | 'opportunity',
+            id: primary.id,
+          })
+          createdRecordIds.document_ids.push(existing.documentId)
+          console.log(
+            `[meeting-confirm] moved the transcript from ${existing.shelf} to ${primary.kind} ${primary.id} (${moved.chunks} passages re-pointed)`
+          )
+        } catch (err) {
+          // The transcript is still filed and still answering questions where it
+          // is. Say so rather than failing a confirm that otherwise succeeded.
+          console.error('[meeting-confirm] could not move the transcript:', err)
+        }
+      } else if (!existing) {
+        const fileTarget: FileTarget =
+          primary.kind === 'company'
+            ? { kind: 'company', id: 'company', name: label }
+            : (primary.kind as string) === 'reference'
+              ? { kind: 'reference', id: 'reference', name: label }
+              : { kind: primary.kind as 'project' | 'opportunity', id: primary.id, name: label }
+        const filed = await fileMeetingDocument({
+          target: fileTarget,
+          driveFileId: session.drive_file_id,
+          title: label,
+          content: session.raw_text,
+          summary: str(meeting.summary),
+          meetingDate: str(meeting.date),
+        }).catch((err) => {
+          console.error('[meeting-confirm] verbatim filing failed:', err)
+          return null
+        })
+        if (filed && !filed.alreadyFiled) createdRecordIds.document_ids.push(filed.documentId)
+      }
+    }
+  }
+
+  // ── 4c. The meeting record follows the reviewer's decision ──────────────────
+  //
+  // The importer wrote a `meetings` row with scope='unfiled' when the title
+  // named no record. This is where it stops being unfiled — which matters
+  // because `meetings` is the table the agent's search_meetings and
+  // get_meeting_content tools read, and because the record's own Meetings tab
+  // selects on project_id / opportunity_id.
+  //
+  // Only ONE record gets it, deliberately. A meeting is a single event; copying
+  // the row onto every target would make one conversation read as several, and
+  // the minutes document already goes on all of them.
+  if (session.drive_file_id) {
+    const { data: meetingRow } = await supabase
+      .from('meetings')
+      .select('id')
+      .eq('drive_file_id', session.drive_file_id)
+      .maybeSingle()
+    const home = targets.find((t) => t.kind === 'project' || t.kind === 'opportunity')
+    if (meetingRow && home) {
+      const attendees = parseAttendees(
+        linkedPeople.map((p) => ({ name: p.name, role: p.role, party_id: p.id }))
+      )
+      await attachMeetingToRecord(
+        supabase,
+        meetingRow.id,
+        { kind: home.kind as 'project' | 'opportunity', id: home.id },
+        {
+          title: str(meeting.title),
+          meetingDate: str(meeting.date),
+          summary: str(meeting.summary),
+          minutes: str(meeting.minutes),
+          decisions: meeting.decisions,
+          // Written through because confirming is what links an attendee to a
+          // real contact — the import only had names out of a transcript.
+          attendees: attendees.length > 0 ? attendees : undefined,
+        }
+      ).catch((err: unknown) => {
+        console.error('[meeting-confirm] could not attach the meeting record:', err)
+        return { moved: false }
       })
-      if (filed && !filed.alreadyFiled) createdRecordIds.document_ids.push(filed.documentId)
+
+      // The transcript shows on the record's Meetings tab beside the minutes.
+      // Opportunity documents have no meeting_id column — see the helper.
+      if (home.kind === 'project') {
+        const filedNow = await findFiledTranscript(supabase, session.drive_file_id)
+        if (filedNow) await linkDocumentToMeeting(supabase, filedNow.documentId, meetingRow.id)
+      }
+    }
+  }
+
+  // ── 4d. The title becomes a filing key for the next call in the series ──────
+  //
+  // ⚠ LEARNED FROM THE HUMAN'S DECISION, NEVER FROM THE MATCHER'S OWN (§12: a
+  // matcher must never learn from its own matches — self-teaching compounds).
+  // This runs only on a confirm, which is a person saying "this call belongs
+  // here", and it is what makes a recurring deal call file itself from its
+  // second occurrence onward instead of waiting in the queue every time.
+  const learnFrom = targets.find((t) => t.kind === 'project' || t.kind === 'opportunity')
+  if (learnFrom) {
+    const titleForLearning = str(meeting.title) || session.label
+    if (titleForLearning) {
+      const learned = await learnMeetingTitles(
+        meetingTargetFromTitle(titleForLearning),
+        learnFrom.kind as 'project' | 'opportunity',
+        learnFrom.id
+      ).catch(() => [] as string[])
+      if (learned.length > 0) {
+        console.log(
+          `[meeting-confirm] learned meeting title(s) for ${learnFrom.kind} ${learnFrom.id}: ${learned.join(', ')}`
+        )
+      }
     }
   }
 

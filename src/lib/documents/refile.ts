@@ -79,10 +79,16 @@ export async function refileDocument(
   // it also makes the nightly Drive sync treat the file as owned elsewhere, so
   // it is never re-claimed as knowledge again.
   if (target.kind === 'project' || target.kind === 'steel_deal') {
+    // ⚠ `is_reference` IS CLEARED TOO, AND LEAVING IT SET WAS A REAL LEAK. The
+    // /intake page lists `is_reference = true` as the reference shelf, so a
+    // document moved onto a deal while still flagged would sit on the project
+    // AND on that shelf at once — present twice, owned once. It matters now
+    // that the Meet importer files every unmatched transcript as reference and
+    // the confirm step moves it: that is the common path, not an edge case.
     const patch =
       target.kind === 'project'
-        ? { project_id: target.id, steel_deal_id: null, is_company: false }
-        : { steel_deal_id: target.id, project_id: null, is_company: false }
+        ? { project_id: target.id, steel_deal_id: null, is_company: false, is_reference: false }
+        : { steel_deal_id: target.id, project_id: null, is_company: false, is_reference: false }
 
     const { error } = await supabase.from('documents').update(patch).eq('id', documentId)
     if (error) throw new Error(`could not re-file document: ${error.message}`)

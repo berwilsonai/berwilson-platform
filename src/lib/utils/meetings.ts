@@ -51,11 +51,18 @@ export function meetingKindLabel(value: string | null | undefined): string {
 
 // ─── Scope ───────────────────────────────────────────────────────────────────
 
-export type MeetingScope = 'company' | 'project' | 'opportunity'
+/**
+ * 'unfiled' is a real meeting on no record yet — a Meet transcript whose title
+ * named nothing the platform recognises. It is deliberately NOT 'company':
+ * /company/board selects scope='company' as the corporate record, and a
+ * brokerage call is not governance material. See the 20261008000003 migration.
+ */
+export type MeetingScope = 'company' | 'project' | 'opportunity' | 'unfiled'
 
 export function meetingScope(value: string | null | undefined): MeetingScope {
   if (value === 'company') return 'company'
   if (value === 'opportunity') return 'opportunity'
+  if (value === 'unfiled') return 'unfiled'
   return 'project'
 }
 

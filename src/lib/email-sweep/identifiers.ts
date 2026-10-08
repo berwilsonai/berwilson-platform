@@ -315,11 +315,26 @@ export interface RecordIdentifierRow {
   normalized: string
 }
 
-/** Every stored identifier, for one routing pass. */
+/**
+ * Every stored identifier the MAIL ROUTER may match on.
+ *
+ * ⚠ FILTERED TO parcel/party ON PURPOSE, and the filter is a security-shaped
+ * default rather than a convenience (§12: a filter belongs at the choke point).
+ * The router matches identifiers by CONTAINMENT in a thread's text, as a fact
+ * rather than a score — which is right for a parcel number and wrong for a
+ * learned meeting title: "Uintah Basin" appears in the body of mail about three
+ * different deals, and one coincidental mention would file that thread with
+ * certainty. Meeting titles are matched whole, by name, in
+ * {@link matchLearnedMeetingTitle} and nowhere else.
+ *
+ * An unfiltered `select` here is what a new identifier kind silently joins, so
+ * the kinds are named rather than excluded.
+ */
 export async function loadIdentifiers(): Promise<RecordIdentifierRow[]> {
   const { data, error } = await sweepDb()
     .from('record_identifiers')
     .select('record_kind, record_id, kind, value, normalized')
+    .in('kind', ['parcel', 'party'])
     .limit(5000)
   if (error) {
     console.error('[identifiers] could not load:', error.message)
@@ -395,4 +410,167 @@ export async function threadsMatchingIdentifiers(
     ((linked ?? []) as Array<{ thread_id: string }>).map((l) => l.thread_id)
   )
   return ids.filter((id) => !already.has(id))
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Meeting titles
+//
+// Executives title a recurring call after the deal — "Ber Wilson/TensorIQ/Elite
+// Solutions", "Ber Wilson/Tensor Discuss Uintah Basin" — and Meet stamps that
+// title onto the transcript file. It is the ONLY filing key the importer gets:
+// Drive exposes no conference id, and the body of a transcript names every deal
+// anyone mentioned.
+//
+// So the title is learned exactly like a parcel number. The first call of a
+// series is filed by a human; every later call with the same title files itself.
+// The three dangers are different from a parcel's, and each has a guard:
+//
+//   - A GENERIC title ("Weekly Sync", "Catch up") belongs to no deal, and
+//     learning one would file every future standup onto whatever record the
+//     first one happened to concern. GENERIC_MEETING_WORDS plus the
+//     identity-bearing-word floor is what refuses those.
+//   - OUR OWN NAME leads most of these titles, so NEVER_LEARN applies here too.
+//   - The MAIL ROUTER must not see these at all — see loadIdentifiers().
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Words a meeting title can be made entirely of while identifying nothing.
+ *
+ * Separate from the record-name stopwords in analyze-meeting.ts on purpose:
+ * these are the vocabulary of CALENDAR INVITATIONS, not of project names.
+ * "Review" and "Update" are in both lists for different reasons.
+ */
+const GENERIC_MEETING_WORDS = new Set([
+  'meeting', 'meet', 'call', 'sync', 'syncup', 'standup', 'huddle', 'checkin',
+  'check', 'in', 'catch', 'up', 'touch', 'base', 'weekly', 'daily', 'monthly',
+  'quarterly', 'biweekly', 'recurring', 'intro', 'introduction', 'kickoff',
+  'kick', 'off', 'discussion', 'discuss', 'review', 'update', 'updates',
+  'followup', 'follow', 'status', 'briefing', 'brief', 'chat', 'conversation',
+  'session', 'zoom', 'teams', 'google', 'notes', 'transcript', 'copy', 'draft',
+  'and', 'the', 'with', 'for', 'our', 'their', 'team', 'internal', 'external',
+  'new', 'old', 'next', 'last', 'morning', 'afternoon', 'am', 'pm',
+])
+
+/**
+ * A meeting title reduced to its comparison key, or null when it identifies
+ * nothing.
+ *
+ * ⚠ THE FLOOR IS "AT LEAST ONE WORD THAT IS NOT CALENDAR VOCABULARY", not a
+ * length. "Weekly Project Review Meeting" is 29 characters and names no deal;
+ * "Myton" is five and names one. A length rule gets both backwards.
+ */
+export function normalizeMeetingTitle(value: string): string | null {
+  const cleaned = value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+  if (cleaned.length < 4) return null
+
+  const words = cleaned.split(' ')
+  // A date or time left on the title by a stamping convention is not identity.
+  const identity = words.filter(
+    (w) => w.length >= 3 && !GENERIC_MEETING_WORDS.has(w) && !/^\d+$/.test(w)
+  )
+  if (identity.length === 0) return null
+  return cleaned
+}
+
+/**
+ * Record the title segments a filed meeting was identified by.
+ *
+ * Non-fatal throughout, for the same reason the thread version is: the filing
+ * has already succeeded, and a missing identifier costs only that the next call
+ * in the series needs the same click.
+ *
+ * `source_thread_id` is NULL here — see the migration. A meeting is not a Gmail
+ * thread and the column is an FK to one.
+ */
+export async function learnMeetingTitles(
+  segments: string[],
+  recordKind: LinkRecordKind,
+  recordId: string
+): Promise<string[]> {
+  if (!isIdentifierKind(recordKind)) return []
+
+  const rows = new Map<string, { value: string; normalized: string }>()
+  for (const raw of segments) {
+    const value = raw.trim()
+    if (!value) continue
+    const normalized = normalizeMeetingTitle(value)
+    if (!normalized || banned(normalized)) continue
+    if (!rows.has(normalized)) rows.set(normalized, { value, normalized })
+  }
+  if (rows.size === 0) return []
+
+  try {
+    const { error } = await sweepDb()
+      .from('record_identifiers')
+      .upsert(
+        [...rows.values()].map((r) => ({
+          record_kind: recordKind,
+          record_id: recordId,
+          kind: 'meeting_title',
+          value: r.value,
+          normalized: r.normalized,
+          source_thread_id: null,
+        })),
+        { onConflict: 'record_kind,record_id,kind,normalized', ignoreDuplicates: true }
+      )
+    if (error) {
+      console.error(`[identifiers] could not store meeting titles for ${recordKind} ${recordId}:`, error.message)
+      return []
+    }
+    return [...rows.values()].map((r) => r.value)
+  } catch (err) {
+    console.error('[identifiers] learn meeting titles failed:', err instanceof Error ? err.message : String(err))
+    return []
+  }
+}
+
+/**
+ * The record a meeting title was last filed onto, if exactly one.
+ *
+ * Matched on the WHOLE normalized segment, never by containment. A parcel number
+ * is matched by containment because it appears inside a sentence; a meeting
+ * title IS the field, so containment would only let "Uintah" file a call about
+ * "Uintah Basin Rail Crossing" onto the wrong deal.
+ *
+ * Two records sharing a learned title refuses outright — §12, ambiguity must
+ * mean no match. That is reachable in practice: one series of calls genuinely
+ * can get filed onto two deals by two different people.
+ */
+export async function matchLearnedMeetingTitle(
+  segments: string[]
+): Promise<{ kind: IdentifierRecordKind; id: string } | null | 'ambiguous'> {
+  const keys = segments
+    .map((s) => normalizeMeetingTitle(s))
+    .filter((k): k is string => !!k && !banned(k))
+  if (keys.length === 0) return null
+
+  const { data, error } = await sweepDb()
+    .from('record_identifiers')
+    .select('record_kind, record_id, normalized')
+    .eq('kind', 'meeting_title')
+    .in('normalized', keys)
+  if (error || !data) return null
+
+  const rows = data as unknown as Array<{
+    record_kind: IdentifierRecordKind
+    record_id: string
+    normalized: string
+  }>
+
+  // Candidates are tried in the caller's order — narrowest segment first — so a
+  // title that names both a programme and the deal inside it picks the deal.
+  for (const key of keys) {
+    const hits = rows.filter((r) => r.normalized === key)
+    const distinct = new Map(hits.map((h) => [`${h.record_kind}:${h.record_id}`, h]))
+    if (distinct.size === 1) {
+      const only = [...distinct.values()][0]
+      return { kind: only.record_kind, id: only.record_id }
+    }
+    if (distinct.size > 1) return 'ambiguous'
+  }
+  return null
 }

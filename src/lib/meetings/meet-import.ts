@@ -33,7 +33,8 @@ import {
 import { analyzeMeetingNotes, type SeedAttendee } from '@/lib/email-ingestion/analyze-meeting'
 import { SYSTEM_USER_ID } from '@/lib/email-ingestion/analyze'
 import { splitGeminiNotes } from '@/lib/meetings/gemini-notes'
-import { resolveMeetingTarget, fileMeetingDocument } from '@/lib/meetings/file-notes'
+import { resolveMeetingTarget, fileMeetingDocument, type FileTarget } from '@/lib/meetings/file-notes'
+import { upsertMeetingFromImport, linkDocumentToMeeting } from '@/lib/meetings/record'
 
 /**
  * How far back a first run reaches. A Drive with two years of calls would
@@ -68,8 +69,19 @@ export interface MeetImportResult {
   noMeetFolder: string[]
   /** Notes filed straight onto a project/opportunity named in the title. */
   filed: number
+  /**
+   * Filed on the REFERENCE shelf because the title named no record.
+   *
+   * These used to be counted as `unfiled` and filed nowhere at all — the
+   * transcript existed only in Drive, unsearchable and unquotable, until
+   * somebody worked the review queue. Measured on the live corpus: 3 of 5
+   * imported transcripts, including a call from the day before.
+   */
+  filedReference: number
   /** Imported but left for the reviewer to file — no confident title match. */
   unfiled: number
+  /** Meeting records created in `meetings`, which is what the agent reads. */
+  meetingsCreated: number
   notes: string[]
 }
 
@@ -189,7 +201,9 @@ export async function importMeetTranscripts(
     recordingsWithoutTranscript: 0,
     noMeetFolder: [],
     filed: 0,
+    filedReference: 0,
     unfiled: 0,
+    meetingsCreated: 0,
     notes: [],
   }
 
@@ -261,14 +275,16 @@ export async function importMeetTranscripts(
         return result
       }
       try {
-        const { outcome, filed, note } = await importOne(file, mailbox, events)
-        if (outcome === 'imported') {
+        const one = await importOne(file, mailbox, events)
+        if (one.outcome === 'imported') {
           result.imported++
-          if (filed) result.filed++
+          if (one.filed) result.filed++
+          else if (one.filedReference) result.filedReference++
           else result.unfiled++
-        } else if (outcome === 'too_short') result.tooShort++
+          if (one.meetingCreated) result.meetingsCreated++
+        } else if (one.outcome === 'too_short') result.tooShort++
         else result.alreadyImported++
-        if (note) result.notes.push(note)
+        if (one.note) result.notes.push(one.note)
         seen.add(file.id)
       } catch (err) {
         result.failed++
@@ -313,14 +329,36 @@ type Outcome = 'imported' | 'too_short' | 'duplicate'
 
 interface ImportOutcome {
   outcome: Outcome
-  /** True when the note was also filed onto a record straight away. */
+  /** True when the note was filed onto a project or opportunity. */
   filed: boolean
-  /** Why it was not filed, when that is worth saying out loud. */
+  /** True when it was filed on the reference shelf instead — searchable, unowned. */
+  filedReference: boolean
+  /** True when a row was created in `meetings`. */
+  meetingCreated: boolean
+  /** Why it was not filed on a record, when that is worth saying out loud. */
   note?: string
 }
 
-/** Pull one meeting note, seed it from its calendar event, stage it for review,
- *  and file the document itself if the title names a record unambiguously. */
+/**
+ * Pull one meeting note, seed it from its calendar event, stage it for review,
+ * file the verbatim transcript, and write the meeting record.
+ *
+ * ⚠ THE TRANSCRIPT IS ALWAYS FILED SOMEWHERE. It used to be filed only when the
+ * title matched a record name exactly, and the measurement is what forced the
+ * change: 3 of the 5 transcripts ever imported matched nothing and were
+ * therefore indexed nowhere — "Ber Wilson/Tensor Discuss Uintah Basin" names the
+ * deal by its GEOGRAPHY, which is simply how these calls get titled. Asked about
+ * that meeting the next morning, Ber AI had no passage to retrieve, and the only
+ * trace was one line in a cron log.
+ *
+ * A transcript you were in is evidence whether or not somebody typed the right
+ * words into a calendar invitation. So an unmatched one goes to the REFERENCE
+ * shelf — searchable and quotable immediately, and deliberately not company
+ * knowledge, because a company-scoped chunk is handed to assessFit() as
+ * "RELEVANT BER WILSON EVIDENCE" and a call about deals nobody chose to pursue
+ * must not be scoring future ones. Confirming the session moves it onto the
+ * record that was chosen, re-pointing its chunks rather than re-embedding them.
+ */
 async function importOne(
   file: DriveFile,
   mailbox: string,
@@ -339,7 +377,9 @@ async function importOne(
 
   // Measured against the RECAP, not the export: a long transcript with an empty
   // notes tab is still nothing for a reviewer to act on.
-  if (notes.length < MIN_TRANSCRIPT_CHARS) return { outcome: 'too_short', filed: false }
+  if (notes.length < MIN_TRANSCRIPT_CHARS) {
+    return { outcome: 'too_short', filed: false, filedReference: false, meetingCreated: false }
+  }
 
   const title = meetingTitleFromFileName(file.name)
   const event = matchCalendarEvent(title, events)
@@ -352,9 +392,17 @@ async function importOne(
 
   // Resolve the filing target from the title BEFORE staging, so the review
   // screen opens with it selected rather than making the reviewer find it.
-  const { target, ambiguous } = await resolveMeetingTarget(
-    meetingTargetFromTitle(title)
-  ).catch(() => ({ target: null, ambiguous: null }))
+  //
+  // `target` is strong enough to file on; `suggestion` is only strong enough to
+  // pre-tick. Both are handed to the review screen as the seed — the difference
+  // is what the IMPORTER acts on, never what the reviewer is shown.
+  const resolution = await resolveMeetingTarget(meetingTargetFromTitle(title)).catch(() => ({
+    target: null,
+    suggestion: null,
+    ambiguous: null,
+    via: null,
+  }))
+  const { target, suggestion, ambiguous, via } = resolution
 
   let result
   try {
@@ -365,7 +413,7 @@ async function importOne(
       userId: SYSTEM_USER_ID,
       seedAttendees,
       driveFileId: file.id,
-      seedTarget: target,
+      seedTarget: target ?? suggestion,
       // The recap goes to the model; the whole export is kept on the row, so a
       // meeting the reviewer has not filed yet still has its transcript.
       retainText: whole,
@@ -375,37 +423,83 @@ async function importOne(
     // same transcript twice. Losing that race is a no-op, not a failure.
     const msg = err instanceof Error ? err.message : String(err)
     if (msg.includes('email_intake_sessions_drive_file_id_key') || msg.includes('23505')) {
-      return { outcome: 'duplicate', filed: false }
+      return { outcome: 'duplicate', filed: false, filedReference: false, meetingCreated: false }
     }
     throw err
   }
 
-  if (!target) {
-    return {
-      outcome: 'imported',
-      filed: false,
-      note: ambiguous
-        ? `${title}: not filed — ${ambiguous}. Pick the record in the review queue.`
-        : `${title}: no record matches the title. Pick one in the review queue.`,
-    }
-  }
+  const extraction = result.extraction
 
-  // The document is the whole export, so the agent can quote the call verbatim.
-  const filedDoc = await fileMeetingDocument({
+  // ── The meeting becomes a record the agent can read ────────────────────────
+  //
+  // Not gated on a filing target. `scope='unfiled'` exists for exactly this: a
+  // real meeting that nobody has attached to a deal yet. Without the row,
+  // search_meetings cannot see the call at all — which is how a table meant to
+  // be the meeting register ended up holding 2 rows against 5 imports.
+  const meeting = await upsertMeetingFromImport({
+    title: extraction.title ?? title,
+    meetingDate: extraction.meeting_date ?? meetingDate,
+    summary: extraction.summary || null,
+    minutes: extraction.minutes,
+    decisions: extraction.decisions,
+    attendees: extraction.attendees,
+    transcript: whole,
+    driveFileId: file.id,
     target,
+  }).catch((err) => {
+    console.error('[meet-import] meeting record failed:', err)
+    return null
+  })
+
+  // ── The verbatim transcript, filed and indexed ─────────────────────────────
+  const fileTarget: FileTarget = target
+    ? { kind: target.kind, id: target.id, name: target.name }
+    : { kind: 'reference', id: 'reference', name: title }
+
+  const filedDoc = await fileMeetingDocument({
+    target: fileTarget,
     driveFileId: file.id,
     title,
     content: whole,
-    summary: result.extraction.summary ?? null,
+    summary: extraction.summary ?? null,
     meetingDate,
   }).catch((err) => {
     console.error('[meet-import] filing failed:', err)
     return null
   })
 
+  // The document shows on the record's Meetings tab beside its minutes. Only
+  // `documents` carries meeting_id, so an opportunity transcript is reached
+  // through the opportunity's own shelf instead — see linkDocumentToMeeting.
+  if (filedDoc && meeting && fileTarget.kind !== 'opportunity') {
+    await linkDocumentToMeeting(createAdminClient(), filedDoc.documentId, meeting.id)
+  }
+
+  const onRecord = Boolean(target && filedDoc)
+  const onReference = Boolean(!target && filedDoc)
+
+  // Say what happened and why, in the words a reader can act on. The predecessor
+  // of this message said only "no record matches the title", which read as the
+  // transcript having gone nowhere — and until now it had.
+  let note: string | undefined
+  if (!filedDoc) {
+    note = `${title}: staged, but the transcript could not be filed.`
+  } else if (!target) {
+    const because = ambiguous
+      ? `${ambiguous}`
+      : suggestion
+        ? `closest is ${suggestion.name}, which is a suggestion rather than a match`
+        : 'the title names no record'
+    note = `${title}: filed as reference and searchable now — ${because}. Confirm it in the review queue to move it onto the deal.`
+  } else if (via === 'learned_title') {
+    note = `${title}: filed on ${target.name} from a title you filed before.`
+  }
+
   return {
     outcome: 'imported',
-    filed: Boolean(filedDoc),
-    note: filedDoc ? undefined : `${title}: staged, but the document could not be filed.`,
+    filed: onRecord,
+    filedReference: onReference,
+    meetingCreated: Boolean(meeting?.created),
+    note,
   }
 }

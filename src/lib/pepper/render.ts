@@ -188,7 +188,12 @@ export function renderNoteInput(n: PepperNote): string {
   if (n.decide.total > 0) {
     parts.push('')
     parts.push(
-      `DECIDE QUEUE: ${n.decide.total} items awaiting a human — ${n.decide.intake} staged from correspondence, ${n.decide.leads} inbound bids, ${n.decide.review} low-confidence extractions.`
+      `DECIDE QUEUE: ${n.decide.total} items awaiting a human — ${n.decide.intake} staged from correspondence, ${n.decide.leads} inbound bids, ${n.decide.review} low-confidence extractions` +
+        // Named only when there are any: a standing "0 recorded meetings" in
+        // every morning note is noise that teaches the reader to skip the line.
+        (n.decide.meetings > 0
+          ? `, ${n.decide.meetings} recorded meeting${n.decide.meetings === 1 ? '' : 's'} not yet filed onto a deal.`
+          : '.')
     )
     for (const line of n.decide.top) parts.push(`- ${line}`)
   }
@@ -196,7 +201,10 @@ export function renderNoteInput(n: PepperNote): string {
   const o = n.overnight
   parts.push('')
   parts.push(
-    `WHAT THE PLATFORM DID ${n.sinceLabel.toUpperCase()}: filed ${o.threadsFiled} new threads, found ${o.commitmentsFound} new commitments, filed ${o.documentsFiled} documents, scored ${o.leadsScored} inbound leads.`
+    `WHAT THE PLATFORM DID ${n.sinceLabel.toUpperCase()}: filed ${o.threadsFiled} new threads, found ${o.commitmentsFound} new commitments, filed ${o.documentsFiled} documents, scored ${o.leadsScored} inbound leads` +
+      (o.meetingsImported > 0
+        ? `, and read ${o.meetingsImported} recorded meeting${o.meetingsImported === 1 ? '' : 's'}.`
+        : '.')
   )
 
   if (n.notes.length > 0) {

@@ -152,6 +152,52 @@ export default async function DecidePage() {
   for (const s of sessions ?? []) {
     const pre = readPredecision(s.predecision)
     if (pre?.disposition === 'dismiss') continue // auto-handled or low value
+
+    // ⚠ A MEETING IS NOT A PIECE OF CORRESPONDENCE, AND THIS ROW TREATED IT AS
+    // ONE. `intake_kind` was already selected here and never read, so all five
+    // staged Meet transcripts rendered as "Staged correspondence", linked to
+    // /email-ingestion/<id> — the EMAIL reviewer — and were handed to
+    // buildConfirmBody, which reads an EmailIntakeExtraction out of a meeting
+    // extraction that has no such shape. A meeting's reviewer is
+    // /intake/meeting/<id> and its confirm route is a different one entirely.
+    //
+    // It also gets the boost: a call from yesterday has no deadline to rank on
+    // and sank beneath 115 older email packages. See MEETING_BOOST.
+    if (s.intake_kind === 'meeting') {
+      const extraction = (s.extraction_result ?? {}) as Record<string, unknown>
+      const when = typeof extraction.meeting_date === 'string' ? extraction.meeting_date : null
+      const attendees = Array.isArray(extraction.attendees) ? extraction.attendees.length : 0
+      const tasks = Array.isArray(extraction.tasks) ? extraction.tasks.length : 0
+      items.push({
+        id: s.id,
+        kind: 'intake',
+        title: s.label || 'Recorded meeting',
+        // Says what confirming it will DO, which is the decision being asked.
+        subtitle: [
+          when,
+          attendees > 0 ? `${attendees} attendee${attendees === 1 ? '' : 's'}` : null,
+          tasks > 0 ? `${tasks} follow-up${tasks === 1 ? '' : 's'}` : null,
+        ]
+          .filter(Boolean)
+          .join(' · ') || null,
+        href: `/intake/meeting/${s.id}`,
+        verdict: null,
+        score: null,
+        // The meeting's own summary, not the email predecide's headline — it is
+        // the richer sentence and it is about the right thing.
+        note: typeof extraction.summary === 'string' ? extraction.summary : null,
+        deadline: null,
+        // The DATE, not a boost computed here: the client already captures one
+        // clock reading at mount, and reading Date.now() in a server component
+        // is the react-hooks/purity misfire §9 records. See meetingBoost.
+        occurredAt: when,
+        // Never accepted from the list. Filing a meeting is choosing which deal
+        // it belongs to, which is a judgement with a screen of its own.
+        accept: null,
+      })
+      continue
+    }
+
     const fit = (s.fit_assessment ?? {}) as Record<string, unknown>
     const score = Number(fit.fit_score)
     // Derived here rather than in the browser: the draft is built from the full

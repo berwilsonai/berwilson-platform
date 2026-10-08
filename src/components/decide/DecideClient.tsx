@@ -6,7 +6,7 @@ import { toast } from 'sonner'
 import { Radar, Inbox, ClipboardCheck, FileText, ArrowRight, X, Loader2, Check, CheckCheck, Calculator} from 'lucide-react'
 import { Panel } from '@/components/ui/card'
 import EmptyState from '@/components/shared/EmptyState'
-import { decideWeight, daysUntil } from '@/lib/decide/rank'
+import { decideWeight, daysUntil, meetingBoost } from '@/lib/decide/rank'
 import { enumLabel, formatValue, formatDate } from '@/lib/utils/constants'
 import { SECTOR_LABELS } from '@/lib/utils/sectors'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
@@ -36,6 +36,13 @@ export interface DecideItem {
   score: number | null
   note: string | null
   deadline: string | null
+  /**
+   * When the thing HAPPENED, for a kind that is time-sensitive without having a
+   * deadline — today only a staged meeting. The ranking lift is derived from it
+   * at render time, beside the deadline, off the one clock reading this
+   * component captures. See meetingBoost.
+   */
+  occurredAt?: string | null
   /**
    * The facts the decision actually turns on.
    *
@@ -379,6 +386,9 @@ export default function DecideClient({ items }: { items: DecideItem[] }) {
           daysLeft: daysUntil(i.deadline, now),
           // Money breaks ties inside a band — see decideWeight.
           value: i.facts?.value ?? null,
+          // A staged meeting has no deadline; its lift comes from how recent it
+          // is, so the call from yesterday leads the ones from last week.
+          boost: i.occurredAt ? meetingBoost(i.occurredAt, now) : undefined,
         }))
         .sort((a, b) => decideWeight(b) - decideWeight(a)),
     [items, now]

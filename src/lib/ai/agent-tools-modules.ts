@@ -15,6 +15,7 @@
  */
 
 import { createAdminClient } from '@/lib/supabase/admin'
+import { textWindow } from '@/lib/ai/text-window'
 import { orIlike, orIlikeAnyWord, filterWords } from '@/lib/utils/postgrest'
 import { searchCorrespondence, extractPortalLinks } from './thread-embeddings'
 // The sweep tables post-date the last type generation (gen-types is disabled
@@ -146,10 +147,22 @@ export const moduleTools = [
   {
     name: 'get_meeting_content',
     description:
-      'Fetch one meeting in full — attendees, summary, decisions, and the complete minutes or transcript text. Use after search_meetings identifies the meeting you need to quote.',
+      'Fetch one meeting — attendees, summary, decisions, and its minutes or verbatim transcript. Long transcripts return ONE WINDOW at a time: follow next_offset, or pass find:"<phrase>" to jump straight to where something was said. Use after search_meetings identifies the meeting you need to quote.',
     parameters: {
       type: 'object',
-      properties: { meeting_id: { type: 'string', description: 'UUID of the meeting.' } },
+      properties: {
+        meeting_id: { type: 'string', description: 'UUID of the meeting.' },
+        offset: {
+          type: 'number',
+          description:
+            'Character offset to start reading from (default 0). Use next_offset from a truncated result to read the following window.',
+        },
+        find: {
+          type: 'string',
+          description:
+            'Jump to the window containing this phrase — the fastest way to find what one person said in a long call.',
+        },
+      },
       required: ['meeting_id'],
     },
   },
@@ -814,7 +827,23 @@ export async function executeModuleTool(
         }
       }
 
-      const body = data.minutes ?? data.transcript ?? ''
+      // ⚠ THE VERBATIM IS PREFERRED WHEN A PHRASE IS BEING HUNTED. `minutes` is a
+      // recap — it is the right thing to read for "what was this call about" and
+      // the wrong thing for "who agreed to the November deadline", because a
+      // recap does not contain the sentence. So a `find` searches the transcript
+      // when there is one, and falls back to the minutes.
+      const find = typeof args.find === 'string' ? args.find.trim() : ''
+      const minutes = data.minutes ?? ''
+      const verbatim = data.transcript ?? ''
+      const preferVerbatim = Boolean(find && verbatim)
+      const body = preferVerbatim ? verbatim : minutes || verbatim
+      const source = body === verbatim && verbatim ? 'transcript' : body ? 'minutes' : null
+
+      // One window at a time, with a way to ask for the next one. Before this,
+      // the Meet importer's 83,408-character exports came back as a flat 20,000
+      // with `truncated: true` and nothing to follow (§12).
+      const win = textWindow(body, args)
+
       return {
         id: data.id,
         title: data.title,
@@ -828,9 +857,27 @@ export async function executeModuleTool(
         summary: data.summary,
         decisions: data.decisions,
         status: data.status,
-        content: body.slice(0, 20000) || null,
-        truncated: body.length > 20000,
-        source: data.minutes ? 'minutes' : data.transcript ? 'transcript' : null,
+        content: win.text,
+        source,
+        ...(win.window ? { window: win.window, truncated: win.truncated } : {}),
+        ...(win.next_offset !== undefined ? { next_offset: win.next_offset } : {}),
+        ...(win.found !== undefined ? { found: win.found } : {}),
+        ...(win.found_note ? { found_note: win.found_note } : {}),
+        // A verbatim transcript sitting unread behind a recap is the thing the
+        // agent cannot know to ask for, so it is announced.
+        ...(verbatim && body !== verbatim
+          ? {
+              transcript_available: true,
+              transcript_chars: verbatim.length,
+              transcript_note:
+                'A verbatim transcript is on file. Pass find:"<phrase>" to read what was actually said rather than the recap.',
+            }
+          : {}),
+        ...(!body
+          ? {
+              note: 'This meeting record carries neither minutes nor a transcript — only the fields above. Do not re-fetch it; report it as a gap.',
+            }
+          : {}),
       }
     }
 

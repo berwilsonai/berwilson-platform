@@ -76,6 +76,17 @@ export interface OvernightWork {
   commitmentsFound: number
   documentsFiled: number
   leadsScored: number
+  /**
+   * Meet transcripts read, summarized and staged since the note last ran.
+   *
+   * ⚠ NOTHING ANYWHERE SAID THIS HAD HAPPENED. The Tensor call of 2026-10-07
+   * was imported at 16:22, extracted well — eight follow-ups, the attendees
+   * with their emails, the capacity and the priority ranking — and then sat in
+   * a 120-row queue with no line in any note. A pass whose failure mode is
+   * doing nothing needs a coverage signal (§12), and its SUCCESS deserves one
+   * too when the next step is a human's.
+   */
+  meetingsImported: number
 }
 
 export interface PepperNote {
@@ -239,9 +250,10 @@ async function assembleOvernight(sinceIso: string): Promise<OvernightWork> {
     commitmentsFound: 0,
     documentsFiled: 0,
     leadsScored: 0,
+    meetingsImported: 0,
   }
   try {
-    const [threads, commitments, documents, leads] = await Promise.all([
+    const [threads, commitments, documents, leads, meetings] = await Promise.all([
       sweep
         .from('email_threads')
         .select('id', { count: 'exact', head: true })
@@ -259,12 +271,21 @@ async function assembleOvernight(sinceIso: string): Promise<OvernightWork> {
         .select('id', { count: 'exact', head: true })
         .gte('created_at', sinceIso)
         .not('status', 'in', '("spam")'),
+      // Counted off `meetings` rather than off the intake sessions: the row in
+      // `meetings` is the thing the agent can now read, so counting it is
+      // counting what actually became available.
+      supabase
+        .from('meetings')
+        .select('id', { count: 'exact', head: true })
+        .not('drive_file_id', 'is', null)
+        .gte('created_at', sinceIso),
     ])
     return {
       threadsFiled: threads.count ?? 0,
       commitmentsFound: commitments.count ?? 0,
       documentsFiled: documents.count ?? 0,
       leadsScored: leads.count ?? 0,
+      meetingsImported: meetings.count ?? 0,
     }
   } catch {
     // A missing count costs one line of the note, never the note.

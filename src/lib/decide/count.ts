@@ -13,7 +13,7 @@
  */
 import { createAdminClient } from '@/lib/supabase/admin'
 import { leadsDb } from '@/lib/leads/db'
-import { decideWeight, daysUntil } from '@/lib/decide/rank'
+import { decideWeight, daysUntil, meetingBoost } from '@/lib/decide/rank'
 import {
   countMisfiledCompanyDocuments,
   findMisfiledCompanyDocuments,
@@ -66,6 +66,14 @@ export interface DecideSummary {
   total: number
   leads: number
   intake: number
+  /**
+   * Recorded meetings staged and not yet filed onto a deal.
+   *
+   * Counted apart from `intake` because the sentence that reported them
+   * together called them "staged from correspondence", and a call one of the
+   * executives personally sat in is not correspondence.
+   */
+  meetings: number
   review: number
   /** Company documents that belong on a deal, or are not documents at all. */
   documents: number
@@ -91,12 +99,14 @@ export interface DecideSummary {
  */
 export async function summarizeDecideQueue(now = Date.now()): Promise<DecideSummary> {
   const supabase = createAdminClient()
-  const empty: DecideSummary = { total: 0, leads: 0, intake: 0, review: 0, documents: 0, economics: 0, top: [] }
+  const empty: DecideSummary = {
+    total: 0, leads: 0, intake: 0, meetings: 0, review: 0, documents: 0, economics: 0, top: [],
+  }
   try {
     const [intake, leads, review, unfiledDocs, economicsGroups] = await Promise.all([
       supabase
         .from('email_intake_sessions')
-        .select('id, label, predecision, fit_assessment')
+        .select('id, label, predecision, fit_assessment, intake_kind, extraction_result')
         .eq('status', 'pending')
         .limit(200),
       leadsDb()
@@ -113,7 +123,13 @@ export async function summarizeDecideQueue(now = Date.now()): Promise<DecideSumm
       pendingProposalGroups().catch(() => []),
     ])
 
-    const rows: Array<{ line: string; daysLeft: number | null; verdict: string | null; score: number | null }> = []
+    const rows: Array<{
+      line: string
+      daysLeft: number | null
+      verdict: string | null
+      score: number | null
+      boost?: number
+    }> = []
 
     for (const raw of (leads.data ?? []) as Array<Record<string, unknown>>) {
       const days = daysUntil((raw.bid_due_date as string) ?? null, now)
@@ -136,6 +152,30 @@ export async function summarizeDecideQueue(now = Date.now()): Promise<DecideSumm
     for (const s of intake.data ?? []) {
       const pre = (s.predecision ?? {}) as Record<string, unknown>
       if (pre.disposition === 'dismiss') continue
+
+      // ⚠ A RECORDED MEETING GETS ITS OWN SENTENCE. Reading as "Staged
+      // correspondence" made a call Richard had personally sat in look like one
+      // more scraped email thread — and with 115 email packages pending, the
+      // ranking never surfaced it at all. The Tensor call of 2026-10-07 was
+      // imported, summarized, and never mentioned to anybody.
+      if (s.intake_kind === 'meeting') {
+        const extraction = (s.extraction_result ?? {}) as Record<string, unknown>
+        const when = typeof extraction.meeting_date === 'string' ? extraction.meeting_date : null
+        const tasks = Array.isArray(extraction.tasks) ? extraction.tasks.length : 0
+        rows.push({
+          line:
+            `Meeting to file: ${s.label || 'Recorded meeting'}` +
+            (when ? ` (${when})` : '') +
+            (tasks > 0 ? ` — ${tasks} follow-up${tasks === 1 ? '' : 's'} waiting on a record` : ''),
+          daysLeft: null,
+          verdict: null,
+          score: null,
+          // Freshest first among the meetings — see meetingBoost.
+          boost: meetingBoost(when, now),
+        })
+        continue
+      }
+
       const fit = (s.fit_assessment ?? {}) as Record<string, unknown>
       const score = Number(fit.fit_score)
       const headline = typeof pre.headline === 'string' && pre.headline ? ` — ${pre.headline}` : ''
@@ -174,15 +214,21 @@ export async function summarizeDecideQueue(now = Date.now()): Promise<DecideSumm
 
     rows.sort((a, b) => decideWeight(b) - decideWeight(a))
 
-    const intakeCount = (intake.data ?? []).length
+    const sessions = intake.data ?? []
+    // Split, never double-counted: the two together must still equal what
+    // countDecideItems() counts in one query, or the badge and the brief report
+    // different sizes for one queue (§12 — one quantity, one definition).
+    const meetingCount = sessions.filter((s) => s.intake_kind === 'meeting').length
+    const intakeCount = sessions.length - meetingCount
     const leadCount = (leads.data ?? []).length
     const reviewCount = review.count ?? 0
     const documentCount = unfiledDocs.length
     const economicsCount = economicsGroups.length
     return {
-      total: intakeCount + leadCount + reviewCount + documentCount + economicsCount,
+      total: intakeCount + meetingCount + leadCount + reviewCount + documentCount + economicsCount,
       leads: leadCount,
       intake: intakeCount,
+      meetings: meetingCount,
       review: reviewCount,
       documents: documentCount,
       economics: economicsCount,

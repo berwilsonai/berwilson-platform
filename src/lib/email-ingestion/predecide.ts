@@ -141,6 +141,17 @@ export async function predecidePendingSessions(
       .from('email_intake_sessions')
       .select('id, label, raw_text, extraction_result, match_candidates, fit_assessment')
       .eq('status', 'pending')
+      // ⚠ EMAIL SESSIONS ONLY, AND IT WAS JUDGING MEETINGS TOO. This pass reads
+      // an EmailIntakeExtraction and answers create / merge / dismiss. A meeting
+      // extraction has none of that shape — attendees and referenced_records,
+      // not projects and parties — so the verdict was being formed from fields
+      // that were not there. Measured on the live queue: all five staged Meet
+      // transcripts carried `disposition: 'create'`, and two older ones were
+      // AUTO-DISMISSED by this pass, which is a call about a recorded meeting
+      // that no human ever made. A meeting has its own reviewer, its own confirm
+      // route and its own AI recap; it does not need a second opinion from an
+      // email-shaped judge.
+      .eq('intake_kind', 'email')
       // Undecided, or decided by a prompt that no longer exists. A verdict is
       // only as good as the rules that produced it: when those change the old
       // answers are stale, and leaving them would mean a sharpened prompt never
