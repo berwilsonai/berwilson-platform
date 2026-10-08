@@ -11,7 +11,75 @@ Split out of `CLAUDE.md` on 2026-09-23, when that file reached 606k characters a
 - A block of **2026-08-23 → 2026-08-31** entries sits *after* the June entries, near the end of the file.
 - One **2026-07-03** entry ("migrations applied + pursuit profile seeded") is last in the file.
 
-148 entries, 2026-06-22 → 2026-10-08. ⚠ Counted with `grep -c "^\*\*Done 2026"`, not incremented by hand: two sessions editing this file on 2026-10-08 each bumped the old figure by one and both landed on 146 against a real 148.
+149 entries, 2026-06-22 → 2026-10-08. ⚠ Counted with `grep -c "^\*\*Done 2026"`, not incremented by hand: two sessions editing this file on 2026-10-08 each bumped the old figure by one and both landed on 146 against a real 148.
+
+**Done 2026-10-08 (a working deduper with no door, and four copies of one database client):**
+
+Richard's ask: *"Is there anything overly complex or redundant that can be simplified? I want to automate and make this platform as simple as possible."*
+
+Surveyed first, because the premise is usually wrong (09-22/09-23). **The repo is tight at the file level** — a resolver over every `@/…` and relative import found exactly **two modules in 871 that nothing imports**, and 55 of the 56 documented env vars are read by something. So the redundancy was not loose files; it was four copies of one function, two dead features, and one live feature with no way to reach it.
+
+---
+
+⚠ **THE INTAKE DEDUPER HAD NEVER BEEN WIRED TO ANYTHING, AND THE QUEUE IT WAS BUILT FOR IS NOW 114 PROPOSALS LONG.** `dedupePendingSessions` was written 2026-09-14, measured on the live backlog (104 proposals → 59 groups, 0 duplicates, 0 invalid), and then **fixed twice** — b283a13 restored 93k characters a cap had been eating, fbe7190 built it — without ever once being imported. `git log -S` over the whole history finds no caller and no removed caller: it ran from a scratch script that was never committed, so from inside the app there was no door at all. Two bug-fix commits spent on code nothing could call.
+
+Measured today, which is what settled it:
+
+| | |
+|---|---|
+| `email_intake_sessions` pending | **120** (109 email/`create`, 6 email/`merge`, 5 meeting) |
+| proposals naming Steelton | **10** |
+| proposals naming Myton | **6** |
+| proposals naming Zenthium | **5** |
+| separate MNDA/LOI proposals | **~8** |
+
+Confirming those as they stand creates ten Steelton projects — the precise outcome the pass exists to prevent, and one the existing merge check cannot see, because it compares a proposal against records that ALREADY EXIST and none of these deals is in the CRM yet.
+
+So it has a door: `POST /api/email-ingestion/dedupe` (admin-gated) and a card on `/intake`. **Two presses on purpose** — the first only plans and changes nothing, applying is a second deliberate press — because dedupe.ts says at the point it validates that a wrong merge is the one outcome here with no undo, and by the time a human sees the survivor it is an ordinary proposal that looks like it always covered the whole deal. **Deliberately not a sweep phase** for the same reason: the grouping is something a person asks for and reads, never something that happens overnight.
+
+**Live dry runs on the real backlog**, before and after the kind filter below: **114 candidates → 30 folded into 6 deals**, then **109 → 21 folded into 11**. Zero failed, zero invalid ordinals, zero held back on either.
+
+⚠ **THE TWO RUNS DISAGREE, AND THAT IS WHY IT PLANS BEFORE IT ACTS.** Same prompt, same corpus minus five rows, and the grouping came back 6 groups of ~5 one time and 11 groups of ~2 the next — the model is reading summaries and is not deterministic about how coarse a programme is. Both answers are defensible and neither is a number to quote in advance, so the figure on screen is always from the run that just happened, and the apply press re-groups rather than replaying the plan. A single fire-and-forget pass would have folded a different queue each night with nobody able to say which.
+
+⚠ **AND GIVING IT A DOOR IMMEDIATELY EXPOSED A DEFECT THAT WAS HARMLESS WHILE IT HAD NONE: THE PASS READ EVERY `intake_kind`.** It selected `status = 'pending' AND predecision->>disposition = 'create'` and nothing more, so the first dry run read **114 candidates where only 109 are email** — the other five being exactly the staged Meet recordings sitting in §13's open items. The survivor of a group is re-analysed by `analyzeEmailReport`, which writes the EMAIL extraction shape onto the row: folding a meeting session would have rewritten it into something `/intake/meeting/[id]` and the meeting confirm route cannot read, and dismissing one would have discarded the transcript filing and the `meetings` row that confirming it produces. **This is the same defect this morning's session found in `predecide`** — `status = 'pending'` with no `intake_kind` filter, which had auto-dismissed two recorded meetings. Twice in one day on one table.
+
+---
+
+⚠ **FOUR BYTE-IDENTICAL COPIES OF ONE DATABASE CLIENT, PLUS A FIFTH HALF-COPY — NINE FUNCTION BODIES FOR ONE BEHAVIOUR.** `calcDb/calcDbAs`, `govDb/govDbAs`, `leadsDb/leadsDbAs`, `spvDb/spvDbAs` and `sweepDb` each re-declared the service-role connection and the `x-actor-id` / `x-actor-email` header block. Every one of them was a copy of `createAdminClient(actor?)` **with the generic deleted** — that is the entire difference, and the whole reason the copies exist. It is the five-copies-of-`formatValue` and twenty-nine-copies-of-`inputClass` pattern §12 already condemns by name, arrived at honestly: each module needed an untyped client, none existed, so each wrote one.
+
+`adminOptions(actor?)` now holds the connection and the attribution contract once, and `createUntypedAdminClient()` is `createAdminClient()` without the generic. All nine named aliases survive as one-liners, so the §4 convention and every call site are untouched — but the URL a tailnet move rewrites and the header names `log_activity` reads now live in one place. **−76 lines.**
+
+---
+
+⚠ **`analyze-meeting.ts` CAPPED A LOCAL-MODEL CALL AT THE GEMINI COST GUARD — 200,000 CHARACTERS AGAINST A REAL CEILING OF 40,000.** `MAX_CHARS` was marked `@deprecated Use maxInputChars() — the cap now depends on the active provider` and still had three live call sites, all of them in the meeting path. The mismatch was already written down: `gemini-notes.ts` says in a comment that it feeds the ~10KB recap because the export is 60-80KB and *"LOCAL_MAX_CHARS, 40k, is lower than the MAX_CHARS guard that analyze-meeting.ts checks against"*. So the Meet IMPORT path was safe by workaround, and the **paste** path at `/intake?tab=meeting` — the one whose own instructions say *"paste the notes or transcript"* — was fed five times what the model can hold. Three sites now read `maxInputChars()`; `MAX_CHARS` is deleted, which is the only way a deprecated duplicate stops being chosen.
+
+---
+
+⚠ **`src/lib/leads/calendar.ts` WAS REPLACED 2026-09-21 AND LEFT ON DISK, AND ITS ENV VAR WAS DOCUMENTED AS A LIVE CONTROL.** a0fccd5 swapped the `'calendar'` phase for `'tasks'` — `syncLeadTasks` where `syncLeadDeadlines` had been — and the module stayed, 127 lines, imported by nothing. §7 carried `LEAD_CALENDAR_SYNC= # optional; "off" stops writing lead bid/site-visit deadlines to Google Calendar. Unset = sync ON`, which was true of no code. **A documented control that controls nothing is worse than an undocumented one**: it answers a question wrongly for anyone who reads it. Deleted, both halves. A sweep of all 55 documented vars found no others — only `SUPABASE_DB_URL`, which §4 already flags as aspirational.
+
+---
+
+⚠ **THE MONDAY TASK DIGEST WAS SENDING THE SAME TWO BUCKETS PEPPER SENDS, TEN MINUTES LATER, TO THE SAME ROSTER.** Both read `fetchTasksForDigest` — whose own comment says *"this function exists only to build the digests that go out by EMAIL — Pepper's morning note and the per-member task digest"* — and both split it into overdue and due-in-7-days per `team_members.active` member with an email. Pepper's route header names the digest as the thing it was built to replace: *"the only per-person channel the platform has ever had is the Monday task digest"*. It replaced it and the digest kept running.
+
+The one thing the digest had that prose does not is the list itself, so **the list moved into Pepper and the digest went**: route, `src/lib/notify/task-digest.ts`, the plist, the middleware allowlist entry, the `deploy-to-studio.sh` line, and the loaded launchd agent (17 agents → 16). The itemised table now sits under the note five mornings a week instead of one, uncapped — the prose above it is held under 300 words and its commitment sections capped at a dozen, because a model asked to narrate ninety obligations writes something nobody acts on, but **a list is scanned rather than read, and a task the note silently omitted is a task that does not get done.** Banded rather than all-red (§12): overdue red, due-today amber, the rest plain.
+
+⚠ **AND THE HEALTH PAGE WAS WATCHING THE RETIRED CHANNEL.** Its only per-person check read `notification_log` for `kind = 'task_digest'` and reported *"Sending on schedule to members with tasks due"*; **nothing anywhere watched `pepper_note`**, the channel that actually runs. Repointed, with a 4-day staleness threshold — the note is weekdays only, so a Monday reading is three days after the Friday send with nothing wrong — and wording that names the ambiguity, because Pepper is deliberately quiet for anyone with an empty note.
+
+---
+
+**Measurements and verification.**
+
+- **−504 / +212 lines across 21 files**, three modules deleted outright.
+- `npx tsc --noEmit` clean after every step.
+- `npx eslint`: **19 problems (13 errors, 6 warnings)** — identical to the §9 baseline recounted 2026-10-05. Nothing added.
+- Orphan sweep re-run: the two dead modules were the only ones, and both are gone or wired.
+- `renderNoteEmail` rendered against sample tasks: red `12d overdue`, amber `due today`, plain future date, `Hill AFB <Phase 2>` escaped to `&lt;Phase 2&gt;`, both buttons present.
+- `lms ps` before the long calls: one copy of `qwen/qwen3.6-35b-a3b`, context 131072, parallel 1, embedder loaded — the documented configuration, checked first rather than after (§12).
+- ⚠ **The build was HELD, not skipped, while the dry run held the model**: `vm_stat` read **88 MB free with swap at 25.7 of 26.6 GB**. That is the 09-14 rule — do not run a backfill and a deploy at the same time on this box — and 20.8 GB of the swap was `llama-server`.
+
+**Not done, and why.** CLAUDE.md is **135,263 characters** after this session, §12 **60,360 of them (45%)**, leaving ~14.7k against the 150k truncation limit. The file's own closing instruction is that the next session to open it should prune §12 before building anything, and that retiring a hard-won rule is Richard's call rather than a session's. So this session added **no new §12 bullet** — the `intake_kind` finding extends the existing "never fork a shared pass per table" line instead of sitting beside it, and everything else above is a finding and lives here.
+
+---
 
 **Done 2026-10-08 (a recorded meeting becomes a record, and its transcript is always readable):**
 

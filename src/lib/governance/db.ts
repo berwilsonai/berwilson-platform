@@ -13,14 +13,10 @@
  * builds, deploys — and cannot be imported by any verification script.
  */
 
-import { createClient } from '@supabase/supabase-js'
+import { createUntypedAdminClient } from '@/lib/supabase/admin'
 
 export function govDb() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { autoRefreshToken: false, persistSession: false } }
-  )
+  return createUntypedAdminClient()
 }
 
 /**
@@ -34,16 +30,7 @@ export function govDb() {
  * purpose is saying who decided.
  */
 export function govDbAs(actor: { id: string; email?: string | null }) {
-  const headers: Record<string, string> = { 'x-actor-id': actor.id }
-  if (actor.email) headers['x-actor-email'] = actor.email
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    {
-      auth: { autoRefreshToken: false, persistSession: false },
-      global: { headers },
-    }
-  )
+  return createUntypedAdminClient(actor)
 }
 
 // ─── Personnel ───────────────────────────────────────────────────────────────

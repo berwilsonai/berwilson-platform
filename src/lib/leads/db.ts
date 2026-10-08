@@ -9,15 +9,11 @@
  * deliberately untyped client and carries the contract in the row types below.
  */
 
-import { createClient } from '@supabase/supabase-js'
+import { createUntypedAdminClient } from '@/lib/supabase/admin'
 import type { LeadRoute } from '@/lib/ai/prompts/lead-triage'
 
 export function leadsDb() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { autoRefreshToken: false, persistSession: false } }
-  )
+  return createUntypedAdminClient()
 }
 
 /**
@@ -31,16 +27,7 @@ export function leadsDb() {
  * recorded as "system" (§12).
  */
 export function leadsDbAs(actor: { id: string; email?: string | null }) {
-  const headers: Record<string, string> = { 'x-actor-id': actor.id }
-  if (actor.email) headers['x-actor-email'] = actor.email
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    {
-      auth: { autoRefreshToken: false, persistSession: false },
-      global: { headers },
-    }
-  )
+  return createUntypedAdminClient(actor)
 }
 
 export type LeadStatus =

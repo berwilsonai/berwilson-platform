@@ -105,10 +105,21 @@ export async function dedupePendingSessions(
 
   // Only proposals to CREATE. A 'merge' already points at an existing record and
   // a 'dismiss' is on its way out; neither is ours to consolidate.
+  //
+  // ⚠ AND ONLY `email` SESSIONS. `email_intake_sessions` is shared by five
+  // intake kinds, and the survivor here is re-analysed by `analyzeEmailReport`
+  // — which writes the EMAIL extraction shape into it. Folding a `meeting`
+  // session would rewrite it into something /intake/meeting/[id] and the
+  // meeting confirm route cannot read, and dismissing one would discard the
+  // transcript filing and the `meetings` row that confirming it produces.
+  // Harmless while this pass had no caller; a live hazard the moment it did —
+  // the first dry run with a door on it read 114 candidates where only 109 were
+  // email, the other 5 being exactly the staged Meet recordings.
   const { data, error } = await supabase
     .from('email_intake_sessions')
     .select('id, label, raw_text, extraction_result, created_at')
     .eq('status', 'pending')
+    .eq('intake_kind', 'email')
     .eq('predecision->>disposition', 'create')
     .order('created_at', { ascending: false })
     .limit(MAX_ENTRIES)

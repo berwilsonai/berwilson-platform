@@ -12,14 +12,10 @@
  * types are regenerated this file can collapse into createAdminClient().
  */
 
-import { createClient } from '@supabase/supabase-js'
+import { createUntypedAdminClient } from '@/lib/supabase/admin'
 
 export function sweepDb() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { autoRefreshToken: false, persistSession: false } }
-  )
+  return createUntypedAdminClient()
 }
 
 /**

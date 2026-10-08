@@ -11,7 +11,7 @@ import {
   type ExtractedProject,
   type PartyMatch,
 } from '@/lib/ai/proposal-matching'
-import { EmailIntakeError, SYSTEM_USER_ID, MAX_CHARS } from '@/lib/email-ingestion/analyze'
+import { EmailIntakeError, SYSTEM_USER_ID, maxInputChars } from '@/lib/email-ingestion/analyze'
 import type { Json } from '@/types/database'
 
 /**
@@ -373,8 +373,15 @@ export async function extractMeeting(input: {
   const { userId, title, meetingDate } = input
   const supabase = createAdminClient()
 
+  // ⚠ `maxInputChars()`, never the old MAX_CHARS, which was the 200,000-char
+  // GEMINI cost guard applied whatever the live provider was. The local model's
+  // real ceiling is 40,000, so a transcript pasted into the Meeting tab was fed
+  // five times what it can hold. Only the Meet IMPORT path was safe, and only
+  // because gemini-notes.ts sends the ~10KB recap instead of the whole export —
+  // a workaround that said so in a comment while the paste path stayed exposed.
+  const cap = maxInputChars()
   let text = input.rawText
-  if (text.length > MAX_CHARS) text = text.slice(0, MAX_CHARS)
+  if (text.length > cap) text = text.slice(0, cap)
 
   // Roster of active team members so the model normalizes task owners to real
   // people (the review screen pre-selects the match). Non-fatal if it fails.
@@ -408,8 +415,9 @@ export async function analyzeMeetingNotes(input: AnalyzeMeetingInput): Promise<A
   const { userId, title, meetingDate } = input
   const supabase = createAdminClient()
 
-  const truncated = input.rawText.length > MAX_CHARS
-  const text = truncated ? input.rawText.slice(0, MAX_CHARS) : input.rawText
+  const cap = maxInputChars()
+  const truncated = input.rawText.length > cap
+  const text = truncated ? input.rawText.slice(0, cap) : input.rawText
 
   // 1. Map the notes into a structured recap via Gemini, then fold in any
   //    attendees already known from a picked calendar event.

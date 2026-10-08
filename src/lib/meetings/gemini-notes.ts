@@ -15,9 +15,11 @@
  *
  * - the RECAP is what the extraction pass reads. It is ~10KB of dense,
  *   already-structured material in the exact shape the meeting-intake prompt
- *   expects, and feeding it alone keeps a 60-80KB export away from a local model
- *   whose real ceiling (LOCAL_MAX_CHARS, 40k) is lower than the MAX_CHARS guard
- *   that analyze-meeting.ts checks against.
+ *   expects, and feeding it alone keeps a 60-80KB export away from a model that
+ *   would only truncate it. (analyze-meeting.ts used to cap at the GEMINI guard
+ *   whatever the provider was, which made this the only path that was safe; it
+ *   now caps at `maxInputChars()`, so the recap is an improvement rather than
+ *   the sole defence.)
  * - the TRANSCRIPT is the evidence. It is filed as the document so Ber AI can
  *   quote what somebody actually said, rather than only the recap of it.
  *

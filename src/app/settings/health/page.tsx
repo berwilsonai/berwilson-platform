@@ -142,7 +142,7 @@ async function runChecks(): Promise<HealthCheck[]> {
       supabase
         .from('notification_log')
         .select('created_at')
-        .eq('kind', 'task_digest')
+        .eq('kind', 'pepper_note')
         .eq('status', 'sent')
         .order('created_at', { ascending: false })
         .limit(1)
@@ -150,7 +150,7 @@ async function runChecks(): Promise<HealthCheck[]> {
       supabase
         .from('notification_log')
         .select('id', { count: 'exact', head: true })
-        .eq('kind', 'task_digest')
+        .eq('kind', 'pepper_note')
         .eq('status', 'failed')
         .gte('created_at', weekAgo),
       probeContactsSync(),
@@ -390,26 +390,33 @@ async function runChecks(): Promise<HealthCheck[]> {
     })
   }
 
-  // 8b. Task digest cron (launchd, Monday mornings) — a stale "last sent" only
-  //     warns (weekly + quiet weeks are normal); failed sends are the real signal.
+  // 8b. Pepper's morning note (launchd, weekdays 06:50) — the platform's only
+  //     per-person channel, and until 2026-10-08 NOTHING HERE WATCHED IT: this
+  //     check read `task_digest`, the Monday email Pepper replaced, so the live
+  //     channel was unmonitored while the retired one was reported as healthy.
+  //     Threshold is 4 days because the note is weekdays only, so a Monday
+  //     reading is three days after the Friday send with nothing wrong.
   {
     const h = hoursAgo(lastDigest.data?.created_at)
     const failed = failedDigests.count ?? 0
+    const stale = h !== null && h > 96
     checks.push({
-      name: 'Task Digest',
-      status: failed > 0 ? 'warn' : 'ok',
+      name: "Pepper's Morning Note",
+      status: failed > 0 || stale ? 'warn' : 'ok',
       headline:
         failed > 0
           ? `${failed} failed send${failed === 1 ? '' : 's'} in 7 days`
           : h === null
-            ? 'No digests sent yet'
+            ? 'No notes sent yet'
             : `Last sent ${ageLabel(lastDigest.data?.created_at)}`,
       detail:
         failed > 0
-          ? 'A member digest failed to send. Sending needs the gmail.send scope on the connected mailbox — re-run scripts/setup-google-oauth.mjs to grant it, or check the member has a valid email.'
-          : h === null
-            ? `Emails each member their overdue + due-this-week tasks Monday mornings. Nothing sends until a member has a task due. ${cronLogsHint}`
-            : 'Sending on schedule to members with tasks due.',
+          ? 'A note failed to send. Sending needs the gmail.send scope on the connected mailbox — re-run scripts/setup-google-oauth.mjs to grant it, or check the member has a valid email.'
+          : stale
+            ? `Weekday mornings at 06:50. Pepper stays quiet for anyone with nothing owed, owed to them, or waiting — so this can be a genuinely clear week, but four days of silence across the whole roster is worth a look. ${cronLogsHint}`
+            : h === null
+              ? `Emails each person what they owe, what they are owed, their day, and the queue — with their tasks itemised. Nothing sends to someone with an empty note. ${cronLogsHint}`
+              : 'Sending on schedule.',
     })
   }
 

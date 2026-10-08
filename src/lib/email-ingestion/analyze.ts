@@ -47,9 +47,6 @@ export function maxInputChars(): number {
   return isLocalAI() ? LOCAL_MAX_CHARS : GEMINI_MAX_CHARS
 }
 
-/** @deprecated Use maxInputChars() — the cap now depends on the active provider. */
-export const MAX_CHARS = GEMINI_MAX_CHARS
-
 /** Error carrying an HTTP status so route handlers can translate it to a Response. */
 export class EmailIntakeError extends Error {
   status: number

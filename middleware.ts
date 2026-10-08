@@ -50,7 +50,6 @@ export async function middleware(request: NextRequest) {
     pathname === '/api/cron/daily-brief' ||          // Daily brief cron job (self-guards via CRON_SECRET)
     pathname === '/api/cron/daily-digest' ||         // Daily email digest cron job (self-guards via CRON_SECRET)
     pathname === '/api/cron/email-sweep' ||          // Mailbox sweep cron job (self-guards via CRON_SECRET)
-    pathname === '/api/cron/task-digest' ||          // Per-member task digest cron (self-guards via CRON_SECRET)
     pathname === '/api/cron/lead-sweep' ||           // Inbound lead sweep cron (self-guards via CRON_SECRET)
     pathname === '/api/cron/drive-sync' ||           // Drive knowledge sync cron (self-guards via CRON_SECRET)
     pathname === '/api/cron/drive-publish' ||        // Drive document publish cron (self-guards via CRON_SECRET)

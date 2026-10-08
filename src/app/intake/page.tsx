@@ -9,6 +9,7 @@ import ProfileIntakeForm from '@/components/contacts/ProfileIntakeForm'
 import CardBatchUpload from '@/components/contacts/CardBatchUpload'
 import SessionsAutoRefresh from '@/components/email-ingestion/SessionsAutoRefresh'
 import DismissSessionButton from '@/components/email-ingestion/DismissSessionButton'
+import DedupeProposalsButton from '@/components/email-ingestion/DedupeProposalsButton'
 import ProposalIntakeWizard from '@/components/proposals/ProposalIntakeWizard'
 import ReferenceDocForm from '@/components/reference-docs/ReferenceDocForm'
 import { formatDate } from '@/lib/utils/constants'
@@ -130,13 +131,26 @@ function readPredecision(raw: unknown): Predecision | null {
 }
 
 async function EmailTab({ supabase }: { supabase: ReturnType<typeof createAdminClient> }) {
-  const { data: sessions } = await supabase
-    .from('email_intake_sessions')
-    .select('id, label, status, updated_at, extraction_result, predecision')
-    .eq('intake_kind', 'email')
-    .neq('status', 'dismissed')
-    .order('updated_at', { ascending: false })
-    .limit(25)
+  // The list below is capped at 25, and the backlog is routinely far longer —
+  // 115 pending on 2026-10-08 — so the count is read separately rather than
+  // inferred from the rows. Scoped to what the dedupe pass itself reads
+  // (`create`), because a number beside a button has to mean what the button
+  // will act on.
+  const [{ data: sessions }, { count: pendingCreate }] = await Promise.all([
+    supabase
+      .from('email_intake_sessions')
+      .select('id, label, status, updated_at, extraction_result, predecision')
+      .eq('intake_kind', 'email')
+      .neq('status', 'dismissed')
+      .order('updated_at', { ascending: false })
+      .limit(25),
+    supabase
+      .from('email_intake_sessions')
+      .select('id', { count: 'exact', head: true })
+      .eq('intake_kind', 'email')
+      .eq('status', 'pending')
+      .eq('predecision->>disposition', 'create'),
+  ])
 
   const rows = (sessions ?? [])
     .map((s) => ({
@@ -164,6 +178,8 @@ async function EmailTab({ supabase }: { supabase: ReturnType<typeof createAdminC
       </div>
 
       <EmailResearchForm />
+
+      <DedupeProposalsButton pending={pendingCreate ?? 0} />
 
       {/* Manual fallback — reports produced outside the mailbox sweep */}
       <details className="group rounded-lg border border-border bg-card">
