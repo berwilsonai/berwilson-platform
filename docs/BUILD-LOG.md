@@ -11,7 +11,74 @@ Split out of `CLAUDE.md` on 2026-09-23, when that file reached 606k characters a
 - A block of **2026-08-23 → 2026-08-31** entries sits *after* the June entries, near the end of the file.
 - One **2026-07-03** entry ("migrations applied + pursuit profile seeded") is last in the file.
 
-145 entries, 2026-06-22 → 2026-10-08.
+146 entries, 2026-06-22 → 2026-10-08.
+
+**Done 2026-10-08 (a recorded meeting becomes a record, and its transcript is always readable):**
+
+Richard's ask: *"We had a meeting yesterday w Tensor. The transcript auto landed in the drive. Did you see it and do anything with that data? I want to make sure that every meeting we have updates Ber Intelligence properly. Do you think we are doing it the best way today or is there a better way??"* Then: *"Yes do all of them. Everything you can to automate us tracking our deals and knowing our tasks etc..."*
+
+**The answer to the first question was: it was read, it was summarized well, and it reached nothing.** `cron-meet-import.log` shows the import at **16:22 on 10-07** — `imported: 1, filed: 0`, with one note: *"Ber Wilson/Tensor Discuss Uintah Basin: no record matches the title."* The extraction was genuinely good: 8 follow-ups with assignees, 19 attendees with emails, the Uintah Basin site at **5,033 acres / up to 18 GW / ~$200k per MW for a small SPV stake**, the pipeline ranking **PA → WV → Uintah → Eagle Mountain**, the JP Morgan $150B resiliency-fund meeting on the Friday, the $102M IDIQ through 2037. All of it sat in one `email_intake_sessions` row that nothing reads.
+
+Four separate causes, each measured against the live database before anything was written.
+
+---
+
+⚠ **DEFECT 1: FILING REQUIRED AN EXACT RECORD-NAME MATCH, SO 3 OF THE 5 TRANSCRIPTS EVER IMPORTED WERE FILED NOWHERE AT ALL.** `resolveMeetingTarget` demanded a title segment equal to a record name, case-insensitively and uniquely. That bar is correct for an automatic action and completely wrong as the *only* bar: executives title these calls after the **geography** — "Ber Wilson/Tensor Discuss Uintah Basin" is the Myton Development deal — and no fuzzy matching turns "Uintah Basin" into "Myton Development" safely. With no target the importer filed nothing, so the transcript existed only in Drive: no document, no chunk, no passage, nothing to quote. Asked about the meeting the next morning, Ber AI had no evidence and said so.
+
+**A transcript you were in is evidence whether or not somebody typed the right words into a calendar invitation.** So every transcript is now filed at import. With a strong key it goes on the record; without one it goes to the **reference** shelf — searchable and quotable immediately, and deliberately *not* company knowledge, because a company-scoped chunk is handed to `assessFit()` as "RELEVANT BER WILSON EVIDENCE" and a call about deals nobody chose to pursue must not be scoring future ones (the 09-27 reasoning, applied again). Confirming the session **moves** it with `refileDocument`, which re-points the chunks rather than rebuilding them — the text has not changed, so the vectors are exactly valid at the new address.
+
+Three bars now, and the gap between bar 2 and bar 3 is the design: **(1)** a title a human has filed before, **(2)** an exact record name, **(3)** a shared identity-bearing word — *suggestion only*, pre-ticked in review and never filed on. ⚠ The first dry run is why bar 3 cannot file: it suggested **"Steelton & Riverdale Site Reviews & Power Capacity Analysis" → "Stockton Power Nexus - ER Hospital & Medevac Airport Tower"** — two deals in different states, matched on the word *power*. Industry words joined the stopword list beside `LLC`; **place names stayed out of it**, because Myton, Delta, Heber, Tooele, Steelton and Stockton are precisely what distinguishes these records.
+
+---
+
+⚠ **DEFECT 2: NO IMPORT HAD EVER WRITTEN TO `meetings`, WHICH IS THE ONLY TABLE THE AGENT'S MEETING TOOLS READ.** The single INSERT into `meetings` is the hand-typed form at `POST /api/meetings`. Measured: **2 rows, from July and August, neither from an import, against 5 imported transcripts.** `search_meetings` and `get_meeting_content` select from that table and nothing else — so "what did we agree with Tensor" returned nothing, *including for the two transcripts that were correctly filed*. Two disconnected meeting systems: a minutes register the agent can read, and an automatic import it mostly cannot.
+
+The blocker was the table's own shape. `meetings_scope_target_check` allowed three arms — company with no record, project with a project, opportunity with an opportunity — so a call naming no record had nowhere legal to sit. **The 'company' arm is not the answer**: `/company/board` selects `scope = 'company'` as the corporate record, and filing a brokerage call there puts it in the governance register. A fourth arm, **`'unfiled'`**, means "a real meeting, not yet attached to a deal". Every record-scoped page filters on `project_id`/`opportunity_id` and the board filters on scope, so no existing surface changed; the agent reads every scope, so the call becomes answerable the night it happens. `status` stays `draft` throughout — approving minutes is a governance act and a machine-written recap must never arrive pre-approved.
+
+---
+
+⚠ **DEFECT 3: THE TITLE-LEARNING FEATURE WOULD HAVE SHIPPED GREEN AND NEVER ONCE FIRED.** `record_identifiers` gained a `'meeting_title'` kind so a recurring deal call files itself from its second occurrence — learned only from a human confirm, never from the matcher's own match (09-25's rule: a matcher must never learn from its own matches). It was built, tested, committed and deployed. Then listing the Drive folder to identify an unrelated warning surfaced this:
+
+| Meet invitation (what the next call will arrive as) | What the model retitled it |
+|---|---|
+| `Ber Wilson / Zenthium` | "Steelton & Riverdale Site Reviews & Power Capacity Analysis" |
+| `Ber Wilson/Rebecca/Merlin visit` | "…Portfolio Review & Steelton Acquisition Discussion" |
+| `Ber Wilson/TensorIQ/Elite Solutions/Jaren Davis` | "Strategic Partnership Coordination: Ber Wilson, TensorIQ, Elite Solutions" |
+
+Learning ran on `extraction.title` — the model's rewrite — so it would have stored a key **no future meeting can ever present**, while `record_identifiers` filled with plausible-looking rows and the matcher kept missing. Measurable success, zero effect, and nothing anywhere reporting it. `Zenthium Partnership` is a live opportunity and the call titled for it was resolving against nothing.
+
+`email_intake_sessions.source_title` fixes it (migration `20261008000004`). The surface lesson is 09-30's `bestMatch` bug inverted: there the answer was *compose one name and pass it to both*; **here they are genuinely two names doing two jobs** — the invitation is what the matcher FILES on, the rewrite is what a human READS — so both are kept, named apart, and never substituted. The five pre-existing sessions had their invitation titles recovered off the Drive file names.
+
+---
+
+⚠ **DEFECT 4: NOTHING TOLD ANYBODY ANY OF THIS HAD HAPPENED.** All five sat `pending` among **120 pending sessions**, rendering as *"Staged correspondence"* — indistinguishable from a scraped email thread — and `/decide` **selected `intake_kind` and never read it**, so clicking one opened `/email-ingestion/<id>`, the EMAIL reviewer, and handed a meeting extraction to `buildConfirmBody` as an `EmailIntakeExtraction`. A meeting now gets its own line, its own reviewer, and a recency-weighted ranking lift.
+
+⚠ **A FLAT BOOST MADE ALL FIVE TIE AND `sort` ORDERED THEM ARBITRARILY** — the one line the morning note has room for went to a call from nine days earlier rather than to yesterday's. `meetingBoost` decays 2 points a day from 190, capped inside the band so a `pursue` on a $99M pursuit still outranks it. The lift is derived on the client from the one clock reading it already captures, not computed in the server component — a `Date.now()` there is the `react-hooks/purity` misfire §9 records.
+
+⚠ **AND THE EMAIL PRE-DECIDER HAD BEEN JUDGING MEETINGS ALL ALONG.** `predecide` read `status = 'pending'` with no `intake_kind` filter, so it answered create/merge/dismiss over an extraction that has none of that shape — attendees and referenced_records, not projects and parties. **All five staged transcripts carried `disposition: 'create'`, and two older ones were AUTO-DISMISSED by it** — a call about a recorded meeting that no human ever made. Scoped to `intake_kind = 'email'`, which is NOT NULL with default `'email'`, so the `.eq()` can never silently skip a real email session (§12's NULL trap).
+
+---
+
+**Two more defects found in passing, both consequences of the above.**
+
+⚠ `get_meeting_content` returned `slice(0, 20000)` and `truncated: true` **with no continuation parameter** — the exact 09-26 defect that `get_document_content` was fixed for. It had never mattered because `meetings.transcript` was only ever filled by a hand-upload; this session's importer writes **83,408-character** exports onto the row, so it started mattering immediately. Windowed with `next_offset` and a `find` that **searches the verbatim rather than the recap** — a recap does not contain the sentence somebody actually said. Extracted to `src/lib/ai/text-window.ts`; `get_document_content` still holds an inline copy, left alone only because another session was editing that file, and it should collapse onto the shared helper when next in there.
+
+⚠ `refileDocument` cleared `is_company` and **not `is_reference`**, so a document moved onto a deal sat on the project *and* on `/intake`'s reference shelf — present twice, owned once. Latent before today; now the common path.
+
+---
+
+**Measurements and verification.**
+
+- Backfill (`scripts/backfill-meeting-records.mts`): **5 meeting records created, 3 transcripts filed and indexed** — 47, 32 and 26 passages where there had been none. **5 invitation titles recovered.** Run twice: the second run reports nothing done, as a fill-not-overwrite pass must (09-30).
+- 25 verification checks pass, including that `normalizeMeetingTitle` refuses "Weekly Sync", "Catch up" and "Standup Meeting" while keeping "Myton" at five characters — **the floor is "one word that is not calendar vocabulary", not a length**; that a second confirm does not relocate an already-filed meeting; and that an absent field is not blanked.
+- The guard that matters most: **the mail router cannot see meeting titles.** `loadIdentifiers()` is filtered to parcel/party explicitly rather than selecting everything, because the router matches identifiers by CONTAINMENT in a thread's body as a *fact* — right for a parcel number, catastrophic for "Uintah Basin", which appears in mail about three different deals.
+- Live, post-deploy: `search_meetings('Uintah Basin')` returns the 10-07 call; `get_meeting_content` with `find: '18 gigawatt'` returns **"…spanning 5,033 acres with potential power delivery up to 18 gigawatts and over 1 gigawatt currently approved (00:13:26)"** with `next_offset: 40000`. The cron route answers with the new counters.
+- `recordingsWithoutTranscript: 1` on `tuaone@` — one recording in Drive has no transcript beside it, meaning transcription was off for that call. Nothing can recover it.
+- ⚠ The attendee counts the extraction produces are **too high**: 19 for a call with about six people, 33 and 30 for the Elite Solutions calls. The model is listing everyone *mentioned*, not everyone present. Left as-is because confirming the session overwrites them with the real linked contacts, and the review screen shows the same list — consistent, if imperfect. Worth a prompt fix if the meetings register is ever read as a roll-call.
+
+**Deployed, migrated (`20261008000002`, `000003`, `000004`) and pushed.** Two commits: `541bfa8` and `baea1d3`. ⚠ Both were verified to compile *as commits*, in a detached worktree at HEAD, not just in a working tree that held another session's uncommitted work — 10-03's lesson. The GitHub push needed the `berwilsonai` gh account as ever.
+
+---
 
 **Done 2026-10-08 (a commitment goes into a vehicle, and a program is not counted twice):**
 
