@@ -189,10 +189,27 @@ export function splitWarnings(
     )
   }
 
+  // ⚠ "NOBODY IS FLAGGED" AND "THE FLAGGED ROW HAS NO SPLIT" ARE DIFFERENT
+  // FACTS, AND THIS ONCE REPORTED THE SECOND AS THE FIRST. The condition was
+  // `share.pct == null`, which is true in BOTH cases — so a vehicle whose Ber
+  // Wilson row was correctly flagged but had no percentage yet was told "no
+  // participant is marked as Ber Wilson", a sentence that is simply untrue of
+  // the record and sends the reader hunting for a flag that is already set. It
+  // also duplicated the warning directly above it. Caught by seeding the Delta
+  // vehicles, which is precisely the shape it misreports: a flagged sponsor row
+  // with the split not yet agreed is the normal state of a live negotiation.
   const share = resolveBwShare(spv, participants)
-  if (share.pct == null) {
+  const ours = participants.find((p) => p.isBerWilson)
+  if (!ours) {
     out.push(
       `No participant in ${name} is marked as Ber Wilson, so its revenue is reported as undetermined rather than as ours.`
+    )
+  } else if (ours.equityPct == null && totals.equityPct != null) {
+    // Only worth saying when the OTHERS carry splits — when nobody does, the
+    // first warning has already said it, and two sentences about one gap is how
+    // a warning list stops being read.
+    out.push(
+      `${ours.holderName} is marked as Ber Wilson in ${name} but carries no equity split, so our share of it is undetermined rather than the remainder of the others.`
     )
   }
   if (share.typedSuperseded && share.from === 'ledger' && spv.bwOwnershipPct !== share.pct) {

@@ -306,3 +306,54 @@ test('the pipeline total and the ledger total stay separate quantities', () => {
   assert.equal(pipeline.onCapTable, 1, 'the overlap is reported, which is what stops the sum')
   assert.notEqual(pipeline.committed! + ledger.committed!, 2_000_000)
 })
+
+// ── the warning must be true of the record ──────────────────────────────────
+//
+// `splitWarnings` tested `share.pct == null` and printed "no participant is
+// marked as Ber Wilson" — true in only one of the two cases that condition
+// covers. Found by seeding the Delta vehicles: a correctly flagged sponsor row
+// with no percentage yet was told its flag was missing.
+
+test('a flagged Ber Wilson row with no split is NOT reported as unflagged', () => {
+  const warnings = splitWarnings(spv(), [
+    participant({ holderName: 'Ber Wilson Corporation', isBerWilson: true, equityPct: null }),
+  ])
+  assert.ok(
+    !warnings.some((w) => w.includes('No participant')),
+    `claimed the flag was missing: ${JSON.stringify(warnings)}`
+  )
+})
+
+test('and it is not told twice that the same split is missing', () => {
+  // Two sentences about one gap is how a warning list stops being read.
+  const warnings = splitWarnings(spv(), [
+    participant({ holderName: 'Ber Wilson Corporation', isBerWilson: true, equityPct: null }),
+  ])
+  assert.equal(warnings.length, 1, JSON.stringify(warnings))
+  assert.ok(warnings[0].includes('no equity split on any of them'))
+})
+
+test('a vehicle with genuinely no Ber Wilson row still says so', () => {
+  const warnings = splitWarnings(spv(), [
+    participant({ holderName: 'Partner A', isBerWilson: false, equityPct: 60 }),
+    participant({ holderName: 'Partner B', isBerWilson: false, equityPct: 40 }),
+  ])
+  assert.ok(warnings.some((w) => w.includes('No participant')), JSON.stringify(warnings))
+})
+
+test('a flagged row with no split, beside others that HAVE splits, is called out by name', () => {
+  // This is the case worth a sentence of its own: the others add to 65%, and
+  // our share is undetermined rather than the 35% remainder.
+  const warnings = splitWarnings(spv(), [
+    participant({ holderName: 'Ber Wilson Corporation', isBerWilson: true, equityPct: null }),
+    participant({ holderName: 'Capital Partner', isBerWilson: false, equityPct: 65 }),
+  ])
+  assert.ok(
+    warnings.some((w) => w.includes('Ber Wilson Corporation') && w.includes('no equity split')),
+    JSON.stringify(warnings)
+  )
+  assert.ok(
+    warnings.some((w) => w.includes('unassigned')),
+    'and the 35% gap is still reported'
+  )
+})
