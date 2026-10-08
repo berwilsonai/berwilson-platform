@@ -11,7 +11,7 @@ Split out of `CLAUDE.md` on 2026-09-23, when that file reached 606k characters a
 - A block of **2026-08-23 → 2026-08-31** entries sits *after* the June entries, near the end of the file.
 - One **2026-07-03** entry ("migrations applied + pursuit profile seeded") is last in the file.
 
-146 entries, 2026-06-22 → 2026-10-08.
+148 entries, 2026-06-22 → 2026-10-08. ⚠ Counted with `grep -c "^\*\*Done 2026"`, not incremented by hand: two sessions editing this file on 2026-10-08 each bumped the old figure by one and both landed on 146 against a real 148.
 
 **Done 2026-10-08 (a recorded meeting becomes a record, and its transcript is always readable):**
 
@@ -79,6 +79,38 @@ Learning ran on `extraction.title` — the model's rewrite — so it would have 
 **Deployed, migrated (`20261008000002`, `000003`, `000004`) and pushed.** Two commits: `541bfa8` and `baea1d3`. ⚠ Both were verified to compile *as commits*, in a detached worktree at HEAD, not just in a working tree that held another session's uncommitted work — 10-03's lesson. The GitHub push needed the `berwilsonai` gh account as ever.
 
 ---
+
+**Done 2026-10-08 (Delta's vehicles stood up, and a warning that was untrue of the record):**
+
+Richard: *"Set up the Delta vehicles with their cap tables"* — the open item raised four hours earlier in the same day's session.
+
+**The cap tables are not in the platform, and that was worth establishing properly before writing anything.** Everything checked: `project_spvs` and `project_spv_participants` both at **0 rows**; no Delta SPV among the **15** `kind='spv'` rows in `org_nodes` (Myton has four, Stockton one — Delta none); `entities` holds **5 rows, all `category='vendor'`**, not one an SPV; `investments` at **0**; `project_players` on Delta **empty**; `updates` and `tasks` on Delta **empty**; and a chunk search for Delta text carrying any of *equity / member / SPV / ownership / joint venture* returned **0 rows**. The two Delta email threads name a cast — JLD Development (Jaron L Davis) as customer, GoAvant, Elite Solutions, Tensor IQ — and **not one percentage**. The project is at `pursuit` on a zoning map amendment; `client_entity` is *Daves Farms Property Holdings, LLC*, which owns all 11 parcels.
+
+So the structure was created and the splits were asked for. ⚠ **A CAP TABLE IS THE LAST PLACE TO FILL A SCREEN.** `resolveBwShare` reads `equity_pct` on the flagged row as our actual share, and that figure reaches the engine, the pipeline total, the brief and Ber AI — so an invented percentage would be repeated as fact by five surfaces. `0` would have been worse than blank: it says a holder owns none of the vehicle where NULL says nobody has agreed.
+
+**Richard's two decisions.** Seed Ber Wilson as sponsor on each vehicle with the split left blank — so the flag is in place and a percentage has somewhere to land the moment it is agreed. And Daves Farms is a **seller**, not a holder: it stays out of every cap table and goes in the project's cast instead.
+
+**Three vehicles: Delta Land LLC, Delta Energy LLC, Delta Data Center LLC.** ⚠ **THE PREFIX IS NOT THE PROJECT NAME.** The project is *"Delta Industrial Campus — Daves Farms"*, which the bootstrap would turn into *"Delta Industrial Campus — Daves Farms Land LLC"* — a string nobody would put on a signature block, and one carrying the **seller's** name into the name of our own vehicle. `Delta` matches the convention already in the chart (*Myton Energy SPV*, *Stockton 150MW SPV*): the place, then the purpose.
+
+⚠ **THE BOOTSTRAP'S LOGIC WAS REACHABLE ONLY OVER AUTHENTICATED HTTP, SO A SCRIPT WOULD HAVE HAD TO FORK IT.** The naming rule and the read-first dedupe rule were the body of `POST /api/spvs/standard`. Extracted to `createStandardVehicles` in `src/lib/spvs/standard.ts`; the route is now a thin wrapper holding only what a request can decide — who is asking, and whether they may write. A forked copy of a shared pass is the one that keeps the bug when the other is fixed (§12, 09-17), and the same rule already forbids reaching the app's own routes from inside the server.
+
+**`Land Owner / Seller`, not `Owner`.** `project_players.role` is plain text with no CHECK, and `PROJECT_PLAYER_ROLES` offers `Owner` under *Ownership & Development* — but in a construction CRM that reads as the project **owner**, i.e. the client, which Daves Farms is not. Free text is idiomatic here (the live data holds 23 descriptive roles) and `EditRoleButton` round-trips an unknown value through its `__custom__` branch with the text preserved, so nothing renders blank — checked before choosing it. The acreage disagreement went in the note, where it stays attached to the counterparty it has to be resolved with: 928.98 acres per the exhibit against 920.67 per the assessor.
+
+---
+
+⚠ **THE FIND, AND THE READ-BACK IS WHAT CAUGHT IT: A FLAGGED BER WILSON ROW WITH NO SPLIT WAS REPORTED AS UNFLAGGED.** The setup script prints the ledger after writing, and the output contradicted itself on consecutive lines — `★ Ber Wilson Corporation` above *"No participant in Delta Land LLC is marked as Ber Wilson"*.
+
+`splitWarnings` gated on `share.pct == null` and then printed that sentence. **That condition is true in two different cases** — nobody is flagged, or the flagged row has no percentage yet — and the sentence only describes the first. So the normal state of a live negotiation produced a statement that is simply untrue of the record, and one that sends the reader hunting for a flag already set. It also duplicated the warning immediately above it, which had already said the split was missing.
+
+It reads the **flag** now, not the derived share. Nobody flagged → the original sentence. Flagged but carrying no split *while the others do* → a sentence of its own naming the holder, because then our share is genuinely undetermined rather than the 35% remainder of a 65% partner. Flagged with nothing split anywhere → **silence**, since the first warning covers it; two sentences about one gap is how a warning list stops being read. Four tests pin all four branches (**170 total**, was 166).
+
+This is the second defect in two days found by *using* the feature rather than by reading it — the 10-06 session found two routes that had never once worked the same way. The pattern holds: the read-back after a write is where a false sentence surfaces, and a pass that reports what it did must read before it claims (§12, 09-30).
+
+---
+
+**Verified.** Both scripts are dry-run by default and idempotent: `setup-delta-vehicles.mts --apply` run twice reports `created: 0, skipped: 3`, and `setup-delta-cap-tables.mts --apply` run twice leaves **1 holder and exactly 1 `is_ber_wilson` row per vehicle, 1 cast member, 1 Daves Farms party** — checked in psql, not inferred from the return. Both refuse an ambiguous project match rather than picking one (§12, 09-09). `loadPortfolioVehicles` now returns three real vehicles with their deal name and href, so `/vehicles` has live data through it for the first time. The 34 live checks in `verify-deal-flow.mts` still pass, lint is unchanged at 19 pre-existing problems, and the commit was typechecked from a fresh clone.
+
+**What is still open:** the splits themselves, and the raise targets. Every vehicle reports our share as **undetermined**, which the engine holds out of the net total rather than counting — so Delta's capture value stays blank until a percentage is agreed. That is the honest state, not a gap in the build.
 
 **Done 2026-10-08 (a commitment goes into a vehicle, and a program is not counted twice):**
 
