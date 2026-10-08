@@ -397,7 +397,8 @@ function historyToLocalMessages(history: Content[]): LocalChatMessage[] {
 //
 // Raising the round budget without this would trade one silent failure for a
 // worse one. Measured on this box: the system prompt is ~17.5k characters, the
-// company context ~4.9k and the 42 tool declarations ~30.2k — about 13k tokens
+// company context ~4.9k and the 43 tool declarations ~32.2k (measured, not
+// estimated: `JSON.stringify(agentTools).length`) — about 13k tokens
 // of fixed overhead on every request, against the model's context window (read
 // it off `lms ps` — 131,072 as configured on 2026-09-26, and it was 65,536 when
 // these figures were first measured).

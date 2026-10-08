@@ -16,6 +16,8 @@ import { Panel } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Field, FormGrid, FormSection, Input, Select } from '@/components/ui/field'
 import type { EntityRollup } from '@/lib/economics/capture'
+import type { VehicleDocument } from '@/lib/spvs/documents'
+import type { VehiclePipeline } from '@/lib/spvs/portfolio'
 import type { RecordKind } from '@/lib/records/scope'
 import {
   DEFAULT_SPV_PURPOSES,
@@ -37,6 +39,11 @@ interface VehiclesBoardProps {
   rollups: Record<string, EntityRollup>
   orgNodes: OrgNodeOption[]
   hasModel: boolean
+  /** Keyed by the vehicle's ENTITY id — the paperwork belongs to the LLC. */
+  documents: Record<string, VehicleDocument[]>
+  /** Keyed by vehicle id. The raise pipeline, which is NOT the cap table. */
+  pipelines: Record<string, VehiclePipeline>
+  dealIsConfidential: boolean
 }
 
 export default function VehiclesBoard({
@@ -48,6 +55,9 @@ export default function VehiclesBoard({
   rollups,
   orgNodes,
   hasModel,
+  documents,
+  pipelines,
+  dealIsConfidential,
 }: VehiclesBoardProps) {
   const { busy, call } = useApiCall()
   const [adding, setAdding] = useState(false)
@@ -111,6 +121,9 @@ export default function VehiclesBoard({
             orgNodes={orgNodes}
             canEdit={canEdit}
             hasModel={hasModel}
+            documents={(spv.entityId ? documents[spv.entityId] : undefined) ?? []}
+            pipeline={pipelines[spv.id] ?? null}
+            dealIsConfidential={dealIsConfidential}
           />
         ))
       )}

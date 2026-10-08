@@ -223,3 +223,96 @@ function round(value: number, places: number): number {
 function fmtPct(value: number): string {
   return `${Number(value.toFixed(4))}%`
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// THE RAISE PIPELINE. A second ledger, deliberately never summed with the first.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * One commitment from the capital-raise pipeline (`investments`).
+ *
+ * Numbers, not PostgREST strings: the coercion happens at the read in
+ * ./portfolio.ts so this file stays pure and loadable with no database.
+ */
+export interface Commitment {
+  investorId: string
+  indicated: number | null
+  committed: number | null
+  funded: number | null
+}
+
+/**
+ * What the capital-raise pipeline holds against a vehicle.
+ *
+ * ⚠ THIS IS NOT THE CAP TABLE AND MUST NEVER BE ADDED TO IT. `investments` is
+ * the relationship over time — who we are talking to, what they have indicated,
+ * what stage it is at. `project_spv_participants` is who actually holds what,
+ * and it is the only thing `resolveBwShare` reads. The same dollar can
+ * legitimately appear in both — an investor still in discussion who is already
+ * on the cap table — so adding them reports a raise larger than either truth
+ * and belonging to neither (§12, one quantity one definition).
+ *
+ * Every figure is nullable: a sum with nothing in it is null, not 0.
+ */
+export interface VehiclePipeline {
+  investorCount: number
+  indicated: number | null
+  committed: number | null
+  funded: number | null
+  /**
+   * How many of those investors are already rows on the cap table. This is the
+   * number that makes the two ledgers readable side by side: "4 investors, 2
+   * not yet on the cap table" is actionable where two totals are just
+   * confusing.
+   */
+  onCapTable: number
+}
+
+const EMPTY_PIPELINE: VehiclePipeline = {
+  investorCount: 0,
+  indicated: null,
+  committed: null,
+  funded: null,
+  onCapTable: 0,
+}
+
+/**
+ * The raise pipeline for one vehicle, with nothing summed into the ledger.
+ *
+ * ⚠ INVESTORS ARE COUNTED DISTINCTLY, NOT ROWS. One investor can hold several
+ * commitment rows against the same vehicle (a first cheque and a follow-on), so
+ * counting rows would report four investors where there are two — and "how many
+ * people are in this raise" is exactly the figure an executive repeats out loud.
+ */
+export function summarizePipeline(
+  commitments: readonly Commitment[],
+  participants: readonly Pick<SpvParticipant, 'investorId'>[]
+): VehiclePipeline {
+  if (commitments.length === 0) return EMPTY_PIPELINE
+
+  const ledgerInvestors = new Set(
+    participants.map((p) => p.investorId).filter((id): id is string => id != null)
+  )
+
+  let indicated: number | null = null
+  let committed: number | null = null
+  let funded: number | null = null
+  const add = (total: number | null, value: number | null) =>
+    value == null ? total : (total ?? 0) + value
+
+  for (const row of commitments) {
+    indicated = add(indicated, row.indicated)
+    committed = add(committed, row.committed)
+    funded = add(funded, row.funded)
+  }
+
+  return {
+    investorCount: new Set(commitments.map((r) => r.investorId)).size,
+    indicated,
+    committed,
+    funded,
+    onCapTable: new Set(
+      commitments.map((r) => r.investorId).filter((id) => ledgerInvestors.has(id))
+    ).size,
+  }
+}

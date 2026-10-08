@@ -9,7 +9,13 @@ import type { Project, ProjectStage } from '@/lib/supabase/types'
 import { DatePicker } from '@/components/ui/date-picker'
 import { cn } from '@/lib/utils'
 import { useStoredState } from '@/hooks/use-stored-state'
-import { mixedTotalNote, pipelineTotal, pipelineValue } from '@/lib/economics/pipeline'
+import {
+  leafRecords,
+  mixedTotalNote,
+  pipelineTotal,
+  pipelineValue,
+  rolledPipelineValue,
+} from '@/lib/economics/pipeline'
 import { SECTOR_BADGE, SECTOR_SHORT } from '@/lib/utils/sectors'
 import {
   STATUS_BADGE, STATUS_LABELS, formatValue, weightedValue,
@@ -26,16 +32,24 @@ interface ProjectsClientProps {
 
 function ProgramBanner({
   program,
+  allProjects,
   childCount,
   isCollapsed,
   onToggle,
 }: {
   program: Project
+  /** The whole set, so the banner can roll the value up from the leaves. */
+  allProjects: Project[]
   childCount: number
   isCollapsed: boolean
   onToggle: () => void
 }) {
   const status = program.status ?? 'active'
+  // ⚠ THE SUM OF THE WORK INSIDE, NOT THE PROGRAM'S OWN MODEL. This showed
+  // `pipelineValue(program)` — a figure that is either blank (the usual case,
+  // reading as an unpriced program above priced children) or double-counted
+  // against the sub-projects listed directly beneath it.
+  const value = rolledPipelineValue(program, allProjects)
 
   return (
     <div className="flex items-stretch gap-0 rounded-xl border border-border bg-card elev-1 overflow-hidden">
@@ -81,9 +95,9 @@ function ProgramBanner({
           </span>
           <span
             className="text-sm font-bold tnum text-foreground"
-            title={pipelineValue(program).hint}
+            title={value.hint}
           >
-            {formatValue(pipelineValue(program).amount)}
+            {value.amount != null ? formatValue(value.amount) : 'Not set'}
           </span>
           <span className="hidden md:inline-flex items-center gap-1 text-xs text-muted-foreground border border-border rounded px-2 py-0.5 bg-background">
             <FolderOpen size={11} />
@@ -225,6 +239,14 @@ export default function ProjectsClient({ projects: initialProjects, stageFilter 
   // even when the program is filtered out of the current view.
   const nameById = new Map(projects.map(p => [p.id, p.name]))
 
+  // Which projects carry the portfolio's value: every one with no child
+  // present. Built over the whole set, once, and used by every total on this
+  // screen so they cannot disagree with each other or with the dashboard.
+  const leafIds = useMemo(
+    () => new Set(leafRecords(projects).map((p) => p.id)),
+    [projects]
+  )
+
   // Stage view: group every matching project (flat) by its stage.
   const byStage = useMemo(() => {
     const groups = new Map<ProjectStage, Project[]>()
@@ -356,10 +378,19 @@ export default function ProjectsClient({ projects: initialProjects, stageFilter 
             // saying when it is made of more than one kind. A total that
             // silently mixes a computed Ber Wilson capture with a hand-entered
             // estimate is neither quantity.
-            const colTotal = pipelineTotal(items)
+            //
+            // ⚠ LEAVES ONLY, AND THE LEAF SET IS BUILT OVER THE WHOLE BOARD
+            // RATHER THAN PER COLUMN. A program and its sub-projects usually
+            // sit in DIFFERENT stages, so a per-column leaf test would let the
+            // program count in its own column and the children count in theirs
+            // — the columns would then total more than the portfolio does, and
+            // the two screens would disagree with no way to tell which is
+            // right. A program contributes to no column; its work does.
+            const colItems = items.filter((p) => leafIds.has(p.id))
+            const colTotal = pipelineTotal(colItems)
             const colValue = colTotal.amount
             const colNote = mixedTotalNote(colTotal)
-            const colWeighted = items.reduce(
+            const colWeighted = colItems.reduce(
               (sum, p) =>
                 sum +
                 weightedValue(
@@ -407,7 +438,9 @@ export default function ProjectsClient({ projects: initialProjects, stageFilter 
                           className="font-semibold tnum text-foreground"
                           title={colNote ? `Mixed: ${colNote}` : 'Ber Wilson capture'}
                         >
-                          {formatValue(colValue)}
+                          {colTotal.modelled + colTotal.estimated > 0
+                            ? formatValue(colValue)
+                            : 'Not set'}
                         </span>
                         {colWeighted > 0 && (
                           <span className="tnum text-emerald-600 dark:text-emerald-400">{formatValue(colWeighted)} wtd</span>
@@ -452,6 +485,7 @@ export default function ProjectsClient({ projects: initialProjects, stageFilter 
           <div key={parent.id} className="space-y-3">
             <ProgramBanner
               program={parent}
+              allProjects={projects}
               childCount={children.length}
               isCollapsed={isCollapsed}
               onToggle={() => toggleProgram(parent.id)}

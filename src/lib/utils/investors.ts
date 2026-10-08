@@ -341,3 +341,57 @@ export function requirementStatus(value: string | null | undefined): Requirement
     ? (value as RequirementStatus)
     : 'needed'
 }
+
+// ─── Investment target ───────────────────────────────────────────────────────
+
+/**
+ * What a commitment is into.
+ *
+ * ⚠ THE SAME THREE MEMBERS AS `investments_target_check` AND
+ * `INVESTMENT_TARGETS` IN src/lib/investors/parse.ts. A taxonomy written in two
+ * places drifts silently, because a member one copy was never told about simply
+ * never fires (§12) — which is exactly how `spv` would have been offered by the
+ * form and then filtered out of every list.
+ */
+export type InvestmentTargetKind = 'company' | 'project' | 'spv'
+
+export const INVESTMENT_TARGET_KINDS: InvestmentTargetKind[] = ['company', 'project', 'spv']
+
+export const INVESTMENT_TARGET_LABELS: Record<InvestmentTargetKind, string> = {
+  company: 'Ber Wilson (parent)',
+  project: 'A project',
+  spv: 'An SPV on a deal',
+}
+
+export function isInvestmentTargetKind(value: unknown): value is InvestmentTargetKind {
+  return typeof value === 'string' && (INVESTMENT_TARGET_KINDS as string[]).includes(value)
+}
+
+/**
+ * The name to print for one commitment's target.
+ *
+ * ⚠ ONE DEFINITION, BECAUSE THERE WERE FOUR. The investors list, the investor
+ * detail page, `search_investors` and the investor embedding each wrote their
+ * own `target_kind === 'company' ? … : project?.name ?? 'Project'` — and every
+ * one of them rendered an SPV commitment as the bare word "Project", since an
+ * spv-targeted row has `project_id` NULL by design. A label that is wrong in
+ * four places is a label with no owner.
+ *
+ * A vehicle is named with its DEAL as well: "Land Co" alone says nothing on a
+ * page that spans fifty deals, and the deal alone loses which structure the
+ * money is going into. `vehicle` is null when the vehicle sits on a protected
+ * project, which is named as such rather than rendered blank.
+ */
+export function investmentTargetLabel(input: {
+  target_kind: string
+  project?: { name: string } | null
+  vehicle?: { label: string; dealName: string } | null
+}): string {
+  if (input.target_kind === 'company') return INVESTMENT_TARGET_LABELS.company
+  if (input.target_kind === 'spv') {
+    return input.vehicle
+      ? `${input.vehicle.label} — ${input.vehicle.dealName}`
+      : 'A vehicle on a protected deal'
+  }
+  return input.project?.name ?? 'An unnamed project'
+}

@@ -14,6 +14,10 @@ import { generateDraft } from './draft'
 import { parseTranches, raiseLevels, fillTranches } from '@/lib/investors/raises'
 import { moduleTools, executeModuleTool, MODULE_TOOL_NAMES } from './agent-tools-modules'
 import { correspondenceRecency } from '@/lib/email-sweep/filed-threads'
+import { loadPortfolioVehicles, resolveVehicleRefs } from '@/lib/spvs/portfolio'
+import { participantTotals, resolveBwShare, splitWarnings } from '@/lib/spvs/ownership'
+import { SPV_PURPOSE_LABELS, SPV_ROLE_LABELS } from '@/lib/spvs/types'
+import { INVESTMENT_TARGET_KINDS, investmentTargetLabel } from '@/lib/utils/investors'
 import type { AgentContext } from './agent'
 import type { Database } from '@/types/database'
 
@@ -305,9 +309,15 @@ export const agentTools = [
           description: 'Filter by investor type',
         },
         target_kind: {
+          // ⚠ GENERATED FROM THE SAME MEMBER LIST THE DATABASE CHECK USES. A
+          // tool declaration is a static array re-sent every request, so a
+          // stale enum names a lane that must not be used and HIDES one that
+          // should — `spv` would have been unaskable while the form offered it
+          // (§12, 09-30).
           type: 'string',
-          enum: ['company', 'project'],
-          description: 'Only investors with an investment targeting the parent company or a project/SPV',
+          enum: INVESTMENT_TARGET_KINDS,
+          description:
+            'Only investors with a commitment into the parent company, a whole project, or a specific SPV on a deal',
         },
       },
     },
@@ -320,6 +330,19 @@ export const agentTools = [
       properties: {
         investor_id: { type: 'string', description: 'UUID of the investor (if known)' },
         name: { type: 'string', description: 'Investor name to look up (fuzzy match). Provide this when the UUID is unknown.' },
+      },
+    },
+  },
+  {
+    name: 'list_vehicles',
+    description: "The SPVs deals are held in, and who is in each one. Returns per vehicle: its name, purpose (land/energy/data_center/housing), jurisdiction, the deal it belongs to, its legal entity and org-chart node, the participant ledger (every holder with role, equity %, capital committed and funded), Ber Wilson's share AND whether that came from the ledger or from a typed figure, the raise target, and any warning that the splits do not add up. Use for 'who owns the Delta land co', 'what is our share of the energy SPV', 'how much capital is committed across all vehicles', 'which cap tables are incomplete', or any question about deal structure, SPVs, equity splits or members. ⚠ The participant ledger is the CAP TABLE — who holds what. It is NOT the capital-raise pipeline (use query_investor for that), and the two must never be added together: the same investor can appear in both.",
+    parameters: {
+      type: 'object',
+      properties: {
+        project_id: { type: 'string', description: 'Optional: only vehicles on this project' },
+        opportunity_id: { type: 'string', description: 'Optional: only vehicles on this opportunity' },
+        deal_name: { type: 'string', description: 'Optional: only vehicles whose deal name contains this text (case-insensitive)' },
+        incomplete_only: { type: 'boolean', description: 'Optional: only vehicles whose splits do not add up or whose Ber Wilson share is undetermined' },
       },
     },
   },
@@ -1321,12 +1344,19 @@ async function executeToolCallInner(
         q,
         supabase
           .from('investments')
-          .select('investor_id, raise_id, target_kind, stage, amount_indicated, amount_committed, amount_funded, project:projects(name), raise:raises(name)'),
+          .select('investor_id, raise_id, target_kind, spv_id, stage, amount_indicated, amount_committed, amount_funded, project:projects(name), raise:raises(name)'),
         supabase.from('raises').select('id, name, status, target_amount, tranches'),
       ])
       if (error) return { error: `Investors unavailable: ${error.message}` }
 
       const allInvestments = investments ?? []
+      // Vehicle names for the target labels. No viewer passed, so the
+      // containment answer is the absolute one — an agent turn can be relayed
+      // into a brief or an email, and nothing that has left can be un-sent.
+      const searchVehicleRefs = await resolveVehicleRefs(
+        allInvestments.map((i) => i.spv_id).filter((v): v is string => !!v),
+        null
+      )
       const byInvestor = new Map<string, typeof allInvestments>()
       for (const inv of allInvestments) {
         const list = byInvestor.get(inv.investor_id) ?? []
@@ -1396,7 +1426,11 @@ async function executeToolCallInner(
             committed: sum('amount_committed'),
             funded: sum('amount_funded'),
             targets: [...new Set(invs.map((i) =>
-              i.target_kind === 'company' ? 'Ber Wilson (parent)' : (i.project as { name: string } | null)?.name ?? 'Project'
+              investmentTargetLabel({
+                target_kind: i.target_kind,
+                project: i.project as { name: string } | null,
+                vehicle: i.spv_id ? searchVehicleRefs.get(i.spv_id) ?? null : null,
+              })
             ))],
             raises: [...new Set(invs.map((i) => (i.raise as { name: string } | null)?.name).filter(Boolean))],
           }
@@ -1430,7 +1464,9 @@ async function executeToolCallInner(
         supabase.from('investors').select('*').eq('id', investorId).single(),
         supabase
           .from('investments')
-          .select('*, project:projects(id, name), spv:entities!investments_spv_entity_id_fkey(id, name), raise:raises(id, name)')
+          // No vehicle embed: `project_spvs` is deliberately absent from the
+          // generated types (§4), so it is resolved below instead.
+          .select('*, project:projects(id, name), raise:raises(id, name)')
           .eq('investor_id', investorId)
           .order('created_at', { ascending: true }),
         supabase.from('investor_notes').select('body, author, created_at').eq('investor_id', investorId).order('created_at', { ascending: false }).limit(10),
@@ -1442,12 +1478,28 @@ async function executeToolCallInner(
 
       if (invRes.error || !invRes.data) return { error: `Investor not found: ${invRes.error?.message ?? investorId}` }
 
+      // An spv-targeted commitment reaches its deal THROUGH the vehicle, so the
+      // vehicle has to be resolved before `target` can be named at all.
+      // `resolveVehicleRefs` applies the confidential-project filter itself.
+      const vehicleRefs = await resolveVehicleRefs(
+        (investmentsRes.data ?? []).map((i) => i.spv_id).filter((id): id is string => !!id)
+      )
+
       return {
         investor: invRes.data,
-        investments: (investmentsRes.data ?? []).map((i) => ({
-          target: i.target_kind === 'company' ? 'Ber Wilson (parent)' : (i.project as { name: string } | null)?.name ?? 'Project',
+        investments: (investmentsRes.data ?? []).map((i) => {
+          const vehicle = i.spv_id ? vehicleRefs.get(i.spv_id) : undefined
+          return {
+          target: investmentTargetLabel({
+            target_kind: i.target_kind,
+            project: i.project as { name: string } | null,
+            vehicle: vehicle ?? null,
+          }),
           raise: (i.raise as { name: string } | null)?.name ?? null,
-          spv: (i.spv as { name: string } | null)?.name ?? null,
+          // THE RAISE PIPELINE, NOT THE CAP TABLE. Who holds what in this
+          // vehicle is `project_spv_participants` — read it with
+          // `list_vehicles`, and never add the two together.
+          vehicle: vehicle ? `${vehicle.label} — ${vehicle.dealName}` : null,
           stage: i.stage,
           instrument: i.instrument,
           amount_indicated: i.amount_indicated,
@@ -1459,7 +1511,8 @@ async function executeToolCallInner(
           terms_notes: i.terms_notes,
           target_close_date: i.target_close_date,
           next_step: i.next_step,
-        })),
+          }
+        }),
         recent_notes: notesRes.data ?? [],
         open_tasks: (tasksRes.data ?? []).map((t) => ({
           title: t.title,
@@ -1475,6 +1528,94 @@ async function executeToolCallInner(
           project: (r.project as { name: string } | null)?.name ?? 'standard (all deals)',
           evidence_on_file: r.evidence_doc_id != null,
         })),
+      }
+    }
+
+    case 'list_vehicles': {
+      // ⚠ NO VIEWER PASSED, SO THE CONTAINMENT ANSWER IS THE ABSOLUTE ONE. An
+      // agent turn can be relayed into a brief, an email or a push, none of
+      // which can be un-disclosed afterwards (§12). The rest of this module
+      // already reads `hiddenProjectIds(null)` for the same reason.
+      const { vehicles, hiddenDeals } = await loadPortfolioVehicles(null)
+
+      const dealName = typeof args.deal_name === 'string' ? args.deal_name.toLowerCase() : null
+      const filtered = vehicles.filter((v) => {
+        if (args.project_id && !(v.deal.kind === 'project' && v.deal.id === args.project_id)) return false
+        if (args.opportunity_id && !(v.deal.kind === 'opportunity' && v.deal.id === args.opportunity_id)) return false
+        if (dealName && !v.deal.name.toLowerCase().includes(dealName)) return false
+        return true
+      })
+
+      const rows = filtered.map((v) => {
+        const share = resolveBwShare(v.spv, v.spv.participants)
+        const totals = participantTotals(v.spv.participants)
+        const warnings = splitWarnings(v.spv, v.spv.participants)
+        return {
+          vehicle: v.spv.label,
+          purpose: SPV_PURPOSE_LABELS[v.spv.purpose],
+          deal: v.deal.name,
+          deal_kind: v.deal.kind,
+          jurisdiction: v.spv.jurisdiction,
+          legal_entity_formed: v.spv.entityId != null,
+          in_org_chart_as: v.spv.orgNodeName,
+          status: v.spv.status,
+          // ⚠ THE SHARE CARRIES WHERE IT CAME FROM. A ledger figure and a typed
+          // one are different evidence, and an undetermined share must never be
+          // reported as 0 or as the residue of the other holders.
+          ber_wilson_share_pct: share.pct,
+          ber_wilson_share_source:
+            share.from === 'ledger'
+              ? 'the participant marked as Ber Wilson'
+              : share.from === 'typed'
+                ? 'a figure typed on the vehicle, with no participant ledger'
+                : 'UNDETERMINED — nobody has recorded it. Do not infer it.',
+          raise_target: v.spv.raiseTarget,
+          cap_table: v.spv.participants.map((p) => ({
+            holder: p.holderName,
+            role: SPV_ROLE_LABELS[p.role],
+            is_ber_wilson: p.isBerWilson,
+            equity_pct: p.equityPct,
+            capital_committed: p.capitalCommitted,
+            capital_funded: p.capitalFunded,
+            status: p.status,
+          })),
+          // PRINTED, NEVER LEFT TO THE MODEL TO ADD UP (§12 — never make the
+          // model count rows; print the count).
+          cap_table_totals: {
+            holders: v.spv.participants.length,
+            equity_pct: totals.equityPct,
+            committed: totals.committed,
+            funded: totals.funded,
+          },
+          raise_pipeline_separate_from_cap_table: {
+            investors_in_discussion: v.pipeline.investorCount,
+            indicated: v.pipeline.indicated,
+            signed: v.pipeline.committed,
+            already_on_cap_table: v.pipeline.onCapTable,
+            note: 'These are pipeline figures. Never add them to cap_table_totals — the same investor can appear in both.',
+          },
+          warnings,
+        }
+      })
+
+      const shown = args.incomplete_only
+        ? rows.filter((r) => r.warnings.length > 0 || r.ber_wilson_share_pct == null)
+        : rows
+
+      return {
+        vehicles: shown,
+        count: shown.length,
+        // ⚠ THE COUNT OF WHAT WAS WITHHELD, NOT SILENCE. "There are 3 vehicles"
+        // from a list trimmed from 5 is confidently wrong and worse than saying
+        // some deals are protected (§12).
+        protected_deals_excluded: hiddenDeals,
+        totals: {
+          vehicles: shown.length,
+          deals: new Set(shown.map((r) => r.deal)).size,
+          committed: sumOrNull(shown.map((r) => r.cap_table_totals.committed)),
+          funded: sumOrNull(shown.map((r) => r.cap_table_totals.funded)),
+          share_undetermined: shown.filter((r) => r.ber_wilson_share_pct == null).length,
+        },
       }
     }
 
@@ -1722,4 +1863,21 @@ async function executeToolCallInner(
       if (MODULE_TOOL_NAMES.has(toolName)) return executeModuleTool(toolName, args)
       return { error: `Unknown tool: ${toolName}` }
   }
+}
+
+/**
+ * A total that is null when nothing contributed to it.
+ *
+ * ⚠ 0 AND "NOBODY HAS SAID" ARE DIFFERENT FACTS, and a tool result is read by a
+ * model that will repeat whichever one it is handed. `$0 committed` across four
+ * vehicles with real equity splits reads as computed rather than unfinished
+ * (§12, 10-05) — and an executive repeats that figure out loud.
+ */
+function sumOrNull(values: readonly (number | null)[]): number | null {
+  let total: number | null = null
+  for (const value of values) {
+    if (value == null) continue
+    total = (total ?? 0) + value
+  }
+  return total
 }

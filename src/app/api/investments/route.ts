@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { embedInvestorSnapshot } from '@/lib/ai/embeddings'
 import { getViewer, forbiddenJson } from '@/lib/auth/viewer'
+import { vehicleTargetError } from '@/lib/spvs/portfolio'
 import { parseInvestmentFields, type InvestmentBody } from '@/lib/investors/parse'
 
 export async function POST(request: NextRequest) {
@@ -22,6 +23,10 @@ export async function POST(request: NextRequest) {
 
   const result = parseInvestmentFields(body)
   if (!result.ok) return Response.json({ error: result.error }, { status: 400 })
+
+  // A vehicle that was renamed away or removed while this form sat open.
+  const vehicleError = await vehicleTargetError(result.fields.spv_id)
+  if (vehicleError) return Response.json({ error: vehicleError }, { status: 400 })
 
   const supabase = createAdminClient()
   const { data, error } = await supabase

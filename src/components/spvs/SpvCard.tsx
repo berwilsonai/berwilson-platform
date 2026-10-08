@@ -34,7 +34,10 @@ import {
   type OrgNodeOption,
   type ProjectSpv,
 } from '@/lib/spvs/types'
+import type { VehicleDocument } from '@/lib/spvs/documents'
+import type { VehiclePipeline } from '@/lib/spvs/portfolio'
 import ParticipantLedger from './ParticipantLedger'
+import VehicleDocuments from './VehicleDocuments'
 import { outbound, useApiCall, type Draft } from './use-api-call'
 
 interface SpvCardProps {
@@ -44,6 +47,16 @@ interface SpvCardProps {
   orgNodes: OrgNodeOption[]
   canEdit: boolean
   hasModel: boolean
+  /** Filed against this vehicle's legal entity, not against the deal. */
+  documents: VehicleDocument[]
+  /**
+   * The raise pipeline against this vehicle. ⚠ NEVER ADDED TO THE LEDGER'S
+   * committed/funded — the same dollar can sit in both, so a combined figure
+   * reports a raise twice the size of the one being run.
+   */
+  pipeline: VehiclePipeline | null
+  /** True when the owning project is confidential — the panel says what that does not cover. */
+  dealIsConfidential: boolean
 }
 
 /** Trailing zeros dropped: "35%", not "35.0000%". */
@@ -51,7 +64,16 @@ function pct(value: number): string {
   return `${Number(value.toFixed(4))}%`
 }
 
-export default function SpvCard({ spv, rollup, orgNodes, canEdit, hasModel }: SpvCardProps) {
+export default function SpvCard({
+  spv,
+  rollup,
+  orgNodes,
+  canEdit,
+  hasModel,
+  documents,
+  pipeline,
+  dealIsConfidential,
+}: SpvCardProps) {
   const { busy, call } = useApiCall()
   const [editing, setEditing] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
@@ -195,6 +217,52 @@ export default function SpvCard({ spv, rollup, orgNodes, canEdit, hasModel }: Sp
                 <span className="tnum">{formatValue(gap)}</span> still to place
               </span>
             ) : null}
+          </div>
+        ) : null}
+
+        {/*
+          ── the raise pipeline, named apart from the ledger ───────────────
+          ⚠ A SEPARATE BLOCK WITH ITS OWN HEADING, DELIBERATELY NOT MERGED INTO
+          THE CAPITAL LINE ABOVE. `investments` is who we are talking to and
+          what they have indicated; the ledger above is who holds what. The same
+          investor can be in both at once, so one combined "committed" figure
+          would be larger than either truth and belong to neither (§12, one
+          quantity one definition). The wording does the work the arithmetic
+          must not.
+        */}
+        {pipeline && pipeline.investorCount > 0 ? (
+          <div className="rounded-md border border-dashed border-border p-3">
+            <p className="label-caps text-muted-foreground">
+              In the raise pipeline · not the cap table
+            </p>
+            <div className="mt-1 flex flex-wrap items-baseline gap-x-6 gap-y-1 text-sm">
+              <span>
+                <span className="tnum font-medium">{pipeline.investorCount}</span>
+                <span className="text-muted-foreground">
+                  {' '}
+                  investor{pipeline.investorCount === 1 ? '' : 's'}
+                </span>
+              </span>
+              {pipeline.indicated != null ? (
+                <span>
+                  <span className="text-muted-foreground">Indicated </span>
+                  <span className="tnum font-medium">{formatMoney(pipeline.indicated)}</span>
+                </span>
+              ) : null}
+              {pipeline.committed != null ? (
+                <span>
+                  <span className="text-muted-foreground">Signed </span>
+                  <span className="tnum font-medium">{formatMoney(pipeline.committed)}</span>
+                </span>
+              ) : null}
+            </div>
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              {pipeline.onCapTable === pipeline.investorCount
+                ? 'All of them are on the cap table above.'
+                : `${pipeline.investorCount - pipeline.onCapTable} of ${pipeline.investorCount} ${
+                    pipeline.investorCount - pipeline.onCapTable === 1 ? 'is' : 'are'
+                  } not on the cap table yet — add them from the investor's page once the commitment is signed. These figures are never added to the ledger's: the same dollar can appear in both.`}
+            </p>
           </div>
         ) : null}
 
@@ -350,6 +418,14 @@ export default function SpvCard({ spv, rollup, orgNodes, canEdit, hasModel }: Sp
         ) : null}
 
         <ParticipantLedger spv={spv} canEdit={canEdit} />
+
+        <VehicleDocuments
+          entityId={spv.entityId}
+          vehicleLabel={spv.label}
+          documents={documents}
+          canEdit={canEdit}
+          dealIsConfidential={dealIsConfidential}
+        />
       </div>
 
       <ConfirmDialog

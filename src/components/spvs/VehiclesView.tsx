@@ -17,6 +17,9 @@ import { loadEconomics } from '@/lib/economics/store'
 import type { EntityRollup } from '@/lib/economics/capture'
 import type { RecordKind } from '@/lib/records/scope'
 import { loadProjectSpvs } from '@/lib/spvs/queries'
+import { loadVehicleDocuments, type VehicleDocument } from '@/lib/spvs/documents'
+import { loadVehiclePipelines } from '@/lib/spvs/portfolio'
+import { isConfidentialProject } from '@/lib/security/confidential'
 import { spvDb } from '@/lib/spvs/db'
 import type { OrgNodeOption } from '@/lib/spvs/types'
 import VehiclesBoard from './VehiclesBoard'
@@ -34,13 +37,29 @@ export default async function VehiclesView({
   recordName,
   canEdit,
 }: VehiclesViewProps) {
-  const [spvs, loaded, orgNodes] = await Promise.all([
+  const [spvs, loaded, orgNodes, dealIsConfidential] = await Promise.all([
     loadProjectSpvs(recordKind, recordId),
     // The model may not exist — the whole point of moving vehicles off it is
     // that structure is settled before anything is priced. No model simply
     // means no money to show per vehicle yet.
     loadEconomics(recordKind, recordId),
     listOrgNodes(),
+    // Only a PROJECT can be protected; an opportunity has no such flag.
+    recordKind === 'project' ? isConfidentialProject(recordId) : Promise.resolve(false),
+  ])
+
+  // ⚠ DOCUMENTS ARE KEYED BY THE VEHICLE'S *ENTITY*, NOT BY THE VEHICLE. An
+  // operating agreement is a fact about the LLC: it survives the deal being
+  // renamed, re-phased or closed, and it follows the entity if the same vehicle
+  // is reused on a second site. `documents.entity_id` already existed, so this
+  // adds no column to a table that already carries five owners beside a
+  // parallel `opportunity_documents` (see src/lib/spvs/documents.ts).
+  //
+  // The raise pipeline is loaded beside the ledger and handed down separately —
+  // the two answer different questions and are never summed.
+  const [documents, pipelines] = await Promise.all([
+    loadVehicleDocuments(spvs.map((s) => s.entityId)),
+    loadVehiclePipelines(spvs),
   ])
 
   // ⚠ `byEntity` IS COMPUTED BY THE ENGINE AND, UNTIL NOW, WAS RENDERED BY NO
@@ -78,6 +97,9 @@ export default async function VehiclesView({
         rollups={Object.fromEntries(rollups)}
         orgNodes={orgNodes}
         hasModel={loaded != null}
+        documents={Object.fromEntries(documents) as Record<string, VehicleDocument[]>}
+        pipelines={pipelines}
+        dealIsConfidential={dealIsConfidential}
       />
     </div>
   )

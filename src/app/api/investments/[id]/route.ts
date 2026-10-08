@@ -2,7 +2,12 @@ import { NextRequest } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { embedInvestorSnapshot } from '@/lib/ai/embeddings'
 import { getViewer, forbiddenJson } from '@/lib/auth/viewer'
-import { parseInvestmentFields, type InvestmentBody } from '@/lib/investors/parse'
+import { vehicleTargetError } from '@/lib/spvs/portfolio'
+import {
+  parseInvestmentFields,
+  TARGET_COLUMNS,
+  type InvestmentBody,
+} from '@/lib/investors/parse'
 
 interface RouteContext {
   params: Promise<{ id: string }>
@@ -25,16 +30,31 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
   if (!result.ok) return Response.json({ error: result.error }, { status: 400 })
 
   // Partial update: only apply keys the caller actually sent (the parser fills
-  // defaults for everything else). Target kind + project travel as a pair.
+  // defaults for everything else).
   const provided = new Set(Object.keys(body))
   const update: Partial<typeof result.fields> = {}
   for (const [key, value] of Object.entries(result.fields)) {
     if (provided.has(key)) (update as Record<string, unknown>)[key] = value
   }
-  if (provided.has('target_kind')) update.project_id = result.fields.project_id
+  // ⚠ ALL THREE TARGET COLUMNS TRAVEL TOGETHER, OR THE CHECK CONSTRAINT FIRES.
+  // `investments_target_check` demands exactly one of project_id / spv_id be
+  // set for its kind, so moving a commitment from a vehicle back to the parent
+  // company while sending only `target_kind` would leave the old `spv_id` in
+  // place and fail — a 500 the reader reads as their own mistake. This was
+  // already true of `project_id` alone; adding a second target column is what
+  // makes forgetting it certain.
+  if (provided.has('target_kind')) {
+    for (const column of TARGET_COLUMNS) {
+      ;(update as Record<string, unknown>)[column] = result.fields[column]
+    }
+  }
   if (Object.keys(update).length === 0) {
     return Response.json({ error: 'No fields provided' }, { status: 400 })
   }
+
+  // A vehicle that was renamed away or removed while this form sat open.
+  const vehicleError = await vehicleTargetError(result.fields.spv_id)
+  if (vehicleError) return Response.json({ error: vehicleError }, { status: 400 })
 
   const supabase = createAdminClient()
   const { data, error } = await supabase

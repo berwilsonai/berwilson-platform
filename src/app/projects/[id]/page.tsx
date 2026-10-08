@@ -279,20 +279,39 @@ export default async function ProjectOverviewPage({ params }: PageProps) {
               hand-entered estimate on another is neither quantity, and the
               reader cannot tell from the figure alone. */}
           {(() => {
-            const total = pipelineTotal([project, ...(childProjects ?? [])])
+            // ⚠ THE SUB-PROJECTS ONLY — NOT THE PROGRAM ALONGSIDE THEM. This
+            // read `[project, ...children]`, so a program carrying its own
+            // economics model was added to the models of the work inside it and
+            // the aggregate came out roughly double. Latent only because
+            // `parent_project_id` was used by 0 of 14 rows. Economics lives on
+            // leaves; a program's value is what the work inside adds up to.
+            const total = pipelineTotal(childProjects ?? [])
             const note = mixedTotalNote(total)
+            const own = pipelineValue(project)
             return (
-              <div className="text-xs text-muted-foreground">
-                Aggregated value:{' '}
-                <span className="font-semibold tnum text-foreground">
-                  {formatValue(total.amount)}
-                </span>
-                {note ? <span> · {note}</span> : <span> · Ber Wilson capture</span>}
-                {total.unpriced > 0 ? (
-                  <span>
-                    {' · '}
-                    {total.unpriced} with no value yet
+              <div className="space-y-1 text-xs text-muted-foreground">
+                <div>
+                  Aggregated value:{' '}
+                  <span className="font-semibold tnum text-foreground">
+                    {total.modelled + total.estimated > 0 ? formatValue(total.amount) : 'Not set'}
                   </span>
+                  {note ? <span> · {note}</span> : <span> · Ber Wilson capture</span>}
+                  {total.unpriced > 0 ? (
+                    <span>
+                      {' · '}
+                      {total.unpriced} with no value yet
+                    </span>
+                  ) : null}
+                </div>
+                {/* Ignoring a number and saying you ignored it are different
+                    acts (§12). Without this line the next person to model the
+                    program wonders why their figure never appeared. */}
+                {own.amount != null ? (
+                  <div>
+                    The program also carries {formatValue(own.amount)} of its own (
+                    {own.definition.toLowerCase()}), which is not added here — it would count the
+                    same work twice.
+                  </div>
                 ) : null}
               </div>
             )

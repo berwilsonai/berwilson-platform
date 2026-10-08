@@ -1,5 +1,7 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { EMBEDDING_DIMS, isLocalEmbeddings, localEmbedding } from './local'
+import { resolveVehicleRefs } from '@/lib/spvs/portfolio'
+import { investmentTargetLabel } from '@/lib/utils/investors'
 import type { Database } from '@/types/database'
 
 type ChunkInsert = Database['public']['Tables']['chunks']['Insert']
@@ -465,7 +467,9 @@ export async function embedInvestorSnapshot(investorId: string): Promise<void> {
         .single(),
       supabase
         .from('investments')
-        .select('target_kind, stage, instrument, amount_indicated, amount_committed, amount_funded, equity_pct, profit_share_pct, preferred_return_pct, terms_notes, target_close_date, next_step, project:projects(name), spv:entities!investments_spv_entity_id_fkey(name), raise:raises(name)')
+        // No vehicle embed: `project_spvs` is deliberately absent from the
+        // generated types (§4), so it is resolved below.
+        .select('target_kind, spv_id, stage, instrument, amount_indicated, amount_committed, amount_funded, equity_pct, profit_share_pct, preferred_return_pct, terms_notes, target_close_date, next_step, project:projects(name), raise:raises(name)')
         .eq('investor_id', investorId),
       supabase
         .from('investor_notes')
@@ -501,12 +505,28 @@ export async function embedInvestorSnapshot(investorId: string): Promise<void> {
     if (inv.next_step) parts.push(`Next Step: ${inv.next_step}${inv.next_step_date ? ` (by ${inv.next_step_date})` : ''}`)
     if (inv.notes) parts.push(`Background: ${inv.notes}`)
 
+    // ⚠ RESOLVED WITH NO VIEWER ON PURPOSE. This text is embedded into `chunks`
+    // and answers portfolio-wide retrieval, so it must carry the ABSOLUTE
+    // containment answer and never a viewer's unlocked one: a vector written
+    // while someone held a step-up would keep disclosing the deal to everyone
+    // afterwards. `hiddenProjectIds(null)` is the safe answer by construction
+    // (§12 — anything that leaves the box takes the absolute answer).
+    const vehicleRefs = await resolveVehicleRefs(
+      (investments ?? []).map((i) => i.spv_id).filter((id): id is string => !!id),
+      null
+    )
+
     for (const i of investments ?? []) {
-      const target =
-        i.target_kind === 'company'
-          ? 'Ber Wilson parent company'
-          : `project ${(i.project as { name: string } | null)?.name ?? 'unknown'}`
-      const spv = (i.spv as { name: string } | null)?.name
+      const vehicle = i.spv_id ? vehicleRefs.get(i.spv_id) : undefined
+      // The shared label, so a commitment reads the same in retrieval as it
+      // does on screen — a snapshot that names a target differently from the
+      // page is a second definition the model will happily repeat.
+      const target = investmentTargetLabel({
+        target_kind: i.target_kind,
+        project: i.project as { name: string } | null,
+        vehicle: vehicle ?? null,
+      })
+      const spv = i.target_kind === 'spv' ? null : vehicle?.label
       const raise = (i.raise as { name: string } | null)?.name
       const line = [
         `Investment in ${target}${raise ? ` under raise "${raise}"` : ''}${spv ? ` (SPV: ${spv})` : ''}: stage ${i.stage}`,

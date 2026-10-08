@@ -17,6 +17,7 @@ import {
   KeyRound,
   Map as MapIcon,
   HandCoins,
+  Boxes,
   Factory,
   Wrench,
   type LucideIcon,
@@ -88,6 +89,12 @@ export const NAV_ITEMS: NavItem[] = [
   { href: '/opportunities', label: 'Opportunities', icon: Lightbulb, group: 'primary', keywords: 'acquisitions partnerships jv mergers investments deals' },
   { href: '/leads', label: 'Leads', title: 'Inbound Leads', icon: Radar, group: 'intelligence', keywords: 'inbound bids invitations itb ifb rfp rfq solicitations plan room prospects enquiries info inbox scored triage' },
   { href: '/investors', label: 'Investors', icon: HandCoins, group: 'primary', keywords: 'capital raise fundraising equity spv commitments funding money lp' },
+  // ⚠ NO `alsoMatches` FOR `/projects/*/vehicles`. `navItemActive` is per-item
+  // with no dedupe, so claiming a path that already belongs to another item
+  // lights two sidebar rows at once — and the reader believes the highlighted
+  // one, which made a real destination read as a sub-view of the wrong queue
+  // (§12, 10-03).
+  { href: '/vehicles', label: 'Vehicles', title: 'Vehicles & Cap Tables', icon: Boxes, group: 'primary', keywords: 'spv spvs vehicles cap table captable holdco landco equity split ownership participants members llc capital committed funded raise structure who owns what' },
   { href: '/steel', label: 'Steel CRM', icon: Factory, group: 'primary', keywords: 'prefab steel sales deals quotes square feet sqft plant manufacturing buildings customers' },
   { href: '/dino', label: 'Dino', title: 'Dino Service Pros', icon: Wrench, group: 'primary', hideWhenEmpty: 'dino', keywords: 'dino service pros plumbing hvac mechanical revenue operating company internal trades payments' },
   { href: '/calc', label: 'Quick Calc', title: 'Quick Calc', icon: Calculator, group: 'intelligence', keywords: 'calculator economics deal size megawatts mw price per kwh kw-month lease rate capture margin fee npv escalator pue load factor scratchpad back of envelope how big is this quick math' },

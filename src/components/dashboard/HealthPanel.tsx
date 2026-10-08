@@ -26,6 +26,8 @@ interface HealthPanelProps {
   pipelineNote?: string | null
   /** Active projects nobody has priced, so the tile's denominator is honest. */
   unpricedCount?: number
+  /** Programs held out of the total because their sub-projects carry it. */
+  rolledUpCount?: number
 }
 
 /**
@@ -44,6 +46,7 @@ export default function HealthPanel({
   expiringCertsCount,
   pipelineNote,
   unpricedCount,
+  rolledUpCount,
 }: HealthPanelProps) {
   /*
     TWO QUANTITIES, NEVER ONE NUMBER.
@@ -94,6 +97,14 @@ export default function HealthPanel({
               <dd className="mt-0.5 text-xs text-muted-foreground">
                 {unpricedCount} active {unpricedCount === 1 ? 'project has' : 'projects have'} no
                 value yet
+              </dd>
+            ) : null}
+            {/* A total over 50 deals that silently covers 44 is the kind of
+                unexplained figure this tile exists to stop. */}
+            {rolledUpCount && rolledUpCount > 0 ? (
+              <dd className="mt-0.5 text-xs text-muted-foreground">
+                {rolledUpCount} {rolledUpCount === 1 ? 'program counts' : 'programs count'} through
+                its sub-projects, not twice
               </dd>
             ) : null}
           </div>

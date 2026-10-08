@@ -1347,7 +1347,7 @@ export type Database = {
           profit_share_pct: number | null
           project_id: string | null
           raise_id: string | null
-          spv_entity_id: string | null
+          spv_id: string | null
           stage: string
           target_close_date: string | null
           target_kind: string
@@ -1371,7 +1371,7 @@ export type Database = {
           profit_share_pct?: number | null
           project_id?: string | null
           raise_id?: string | null
-          spv_entity_id?: string | null
+          spv_id?: string | null
           stage?: string
           target_close_date?: string | null
           target_kind?: string
@@ -1395,7 +1395,7 @@ export type Database = {
           profit_share_pct?: number | null
           project_id?: string | null
           raise_id?: string | null
-          spv_entity_id?: string | null
+          spv_id?: string | null
           stage?: string
           target_close_date?: string | null
           target_kind?: string
@@ -1425,10 +1425,10 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "investments_spv_entity_id_fkey"
-            columns: ["spv_entity_id"]
+            foreignKeyName: "investments_spv_id_fkey"
+            columns: ["spv_id"]
             isOneToOne: false
-            referencedRelation: "entities"
+            referencedRelation: "project_spvs"
             referencedColumns: ["id"]
           },
         ]

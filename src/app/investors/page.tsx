@@ -14,8 +14,12 @@ import {
   type InvestorType,
   type InvestorStage,
   type InterestLevel,
+  investmentTargetLabel,
+  isInvestmentTargetKind,
 } from '@/lib/utils/investors'
 import { parseTranches, raiseLevels, fillTranches } from '@/lib/investors/raises'
+import { getViewer } from '@/lib/auth/viewer'
+import { resolveVehicleRefs } from '@/lib/spvs/portfolio'
 import EmptyState from '@/components/shared/EmptyState'
 import InvestorFilters from '@/components/investors/InvestorFilters'
 import InvestorsClient, { type InvestorCardData } from '@/components/investors/InvestorsClient'
@@ -55,7 +59,10 @@ export default async function InvestorsPage({ searchParams }: PageProps) {
   const stage = INVESTOR_STAGES.includes(params.stage as InvestorStage) ? (params.stage as InvestorStage) : ''
   const type = INVESTOR_TYPES.includes(params.type as InvestorType) ? (params.type as InvestorType) : ''
   const interest = INTEREST_LEVELS.includes(params.interest as InterestLevel) ? (params.interest as InterestLevel) : ''
-  const target = params.target === 'company' || params.target === 'project' ? params.target : ''
+  // ⚠ READ FROM THE SHARED MEMBER LIST, NOT A HAND-WRITTEN PAIR. This was
+  // `=== 'company' || === 'project'`, so `?target=spv` silently became "all
+  // targets" — a filter that quietly does nothing is worse than no filter (§12).
+  const target = isInvestmentTargetKind(params.target) ? params.target : ''
 
   const supabase = createAdminClient()
 
@@ -67,6 +74,8 @@ export default async function InvestorsPage({ searchParams }: PageProps) {
       .select('*, party:parties(id, full_name, is_organization)')
       .order('updated_at', { ascending: false }),
     supabase
+      // `project_spvs` is outside the generated types (§4), so the vehicle is
+      // resolved separately below rather than embedded.
       .from('investments')
       .select('*, project:projects(id, name)'),
     supabase
@@ -80,6 +89,16 @@ export default async function InvestorsPage({ searchParams }: PageProps) {
   }
 
   const allInvestments = investmentRows ?? []
+
+  // Vehicle names for the target labels. `resolveVehicleRefs` applies the
+  // confidential-project filter itself, so a commitment into a protected deal's
+  // vehicle is named as such rather than by its deal.
+  const viewer = await getViewer()
+  const vehicleRefs = await resolveVehicleRefs(
+    allInvestments.map((i) => i.spv_id).filter((v): v is string => !!v),
+    viewer?.authUserId ?? null
+  )
+
   const byInvestor = new Map<string, typeof allInvestments>()
   for (const inv of allInvestments) {
     const list = byInvestor.get(inv.investor_id) ?? []
@@ -100,12 +119,18 @@ export default async function InvestorsPage({ searchParams }: PageProps) {
 
   const items: InvestorCardData[] = filtered.map((row) => {
     const invs = byInvestor.get(row.id) ?? []
+    // ⚠ ONE SHARED LABEL. Written inline here, this rendered every SPV
+    // commitment as the bare word "Project" — an spv-targeted row has
+    // `project_id` NULL by design, so the `?? 'Project'` fallback was the
+    // branch that always fired.
     const targets = [
       ...new Set(
         invs.map((i) =>
-          i.target_kind === 'company'
-            ? 'Ber Wilson (parent)'
-            : (i.project as { name: string } | null)?.name ?? 'Project'
+          investmentTargetLabel({
+            target_kind: i.target_kind,
+            project: i.project as { name: string } | null,
+            vehicle: i.spv_id ? vehicleRefs.get(i.spv_id) ?? null : null,
+          })
         )
       ),
     ]
@@ -134,7 +159,11 @@ export default async function InvestorsPage({ searchParams }: PageProps) {
       .reduce((acc, i) => acc + (i[key] ?? 0), 0)
 
   const committedCompany = total('amount_committed', 'company')
-  const committedProject = total('amount_committed', 'project')
+  // Project-level and vehicle-level commitments are both "into a deal" for this
+  // one-line split. Counting only `project` would drop every SPV commitment
+  // from a figure whose label claims to cover them.
+  const committedProject =
+    total('amount_committed', 'project') + total('amount_committed', 'spv')
 
   const count = items.length
   const hasFilters = stage || type || interest || target
@@ -256,7 +285,7 @@ export default async function InvestorsPage({ searchParams }: PageProps) {
           <Stat
             label="Committed"
             value={formatValue(total('amount_committed'))}
-            sub={`${formatValue(committedCompany)} parent · ${formatValue(committedProject)} projects`}
+            sub={`${formatValue(committedCompany)} parent · ${formatValue(committedProject)} deals & vehicles`}
             tone="indigo"
           />
           <Stat label="Funded" value={formatValue(total('amount_funded'))} sub="Wired to date" tone="emerald" />

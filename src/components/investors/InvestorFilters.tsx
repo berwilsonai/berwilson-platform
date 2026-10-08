@@ -10,6 +10,8 @@ import {
   INVESTOR_STAGE_LABELS,
   INTEREST_LEVELS,
   INTEREST_LEVEL_LABELS,
+  INVESTMENT_TARGET_KINDS,
+  INVESTMENT_TARGET_LABELS,
 } from '@/lib/utils/investors'
 
 interface InvestorFiltersProps {
@@ -69,8 +71,14 @@ export default function InvestorFilters({ stage, type, interest, target }: Inves
 
       <select value={target} onChange={(e) => setParam('target', e.target.value)} className={selectClass}>
         <option value="">All Targets</option>
-        <option value="company">Ber Wilson (parent)</option>
-        <option value="project">Projects / SPVs</option>
+        {/* ⚠ GENERATED FROM THE SHARED MEMBER LIST. A hand-written pair here
+            offered no way to filter to SPV commitments at all, and the page
+            treated the unknown value as "all" rather than refusing it. */}
+        {INVESTMENT_TARGET_KINDS.map((kind) => (
+          <option key={kind} value={kind}>
+            {INVESTMENT_TARGET_LABELS[kind]}
+          </option>
+        ))}
       </select>
 
       {hasFilters && (

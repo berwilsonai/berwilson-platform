@@ -16,7 +16,12 @@ import NowObjectives, { type NowObjectiveItem } from '@/components/dashboard/Now
 import Commitments from '@/components/dashboard/Commitments'
 import { loadOpenCommitments } from '@/lib/commitments/load'
 import { weightedValue } from '@/lib/utils/constants'
-import { mixedTotalNote, pipelineTotal, pipelineValue } from '@/lib/economics/pipeline'
+import {
+  leafRecords,
+  mixedTotalNote,
+  pipelineValue,
+  portfolioTotal,
+} from '@/lib/economics/pipeline'
 import { fetchOpenTasks } from '@/lib/tasks/queries'
 import { getViewer } from '@/lib/auth/viewer'
 import { dropHidden } from '@/lib/security/confidential'
@@ -326,9 +331,17 @@ export default async function DashboardPage({ searchParams }: PageProps) {
   // column holding $57.5B of plainly different quantities, so a figure that
   // mixes a computed Ber Wilson capture with a hand-entered estimate must say
   // so rather than presenting itself as one authoritative number.
-  const pipeline = pipelineTotal(activeProjects)
+  //
+  // ⚠ AND IT COUNTS EACH DEAL ONCE. This summed every active project flat, so a
+  // program carrying its own model alongside sub-projects carrying theirs was
+  // counted twice — latent only because `parent_project_id` was used by 0 of 14
+  // rows. `portfolioTotal` keeps the leaves: economics lives on leaves, and a
+  // program's value is what the work inside it adds up to.
+  const pipeline = portfolioTotal(activeProjects)
   const pipelineValueTotal = pipeline.amount
-  const weightedPipelineValue = activeProjects.reduce(
+  // The same leaf set, or the weighted figure disagrees with the one above it.
+  const pipelineLeaves = leafRecords(activeProjects)
+  const weightedPipelineValue = pipelineLeaves.reduce(
     (sum, p) =>
       sum +
       weightedValue(
@@ -430,6 +443,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
           pipelineValue={pipelineValueTotal}
           pipelineNote={mixedTotalNote(pipeline)}
           unpricedCount={pipeline.unpriced}
+          rolledUpCount={pipeline.rolledUp}
           weightedPipelineValue={weightedPipelineValue}
           pendingReview={pendingReview}
           overdueCount={overdueCount}
