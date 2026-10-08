@@ -11,7 +11,86 @@ Split out of `CLAUDE.md` on 2026-09-23, when that file reached 606k characters a
 - A block of **2026-08-23 → 2026-08-31** entries sits *after* the June entries, near the end of the file.
 - One **2026-07-03** entry ("migrations applied + pursuit profile seeded") is last in the file.
 
-149 entries, 2026-06-22 → 2026-10-08. ⚠ Counted with `grep -c "^\*\*Done 2026"`, not incremented by hand: two sessions editing this file on 2026-10-08 each bumped the old figure by one and both landed on 146 against a real 148.
+150 entries, 2026-06-22 → 2026-10-08. ⚠ Counted with `grep -c "^\*\*Done 2026"`, not incremented by hand: two sessions editing this file on 2026-10-08 each bumped the old figure by one and both landed on 146 against a real 148.
+
+**Done 2026-10-08 (Steelton becomes the first project, and 'title' turns out to be a substring of 'Entitlements'):**
+
+Richard's ask: *"Steelton is a project. Prob going to be our first one. I want you to create the project. Log all Steelton relevant things to that record. Tim and Rebecca are also bringing us in on other deals in West Virginia and Chicago. Go through and create projects for each deal they have brought to us so far. I just had claude reorganize the google drive folders in a way that matches up better. Make sure you look at it and are able to have pepper intelligently read emails and file the folders where they need to go."*
+
+**Who "Tim and Rebecca" are, because the records hang off it.** Neither was in `parties`. The swept mail resolves them to **Timothy Seibert** (Managing Member, Harvest Time Holdings, `tseibert@harvesttimeholdings.com`) and **Rebecca Leonardi** (Zenthium AI, `rebecca@zenthium.ai`), with **Merlin Corbin** (`merlin@zenthium.ai`) on a 4% broker fee. ⚠ `tim.drugatz@goavant.net` is also in the corpus and is NOT him — two lunch-and-learn marketing threads.
+
+⚠ **AND TIM SEIBERT IS ON THE SELLER'S SIDE, WHICH THE RECORDS NOW SAY OUT LOUD.** Rebecca, 2026-10-03: *"Tim Seibert is authorized to negotiate the commercial terms for the Seller on all three properties."* He is also named as a Ber Wilson teaming partner on Steelton delivery. Flattening that into "partner" is how a negotiation goes into a room with the wrong picture, so his player role reads *"Seller-side commercial negotiator (authorised)"* on all three and his party note says he sits on both sides.
+
+**Five deals, all five as projects** (Richard's call; the alternative offered was three projects and two opportunities):
+
+| Record | Stage | What the mail actually says |
+|---|---|---|
+| Steelton — Cleveland-Cliffs (PA) | capture | 215 S Front St. Seller **Cleveland-Cliffs Steelton LLC**, record title to all Exhibit A-3 parcels, signatory **Paul Finan**. PSA **executed**, close was 17 Oct, Ber Wilson pushing to 1 Nov. Financing JPMorgan Chase via **Tensor IQ**; Cliffs has no objection. GC with Mortenson, Kiewit and Harvest Time |
+| Weirton — Cleveland-Cliffs (WV) | capture | ramp **85 MW → 400 MW** |
+| Riverdale — Cleveland-Cliffs (IL) | capture | **400 MW secured**, T&D with **ComEd** — which is what confirms "Chicago" |
+| Whiskey (TX) | pursuit | teaser + Dropbox VDR, no agreement |
+| Zorro (TX) | pursuit | teaser + deck, 10 miles from Whiskey, power comes online after it |
+
+⚠ **WHISKEY AND ZORRO CARRY NO CLIENT ENTITY, DELIBERATELY.** The correspondence never names a seller. The naming convention chosen was seller+state, and applying it anyway would have written an invented party into a record TITLE — the one place a wrong fact gets repeated by everyone.
+
+Every figure above is quoted with the thread it came from in the record's own description, because a seeded record that reads as authored is worse than an empty one. 8 parties, 19 players, 2 milestones (both PSA closing dates, kept as the two separate dates they are).
+
+---
+
+⚠ **`'title'` IS A SUBSTRING OF `'Entitlements'`, SO EVERY LAND-AND-TITLE FILING RULE DIED THE DAY THE DILIGENCE LANES SHIPPED — WHICH WAS THIS MORNING.**
+
+`classifyByFilename` requires exactly ONE candidate folder to match a rule's hints and refuses two as ambiguous, which is correct and has been correct all along. Three rules hinted on bare `'title'`. The moment `Diligence/Permits & Entitlements` became a candidate (this morning's `feaea19`), `'title'` matched it as well as `Land & Title` — two hits — so `alta`, `parcel schedule`, `legal description`, `easement`, `boundary survey`, `title commitment`, `title report`, `title policy`, `quitclaim` and `warranty deed` **all silently stopped firing**, on precisely the deals with the most title work. Nothing reported it: a file that defers to the model looks identical to a file the model was always going to judge.
+
+`ambiguousHintRules()` now asserts the invariant, and **it immediately found a second one**: the Reports & Studies rule hinted on bare `'report'`, which matches both `Reports & Studies` and `Diligence/Geotech & Site Reports`. The broadest rule in the table — `survey`, `geotech`, `feasibility`, `market analysis`, `appraisal` — had been dead the same way. It is split now rather than patched, because a geotech report and a market study are two different things and there is now a lane for the first.
+
+**That is the argument for the guard rather than for the two fixes.** A collision is invisible from the outside and arrives from a change to the CANDIDATE list, not to the rules.
+
+⚠ **AND THE SOURCE-FOLDER MAP WAS A MAP OF ONE COUNTERPARTY'S HABITS.** `copy-data-room.mts` keyed `ROOM_MAP` on Steelton's literal folder names (`'site reports-agencies'`, `'water intake and discharge information'`). Measured against the real corpus: **24% on Steelton, 0–6% on Weirton** — the same diligence lines in different words (`Railroad Information` vs `Railway Information`). It matches the DISTINGUISHING WORD now, and lives in `src/lib/drive/classify.ts` as `classifyBySourceFolder` so the live filing path can reach it. Order is load-bearing: `Permits-TitleV` contains both *permit* and *title* and is a permit; `Weirton Electrical Drawings` contains both *electrical* and *drawing* and is electrical.
+
+**Measured on 381 real files across all three rooms — the fix is the whole point:**
+
+| | filed deterministically | defer to the model |
+|---|---|---|
+| before | **14.0%** (53) | 326 |
+| after | **94.5%** (360) | 21 |
+
+~305 fewer model calls at 30-60s each — roughly **3.8 hours of GPU per data-room pass**, on a box that serves one request at a time. The remaining 21 are bare numbered scans (`043109.tif`) that no file name can classify and that only ever arrive through a folder.
+
+**On the EMAIL path, where there is no folder to lean on**, the honest figure is lower because the corpus is dominated by those scans: 26.3% of all 380. The useful measure is the names this deal's mail actually carries — `Agreement Steelton.pdf`, `Assignment Doc.pdf`, `Steelton PSA executed.pdf`, `Title Commitment`, `ALTA Survey`, `Will Serve Letter`, `FIRPTA Certificate`, `Balance Sheet Detail`, `Certificate of Insurance`, `Lease and Renewal Letters`, `Quarterly Progress Report`, `Track Lease Agreement` — **12 of 12**, where `assignment`, `lease`, `firpta`, `balance sheet` and `agreement` had no rule at all before and `Title Commitment` was one of the dead ones.
+
+---
+
+⚠ **THE STEELTON DATA ROOM WAS FILED ON THE RELATIONSHIP, NOT THE DEAL.** `02 Projects / Zenthium Partnership` held **175 files, every one of them Steelton** — Cleveland-Cliffs Steelton LLC fixed assets, Steelton Highspire Railway, ArcelorMittal Steelton track leases — because the data-room copy ran before Steelton was a record and the nearest record was the umbrella opportunity.
+
+Fixed by **renaming the folder**, not by moving 175 files: the classification the copy had already done travels for free, and `setup-drive-structure.mts` then gave Zenthium Partnership a fresh folder. 1 rename plus 12 creates against 175 moves. The opportunity had **0 `documents` rows**, so nothing in the platform pointed at it.
+
+⚠ **COPYING A DATA ROOM AND INDEXING IT ARE TWO JOBS, AND ONLY ONE HAD BEEN DONE.** The 175 files existed in Drive and had no `documents` rows at all, so Ber AI would have answered *"I have no documents on Steelton"* over a complete data room.
+
+⚠ **`documentKind` HAS NO BRANCH FOR LEGACY `.doc`/`.xls`, AND ONE OF THE TWO FILES IT HID WAS `Assignment Agreement .doc`** — the instrument by which Ber Wilson takes the Steelton PSA, i.e. the single most important document on the deal. Skipped, no text, no summary, nothing reporting it (the 09-27 pptx lesson, same shape). Both are now copied to Google native beside the original, which the pipeline already reads (`import.ts` recognises the mime and `fetchDriveFile` exports it) — no new code path and no new scope. The originals stay; they are the signed artifacts.
+
+---
+
+**Correspondence, and what makes the next email file itself.**
+
+26 thread links filed as **`linked`, not `inferred`** — these are hand-filed decisions, and `inferred` would have staged all 17 threads for review, asking the same question twice. The rule, so it can be argued with: **a site named in the SUBJECT gets a link; a site merely mentioned in the body does not.** "Answers to Steelton Questions" confirms Tim's authority on all three sites and is still a Steelton thread. Four multi-site threads (`Assignment Doc for Steelton, Weirton and Riverdale`, `PA, WV & IL`, `Site DD…`, `Steelton Docs and Ramp Up…`) are linked to all three, which is what `thread_links` being one-row-per-record is for. One thread is deliberately filed NOWHERE: *"See if this works for you! Tim"* points at Harvest Time's leadership page and names no deal.
+
+10 `record_identifiers` learned, from the **chain of title in the data rooms' own file names** rather than from recall: `Cleveland-Cliffs Steelton LLC`, `CC Steelton LLC`, `AM Steelton LLC`, `ISG Steelton LLC`, `Steelton Highspire Railway`, `Highspire Railroad` → Steelton; `AM Weirton LLC` → Weirton; `Cleveland-Cliffs Riverdale LLC` → Riverdale. ⚠ **`Cleveland-Cliffs Inc.`, `Zenthium AI` and `Harvest Time Holdings` are POINTEDLY ABSENT** — they span all five deals, and §12 is explicit that a name many deals share is the one thing an identifier must not be. The script refuses the whole run if any normalised value lands on two records.
+
+Two `meeting_title` identifiers on the relationship: `Ber Wilson / Zenthium` and `Ber Wilson/Rebecca/Merlin visit` — **the titles the organiser typed, never the model's rewrite** ("Steelton & Riverdale Site Reviews & Power Capacity Analysis"), which is this morning's 10-08 lesson applied rather than re-learned. Filed on the umbrella because those calls cover whichever site is live that week.
+
+---
+
+**Measurements and verification.**
+
+- 5 projects, 8 parties, 19 players, 2 milestones, 26 thread links, 10 identifiers. Every writer re-run and asserted to report **zero** on the second pass.
+- Drive: 6 records linked to `02 Projects` folders with the 11-folder floor. Steelton 162 files, Weirton 183 copied (then **179 re-filed** out of `_Unsorted`), Riverdale 31 copied + re-filed.
+- `scripts/refile-record-folder.mts` is new and exists because `copy-data-room.mts` decides a destination AT COPY TIME — a room copied before a classification fix stays filed the old way, and re-copying correctly refuses on `md5Checksum`. It MOVES only, inside the record's own folder, never the counterparty's room. It matches by name and **skips any name appearing twice** (2 skipped on Weirton) rather than guessing — §12, four title commitments shared one file name.
+- `npm test`: **170 pass, 0 fail**. `tsc --noEmit` clean. `npx eslint`: 20 problems (13 errors, 7 warnings) — the 7th warning is an unused `ensureFolder` import in **`scripts/migrate-drive-structure.mts`**, this morning's file, left alone rather than edited under another session.
+- ⚠ **WEIRTON'S ROOM IS 1,354 FILES AND 1.14 GB, NOT THE 462 A SHALLOW LISTING REPORTS**, and **1,077 of them are legacy mill engineering drawings** (937 `.tif` scans of 1950s–90s plant internals: `H2O Clarified or Demin (Tin Mill)/Clarification System/280005.tif`). Those were deliberately NOT copied — a data-centre conversion does not turn on a 1962 tin-mill clarifier — and the 12 diligence subfolders were copied instead. The script's own header says reviewing the manifest is the point.
+- ⚠ **INDEXING IS THE BOTTLENECK, MEASURED: 5 documents in 25 minutes.** Per-document gaps were 96s, 62s, **493s**, 381s, **901s** — dominated by spreadsheets, worst being `2b - Accounts Payable.xlsx` at **1,239,620 characters** of extracted text, which is hundreds of chunks to embed. At that rate Steelton's 162 files is ~13 hours. It is resumable and `drive-sync` runs `syncProjectFolders` nightly at 3:15 and hourly 08:20–18:20, so it finishes itself; it had already reached 7 documents unattended by the time this was written. Worth knowing before anyone reads a low document count as a failure.
+- ⚠ **THE DRY-RUN-UNDER-REPORTS TRAP, HIT AGAIN IN MY OWN SEED SCRIPT.** `seed-cliffs-sites.mts` first reported `milestones: 0, players: 0` over 2 and 19 that all needed creating — the children were planned by reading the parent, and on a dry run no parent exists yet. The identical defect this morning's commit message records against `setup-drive-structure.mts`. A dry run that under-reports is read as reassurance; it plans against the seed now, and throws on `--apply` if a parent is genuinely missing.
+
+---
 
 **Done 2026-10-08 (a working deduper with no door, and four copies of one database client):**
 

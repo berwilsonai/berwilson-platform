@@ -37,7 +37,7 @@ import {
   getAccessToken,
   isGoogleConfigured,
 } from '@/lib/integrations/google-workspace'
-import { classifyByFilename, driveFolderName, DILIGENCE_PATHS, STANDARD_FOLDERS, UNSORTED_FOLDER } from '@/lib/drive/classify'
+import { classifyByFilename, classifyBySourceFolder, driveFolderName, DILIGENCE_PATHS, STANDARD_FOLDERS, UNSORTED_FOLDER } from '@/lib/drive/classify'
 import { ensureFolderPath, isFileable } from '@/lib/drive/file-document'
 
 const G = '\x1b[32m', Y = '\x1b[33m', R = '\x1b[31m', D = '\x1b[2m', B = '\x1b[1m', O = '\x1b[0m'
@@ -63,50 +63,22 @@ const MAX_FILE_BYTES = 30 * 1024 * 1024
  * "Will Serve", "Zoning Document", several holding a single file — which is an
  * index against a checklist, not a working file system. This is the translation.
  */
-const ROOM_MAP: Record<string, string> = {
-  'dura-bond': 'Contracts & Legal',
-  'dura-bond utility access': 'Diligence/Power & Utilities',
-  'environmental': 'Diligence/Environmental',
-  'phase i environmental': 'Diligence/Environmental',
-  'financials': 'Financials',
-  'balance sheets': 'Financials',
-  'equipment': 'Financials',
-  'fixed assets': 'Financials',
-  'income and expense reports': 'Financials',
-  'scrap estimates': 'Financials',
-  'fw_ steelton single line diagram': 'Diligence/Power & Utilities',
-  'project steelton power verification': 'Diligence/Power & Utilities',
-  'utilities': 'Diligence/Power & Utilities',
-  'will serve': 'Diligence/Power & Utilities',
-  'will serve letter': 'Diligence/Power & Utilities',
-  'insurance information': 'Insurance & Bonding',
-  'legal': 'Contracts & Legal',
-  'material contracts': 'Contracts & Legal',
-  'litigation': 'Contracts & Legal',
-  'stormwater fees': 'Diligence/Environmental',
-  'licenses and permits': 'Diligence/Permits & Entitlements',
-  'title v permit': 'Diligence/Permits & Entitlements',
-  'zoning document': 'Diligence/Permits & Entitlements',
-  'organizational documents': 'Contracts & Legal',
-  'railway information': 'Diligence/Rail & Transportation',
-  'site overview': 'Diligence/Geotech & Site Reports',
-  'site reports-agencies': 'Diligence/Geotech & Site Reports',
-  'supplemental diligence': 'Diligence/Geotech & Site Reports',
-  'water intake and discharge information': 'Diligence/Water & Wastewater',
-}
-
-function mapKey(name: string): string {
-  return name.replace(/\s+/g, ' ').trim().toLowerCase()
-}
-
 function destinationFor(fileName: string, relativeFolder: string): { folder: string; reason: string } {
-  const leaf = relativeFolder.split('/').filter(Boolean).pop() ?? ''
-  const mapped = ROOM_MAP[mapKey(leaf)]
-  if (mapped) return { folder: mapped, reason: `room folder "${leaf.trim()}"` }
+  const candidates = [...STANDARD_FOLDERS, ...DILIGENCE_PATHS]
 
-  const byName = classifyByFilename(fileName, [...STANDARD_FOLDERS, ...DILIGENCE_PATHS])
+  // ⚠ THE ROOM'S OWN FOLDER NAME FIRST, AND BY WORD RATHER THAN BY EXACT NAME.
+  // This used to be a ROOM_MAP keyed on Steelton's literal folder names, which
+  // measured 24% there and 0-6% on Weirton — the same diligence lines, different
+  // wording ("Railroad Information" vs "Railway Information"). The rule now
+  // lives in src/lib/drive/classify.ts so the live filing path can use it too,
+  // and matches the distinguishing word.
+  const byFolder = classifyBySourceFolder(relativeFolder, candidates)
+  if (byFolder?.folderName) return { folder: byFolder.folderName, reason: byFolder.reason }
+
+  const byName = classifyByFilename(fileName, candidates)
   if (byName?.folderName) return { folder: byName.folderName, reason: byName.reason }
 
+  const leaf = relativeFolder.split('/').filter(Boolean).pop() ?? ''
   return { folder: UNSORTED_FOLDER, reason: leaf ? `no rule for "${leaf.trim()}"` : 'loose in the room root' }
 }
 

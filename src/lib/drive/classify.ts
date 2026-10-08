@@ -176,20 +176,134 @@ const FILENAME_RULES: Array<{ tokens: string[]; folderHints: string[] }> = [
   },
   { tokens: ['fiber', 'carrier letter', 'dark fiber', 'route diversity'], folderHints: ['fiber'] },
   { tokens: ['rail ', 'railroad', 'railway', 'stracnet', 'trackage', 'spur'], folderHints: ['rail'] },
-  { tokens: ['alta', 'parcel schedule', 'legal description', 'easement', 'boundary survey'], folderHints: ['land & title', 'land', 'title'] },
+  // ⚠ NO BARE 'title' HINT HERE OR BELOW. `'title'` is a SUBSTRING of
+  // `Entitlements`, so it matches BOTH `Land & Title` and
+  // `Diligence/Permits & Entitlements` — two hits, which `classifyByFilename`
+  // correctly refuses as ambiguous. That made every land/title rule defer to
+  // the model the moment the Diligence lanes became candidates (2026-10-08):
+  // `alta`, `easement`, `title commitment`, `quitclaim` and `warranty deed` all
+  // stopped firing, silently, on the deals with the most title work. `land` is
+  // unambiguous and does the job. Asserted by `hintsAreUnambiguous()` below.
+  { tokens: ['alta', 'parcel schedule', 'legal description', 'easement', 'boundary survey'], folderHints: ['land & title', 'land'] },
   { tokens: ['quitclaim', 'warranty deed', 'grant deed', ' deed'], folderHints: ['deed', 'land & title'] },
-  { tokens: ['title commitment', 'title report', 'title policy'], folderHints: ['land & title', 'title', 'land legal', 'legal'] },
-  { tokens: ['certificate of insurance', ' coi ', 'bonding', 'surety', 'performance bond'], folderHints: ['insurance', 'bonding'] },
+  { tokens: ['title commitment', 'title report', 'title policy'], folderHints: ['land & title', 'land legal'] },
+  // `bond ` is padded, so "Bond Summary" matches and "Dura-Bond" (a contract
+  // counterparty on Steelton) does not. 'claims' and 'loss run' are here
+  // because a workers-comp claims register is an insurance exhibit, and
+  // `Steelton WC Claims (Aug 2025).xlsx` had no rule at all.
+  { tokens: ['certificate of insurance', 'certificate of liability', ' coi ', 'bonding', 'surety', 'performance bond', 'bond summary', 'bond ', 'wc claims', 'workers comp', 'loss run'], folderHints: ['insurance', 'bonding'] },
   { tokens: ['meeting minutes', 'transcript', 'meeting notes', 'agenda'], folderHints: ['meeting'] },
   // ' mou ' is padded on BOTH sides on purpose: `lower` is the file name
   // wrapped in spaces, so a bare 'mou' would match "Amount.pdf" and "Mountain
   // Survey.pdf". Every short token added here needs that check run in its head.
-  { tokens: ['purchase agreement', 'psa ', 'sales agreement', 'contract', 'executed', 'mnda', ' nda', 'operating agreement', ' mou ', 'memorandum'], folderHints: ['contract', 'legal'] },
+  // ⚠ `lease` and `assignment` were ABSENT, and both are the central document
+  // class on a land/power acquisition — Steelton arrives by ASSIGNMENT of an
+  // executed PSA, and the live thread is literally "Assignment Doc for
+  // Steelton, Weirton and Riverdale". `consent decree` sits beside the existing
+  // `consent order` for the same reason: one word apart, same document.
+  { tokens: ['purchase agreement', 'psa ', 'sales agreement', 'contract', 'executed', 'mnda', ' nda', 'operating agreement', ' mou ', 'memorandum', 'assignment', 'lease', 'amendment', 'firpta', 'consent decree', 'organization chart', 'agreement'], folderHints: ['contract', 'legal'] },
   { tokens: ['rfp', 'rfq', 'itb', 'invitation to bid', 'solicitation', 'proposal', 'addendum', 'bid '], folderHints: ['proposal', 'bid', 'solicitation'] },
   { tokens: ['drawing', 'plan set', 'site plan', 'floor plan', 'elevation', 'blueprint', '.dwg'], folderHints: ['drawing', 'plan', 'pre construction', 'preconstruction'] },
-  { tokens: ['survey', 'geotech', 'environmental', 'phase 1', 'phase i ', 'feasibility', 'market analysis', 'appraisal'], folderHints: ['report', 'stud', 'analysis', 'record'] },
-  { tokens: ['invoice', 'budget', 'pro forma', 'proforma', 'financial', 'loi', 'letter of intent', 'term sheet', 'offer'], folderHints: ['financial', 'offer', 'fundraising'] },
+  // ⚠ SPLIT, AND THE BARE 'report' HINT IS GONE. It matched both
+  // `Reports & Studies` and `Diligence/Geotech & Site Reports` — so this rule,
+  // the broadest in the table, had been refused as ambiguous on every record
+  // since the Diligence lanes shipped. Found by `ambiguousHintRules()` while
+  // fixing the 'title'/'Entitlements' collision, which is the argument for
+  // having the guard rather than the fix.
+  //
+  // Splitting it is also more accurate than restoring it: a geotech report and
+  // a market study are two different things, and there is now a lane for the
+  // first. 'environmental' and 'phase 1' are dropped entirely — the
+  // environmental rule above already claims them, so they were unreachable here.
+  { tokens: ['geotech', 'soils report', 'boring log', 'site report', 'topographic', 'survey'], folderHints: ['geotech & site reports', 'geotech'] },
+  { tokens: ['feasibility', 'market analysis', 'appraisal', 'quarterly report', 'progress report', 'annual report', 'study'], folderHints: ['reports & studies', 'stud'] },
+  // Measured against the Steelton room: "2b - Accounts Receivable.xlsx",
+  // "Balance Sheet Detail", "Fixed Asset Summary" and "Historical Scrap
+  // Estimate.xlsx" all deferred to the model because none of them contains the
+  // word "financial". An accounting exhibit is never named after the folder it
+  // belongs in.
+  { tokens: ['invoice', 'budget', 'pro forma', 'proforma', 'financial', 'loi', 'letter of intent', 'term sheet', 'offer', 'balance sheet', 'accounts payable', 'accounts receivable', 'fixed asset', 'income statement', 'general ledger', 'trial balance', 'cash flow', 'scrap estimate', 'rent roll'], folderHints: ['financial', 'offer', 'fundraising'] },
 ]
+
+/**
+ * A COUNTERPARTY'S OWN FOLDER NAME IS STRONGER EVIDENCE THAN A FILE NAME, AND
+ * IT CLASSIFIES A WHOLE SUBTREE AT ONCE.
+ *
+ * ⚠ MEASURED 2026-10-08, which is the only reason these rules look like this.
+ * `copy-data-room.mts` already had a folder map, keyed on the Steelton room's
+ * EXACT folder names ("site reports-agencies", "water intake and discharge
+ * information"). Against the real corpus that scored 24% on Steelton and
+ * **0-6% on Weirton**, whose folders say the same things in different words
+ * ("Project Weirton Steel-Railroad Information"). An exact-name map is a map of
+ * one counterparty's habits.
+ *
+ * So these match on the DISTINGUISHING WORD. The value is highest exactly where
+ * a file name is useless: `Project Weirton Steel-Railroad Information` holds 28
+ * files called `2007 Brdg Insp-01.tif` … `-28.tif`, and the alternative to this
+ * is 28 model calls at 30-60s each to re-derive what the folder already said.
+ *
+ * ORDER IS LOAD-BEARING — first match wins, so the narrower word goes first:
+ * "Permits-TitleV" contains both `permit` and `title`, and it is a permit;
+ * "Weirton Electrical Drawings" contains both `electrical` and `drawing`, and
+ * it is electrical.
+ */
+const FOLDER_RULES: Array<{ tokens: string[]; folderHints: string[] }> = [
+  { tokens: ['railroad', 'railway', 'rail info', 'trackage'], folderHints: ['rail'] },
+  { tokens: ['electrical', 'single line', 'one-line', 'will serve', 'power verification', 'substation', 'utilit'], folderHints: ['power & utilities', 'power', 'utilit'] },
+  { tokens: ['water intake', 'wastewater', 'discharge', 'water treatment'], folderHints: ['water & wastewater', 'water'] },
+  { tokens: ['permit', 'title v', 'titlev', 'zoning', 'entitlement', 'licenses'], folderHints: ['permits & entitlements', 'permit', 'zoning'] },
+  { tokens: ['environmental', 'rcra', 'vrp', 'stormwater', 'phase i', 'phase ii', 'hazardous'], folderHints: ['environmental'] },
+  { tokens: ['fiber', 'telecom'], folderHints: ['fiber'] },
+  { tokens: ['real estate', 'deed', 'alta', 'survey', 'parcel'], folderHints: ['land & title', 'land'] },
+  { tokens: ['lease', 'legal', 'contract', 'organizational document', 'litigation', 'material contract', 'dura-bond'], folderHints: ['contract', 'legal'] },
+  { tokens: ['insurance', 'bonding', 'surety'], folderHints: ['insurance', 'bonding'] },
+  { tokens: ['financial', 'balance sheet', 'fixed asset', 'equipment', 'asset listing', 'income and expense', 'scrap estimate', 'accounts payable', 'accounts receivable'], folderHints: ['financial'] },
+  { tokens: ['site overview', 'site report', 'site picture', 'site map', 'geotech', 'supplemental diligence'], folderHints: ['geotech & site reports', 'geotech'] },
+  { tokens: ['drawing', 'plan set', 'blueprint'], folderHints: ['drawing', 'plan'] },
+  { tokens: ['meeting', 'minutes'], folderHints: ['meeting'] },
+  { tokens: ['proposal', 'bid', 'rfp', 'solicitation'], folderHints: ['proposal', 'bid'] },
+]
+
+/**
+ * The folder a counterparty's own folder NAME implies, or null.
+ *
+ * Takes the whole relative path and reads it leaf-first: the deepest folder is
+ * the most specific statement about the contents, and a parent is the fallback.
+ * `Utilities/H2O Clarified or Demin (Tin Mill)/Clarification System` says
+ * nothing at its leaf and "Utilities" at its root, which is the right answer.
+ *
+ * Same discipline as {@link classifyByFilename}: exactly ONE candidate may
+ * match, because two is the ambiguity this module exists to refuse.
+ */
+export function classifyBySourceFolder(
+  relativeFolder: string,
+  candidates: string[]
+): FolderChoice | null {
+  const segments = relativeFolder.split(FOLDER_PATH_SEP).map((s) => s.trim()).filter(Boolean)
+  for (const segment of [...segments].reverse()) {
+    const lower = ` ${segment.toLowerCase()} `
+    for (const rule of FOLDER_RULES) {
+      if (!rule.tokens.some((t) => lower.includes(t))) continue
+      const hits = candidates.filter((c) => {
+        const cl = c.toLowerCase()
+        return rule.folderHints.some((h) => cl.includes(h))
+      })
+      if (hits.length === 1) {
+        return {
+          folderName: hits[0],
+          confidence: 0.9,
+          reason: `the room filed it under "${segment}"`,
+          deterministic: true,
+        }
+      }
+      // A rule fired but the destination is ambiguous — stop scanning THIS
+      // segment's rules and try the parent, rather than letting a later,
+      // broader rule claim a folder this one already spoke for.
+      break
+    }
+  }
+  return null
+}
 
 /**
  * A confident filename match, or null to defer to the model.
@@ -218,6 +332,34 @@ export function classifyByFilename(fileName: string, candidates: string[]): Fold
     return null
   }
   return null
+}
+
+/**
+ * Every rule's hints must name AT MOST ONE of the standard candidates.
+ *
+ * ⚠ THIS EXISTS BECAUSE A HINT CAN MATCH A WORD THAT MERELY CONTAINS IT.
+ * `'title'` is inside `Entitlements`, so the land rules matched both
+ * `Land & Title` and `Diligence/Permits & Entitlements` and were refused as
+ * ambiguous — correctly, by a guard doing its job on a collision nobody had
+ * looked for. The rules then silently stopped firing on exactly the deals with
+ * the most title work, and nothing reported it: a deferred file looks identical
+ * to a file the model was always going to judge.
+ *
+ * Returns the offending rules, so a test or a script can name them. Checked
+ * against the standard set only — a record's own curated folders are a caller's
+ * business and may legitimately collide.
+ */
+export function ambiguousHintRules(): Array<{ tokens: string[]; hits: string[] }> {
+  const candidates = [...STANDARD_FOLDERS, ...DILIGENCE_PATHS]
+  const out: Array<{ tokens: string[]; hits: string[] }> = []
+  for (const rule of [...FILENAME_RULES, ...FOLDER_RULES]) {
+    const hits = candidates.filter((c) => {
+      const cl = c.toLowerCase()
+      return rule.folderHints.some((h) => cl.includes(h))
+    })
+    if (hits.length > 1) out.push({ tokens: rule.tokens, hits })
+  }
+  return out
 }
 
 /** Accept a model answer only if it is verbatim a candidate. */
