@@ -21,12 +21,11 @@ import {
   type MeetingScope,
 } from '@/lib/utils/meetings'
 import type { Meeting } from '@/lib/supabase/types'
+import { FIELD_CONTROL_CLASS, FIELD_LABEL_CLASS, FIELD_TEXTAREA_CLASS } from '@/lib/utils/field-classes'
 
-const inputClass =
-  'h-9 w-full rounded-md border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring'
-const areaClass =
-  'w-full rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring'
-const labelClass = 'block text-xs font-medium text-muted-foreground mb-1'
+const inputClass = FIELD_CONTROL_CLASS
+const areaClass = FIELD_TEXTAREA_CLASS
+const labelClass = FIELD_LABEL_CLASS
 
 interface Props {
   scope: MeetingScope

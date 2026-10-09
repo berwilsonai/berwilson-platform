@@ -18,7 +18,6 @@ import { assessFit, type FitAssessment } from '@/lib/ai/fit-assessment'
 import { SECTORS, STAGES } from '@/lib/utils/constants'
 import { OPPORTUNITY_TYPES, oppType } from '@/lib/utils/opportunities'
 import type { ProjectSector, ProjectStage, JsonIn } from '@/lib/supabase/types'
-import type { Json } from '@/types/database'
 
 /**
  * Shared Email Ingestion processing path.

@@ -219,7 +219,7 @@ export default function VendorsClient({ vendors: initialVendors }: VendorsClient
             placeholder="Search name, specialty, location…"
             value={search}
             onChange={e => setSearch(e.target.value)}
-            className="h-8 pl-8 pr-8 w-60 rounded-md border border-input bg-background text-xs text-foreground placeholder:text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="h-8 pl-8 pr-8 w-60 rounded-md border border-input bg-background text-xs text-foreground placeholder:text-muted-foreground outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
           />
           {search && (
             <button
@@ -236,7 +236,7 @@ export default function VendorsClient({ vendors: initialVendors }: VendorsClient
           <select
             value={filterRelationship}
             onChange={e => setFilterRelationship(e.target.value)}
-            className="h-8 rounded-md border border-input bg-background px-2 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="h-8 rounded-md border border-input bg-background px-2 text-xs outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
           >
             <option value="">All Roles</option>
             {allRelationships.map(r => (
@@ -250,7 +250,7 @@ export default function VendorsClient({ vendors: initialVendors }: VendorsClient
           <select
             value={filterSpecialty}
             onChange={e => setFilterSpecialty(e.target.value)}
-            className="h-8 rounded-md border border-input bg-background px-2 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="h-8 rounded-md border border-input bg-background px-2 text-xs outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
           >
             <option value="">All Specialties</option>
             {allSpecialties.map(s => (
@@ -263,7 +263,7 @@ export default function VendorsClient({ vendors: initialVendors }: VendorsClient
         <select
           value={sort}
           onChange={e => setSort(e.target.value as SortKey)}
-          className="h-8 rounded-md border border-input bg-background px-2 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring ml-auto"
+          className="h-8 rounded-md border border-input bg-background px-2 text-xs outline-none focus-visible:ring-3 focus-visible:ring-ring/50 ml-auto"
         >
           <option value="name">Sort: Name</option>
           <option value="quality_score">Sort: Quality Score</option>

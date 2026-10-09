@@ -24,7 +24,6 @@ import {
   RECORD_BRIEF_PROMPT_VERSION,
 } from '@/lib/ai/prompts/record-brief'
 import { assembleProjectBrief, assembleOpportunityBrief } from '@/lib/briefs/record-brief'
-import type { Json } from '@/types/database'
 import type { JsonIn } from '@/lib/supabase/types'
 
 // The brief makes one model call over a large evidence pack. On the local

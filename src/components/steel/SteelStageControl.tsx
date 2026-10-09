@@ -48,7 +48,7 @@ export default function SteelStageControl({ dealId, stage }: SteelStageControlPr
         value={value}
         onChange={(e) => change(e.target.value)}
         disabled={saving}
-        className="h-8 rounded-md border border-input bg-background px-2.5 text-xs font-medium text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
+        className="h-8 rounded-md border border-input bg-background px-2.5 text-xs font-medium text-foreground outline-none focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-60"
       >
         {STEEL_STAGES.map((s) => (
           <option key={s} value={s}>

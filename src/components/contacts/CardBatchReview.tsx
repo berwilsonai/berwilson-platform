@@ -8,6 +8,7 @@ import {
   RefreshCw, UserCheck, UserPlus, X,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { FIELD_CONTROL_CLASS, FIELD_TEXTAREA_CLASS } from '@/lib/utils/field-classes'
 
 /**
  * The whole stack, reviewed on one screen.
@@ -82,9 +83,7 @@ const FIELDS: Array<{ key: TextField; label: string; type?: string; wide?: boole
   { key: 'address', label: 'Address', wide: true },
 ]
 
-const inputClass =
-  'w-full h-11 sm:h-9 px-2.5 rounded-md border border-input bg-background text-sm ' +
-  'outline-none focus-visible:ring-2 focus-visible:ring-ring'
+const inputClass = FIELD_CONTROL_CLASS
 
 const MATCH_LABEL: Record<CardDraft['match_type'], string> = {
   exact_email: 'same email address',
@@ -330,7 +329,7 @@ export default function CardBatchReview({
                         value={row.company_summary ?? ''}
                         onChange={(e) => set(row.ref, 'company_summary', e.target.value || null)}
                         placeholder="Nothing found — add a line yourself"
-                        className="w-full px-2.5 py-2 rounded-md border border-input bg-background text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        className={FIELD_TEXTAREA_CLASS}
                       />
                     </label>
 
@@ -340,7 +339,7 @@ export default function CardBatchReview({
                         rows={3}
                         value={row.fit_notes ?? ''}
                         onChange={(e) => set(row.ref, 'fit_notes', e.target.value || null)}
-                        className="w-full px-2.5 py-2 rounded-md border border-input bg-background text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        className={FIELD_TEXTAREA_CLASS}
                       />
                     </label>
 

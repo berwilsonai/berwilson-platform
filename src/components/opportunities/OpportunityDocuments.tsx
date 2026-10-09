@@ -110,7 +110,7 @@ export default function OpportunityDocuments({
           <select
             value={docType}
             onChange={(e) => setDocType(e.target.value)}
-            className="h-8 rounded-md border border-input bg-background px-2.5 text-xs text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="h-8 rounded-md border border-input bg-background px-2.5 text-xs text-foreground outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
           >
             {OPPORTUNITY_DOC_TYPES.map((t) => (
               <option key={t} value={t}>

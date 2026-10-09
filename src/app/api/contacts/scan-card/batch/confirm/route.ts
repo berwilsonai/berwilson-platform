@@ -18,7 +18,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { saveCardContact, type CardAction } from '@/lib/contacts/card-save'
 import { readCardBatch } from '@/lib/contacts/card-batch'
 import type { CardScanDraft } from '@/lib/contacts/card-intake'
-import type { Json, JsonIn } from '@/lib/supabase/types'
+import type { JsonIn } from '@/lib/supabase/types'
 
 export const maxDuration = 300
 

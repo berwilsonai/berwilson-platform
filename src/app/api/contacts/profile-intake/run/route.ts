@@ -18,7 +18,7 @@ import { NextRequest } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { parseSeeds, buildProfileDrafts } from '@/lib/contacts/profile-intake'
-import type { Json, JsonIn } from '@/lib/supabase/types'
+import type { JsonIn } from '@/lib/supabase/types'
 
 export const maxDuration = 300
 

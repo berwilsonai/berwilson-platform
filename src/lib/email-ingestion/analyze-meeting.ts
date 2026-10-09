@@ -12,7 +12,6 @@ import {
   type PartyMatch,
 } from '@/lib/ai/proposal-matching'
 import { EmailIntakeError, SYSTEM_USER_ID, maxInputChars } from '@/lib/email-ingestion/analyze'
-import type { Json } from '@/types/database'
 import type { JsonIn } from '@/lib/supabase/types'
 
 /**

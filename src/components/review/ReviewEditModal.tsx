@@ -16,6 +16,7 @@ import type {
   RiskItem,
   DecisionItem,
 } from '@/types/domain'
+import { FIELD_CONTROL_CLASS, FIELD_TEXTAREA_CLASS } from '@/lib/utils/field-classes'
 
 const SEVERITY_OPTIONS = ['info', 'watch', 'critical', 'blocker'] as const
 
@@ -158,7 +159,7 @@ export default function ReviewEditModal({
     setDecisions((prev) => prev.map((item, i) => i === idx ? { ...item, [field]: value } : item))
   }
 
-  const inputClass = 'w-full rounded-md border border-input bg-background px-2.5 py-1.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50'
+  const inputClass = FIELD_CONTROL_CLASS
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -203,7 +204,7 @@ export default function ReviewEditModal({
                 onChange={(e) => setSummary(e.target.value)}
                 rows={3}
                 disabled={phase === 'saving'}
-                className={`${inputClass} resize-y`}
+                className={FIELD_TEXTAREA_CLASS}
               />
             </div>
 

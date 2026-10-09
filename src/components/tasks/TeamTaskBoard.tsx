@@ -61,7 +61,7 @@ interface TeamTaskBoardProps {
 type StatusFilter = 'open' | 'done'
 
 const fieldClass =
-  'h-8 rounded-md border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring'
+  'h-8 rounded-md border border-input bg-background px-3 text-sm outline-none focus-visible:ring-3 focus-visible:ring-ring/50'
 
 // A `<select>` sizes itself to its WIDEST option, so a project list holding
 // "DUBHES Helper / Giovanni Resilience Campus" stretched the control to half
@@ -440,7 +440,7 @@ export default function TeamTaskBoard({
             onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddTask() } }}
             placeholder="What needs to be done?"
             autoFocus
-            className="w-full h-10 rounded-md border border-input bg-background pl-3 pr-9 text-sm font-medium placeholder:text-muted-foreground placeholder:font-normal outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="w-full h-10 rounded-md border border-input bg-background pl-3 pr-9 text-sm font-medium placeholder:text-muted-foreground placeholder:font-normal outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
           />
           <div
             className={cn(
@@ -563,7 +563,7 @@ export default function TeamTaskBoard({
                     onChange={(e) => setter(e.target.value)}
                     placeholder={placeholder}
                     rows={2}
-                    className="w-full resize-y rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring placeholder:text-muted-foreground"
+                    className="w-full resize-y rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus-visible:ring-3 focus-visible:ring-ring/50 placeholder:text-muted-foreground"
                   />
                 </div>
               ))}

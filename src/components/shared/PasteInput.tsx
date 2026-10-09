@@ -189,7 +189,7 @@ export default function PasteInput({ projectId, onSaved }: PasteInputProps) {
           placeholder="Paste an email, meeting notes, or project update here..."
           rows={6}
           disabled={phase === 'loading' || savingRaw}
-          className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 resize-y"
+          className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground outline-none focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-50 resize-y"
         />
         {error && (
           <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
@@ -297,7 +297,7 @@ export default function PasteInput({ projectId, onSaved }: PasteInputProps) {
           value={summary}
           onChange={(e) => setSummary(e.target.value)}
           rows={3}
-          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring resize-y"
+          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus-visible:ring-3 focus-visible:ring-ring/50 resize-y"
         />
       </div>
 

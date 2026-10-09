@@ -6,6 +6,7 @@ import { Camera, Loader2, Check, X, ExternalLink, AlertTriangle, Sparkles, UserC
 import { cn } from '@/lib/utils'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import Link from 'next/link'
+import { FIELD_CONTROL_CLASS, FIELD_TEXTAREA_CLASS } from '@/lib/utils/field-classes'
 
 // The draft shape returned by /api/contacts/scan-card (see lib/contacts/card-intake).
 interface CardScanDraft {
@@ -44,9 +45,7 @@ const FIELDS: Array<{ key: TextField; label: string; type?: string; wide?: boole
   { key: 'address', label: 'Address', wide: true },
 ]
 
-const inputClass =
-  'w-full h-11 sm:h-9 px-2.5 rounded-md border border-input bg-background text-sm ' +
-  'outline-none focus-visible:ring-2 focus-visible:ring-ring'
+const inputClass = FIELD_CONTROL_CLASS
 
 export default function ScanCardButton() {
   const router = useRouter()
@@ -275,7 +274,7 @@ export default function ScanCardButton() {
               value={draft.company_summary ?? ''}
               onChange={(e) => set('company_summary', e.target.value || null)}
               placeholder="Nothing found — add a line yourself"
-              className="w-full px-2.5 py-2 rounded-md border border-input bg-background text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className={FIELD_TEXTAREA_CLASS}
             />
           </label>
 
@@ -285,7 +284,7 @@ export default function ScanCardButton() {
               rows={3}
               value={draft.fit_notes ?? ''}
               onChange={(e) => set('fit_notes', e.target.value || null)}
-              className="w-full px-2.5 py-2 rounded-md border border-input bg-background text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className={FIELD_TEXTAREA_CLASS}
             />
           </label>
 

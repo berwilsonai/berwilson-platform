@@ -13,6 +13,8 @@ import {
   INVESTMENT_TARGET_KINDS,
   INVESTMENT_TARGET_LABELS,
 } from '@/lib/utils/investors'
+import { FIELD_CONTROL_SM_CLASS } from '@/lib/utils/field-classes'
+import { cn } from '@/lib/utils'
 
 interface InvestorFiltersProps {
   stage: string
@@ -37,8 +39,10 @@ export default function InvestorFilters({ stage, type, interest, target }: Inves
   )
 
   const hasFilters = stage || type || interest || target
-  const selectClass =
-    'h-8 rounded-md border border-input bg-background px-2.5 text-xs text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring'
+  // `w-auto` out of the shared class on purpose: these sit in a `flex-wrap`
+  // row, and the shared control is `w-full` because most controls fill a form
+  // grid cell. A 100% flex item on a wrapping row stacks one per line.
+  const selectClass = cn(FIELD_CONTROL_SM_CLASS, 'w-auto')
 
   return (
     <div className="flex items-center gap-2 flex-wrap">

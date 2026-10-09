@@ -3,7 +3,6 @@
 // lives here. Follows the dino/steel parse pattern.
 
 import type { TablesInsert, JsonIn } from '@/lib/supabase/types'
-import type { Json } from '@/types/database'
 import {
   meetingKind,
   meetingScope,

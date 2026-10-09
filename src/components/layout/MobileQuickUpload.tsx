@@ -215,7 +215,7 @@ export default function MobileQuickUpload() {
                       <select
                         value={selectedProject}
                         onChange={(e) => setSelectedProject(e.target.value)}
-                        className="w-full h-11 rounded-lg border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        className="w-full h-11 rounded-lg border border-input bg-background px-3 text-sm outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
                       >
                         <option value="">Select a project...</option>
                         {projects.map((p) => (

@@ -72,7 +72,7 @@ export default function RelationshipNotesEditor({
         value={notes}
         onChange={e => setNotes(e.target.value)}
         rows={6}
-        className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring resize-y"
+        className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground outline-none focus-visible:ring-3 focus-visible:ring-ring/50 resize-y"
         placeholder="Notes about this relationship, how you know them, key context…"
         autoFocus
       />

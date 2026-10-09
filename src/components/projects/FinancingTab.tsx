@@ -273,13 +273,13 @@ function FormField({
 }
 
 const inputCls =
-  'w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm placeholder:text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring'
+  'w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm placeholder:text-muted-foreground outline-none focus-visible:ring-3 focus-visible:ring-ring/50'
 
 const prefixInputCls =
-  'w-full rounded-md border border-input bg-background pl-7 pr-3 py-1.5 text-sm placeholder:text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring'
+  'w-full rounded-md border border-input bg-background pl-7 pr-3 py-1.5 text-sm placeholder:text-muted-foreground outline-none focus-visible:ring-3 focus-visible:ring-ring/50'
 
 const suffixInputCls =
-  'w-full rounded-md border border-input bg-background pl-3 pr-7 py-1.5 text-sm placeholder:text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring'
+  'w-full rounded-md border border-input bg-background pl-3 pr-7 py-1.5 text-sm placeholder:text-muted-foreground outline-none focus-visible:ring-3 focus-visible:ring-ring/50'
 
 function CurrencyField({
   label,

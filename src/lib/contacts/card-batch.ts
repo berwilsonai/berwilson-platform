@@ -31,7 +31,7 @@
 
 import { createAdminClient } from '@/lib/supabase/admin'
 import { buildCardDraft, type CardScanDraft, type ResearchCache } from '@/lib/contacts/card-intake'
-import type { Json, TablesUpdate, JsonIn } from '@/lib/supabase/types'
+import type { TablesUpdate, JsonIn } from '@/lib/supabase/types'
 
 /** The most cards one batch will read — roughly a conference's worth. */
 export const MAX_CARDS_PER_BATCH = 30

@@ -13,6 +13,8 @@ import {
 } from '@/components/ui/dialog'
 import { PROJECT_PLAYER_ROLES, PROJECT_PLAYER_ROLE_GROUPS } from '@/lib/utils/constants'
 import { scopeBody, type RecordKind } from '@/lib/records/scope'
+import { FIELD_CONTROL_CLASS, FIELD_TEXTAREA_CLASS } from '@/lib/utils/field-classes'
+import { cn } from '@/lib/utils'
 
 type Party = {
   id: string
@@ -107,8 +109,7 @@ export default function AddPlayerModal({ recordKind, recordId }: AddPlayerModalP
     }
   }
 
-  const inputClass =
-    'w-full rounded-md border border-input bg-background px-2.5 py-1.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50'
+  const inputClass = FIELD_CONTROL_CLASS
   const effectiveRole = role === '__custom__' ? customRole.trim() : role.trim()
   const canSave = selected && effectiveRole && phase !== 'saving'
 
@@ -252,7 +253,7 @@ export default function AddPlayerModal({ recordKind, recordId }: AddPlayerModalP
               placeholder="Any notes about this player's involvement..."
               rows={2}
               disabled={phase === 'saving'}
-              className={`${inputClass} resize-none`}
+              className={cn(FIELD_TEXTAREA_CLASS, 'resize-none')}
             />
           </div>
         </div>

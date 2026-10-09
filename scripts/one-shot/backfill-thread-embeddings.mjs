@@ -9,7 +9,7 @@
  * thread, and killing this mid-run costs at most the thread in flight.
  *
  * Usage (repo root, on the Studio):
- *   node --experimental-strip-types --import ./scripts/register-alias.mjs \
+ *   node --experimental-strip-types --import ./scripts/register-aliases.mjs \
  *        --env-file=.env.local scripts/backfill-thread-embeddings.mjs [--no-attachments]
  *
  * Cost, measured rather than estimated: ~220ms per chunk warm against the local

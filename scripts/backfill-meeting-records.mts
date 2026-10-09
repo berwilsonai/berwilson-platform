@@ -20,7 +20,7 @@
  * without writing.
  *
  * Usage (from the repo root, on the Studio):
- *   node --experimental-strip-types --import ./scripts/register-alias.mjs \
+ *   node --experimental-strip-types --import ./scripts/register-aliases.mjs \
  *        --env-file=.env.local scripts/backfill-meeting-records.mts [--check]
  */
 

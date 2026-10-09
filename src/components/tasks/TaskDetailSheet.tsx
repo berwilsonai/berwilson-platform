@@ -76,7 +76,7 @@ interface TaskDetailSheetProps {
 }
 
 const fieldClass =
-  'w-full rounded-md border border-input bg-background px-3 h-9 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring'
+  'w-full rounded-md border border-input bg-background px-3 h-9 text-sm outline-none focus-visible:ring-3 focus-visible:ring-ring/50'
 
 type DetailKey = 'what' | 'why' | 'how'
 
@@ -371,7 +371,7 @@ export default function TaskDetailSheet({
                       placeholder={placeholder}
                       rows={2}
                       autoFocus
-                      className="w-full resize-y rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring placeholder:text-muted-foreground"
+                      className="w-full resize-y rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus-visible:ring-3 focus-visible:ring-ring/50 placeholder:text-muted-foreground"
                     />
                   </div>
                 )
@@ -509,7 +509,7 @@ export default function TaskDetailSheet({
                     onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); handleAddNote() } }}
                     placeholder="Add an update or note…  (⌘↵ to post)"
                     rows={2}
-                    className="flex-1 resize-y rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring placeholder:text-muted-foreground"
+                    className="flex-1 resize-y rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus-visible:ring-3 focus-visible:ring-ring/50 placeholder:text-muted-foreground"
                   />
                   <button
                     onClick={handleAddNote}

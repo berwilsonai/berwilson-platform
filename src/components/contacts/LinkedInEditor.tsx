@@ -81,7 +81,7 @@ export default function LinkedInEditor({ partyId, initialUrl }: LinkedInEditorPr
           value={url}
           onChange={(e) => setUrl(e.target.value)}
           placeholder="https://linkedin.com/in/..."
-          className="flex-1 h-7 rounded-md border border-input bg-background px-2 text-sm text-foreground placeholder:text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="flex-1 h-7 rounded-md border border-input bg-background px-2 text-sm text-foreground placeholder:text-muted-foreground outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
           autoFocus
         />
       </div>

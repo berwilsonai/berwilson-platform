@@ -20,7 +20,7 @@
  */
 
 import { createUntypedAdminClient } from '@/lib/supabase/admin'
-import type { Refine, Tables } from '@/lib/supabase/types'
+import type { Tables } from '@/lib/supabase/types'
 
 export function spvDb() {
   return createUntypedAdminClient()

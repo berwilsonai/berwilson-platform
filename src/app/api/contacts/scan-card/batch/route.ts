@@ -24,7 +24,7 @@ import {
   readCardBatch,
   MAX_CARDS_PER_BATCH,
 } from '@/lib/contacts/card-batch'
-import type { Json, JsonIn } from '@/lib/supabase/types'
+import type { JsonIn } from '@/lib/supabase/types'
 
 // The handler itself returns in milliseconds; the work outlives it.
 export const maxDuration = 60

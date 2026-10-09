@@ -58,7 +58,7 @@ export default function InvestorNotes({ investorId, notes }: InvestorNotesProps)
           value={body}
           onChange={(e) => setBody(e.target.value)}
           placeholder="Log a call, a meeting, a commitment, or a next step…"
-          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring min-h-[72px] resize-y"
+          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground outline-none focus-visible:ring-3 focus-visible:ring-ring/50 min-h-[72px] resize-y"
         />
         <div className="flex items-center justify-end gap-2">
           <button

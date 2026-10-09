@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react'
 import { Plus, Trash2, Search, Users, Building2, CheckCircle2, X } from 'lucide-react'
 import type { MeetingAttendee } from '@/lib/utils/meetings'
+import { FIELD_CONTROL_CLASS } from '@/lib/utils/field-classes'
 
 export interface TeamMemberOption {
   id: string
@@ -17,8 +18,7 @@ export interface ContactOption {
   is_organization: boolean | null
 }
 
-const inputClass =
-  'h-9 w-full rounded-md border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring'
+const inputClass = FIELD_CONTROL_CLASS
 
 interface Props {
   attendees: MeetingAttendee[]

@@ -4,15 +4,12 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { Plus, Trash2, Loader2 } from 'lucide-react'
-import { cn } from '@/lib/utils'
 import { DatePicker } from '@/components/ui/date-picker'
 import { formatValue, formatDate } from '@/lib/utils/constants'
 import type { SteelMarketingSpend } from '@/lib/supabase/types'
+import { FIELD_CONTROL_CLASS } from '@/lib/utils/field-classes'
 
-const inputClass = cn(
-  'h-9 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground',
-  'placeholder:text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50'
-)
+const inputClass = FIELD_CONTROL_CLASS
 
 interface Props {
   spend: SteelMarketingSpend[]

@@ -11,6 +11,7 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog'
 import { PROJECT_PLAYER_ROLES, PROJECT_PLAYER_ROLE_GROUPS } from '@/lib/utils/constants'
+import { FIELD_CONTROL_CLASS } from '@/lib/utils/field-classes'
 
 interface EditRoleButtonProps {
   playerId: string
@@ -58,8 +59,7 @@ export default function EditRoleButton({ playerId, currentRole, playerName }: Ed
     }
   }
 
-  const inputClass =
-    'w-full rounded-md border border-input bg-background px-2.5 py-1.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50'
+  const inputClass = FIELD_CONTROL_CLASS
   const effectiveRole = role === '__custom__' ? customRole.trim() : role.trim()
   const canSave = effectiveRole && !saving
 

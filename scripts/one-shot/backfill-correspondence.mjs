@@ -13,7 +13,7 @@
  *              email describing several deals becomes several leads.
  *
  * Usage (from the repo root, on the Studio):
- *   node --experimental-strip-types --import ./scripts/register-alias.mjs \
+ *   node --experimental-strip-types --import ./scripts/register-aliases.mjs \
  *        --env-file=.env.local scripts/backfill-correspondence.mjs [step...]
  *
  * With no arguments it runs refetch, route and apply — the cheap, deterministic

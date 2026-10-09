@@ -8,7 +8,6 @@ import { PROPOSAL_INTAKE_SYSTEM_PROMPT, PROPOSAL_INTAKE_PROMPT_VERSION } from '@
 import { findMatchingProjects, matchExtractedParties, type ProposalExtraction } from '@/lib/ai/proposal-matching'
 import { assessFit, type FitAssessment } from '@/lib/ai/fit-assessment'
 import { writeFile, unlink } from 'fs/promises'
-import type { Json } from '@/types/database'
 import type { JsonIn } from '@/lib/supabase/types'
 import { join } from 'path'
 import { SYSTEM_USER_ID } from '@/lib/system-user'

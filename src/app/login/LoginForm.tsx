@@ -103,7 +103,7 @@ export default function LoginForm() {
                 onChange={(e) => setEmail(e.target.value)}
                 required
                 autoComplete="email"
-                className="w-full h-10 rounded-md border border-input bg-background dark:bg-slate-900 px-3 text-sm text-foreground placeholder:text-muted-foreground/60 outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:border-transparent"
+                className="w-full h-10 rounded-md border border-input bg-background dark:bg-slate-900 px-3 text-sm text-foreground placeholder:text-muted-foreground/60 outline-none focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:border-transparent"
                 placeholder="you@berwilson.com"
               />
             </div>
@@ -119,7 +119,7 @@ export default function LoginForm() {
                 onChange={(e) => setPassword(e.target.value)}
                 required
                 autoComplete="current-password"
-                className="w-full h-10 rounded-md border border-input bg-background dark:bg-slate-900 px-3 text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:border-transparent"
+                className="w-full h-10 rounded-md border border-input bg-background dark:bg-slate-900 px-3 text-sm text-foreground outline-none focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:border-transparent"
               />
             </div>
 

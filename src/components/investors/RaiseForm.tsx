@@ -4,12 +4,12 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Plus, X, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
-import { cn } from '@/lib/utils'
 import { DatePicker } from '@/components/ui/date-picker'
 import type { Raise } from '@/lib/supabase/types'
 import { formatValue } from '@/lib/utils/constants'
 import { parseTranches, MAX_TRANCHES } from '@/lib/investors/raises'
 import { RAISE_STATUSES, RAISE_STATUS_LABELS } from '@/lib/utils/investors'
+import { FIELD_CONTROL_CLASS, FIELD_LABEL_CLASS, FIELD_TEXTAREA_CLASS } from '@/lib/utils/field-classes'
 
 interface Option {
   id: string
@@ -27,11 +27,8 @@ interface TrancheRow {
   target_date: string
 }
 
-const inputClass = cn(
-  'h-9 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground',
-  'placeholder:text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring'
-)
-const labelClass = 'block text-xs font-medium text-foreground mb-1'
+const inputClass = FIELD_CONTROL_CLASS
+const labelClass = FIELD_LABEL_CLASS
 
 /** Live readback of a raw dollar input — catches missing/extra zeros. */
 function DollarHint({ value }: { value: string }) {
@@ -212,7 +209,7 @@ export default function RaiseForm({ projects, initial }: RaiseFormProps) {
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             placeholder="Use of proceeds, structure, key terms…"
-            className={cn(inputClass, 'h-auto min-h-[70px] py-2 resize-y')}
+            className={FIELD_TEXTAREA_CLASS}
           />
         </div>
       </div>

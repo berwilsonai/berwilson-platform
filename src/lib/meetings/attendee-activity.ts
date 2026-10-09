@@ -9,7 +9,6 @@
 // reads activity for a party. Non-fatal — a save still succeeds if this fails.
 
 import type { createAdminClient } from '@/lib/supabase/admin'
-import type { Json } from '@/types/database'
 import type { JsonIn } from '@/lib/supabase/types'
 import { parseAttendees } from '@/lib/utils/meetings'
 

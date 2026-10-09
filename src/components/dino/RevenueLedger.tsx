@@ -10,6 +10,7 @@ import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { DatePicker } from '@/components/ui/date-picker'
 import { formatDate } from '@/lib/utils/constants'
 import { dinoSource, DINO_SOURCE_BADGE, DINO_SOURCE_LABELS } from '@/lib/utils/dino'
+import { FIELD_CONTROL_SM_CLASS, FIELD_LABEL_CLASS } from '@/lib/utils/field-classes'
 
 export interface DinoRevenueRow {
   id: string
@@ -62,11 +63,8 @@ function toForm(row: DinoRevenueRow): FormValues {
   }
 }
 
-const inputClass = cn(
-  'h-8 w-full rounded-md border border-input bg-background px-2.5 text-xs text-foreground',
-  'placeholder:text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring'
-)
-const labelClass = 'block text-[11px] font-medium text-foreground mb-1'
+const inputClass = FIELD_CONTROL_SM_CLASS
+const labelClass = FIELD_LABEL_CLASS
 
 function money(n: number): string {
   return `$${Math.round(n).toLocaleString()}`
