@@ -25,7 +25,13 @@ import {
   driveFileUnchanged,
   type DriveFile,
 } from '@/lib/integrations/google-drive'
-import { reconcileVanished, restoreDocument, type KnownDriveDoc } from './supersede'
+import {
+  reconcileVanished,
+  restoreDocument,
+  supersedeDocument,
+  type KnownDriveDoc,
+} from './supersede'
+import { hashDocumentBytes, loadScopeHashes, findDuplicate } from '@/lib/documents/dedupe'
 import { MANIFEST_NAME } from '@/lib/deal-intake/parse'
 import { SYSTEM_USER_ID } from '@/lib/email-ingestion/analyze'
 
@@ -41,6 +47,8 @@ export interface DriveImportResult {
   failed: number
   /** Documents retired because they are no longer in the folder. */
   superseded: number
+  /** Imported, then retired at once as a duplicate of something already here. */
+  duplicates: number
   /** Set when the vanish guard refused to retire anything, with the reason. */
   supersedeHeldBack: string | null
   errors: string[]
@@ -67,6 +75,8 @@ export interface DocumentArrival {
 interface KnownDoc extends KnownDriveDoc {
   drive_modified_at: string | null
   embedding_status: string | null
+  /** A retirement this importer may not undo — see the `retired` set below. */
+  superseded_by_hand: boolean | null
 }
 
 /** Google Docs arrive as an unsupported mime but export to text — keep them. */
@@ -96,6 +106,7 @@ export async function importDriveFolder(opts: {
     skipped: 0,
     failed: 0,
     superseded: 0,
+    duplicates: 0,
     supersedeHeldBack: null,
     errors: [],
     outOfTime: false,
@@ -114,13 +125,24 @@ export async function importDriveFolder(opts: {
   // another project from being silently rewritten to point at this one.
   const { data: existingRows } = await supabase
     .from('documents')
-    .select('id, drive_file_id, drive_modified_at, superseded_at, embedding_status')
+    .select(
+      'id, drive_file_id, drive_modified_at, superseded_at, embedding_status, superseded_by_hand'
+    )
     .eq('project_id', projectId)
     .not('drive_file_id', 'is', null)
 
   const known = new Map<string, KnownDoc>()
+  /**
+   * Retired BY A PERSON, not by vanishing from the folder. Held out of `known`
+   * so the `returning` branch below cannot un-retire it on the next run — the
+   * bug that made the Documents tab's Retire button a no-op for every
+   * Drive-sourced document, and that stopped the deduper acting on 48 of the 53
+   * duplicate groups it found (2026-10-09).
+   */
+  const retired = new Set<string>()
   for (const row of (existingRows ?? []) as KnownDoc[]) {
-    known.set(row.drive_file_id, row)
+    if (row.superseded_by_hand) retired.add(row.drive_file_id)
+    else known.set(row.drive_file_id, row)
   }
 
   // `documents.drive_file_id` is UNIQUELY indexed platform-wide, so a file
@@ -157,6 +179,13 @@ export async function importDriveFolder(opts: {
     ((publishedRows ?? []) as { drive_published_id: string }[]).map((r) => r.drive_published_id)
   )
 
+  // What this project already holds, by content hash — the check that catches
+  // the same bytes arriving under a second drive_file_id, which `known` cannot.
+  // ⚠ Scoped to THIS project on purpose: the Cleveland-Cliffs due-diligence
+  // package is byte-identical on Weirton, Steelton and Riverdale and all three
+  // are correct.
+  const hashes = await loadScopeHashes(supabase, { kind: 'project', projectId })
+
   const seenIds = new Set<string>()
 
   for (const file of files) {
@@ -172,6 +201,12 @@ export async function importDriveFolder(opts: {
       continue
     }
     if (published.has(file.id)) {
+      result.skipped++
+      continue
+    }
+    // Retired by a person. Before the restore branch, or `returning` undoes the
+    // decision first and this check has nothing left to protect.
+    if (retired.has(file.id)) {
       result.skipped++
       continue
     }
@@ -220,6 +255,10 @@ export async function importDriveFolder(opts: {
         continue
       }
 
+      // The bytes decide — a name is not evidence of sameness, and neither is size.
+      const digest = hashDocumentBytes(content.buffer)
+      const duplicate = findDuplicate(hashes, digest, prior?.id)
+
       const safeName = content.fileName.replace(/[^a-zA-Z0-9._-]/g, '_')
       const path = `projects/${projectId}/drive/${file.id}-${safeName}`
       const { error: upErr } = await supabase.storage
@@ -244,6 +283,7 @@ export async function importDriveFolder(opts: {
             embedding_status: 'pending',
             extracted_text: null,
             ai_summary: null,
+            content_sha256: digest,
           })
           .eq('id', prior.id)
         if (error) throw new Error(error.message)
@@ -270,6 +310,9 @@ export async function importDriveFolder(opts: {
             // Without this, reconcileDrivePublishing would upload every imported
             // file straight back into the folder it was read from.
             drive_published_id: file.id,
+            // Written by every door now — see documents/dedupe.ts. A key one
+            // importer fills and another leaves NULL is not a shared key.
+            content_sha256: digest,
           })
           .select('id')
           .single()
@@ -285,6 +328,24 @@ export async function importDriveFolder(opts: {
         documentId = data.id
         result.added++
       }
+
+      // Already on this project under a different Drive id. The row stays —
+      // its drive_file_id is what stops a re-import tomorrow — but it is retired
+      // at once so it never reaches the index or competes with the copy kept.
+      if (duplicate) {
+        await supersedeDocument(
+          supabase,
+          documentId,
+          `Duplicate of ${duplicate.fileName ?? 'a document'} already on this project.`,
+          { duplicateOf: duplicate.id }
+        )
+        // Inserted, but never added to the project's readable documents.
+        if (!prior) result.added--
+        result.duplicates++
+        continue
+      }
+      // So two copies arriving in the same run are caught against each other.
+      hashes.set(digest, { id: documentId, fileName: content.fileName, superseded: false })
 
       // Settles embedding_status itself and never throws.
       const pass = await runDocumentAiPass({

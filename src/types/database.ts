@@ -561,17 +561,23 @@ isOneToOne: false
                   ]
                 },"documents": {
                   Row: {
-                    "ai_summary": string | null,"classification": string | null,"confidence": number | null,"content_sha256": string | null,"doc_type": string | null,"drive_file_id": string | null,"drive_folder_path": string | null,"drive_modified_at": string | null,"drive_published_id": string | null,"embedding_status": string | null,"entity_id": string | null,"excluded_at": string | null,"excluded_reason": string | null,"extracted_text": string | null,"file_name": string,"file_size_bytes": number | null,"filing_confirmed_at": string | null,"id": string,"is_company": boolean,"is_reference": boolean,"meeting_id": string | null,"mime_type": string | null,"project_id": string | null,"source": Database["public"]['Enums']["update_source"] | null,"steel_deal_id": string | null,"storage_path": string,"superseded_at": string | null,"superseded_reason": string | null,"uploaded_at": string | null,"uploaded_by": string | null
+                    "ai_summary": string | null,"classification": string | null,"confidence": number | null,"content_sha256": string | null,"doc_type": string | null,"drive_file_id": string | null,"drive_folder_path": string | null,"drive_modified_at": string | null,"drive_published_id": string | null,"duplicate_of": string | null,"embedding_status": string | null,"entity_id": string | null,"excluded_at": string | null,"excluded_reason": string | null,"extracted_text": string | null,"file_name": string,"file_size_bytes": number | null,"filing_confirmed_at": string | null,"id": string,"is_company": boolean,"is_reference": boolean,"meeting_id": string | null,"mime_type": string | null,"project_id": string | null,"source": Database["public"]['Enums']["update_source"] | null,"steel_deal_id": string | null,"storage_path": string,"superseded_at": string | null,"superseded_by_hand": boolean,"superseded_reason": string | null,"uploaded_at": string | null,"uploaded_by": string | null
                   }
                   ComputedFields: never
                   Insert: {
-                    "ai_summary"?: string | null,"classification"?: string | null,"confidence"?: number | null,"content_sha256"?: string | null,"doc_type"?: string | null,"drive_file_id"?: string | null,"drive_folder_path"?: string | null,"drive_modified_at"?: string | null,"drive_published_id"?: string | null,"embedding_status"?: string | null,"entity_id"?: string | null,"excluded_at"?: string | null,"excluded_reason"?: string | null,"extracted_text"?: string | null,"file_name": string,"file_size_bytes"?: number | null,"filing_confirmed_at"?: string | null,"id"?: string,"is_company"?: boolean,"is_reference"?: boolean,"meeting_id"?: string | null,"mime_type"?: string | null,"project_id"?: string | null,"source"?: Database["public"]['Enums']["update_source"] | null,"steel_deal_id"?: string | null,"storage_path": string,"superseded_at"?: string | null,"superseded_reason"?: string | null,"uploaded_at"?: string | null,"uploaded_by"?: string | null
+                    "ai_summary"?: string | null,"classification"?: string | null,"confidence"?: number | null,"content_sha256"?: string | null,"doc_type"?: string | null,"drive_file_id"?: string | null,"drive_folder_path"?: string | null,"drive_modified_at"?: string | null,"drive_published_id"?: string | null,"duplicate_of"?: string | null,"embedding_status"?: string | null,"entity_id"?: string | null,"excluded_at"?: string | null,"excluded_reason"?: string | null,"extracted_text"?: string | null,"file_name": string,"file_size_bytes"?: number | null,"filing_confirmed_at"?: string | null,"id"?: string,"is_company"?: boolean,"is_reference"?: boolean,"meeting_id"?: string | null,"mime_type"?: string | null,"project_id"?: string | null,"source"?: Database["public"]['Enums']["update_source"] | null,"steel_deal_id"?: string | null,"storage_path": string,"superseded_at"?: string | null,"superseded_by_hand"?: boolean,"superseded_reason"?: string | null,"uploaded_at"?: string | null,"uploaded_by"?: string | null
                   }
                   Update: {
-                    "ai_summary"?: string | null,"classification"?: string | null,"confidence"?: number | null,"content_sha256"?: string | null,"doc_type"?: string | null,"drive_file_id"?: string | null,"drive_folder_path"?: string | null,"drive_modified_at"?: string | null,"drive_published_id"?: string | null,"embedding_status"?: string | null,"entity_id"?: string | null,"excluded_at"?: string | null,"excluded_reason"?: string | null,"extracted_text"?: string | null,"file_name"?: string,"file_size_bytes"?: number | null,"filing_confirmed_at"?: string | null,"id"?: string,"is_company"?: boolean,"is_reference"?: boolean,"meeting_id"?: string | null,"mime_type"?: string | null,"project_id"?: string | null,"source"?: Database["public"]['Enums']["update_source"] | null,"steel_deal_id"?: string | null,"storage_path"?: string,"superseded_at"?: string | null,"superseded_reason"?: string | null,"uploaded_at"?: string | null,"uploaded_by"?: string | null
+                    "ai_summary"?: string | null,"classification"?: string | null,"confidence"?: number | null,"content_sha256"?: string | null,"doc_type"?: string | null,"drive_file_id"?: string | null,"drive_folder_path"?: string | null,"drive_modified_at"?: string | null,"drive_published_id"?: string | null,"duplicate_of"?: string | null,"embedding_status"?: string | null,"entity_id"?: string | null,"excluded_at"?: string | null,"excluded_reason"?: string | null,"extracted_text"?: string | null,"file_name"?: string,"file_size_bytes"?: number | null,"filing_confirmed_at"?: string | null,"id"?: string,"is_company"?: boolean,"is_reference"?: boolean,"meeting_id"?: string | null,"mime_type"?: string | null,"project_id"?: string | null,"source"?: Database["public"]['Enums']["update_source"] | null,"steel_deal_id"?: string | null,"storage_path"?: string,"superseded_at"?: string | null,"superseded_by_hand"?: boolean,"superseded_reason"?: string | null,"uploaded_at"?: string | null,"uploaded_by"?: string | null
                   }
                   Relationships: [
                     {
+      foreignKeyName: "documents_duplicate_of_fkey"
+      columns: ["duplicate_of"]
+isOneToOne: false
+      referencedRelation: "documents"
+      referencedColumns: ["id"]
+    },{
       foreignKeyName: "documents_entity_id_fkey"
       columns: ["entity_id"]
 isOneToOne: false
@@ -1349,17 +1355,23 @@ isOneToOne: false
                   ]
                 },"opportunity_documents": {
                   Row: {
-                    "ai_summary": string | null,"content_sha256": string | null,"doc_type": string | null,"drive_file_id": string | null,"drive_folder_path": string | null,"drive_modified_at": string | null,"drive_published_id": string | null,"embedding_status": string | null,"extracted_text": string | null,"file_name": string,"file_size_bytes": number | null,"id": string,"mime_type": string | null,"opportunity_id": string,"storage_path": string,"superseded_at": string | null,"superseded_reason": string | null,"uploaded_at": string | null
+                    "ai_summary": string | null,"content_sha256": string | null,"doc_type": string | null,"drive_file_id": string | null,"drive_folder_path": string | null,"drive_modified_at": string | null,"drive_published_id": string | null,"duplicate_of": string | null,"embedding_status": string | null,"extracted_text": string | null,"file_name": string,"file_size_bytes": number | null,"id": string,"mime_type": string | null,"opportunity_id": string,"storage_path": string,"superseded_at": string | null,"superseded_by_hand": boolean,"superseded_reason": string | null,"uploaded_at": string | null
                   }
                   ComputedFields: never
                   Insert: {
-                    "ai_summary"?: string | null,"content_sha256"?: string | null,"doc_type"?: string | null,"drive_file_id"?: string | null,"drive_folder_path"?: string | null,"drive_modified_at"?: string | null,"drive_published_id"?: string | null,"embedding_status"?: string | null,"extracted_text"?: string | null,"file_name": string,"file_size_bytes"?: number | null,"id"?: string,"mime_type"?: string | null,"opportunity_id": string,"storage_path": string,"superseded_at"?: string | null,"superseded_reason"?: string | null,"uploaded_at"?: string | null
+                    "ai_summary"?: string | null,"content_sha256"?: string | null,"doc_type"?: string | null,"drive_file_id"?: string | null,"drive_folder_path"?: string | null,"drive_modified_at"?: string | null,"drive_published_id"?: string | null,"duplicate_of"?: string | null,"embedding_status"?: string | null,"extracted_text"?: string | null,"file_name": string,"file_size_bytes"?: number | null,"id"?: string,"mime_type"?: string | null,"opportunity_id": string,"storage_path": string,"superseded_at"?: string | null,"superseded_by_hand"?: boolean,"superseded_reason"?: string | null,"uploaded_at"?: string | null
                   }
                   Update: {
-                    "ai_summary"?: string | null,"content_sha256"?: string | null,"doc_type"?: string | null,"drive_file_id"?: string | null,"drive_folder_path"?: string | null,"drive_modified_at"?: string | null,"drive_published_id"?: string | null,"embedding_status"?: string | null,"extracted_text"?: string | null,"file_name"?: string,"file_size_bytes"?: number | null,"id"?: string,"mime_type"?: string | null,"opportunity_id"?: string,"storage_path"?: string,"superseded_at"?: string | null,"superseded_reason"?: string | null,"uploaded_at"?: string | null
+                    "ai_summary"?: string | null,"content_sha256"?: string | null,"doc_type"?: string | null,"drive_file_id"?: string | null,"drive_folder_path"?: string | null,"drive_modified_at"?: string | null,"drive_published_id"?: string | null,"duplicate_of"?: string | null,"embedding_status"?: string | null,"extracted_text"?: string | null,"file_name"?: string,"file_size_bytes"?: number | null,"id"?: string,"mime_type"?: string | null,"opportunity_id"?: string,"storage_path"?: string,"superseded_at"?: string | null,"superseded_by_hand"?: boolean,"superseded_reason"?: string | null,"uploaded_at"?: string | null
                   }
                   Relationships: [
                     {
+      foreignKeyName: "opportunity_documents_duplicate_of_fkey"
+      columns: ["duplicate_of"]
+isOneToOne: false
+      referencedRelation: "opportunity_documents"
+      referencedColumns: ["id"]
+    },{
       foreignKeyName: "opportunity_documents_opportunity_id_fkey"
       columns: ["opportunity_id"]
 isOneToOne: false

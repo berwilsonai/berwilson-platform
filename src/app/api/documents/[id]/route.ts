@@ -127,7 +127,14 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
 
   if (body.superseded) {
     const { supersedeDocument } = await import('@/lib/drive/supersede')
-    const ok = await supersedeDocument(admin, id, 'Retired by hand in the platform.')
+    // `byHand` is what makes this stick. Without it both Drive importers treat a
+    // superseded row whose file is still in its folder as "returning" and restore
+    // it on the next nightly run — so this button was a no-op for every
+    // Drive-sourced document, which is most of them (measured 2026-10-09: not one
+    // had ever been durably retired).
+    const ok = await supersedeDocument(admin, id, 'Retired by hand in the platform.', {
+      byHand: true,
+    })
     if (!ok) return Response.json({ error: 'Could not retire the document.' }, { status: 500 })
     return Response.json({ superseded: true })
   }
@@ -141,9 +148,18 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
   // unfinished pass), but one that never came from Drive has nothing coming for
   // it at all — so the caller has to run the re-index, and the response says so
   // rather than claiming a queue that does not exist.
+  //
+  // Clears the lock and the duplicate pointer with it: restoring IS the undo, and
+  // a row left locked would be un-retirable by the importers forever.
   const { error } = await admin
     .from('documents')
-    .update({ superseded_at: null, superseded_reason: null, embedding_status: 'pending' })
+    .update({
+      superseded_at: null,
+      superseded_reason: null,
+      superseded_by_hand: false,
+      duplicate_of: null,
+      embedding_status: 'pending',
+    })
     .eq('id', id)
   if (error) return Response.json({ error: error.message }, { status: 500 })
 

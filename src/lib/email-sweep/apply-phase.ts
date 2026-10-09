@@ -24,7 +24,7 @@
  * in the review queue, which is exactly what that rule asks for.
  */
 
-import { createHash } from 'node:crypto'
+import { hashDocumentBytes } from '@/lib/documents/dedupe'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { runDocumentAiPass } from '@/lib/ai/document-pipeline'
 import { fileRecordDocumentsQuietly } from '@/lib/drive/file-document'
@@ -753,13 +753,9 @@ async function importThreadAttachments(
           .select('file_name, content_sha256')
           .eq('opportunity_id', link.record_id)
 
-    // `content_sha256` is absent from the generated types — `npm run gen-types`
-    // is a disabled stub (§4), so they are frozen at whenever they were last
-    // produced by hand. Cast through unknown rather than scatter ``.
-    const existing = (existingDocs ?? []) as unknown as {
-      file_name: string | null
-      content_sha256: string | null
-    }[]
+    // `content_sha256` has been in the generated types since gen-types was
+    // repaired (2026-10-08), so the cast through unknown that stood here is gone.
+    const existing = existingDocs ?? []
     const already = new Set(existing.map((d) => (d.file_name ?? '').toLowerCase()))
     // The set that actually decides a skip. A name collision only renames.
     const hashes = new Set(
@@ -809,7 +805,7 @@ async function importThreadAttachments(
       // Commitment - AS.pdf" and sit within 1.1% of each other in size, so the
       // old name-only skip discarded three real documents per file type with no
       // error anywhere.
-      const digest = createHash('sha256').update(buffer).digest('hex')
+      const digest = hashDocumentBytes(buffer)
       if (hashes.has(digest)) {
         // The same FILE, whatever it is called or which thread carried it. This is
         // the case the name rule was reaching for, answered exactly.

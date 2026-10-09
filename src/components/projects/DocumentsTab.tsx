@@ -127,7 +127,14 @@ function DocumentRow({
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? 'Could not update the document')
 
-      onChange({ ...doc, superseded_at: superseded ? null : new Date().toISOString() })
+      onChange({
+        ...doc,
+        superseded_at: superseded ? null : new Date().toISOString(),
+        // Restoring IS the undo, so the duplicate verdict goes with it — else the
+        // row reads as restored and still carries "Duplicate" until a reload.
+        duplicate_of: superseded ? null : doc.duplicate_of,
+        superseded_reason: superseded ? null : doc.superseded_reason,
+      })
       if (superseded) {
         // Its chunks were deleted on the way out, so restoring has to re-index
         // or the document comes back invisible to the thing it was hidden from.
@@ -208,7 +215,7 @@ function DocumentRow({
                 title={doc.superseded_reason ?? 'Retired — not used to answer questions.'}
               >
                 <Archive size={10} />
-                Retired
+                {doc.duplicate_of ? 'Duplicate' : 'Retired'}
               </span>
             )}
             {/* doc_type badge */}
@@ -250,6 +257,15 @@ function DocumentRow({
               <ConfidenceBadge confidence={doc.confidence} />
             )}
           </div>
+
+          {/* WHY it is retired, in place. It was only ever a `title` tooltip,
+              which does not exist on a phone — and "duplicate of <which
+              document>" is the whole information, not a decoration: without it
+              a retired row is indistinguishable from one somebody hid by
+              mistake, and the Restore button beside it has no context. */}
+          {superseded && doc.superseded_reason && (
+            <p className="mt-1 text-xs text-muted-foreground">{doc.superseded_reason}</p>
+          )}
         </div>
 
         {/* Actions */}
@@ -619,6 +635,21 @@ export default function DocumentsTab({
 }: DocumentsTabProps) {
   const [documents, setDocuments] = useState<Document[]>(initialDocuments)
   const [showUpload, setShowUpload] = useState(false)
+  const [showRetired, setShowRetired] = useState(false)
+
+  /**
+   * Retired documents are kept and still reachable, but out of the way.
+   *
+   * They used to render inline at 60% opacity, which made decluttering
+   * self-defeating: retiring the 46 byte-identical duplicates found on
+   * 2026-10-09 would have put ten dimmed rows among Myton Rail's twenty-one real
+   * ones and fourteen among DUBHES's eighty. A retirement has to REMOVE the row
+   * from the reading list to be worth making, while staying one click away —
+   * deleting is the only version of this that cannot be undone.
+   */
+  const liveDocuments = documents.filter((d) => !d.superseded_at)
+  const retiredDocuments = documents.filter((d) => d.superseded_at)
+  const duplicateCount = retiredDocuments.filter((d) => d.duplicate_of).length
 
   function handleUploaded(doc: Document) {
     setDocuments((prev) => [doc, ...prev])
@@ -691,7 +722,7 @@ export default function DocumentsTab({
         />
       ) : (
         <div className="space-y-3">
-          {documents.map((doc) => (
+          {liveDocuments.map((doc) => (
             <DocumentRow
               key={doc.id}
               doc={doc}
@@ -699,6 +730,33 @@ export default function DocumentsTab({
               onChange={handleChanged}
             />
           ))}
+
+          {retiredDocuments.length > 0 && (
+            <div className="pt-2">
+              <button
+                onClick={() => setShowRetired((v) => !v)}
+                className="inline-flex items-center gap-1.5 h-9 px-2 -mx-2 rounded-md text-xs text-muted-foreground hover:text-foreground hover:bg-accent transition-colors outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+              >
+                <Archive size={12} />
+                {showRetired ? 'Hide' : 'Show'} {retiredDocuments.length} retired
+                {duplicateCount > 0 &&
+                  ` (${duplicateCount} duplicate${duplicateCount === 1 ? '' : 's'})`}
+              </button>
+
+              {showRetired && (
+                <div className="space-y-3 mt-3">
+                  {retiredDocuments.map((doc) => (
+                    <DocumentRow
+                      key={doc.id}
+                      doc={doc}
+                      onDelete={handleDeleted}
+                      onChange={handleChanged}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
     </div>

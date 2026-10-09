@@ -33,26 +33,76 @@ export interface KnownDriveDoc {
 }
 
 /**
+ * Which table the document lives in.
+ *
+ * A document can live in `documents` or in `opportunity_documents` (§9's
+ * two-table split), and the two keep their chunks under DIFFERENT keys —
+ * `chunks.document_id` against `chunks.opportunity_document_id`. So a supersede
+ * written for one silently drops no chunks at all for the other: the row reads
+ * as retired while every one of its passages keeps being cited. A target, never
+ * a forked copy.
+ */
+export type DocumentTable = 'documents' | 'opportunity_documents'
+
+const CHUNK_KEY: Record<DocumentTable, 'document_id' | 'opportunity_document_id'> = {
+  documents: 'document_id',
+  opportunity_documents: 'opportunity_document_id',
+}
+
+/** What a supersession records beyond the timestamp. */
+export interface SupersedeOptions {
+  /**
+   * A decision the IMPORTERS MAY NOT UNDO. Set it whenever a person retired the
+   * document, or the deduper did on their behalf.
+   *
+   * Without it the `returning` branch in both Drive importers restores any
+   * superseded row whose file is still in its folder, so the retirement is
+   * reversed on the next nightly run — measured 2026-10-09: no Drive-sourced
+   * document had ever been durably retired by hand. The vanish path leaves this
+   * false on purpose, because a file dragged back out of Archive SHOULD return.
+   */
+  byHand?: boolean
+  /** The document this one duplicates, when that is why it is being retired. */
+  duplicateOf?: string
+  /** Defaults to `documents`. */
+  table?: DocumentTable
+}
+
+/**
  * Retire one document: chunks removed so it is no longer retrievable, row kept.
  * Never throws — a supersession that fails is a stale answer, not a failed sync.
  */
 export async function supersedeDocument(
   supabase: AdminClient,
   documentId: string,
-  reason: string
+  reason: string,
+  opts: SupersedeOptions = {}
 ): Promise<boolean> {
   try {
     // Chunks first. If the flag were set first and this failed, the document
     // would read as retired while still answering questions — the worst of both.
-    await supabase.from('chunks').delete().eq('document_id', documentId)
-    const { error } = await supabase
-      .from('documents')
-      .update({
-        superseded_at: new Date().toISOString(),
-        superseded_reason: reason.slice(0, 300),
-        embedding_status: 'skipped',
-      })
-      .eq('id', documentId)
+    const table = opts.table ?? 'documents'
+    await supabase.from('chunks').delete().eq(CHUNK_KEY[table], documentId)
+
+    const patch = {
+      superseded_at: new Date().toISOString(),
+      superseded_reason: reason.slice(0, 300),
+      embedding_status: 'skipped',
+      // A duplicate is always a human decision, so the pointer implies the
+      // lock. Writing both together is what stops a caller setting one and
+      // producing a retirement the next sync quietly reverses.
+      superseded_by_hand: opts.byHand || !!opts.duplicateOf,
+      ...(opts.duplicateOf ? { duplicate_of: opts.duplicateOf } : {}),
+    }
+
+    // Branched rather than parameterised by table name: a union of two table
+    // names collapses the typed client's update payload to `never`. Same reason
+    // the attachment importer branches its reads — one pass, two statements, not
+    // two passes.
+    const { error } =
+      table === 'opportunity_documents'
+        ? await supabase.from('opportunity_documents').update(patch).eq('id', documentId)
+        : await supabase.from('documents').update(patch).eq('id', documentId)
     if (error) throw new Error(error.message)
     return true
   } catch (err) {
@@ -61,14 +111,25 @@ export async function supersedeDocument(
   }
 }
 
-/** Clear the flag. The caller is responsible for re-indexing the content. */
+/**
+ * Clear the flag. The caller is responsible for re-indexing the content.
+ *
+ * Clears the lock and the duplicate pointer too: restoring IS the undo, and a
+ * row left locked after a restore would be retired again by nothing and
+ * un-retirable by the importers forever.
+ */
 export async function restoreDocument(
   supabase: AdminClient,
   documentId: string
 ): Promise<void> {
   await supabase
     .from('documents')
-    .update({ superseded_at: null, superseded_reason: null })
+    .update({
+      superseded_at: null,
+      superseded_reason: null,
+      superseded_by_hand: false,
+      duplicate_of: null,
+    })
     .eq('id', documentId)
 }
 

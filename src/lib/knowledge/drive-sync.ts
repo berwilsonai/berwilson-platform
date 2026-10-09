@@ -31,7 +31,13 @@ import {
   getFolderName,
   type DriveFile,
 } from '@/lib/integrations/google-drive'
-import { reconcileVanished, restoreDocument, type KnownDriveDoc } from '@/lib/drive/supersede'
+import {
+  reconcileVanished,
+  restoreDocument,
+  supersedeDocument,
+  type KnownDriveDoc,
+} from '@/lib/drive/supersede'
+import { hashDocumentBytes, loadScopeHashes, findDuplicate } from '@/lib/documents/dedupe'
 import type { DocumentArrival } from '@/lib/drive/import'
 
 /** Nothing bigger — a 100MB video is not knowledge-base material. */
@@ -56,6 +62,8 @@ export interface DriveSyncProgress {
   /** Retired because they are no longer in any nominated folder. */
   superseded: number
   supersedeHeldBack: string | null
+  /** Imported, then retired immediately as a duplicate of something already here. */
+  duplicates: number
   errors: string[]
   outOfTime: boolean
   /** What actually arrived, so the team can be told who added it. */
@@ -67,6 +75,8 @@ interface KnownDoc extends KnownDriveDoc {
   drive_modified_at: string | null
   embedding_status: string | null
   excluded_at: string | null
+  /** A retirement the sync may not undo — see the `retired` set below. */
+  superseded_by_hand: boolean | null
 }
 
 export async function syncDriveKnowledge(
@@ -94,6 +104,7 @@ export async function syncDriveKnowledge(
     failed: 0,
     superseded: 0,
     supersedeHeldBack: null,
+    duplicates: 0,
     errors: [],
     outOfTime: false,
     arrivals: [],
@@ -137,7 +148,7 @@ export async function syncDriveKnowledge(
   const { data: existingRows, error: existingErr } = await supabase
     .from('documents')
     .select(
-      'id, storage_path, drive_file_id, drive_modified_at, superseded_at, is_company, embedding_status, excluded_at'
+      'id, storage_path, drive_file_id, drive_modified_at, superseded_at, is_company, embedding_status, excluded_at, superseded_by_hand'
     )
     .not('drive_file_id', 'is', null)
   if (existingErr) {
@@ -166,14 +177,33 @@ export async function syncDriveKnowledge(
    * `returning` would already have un-retired the row.
    */
   const excluded = new Set<string>()
+  /**
+   * Retired BY A PERSON — by hand on the Documents tab, or by the deduper on
+   * their behalf. Held apart from `known` for the same reason `excluded` is: the
+   * `returning` branch below restores any superseded row whose file is still in
+   * its folder, so without this the retirement is reversed on the next nightly
+   * run. Measured 2026-10-09: that is why no Drive-sourced document had ever
+   * been durably retired, and why dedupe-documents.mts refused to act on 48 of
+   * the 53 duplicate groups it found.
+   *
+   * The vanish path deliberately does NOT land here — a file dragged back out of
+   * an Archive folder should return, and that supersession carries no lock.
+   */
+  const retired = new Set<string>()
   for (const row of (existingRows ?? []) as (KnownDoc & { is_company: boolean })[]) {
     if (row.excluded_at) excluded.add(row.drive_file_id)
+    else if (row.superseded_by_hand) retired.add(row.drive_file_id)
     else if (row.is_company) known.set(row.drive_file_id, row)
     else ownedElsewhere.add(row.drive_file_id)
   }
   for (const row of (oppRows ?? []) as { drive_file_id: string }[]) {
     ownedElsewhere.add(row.drive_file_id)
   }
+
+  // What the company shelf already holds, by content hash. Read once: the whole
+  // point is to catch the same bytes arriving under a SECOND drive_file_id,
+  // which `known` (keyed on that id) structurally cannot see.
+  const hashes = await loadScopeHashes(supabase, { kind: 'company' })
 
   for (const file of files) {
     if (Date.now() >= deadline) {
@@ -186,6 +216,14 @@ export async function syncDriveKnowledge(
     // sync re-indexing and re-announcing it every night regardless.
     if (excluded.has(file.id)) {
       skip('excluded by hand')
+      continue
+    }
+
+    // Retired by a person. Checked here, before the restore branch, or
+    // `returning` would un-retire it first and the check would do nothing —
+    // exactly the ordering bug the exclusion check was written to avoid.
+    if (retired.has(file.id)) {
+      skip('retired by hand')
       continue
     }
 
@@ -249,6 +287,12 @@ export async function syncDriveKnowledge(
         continue
       }
 
+      // The bytes decide. A name is not evidence of sameness and neither is
+      // size — four parcels' title commitments are all called "Title Commitment
+      // - AS.pdf" within 1.1% of each other.
+      const digest = hashDocumentBytes(content.buffer)
+      const duplicate = findDuplicate(hashes, digest, prior?.id)
+
       const path = `company/drive/${file.id}-${content.fileName.replace(/[^a-zA-Z0-9._-]/g, '_')}`
       const { error: upErr } = await supabase.storage
         .from('documents')
@@ -272,6 +316,7 @@ export async function syncDriveKnowledge(
             embedding_status: 'pending',
             extracted_text: null,
             ai_summary: null,
+            content_sha256: digest,
           })
           .eq('id', prior.id)
         if (error) throw new Error(error.message)
@@ -295,6 +340,11 @@ export async function syncDriveKnowledge(
             // deciding which folders should stay nominated at all.
             drive_folder_path: file.path ?? null,
             drive_modified_at: file.modifiedTime,
+            // Written by EVERY door now. A key one importer fills and another
+            // leaves NULL is not a shared key: the attachment importer's hash
+            // check could not see a single Drive-imported document, so it
+            // collided on the name and renamed instead.
+            content_sha256: digest,
           })
           .select('id')
           .single()
@@ -313,6 +363,32 @@ export async function syncDriveKnowledge(
         documentId = data.id
         progress.added++
       }
+
+      // The same bytes are already on this shelf under a DIFFERENT Drive id —
+      // the GridEdge MNDA filed under both "Signed MNDA's" and "NDA NC". The row
+      // is kept, because its drive_file_id is what stops the file being imported
+      // again tomorrow, but it is retired at once so it never reaches the index
+      // and never competes with the copy that was kept. Catching this at the door
+      // costs one hash; catching it later costs a cleanup script and a month of
+      // split retrieval.
+      if (duplicate) {
+        await supersedeDocument(
+          supabase,
+          documentId,
+          `Duplicate of ${duplicate.fileName ?? 'a document'} already on the company shelf.`,
+          { duplicateOf: duplicate.id }
+        )
+        // It was inserted, but it was never ADDED to the knowledge base. A count
+        // that says otherwise is the kind of number nobody can act on.
+        if (!prior) progress.added--
+        progress.duplicates++
+        progress.skippedReasons['duplicate of a document already here'] =
+          (progress.skippedReasons['duplicate of a document already here'] ?? 0) + 1
+        continue
+      }
+      // So that two copies arriving in the SAME run are caught against each
+      // other, not just against what was already stored.
+      hashes.set(digest, { id: documentId, fileName: content.fileName, superseded: false })
 
       // Settles embedding_status itself and never throws.
       const pass = await runDocumentAiPass({
