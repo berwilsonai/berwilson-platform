@@ -167,6 +167,67 @@ function taskList(overdue: NoteTask[], dueSoon: NoteTask[], now: Date): string {
   return section('Overdue', overdue) + section('Due this week', dueSoon)
 }
 
+/** One commitment, with the one-tap link minted for this note. */
+export interface NoteSettleRow {
+  what: string
+  /** 'us' is something the reader owes; 'them' is something they are waiting on. */
+  side: 'us' | 'them'
+  dueDate: string | null
+  /** The minted token, or null when it could not be minted for this row. */
+  token: string | null
+}
+
+/**
+ * The settle block — the reason this note can ever make a number go down.
+ *
+ * ⚠ BUILT FROM THE ROWS, NEVER FROM THE PROSE. The body above is composed by a
+ * model, so there is no reliable way to attach a link to a specific obligation
+ * inside it; a regex over generated prose would mis-anchor the one morning it
+ * mattered and settle the wrong commitment. This is rendered from the same rows
+ * the model was shown, exactly as the task list beneath it already is.
+ *
+ * ⚠ AND THE LINK OPENS A PAGE RATHER THAN ACTING. Gmail prefetches links and
+ * the mail gateways §12 records (Proofpoint/ATP/Inky) follow every URL in every
+ * message to scan it, so a GET that settled a row would be settled by a robot
+ * before the reader woke up — with the reader's name on the audit row. One tap
+ * here, one tap to confirm, and a scanner can open it all day for free.
+ *
+ * Rows whose token could not be minted are OMITTED rather than rendered dead: a
+ * link that does nothing is worse than no link, because the reader taps it,
+ * nothing happens, and they stop trusting the whole block.
+ */
+function settleList(rows: NoteSettleRow[], appUrl: string): string {
+  if (!appUrl) return ''
+  const live = rows.filter((r) => r.token)
+  if (live.length === 0) return ''
+
+  const item = (r: NoteSettleRow) => {
+    const due = r.dueDate ? ` · due ${escapeHtml(r.dueDate)}` : ' · no date agreed'
+    return `
+      <tr>
+        <td style="padding:9px 0;border-bottom:1px solid #e5e7eb;">
+          <a href="${appUrl}/s/${r.token}" style="font-size:14px;color:#1d4ed8;text-decoration:none;font-weight:600;">${escapeHtml(
+            r.what.length > 110 ? `${r.what.slice(0, 110)}…` : r.what
+          )}</a>
+          <div style="font-size:12px;color:#9ca3af;margin-top:2px;">${
+            r.side === 'us' ? 'you owe this' : 'you are waiting on this'
+          }${due}</div>
+        </td>
+      </tr>`
+  }
+
+  return `
+    <div style="margin-top:24px;">
+      <div style="font-size:11px;font-weight:700;letter-spacing:0.05em;text-transform:uppercase;color:#6b7280;">Settle in one tap (${live.length})</div>
+      <p style="font-size:12px;color:#6b7280;margin:4px 0 0;">
+        Tap one to mark it done, say it was never yours, or quiet it for a week. Nothing is settled until you confirm on the page.
+      </p>
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:6px;">
+        ${live.map(item).join('')}
+      </table>
+    </div>`
+}
+
 /** Subject and body for one person's note. */
 export function renderNoteEmail(input: {
   firstName: string
@@ -176,6 +237,8 @@ export function renderNoteEmail(input: {
   overdue: NoteTask[]
   dueSoon: NoteTask[]
   decideTotal: number
+  /** Commitments the note named, each with its one-tap link. */
+  settle?: NoteSettleRow[]
   appUrl: string
   now?: Date
 }): { subject: string; html: string } {
@@ -223,6 +286,7 @@ export function renderNoteEmail(input: {
     <div style="font-size:13px;color:#6b7280;margin-top:2px;">${escapeHtml(date)}</div>
     ${noteToHtml(input.markdown)}
     ${taskList(input.overdue, input.dueSoon, now)}
+    ${settleList(input.settle ?? [], input.appUrl)}
     ${link}
     <div style="font-size:11px;color:#9ca3af;margin-top:28px;border-top:1px solid #e5e7eb;padding-top:12px;">
       Pepper · Ber Wilson. Read out of correspondence already on file — nothing here was sent on your behalf.

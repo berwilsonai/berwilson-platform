@@ -18,12 +18,14 @@
 
 import { createAdminClient } from '@/lib/supabase/admin'
 import { sweepDb } from '@/lib/email-sweep/db'
+import { readOpenCommitments, type CommitmentWithMailbox } from '@/lib/commitments/read'
 import { fetchCalendarEvents } from '@/lib/integrations/google-workspace'
 import { fetchTasksForDigest, type DigestTask } from '@/lib/tasks/queries'
 import { summarizeDecideQueue, type DecideSummary } from '@/lib/decide/count'
 import { computeAttention, type AttentionItem } from '@/lib/attention'
 import type { CommitmentRow } from '@/lib/commitments/db'
 import { attribute, loadPepperMembers, type PepperMember } from './attribution'
+import { ESCALATE_AFTER, loadMentions, type Mention } from './memory'
 
 /** How many portfolio-level cracks to name. More than this is a report. */
 const MAX_CRACKS = 5
@@ -69,6 +71,13 @@ export interface MeetingContext {
 export interface NoteCommitment {
   row: CommitmentRow
   via: 'name' | 'mailbox'
+  /** What Pepper has already said about this one, if anything. */
+  mention?: Mention
+  /**
+   * A one-tap settle link, minted only for a note that is actually being sent.
+   * Absent on a dry run — a rehearsal must not leave live credentials behind.
+   */
+  token?: string | null
 }
 
 export interface OvernightWork {
@@ -157,7 +166,7 @@ function reach(now: Date): { sinceIso: string; sinceLabel: string } {
 /** Everything shared between the notes, gathered once rather than per person. */
 export interface PepperCommon {
   members: PepperMember[]
-  commitments: (CommitmentRow & { mailbox: string | null })[]
+  commitments: CommitmentWithMailbox[]
   tasks: DigestTask[]
   decide: DecideSummary
   cracks: AttentionItem[]
@@ -174,22 +183,18 @@ export interface PepperCommon {
  */
 export async function assembleCommon(now = new Date()): Promise<PepperCommon> {
   const supabase = createAdminClient()
-  const sweep = sweepDb()
   const { sinceIso } = reach(now)
   const notes: string[] = []
 
   const members = await loadPepperMembers(supabase)
 
   const [commitmentsRes, tasks, decide, attentionItems, overnight] = await Promise.all([
-    // The mailbox comes along because it is the fallback attribution key and
-    // the join is free here — resolving it later would be one query per row.
-    sweep
-      .from('commitments')
-      .select('*, thread:email_threads(mailbox)')
-      .eq('status', 'open')
-      .order('due_date', { ascending: true, nullsFirst: false })
-      .order('created_at', { ascending: true })
-      .limit(500),
+    // ⚠ THROUGH THE CHOKE POINT, NOT A QUERY OF ITS OWN. This read used to be
+    // inline here with no confidentiality filter at all, which made a protected
+    // project's obligations reachable by an OUTBOUND channel — see the header of
+    // src/lib/commitments/read.ts. It also drops rows snoozed past today, which
+    // is what lets this note get shorter when somebody works the ledger.
+    readOpenCommitments({ excludeSnoozed: true, limit: 500 }),
     fetchTasksForDigest(supabase).catch((err: unknown) => {
       notes.push(`Tasks could not be read: ${err instanceof Error ? err.message : String(err)}`)
       return [] as DigestTask[]
@@ -205,15 +210,10 @@ export async function assembleCommon(now = new Date()): Promise<PepperCommon> {
   ])
 
   if (commitmentsRes.error) {
-    notes.push(`Commitments could not be read: ${commitmentsRes.error.message}`)
+    notes.push(`Commitments could not be read: ${commitmentsRes.error}`)
   }
 
-  const commitments = ((commitmentsRes.data ?? []) as (CommitmentRow & { thread: unknown })[]).map(
-    (row) => {
-      const t = Array.isArray(row.thread) ? row.thread[0] : row.thread
-      return { ...row, mailbox: (t as { mailbox?: string } | null)?.mailbox ?? null }
-    }
-  )
+  const commitments = commitmentsRes.rows
 
   // Overdue tasks are excluded from the cracks list because each person's own
   // overdue tasks already have a section of their own further up the note.
@@ -301,21 +301,80 @@ async function assembleOvernight(sinceIso: string): Promise<OvernightWork> {
  * way to get the list short, and it would hide most of what a real ledger
  * contains — 185 of the 220 open rows carry no agreed date at all.
  */
-function commitmentWeight(c: CommitmentRow): number {
+/**
+ * Bands, highest first. A row never crosses a band for the sake of variety —
+ * a deadline is a fact about the world.
+ *
+ *   10,000+  overdue, most overdue first
+ *    5,000+  dated, soonest first
+ *    2,000+  UNDATED AND NEVER NAMED — the obligations no note ever reached
+ *      0-400 undated and named, longest-since-named first
+ *
+ * `age / 1000` is a sub-unit tiebreaker, so within a band the older row wins
+ * without ever reaching the band above.
+ *
+ * ⚠ AND THE BANDS ROTATE INTERNALLY, WHICH THE FIRST VERSION OF THIS DID NOT.
+ * Rotating only the undated tail was measured and found INERT: Richard carries
+ * 27 overdue commitments on the owed side against a cap of 12, so the undated
+ * band is never reached and the top twelve were identical every morning — the
+ * original defect, surviving one band up. `recentPenalty` is what fixes it.
+ */
+function commitmentWeight(c: CommitmentRow, mentions?: Map<string, Mention>): number {
+  const m = mentions?.get(c.id)
   const due = c.due_date ? daysUntil(c.due_date) : null
   // Overdue: the further past, the heavier. Bounded so a 225-day-old item does
   // not permanently outrank everything that is merely due tomorrow.
-  if (due !== null && due < 0) return 10_000 + Math.min(-due, 400)
-  if (due !== null) return 5_000 - Math.min(due, 400)
-  return Math.min(daysSince(c.created_at) ?? 0, 400)
+  if (due !== null && due < 0) return 10_000 + Math.min(-due, 400) - recentPenalty(m)
+  if (due !== null) return 5_000 - Math.min(due, 400) - recentPenalty(m)
+
+  const age = Math.min(daysSince(c.created_at) ?? 0, 400)
+  // Never named beats everything else undated. With 369 undated rows and a cap
+  // of 12 a note that always picked the oldest would show the same twelve until
+  // somebody settled one — which, measured over eleven mornings, nobody did.
+  if (!m) return 2_000 + age / 1000
+  return Math.min(m.daysSinceNamed ?? 0, 400) + age / 1000
 }
 
-function rankRows(rows: CommitmentRow[]): CommitmentRow[] {
-  return [...rows].sort((a, b) => commitmentWeight(b) - commitmentWeight(a))
+/**
+ * How far a row steps aside for having just been shown.
+ *
+ * ⚠ THE SNOOZE IS WHAT MAKES THIS LEGITIMATE. An earlier draft of this module
+ * argued the mention count must never demote anything, because a thing ignored
+ * five times may be ignored for a good reason and burying it would be the
+ * platform silently overruling a person. That was right WHEN THE READER HAD NO
+ * WAY TO SAY "not today" — with `snoozed_until` they do, and it is one tap in
+ * the note itself. So a reader who keeps not acting and keeps not quieting is
+ * not being overruled by a row moving down two places for one morning.
+ *
+ * BOUNDED AT 50, WELL UNDER THE 400 OF WITHIN-BAND SPREAD AND NOWHERE NEAR THE
+ * 5,000 BETWEEN BANDS. It nudges; it cannot hide. And it EXPIRES after two days
+ * of not being named, so anything displaced returns to the top on its own — the
+ * rotation is self-correcting rather than a decay that buries things.
+ *
+ * ⚠ AND IT STOPS AT THE ESCALATION BAR, WHICH THE FIRST VERSION DID NOT. Found
+ * by running it: with an unbounded-by-count penalty the items on their fourth
+ * and fifth mention were the ones pushed hardest out of the note — so the
+ * escalation clause, which exists precisely to say "this is the fourth morning
+ * I have raised this", was suppressed on exactly the rows that had earned it.
+ * The two features were cancelling. An item that has been raised three times
+ * has stopped being ordinary backlog: the rotation lets it go, it holds its
+ * place, and the reader's way out is the snooze rather than the queue shuffling
+ * it off on their behalf.
+ */
+function recentPenalty(m: Mention | undefined): number {
+  if (!m || m.daysSinceNamed === null || m.daysSinceNamed > 2) return 0
+  if (m.timesNamed >= ESCALATE_AFTER) return 0
+  return m.timesNamed * 25
 }
 
-function rank(items: NoteCommitment[]): NoteCommitment[] {
-  return [...items].sort((a, b) => commitmentWeight(b.row) - commitmentWeight(a.row))
+function rankRows(rows: CommitmentRow[], mentions?: Map<string, Mention>): CommitmentRow[] {
+  return [...rows].sort((a, b) => commitmentWeight(b, mentions) - commitmentWeight(a, mentions))
+}
+
+function rank(items: NoteCommitment[], mentions?: Map<string, Mention>): NoteCommitment[] {
+  return [...items].sort(
+    (a, b) => commitmentWeight(b.row, mentions) - commitmentWeight(a.row, mentions)
+  )
 }
 
 /**
@@ -331,12 +390,18 @@ export async function assembleForMember(
   const notes = [...common.notes]
   const horizon = daysFromNow(7)
 
+  // What Pepper has already said to THIS person. Per-member by definition —
+  // "the fourth morning" is only true of the reader who saw the other three.
+  const mentions = await loadMentions(member.id, 'commitment')
+
   const mine: NoteCommitment[] = []
   const shared: CommitmentRow[] = []
   for (const c of common.commitments) {
     const a = attribute(c.owner_name, c.mailbox, common.members, c.side)
     if (a.kind === 'member') {
-      if (a.memberId === member.id) mine.push({ row: c, via: a.via })
+      if (a.memberId === member.id) {
+        mine.push({ row: c, via: a.via, mention: mentions.get(c.id) })
+      }
     } else {
       shared.push(c)
     }
@@ -352,10 +417,10 @@ export async function assembleForMember(
 
   const meetings = await assembleMeetings(member, now, notes)
 
-  const owed = rank(mine.filter((c) => c.row.side === 'us' && near(c.row)))
-  const awaited = rank(mine.filter((c) => c.row.side === 'them' && near(c.row)))
-  const sharedOwed = rankRows(shared.filter((c) => c.side === 'us' && near(c)))
-  const sharedAwaited = rankRows(shared.filter((c) => c.side === 'them' && near(c)))
+  const owed = rank(mine.filter((c) => c.row.side === 'us' && near(c.row)), mentions)
+  const awaited = rank(mine.filter((c) => c.row.side === 'them' && near(c.row)), mentions)
+  const sharedOwed = rankRows(shared.filter((c) => c.side === 'us' && near(c)), mentions)
+  const sharedAwaited = rankRows(shared.filter((c) => c.side === 'them' && near(c)), mentions)
 
   return {
     member,

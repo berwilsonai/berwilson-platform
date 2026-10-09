@@ -11,7 +11,247 @@ Split out of `CLAUDE.md` on 2026-09-23, when that file reached 606k characters a
 - A block of **2026-08-23 → 2026-08-31** entries sits *after* the June entries, near the end of the file.
 - One **2026-07-03** entry ("migrations applied + pursuit profile seeded") is last in the file.
 
-151 entries, 2026-06-22 → 2026-10-08. ⚠ Counted with `grep -c "^\*\*Done 2026"`, not incremented by hand: two sessions editing this file on 2026-10-08 each bumped the old figure by one and both landed on 146 against a real 148.
+152 entries, 2026-06-22 → 2026-10-09. ⚠ Counted with `grep -c "^\*\*Done 2026"`, not incremented by hand: two sessions editing this file on 2026-10-08 each bumped the old figure by one and both landed on 146 against a real 148.
+
+**Done 2026-10-09 (Pepper could only ever make the number go up):**
+
+Richard's ask: *"Is there anything else you would do to make Pepper more efficient and helpful?"* then *"Do them all"*. Five items were proposed; all five were done, plus one security hole and two defects found by running the result.
+
+---
+
+### The measurement that reframed the whole session
+
+Before proposing anything, the Pepper modules were read and then the production log was. `~/Library/Logs/berwilson/cron-pepper-note.log`, eleven consecutive mornings, subject lines only:
+
+```
+Richard:  19 → 28 → 28 → 42 → 51 → 58 → 59 → 71 → 74 → 76 → 82
+Eric:     90 → 93 → 95 → 112 → 116 → 123 → 125 → 122 → 124 → 133 → 154
+```
+
+Monotonic. And in the table:
+
+```
+ status   | count | count(settled_by)
+ open     |   476 |                 0
+ resolved |    35 |                 0
+```
+
+**Not one commitment had ever been marked `done` or `dismissed` by a person** since the ledger shipped on 09-23. The migration that created the table calls the split between `resolved` and the human verdicts "load-bearing"; it had never once borne any load.
+
+So Pepper was the only working half of a loop. She named obligations every morning and the ledger had no closing mechanism anyone was using — which makes the note a growing accusation, and the subject line a number that teaches exactly one behaviour.
+
+**And it was not inattention.** The only surface that could settle a commitment was the dashboard panel, `loadOpenCommitments` with `LIMIT = 24` ordered `due_date … nullsFirst: false`:
+
+```
+ open commitments: 476     dated: 107     undated: 369
+```
+
+369 of 476 carry no agreed date, so they sort below the cap *permanently*. **78% of the ledger had no close button anywhere in the application** — and `assembleForMember`'s `near()` deliberately includes undated rows (correctly: "an obligation with no agreed date is not less real"), so Pepper named rows every morning that the reader could not settle from any screen. `PATCH /api/commitments/[id]` worked fine the whole time. It was a missing surface, not a missing backend.
+
+---
+
+### 1. `/commitments` — the surface 78% of the ledger never had
+
+`src/lib/commitments/list.ts` + `src/app/commitments/` + `CommitmentsClient.tsx`. Every open row, four views (`live` / `quieted` / `settled` / `all open`), filters on side and mailbox, free-text over the obligation and the person. Admin-only by default-deny, like `/api/commitments`.
+
+The mailbox is offered as a filter because it is the ledger's most honest ownership key — `owner_name` holds four spellings of one man and 31 nulls, while every row carries the mailbox of its thread. That reasoning is already written down in `pepper/attribution.ts`; this reuses it rather than re-deriving it.
+
+Filters live in the URL (§12, 10-03 — a filter kept only in component state is not a view), via `router.replace` rather than `window.location.href`: the row set is server-rendered so the view genuinely has to re-fetch, but assigning to `window.location` is a mutation the React Compiler refuses outright, and `lint` said so.
+
+Verified against the live ledger: **476 rows reachable — 245 we owe, 231 waiting on** — each with owner, record, mailbox and chase.
+
+### 2. A third verdict, because two of them were lies
+
+`commitments.snoozed_until date`.
+
+This is the substance of the session rather than a nicety. With only `done` and `dismissed` available — *it happened*, or *extraction misread the mail* — a reader looking at an obligation that is **real, still outstanding, and not actionable today** has two false statements to choose from. Across 476 rows and eleven mornings of being asked, what they chose was neither.
+
+Deliberately **not** a status. The row stays `open`, stays in every count, stays true; only the shouting stops, until the date. Modelling it as a status would make "how much do we owe" depend on how recently somebody wanted a quiet morning.
+
+Now §12, folded into the existing rule about a status set with no arm for the state you are actually in.
+
+### 3. Settling from the email, and the reason it is two taps
+
+`commitment_action_tokens` + `GET /s/<token>` + `POST /api/commitments/settle-link`.
+
+⚠ **A LINK IN AN EMAIL IS FETCHED BY THINGS THAT ARE NOT THE READER.** Gmail prefetches, and the mail gateways whose link wrappers §12 already records — Proofpoint/ATP/Inky — follow every URL in every message in order to scan it. A one-tap `GET` that settled a commitment would have been settled by a robot overnight, **with the reader's name on the audit row**, and nothing would have reported it. So the GET renders a confirmation and only the POST from that page acts. One extra tap; a scanner can now open the link all day for free.
+
+Tested exactly that, live: minted a token, loaded the page, then checked the row.
+
+```
+after GET:  used_at | used_action | status | snoozed_until | settled_by
+            (null)  | (null)      | open   | (null)        | (null)
+```
+
+Then the POST, then the POST again:
+
+```
+POST snoozed → 200 {"ok":true,"verdict":"snoozed","status":"open","snoozedUntil":"2026-10-16"}
+POST done    → 409 {"error":"This link has already been used.","reason":"used"}
+final row    → status=open  snoozed_until=2026-10-16  settled_by=(null)
+```
+
+The double-tap is race-free because the claim is `update … where used_at is null` — Postgres serialises the writers and the loser matches no row. Checking first and writing second would race, and the race is a phone on a flaky connection firing the same POST twice, which is the normal case rather than the exotic one. A failed verdict hands the token back (`releaseActionToken`), because a burned token over a failed write leaves the reader with an open commitment and a button that says "already settled" — the one combination that reads as the platform lying to them.
+
+Only the hash is stored: the note lives in a mailbox forever, and a readable token column would make that table a set of working keys to the ledger. Public in `middleware.ts` because the reader holds no session on their phone at 06:50; what stands in for it is 32 random bytes, hashed at rest, single-use, 14-day expiry, over a tailnet-only host, with a GET that does nothing.
+
+The settle block in the email is rendered **from the rows, never from the prose** — the body is model-composed, so a regex trying to anchor a link to a specific obligation inside it would mis-anchor on the one morning it mattered and settle the wrong thing. Same construction as the task list already beneath it.
+
+### 4. Pepper remembers what she has already said
+
+`pepper_note_items` — one row per person per item, carrying `times_named`, `first_named_on`, `last_named_on`.
+
+`notification_log` stored a count and no body, so every note was composed as though it were the first. Two costs, and the second is worse:
+
+- She could not write *"this is the fourth morning I have put this in front of you"* — the most assistant-like sentence available to her.
+- `commitmentWeight()` was pure `f(due_date, created_at)`. **Fully deterministic.** Barring new rows the same twelve items appeared in the same order every morning, while 357 undated obligations were never named to anybody at all. Every comment in these modules warns against teaching the reader to filter the note; the ranking function guaranteed it.
+
+Mentions are recorded **after** the send, never before (§12 — a pass that reports what it did must read before it writes). Same-day re-runs are a no-op, so a forced re-send does not inflate the history.
+
+⚠ **THE FIRST ROTATION WAS INERT, AND ONLY RUNNING IT SHOWED THAT.** The first version rotated the *undated tail* only, on the reasoning that a deadline is a fact and must not be reshuffled for variety. Measured:
+
+```
+pass 1: 0 undated rows named of 24 total
+```
+
+Zero. Richard carries **27 overdue commitments on the owed side against a cap of 12**, so the undated band is never reached and the top twelve were identical every morning — the original defect, surviving one band up. Per mailbox:
+
+```
+ mailbox   | side | overdue | dated_future | undated
+ moose@    | us   |      27 |            2 |      66
+ moose@    | them |      31 |            2 |      59
+ tuaone@   | us   |      20 |            4 |     120
+ tuaone@   | them |      13 |            3 |     114
+```
+
+So the bands now rotate internally, via `recentPenalty` — bounded at 50, against 400 of within-band spread and 5,000 between bands. It nudges; it cannot hide. And it expires after two days of not being named, so anything displaced returns on its own.
+
+⚠ **AND THE PENALTY AND THE ESCALATION CLAUSE WERE CANCELLING EACH OTHER.** With the penalty scaling on mention count, the rows on their fourth and fifth mention were pushed hardest out of the note — suppressing the escalation clause on exactly the rows that had earned it. The test caught it as `escalation clause: NOT RENDERED`. `recentPenalty` now returns 0 at or above the escalation bar: an item raised three times has stopped being ordinary backlog, it holds its place, and the reader's way out is the snooze rather than the queue shuffling it off on their behalf.
+
+An earlier draft of `memory.ts` argued the mention count must *never* demote anything, because burying something ignored five times would be the platform silently overruling a person. **That was right only while the reader had no way to say "not today".** The snooze is that way and it is one tap in the note, which is what makes a bounded rotation legitimate rather than paternalistic.
+
+After both fixes:
+
+```
+pass 1: named 24 rows
+pass 2: named 24 rows
+  repeated from pass 1: 13
+  NEW this pass:        11
+  escalation clause: - Catch up with Kathy on Sandpoint project … 85 DAYS OVERDUE, RAISED ON 4 PREVIOUS MORNINGS
+```
+
+~45% fresh material each morning with the most urgent rows still present, and the escalation sentence rendering. The verification script recorded mentions dated *yesterday* (a same-day mention is a deliberate no-op) and cleaned up after itself.
+
+### 5. A nudge 20 minutes before the meeting, instead of ten hours
+
+`src/lib/pepper/meeting-prep.ts` + `GET /api/cron/meeting-prep`, every 15 minutes 07:00–17:45 on weekdays.
+
+`assembleMeetings` already read the day's calendar, resolved every external attendee against the correspondence, and reported last contact and what was open in either direction — and delivered all of it at 06:50, which for a 4pm meeting is read nine hours early and remembered by nobody.
+
+⚠ **NO MODEL CALL ANYWHERE IN THIS PASS,** which is what makes a 15-minute cadence safe on this box. LM Studio serves one request at a time and nothing in this repo queues; a job firing through the working day that wanted the GPU would sit in front of the agent every time an executive was mid-question. Everything sent is already a fact (§12 — print the figure, do not make the model repeat it). The plist says so, and says that if it ever stops being true the schedule is wrong.
+
+Idempotent on the **calendar event**, not the day: `notification_log.dedupe_key` with `unique (kind, dedupe_key)`, and the INSERT itself is the lock, so overlapping ticks cannot double-send. A full unique constraint rather than partial — every existing row leaves `dedupe_key` null and two nulls are never equal, so it applies to nothing else and is still an `ON CONFLICT` target (§12).
+
+Tested with a simulated clock 20 minutes before a real meeting on Eric's calendar:
+
+```
+SUBJECT: In 20 min: Lunch at market street grill — richmwhite@gmail.com, sharkey@odestar.com
+  sharkey@odestar.com — lastContact=0d open=4
+     they owe: Submit white paper version 15
+     they owe: Review and provide feedback on the white paper draft
+     we owe:   Provide an updated project summary to Chuck Manto
+```
+
+⚠ **AND THAT OUTPUT CONTAINED TWO DEFECTS, BOTH FOUND ONLY BY RUNNING IT.**
+
+**`richmwhite@gmail.com` is Richard.** A domain-only test for "internal" announced the *other executive* as an external counterparty on Eric's nudge and recited Richard's own open commitments as the counterparty's. The platform already knew that address was his — `team_members.party_id` → `parties.email` holds exactly `richmwhite@gmail.com`, the link §9 describes — and nothing was reading it. `PepperMember` gained an `addresses` set; `isExternal` tests the address before the domain. §12's rule about never printing a reader's own name back at them has a sibling: never print their colleague back at them as the other side.
+
+**The same obligation appeared three times.** `commitments` is unique on `(thread_id, item_key)`, so one real obligation discussed across three threads is three rows — and the first nudge spent three of four slots on one GridEdge MNDA while the rest of the relationship went unmentioned. `dedupeItems` collapses them using the ledger's own `commitmentSimilarity` and `COMMITMENT_MATCH_THRESHOLD`, so "oct 1" and "october 1" fold here exactly as they do at extraction. Pepper's note does not need this because its prompt already says several commitments about one deal are ONE line; a pass with no model has to do it in code.
+
+### 6. The chase — where the measurement changed the design
+
+`src/lib/commitments/chase.ts` + `GET /api/cron/commitment-chase`, weekdays 05:30.
+
+CLAUDE.md's highest-leverage item 3 said: *"Draft the chase in `info@` as an unsent draft, exactly as `leads/draft-reply.ts` already does."* Measured before writing a line:
+
+```
+ mailbox   | side | count
+ tuaone@   | them |   130
+ moose@    | them |    93
+ info@     | them |     8
+```
+
+**Of 231 commitments owed to us, 223 sit on threads in mailboxes that cannot hold a draft.** The deal mailboxes hold read-only Gmail scope by design (§12, 09-22 — only `info@` carries `gmail.modify`). An in-thread draft in `info@` reaches **8 of 231, 3.5%**. And a *new* standalone draft from the company front door, on a negotiation thread Richard is personally on, reads wrong.
+
+So the text is composed for every eligible row and **stored on the commitment**, the ledger page offers it for copying, and a real in-thread draft is created wherever the mailbox permits one. That works today for all of them, needs no new consent from anybody, and upgrades by itself the day those tokens are re-minted with a write scope — `chase_drafted_at` simply starts being set, with no change to this code.
+
+Two bars rather than one, because a dated and an undated obligation are different objects: a missed agreed date is chaseable the day after (that is what agreeing a date meant), an undated one needs three weeks of silence before "just checking in" is a reasonable thing for an executive to say. One bar would chase everything or nothing, given 369 of 476 rows carry no date.
+
+Live, on one row — the whole scope story in the counters:
+
+```
+{"considered":45,"composed":1,"storedOnly":1,"drafted":0,"skipped":185,
+ "failed":0,"errors":[],"noScopeMailboxes":["tuaone@berwilson.com"]}
+```
+
+`GmailScopeError` caught and counted as `storedOnly` with the mailbox named — expected behaviour and the scope tiering working, not an error buried in a log nobody reads. The composed chase:
+
+> Hi Charles,
+> Following up on the white paper we had September 26th in mind for. When do you expect to have that over to us?
+> Appreciate it.
+
+Three sentences, names the specific thing, references the agreed date once, asks when, no reproach, no invented signature.
+
+### 7. ⚠ Found: a protected project's obligations were reachable by an outbound channel
+
+Not asked for; found while reading `assembleCommon`.
+
+`tasks/queries.ts` drops hidden projects. `attention.ts` drops hidden projects. The commitment ledger — read inline in `assembleCommon`, in `loadOpenCommitments`, and in `counterpartyContext`, with **no filter at all** — did not. 49 open commitments carry a `project_id`, and Pepper's note is a sent email.
+
+This is the same shape as the 10-08 finding about `investments.spv_id`: a table nobody thinks of as project-scoped turning out to name a deal. Nothing was leaking, because `projects.confidential` is true for 0 rows — which is precisely why it had to be fixed now rather than on the morning somebody protects a deal.
+
+`src/lib/commitments/read.ts` is now the choke point, and the filter is unconditional with no flag to switch it off (§12 — forgetting to opt in costs a few rows, forgetting to opt out costs the secret). Applied in SQL **before the LIMIT**, because a ranking's LIMIT runs first and withheld rows at the top would return a short list that reads as "there is nothing on file".
+
+Exercised for real by marking Myton Rail (22 open commitments) confidential and reverting:
+
+```
+readOpenCommitments (no viewer = the outbound answer):
+   rows: 454   withheld: 22
+   protected project's commitments still present: 0
+Pepper's own assembly (the SENT email):
+   commitments: 453
+   protected project's commitments present: 0
+```
+
+⚠ **AND THAT TEST CAUGHT A BUG IN THE FIX.** The first version computed `withheld` as `rows.length - visible.length` after the in-memory backstop — but the SQL filter has already removed them by then, so it reported **0 against 22 genuinely withheld rows**, and the page's disclosure could never appear. A count that is structurally zero is worse than none, because the screen then asserts a completeness it does not have. Now a separate `count` query, asked only when something is actually hidden. Now §12, folded into the existing rule about handing over the count of what was withheld.
+
+### 8. ⚠ Found: the health check nearest this failure read green for sixteen days
+
+`settings/health/page.tsx` had a **Commitment Extraction** check. Its headline was `${open} open · ${pending} threads awaiting a reading`, status `ok`.
+
+So "476 open" was on screen, in green, every day of this. Correctly — extraction is *why* it was 476. The check measured the producing half of the loop and the consuming half had never once run.
+
+A **Commitment Ledger** check now watches the output side: settled-in-7-days, open, and quieted, warning when a backlog over 50 has gone a week with nobody touching it. Settling is a human act so the bar is deliberately generous — a quiet week on a short ledger is fine. Now §12, folded into the existing rule about coverage counts.
+
+---
+
+### Verification
+
+- `npx tsc --noEmit` clean.
+- `npm run lint` back at the documented baseline: **20 problems, 13 errors, 7 warnings** — two of mine were introduced and fixed (a React Compiler purity error on `window.location.href`, and an unused `sweepDb()` binding left by the rewired read).
+- `npm run build` exit 0, all seven new routes registered; `launchctl kickstart`; `/login` 200.
+- `/commitments` → 307 to login (gated). `/s/<32-char bogus>` → 200 rendering *"we don't recognise this link"*; `/s/short` → 404.
+- `npm run gen-types`: 99 of 99 tables.
+- Both launchd agents bootstrapped and listed.
+- All four page views exercised: `open` 475, `quiet` 1, `settled` 0, `all` 476, with the snoozed row present in exactly the two views that should hold it.
+
+**Test side effects reverted.** The snooze was applied to a real commitment ("Sign the NDA") and cleared; the test token deleted; the rehearsal rows in `pepper_note_items` deleted; Myton Rail returned to `confidential = false`. Final state: 476 open, 0 snoozed, 0 tokens, 0 mentions, 1 genuine chase composed and kept. Four `scripts/tmp-*.mts` verification scripts were deleted after use.
+
+### Note on the shared tree
+
+A second session was working in this repo throughout and regenerated `src/types/database.ts` with `--force` after its own migration (`20261009000002`, `agent_conversations.opportunity_id`). It staged a filtered patch of its own two hunks. Verified afterwards that all three of this session's hunks survived — the new `commitments` columns, `commitment_action_tokens`, `pepper_note_items` — alongside its column. Migration numbers did not collide (`…0001` here, `…0002` there), which is the check §12 asks for.
+
+---
 
 **Done 2026-10-08 (gen-types was repairable all along, and 30 hand-written row types had drifted):**
 

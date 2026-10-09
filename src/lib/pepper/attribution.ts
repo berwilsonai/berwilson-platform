@@ -37,6 +37,18 @@ export interface PepperMember {
   /** The mailbox whose correspondence lands on this person's desk. */
   mailbox: string
   /**
+   * Every address that IS this person, including the personal one on their
+   * contact record.
+   *
+   * ⚠ FOUND BY RUNNING THE MEETING NUDGE. Richard's `parties` row carries
+   * `richmwhite@gmail.com`, and he attends some meetings from it — so a
+   * domain-only test for "internal" made the OTHER executive's nudge announce
+   * him as an external counterparty and recite his own open commitments back as
+   * the counterparty's. The platform already knew that address was his, through
+   * the `team_members.party_id` link §9 describes; nothing was reading it.
+   */
+  addresses: Set<string>
+  /**
    * True for the assistant's own seat (info@). It holds a login and a task
    * list, but it is not a person and never receives a note — its mail is the
    * company's front door, so its commitments are shared rather than hers.
@@ -86,7 +98,7 @@ function tokenize(raw: string): string[] {
 export async function loadPepperMembers(supabase: AdminClient): Promise<PepperMember[]> {
   const { data, error } = await supabase
     .from('team_members')
-    .select('id, name, email, party:parties(full_name)')
+    .select('id, name, email, party:parties(full_name, email)')
     .eq('active', true)
 
   if (error) throw new Error(`Could not read the team roster: ${error.message}`)
@@ -99,7 +111,8 @@ export async function loadPepperMembers(supabase: AdminClient): Promise<PepperMe
     if (!email) continue
 
     const party = Array.isArray(row.party) ? row.party[0] : row.party
-    const fullName = (party as { full_name?: string } | null)?.full_name ?? ''
+    const partyRow = party as { full_name?: string; email?: string } | null
+    const fullName = partyRow?.full_name ?? ''
 
     const tokens = new Set<string>()
     for (const t of [...tokenize(row.name), ...tokenize(fullName)]) {
@@ -110,6 +123,12 @@ export async function loadPepperMembers(supabase: AdminClient): Promise<PepperMe
     const local = email.split('@')[0]
     if (local && local.length >= MIN_TOKEN_LENGTH) tokens.add(normalizeName(local))
 
+    // The work mailbox plus whatever their contact record holds. Lowercased on
+    // the way in, because an attendee list is whatever the organizer typed.
+    const addresses = new Set<string>([email])
+    const personal = (partyRow?.email ?? '').trim().toLowerCase()
+    if (personal) addresses.add(personal)
+
     members.push({
       id: row.id,
       name: row.name,
@@ -118,6 +137,7 @@ export async function loadPepperMembers(supabase: AdminClient): Promise<PepperMe
       mailbox: email,
       isAssistantSeat: leadMailboxes.has(email),
       tokens,
+      addresses,
     })
   }
 

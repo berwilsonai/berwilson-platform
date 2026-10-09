@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.berwilson.cron-commitment-chase</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/zsh</string>
+    <string>-c</string>
+    <string>curl -sS -m 1700 -H "Authorization: Bearer $(grep '^CRON_SECRET=' /Users/richardwhite/berwilson-platform/.env.local | cut -d= -f2-)" http://localhost:3000/api/cron/commitment-chase</string>
+  </array>
+  <!--
+    Weekdays at 5:30am — compose the follow-up for what others owe us.
+
+    ⚠ THE SLOT IS A CORRECTNESS CONSTRAINT. LM Studio serves ONE request at a
+    time and nothing in this repo queues; this makes up to a dozen sequential
+    calls, so it must finish before the morning block rather than overlap it:
+
+      04:30  lead sweep       (long, many calls)
+      05:30  THIS             (<=12 short calls, ~3 sentences each)
+      06:30  weekly brief     (Mondays only)
+      06:50  Pepper's note    (one call per person)
+      07:00  daily digest     (one call)
+
+    5:30 is after the lead sweep's own window and an hour clear of the brief.
+    The cap of 12 is what keeps it inside that hour; the rest arrive tomorrow,
+    which for an obligation already three weeks old costs nothing.
+
+    AND IT RUNS BEFORE THE NOTE ON PURPOSE: a chase composed at 05:30 is on the
+    ledger page by the time the 06:50 note points the reader at it.
+
+    Nothing here sends. The pass writes a draft or stores the text, and the
+    person sends it — see src/lib/commitments/chase.ts for why storing is the
+    normal outcome rather than the fallback.
+  -->
+  <key>StartCalendarInterval</key>
+  <array>
+    <dict><key>Weekday</key><integer>1</integer><key>Hour</key><integer>5</integer><key>Minute</key><integer>30</integer></dict>
+    <dict><key>Weekday</key><integer>2</integer><key>Hour</key><integer>5</integer><key>Minute</key><integer>30</integer></dict>
+    <dict><key>Weekday</key><integer>3</integer><key>Hour</key><integer>5</integer><key>Minute</key><integer>30</integer></dict>
+    <dict><key>Weekday</key><integer>4</integer><key>Hour</key><integer>5</integer><key>Minute</key><integer>30</integer></dict>
+    <dict><key>Weekday</key><integer>5</integer><key>Hour</key><integer>5</integer><key>Minute</key><integer>30</integer></dict>
+  </array>
+  <key>StandardOutPath</key>
+  <string>/Users/richardwhite/Library/Logs/berwilson/cron-commitment-chase.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/richardwhite/Library/Logs/berwilson/cron-commitment-chase.err.log</string>
+</dict>
+</plist>

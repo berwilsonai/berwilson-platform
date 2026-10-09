@@ -23,6 +23,7 @@ import {
   type LucideIcon,
   Calculator,
   Ruler,
+  Handshake,
 } from 'lucide-react'
 
 /**
@@ -84,6 +85,10 @@ export const NAV_ITEMS: NavItem[] = [
   { href: '/decide', label: 'Decide', title: 'Decide', icon: Gavel, group: 'primary', keywords: 'review queue approve confirm pending inbox decisions bids intake what needs me triage backlog', mobilePrimary: true, badge: 'review', alsoMatches: ['/review'] },
   { href: '/tasks', label: 'Tasks', title: 'Team Tasks', icon: ListChecks, group: 'primary', keywords: 'todo action items team workload capacity', mobilePrimary: true },
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, group: 'primary', keywords: 'home overview alerts urgent overdue attention', mobilePrimary: true, badge: 'attention' },
+  // ⚠ NO `alsoMatches` FOR `/s/*`. That is the settle landing page reached from
+  // Pepper's note, it is deliberately outside the app chrome, and claiming it
+  // here would light this row for a page that has no sidebar at all.
+  { href: '/commitments', label: 'Commitments', title: 'Commitment Ledger', icon: Handshake, group: 'primary', keywords: 'commitments obligations promises owed waiting on follow up chase ledger settle done snooze correspondence who owes what undated' },
   { href: '/objectives', label: 'Objectives', icon: Target, group: 'primary', keywords: 'priorities goals strategy steering now soon possibly focus' },
   { href: '/projects', label: 'Projects', icon: FolderKanban, group: 'primary', keywords: 'pipeline deals', mobilePrimary: true },
   { href: '/opportunities', label: 'Opportunities', icon: Lightbulb, group: 'primary', keywords: 'acquisitions partnerships jv mergers investments deals' },

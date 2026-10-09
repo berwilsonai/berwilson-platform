@@ -7,20 +7,17 @@
  * whose job is not to trust the one above it should not — and because
  * matchesPrefix is a prefix match and is NOT method-aware, so allowlisting a
  * read under this path would silently admit this write too.
+ *
+ * ⚠ THE SETTLE ITSELF LIVES IN src/lib/commitments/settle.ts, not here. Three
+ * callers record a verdict — this route, the token-authed POST behind a
+ * morning-note link, and the page — and §12's rule is to add a parameter
+ * rather than fork a shared pass. The parameter is WHO decided, which is the
+ * only thing the three genuinely disagree about.
  */
 
 import { NextRequest, NextResponse } from 'next/server'
 import { getViewer } from '@/lib/auth/viewer'
-// The untyped service client, as every sweep-era table uses: `commitments`
-// post-dates the last type generation and gen-types cannot run against this
-// self-hosted stack. Attribution does not go through actorAdminClient here
-// because this table carries no log_activity() trigger — the settler is
-// recorded on the row itself, from the session, never from the body.
-import { sweepDb } from '@/lib/email-sweep/db'
-import { HUMAN_SETTLED, type CommitmentStatus } from '@/lib/commitments/db'
-
-/** Only the human verdicts are settable here. */
-const SETTLEABLE: CommitmentStatus[] = [...HUMAN_SETTLED, 'open']
+import { settleCommitment, VERDICTS, type Verdict } from '@/lib/commitments/settle'
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const viewer = await getViewer()
@@ -30,38 +27,32 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
   const { id } = await params
   const body = (await request.json().catch(() => ({}))) as { status?: string }
-  const status = body.status as CommitmentStatus | undefined
+  const verdict = body.status as Verdict | undefined
 
-  if (!status || !SETTLEABLE.includes(status)) {
+  if (!verdict || !VERDICTS.includes(verdict)) {
     return NextResponse.json(
-      { error: `status must be one of: ${SETTLEABLE.join(', ')}` },
+      { error: `status must be one of: ${VERDICTS.join(', ')}` },
       { status: 400 }
     )
   }
 
-  const supabase = sweepDb()
+  // Attribution comes from the session, never from the body. This table carries
+  // no log_activity() trigger, so the settler on the row IS the audit trail.
+  const result = await settleCommitment(
+    id,
+    verdict,
+    viewer.teamMemberName ?? viewer.email ?? 'unknown'
+  )
 
-  // Reopening clears the settlement, or a row would carry a closer who has not
-  // looked at it since — the same rule the dev-notes build settled on.
-  const patch =
-    status === 'open'
-      ? { status, settled_at: null, settled_by: null }
-      : {
-          status,
-          settled_at: new Date().toISOString(),
-          settled_by: viewer.teamMemberName ?? viewer.email ?? 'unknown',
-        }
+  if (!result.ok) {
+    const status = result.error === 'Commitment not found' ? 404 : 500
+    return NextResponse.json({ error: result.error }, { status })
+  }
 
-  const { data, error } = await supabase
-    .from('commitments')
-    .update(patch)
-    .eq('id', id)
-    .select('id, status')
-    .maybeSingle()
-
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  // Selected back so a miss is a 404, not a 200 that silently did nothing.
-  if (!data) return NextResponse.json({ error: 'Commitment not found' }, { status: 404 })
-
-  return NextResponse.json({ ok: true, id: data.id, status: data.status })
+  return NextResponse.json({
+    ok: true,
+    id,
+    status: result.status,
+    snoozedUntil: result.snoozedUntil ?? null,
+  })
 }

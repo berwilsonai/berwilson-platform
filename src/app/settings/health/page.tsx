@@ -99,7 +99,7 @@ async function runChecks(): Promise<HealthCheck[]> {
   const dayAgo = new Date(Date.now() - 86_400_000).toISOString()
   const localAI = process.env.AI_PROVIDER === 'local'
 
-  const [brief, riskScore, lastAi, aiDayCount, failedRuns, mailbox, lmStudio, backups, drive, leadInbox, docIndexing, driveSources, driveFiling, scopes, disk, lastDigest, failedDigests, contacts, googleTasks, drivePublish, meetImport, dealIntake, routing, corpus, dailyDigest, commitmentBacklog, openCommitments] =
+  const [brief, riskScore, lastAi, aiDayCount, failedRuns, mailbox, lmStudio, backups, drive, leadInbox, docIndexing, driveSources, driveFiling, scopes, disk, lastDigest, failedDigests, contacts, googleTasks, drivePublish, meetImport, dealIntake, routing, corpus, dailyDigest, commitmentBacklog, openCommitments, settledRecently, quietedCommitments] =
     await Promise.all([
       supabase
         .from('stored_briefs')
@@ -179,6 +179,18 @@ async function runChecks(): Promise<HealthCheck[]> {
         .from('commitments')
         .select('id', { count: 'exact', head: true })
         .eq('status', 'open'),
+      // Settled BY A HUMAN in the last week. See check 3d for why this is the
+      // number that matters and the open count is not.
+      sweepDb()
+        .from('commitments')
+        .select('id', { count: 'exact', head: true })
+        .in('status', ['done', 'dismissed'])
+        .gte('settled_at', weekAgo),
+      sweepDb()
+        .from('commitments')
+        .select('id', { count: 'exact', head: true })
+        .eq('status', 'open')
+        .gt('snoozed_until', new Date().toISOString().slice(0, 10)),
     ])
 
   const checks: HealthCheck[] = []
@@ -293,6 +305,37 @@ async function runChecks(): Promise<HealthCheck[]> {
       detail: stalled
         ? `Large backlog. Two causes look identical here: a first run after deployment legitimately has every summarized thread to read, and drains over a day or two — or the phase is not running at all. Check whether the number is FALLING between sweeps; if it is flat, check the sweep log (${cronLogsHint}) and confirm the deployed build includes the phase, since \`next start\` loads the build at boot and a rebuild without a launchctl kickstart changes nothing.`
         : 'Reading commitments out of correspondence as threads are summarized.',
+    })
+  }
+
+  // 3d. Is the ledger being WORKED?
+  //
+  // ⚠ THIS CHECK EXISTS BECAUSE 3c ABOVE READ GREEN THROUGHOUT THE FAILURE IT
+  // SAT CLOSEST TO. Extraction was working perfectly — that is WHY the number
+  // was 476 — and the check printed "476 open" in green for sixteen days while
+  // `count(settled_by)` over the whole table was ZERO. Nobody had ever settled
+  // a commitment, Pepper named them every morning, and the subject line climbed
+  // 19 → 82 for one reader and 90 → 154 for the other. §12: a coverage count is
+  // the only honest signal for a feature whose failure mode is doing nothing —
+  // and the count already on screen was measuring the wrong half of the loop.
+  //
+  // So this watches the OUTPUT side. Settling is a human act, so the bar is
+  // deliberately generous: a quiet week on a short ledger is fine, and the warn
+  // fires only when a large backlog has gone a week with nobody touching it.
+  {
+    const open = openCommitments.count ?? 0
+    const settled = settledRecently.count ?? 0
+    const quiet = quietedCommitments.count ?? 0
+    const unworked = open > 50 && settled === 0
+    checks.push({
+      name: 'Commitment Ledger',
+      status: unworked ? 'warn' : 'ok',
+      headline: `${settled} settled in 7 days · ${open} open${quiet > 0 ? ` · ${quiet} quieted` : ''}`,
+      detail: unworked
+        ? `${open} obligations are open and none has been settled in a week. This number only goes down when somebody says so — open /commitments, or tap an item in Pepper's morning note. Three verdicts: done, quiet it for a week, or dismiss it as a misread.`
+        : settled > 0
+          ? 'Being worked — obligations are being closed as well as found.'
+          : 'Nothing settled this week, which is normal on a short ledger.',
     })
   }
 

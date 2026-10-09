@@ -241,16 +241,42 @@ isOneToOne: false
       referencedColumns: ["id"]
     }
                   ]
-                },"commitments": {
+                },"commitment_action_tokens": {
                   Row: {
-                    "confidence": number | null,"created_at": string,"due_date": string | null,"id": string,"item_key": string,"opportunity_id": string | null,"owner_name": string | null,"project_id": string | null,"settled_at": string | null,"settled_by": string | null,"side": string,"status": string,"thread_id": string,"updated_at": string | null,"what": string
+                    "commitment_id": string,"created_at": string,"expires_at": string,"id": string,"team_member_id": string | null,"token_hash": string,"used_action": string | null,"used_at": string | null
                   }
                   ComputedFields: never
                   Insert: {
-                    "confidence"?: number | null,"created_at"?: string,"due_date"?: string | null,"id"?: string,"item_key": string,"opportunity_id"?: string | null,"owner_name"?: string | null,"project_id"?: string | null,"settled_at"?: string | null,"settled_by"?: string | null,"side": string,"status"?: string,"thread_id": string,"updated_at"?: string | null,"what": string
+                    "commitment_id": string,"created_at"?: string,"expires_at": string,"id"?: string,"team_member_id"?: string | null,"token_hash": string,"used_action"?: string | null,"used_at"?: string | null
                   }
                   Update: {
-                    "confidence"?: number | null,"created_at"?: string,"due_date"?: string | null,"id"?: string,"item_key"?: string,"opportunity_id"?: string | null,"owner_name"?: string | null,"project_id"?: string | null,"settled_at"?: string | null,"settled_by"?: string | null,"side"?: string,"status"?: string,"thread_id"?: string,"updated_at"?: string | null,"what"?: string
+                    "commitment_id"?: string,"created_at"?: string,"expires_at"?: string,"id"?: string,"team_member_id"?: string | null,"token_hash"?: string,"used_action"?: string | null,"used_at"?: string | null
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "commitment_action_tokens_commitment_id_fkey"
+      columns: ["commitment_id"]
+isOneToOne: false
+      referencedRelation: "commitments"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "commitment_action_tokens_team_member_id_fkey"
+      columns: ["team_member_id"]
+isOneToOne: false
+      referencedRelation: "team_members"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"commitments": {
+                  Row: {
+                    "chase_draft_id": string | null,"chase_drafted_at": string | null,"chase_mailbox": string | null,"chase_text": string | null,"confidence": number | null,"created_at": string,"due_date": string | null,"id": string,"item_key": string,"opportunity_id": string | null,"owner_name": string | null,"project_id": string | null,"settled_at": string | null,"settled_by": string | null,"side": string,"snoozed_until": string | null,"status": string,"thread_id": string,"updated_at": string | null,"what": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "chase_draft_id"?: string | null,"chase_drafted_at"?: string | null,"chase_mailbox"?: string | null,"chase_text"?: string | null,"confidence"?: number | null,"created_at"?: string,"due_date"?: string | null,"id"?: string,"item_key": string,"opportunity_id"?: string | null,"owner_name"?: string | null,"project_id"?: string | null,"settled_at"?: string | null,"settled_by"?: string | null,"side": string,"snoozed_until"?: string | null,"status"?: string,"thread_id": string,"updated_at"?: string | null,"what": string
+                  }
+                  Update: {
+                    "chase_draft_id"?: string | null,"chase_drafted_at"?: string | null,"chase_mailbox"?: string | null,"chase_text"?: string | null,"confidence"?: number | null,"created_at"?: string,"due_date"?: string | null,"id"?: string,"item_key"?: string,"opportunity_id"?: string | null,"owner_name"?: string | null,"project_id"?: string | null,"settled_at"?: string | null,"settled_by"?: string | null,"side"?: string,"snoozed_until"?: string | null,"status"?: string,"thread_id"?: string,"updated_at"?: string | null,"what"?: string
                   }
                   Relationships: [
                     {
@@ -1269,14 +1295,14 @@ isOneToOne: false
                   ]
                 },"notification_log": {
                   Row: {
-                    "channel": string,"created_at": string | null,"error": string | null,"id": string,"kind": string,"sent_date": string,"status": string,"task_count": number | null,"team_member_id": string | null
+                    "channel": string,"created_at": string | null,"dedupe_key": string | null,"error": string | null,"id": string,"kind": string,"sent_date": string,"status": string,"task_count": number | null,"team_member_id": string | null
                   }
                   ComputedFields: never
                   Insert: {
-                    "channel": string,"created_at"?: string | null,"error"?: string | null,"id"?: string,"kind"?: string,"sent_date"?: string,"status"?: string,"task_count"?: number | null,"team_member_id"?: string | null
+                    "channel": string,"created_at"?: string | null,"dedupe_key"?: string | null,"error"?: string | null,"id"?: string,"kind"?: string,"sent_date"?: string,"status"?: string,"task_count"?: number | null,"team_member_id"?: string | null
                   }
                   Update: {
-                    "channel"?: string,"created_at"?: string | null,"error"?: string | null,"id"?: string,"kind"?: string,"sent_date"?: string,"status"?: string,"task_count"?: number | null,"team_member_id"?: string | null
+                    "channel"?: string,"created_at"?: string | null,"dedupe_key"?: string | null,"error"?: string | null,"id"?: string,"kind"?: string,"sent_date"?: string,"status"?: string,"task_count"?: number | null,"team_member_id"?: string | null
                   }
                   Relationships: [
                     {
@@ -1550,6 +1576,26 @@ isOneToOne: false
       columns: ["party_id"]
 isOneToOne: false
       referencedRelation: "parties"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"pepper_note_items": {
+                  Row: {
+                    "created_at": string,"first_named_on": string,"id": string,"item_key": string,"kind": string,"last_named_on": string,"team_member_id": string,"times_named": number,"updated_at": string | null
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "created_at"?: string,"first_named_on": string,"id"?: string,"item_key": string,"kind": string,"last_named_on": string,"team_member_id": string,"times_named"?: number,"updated_at"?: string | null
+                  }
+                  Update: {
+                    "created_at"?: string,"first_named_on"?: string,"id"?: string,"item_key"?: string,"kind"?: string,"last_named_on"?: string,"team_member_id"?: string,"times_named"?: number,"updated_at"?: string | null
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "pepper_note_items_team_member_id_fkey"
+      columns: ["team_member_id"]
+isOneToOne: false
+      referencedRelation: "team_members"
       referencedColumns: ["id"]
     }
                   ]

@@ -57,7 +57,19 @@ export async function middleware(request: NextRequest) {
     pathname === '/api/cron/meet-import' ||          // Google Meet transcript import cron (self-guards via CRON_SECRET)
     pathname === '/api/cron/deal-intake' ||          // Website deal-form intake scan (self-guards via CRON_SECRET)
     pathname === '/api/cron/google-tasks' ||         // Task board <-> Google Tasks sync (self-guards via CRON_SECRET)
-    pathname === '/api/cron/pepper-note'             // Pepper's per-person morning note (self-guards via CRON_SECRET)
+    pathname === '/api/cron/pepper-note' ||          // Pepper's per-person morning note (self-guards via CRON_SECRET)
+    pathname === '/api/cron/meeting-prep' ||         // Pre-meeting nudge (self-guards via CRON_SECRET)
+    pathname === '/api/cron/commitment-chase' ||     // Chase drafting pass (self-guards via CRON_SECRET)
+    // ⚠ THE SETTLE LINK FROM PEPPER'S NOTE, AND THE TOKEN IS THE CREDENTIAL.
+    // Public because the reader is on a phone at 06:50 and may hold no session;
+    // requiring one is what kept the settle controls two navigations from where
+    // the note is read, which is most of why 476 commitments had never been
+    // settled by anybody. What stands in for the session: 32 random bytes stored
+    // only as a sha256 hash, single-use, a fortnight's expiry, delivered to the
+    // reader's own mailbox, over a tailnet-only host — and the GET renders a
+    // confirmation while only the POST acts, so a link scanner changes nothing.
+    pathname.startsWith('/s/') ||
+    pathname === '/api/commitments/settle-link'
 
   if (!user && !isPublicRoute) {
     // API calls must get a real 401 (not an HTML login-page redirect that fetch

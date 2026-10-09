@@ -35,7 +35,9 @@ import {
   type PepperNote,
 } from '@/lib/pepper/assemble'
 import { renderNoteInput } from '@/lib/pepper/render'
-import { renderNoteEmail } from '@/lib/pepper/email'
+import { renderNoteEmail, type NoteSettleRow } from '@/lib/pepper/email'
+import { recordMentions, type RecordedMention } from '@/lib/pepper/memory'
+import { mintActionToken } from '@/lib/commitments/tokens'
 import {
   PEPPER_NOTE_SYSTEM_PROMPT,
   PEPPER_NOTE_PROMPT_VERSION,
@@ -167,6 +169,31 @@ export async function GET(request: NextRequest) {
       continue
     }
 
+    /**
+     * The commitments this note names, each with a one-tap link.
+     *
+     * ⚠ MINTED ONLY FOR A NOTE THAT IS ACTUALLY BEING SENT. A dry run must not
+     * leave live credentials to the ledger lying in the table — a rehearsal
+     * that creates working keys is not a rehearsal.
+     *
+     * Only the reader's OWN rows get links. A company-level commitment belongs
+     * to nobody yet, so "done" from either executive would be a claim neither
+     * of them is in a position to make; what those rows need is an owner, which
+     * the prose already asks for.
+     */
+    const named = [...note.owed, ...note.awaited]
+    let settle: NoteSettleRow[] = []
+    if (!dryRun) {
+      settle = await Promise.all(
+        named.map(async (c) => ({
+          what: c.row.what,
+          side: c.row.side,
+          dueDate: c.row.due_date,
+          token: await mintActionToken(c.row.id, member.id),
+        }))
+      )
+    }
+
     const { subject, html } = renderNoteEmail({
       firstName: member.firstName,
       markdown,
@@ -174,6 +201,7 @@ export async function GET(request: NextRequest) {
       overdue: note.overdueTasks,
       dueSoon: note.dueSoonTasks,
       decideTotal: note.decide.total,
+      settle,
       appUrl,
       now,
     })
@@ -232,7 +260,32 @@ export async function GET(request: NextRequest) {
 
     if (result.ok) {
       sent++
-      results.push({ member: member.name, to: member.email, subject, ok: true })
+
+      /**
+       * Write down what she said — AFTER the send, never before.
+       *
+       * §12: a pass that reports what it did must read before it writes, or it
+       * claims work it did not do. Recording a mention for a note that failed
+       * to send would have her saying "this is the fourth morning" about
+       * something the reader has been shown three times.
+       */
+      const mentioned: RecordedMention[] = [
+        ...named.map((c) => ({ kind: 'commitment' as const, itemKey: c.row.id })),
+        ...[...note.overdueTasks, ...note.dueSoonTasks].map((t) => ({
+          kind: 'task' as const,
+          itemKey: t.id,
+        })),
+      ]
+      const recorded = await recordMentions(member.id, mentioned, today)
+
+      results.push({
+        member: member.name,
+        to: member.email,
+        subject,
+        settleLinks: settle.filter((r) => r.token).length,
+        recorded,
+        ok: true,
+      })
     } else {
       failed++
       console.error(`[pepper-note] send failed for ${member.email}: ${result.error}`)

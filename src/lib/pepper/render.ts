@@ -21,6 +21,7 @@ import {
   type NoteCommitment,
   type PepperNote,
 } from './assemble'
+import { mentionClause } from './memory'
 
 function ageInDays(iso: string | null): number | null {
   if (!iso) return null
@@ -74,11 +75,18 @@ function commitmentLine(c: CommitmentRow): string {
 function attributedLine(c: NoteCommitment, reader: string): string {
   // On a waiting-on row the named person is the counterparty by definition and
   // the mailbox is the only key there is, so any caveat would be true of every
-  // line and inform nothing.
-  if (c.row.side === 'them') return commitmentLine(c.row)
+  // line and inform nothing. The mention count still applies: "you have been
+  // waiting on this through six of my notes" is the sentence that turns a
+  // waiting-on list into a chase list.
+  if (c.row.side === 'them') return `${commitmentLine(c.row)}${mentionClause(c.mention) ?? ''}`
 
   const age = ageInDays(c.row.created_at)
   const outstanding = age !== null && age > 0 ? `, outstanding ${age}d` : ''
+
+  // How many mornings she has already raised it. Stated only past the
+  // escalation bar, so the count means something when it appears at all —
+  // see mentionClause.
+  const raised = mentionClause(c.mention) ?? ''
 
   // ⚠ WHEN THE OWNER IS THE READER, SAY SO — never print their own name back
   // at them. Rendering "Review and sign the GridEdge MNDA — extraction named:
@@ -86,11 +94,11 @@ function attributedLine(c: NoteCommitment, reader: string): string {
   // waiting", which invents a third party out of the reader. The name is not
   // information here; "this one is yours" is.
   if (c.via === 'name') {
-    return `- ${c.row.what} — THIS IS ${reader.toUpperCase()}'S OWN, they took it on${dueClause(c.row.due_date)}${outstanding}`
+    return `- ${c.row.what} — THIS IS ${reader.toUpperCase()}'S OWN, they took it on${dueClause(c.row.due_date)}${outstanding}${raised}`
   }
   return `- ${c.row.what}${ownerClause(c.row.owner_name)}${dueClause(
     c.row.due_date
-  )}${outstanding} [sitting in their mailbox; nobody has confirmed they own it]`
+  )}${outstanding}${raised} [sitting in their mailbox; nobody has confirmed they own it]`
 }
 
 /** "(and 12 more not listed)" — never silent truncation. */
