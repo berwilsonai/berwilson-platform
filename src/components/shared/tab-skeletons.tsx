@@ -15,6 +15,17 @@ import LoadingSkeleton from './LoadingSkeleton'
  * These are the four shapes those thirteen files were hand-writing. A tab's
  * `loading.tsx` is now one line naming its shape, so adding a tab cannot
  * quietly ship without a loading state again.
+ *
+ * ⚠⚠ NEVER PUT A `loading.tsx` AT THE ROOT OF A ROUTE GROUP. One at
+ * `opportunities/[id]/(detail)/loading.tsx` — beside that group's own
+ * `page.tsx` — builds green (exit 0, every route listed) and then answers
+ * every request to `/opportunities/[id]` with a 500:
+ *   Invariant: The client reference manifest for route "/opportunities/[id]"
+ *   does not exist.
+ * The manifest is emitted at the GROUPED path and the runtime looks for it at
+ * the de-grouped one. A boundary inside a group's SUBSEGMENT
+ * (`(detail)/tasks/loading.tsx`) is fine — all eleven of those are live. Took
+ * the opportunity record down in production for four minutes on 2026-10-09.
  */
 
 /** A header row plus a bordered list of rows — players, tasks, meetings, milestones. */

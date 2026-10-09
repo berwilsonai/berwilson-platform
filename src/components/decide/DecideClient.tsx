@@ -421,7 +421,16 @@ export default function DecideClient({ items }: { items: DecideItem[] }) {
   )
 
   const counts = useMemo(() => {
-    const c: Record<string, number> = { all: live.length, lead: 0, intake: 0, review: 0 }
+    /*
+      ⚠ SEEDED FROM `KIND_META`, NOT FROM A HAND-WRITTEN LIST. The zero map
+      named lead/intake/review while `DecideKind` has five members, so
+      `c['document']` was undefined and `undefined++` is NaN: the live queue
+      rendered a chip reading "Unfiled document NaN", and the economics chip
+      showed no count at all. A counter map beside a registry must be built
+      from the registry's own keys, or the next kind added repeats it.
+    */
+    const c: Record<string, number> = { all: live.length }
+    for (const k of Object.keys(KIND_META)) c[k] = 0
     for (const i of live) c[i.kind]++
     return c
   }, [live])
