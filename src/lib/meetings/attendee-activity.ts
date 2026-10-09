@@ -10,6 +10,7 @@
 
 import type { createAdminClient } from '@/lib/supabase/admin'
 import type { Json } from '@/types/database'
+import type { JsonIn } from '@/lib/supabase/types'
 import { parseAttendees } from '@/lib/utils/meetings'
 
 type AdminClient = ReturnType<typeof createAdminClient>
@@ -59,7 +60,7 @@ export async function syncAttendeeActivity(
       scope: meeting.scope,
       project_id: meeting.project_id,
       opportunity_id: meeting.opportunity_id,
-    } as unknown as Json
+    } as unknown as JsonIn
 
     // Insert entries for newly-linked parties.
     const toInsert = [...desired]

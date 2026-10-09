@@ -18,7 +18,7 @@ import { NextRequest } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { parseSeeds, buildProfileDrafts } from '@/lib/contacts/profile-intake'
-import type { Json } from '@/lib/supabase/types'
+import type { Json, JsonIn } from '@/lib/supabase/types'
 
 export const maxDuration = 300
 
@@ -70,7 +70,7 @@ export async function POST(request: NextRequest) {
       status: 'running',
       label: label || defaultLabel,
       raw_text: input,
-      extraction_result: {} as never,
+      extraction_result: {} ,
     })
     .select('id')
     .single()
@@ -88,7 +88,7 @@ export async function POST(request: NextRequest) {
       .from('email_intake_sessions')
       .update({
         status: 'pending',
-        extraction_result: draft as unknown as Json,
+        extraction_result: draft as unknown as JsonIn,
       })
       .eq('id', sessionId)
     if (saveErr) throw new Error(saveErr.message)
@@ -104,7 +104,7 @@ export async function POST(request: NextRequest) {
     console.error('[people-intake] run failed:', err)
     await admin
       .from('email_intake_sessions')
-      .update({ status: 'failed', extraction_result: { error: message } as never })
+      .update({ status: 'failed', extraction_result: { error: message }  })
       .eq('id', sessionId)
     return Response.json({ error: message }, { status: 500 })
   }

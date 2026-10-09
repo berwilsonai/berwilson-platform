@@ -27,6 +27,7 @@
 import { createHash } from 'crypto'
 import { createAdminClient } from '@/lib/supabase/admin'
 import type { Json } from '@/types/database'
+import type { JsonIn } from '@/lib/supabase/types'
 import {
   ContactGoneError,
   ContactsScopeError,
@@ -246,7 +247,7 @@ export async function syncContactsToWorkspace(
       await supabase
         .from('parties')
         .update({
-          google_contacts: remaining as unknown as Json,
+          google_contacts: remaining as unknown as JsonIn,
           google_contacts_hash: null,
         })
         .eq('id', party.id)
@@ -336,7 +337,7 @@ export async function syncContactsToWorkspace(
     await supabase
       .from('parties')
       .update({
-        google_contacts: next as unknown as Json,
+        google_contacts: next as unknown as JsonIn,
         google_contacts_hash: complete ? hash : null,
       })
       .eq('id', party.id)

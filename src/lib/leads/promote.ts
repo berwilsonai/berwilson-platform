@@ -24,6 +24,7 @@ import { createDdItemsFromIntake, parseIntakeAnswers } from '@/lib/deal-intake/d
 import { LEAD_FOLDER } from './score-phase'
 import { upsertLink } from '@/lib/email-sweep/route-phase'
 import type { LinkRecordKind } from '@/lib/email-sweep/db'
+import type { TablesInsert } from '@/lib/supabase/types'
 
 /**
  * What a lead becomes.
@@ -129,11 +130,22 @@ async function copyAttachments(
       continue
     }
 
-    const { data, error } = await supabase
-      .from(table)
-      .insert(row(dest, a) as never)
-      .select('id')
-      .single()
+    // ⚠ BRANCHED RATHER THAN CAST THROUGH `as never` — the caller picks one of
+    // two document tables, and branching lets each insert be checked against
+    // its own Insert shape.
+    const built = row(dest, a)
+    const { data, error } =
+      table === 'documents'
+        ? await supabase
+            .from('documents')
+            .insert(built as unknown as TablesInsert<'documents'>)
+            .select('id')
+            .single()
+        : await supabase
+            .from('opportunity_documents')
+            .insert(built as unknown as TablesInsert<'opportunity_documents'>)
+            .select('id')
+            .single()
     if (error) {
       console.error(`[leads/promote] could not register ${a.name}:`, error.message)
       continue

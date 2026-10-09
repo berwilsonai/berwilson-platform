@@ -13,6 +13,7 @@
  */
 
 import { createUntypedAdminClient } from '@/lib/supabase/admin'
+import type { Refine, Tables } from '@/lib/supabase/types'
 
 export function sweepDb() {
   return createUntypedAdminClient()
@@ -84,57 +85,18 @@ export type LinkRecordKind = 'project' | 'opportunity' | 'lead' | 'steel_deal'
  */
 export type LinkCertainty = 'linked' | 'inferred'
 
-export interface MailboxSyncRow {
-  mailbox: string
-  page_token: string | null
-  state: SweepState
-  since_days: number | null
-  threads_seen: number
-  threads_new: number
-  duplicates_skipped: number
-  last_error: string | null
-  started_at: string | null
-  completed_at: string | null
-  updated_at: string | null
-}
+export type MailboxSyncRow = Tables<'mailbox_sync'>
 
-export interface EmailThreadRow {
-  id: string
-  fingerprint: string
-  mailbox: string
-  gmail_thread_id: string
-  subject: string | null
-  participants: string[]
-  first_at: string | null
-  last_at: string | null
-  message_count: number
-  attachment_count: number
-  raw_markdown: string | null
-  summary: unknown | null
-  summary_state: SummaryState
-  summary_error: string | null
-  cluster_id: string | null
-  created_at: string | null
-  updated_at: string | null
-}
+export type EmailThreadRow = Refine<Tables<'email_threads'>, { summary: unknown }>
 
-export interface ThreadClusterRow {
-  id: string
-  label: string | null
-  state: ClusterState
-  reason: string | null
-  thread_count: number
-  participants: string[]
-  first_at: string | null
-  last_at: string | null
-  session_id: string | null
-  /** The record this cluster was confirmed into, once a human confirmed it. */
-  project_id: string | null
-  opportunity_id: string | null
-  confirmed_at: string | null
-  created_at: string | null
-  updated_at: string | null
-}
+/**
+ * Field notes carried over from the hand-written interface this replaced —
+ * the columns themselves now come from the schema.
+ *
+ * `project_id` — The record this cluster was confirmed into, once a human
+ *   confirmed it.
+ */
+export type ThreadClusterRow = Tables<'thread_clusters'>
 
 /**
  * A thread tied to a record it belongs to.
@@ -148,42 +110,39 @@ export interface ThreadClusterRow {
  * belongs to several records — a referrer describing five deals becomes five
  * leads, and every one of them wants that conversation.
  */
-export interface ThreadLinkRow {
-  id: string
-  thread_id: string
-  record_kind: LinkRecordKind
-  /**
-   * Deliberately NOT a foreign key: it points at four tables and a polymorphic
-   * FK is not expressible. The apply phase drops a link whose record has gone
-   * rather than failing on it.
-   */
-  record_id: string
-  certainty: LinkCertainty
-  confidence: number | null
-  /** Human-readable, so a misfiling can be understood and undone. */
-  reason: string | null
-  /**
-   * How much of the conversation has already been written onto the record.
-   * Without it every refresh re-posts the whole thread and the record's feed
-   * fills with the same correspondence night after night.
-   */
-  applied_message_count: number
-  /**
-   * How many messages have had their ATTACHMENTS considered — a second cursor,
-   * and it has to be separate.
-   *
-   * Every filing path but the router's own inferred match seeds
-   * `applied_message_count` at the thread's current length, so that filing a
-   * conversation does not replay years of mail into a record's feed as new
-   * activity. Correct for the feed and wrong for files: sharing the cursor meant
-   * the attachment slice was always empty, and a thread's existing documents
-   * could never arrive at all. Old mail is not news; a deed is still a deed.
-   *
-   * Advanced per message rather than per thread, so a run interrupted by a deploy
-   * resumes where it stopped (§12).
-   */
-  attachments_through: number
-  last_applied_at: string | null
-  created_at: string | null
-  updated_at: string | null
-}
+/**
+ * Field notes carried over from the hand-written interface this replaced —
+ * the columns themselves now come from the schema.
+ *
+ * `record_id` — Deliberately NOT a foreign key: it points at four tables and
+ *   a polymorphic FK is not expressible. The apply phase drops a link whose
+ *   record has gone rather than failing on it.
+ * `reason` — Human-readable, so a misfiling can be understood and undone.
+ * `applied_message_count` — How much of the conversation has already been
+ *   written onto the record. Without it every refresh re-posts the whole
+ *   thread and the record's feed fills with the same correspondence night
+ *   after night.
+ * `attachments_through` — How many messages have had their ATTACHMENTS
+ *   considered — a second cursor, and it has to be separate. Every filing path
+ *   but the router's own inferred match seeds `applied_message_count` at the
+ *   thread's current length, so that filing a conversation does not replay
+ *   years of mail into a record's feed as new activity. Correct for the feed
+ *   and wrong for files: sharing the cursor meant the attachment slice was
+ *   always empty, and a thread's existing documents could never arrive at all.
+ *   Old mail is not news; a deed is still a deed. Advanced per message rather
+ *   than per thread, so a run interrupted by a deploy resumes where it stopped
+ *   (§12).
+ */
+export type ThreadLinkRow = Refine<
+  Tables<'thread_links'>,
+  {
+    /**
+     * ⚠ REFINED BACK FROM `string`. Both are CHECK constraints rather than
+     * Postgres enums, so the generated type can only say `string` — and
+     * `applyToRecord` switches on `record_kind` with no default, which only
+     * typechecks as exhaustive while the union is named here.
+     */
+    record_kind: LinkRecordKind
+    certainty: LinkCertainty
+  }
+>

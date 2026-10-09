@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "test": "node --no-deprecation --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./deploy/register.mjs --test \"src/**/*.test.ts\"",
-    "gen-types": "echo 'gen-types is disabled: --linked points at the retired hosted project (qauclkrdejgtpywqixho), NOT the self-hosted DB on the Studio. See CLAUDE.md before regenerating.' && exit 1"
+    "gen-types": "zsh deploy/gen-types.sh"
   },
   "dependencies": {
     "@base-ui/react": "^1.4.1",

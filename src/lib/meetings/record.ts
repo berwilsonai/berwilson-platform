@@ -23,7 +23,7 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { parseAttendees, parseDecisions, type MeetingAttendee } from '@/lib/utils/meetings'
 import type { SeedTarget } from '@/lib/email-ingestion/analyze-meeting'
-import type { TablesInsert } from '@/lib/supabase/types'
+import type { TablesInsert, JsonIn, TablesUpdate } from '@/lib/supabase/types'
 
 type AdminClient = ReturnType<typeof createAdminClient>
 
@@ -97,11 +97,11 @@ export async function upsertMeetingFromImport(
     opportunity_id: input.target?.kind === 'opportunity' ? input.target.id : null,
     title: input.title,
     meeting_date: input.meetingDate,
-    attendees: parseAttendees(input.attendees) as unknown as never,
+    attendees: parseAttendees(input.attendees) as unknown as JsonIn,
     summary: input.summary,
     minutes: input.minutes,
     transcript: input.transcript,
-    decisions: parseDecisions(input.decisions) as unknown as never,
+    decisions: parseDecisions(input.decisions) as unknown as JsonIn,
     status: 'draft',
     drive_file_id: input.driveFileId,
     // The transcript is indexed as its own document by fileMeetingDocument, so
@@ -169,7 +169,7 @@ export async function attachMeetingToRecord(
     .maybeSingle()
   if (!current) return { moved: false, reason: 'the meeting record no longer exists' }
 
-  const patch: Record<string, unknown> = {}
+  const patch: TablesUpdate<'meetings'> = {}
 
   const alreadyFiled = Boolean(current.project_id || current.opportunity_id)
   if (!alreadyFiled) {
@@ -183,15 +183,15 @@ export async function attachMeetingToRecord(
     if (recap.meetingDate?.trim()) patch.meeting_date = recap.meetingDate.trim()
     if (recap.summary?.trim()) patch.summary = recap.summary.trim()
     if (recap.minutes?.trim()) patch.minutes = recap.minutes.trim()
-    if (recap.decisions && recap.decisions.length > 0) patch.decisions = recap.decisions
-    if (recap.attendees && recap.attendees.length > 0) patch.attendees = recap.attendees
+    if (recap.decisions && recap.decisions.length > 0) patch.decisions = recap.decisions as unknown as JsonIn
+    if (recap.attendees && recap.attendees.length > 0) patch.attendees = recap.attendees as unknown as JsonIn
   }
 
   if (Object.keys(patch).length === 0) {
     return { moved: false, reason: 'nothing to change' }
   }
 
-  const { error } = await supabase.from('meetings').update(patch as never).eq('id', meetingId)
+  const { error } = await supabase.from('meetings').update(patch).eq('id', meetingId)
   if (error) {
     console.error('[meetings] could not attach the meeting to its record:', error.message)
     return { moved: false, reason: error.message }

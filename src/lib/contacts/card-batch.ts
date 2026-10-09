@@ -31,7 +31,7 @@
 
 import { createAdminClient } from '@/lib/supabase/admin'
 import { buildCardDraft, type CardScanDraft, type ResearchCache } from '@/lib/contacts/card-intake'
-import type { Json, TablesUpdate } from '@/lib/supabase/types'
+import type { Json, TablesUpdate, JsonIn } from '@/lib/supabase/types'
 
 /** The most cards one batch will read — roughly a conference's worth. */
 export const MAX_CARDS_PER_BATCH = 30
@@ -141,7 +141,7 @@ export async function processCardBatch(sessionId: string, userId: string): Promi
 
   const save = async (status?: 'pending' | 'failed') => {
     const patch: TablesUpdate<'email_intake_sessions'> = {
-      extraction_result: recount(draft!) as unknown as Json,
+      extraction_result: recount(draft!) as unknown as JsonIn,
     }
     if (status) patch.status = status
     const { error } = await admin.from('email_intake_sessions').update(patch).eq('id', sessionId)
@@ -184,7 +184,7 @@ export async function processCardBatch(sessionId: string, userId: string): Promi
     // the stale-`running` guard is what the reader ends up seeing.
     await admin
       .from('email_intake_sessions')
-      .update({ status: 'failed', extraction_result: recount(draft) as unknown as Json })
+      .update({ status: 'failed', extraction_result: recount(draft) as unknown as JsonIn })
       .eq('id', sessionId)
       .then(undefined, () => {})
   }

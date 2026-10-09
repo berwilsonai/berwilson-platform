@@ -16,6 +16,7 @@ import {
   sanitizeFileName,
   type StagedAttachment,
 } from '@/lib/email-ingestion/attachments'
+import type { JsonIn } from '@/lib/supabase/types'
 
 /**
  * Targeted Email Research — search the connected Gmail mailboxes for a term,
@@ -81,7 +82,7 @@ export async function POST(request: NextRequest) {
       user_id: user.id,
       status: 'running',
       label: label || searchTerm,
-      extraction_result: {} as never,
+      extraction_result: {} ,
     })
     .select('id')
     .single()
@@ -98,7 +99,7 @@ export async function POST(request: NextRequest) {
     if (sessionId) {
       await admin
         .from('email_intake_sessions')
-        .update({ status: 'failed', extraction_result: { error: message } as never })
+        .update({ status: 'failed', extraction_result: { error: message }  })
         .eq('id', sessionId)
     }
     return Response.json({ error: message }, { status })
@@ -279,7 +280,7 @@ export async function POST(request: NextRequest) {
     if (sessionId && stagedAttachments.length > 0) {
       const { error: attachErr } = await admin
         .from('email_intake_sessions')
-        .update({ staged_attachments: stagedAttachments as unknown as never })
+        .update({ staged_attachments: stagedAttachments as unknown as JsonIn })
         .eq('id', sessionId)
       if (attachErr) {
         console.error('[email-research] staged_attachments not recorded (migration applied?):', attachErr.message)

@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
 import { getViewer, forbiddenJson, actorAdminClient } from '@/lib/auth/viewer'
 import { isRole } from '@/lib/auth/permissions'
-import type { Json } from '@/lib/supabase/types'
+import type { Json, JsonIn } from '@/lib/supabase/types'
 
 interface RouteContext {
   params: Promise<{ id: string }>
@@ -145,7 +145,7 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
       grantSnapshot = (grants ?? []) as { resource_type: string; resource_id: string }[]
       update.deactivated_at = new Date().toISOString()
       update.deactivated_by = viewer.teamMemberName ?? viewer.email ?? null
-      update.revoked_grants = grantSnapshot as unknown as Json
+      update.revoked_grants = grantSnapshot as unknown as JsonIn
     }
   }
   if (reactivating) {
@@ -243,7 +243,7 @@ export async function DELETE(request: NextRequest, { params }: RouteContext) {
   if ((grants ?? []).length > 0) {
     await admin
       .from('team_members')
-      .update({ revoked_grants: (grants ?? []) as unknown as Json })
+      .update({ revoked_grants: (grants ?? []) as unknown as JsonIn })
       .eq('id', id)
   }
 

@@ -2,7 +2,7 @@
 // Run `npm run gen-types` to regenerate after schema changes.
 
 export type { Database, Json } from '@/types/database'
-import type { Database } from '@/types/database'
+import type { Database, Json } from '@/types/database'
 
 // ---------------------------------------------------------------------------
 // Standard Supabase helper generics
@@ -19,6 +19,63 @@ export type TablesInsert<T extends keyof Database['public']['Tables']> =
 /** The Update shape for a given table — what you pass to UPDATE */
 export type TablesUpdate<T extends keyof Database['public']['Tables']> =
   Database['public']['Tables'][T]['Update']
+
+/**
+ * The type a jsonb value must have to be WRITTEN.
+ *
+ * ⚠ `Json` INCLUDES `null`, AND A NOT NULL jsonb COLUMN DOES NOT. The old
+ * hand-maintained types gave every jsonb column plain `Json`, so an
+ * `as unknown as Json` cast typechecked against a NOT NULL column — and a
+ * null value was then a NOT NULL violation at runtime, a 500 the reader reads
+ * as a server fault. The regenerated types (2026-10-08) tell the two apart:
+ * a nullable jsonb column stays `Json | null`, a NOT NULL one becomes
+ * `NonNullable<Json>`. Twelve write sites were relying on the looser type.
+ *
+ * Use this for EVERY jsonb insert or update, nullable column or not — it
+ * satisfies both, so there is one idiom rather than two to choose between.
+ */
+export type JsonIn = NonNullable<Json>
+
+/**
+ * A generated Row with some of its columns replaced by a narrower type.
+ *
+ * The modules behind the post-cutover tables refine a few jsonb and array
+ * columns into real shapes — `project_parcels.geometry` is a GeoJSON Polygon,
+ * `leads.attachments` is a LeadAttachment[]. Those refinements are worth more
+ * than `Json`, so they survive; EVERY OTHER COLUMN COMES FROM THE SCHEMA.
+ *
+ * ⚠ THIS EXISTS BECAUSE HAND-WRITING THE WHOLE ROW DRIFTS. Measured when
+ * gen-types was repaired (2026-10-08): across 30 hand-maintained row
+ * interfaces, 40 live columns were absent from their type, one field named a
+ * column the table does not have, and six columns were typed NOT NULL against
+ * a nullable schema. Nothing reported any of it, because the client those
+ * interfaces stood in for was untyped by design.
+ */
+export type Refine<T, R extends Partial<Record<keyof T, unknown>>> = Omit<T, keyof R> & R
+
+/**
+ * The column names in a PostgREST select list, as a union.
+ *
+ * For the reads that project rather than taking `*`: the type is then derived
+ * from the same string the query sends, so the two cannot disagree and adding
+ * a column to the select list adds it to the type. A name that is not a column
+ * becomes a type error at the `Pick`.
+ */
+export type SelectedCols<S extends string> =
+  S extends `${infer H},${infer T}` ? Trim<H> | SelectedCols<T> : Trim<S>
+type Trim<S extends string> = S extends ` ${infer R}` ? Trim<R> : S extends `${infer R} ` ? Trim<R> : S
+
+/**
+ * Fails to compile unless `T` is `never`, naming the offending member.
+ *
+ * For the one row interface still written by hand: `LeadRow` is 130 lines of
+ * which most is documentation attached to individual fields, and that
+ * documentation is worth more than the lines an alias would save. So it stays
+ * an interface, and two assertions make it unable to drift — one that every
+ * column of the table is a field, one that it invents no field the table has
+ * no column for. Either way the error names the column.
+ */
+export type AssertNever<T extends never> = T
 
 /** A specific enum type by name */
 export type Enums<T extends keyof Database['public']['Enums']> =

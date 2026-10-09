@@ -24,7 +24,7 @@ import {
   readCardBatch,
   MAX_CARDS_PER_BATCH,
 } from '@/lib/contacts/card-batch'
-import type { Json } from '@/lib/supabase/types'
+import type { Json, JsonIn } from '@/lib/supabase/types'
 
 // The handler itself returns in milliseconds; the work outlives it.
 export const maxDuration = 60
@@ -70,7 +70,7 @@ export async function POST(request: NextRequest) {
       .from('email_intake_sessions')
       .update({
         status: 'running',
-        extraction_result: { ...draft, error: undefined } as unknown as Json,
+        extraction_result: { ...draft, error: undefined } as unknown as JsonIn,
       })
       .eq('id', resumeId)
 
@@ -114,7 +114,7 @@ export async function POST(request: NextRequest) {
       // The recognized text, kept whole: it is what a resume re-reads, and what
       // a reviewer checks a bad parse against. The photographs are already gone.
       raw_text: cards.map((c) => c.raw_text).join('\n\n--- card ---\n\n'),
-      extraction_result: draft as unknown as Json,
+      extraction_result: draft as unknown as JsonIn,
     })
     .select('id')
     .single()

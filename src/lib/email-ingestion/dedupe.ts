@@ -29,6 +29,7 @@ import {
   type DedupeResult,
 } from '@/lib/ai/prompts/intake-dedupe'
 import { analyzeEmailReport, SYSTEM_USER_ID, maxInputChars } from './analyze'
+import type { JsonIn } from '@/lib/supabase/types'
 
 /**
  * A group bigger than this is not a programme, it is the grouper having
@@ -232,7 +233,7 @@ export async function dedupePendingSessions(
             prompt_version: INTAKE_DEDUPE_PROMPT_VERSION,
             folded_into: primary.id,
             decided_at: new Date().toISOString(),
-          } as unknown as never,
+          } as unknown as JsonIn,
         })
         .in('id', others.map((r) => r.id))
 

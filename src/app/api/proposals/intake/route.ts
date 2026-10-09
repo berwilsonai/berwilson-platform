@@ -9,6 +9,7 @@ import { findMatchingProjects, matchExtractedParties, type ProposalExtraction } 
 import { assessFit, type FitAssessment } from '@/lib/ai/fit-assessment'
 import { writeFile, unlink } from 'fs/promises'
 import type { Json } from '@/types/database'
+import type { JsonIn } from '@/lib/supabase/types'
 import { join } from 'path'
 import { SYSTEM_USER_ID } from '@/lib/system-user'
 
@@ -254,10 +255,10 @@ export async function POST(request: NextRequest) {
       .insert({
         user_id: userId,
         status: 'pending',
-        extraction_result: extraction as unknown as Json,
-        match_candidates: matchCandidates as unknown as Json,
-        uploaded_files: uploadedFiles as unknown as Json,
-        fit_assessment: fitAssessment as unknown as Json,
+        extraction_result: extraction as unknown as JsonIn,
+        match_candidates: matchCandidates as unknown as JsonIn,
+        uploaded_files: uploadedFiles as unknown as JsonIn,
+        fit_assessment: fitAssessment as unknown as JsonIn,
       })
       .select()
       .single()

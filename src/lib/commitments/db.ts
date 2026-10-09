@@ -1,11 +1,20 @@
 /**
  * Commitment row types.
  *
- * Hand-maintained, like the rest of the sweep's tables: `npm run gen-types`
- * cannot run against this self-hosted stack (the Supabase CLI needs a DB host
- * reachable from both the host and its postgres-meta container, which Colima
- * does not provide), so `database.ts` does not know this table exists.
+ * ⚠ THE REASON THIS WAS HAND-MAINTAINED WAS WRONG. The note here said the
+ * Supabase CLI "needs a DB host reachable from both the host and its
+ * postgres-meta container, which Colima does not provide". It does not:
+ * `gen types --db-url` talks to Postgres directly, supabase-db has published
+ * 5432 on localhost all along, and the actual failure was that the container
+ * does not speak TLS while the CLI defaults to requiring it — one query-string
+ * parameter. Repaired 2026-10-08; see deploy/gen-types.sh.
+ *
+ * `side` and `status` are refined back from `string` because both are CHECK
+ * constraints rather than Postgres enums, and the distinction they carry is
+ * load-bearing (see below).
  */
+
+import type { Refine, Tables } from '@/lib/supabase/types'
 
 export type CommitmentSide = 'us' | 'them'
 
@@ -24,23 +33,10 @@ export type CommitmentStatus = 'open' | 'resolved' | 'done' | 'dismissed'
 /** Statuses a human set. Re-extraction must leave these completely alone. */
 export const HUMAN_SETTLED: CommitmentStatus[] = ['done', 'dismissed']
 
-export interface CommitmentRow {
-  id: string
-  thread_id: string
-  item_key: string
-  what: string
-  side: CommitmentSide
-  owner_name: string | null
-  due_date: string | null
-  status: CommitmentStatus
-  confidence: number | null
-  project_id: string | null
-  opportunity_id: string | null
-  settled_at: string | null
-  settled_by: string | null
-  created_at: string | null
-  updated_at: string | null
-}
+export type CommitmentRow = Refine<
+  Tables<'commitments'>,
+  { side: CommitmentSide; status: CommitmentStatus }
+>
 
 /**
  * Stable identity for a commitment WITHIN its thread.

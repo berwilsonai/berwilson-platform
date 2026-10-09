@@ -43,7 +43,7 @@ import {
   type RecordKind,
 } from '@/lib/email-ingestion/confirm-helpers'
 import type { createAdminClient } from '@/lib/supabase/admin'
-import type { Tables, TablesInsert } from '@/lib/supabase/types'
+import type { Tables, TablesInsert, JsonIn, TablesUpdate } from '@/lib/supabase/types'
 import type { ConfirmBody } from '@/lib/email-ingestion/defaults'
 
 type AdminClient = ReturnType<typeof createAdminClient>
@@ -175,10 +175,21 @@ async function fillBlankFields(
   const filled = Object.keys(patch)
   if (filled.length === 0) return []
 
-  const { error: updateErr } = await supabase
-    .from(table)
-    .update(patch as never)
-    .eq('id', id)
+  // ⚠ BRANCHED RATHER THAN CAST THROUGH `as never`. The destination is chosen
+  // at runtime and `patch` is assembled from the FILLABLE whitelist, so the
+  // generated client cannot infer the row from `.from(table)`. Branching gives
+  // each write its own table, so each one is checked against a real Update
+  // shape — where the old single `as never` disabled checking on both.
+  const { error: updateErr } =
+    table === 'projects'
+      ? await supabase
+          .from('projects')
+          .update(patch as unknown as TablesUpdate<'projects'>)
+          .eq('id', id)
+      : await supabase
+          .from('opportunities')
+          .update(patch as unknown as TablesUpdate<'opportunities'>)
+          .eq('id', id)
   if (updateErr) {
     console.error('[email-intake] field fill failed:', updateErr.message)
     return []
@@ -463,7 +474,7 @@ export async function applySession(
     .from('email_intake_sessions')
     .update({
       status: 'confirmed',
-      created_record_ids: ids as unknown as never,
+      created_record_ids: ids as unknown as JsonIn,
       confirmed_at: new Date().toISOString(),
     })
     .eq('id', session.id)

@@ -21,6 +21,7 @@
  */
 
 import { createUntypedAdminClient } from '@/lib/supabase/admin'
+import type { Refine, Tables } from '@/lib/supabase/types'
 
 export function calcDb() {
   return createUntypedAdminClient()
@@ -36,63 +37,18 @@ export function calcDbAs(actor: { id: string; email?: string | null }) {
 // that absent is not zero and a row interface that lies about nullability is
 // how a null becomes a 0 three layers later.
 
-export interface DealEconomicsRow {
-  id: string
-  project_id: string | null
-  opportunity_id: string | null
-  discount_rate_pct: number | null
-  cap_rate_pct: number | null
-  base_year: number | null
-  stated_total_amount: number | null
-  /** 'recurring' | 'contract' | 'one_time' | 'asset' | 'capture' */
-  stated_total_shape: string | null
-  computed_firm_mw: number | null
-  computed_utilization_pct: number | null
-  computed_gross_annual_recurring: number | null
-  computed_gross_contract_value: number | null
-  computed_gross_one_time: number | null
-  computed_gross_project_value: number | null
-  computed_bw_gross_annual_recurring: number | null
-  computed_bw_gross_contract_value: number | null
-  computed_bw_gross_one_time: number | null
-  computed_bw_net_annual_recurring: number | null
-  computed_bw_net_contract_value: number | null
-  computed_bw_net_one_time: number | null
-  computed_bw_net_tax_credits: number | null
-  computed_asset_value: number | null
-  computed_undetermined_annual_recurring: number | null
-  computed_undetermined_one_time: number | null
-  computed_capture_pct_of_gross: number | null
-  computed_status: string | null
-  computed_valid: boolean | null
-  computed_at: string | null
-  notes: string | null
-  created_at: string
-  updated_at: string | null
-}
+/**
+ * Field notes carried over from the hand-written interface this replaced —
+ * the columns themselves now come from the schema.
+ *
+ * `stated_total_shape` — 'recurring' | 'contract' | 'one_time' | 'asset' |
+ *   'capture'
+ */
+export type DealEconomicsRow = Tables<'deal_economics'>
 
-export interface CapacitySourceRow {
-  id: string
-  economics_id: string
-  label: string
-  kind: string
-  nameplate_mw: number | null
-  availability_pct: number | null
-  block_count: number | null
-  redundant_blocks: number | null
-  block_mw: number | null
-  stated_net_mw: number | null
-  status: string
-  sort_order: number
-}
+export type CapacitySourceRow = Tables<'economics_capacity_sources'>
 
-export interface BucketRow {
-  id: string
-  economics_id: string
-  label: string
-  priority: number
-  peak_mw: number | null
-}
+export type BucketRow = Tables<'economics_buckets'>
 
 // ⚠ `SpvRow` LIVED HERE AND NOW LIVES IN src/lib/spvs/db.ts, because a vehicle
 // stopped being a child of the economics model on 2026-10-06. It hangs off the
@@ -100,154 +56,50 @@ export interface BucketRow {
 // exist before one is built at all. `economics_lines.spv_id` still points at
 // it; the engine reads it through `loadProjectSpvs`.
 
-export interface LineRow {
-  id: string
-  economics_id: string
-  line_type: string
-  label: string
-  spv_id: string | null
-  bucket_id: string | null
-  is_ber_wilson_revenue: boolean
-  is_carve_out: boolean
-  counts_toward_project_value: boolean
-  referenced_line_id: string | null
-  rides_on_line_id: string | null
-  start_year: number | null
-  term_years: number | null
-  escalator_pct: number | null
-  ramp: number[] | null
-  mw: number | null
-  it_mw: number | null
-  acres: number | null
-  quantity: number | null
-  units: number | null
-  price: number | null
-  price_unit: string | null
-  price_per_mw: number | null
-  price_per_unit: number | null
-  price_per_unit_month: number | null
-  price_per_mwh: number | null
-  rate_per_kw_month: number | null
-  annual_rent: number | null
-  amount: number | null
-  capital_base: number | null
-  cost: number | null
-  cost_per_mw: number | null
-  cost_per_unit: number | null
-  opex_annual: number | null
-  fixed_om_per_kw_year: number | null
-  variable_om_per_mwh: number | null
-  heat_rate: number | null
-  gas_price_per_mmbtu: number | null
-  load_factor: number | null
-  occupancy: number | null
-  pue: number | null
-  minimum_take_pct: number | null
-  annual_rate_pct: number | null
-  our_share_pct: number | null
-  pct_of_line: number | null
-  mode: string | null
-  fee_base: string | null
-  disposition: string | null
-  credit_kind: string | null
-  attribute_kind: string | null
-  unit_label: string | null
-  counterparty: string | null
-  partner_label: string | null
-  transferable: boolean
-  power_passed_through: boolean
-  power_revenue_retained: boolean
-  status: string
-  notes: string | null
-  sort_order: number
-}
+export type LineRow = Refine<Tables<'economics_lines'>, { ramp: number[] | null }>
 
-export interface ScheduleRow {
-  id: string
-  line_id: string
-  /** 'milestone' | 'ramp' */
-  kind: string
-  label: string
-  pct: number | null
-  due_date: string | null
-  months_from_ntp: number | null
-  sort_order: number
-}
+/**
+ * Field notes carried over from the hand-written interface this replaced —
+ * the columns themselves now come from the schema.
+ *
+ * `kind` — 'milestone' | 'ramp'
+ */
+export type ScheduleRow = Tables<'economics_line_schedule'>
 
-export interface ProvenanceRow {
-  id: string
-  economics_id: string
-  /** NULL for a deal-level input such as the discount rate. */
-  line_id: string | null
-  field_key: string
-  status: string
-  source: string | null
-  source_ref: string | null
-  as_of: string | null
-  note: string | null
-}
+/**
+ * Field notes carried over from the hand-written interface this replaced —
+ * the columns themselves now come from the schema.
+ *
+ * `line_id` — NULL for a deal-level input such as the discount rate.
+ */
+export type ProvenanceRow = Tables<'economics_provenance'>
 
-export interface VersionRow {
-  id: string
-  economics_id: string
-  version: number
-  label: string | null
-  note: string | null
-  input_snapshot: unknown
-  result_snapshot: unknown
-  created_by: string | null
-  created_at: string
-}
+export type VersionRow = Refine<Tables<'economics_versions'>, { input_snapshot: unknown; result_snapshot: unknown }>
 
-export interface BenchmarkRow {
-  id: string
-  key: string
-  label: string
-  value_low: number | null
-  value_high: number | null
-  unit: string
-  geography: string | null
-  source: string | null
-  as_of: string | null
-  notes: string | null
-  /** A tone NAME against a palette in source, never a Tailwind class string. */
-  tone: string
-  needs_review: boolean
-  active: boolean
-  sort_order: number
-}
+/**
+ * Field notes carried over from the hand-written interface this replaced —
+ * the columns themselves now come from the schema.
+ *
+ * `tone` — A tone NAME against a palette in source, never a Tailwind class
+ *   string.
+ */
+export type BenchmarkRow = Tables<'economics_benchmarks'>
 
-export interface TemplateRow {
-  id: string
-  key: string
-  label: string
-  description: string | null
-  /** Structure only. A template never carries a price. */
-  structure: unknown
-  active: boolean
-  system: boolean
-  sort_order: number
-}
+/**
+ * Field notes carried over from the hand-written interface this replaced —
+ * the columns themselves now come from the schema.
+ *
+ * `structure` — Structure only. A template never carries a price.
+ */
+export type TemplateRow = Refine<Tables<'economics_templates'>, { structure: unknown }>
 
-export interface InputProposalRow {
-  id: string
-  economics_id: string
-  line_id: string | null
-  field_key: string
-  proposed_value: number | null
-  proposed_unit: string | null
-  proposed_line_type: string | null
-  proposed_label: string | null
-  source_document_id: string | null
-  source_quote: string | null
-  confidence: number | null
-  reasoning: string | null
-  /** `pending` is the only state a machine may write. */
-  status: string
-  decided_by: string | null
-  decided_at: string | null
-  created_at: string
-}
+/**
+ * Field notes carried over from the hand-written interface this replaced —
+ * the columns themselves now come from the schema.
+ *
+ * `status` — `pending` is the only state a machine may write.
+ */
+export type InputProposalRow = Tables<'economics_input_proposals'>
 
 /**
  * Postgres `numeric` arrives from PostgREST as a string often enough that

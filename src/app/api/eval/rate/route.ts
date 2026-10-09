@@ -37,11 +37,14 @@ export async function POST(request: NextRequest) {
   }
 
   const admin = createAdminClient()
-  // rating column is new — cast until gen-types is re-run after migration
-  const { error } = await (admin as unknown as import('@supabase/supabase-js').SupabaseClient)
-    .from(table as never)
-    .update({ rating } as never)
-    .eq('id', id)
+  // ⚠ THIS USED TO ESCAPE THROUGH AN UNTYPED SupabaseClient, with a comment
+  // saying "cast until gen-types is re-run after migration". gen-types was a
+  // disabled stub, so that day never came. It has now (2026-10-08), and the
+  // two tables are branched so each write is checked against its own row.
+  const { error } =
+    table === 'ai_queries'
+      ? await admin.from('ai_queries').update({ rating }).eq('id', id)
+      : await admin.from('agent_messages').update({ rating }).eq('id', id)
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 })

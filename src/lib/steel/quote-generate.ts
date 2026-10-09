@@ -36,6 +36,7 @@ import { buildQuoteTokens, type QuoteInput, type QuoteLine } from './quote-token
 import { assertAllTokensReplaced, assertNoCostLeak, assertTemplateHasTokens } from './quote-guard'
 import { quoteReadiness } from './quote-readiness'
 import { INSTALL_CLOSE, INSTALL_OPEN, INSTALL_ROW, findQuoteTemplate } from './quote-template'
+import type { JsonIn, TablesUpdate } from '@/lib/supabase/types'
 
 export class QuoteGenerationError extends Error {
   readonly status: number
@@ -171,7 +172,7 @@ export async function generateQuote(opts: {
   // collides with the unique index on (quote_number, revision) — the new row
   // carries the same pair as the draft it is about to replace, and every
   // regeneration failed on 23505.
-  const claim: Record<string, unknown> = {
+  const claim: TablesUpdate<'steel_quotes'> = {
     status: 'generating',
     below_floor: belowFloor,
     generated_by: opts.generatedBy ?? null,
@@ -184,7 +185,7 @@ export async function generateQuote(opts: {
     replaceDraft && latest
       ? await supabase
           .from('steel_quotes')
-          .update(claim as never)
+          .update(claim)
           .eq('id', latest.id)
           .select('id, quote_number, revision')
           .single()
@@ -199,7 +200,7 @@ export async function generateQuote(opts: {
             // customer is holding. Only a deal's first quote draws a fresh one
             // from the sequence, via the column default.
             ...(latest ? { quote_number: latest.quote_number } : {}),
-          } as never)
+          } )
           .select('id, quote_number, revision')
           .single()
 
@@ -269,7 +270,7 @@ export async function generateQuote(opts: {
         // Deal files are deliberately not indexed for Ber AI, and a quote least
         // of all — it restates the deal the CRM already holds.
         embedding_status: 'skipped',
-      } as never)
+      } )
       .select('id')
       .single()
     if (docErr || !docRow) {
@@ -286,7 +287,7 @@ export async function generateQuote(opts: {
       .from('steel_quotes')
       .update({
         status: 'draft',
-        inputs: { tokens, amounts, deal: input.deal, lines } as never,
+        inputs: { tokens, amounts, deal: input.deal, lines } as unknown as JsonIn,
         kit_scope: tokens.KIT_SCOPE,
         install_scope: tokens.INSTALL_SCOPE,
         square_feet: amounts.squareFeet,
@@ -296,7 +297,7 @@ export async function generateQuote(opts: {
         drive_file_id: doc.id,
         drive_file_url: doc.webViewLink ?? null,
         document_id: docRow.id,
-      } as never)
+      } )
       .eq('id', quoteRow.id)
     if (settleErr) {
       throw new QuoteGenerationError(`Could not finalise the quote: ${settleErr.message}`, 500)
@@ -325,7 +326,7 @@ export async function generateQuote(opts: {
         quotesFolderUrl = filed.webViewLink ?? null
         await supabase
           .from('documents')
-          .update({ drive_published_id: filed.id } as never)
+          .update({ drive_published_id: filed.id })
           .eq('id', docRow.id)
       } catch (err) {
         console.warn('[steel/quote] could not file the quote in the Quotes folder:', err)
@@ -354,7 +355,7 @@ export async function generateQuote(opts: {
     // record, and destroying it because a re-run failed would lose the quote
     // the user already had.
     if (replaceDraft) {
-      await supabase.from('steel_quotes').update({ status: 'draft' } as never).eq('id', quoteRow.id)
+      await supabase.from('steel_quotes').update({ status: 'draft' }).eq('id', quoteRow.id)
     } else {
       await supabase.from('steel_quotes').delete().eq('id', quoteRow.id)
     }

@@ -25,6 +25,7 @@ import {
 } from '@/lib/ai/prompts/record-brief'
 import { assembleProjectBrief, assembleOpportunityBrief } from '@/lib/briefs/record-brief'
 import type { Json } from '@/types/database'
+import type { JsonIn } from '@/lib/supabase/types'
 
 // The brief makes one model call over a large evidence pack. On the local
 // model that is 60-90s — well past the default ceiling.
@@ -111,7 +112,7 @@ async function generateProjectBrief(
       sources: assembled.sources,
       stats: assembled.stats,
       prompt_version: RECORD_BRIEF_PROMPT_VERSION,
-    } as unknown as Json,
+    } as unknown as JsonIn,
   })
   if (saveError) console.error('[brief] could not store project brief:', saveError.message)
 
@@ -162,7 +163,7 @@ async function generateOpportunityBrief(
       sources: assembled.sources,
       stats: assembled.stats,
       prompt_version: RECORD_BRIEF_PROMPT_VERSION,
-    } as unknown as Json,
+    } as unknown as JsonIn,
   })
   if (saveError) console.error('[brief] could not store opportunity brief:', saveError.message)
 
@@ -274,7 +275,7 @@ async function generatePortfolioBrief(
     content: result.data as string,
     model_used: result.model,
     latency_ms: result.latencyMs,
-    metadata: { prompt_version: BRIEF_PROMPT_VERSION, trigger: 'manual' } as unknown as Json,
+    metadata: { prompt_version: BRIEF_PROMPT_VERSION, trigger: 'manual' } as unknown as JsonIn,
   })
   if (saveError) console.error('[brief] could not store portfolio brief:', saveError.message)
 

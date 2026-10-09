@@ -93,8 +93,8 @@ export async function PATCH(
   if (body.edit_diff) updatePayload.edit_diff = body.edit_diff
 
   const { error } = await (supabase as unknown as import('@supabase/supabase-js').SupabaseClient)
-    .from('review_queue' as never)
-    .update(updatePayload as never)
+    .from('review_queue')
+    .update(updatePayload)
     .eq('id', id)
     .is('resolved_at', null)
 

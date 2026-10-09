@@ -9,15 +9,12 @@
  * repaired this collapses into createAdminClient().
  */
 
-import { createClient } from '@supabase/supabase-js'
+import { createUntypedAdminClient } from '@/lib/supabase/admin'
+import type { Refine, SelectedCols, Tables } from '@/lib/supabase/types'
 import type { PolygonGeometry } from './agrc'
 
 export function parcelDb() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { autoRefreshToken: false, persistSession: false } }
-  )
+  return createUntypedAdminClient()
 }
 
 export const PARCEL_STATUSES = ['subject', 'adjacent', 'excluded', 'acquired'] as const
@@ -30,32 +27,28 @@ export const PARCEL_STATUS_LABELS: Record<ParcelStatus, string> = {
   acquired: 'Acquired',
 }
 
-export interface ParcelRow {
-  id: string
-  project_id: string | null
-  opportunity_id: string | null
-  parcel_id: string
-  label: string | null
-  acres: number | null
-  assessor_acres: number | null
-  owner_name: string | null
-  existing_zone: string | null
-  requested_zone: string | null
-  status: ParcelStatus
-  geometry: PolygonGeometry | null
-  centroid_lat: number | null
-  centroid_lng: number | null
-  geometry_source: string | null
-  geometry_asof: string | null
-  color: string | null
-  notes: string | null
-  sort_order: number
-}
 
-const COLUMNS =
-  'id,project_id,opportunity_id,parcel_id,label,acres,assessor_acres,owner_name,' +
-  'existing_zone,requested_zone,status,geometry,centroid_lat,centroid_lng,' +
-  'geometry_source,geometry_asof,color,notes,sort_order'
+// One literal, not a concatenation: `as const` only applies to a literal, and
+// it is the `as const` that lets ParcelRow below be derived from this list.
+const COLUMNS = 'id,project_id,opportunity_id,parcel_id,label,acres,assessor_acres,owner_name,existing_zone,requested_zone,status,geometry,centroid_lat,centroid_lng,geometry_source,geometry_asof,color,notes,sort_order' as const
+
+/**
+ * A parcel as the reads below project it.
+ *
+ * ⚠ DERIVED FROM `COLUMNS`, NOT HAND-WRITTEN. The previous version listed all
+ * twenty-two fields by hand and had drifted: created_at and updated_at were
+ * absent, and `sort_order` was typed `number` against a nullable column (made
+ * NOT NULL in migration 20261008000005). Now the select list IS the type, so a
+ * column added to one is added to the other.
+ */
+export type ParcelRow = Refine<
+  Pick<Tables<'project_parcels'>, SelectedCols<typeof COLUMNS>>,
+  {
+    /** A real GeoJSON Polygon/MultiPolygon, not bare `Json`. */
+    geometry: PolygonGeometry | null
+    status: ParcelStatus
+  }
+>
 
 export async function getProjectParcels(projectId: string): Promise<ParcelRow[]> {
   const { data, error } = await parcelDb()

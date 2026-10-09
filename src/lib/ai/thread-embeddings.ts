@@ -485,12 +485,16 @@ export async function searchCorrespondence(
   // caller results: a quoted reply chain repeats its parent message in every
   // subsequent mail, and 17% of this table is exactly-duplicated text.
   const limit = opts.limit ?? 12
-  const { data, error } = await createAdminClient().rpc('match_thread_chunks' as never, {
+  // `?? undefined`, not `?? null`: match_thread_chunks declares both filters
+  // as OPTIONAL arguments with defaults, so omitting one is how you say "no
+  // filter". Passing an explicit null is a different thing and the generated
+  // signature is right to refuse it.
+  const { data, error } = await createAdminClient().rpc('match_thread_chunks', {
     query_embedding: JSON.stringify(embedding),
     match_count: limit * DEDUPE_OVERFETCH,
-    filter_after: filterAfter,
-    filter_mailbox: opts.mailbox ?? null,
-  } as never)
+    filter_after: filterAfter ?? undefined,
+    filter_mailbox: opts.mailbox ?? undefined,
+  })
 
   if (error) throw new Error(`Correspondence search failed: ${error.message}`)
 

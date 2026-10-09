@@ -17,7 +17,7 @@ import {
 import { assessFit, type FitAssessment } from '@/lib/ai/fit-assessment'
 import { SECTORS, STAGES } from '@/lib/utils/constants'
 import { OPPORTUNITY_TYPES, oppType } from '@/lib/utils/opportunities'
-import type { ProjectSector, ProjectStage } from '@/lib/supabase/types'
+import type { ProjectSector, ProjectStage, JsonIn } from '@/lib/supabase/types'
 import type { Json } from '@/types/database'
 
 /**
@@ -266,10 +266,10 @@ export async function analyzeEmailReport(
     // What the reviewer and the confirmed record's document see. Falls back to
     // the model input when the caller has nothing fuller to offer.
     raw_text: input.documentText ?? text,
-    extraction_result: extraction as unknown as Json,
-    match_candidates: matchCandidates as unknown as Json,
-    party_matches: partyMatches as unknown as Json,
-    fit_assessment: (fitAssessment ?? null) as unknown as Json,
+    extraction_result: extraction as unknown as JsonIn,
+    match_candidates: matchCandidates as unknown as JsonIn,
+    party_matches: partyMatches as unknown as JsonIn,
+    fit_assessment: (fitAssessment ?? null) as unknown as JsonIn,
   }
   const { data: session, error } = input.sessionId
     ? await supabase

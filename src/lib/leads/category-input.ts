@@ -73,7 +73,7 @@ export function normalizeCategoryPatch(
 
   if ('destination' in body) {
     const destination = text(body.destination)
-    if (!destination || !LEAD_DESTINATIONS.includes(destination as never)) {
+    if (!destination || !(LEAD_DESTINATIONS as readonly string[]).includes(destination)) {
       return {
         ok: false,
         error: `Destination must be one of: ${LEAD_DESTINATIONS.join(', ')}.`,

@@ -26,6 +26,7 @@ import {
 } from '@/lib/ai/prompts/intake-predecide'
 import { SYSTEM_USER_ID } from './analyze'
 import { createAdminClient } from '@/lib/supabase/admin'
+import type { JsonIn } from '@/lib/supabase/types'
 
 /** Matches the deal sweep's cap — ~10k tokens on the local model. */
 const MAX_EXCERPT_CHARS = 40_000
@@ -214,7 +215,7 @@ export async function predecidePendingSessions(
               decided_at: new Date().toISOString(),
               prompt_version: INTAKE_PREDECIDE_PROMPT_VERSION,
               auto_dismissed: autoDismiss,
-            } as unknown as never,
+            } as unknown as JsonIn,
             ...(autoDismiss ? { status: 'dismissed' } : {}),
           })
           .eq('id', row.id)

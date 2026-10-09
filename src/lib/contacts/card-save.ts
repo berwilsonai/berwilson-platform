@@ -17,7 +17,7 @@
 import { embedPartyEnrichment } from '@/lib/ai/embeddings'
 import type { createAdminClient } from '@/lib/supabase/admin'
 import type { CardScanDraft } from '@/lib/contacts/card-intake'
-import type { Json, TablesUpdate } from '@/lib/supabase/types'
+import type { Json, TablesUpdate, JsonIn } from '@/lib/supabase/types'
 
 export type CardAction = 'create' | 'link' | 'skip'
 
@@ -60,7 +60,7 @@ function cardEnrichment(draft: Partial<CardScanDraft>): Json {
     // The recognized text is kept; the photograph it came from is not.
     raw_text: str(draft.raw_text),
     sources: Array.isArray(draft.sources) ? draft.sources : [],
-  } as unknown as Json
+  } as unknown as JsonIn
 }
 
 /**
@@ -168,7 +168,7 @@ export async function saveCardContact(
     }
 
     const prior = (current.enrichment_notes ?? {}) as Record<string, unknown>
-    patch.enrichment_notes = { ...prior, business_card: cardEnrichment(draft) } as unknown as Json
+    patch.enrichment_notes = { ...prior, business_card: cardEnrichment(draft) } as unknown as JsonIn
 
     const { error } = await admin.from('parties').update(patch).eq('id', targetId)
     if (error) throw new Error(error.message)

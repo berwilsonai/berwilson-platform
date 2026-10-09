@@ -18,7 +18,7 @@ import { learnMeetingTitles } from '@/lib/email-sweep/identifiers'
 import { meetingTargetFromTitle } from '@/lib/meetings/meet-import'
 import { parseAttendees } from '@/lib/utils/meetings'
 import { createLeadFromMeeting } from '@/lib/leads/from-meeting'
-import type { TablesInsert } from '@/lib/supabase/types'
+import type { TablesInsert, JsonIn } from '@/lib/supabase/types'
 
 export const maxDuration = 300
 
@@ -610,7 +610,7 @@ export async function POST(request: NextRequest) {
     .from('email_intake_sessions')
     .update({
       status: 'confirmed',
-      created_record_ids: createdRecordIds as unknown as never,
+      created_record_ids: createdRecordIds as unknown as JsonIn,
       confirmed_at: new Date().toISOString(),
     })
     .eq('id', session_id)

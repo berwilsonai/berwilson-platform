@@ -755,7 +755,7 @@ async function importThreadAttachments(
 
     // `content_sha256` is absent from the generated types — `npm run gen-types`
     // is a disabled stub (§4), so they are frozen at whenever they were last
-    // produced by hand. Cast through unknown rather than scatter `as never`.
+    // produced by hand. Cast through unknown rather than scatter ``.
     const existing = (existingDocs ?? []) as unknown as {
       file_name: string | null
       content_sha256: string | null
@@ -849,7 +849,7 @@ async function importThreadAttachments(
             doc_type: 'correspondence',
             source: 'document',
             content_sha256: digest,
-          } as never)
+          } )
           .select('id')
           .single()
         if (error || !doc) {
@@ -880,7 +880,7 @@ async function importThreadAttachments(
             file_size_bytes: ref.size,
             doc_type: 'correspondence',
             content_sha256: digest,
-          } as never)
+          } )
           .select('id')
           .single()
         if (error || !doc) {

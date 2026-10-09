@@ -2,7 +2,7 @@
 // update (PATCH) API routes. Route files can't export helpers, so the parsing
 // lives here. Follows the dino/steel parse pattern.
 
-import type { TablesInsert } from '@/lib/supabase/types'
+import type { TablesInsert, JsonIn } from '@/lib/supabase/types'
 import type { Json } from '@/types/database'
 import {
   meetingKind,
@@ -69,11 +69,11 @@ export function parseMeetingFields(
       meeting_type_label: str(body, 'meeting_type_label'),
       chair: str(body, 'chair'),
       secretary: str(body, 'secretary'),
-      attendees: parseAttendees(body.attendees) as unknown as Json,
+      attendees: parseAttendees(body.attendees) as unknown as JsonIn,
       summary: str(body, 'summary'),
       minutes: str(body, 'minutes'),
       transcript: str(body, 'transcript'),
-      decisions: parseDecisions(body.decisions) as unknown as Json,
+      decisions: parseDecisions(body.decisions) as unknown as JsonIn,
       status,
       confidential: bool(body, 'confidential'),
       // board (company) defaults OFF, project/opportunity default ON — but honor an explicit value
@@ -126,11 +126,11 @@ export function parseMeetingPatch(
   }
   if ('transcript' in body) fields.transcript = str(body, 'transcript')
   if ('attendees' in body) {
-    fields.attendees = parseAttendees(body.attendees) as unknown as Json
+    fields.attendees = parseAttendees(body.attendees) as unknown as JsonIn
     bodyChanged = true
   }
   if ('decisions' in body) {
-    fields.decisions = parseDecisions(body.decisions) as unknown as Json
+    fields.decisions = parseDecisions(body.decisions) as unknown as JsonIn
     bodyChanged = true
   }
   if ('confidential' in body) fields.confidential = bool(body, 'confidential')

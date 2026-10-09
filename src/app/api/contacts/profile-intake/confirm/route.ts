@@ -17,7 +17,7 @@ import { actorAdminClient, getViewer, canAccessRecord, forbiddenJson } from '@/l
 import { embedPartyEnrichment } from '@/lib/ai/embeddings'
 import { upsertAliases } from '@/lib/contacts/aliases'
 import type { ProfileIntakeDraft, PersonProfileDraft } from '@/lib/contacts/profile-intake'
-import type { Json, TablesInsert, TablesUpdate } from '@/lib/supabase/types'
+import type { Json, TablesInsert, TablesUpdate, JsonIn } from '@/lib/supabase/types'
 import type { SupabaseClient } from '@supabase/supabase-js'
 
 export const maxDuration = 120
@@ -92,7 +92,7 @@ function composeEnrichment(draft: PersonProfileDraft | undefined): Json | null {
     role: draft.role,
     sources: draft.sources,
     researched: draft.researched,
-  } as unknown as Json
+  } as unknown as JsonIn
 }
 
 /**
@@ -330,7 +330,7 @@ export async function POST(request: NextRequest) {
         updated_party_ids: updated,
         linked_party_ids: linked,
         target,
-      } as unknown as Json,
+      } as unknown as JsonIn,
     })
     .eq('id', sessionId)
   if (closeErr) console.error('[people-intake] could not close session:', closeErr.message)

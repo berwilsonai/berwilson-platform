@@ -13,6 +13,7 @@ import {
 } from '@/lib/ai/proposal-matching'
 import { EmailIntakeError, SYSTEM_USER_ID, maxInputChars } from '@/lib/email-ingestion/analyze'
 import type { Json } from '@/types/database'
+import type { JsonIn } from '@/lib/supabase/types'
 
 /**
  * Meeting Notes Intake processing path.
@@ -452,9 +453,9 @@ export async function analyzeMeetingNotes(input: AnalyzeMeetingInput): Promise<A
       source_title: input.sourceTitle ?? null,
       label,
       raw_text: input.retainText ?? text,
-      extraction_result: extraction as unknown as Json,
-      match_candidates: referencedMatches as unknown as Json,
-      party_matches: partyMatches as unknown as Json,
+      extraction_result: extraction as unknown as JsonIn,
+      match_candidates: referencedMatches as unknown as JsonIn,
+      party_matches: partyMatches as unknown as JsonIn,
     })
     .select('id')
     .single()

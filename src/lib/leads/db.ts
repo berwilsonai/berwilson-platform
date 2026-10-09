@@ -10,6 +10,7 @@
  */
 
 import { createUntypedAdminClient } from '@/lib/supabase/admin'
+import type { AssertNever, Tables } from '@/lib/supabase/types'
 import type { LeadRoute } from '@/lib/ai/prompts/lead-triage'
 
 export function leadsDb() {
@@ -158,6 +159,8 @@ export interface LeadRow {
    *
    * NOT the same thing as `thread_id`, which is this platform's UUID primary
    * key on `email_threads` — passing that to Google returns "Invalid id value".
+   * ⚠ NOT A COLUMN ON `leads`. It is flattened in from the embed, which is why
+   * it is optional and why the assertion below has to name it explicitly.
    * Present only on reads that ask for it; use {@link resolveGmailThreadId}
    * rather than reaching for `thread_id` when talking to Gmail.
    */
@@ -219,6 +222,21 @@ export interface LeadRow {
   created_at: string | null
   updated_at: string | null
 }
+
+/**
+ * LeadRow cannot drift from `leads`.
+ *
+ * ⚠ IT HAD. When gen-types was repaired (2026-10-08) every other hand-written
+ * row interface in the repo was replaced by an alias of the generated Row;
+ * this one is kept because its per-field documentation is the point of it. The
+ * price of keeping it is these two lines, which fail the build and NAME the
+ * column rather than letting the interface quietly fall behind a migration.
+ */
+type _LeadRowCoversEveryColumn = AssertNever<Exclude<keyof Tables<'leads'>, keyof LeadRow>>
+type _LeadRowInventsNothing = AssertNever<
+  Exclude<keyof LeadRow, keyof Tables<'leads'> | 'gmail_thread_id'>
+>
+export type { _LeadRowCoversEveryColumn, _LeadRowInventsNothing }
 
 /** Statuses that still want a human decision — the working queue. */
 export const OPEN_LEAD_STATUSES: LeadStatus[] = ['new', 'reviewing']
