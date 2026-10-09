@@ -188,7 +188,7 @@ function CertCard({
             <InputRow label="Name *" name="name" defaultValue={cert.name} />
             <InputRow label="Issuing Body" name="issuing_body" defaultValue={cert.issuing_body} />
           </div>
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <InputRow label="Cert Number" name="cert_number" defaultValue={cert.cert_number} />
             <InputRow label="Issued Date" name="issued_date" type="date" defaultValue={cert.issued_date} />
             <InputRow label="Expiration Date" name="expiration_date" type="date" defaultValue={cert.expiration_date} />
@@ -311,7 +311,7 @@ function AddCertForm({ onCancel, onSuccess }: { onCancel: () => void; onSuccess:
           <InputRow label="Name *" name="name" placeholder="e.g. CMMC Level 2" />
           <InputRow label="Issuing Body" name="issuing_body" placeholder="e.g. DoD" />
         </div>
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <InputRow label="Cert Number" name="cert_number" />
           <InputRow label="Issued Date" name="issued_date" type="date" />
           <InputRow label="Expiration Date" name="expiration_date" type="date" />
@@ -411,7 +411,7 @@ export default function CompanyProfileClient({ profile, certifications: initialC
                 <InputRow label="Legal Name *" name="legal_name" defaultValue={profile.legal_name} />
                 <InputRow label="DBA / Trade Name" name="dba_name" defaultValue={profile.dba_name} />
               </div>
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <InputRow label="Founded Year" name="founded_year" type="number" defaultValue={profile.founded_year?.toString()} placeholder="e.g. 1985" />
                 <InputRow label="Phone" name="phone" defaultValue={profile.phone} />
                 <InputRow label="Email" name="email" type="email" defaultValue={profile.email} />
@@ -486,7 +486,7 @@ export default function CompanyProfileClient({ profile, certifications: initialC
             {/* Bonding */}
             <div className="rounded-lg border border-border p-4 space-y-4">
               <p className="label-caps text-muted-foreground">Bonding & Insurance</p>
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <InputRow label="Single Project Bonding Capacity ($)" name="bonding_capacity" type="number" defaultValue={profile.bonding_capacity?.toString()} />
                 <InputRow label="Aggregate Bonding Capacity ($)" name="aggregate_bonding" type="number" defaultValue={profile.aggregate_bonding?.toString()} />
                 <InputRow label="Bonding Company" name="bonding_company" defaultValue={profile.bonding_company} />
@@ -504,7 +504,7 @@ export default function CompanyProfileClient({ profile, certifications: initialC
                 options={SECTORS.map(s => ({ value: s, label: SECTOR_LABELS[s] }))}
                 selected={profile.target_sectors ?? []}
               />
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <InputRow label="Min Project Value ($)" name="min_project_value" type="number" defaultValue={profile.min_project_value?.toString()} placeholder="e.g. 5000000" />
                 <InputRow label="Sweet Spot Value ($)" name="sweet_spot_value" type="number" defaultValue={profile.sweet_spot_value?.toString()} placeholder="e.g. 50000000" />
                 <InputRow label="Max Project Value ($)" name="max_project_value" type="number" defaultValue={profile.max_project_value?.toString()} placeholder="e.g. 500000000" />
@@ -648,7 +648,7 @@ export default function CompanyProfileClient({ profile, certifications: initialC
             {(profile.bonding_capacity || profile.aggregate_bonding || profile.bonding_company) && (
               <div className="space-y-2">
                 <h3 className="label-caps text-muted-foreground">Bonding & Insurance</h3>
-                <dl className="grid grid-cols-3 gap-x-6 gap-y-2">
+                <dl className="grid grid-cols-1 sm:grid-cols-3 gap-x-6 gap-y-2">
                   <Field label="Single Project" value={formatCurrency(profile.bonding_capacity)} />
                   <Field label="Aggregate" value={formatCurrency(profile.aggregate_bonding)} />
                   <Field label="Bonding Company" value={profile.bonding_company} />

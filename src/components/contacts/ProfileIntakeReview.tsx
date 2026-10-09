@@ -380,7 +380,11 @@ export default function ProfileIntakeReview({ sessionId, draft, projects, opport
       )}
 
       {/* ── Confirm ── */}
-      <div className="flex items-center justify-between gap-3 sticky bottom-0 bg-background/95 backdrop-blur py-3 border-t border-border">
+      {/* The sticky offset clears MobileNav, which is `fixed bottom-0` at ~4rem
+          plus the safe area — pinned at bottom-0 the Confirm button sat behind
+          it on a phone for the whole length of the list. `flex-wrap` + a
+          `shrink-0` button keep the sentence beside it from squeezing it. */}
+      <div className="flex flex-wrap items-center justify-between gap-3 sticky bottom-[calc(4rem+env(safe-area-inset-bottom,0px))] md:bottom-0 bg-background/95 backdrop-blur py-3 border-t border-border">
         <span className="text-xs text-muted-foreground">
           {willWrite} {willWrite === 1 ? 'contact' : 'contacts'} will be saved
           {target ? ' and attached to the record' : ''}. Nothing is written until you press this.
@@ -389,7 +393,7 @@ export default function ProfileIntakeReview({ sessionId, draft, projects, opport
           type="button"
           onClick={submit}
           disabled={saving || profiling || willWrite === 0}
-          className="inline-flex items-center gap-1.5 h-9 px-4 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-60"
+          className="inline-flex shrink-0 items-center gap-1.5 h-9 px-4 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-60"
         >
           {saving ? <Loader2 size={15} className="animate-spin" /> : <CheckCircle2 size={15} />}
           {saving ? 'Saving…' : 'Confirm'}

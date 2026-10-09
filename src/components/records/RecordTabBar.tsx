@@ -52,30 +52,42 @@ export default function RecordTabBar({ basePath: base, tabs, counts }: RecordTab
 
   return (
     <div className="border-b border-border flex items-stretch">
-      <nav className="flex min-w-max -mb-px overflow-x-auto scrollbar-none">
-        {visible.map(({ label, segment, key }) => {
-          const href = hrefFor(segment)
-          const n = key ? (counts[key] ?? 0) : 0
-          return (
-            <Link
-              key={href}
-              href={href}
-              className={cn(
-                'px-4 py-2.5 text-sm font-medium whitespace-nowrap border-b-2 transition-colors',
-                isActiveTab(segment)
-                  ? 'border-primary text-foreground'
-                  : 'border-transparent text-muted-foreground hover:text-foreground hover:border-border'
-              )}
-            >
-              {label}
-              {n > 0 && <span className="ml-1.5 text-xs text-muted-foreground tnum">{n}</span>}
-            </Link>
-          )
-        })}
-      </nav>
+      {/*
+        The scroll container and `min-w-max` must be on DIFFERENT elements.
+        Both on the nav (as they were) cancel out: `min-width: max-content`
+        forces the box to its own content width, so it never has overflow to
+        scroll — it just grows, escapes this flex row, and gets clipped by
+        `main`'s `overflow-x-hidden`. A populated project shows thirteen tabs
+        and the tail of the bar was unreachable on a phone. `min-w-0` is what
+        lets this wrapper shrink below its content as a flex item; More stays
+        outside it so it never scrolls away. See ContactTabBar, same pattern.
+      */}
+      <div className="min-w-0 overflow-x-auto scrollbar-none">
+        <nav className="flex min-w-max -mb-px">
+          {visible.map(({ label, segment, key }) => {
+            const href = hrefFor(segment)
+            const n = key ? (counts[key] ?? 0) : 0
+            return (
+              <Link
+                key={href}
+                href={href}
+                className={cn(
+                  'px-4 py-2.5 text-sm font-medium whitespace-nowrap border-b-2 transition-colors',
+                  isActiveTab(segment)
+                    ? 'border-primary text-foreground'
+                    : 'border-transparent text-muted-foreground hover:text-foreground hover:border-border'
+                )}
+              >
+                {label}
+                {n > 0 && <span className="ml-1.5 text-xs text-muted-foreground tnum">{n}</span>}
+              </Link>
+            )
+          })}
+        </nav>
+      </div>
 
       {hidden.length > 0 && (
-        <div className="relative -mb-px">
+        <div className="relative -mb-px shrink-0">
           <button
             type="button"
             onClick={() => setMoreOpen((v) => !v)}

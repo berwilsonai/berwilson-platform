@@ -504,9 +504,13 @@ export default async function ProjectOverviewPage({ params }: PageProps) {
             View all →
           </Link>
         </div>
+        {/* overflow-x-AUTO, not hidden: five columns, three of them
+            whitespace-nowrap behind a fixed w-36 and w-20, so on a phone the
+            actor and the open-record link were clipped with no way to reach
+            them. Same min-width as the full /activity table. */}
         {typedLogs.length > 0 ? (
-          <div className="rounded-lg border border-border overflow-hidden">
-            <table className="w-full text-xs">
+          <div className="rounded-lg border border-border overflow-x-auto">
+            <table className="w-full text-xs min-w-[560px]">
               <tbody className="divide-y divide-border">
                 {typedLogs.map((log) => {
                   const link = activityRecordLink(log.table_name, log.record_id, id)
