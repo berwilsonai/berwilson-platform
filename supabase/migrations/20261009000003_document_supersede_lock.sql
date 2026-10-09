@@ -66,3 +66,22 @@ comment on column opportunity_documents.duplicate_of is
 
 create index if not exists idx_opportunity_documents_duplicate_of
   on opportunity_documents (duplicate_of) where duplicate_of is not null;
+
+-- Repair: a LIVE row may not carry the lock.
+--
+-- The restore this release replaces cleared `superseded_at` and left
+-- `superseded_by_hand` set, because the flag did not exist when it was written.
+-- Four rows reached that state within an hour of this session's dedupe, when the
+-- hourly drive-watch cron ran against the build that predated the fix — and the
+-- importers read the flag to decide what not to restore, so a live row holding it
+-- would be skipped by the sync forever and never updated again. The importers now
+-- require both columns; this clears the rows that already drifted.
+update documents
+   set superseded_by_hand = false, duplicate_of = null
+ where superseded_at is null
+   and (superseded_by_hand or duplicate_of is not null);
+
+update opportunity_documents
+   set superseded_by_hand = false, duplicate_of = null
+ where superseded_at is null
+   and (superseded_by_hand or duplicate_of is not null);

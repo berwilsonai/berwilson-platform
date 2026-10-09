@@ -141,7 +141,9 @@ export async function importDriveFolder(opts: {
    */
   const retired = new Set<string>()
   for (const row of (existingRows ?? []) as KnownDoc[]) {
-    if (row.superseded_by_hand) retired.add(row.drive_file_id)
+    // BOTH, never the flag alone — a live row with a stale lock would be
+    // skipped forever. See the same guard in knowledge/drive-sync.ts.
+    if (row.superseded_at && row.superseded_by_hand) retired.add(row.drive_file_id)
     else known.set(row.drive_file_id, row)
   }
 

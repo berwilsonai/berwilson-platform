@@ -192,7 +192,11 @@ export async function syncDriveKnowledge(
   const retired = new Set<string>()
   for (const row of (existingRows ?? []) as (KnownDoc & { is_company: boolean })[]) {
     if (row.excluded_at) excluded.add(row.drive_file_id)
-    else if (row.superseded_by_hand) retired.add(row.drive_file_id)
+    // BOTH, never the flag alone. A live row carrying a stale lock would be
+    // skipped here forever and never updated again — and that state is reachable:
+    // the restore this release replaces cleared `superseded_at` and left the flag
+    // set, which is exactly how four rows looked an hour after being retired.
+    else if (row.superseded_at && row.superseded_by_hand) retired.add(row.drive_file_id)
     else if (row.is_company) known.set(row.drive_file_id, row)
     else ownedElsewhere.add(row.drive_file_id)
   }
