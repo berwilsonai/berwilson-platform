@@ -30,6 +30,7 @@ import SteelCommissionsPanel from '@/components/steel/SteelCommissionsPanel'
 import SteelDealFiles from '@/components/steel/SteelDealFiles'
 import SteelEditDrawer from '@/components/steel/SteelEditDrawer'
 import type { Document } from '@/lib/supabase/types'
+import TrackVisit from '@/components/shared/TrackVisit'
 
 interface PageProps {
   params: Promise<{ id: string }>
@@ -153,6 +154,7 @@ export default async function SteelDealDetailPage({ params }: PageProps) {
 
   return (
     <div className="space-y-6">
+      <TrackVisit kind="steel" label={deal.name} href={`/steel/${id}`} />
       {/* Breadcrumb */}
       <nav className="flex items-center gap-1.5 text-sm">
         <Link href="/steel" className="text-muted-foreground hover:text-foreground transition-colors">

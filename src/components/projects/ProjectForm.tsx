@@ -1,6 +1,7 @@
 'use client'
 
 import { useActionState, useState } from 'react'
+import UnsavedGuard from '@/components/shared/UnsavedGuard'
 import Link from 'next/link'
 import { AlertCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -56,6 +57,13 @@ export default function ProjectForm({ mode, project, redirectAfterCreate, availa
       : createProject
 
   const [state, formAction, isPending] = useActionState<ProjectFormState, FormData>(action, null)
+  /*
+    Has anything been typed? One flag off the form's own bubbled events, so a
+    field added later is covered without being registered anywhere. `onInput`
+    catches typing and `onChange` catches selects and checkboxes; both set the
+    same flag, which only ever goes one way until the form is submitted.
+  */
+  const [dirty, setDirty] = useState(false)
 
   const [sector, setSector] = useState<ProjectSector | ''>(
     (project?.sector as ProjectSector) ?? ''
@@ -81,7 +89,15 @@ export default function ProjectForm({ mode, project, redirectAfterCreate, availa
   const cancelHref = mode === 'edit' && project ? `/projects/${project.id}` : '/projects'
 
   return (
-    <form action={formAction} className="space-y-6 max-w-2xl">
+    <form
+      action={formAction}
+      onInput={() => setDirty(true)}
+      onChange={() => setDirty(true)}
+      className="space-y-6 max-w-2xl"
+    >
+      {/* Inactive while submitting: the server action's own redirect must not
+          be mistaken for the reader walking away. */}
+      <UnsavedGuard active={dirty && !isPending} />
       {redirectAfterCreate && (
         <input type="hidden" name="redirect_after_create" value={redirectAfterCreate} />
       )}

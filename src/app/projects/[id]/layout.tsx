@@ -7,6 +7,7 @@ import { SECTOR_BADGE, SECTOR_LABELS } from '@/lib/utils/sectors'
 import { STAGE_LABELS, STAGE_BADGE } from '@/lib/utils/stages'
 import { STATUS_BADGE, STATUS_LABELS } from '@/lib/utils/constants'
 import RecordTabBar from '@/components/records/RecordTabBar'
+import TrackVisit from '@/components/shared/TrackVisit'
 import { PROJECT_TABS } from '@/components/records/tabs'
 import { getViewer, canAccessProject } from '@/lib/auth/viewer'
 import { parcelDb } from '@/lib/parcels/queries'
@@ -130,6 +131,10 @@ export default async function ProjectLayout({ children, params }: LayoutProps) {
           </div>
         </div>
       </div>
+
+      {/* Remembered as "recently opened" for ⌘K. Here rather than in the
+          shell because this is the component that knows the deal's NAME. */}
+      <TrackVisit kind="project" label={project.name} href={`/projects/${id}`} />
 
       {/* Tab bar */}
       <RecordTabBar basePath={`/projects/${id}`} tabs={PROJECT_TABS} counts={tabCounts} />

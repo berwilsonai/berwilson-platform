@@ -181,3 +181,44 @@ export function projectContextPreamble(project: {
 
 You are scoped to this project. Pull data for this project by default unless the user explicitly asks about other projects.`
 }
+
+/**
+ * The same preamble for an opportunity.
+ *
+ * ⚠ A SIBLING RATHER THAN ONE GENERALISED FUNCTION, because the two records
+ * are not the same question. A project asks "can we deliver it and get paid";
+ * an opportunity asks "should we do this at all" — so the fields that matter
+ * are the counterparty, the thesis and the next step, and `stage` does not
+ * exist on it at all. Collapsing them would mean a preamble full of "Not
+ * specified" on whichever half of the fields did not apply, and §12 is explicit
+ * that a prompt example the model cannot use is a lie it repeats confidently.
+ */
+export function opportunityContextPreamble(opportunity: {
+  name: string
+  opp_type: string | null
+  status: string | null
+  sector: string | null
+  location: string | null
+  counterparty: string | null
+  target_name: string | null
+  estimated_value: number | null
+  thesis: string | null
+  next_step: string | null
+}): string {
+  const value = opportunity.estimated_value
+    ? `$${(opportunity.estimated_value / 1_000_000).toFixed(1)}M`
+    : 'TBD'
+  // Named apart: the party across the table and the asset being pursued are
+  // different facts, and on several of these deals only one of them is known.
+  const across = opportunity.counterparty ?? opportunity.target_name ?? 'Not specified'
+
+  return `\n\n## ACTIVE OPPORTUNITY CONTEXT
+- **Opportunity:** ${opportunity.name}
+- **Type:** ${opportunity.opp_type ?? 'Not specified'} | **Status:** ${opportunity.status ?? 'active'}
+- **Sector:** ${opportunity.sector ?? 'Not specified'}
+- **Location:** ${opportunity.location ?? 'Not specified'}
+- **Counterparty / target:** ${across}
+- **Estimated Value:** ${value}${opportunity.thesis ? `\n- **Thesis:** ${opportunity.thesis}` : ''}${opportunity.next_step ? `\n- **Next step:** ${opportunity.next_step}` : ''}
+
+You are scoped to this opportunity. It is a PURSUIT, not a won project: its documents, correspondence, people, meetings, milestones, vehicles and economics all hang off the opportunity record. Pull data for it by default unless the user explicitly asks about other deals.`
+}

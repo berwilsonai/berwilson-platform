@@ -1,10 +1,12 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { Radar, Inbox, ClipboardCheck, FileText, ArrowRight, X, Loader2, Check, CheckCheck, Calculator} from 'lucide-react'
 import { Panel } from '@/components/ui/card'
+import { Kbd } from '@/components/ui/kbd'
 import EmptyState from '@/components/shared/EmptyState'
 import { decideWeight, daysUntil, meetingBoost } from '@/lib/decide/rank'
 import { enumLabel, formatValue, formatDate } from '@/lib/utils/constants'
@@ -355,6 +357,7 @@ function acceptVerb(item: { accept: AcceptAction | null; acceptTo?: string | nul
 }
 
 export default function DecideClient({ items }: { items: DecideItem[] }) {
+  const router = useRouter()
   const [kind, setKind] = useState<DecideKind | 'all'>('all')
   // Set aside in this session. Optimistic: the row goes immediately and comes
   // back if the write fails, because a queue that pauses on every dismissal is
@@ -377,6 +380,21 @@ export default function DecideClient({ items }: { items: DecideItem[] }) {
   // rendering is impure, and the list must not silently reorder itself between
   // two renders of the same data.
   const [now] = useState(() => Date.now())
+  /*
+    The keyboard cursor — an index into `visible`.
+
+    -1 until a key is pressed, so a mouse user never sees a highlighted row
+    they did not ask for. The queue is the one surface in the app worked in
+    batches of seventy, and it was reachable only by mouse: j/k to move, x to
+    tick, a to accept, Enter to open.
+  */
+  const [cursor, setCursor] = useState(-1)
+  const rowsRef = useRef(new Map<number, HTMLDivElement | null>())
+  /*
+    Anchor for a shift-click range, as a ref rather than state: it changes on
+    every tick and nothing renders from it, so it must not cost a render.
+  */
+  const anchorRef = useRef<number | null>(null)
 
   const ranked = useMemo(
     () =>
@@ -445,14 +463,40 @@ export default function DecideClient({ items }: { items: DecideItem[] }) {
   const allShownSelected =
     selectable.length > 0 && selectable.every((i) => selected.has(`${i.kind}:${i.id}`))
 
-  function toggle(key: string) {
-    setSelected((prev) => {
-      const next = new Set(prev)
-      if (next.has(key)) next.delete(key)
-      else next.add(key)
-      return next
-    })
-  }
+  /**
+   * Tick one row, or — with shift held — everything from the last tick to here.
+   *
+   * The anchor is the row ticked last, mail-client style, and a range only
+   * ADDS: a shift-click that could silently clear thirty rows the reader had
+   * gathered is not worth the symmetry. Rows the batch would refuse are
+   * skipped rather than counted, so the number beside Accept stays the number
+   * of records that will actually be written.
+   */
+  const pick = useCallback((index: number, shift: boolean) => {
+    const item = visible[index]
+    if (!item?.accept) return
+    if (shift && anchorRef.current !== null) {
+      const from = Math.min(anchorRef.current, index)
+      const to = Math.max(anchorRef.current, index)
+      setSelected((prev) => {
+        const next = new Set(prev)
+        for (let i = from; i <= to; i++) {
+          const row = visible[i]
+          if (row?.accept) next.add(`${row.kind}:${row.id}`)
+        }
+        return next
+      })
+    } else {
+      const key = `${item.kind}:${item.id}`
+      setSelected((prev) => {
+        const next = new Set(prev)
+        if (next.has(key)) next.delete(key)
+        else next.add(key)
+        return next
+      })
+    }
+    anchorRef.current = index
+  }, [visible])
 
   async function dismiss(item: Dated) {
     const key = `${item.kind}:${item.id}`
@@ -594,6 +638,88 @@ export default function DecideClient({ items }: { items: DecideItem[] }) {
     }
   }
 
+  /*
+    Clamped at read time rather than corrected in an effect — the same rule the
+    command palette uses. The list shrinks under the cursor as rows are
+    accepted and set aside, and an index past the end must neither throw nor
+    silently jump back to the top of a queue the reader was halfway down.
+  */
+  const cursorIdx = visible.length === 0 ? -1 : Math.min(cursor, visible.length - 1)
+  const cursorItem = cursorIdx >= 0 ? visible[cursorIdx] : undefined
+
+  /*
+    The keyboard.
+
+    Deliberately NOT active while a batch is running or a confirmation is open:
+    a key that queues another write behind seventy in flight, or that answers a
+    dialog the reader has not read, is worse than no shortcut. Modifier
+    combinations fall through untouched so the global ⌘K and ⌘J still work, and
+    so do keys typed into a field.
+  */
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.metaKey || e.ctrlKey || e.altKey) return
+      if (bulk || asking || askingBatch) return
+      const el = e.target as HTMLElement | null
+      if (
+        el &&
+        (el.tagName === 'INPUT' ||
+          el.tagName === 'TEXTAREA' ||
+          el.tagName === 'SELECT' ||
+          el.isContentEditable)
+      ) {
+        return
+      }
+      const last = visible.length - 1
+      switch (e.key) {
+        case 'j':
+        case 'ArrowDown':
+          e.preventDefault()
+          setCursor((c) => Math.min(c < 0 ? 0 : c + 1, last))
+          break
+        case 'k':
+        case 'ArrowUp':
+          e.preventDefault()
+          setCursor((c) => (c <= 0 ? 0 : c - 1))
+          break
+        case 'x':
+        case ' ':
+          if (cursorIdx < 0) return
+          e.preventDefault()
+          pick(cursorIdx, e.shiftKey)
+          break
+        case 'a':
+          if (!cursorItem?.accept) return
+          e.preventDefault()
+          // Through the confirmation, never straight to the write: a mistyped
+          // key must not create a project.
+          setAsking(cursorItem)
+          break
+        case 'Enter':
+          if (!cursorItem) return
+          e.preventDefault()
+          router.push(cursorItem.href)
+          break
+        case 'Escape':
+          // One rule rather than two: Escape clears the selection AND the
+          // cursor. A key that means different things depending on hidden
+          // state is one nobody trusts on a queue of seventy.
+          setSelected(new Set())
+          setCursor(-1)
+          break
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [visible, cursorIdx, cursorItem, bulk, asking, askingBatch, pick, router])
+
+  // Keep the cursor row on screen. `block: 'nearest'` scrolls the minimum —
+  // the row the reader is already looking at must not jump to the middle.
+  useEffect(() => {
+    if (cursorIdx < 0) return
+    rowsRef.current.get(cursorIdx)?.scrollIntoView({ block: 'nearest' })
+  }, [cursorIdx])
+
   const urgent = live.filter((i) => i.daysLeft !== null && i.daysLeft <= 7).length
 
   if (live.length === 0) {
@@ -636,8 +762,11 @@ export default function DecideClient({ items }: { items: DecideItem[] }) {
           control that only appears once you have already started selecting is
           one nobody discovers — and the whole point is to offer the shortcut
           before the reader resigns themselves to clicking seventy times. */}
+      {/* Sticky, because a control at the top of a list of 190 is a control
+          you have to leave the rows to reach: the reader ticks on the way
+          down, and Accept had scrolled off the screen by row twelve. */}
       {(selectable.length > 0 || bulk) && (
-        <Panel className="px-4 py-2.5 flex flex-wrap items-center gap-x-3 gap-y-2">
+        <Panel className="sticky top-0 z-10 px-4 py-2.5 flex flex-wrap items-center gap-x-3 gap-y-2">
           {bulk ? (
             <>
               <Loader2 size={14} className="animate-spin text-primary shrink-0" />
@@ -702,8 +831,26 @@ export default function DecideClient({ items }: { items: DecideItem[] }) {
         </Panel>
       )}
 
+      {/* The shortcuts, stated rather than discovered — and only where there
+          is a keyboard to press them with. */}
+      {selectable.length > 0 && !bulk && (
+        <p className="hidden sm:flex flex-wrap items-center gap-x-2 gap-y-1 px-1 text-[11px] text-muted-foreground">
+          <span><Kbd>j</Kbd> <Kbd>k</Kbd> move</span>
+          <span aria-hidden className="opacity-40">·</span>
+          <span><Kbd>x</Kbd> select</span>
+          <span aria-hidden className="opacity-40">·</span>
+          <span><Kbd>shift</Kbd>+click a range</span>
+          <span aria-hidden className="opacity-40">·</span>
+          <span><Kbd>a</Kbd> accept</span>
+          <span aria-hidden className="opacity-40">·</span>
+          <span><Kbd>↵</Kbd> open</span>
+          <span aria-hidden className="opacity-40">·</span>
+          <span><Kbd>esc</Kbd> clear</span>
+        </p>
+      )}
+
       <Panel className="divide-y divide-border">
-        {visible.map((item) => {
+        {visible.map((item, index) => {
           const meta = KIND_META[item.kind]
           const Icon = meta.icon
           const overdue = item.daysLeft !== null && item.daysLeft < 0
@@ -711,7 +858,14 @@ export default function DecideClient({ items }: { items: DecideItem[] }) {
           return (
             <div
               key={`${item.kind}:${item.id}`}
-              className="flex items-start gap-3 px-4 py-3 hover:bg-accent transition-colors group"
+              ref={(el) => {
+                rowsRef.current.set(index, el)
+              }}
+              className={`flex items-start gap-3 px-4 py-3 transition-colors group ${
+                index === cursorIdx
+                  ? 'bg-accent ring-1 ring-inset ring-primary/40'
+                  : 'hover:bg-accent'
+              }`}
             >
               {/* Only acceptable rows get a tick box. A checkbox that selects
                   something the batch would then refuse is a promise the list
@@ -721,10 +875,19 @@ export default function DecideClient({ items }: { items: DecideItem[] }) {
                   {/* 44px hit area via an overlay, never padding — padding here
                       shifts the row under the next tap. */}
                   <span className="absolute -inset-3" aria-hidden />
+                  {/* The handler is onClick, not onChange, because only the
+                      click event carries `shiftKey` — and a keyboard Space on
+                      a checkbox dispatches a click too, so both routes land
+                      here. onChange stays as a no-op for React's controlled
+                      input contract. */}
                   <input
                     type="checkbox"
                     checked={selected.has(`${item.kind}:${item.id}`)}
-                    onChange={() => toggle(`${item.kind}:${item.id}`)}
+                    onClick={(e) => {
+                      setCursor(index)
+                      pick(index, e.shiftKey)
+                    }}
+                    onChange={() => {}}
                     disabled={Boolean(bulk)}
                     aria-label={`Select: ${item.title}`}
                     className="relative size-3.5 accent-primary cursor-pointer disabled:opacity-40"

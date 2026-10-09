@@ -6,7 +6,7 @@
 
 import { GoogleGenerativeAI, type Content, type Part, type FunctionDeclaration } from '@google/generative-ai'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { AGENT_SYSTEM_PROMPT, projectContextPreamble } from './prompts/agent'
+import { AGENT_SYSTEM_PROMPT, projectContextPreamble, opportunityContextPreamble } from './prompts/agent'
 import { agentTools, executeToolCall } from './agent-tools'
 import { getCompanyContext } from './company-context'
 import { isLocalAI, localChatModel, localChatStream, type LocalChatMessage } from './local'
@@ -85,6 +85,12 @@ function getClient(): GoogleGenerativeAI {
 export interface AgentContext {
   userId: string
   projectId?: string
+  /**
+   * Scope the conversation to an opportunity — the same soft default as
+   * `projectId`, for the other half of the pipeline. At most one of the two is
+   * ever set; the column behind them carries a CHECK saying so.
+   */
+  opportunityId?: string
   /** Scope the conversation to a single reference document (digest / Q&A). */
   documentId?: string
   conversationId: string
@@ -192,6 +198,20 @@ export async function runAgent(
         parent_name: parentName,
         child_count: childCount,
       })
+    }
+  }
+
+  if (context.opportunityId) {
+    const { data: opportunity } = await supabase
+      .from('opportunities')
+      .select(
+        'name, opp_type, status, sector, location, counterparty, target_name, estimated_value, thesis, next_step'
+      )
+      .eq('id', context.opportunityId)
+      .single()
+
+    if (opportunity) {
+      systemPrompt += opportunityContextPreamble(opportunity)
     }
   }
 

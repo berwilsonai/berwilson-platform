@@ -1,6 +1,7 @@
 'use client'
 
 import { useActionState, useState } from 'react'
+import UnsavedGuard from '@/components/shared/UnsavedGuard'
 import Link from 'next/link'
 import { AlertCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -39,6 +40,13 @@ export default function OpportunityForm({ mode, opportunity }: OpportunityFormPr
       : createOpportunity
 
   const [state, formAction, isPending] = useActionState<OpportunityFormState, FormData>(action, null)
+  /*
+    Has anything been typed? One flag off the form's own bubbled events, so a
+    field added later is covered without being registered anywhere. `onInput`
+    catches typing and `onChange` catches selects and checkboxes; both set the
+    same flag, which only ever goes one way until the form is submitted.
+  */
+  const [dirty, setDirty] = useState(false)
 
   // Short forms the email router should recognise for this deal. Kept in state
   // and submitted as a hidden JSON field, mirroring the project form.
@@ -49,7 +57,15 @@ export default function OpportunityForm({ mode, opportunity }: OpportunityFormPr
   const cancelHref = mode === 'edit' && opportunity ? `/opportunities/${opportunity.id}` : '/opportunities'
 
   return (
-    <form action={formAction} className="space-y-6 max-w-2xl">
+    <form
+      action={formAction}
+      onInput={() => setDirty(true)}
+      onChange={() => setDirty(true)}
+      className="space-y-6 max-w-2xl"
+    >
+      {/* Inactive while submitting: the server action's own redirect must not
+          be mistaken for the reader walking away. */}
+      <UnsavedGuard active={dirty && !isPending} />
       {/* Error banner */}
       {state?.error && (
         <div className="flex items-center gap-2 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2.5 text-sm text-destructive">

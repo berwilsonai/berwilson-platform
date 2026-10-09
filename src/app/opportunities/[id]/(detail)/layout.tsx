@@ -23,6 +23,7 @@ import OpportunityStatusControl from '@/components/opportunities/OpportunityStat
 import GenerateBriefButton from '@/components/projects/GenerateBriefButton'
 import OpportunityDeleteButton from '@/components/opportunities/OpportunityDeleteButton'
 import RecordTabBar, { type TabKey } from '@/components/records/RecordTabBar'
+import TrackVisit from '@/components/shared/TrackVisit'
 import { OPPORTUNITY_TABS } from '@/components/records/tabs'
 
 interface LayoutProps {
@@ -171,6 +172,8 @@ export default async function OpportunityDetailLayout({ children, params }: Layo
           </div>
         )}
       </div>
+
+      <TrackVisit kind="opportunity" label={opportunity.name} href={`/opportunities/${id}`} />
 
       <RecordTabBar basePath={`/opportunities/${id}`} tabs={OPPORTUNITY_TABS} counts={tabCounts} />
 

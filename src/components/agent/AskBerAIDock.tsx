@@ -5,23 +5,46 @@ import { usePathname } from 'next/navigation'
 import { Bot, X } from 'lucide-react'
 import AgentChat from './AgentChat'
 
+const UUID = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'
+
+/**
+ * Which record the reader is standing on, as a TABLE rather than a regex per
+ * kind.
+ *
+ * ⚠ It was one inline `/projects/<uuid>` match, so ⌘J on an OPPORTUNITY — the
+ * record type carrying most of the live pipeline since it gained the same child
+ * tables (2026-09-23) — opened the agent portfolio-wide, and the reader had to
+ * name the deal in the question. Adding the next kind (a steel deal, a vehicle)
+ * is a row here plus a prop on AgentChat, which `tsc` then demands everywhere.
+ */
+const SCOPE_ROUTES: { kind: 'project' | 'opportunity'; pattern: RegExp; noun: string }[] = [
+  { kind: 'project', pattern: new RegExp(`^/projects/(${UUID})`, 'i'), noun: 'project' },
+  { kind: 'opportunity', pattern: new RegExp(`^/opportunities/(${UUID})`, 'i'), noun: 'deal' },
+]
+
+/** Module scope, because it needs nothing but its argument (§12). */
+function resolveScope(pathname: string) {
+  for (const route of SCOPE_ROUTES) {
+    const id = pathname.match(route.pattern)?.[1]
+    if (id) return { kind: route.kind, id, noun: route.noun }
+  }
+  return null
+}
+
 /**
  * Ambient "Ask Ber AI" — a global slide-over hosting the executive agent,
  * available from every page via the header button, ⌘J / Ctrl+J, or a
  * window 'open-ber-ai' CustomEvent (optionally carrying {query}).
  *
- * Context-aware: on a project page the agent is scoped to that project
- * (soft default — it can still reach portfolio-wide when asked).
+ * Context-aware: on a project or opportunity page the agent is scoped to that
+ * record (soft default — it can still reach portfolio-wide when asked).
  */
 export default function AskBerAIDock() {
   const pathname = usePathname()
   const [open, setOpen] = useState(false)
   const [seed, setSeed] = useState('')
 
-  // Project scope from the route: /projects/<uuid>[/...]
-  const projectId = pathname.match(
-    /^\/projects\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i
-  )?.[1]
+  const scope = resolveScope(pathname)
 
   const close = useCallback(() => setOpen(false), [])
 
@@ -74,7 +97,9 @@ export default function AskBerAIDock() {
           <div className="min-w-0 flex-1">
             <p className="text-sm font-semibold text-foreground">Ask Ber AI</p>
             <p className="text-xs text-muted-foreground truncate">
-              {projectId ? 'Scoped to this project — can reach the whole portfolio' : 'Across your entire portfolio and knowledge base'}
+              {scope
+                ? `Scoped to this ${scope.noun} — can reach the whole portfolio`
+                : 'Across your entire portfolio and knowledge base'}
             </p>
           </div>
           <button
@@ -86,11 +111,14 @@ export default function AskBerAIDock() {
           </button>
         </div>
 
+        {/* `key` on the scope, so walking from one deal to another starts the
+            conversation the reader expects rather than continuing the last. */}
         <AgentChat
-          key={projectId ?? 'portfolio'}
-          projectId={projectId}
+          key={scope?.id ?? 'portfolio'}
+          projectId={scope?.kind === 'project' ? scope.id : undefined}
+          opportunityId={scope?.kind === 'opportunity' ? scope.id : undefined}
           initialInput={seed}
-          placeholder={projectId ? 'Ask about this project…' : 'Ask anything across the portfolio…'}
+          placeholder={scope ? `Ask about this ${scope.noun}…` : 'Ask anything across the portfolio…'}
           className="flex-1 min-h-0"
         />
       </div>

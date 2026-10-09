@@ -36,12 +36,23 @@ export async function POST(request: NextRequest) {
     message?: string
     conversationId?: string
     projectId?: string
+    opportunityId?: string
     documentId?: string
     stream?: boolean
   }
 
   if (!body.message?.trim()) {
     return NextResponse.json({ error: 'Message is required' }, { status: 400 })
+  }
+
+  // `agent_conversations` carries a CHECK that at most one deal record is
+  // named. Refused here rather than at the insert, so a caller that scopes a
+  // conversation twice reads its own mistake instead of a 500.
+  if (body.projectId && body.opportunityId) {
+    return NextResponse.json(
+      { error: 'A conversation can be scoped to a project or an opportunity, not both.' },
+      { status: 400 }
+    )
   }
 
   const admin = createAdminClient()
@@ -53,7 +64,11 @@ export async function POST(request: NextRequest) {
       .from('agent_conversations')
       .insert({
         user_id: user.id,
+        // Both pointers on every insert, never just the one that is set: the
+        // pair is what the CHECK reads (§12 — the columns a discriminator
+        // governs travel together).
         project_id: body.projectId ?? null,
+        opportunity_id: body.opportunityId ?? null,
         document_id: body.documentId ?? null,
         title: body.message.slice(0, 100),
       })
@@ -96,6 +111,7 @@ export async function POST(request: NextRequest) {
   const agentContext = {
     userId: user.id,
     projectId: body.projectId,
+    opportunityId: body.opportunityId,
     documentId: body.documentId,
     conversationId: conversationId!,
   }
@@ -230,6 +246,7 @@ export async function GET(request: NextRequest) {
 
   const conversationId = request.nextUrl.searchParams.get('conversationId')
   const projectId = request.nextUrl.searchParams.get('projectId')
+  const opportunityId = request.nextUrl.searchParams.get('opportunityId')
   const documentId = request.nextUrl.searchParams.get('documentId')
 
   const admin = createAdminClient()
@@ -258,12 +275,13 @@ export async function GET(request: NextRequest) {
   // Otherwise list conversations for this user/project/document
   let q = admin
     .from('agent_conversations')
-    .select('id, title, project_id, document_id, created_at, updated_at')
+    .select('id, title, project_id, opportunity_id, document_id, created_at, updated_at')
     .eq('user_id', user.id)
     .order('updated_at', { ascending: false })
     .limit(20)
 
   if (projectId) q = q.eq('project_id', projectId) as typeof q
+  if (opportunityId) q = q.eq('opportunity_id', opportunityId) as typeof q
   if (documentId) q = q.eq('document_id', documentId) as typeof q
 
   const { data, error } = await q

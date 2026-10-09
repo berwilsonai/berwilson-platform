@@ -15,6 +15,7 @@ import { ENTITY_CATEGORY_LABELS, ENTITY_CATEGORY_BADGE, type EntityCategory } fr
 import { createAdminClient } from '@/lib/supabase/admin'
 import VendorProfileClient from '@/components/vendors/VendorProfileClient'
 import MediaGallery from '@/components/shared/MediaGallery'
+import TrackVisit from '@/components/shared/TrackVisit'
 
 export const metadata = { title: 'Vendor Profile — Ber Wilson Intelligence' }
 
@@ -79,6 +80,7 @@ export default async function VendorDetailPage({ params }: PageProps) {
 
   return (
     <div className="space-y-6">
+      <TrackVisit kind="vendor" label={entity.name} href={`/vendors/${id}`} />
       {/* Back link */}
       <Link
         href="/contacts?tab=vendors"

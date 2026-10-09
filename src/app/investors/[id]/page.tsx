@@ -32,6 +32,7 @@ import InvestmentsSection, { type InvestmentRow } from '@/components/investors/I
 import InvestorRequirements from '@/components/investors/InvestorRequirements'
 import type { InvestorRequirement } from '@/lib/supabase/types'
 import type { BoardTask, TeamMember } from '@/components/tasks/task-utils'
+import TrackVisit from '@/components/shared/TrackVisit'
 
 interface PageProps {
   params: Promise<{ id: string }>
@@ -165,6 +166,7 @@ export default async function InvestorDetailPage({ params }: PageProps) {
 
   return (
     <div className="space-y-6">
+      <TrackVisit kind="investor" label={investor.name} href={`/investors/${id}`} />
       {/* Breadcrumb */}
       <nav className="flex items-center gap-1.5 text-sm">
         <Link href="/investors" className="text-muted-foreground hover:text-foreground transition-colors">

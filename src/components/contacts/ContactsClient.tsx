@@ -7,6 +7,8 @@ import {
   Building2,
   Check,
   CheckSquare,
+  LayoutGrid,
+  List,
   Mail,
   Phone,
   Search,
@@ -18,6 +20,7 @@ import {
 import { cn } from '@/lib/utils'
 import { hashedAvatarClasses, nameInitials } from '@/lib/utils/avatar'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
+import { useStoredState } from '@/hooks/use-stored-state'
 
 export interface ContactWithStats {
   id: string
@@ -37,6 +40,16 @@ export interface ContactWithStats {
 
 type SortKey = 'name' | 'company' | 'last_active' | 'project_count'
 type ViewMode = 'all' | 'individuals' | 'organizations'
+/**
+ * How many contacts fit on a screen.
+ *
+ * ⚠ `list` is the default, and that is a measurement rather than a taste: the
+ * card grid is three across with an 80px portrait, which is six records a
+ * screen against 83 contacts — and 80 of those 83 have no photograph, so the
+ * photo-forward layout spends its space on an initial in a circle. The cards
+ * stay for the day the directory has faces in it.
+ */
+type Density = 'list' | 'cards'
 
 interface ContactsClientProps {
   contacts: ContactWithStats[]
@@ -48,6 +61,9 @@ export default function ContactsClient({ contacts: initialContacts }: ContactsCl
   const [sort, setSort] = useState<SortKey>('name')
   const [view, setView] = useState<ViewMode>('all')
   const [tagFilter, setTagFilter] = useState('')
+  // Remembered per browser: a density is a per-viewer convenience, not a
+  // destination — nothing needs to link to it or send it to anyone.
+  const [density, setDensity] = useStoredState<Density>('contacts-density', 'list')
 
   // Selection / mass delete
   const [selecting, setSelecting] = useState(false)
@@ -229,6 +245,31 @@ export default function ContactsClient({ contacts: initialContacts }: ContactsCl
           ))}
         </div>
 
+        {/* Density. Icon-only, labelled for a screen reader — the two shapes
+            are self-evident and the toolbar already wraps on a laptop. */}
+        <div className="flex rounded-md border border-input overflow-hidden">
+          {([
+            { value: 'list' as const, icon: List, label: 'Compact list' },
+            { value: 'cards' as const, icon: LayoutGrid, label: 'Cards with photos' },
+          ]).map(({ value, icon: Icon, label }) => (
+            <button
+              key={value}
+              onClick={() => setDensity(value)}
+              aria-label={label}
+              aria-pressed={density === value}
+              title={label}
+              className={cn(
+                'px-2.5 h-8 transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
+                density === value
+                  ? 'bg-foreground text-background'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+              )}
+            >
+              <Icon size={14} />
+            </button>
+          ))}
+        </div>
+
         <span className="text-xs text-muted-foreground">
           {filtered.length} contact{filtered.length !== 1 ? 's' : ''}
         </span>
@@ -275,6 +316,20 @@ export default function ContactsClient({ contacts: initialContacts }: ContactsCl
         <div className="py-20 text-center text-sm text-muted-foreground">
           No contacts match your search.
         </div>
+      ) : density === 'list' ? (
+        <div className="rounded-xl border border-border bg-card divide-y divide-border overflow-hidden">
+          {filtered.map(contact => (
+            <ContactRow
+              key={contact.id}
+              contact={contact}
+              onDelete={handleDelete}
+              selecting={selecting}
+              selected={selected.has(contact.id)}
+              onToggleSelect={toggleSelected}
+              onTagClick={setTagFilter}
+            />
+          ))}
+        </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
           {filtered.map(contact => (
@@ -304,6 +359,193 @@ export default function ContactsClient({ contacts: initialContacts }: ContactsCl
   )
 }
 
+interface ContactItemProps {
+  contact: ContactWithStats
+  onDelete: (id: string) => void
+  selecting: boolean
+  selected: boolean
+  onToggleSelect: (id: string) => void
+  onTagClick: (tag: string) => void
+}
+
+/**
+ * Archive one contact. ONE copy, used by both renderings — a second density is
+ * not a reason for a second delete path, and the two would drift the first
+ * time the endpoint or the toast changed.
+ */
+function useContactDelete(contact: ContactWithStats, onDelete: (id: string) => void) {
+  const [confirming, setConfirming] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+
+  async function remove() {
+    setDeleting(true)
+    try {
+      const res = await fetch(`/api/parties/${contact.id}`, { method: 'DELETE' })
+      if (res.ok) {
+        onDelete(contact.id)
+        toast.success(`${contact.full_name} deleted`)
+        return
+      }
+      toast.error('Failed to delete contact')
+    } catch {
+      toast.error('Failed to delete contact')
+    }
+    setDeleting(false)
+    setConfirming(false)
+  }
+
+  return { confirming, setConfirming, deleting, remove }
+}
+
+/** What a contact reads as on one line: their title and where they work. */
+function secondaryLine(contact: ContactWithStats): string | null {
+  const parts = [contact.title, contact.company].filter(Boolean) as string[]
+  if (parts.length > 0) return parts.join(' · ')
+  return contact.email ?? contact.phone ?? null
+}
+
+/**
+ * The compact row — the directory's default.
+ *
+ * Everything the card carries that a reader SCANS by is here: the name, who
+ * they are, their mailbox, how many deals they are on. What the card has and
+ * this does not is the 80px portrait and the full tag list, both of which are
+ * on the record itself one click away.
+ */
+function ContactRow({
+  contact,
+  onDelete,
+  selecting,
+  selected,
+  onToggleSelect,
+  onTagClick,
+}: ContactItemProps) {
+  const { confirming, setConfirming, deleting, remove } = useContactDelete(contact, onDelete)
+  const secondary = secondaryLine(contact)
+
+  return (
+    <div
+      className={cn(
+        'relative group flex items-center gap-2 pl-3 pr-1 transition-colors',
+        selecting && selected ? 'bg-primary/5' : 'hover:bg-accent'
+      )}
+    >
+      {selecting && (
+        <span
+          className={cn(
+            'size-5 shrink-0 rounded border flex items-center justify-center',
+            selected ? 'bg-primary border-primary text-primary-foreground' : 'bg-background border-input'
+          )}
+          aria-hidden
+        >
+          {selected && <Check size={13} />}
+        </span>
+      )}
+
+      <Link
+        href={`/contacts/${contact.id}`}
+        onClick={e => {
+          if (selecting) {
+            e.preventDefault()
+            onToggleSelect(contact.id)
+          }
+        }}
+        aria-checked={selecting ? selected : undefined}
+        className="flex min-h-16 min-w-0 flex-1 items-center gap-3 py-2.5 outline-none focus-visible:ring-3 focus-visible:ring-ring/50 rounded-md"
+      >
+        <span
+          className={cn(
+            'size-9 rounded-full flex items-center justify-center shrink-0 overflow-hidden',
+            contact.avatar_url
+              ? 'bg-muted ring-1 ring-border'
+              : contact.is_organization
+                ? 'bg-primary/10 text-primary dark:bg-primary/20'
+                : hashedAvatarClasses(contact.full_name)
+          )}
+        >
+          {contact.avatar_url ? (
+            <img src={contact.avatar_url} alt="" className="size-9 object-cover" />
+          ) : contact.is_organization ? (
+            <Building2 size={16} />
+          ) : (
+            <span className="text-xs font-semibold tracking-wide">{nameInitials(contact.full_name)}</span>
+          )}
+        </span>
+
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-sm font-medium">{contact.full_name}</span>
+          {secondary && (
+            <span className="block truncate text-xs text-muted-foreground">{secondary}</span>
+          )}
+        </span>
+
+        {/* The mailbox, where there is room for it — it is the field most often
+            wanted FROM a list rather than from the record. */}
+        {contact.email && (
+          <span className="hidden xl:flex min-w-0 max-w-[16rem] items-center gap-1.5 text-xs text-muted-foreground">
+            <Mail size={11} className="shrink-0" />
+            <span className="truncate">{contact.email}</span>
+          </span>
+        )}
+
+        {contact.project_count > 0 && (
+          <span className="hidden sm:block shrink-0 text-xs text-muted-foreground tnum">
+            {contact.project_count} project{contact.project_count !== 1 ? 's' : ''}
+          </span>
+        )}
+      </Link>
+
+      {/* Tags — siblings of the link, because each one is its own button. */}
+      {contact.tags.length > 0 && (
+        <span className="hidden md:flex shrink-0 items-center gap-1">
+          {contact.tags.slice(0, 2).map(tag => (
+            <button
+              key={tag}
+              type="button"
+              onClick={() => onTagClick(tag)}
+              className="inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-xs font-medium bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
+              title={`Filter by ${tag}`}
+            >
+              <Tag size={8} className="shrink-0" />
+              {tag}
+            </button>
+          ))}
+          {contact.tags.length > 2 && (
+            <span className="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium bg-muted text-muted-foreground">
+              +{contact.tags.length - 2}
+            </span>
+          )}
+        </span>
+      )}
+
+      {!selecting && (
+        <span className="flex shrink-0 items-center">
+          <button
+            type="button"
+            title="Delete contact"
+            aria-label={`Delete ${contact.full_name}`}
+            onClick={() => setConfirming(true)}
+            disabled={deleting}
+            className="inline-flex items-center justify-center size-11 sm:size-8 rounded-md text-muted-foreground transition-opacity hover:text-destructive sm:opacity-0 group-hover:opacity-100 focus-visible:opacity-100 disabled:opacity-40"
+          >
+            <Trash2 size={14} />
+          </button>
+        </span>
+      )}
+
+      <ConfirmDialog
+        open={confirming}
+        onOpenChange={setConfirming}
+        title={`Delete ${contact.full_name}?`}
+        description="They will be archived and removed from your list. Project history is preserved."
+        confirmLabel="Delete"
+        destructive
+        onConfirm={remove}
+      />
+    </div>
+  )
+}
+
 function ContactCard({
   contact,
   onDelete,
@@ -311,36 +553,13 @@ function ContactCard({
   selected,
   onToggleSelect,
   onTagClick,
-}: {
-  contact: ContactWithStats
-  onDelete: (id: string) => void
-  selecting: boolean
-  selected: boolean
-  onToggleSelect: (id: string) => void
-  onTagClick: (tag: string) => void
-}) {
-  const [confirming, setConfirming] = useState(false)
-  const [deleting, setDeleting] = useState(false)
+}: ContactItemProps) {
+  const { confirming, setConfirming, deleting, remove } = useContactDelete(contact, onDelete)
 
   async function handleDelete(e: React.MouseEvent) {
     e.preventDefault()
     e.stopPropagation()
-    setDeleting(true)
-    try {
-      const res = await fetch(`/api/parties/${contact.id}`, { method: 'DELETE' })
-      if (res.ok) {
-        onDelete(contact.id)
-        toast.success(`${contact.full_name} deleted`)
-      } else {
-        toast.error('Failed to delete contact')
-        setDeleting(false)
-        setConfirming(false)
-      }
-    } catch {
-      toast.error('Failed to delete contact')
-      setDeleting(false)
-      setConfirming(false)
-    }
+    await remove()
   }
 
   return (

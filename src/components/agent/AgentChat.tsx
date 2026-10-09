@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { Send, Bot, User, Loader2, AlertCircle, ThumbsUp, ThumbsDown, Trash2 } from 'lucide-react'
 
 import { BriefMarkdown } from '@/components/briefs/BriefMarkdown'
@@ -19,6 +19,8 @@ interface Message {
 
 interface AgentChatProps {
   projectId?: string
+  /** Scope the chat to an opportunity — the other half of the deal pipeline. */
+  opportunityId?: string
   /** Scope the chat to a single reference document (digest / Q&A). */
   documentId?: string
   className?: string
@@ -35,6 +37,7 @@ interface AgentChatProps {
 
 export default function AgentChat({
   projectId,
+  opportunityId,
   documentId,
   className = '',
   placeholder = 'Ask about this project...',
@@ -52,6 +55,22 @@ export default function AgentChat({
   const [confirmClear, setConfirmClear] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
+
+  /*
+    This chat's scope, as one query string.
+
+    ⚠ It was spelled out in THREE places — the history load, the
+    dropped-stream recovery lookup, and the POST body — so adding a second
+    record type meant finding all three or silently scoping two of them
+    differently. One value, and `tsc` names every reader if a third kind is
+    added.
+  */
+  const scopeQuery = useMemo(() => {
+    if (projectId) return `projectId=${projectId}`
+    if (opportunityId) return `opportunityId=${opportunityId}`
+    if (documentId) return `documentId=${documentId}`
+    return null
+  }, [projectId, opportunityId, documentId])
 
   // Auto-scroll to bottom
   useEffect(() => {
@@ -92,11 +111,6 @@ export default function AgentChat({
       loadMessages(initialConversationId).catch(() => {})
       return
     }
-    const scopeQuery = projectId
-      ? `projectId=${projectId}`
-      : documentId
-      ? `documentId=${documentId}`
-      : null
     if (!scopeQuery) return
     fetch(`/api/ai/agent?${scopeQuery}`)
       .then(r => r.json())
@@ -108,7 +122,7 @@ export default function AgentChat({
         }
       })
       .catch(() => {})
-  }, [projectId, documentId, initialConversationId])
+  }, [scopeQuery, initialConversationId])
 
   const sendMessage = useCallback(async () => {
     const msg = input.trim()
@@ -143,8 +157,7 @@ export default function AgentChat({
           // Fresh chat: the conversation was created server-side before the
           // drop — find it by scope + title (title = the message prefix).
           if (!convId) {
-            const scope = projectId ? `?projectId=${projectId}` : documentId ? `?documentId=${documentId}` : ''
-            const listRes = await fetch(`/api/ai/agent${scope}`)
+            const listRes = await fetch(`/api/ai/agent${scopeQuery ? `?${scopeQuery}` : ''}`)
             const listData = await listRes.json() as { conversations?: Array<{ id: string; title: string }> }
             const match = (listData.conversations ?? []).find(c => c.title === msg.slice(0, 100))
             if (!match) continue
@@ -189,6 +202,7 @@ export default function AgentChat({
           message: msg,
           conversationId,
           projectId,
+          opportunityId,
           documentId,
           stream: true,
         }),
@@ -295,7 +309,7 @@ export default function AgentChat({
       setActivity(null)
       inputRef.current?.focus()
     }
-  }, [input, loading, conversationId, projectId, documentId, onConversationCreated])
+  }, [input, loading, conversationId, projectId, opportunityId, documentId, scopeQuery, onConversationCreated])
 
   function handleKeyDown(e: React.KeyboardEvent) {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -365,6 +379,13 @@ export default function AgentChat({
                     'Summarize where this project stands',
                     'What are the biggest risks here?',
                     'Who are the key players on this project?',
+                  ]
+                : opportunityId
+                ? [
+                    'Summarize where this deal stands',
+                    'What has been agreed and what is still open?',
+                    'Who is across the table, and what do they want?',
+                    'What would make us walk away?',
                   ]
                 : [
                     'What needs my attention today?',

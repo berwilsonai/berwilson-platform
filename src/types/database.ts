@@ -89,14 +89,14 @@ isOneToOne: false
                   ]
                 },"agent_conversations": {
                   Row: {
-                    "created_at": string | null,"document_id": string | null,"id": string,"project_id": string | null,"title": string | null,"updated_at": string | null,"user_id": string
+                    "created_at": string | null,"document_id": string | null,"id": string,"opportunity_id": string | null,"project_id": string | null,"title": string | null,"updated_at": string | null,"user_id": string
                   }
                   ComputedFields: never
                   Insert: {
-                    "created_at"?: string | null,"document_id"?: string | null,"id"?: string,"project_id"?: string | null,"title"?: string | null,"updated_at"?: string | null,"user_id": string
+                    "created_at"?: string | null,"document_id"?: string | null,"id"?: string,"opportunity_id"?: string | null,"project_id"?: string | null,"title"?: string | null,"updated_at"?: string | null,"user_id": string
                   }
                   Update: {
-                    "created_at"?: string | null,"document_id"?: string | null,"id"?: string,"project_id"?: string | null,"title"?: string | null,"updated_at"?: string | null,"user_id"?: string
+                    "created_at"?: string | null,"document_id"?: string | null,"id"?: string,"opportunity_id"?: string | null,"project_id"?: string | null,"title"?: string | null,"updated_at"?: string | null,"user_id"?: string
                   }
                   Relationships: [
                     {
@@ -104,6 +104,12 @@ isOneToOne: false
       columns: ["document_id"]
 isOneToOne: false
       referencedRelation: "documents"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "agent_conversations_opportunity_id_fkey"
+      columns: ["opportunity_id"]
+isOneToOne: false
+      referencedRelation: "opportunities"
       referencedColumns: ["id"]
     },{
       foreignKeyName: "agent_conversations_project_id_fkey"

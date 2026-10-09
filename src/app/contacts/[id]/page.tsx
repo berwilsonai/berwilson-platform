@@ -26,6 +26,7 @@ import ContactEnrichmentDisplay from '@/components/contacts/ContactEnrichmentDis
 import ContactTagsEditor from '@/components/contacts/ContactTagsEditor'
 import CompanyLinkEditor from '@/components/contacts/CompanyLinkEditor'
 import ShareContactButton from '@/components/contacts/ShareContactButton'
+import TrackVisit from '@/components/shared/TrackVisit'
 
 interface PageProps {
   params: Promise<{ id: string }>
@@ -351,6 +352,7 @@ export default async function ContactDetailPage({ params, searchParams }: PagePr
 
   return (
     <div className="space-y-0">
+      <TrackVisit kind="contact" label={party.full_name} href={`/contacts/${id}`} />
       {/* Breadcrumb */}
       <div className="pb-5 space-y-3">
         <Link

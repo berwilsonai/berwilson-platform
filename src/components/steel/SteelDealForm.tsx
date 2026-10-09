@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useRef, useMemo, useEffect } from 'react'
-import { useActionState } from 'react'
+import { useActionState, useState, useRef, useMemo, useEffect } from 'react'
+import UnsavedGuard from '@/components/shared/UnsavedGuard'
 import Link from 'next/link'
 import { AlertCircle, Plus, X, Search, Building2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -201,6 +201,13 @@ export default function SteelDealForm({
 
   const action = mode === 'edit' && deal ? updateSteelDeal.bind(null, deal.id) : createSteelDeal
   const [state, formAction, isPending] = useActionState<SteelDealFormState, FormData>(action, null)
+  /*
+    Has anything been typed? One flag off the form's own bubbled events, so a
+    field added later is covered without being registered anywhere. `onInput`
+    catches typing and `onChange` catches selects and checkboxes; both set the
+    same flag, which only ever goes one way until the form is submitted.
+  */
+  const [dirty, setDirty] = useState(false)
 
   // Embedded (drawer) mode: the action returns `{ ok, id }` instead of
   // navigating; hand it back to the host once, then it unmounts us.
@@ -376,7 +383,15 @@ export default function SteelDealForm({
   const cancelHref = mode === 'edit' && deal ? `/steel/${deal.id}` : '/steel'
 
   return (
-    <form action={formAction} className="space-y-6 max-w-2xl">
+    <form
+      action={formAction}
+      onInput={() => setDirty(true)}
+      onChange={() => setDirty(true)}
+      className="space-y-6 max-w-2xl"
+    >
+      {/* Inactive while submitting: the server action's own redirect must not
+          be mistaken for the reader walking away. */}
+      <UnsavedGuard active={dirty && !isPending} />
       {onSaved && <input type="hidden" name="_stay" value="1" readOnly />}
       {state && 'error' in state && (
         <div className="flex items-center gap-2 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2.5 text-sm text-destructive">

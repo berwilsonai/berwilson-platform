@@ -20,6 +20,7 @@ import {
 } from 'lucide-react'
 import type { SearchResult } from '@/app/api/search/route'
 import { NAV_ITEMS, PALETTE_EXTRAS } from '@/lib/nav'
+import { readRecents, type RecentRecord } from '@/lib/recents'
 
 // Static destinations — always searchable, shown when the query is short.
 // Derived from the single nav source plus palette-only extras.
@@ -42,6 +43,7 @@ const TYPE_META: Record<SearchResult['type'], { icon: LucideIcon; label: string 
 
 type Item =
   | { kind: 'ask' }
+  | { kind: 'recent'; record: RecentRecord }
   | { kind: 'page'; href: string; label: string }
   | { kind: 'entity'; result: SearchResult }
 
@@ -73,6 +75,17 @@ export default function CommandPalette({ onClose }: { onClose: () => void }) {
   const [loading, setLoading] = useState(false)
   const [active, setActive] = useState(0)
   const [scope, setScope] = useState<Scope>('all')
+  /*
+    The records this browser opened last.
+
+    ⚠ Read once, as this component's initial state, because the palette is
+    mounted FRESH on every open — there is no stale list to refresh. It is
+    also the whole answer to what the palette shows before anything is typed:
+    it used to show one row ("Ask Ber AI") and a line of instructions, which
+    for two people working the same fourteen deals is a blank screen where
+    "take me back to Steelton" belongs.
+  */
+  const [recents] = useState(readRecents)
 
   const term = query.trim()
   const searchable = term.length >= MIN_QUERY
@@ -92,13 +105,25 @@ export default function CommandPalette({ onClose }: { onClose: () => void }) {
     return scope === 'all' ? results : results.filter((r) => r.type === scope)
   }, [searchable, results, scope])
 
+  /*
+    Recents are shown INSTEAD of results, never alongside them: once the
+    reader has typed, the list they want is the one they are typing at. An
+    area chip narrows them the same way it narrows records.
+  */
+  const visibleRecents = useMemo(() => {
+    if (searchable) return []
+    const list = scope === 'all' ? recents : recents.filter((r) => r.kind === scope)
+    return list.slice(0, 8)
+  }, [searchable, recents, scope])
+
   // Flat list used for keyboard navigation + indexing. "Ask Ber AI" is always first.
   const items: Item[] = useMemo(() => {
     const list: Item[] = [{ kind: 'ask' }]
+    for (const r of visibleRecents) list.push({ kind: 'recent', record: r })
     for (const p of pages) list.push({ kind: 'page', href: p.href, label: p.label })
     for (const r of visibleResults) list.push({ kind: 'entity', result: r })
     return list
-  }, [pages, visibleResults])
+  }, [visibleRecents, pages, visibleResults])
 
   // Clamp the active index at read-time so a shrinking list never points out of range.
   const activeIdx = items.length ? Math.min(active, items.length - 1) : 0
@@ -149,7 +174,9 @@ export default function CommandPalette({ onClose }: { onClose: () => void }) {
   const activate = useCallback(
     (item: Item) => {
       if (item.kind === 'ask') runAsk()
-      else go(item.kind === 'page' ? item.href : item.result.href)
+      else if (item.kind === 'page') go(item.href)
+      else if (item.kind === 'recent') go(item.record.href)
+      else go(item.result.href)
     },
     [go, runAsk]
   )
@@ -271,6 +298,41 @@ export default function CommandPalette({ onClose }: { onClose: () => void }) {
             })()}
           </div>
 
+          {/* Recently opened — the palette's answer to an empty query */}
+          {visibleRecents.length > 0 && (
+            <div className="px-2 mt-1">
+              <p className="px-2 py-1 label-caps text-muted-foreground">Recently opened</p>
+              {visibleRecents.map((r) => {
+                idx++
+                const i = idx
+                const isActive = i === activeIdx
+                const meta = TYPE_META[r.kind]
+                const Icon = meta.icon
+                const current = pathname === r.href || pathname.startsWith(r.href + '/')
+                return (
+                  <button
+                    key={r.href}
+                    data-idx={i}
+                    onClick={() => go(r.href)}
+                    onMouseMove={() => setActive(i)}
+                    className={`w-full flex items-center gap-3 px-2.5 py-2 rounded-lg text-left transition-colors ${
+                      isActive ? 'bg-accent text-foreground' : 'text-foreground/80'
+                    }`}
+                  >
+                    <Icon size={15} className="text-muted-foreground shrink-0" />
+                    <span className="min-w-0 flex-1 text-sm truncate">{r.label}</span>
+                    {current ? (
+                      <span className="text-[10px] text-muted-foreground shrink-0">Current</span>
+                    ) : (
+                      <span className="text-[10px] text-muted-foreground shrink-0">{meta.label}</span>
+                    )}
+                    {isActive && <CornerDownLeft size={13} className="text-muted-foreground shrink-0" />}
+                  </button>
+                )
+              })}
+            </div>
+          )}
+
           {/* Pages */}
           {pages.length > 0 && (
             <div className="px-2">
@@ -342,7 +404,7 @@ export default function CommandPalette({ onClose }: { onClose: () => void }) {
           )}
 
           {/* Empty / loading states */}
-          {!searchable && (
+          {!searchable && visibleRecents.length === 0 && (
             <p className="px-4 py-8 text-center text-sm text-muted-foreground">
               {scope === 'all'
                 ? 'Type to search everything, or pick an area above'

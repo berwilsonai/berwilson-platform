@@ -23,9 +23,7 @@ export default async function DirectoryPage({ searchParams }: PageProps) {
   const { tab } = await searchParams
   const activeTab: 'contacts' | 'vendors' = tab === 'vendors' ? 'vendors' : 'contacts'
 
-  const supabase = createAdminClient()
-  // Cast to bypass generated types — parties.status / entities.category added via migration
-  const db = supabase as unknown as import('@supabase/supabase-js').SupabaseClient
+  const db = createAdminClient()
 
   const [{ data: parties, error: partiesError }, { count: pendingCount }, { data: entities, error: entitiesError }] =
     await Promise.all([
