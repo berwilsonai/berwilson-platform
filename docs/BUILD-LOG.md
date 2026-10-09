@@ -11,7 +11,102 @@ Split out of `CLAUDE.md` on 2026-09-23, when that file reached 606k characters a
 - A block of **2026-08-23 → 2026-08-31** entries sits *after* the June entries, near the end of the file.
 - One **2026-07-03** entry ("migrations applied + pursuit profile seeded") is last in the file.
 
-152 entries, 2026-06-22 → 2026-10-09. ⚠ Counted with `grep -c "^\*\*Done 2026"`, not incremented by hand: two sessions editing this file on 2026-10-08 each bumped the old figure by one and both landed on 146 against a real 148.
+153 entries, 2026-06-22 → 2026-10-09. ⚠ Counted with `grep -c "^\*\*Done 2026"`, not incremented by hand: two sessions editing this file on 2026-10-08 each bumped the old figure by one and both landed on 146 against a real 148.
+
+**Done 2026-10-09 (the queue gets a keyboard, and a loading boundary takes the record down):**
+
+Richard's ask: *"Is there anything you would do to enhance the UI or UX?"* then *"Do them all. Do what you think is best while keeping the system scalable and efficient."* Seven items were proposed after reading the surfaces; all seven were done, plus two defects found by opening the result in a browser — one of them a production outage caused by the session itself.
+
+---
+
+### What the survey actually found
+
+The craft level here is high and the obvious wins were already taken: ⌘K already searches every record type with area chips, toasts and `ConfirmDialog` are everywhere, `focus-visible` landed on 10-08, empty states exist, 44px touch targets are honoured. So nothing proposed was "add a design system". What was left were places where the UI does not match where the work happens:
+
+| | Found by |
+|---|---|
+| `/decide` had no keyboard at all — `toggle(key)`, one click per row, no range select, and the batch bar in normal flow | reading `DecideClient.tsx:448` against a queue of 279 |
+| ⌘K with an empty query returned ONE row (`if (!t) return []`) | reading `CommandPalette.tsx:85` |
+| the Ask Ber AI dock matched `/projects/<uuid>` and nothing else | `AskBerAIDock.tsx:22` |
+| `/contacts` is a 3-up card grid with an 80px portrait — six records a screen of 83, 80 of which have no photograph | `ContactsClient.tsx:279` |
+| the whole `opportunities/[id]` tab family had no `loading.tsx` while `projects/[id]` carries thirteen | `find src/app -name loading.tsx` |
+| 25 `notFound()` calls and **zero** `not-found.tsx` | `grep -c` |
+| no `beforeunload` anywhere in the repo, against the three longest forms in it | `grep -rn beforeunload src` → nothing |
+
+### The queue's keyboard
+
+`j`/`k` (and the arrows) move a cursor, `x` ticks, `shift`+click takes a range, `a` accepts **through the existing confirmation** — a mistyped key must not create a project — `Enter` opens, `esc` clears both the selection and the cursor. The handler ignores modifier combinations so ⌘K/⌘J still work, ignores keys typed into a field, and is inactive while a batch is running or a dialog is open: a key that queues another write behind seventy in flight is worse than no shortcut.
+
+Two things were taken from existing precedent rather than invented. The cursor is clamped at READ time (`Math.min(cursor, visible.length - 1)`) exactly as the command palette clamps its active index — the list shrinks under the cursor as rows are accepted, and an index past the end must neither throw nor silently jump to the top of a queue the reader was halfway down. And the shift-range only ADDS: a shift-click that could silently clear thirty gathered rows is not worth the symmetry.
+
+The batch bar is now `sticky top-0` (the same idiom as `ProjectsClient.tsx:418`). Measured on the live queue: Accept had scrolled off screen by row twelve of 279.
+
+⚠ **The checkbox handler had to move from `onChange` to `onClick`.** Only the click event carries `shiftKey`. A keyboard Space on a checkbox dispatches a click too, so both routes land in one handler; `onChange` stays as a no-op for React's controlled-input contract.
+
+### ⌘K opens on what you last had open
+
+`src/lib/recents.ts` keeps the last twelve records per browser in `localStorage`, written by `<TrackVisit>` — a null-rendering client component mounted by the page that knows the record's NAME. That placement is the whole design: the app shell sees a URL and a page title, and "Projects" is not the name of the deal the reader wants to get back to. Six mount sites (project, opportunity, contact, vendor, steel deal, investor); adding a seventh is one line with no registry to keep in step. The label is rewritten on every visit, so a renamed deal shows its current name.
+
+Read as the palette's initial state rather than in an effect, because the palette is mounted fresh on every open — there is no stale list to refresh, and no new `set-state-in-effect` lint error.
+
+### ⌘J finally knows an opportunity
+
+The dock's scope was one inline regex, so standing on an opportunity — the record type carrying most of the live pipeline since 09-23 — opened the agent portfolio-wide and the reader had to name the deal in the question. The scope is now a TABLE (`SCOPE_ROUTES`), and `opportunityId` runs the whole way down: dock → `AgentChat` → `POST /api/ai/agent` → `AgentContext` → its own preamble.
+
+A sibling preamble, not one generalised function: a project asks "can we deliver it and get paid", an opportunity asks "should we do this at all", so the fields are the counterparty, the thesis and the next step — and `stage` does not exist on the record at all. Collapsing them would have produced a preamble half full of "Not specified", which §12 already names as a lie the model repeats with confidence.
+
+`AgentChat` was spelling its scope out in THREE places (the history load, the dropped-stream recovery lookup, the POST body), so a second record type meant finding all three or scoping two of them differently. One `scopeQuery` memo now, and `tsc` names every reader when a third kind is added.
+
+Migration `20261009000002`: `agent_conversations.opportunity_id`, nullable FK with `on delete cascade` beside `project_id`, plus `agent_conversations_one_record` — a CHECK that at most one is set — and a partial index. The route refuses both-at-once with a 400 rather than letting the CHECK answer 500, since §12 is explicit that a 500 reads as the reader's own mistake. Verified in psql: both pointers refused, opportunity-only accepted, test rows removed. Verified live: asking "Summarize where this deal stands" from the Zenthium record wrote `project_id` NULL, `opportunity_id` 84c5f711.
+
+### The directory's default is now a row
+
+`list` (64px, avatar + name + title·company + mailbox + tags + project count) against `cards`, remembered per browser. The default is a measurement, not a taste: 80 of 83 contacts have no photograph, so the photo-forward grid was spending three-quarters of its area on an initial in a circle. The cards stay for the day the directory has faces in it — the open item about contact photos is still open.
+
+One delete path serves both renderings (`useContactDelete`), because a second density is not a reason for a second delete path.
+
+### Loading boundaries, and the outage
+
+`projects/[id]` carries thirteen per-tab `loading.tsx` files and the opportunity family carried one. The reason is not redundancy: **a loading boundary belongs to its own segment**, so `opportunities/[id]/loading.tsx` fires on the first load of the record and never again, however many tabs are clicked. Eleven files added, four shared shapes behind them (`src/components/shared/tab-skeletons.tsx`) so a new tab names a shape in one line.
+
+⚠⚠ **And a twelfth file took production down.** `opportunities/[id]/(detail)/loading.tsx` — a boundary at the ROOT of the route group, beside that group's own `page.tsx` — was added to cover the walk back to Overview. It typechecked, `npm run build` exited **0**, every route was listed in the build output, and then every request to `/opportunities/[id]` answered:
+
+```
+Invariant: The client reference manifest for route "/opportunities/[id]" does not exist.
+```
+
+The manifest is emitted at the GROUPED path (`.next/server/app/opportunities/[id]/(detail)/page_client-reference-manifest.js`) and the runtime looks for it de-grouped. Found by opening the page in a browser four minutes after deploying — not by any check in the pipeline. Removed, rebuilt, verified; the eleven boundaries inside the group's SUBSEGMENTS are unaffected and were each confirmed live. The reason is written at the top of `tab-skeletons.tsx`, where the next person to add one will be reading, and as a §12 rule.
+
+**The lesson is not about Next.js.** A build that exits 0 having listed the route is not evidence the route answers. The deploy runbook asserts the tailnet listeners, the env, and LM Studio — and then checks that `/login` returns 200, which is one route of ninety-seven.
+
+### The two small ones
+
+`src/app/not-found.tsx`: 25 `notFound()` calls were landing on Next's built-in page — a line of text outside the app shell, no sidebar, no way back but the browser's own button. The copy covers both reasons a record 404s here, because the access guards answer `notFound()` deliberately: a record a viewer may not see must not be distinguishable from one that does not exist, so the page may never claim it was deleted.
+
+`UnsavedGuard`: `beforeunload` for the browser, and a CAPTURE-phase click listener on `document` for in-app `Link` clicks, which `beforeunload` never sees because the page never unloads and App Router exposes no navigation event to block. Deliberately NOT a localStorage draft: restoring one means writing values back into controls, and half the fields in these forms are custom components holding React state (`DatePicker`, `TagInput`) that a DOM write would not reach — the restore would silently drop exactly the fields a reader is least likely to re-check. Verified live on `/projects/new`: typed, clicked Tasks, got the dialog; "Keep editing" stayed; "Discard and leave" navigated; an untouched form navigates with no dialog.
+
+### Found while verifying
+
+⚠ **`/decide` was rendering a chip reading "Unfiled document NaN".** The counter map was seeded `{ all, lead: 0, intake: 0, review: 0 }` while `DecideKind` has five members, so `c['document']` was `undefined` and `undefined++` is `NaN` — and the economics chip showed no count at all. Pre-existing, visible on the live queue, and invisible to `tsc` because the map is `Record<string, number>`. Seeded from `KIND_META`'s own keys now. After: 81 + 122 + 38 + 38 + 0 = 279, which is the total shown.
+
+⚠ **The untyped cast on `/contacts` was a workaround whose reason had expired.** `const db = supabase as unknown as SupabaseClient`, commented *"bypass generated types — parties.status / entities.category added via migration"*. Both columns have been typed since `gen-types` was repaired on 10-08. Deleted; the page typechecks against the generated client. This is the second instance of the 10-08 rule (a workaround's recorded reason must be re-tested before it is inherited) in two days.
+
+### Shared-repo mechanics
+
+The other session was mid-feature in this working tree throughout. `src/types/database.ts` was regenerated with `--force` AFTER applying this session's migration, and the regenerated file was diffed against a copy of theirs first: **the only difference was this session's column**, which proves their file was pure generator output and that the regeneration was a strict superset. Staged as a filtered patch of two hunks out of five, with the three dropped hunks named (`commitment_action_tokens`, `commitments`, `pepper_note_items`) and the staged diff grepped for their keywords (0 hits). Both sessions messaged each other before building, since the runbook builds the working tree and a kickstart restarts both sessions' code.
+
+### Measurements
+
+- Lint: **20 problems — 13 errors, 7 warnings**, the documented baseline. This session added one `@next/next/no-img-element` warning (the compact row's 36px avatar) and removed none.
+- `tsc --noEmit`: clean at every step. Three builds, all exit 0 — including the one that took the opportunity record down.
+- Routes with a `loading.tsx`: 50 → 61 of 97 pages. With an `error.tsx`: 51 → 52.
+- Files: 18 modified, 17 added, 1 added-then-deleted.
+
+### Deployed
+
+`9951823` (the seven items) and `184bf49` (the two fixes), both pushed. Built, kickstarted, `tailnet-setup.sh` clean on all six checks, `lmstudio-check.sh` clean — though it reports the box paging again: swap 16.1GB used, 196MB free, which is the standing condition on this machine and the reason OCR and the chat model must never run together.
+
+---
 
 **Done 2026-10-09 (Pepper could only ever make the number go up):**
 
