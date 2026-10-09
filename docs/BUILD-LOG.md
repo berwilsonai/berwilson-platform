@@ -11,7 +11,165 @@ Split out of `CLAUDE.md` on 2026-09-23, when that file reached 606k characters a
 - A block of **2026-08-23 → 2026-08-31** entries sits *after* the June entries, near the end of the file.
 - One **2026-07-03** entry ("migrations applied + pursuit profile seeded") is last in the file.
 
-150 entries, 2026-06-22 → 2026-10-08. ⚠ Counted with `grep -c "^\*\*Done 2026"`, not incremented by hand: two sessions editing this file on 2026-10-08 each bumped the old figure by one and both landed on 146 against a real 148.
+151 entries, 2026-06-22 → 2026-10-08. ⚠ Counted with `grep -c "^\*\*Done 2026"`, not incremented by hand: two sessions editing this file on 2026-10-08 each bumped the old figure by one and both landed on 146 against a real 148.
+
+**Done 2026-10-08 (gen-types was repairable all along, and 30 hand-written row types had drifted):**
+
+Richard's ask: *"Is there anything else you would do to simplify and make things cleaner?"* then *"do all of it"*. Eight items were proposed; all eight were done.
+
+---
+
+### 1. `npm run gen-types` — the workaround outlived a reason that was never true
+
+The stub in `package.json` read: *"gen-types is disabled: `--linked` points at the retired hosted project (qauclkrdejgtpywqixho), NOT the self-hosted DB on the Studio."* A second explanation sat in `src/lib/commitments/db.ts`: *"the Supabase CLI needs a DB host reachable from both the host and its postgres-meta container, which Colima does not provide."*
+
+**Both were wrong about what blocked it.** `supabase gen types typescript --db-url` talks to Postgres directly — no postgres-meta, no Docker networking — and `supabase-db` has published `0.0.0.0:5432->5432/tcp` all along. The actual failure, with `--debug`:
+
+```
+{"code":"DbConnectError","message":"failed to connect to postgres: tls error
+ (The server does not support SSL connections)",
+ "suggestion":"This server does not accept TLS. Set `sslmode=disable`…"}
+```
+
+One query-string parameter. The CLI defaults to requiring TLS; the container does not speak it. **That is the whole of it**, and it had been read as unfixable for months.
+
+⚠ **THE LESSON IS ABOUT THE COMMENT, NOT THE PARAMETER** (now §12). A note explaining why something *cannot* work is the artifact least likely to be re-checked, because it closes the question. Two independent explanations were written, neither tested, and six modules grew 1,290 lines of workaround on top of them.
+
+**`deploy/gen-types.sh`** replaces the stub and asserts rather than hopes:
+
+- **That it reached THIS database.** A cloud project would answer the call perfectly and emit a plausible, wrong file. `project_spvs` post-dates the cutover by two years, so `grep '"project_spvs"'` is the discriminator.
+- **That it covered every live table**, counted against `information_schema` — `97 table types, 97 live tables`.
+- **That `src/types/database.ts` has no uncommitted changes.** A regeneration is a whole-file overwrite and two Claude sessions share this repo (§12); running one over the other session's edits destroys them with nothing to recover from. `-- --force` is the deliberate override, and it was needed within the hour — regenerate, migrate, regenerate again.
+
+The coverage count is computed as *the quoted key immediately above its own `Row:`*, after a naive `^ +"[a-z_]+": \{$` returned **3** against a file holding 97. The CLI's indentation is not what it looks like.
+
+### 2. What the regeneration found
+
+Coverage: the frozen types held **65 of 97 tables**. The 32-table gap was papered over by **1,290 lines of hand-maintained row interfaces — 35 interfaces across 7 modules** (the seventh, `src/lib/commitments/db.ts`, had been missed by the previous session's audit because its factory is not named `*Db()`).
+
+Compared field-by-field against `information_schema`, those 30 table-backed interfaces were:
+
+| | count | |
+|---|---|---|
+| live columns absent from the type | **40** | mostly `created_at`/`updated_at`, but `EmailThreadRow` was missing `pipeline`, `embedded_at`, `routed_at`, `commitments_at` — the phase cursors |
+| fields naming no column | **1** | `LeadRow.gmail_thread_id`, flattened in from an embed |
+| nullable columns typed NOT NULL | **6** | `personnel.status`, `email_threads.{attachment_count,message_count,participants}`, `thread_clusters.{participants,thread_count}` |
+
+**Nothing reported any of it**, because the client those interfaces stood in for was untyped by design — which is exactly why the convention was safe to adopt and exactly why it rotted.
+
+A raw TypeScript mutual-assignability check said 27 of 31 disagreed, which overstated the problem badly; the field-level diff above is what made it legible. **A type error count is not a measurement.**
+
+### 3. Two latent bug classes, found by the types rather than by a user
+
+**`Json` includes `null`; a NOT NULL jsonb column does not.** The old types gave every jsonb column plain `Json`, so `extraction_result: x as unknown as Json` typechecked against a NOT NULL column. The new CLI distinguishes them — nullable stays `Json | null`, NOT NULL becomes `NonNullable<Json>` — and **12 write sites** were relying on the looser type. A null reaching any of them is a NOT NULL violation at runtime: a 500 the reader reads as a server fault. New `JsonIn = NonNullable<Json>` alias, applied at all 34 jsonb write sites so there is one idiom rather than two.
+
+**`sort_order` was nullable on four tables.** The hand types said `number`; the schema said `number | null`. 12 type errors landed in one comparator:
+
+```ts
+const bySort = (a, b) =>
+  a.sort_order - b.sort_order || (a.created_at ?? '').localeCompare(b.created_at ?? '')
+```
+
+`null - null` is `NaN`, and **`NaN || fallback` is falsy** — so a NULL `sort_order` would not throw, it would silently fall back to created_at ordering in the org chart. Eighteen tables carry a `sort_order`; thirteen were already NOT NULL with the identical `default 0`, so the four were history rather than a decision. All four hold zero NULL rows (18 / 5 / 24 / 12 rows checked). **Migration `20261008000005`** constrains what was already true.
+
+Two more the regeneration surfaced:
+
+- **`personnel.status` is GENERATED** — `case when separated_on is null then 'active' else 'departed' end`. The expression is total, so the value can never be null, but **Postgres reports every generated column as nullable** in `information_schema`. Refined back, and more tightly than the hand type: `'active' | 'departed'` rather than `string`.
+- **`match_thread_chunks` declares its filters as OPTIONAL arguments, not nullable ones.** The caller passed `?? null`; omitting is how you say "no filter", and the generated signature is right to refuse an explicit null. `?? undefined`.
+
+### 4. `as never` — 31 of them, and §4 forbids them by name
+
+Stripping all 31 left 16 errors, so **15 came out with no further change**: they had been load-bearing only against the frozen types. The rest:
+
+- **4 were dynamic patches** (`Record<string, unknown>`) against a statically-known table — now `TablesUpdate<'meetings'>` / `TablesUpdate<'steel_quotes'>`, checked.
+- **2 were writes whose TABLE is chosen at runtime** (`projects|opportunities`, `documents|opportunity_documents`). Branched, so each write is checked against a real row shape — where one `as never` had disabled checking on both arms at once.
+- **1 route escaped through a cast to an untyped `SupabaseClient`**, behind the comment *"rating column is new — cast until gen-types is re-run after migration."* gen-types was a disabled stub, so that day never came. It is now two branched, checked writes.
+
+Zero real `as never` casts remain. (A naive grep says 3; all three are prose containing the word "never".)
+
+### 5. The row types now
+
+29 of 30 are aliases of the generated `Row`. Two new helpers in `src/lib/supabase/types.ts`:
+
+- **`Refine<T, R>`** — `Omit<T, keyof R> & R`, for the jsonb/array columns a module deliberately narrows (`project_parcels.geometry` is a GeoJSON Polygon, `economics_lines.ramp` is `number[]`) and for the CHECK-backed unions the generator can only call `string`. `ThreadLinkRow.record_kind` needed this immediately: `applyToRecord` switches on it with no `default`, which only typechecks as exhaustive while the union is named.
+- **`SelectedCols<S>`** — splits a select list into a union, so `ParcelRow` is `Pick<Tables<'project_parcels'>, SelectedCols<typeof COLUMNS>>`. The query string IS the type; a column added to one is added to the other, and a typo becomes an error at the `Pick`. Needed `COLUMNS` as one literal with `as const` — `as const` does not apply to a concatenation.
+
+**`LeadRow` is kept as an interface, deliberately.** It is 130 lines of which most is per-field documentation — *"NOT the same thing as `thread_id`, which is this platform's UUID… passing that to Google returns Invalid id value"*, the two task latches, why `notified_at` is written only once a channel delivered. An alias would have destroyed more than it saved. Instead two assertions make it unable to drift:
+
+```ts
+type _LeadRowCoversEveryColumn = AssertNever<Exclude<keyof Tables<'leads'>, keyof LeadRow>>
+type _LeadRowInventsNothing   = AssertNever<Exclude<keyof LeadRow, keyof Tables<'leads'> | 'gmail_thread_id'>>
+```
+
+**Verified the assertion can fail**, by deleting a field in a throwaway file: `Type '"sector"' does not satisfy the constraint 'never'`. An assertion that cannot fail is worse than none.
+
+⚠ **THE FIRST PASS AT THIS DELETED 59 LINES OF FIELD DOCUMENTATION** — *"`signing_limit`: NULL with can_sign_contracts means UNLIMITED — a real state, not a gap"*, *"`has_conflicts`: a 'nothing to disclose' return IS the record"*, *"`is_ber_wilson`: which row is ours. A flag, never a name match."* Twenty-five notes across four files, extracted back out of `git show HEAD:` and carried onto the aliases as field-note blocks. **The columns were never the valuable part of those interfaces.**
+
+Net: **356 lines of hand-written row types retired**, and `database.ts` covers 32 more tables in ~3,850 fewer lines.
+
+### 6. `parcelDb()` was the sixth copy of the database client
+
+The previous session consolidated four byte-identical copies into `createUntypedAdminClient()` and missed this one, whose own header said *"when gen-types is repaired this collapses into createAdminClient()"*. It has no actor variant, which costs nothing today: `project_parcels` carries no audit trigger.
+
+### 7. One focus ring, one control class
+
+**14 files still hand-rolled their control classes**, against §7's "never a new local `inputClass`/`labelClass`". Every one was off-pattern on radius (`rounded-md` vs `rounded-lg`), ring width, and `aria-invalid`, which none handled at all. Four shared one byte-identical literal whose `py-1.5` produced a **~32px control against this app's documented 44px touch minimum**. Three label literals disagreed with the canonical on size *and* colour, so form labels rendered `text-[11px]`/`text-xs` and `text-foreground`/`text-muted-foreground` depending on the screen.
+
+⚠ **FOUND BY CHECKING WHERE EACH VARIABLE WAS USED, NOT WHAT IT WAS CALLED** (now §12). **Six `inputClass` variables were also applied to a `<textarea>`.** Repointing them at the shared control would have put `h-11 sm:h-9` on a `rows={3}` field and collapsed it to one line. Two were `cn(inputClass, 'h-auto min-h-[70px] …')` — twMerge drops the `h-11` and **leaves the `sm:h-9`**, so it would have looked correct on a phone and been broken from the `sm` breakpoint up, which is every desktop. `FIELD_TEXTAREA_CLASS` exists for exactly this and now carries all nine textareas, including two in `CardBatchReview`/`ScanCardButton` that had never used the local variable at all.
+
+The same check caught **two filter `<select>`s with no `w-full`**, sitting in `flex items-center gap-2 flex-wrap`. The shared control is `w-full` because most controls fill a form-grid cell; a 100%-width flex item on a wrapping row stacks one per line. Composed out with `cn(FIELD_CONTROL_SM_CLASS, 'w-auto')`.
+
+**The focus ring.** 77 sites carried `focus-visible:ring-2 focus-visible:ring-ring` against the `focus-visible:ring-3 focus-visible:ring-ring/50` §7 names as canonical — one identical pair, so one replacement. The six deliberate variants (`ring-slate-900`, `ring-ring/40`) were left. **This is a visible change**: focus rings are now one pixel wider and half-opacity everywhere, and the compact controls on `/dino`, `/investors` and `/steel` went `h-8` → `h-9 sm:h-8`, a touch-target improvement consistent with the documented variant.
+
+Zero local `inputClass`/`labelClass`/`selectClass`/`areaClass` remain.
+
+### 8. `scripts/` — 51 files with nothing distinguishing a tool from a spent pass
+
+The plan was `scripts/backfills/`. **Measuring first changed it**: several `backfill-*` scripts say in their own headers that they are *"Safe to re-run"* or *"idempotent"*, and `import-thread-attachments.mts` is still wanted (903 attachments have never been imported). Only **4 declare themselves one-shot** — those moved to `scripts/one-shot/`. Bulk-moving the other twelve on a naming hunch would have buried tools someone needs, which is worse than the legibility problem.
+
+What actually fixes it is **`scripts/README.md`**: every script classified in a line, split into *tools — reach for these* and *spent — read them, do not run them*.
+
+`scripts/register-alias.mjs` is deleted. It and `register-aliases.mjs` were **the same loader shim under two names** — identical bodies, different doc comments — with three scripts citing the singular and four the plural. Typing the wrong one is a module-not-found.
+
+### 9. Housekeeping
+
+- **`scripts/gen-types.ts`** deleted: an orphan the stub never called, still asking for `SUPABASE_PROJECT_ID` against the retired cloud project. With it goes the last reference to that variable.
+- **`SUPABASE_DB_URL`** was documented in §7 as *"⚠ ASPIRATIONAL — nothing reads this"*. It is now read by `deploy/gen-types.sh`, so the documentation became true rather than being deleted.
+- **13 unused import bindings** left by the `Json` → `JsonIn` sweep, and the **8 empty `import {} from` statements** that removing them left behind.
+- **Lint is 20 problems (13 errors, 7 warnings)**; §9 recorded 19, already one stale before this session. The composition is unchanged — `react-hooks/purity` ×2, `set-state-in-effect` ×11, `no-img-element` ×6.
+- **`src/lib/security/path.ts` is NOT dead code.** A dead-module scan across all 871 files in `src/` flagged it alone; it is imported by the root `middleware.ts`, which the scan had not walked. **There is no dead code in `src/`** — zero unreferenced modules, and the single remaining `focus:ring` in the repo is inside a comment explaining why not to use it.
+
+### 10. The CLAUDE.md prune, and why it recovered so little
+
+`CLAUDE.md` was **137,921 characters** against the 150,000 limit — three sessions past its own 125k re-measure threshold, with the file's standing instruction being to prune §12 *"before building anything"*.
+
+**Measured first, and the premise did not survive it:**
+
+| | |
+|---|---|
+| §12 | 61,478 chars, 44.6% of the file — as predicted |
+| rules in §12 | **171**, mean **357 characters** |
+| the documented floor | ~290 characters a rule |
+| rules over 700 chars | **5**, holding 4,166 — trimming all five returned **665** |
+| near-duplicate rule pairs (Jaccard > 0.26) | **0** |
+
+So §12's mass is the **count** of rules, not bloat within them; it is already de-duplicated and already near its floor. And *"retiring a hard-won rule is Richard's call, not a session's."* There is no large prune available here, and saying so is more useful than taking another 600 characters off five bullets.
+
+**What a prune can actually recover is prose the code has made false** — ~1,500 characters this session: the §4 block explaining the gen-types stub, six repetitions of *"Absent from the generated types, so they use the untyped-client convention above"*, a §2 paragraph restating the dormant-Gemini bullet above it almost word for word, a struck-through DONE item in §13 carrying 628 characters of resolved detail, and a second stacked-measurement paragraph in the end-of-session section still saying *"re-measure at 125k"*.
+
+⚠ **AND THE SESSION COMMITTED THE EXACT FAILURE IT HAD JUST DIAGNOSED.** The first draft of the Recent-sessions line ran **600 characters against a 139-character norm** for those entries — a log entry written into the reference. Cut to 320.
+
+Final: **~138,000 characters, ~12,000 headroom.** Four rules added, ~1,500 recovered, net **+206** — essentially flat, and the first session in four not to grow the file. The §13 note now records that margin, because it is the evidence for how little is left to recover this way.
+
+⚠ **Found while fixing the count:** §4 read *"Migrations live in `supabase/migrations/` (41 as of this writing)"* against **135** files. A hand-incremented count drifts silently and nothing checks it; replaced with the command.
+
+### Verification
+
+`npx tsc --noEmit` → **0 errors**. `npm test` → **170 pass, 0 fail**. `npm run build` → clean, 167/167 static pages. `npm run lint` → 20 problems, all pre-existing. Migration applied to the live DB and re-verified: no `sort_order` column is nullable anywhere.
+
+**Not done, and deliberately:** the five `*Db()` / `*DbAs()` factory pairs are each now a three-line wrapper around `createUntypedAdminClient`, which is five copies of a two-line function. They are left alone — `src/lib/supabase/admin.ts` documents the named-alias-per-module arrangement as intentional so call sites stay unchanged, and collapsing them would touch every module to save ten lines.
+
+---
 
 **Done 2026-10-08 (Steelton becomes the first project, and 'title' turns out to be a substring of 'Entitlements'):**
 
