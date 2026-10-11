@@ -107,6 +107,26 @@ export interface ChatVerdict {
   score: number
   reason: string
   signals: ChatSignals
+  /**
+   * Every other participant is a team member.
+   *
+   * ⚠ THIS IS NOT A DEGREE OF BUSINESS, IT IS A DIFFERENT KIND. Ber Wilson is
+   * two people — Eric is CEO, Richard is EVP — so their thread is the single
+   * richest vein of real obligation in the corpus, not a thread to be scored
+   * against deal vocabulary. What the flag changes is DOWNSTREAM:
+   *
+   *   - A commitment here is between two insiders, so `side` and `owner` must
+   *     resolve to one of THEM. §12: for `side='them'` the owner is the
+   *     counterparty, and resolving that to a teammate says someone owes
+   *     themselves — and never print a reader's own name back at them as a
+   *     third party.
+   *   - No party or contact record should be created from it. Both people are
+   *     already `team_members`; inventing a counterparty from a colleague is
+   *     the same error one screen later.
+   *   - An internal thread is the MOST likely place a protected deal is
+   *     discussed, so containment matters more here, not less.
+   */
+  internal: boolean
 }
 
 export interface ClassifyInput {
@@ -141,6 +161,12 @@ export interface ClassifyInput {
    * other by text will not reach the commitment ledger.
    */
   excludedHandles: Set<string>
+  /**
+   * Team members' numbers, excluding the owner's own.
+   *
+   * Derived from `team_members`, so adding a colleague needs no code change.
+   */
+  internalHandles: Set<string>
 }
 
 /** Digits only, US 10-digit form, so `+1 (801) 555-0100` and `8015550100` agree. */
@@ -180,6 +206,7 @@ export function classifyChat(input: ClassifyInput): ChatVerdict {
     recordTokens,
     singleTokenRecords,
     excludedHandles,
+    internalHandles,
   } = input
 
   /**
@@ -204,8 +231,30 @@ export function classifyChat(input: ClassifyInput): ChatVerdict {
         bigMoney: false,
         automated: false,
       },
+      internal: false,
     }
   }
+
+  /**
+   * ⚠ AN INTERNAL THREAD IS WORK, AND IS NOT SCORED.
+   *
+   * Eric's thread scores 5 on deal vocabulary, but that is incidental — it
+   * would be the business whatever words were in it, because there are two
+   * people in this company and that is the channel they run it on. Scoring a
+   * colleague against the same vocabulary as a stranger was the mistake: it
+   * first selected the thread for the wrong reason, then excluded it for the
+   * wrong reason.
+   *
+   * The cost is accepted and stated plainly: the CONVERSATION is the unit, so
+   * the personal part of a colleague's thread comes along with the work. That
+   * is a real trade, and it is only acceptable because this index is local to
+   * the two people already in the conversation.
+   */
+  const others = handles.filter((h) => {
+    const n = normalizePhone(h)
+    return n === null || !internalHandles.has(n)
+  })
+  const internal = handles.length > 0 && others.length === 0
 
   const knownParty = handles.some((h) => {
     const p = normalizePhone(h)
@@ -271,6 +320,16 @@ export function classifyChat(input: ClassifyInput): ChatVerdict {
    * reclassified as spam because they happened to send three messages without a
    * reply yet.
    */
+  if (internal) {
+    return {
+      business: true,
+      score: 99,
+      reason: 'internal — every other participant is on the team',
+      signals,
+      internal: true,
+    }
+  }
+
   if (automated && !knownParty) {
     return {
       business: false,
@@ -279,6 +338,7 @@ export function classifyChat(input: ClassifyInput): ChatVerdict {
         ? 'short-code sender (marketing or 2FA)'
         : 'broadcast — never replied to',
       signals,
+      internal: false,
     }
   }
 
@@ -294,5 +354,6 @@ export function classifyChat(input: ClassifyInput): ChatVerdict {
     score,
     reason: why.length ? why.join('; ') : 'no business signal',
     signals,
+    internal: false,
   }
 }

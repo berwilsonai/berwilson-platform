@@ -13,6 +13,7 @@ const EMPTY = {
   recordTokens: new Map<string, string>(),
   singleTokenRecords: new Set<string>(),
   excludedHandles: new Set<string>(),
+  internalHandles: new Set<string>(),
 }
 
 function chat(messages: string[], over: Partial<Parameters<typeof classifyChat>[0]> = {}) {
@@ -113,6 +114,7 @@ test('⚠ but a real counterparty is NOT reclassified as spam for not being repl
     recordTokens: new Map(),
     singleTokenRecords: new Set(),
     excludedHandles: new Set(),
+    internalHandles: new Set(),
   })
   assert.equal(v.business, true, 'a known party outranks the broadcast heuristic')
 })
@@ -149,9 +151,8 @@ test('phone normalization agrees across formats', () => {
 })
 
 test('⚠ an excluded number overrides EVERY other signal, including a known party', () => {
-  // Eric's thread scores 5 on real deal vocabulary and a deal-size figure. It
-  // is genuinely about the business AND it is 3,654 messages of internal
-  // chatter, so no score can separate the two halves — only a named exclusion.
+  // The mechanism, kept for a number that must never be read. It is NOT what
+  // Eric gets — see the internal tests below.
   const v = classifyChat({
     handles: ['+13854366519'],
     messages: [
@@ -164,6 +165,7 @@ test('⚠ an excluded number overrides EVERY other signal, including a known par
     recordTokens: new Map([['steelton', 'Steelton']]),
     singleTokenRecords: new Set(['Steelton']),
     excludedHandles: new Set(['3854366519']),
+    internalHandles: new Set(),
   })
   assert.equal(v.business, false)
   assert.equal(v.score, 0, 'an excluded thread is not even scored')
@@ -193,4 +195,60 @@ test('exclusion matches across phone formats', () => {
     })
     assert.equal(v.business, false, stored)
   }
+})
+
+test("⚠ a colleague's thread is INTERNAL, and internal is work — not a score", () => {
+  // Eric is CEO of a two-person company; his texts are primarily work. He was
+  // first SELECTED for scoring like a deal thread and then EXCLUDED for being
+  // large and mixed — both wrong, because the axis was never how business the
+  // vocabulary sounds. A thread with no deal word in it at all is still the
+  // channel this company is run on.
+  const v = classifyChat({
+    handles: ['+13854366519'],
+    messages: ['call me when you land', 'ok'],
+    sentByMe: 20,
+    ...EMPTY,
+    internalHandles: new Set(['3854366519']),
+  })
+  assert.equal(v.business, true)
+  assert.equal(v.internal, true)
+  assert.match(v.reason, /internal/)
+})
+
+test('internal beats the broadcast heuristic too', () => {
+  const v = classifyChat({
+    handles: ['+13854366519'],
+    messages: ['heads up', 'one more thing', 'and another'],
+    sentByMe: 0,
+    ...EMPTY,
+    internalHandles: new Set(['3854366519']),
+  })
+  assert.equal(v.business, true, 'a colleague is never a broadcast')
+})
+
+test('a MIXED group — colleague plus an outsider — is not internal', () => {
+  // The flag governs attribution downstream: a commitment in a thread with an
+  // outsider in it may legitimately be owed to that outsider, so the thread
+  // must not be treated as two insiders talking.
+  const v = classifyChat({
+    handles: ['+13854366519', '+18015550100'],
+    messages: ['sending the PSA, escrow opens Monday, title commitment attached'],
+    sentByMe: 4,
+    ...EMPTY,
+    internalHandles: new Set(['3854366519']),
+  })
+  assert.equal(v.internal, false, 'one outsider makes it an external conversation')
+})
+
+test('an explicit exclusion outranks internal', () => {
+  const v = classifyChat({
+    handles: ['+13854366519'],
+    messages: ['anything at all'],
+    sentByMe: 5,
+    ...EMPTY,
+    internalHandles: new Set(['3854366519']),
+    excludedHandles: new Set(['3854366519']),
+  })
+  assert.equal(v.business, false)
+  assert.match(v.reason, /excluded number/)
 })

@@ -127,29 +127,51 @@ if (ownerNormalized) partyPhones.delete(ownerNormalized)
  * number per person.
  */
 const excludedHandles = new Set<string>()
+const internalHandles = new Set<string>()
+
 for (const t of (teamRowsForOwner ?? []) as {
   name: string
   email: string | null
   parties: { phone: string | null } | null
 }[]) {
   /**
-   * ⚠ NEVER EXCLUDE THE OWNER'S OWN NUMBER.
+   * ⚠ THE OWNER IS NEITHER INTERNAL NOR A COUNTERPARTY — THEY ARE THE READER.
    *
-   * The first version derived this from `team_members` wholesale and swept in
-   * Richard himself. In a 1:1 the handle is the OTHER party so it cost only one
-   * self-thread — but Messages lists the owner's own number as a handle on some
-   * group chats, and any deal group where it appeared would have been dropped
-   * silently. The owner is the team member on PRIMARY_MAILBOX, which is the
-   * same identity the mail stack already uses.
+   * Deriving either set wholesale from `team_members` swept Richard in: his own
+   * number as a handle made a 427-message notes-to-self thread qualify as
+   * business on the strength of being himself, and would have dropped any group
+   * chat Messages happens to list his own number on. The owner is the team
+   * member on PRIMARY_MAILBOX, which is the identity the mail stack already
+   * uses.
    */
   if (t.email && t.email.toLowerCase() === PRIMARY_MAILBOX.toLowerCase()) continue
   const n = t.parties?.phone ? normalizePhone(t.parties.phone) : null
-  if (n) excludedHandles.add(n)
+  if (n) internalHandles.add(n)
+}
+
+/**
+ * Colleagues are INTERNAL, not excluded — and the difference cost a round trip.
+ *
+ * Eric's thread was excluded by name on 2026-10-11 because it is 3,654 messages
+ * and scored like a deal thread. He is the CEO of a two-person company and his
+ * texts are primarily work, so excluding him removed the richest vein of real
+ * obligation in the corpus. `IMESSAGE_INTERNAL_HANDLES` carries the number a
+ * colleague actually texts from where `parties.phone` does not — Eric's record
+ * holds …5507 and he texts from …6519.
+ *
+ * `IMESSAGE_EXCLUDE_HANDLES` survives for what it is actually for: a number
+ * whose conversations must never be read at all. It is empty by default.
+ */
+for (const raw of (process.env.IMESSAGE_INTERNAL_HANDLES ?? '').split(',')) {
+  const n = normalizePhone(raw.trim())
+  if (n) internalHandles.add(n)
 }
 for (const raw of (process.env.IMESSAGE_EXCLUDE_HANDLES ?? '').split(',')) {
   const n = normalizePhone(raw.trim())
   if (n) excludedHandles.add(n)
 }
+// A number cannot be both; an explicit exclusion is the stronger statement.
+for (const n of excludedHandles) internalHandles.delete(n)
 
 console.log(
   `${candidates.size} candidate name tokens from ${tokensPerLabel.size} records; ${partyPhones.size} known party phone numbers` +
@@ -256,6 +278,7 @@ for (const chat of chats) {
     recordTokens,
     singleTokenRecords,
     excludedHandles,
+    internalHandles,
   })
   // Redacted label: a display name if the conversation has one, else the last
   // four digits. Enough to recognise, not a copy of the address book.
@@ -268,6 +291,7 @@ for (const chat of chats) {
 }
 
 const selected = scored.filter((s) => s.verdict.business)
+const internalThreads = selected.filter((s) => s.verdict.internal)
 const excluded = scored.filter((s) => s.verdict.reason.startsWith('excluded number'))
 const automated = scored.filter((s) => !s.verdict.business && s.verdict.signals.automated)
 const quiet = scored.filter(
@@ -280,6 +304,7 @@ const msgs = (list: Scored[]) => list.reduce((a, s) => a + s.total, 0)
 console.log('─'.repeat(72))
 console.log(`conversations in window:      ${scored.length}  (${msgs(scored)} messages)`)
 console.log(`WOULD INGEST:                 ${selected.length}  (${msgs(selected)} messages)`)
+console.log(`  of which INTERNAL (colleagues): ${internalThreads.length}  (${msgs(internalThreads)} messages)`)
 console.log(`excluded, colleague's number:  ${excluded.length}  (${msgs(excluded)} messages)`)
 console.log(`excluded, automated/broadcast: ${automated.length}  (${msgs(automated)} messages)`)
 console.log(`excluded, no business signal:  ${quiet.length}  (${msgs(quiet)} messages)`)
