@@ -136,7 +136,11 @@ export const TOOL_SCHEMAS: {
     inputSchema: {
       type: 'object',
       properties: {
-        status: { type: 'string', description: 'e.g. todo, in_progress, done.' },
+        status: {
+          type: 'string',
+          description:
+            "Either 'open' or 'done'. ⚠ These are the real values in this database — do not guess 'todo' or 'in_progress'; they match nothing.",
+        },
         project_id: { type: 'string', description: 'Only tasks on this project.' },
         due_before: { type: 'string', description: 'YYYY-MM-DD.' },
         due_after: { type: 'string', description: 'YYYY-MM-DD.' },
@@ -283,6 +287,26 @@ export async function runTool(tool: McpTool, args: Record<string, unknown>): Pro
       if (error) throw new Error(error.message)
       const rows = (data ?? []) as TaskView[]
 
+      /**
+       * ⚠ AN EMPTY RESULT FROM A STATUS FILTER MUST NAME THE REAL VALUES.
+       *
+       * The declaration above once read "e.g. todo, in_progress, done" while
+       * the column actually holds `open` and `done`. A model asking for `todo`
+       * got a clean empty list forever and would have reported that there is
+       * nothing to do. §12: a taxonomy written into a tool declaration is a
+       * second schema and it drifts silently, because a category the model was
+       * never told about simply never fires. So the empty case reports the
+       * values that exist, read from the data rather than restated here.
+       */
+      let statusHint: string | undefined
+      if (rows.length === 0 && status) {
+        const { data: seen } = await supabase.from('mcp_tasks').select('status').limit(1000)
+        const values = [...new Set(((seen ?? []) as { status: string }[]).map((r) => r.status))]
+        if (values.length) {
+          statusHint = `No tasks have status "${status}". The values actually in use are: ${values.join(', ')}.`
+        }
+      }
+
       return {
         payload: {
           tasks: rows.map((t) => ({
@@ -296,6 +320,7 @@ export async function runTool(tool: McpTool, args: Record<string, unknown>): Pro
             assignee: t.assignee_name,
           })),
           tasks_withheld: withheld.tasks,
+          status_hint: statusHint,
           note:
             withheld.tasks > 0
               ? `${withheld.tasks} task(s) are not included because they belong to, or name, a confidential project.`
