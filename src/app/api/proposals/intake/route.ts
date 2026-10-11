@@ -2,22 +2,16 @@ import { NextRequest } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { actorAdminClient } from '@/lib/auth/viewer'
 import { createClient } from '@/lib/supabase/server'
-import { GoogleGenerativeAI, type Part } from '@google/generative-ai'
-import { GoogleAIFileManager } from '@google/generative-ai/server'
+import { callGemini, callGeminiWithFile } from '@/lib/ai/gemini'
 import { PROPOSAL_INTAKE_SYSTEM_PROMPT, PROPOSAL_INTAKE_PROMPT_VERSION } from '@/lib/ai/prompts/proposal-intake'
 import { findMatchingProjects, matchExtractedParties, type ProposalExtraction } from '@/lib/ai/proposal-matching'
 import { assessFit, type FitAssessment } from '@/lib/ai/fit-assessment'
-import { writeFile, unlink } from 'fs/promises'
 import type { JsonIn } from '@/lib/supabase/types'
-import { join } from 'path'
 import { SYSTEM_USER_ID } from '@/lib/system-user'
 
 export const maxDuration = 300
 
-const GEMINI_MODEL = 'gemini-2.5-flash'
 const PDF_MIME_TYPE = 'application/pdf'
-// Gemini inline data limit — above this we use the File API
-const INLINE_LIMIT_BYTES = 15 * 1024 * 1024
 
 interface DirectFileInfo {
   storage_path: string
@@ -156,73 +150,68 @@ export async function POST(request: NextRequest) {
     // Run AI extraction
     let extraction: ProposalExtraction
     try {
-      const gemini = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!)
-      const model = gemini.getGenerativeModel({
-        model: GEMINI_MODEL,
-        systemInstruction: PROPOSAL_INTAKE_SYSTEM_PROMPT,
-      })
-      const start = Date.now()
+      /**
+       * ⚠ THIS WAS AN INLINE GEMINI CLIENT WITH NO PROVIDER BRANCH AT ALL.
+       *
+       * Until 2026-10-11 this route built its own `GoogleGenerativeAI` and
+       * uploaded the WHOLE primary document — inline, or via the Gemini File API
+       * for anything over 15MB — whenever `GEMINI_API_KEY` was set. It never
+       * checked `AI_PROVIDER`, so every RFP, drawing set and teaming agreement
+       * put through proposal intake left the machine despite the platform being
+       * in fully-local mode since the 2026-07-07 cutover. It was the single
+       * largest egress path in the codebase and nothing reported it.
+       *
+       * Routing through `callGeminiWithFile` fixes it at the existing seam: in
+       * local mode a PDF is read by `unpdf` on this box and summarized by Qwen,
+       * and both providers log to `ai_queries` identically.
+       *
+       * NOTE the deliberate loss: the Gemini File API path is gone, so in Gemini
+       * mode a document over the inline limit now FAILS rather than being
+       * uploaded. That is the intended direction — a size limit is a better
+       * failure than a silent upload.
+       */
+      const isBinaryDoc =
+        primaryMimeType === PDF_MIME_TYPE || primaryMimeType.startsWith('image/')
+      const instruction = 'Analyze this document and extract all project and company information.'
+      const logLabel = `Proposal intake: ${primaryFileName}`
 
-      const base64 = primaryBuffer.toString('base64')
-      const mimeType = primaryMimeType
-
-      let parts: Part[]
-
-      if (primaryBuffer.byteLength > INLINE_LIMIT_BYTES && (mimeType === PDF_MIME_TYPE || mimeType.startsWith('image/'))) {
-        // Large file: use Gemini File API to avoid inline data limits
-        const tmpPath = join('/tmp', `${Date.now()}_${primaryFileName.replace(/[^a-zA-Z0-9._-]/g, '_')}`)
-        await writeFile(tmpPath, primaryBuffer)
-        try {
-          const fileManager = new GoogleAIFileManager(process.env.GEMINI_API_KEY!)
-          const uploadResult = await fileManager.uploadFile(tmpPath, {
-            mimeType,
-            displayName: primaryFileName,
+      const call = isBinaryDoc
+        ? await callGeminiWithFile<ProposalExtraction>({
+            systemPrompt: PROPOSAL_INTAKE_SYSTEM_PROMPT,
+            prompt: instruction,
+            file: { mimeType: primaryMimeType, dataBase64: primaryBuffer.toString('base64') },
+            userId,
+            logLabel,
+            promptVersion: PROPOSAL_INTAKE_PROMPT_VERSION,
           })
-          parts = [
-            { fileData: { mimeType: uploadResult.file.mimeType, fileUri: uploadResult.file.uri } },
-            { text: 'Analyze this document and extract all project and company information.' },
-          ]
-        } finally {
-          unlink(tmpPath).catch(() => {})
-        }
-      } else if (mimeType === PDF_MIME_TYPE || mimeType.startsWith('image/')) {
-        parts = [
-          { inlineData: { mimeType, data: base64 } },
-          { text: 'Analyze this document and extract all project and company information.' },
-        ]
+        : await callGemini<ProposalExtraction>({
+            task: logLabel,
+            systemPrompt: PROPOSAL_INTAKE_SYSTEM_PROMPT,
+            userMessage: `${instruction}\n\n${primaryBuffer.toString('utf-8').slice(0, 50000)}`,
+            userId,
+            promptVersion: PROPOSAL_INTAKE_PROMPT_VERSION,
+          })
+
+      // §5: `data` is the parsed object when the model returned valid JSON and
+      // the raw string otherwise, so branch on the shape rather than re-parsing
+      // what is already an object.
+      if (typeof call.data === 'object' && call.data !== null) {
+        extraction = call.data
       } else {
-        parts = [
-          { text: `Analyze this document and extract all project and company information:\n\n${primaryBuffer.toString('utf-8').slice(0, 50000)}` },
-        ]
-      }
-
-      const response = await model.generateContent({
-        contents: [{ role: 'user', parts }],
-        generationConfig: { responseMimeType: 'application/json' },
-      })
-
-      const latencyMs = Date.now() - start
-      const rawText = response.response.text()
-
-      supabase.from('ai_queries').insert({
-        user_id: userId,
-        query_text: `Proposal intake: ${primaryFileName}`,
-        response_text: rawText.slice(0, 10000),
-        model_used: GEMINI_MODEL,
-        prompt_version: PROPOSAL_INTAKE_PROMPT_VERSION,
-        tokens_in: response.response.usageMetadata?.promptTokenCount ?? 0,
-        tokens_out: response.response.usageMetadata?.candidatesTokenCount ?? 0,
-        latency_ms: latencyMs,
-      }).then(() => {})
-
-      const cleanedText = rawText.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim()
-      try {
-        extraction = JSON.parse(cleanedText) as ProposalExtraction
-      } catch {
-        return Response.json({
-          error: 'AI extraction returned invalid JSON. The document may be unreadable or contain only images.',
-          raw_response: rawText.slice(0, 500),
-        }, { status: 422 })
+        const rawText = String(call.data)
+        const cleanedText = rawText.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim()
+        try {
+          extraction = JSON.parse(cleanedText) as ProposalExtraction
+        } catch {
+          return Response.json(
+            {
+              error:
+                'AI extraction returned invalid JSON. The document may be unreadable or contain only images.',
+              raw_response: rawText.slice(0, 500),
+            },
+            { status: 422 }
+          )
+        }
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unknown error'

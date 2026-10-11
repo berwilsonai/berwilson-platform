@@ -524,18 +524,17 @@ async function counterpartyContext(
     const rows = (threads ?? []) as { id: string; participants: string[]; last_at: string | null }[]
     if (rows.length === 0) return out
 
-    const { data: items } = await sweep
-      .from('commitments')
-      .select('thread_id, what, side')
-      .eq('status', 'open')
-      .in(
-        'thread_id',
-        rows.map((r) => r.id)
-      )
-      .limit(200)
+    // ⚠ THROUGH THE CHOKE POINT. This was a direct read until 2026-10-11 — its
+    // sibling in `meeting-prep.ts` was converted on 10-09 and this copy was
+    // missed, so a protected deal's obligations could reach the SENT note by way
+    // of a counterparty who also appears on an unprotected thread.
+    const { rows: items } = await readOpenCommitments({
+      threadIds: rows.map((r) => r.id),
+      limit: 200,
+    })
 
     const byThread = new Map<string, { what: string; side: 'us' | 'them' }[]>()
-    for (const i of (items ?? []) as { thread_id: string; what: string; side: 'us' | 'them' }[]) {
+    for (const i of items) {
       const list = byThread.get(i.thread_id) ?? []
       list.push({ what: i.what, side: i.side })
       byThread.set(i.thread_id, list)

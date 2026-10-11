@@ -5,6 +5,7 @@ import { Send, Bot, User, Loader2, AlertCircle, ThumbsUp, ThumbsDown, Trash2 } f
 
 import { BriefMarkdown } from '@/components/briefs/BriefMarkdown'
 import ReadAloudButton from '@/components/shared/ReadAloudButton'
+import PushToTalkButton from './PushToTalkButton'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 
 interface Message {
@@ -521,6 +522,21 @@ export default function AgentChat({
               const el = e.currentTarget
               el.style.height = 'auto'
               el.style.height = Math.min(el.scrollHeight, 120) + 'px'
+            }}
+          />
+          {/**
+           * Voice in. It APPENDS rather than replaces, so dictating a sentence
+           * onto something already typed works, and it does not auto-send — see
+           * PushToTalkButton. Disabled while a turn is running because LM Studio
+           * serves one request at a time, so recording during a turn would only
+           * queue behind it.
+           */}
+          <PushToTalkButton
+            disabled={loading}
+            onError={setError}
+            onTranscript={(text) => {
+              setInput((prev) => (prev.trim() ? `${prev.trim()} ${text}` : text))
+              inputRef.current?.focus()
             }}
           />
           <button

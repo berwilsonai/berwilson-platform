@@ -20,6 +20,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { sweepDb } from '@/lib/email-sweep/db'
 import { fetchCalendarEvents } from '@/lib/integrations/google-workspace'
 import { summarizeDecideQueue } from '@/lib/decide/count'
+import { readOpenCommitments } from '@/lib/commitments/read'
 import type { CommitmentRow } from '@/lib/commitments/db'
 
 /** Commitments this far ahead count as "coming up" rather than "later". */
@@ -112,12 +113,15 @@ export async function assembleDigest(now = new Date()): Promise<DigestData> {
       .order('fit_score', { ascending: false, nullsFirst: false })
       .limit(20),
 
-    sweep
-      .from('commitments')
-      .select('*')
-      .eq('status', 'open')
-      .order('due_date', { ascending: true, nullsFirst: false })
-      .limit(60),
+    // ⚠ THROUGH THE CHOKE POINT, NOT A QUERY OF ITS OWN. This read was a raw
+    // `.from('commitments').select('*')` until 2026-10-11 — the same shape as
+    // the 10-09 finding that produced `commitments/read.ts`, and the one call
+    // site that was never converted. The digest is an OUTBOUND Chat message, so
+    // it needs the absolute answer: no viewer, no step-up. Snoozed rows are
+    // excluded here for the first time too — the digest predates the snooze, and
+    // naming a row the reader explicitly quieted is what the snooze exists to
+    // stop.
+    readOpenCommitments({ excludeSnoozed: true, limit: 60 }),
 
     sweep
       .from('leads')
@@ -141,7 +145,14 @@ export async function assembleDigest(now = new Date()): Promise<DigestData> {
   ])
 
   if (threadsRes.error) notes.push(`Correspondence could not be read: ${threadsRes.error.message}`)
-  if (commitmentsRes.error) notes.push(`Commitments could not be read: ${commitmentsRes.error.message}`)
+  if (commitmentsRes.error) notes.push(`Commitments could not be read: ${commitmentsRes.error}`)
+  // §12: withholding from a reader means handing them the COUNT. A protected
+  // deal's obligations are absent from this digest, and saying so is what stops
+  // the list asserting a completeness it does not have.
+  if (commitmentsRes.withheld > 0)
+    notes.push(
+      `${commitmentsRes.withheld} open ${commitmentsRes.withheld === 1 ? 'obligation' : 'obligations'} on protected projects are not shown.`
+    )
 
   const threadRows = (threadsRes.data ?? []) as { subject: string | null; summary: unknown }[]
   const threads = threadRows
@@ -160,7 +171,7 @@ export async function assembleDigest(now = new Date()): Promise<DigestData> {
     })
     .filter((t) => t.relevance === 'deal' || t.relevance === 'operational')
 
-  const commitments = (commitmentsRes.data ?? []) as CommitmentRow[]
+  const commitments = commitmentsRes.rows as CommitmentRow[]
   const horizon = daysFromNow(COMMITMENT_HORIZON_DAYS)
   // Dated commitments inside the horizon, plus undated ones — an obligation
   // with no agreed date is not less real, it just cannot be sorted by one, and

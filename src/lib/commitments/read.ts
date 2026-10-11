@@ -40,6 +40,17 @@ export interface ReadOpenOptions {
   /** Hide rows snoozed past today. The note and the default page view do. */
   excludeSnoozed?: boolean
   side?: 'us' | 'them'
+  /**
+   * Restrict to these `email_threads.id` values.
+   *
+   * Added 2026-10-11 so `counterpartyContext` could stop reading the table
+   * itself. It wanted obligations for one counterparty's threads, which is why
+   * it had its own query — and that query carried no confidentiality filter, so
+   * a protected deal's obligations reached the SENT morning note through the
+   * one path that looked too narrow to matter. A targeted read is a reason to
+   * extend the choke point, never a reason to go around it.
+   */
+  threadIds?: string[]
   /** PostgREST caps at 1000 rows silently (§12) — pass what you can render. */
   limit?: number
 }
@@ -55,7 +66,7 @@ export interface OpenCommitments {
 export async function readOpenCommitments(
   opts: ReadOpenOptions = {}
 ): Promise<OpenCommitments> {
-  const { authUserId = null, excludeSnoozed = false, side, limit = 500 } = opts
+  const { authUserId = null, excludeSnoozed = false, side, threadIds, limit = 500 } = opts
   const today = new Date().toISOString().slice(0, 10)
 
   const hidden = await hiddenProjectIds(authUserId)
@@ -71,6 +82,13 @@ export async function readOpenCommitments(
     .limit(limit)
 
   if (side) query = query.eq('side', side)
+
+  // An empty array must mean "no threads", not "every thread" — `.in()` with
+  // nothing in it is the shape that silently widens a filter into no filter.
+  if (threadIds) {
+    if (threadIds.length === 0) return { rows: [], error: null, withheld: 0 }
+    query = query.in('thread_id', threadIds)
+  }
 
   // ⚠ APPLIED IN SQL, BEFORE THE LIMIT. §12: a ranking's LIMIT runs first, so
   // withheld rows at the top of the order would return a short list rather than

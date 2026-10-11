@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { researchQuery } from '@/lib/ai/research'
 import { checkRateLimit } from '@/lib/rate-limit'
+import { requireProjectAccess } from '@/lib/security/guard'
 
 export async function POST(request: NextRequest) {
   // Auth check
@@ -31,8 +32,18 @@ export async function POST(request: NextRequest) {
     return Response.json({ error: 'query is required' }, { status: 400 })
   }
 
+  /**
+   * ⚠ `project_id` WAS DECLARED HERE AND NEVER READ. The body type has named it
+   * since the route was written, so every reader assumed research was scoped to
+   * the project — it was not, and a protected project's id could be posted here
+   * with no check at all. The guard belongs on a route with the id in its BODY;
+   * the middleware gate can only see one in the PATH (§12).
+   */
+  const denied = await requireProjectAccess(body.project_id)
+  if (denied) return denied
+
   try {
-    const result = await researchQuery(query.trim())
+    const result = await researchQuery(query.trim(), { userId: user.id })
     return Response.json({ result })
   } catch (err) {
     console.error('[research] error', err)

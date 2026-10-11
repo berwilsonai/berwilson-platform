@@ -25,6 +25,7 @@ import {
   uploadToFolder,
 } from '@/lib/integrations/google-drive-write'
 import { PRIMARY_MAILBOX, googleFetch, isGoogleConfigured } from '@/lib/integrations/google-workspace'
+import { isConfidentialProject } from '@/lib/security/confidential'
 import { fileRecordDocuments } from './file-document'
 
 export type DriveRecordKind = 'project' | 'opportunity' | 'steel'
@@ -84,6 +85,27 @@ export async function publishRecordToDrive(
 ): Promise<PublishResult> {
   if (!isGoogleConfigured()) {
     throw new Error('Google Workspace is not configured, so nothing can be published to Drive.')
+  }
+
+  /**
+   * ⚠ CONTAINMENT, AND IT BELONGS HERE RATHER THAN AT THE CALLERS.
+   *
+   * `reconcile.ts` filtered `confidential` before calling, and the five other
+   * callers — the manual route, meeting-intake confirm, apply-session, leads
+   * promote, and this file's own retry — did not. Publishing is the one
+   * containment hole a lock cannot close after the fact: the Drive copy is
+   * shared with named people outside the tailnet and is NOT retracted when a
+   * project is protected later. So the check is unconditional at the choke
+   * point, which also covers the next caller added.
+   *
+   * It applies to admins too. §8/§12: `confidential` is containment, not
+   * access, and nothing that has already left the box can be stepped up.
+   * `isConfidentialProject` fails closed to true on a database error.
+   */
+  if (kind === 'project' && (await isConfidentialProject(id))) {
+    throw new Error(
+      'This project is protected, so its documents cannot be published to Drive. A published copy is shared outside the tailnet and cannot be withdrawn.'
+    )
   }
 
   const ref = RECORDS[kind]

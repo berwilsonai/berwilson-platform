@@ -69,7 +69,19 @@ export async function middleware(request: NextRequest) {
     // reader's own mailbox, over a tailnet-only host — and the GET renders a
     // confirmation while only the POST acts, so a link scanner changes nothing.
     pathname.startsWith('/s/') ||
-    pathname === '/api/commitments/settle-link'
+    pathname === '/api/commitments/settle-link' ||
+    // ⚠ THE MCP SERVER, AND THE BEARER TOKEN IS THE CREDENTIAL. An MCP client
+    // holds no session cookie — `createClient()` is cookie-only — so the route
+    // cannot be reached at all while this gate runs first. Compare the cron
+    // entries above: same shape, same reasoning.
+    //
+    // ⚠ EXACT MATCH, NOT A PREFIX, AND THAT IS DELIBERATE. §12: `matchesPrefix`
+    // is not method-aware and a `startsWith('/api/mcp')` here would also
+    // unauthenticate anything added under it later — an admin sub-route, a
+    // token-minting endpoint — which is exactly the mistake this comment exists
+    // to stop. The handler re-checks the token on every verb regardless, and
+    // the kill switch is read before the token.
+    pathname === '/api/mcp'
 
   if (!user && !isPublicRoute) {
     // API calls must get a real 401 (not an HTML login-page redirect that fetch
