@@ -59,14 +59,38 @@ interface RpcRequest {
 
 export async function POST(request: NextRequest) {
   /**
-   * ⚠ THE GUARD RUNS BEFORE ANYTHING ELSE, ON EVERY METHOD.
+   * ⚠ AN IP RATE LIMIT FIRST — IT IS THE ONLY THING AHEAD OF THE GUARD.
    *
-   * §12: `matchesPrefix` in middleware.ts is NOT method-aware, so allowlisting
-   * `/api/mcp` so an MCP client can reach it without a session cookie opens
-   * every verb under it. This handler therefore carries its own authentication
-   * unconditionally and nothing is read before it passes — which is also why
-   * there is no GET here: an MCP client that wants a stream can POST.
+   * Nothing is READ before authentication; this only counts requests and can
+   * refuse. §12: `matchesPrefix` in middleware.ts is not method-aware, so
+   * allowlisting `/api/mcp` opens every verb under it, which is why the
+   * handler authenticates unconditionally below and there is no GET here.
+   *
+   * `authenticate()` reads the kill switch before it looks at the token, which
+   * is the right order for security and the wrong order for load: an
+   * unauthenticated flood would be one database query per request. That is
+   * harmless on a tailnet-only endpoint and is a denial-of-service surface the
+   * moment this is reachable from the open internet.
+   *
+   * Keyed on the forwarded client address because `tailscale serve` rewrites
+   * Host to localhost — the same reason `publicOrigin()` exists (§12). An
+   * absent header falls back to one shared bucket, which is the safe direction:
+   * it throttles rather than exempting.
    */
+  const clientIp =
+    request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+    request.headers.get('x-real-ip') ||
+    'unknown'
+  const ipLimit = checkRateLimit(`mcp-ip:${clientIp}`, 30, 60_000)
+  if (!ipLimit.allowed) {
+    // Deliberately no audit row: the point is to stop doing work, and an audit
+    // write is work. The rate limiter is itself the record.
+    return Response.json(
+      { error: 'Rate limit exceeded.' },
+      { status: 429, headers: { 'Retry-After': String(Math.ceil(ipLimit.retryAfterMs / 1000)) } }
+    )
+  }
+
   const auth = await authenticate(request.headers.get('authorization'))
   if (!auth.ok) {
     await audit({
