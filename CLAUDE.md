@@ -254,6 +254,7 @@ GOOGLE_IMPERSONATE_MAILBOXES=    # optional; overrides the deal mailboxes swept 
 GOOGLE_TASK_MAILBOXES=           # optional; whose Google Tasks lists are synced
 LEAD_TASK_SYNC=                  # optional; "off" stops writing lead bid deadlines as tasks
 LEAD_TASK_OWNER=                 # optional; team member a lead's task is assigned to
+IMESSAGE_EXCLUDE_HANDLES=        # optional; numbers whose TEXT conversations are never read, comma-separated. Colleagues are excluded automatically off `team_members`, but only where `parties.phone` holds the number they actually text FROM — Eric's does not (…5507 on file, texts from …6519), so his is named here
 WHISPER_BIN=                     # meeting transcription binary (~/whisper.cpp/build/bin/whisper-cli)
 WHISPER_MODEL=                   # ggml model path. BOTH are stat'd at runtime — a missing file is a silent outage
 AFCONVERT_BIN=                   # optional; audio decoder (default /usr/bin/afconvert)

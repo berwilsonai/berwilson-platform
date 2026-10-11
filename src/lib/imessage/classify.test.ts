@@ -8,7 +8,12 @@ import { classifyChat, nameTokens, normalizePhone, termRegex } from './classify'
  * down, which is exactly why they are tests now and not comments.
  */
 
-const EMPTY = { partyPhones: new Set<string>(), recordTokens: new Map<string, string>(), singleTokenRecords: new Set<string>() }
+const EMPTY = {
+  partyPhones: new Set<string>(),
+  recordTokens: new Map<string, string>(),
+  singleTokenRecords: new Set<string>(),
+  excludedHandles: new Set<string>(),
+}
 
 function chat(messages: string[], over: Partial<Parameters<typeof classifyChat>[0]> = {}) {
   return classifyChat({
@@ -107,6 +112,7 @@ test('⚠ but a real counterparty is NOT reclassified as spam for not being repl
     partyPhones: new Set(['8015550100']),
     recordTokens: new Map(),
     singleTokenRecords: new Set(),
+    excludedHandles: new Set(),
   })
   assert.equal(v.business, true, 'a known party outranks the broadcast heuristic')
 })
@@ -140,4 +146,51 @@ test('phone normalization agrees across formats', () => {
   }
   assert.equal(normalizePhone('55512'), null, 'a short code is not a phone number')
   assert.equal(normalizePhone('someone@example.com'), null)
+})
+
+test('⚠ an excluded number overrides EVERY other signal, including a known party', () => {
+  // Eric's thread scores 5 on real deal vocabulary and a deal-size figure. It
+  // is genuinely about the business AND it is 3,654 messages of internal
+  // chatter, so no score can separate the two halves — only a named exclusion.
+  const v = classifyChat({
+    handles: ['+13854366519'],
+    messages: [
+      'sending the PSA, escrow opens Monday',
+      'change order on the subcontract, $2,400,000 all in',
+      'title commitment and the plat came back',
+    ],
+    sentByMe: 40,
+    partyPhones: new Set(['3854366519']),
+    recordTokens: new Map([['steelton', 'Steelton']]),
+    singleTokenRecords: new Set(['Steelton']),
+    excludedHandles: new Set(['3854366519']),
+  })
+  assert.equal(v.business, false)
+  assert.equal(v.score, 0, 'an excluded thread is not even scored')
+  assert.deepEqual(v.signals.namedRecords, [], 'and its bodies are never scanned')
+  assert.match(v.reason, /excluded number/)
+})
+
+test('a GROUP chat containing an excluded number is excluded too', () => {
+  const v = classifyChat({
+    handles: ['+18015550100', '+13854366519'],
+    messages: ['the PSA is signed', 'escrow opens Monday', 'invoice to follow'],
+    sentByMe: 5,
+    ...EMPTY,
+    excludedHandles: new Set(['3854366519']),
+  })
+  assert.equal(v.business, false, 'any participant being excluded excludes the thread')
+})
+
+test('exclusion matches across phone formats', () => {
+  for (const stored of ['+13854366519', '3854366519', '(385) 436-6519']) {
+    const v = classifyChat({
+      handles: [stored],
+      messages: ['the PSA and escrow and title commitment and subcontract'],
+      sentByMe: 3,
+      ...EMPTY,
+      excludedHandles: new Set(['3854366519']),
+    })
+    assert.equal(v.business, false, stored)
+  }
 })

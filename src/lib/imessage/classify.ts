@@ -127,6 +127,20 @@ export interface ClassifyInput {
    * `rareTokens` in the survey.
    */
   singleTokenRecords: Set<string>
+  /**
+   * Normalized numbers whose conversations are never ingested, whatever they
+   * score.
+   *
+   * ⚠ THIS IS FOR COLLEAGUES, AND IT IS NOT A NOISE FILTER. Richard's thread
+   * with Eric scored 5 on six deal terms and a deal-size figure — it is
+   * genuinely about the business, and it is also 3,654 messages of mixed
+   * internal chatter with the other executive. A score cannot tell those
+   * apart, because both halves are real. A named exclusion can.
+   *
+   * The cost is accepted deliberately: promises the two of them make to each
+   * other by text will not reach the commitment ledger.
+   */
+  excludedHandles: Set<string>
 }
 
 /** Digits only, US 10-digit form, so `+1 (801) 555-0100` and `8015550100` agree. */
@@ -158,7 +172,40 @@ function isShortCode(handle: string): boolean {
 export const BUSINESS_SCORE_FLOOR = 2
 
 export function classifyChat(input: ClassifyInput): ChatVerdict {
-  const { handles, messages, sentByMe, partyPhones, recordTokens, singleTokenRecords } = input
+  const {
+    handles,
+    messages,
+    sentByMe,
+    partyPhones,
+    recordTokens,
+    singleTokenRecords,
+    excludedHandles,
+  } = input
+
+  /**
+   * ⚠ CHECKED FIRST, AND IT OVERRIDES EVERY OTHER SIGNAL INCLUDING A KNOWN
+   * PARTY. An excluded number is a decision a human made about a person, which
+   * outranks anything the text of the conversation can suggest. Checked before
+   * any body is examined, so an excluded thread is not even scanned.
+   */
+  const excludedHandle = handles.find((h) => {
+    const n = normalizePhone(h)
+    return n !== null && excludedHandles.has(n)
+  })
+  if (excludedHandle) {
+    return {
+      business: false,
+      score: 0,
+      reason: `excluded number (…${excludedHandle.slice(-4)})`,
+      signals: {
+        knownParty: false,
+        namedRecords: [],
+        dealTerms: [],
+        bigMoney: false,
+        automated: false,
+      },
+    }
+  }
 
   const knownParty = handles.some((h) => {
     const p = normalizePhone(h)

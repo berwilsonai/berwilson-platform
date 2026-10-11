@@ -22,6 +22,7 @@
 
 import { createAdminClient } from '@/lib/supabase/admin'
 import { messagesReadable, readChats } from '@/lib/imessage/read'
+import { PRIMARY_MAILBOX } from '@/lib/integrations/google-workspace'
 import {
   BUSINESS_SCORE_FLOOR,
   classifyChat,
@@ -64,6 +65,10 @@ const [projects, parties, entities] = await Promise.all([
  * in the one artifact meant to be read and shared. A protected deal's texts are
  * simply not sought.
  */
+const { data: teamRowsForOwner } = await supabase
+  .from('team_members')
+  .select('name, email, parties(phone)')
+
 const candidates = new Map<string, string>()
 const tokensPerLabel = new Map<string, string[]>()
 let skippedConfidential = 0
@@ -94,6 +99,56 @@ const partyPhones = new Set<string>()
 for (const p of (parties.data ?? []) as { phone: string | null }[]) {
   const n = p.phone ? normalizePhone(p.phone) : null
   if (n) partyPhones.add(n)
+}
+/**
+ * ⚠ THE OWNER IS NOT A COUNTERPARTY. `knownParty` means "someone we have on
+ * file is in this conversation", and it clears the whole bar by itself. Richard
+ * has a party record with his own number, so his notes-to-self thread was
+ * selected on the strength of being himself — 427 messages qualifying with no
+ * record named and no deal term in them. The same shape as printing a reader's
+ * own name back at them as a third party.
+ */
+const ownerPhone = ((teamRowsForOwner ?? []) as { email: string | null; parties: { phone: string | null } | null }[])
+  .find((t) => t.email && t.email.toLowerCase() === PRIMARY_MAILBOX.toLowerCase())
+  ?.parties?.phone
+const ownerNormalized = ownerPhone ? normalizePhone(ownerPhone) : null
+if (ownerNormalized) partyPhones.delete(ownerNormalized)
+
+/**
+ * Colleagues, whose conversations are never ingested.
+ *
+ * Derived from `team_members` so it maintains itself as the directory fills in
+ * — and overridable by env because it does NOT maintain itself today. Measured
+ * 2026-10-11: Eric's thread is the single largest selection at 3,654 messages
+ * and scores 5 on real deal vocabulary, but the number he texts from (…6519)
+ * is not the one on his party record (…5507, same 385-436 prefix, different
+ * line). So the directory cannot yet name the handle that matters, and
+ * `IMESSAGE_EXCLUDE_HANDLES` carries it until `parties` can hold more than one
+ * number per person.
+ */
+const excludedHandles = new Set<string>()
+for (const t of (teamRowsForOwner ?? []) as {
+  name: string
+  email: string | null
+  parties: { phone: string | null } | null
+}[]) {
+  /**
+   * ⚠ NEVER EXCLUDE THE OWNER'S OWN NUMBER.
+   *
+   * The first version derived this from `team_members` wholesale and swept in
+   * Richard himself. In a 1:1 the handle is the OTHER party so it cost only one
+   * self-thread — but Messages lists the owner's own number as a handle on some
+   * group chats, and any deal group where it appeared would have been dropped
+   * silently. The owner is the team member on PRIMARY_MAILBOX, which is the
+   * same identity the mail stack already uses.
+   */
+  if (t.email && t.email.toLowerCase() === PRIMARY_MAILBOX.toLowerCase()) continue
+  const n = t.parties?.phone ? normalizePhone(t.parties.phone) : null
+  if (n) excludedHandles.add(n)
+}
+for (const raw of (process.env.IMESSAGE_EXCLUDE_HANDLES ?? '').split(',')) {
+  const n = normalizePhone(raw.trim())
+  if (n) excludedHandles.add(n)
 }
 
 console.log(
@@ -200,6 +255,7 @@ for (const chat of chats) {
     partyPhones,
     recordTokens,
     singleTokenRecords,
+    excludedHandles,
   })
   // Redacted label: a display name if the conversation has one, else the last
   // four digits. Enough to recognise, not a copy of the address book.
@@ -212,8 +268,11 @@ for (const chat of chats) {
 }
 
 const selected = scored.filter((s) => s.verdict.business)
+const excluded = scored.filter((s) => s.verdict.reason.startsWith('excluded number'))
 const automated = scored.filter((s) => !s.verdict.business && s.verdict.signals.automated)
-const quiet = scored.filter((s) => !s.verdict.business && !s.verdict.signals.automated)
+const quiet = scored.filter(
+  (s) => !s.verdict.business && !s.verdict.signals.automated && !s.verdict.reason.startsWith('excluded number')
+)
 
 // ── Report ───────────────────────────────────────────────────────────────────
 const msgs = (list: Scored[]) => list.reduce((a, s) => a + s.total, 0)
@@ -221,12 +280,28 @@ const msgs = (list: Scored[]) => list.reduce((a, s) => a + s.total, 0)
 console.log('─'.repeat(72))
 console.log(`conversations in window:      ${scored.length}  (${msgs(scored)} messages)`)
 console.log(`WOULD INGEST:                 ${selected.length}  (${msgs(selected)} messages)`)
+console.log(`excluded, colleague's number:  ${excluded.length}  (${msgs(excluded)} messages)`)
 console.log(`excluded, automated/broadcast: ${automated.length}  (${msgs(automated)} messages)`)
 console.log(`excluded, no business signal:  ${quiet.length}  (${msgs(quiet)} messages)`)
 console.log(
   `=> ${((100 * msgs(selected)) / Math.max(1, msgs(scored))).toFixed(1)}% of your messages in this window would be read into the platform`
 )
 console.log('─'.repeat(72))
+
+if (excludedHandles.size > 0) {
+  console.log(
+    `\n${excludedHandles.size} number(s) excluded by name. What that costs — these conversations are NOT ingested:\n`
+  )
+  for (const e of [...excluded]
+    .sort((a, b) => b.total - a.total)
+    .slice(0, 8)) {
+    console.log(`  ${String(e.total).padStart(5)} msgs  ${e.label}  —  ${e.verdict.reason}`)
+  }
+  if (excluded.length > 8) console.log(`  …and ${excluded.length - 8} more`)
+  console.log(
+    '  ⚠ Group chats where an excluded number sits alongside a counterparty go too.'
+  )
+}
 
 console.log(`\nWould ingest (top ${Math.min(SHOW, selected.length)} by recency):\n`)
 for (const s of [...selected]
