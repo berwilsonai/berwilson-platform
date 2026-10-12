@@ -488,7 +488,22 @@ export function collectInstructions(reads: TabRead[]): {
       if (!UUID.test(id)) {
         // A row with something in it but no id is a paste or somebody's own
         // note. An entirely blank row is just the bottom of the grid.
-        if (row.some((c) => c !== null && c !== undefined && String(c).trim() !== '')) {
+        //
+        // ⚠ AND "BLANK" HAS TO IGNORE THE DONE COLUMN, OR EVERY EMPTY GRID ROW
+        // IS A PASTE. The checkbox validation covers the whole column, so Sheets
+        // materialises a real `false` in every row below the data — and
+        // `String(false)` is the non-empty string "false". Measured 2026-10-12:
+        // the "All open" tab returned 246 rows for 45 tasks, 200 of them holding
+        // nothing but that bare checkbox, and `strayRows` had reported exactly
+        // 1000 on all 41 runs since the sheet was created (0 on the first, before
+        // any checkbox existed). A number that cannot change is not a signal:
+        // somebody's pasted notes would have been invisible behind it, which is
+        // the one thing this count exists to catch.
+        if (
+          row.some(
+            (c, i) => i !== COL_DONE && c !== null && c !== undefined && String(c).trim() !== ''
+          )
+        ) {
           strayRows++
         }
         continue

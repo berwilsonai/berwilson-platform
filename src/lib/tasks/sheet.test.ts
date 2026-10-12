@@ -270,3 +270,34 @@ test('column letters are right at and past the Z boundary', () => {
   assert.equal(columnLetter(25), 'Z')
   assert.equal(columnLetter(26), 'AA')
 })
+
+// ---------------------------------------------------------------------------
+// Stray rows
+// ---------------------------------------------------------------------------
+
+test('a blank grid row carrying only its checkbox is not a paste', () => {
+  // What Sheets actually returns below the data: the checkbox validation covers
+  // the column, so every empty row holds a real `false`. String(false) is
+  // "false", which is why this read as a paste on all 41 runs after the sheet
+  // was created — 1000 of them, every time.
+  const result = collectInstructions([
+    { title: 'All open', kind: 'open', member: null, rows: [[false], [false], [false]] },
+  ])
+  assert.equal(result.strayRows, 0)
+  assert.equal(result.instructions.size, 0)
+})
+
+test('a real paste is still counted', () => {
+  const result = collectInstructions([
+    { title: 'All open', kind: 'open', member: null, rows: [[false, 'call the bank back']] },
+  ])
+  assert.equal(result.strayRows, 1)
+})
+
+test('a ticked row with no task id is a paste, not an instruction', () => {
+  const result = collectInstructions([
+    { title: 'All open', kind: 'open', member: null, rows: [[true, 'my own note']] },
+  ])
+  assert.equal(result.strayRows, 1)
+  assert.equal(result.instructions.size, 0)
+})
