@@ -22,6 +22,7 @@ import { storeFetchedThreads } from '@/lib/email-sweep/fetch-phase'
 import { messagesReadable, readChats, snapshotDbPath } from './read'
 import { buildTargets, scoreChats } from './targets'
 import { chatToThreads } from './to-thread'
+import { redactPrivateTexts } from './redact'
 
 /**
  * How far back sessions are written. Older ones are not revisited.
@@ -77,6 +78,9 @@ export interface IMessageSweepResult {
   tokensRare: number
   calibrationDays: number
   ingestDays: number
+  /** Sessions the model judged not work-related, whose text was discarded. */
+  redacted: number
+  chunksRemoved: number
 }
 
 export async function runIMessageSweep(
@@ -103,6 +107,8 @@ export async function runIMessageSweep(
     tokensRare: 0,
     calibrationDays: 0,
     ingestDays: 0,
+    redacted: 0,
+    chunksRemoved: 0,
   }
 
   const access = messagesReadable(dbPath)
@@ -151,7 +157,16 @@ export async function runIMessageSweep(
   base.sessions = threads.length
   base.selected.sort((a, b) => b.messages - a.messages)
 
-  if (dryRun || threads.length === 0) return { ...base, ok: true }
+  if (dryRun) return { ...base, ok: true }
+
+  // The backstop. Summarize redacts a private session the moment it classifies
+  // one, so this normally finds nothing — what it reaches is anything
+  // summarized before that existed, or a session whose redaction failed.
+  const redacted = await redactPrivateTexts()
+  base.redacted = redacted.redacted
+  base.chunksRemoved = redacted.chunksRemoved
+
+  if (threads.length === 0) return { ...base, ok: true }
 
   const stored = await storeFetchedThreads(threads, 'deal')
   return { ...base, ok: true, inserted: stored.inserted, refreshed: stored.refreshed }

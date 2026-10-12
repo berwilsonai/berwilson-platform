@@ -99,15 +99,25 @@ test('a lone token names a record only when the corpus says that word is rare', 
   assert.equal(with_.business, true)
 })
 
-test("a known party's own number clears the bar by itself", () => {
-  // The directory entry is a human filing decision — the strongest evidence
-  // available, and the same reasoning that governs learned identifiers.
-  const v = chat(['ok', 'thanks'], {
+test("⚠ a CRM contact alone is NOT enough — a contact can also be a friend", () => {
+  // This used to clear the bar by itself, on the reasoning that a directory
+  // entry is a human filing decision. Richard's instruction on 10-11 narrowed
+  // it: "if the text isn't work related to ignore it." Being in the CRM says
+  // who somebody is, not what this conversation is about.
+  const social = chat(['ok', 'thanks'], {
     handles: ['+18015550100'],
     partyPhones: new Set(['8015550100']),
   })
-  assert.equal(v.signals.knownParty, true)
-  assert.equal(v.business, true)
+  assert.equal(social.signals.knownParty, true)
+  assert.equal(social.business, false)
+  assert.match(social.reason, /nothing work-related/)
+
+  // The same contact, talking about work, is admitted.
+  const working = chat(['the PSA is signed and escrow opens Monday'], {
+    handles: ['+18015550100'],
+    partyPhones: new Set(['8015550100']),
+  })
+  assert.equal(working.business, true)
 })
 
 test('marketing written in deal vocabulary is still excluded', () => {
@@ -147,15 +157,28 @@ test('⚠ but a real counterparty is NOT reclassified as spam for not being repl
   assert.equal(v.business, true, 'a known party outranks the broadcast heuristic')
 })
 
-test('deal vocabulary alone needs volume, not one mention', () => {
-  const one = chat(['can you send the invoice'])
-  assert.equal(one.business, false, 'a single term is not a deal conversation')
-
+test('⚠ deal vocabulary from a STRANGER is never enough, however much of it', () => {
+  // The old rule scored vocabulary and admitted at two points, so "2 deal
+  // terms; deal-size figure" took a 125-message thread with no record named and
+  // nobody in the directory — indistinguishable from two friends buying a
+  // house. Measured on the real corpus: this withheld 17 conversations, one of
+  // them carrying NINE deal terms, and every one of them is a stranger.
   const many = chat([
     'the PSA and escrow are set, title commitment came back clean',
     'change order on the subcontract, and the retainage is held',
   ])
-  assert.equal(many.business, true)
+  assert.equal(many.business, false)
+  assert.match(many.reason, /work vocabulary, but no record clearly named/)
+
+  // One phone number on a contact record is what admits it.
+  const withContact = chat(
+    [
+      'the PSA and escrow are set, title commitment came back clean',
+      'change order on the subcontract, and the retainage is held',
+    ],
+    { handles: ['+18015550100'], partyPhones: new Set(['8015550100']) }
+  )
+  assert.equal(withContact.business, true)
 })
 
 test('a deal-size figure counts but is not sufficient alone', () => {
@@ -238,20 +261,45 @@ test("⚠ a colleague's thread is INTERNAL, and internal is work — not a score
     ...EMPTY,
     internalHandles: new Set(['3854366519']),
   })
+  // ⚠ AND IT IS A FLAG, NOT A DOOR. It used to return business:true with
+  // score 99 before anything was scored. Richard asked for the same rule to
+  // apply to Eric as to everyone — so a colleague's thread is admitted on its
+  // merits, which his work threads clear by naming records. With no deal word
+  // and no record in it, this one is private.
+  assert.equal(v.internal, true, 'still flagged, because attribution downstream needs it')
+  assert.equal(v.business, false)
+})
+
+test("a colleague's thread naming a record IS admitted, with no exception for being internal", () => {
+  const v = verdict({
+    handles: ['+13854366519'],
+    messages: ['steelton closing moved to Nov 1, tell Tensor'],
+    sentByMe: 20,
+    ...EMPTY,
+    recordTokens: new Map([['steelton', 'Steelton — Cleveland-Cliffs (PA)']]),
+    rareTokens: new Set(['steelton']),
+    internalHandles: new Set(['3854366519']),
+  })
   assert.equal(v.business, true)
   assert.equal(v.internal, true)
   assert.match(v.reason, /internal/)
 })
 
-test('internal beats the broadcast heuristic too', () => {
+test('⚠ internal still beats the broadcast heuristic, though it no longer admits', () => {
+  // `automated` fires on a thread never replied to inside the window, and
+  // Eric's texting number is not on his contact record — so a quiet fortnight
+  // would have had his thread thrown out as marketing before the rule ever ran.
   const v = verdict({
     handles: ['+13854366519'],
-    messages: ['heads up', 'one more thing', 'and another'],
+    messages: ['steelton closing moved to Nov 1', 'one more thing', 'and another'],
     sentByMe: 0,
     ...EMPTY,
+    recordTokens: new Map([['steelton', 'Steelton — Cleveland-Cliffs (PA)']]),
+    rareTokens: new Set(['steelton']),
     internalHandles: new Set(['3854366519']),
   })
-  assert.equal(v.business, true, 'a colleague is never a broadcast')
+  assert.equal(v.signals.automated, true, 'it does look like a broadcast')
+  assert.equal(v.business, true, 'and a colleague is never one')
 })
 
 test('a MIXED group — colleague plus an outsider — is not internal', () => {

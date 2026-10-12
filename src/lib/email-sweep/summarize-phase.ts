@@ -20,6 +20,8 @@ import {
 } from '@/lib/ai/prompts/thread-summary'
 import { SYSTEM_USER_ID } from '@/lib/email-ingestion/analyze'
 import { sweepDb, type EmailThreadRow } from './db'
+import { isIMessageThread } from '@/lib/imessage/to-thread'
+import { redactPrivateTexts } from '@/lib/imessage/redact'
 
 /**
  * Hard ceiling on thread text sent to the model. The local model has 64k
@@ -120,7 +122,7 @@ export async function summarizePending(
     // before it gets 2019's archive.
     const { data, error } = await db
       .from('email_threads')
-      .select('id, subject, raw_markdown, last_at')
+      .select('id, subject, raw_markdown, last_at, gmail_thread_id')
       .eq('summary_state', 'pending')
       // Lead-pipeline threads have their own (differently shaped) triage pass.
       .eq('pipeline', 'deal')
@@ -128,7 +130,10 @@ export async function summarizePending(
       .limit(BATCH)
 
     if (error) throw new Error(`Could not load pending threads: ${error.message}`)
-    const rows = (data ?? []) as Pick<EmailThreadRow, 'id' | 'subject' | 'raw_markdown' | 'last_at'>[]
+    const rows = (data ?? []) as Pick<
+      EmailThreadRow,
+      'id' | 'subject' | 'raw_markdown' | 'last_at' | 'gmail_thread_id'
+    >[]
     if (rows.length === 0) break
 
     for (const row of rows) {
@@ -175,6 +180,23 @@ export async function summarizePending(
 
         progress.summarized++
         progress.byRelevance[summary.relevance]++
+
+        // ⚠ FORGET A PRIVATE TEXT HERE, NOT ON THE NEXT SWEEP. The text sweep
+        // runs four times a day, so a backstop there would leave a personal
+        // conversation's full text sitting in `email_threads` for up to six
+        // hours — searchable by /api/thread-links the whole time. The moment
+        // the model says it is not work, there is no reason to still hold it.
+        // Non-fatal: failing to redact must not fail the summary that earned it.
+        if (summary.relevance === 'noise' && isIMessageThread(row.gmail_thread_id)) {
+          try {
+            await redactPrivateTexts([row.id])
+          } catch (redactErr) {
+            console.error(
+              '[sweep/summarize] could not discard private text:',
+              redactErr instanceof Error ? redactErr.message : redactErr
+            )
+          }
+        }
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err)
         console.error(`[sweep/summarize] thread ${row.id} failed:`, message)

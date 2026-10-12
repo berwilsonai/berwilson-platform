@@ -217,13 +217,50 @@ function isShortCode(handle: string): boolean {
 }
 
 /**
- * The bar. Two independent signals, or one strong one.
+ * ⚠ THE BAR IS A RULE, NOT A SCORE, AND THAT IS RICHARD'S INSTRUCTION (10-11).
  *
- * Set here rather than inline so the survey script can report what moving it
- * would do, which is the only honest way to choose a threshold (§12: a fuzzy
- * threshold is measured against the real corpus, never chosen).
+ * It was a threshold — two independent signals, or one strong one. The trouble
+ * with a sum is that it admits a conversation for reasons that do not justify
+ * each other: "2 deal terms; deal-size figure" cleared the old floor of 2 on a
+ * 125-message thread with no record named and nobody on it in the directory,
+ * which is indistinguishable from two friends discussing a house purchase.
+ *
+ * What was asked for instead:
+ *
+ *   "if the text clearly references a project then we should incorporate them.
+ *    I am just saying that if the text isn't work related to ignore it. Was
+ *    thinking that if it isn't clear that it is a work text or not and the
+ *    person on the text isn't in the CRM then we could ignore it."
+ *
+ * So two independent doors, and ambiguity is not one of them:
+ *
+ *   1. The conversation CLEARLY names a record — its whole name, or a word
+ *      distinctive in this corpus. That is evidence about the deal and stands
+ *      on its own, whoever is in the thread.
+ *   2. Somebody in the thread is a CRM contact AND there is a work signal.
+ *      Directory membership is a human filing decision, so it is what resolves
+ *      the ambiguous case — but it is not sufficient alone, because a contact
+ *      can also be a friend and a text about dinner is not work.
+ *
+ * Anything else is private and is never read. `score` survives only to ORDER
+ * the dry run by strength; it no longer decides anything.
  */
-export const BUSINESS_SCORE_FLOOR = 2
+export function isWorkConversation(signals: ChatSignals, internal: boolean): boolean {
+  // ⚠ A COLLEAGUE IS NEVER A BROADCAST, EVEN THOUGH INTERNAL IS NOT A DOOR.
+  // `automated` fires on a thread never replied to within the window, and
+  // Eric's number is not on his contact record — so a quiet fortnight would
+  // otherwise have his thread dismissed as marketing.
+  if (signals.automated && !signals.knownParty && !internal) return false
+
+  const clearlyNamesRecord = signals.namedBy.length > 0
+  const workSignal =
+    signals.namedRecords.length > 0 || signals.dealTerms.length >= 2 || signals.bigMoney
+
+  // `internal` is a different KIND, not a stronger degree (see ChatVerdict),
+  // and it is deliberately NOT a door: Richard asked for the same rule to
+  // apply to Eric, and Eric's work threads clear door 1 on their own merits.
+  return clearlyNamesRecord || (signals.knownParty && workSignal)
+}
 
 export function classifyChat(input: ClassifyInput): ChatVerdict {
   const {
@@ -383,17 +420,7 @@ export function classifyChat(input: ClassifyInput): ChatVerdict {
    * reclassified as spam because they happened to send three messages without a
    * reply yet.
    */
-  if (internal) {
-    return {
-      business: true,
-      score: 99,
-      reason: 'internal — every other participant is on the team',
-      signals,
-      internal: true,
-    }
-  }
-
-  if (automated && !knownParty) {
+  if (automated && !knownParty && !internal) {
     return {
       business: false,
       score,
@@ -401,12 +428,28 @@ export function classifyChat(input: ClassifyInput): ChatVerdict {
         ? 'short-code sender (marketing or 2FA)'
         : 'broadcast — never replied to',
       signals,
-      internal: false,
+      internal,
     }
   }
 
-  const business = score >= BUSINESS_SCORE_FLOOR
+  const business = isWorkConversation(signals, internal)
+
+  // ⚠ SAY WHY IT WAS NOT READ, NOT JUST THAT IT WAS NOT. The dry run exists to
+  // be argued with, and "no business signal" on a conversation full of deal
+  // vocabulary reads as a bug. These two sentences are the whole rule stated
+  // back at the reader, and each names the one thing that would change it.
+  if (!business) {
+    const workSignal = namedRecords.length > 0 || dealTerms.length >= 2 || bigMoney
+    const reason = workSignal
+      ? 'work vocabulary, but no record clearly named and nobody on it is a CRM contact — private'
+      : knownParty
+        ? 'a CRM contact, but nothing work-related in it — private'
+        : 'no business signal'
+    return { business: false, score, reason, signals, internal }
+  }
+
   const why: string[] = []
+  if (internal) why.push('internal — every other participant is on the team')
   if (knownParty) why.push('known party phone')
   for (const n of namedBy.slice(0, 3)) {
     why.push(`names ${n.label} [${n.via}: ${n.matched.join(' + ')}]`)
@@ -419,6 +462,13 @@ export function classifyChat(input: ClassifyInput): ChatVerdict {
     score,
     reason: why.length ? why.join('; ') : 'no business signal',
     signals,
-    internal: false,
+    // ⚠ NOT `false`. This was hardcoded because `internal` used to return early
+    // with its own object, so the flag could never reach here. Once internal
+    // stopped being a door it fell through to this return and every colleague's
+    // thread reported internal:false while its own reason string said otherwise
+    // — and the flag is what stops a commitment being attributed to a
+    // counterparty who is actually a teammate, and a party record being
+    // invented from one.
+    internal,
   }
 }

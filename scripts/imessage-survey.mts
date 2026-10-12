@@ -29,7 +29,6 @@
  */
 
 import { messagesReadable, readChats, messagesDbPath } from '@/lib/imessage/read'
-import { BUSINESS_SCORE_FLOOR } from '@/lib/imessage/classify'
 import { buildTargets, scoreChats, type ScoredChat } from '@/lib/imessage/targets'
 import { SESSION_GAP_MS, splitSessions } from '@/lib/imessage/to-thread'
 
@@ -59,7 +58,7 @@ console.log(
     (calibration.skippedConfidential
       ? `; ${calibration.skippedConfidential} confidential project(s) deliberately excluded`
       : '') +
-    `\nWindow: last ${DAYS} days. Threshold: score >= ${BUSINESS_SCORE_FLOOR}.\n`
+    `\nWindow: last ${DAYS} days. A conversation is read if it CLEARLY names a record, or if somebody on it is a CRM contact AND there is a work signal.\n`
 )
 
 console.log(
@@ -158,23 +157,27 @@ for (const s of [...selected]
 }
 
 /**
- * The rows either side of the line, which is the only way to judge a threshold.
- * A conversation scoring exactly at the floor is the one most likely to be
- * wrong in either direction.
+ * ⚠ THE NEAR-MISSES ARE THE POINT OF THIS SECTION, AND THEY SPLIT IN TWO.
+ *
+ * There is no threshold to argue about any more, so the useful question is
+ * which conversations were withheld and what would change that. The two buckets
+ * want opposite responses: the first is a directory gap and one phone number
+ * fixes it, the second is working exactly as intended.
  */
-console.log(`\nAt the threshold (score == ${BUSINESS_SCORE_FLOOR}) — the ones to argue about:\n`)
-const marginal = selected.filter((s) => s.verdict.score === BUSINESS_SCORE_FLOOR)
-for (const s of marginal.slice(0, 15)) {
-  console.log(`  ${String(s.chat.total).padStart(5)} msgs  ${s.label}  —  ${s.verdict.reason}`)
+const needsContact = quiet.filter((s) => s.verdict.reason.startsWith('work vocabulary'))
+console.log(
+  `\nWITHHELD, but talks like work — a CRM contact on any of these admits it (${needsContact.length}):\n`
+)
+for (const s of needsContact.sort((a, b) => b.chat.total - a.chat.total).slice(0, 15)) {
+  console.log(`  ${String(s.chat.total).padStart(5)} msgs  ${s.label}  —  ${s.verdict.reason.replace(' — private', '')}`)
 }
-console.log(`  (${marginal.length} conversations sit exactly on the line)`)
+console.log('  → If one of these is a real counterparty, put their number on their contact record.')
 
-console.log(`\nJust BELOW the line (score ${BUSINESS_SCORE_FLOOR - 1}) — what raising coverage would add:\n`)
-const nearMiss = quiet.filter((s) => s.verdict.score === BUSINESS_SCORE_FLOOR - 1)
-for (const s of nearMiss.slice(0, 15)) {
-  console.log(`  ${String(s.chat.total).padStart(5)} msgs  ${s.label}  —  ${s.verdict.reason}`)
+const contactNoWork = quiet.filter((s) => s.verdict.reason.startsWith('a CRM contact'))
+console.log(`\nWITHHELD, a contact but nothing work-related in it (${contactNoWork.length}) — private, as asked:\n`)
+for (const s of contactNoWork.sort((a, b) => b.chat.total - a.chat.total).slice(0, 10)) {
+  console.log(`  ${String(s.chat.total).padStart(5)} msgs  ${s.label}`)
 }
-console.log(`  (${nearMiss.length} conversations would be added by dropping the floor by one)`)
 
 console.log(
   `\nDirectory: ${directory.nameByPhone.size} number(s) resolve to a named contact, ${directory.emailByPhone.size} to an email address.`
