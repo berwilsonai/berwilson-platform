@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.berwilson.cron-task-sheet</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/zsh</string>
+    <string>-c</string>
+    <string>curl -sS -m 280 -H "Authorization: Bearer $(grep '^CRON_SECRET=' __APP_DIR__/.env.local | cut -d= -f2-)" http://localhost:3000/api/cron/task-sheet</string>
+  </array>
+  <!-- Every 15 minutes, all day. Replaced com.berwilson.cron-google-tasks on
+       2026-10-11, at the same cadence and for the same reason: three confirm
+       routes (meeting intake, email ingestion, action items) create tasks in
+       bulk without going through /api/tasks, so they never fire the immediate
+       refresh, and "the tasks someone assigned you this morning turn up
+       tomorrow" is the wrong answer for a to-do list.
+
+       It now bounds a second thing the Google Tasks sync did not have to care
+       about: how long a TICKED CHECKBOX waits before it settles. Google
+       notified us of nothing either way, but a person who ticks a box and sees
+       the platform disagree ten minutes later has learned the sync is a lie.
+
+       Note what this interval does NOT govern: anything edited inside the
+       platform reaches the sheet in seconds via queueTaskSheetRefresh.
+
+       A run is three Sheets calls and one Drive permissions read against a
+       46-row board — it touches no local model and so competes with nothing.
+       LM Studio serves one request at a time (§12), which is why the jobs that
+       DO use it are spread across the morning and this one need not be.
+
+       If you change it, change SYNC_INTERVAL_MINUTES in src/lib/system-health.ts
+       to match, or the health card reports a healthy sync as stalled.
+
+       StartInterval rather than the StartCalendarInterval most jobs here use,
+       because those are daily or weekly and this one is not.
+
+       ThrottleInterval matches, so a run that overruns cannot stack — and the
+       curl -m 280 ceiling is under both it and the route's own maxDuration of
+       300, so a wedged run cannot straddle the next tick. -->
+  <key>StartInterval</key>
+  <integer>900</integer>
+  <key>ThrottleInterval</key>
+  <integer>900</integer>
+  <key>AbandonProcessGroup</key>
+  <false/>
+  <key>StandardOutPath</key>
+  <string>__LOG_DIR__/cron-task-sheet.log</string>
+  <key>StandardErrorPath</key>
+  <string>__LOG_DIR__/cron-task-sheet.err.log</string>
+</dict>
+</plist>

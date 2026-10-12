@@ -15,7 +15,6 @@ import path from 'path'
 import {
   allMailboxes,
   MAILBOXES,
-  TASK_MAILBOXES,
   isGoogleConfigured,
   probeGoogleConnection,
   probeScopeCoverage,
@@ -930,126 +929,110 @@ export async function probeContactsSync(): Promise<{
 
 
 /**
- * Is each team member's Google Tasks list actually being kept up to date?
+ * Is the shared task sheet actually being rebuilt, and can anyone settle in it?
  *
- * Reports COVERAGE, not completeness, and the distinction is the whole design:
- * most of the team has not connected a Google account — six of nine members
- * have no email address on file at all — so "not everyone is synced" is the
- * correct steady state and must not render red. It names who is missing and
- * gives the exact command, the way every other Google card here does.
+ * Replaced probeGoogleTasks on 2026-10-11. That probe measured COVERAGE — how
+ * many members had connected an account — which was the right question for a
+ * per-person sync and is meaningless for one shared workbook. The questions now
+ * are whether the workbook exists, whether the rebuild is still running, and
+ * whether the people who have to tick a box can write to it.
  *
- * `detached` is reported and deliberately never affects state. A member
- * clearing a task off their own list is the feature working, not a fault to be
- * chased, and a check that goes amber every time somebody tidies up is a check
- * people stop reading.
+ * ⚠ IT WATCHES THE OUTPUT SIDE ON PURPOSE. The commitment loop reported "476
+ * open" in green for sixteen days — correctly, extraction is why it was 476 —
+ * while nothing had ever been settled by a human (§12, 10-09). The same shape
+ * is available here: a sheet full of open tasks is exactly what a healthy
+ * publish produces AND what a sheet nobody can tick produces. So a workbook
+ * that has never had a single tick read out of it is called out rather than
+ * counted as health. It is not an alarm — a new board legitimately has none —
+ * which is why it reads as `partial` and says what it is waiting for.
  */
-export async function probeGoogleTasks(): Promise<{
+export async function probeTaskSheet(): Promise<{
   state: 'ok' | 'partial' | 'unconfigured' | 'stalled' | 'failed'
   detail: string
 }> {
   if (!isGoogleConfigured()) {
     return { state: 'unconfigured', detail: 'Google Workspace is not configured.' }
   }
-  if (TASK_MAILBOXES.length === 0) {
+
+  const supabase = createAdminClient()
+  const [state, openTasks] = await Promise.all([
+    supabase
+      .from('task_sheet_state')
+      .select('spreadsheet_id, spreadsheet_url, last_synced_at, last_error, rows_published, settled_total')
+      .maybeSingle(),
+    supabase.from('tasks').select('id', { count: 'exact', head: true }).eq('status', 'open'),
+  ])
+
+  if (state.error) {
+    return { state: 'failed', detail: `Could not read the task-sheet state: ${state.error.message}` }
+  }
+
+  const row = state.data as {
+    spreadsheet_id: string
+    spreadsheet_url: string | null
+    last_synced_at: string | null
+    last_error: string | null
+    rows_published: number
+    settled_total: number
+  } | null
+
+  if (!row) {
     return {
       state: 'unconfigured',
       detail:
-        'Google Tasks sync is off — GOOGLE_TASK_MAILBOXES is unset. Nothing is broken; ' +
-        'tasks simply live only in Ber Intelligence.',
+        'The task sheet has never been built. The next run of /api/cron/task-sheet creates it; ' +
+        'if it does not, check that the Google Sheets API is enabled on the Cloud project.',
     }
   }
 
-  const supabase = createAdminClient()
-  const [members, lists, detached] = await Promise.all([
-    supabase.from('team_members').select('id, name, email').eq('active', true),
-    supabase.from('google_task_lists').select('team_member_id, last_synced_at, missing_at, last_error'),
-    supabase.from('task_google_links').select('id', { count: 'exact', head: true }).eq('state', 'detached'),
-  ])
-
-  if (members.error) {
-    return { state: 'failed', detail: `Could not read the team: ${members.error.message}` }
-  }
-
-  const active = members.data ?? []
-  const listRows = (lists.data ?? []) as {
-    team_member_id: string
-    last_synced_at: string | null
-    missing_at: string | null
-    last_error: string | null
-  }[]
-  const byMember = new Map(listRows.map((r) => [r.team_member_id, r]))
-
-  const connected = active.filter((m) => byMember.has(m.id))
-  const unconnected = active.filter((m) => !byMember.has(m.id))
-  const paused = listRows.filter((r) => r.missing_at)
-  const detachedCount = detached.count ?? 0
-
-  const tail =
-    (detachedCount
-      ? ` ${detachedCount} task${detachedCount === 1 ? ' has' : 's have'} been cleared off a member's own list and ` +
-        `${detachedCount === 1 ? 'is' : 'are'} no longer syncing — that is the sync obeying them, not a fault.`
-      : '')
-
-  if (paused.length > 0) {
-    return {
-      state: 'failed',
-      detail:
-        `${paused.length} member${paused.length === 1 ? "'s" : "s'"} Google list was deleted, so their sync is ` +
-        `paused and nothing was detached. Clear missing_at on google_task_lists to rebuild it.${tail}`,
-    }
-  }
-
-  if (connected.length === 0) {
-    return {
-      state: 'failed',
-      detail:
-        `${TASK_MAILBOXES.length} address${TASK_MAILBOXES.length === 1 ? ' is' : 'es are'} nominated in ` +
-        `GOOGLE_TASK_MAILBOXES but no member has a list yet. Consent them with: ` +
-        `node scripts/setup-google-oauth.mjs --only <address>`,
-    }
-  }
-
-  // The cadence lives in deploy/com.berwilson.cron-google-tasks.plist
+  // The cadence lives in deploy/com.berwilson.cron-task-sheet.plist
   // (StartInterval). These two must move together: a threshold under the
   // interval calls a healthy sync stalled, one far over it hides a dead job.
   const SYNC_INTERVAL_MINUTES = 15
-  // Deliberately NOT "two missed runs" as it was at the old four-hour cadence:
-  // at this interval that is a 30-minute threshold, and this box DarkWakes and
-  // sleeps through the day, so a couple of skipped ticks is ordinary and would
-  // cry wolf. An hour still names a dead job inside the hour.
+  // An hour rather than two missed runs. This box DarkWakes and sleeps through
+  // the day, so a couple of skipped ticks is ordinary and 30 minutes would cry
+  // wolf; an hour still names a dead job inside the hour.
   const STALE_AFTER_MINUTES = 60
-  const newest = listRows
-    .map((r) => (r.last_synced_at ? new Date(r.last_synced_at).getTime() : 0))
-    .reduce((a, b) => Math.max(a, b), 0)
-  const ageMinutes = newest ? (Date.now() - newest) / 60_000 : Infinity
-  // Infinity (nobody has ever synced) must land here too. Excluding it was the
-  // other half of the blind spot: a member connected but never once synced read
-  // as a clean bill of health.
+  const ageMinutes = row.last_synced_at
+    ? (Date.now() - new Date(row.last_synced_at).getTime()) / 60_000
+    : Infinity
+
+  // Infinity — built but never completed a run — must land here too. Excluding
+  // it is how a never-once-working job reads as a clean bill of health.
   if (ageMinutes > STALE_AFTER_MINUTES) {
     return {
       state: 'stalled',
       detail:
-        `${connected.length} member${connected.length === 1 ? '' : 's'} connected, but ` +
         (Number.isFinite(ageMinutes)
-          ? `nothing has synced in ${Math.round(ageMinutes)} minutes`
-          : 'no run has ever completed') +
-        `. The job runs every ${SYNC_INTERVAL_MINUTES} minutes.${tail}`,
+          ? `The task sheet has not been rebuilt in ${Math.round(ageMinutes)} minutes`
+          : 'The task sheet exists but no run has ever completed') +
+        `. The job runs every ${SYNC_INTERVAL_MINUTES} minutes.` +
+        (row.last_error ? ` Last error: ${row.last_error}` : ''),
     }
   }
 
-  const names = unconnected.map((m) => m.name).join(', ')
+  const open = openTasks.count ?? 0
   const detail =
-    `${connected.length} of ${active.length} active team member${active.length === 1 ? '' : 's'} ` +
-    `${connected.length === 1 ? 'has' : 'have'} their tasks in Google Tasks.${tail}`
+    `${row.rows_published} row${row.rows_published === 1 ? '' : 's'} published ` +
+    `(${open} open), rebuilt ${Math.round(ageMinutes)} minute${Math.round(ageMinutes) === 1 ? '' : 's'} ago. ` +
+    `${row.settled_total} task${row.settled_total === 1 ? '' : 's'} settled from the sheet so far.`
 
-  if (unconnected.length > 0) {
+  if (row.last_error) {
+    return { state: 'partial', detail: `${detail} Last run reported: ${row.last_error}` }
+  }
+
+  // The output-side check. Open tasks and no tick ever read is the shape that
+  // looks healthy and is not — see the docstring.
+  if (row.settled_total === 0 && open > 0) {
     return {
       state: 'partial',
       detail:
-        `${detail} Not synced anywhere: ${names}. Add their address to GOOGLE_TASK_MAILBOXES, then ` +
-        `node scripts/setup-google-oauth.mjs --only <address>. A member with no email on file needs one first.`,
+        `${detail} Nothing has ever been ticked off in the sheet — if that is not simply ` +
+        `because nobody has tried yet, check that moose@ and tuaone@ hold WRITER on the ` +
+        `workbook (the Ber Intelligence root shares as reader, which is not enough).`,
     }
   }
+
   return { state: 'ok', detail }
 }
 

@@ -127,8 +127,7 @@ export type Meeting = Tables<'meetings'>
 export type DinoRevenue = Tables<'dino_revenue'>
 export type DinoPayment = Tables<'dino_payments'>
 export type DinoNote = Tables<'dino_notes'>
-export type GoogleTaskList = Tables<'google_task_lists'>
-export type TaskGoogleLink = Tables<'task_google_links'>
+export type TaskSheetState = Tables<'task_sheet_state'>
 export type DevNote = Tables<'dev_notes'>
 
 // ---------------------------------------------------------------------------

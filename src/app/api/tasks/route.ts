@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import type { TablesInsert } from '@/lib/supabase/types'
 import { getViewer, filterTasksForViewer, canCreateTask, forbiddenJson, actorAdminClient } from '@/lib/auth/viewer'
-import { queueTaskPush } from '@/lib/tasks/google-push'
+import { queueTaskSheetRefresh } from '@/lib/tasks/sheet-refresh'
 
 /** GET — list tasks with optional filters (?status=open|done&assignee=<id>&project=<id>) */
 export async function GET(request: NextRequest) {
@@ -86,7 +86,7 @@ export async function POST(request: NextRequest) {
   }
 
   // A newly assigned task should be on the assignee's phone now, not tomorrow.
-  if (data?.id) queueTaskPush(data.id)
+  if (data?.id) queueTaskSheetRefresh()
 
   return Response.json({ task: data })
 }

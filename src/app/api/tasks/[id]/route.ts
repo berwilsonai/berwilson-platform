@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import type { TablesUpdate } from '@/lib/supabase/types'
 import { getViewer, canAccessTask, forbiddenJson, actorAdminClient, type Viewer } from '@/lib/auth/viewer'
-import { queueTaskPush, queueTaskRemoval, readRemovableLink } from '@/lib/tasks/google-push'
+import { queueTaskSheetRefresh } from '@/lib/tasks/sheet-refresh'
 
 interface RouteContext {
   params: Promise<{ id: string }>
@@ -118,9 +118,9 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
     return Response.json({ error: error.message }, { status: 500 })
   }
 
-  // Reaches the assignee's phone in seconds rather than at the next cron tick.
+  // Reaches the shared sheet in seconds rather than at the next cron tick.
   // Debounced, because this route is called once per field by the detail sheet.
-  queueTaskPush(id)
+  queueTaskSheetRefresh()
 
   return Response.json({ task: data })
 }
@@ -131,18 +131,15 @@ export async function DELETE(_request: NextRequest, { params }: RouteContext) {
   const guard = await guardTask(await getViewer(), id)
   if (guard) return guard
 
-  // Read BEFORE the delete: task_google_links cascades on task_id, so once the
-  // row is gone nothing says which Google task to clean up, and the assignee's
-  // copy would outlive the task forever with a link to a 404.
-  const link = await readRemovableLink(id)
-
   const supabase = await actorAdminClient()
   const { error } = await supabase.from('tasks').delete().eq('id', id)
   if (error) {
     return Response.json({ error: 'Failed to delete task' }, { status: 500 })
   }
 
-  queueTaskRemoval(link)
+  // No remote cleanup to do, unlike the Google Tasks sync this replaced: a
+  // deleted task is simply not redrawn on the next rebuild.
+  queueTaskSheetRefresh()
 
   return Response.json({ deleted: true })
 }

@@ -550,42 +550,82 @@ export async function shareFileWithRole(
  * leads were published into a folder they could not open.
  *
  * Idempotent by reading the existing grants first — re-sharing on every publish
- * would re-notify, and a lane's Drive folder is published to hourly.
+ * would re-notify, and a lane's Drive folder is published to hourly. The
+ * idempotency is ROLE-AWARE: an address already holding `reader` is UPGRADED
+ * when `writer` is asked for, because the task board needs the two executives
+ * to be able to tick a box and a presence-only check would skip them forever.
+ * It never DOWNGRADES — a grant somebody was deliberately given by hand is not
+ * this function's to take away.
  *
  * `sendNotificationEmail=true` here, unlike everywhere else in this file: an
  * outside collaborator has no reason to be watching a Drive they have never
  * seen, so the one-time "you now have access" mail is the only thing that tells
  * them the folder exists. It fires once per address, on first grant.
  */
+export interface ShareOptions {
+  /** `reader` unless the audience has to edit the file. */
+  role?: 'reader' | 'writer'
+  mailbox?: string
+}
+
 export async function shareWithAddresses(
   fileId: string,
   addresses: string[],
-  mailbox: string = PRIMARY_MAILBOX
+  opts: ShareOptions = {}
 ): Promise<{ granted: string[]; failed: string[] }> {
+  const role = opts.role ?? 'reader'
+  const mailbox = opts.mailbox ?? PRIMARY_MAILBOX
   const wanted = [...new Set(addresses.map((a) => a.trim().toLowerCase()).filter((a) => a.includes('@')))]
   const out = { granted: [] as string[], failed: [] as string[] }
   if (wanted.length === 0) return out
 
-  let existing = new Set<string>()
+  // Keyed to the ROLE each address already holds, not merely to its presence.
+  const existing = new Map<string, string>()
   try {
     const data = await googleFetch<{
-      permissions?: { type?: string; emailAddress?: string }[]
+      permissions?: { id?: string; type?: string; emailAddress?: string; role?: string }[]
     }>(
-      `${DRIVE_BASE}/files/${fileId}/permissions?fields=permissions(type,emailAddress)&supportsAllDrives=true`,
+      `${DRIVE_BASE}/files/${fileId}/permissions?fields=permissions(id,type,emailAddress,role)&supportsAllDrives=true`,
       mailbox
     )
-    existing = new Set(
-      (data.permissions ?? [])
-        .filter((p) => p.type === 'user' && p.emailAddress)
-        .map((p) => p.emailAddress!.toLowerCase())
-    )
+    for (const p of data.permissions ?? []) {
+      if (p.type === 'user' && p.emailAddress && p.id) {
+        existing.set(p.emailAddress.toLowerCase(), `${p.id}:${p.role ?? ''}`)
+      }
+    }
   } catch {
     // A failed read must not skip sharing on the assumption it was already
     // done; Drive rejects a duplicate grant harmlessly.
   }
 
+  // writer implies reader, so only these two are "already sufficient".
+  const sufficient = role === 'reader' ? ['reader', 'writer', 'owner'] : ['writer', 'owner']
+
   for (const email of wanted) {
-    if (existing.has(email)) continue
+    const held = existing.get(email)
+    if (held) {
+      const [permissionId, heldRole] = held.split(':')
+      if (sufficient.includes(heldRole)) continue
+      // An upgrade is a PATCH on the existing permission. A second POST for the
+      // same address answers 400 (`alreadyExists`), so the presence check could
+      // not simply be dropped.
+      try {
+        await driveWrite(
+          mailbox,
+          `${DRIVE_BASE}/files/${fileId}/permissions/${permissionId}?supportsAllDrives=true`,
+          {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ role }),
+          }
+        )
+        out.granted.push(email)
+      } catch (err) {
+        console.warn(`[drive-write] could not upgrade ${email} to ${role} on ${fileId}:`, err)
+        out.failed.push(email)
+      }
+      continue
+    }
     try {
       await driveWrite(
         mailbox,
@@ -593,7 +633,7 @@ export async function shareWithAddresses(
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ type: 'user', role: 'reader', emailAddress: email }),
+          body: JSON.stringify({ type: 'user', role, emailAddress: email }),
         }
       )
       out.granted.push(email)
@@ -668,6 +708,44 @@ export async function moveFile(
     supportsAllDrives: 'true',
     fields: 'id,parents',
   })
+  await driveWrite(mailbox, `${DRIVE_BASE}/files/${fileId}?${params.toString()}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: '{}',
+  })
+}
+
+/**
+ * Move a file into a folder without being told where it currently is.
+ *
+ * {@link moveFile} takes the parent to remove, which every Drive-created file
+ * knows because this app chose it. A spreadsheet created through the SHEETS API
+ * does not: that endpoint has no `parents` field, so the file lands in the
+ * impersonated user's My Drive root and the id of that root is not something
+ * the caller has. Reads the current parents and swaps them.
+ *
+ * Idempotent: a file already in the target folder is left alone rather than
+ * re-parented onto itself, which Drive rejects.
+ */
+export async function moveFileToFolder(
+  fileId: string,
+  toParentId: string,
+  mailbox: string = PRIMARY_MAILBOX
+): Promise<void> {
+  const current = await googleFetch<{ parents?: string[] }>(
+    `${DRIVE_BASE}/files/${fileId}?fields=parents&supportsAllDrives=true`,
+    mailbox
+  )
+  const parents = current.parents ?? []
+  if (parents.includes(toParentId)) return
+
+  const params = new URLSearchParams({
+    addParents: toParentId,
+    supportsAllDrives: 'true',
+    fields: 'id,parents',
+  })
+  if (parents.length > 0) params.set('removeParents', parents.join(','))
+
   await driveWrite(mailbox, `${DRIVE_BASE}/files/${fileId}?${params.toString()}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },

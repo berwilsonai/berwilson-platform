@@ -151,25 +151,6 @@ export const LEAD_ONLY_SCOPES = [
 ] as const
 
 /**
- * Scopes for a mailbox that exists ONLY to hold a team member's task list.
- *
- * `tasks` is read + write + delete across EVERY list in the account — Google
- * offers no app-created-only variant the way Drive does with drive.file. The
- * only control is discipline: this platform addresses exactly one stored list
- * id and NEVER enumerates a person's lists at runtime. Someone consenting here
- * is granting access to their private to-dos; say so when you ask them.
- *
- * This is a tier of its own, and {@link scopesFor} returns it INSTEAD of
- * {@link SCOPES} for a member's own account rather than alongside it. A sales
- * rep should not have to hand over gmail.readonly, calendar.readonly, contacts
- * (write) and drive.readonly across their whole account in order to see their
- * task list on their phone.
- */
-export const TASKS_ONLY_SCOPES = [
-  'https://www.googleapis.com/auth/tasks',
-] as const
-
-/**
  * Mailboxes the platform reads. Order matters only in that the first is the
  * default for calendar/contact lookups that aren't mailbox-specific.
  * Override with GOOGLE_IMPERSONATE_MAILBOXES (comma separated).
@@ -201,60 +182,45 @@ export const LEAD_MAILBOXES: readonly string[] = (
   .filter(Boolean)
 
 /**
- * Team members' own Google accounts, each holding one platform task list.
- *
- * Separate from every list above because these accounts are read for NOTHING —
- * no mail, no calendar, no contacts. A member joins by having their address
- * added here and running the consent script once.
- */
-export const TASK_MAILBOXES: readonly string[] = (process.env.GOOGLE_TASK_MAILBOXES ?? '')
-  .split(',')
-  .map((m) => m.trim().toLowerCase())
-  .filter(Boolean)
-
-/**
  * Every mailbox the platform holds a credential for, deduped.
  *
- * DELIBERATELY EXCLUDES {@link TASK_MAILBOXES}. Its consumers iterate mailboxes
- * to do work in them — the contacts sync would start pushing the entire parties
- * directory into every team member's personal Google Contacts, and fail noisily
- * doing it, since a task-only token carries no contacts scope. Use
- * {@link everyConsentedMailbox} when you mean "everything we hold a token for".
+ * There used to be a third list here — team members' own accounts, holding one
+ * Google Tasks list each — and a second accessor that included it. Both went
+ * with the Google Tasks sync on 2026-10-11: the task board publishes to a
+ * shared Google Sheet owned by the primary mailbox, so no member's personal
+ * account is consented for anything any more. {@link everyConsentedMailbox} is
+ * kept as the name callers use for "everything we hold a token for", which is
+ * now the same set.
  */
 export function allMailboxes(): string[] {
   return [...new Set([...MAILBOXES, ...LEAD_MAILBOXES])]
 }
 
-/** Every mailbox with a stored credential, task-only accounts included. */
+/** Every mailbox with a stored credential. */
 export function everyConsentedMailbox(): string[] {
-  return [...new Set([...MAILBOXES, ...LEAD_MAILBOXES, ...TASK_MAILBOXES])]
+  return allMailboxes()
 }
 
 /**
  * The scopes a given mailbox should have been consented with.
  *
- * Three tiers, and which one a mailbox lands in is decided here alone — the
- * consent script and the staleness probe both read this, so "what should this
- * mailbox hold" has exactly one answer. A mailbox that is both primary and a
- * lead mailbox gets the union.
+ * Two tiers over the base set, and which ones a mailbox lands in is decided
+ * here alone — the consent script and the staleness probe both read this, so
+ * "what should this mailbox hold" has exactly one answer. A mailbox that is
+ * both primary and a lead mailbox gets the union.
+ *
+ * ⚠ TOKENS MINTED EARLIER KEEP WHATEVER THEY WERE GRANTED. Removing a tier
+ * here changes what the NEXT consent asks for and nothing about what is already
+ * stored, which is why `tasks` is still live on moose@ and tuaone@ after the
+ * 2026-10-11 removal — and why scripts/retire-google-tasks.mts can still clean
+ * their lists out. Re-consent is what hands a permission back.
  */
 export function scopesFor(mailbox: string): string[] {
   const m = mailbox.trim().toLowerCase()
-  const isCore = MAILBOXES.includes(m) || LEAD_MAILBOXES.includes(m)
-
-  // A member's own account gets the task scope and NOTHING else. This is a
-  // switch rather than another term in the union on purpose — see
-  // TASKS_ONLY_SCOPES. Keep scripts/setup-google-oauth.mjs's scopesForMailbox()
-  // in step with this branch; its parser removes array drift, not this one.
-  if (!isCore && TASK_MAILBOXES.includes(m)) return [...TASKS_ONLY_SCOPES]
-
   return [
     ...SCOPES,
     ...(m === PRIMARY_MAILBOX ? PRIMARY_ONLY_SCOPES : []),
     ...(LEAD_MAILBOXES.includes(m) ? LEAD_ONLY_SCOPES : []),
-    // A deal or lead mailbox that ALSO belongs to a member (moose@, tuaone@)
-    // adds the task scope to what it already holds.
-    ...(TASK_MAILBOXES.includes(m) ? TASKS_ONLY_SCOPES : []),
   ]
 }
 

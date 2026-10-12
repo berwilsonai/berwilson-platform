@@ -5,7 +5,53 @@ export type Database = {
   
   "public": {
           Tables: {
-            "_bw_task_backfill_20260926": {
+            "_bw_dropped_google_task_lists_20261011": {
+                  Row: {
+                    "created_at": string | null,"google_list_id": string,"last_error": string | null,"last_synced_at": string | null,"mailbox": string,"missing_at": string | null,"team_member_id": string,"title": string,"updated_min": string | null
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "created_at"?: string | null,"google_list_id": string,"last_error"?: string | null,"last_synced_at"?: string | null,"mailbox": string,"missing_at"?: string | null,"team_member_id": string,"title": string,"updated_min"?: string | null
+                  }
+                  Update: {
+                    "created_at"?: string | null,"google_list_id"?: string,"last_error"?: string | null,"last_synced_at"?: string | null,"mailbox"?: string,"missing_at"?: string | null,"team_member_id"?: string,"title"?: string,"updated_min"?: string | null
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "google_task_lists_team_member_id_fkey"
+      columns: ["team_member_id"]
+isOneToOne: true
+      referencedRelation: "team_members"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"_bw_dropped_task_google_links_20261011": {
+                  Row: {
+                    "base_due": string | null,"base_status": string | null,"created_at": string | null,"detach_reason": string | null,"detached_at": string | null,"google_list_id": string,"google_task_id": string,"id": string,"last_error": string | null,"last_synced_at": string | null,"origin": string,"state": string,"task_id": string,"team_member_id": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "base_due"?: string | null,"base_status"?: string | null,"created_at"?: string | null,"detach_reason"?: string | null,"detached_at"?: string | null,"google_list_id": string,"google_task_id": string,"id"?: string,"last_error"?: string | null,"last_synced_at"?: string | null,"origin"?: string,"state"?: string,"task_id": string,"team_member_id": string
+                  }
+                  Update: {
+                    "base_due"?: string | null,"base_status"?: string | null,"created_at"?: string | null,"detach_reason"?: string | null,"detached_at"?: string | null,"google_list_id"?: string,"google_task_id"?: string,"id"?: string,"last_error"?: string | null,"last_synced_at"?: string | null,"origin"?: string,"state"?: string,"task_id"?: string,"team_member_id"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "task_google_links_task_id_fkey"
+      columns: ["task_id"]
+isOneToOne: false
+      referencedRelation: "tasks"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "task_google_links_team_member_id_fkey"
+      columns: ["team_member_id"]
+isOneToOne: false
+      referencedRelation: "team_members"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"_bw_task_backfill_20260926": {
                   Row: {
                     "id": string | null,"title": string | null,"why": string | null
                   }
@@ -960,26 +1006,6 @@ isOneToOne: false
       columns: ["project_id"]
 isOneToOne: false
       referencedRelation: "projects"
-      referencedColumns: ["id"]
-    }
-                  ]
-                },"google_task_lists": {
-                  Row: {
-                    "created_at": string | null,"google_list_id": string,"last_error": string | null,"last_synced_at": string | null,"mailbox": string,"missing_at": string | null,"team_member_id": string,"title": string,"updated_min": string | null
-                  }
-                  ComputedFields: never
-                  Insert: {
-                    "created_at"?: string | null,"google_list_id": string,"last_error"?: string | null,"last_synced_at"?: string | null,"mailbox": string,"missing_at"?: string | null,"team_member_id": string,"title": string,"updated_min"?: string | null
-                  }
-                  Update: {
-                    "created_at"?: string | null,"google_list_id"?: string,"last_error"?: string | null,"last_synced_at"?: string | null,"mailbox"?: string,"missing_at"?: string | null,"team_member_id"?: string,"title"?: string,"updated_min"?: string | null
-                  }
-                  Relationships: [
-                    {
-      foreignKeyName: "google_task_lists_team_member_id_fkey"
-      columns: ["team_member_id"]
-isOneToOne: true
-      referencedRelation: "team_members"
       referencedColumns: ["id"]
     }
                   ]
@@ -2383,32 +2409,6 @@ isOneToOne: false
       referencedColumns: ["id"]
     }
                   ]
-                },"task_google_links": {
-                  Row: {
-                    "base_due": string | null,"base_status": string | null,"created_at": string | null,"detach_reason": string | null,"detached_at": string | null,"google_list_id": string,"google_task_id": string,"id": string,"last_error": string | null,"last_synced_at": string | null,"origin": string,"state": string,"task_id": string,"team_member_id": string
-                  }
-                  ComputedFields: never
-                  Insert: {
-                    "base_due"?: string | null,"base_status"?: string | null,"created_at"?: string | null,"detach_reason"?: string | null,"detached_at"?: string | null,"google_list_id": string,"google_task_id": string,"id"?: string,"last_error"?: string | null,"last_synced_at"?: string | null,"origin"?: string,"state"?: string,"task_id": string,"team_member_id": string
-                  }
-                  Update: {
-                    "base_due"?: string | null,"base_status"?: string | null,"created_at"?: string | null,"detach_reason"?: string | null,"detached_at"?: string | null,"google_list_id"?: string,"google_task_id"?: string,"id"?: string,"last_error"?: string | null,"last_synced_at"?: string | null,"origin"?: string,"state"?: string,"task_id"?: string,"team_member_id"?: string
-                  }
-                  Relationships: [
-                    {
-      foreignKeyName: "task_google_links_task_id_fkey"
-      columns: ["task_id"]
-isOneToOne: false
-      referencedRelation: "tasks"
-      referencedColumns: ["id"]
-    },{
-      foreignKeyName: "task_google_links_team_member_id_fkey"
-      columns: ["team_member_id"]
-isOneToOne: false
-      referencedRelation: "team_members"
-      referencedColumns: ["id"]
-    }
-                  ]
                 },"task_notes": {
                   Row: {
                     "author": string | null,"body": string,"created_at": string | null,"id": string,"task_id": string
@@ -2428,6 +2428,20 @@ isOneToOne: false
       referencedRelation: "tasks"
       referencedColumns: ["id"]
     }
+                  ]
+                },"task_sheet_state": {
+                  Row: {
+                    "created_at": string | null,"id": boolean,"last_error": string | null,"last_synced_at": string | null,"rows_published": number,"settled_total": number,"spreadsheet_id": string,"spreadsheet_url": string | null,"updated_at": string | null
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "created_at"?: string | null,"id"?: boolean,"last_error"?: string | null,"last_synced_at"?: string | null,"rows_published"?: number,"settled_total"?: number,"spreadsheet_id": string,"spreadsheet_url"?: string | null,"updated_at"?: string | null
+                  }
+                  Update: {
+                    "created_at"?: string | null,"id"?: boolean,"last_error"?: string | null,"last_synced_at"?: string | null,"rows_published"?: number,"settled_total"?: number,"spreadsheet_id"?: string,"spreadsheet_url"?: string | null,"updated_at"?: string | null
+                  }
+                  Relationships: [
+                    
                   ]
                 },"tasks": {
                   Row: {

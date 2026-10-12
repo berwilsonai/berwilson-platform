@@ -20,7 +20,7 @@ import {
   probeCardOcr,
   probeWhisper,
   probeContactsSync,
-  probeGoogleTasks,
+  probeTaskSheet,
   probeDrivePublishing,
   probeDriveKnowledge,
   probeLeadInbox,
@@ -100,7 +100,7 @@ async function runChecks(): Promise<HealthCheck[]> {
   const dayAgo = new Date(Date.now() - 86_400_000).toISOString()
   const localAI = process.env.AI_PROVIDER === 'local'
 
-  const [brief, riskScore, lastAi, aiDayCount, failedRuns, mailbox, lmStudio, backups, drive, leadInbox, docIndexing, driveSources, driveFiling, scopes, disk, lastDigest, failedDigests, contacts, googleTasks, drivePublish, meetImport, dealIntake, routing, corpus, dailyDigest, commitmentBacklog, openCommitments, settledRecently, quietedCommitments, imessageSweep] =
+  const [brief, riskScore, lastAi, aiDayCount, failedRuns, mailbox, lmStudio, backups, drive, leadInbox, docIndexing, driveSources, driveFiling, scopes, disk, lastDigest, failedDigests, contacts, taskSheet, drivePublish, meetImport, dealIntake, routing, corpus, dailyDigest, commitmentBacklog, openCommitments, settledRecently, quietedCommitments, imessageSweep] =
     await Promise.all([
       supabase
         .from('stored_briefs')
@@ -155,7 +155,7 @@ async function runChecks(): Promise<HealthCheck[]> {
         .eq('status', 'failed')
         .gte('created_at', weekAgo),
       probeContactsSync(),
-      probeGoogleTasks(),
+      probeTaskSheet(),
       probeDrivePublishing(),
       probeMeetImport(),
       probeDealIntake(),
@@ -711,33 +711,33 @@ async function runChecks(): Promise<HealthCheck[]> {
     })
   }
 
-  // Google Tasks — coverage, not completeness. Most of the team has not
-  // connected an account (six of nine members have no email on file at all),
-  // so "partial" is the correct steady state and renders green with the names
-  // and the exact command. Only a paused/absent list is a real fault.
+  // Task sheet — is the shared workbook still being rebuilt, and has anyone
+  // ever been able to tick a box in it? `partial` warns rather than fails:
+  // a board nobody has ticked yet is legitimately new, and the detail says
+  // which of the two it is looking at.
   {
     checks.push({
-      name: 'Google Tasks Sync',
+      name: 'Task Sheet',
       status:
-        googleTasks.state === 'failed'
+        taskSheet.state === 'failed'
           ? 'fail'
-          : googleTasks.state === 'stalled'
+          : taskSheet.state === 'stalled' || taskSheet.state === 'partial'
             ? 'warn'
             : 'ok',
       headline:
-        googleTasks.state === 'ok'
-          ? 'Every member has their tasks in Google'
-          : googleTasks.state === 'partial'
-            ? 'Syncing for the members who have connected'
-            : googleTasks.state === 'stalled'
-              ? 'Connected, but nothing has synced recently'
-              : googleTasks.state === 'unconfigured'
-                ? 'Not switched on'
-                : 'Sync is paused or has no list',
+        taskSheet.state === 'ok'
+          ? 'The board is published and settling'
+          : taskSheet.state === 'partial'
+            ? 'Published, but nothing has been ticked off in it'
+            : taskSheet.state === 'stalled'
+              ? 'The sheet has not been rebuilt recently'
+              : taskSheet.state === 'unconfigured'
+                ? 'Not built yet'
+                : 'Could not read the task sheet',
       detail:
-        googleTasks.state === 'stalled'
-          ? `${googleTasks.detail} ${cronLogsHint}`
-          : googleTasks.detail,
+        taskSheet.state === 'stalled'
+          ? `${taskSheet.detail} ${cronLogsHint}`
+          : taskSheet.detail,
     })
   }
 

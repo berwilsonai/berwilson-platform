@@ -107,11 +107,9 @@ export async function assertCategoryFolderSharing(
 
   for (const c of categories) {
     if (!c.drive_folder_id || c.share_with.length === 0) continue
-    const result = await shareWithAddresses(
-      c.drive_folder_id,
-      c.share_with,
-      PRIMARY_MAILBOX
-    ).catch(() => ({ granted: [], failed: c.share_with }))
+    const result = await shareWithAddresses(c.drive_folder_id, c.share_with, {
+      mailbox: PRIMARY_MAILBOX,
+    }).catch(() => ({ granted: [], failed: c.share_with }))
     if (result.granted.length > 0 || result.failed.length > 0) {
       out.push({ folder: c.label, ...result })
     }

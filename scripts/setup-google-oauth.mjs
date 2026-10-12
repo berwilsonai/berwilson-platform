@@ -20,9 +20,9 @@
  * not convenience: which mailboxes get which scopes is read from environment
  * variables, and a missing one does not fail — it silently consents the mailbox
  * with a NARROWER scope set, minting tokens that look fine and 403 on first use.
- * That has now happened once, to GOOGLE_TASK_MAILBOXES, costing a full round of
- * browser consents. A script whose correctness depends on how it is invoked
- * will eventually be invoked wrong.
+ * That has happened once already, costing a full round of browser consents. A
+ * script whose correctness depends on how it is invoked will eventually be
+ * invoked wrong.
  */
 
 import { createServer } from 'http'
@@ -98,7 +98,6 @@ function loadScopes() {
     scopes,
     primaryOnly: block('PRIMARY_ONLY_SCOPES'),
     leadOnly: block('LEAD_ONLY_SCOPES'),
-    tasksOnly: block('TASKS_ONLY_SCOPES'),
   }
 }
 
@@ -106,7 +105,6 @@ const {
   scopes: SCOPES,
   primaryOnly: PRIMARY_ONLY_SCOPES,
   leadOnly: LEAD_ONLY_SCOPES,
-  tasksOnly: TASKS_ONLY_SCOPES,
 } = loadScopes()
 
 const GREEN = '\x1b[32m', RED = '\x1b[31m', BOLD = '\x1b[1m', DIM = '\x1b[2m', OFF = '\x1b[0m'
@@ -117,15 +115,13 @@ const TOKENS_PATH =
 
 // Every mailbox any pipeline needs. The lead sweep reads info@, which is NOT in
 // GOOGLE_IMPERSONATE_MAILBOXES — leaving it out here would mint tokens for the
-// deal mailboxes only and the lead sweep would fail with no credential. Team
-// members' own accounts (GOOGLE_TASK_MAILBOXES) are the same story for the
-// Google Tasks sync: an address missing here simply never gets consented.
+// deal mailboxes only and the lead sweep would fail with no credential. An
+// address missing here simply never gets consented.
 const ALL_MAILBOXES = [
   ...new Set(
     [
       process.env.GOOGLE_IMPERSONATE_MAILBOXES ?? 'moose@berwilson.com,tuaone@berwilson.com',
       process.env.GOOGLE_LEAD_MAILBOXES ?? 'info@berwilson.com',
-      process.env.GOOGLE_TASK_MAILBOXES ?? '',
     ]
       .join(',')
       .split(',')
@@ -133,24 +129,6 @@ const ALL_MAILBOXES = [
       .filter(Boolean)
   ),
 ]
-
-const CORE_MAILBOX_SET = new Set(
-  [
-    process.env.GOOGLE_IMPERSONATE_MAILBOXES ?? 'moose@berwilson.com,tuaone@berwilson.com',
-    process.env.GOOGLE_LEAD_MAILBOXES ?? 'info@berwilson.com',
-  ]
-    .join(',')
-    .split(',')
-    .map((m) => m.trim().toLowerCase())
-    .filter(Boolean)
-)
-
-const TASK_MAILBOX_SET = new Set(
-  (process.env.GOOGLE_TASK_MAILBOXES ?? '')
-    .split(',')
-    .map((m) => m.trim().toLowerCase())
-    .filter(Boolean)
-)
 
 const LEAD_MAILBOX_SET = new Set(
   (process.env.GOOGLE_LEAD_MAILBOXES ?? 'info@berwilson.com')
@@ -162,26 +140,26 @@ const LEAD_MAILBOX_SET = new Set(
 /**
  * Which scopes to ask for on one mailbox.
  *
- * Mirrors scopesFor() in google-workspace.ts — INCLUDING its early return, so
- * keep the two in step by hand. The parser above removes drift between the
- * scope ARRAYS; it cannot see how they are composed, and a member consented
- * with the wrong branch hands this platform their whole mailbox.
+ * Mirrors scopesFor() in google-workspace.ts, so keep the two in step by hand.
+ * The parser above removes drift between the scope ARRAYS; it cannot see how
+ * they are composed, and a mailbox consented with the wrong branch hands this
+ * platform more than it needs.
+ *
+ * ⚠ RE-CONSENTING A MAILBOX NOW DROPS THE `tasks` SCOPE, because the tier that
+ * asked for it went with the Google Tasks sync on 2026-10-11. That is the
+ * intended way to hand it back — but run scripts/retire-google-tasks.mts FIRST
+ * if moose@ or tuaone@ still have platform tasks sitting in their Google Tasks
+ * lists, because clearing those out needs the scope this removes.
  *
  * The elevated tiers are asked for ONLY where they are used, so re-consenting a
  * mailbox that no longer qualifies hands the extra permission back — which is
  * the intended way to revoke it.
  */
 function scopesForMailbox(mailbox) {
-  // A team member's own account gets the task scope and nothing else: no mail,
-  // no calendar, no contacts, no Drive.
-  if (!CORE_MAILBOX_SET.has(mailbox) && TASK_MAILBOX_SET.has(mailbox)) {
-    return [...TASKS_ONLY_SCOPES]
-  }
   return [
     ...SCOPES,
     ...(mailbox === ALL_MAILBOXES[0] ? PRIMARY_ONLY_SCOPES : []),
     ...(LEAD_MAILBOX_SET.has(mailbox) ? LEAD_ONLY_SCOPES : []),
-    ...(TASK_MAILBOX_SET.has(mailbox) ? TASKS_ONLY_SCOPES : []),
   ]
 }
 

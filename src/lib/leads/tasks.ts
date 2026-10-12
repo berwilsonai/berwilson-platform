@@ -9,9 +9,10 @@
  * held six rows.
  *
  * A task is the better carrier for the same fact. It has an owner, it can be
- * completed, and `google-sync.ts` already pushes it to that owner's Google
- * Tasks — where a due date renders in Google Calendar discreetly, which is the
- * outcome the calendar events were reaching for and overshooting.
+ * completed, and `tasks/sheet.ts` already publishes it to the shared task sheet
+ * — reachable on a phone, off the tailnet, which is the outcome the calendar
+ * events were reaching for and overshooting. (Until 2026-10-11 that carrier was
+ * the owner's own Google Tasks list; the sheet replaced it.)
  *
  * BID DATES ONLY, one task per lead (Richard's call). The site visit and RFI
  * dates are not lost: they are written into the task body, which is where they
@@ -89,15 +90,21 @@ function money(value: number | null): string | null {
  *
  * TWO RULES, both learned the hard way elsewhere in this repo.
  *
- * 1. The site-visit and RFI dates go in `what`, NOT `how`. buildTaskBody in
- *    tasks/google-body.ts composes the Google Tasks notes from `what` and
- *    `why` only — `how` never leaves the platform. Putting a mandatory site
- *    visit in `how` would make it invisible on the phone, recreating the exact
- *    failure the calendar module was written to fix.
+ * 1. The site-visit and RFI dates go in `what`, NOT `how`. The task sheet
+ *    (tasks/sheet.ts) renders `what` and `why` as columns and `how` not at
+ *    all — the same split the retired Google Tasks body drew, so the rule
+ *    survived the move unchanged. Putting a mandatory site visit in `how`
+ *    would make it invisible on the phone, recreating the exact failure the
+ *    calendar module was written to fix.
  *
  * 2. Nothing here may be derived from the clock. No "3 days left", no "as of".
- *    google-body.ts states the invariant: the pushed body must be a pure
- *    function of stable columns, or every task differs on every reconcile,
+ *    The original reason was that the Google Tasks push diffed the built body
+ *    against the remote one, so a volatile value made every task differ on
+ *    every reconcile. The sheet rebuilds whole and no longer cares — but the
+ *    rule stands for a second reason that was always the stronger one: these
+ *    strings are STORED on the row, and stored columns are what Pepper emails
+ *    (§12, 09-26). A "3 days left" written at insert time is simply wrong four
+ *    days later, wherever it is read,
  *    bumps Google's `updated` across the whole board, and burns quota linearly
  *    with its size.
  */
@@ -152,13 +159,19 @@ function whyLine(lead: LeadRow): string {
 /**
  * Who owns a bid deadline.
  *
- * WHY AN UNRESOLVED OWNER STOPS THE WHOLE PHASE: pushTaskNow returns early
- * when assignee_id is null (tasks/google-push.ts) and syncMember is
- * per-member, so an UNASSIGNED TASK NEVER REACHES GOOGLE TASKS AT ALL.
- * Creating a pile of them would rebuild the invisible-work failure this change
- * exists to end — the deadlines would move off a cluttered calendar Richard
- * can see and into a list nobody's phone shows. Zero tasks plus a loud reason
- * is strictly better.
+ * WHY AN UNRESOLVED OWNER STOPS THE WHOLE PHASE — AND WHY THAT REASON CHANGED.
+ * It used to be a hard constraint: Google Tasks lists are per-person, so an
+ * unassigned task reached NO list at all and creating a pile of them rebuilt
+ * the invisible-work failure this phase exists to end. Since 2026-10-11 the
+ * board publishes to a shared sheet with its own Unassigned tab, so an ownerless
+ * bid deadline IS visible. The stop is kept anyway, now as a judgement rather
+ * than a mechanism: a deadline on the Unassigned tab is in a holding pen, not
+ * on anyone's list, and a bid nobody owns is how a bid gets missed. Zero tasks
+ * plus a loud reason is still better than a pile nobody answers for.
+ *
+ * (Recorded rather than quietly left in place because §12's rule is that a
+ * workaround's reason must be re-tested before it is inherited — this one had
+ * become untrue, and an untrue reason is the thing least likely to be checked.)
  *
  * Read at runtime, so changing the owner is an edit to .env.local plus a
  * restart — no rebuild, no deploy.
@@ -168,7 +181,11 @@ async function resolveOwner(
 ): Promise<{ id: string; name: string } | { error: string }> {
   const wanted = (process.env.LEAD_TASK_OWNER ?? '').trim().toLowerCase()
   if (!wanted) {
-    return { error: 'LEAD_TASK_OWNER is unset — no one would own these tasks, and an unassigned task never reaches Google Tasks.' }
+    return {
+      error:
+        'LEAD_TASK_OWNER is unset — no one would own these bid deadlines, and a bid ' +
+        'nobody owns is how a bid gets missed.',
+    }
   }
 
   const { data, error } = await supabase
@@ -332,11 +349,12 @@ export async function syncLeadTasks(): Promise<LeadTaskProgress> {
  * Close a lead's task the moment a human decides, rather than at tomorrow's
  * sweep.
  *
- * A lead dismissed on /decide would otherwise leave a "Bid due" task sitting on
- * someone's phone until the next morning, which teaches them the sync is
- * unreliable — the complaint google-push.ts was written to answer. This is the
- * single-task case queueTaskPush's debounce was built for, unlike the sweep,
- * where firing it per row would mean one full per-member reconcile each.
+ * A lead dismissed on /decide would otherwise leave a "Bid due" task sitting in
+ * the sheet until the next morning, which teaches people the sync is
+ * unreliable — the complaint the immediate refresh was written to answer. One
+ * debounced whole-board rebuild covers it however many rows moved, which is why
+ * the sweep can call this per row without the cost the per-member Google Tasks
+ * reconcile would have charged.
  *
  * Fire-and-forget and never throws: the decision is already recorded, and a
  * task-board hiccup must not fail the request that made it.
@@ -360,8 +378,8 @@ export function refreshLeadTask(lead: LeadRow): void {
       .update({ status: 'done', completed_at: new Date().toISOString() })
       .eq('id', data.id)
 
-    const { queueTaskPush } = await import('@/lib/tasks/google-push')
-    queueTaskPush(data.id)
+    const { queueTaskSheetRefresh } = await import('@/lib/tasks/sheet-refresh')
+    queueTaskSheetRefresh()
   })().catch((err) => {
     console.warn('[leads/tasks] task refresh failed:', err instanceof Error ? err.message : err)
   })
