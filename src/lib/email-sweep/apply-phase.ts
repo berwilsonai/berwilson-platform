@@ -491,8 +491,10 @@ async function applyToRecord(
    */
   const isText = isIMessageThread(thread.gmail_thread_id)
   const source = isText ? ('imessage' as const) : ('email' as const)
-  const kind = isText ? 'Texts' : 'Email'
   const label = thread.subject?.trim() || (isText ? 'Text conversation' : 'Email thread')
+  // A text session's subject is already self-describing ("Texts with X — date"),
+  // where a mail subject is not, so prefixing both gave "Texts — Texts with …".
+  const heading = isText ? label : `Email — ${label}`
   // Certainty, not content, decides whether a human sees this first.
   const approved = link.certainty === 'linked'
 
@@ -514,7 +516,7 @@ async function applyToRecord(
         // from.
         source_ref: thread.gmail_thread_id,
         raw_content: body,
-        summary: `${kind} — ${label}`,
+        summary: heading,
         review_state: approved ? 'approved' : 'pending',
       }
       const { data: update, error } = await supabase
@@ -588,7 +590,7 @@ async function applyToRecord(
         .from('opportunity_notes')
         .insert({
           opportunity_id: link.record_id,
-          body: `${prefix}${kind} — ${label}\n\n${body}`,
+          body: `${prefix}${heading}\n\n${body}`,
           author: 'Ber AI',
         })
         .select('id')
@@ -626,7 +628,7 @@ async function applyToRecord(
         .from('steel_deal_notes')
         .insert({
           deal_id: link.record_id,
-          body: `${prefix}${kind} — ${label}\n\n${body}`,
+          body: `${prefix}${heading}\n\n${body}`,
           author: 'Ber AI',
         })
       if (error) throw new Error(error.message)
