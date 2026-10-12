@@ -17,6 +17,7 @@ import {
   HandCoins,
   Users2,
   SlidersHorizontal,
+  Table2,
 } from 'lucide-react'
 import EmptyState from '@/components/shared/EmptyState'
 import { DatePicker } from '@/components/ui/date-picker'
@@ -62,6 +63,14 @@ interface TeamTaskBoardProps {
   embedded?: boolean
   /** Show the weekly-report link (admin-only — /reports is admin-gated by default-deny). */
   showWeeklyReport?: boolean
+  /**
+   * The Google Sheet this board is published to, or null when the sync has
+   * never run. A link, not a copy: the sheet IS this board, rebuilt whole every
+   * 15 minutes by `/api/cron/task-sheet`, and its Done checkbox settles the
+   * task here. Null renders no button at all rather than a dead one — §12: a
+   * control that cannot work is worse than an absent one.
+   */
+  sheetUrl?: string | null
   /** Open this task's detail sheet on mount (deep link from search: /tasks?task=<id>). */
   initialOpenTaskId?: string | null
   /**
@@ -104,6 +113,7 @@ export default function TeamTaskBoard({
   scopeInvestorId,
   embedded = false,
   showWeeklyReport = false,
+  sheetUrl = null,
   initialOpenTaskId = null,
   liveRecordIds = [],
   liveCommitmentIds = [],
@@ -419,6 +429,21 @@ export default function TeamTaskBoard({
               <span className="sm:hidden">Team</span>
               <span className="hidden sm:inline">Manage team</span>
             </button>
+          )}
+          {sheetUrl && !scoped && (
+            /* Opens in Google, not in the app — a real external destination, so
+               it is an <a> with target/rel rather than next/link. */
+            <a
+              href={sheetUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={headerButtonClass}
+              title="The same board as a Google Sheet — My Drive / Ber Intelligence / Task Board / Ber Wilson Tasks. Tick Done there and it settles here."
+            >
+              <Table2 size={14} />
+              <span className="sm:hidden">Sheet</span>
+              <span className="hidden sm:inline">Open in Sheets</span>
+            </a>
           )}
           {showWeeklyReport && !scoped && (
             <Link

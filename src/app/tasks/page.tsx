@@ -93,6 +93,24 @@ export default async function TasksPage({
   // the project picker. A task title is written by whoever typed it and routinely
   // names the deal ("Send Hill AFB the bonding letter"), so the tag is not the
   // only thing that would carry.
+  // The Google Sheet this board publishes to (My Drive / Ber Intelligence /
+  // Task Board / Ber Wilson Tasks, owned by moose@). Read from
+  // `task_sheet_state` rather than written into the source, because the
+  // workbook is CREATED by the platform on first sync — the id is not
+  // configuration (see the 20261011000010 migration). A failed select or a
+  // sync that has never run yields null, which renders no button.
+  const { data: sheetState } = await supabase
+    .from('task_sheet_state')
+    .select('spreadsheet_id, spreadsheet_url')
+    .maybeSingle()
+  const sheetUrl =
+    !viewer || viewer.isAdmin || viewer.role === 'executive'
+      ? (sheetState?.spreadsheet_url ??
+        (sheetState?.spreadsheet_id
+          ? `https://docs.google.com/spreadsheets/d/${sheetState.spreadsheet_id}`
+          : null))
+      : null
+
   const hidden = await viewerHiddenProjectIds()
   boardTasks = dropHidden(boardTasks, (t) => t.project_id, hidden)
   projectOptions = dropHidden(projectOptions, (p) => p.id, hidden)
@@ -106,6 +124,7 @@ export default async function TasksPage({
       investors={investorOptions}
       objectives={visibleObjectives}
       showWeeklyReport={!viewer || viewer.isAdmin}
+      sheetUrl={sheetUrl}
       initialOpenTaskId={initialOpenTaskId ?? null}
       liveRecordIds={[...live.liveRecordIds]}
       liveCommitmentIds={[...live.liveCommitmentIds]}
