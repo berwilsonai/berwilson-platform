@@ -1,16 +1,26 @@
 /**
  * Outbound notification layer — one seam for every channel.
  *
- * Two channels are wired: `email` (Gmail users.messages.send) and `chat`
- * (a Google Chat incoming webhook). Both reuse infrastructure the Workspace
- * already provides — no new vendor, no new account for anyone to create.
+ * Three channels are wired: `email` (Gmail users.messages.send), `chat`
+ * (a Google Chat incoming webhook) and `text` (iMessage, sent by the Studio
+ * itself through the Shortcuts CLI). The first two reuse infrastructure the
+ * Workspace already provides — no new vendor, no new account for anyone to
+ * create; the third adds no vendor either, which is the whole reason it is
+ * built the awkward way it is (see ./text).
  * Keep this file the ONLY place that knows how a channel sends.
+ *
+ * ⚠ `text` IS NOT A SHORTER EMAIL. It takes `opts.text` and sends exactly that
+ * — no subject line, no HTML conversion. A subject rendered as a text's first
+ * line reads as a header on a message that has no room for one, and converting
+ * HTML would put link wrappers and list markup on a phone. A caller that wants
+ * a text writes the text.
  */
 
 import { sendMail, type MailAttachment } from '@/lib/integrations/google-workspace'
 import { htmlToChatText, sendChat } from './chat'
+import { sendText, textTargets, type TextKind } from './text'
 
-export type NotifyChannel = 'email' | 'chat'
+export type NotifyChannel = 'email' | 'chat' | 'text'
 
 export interface NotifyOptions {
   channel: NotifyChannel
@@ -40,6 +50,13 @@ export interface NotifyOptions {
   fromName?: string
   /** Chat only. Groups related posts into one thread in the space. */
   threadKey?: string
+  /**
+   * Text only. Which kind of message this is, for the send record. Defaults to
+   * 'ad_hoc' so a caller that forgets still gets a guard row — the guard is
+   * what stops the sweep reading our own texts back as obligations, and it must
+   * never be optional in practice.
+   */
+  textKind?: TextKind
 }
 
 export interface NotifyResult {
@@ -69,6 +86,29 @@ export async function notify(opts: NotifyOptions): Promise<NotifyResult> {
           opts.threadKey
         )
         return { ok: true }
+      case 'text': {
+        if (!opts.text?.trim()) {
+          return { ok: false, error: 'the text channel requires opts.text' }
+        }
+        // `to` is the team member's address, which is how every caller already
+        // addresses a person. The handle and the shortcut come from config, so
+        // no caller anywhere holds a phone number.
+        const { targets, problems } = textTargets()
+        const target = targets.find((t) => t.email === opts.to.toLowerCase())
+        if (!target) {
+          const detail = problems.length ? ` (${problems.join('; ')})` : ''
+          return {
+            ok: false,
+            error: `no text target configured for ${opts.to}${detail} — set PEPPER_TEXT_TARGETS`,
+          }
+        }
+        const result = await sendText({
+          target,
+          body: opts.text,
+          kind: opts.textKind ?? 'ad_hoc',
+        })
+        return result.ok ? { ok: true } : { ok: false, error: result.error }
+      }
       default:
         return { ok: false, error: `Unsupported channel: ${opts.channel}` }
     }
