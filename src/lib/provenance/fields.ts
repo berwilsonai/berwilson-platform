@@ -39,7 +39,31 @@ export interface FieldSpec {
   tier: FieldTier
   /** Shown on the proposal card, so the question reads as a question. */
   label: string
+  /**
+   * The only values this column accepts, where it is a Postgres enum or a
+   * CHECK-backed union.
+   *
+   * ⚠ NOT DECORATION. §12: a `.eq()`/`.neq()` value that is not in the enum
+   * fails the WHOLE query with 22P02 and a NULL row set rather than failing
+   * the row — the same is true of a write. One plausible-but-wrong sector from
+   * a model would therefore discard every other field on that record's update,
+   * silently, and the pass would report having written nothing.
+   */
+  allowedValues?: readonly string[]
 }
+
+/** Live members of `project_sector`, read off the database 2026-10-12. */
+export const PROJECT_SECTORS = [
+  'government', 'infrastructure', 'real_estate', 'prefab', 'institutional', 'technology', 'health',
+] as const
+
+/** Live members of `project_stage`. */
+export const PROJECT_STAGES = [
+  'pursuit', 'capture', 'bid', 'award', 'mobilization', 'execution', 'closeout',
+] as const
+
+/** Live members of `project_status`. */
+export const PROJECT_STATUSES = ['active', 'on_hold', 'won', 'lost', 'closed'] as const
 
 /**
  * The whitelist, per table.
@@ -64,46 +88,62 @@ export const WRITABLE_FIELDS: Record<string, Record<string, FieldSpec>> = {
   projects: {
     description: { tier: 'open', label: 'Description' },
     location: { tier: 'open', label: 'Location' },
-    client_name: { tier: 'open', label: 'Client' },
-    next_steps: { tier: 'open', label: 'Next steps' },
-    sector: { tier: 'open', label: 'Sector' },
-    // Judgement calls: a stage or a probability is weighed, not stated.
-    stage: { tier: 'guarded', label: 'Stage' },
-    status: { tier: 'guarded', label: 'Status' },
+    client_entity: { tier: 'open', label: 'Client' },
+    win_strategy: { tier: 'open', label: 'Win strategy' },
+    solicitation_number: { tier: 'open', label: 'Solicitation number' },
+    // ⚠ A REAL POSTGRES ENUM. §12: a value that is not in the enum fails the
+    // WHOLE query with 22P02 and a NULL row set, not just the row — so the
+    // allowed members live beside the field and `allowedValues` is checked
+    // before any write. A model's plausible-sounding "energy" would otherwise
+    // take down the update for every other field on the record.
+    sector: { tier: 'open', label: 'Sector', allowedValues: PROJECT_SECTORS },
+    stage: { tier: 'guarded', label: 'Stage', allowedValues: PROJECT_STAGES },
+    status: { tier: 'guarded', label: 'Status', allowedValues: PROJECT_STATUSES },
     win_probability: { tier: 'guarded', label: 'Win probability' },
-    // Legally effective. A bid deadline read wrong loses the bid.
     bid_due_date: { tier: 'guarded', label: 'Bid due date' },
     estimated_value: { tier: 'guarded', label: 'Estimated value' },
   },
   opportunities: {
     description: { tier: 'open', label: 'Description' },
     location: { tier: 'open', label: 'Location' },
-    client_name: { tier: 'open', label: 'Client' },
-    next_steps: { tier: 'open', label: 'Next steps' },
+    objective: { tier: 'open', label: 'Objective' },
+    thesis: { tier: 'open', label: 'Thesis' },
+    target_name: { tier: 'open', label: 'Target' },
+    counterparty: { tier: 'open', label: 'Counterparty' },
+    // Singular on this table and plural nowhere — checked against the live
+    // schema, because the first draft of this registry named four columns
+    // that do not exist (`client_name`, `next_steps`, `parties.bio`,
+    // `milestones.title`). scripts/verify-provenance-registry.mts now asserts
+    // every entry here against information_schema so it cannot drift again.
+    next_step: { tier: 'open', label: 'Next step' },
     sector: { tier: 'open', label: 'Sector' },
-    stage: { tier: 'guarded', label: 'Stage' },
     status: { tier: 'guarded', label: 'Status' },
+    priority: { tier: 'guarded', label: 'Priority' },
+    probability: { tier: 'guarded', label: 'Probability' },
     estimated_value: { tier: 'guarded', label: 'Estimated value' },
+    target_close_date: { tier: 'guarded', label: 'Target close date' },
+    deal_structure: { tier: 'guarded', label: 'Deal structure' },
+    ownership_stake: { tier: 'guarded', label: 'Ownership stake' },
   },
   parties: {
     // A rolodex is the clearest case for full autonomy: a title read out of a
-    // signature block is better than the blank that is there now, and being
-    // wrong is obvious to the one person who opens the card.
+    // signature block beats the blank that is there now, and being wrong is
+    // obvious to the one person who opens the card.
     title: { tier: 'open', label: 'Title' },
     company: { tier: 'open', label: 'Company' },
     email: { tier: 'open', label: 'Email' },
     phone: { tier: 'open', label: 'Phone' },
-    bio: { tier: 'open', label: 'Bio' },
     linkedin_url: { tier: 'open', label: 'LinkedIn' },
+    relationship_notes: { tier: 'open', label: 'Notes' },
   },
   milestones: {
-    title: { tier: 'open', label: 'Title' },
-    description: { tier: 'open', label: 'Description' },
-    // A milestone date that moved is the single most common thing an email
-    // says, and the most consequential to get wrong — Steelton's PSA closing
-    // moving 17 Oct → 1 Nov is the live example.
+    label: { tier: 'open', label: 'Milestone' },
+    notes: { tier: 'open', label: 'Notes' },
+    // A milestone date that moved is the most common thing an email says and
+    // the most consequential to get wrong — Steelton's PSA closing moving
+    // 17 Oct → 1 Nov is the live example.
     target_date: { tier: 'guarded', label: 'Target date' },
-    status: { tier: 'guarded', label: 'Status' },
+    completed_at: { tier: 'guarded', label: 'Completed' },
   },
   project_spv_participants: {
     holder_name: { tier: 'open', label: 'Holder' },
@@ -171,6 +211,14 @@ export function canWrite(args: {
     // She never blanks a field. Clearing a value is a human act — there is no
     // sentence in an email that means "this record should say nothing here".
     return { action: 'skip', reason: 'refusing to clear a value' }
+  }
+  // ⚠ CHECKED BEFORE THE BLANK BRANCH, so filling an empty enum column cannot
+  // sneak an invalid member past the guard either.
+  if (spec.allowedValues && !spec.allowedValues.includes(String(args.proposedValue))) {
+    return {
+      action: 'skip',
+      reason: `"${String(args.proposedValue)}" is not a permitted ${args.field} (${spec.allowedValues.join(', ')})`,
+    }
   }
   if (isBlank(args.currentValue)) {
     return { action: 'write', reason: 'field was blank' }
