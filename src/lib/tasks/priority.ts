@@ -161,7 +161,6 @@ export async function loadLiveContext(
   const db = createUntypedAdminClient()
 
   const liveRecordIds = new Set<string>()
-  const liveThreadIds = new Set<string>()
 
   const PAGE = 1000
   for (let page = 0; ; page++) {
@@ -183,7 +182,6 @@ export async function loadLiveContext(
     for (const row of rows) {
       const thread = Array.isArray(row.thread) ? row.thread[0] : row.thread
       if (!thread?.last_at || thread.last_at < since) continue
-      liveThreadIds.add(thread.id)
       // Only the two record kinds a task can be tagged to. A lead link is the
       // noisiest kind by far and no task hangs off one any more.
       if (row.record_kind === 'project' || row.record_kind === 'opportunity') {
@@ -194,20 +192,35 @@ export async function loadLiveContext(
     if (rows.length < PAGE) break
   }
 
-  // A commitment's own thread, which is usually NOT filed against a record —
-  // 277 of 367 open commitments name neither a project nor an opportunity, so
-  // this is the route most promoted tasks reach 'live' by.
+  /**
+   * A commitment's own thread — the route most promoted tasks reach 'live' by,
+   * since 277 of 367 open commitments name neither a project nor an
+   * opportunity.
+   *
+   * ⚠ READ STRAIGHT OFF `email_threads`, NOT THROUGH `thread_links`, AND THE
+   * FIRST VERSION GOT THIS WRONG IN THE WAY THAT IS HARDEST TO SEE. It reused
+   * the thread ids gathered above, which only exist for a thread FILED against
+   * a record — and an internal text session between the two executives usually
+   * is not filed against anything. So 9 of the 34 obligations promoted on
+   * 2026-10-12 were ranked `tagged` while the pass that promoted them had
+   * called the very same conversation live, because the two reads reached
+   * recency by different paths. §12: one quantity, one definition — and the
+   * definition has to be the same READ, not just the same number of days.
+   * `internal-tasks.ts` filters on `email_threads.last_at`, so this must too.
+   */
   const liveCommitmentIds = new Set<string>()
-  const threadIds = [...liveThreadIds]
-  for (let i = 0; i < threadIds.length; i += 200) {
+  for (let page = 0; ; page++) {
     const { data, error } = await db
       .from('commitments')
-      .select('id')
-      .in('thread_id', threadIds.slice(i, i + 200))
+      .select('id, thread:email_threads!inner(last_at)')
+      .gte('thread.last_at', since)
+      .range(page * PAGE, page * PAGE + PAGE - 1)
     if (error) {
       return { liveRecordIds, liveCommitmentIds, error: error.message }
     }
-    for (const row of (data ?? []) as { id: string }[]) liveCommitmentIds.add(row.id)
+    const rows = (data ?? []) as { id: string }[]
+    for (const row of rows) liveCommitmentIds.add(row.id)
+    if (rows.length < PAGE) break
   }
 
   return { liveRecordIds, liveCommitmentIds, error: null }
