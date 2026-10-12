@@ -153,7 +153,12 @@ function taskRow(t: NoteTask, now: Date): string {
  * not read, and a task the note silently omitted is a task that does not get
  * done. Empty sections render as nothing rather than as an empty heading.
  */
-function taskList(overdue: NoteTask[], dueSoon: NoteTask[], now: Date): string {
+function taskList(
+  overdue: NoteTask[],
+  dueSoon: NoteTask[],
+  live: NoteTask[],
+  now: Date
+): string {
   const section = (label: string, tasks: NoteTask[]) =>
     tasks.length === 0
       ? ''
@@ -164,7 +169,14 @@ function taskList(overdue: NoteTask[], dueSoon: NoteTask[], now: Date): string {
           ${tasks.map((t) => taskRow(t, now)).join('')}
         </table>
       </div>`
-  return section('Overdue', overdue) + section('Due this week', dueSoon)
+  return (
+    section('Overdue', overdue) +
+    section('Due this week', dueSoon) +
+    // Last, because it is the longest and the least time-critical — but present,
+    // which it was not. These are the undated obligations off the executives'
+    // own correspondence, and they are most of the real outstanding work.
+    section('Live deals · no deadline set', live)
+  )
 }
 
 /** One commitment, with the one-tap link minted for this note. */
@@ -236,6 +248,9 @@ export function renderNoteEmail(input: {
   /** The reader's own tasks, itemised under the note. */
   overdue: NoteTask[]
   dueSoon: NoteTask[]
+  /** Open work on a live deal with no near deadline. Optional: a caller that
+   *  predates this section renders without it rather than failing. */
+  liveTasks?: NoteTask[]
   decideTotal: number
   /** Commitments the note named, each with its one-tap link. */
   settle?: NoteSettleRow[]
@@ -275,7 +290,7 @@ export function renderNoteEmail(input: {
     `<a href="${href}" style="display:inline-block;margin-top:24px;margin-right:8px;padding:10px 18px;background:#111827;color:#ffffff;text-decoration:none;border-radius:8px;font-size:14px;font-weight:600;">${label}</a>`
   const link = input.appUrl
     ? button(`${input.appUrl}/decide`, 'Open the Decide queue') +
-      (overdueTasks + input.dueSoon.length > 0
+      (overdueTasks + input.dueSoon.length + (input.liveTasks?.length ?? 0) > 0
         ? button(`${input.appUrl}/tasks`, 'Open my tasks')
         : '')
     : ''
@@ -285,7 +300,7 @@ export function renderNoteEmail(input: {
     <div style="font-size:18px;font-weight:700;">Good morning, ${escapeHtml(input.firstName)}</div>
     <div style="font-size:13px;color:#6b7280;margin-top:2px;">${escapeHtml(date)}</div>
     ${noteToHtml(input.markdown)}
-    ${taskList(input.overdue, input.dueSoon, now)}
+    ${taskList(input.overdue, input.dueSoon, input.liveTasks ?? [], now)}
     ${settleList(input.settle ?? [], input.appUrl)}
     ${link}
     <div style="font-size:11px;color:#9ca3af;margin-top:28px;border-top:1px solid #e5e7eb;padding-top:12px;">

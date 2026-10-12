@@ -87,6 +87,12 @@ export interface ChatRow {
   messages: ChatMessage[]
   sentByMe: number
   total: number
+  /**
+   * Tapbacks dropped from this conversation — the coverage signal for the
+   * filter below. A pass whose failure mode is silently carrying duplicate
+   * text needs a number beside it (§12).
+   */
+  tapbacks: number
   lastAt: Date | null
 }
 
@@ -143,6 +149,7 @@ export function readChats(opts: ReadOptions = {}): ChatRow[] {
                   m.text             as text,
                   m.attributedBody   as attributedBody,
                   m.is_from_me       as isFromMe,
+                  m.associated_message_type as assocType,
                   m.date             as date
              from chat c
              join chat_message_join cmj on cmj.chat_id = c.ROWID
@@ -161,6 +168,7 @@ export function readChats(opts: ReadOptions = {}): ChatRow[] {
         text: string | null
         attributedBody: Uint8Array | null
         isFromMe: bigint
+        assocType: bigint
         date: bigint
       }[]
 
@@ -193,9 +201,40 @@ export function readChats(opts: ReadOptions = {}): ChatRow[] {
             messages: [],
             sentByMe: 0,
             total: 0,
+            tapbacks: 0,
             lastAt: null,
           }
           byChat.set(chatId, chat)
+        }
+        /**
+         * ⚠ A TAPBACK CARRIES THE WHOLE QUOTED MESSAGE, UNDER THE WRONG AUTHOR.
+         *
+         * Messages stores a reaction as its own `message` row whose body is
+         * `Liked “<the entire text it reacts to>”` and whose `is_from_me` is
+         * the REACTOR's. So Richard liking Eric's rundown of every outstanding
+         * deal produced a second copy of that rundown attributed to Richard —
+         * and the commitment extractor, reading both, could not tell who owed
+         * what: all five obligations off that thread landed `side='them'` with
+         * no owner at all.
+         *
+         * Measured on this box 2026-10-11: 46,106 of 305,241 messages are
+         * tapbacks (15.1%), 1,933 of 13,953 in the last 90 days. They are not a
+         * rounding error, and the duplicate is indistinguishable from a real
+         * message once rendered.
+         *
+         * `associated_message_type` is 0 for an original message and non-zero
+         * for anything attached to another one (2000-2006 added, 3000-3005
+         * removed). The acknowledgement itself is not lost information, but it
+         * is worth less than the damage its body does, and the message it reacts
+         * to is in the same conversation two lines up.
+         *
+         * ⚠ COUNTED, NOT JUST DROPPED, and it does NOT count toward `total` —
+         * that number is what the classifier reads as conversation volume, and a
+         * reaction is not a message.
+         */
+        if (Number(r.assocType) !== 0) {
+          chat.tapbacks += 1
+          continue
         }
         chat.total += 1
         if (Number(r.isFromMe) === 1) chat.sentByMe += 1

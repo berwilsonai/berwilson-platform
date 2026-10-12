@@ -21,6 +21,7 @@ import { sweepDb } from '@/lib/email-sweep/db'
 import { readOpenCommitments, type CommitmentWithMailbox } from '@/lib/commitments/read'
 import { fetchCalendarEvents } from '@/lib/integrations/google-workspace'
 import { fetchTasksForDigest, type DigestTask } from '@/lib/tasks/queries'
+import { loadLiveContext, taskTier, EMPTY_LIVE_CONTEXT, type LiveContext } from '@/lib/tasks/priority'
 import { summarizeDecideQueue, type DecideSummary } from '@/lib/decide/count'
 import { computeAttention, type AttentionItem } from '@/lib/attention'
 import type { CommitmentRow } from '@/lib/commitments/db'
@@ -113,6 +114,18 @@ export interface PepperNote {
   omitted: { owed: number; awaited: number; sharedOwed: number; sharedAwaited: number }
   overdueTasks: DigestTask[]
   dueSoonTasks: DigestTask[]
+  /**
+   * Open work on a live deal that carries no near deadline.
+   *
+   * ⚠ THE SECTION THAT HAD TO EXIST BEFORE ANY OF THIS WAS WORTH DOING. The
+   * note listed overdue and due-in-7 and nothing else, so a task with no due
+   * date was never mentioned — and 34 of the 38 obligations promoted off the
+   * executives' own correspondence on 2026-10-12 have no date. "Finalize the
+   * Fairbanks Mining Contract" is not less real for having no deadline, which
+   * is the same sentence already written above `near()` about commitments and
+   * never applied to tasks.
+   */
+  liveTasks: DigestTask[]
   meetings: MeetingContext[]
   decide: DecideSummary
   /** Portfolio-level items falling through the cracks, shared by both notes. */
@@ -168,6 +181,8 @@ export interface PepperCommon {
   members: PepperMember[]
   commitments: CommitmentWithMailbox[]
   tasks: DigestTask[]
+  /** Which deals and conversations have moved lately, for tiering those tasks. */
+  live: LiveContext
   decide: DecideSummary
   cracks: AttentionItem[]
   overnight: OvernightWork
@@ -188,7 +203,7 @@ export async function assembleCommon(now = new Date()): Promise<PepperCommon> {
 
   const members = await loadPepperMembers(supabase)
 
-  const [commitmentsRes, tasks, decide, attentionItems, overnight] = await Promise.all([
+  const [commitmentsRes, tasks, decide, attentionItems, overnight, live] = await Promise.all([
     // ⚠ THROUGH THE CHOKE POINT, NOT A QUERY OF ITS OWN. This read used to be
     // inline here with no confidentiality filter at all, which made a protected
     // project's obligations reachable by an OUTBOUND channel — see the header of
@@ -207,6 +222,14 @@ export async function assembleCommon(now = new Date()): Promise<PepperCommon> {
         return [] as AttentionItem[]
       }),
     assembleOvernight(sinceIso),
+    // A failed read falls back to date-only bucketing rather than failing the
+    // note, and says so — §12: withholding from a reader means telling them.
+    loadLiveContext(now).catch((err: unknown) => {
+      notes.push(
+        `Could not tell which deals are active: ${err instanceof Error ? err.message : String(err)}`
+      )
+      return { ...EMPTY_LIVE_CONTEXT, error: null }
+    }),
   ])
 
   if (commitmentsRes.error) {
@@ -238,7 +261,9 @@ export async function assembleCommon(now = new Date()): Promise<PepperCommon> {
     if (cracks.length >= MAX_CRACKS) break
   }
 
-  return { members, commitments, tasks, decide, cracks, overnight, notes }
+  if (live.error) notes.push(`Could not tell which deals are active: ${live.error}`)
+
+  return { members, commitments, tasks, live, decide, cracks, overnight, notes }
 }
 
 /** What the platform did while nobody was watching. Counts only, all cheap. */
@@ -413,7 +438,7 @@ export async function assembleForMember(
 
   const today = now.toISOString().slice(0, 10)
   const in7 = daysFromNow(7)
-  const myTasks = common.tasks.filter((t) => t.assignee_id === member.id && t.due_date)
+  const myTasks = common.tasks.filter((t) => t.assignee_id === member.id)
 
   const meetings = await assembleMeetings(member, now, notes)
 
@@ -436,8 +461,17 @@ export async function assembleForMember(
       sharedOwed: Math.max(0, sharedOwed.length - MAX_PER_SECTION),
       sharedAwaited: Math.max(0, sharedAwaited.length - MAX_PER_SECTION),
     },
-    overdueTasks: myTasks.filter((t) => t.due_date! < today),
-    dueSoonTasks: myTasks.filter((t) => t.due_date! >= today && t.due_date! <= in7),
+    overdueTasks: myTasks.filter((t) => t.due_date && t.due_date < today),
+    dueSoonTasks: myTasks.filter((t) => t.due_date && t.due_date >= today && t.due_date <= in7),
+    // What is left: no deadline, or one past the horizon. Only the LIVE tier is
+    // named — a task on a deal nobody has written about in a fortnight belongs
+    // on the board, not in a morning note that has to stay under 300 words. The
+    // same window and the same function the board and the sheet rank by, so the
+    // note cannot disagree with either about what is active.
+    liveTasks: myTasks.filter(
+      (t) =>
+        (!t.due_date || t.due_date > in7) && taskTier(t, common.live) === 'live'
+    ),
     meetings,
     decide: common.decide,
     cracks: common.cracks,
@@ -564,6 +598,7 @@ export function noteIsEmpty(n: PepperNote): boolean {
     n.awaited.length === 0 &&
     n.overdueTasks.length === 0 &&
     n.dueSoonTasks.length === 0 &&
+    n.liveTasks.length === 0 &&
     n.meetings.length === 0 &&
     n.cracks.length === 0 &&
     n.decide.total === 0

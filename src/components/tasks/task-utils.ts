@@ -15,6 +15,8 @@ export interface BoardTask {
   opportunity_id: string | null
   investor_id: string | null
   objective_id: string | null
+  /** The commitment this task was promoted from — see lib/commitments/internal-tasks. */
+  commitment_id: string | null
   assignee: { id: string; name: string; color: string | null } | null
   project: { id: string; name: string } | null
   created_at: string | null

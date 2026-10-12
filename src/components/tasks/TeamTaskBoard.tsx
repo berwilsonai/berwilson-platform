@@ -36,6 +36,14 @@ import {
   initials,
   handleAuthError,
 } from './task-utils'
+import {
+  taskTier,
+  tierRank,
+  TIER_BORDER,
+  TIER_CHIP,
+  TIER_LABELS,
+  LIVE_CORRESPONDENCE_DAYS,
+} from '@/lib/tasks/priority'
 
 interface TeamTaskBoardProps {
   initialTasks: BoardTask[]
@@ -56,6 +64,15 @@ interface TeamTaskBoardProps {
   showWeeklyReport?: boolean
   /** Open this task's detail sheet on mount (deep link from search: /tasks?task=<id>). */
   initialOpenTaskId?: string | null
+  /**
+   * Records and commitments whose conversations have moved inside
+   * LIVE_CORRESPONDENCE_DAYS. Arrays rather than Sets because this crosses the
+   * server/client boundary, where a Set does not survive serialization.
+   */
+  liveRecordIds?: string[]
+  liveCommitmentIds?: string[]
+  /** Why the ranking is unavailable, when it is. Named, never silently empty. */
+  liveError?: string | null
 }
 
 type StatusFilter = 'open' | 'done'
@@ -88,7 +105,20 @@ export default function TeamTaskBoard({
   embedded = false,
   showWeeklyReport = false,
   initialOpenTaskId = null,
+  liveRecordIds = [],
+  liveCommitmentIds = [],
+  liveError = null,
 }: TeamTaskBoardProps) {
+  // Rebuilt only when the arrays change identity, which is once per server
+  // render. Building a Set inside the render body on every keystroke of the
+  // search filter would destabilise the memo below for no reason.
+  const live = useMemo(
+    () => ({
+      liveRecordIds: new Set(liveRecordIds),
+      liveCommitmentIds: new Set(liveCommitmentIds),
+    }),
+    [liveRecordIds, liveCommitmentIds],
+  )
   const scopedToProject = !!scopeProjectId
   const scopedToOpportunity = !!scopeOpportunityId
   const scopedToInvestor = !!scopeInvestorId
@@ -311,13 +341,36 @@ export default function TeamTaskBoard({
         objectiveFilter === 'none' ? !t.objective_id : t.objective_id === objectiveFilter,
       )
     }
+    /**
+     * TIER FIRST, THEN THE DATE.
+     *
+     * ⚠ WHY THE DATE CANNOT LEAD. Sorting strictly by due date is what made
+     * this board unreadable: every unsolicited RFP carries a hard bid deadline
+     * and most real work does not, so the top of the list was always whichever
+     * stranger's solicitation closed soonest while "Review JV Brief and
+     * Counteroffer" sat at the bottom for having no date at all. Measured
+     * 2026-10-12: 11 of 22 open rows were bid deadlines and the live deals had
+     * none. Those rows are gone now, and this is the ordering that stops the
+     * shape coming back.
+     *
+     * Overdue is lifted out of its tier, because being late is a different and
+     * more urgent fact than being important — a missed commitment on a quiet
+     * project still needs answering today.
+     */
+    const today = new Date().toISOString().slice(0, 10)
+    const rank = (t: BoardTask): number => {
+      if (t.status !== 'done' && t.due_date && t.due_date < today) return -1
+      return tierRank(taskTier(t, live))
+    }
     return [...list].sort((a, b) => {
+      const byRank = rank(a) - rank(b)
+      if (byRank !== 0) return byRank
       if (a.due_date && b.due_date) return a.due_date.localeCompare(b.due_date)
       if (a.due_date) return -1
       if (b.due_date) return 1
       return (b.created_at ?? '').localeCompare(a.created_at ?? '')
     })
-  }, [tasks, status, assigneeFilter, projectFilter, opportunityFilter, investorFilter, objectiveFilter, showProjectControls, showOpportunityControls, showInvestorControls, showObjectiveControls])
+  }, [tasks, status, assigneeFilter, projectFilter, opportunityFilter, investorFilter, objectiveFilter, showProjectControls, showOpportunityControls, showInvestorControls, showObjectiveControls, live])
 
   // Per-person workload (the old Capacity view, folded in) — open + overdue.
   const workload = useMemo(() => {
@@ -674,6 +727,16 @@ export default function TeamTaskBoard({
       </div>
 
       {/* List */}
+      {/* §12: withholding from a reader means telling them. A failed read here
+          would otherwise show a board on which nothing is live, which is a
+          claim about the business rather than about the query. */}
+      {liveError && (
+        <p className="text-xs text-amber-600 dark:text-amber-400">
+          Ranking unavailable — could not read which conversations are active ({liveError}). Rows
+          are ordered by date only.
+        </p>
+      )}
+
       {filtered.length === 0 ? (
         <EmptyState
           icon={status === 'done' ? Archive : ListChecks}
@@ -685,13 +748,23 @@ export default function TeamTaskBoard({
           {filtered.map((task) => {
             const due = task.due_date ? getDueLabel(task.due_date) : null
             const done = task.status === 'done'
+            const tier = taskTier(task, live)
             return (
               <div
                 key={task.id}
                 onClick={() => setOpenTaskId(task.id)}
                 className={cn(
                   'group flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3 cursor-pointer lift',
-                  due?.overdue && !done && 'border-l-[3px] border-l-red-400 dark:border-l-red-500/70',
+                  // ⚠ ONE COLOUR MEANS SOMETHING AND THE REST RECEDE (§12: when
+                  // every row is red, red has stopped signifying). Only 'live'
+                  // is tinted; 'unattached' is dimmed; 'tagged' is the ordinary
+                  // card. Overdue takes the edge back, because late outranks
+                  // important — and it is checked FIRST so the two colours
+                  // never both apply to one border.
+                  due?.overdue && !done
+                    ? 'border-l-[3px] border-l-red-400 dark:border-l-red-500/70'
+                    : !done && TIER_BORDER[tier],
+                  !done && tier === 'unattached' && 'opacity-80',
                   done && 'opacity-60',
                 )}
               >
@@ -719,6 +792,17 @@ export default function TeamTaskBoard({
                     <p className="text-xs text-muted-foreground/80 truncate mt-0.5">{task.why}</p>
                   )}
                   <div className="flex items-center gap-2 mt-1 flex-wrap">
+                    {!done && tier === 'live' && (
+                      <span
+                        className={cn(
+                          'inline-flex items-center rounded-full px-1.5 py-0.5 label-caps',
+                          TIER_CHIP.live,
+                        )}
+                        title={`A conversation on this moved in the last ${LIVE_CORRESPONDENCE_DAYS} days`}
+                      >
+                        {TIER_LABELS.live}
+                      </span>
+                    )}
                     {!scopedToProject && task.project && (
                       <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
                         <FolderKanban size={11} /> {task.project.name}

@@ -4,6 +4,7 @@ import type { BoardTask, TeamMember, ProjectOption, OpportunityOption, InvestorO
 import { getViewer, filterTasksForViewer, accessibleProjectIds } from '@/lib/auth/viewer'
 import { dropHidden } from '@/lib/security/confidential'
 import { viewerHiddenProjectIds } from '@/lib/security/request'
+import { loadLiveContext } from '@/lib/tasks/priority'
 
 export const metadata = { title: 'Team Tasks — Ber Wilson Intelligence' }
 
@@ -15,6 +16,13 @@ export default async function TasksPage({
   const { task: initialOpenTaskId } = await searchParams
   const supabase = createAdminClient()
   const viewer = await getViewer()
+
+  // Which deals and conversations have moved lately — the board ranks and
+  // colours by it. Read here rather than in the client component because it is
+  // two queries over thread_links, and every row's tier is computed from the
+  // one answer. An error means the ranking is unavailable, which the board says
+  // out loud rather than greying every row as if nothing were live.
+  const live = await loadLiveContext()
 
   // Objectives may not exist pre-migration; a failed select just yields null → no objective controls.
   const [{ data: tasks }, { data: members }, { data: projects }, { data: opportunities }, { data: investors }, { data: objectives }] = await Promise.all([
@@ -99,6 +107,9 @@ export default async function TasksPage({
       objectives={visibleObjectives}
       showWeeklyReport={!viewer || viewer.isAdmin}
       initialOpenTaskId={initialOpenTaskId ?? null}
+      liveRecordIds={[...live.liveRecordIds]}
+      liveCommitmentIds={[...live.liveCommitmentIds]}
+      liveError={live.error}
     />
   )
 }

@@ -105,22 +105,40 @@ export interface DigestTask {
   assignee_id: string | null
   project_name: string | null
   opportunity_name: string | null
+  /** For tiering — see lib/tasks/priority.ts. */
+  project_id: string | null
+  opportunity_id: string | null
+  commitment_id: string | null
 }
 
 /**
- * Fetch open, due-dated tasks for the per-member notification digest.
+ * Fetch the open, owned tasks the per-member note lists.
+ *
  * Kept separate from `fetchOpenTasks`/`TaskSummary` (shared by the AI briefs)
- * because the digest needs `assignee_id` + `why` and groups by person.
- * Name resolution uses separate lookups (no PostgREST embeds) for dual-schema safety.
+ * because the note needs `assignee_id` + `why` and groups by person. Name
+ * resolution uses separate lookups (no PostgREST embeds) for dual-schema safety.
+ *
+ * ⚠ A DUE DATE IS NO LONGER REQUIRED, AND REQUIRING IT WOULD HAVE SILENCED THE
+ * WHOLE POINT OF PROMOTING OBLIGATIONS ONTO THE BOARD. This read used to filter
+ * `due_date is not null`, and the note then bucketed what came back into overdue
+ * and due-in-7 — so an undated task reached neither bucket and was never
+ * mentioned. Of the 38 live internal commitments promoted on 2026-10-12, **34
+ * carry no due date**: Eric does not put a deadline on "Finalize the Fairbanks
+ * Mining Contract", he just says it is outstanding. The morning note would have
+ * listed none of them while all 38 sat on the board.
+ *
+ * A deadline is attached to the work LEAST likely to matter here — a bid
+ * invitation always has one and a real obligation usually does not — which is
+ * the same asymmetry that made the board's date-first sort unreadable. The note
+ * decides what to say about an undated task; this just stops hiding it.
  */
 export async function fetchTasksForDigest(supabase: AdminClient): Promise<DigestTask[]> {
   const { data: tasks, error } = await supabase
     .from('tasks')
-    .select('id, title, why, due_date, assignee_id, project_id, opportunity_id')
+    .select('id, title, why, due_date, assignee_id, project_id, opportunity_id, commitment_id')
     .eq('status', 'open')
     .not('assignee_id', 'is', null)
-    .not('due_date', 'is', null)
-    .order('due_date', { ascending: true })
+    .order('due_date', { ascending: true, nullsFirst: false })
     .limit(1000)
 
   if (error || !tasks || tasks.length === 0) return []
@@ -161,6 +179,9 @@ export async function fetchTasksForDigest(supabase: AdminClient): Promise<Digest
     assignee_id: t.assignee_id,
     project_name: t.project_id ? projectName.get(t.project_id) ?? null : null,
     opportunity_name: t.opportunity_id ? opportunityName.get(t.opportunity_id) ?? null : null,
+    project_id: t.project_id,
+    opportunity_id: t.opportunity_id,
+    commitment_id: t.commitment_id,
   }))
 }
 

@@ -78,8 +78,27 @@ for db in databases {
         } catch {
             // Naming the file AND the reason: "snapshot failed" with no path is
             // the message that sends someone to read the whole binary.
+            //
+            // ⚠ AND FOUNDATION NAMES THE WRONG HALF, SO SAY WHICH HALF IT IS.
+            // A TCC denial on the SOURCE comes back from `copyItem` as
+            // "chat.db couldn't be copied because you don't have permission to
+            // access local-sources" — the DESTINATION directory. Measured
+            // 2026-10-12 off the first scheduled run: the destination was a
+            // 700 directory owned by the same user and perfectly writable,
+            // while the real fault was that launchd's copy of this binary has
+            // no Full Disk Access. The message as Foundation phrases it sends
+            // the reader to chase directory permissions that are already fine.
+            // So the source is probed and named explicitly.
+            let readable = fm.isReadableFile(atPath: from.path)
+            let hint = readable
+                ? "destination \(destination.path) — check that directory"
+                : "cannot READ \(from.path): grant Full Disk Access to this binary "
+                    + "(System Settings → Privacy & Security → Full Disk Access → + → "
+                    + CommandLine.arguments[0]
+                    + "). Foundation blames the destination here; it is wrong."
             FileHandle.standardError.write(
-                "bw-snapshot: FAILED \(db.name)\(suffix): \(error.localizedDescription)\n".data(using: .utf8)!
+                "bw-snapshot: FAILED \(db.name)\(suffix): \(error.localizedDescription) [\(hint)]\n"
+                    .data(using: .utf8)!
             )
             ok = false
         }

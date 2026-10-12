@@ -479,6 +479,20 @@ isOneToOne: false
       referencedColumns: ["id"]
     }
                   ]
+                },"curator_cursors": {
+                  Row: {
+                    "created_at": string,"evidence_through": string | null,"id": string,"last_error": string | null,"last_proposed": number,"last_run_at": string | null,"last_written": number,"record_id": string,"table_name": string,"updated_at": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "created_at"?: string,"evidence_through"?: string | null,"id"?: string,"last_error"?: string | null,"last_proposed"?: number,"last_run_at"?: string | null,"last_written"?: number,"record_id": string,"table_name": string,"updated_at"?: string
+                  }
+                  Update: {
+                    "created_at"?: string,"evidence_through"?: string | null,"id"?: string,"last_error"?: string | null,"last_proposed"?: number,"last_run_at"?: string | null,"last_written"?: number,"record_id"?: string,"table_name"?: string,"updated_at"?: string
+                  }
+                  Relationships: [
+                    
+                  ]
                 },"dd_items": {
                   Row: {
                     "assigned_to": string | null,"category": string,"created_at": string | null,"id": string,"item": string,"notes": string | null,"opportunity_id": string | null,"project_id": string | null,"resolved_at": string | null,"severity": Database["public"]['Enums']["dd_severity"] | null,"status": string
@@ -855,14 +869,14 @@ isOneToOne: false
                   ]
                 },"email_intake_sessions": {
                   Row: {
-                    "cluster_id": string | null,"confirmed_at": string | null,"created_at": string | null,"created_record_ids": Json | null,"drive_file_id": string | null,"extraction_result": NonNullable<Json>,"fit_assessment": Json | null,"id": string,"intake_kind": string,"label": string | null,"match_candidates": Json | null,"party_matches": Json | null,"predecision": Json | null,"raw_text": string | null,"source_title": string | null,"staged_attachments": Json | null,"status": string,"updated_at": string | null,"user_id": string | null
+                    "cluster_id": string | null,"confirmed_at": string | null,"created_at": string | null,"created_record_ids": Json | null,"drive_file_id": string | null,"extraction_result": NonNullable<Json>,"fit_assessment": Json | null,"id": string,"intake_kind": string,"label": string | null,"match_candidates": Json | null,"party_matches": Json | null,"predecision": Json | null,"raw_text": string | null,"retired_at": string | null,"retired_reason": string | null,"source_title": string | null,"staged_attachments": Json | null,"status": string,"updated_at": string | null,"user_id": string | null
                   }
                   ComputedFields: never
                   Insert: {
-                    "cluster_id"?: string | null,"confirmed_at"?: string | null,"created_at"?: string | null,"created_record_ids"?: Json | null,"drive_file_id"?: string | null,"extraction_result": NonNullable<Json>,"fit_assessment"?: Json | null,"id"?: string,"intake_kind"?: string,"label"?: string | null,"match_candidates"?: Json | null,"party_matches"?: Json | null,"predecision"?: Json | null,"raw_text"?: string | null,"source_title"?: string | null,"staged_attachments"?: Json | null,"status"?: string,"updated_at"?: string | null,"user_id"?: string | null
+                    "cluster_id"?: string | null,"confirmed_at"?: string | null,"created_at"?: string | null,"created_record_ids"?: Json | null,"drive_file_id"?: string | null,"extraction_result": NonNullable<Json>,"fit_assessment"?: Json | null,"id"?: string,"intake_kind"?: string,"label"?: string | null,"match_candidates"?: Json | null,"party_matches"?: Json | null,"predecision"?: Json | null,"raw_text"?: string | null,"retired_at"?: string | null,"retired_reason"?: string | null,"source_title"?: string | null,"staged_attachments"?: Json | null,"status"?: string,"updated_at"?: string | null,"user_id"?: string | null
                   }
                   Update: {
-                    "cluster_id"?: string | null,"confirmed_at"?: string | null,"created_at"?: string | null,"created_record_ids"?: Json | null,"drive_file_id"?: string | null,"extraction_result"?: NonNullable<Json>,"fit_assessment"?: Json | null,"id"?: string,"intake_kind"?: string,"label"?: string | null,"match_candidates"?: Json | null,"party_matches"?: Json | null,"predecision"?: Json | null,"raw_text"?: string | null,"source_title"?: string | null,"staged_attachments"?: Json | null,"status"?: string,"updated_at"?: string | null,"user_id"?: string | null
+                    "cluster_id"?: string | null,"confirmed_at"?: string | null,"created_at"?: string | null,"created_record_ids"?: Json | null,"drive_file_id"?: string | null,"extraction_result"?: NonNullable<Json>,"fit_assessment"?: Json | null,"id"?: string,"intake_kind"?: string,"label"?: string | null,"match_candidates"?: Json | null,"party_matches"?: Json | null,"predecision"?: Json | null,"raw_text"?: string | null,"retired_at"?: string | null,"retired_reason"?: string | null,"source_title"?: string | null,"staged_attachments"?: Json | null,"status"?: string,"updated_at"?: string | null,"user_id"?: string | null
                   }
                   Relationships: [
                     {
@@ -982,6 +996,20 @@ isOneToOne: false
       referencedRelation: "projects"
       referencedColumns: ["id"]
     }
+                  ]
+                },"field_update_proposals": {
+                  Row: {
+                    "confidence": number | null,"created_at": string,"current_value": string | null,"decided_at": string | null,"decided_by": string | null,"evidence": string | null,"field_key": string,"id": string,"proposed_value": string | null,"record_id": string,"record_label": string | null,"source_kind": string | null,"source_ref": string | null,"status": string,"table_name": string,"updated_at": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "confidence"?: number | null,"created_at"?: string,"current_value"?: string | null,"decided_at"?: string | null,"decided_by"?: string | null,"evidence"?: string | null,"field_key": string,"id"?: string,"proposed_value"?: string | null,"record_id": string,"record_label"?: string | null,"source_kind"?: string | null,"source_ref"?: string | null,"status"?: string,"table_name": string,"updated_at"?: string
+                  }
+                  Update: {
+                    "confidence"?: number | null,"created_at"?: string,"current_value"?: string | null,"decided_at"?: string | null,"decided_by"?: string | null,"evidence"?: string | null,"field_key"?: string,"id"?: string,"proposed_value"?: string | null,"record_id"?: string,"record_label"?: string | null,"source_kind"?: string | null,"source_ref"?: string | null,"status"?: string,"table_name"?: string,"updated_at"?: string
+                  }
+                  Relationships: [
+                    
                   ]
                 },"financing_structures": {
                   Row: {
@@ -1637,6 +1665,20 @@ isOneToOne: false
       referencedColumns: ["id"]
     }
                   ]
+                },"pepper_outbound_texts": {
+                  Row: {
+                    "body": string,"body_sha256": string,"created_at": string,"handle": string,"id": string,"kind": string,"sent_at": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "body": string,"body_sha256": string,"created_at"?: string,"handle": string,"id"?: string,"kind": string,"sent_at"?: string
+                  }
+                  Update: {
+                    "body"?: string,"body_sha256"?: string,"created_at"?: string,"handle"?: string,"id"?: string,"kind"?: string,"sent_at"?: string
+                  }
+                  Relationships: [
+                    
+                  ]
                 },"personnel": {
                   Row: {
                     "classification": string,"created_at": string | null,"employing_entity_id": string | null,"employing_entity_name": string | null,"engaged_on": string | null,"full_name": string,"id": string,"legal_hold": boolean,"legal_hold_reason": string | null,"org_person_id": string | null,"party_id": string | null,"rehire_eligible": boolean | null,"retention_until": string | null,"separated_on": string | null,"separation_notice_on": string | null,"separation_type": string | null,"status": string | null,"team_member_id": string | null,"title": string | null,"updated_at": string | null
@@ -2071,6 +2113,20 @@ isOneToOne: false
       referencedColumns: ["id"]
     }
                   ]
+                },"record_field_provenance": {
+                  Row: {
+                    "as_of": string | null,"confidence": number | null,"created_at": string,"evidence": string | null,"field_key": string,"id": string,"record_id": string,"source_kind": string | null,"source_ref": string | null,"table_name": string,"updated_at": string,"written_by": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "as_of"?: string | null,"confidence"?: number | null,"created_at"?: string,"evidence"?: string | null,"field_key": string,"id"?: string,"record_id": string,"source_kind"?: string | null,"source_ref"?: string | null,"table_name": string,"updated_at"?: string,"written_by": string
+                  }
+                  Update: {
+                    "as_of"?: string | null,"confidence"?: number | null,"created_at"?: string,"evidence"?: string | null,"field_key"?: string,"id"?: string,"record_id"?: string,"source_kind"?: string | null,"source_ref"?: string | null,"table_name"?: string,"updated_at"?: string,"written_by"?: string
+                  }
+                  Relationships: [
+                    
+                  ]
                 },"record_identifiers": {
                   Row: {
                     "created_at": string | null,"id": string,"kind": string,"normalized": string,"record_id": string,"record_kind": string,"source_thread_id": string | null,"value": string
@@ -2445,14 +2501,14 @@ isOneToOne: false
                   ]
                 },"tasks": {
                   Row: {
-                    "assignee_id": string | null,"completed_at": string | null,"created_at": string | null,"due_date": string | null,"how": string | null,"id": string,"investor_id": string | null,"lead_id": string | null,"objective_id": string | null,"opportunity_id": string | null,"project_id": string | null,"status": string,"title": string,"updated_at": string | null,"what": string | null,"why": string | null
+                    "assignee_id": string | null,"commitment_id": string | null,"completed_at": string | null,"created_at": string | null,"due_date": string | null,"how": string | null,"id": string,"investor_id": string | null,"lead_id": string | null,"objective_id": string | null,"opportunity_id": string | null,"project_id": string | null,"status": string,"title": string,"updated_at": string | null,"what": string | null,"why": string | null
                   }
                   ComputedFields: never
                   Insert: {
-                    "assignee_id"?: string | null,"completed_at"?: string | null,"created_at"?: string | null,"due_date"?: string | null,"how"?: string | null,"id"?: string,"investor_id"?: string | null,"lead_id"?: string | null,"objective_id"?: string | null,"opportunity_id"?: string | null,"project_id"?: string | null,"status"?: string,"title": string,"updated_at"?: string | null,"what"?: string | null,"why"?: string | null
+                    "assignee_id"?: string | null,"commitment_id"?: string | null,"completed_at"?: string | null,"created_at"?: string | null,"due_date"?: string | null,"how"?: string | null,"id"?: string,"investor_id"?: string | null,"lead_id"?: string | null,"objective_id"?: string | null,"opportunity_id"?: string | null,"project_id"?: string | null,"status"?: string,"title": string,"updated_at"?: string | null,"what"?: string | null,"why"?: string | null
                   }
                   Update: {
-                    "assignee_id"?: string | null,"completed_at"?: string | null,"created_at"?: string | null,"due_date"?: string | null,"how"?: string | null,"id"?: string,"investor_id"?: string | null,"lead_id"?: string | null,"objective_id"?: string | null,"opportunity_id"?: string | null,"project_id"?: string | null,"status"?: string,"title"?: string,"updated_at"?: string | null,"what"?: string | null,"why"?: string | null
+                    "assignee_id"?: string | null,"commitment_id"?: string | null,"completed_at"?: string | null,"created_at"?: string | null,"due_date"?: string | null,"how"?: string | null,"id"?: string,"investor_id"?: string | null,"lead_id"?: string | null,"objective_id"?: string | null,"opportunity_id"?: string | null,"project_id"?: string | null,"status"?: string,"title"?: string,"updated_at"?: string | null,"what"?: string | null,"why"?: string | null
                   }
                   Relationships: [
                     {
@@ -2460,6 +2516,12 @@ isOneToOne: false
       columns: ["assignee_id"]
 isOneToOne: false
       referencedRelation: "team_members"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "tasks_commitment_id_fkey"
+      columns: ["commitment_id"]
+isOneToOne: false
+      referencedRelation: "commitments"
       referencedColumns: ["id"]
     },{
       foreignKeyName: "tasks_investor_id_fkey"

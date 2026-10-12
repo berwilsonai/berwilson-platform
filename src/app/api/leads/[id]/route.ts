@@ -3,7 +3,6 @@ import { getViewer } from '@/lib/auth/viewer'
 import { GMAIL_THREAD_EMBED, leadsDb, type LeadRow, type LeadStatus } from '@/lib/leads/db'
 import { categoriesByKey } from '@/lib/leads/categories'
 import { refreshLeadLabel } from '@/lib/leads/gmail-sync'
-import { refreshLeadTask } from '@/lib/leads/tasks'
 
 const STATUSES: LeadStatus[] = [
   'new',
@@ -94,9 +93,6 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   // people who act on the mailbox cannot see this queue.
   if ('status' in body) {
     refreshLeadLabel(data as LeadRow)
-    // …and close its bid-deadline task, so a lead dismissed here does not leave
-    // a task on someone's phone until tomorrow's sweep.
-    refreshLeadTask(data as LeadRow)
   }
 
   return NextResponse.json({ lead: data as LeadRow })
@@ -126,7 +122,6 @@ export async function DELETE(_request: NextRequest, { params }: { params: Promis
   // The label still lands, and a Gmail hiccup never fails the delete.
   if (existing) {
     refreshLeadLabel({ ...(existing as LeadRow), status: 'ignored' })
-    refreshLeadTask({ ...(existing as LeadRow), status: 'ignored' })
   }
 
   return NextResponse.json({ ok: true })

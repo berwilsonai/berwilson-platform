@@ -63,6 +63,13 @@ import {
 } from '@/lib/integrations/google-drive-write'
 import { PRIMARY_MAILBOX, isGoogleConfigured } from '@/lib/integrations/google-workspace'
 import {
+  taskTier,
+  tierRank,
+  loadLiveContext,
+  EMPTY_LIVE_CONTEXT,
+  type LiveContext,
+} from '@/lib/tasks/priority'
+import {
   SheetsApiDisabledError,
   SheetsScopeError,
   a1,
@@ -158,6 +165,7 @@ export interface TaskRow {
   objective_id: string | null
   investor_id: string | null
   lead_id: string | null
+  commitment_id: string | null
   due_date: string | null
   status: string
   completed_at: string | null
@@ -231,7 +239,7 @@ function emptyResult(): TaskSheetResult {
 
 const TASK_FIELDS =
   'id, title, what, why, assignee_id, project_id, opportunity_id, objective_id, ' +
-  'investor_id, lead_id, due_date, status, completed_at, updated_at'
+  'investor_id, lead_id, commitment_id, due_date, status, completed_at, updated_at'
 
 /**
  * Every task, paged.
@@ -369,15 +377,36 @@ function renderRow(
 }
 
 /**
- * Soonest deadline first, undated last.
+ * Overdue, then live deals, then the rest — and the soonest deadline inside each.
+ *
+ * ⚠ THE DATE ALONE IS THE WRONG KEY, AND THE SHEET IS WHERE IT HURTS MOST.
+ * It is read on a phone, so the top of the tab is most of what anybody sees.
+ * A deadline is attached to the work LEAST likely to matter: a bid invitation
+ * always carries one and a real obligation between the two executives almost
+ * never does — of the 38 live internal commitments promoted on 2026-10-12, 34
+ * had no due date at all. Sorting by date alone put every one of them below
+ * every dated minor item. So the board's tier (lib/tasks/priority.ts) leads
+ * here too, and the SAME function decides it, because a phone that disagrees
+ * with the screen about what is important is worse than either alone.
  *
  * ⚠ `nullsFirst:false` ordering is what §12 warns about when a list is CAPPED —
  * the newest records sort last and fall off the end. Nothing is capped here:
- * every open task is written, so an undated one is at the bottom of the tab
- * rather than absent from it. That is the only reason this ordering is safe,
- * and it stops being safe the moment somebody adds a row limit.
+ * every open task is written, so an undated one is at the bottom of its band
+ * rather than absent from the tab. That is the only reason this ordering is
+ * safe, and it stops being safe the moment somebody adds a row limit.
  */
-export function byUrgency(a: TaskRow, b: TaskRow): number {
+export function byUrgency(
+  a: TaskRow,
+  b: TaskRow,
+  live: LiveContext = EMPTY_LIVE_CONTEXT,
+  today: string = new Date().toISOString().slice(0, 10)
+): number {
+  const band = (t: TaskRow): number => {
+    if (t.status !== 'done' && t.due_date && t.due_date < today) return -1
+    return tierRank(taskTier(t, live))
+  }
+  const byBand = band(a) - band(b)
+  if (byBand !== 0) return byBand
   const aDue = a.due_date ?? '9999-12-31'
   const bDue = b.due_date ?? '9999-12-31'
   if (aDue !== bDue) return aDue < bDue ? -1 : 1
@@ -855,10 +884,23 @@ export async function syncTaskSheet(): Promise<TaskSheetResult> {
   await names.prime(visible)
 
   const doneCutoff = new Date(Date.now() - DONE_WINDOW_DAYS * 86_400_000).toISOString()
+
+  // Which deals and conversations have moved lately, for the ordering. A failed
+  // read falls back to date-only rather than failing the rebuild: the sheet is
+  // somebody's working list, and the wrong ORDER is recoverable where a missing
+  // sheet is not. It is logged so a silently date-ordered tab has a reason
+  // somewhere (§12 — count the reason beside the number).
+  const live = await loadLiveContext()
+  if (live.error) {
+    console.warn('[tasks/sheet] ranking unavailable, ordering by date only:', live.error)
+  }
+
   // Anything that is not `done` counts as open. A third status added later
   // would otherwise be invisible on every tab rather than merely untidy on one
   // — §12's "a file type with no branch is invisible, not unreadable".
-  const open = visible.filter((t) => t.status !== 'done').sort(byUrgency)
+  const open = visible
+    .filter((t) => t.status !== 'done')
+    .sort((a, b) => byUrgency(a, b, live))
   const done = visible
     .filter((t) => t.status === 'done' && (t.completed_at ?? t.updated_at ?? '') >= doneCutoff)
     .sort(byCompletion)

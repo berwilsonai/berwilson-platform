@@ -189,6 +189,12 @@ export function renderNoteInput(n: PepperNote): string {
   parts.push(...section('OVERDUE TASKS ASSIGNED TO THEM:', n.overdueTasks.map(taskLine)))
   parts.push(...section('THEIR TASKS DUE THIS WEEK:', n.dueSoonTasks.map(taskLine)))
   parts.push(
+    ...section(
+      'THEIR OPEN WORK ON LIVE DEALS (no deadline agreed — mostly obligations read out of the two of them talking, so these are what is outstanding rather than what is scheduled):',
+      n.liveTasks.map(taskLine)
+    )
+  )
+  parts.push(
     ...section('TODAY ON THEIR CALENDAR:', n.meetings.flatMap(meetingLines))
   )
   parts.push(...section('FALLING THROUGH THE CRACKS (portfolio-wide, shared with the other executive):', n.cracks.map(crackLine)))

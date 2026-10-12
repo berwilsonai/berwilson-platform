@@ -204,6 +204,7 @@ function task(over: Partial<TaskRow> = {}): TaskRow {
     objective_id: null,
     investor_id: null,
     lead_id: null,
+    commitment_id: null,
     due_date: null,
     status: 'open',
     completed_at: null,

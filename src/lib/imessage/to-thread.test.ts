@@ -22,6 +22,7 @@ function chat(offsetsMinutesAgo: number[], over: Partial<ChatRow> = {}): ChatRow
     messages,
     sentByMe: messages.filter((m) => m.fromMe).length,
     total: messages.length,
+    tapbacks: 0,
     lastAt: messages[0]?.at ?? null,
     ...over,
   }

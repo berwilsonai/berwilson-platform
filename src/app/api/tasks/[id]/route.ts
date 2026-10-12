@@ -3,6 +3,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import type { TablesUpdate } from '@/lib/supabase/types'
 import { getViewer, canAccessTask, forbiddenJson, actorAdminClient, type Viewer } from '@/lib/auth/viewer'
 import { queueTaskSheetRefresh } from '@/lib/tasks/sheet-refresh'
+import { settleCommitmentForTask } from '@/lib/commitments/internal-tasks'
 
 interface RouteContext {
   params: Promise<{ id: string }>
@@ -116,6 +117,15 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
   if (error) {
     console.error('Update task failed:', error)
     return Response.json({ error: error.message }, { status: 500 })
+  }
+
+  // ONE DECISION, NOT TWO LEDGERS. A task promoted from a commitment is that
+  // commitment; ticking it here settles the obligation too, and un-ticking it
+  // reopens it. Without this the board and /commitments drift the moment
+  // anybody uses either — and the commitment ledger's whole problem on
+  // 2026-10-11 was that `count(settled_by)` across 407 open rows was zero.
+  if ('status' in body && data?.commitment_id) {
+    settleCommitmentForTask(data.commitment_id, patch.status ?? 'open', viewer.email ?? 'a teammate')
   }
 
   // Reaches the shared sheet in seconds rather than at the next cron tick.

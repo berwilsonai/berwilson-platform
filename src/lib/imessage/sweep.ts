@@ -81,6 +81,12 @@ export interface IMessageSweepResult {
   /** Sessions the model judged not work-related, whose text was discarded. */
   redacted: number
   chunksRemoved: number
+  /**
+   * Tapbacks dropped rather than ingested as messages. See read.ts — each one
+   * would otherwise have carried a duplicate of the message it reacts to, under
+   * the reactor's name.
+   */
+  tapbacksDropped: number
 }
 
 export async function runIMessageSweep(
@@ -109,6 +115,7 @@ export async function runIMessageSweep(
     ingestDays: 0,
     redacted: 0,
     chunksRemoved: 0,
+    tapbacksDropped: 0,
   }
 
   const access = messagesReadable(dbPath)
@@ -120,6 +127,7 @@ export async function runIMessageSweep(
   const ingestSince = Date.now() - ingestDays * 86_400_000
   const chats = readChats({ since, dbPath })
   base.chatsRead = chats.length
+  base.tapbacksDropped = chats.reduce((n, c) => n + c.tapbacks, 0)
 
   const { targets, calibration, directory } = await buildTargets(chats)
   base.skippedConfidential = calibration.skippedConfidential

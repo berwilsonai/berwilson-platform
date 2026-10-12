@@ -23,6 +23,10 @@ import { routeThreads, type RouteProgress } from './route-phase'
 import { applyThreadUpdates, type ApplyProgress } from './apply-phase'
 import { embedPendingThreads, type EmbedProgress } from '@/lib/ai/thread-embeddings'
 import { extractCommitments, type CommitmentProgress } from '@/lib/commitments/extract-phase'
+import {
+  promoteInternalCommitments,
+  type InternalTaskProgress,
+} from '@/lib/commitments/internal-tasks'
 
 export type SweepPhase =
   | 'fetch'
@@ -33,6 +37,7 @@ export type SweepPhase =
   | 'apply'
   | 'embed'
   | 'commitments'
+  | 'internal-tasks'
   | 'predecide'
 
 export interface SweepRunOptions {
@@ -57,6 +62,7 @@ export interface SweepRunResult {
   apply?: ApplyProgress
   embed?: EmbedProgress
   commitments?: CommitmentProgress
+  internalTasks?: InternalTaskProgress
   predecide?: PredecideProgress
   elapsedMs: number
   /** True when work remains — the next run should pick up where this left off. */
@@ -72,6 +78,7 @@ const ALL_PHASES: SweepPhase[] = [
   'apply',
   'embed',
   'commitments',
+  'internal-tasks',
   'predecide',
 ]
 
@@ -230,6 +237,25 @@ export async function runSweep(opts: SweepRunOptions = {}): Promise<SweepRunResu
     })
     result.ranPhases.push('commitments')
     if (result.commitments.remaining > 0) result.moreWork = true
+  }
+
+  // ── Internal obligations onto the board ───────────────────────────────────
+  // Immediately after extraction, so an item Eric texted this evening is a task
+  // before the morning note is composed. Deterministic and unbudgeted: a couple
+  // of reads and one insert per new obligation, no model and no network. See
+  // internal-tasks.ts for why this is allowed to create a record without a
+  // human confirm, and what bounds it.
+  if (phases.includes('internal-tasks')) {
+    result.internalTasks = await promoteInternalCommitments()
+    result.ranPhases.push('internal-tasks')
+    const moved =
+      result.internalTasks.created + result.internalTasks.closed + result.internalTasks.reopened
+    if (moved > 0) {
+      // The board publishes to a shared Google Sheet; a row added here has to
+      // reach the phone the same hour, not at the next quarter-hour refresh.
+      const { queueTaskSheetRefresh } = await import('@/lib/tasks/sheet-refresh')
+      queueTaskSheetRefresh()
+    }
   }
 
   if (phases.includes('predecide')) {

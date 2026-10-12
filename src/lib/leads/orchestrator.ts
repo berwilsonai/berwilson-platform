@@ -19,7 +19,6 @@ import { scorePendingLeads, drainLeadQueue, type ScoreProgress, type DrainProgre
 import { routeThreads, type RouteProgress } from '@/lib/email-sweep/route-phase'
 import { applyThreadUpdates, type ApplyProgress } from '@/lib/email-sweep/apply-phase'
 import { notifyScoredLeads, type LeadNotifyProgress } from './notify-leads'
-import { syncLeadTasks, type LeadTaskProgress } from './tasks'
 import { syncLeadLabels, type LeadLabelProgress } from './gmail-sync'
 import { draftLeadReplies, type LeadDraftProgress } from './draft-reply'
 import { publishLeadSheetsQuietly, type PublishSheetsResult } from './sheet'
@@ -35,7 +34,6 @@ export type LeadPhase =
   | 'apply'
   | 'expire'
   | 'notify'
-  | 'tasks'
   | 'label'
   | 'draft'
   | 'sheets'
@@ -63,7 +61,6 @@ export interface LeadSweepResult {
   score?: ScoreProgress
   expired?: DrainProgress
   notified?: LeadNotifyProgress
-  tasks?: LeadTaskProgress
   labels?: LeadLabelProgress
   drafts?: LeadDraftProgress
   sheets?: PublishSheetsResult | null
@@ -83,7 +80,6 @@ const ALL_PHASES: LeadPhase[] = [
   'expire',
   'label',
   'draft',
-  'tasks',
   'notify',
   'sheets',
   'hygiene',
@@ -123,8 +119,8 @@ const TAIL_SHARE = 0.25
 /**
  * Ceiling on the WHOLE run, not just the model-bound phases.
  *
- * `budgetMs` used to govern only scoring/triage/drafting, while label, tasks,
- * notify, sheets and hygiene ran after it and added their own time — hygiene
+ * `budgetMs` used to govern only scoring/triage/drafting, while label, notify,
+ * sheets and hygiene ran after it and added their own time — hygiene
  * alone carried a flat 10-minute budget. So a 50-minute budget produced runs
  * over 60 minutes, past the cron's client timeout, and every single run was
  * recorded as a failure (curl exit 28) despite completing its work. Same shape
@@ -230,9 +226,9 @@ export async function runLeadSweep(opts: LeadSweepOptions = {}): Promise<LeadSwe
   if (phases.includes('expire')) {
     // Cheap and deterministic — always worth running so the queue self-drains.
     // Position is load-bearing now that this also closes `pass` leads: AFTER
-    // both scoring passes, so fit_recommendation has settled; BEFORE label,
-    // tasks and notify, so a lead closed here is relabelled in Gmail, has its
-    // task closed, and is never announced in a digest it has already left.
+    // both scoring passes, so fit_recommendation has settled; BEFORE label and
+    // notify, so a lead closed here is relabelled in Gmail and is never
+    // announced in a digest it has already left.
     result.expired = await drainLeadQueue()
     result.ranPhases.push('expire')
   }
@@ -255,17 +251,6 @@ export async function runLeadSweep(opts: LeadSweepOptions = {}): Promise<LeadSwe
     })
     result.ranPhases.push('draft')
     if (result.drafts.outOfTime) result.moreWork = true
-  }
-
-  if (phases.includes('tasks')) {
-    // Where the calendar sync used to sit, and for a sharper version of its
-    // reason. AFTER expire, so a lead whose bid date passed this morning has
-    // its task closed in the same run rather than sitting on someone's phone
-    // for a day; after the tail scoring pass, so fit_recommendation has
-    // settled; BEFORE notify, so the digest and the task board agree about
-    // what is due. Unbudgeted: a handful of DB writes, no model, no network.
-    result.tasks = await syncLeadTasks()
-    result.ranPhases.push('tasks')
   }
 
   if (phases.includes('notify')) {
