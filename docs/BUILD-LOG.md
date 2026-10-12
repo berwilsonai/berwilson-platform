@@ -13,6 +13,59 @@ Split out of `CLAUDE.md` on 2026-09-23, when that file reached 606k characters a
 
 161 entries, 2026-06-22 → 2026-10-12. ⚠ Counted with `grep -c "^\*\*Done 2026"`, not incremented by hand: two sessions editing this file on 2026-10-08 each bumped the old figure by one and both landed on 146 against a real 148.
 
+**Done 2026-10-12 (Apple Notes becomes a source, the recorded call turns out to have no bytes, and CLAUDE.md is cut by a third):**
+
+Richard: *"How do we get connected to the notes. DO I need to have notes get pushed up into the Google Drive with an app script or something. We need those recorded calls to land in the right place and be ingested into the system."* And: *"Make the md much shorter if you can. There is probably some old baggage as we have iterated on this over and over."*
+
+**The Apps Script question, answered.** No — and it would be worse on both counts. Apps Script runs in Google's cloud and cannot see Apple Notes at all; reaching them would need an Apple automation on the Mac or the phone to export into Drive, which is more moving parts AND would push private notes into the folder the nightly sync indexes as company knowledge. Reading on-box keeps it contained and lets the platform refuse what it should not hold. `bw-snapshot` already copies `NoteStore.sqlite` for exactly this.
+
+⚠ **AND THE REASON THAT MATTERS MOST: 39 OF 332 NOTES (12%) HOLD CREDENTIALS IN PLAIN TEXT.** Measured before a line was written. `Ber Wilson Passcodes` carries Brighton Bank's passcode, the office front-door code, the Woodlands gate code, a GoDaddy customer number and password — and **the password to `info@berwilson.com`, which is Pepper's own mailbox**. Beside it: `ANTHROPIC_KEY = "sk-ant-api03-..."` in a note TITLE, `Clawdia AWS`, `Macu banking info`, `N8n lead client id`, `SSH terminal`. An ingested note is summarized, chunked and EMBEDDED into `thread_chunks`, retrievable by Ber AI and reachable by every outbound channel, and there is no un-embedding a secret you have already answered a question with. Pushing Notes to Drive would have done precisely that.
+
+⚠ **AUTOMATIC CLASSIFICATION WAS BUILT, MEASURED AND THROWN AWAY — FOR A STRUCTURAL REASON, NOT A TUNING ONE.** The text sweep's classifier works because its strongest signal is WHO IS ON THE CONVERSATION: a CRM contact's phone number. **A note has no participants at all.** Scoring 334 real notes against every project, opportunity and contact name, with corpus-calibrated rare tokens exactly as the text sweep does, matched 101 notes (30.2%) — and essentially every one was false:
+
+```
+Costco                  -> matched 'box'
+Movies/Shows to Watch:  -> matched 'richard'
+Reptilian brain         -> matched 'economy'
+Honey                   -> matched 'community', 'richard'
+Crossing the chasm      -> matched 'technology'
+```
+
+§12 already says that sometimes the measurement says a threshold cannot work, and then the question is which signal actually exists. The signal that exists here is the one this platform already trusts everywhere else: **a human filing decision.** `GOOGLE_DRIVE_KNOWLEDGE_FOLDER_ID` works that way and §7's own note says nominating folders IS the control model. So `NOTES_FOLDER_NAMES` names the folders to read, unset means the sweep does nothing, and a note Richard has not filed there is never opened. The credential guard then runs INSIDE that folder as defence in depth.
+
+**The guard fails closed and skips a note WHOLE** — title included, because a title like `Brighton bank 2484#` is itself the secret. Its reason names the RULE and never quotes the match, so a log file does not become the leak.
+
+⚠ **AND THE GUARD'S FIRST TWO VERSIONS REFUSED REAL WORK.** 73 refusals -> 59 -> 39:
+- **73:** the entropy rule read any 20+ character run as a key.
+- **59:** URLs stripped first. A Drive file id is forty characters of exactly key-shaped text, and a work folder is full of links — an entropy rule that reads a URL as a secret refuses the very notes the feature exists for.
+- **39:** a generated run must contain BOTH letters and digits. `website/host/deliver/what` and `projects/infographics` are ordinary words joined by slashes, and they were refusing `BW Task list Eric` and `Tasks` — two of the most work-relevant notes in the corpus.
+
+**The decode.** A note's text is not text: `ZICNOTEDATA.ZDATA` is a gzip stream wrapping protobuf, and the readable note is one length-delimited field inside it (document(2) -> note(3) -> text(2)). The decoder walks it rather than scraping printable bytes, with no protobuf dependency — three nested fields and one varint reader. ⚠ **The check it cannot fake:** Apple stores the title separately in `ZTITLE1` and the first line of the body IS the title, so a correct decode must START with it. **333 of 348 decode (96%), 330 of 333 titles agree**, and the three "mismatches" are notes whose stored title concatenates two lines. A scraping decoder passes this on short notes and fails on any note holding a checklist, a table or an attachment — which is exactly the population that matters.
+
+⚠ **I HIT THE WAL TRAP THAT `bw-snapshot`'s OWN HEADER ALREADY RECORDS.** Reading the bare `NoteStore.sqlite` reported this corpus as ending **2026-09-15 with 334 notes**. With the 63MB `-wal` it runs to **10-01 with 348** — and the only recorded call on the machine was in the part the main file could not see. The header says it in so many words ("reading NoteStore.sqlite without its 63MB WAL hid a call recording from three weeks earlier entirely"), written by the session that built the snapshot the day before. Reading the repo's own comment first would have saved the measurement.
+
+⚠ **RECORDED CALLS CANNOT COME FROM NOTES ON THIS BOX, AND THAT IS NOT FIXABLE FROM HERE.** The Media directory holds **ZERO files**. Notes downloads attachment bytes lazily and only while Notes.app is running, and `bw-snapshot` copies databases, not media. So `Call with Eric Tuaone` (2026-09-21, the one recorded call in 348 notes — the rest of the audio is meditation tracks and 2025 voice memos) exists as a database row and nowhere on disk. Rather than pretend, a note's attachments are NAMED in the thread body with the reason they are absent and where to put audio instead. **The right place for a recorded call is Drive or `/intake?tab=meeting`:** whisper already transcribes audio attached to a meeting (`/api/meetings/[id]/transcribe`), and `meet-import` already COUNTS "recordings in Drive with no transcript" — it simply never transcribes them. Making that branch return the files and feed `transcribeAudio` is the next build and is now item 2 in §13.
+
+⚠ **AND NOTES SYNCS ONLY WHILE Notes.app RUNS.** Notes.app was not running on the Studio and the local store was eleven days behind the phone, with no error anywhere. A stale corpus here is silent — the sweep reports success having read nothing new — which is §12's rule about a liveness check needing a clock rather than a count.
+
+**Shipped:** `src/lib/notes/{decode,secrets,read,to-thread,sweep}.ts`, `/api/cron/notes-sweep` (named in `middleware.ts`), `scripts/verify-notes-decode.mts`, a launchd agent at :45 past the four snapshot hours (10 minutes behind the text sweep, since both read the same snapshot and LM Studio serves one request at a time). A note becomes an `email_threads` row prefixed `note:` — the same move the text sweep made, so summarize/route/append/embed/commitments/predecide all apply unchanged. **ONE note is ONE thread**, unlike a text: a chat is a stream that had to be cut into 6-hour sessions, where a note is already the unit somebody opened and named. The thread id carries the modification time, so an edited note re-summarizes rather than leaving a stale answer in place. 308 tests passing, 24 agents loaded.
+
+---
+
+**CLAUDE.md: 149,994 -> 98,551 characters (-34%), with 51,449 of headroom.**
+
+Richard asked for it much shorter and named the reason: *"There is probably some old baggage as we have iterated on this over and over."* He also restated the purpose, which is now the second paragraph of the file: *"an intelligence platform to store and query information, along with a digital assistant — Pepper — which automates all of the data entry."* Two jobs; §13's next-work list is ordered against them.
+
+⚠ **THE PRUNE CAME OUT OF §12, WHICH THE FILE ITSELF SAYS IS RICHARD'S CALL AND NOT A SESSION'S — HE MADE IT.** Measured first, because the file's own rule is that the bloat has never once been where the rule assumed: §12 was 70,216 characters (46.8%) across 178 rules; §13 was 27,399 (18.3%); §4 14,132; §7 10,172.
+
+**Nothing was deleted.** All 178 rules moved verbatim, with their evidence, into **`docs/HARD-WON-RULES.md`** — the third such split, after the session history (09-23, at 606k) and the open items (10-01, at 143k). §12 now carries ~60 rules as the claim and the fix, at 20,318 characters: the ones a session is most likely to hit, chosen over the ones a script now asserts or a shared helper now enforces. The new file's header says plainly that a rule retired from CLAUDE.md is not a rule that stopped being true, and to grep there before concluding something has never bitten this project.
+
+The rest: the surfaces table compressed 6,683 -> 4,220 (one line each, detail in the log), *Recent sessions* cut to a one-week window, and §5's stale line still calling the agent `gemini-2.5-pro` with 5 tool rounds corrected — wrong since the 07-07 local cutover and wrong again against `AGENT_MAX_TOOL_ROUNDS=12`.
+
+**The §12 rule queued yesterday is now in**, as an extension of *"filling a blank and overwriting a value are different acts"*: **which act is safe turns on whether the source DESCRIBES the field's subject or only MENTIONS it.**
+
+---
+
 **Done 2026-10-12 (Pepper writes to the CRM without asking, she can text from the box, and three of the four premises behind the feature were wrong):**
 
 Richard's direction, verbatim: *"I want pepper to be aware of every single detail she can from looking at our emails, texts and recorded calls... I then want her to update the CRM with every detail. I would like her to get rid of older crappy data like old proposals, weak deal description etc... she can update it all automatically without our approval. The only thing she cant update automatically is something that we have done manually that isn't obvious that she could update it."*
