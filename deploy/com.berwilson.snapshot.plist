@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.berwilson.snapshot</string>
+  <!-- ⚠ THE BINARY IS INVOKED DIRECTLY, NOT THROUGH A SHELL, AND THAT IS THE
+       WHOLE POINT OF THIS AGENT.
+
+       TCC attributes Full Disk Access to the executable launchd starts. Wrap
+       this in `/bin/zsh -c` — as every other agent here does, for the env-file
+       grep — and the grant has to be given to zsh instead, which means every
+       shell command on the box inherits the run of the home folder. Granting it
+       to bw-snapshot alone keeps the capability on 100 lines of Swift whose
+       only ability is to copy two named databases.
+
+       Grant it once: System Settings → Privacy & Security → Full Disk Access
+       → + → ~/.local/bin/bw-snapshot  (Cmd-Shift-G to type the path). -->
+  <key>ProgramArguments</key>
+  <array>
+    <string>__HOME__/.local/bin/bw-snapshot</string>
+  </array>
+  <!-- Five minutes before each imessage-sweep run. The copy is ~650MB and takes
+       about two seconds; the gap is slack, not need. -->
+  <key>StartCalendarInterval</key>
+  <array>
+    <dict><key>Hour</key><integer>4</integer><key>Minute</key><integer>35</integer></dict>
+    <dict><key>Hour</key><integer>11</integer><key>Minute</key><integer>35</integer></dict>
+    <dict><key>Hour</key><integer>15</integer><key>Minute</key><integer>35</integer></dict>
+    <dict><key>Hour</key><integer>19</integer><key>Minute</key><integer>35</integer></dict>
+  </array>
+  <key>AbandonProcessGroup</key>
+  <false/>
+  <key>StandardOutPath</key>
+  <string>__LOG_DIR__/snapshot.log</string>
+  <key>StandardErrorPath</key>
+  <string>__LOG_DIR__/snapshot.err.log</string>
+</dict>
+</plist>

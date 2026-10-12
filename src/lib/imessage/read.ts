@@ -10,10 +10,14 @@
  * including the WAL.
  *
  * ⚠ IT NEEDS FULL DISK ACCESS, WHICH IS NOT GRANULAR. `~/Library/Messages` is
- * TCC-protected, so whatever runs this must hold Full Disk Access — and that
- * same grant reaches the whole home folder. That is a real cost and the reason
- * this is a deliberate, human-run pass rather than something a cron does
- * quietly. `messagesReadable()` reports whether the grant exists so a caller
+ * TCC-protected, so whatever reads it must hold Full Disk Access — and that
+ * same grant reaches the whole home folder. The platform's own process must
+ * NOT hold it: it also holds the service-role key and the mail tokens.
+ *
+ * So the cron path does not read this file. `bw-snapshot` (scripts/local-sources,
+ * the only thing granted FDA) copies the three files into
+ * ~/berwilson-data/local-sources/, and the sweep reads THAT via `dbPath`.
+ * `messagesReadable()` reports whether a given path can be opened so a caller
  * can say so plainly instead of failing with SQLITE_CANTOPEN.
  */
 
@@ -25,15 +29,21 @@ import { messageText, appleDate } from './decode'
 
 const DB = join(homedir(), 'Library', 'Messages', 'chat.db')
 
+/** The live, TCC-protected database. Reading this needs Full Disk Access. */
 export function messagesDbPath(): string {
   return DB
 }
 
+/** Where `bw-snapshot` leaves its copy. Readable without Full Disk Access. */
+export function snapshotDbPath(): string {
+  return join(homedir(), 'berwilson-data', 'local-sources', 'chat.db')
+}
+
 /** Whether the database can actually be opened — i.e. whether FDA is granted. */
-export function messagesReadable(): { ok: boolean; reason?: string } {
-  if (!existsSync(DB)) return { ok: false, reason: `no Messages database at ${DB}` }
+export function messagesReadable(dbPath: string = DB): { ok: boolean; reason?: string } {
+  if (!existsSync(dbPath)) return { ok: false, reason: `no Messages database at ${dbPath}` }
   try {
-    const db = new DatabaseSync(DB, { readOnly: true })
+    const db = new DatabaseSync(dbPath, { readOnly: true })
     db.prepare('select 1 from message limit 1').get()
     db.close()
     return { ok: true }
@@ -42,18 +52,39 @@ export function messagesReadable(): { ok: boolean; reason?: string } {
     return {
       ok: false,
       reason: /authoriz|permission|unable to open/i.test(message)
-        ? 'Full Disk Access is not granted to whatever is running this (System Settings → Privacy & Security → Full Disk Access)'
+        ? `Full Disk Access is not granted to whatever is running this, or ${dbPath} is stale (System Settings → Privacy & Security → Full Disk Access)`
         : message,
     }
   }
 }
 
+/** One message, decoded. */
+export interface ChatMessage {
+  text: string
+  at: Date
+  /** Sent by the owner of this machine. */
+  fromMe: boolean
+}
+
 export interface ChatRow {
   chatId: number
+  /** Messages' own stable identity for the conversation, across rebuilds. */
+  guid: string | null
   /** Phone numbers / iMessage addresses in the conversation. */
   handles: string[]
   displayName: string | null
-  messages: string[]
+  /**
+   * Decoded messages, NEWEST FIRST.
+   *
+   * ⚠ CARRIES ITS TIMESTAMP AND DIRECTION, NOT JUST ITS TEXT. Bodies alone were
+   * enough to classify a conversation, which is all this originally did. They
+   * are not enough to INGEST one: a text session is rendered with the same
+   * `### <ts> — <sender>` headings as mail so that `deltaFor` can count what it
+   * has already posted onto a record, and splitting a chat into sessions needs
+   * the gaps between messages. The query always selected both columns and threw
+   * them away.
+   */
+  messages: ChatMessage[]
   sentByMe: number
   total: number
   lastAt: Date | null
@@ -62,8 +93,20 @@ export interface ChatRow {
 export interface ReadOptions {
   /** Only conversations with a message newer than this. */
   since?: Date
-  /** Cap messages read per conversation — a classifier needs a sample, not all. */
+  /**
+   * Cap messages read per conversation. 0 (the default) reads every message in
+   * the window.
+   *
+   * ⚠ THE CAP IS NOT THE CLASSIFIER'S SAMPLE ANY MORE, AND CONFLATING THEM MADE
+   * THE DRY RUN DISHONEST. The classifier judges the newest `CLASSIFY_SAMPLE`
+   * messages (see targets.ts) while ingestion needs every message in the window
+   * to build sessions — so if the cap were the sample, the survey and the sweep
+   * would classify different inputs and the survey would stop predicting what
+   * the sweep selects. The sample is applied at the classifier, once.
+   */
   perChatLimit?: number
+  /** Read a snapshot instead of the live database. */
+  dbPath?: string
 }
 
 /**
@@ -74,15 +117,16 @@ export interface ReadOptions {
  * snapshot's lifetime to this one call.
  */
 export function readChats(opts: ReadOptions = {}): ChatRow[] {
-  const perChatLimit = opts.perChatLimit ?? 400
+  const perChatLimit = opts.perChatLimit ?? 0
+  const source = opts.dbPath ?? DB
   const tmp = mkdtempSync(join(tmpdir(), 'bw-msg-'))
   const copy = join(tmp, 'chat.db')
 
   try {
-    copyFileSync(DB, copy)
+    copyFileSync(source, copy)
     // The WAL is where recent messages live; without it the snapshot is stale.
     for (const suffix of ['-wal', '-shm']) {
-      if (existsSync(DB + suffix)) copyFileSync(DB + suffix, copy + suffix)
+      if (existsSync(source + suffix)) copyFileSync(source + suffix, copy + suffix)
     }
 
     const db = new DatabaseSync(copy, { readOnly: true })
@@ -93,6 +137,7 @@ export function readChats(opts: ReadOptions = {}): ChatRow[] {
 
       const messageStmt = db.prepare(
           `select c.ROWID            as chatId,
+                  c.guid             as guid,
                   c.display_name     as displayName,
                   m.ROWID            as messageId,
                   m.text             as text,
@@ -111,6 +156,7 @@ export function readChats(opts: ReadOptions = {}): ChatRow[] {
       messageStmt.setReadBigInts(true)
       const rows = messageStmt.all() as unknown as {
         chatId: bigint
+        guid: string | null
         displayName: string | null
         text: string | null
         attributedBody: Uint8Array | null
@@ -141,6 +187,7 @@ export function readChats(opts: ReadOptions = {}): ChatRow[] {
         if (!chat) {
           chat = {
             chatId,
+            guid: r.guid,
             handles: handlesByChat.get(chatId) ?? [],
             displayName: r.displayName,
             messages: [],
@@ -154,11 +201,13 @@ export function readChats(opts: ReadOptions = {}): ChatRow[] {
         if (Number(r.isFromMe) === 1) chat.sentByMe += 1
         const at = appleDate(r.date)
         if (at && (!chat.lastAt || at > chat.lastAt)) chat.lastAt = at
-        // Ordered newest-first by the query, so the cap keeps recent messages —
+        // Ordered newest-first by the query, so a cap keeps recent messages —
         // which is what a classifier should judge a live conversation on.
-        if (chat.messages.length < perChatLimit) {
+        if (perChatLimit === 0 || chat.messages.length < perChatLimit) {
           const body = messageText({ text: r.text, attributedBody: r.attributedBody })
-          if (body) chat.messages.push(body)
+          // A message with no decodable body still happened, so it counts
+          // toward `total` above — but it cannot be rendered or classified.
+          if (body && at) chat.messages.push({ text: body, at, fromMe: Number(r.isFromMe) === 1 })
         }
       }
 

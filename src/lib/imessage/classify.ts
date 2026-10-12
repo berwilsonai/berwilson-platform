@@ -94,6 +94,17 @@ export interface ChatSignals {
   knownParty: boolean
   /** Distinct record names named in the conversation. */
   namedRecords: string[]
+  /**
+   * How each record was named — the words that actually matched.
+   *
+   * ⚠ A DRY RUN THAT CANNOT BE AUDITED IS NOT A DRY RUN. "names DFCM Camp
+   * Williams Bldg. 4140 project" against a 664-message conversation reads as a
+   * solid match; "names it via the rare word williams" is the same fact and
+   * lets a human say in one second whether that is the National Guard base or
+   * their brother-in-law. §12: one match is not a unique match, it is an
+   * unchallenged one — so the challenge has to be visible.
+   */
+  namedBy: { label: string; matched: string[]; via: 'whole name' | 'rare word' }[]
   /** Distinct deal terms used. */
   dealTerms: string[]
   /** A money figure of deal size appeared. */
@@ -136,17 +147,34 @@ export interface ClassifyInput {
   messages: string[]
   /** How many messages in this chat were sent BY Richard. */
   sentByMe: number
+  /**
+   * Messages in the whole conversation, which is NOT `messages.length`.
+   *
+   * ⚠ A FULL-CORPUS COUNT AND A CAPPED SAMPLE ARE TWO POPULATIONS, AND THE
+   * BROADCAST TEST COMPARED ONE TO THE OTHER. `sentByMe` is counted over every
+   * message while `messages` is the newest `CLASSIFY_SAMPLE` of them, so
+   * `sentByMe === 0 && messages.length >= 3` asked "did I never reply" of the
+   * whole chat and "is it long enough to judge" of the sample. They agree until
+   * a conversation exceeds the sample, which is exactly the busy thread the
+   * test matters on.
+   */
+  total: number
   /** Normalized 10-digit phone numbers belonging to known parties. */
   partyPhones: Set<string>
   /** Distinctive tokens of every project / party / entity name, pre-computed. */
   recordTokens: Map<string, string>
   /**
-   * Records whose name reduces to a single distinctive token, which may
-   * therefore match on their own. The caller decides this, because deciding it
-   * requires knowing how rare the token is across the corpus — see
-   * `rareTokens` in the survey.
+   * The surviving tokens of each record, by label — the denominator for "was
+   * the whole name named, or two words of it".
    */
-  singleTokenRecords: Set<string>
+  tokensPerRecord: Map<string, string[]>
+  /**
+   * Tokens rare enough in this corpus to identify a record on their own.
+   *
+   * The caller decides, because deciding it requires counting them across the
+   * conversations the classifier will run over — see buildTargets.
+   */
+  rareTokens: Set<string>
   /**
    * Normalized numbers whose conversations are never ingested, whatever they
    * score.
@@ -202,9 +230,11 @@ export function classifyChat(input: ClassifyInput): ChatVerdict {
     handles,
     messages,
     sentByMe,
+    total,
     partyPhones,
     recordTokens,
-    singleTokenRecords,
+    tokensPerRecord,
+    rareTokens,
     excludedHandles,
     internalHandles,
   } = input
@@ -227,6 +257,7 @@ export function classifyChat(input: ClassifyInput): ChatVerdict {
       signals: {
         knownParty: false,
         namedRecords: [],
+        namedBy: [],
         dealTerms: [],
         bigMoney: false,
         automated: false,
@@ -264,30 +295,62 @@ export function classifyChat(input: ClassifyInput): ChatVerdict {
   const automated =
     handles.every(isShortCode) ||
     // Never once replied to, across a conversation of any length: a broadcast.
-    (sentByMe === 0 && messages.length >= 3)
+    (sentByMe === 0 && total >= 3)
 
   const haystack = messages.join('\n').toLowerCase()
 
   /**
-   * ⚠ ONE TOKEN IS NOT A NAME MATCH — IT IS AN UNCHALLENGED ONE (§12).
+   * ⚠ COUNTING TOKENS IS NOT ENOUGH — A LONG NAME LENDS OUT ORDINARY WORDS.
    *
-   * A record is named only when TWO of its distinctive tokens appear, or when
-   * it has just one token and that token is rare in this corpus. The first
-   * version accepted any single token and reported "names Case Garage, Harvest
-   * Time Holdings" against a rugby group chat, because those names tokenize to
-   * `case` and `time`. Co-occurrence is what makes "Delta Industrial Campus"
-   * identifying without `delta` alone being so.
+   * "Two of a record's tokens appeared" was the first rule, and it selected a
+   * 664-message personal conversation as the project *Stockton Power Nexus -
+   * ER Hospital & Medevac Airport Tower* on the strength of **hospital** and
+   * **airport** — two of its six tokens, and an entirely ordinary pair of words
+   * to find in a year of family texts. A six-token name offers fifteen pairs; a
+   * long name is therefore far easier to match by accident than a short one,
+   * which is the opposite of what counting implies. `Felix Gold Alaska Treasure
+   * Creek Inc.` did the same through **gold** and **creek**, and `Dino plumbing
+   * and HVAC` through **plumbing** and **hvac** on a nine-message thread that
+   * was somebody asking for a plumber.
+   *
+   * What distinguishes a real match is not how many words landed but WHICH:
+   *
+   *   - the whole name landed — `Myton Rail` matched by `myton` + `rail` is the
+   *     record's entire name, not two words out of it; or
+   *   - one of the words is distinctive in this corpus — `premier` (1 chat),
+   *     `wendover` (2), `tonga` (1), `dino` (3). §12 already says it for the
+   *     mail router: require a shared identity-bearing word.
+   *
+   * Full coverage needs at least two tokens, which is the `Case Garage` lesson
+   * kept intact: its `case` is dropped as ordinary, leaving `garage` alone, and
+   * a one-token name must earn it on rarity rather than on covering itself.
    */
-  const hitsByLabel = new Map<string, number>()
+  const matchedByLabel = new Map<string, string[]>()
   for (const [token, label] of recordTokens) {
     if (termRegex(token).test(haystack)) {
-      hitsByLabel.set(label, (hitsByLabel.get(label) ?? 0) + 1)
+      const list = matchedByLabel.get(label) ?? []
+      list.push(token)
+      matchedByLabel.set(label, list)
     }
   }
   const namedRecords: string[] = []
-  for (const [label, hits] of hitsByLabel) {
-    const needed = singleTokenRecords.has(label) ? 1 : 2
-    if (hits >= needed) namedRecords.push(label)
+  const namedBy: ChatSignals['namedBy'] = []
+  for (const [label, matched] of matchedByLabel) {
+    // ⚠ NO DENOMINATOR MEANS NO COVERAGE CLAIM. Falling back to `matched` as
+    // the record's token list makes every match trivially "the whole name",
+    // which fails OPEN — the one direction this must not fail, since the cost
+    // is a personal conversation read into the CRM. A caller that cannot say
+    // how long the name is gets the rarity test only.
+    const all = tokensPerRecord.get(label)
+    const whole = all !== undefined && all.length >= 2 && matched.length >= all.length
+    const distinctive = matched.some((t) => rareTokens.has(t))
+    if (!whole && !distinctive) continue
+    namedRecords.push(label)
+    namedBy.push({
+      label,
+      matched: whole ? matched : matched.filter((t) => rareTokens.has(t)),
+      via: whole ? 'whole name' : 'rare word',
+    })
   }
 
   /**
@@ -300,7 +363,7 @@ export function classifyChat(input: ClassifyInput): ChatVerdict {
   const dealTerms = DEAL_TERMS.filter((t) => termRegex(t).test(haystack))
   const bigMoney = BIG_MONEY.test(haystack)
 
-  const signals: ChatSignals = { knownParty, namedRecords, dealTerms, bigMoney, automated }
+  const signals: ChatSignals = { knownParty, namedRecords, namedBy, dealTerms, bigMoney, automated }
 
   // A known counterparty's own number is worth the whole bar by itself: the
   // directory entry is a human filing decision, which is the strongest evidence
@@ -345,7 +408,9 @@ export function classifyChat(input: ClassifyInput): ChatVerdict {
   const business = score >= BUSINESS_SCORE_FLOOR
   const why: string[] = []
   if (knownParty) why.push('known party phone')
-  if (namedRecords.length) why.push(`names ${namedRecords.slice(0, 3).join(', ')}`)
+  for (const n of namedBy.slice(0, 3)) {
+    why.push(`names ${n.label} [${n.via}: ${n.matched.join(' + ')}]`)
+  }
   if (dealTerms.length) why.push(`${dealTerms.length} deal term${dealTerms.length === 1 ? '' : 's'}`)
   if (bigMoney) why.push('deal-size figure')
 

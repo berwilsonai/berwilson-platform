@@ -34,6 +34,7 @@ import { isOpportunityLive, isProjectLive, isSteelDealLive } from '@/lib/records
 import { notifyTeam, type NotificationEvent } from '@/lib/notifications'
 import { sweepDb, type EmailThreadRow, type ThreadLinkRow, type LinkRecordKind } from './db'
 import { extractIdentifiers } from './identifiers'
+import { isIMessageThread } from '@/lib/imessage/to-thread'
 
 const BATCH = 100
 
@@ -476,7 +477,22 @@ async function applyToRecord(
 ): Promise<ApplyOutcome> {
   const supabase = createAdminClient()
   const body = text.slice(0, MAX_UPDATE_CHARS)
-  const label = thread.subject?.trim() || 'Email thread'
+  /**
+   * ⚠ THE PROVENANCE MUST BE TRUE FOR EVERY SOURCE THAT REACHES HERE (§12).
+   *
+   * These four strings were written when mail was the only thing that could
+   * reach this function. Text-message sessions arrive as `email_threads` rows
+   * too — deliberately, so they inherit all eight phases — so `source: 'email'`
+   * and "Email — …" would be stamped onto a project update describing a text,
+   * and that sentence outlives the thread it came from.
+   *
+   * Keyed on `gmail_thread_id`, which is structural: it is the one column that
+   * can never hold a Gmail id for a local source.
+   */
+  const isText = isIMessageThread(thread.gmail_thread_id)
+  const source = isText ? ('imessage' as const) : ('email' as const)
+  const kind = isText ? 'Texts' : 'Email'
+  const label = thread.subject?.trim() || (isText ? 'Text conversation' : 'Email thread')
   // Certainty, not content, decides whether a human sees this first.
   const approved = link.certainty === 'linked'
 
@@ -492,12 +508,13 @@ async function applyToRecord(
 
       const row: TablesInsert<'updates'> = {
         project_id: link.record_id,
-        source: 'email',
-        // The Gmail thread id, so an update can be traced back to the
-        // conversation it came from.
+        source,
+        // The Gmail thread id — or the synthetic `imessage:<chat>:<session>`
+        // one — so an update can be traced back to the conversation it came
+        // from.
         source_ref: thread.gmail_thread_id,
         raw_content: body,
-        summary: `Email — ${label}`,
+        summary: `${kind} — ${label}`,
         review_state: approved ? 'approved' : 'pending',
       }
       const { data: update, error } = await supabase
@@ -571,7 +588,7 @@ async function applyToRecord(
         .from('opportunity_notes')
         .insert({
           opportunity_id: link.record_id,
-          body: `${prefix}Email — ${label}\n\n${body}`,
+          body: `${prefix}${kind} — ${label}\n\n${body}`,
           author: 'Ber AI',
         })
         .select('id')
@@ -609,7 +626,7 @@ async function applyToRecord(
         .from('steel_deal_notes')
         .insert({
           deal_id: link.record_id,
-          body: `${prefix}Email — ${label}\n\n${body}`,
+          body: `${prefix}${kind} — ${label}\n\n${body}`,
           author: 'Ber AI',
         })
       if (error) throw new Error(error.message)
@@ -688,6 +705,9 @@ async function importThreadAttachments(
   deadline: number
 ): Promise<number> {
   if (link.record_kind !== 'project' && link.record_kind !== 'opportunity') return 0
+  // A local source has no Gmail thread behind it, so there is nothing to fetch
+  // and asking would 404 against a real mailbox with a synthetic thread id.
+  if (isIMessageThread(thread.gmail_thread_id)) return 0
 
   try {
     const messages = await fetchThread(thread.mailbox, thread.gmail_thread_id)

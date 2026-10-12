@@ -1,0 +1,18 @@
+-- Text messages become correspondence.
+--
+-- The whole ingestion is a translation: a text conversation is split into
+-- sessions and written as `email_threads` rows, after which the eight phases
+-- the mail sweep already runs (summarize, cluster, stage, route, apply, embed,
+-- commitments, predecide) pick them up unchanged. So there is no new table
+-- here, and deliberately so — a parallel pipeline for texts would be a second
+-- place for every one of those decisions to drift.
+--
+-- ⚠ ONE COLUMN DOES NEED A NEW VALUE: `updates.source`. §12 — a provenance
+-- line that invents a provenance is worse than no line, and every arm of one
+-- must be true for every source. `apply-phase.ts` wrote `source: 'email'`
+-- unconditionally, so a text message appended to a project would have read as
+-- an email on the record, where that sentence outlives the thread.
+--
+-- `update_source` is an ENUM, not a CHECK constraint, so this is ALTER TYPE
+-- rather than a drop-and-recreate.
+alter type update_source add value if not exists 'imessage';

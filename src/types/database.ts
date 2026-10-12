@@ -2634,7 +2634,7 @@ isOneToOne: false
                            }
           }
           Enums: {
-            "compliance_status": "not_started"|"in_progress"|"compliant"|"non_compliant"|"waived","dd_severity": "info"|"watch"|"critical"|"blocker","entity_category": "vendor"|"partner"|"contractor","entity_type": "llc"|"corp"|"jv"|"subsidiary"|"trust"|"fund"|"other","project_sector": "government"|"infrastructure"|"real_estate"|"prefab"|"institutional"|"technology"|"health","project_stage": "pursuit"|"capture"|"bid"|"award"|"mobilization"|"execution"|"closeout","project_status": "active"|"on_hold"|"won"|"lost"|"closed","review_state": "pending"|"approved"|"rejected","update_source": "email"|"manual_paste"|"document"|"agent"|"procore"|"manual_task"
+            "compliance_status": "not_started"|"in_progress"|"compliant"|"non_compliant"|"waived","dd_severity": "info"|"watch"|"critical"|"blocker","entity_category": "vendor"|"partner"|"contractor","entity_type": "llc"|"corp"|"jv"|"subsidiary"|"trust"|"fund"|"other","project_sector": "government"|"infrastructure"|"real_estate"|"prefab"|"institutional"|"technology"|"health","project_stage": "pursuit"|"capture"|"bid"|"award"|"mobilization"|"execution"|"closeout","project_status": "active"|"on_hold"|"won"|"lost"|"closed","review_state": "pending"|"approved"|"rejected","update_source": "email"|"manual_paste"|"document"|"agent"|"procore"|"manual_task"|"imessage"
           }
           CompositeTypes: {
             [_ in never]: never
@@ -2750,7 +2750,7 @@ export type CompositeTypes<
 export const Constants = {
   "public": {
           Enums: {
-            "compliance_status": ["not_started", "in_progress", "compliant", "non_compliant", "waived"],"dd_severity": ["info", "watch", "critical", "blocker"],"entity_category": ["vendor", "partner", "contractor"],"entity_type": ["llc", "corp", "jv", "subsidiary", "trust", "fund", "other"],"project_sector": ["government", "infrastructure", "real_estate", "prefab", "institutional", "technology", "health"],"project_stage": ["pursuit", "capture", "bid", "award", "mobilization", "execution", "closeout"],"project_status": ["active", "on_hold", "won", "lost", "closed"],"review_state": ["pending", "approved", "rejected"],"update_source": ["email", "manual_paste", "document", "agent", "procore", "manual_task"]
+            "compliance_status": ["not_started", "in_progress", "compliant", "non_compliant", "waived"],"dd_severity": ["info", "watch", "critical", "blocker"],"entity_category": ["vendor", "partner", "contractor"],"entity_type": ["llc", "corp", "jv", "subsidiary", "trust", "fund", "other"],"project_sector": ["government", "infrastructure", "real_estate", "prefab", "institutional", "technology", "health"],"project_stage": ["pursuit", "capture", "bid", "award", "mobilization", "execution", "closeout"],"project_status": ["active", "on_hold", "won", "lost", "closed"],"review_state": ["pending", "approved", "rejected"],"update_source": ["email", "manual_paste", "document", "agent", "procore", "manual_task", "imessage"]
           }
         }
 } as const

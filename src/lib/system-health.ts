@@ -1171,6 +1171,83 @@ export async function probeMeetImport(): Promise<{
 }
 
 /**
+ * Text messages — is the snapshot fresh, and are sessions reaching the corpus?
+ *
+ * ⚠ WATCH THE CLOCK, NOT THE COUNT. The failure mode here is doing nothing
+ * quietly: if `bw-snapshot` loses Full Disk Access — which a macOS update can
+ * do — the file it already left behind stays perfectly readable and simply
+ * stops changing. Every run then succeeds, finds no new sessions, and reports a
+ * quiet week, which is exactly what a genuinely quiet week looks like. §12: a
+ * coverage count that has stopped growing is indistinguishable from a quiet
+ * inbox, so measure AGE.
+ *
+ * And both halves are checked, because a green producer with a dead consumer
+ * reads as health: the snapshot can be minutes old while no session has ever
+ * been written, which means the classifier is selecting nothing.
+ */
+export async function probeIMessageSweep(): Promise<{
+  state: 'ok' | 'empty' | 'unconfigured' | 'failed'
+  detail: string
+}> {
+  const { snapshotDbPath } = await import('@/lib/imessage/read')
+  const path = snapshotDbPath()
+
+  let ageMs: number | null = null
+  try {
+    const { statSync } = await import('node:fs')
+    ageMs = Date.now() - statSync(path).mtimeMs
+  } catch {
+    return {
+      state: 'unconfigured',
+      detail:
+        `No Messages snapshot at ${path}. Build the helper and grant it Full Disk Access: ` +
+        'zsh scripts/build-snapshot.sh, then System Settings → Privacy & Security → Full Disk Access → ~/.local/bin/bw-snapshot.',
+    }
+  }
+
+  const supabase = createAdminClient()
+  const { count: sessions } = await supabase
+    .from('email_threads')
+    .select('id', { count: 'exact', head: true })
+    .like('gmail_thread_id', 'imessage:%')
+
+  const { data: newest } = await supabase
+    .from('email_threads')
+    .select('last_at')
+    .like('gmail_thread_id', 'imessage:%')
+    .order('last_at', { ascending: false })
+    .limit(1)
+
+  const hours = Math.round(ageMs / 3_600_000)
+  const tally = `${sessions ?? 0} text session${sessions === 1 ? '' : 's'} in the corpus`
+  const latest = newest?.[0]?.last_at
+    ? `, newest conversation ${String(newest[0].last_at).slice(0, 10)}`
+    : ''
+
+  // The snapshot agent runs four times a day, so anything past ~8h is a miss.
+  if (ageMs > 8 * 3_600_000) {
+    return {
+      state: 'failed',
+      detail:
+        `Snapshot is ${hours}h old — com.berwilson.snapshot is not running, or bw-snapshot has lost Full Disk Access ` +
+        `(a macOS update can revoke it). Texts stopped arriving ${hours}h ago. ${tally}${latest}.`,
+    }
+  }
+
+  if (!sessions) {
+    return {
+      state: 'empty',
+      detail:
+        `Snapshot is ${hours}h old and readable, but no text session has ever been written. ` +
+        'Either no conversation clears the business filter, or the sweep has not run — check with the dry run: ' +
+        'curl "localhost:3000/api/cron/imessage-sweep?dryRun=true".',
+    }
+  }
+
+  return { state: 'ok', detail: `Snapshot ${hours}h old. ${tally}${latest}.` }
+}
+
+/**
  * Business-card scanner — is the local OCR binary built on this host?
  *
  * It is a compiled artifact living outside the repo (~/.local/bin/bw-ocr), so a

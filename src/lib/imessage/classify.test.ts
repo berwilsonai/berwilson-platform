@@ -11,13 +11,41 @@ import { classifyChat, nameTokens, normalizePhone, termRegex } from './classify'
 const EMPTY = {
   partyPhones: new Set<string>(),
   recordTokens: new Map<string, string>(),
-  singleTokenRecords: new Set<string>(),
+  rareTokens: new Set<string>(),
   excludedHandles: new Set<string>(),
   internalHandles: new Set<string>(),
 }
 
-function chat(messages: string[], over: Partial<Parameters<typeof classifyChat>[0]> = {}) {
+type Input = Parameters<typeof classifyChat>[0]
+
+/**
+ * `total` defaults to the sample's own length.
+ *
+ * In a test the sample IS the whole conversation, so they are the same number.
+ * They are not the same number in production — see ClassifyInput.total — which
+ * is why the field exists and why this default is written down once.
+ */
+function verdict(
+  input: Omit<Input, 'total' | 'tokensPerRecord'> & {
+    total?: number
+    tokensPerRecord?: Map<string, string[]>
+  }
+) {
+  // Derived from recordTokens unless a test states it: the grouping is
+  // mechanical, and restating it in every case would hide the one that matters.
+  const derived = new Map<string, string[]>()
+  for (const [token, label] of input.recordTokens) {
+    derived.set(label, [...(derived.get(label) ?? []), token])
+  }
   return classifyChat({
+    ...input,
+    tokensPerRecord: input.tokensPerRecord ?? derived,
+    total: input.total ?? input.messages.length,
+  })
+}
+
+function chat(messages: string[], over: Partial<Input> = {}) {
+  return verdict({
     handles: ['+18015550100'],
     messages,
     sentByMe: Math.max(1, Math.floor(messages.length / 2)),
@@ -58,14 +86,14 @@ test('⚠ one name token is NOT a match — the Case Garage bug', () => {
   assert.deepEqual(both.signals.namedRecords, ['Case Garage'])
 })
 
-test('a lone token names a record only when the caller says it is rare enough', () => {
+test('a lone token names a record only when the corpus says that word is rare', () => {
   const recordTokens = new Map([['steelton', 'Steelton — Cleveland-Cliffs (PA)']])
   const without = chat(['heading to steelton tomorrow'], { recordTokens })
-  assert.deepEqual(without.signals.namedRecords, [])
+  assert.deepEqual(without.signals.namedRecords, [], 'one token, not certified rare')
 
   const with_ = chat(['heading to steelton tomorrow'], {
     recordTokens,
-    singleTokenRecords: new Set(['Steelton — Cleveland-Cliffs (PA)']),
+    rareTokens: new Set(['steelton']),
   })
   assert.deepEqual(with_.signals.namedRecords, ['Steelton — Cleveland-Cliffs (PA)'])
   assert.equal(with_.business, true)
@@ -84,7 +112,7 @@ test("a known party's own number clears the bar by itself", () => {
 
 test('marketing written in deal vocabulary is still excluded', () => {
   // Verbatim shape from this corpus: insurance spam scores on terms alone.
-  const v = classifyChat({
+  const v = verdict({
     handles: ['55512'],
     messages: ['Self Employed or Business Owner? You may qualify for new coverage. Invoice financing and bonding available.'],
     sentByMe: 0,
@@ -95,7 +123,7 @@ test('marketing written in deal vocabulary is still excluded', () => {
 })
 
 test('a broadcast never replied to is excluded', () => {
-  const v = classifyChat({
+  const v = verdict({
     handles: ['+18885551234'],
     messages: ['your bid is due', 'reminder: bid due', 'final notice on the bid'],
     sentByMe: 0,
@@ -106,13 +134,13 @@ test('a broadcast never replied to is excluded', () => {
 })
 
 test('⚠ but a real counterparty is NOT reclassified as spam for not being replied to yet', () => {
-  const v = classifyChat({
+  const v = verdict({
     handles: ['+18015550100'],
     messages: ['sending the PSA over', 'escrow opens Monday', 'title commitment attached'],
     sentByMe: 0,
     partyPhones: new Set(['8015550100']),
     recordTokens: new Map(),
-    singleTokenRecords: new Set(),
+    rareTokens: new Set(),
     excludedHandles: new Set(),
     internalHandles: new Set(),
   })
@@ -153,7 +181,7 @@ test('phone normalization agrees across formats', () => {
 test('⚠ an excluded number overrides EVERY other signal, including a known party', () => {
   // The mechanism, kept for a number that must never be read. It is NOT what
   // Eric gets — see the internal tests below.
-  const v = classifyChat({
+  const v = verdict({
     handles: ['+13854366519'],
     messages: [
       'sending the PSA, escrow opens Monday',
@@ -163,7 +191,7 @@ test('⚠ an excluded number overrides EVERY other signal, including a known par
     sentByMe: 40,
     partyPhones: new Set(['3854366519']),
     recordTokens: new Map([['steelton', 'Steelton']]),
-    singleTokenRecords: new Set(['Steelton']),
+    rareTokens: new Set(['steelton']),
     excludedHandles: new Set(['3854366519']),
     internalHandles: new Set(),
   })
@@ -174,7 +202,7 @@ test('⚠ an excluded number overrides EVERY other signal, including a known par
 })
 
 test('a GROUP chat containing an excluded number is excluded too', () => {
-  const v = classifyChat({
+  const v = verdict({
     handles: ['+18015550100', '+13854366519'],
     messages: ['the PSA is signed', 'escrow opens Monday', 'invoice to follow'],
     sentByMe: 5,
@@ -186,7 +214,7 @@ test('a GROUP chat containing an excluded number is excluded too', () => {
 
 test('exclusion matches across phone formats', () => {
   for (const stored of ['+13854366519', '3854366519', '(385) 436-6519']) {
-    const v = classifyChat({
+    const v = verdict({
       handles: [stored],
       messages: ['the PSA and escrow and title commitment and subcontract'],
       sentByMe: 3,
@@ -203,7 +231,7 @@ test("⚠ a colleague's thread is INTERNAL, and internal is work — not a score
   // large and mixed — both wrong, because the axis was never how business the
   // vocabulary sounds. A thread with no deal word in it at all is still the
   // channel this company is run on.
-  const v = classifyChat({
+  const v = verdict({
     handles: ['+13854366519'],
     messages: ['call me when you land', 'ok'],
     sentByMe: 20,
@@ -216,7 +244,7 @@ test("⚠ a colleague's thread is INTERNAL, and internal is work — not a score
 })
 
 test('internal beats the broadcast heuristic too', () => {
-  const v = classifyChat({
+  const v = verdict({
     handles: ['+13854366519'],
     messages: ['heads up', 'one more thing', 'and another'],
     sentByMe: 0,
@@ -230,7 +258,7 @@ test('a MIXED group — colleague plus an outsider — is not internal', () => {
   // The flag governs attribution downstream: a commitment in a thread with an
   // outsider in it may legitimately be owed to that outsider, so the thread
   // must not be treated as two insiders talking.
-  const v = classifyChat({
+  const v = verdict({
     handles: ['+13854366519', '+18015550100'],
     messages: ['sending the PSA, escrow opens Monday, title commitment attached'],
     sentByMe: 4,
@@ -241,7 +269,7 @@ test('a MIXED group — colleague plus an outsider — is not internal', () => {
 })
 
 test('an explicit exclusion outranks internal', () => {
-  const v = classifyChat({
+  const v = verdict({
     handles: ['+13854366519'],
     messages: ['anything at all'],
     sentByMe: 5,
@@ -251,4 +279,64 @@ test('an explicit exclusion outranks internal', () => {
   })
   assert.equal(v.business, false)
   assert.match(v.reason, /excluded number/)
+})
+
+test('⚠ two ordinary words of a LONG name are not a name match — the hospital/airport bug', () => {
+  // Measured 2026-10-11 on the real corpus: a 664-message personal thread was
+  // selected as the project "Stockton Power Nexus - ER Hospital & Medevac
+  // Airport Tower" because **hospital** (8 chats) and **airport** (9 chats)
+  // both appear in a year of family texts. A six-token name offers fifteen
+  // pairs, so counting tokens makes a LONG name easier to match by accident
+  // than a short one — the opposite of what counting implies.
+  const label = 'Stockton Power Nexus - ER Hospital & Medevac Airport Tower'
+  const recordTokens = new Map(
+    ['stockton', 'nexus', 'hospital', 'medevac', 'airport', 'tower'].map((t) => [t, label] as const)
+  )
+
+  const accidental = chat(['im at the airport now', 'dad is out of the hospital'], { recordTokens })
+  assert.deepEqual(accidental.signals.namedRecords, [], 'two ordinary words is not the record')
+  assert.equal(accidental.business, false)
+
+  // The same thread naming the distinguishing word IS the record.
+  const real = chat(['medevac tower spec came back'], {
+    recordTokens,
+    rareTokens: new Set(['medevac']),
+  })
+  assert.deepEqual(real.signals.namedRecords, [label])
+})
+
+test('⚠ but the WHOLE name is a match, however ordinary its words — Myton Rail', () => {
+  // The mirror of the bug above, and why the fix cannot simply be "require a
+  // rare word": `myton` (9 chats) and `rail` (4) are both too common to name a
+  // record alone, yet together they are the record's entire name rather than
+  // two words out of it.
+  const recordTokens = new Map([
+    ['myton', 'Myton Rail'],
+    ['rail', 'Myton Rail'],
+  ])
+  const v = chat(['myton rail alignment is approved'], { recordTokens })
+  assert.deepEqual(v.signals.namedRecords, ['Myton Rail'])
+  assert.equal(v.business, true)
+})
+
+test('⚠ coverage is counted over SURVIVING tokens, and one of them is still not enough', () => {
+  // `Case Garage` keeps its lesson under the new rule: `case` is dropped as
+  // ordinary by the calibration, so the record survives as `garage` alone —
+  // and a one-token name must earn it on rarity, never on covering itself.
+  const v = chat(['put it in the garage'], {
+    recordTokens: new Map([['garage', 'Case Garage']]),
+    tokensPerRecord: new Map([['Case Garage', ['garage']]]),
+  })
+  assert.deepEqual(v.signals.namedRecords, [], 'a lone surviving token is not full coverage')
+})
+
+test('a record named by a rare word plus ordinary ones still matches', () => {
+  // McCleery Real Estate Premier: `premier` appears in 1 conversation, so it
+  // identifies the record whether or not the rest of the name landed.
+  const label = 'McCleery Real Estate Premier'
+  const recordTokens = new Map(
+    ['mccleery', 'premier', 'estate'].map((t) => [t, label] as const)
+  )
+  const v = chat(['premier sent the estate docs'], { recordTokens, rareTokens: new Set(['premier']) })
+  assert.deepEqual(v.signals.namedRecords, [label])
 })

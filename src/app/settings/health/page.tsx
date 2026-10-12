@@ -31,6 +31,7 @@ import {
   probeThreadRouting,
   probeCorrespondenceIndex,
   probeMeetImport,
+  probeIMessageSweep,
   probeScopeCoverage,
   probeDisk,
 } from '@/lib/system-health'
@@ -99,7 +100,7 @@ async function runChecks(): Promise<HealthCheck[]> {
   const dayAgo = new Date(Date.now() - 86_400_000).toISOString()
   const localAI = process.env.AI_PROVIDER === 'local'
 
-  const [brief, riskScore, lastAi, aiDayCount, failedRuns, mailbox, lmStudio, backups, drive, leadInbox, docIndexing, driveSources, driveFiling, scopes, disk, lastDigest, failedDigests, contacts, googleTasks, drivePublish, meetImport, dealIntake, routing, corpus, dailyDigest, commitmentBacklog, openCommitments, settledRecently, quietedCommitments] =
+  const [brief, riskScore, lastAi, aiDayCount, failedRuns, mailbox, lmStudio, backups, drive, leadInbox, docIndexing, driveSources, driveFiling, scopes, disk, lastDigest, failedDigests, contacts, googleTasks, drivePublish, meetImport, dealIntake, routing, corpus, dailyDigest, commitmentBacklog, openCommitments, settledRecently, quietedCommitments, imessageSweep] =
     await Promise.all([
       supabase
         .from('stored_briefs')
@@ -191,6 +192,7 @@ async function runChecks(): Promise<HealthCheck[]> {
         .select('id', { count: 'exact', head: true })
         .eq('status', 'open')
         .gt('snoozed_until', new Date().toISOString().slice(0, 10)),
+      probeIMessageSweep(),
     ])
 
   const checks: HealthCheck[] = []
@@ -615,6 +617,27 @@ async function runChecks(): Promise<HealthCheck[]> {
     })
   }
 
+
+  // Text messages. Two states that look identical from a log and are not: a
+  // snapshot that stopped changing (the helper lost Full Disk Access) and a
+  // genuinely quiet week. The probe watches the clock for exactly that reason.
+  {
+    checks.push({
+      name: 'Text Message Sweep',
+      status:
+        imessageSweep.state === 'ok' ? 'ok' : imessageSweep.state === 'failed' ? 'fail' : 'warn',
+      headline:
+        imessageSweep.state === 'ok'
+          ? 'Reading text messages'
+          : imessageSweep.state === 'empty'
+            ? 'No text conversation has been selected yet'
+            : imessageSweep.state === 'unconfigured'
+              ? 'Snapshot helper not installed'
+              : 'Texts have stopped arriving',
+      detail: imessageSweep.detail,
+      action: { label: 'Open Decide', href: '/decide' },
+    })
+  }
   // Drive document publishing — the reason this check exists is that the
   // feature shipped as a button, the button worked, and one project out of
   // fifteen had ever been published. Nothing anywhere reported that, so the

@@ -27,6 +27,7 @@ import { SYSTEM_USER_ID } from '@/lib/system-user'
 import { GmailScopeError, createDraft } from '@/lib/integrations/gmail-write'
 import { readOpenCommitments } from './read'
 import type { CommitmentRow } from './db'
+import { isIMessageThread } from '@/lib/imessage/to-thread'
 
 export const CHASE_PROMPT_VERSION = 'commitment-chase-1.0'
 
@@ -191,7 +192,17 @@ export async function runChasePass(opts: { dryRun?: boolean; limit?: number } = 
     let draftMailbox: string | null = null
     const thread = await loadThread(c.thread_id)
 
-    if (thread?.gmail_thread_id && thread.mailbox) {
+    /**
+     * ⚠ A LOCAL THREAD CANNOT HOLD A DRAFT, AND THE MAILBOX LOOKS FINE.
+     *
+     * A text session is stored with the owner's real mailbox — that column is
+     * true, and Pepper's attribution and the commitments filter both depend on
+     * it resolving to a team member. What it cannot do is accept a Gmail draft
+     * on a synthetic thread id. The chase text is still composed and stored on
+     * the row, which is what /commitments offers for copying — the same
+     * outcome as the 223 of 231 mail rows whose mailbox holds no write scope.
+     */
+    if (thread?.gmail_thread_id && thread.mailbox && !isIMessageThread(thread.gmail_thread_id)) {
       try {
         draftId = await createDraft({
           mailbox: thread.mailbox,

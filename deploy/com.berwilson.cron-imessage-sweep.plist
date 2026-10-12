@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.berwilson.cron-imessage-sweep</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/zsh</string>
+    <string>-c</string>
+    <string>curl -sS -m 1700 -H "Authorization: Bearer $(grep '^CRON_SECRET=' __APP_DIR__/.env.local | cut -d= -f2-)" http://localhost:3000/api/cron/imessage-sweep</string>
+  </array>
+  <!-- Four times a day at :40, five minutes after com.berwilson.snapshot, and
+       off the hour so it does not queue behind the hourly email sweep on the
+       same local model.
+
+       ⚠ THE 04:40 RUN IS THE LOAD-BEARING ONE. A session is only written once
+       six hours of silence have closed it (see to-thread.ts), so last night's
+       texting becomes a row at about 03:00 — and Pepper's note goes out at
+       06:50. Without a run between those two, every evening conversation waits
+       a further day to reach the morning it belongs to. -->
+  <key>StartCalendarInterval</key>
+  <array>
+    <dict><key>Hour</key><integer>4</integer><key>Minute</key><integer>40</integer></dict>
+    <dict><key>Hour</key><integer>11</integer><key>Minute</key><integer>40</integer></dict>
+    <dict><key>Hour</key><integer>15</integer><key>Minute</key><integer>40</integer></dict>
+    <dict><key>Hour</key><integer>19</integer><key>Minute</key><integer>40</integer></dict>
+  </array>
+  <key>AbandonProcessGroup</key>
+  <false/>
+  <key>StandardOutPath</key>
+  <string>__LOG_DIR__/cron-imessage-sweep.log</string>
+  <key>StandardErrorPath</key>
+  <string>__LOG_DIR__/cron-imessage-sweep.err.log</string>
+</dict>
+</plist>
