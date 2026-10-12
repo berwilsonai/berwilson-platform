@@ -102,6 +102,13 @@ function attributedLine(c: NoteCommitment, reader: string): string {
 }
 
 /** "(and 12 more not listed)" — never silent truncation. */
+/**
+ * How many live-deal task lines reach the MODEL. The email lists them all.
+ * Matches MAX_PER_SECTION in assemble.ts, which bounds the commitment sections
+ * for the same reason and was measured there.
+ */
+const MAX_TASKS_IN_PROMPT = 12
+
 function overflow(n: number): string[] {
   return n > 0 ? [`- (and ${n} more not shown)`] : []
 }
@@ -188,10 +195,24 @@ export function renderNoteInput(n: PepperNote): string {
   )
   parts.push(...section('OVERDUE TASKS ASSIGNED TO THEM:', n.overdueTasks.map(taskLine)))
   parts.push(...section('THEIR TASKS DUE THIS WEEK:', n.dueSoonTasks.map(taskLine)))
+  /**
+   * ⚠ CAPPED IN THE PROMPT, UNCAPPED IN THE EMAIL, AND THE ASYMMETRY IS THE
+   * POINT. This is the longest section — 38 rows on the first run — and the
+   * model is asked for a note under 300 words off a prompt that already carries
+   * ~13k tokens of fixed overhead. Feeding it 38 undated lines would crowd out
+   * the commitments the prose is actually about, which is the same reason
+   * MAX_PER_SECTION exists. The reader still sees every one: the itemised HTML
+   * list under the note is deliberately uncapped (see email.ts), because a list
+   * is scanned rather than read. The overflow line keeps this honest — a short
+   * list that does not say it is short is a lie told every morning.
+   */
   parts.push(
     ...section(
-      'THEIR OPEN WORK ON LIVE DEALS (no deadline agreed — mostly obligations read out of the two of them talking, so these are what is outstanding rather than what is scheduled):',
-      n.liveTasks.map(taskLine)
+      'THEIR OPEN WORK ON LIVE DEALS (no deadline agreed — mostly obligations read out of the two of them talking, so these are what is outstanding rather than what is scheduled; the full list is itemised beneath the note):',
+      [
+        ...n.liveTasks.slice(0, MAX_TASKS_IN_PROMPT).map(taskLine),
+        ...overflow(Math.max(0, n.liveTasks.length - MAX_TASKS_IN_PROMPT)),
+      ]
     )
   )
   parts.push(
