@@ -28,7 +28,8 @@ import Foundation
 let home = FileManager.default.homeDirectoryForCurrentUser
 let destination = home.appending(path: "berwilson-data/local-sources", directoryHint: .isDirectory)
 
-/// The allowlist. Each entry is copied with its -wal and -shm sidecars if present.
+/// The database allowlist. Each entry is copied with its -wal and -shm sidecars
+/// if present. Audio attachments are handled separately, further down.
 let databases: [(name: String, path: URL)] = [
     ("chat.db", home.appending(path: "Library/Messages/chat.db")),
     (
@@ -106,7 +107,78 @@ for db in databases {
     if ok { copied += 1 } else { failed += 1 }
 }
 
+// ── Audio attachments from Apple Notes ──────────────────────────────────────
+//
+// ⚠ WHY THIS IS HERE AT ALL, AND WHY IT IS AUDIO ONLY. An iOS call recording
+// becomes a note titled "Call with <name>" whose body is 254 bytes — a title
+// and an attachment pointer, with NO transcript. The recording IS the content,
+// so a database-only snapshot leaves the one artifact worth having behind. The
+// bytes are already on this Mac (iCloud downloads them while Notes.app runs),
+// under Accounts/<account>/Media/<identifier>/<generation>/<filename>.
+//
+// The platform's own process cannot read them: the Notes group container is
+// TCC-protected and the app process must never hold Full Disk Access (it also
+// holds the service-role key and the Google refresh tokens). So this copies
+// them, like the databases.
+//
+// ⚠ AUDIO EXTENSIONS ONLY, AND THAT IS A PRIVACY DECISION RATHER THAN A SIZE
+// ONE. That Media tree holds 146 files — family photos, screenshots, PDFs,
+// meditation tracks. The platform has no use for any of it, and copying a
+// personal photo library into a directory the app CAN read would widen this
+// binary's blast radius for nothing. The allowlist stays as narrow as the
+// purpose: things that might be a recorded call.
+//
+// The relative path is preserved so the reader can resolve a note's attachment
+// deterministically through the database FK chain (attachment → ZMEDIA → that
+// row's ZIDENTIFIER / ZGENERATION1 / ZFILENAME) rather than matching on a
+// filename — three different notes here each carry a `recording.m4a`.
+let audioExtensions: Set<String> = ["m4a", "mp3", "mp4", "caf", "wav", "aac", "aiff"]
+let mediaRoots = home.appending(path: "Library/Group Containers/group.com.apple.notes/Accounts")
+let mediaDestination = destination.appending(path: "notes-media", directoryHint: .isDirectory)
+
+var audioCopied = 0
+var audioFailed = 0
+
+if let accounts = try? fm.contentsOfDirectory(at: mediaRoots, includingPropertiesForKeys: nil) {
+    for account in accounts {
+        let mediaRoot = account.appending(path: "Media", directoryHint: .isDirectory)
+        guard let walker = fm.enumerator(at: mediaRoot, includingPropertiesForKeys: [.isRegularFileKey])
+        else { continue }
+        for case let file as URL in walker {
+            guard audioExtensions.contains(file.pathExtension.lowercased()) else { continue }
+            // Relative to Media/, so <identifier>/<generation>/<filename> survives.
+            let relative = file.path.replacingOccurrences(of: mediaRoot.path + "/", with: "")
+            let to = mediaDestination.appending(path: relative)
+            do {
+                // Already copied and unchanged in size? Leave it. These are
+                // megabytes each and the snapshot runs four times a day.
+                if let existing = try? fm.attributesOfItem(atPath: to.path)[.size] as? Int,
+                   let current = try? fm.attributesOfItem(atPath: file.path)[.size] as? Int,
+                   existing == current {
+                    continue
+                }
+                try fm.createDirectory(
+                    at: to.deletingLastPathComponent(),
+                    withIntermediateDirectories: true,
+                    attributes: [.posixPermissions: 0o700]
+                )
+                if fm.fileExists(atPath: to.path) { try fm.removeItem(at: to) }
+                try fm.copyItem(at: file, to: to)
+                try fm.setAttributes([.posixPermissions: 0o600], ofItemAtPath: to.path)
+                audioCopied += 1
+            } catch {
+                FileHandle.standardError.write(
+                    "bw-snapshot: FAILED audio \(relative): \(error.localizedDescription)\n"
+                        .data(using: .utf8)!
+                )
+                audioFailed += 1
+            }
+        }
+    }
+}
+
 print("bw-snapshot: \(copied) database(s) copied to \(destination.path)\(failed > 0 ? ", \(failed) FAILED" : "")")
+print("bw-snapshot: \(audioCopied) audio attachment(s) copied\(audioFailed > 0 ? ", \(audioFailed) FAILED" : "")")
 
 // ⚠ A NON-ZERO EXIT IS THE ONLY SIGNAL THE CRON HAS. If this exits 0 having
 // copied nothing, the sweep reads a stale snapshot and reports a quiet inbox —

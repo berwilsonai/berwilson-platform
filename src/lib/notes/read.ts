@@ -37,11 +37,17 @@ import { copyFileSync, existsSync, mkdtempSync, rmSync } from 'node:fs'
 import { homedir, tmpdir } from 'node:os'
 import { join } from 'node:path'
 
+import { isCallRecording } from './calls'
 import { decodeNoteBody } from './decode'
 
 /** Where `bw-snapshot` leaves its copy. Readable without Full Disk Access. */
 export function notesSnapshotPath(): string {
   return join(homedir(), 'berwilson-data', 'local-sources', 'NoteStore.sqlite')
+}
+
+/** Where `bw-snapshot` copies Notes audio attachments, same layout as Media/. */
+export function notesMediaPath(): string {
+  return join(homedir(), 'berwilson-data', 'local-sources', 'notes-media')
 }
 
 /**
@@ -59,6 +65,13 @@ export function nominatedFolders(): string[] {
     .filter(Boolean)
 }
 
+export interface NoteAudio {
+  /** Path inside the snapshot's notes-media directory, or null if not copied. */
+  path: string | null
+  fileName: string
+  uti: string
+}
+
 export interface NoteRow {
   /** Apple's own identifier, stable across edits. The dedupe key. */
   identifier: string
@@ -69,6 +82,18 @@ export interface NoteRow {
   modifiedAt: string
   /** Attachment type names on this note, for reporting what we cannot read. */
   attachments: string[]
+  /**
+   * Audio attachments, resolved to files on disk where the snapshot has them.
+   *
+   * ⚠ RESOLVED THROUGH THE FK CHAIN, NEVER BY FILENAME. An attachment row
+   * points at a media row via `ZMEDIA`, and THAT row carries the three parts of
+   * the path: `ZIDENTIFIER` (the directory), `ZGENERATION1` (the version
+   * subdirectory) and `ZFILENAME`. Matching on the filename instead would be
+   * ambiguous on this very corpus — three different notes each carry a
+   * `recording.m4a`, and two media rows carry `Call with Eric Tuaone.m4a`
+   * because the file has two generations on disk.
+   */
+  audio: NoteAudio[]
 }
 
 export interface NotesReadResult {
@@ -82,9 +107,23 @@ export interface NotesReadResult {
 
 const APPLE_EPOCH = 978_307_200
 
-/** Read the nominated folders. Returns an error rather than throwing. */
-export function readNotes(opts: { snapshot?: string } = {}): NotesReadResult {
+/**
+ * Read the nominated folders, and — separately — recorded calls.
+ *
+ * ⚠ TWO INDEPENDENT DOORS, AND THE SECOND IS THE POINT. Richard's aim is that
+ * the platform gets his recorded calls WITHOUT reading his notes. A recorded
+ * call is identifiable by a signal iOS generates (a `Call with …` title plus an
+ * audio attachment, see ./calls.ts), and on this account those notes sit in the
+ * DEFAULT folder — there is no auto-created call folder to nominate. So calls
+ * are admitted from any folder while everything else still requires a human to
+ * have filed it into a nominated one. With `NOTES_FOLDER_NAMES` unset, the ONLY
+ * thing read is recorded calls.
+ */
+export function readNotes(
+  opts: { snapshot?: string; includeCalls?: boolean } = {}
+): NotesReadResult {
   const src = opts.snapshot ?? notesSnapshotPath()
+  const includeCalls = opts.includeCalls ?? true
   const empty: NotesReadResult = { notes: [], foldersSeen: [], undecodable: 0, error: null }
 
   if (!existsSync(src)) {
@@ -92,8 +131,8 @@ export function readNotes(opts: { snapshot?: string } = {}): NotesReadResult {
   }
 
   const wanted = nominatedFolders()
-  if (wanted.length === 0) {
-    return { ...empty, error: 'NOTES_FOLDER_NAMES is unset — nothing is nominated, so nothing is read' }
+  if (wanted.length === 0 && !includeCalls) {
+    return { ...empty, error: 'NOTES_FOLDER_NAMES is unset and calls are disabled — nothing to read' }
   }
 
   const dir = mkdtempSync(join(tmpdir(), 'bw-notes-'))
@@ -137,15 +176,24 @@ export function readNotes(opts: { snapshot?: string } = {}): NotesReadResult {
       }[]
 
       const attachmentsByNote = attachmentIndex(db)
+      const audioByNote = audioIndex(db)
 
       const notes: NoteRow[] = []
       let undecodable = 0
 
       for (const row of rows) {
         const folder = row.folder ?? ''
-        if (!target.has(folder.toLowerCase())) continue
+        const nominated = target.has(folder.toLowerCase())
+        const audio = audioByNote.get(row.identifier ?? '') ?? []
+        // A recorded call is admitted on its own signal, from any folder.
+        const isCall = includeCalls && isCallRecording({ title: row.title, audio })
+        if (!nominated && !isCall) continue
         const { text } = decodeNoteBody(row.data ? Buffer.from(row.data) : null)
-        if (!text.trim()) {
+        // ⚠ A CALL RECORDING HAS NO BODY WORTH DECODING — 254 bytes of title
+        // and an attachment pointer — so an empty decode is EXPECTED there and
+        // is not a failure. Counting it as undecodable would report every call
+        // as a broken note.
+        if (!text.trim() && !isCall) {
           // Reported, never stored half-read. §12: "no text" must say why.
           undecodable += 1
           continue
@@ -153,11 +201,15 @@ export function readNotes(opts: { snapshot?: string } = {}): NotesReadResult {
         notes.push({
           identifier: row.identifier ?? `${folder}:${row.title}`,
           title: row.title.replace(/\s+/g, ' ').trim(),
-          body: text,
+          // A call's transcript is attached later by the sweep; until then the
+          // title is all there is, and storing an empty body would make the
+          // thread read as a note with nothing in it.
+          body: text.trim() || row.title.replace(/\s+/g, ' ').trim(),
           folder,
           createdAt: appleDate(row.created),
           modifiedAt: appleDate(row.modified),
           attachments: attachmentsByNote.get(row.identifier ?? '') ?? [],
+          audio,
         })
       }
 
@@ -203,6 +255,66 @@ function attachmentIndex(db: DatabaseSync): Map<string, string[]> {
   } catch {
     // An older schema without one of these columns is not a reason to fail the
     // sweep — it costs the attachment report, not the notes.
+  }
+  return out
+}
+
+/**
+ * Audio attachments per note, resolved to files in the snapshot.
+ *
+ * ⚠ THE PATH COMES FROM THE DATABASE, NOT FROM A DIRECTORY LISTING. The chain
+ * is attachment → `ZMEDIA` → that row's `ZIDENTIFIER` / `ZGENERATION1` /
+ * `ZFILENAME`, which is exactly the layout under `Accounts/<id>/Media/` and
+ * exactly what bw-snapshot preserves. Verified against the live store: both
+ * generations of `Call with Eric Tuaone.m4a` resolve to their own directories.
+ *
+ * `path` is null when the file is not in the snapshot — which is the normal
+ * state until `bw-snapshot` is rebuilt AND re-granted Full Disk Access, since
+ * TCC keys that grant to the binary and a rebuild replaces it. A null path is
+ * REPORTED rather than treated as "no recording".
+ */
+function audioIndex(db: DatabaseSync): Map<string, NoteAudio[]> {
+  const out = new Map<string, NoteAudio[]>()
+  try {
+    const rows = db
+      .prepare(
+        `select p.ZIDENTIFIER as note,
+                a.ZTYPEUTI    as uti,
+                m.ZIDENTIFIER as dir,
+                m.ZGENERATION1 as generation,
+                m.ZFILENAME   as fileName
+           from ZICCLOUDSYNCINGOBJECT a
+           join ZICCLOUDSYNCINGOBJECT p on p.Z_PK = a.ZNOTE
+           join ZICCLOUDSYNCINGOBJECT m on m.Z_PK = a.ZMEDIA
+          where p.ZIDENTIFIER is not null
+            and m.ZFILENAME is not null
+            and (a.ZTYPEUTI like '%m4a%'
+              or a.ZTYPEUTI like '%mpeg-4-audio%'
+              or a.ZTYPEUTI like '%coreaudio%'
+              or a.ZTYPEUTI = 'public.mp3')`
+      )
+      .all() as {
+      note: string
+      uti: string
+      dir: string | null
+      generation: string | null
+      fileName: string
+    }[]
+
+    const root = notesMediaPath()
+    for (const r of rows) {
+      let path: string | null = null
+      if (r.dir && r.generation) {
+        const candidate = join(root, r.dir, r.generation, r.fileName)
+        if (existsSync(candidate)) path = candidate
+      }
+      const list = out.get(r.note) ?? []
+      list.push({ path, fileName: r.fileName, uti: r.uti })
+      out.set(r.note, list)
+    }
+  } catch {
+    // An older schema is not a reason to fail the sweep — it costs the audio,
+    // not the notes, and the caller reports an empty list as "none resolved".
   }
   return out
 }
