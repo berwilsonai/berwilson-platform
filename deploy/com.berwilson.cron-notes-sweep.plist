@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.berwilson.cron-notes-sweep</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/zsh</string>
+    <string>-c</string>
+    <string>curl -sS -m 1700 -H "Authorization: Bearer $(grep '^CRON_SECRET=' __APP_DIR__/.env.local | cut -d= -f2-)" http://localhost:3000/api/cron/notes-sweep</string>
+  </array>
+  <!--
+    :45 past the four snapshot hours — 10 minutes behind the text sweep.
+
+    bw-snapshot runs at 04:35 / 11:35 / 15:35 / 19:35 and copies BOTH local
+    databases; the text sweep reads chat.db at :40 and this reads
+    NoteStore.sqlite at :45. Spaced rather than parallel because each new note
+    costs one summarize pass and LM Studio serves one request at a time (§12) —
+    two sweeps at the same minute would queue behind each other anyway, while
+    holding two corpora in memory on a box that already pages.
+
+    ⚠ IT DOES NOTHING UNTIL `NOTES_FOLDER_NAMES` IS SET, by design. Only the
+    notes a human has filed into a nominated folder are read: a note has no
+    participants, so there is no structural signal to classify on, and the
+    measurement that proved it is in the route's header.
+
+    ⚠ AND NOTES SYNCS ONLY WHILE Notes.app RUNS. Measured 2026-10-12: the
+    snapshot's newest note was 10-01 with Notes.app not running, eleven days
+    behind the phone. A stale corpus here is silent — the sweep reports success
+    having read nothing new — so the health page watches the newest note's AGE
+    rather than the count (§12: a liveness check needs a clock, not a count).
+  -->
+  <key>StartCalendarInterval</key>
+  <array>
+    <dict><key>Hour</key><integer>4</integer><key>Minute</key><integer>45</integer></dict>
+    <dict><key>Hour</key><integer>11</integer><key>Minute</key><integer>45</integer></dict>
+    <dict><key>Hour</key><integer>15</integer><key>Minute</key><integer>45</integer></dict>
+    <dict><key>Hour</key><integer>19</integer><key>Minute</key><integer>45</integer></dict>
+  </array>
+  <key>StandardOutPath</key>
+  <string>__LOG_DIR__/cron-notes-sweep.log</string>
+  <key>StandardErrorPath</key>
+  <string>__LOG_DIR__/cron-notes-sweep.err.log</string>
+</dict>
+</plist>
