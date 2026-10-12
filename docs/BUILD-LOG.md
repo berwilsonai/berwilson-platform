@@ -11,7 +11,21 @@ Split out of `CLAUDE.md` on 2026-09-23, when that file reached 606k characters a
 - A block of **2026-08-23 → 2026-08-31** entries sits *after* the June entries, near the end of the file.
 - One **2026-07-03** entry ("migrations applied + pursuit profile seeded") is last in the file.
 
-156 entries, 2026-06-22 → 2026-10-11. ⚠ Counted with `grep -c "^\*\*Done 2026"`, not incremented by hand: two sessions editing this file on 2026-10-08 each bumped the old figure by one and both landed on 146 against a real 148.
+157 entries, 2026-06-22 → 2026-10-11. ⚠ Counted with `grep -c "^\*\*Done 2026"`, not incremented by hand: two sessions editing this file on 2026-10-08 each bumped the old figure by one and both landed on 146 against a real 148.
+
+**Done 2026-10-11 (the credential rotation, and the revoke that took the new tokens with it):**
+
+`CRON_SECRET` rotated cleanly. The assumption that needed checking first was where the launchd crons get it: not hardcoded in 15 plists as expected, but read at invocation time — `curl -H "Authorization: Bearer $(grep '^CRON_SECRET=' .env.local | cut -d= -f2-)"` — so rotation is one line in `.env.local` plus a kickstart. Verified old → 401, new → 200, and a launchd-style invocation → 200.
+
+Supabase keys deliberately NOT rotated, and the measurement is why: `JWT_SECRET`/`ANON_KEY`/`SERVICE_ROLE_KEY` are referenced 25 times across 8 containers, the anon key is baked into the built bundle (found in `.next/static/chunks/0bhwgvpkpuywn.js`, because `NEXT_PUBLIC_*` is build-time), and 33 live refresh sessions across 3 users would be invalidated. Against that: Supabase is `tailnet only` on :8443, so an exfiltrated service-role key is unusable without first being on the tailnet. Highest risk, lowest payoff of the four.
+
+⚠ **AND THEN THE GOOGLE ROTATION BROKE MAIL, BY DOING EXACTLY WHAT IT WAS DESIGNED TO DO.** The sequence was deliberate and, for any other provider, correct: capture the three old refresh tokens, have the humans re-consent (verified the script sends `access_type=offline` + `prompt=select_account consent`, so fresh tokens really are issued), validate the NEW tokens against Google — all three returned access tokens with the right scope counts, 11 for moose@, 8 for info@, 8 for tuaone@, matching the documented tiering — and only then revoke the old ones, so there was no outage window.
+
+**`https://oauth2.googleapis.com/revoke` does not revoke a token. It revokes the GRANT.** Google keeps one authorization per client+user, so revoking any refresh token issued under it invalidates every token for that authorization — including the one minted ninety seconds earlier from the same consent screen. Three `HTTP 200` revocations, then all three mailboxes `invalid_grant`. The validation step worked perfectly and proved tokens that the next step destroyed.
+
+What this cost and did not cost: the security objective was MET — every token that existed while Grok Bot held Full Disk Access is invalid, which is the whole point. The cost is a second round of browser consents, and mail/Drive/Calendar/Tasks being down between the two. What it should have been: **re-consent IS the rotation.** `prompt=consent` issues a new refresh token and the platform stops using the old one the moment the file is rewritten; the old token's remaining validity is the residual risk, and accepting it is cheaper than a revoke that cannot be scoped. Revoke only to end access entirely, and expect to re-consent afterwards. Added to §12 under Google Workspace.
+
+Also this session: `tccutil reset SystemPolicyAllFiles com.anysphere.sand` — Grok Bot held Full Disk Access, granted 2026-10-09 17:18:18, and nothing else: no Accessibility, no Screen Recording, no synthetic input, and its own `messagesEnabled` was false. ⚠ Revoking FDA does NOT protect the credentials, and that is worth stating plainly: `.env.local` and `~/berwilson-data/google-oauth-tokens.json` live in ordinary directories TCC does not gate, so any process running as the user reads them with no prompt and no record. FDA only ever gated Messages, Mail and Photos.
 
 **Done 2026-10-11 (Grok Bot removed the same day it was wired, and the useful half kept):**
 
