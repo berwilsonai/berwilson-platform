@@ -56,6 +56,8 @@ export async function middleware(request: NextRequest) {
     pathname === '/api/cron/contacts-sync' ||        // Directory → Google Contacts cron (self-guards via CRON_SECRET)
     pathname === '/api/cron/meet-import' ||          // Google Meet transcript import cron (self-guards via CRON_SECRET)
     pathname === '/api/cron/deal-intake' ||          // Website deal-form intake scan (self-guards via CRON_SECRET)
+    pathname === '/api/cron/curator' ||              // Autonomous CRM curation (self-guards via CRON_SECRET)
+    pathname === '/api/cron/pepper-text' ||          // Pepper's morning / week-ahead text (self-guards via CRON_SECRET)
     pathname === '/api/cron/task-sheet' ||           // Task board <-> Google Sheet sync (self-guards via CRON_SECRET)
     pathname === '/api/cron/pepper-note' ||          // Pepper's per-person morning note (self-guards via CRON_SECRET)
     pathname === '/api/cron/meeting-prep' ||         // Pre-meeting nudge (self-guards via CRON_SECRET)

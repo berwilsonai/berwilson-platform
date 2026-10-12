@@ -21,6 +21,7 @@
  * affordable on a box that serves one model request at a time.
  */
 
+import { isIMessageThread } from '@/lib/imessage/to-thread'
 import { provDb } from '@/lib/provenance/db'
 
 /** How much evidence goes into one model call. */
@@ -34,6 +35,48 @@ const MAX_DOCUMENTS = 10
 
 export type RecordKind = 'project' | 'opportunity'
 
+/**
+ * The sweep's structured thread summary.
+ *
+ * ⚠ `email_threads.summary` IS JSONB, NOT PROSE. Checked against the live
+ * schema after a first draft put the object itself into a string field and the
+ * dry run printed `NaN chars`. It is the richest thing in the database for this
+ * purpose: the sweep has already extracted location, sector, the people and a
+ * prose summary for every thread, so most of what a curator wants is a read
+ * rather than a model call (§12 — check whether the data is already on the row
+ * before calling it an extraction problem).
+ */
+export interface ThreadSummary {
+  summary?: string | null
+  deal_name?: string | null
+  counterparty?: string | null
+  location?: string | null
+  sector?: string | null
+  estimated_value?: number | string | null
+  /**
+   * ⚠ FREE PROSE, NOT A STAGE. Measured across the linked corpus: "Due
+   * Diligence", "Teaming & contract execution", "LOI signed", "meeting_
+   * scheduled". `project_stage` members are pursuit/capture/bid/award/
+   * mobilization/execution/closeout — none of these. Mapping one to the other
+   * would be exactly the second-schema drift §12 warns about, so nothing does.
+   */
+  stage_signal?: string | null
+  key_facts?: string[] | null
+  open_items?: string[] | null
+  people?: ThreadPerson[] | null
+  relevance?: string | null
+  confidence?: number | null
+}
+
+export interface ThreadPerson {
+  name?: string | null
+  title?: string | null
+  company?: string | null
+  email?: string | null
+  role?: string | null
+  is_organization?: boolean | null
+}
+
 export interface EvidenceItem {
   kind: 'email_thread' | 'text_session' | 'meeting' | 'document'
   /** The row id, carried into provenance as `source_ref`. */
@@ -41,7 +84,10 @@ export interface EvidenceItem {
   label: string
   /** When this piece of evidence last moved. Drives the cursor. */
   at: string | null
+  /** Prose, for a model call and for the evidence line on a proposal card. */
   text: string
+  /** Present only for threads — the structured half the fold reads directly. */
+  structured?: ThreadSummary
 }
 
 export interface RecordEvidence {
@@ -121,17 +167,31 @@ export async function gatherEvidence(args: {
   for (const link of (threadLinks.data ?? []) as ThreadLinkJoin[]) {
     const t = Array.isArray(link.thread) ? link.thread[0] : link.thread
     if (!t?.summary) continue
+    const structured = t.summary as ThreadSummary
+    // The prose half. `key_facts` is appended because the one-line summary
+    // often omits the figure a reader wants, and a model call downstream has
+    // to be able to quote something (§12: a quote must CONTAIN the figure).
+    const prose = [
+      structured.summary ?? '',
+      ...(Array.isArray(structured.key_facts) ? structured.key_facts.map((f) => `- ${f}`) : []),
+    ]
+      .filter(Boolean)
+      .join('\n')
+    if (!prose.trim()) continue
     items.push({
-      // A text session is an `email_threads` row with no Gmail id — that is
-      // the structural discriminator the iMessage layer chose, and reading it
-      // the same way here keeps the provenance honest about where a figure
-      // came from. A reader checking "where did she get that" must not be
-      // told "an email" about a text message.
-      kind: t.gmail_thread_id ? 'email_thread' : 'text_session',
+      // ⚠ NOT `gmail_thread_id == null`. A text session's id is PRESENT and
+      // prefixed `imessage:` — that is the iMessage layer's own structural
+      // discriminator, and it exports `isIMessageThread` for exactly this.
+      // The first draft tested for null and therefore labelled every text
+      // message as an email, which would have told a reader asking "where did
+      // she get that" the wrong answer about its source. §12: grep for the
+      // helper before writing the test yourself.
+      kind: isIMessageThread(t.gmail_thread_id) ? 'text_session' : 'email_thread',
       ref: t.id,
       label: t.subject ?? '(no subject)',
       at: t.last_at ?? link.updated_at ?? null,
-      text: t.summary,
+      text: prose,
+      structured,
     })
   }
 
@@ -199,7 +259,7 @@ interface ThreadLinkJoin {
     | {
         id: string
         subject: string | null
-        summary: string | null
+        summary: ThreadSummary | null
         last_at: string | null
         gmail_thread_id: string | null
         mailbox: string | null
@@ -207,7 +267,7 @@ interface ThreadLinkJoin {
     | Array<{
         id: string
         subject: string | null
-        summary: string | null
+        summary: ThreadSummary | null
         last_at: string | null
         gmail_thread_id: string | null
         mailbox: string | null

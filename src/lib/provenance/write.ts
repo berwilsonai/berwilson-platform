@@ -20,7 +20,7 @@
  * is only ever fields whose stored value actually differed.
  */
 
-import { canWrite, fieldSpec } from './fields'
+import { canWrite, fieldSpec, isBlank } from './fields'
 import {
   PEPPER_ACTOR,
   provDb,
@@ -40,6 +40,27 @@ export interface FieldUpdate {
   sourceRef?: string | null
   /** When the SOURCE is from. Not when this ran. */
   asOf?: string | null
+  /**
+   * Fill a blank, but never replace a value — whatever the field's tier.
+   *
+   * ⚠ THIS EXISTS BECAUSE THE FIRST DRY RUN WAS DESTRUCTIVE, AND THE RULE IT
+   * ENCODES IS WORTH MORE THAN THE FLAG. Measured 2026-10-12 across the live
+   * portfolio: folding thread summaries onto deal records with newest-wins
+   * turned `215 S Front St, Steelton, Dauphin County, PA` into `Steelton`,
+   * turned Riverdale's and Weirton's own addresses into `Steelton, Riverdale,
+   * Weirton` (one thread covers all three Cleveland-Cliffs sites and is linked
+   * to each), and reclassified four projects' sectors from a human's
+   * considered `infrastructure`/`government` to a per-thread guess.
+   *
+   * THE ASYMMETRY IS THE POINT: evidence that DESCRIBES the subject of a field
+   * may overwrite it; evidence that merely MENTIONS the subject may only fill
+   * it. A person in a thread's `people[]` is described — their title comes off
+   * their own signature block, so newest wins is right. A deal's location in a
+   * thread about three deals is incidental, and no amount of recency makes it
+   * authoritative. Tier answers "whose value is this"; this answers "does this
+   * source actually know".
+   */
+  fillOnly?: boolean
 }
 
 export interface AppliedField {
@@ -131,13 +152,22 @@ export async function applyFieldUpdates(args: {
   for (const field of fields) {
     const u = wanted.get(field)!
     const spec = fieldSpec(table, field)!
-    const decision = canWrite({
+    let decision = canWrite({
       table,
       field,
       currentValue: current[field],
       proposedValue: u.value,
       writtenBy: provenance.get(field) ?? null,
     })
+    // Applied AFTER canWrite so the enum and no-op checks still run first, and
+    // so a fill-only update to a populated field is reported as skipped rather
+    // than queued as a question nobody asked for.
+    if (u.fillOnly && decision.action !== 'skip' && !isBlank(current[field])) {
+      decision = {
+        action: 'skip',
+        reason: 'fill-only: the record already has a value and this source only mentions it',
+      }
+    }
     const entry: AppliedField = {
       field,
       label: spec.label,
@@ -185,6 +215,12 @@ export async function applyFieldUpdates(args: {
         evidence: u.evidence ?? null,
         confidence: u.confidence ?? null,
         as_of: u.asOf ?? new Date().toISOString(),
+        // ⚠ THE UNDO. Recorded here rather than relied upon from activity_log,
+        // because the first live run showed 17 writes producing ONE audit row:
+        // `opportunities` and `parties` carry no log_activity trigger, and
+        // `projects` is outside the twenty tables that get a column diff. See
+        // the migration header.
+        previous_value: w.from,
         updated_at: new Date().toISOString(),
       }
     })

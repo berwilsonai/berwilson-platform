@@ -78,6 +78,8 @@ export interface FieldProvenanceRow {
   evidence: string | null
   confidence: number | null
   as_of: string | null
+  /** What the field said before she wrote it. NULL means it was blank. The undo. */
+  previous_value: string | null
   created_at: string
   updated_at: string
 }
