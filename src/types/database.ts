@@ -83,12 +83,6 @@ isOneToOne: false
       foreignKeyName: "activity_log_project_id_fkey"
       columns: ["project_id"]
 isOneToOne: false
-      referencedRelation: "mcp_projects"
-      referencedColumns: ["id"]
-    },{
-      foreignKeyName: "activity_log_project_id_fkey"
-      columns: ["project_id"]
-isOneToOne: false
       referencedRelation: "projects"
       referencedColumns: ["id"]
     }
@@ -116,12 +110,6 @@ isOneToOne: false
       columns: ["opportunity_id"]
 isOneToOne: false
       referencedRelation: "opportunities"
-      referencedColumns: ["id"]
-    },{
-      foreignKeyName: "agent_conversations_project_id_fkey"
-      columns: ["project_id"]
-isOneToOne: false
-      referencedRelation: "mcp_projects"
       referencedColumns: ["id"]
     },{
       foreignKeyName: "agent_conversations_project_id_fkey"
@@ -164,12 +152,6 @@ isOneToOne: false
                   }
                   Relationships: [
                     {
-      foreignKeyName: "ai_queries_project_id_fkey"
-      columns: ["project_id"]
-isOneToOne: false
-      referencedRelation: "mcp_projects"
-      referencedColumns: ["id"]
-    },{
       foreignKeyName: "ai_queries_project_id_fkey"
       columns: ["project_id"]
 isOneToOne: false
@@ -249,12 +231,6 @@ isOneToOne: false
       foreignKeyName: "chunks_project_id_fkey"
       columns: ["project_id"]
 isOneToOne: false
-      referencedRelation: "mcp_projects"
-      referencedColumns: ["id"]
-    },{
-      foreignKeyName: "chunks_project_id_fkey"
-      columns: ["project_id"]
-isOneToOne: false
       referencedRelation: "projects"
       referencedColumns: ["id"]
     },{
@@ -313,12 +289,6 @@ isOneToOne: false
       foreignKeyName: "commitments_project_id_fkey"
       columns: ["project_id"]
 isOneToOne: false
-      referencedRelation: "mcp_projects"
-      referencedColumns: ["id"]
-    },{
-      foreignKeyName: "commitments_project_id_fkey"
-      columns: ["project_id"]
-isOneToOne: false
       referencedRelation: "projects"
       referencedColumns: ["id"]
     },{
@@ -371,12 +341,6 @@ isOneToOne: false
       foreignKeyName: "compliance_items_project_id_fkey"
       columns: ["project_id"]
 isOneToOne: false
-      referencedRelation: "mcp_projects"
-      referencedColumns: ["id"]
-    },{
-      foreignKeyName: "compliance_items_project_id_fkey"
-      columns: ["project_id"]
-isOneToOne: false
       referencedRelation: "projects"
       referencedColumns: ["id"]
     },{
@@ -422,12 +386,6 @@ isOneToOne: false
       columns: ["personnel_id"]
 isOneToOne: false
       referencedRelation: "personnel"
-      referencedColumns: ["id"]
-    },{
-      foreignKeyName: "conflict_disclosures_project_id_fkey"
-      columns: ["project_id"]
-isOneToOne: false
-      referencedRelation: "mcp_projects"
       referencedColumns: ["id"]
     },{
       foreignKeyName: "conflict_disclosures_project_id_fkey"
@@ -503,12 +461,6 @@ isOneToOne: false
       foreignKeyName: "dd_items_project_id_fkey"
       columns: ["project_id"]
 isOneToOne: false
-      referencedRelation: "mcp_projects"
-      referencedColumns: ["id"]
-    },{
-      foreignKeyName: "dd_items_project_id_fkey"
-      columns: ["project_id"]
-isOneToOne: false
       referencedRelation: "projects"
       referencedColumns: ["id"]
     }
@@ -530,12 +482,6 @@ isOneToOne: false
       columns: ["opportunity_id"]
 isOneToOne: false
       referencedRelation: "opportunities"
-      referencedColumns: ["id"]
-    },{
-      foreignKeyName: "deal_economics_project_id_fkey"
-      columns: ["project_id"]
-isOneToOne: false
-      referencedRelation: "mcp_projects"
       referencedColumns: ["id"]
     },{
       foreignKeyName: "deal_economics_project_id_fkey"
@@ -609,12 +555,6 @@ isOneToOne: false
       foreignKeyName: "dino_revenue_project_id_fkey"
       columns: ["project_id"]
 isOneToOne: false
-      referencedRelation: "mcp_projects"
-      referencedColumns: ["id"]
-    },{
-      foreignKeyName: "dino_revenue_project_id_fkey"
-      columns: ["project_id"]
-isOneToOne: false
       referencedRelation: "projects"
       referencedColumns: ["id"]
     }
@@ -648,12 +588,6 @@ isOneToOne: false
       columns: ["meeting_id"]
 isOneToOne: false
       referencedRelation: "meetings"
-      referencedColumns: ["id"]
-    },{
-      foreignKeyName: "documents_project_id_fkey"
-      columns: ["project_id"]
-isOneToOne: false
-      referencedRelation: "mcp_projects"
       referencedColumns: ["id"]
     },{
       foreignKeyName: "documents_project_id_fkey"
@@ -999,12 +933,6 @@ isOneToOne: false
       foreignKeyName: "entity_projects_project_id_fkey"
       columns: ["project_id"]
 isOneToOne: false
-      referencedRelation: "mcp_projects"
-      referencedColumns: ["id"]
-    },{
-      foreignKeyName: "entity_projects_project_id_fkey"
-      columns: ["project_id"]
-isOneToOne: false
       referencedRelation: "projects"
       referencedColumns: ["id"]
     }
@@ -1026,12 +954,6 @@ isOneToOne: false
       columns: ["opportunity_id"]
 isOneToOne: false
       referencedRelation: "opportunities"
-      referencedColumns: ["id"]
-    },{
-      foreignKeyName: "financing_structures_project_id_fkey"
-      columns: ["project_id"]
-isOneToOne: false
-      referencedRelation: "mcp_projects"
       referencedColumns: ["id"]
     },{
       foreignKeyName: "financing_structures_project_id_fkey"
@@ -1078,12 +1000,6 @@ isOneToOne: true
       columns: ["investor_id"]
 isOneToOne: false
       referencedRelation: "investors"
-      referencedColumns: ["id"]
-    },{
-      foreignKeyName: "investments_project_id_fkey"
-      columns: ["project_id"]
-isOneToOne: false
-      referencedRelation: "mcp_projects"
       referencedColumns: ["id"]
     },{
       foreignKeyName: "investments_project_id_fkey"
@@ -1148,12 +1064,6 @@ isOneToOne: false
       columns: ["investor_id"]
 isOneToOne: false
       referencedRelation: "investors"
-      referencedColumns: ["id"]
-    },{
-      foreignKeyName: "investor_requirements_project_id_fkey"
-      columns: ["project_id"]
-isOneToOne: false
-      referencedRelation: "mcp_projects"
       referencedColumns: ["id"]
     },{
       foreignKeyName: "investor_requirements_project_id_fkey"
@@ -1251,12 +1161,6 @@ isOneToOne: false
       foreignKeyName: "leads_promoted_project_id_fkey"
       columns: ["promoted_project_id"]
 isOneToOne: false
-      referencedRelation: "mcp_projects"
-      referencedColumns: ["id"]
-    },{
-      foreignKeyName: "leads_promoted_project_id_fkey"
-      columns: ["promoted_project_id"]
-isOneToOne: false
       referencedRelation: "projects"
       referencedColumns: ["id"]
     },{
@@ -1271,12 +1175,6 @@ isOneToOne: false
 isOneToOne: false
       referencedRelation: "lead_categories"
       referencedColumns: ["key"]
-    },{
-      foreignKeyName: "leads_task_id_fkey"
-      columns: ["task_id"]
-isOneToOne: false
-      referencedRelation: "mcp_tasks"
-      referencedColumns: ["id"]
     },{
       foreignKeyName: "leads_task_id_fkey"
       columns: ["task_id"]
@@ -1305,54 +1203,6 @@ isOneToOne: false
                   Relationships: [
                     
                   ]
-                },"mcp_audit": {
-                  Row: {
-                    "arguments": NonNullable<Json>,"created_at": string,"detail": string | null,"id": string,"latency_ms": number | null,"outcome": string,"record_ids": (string)[],"records_returned": number,"records_withheld": number,"token_id": string | null,"token_label": string | null,"tool": string
-                  }
-                  ComputedFields: never
-                  Insert: {
-                    "arguments"?: NonNullable<Json>,"created_at"?: string,"detail"?: string | null,"id"?: string,"latency_ms"?: number | null,"outcome": string,"record_ids"?: (string)[],"records_returned"?: number,"records_withheld"?: number,"token_id"?: string | null,"token_label"?: string | null,"tool": string
-                  }
-                  Update: {
-                    "arguments"?: NonNullable<Json>,"created_at"?: string,"detail"?: string | null,"id"?: string,"latency_ms"?: number | null,"outcome"?: string,"record_ids"?: (string)[],"records_returned"?: number,"records_withheld"?: number,"token_id"?: string | null,"token_label"?: string | null,"tool"?: string
-                  }
-                  Relationships: [
-                    {
-      foreignKeyName: "mcp_audit_token_id_fkey"
-      columns: ["token_id"]
-isOneToOne: false
-      referencedRelation: "mcp_tokens"
-      referencedColumns: ["id"]
-    }
-                  ]
-                },"mcp_runtime": {
-                  Row: {
-                    "disabled_reason": string | null,"enabled": boolean,"id": boolean,"updated_at": string
-                  }
-                  ComputedFields: never
-                  Insert: {
-                    "disabled_reason"?: string | null,"enabled"?: boolean,"id"?: boolean,"updated_at"?: string
-                  }
-                  Update: {
-                    "disabled_reason"?: string | null,"enabled"?: boolean,"id"?: boolean,"updated_at"?: string
-                  }
-                  Relationships: [
-                    
-                  ]
-                },"mcp_tokens": {
-                  Row: {
-                    "created_at": string,"created_by": string | null,"expires_at": string,"id": string,"label": string,"last_used_at": string | null,"revoked_at": string | null,"scopes": (string)[],"token_sha256": string
-                  }
-                  ComputedFields: never
-                  Insert: {
-                    "created_at"?: string,"created_by"?: string | null,"expires_at": string,"id"?: string,"label": string,"last_used_at"?: string | null,"revoked_at"?: string | null,"scopes"?: (string)[],"token_sha256": string
-                  }
-                  Update: {
-                    "created_at"?: string,"created_by"?: string | null,"expires_at"?: string,"id"?: string,"label"?: string,"last_used_at"?: string | null,"revoked_at"?: string | null,"scopes"?: (string)[],"token_sha256"?: string
-                  }
-                  Relationships: [
-                    
-                  ]
                 },"media": {
                   Row: {
                     "caption": string | null,"created_at": string,"entity_id": string | null,"file_name": string,"file_size_bytes": number | null,"id": string,"is_company": boolean,"is_primary": boolean,"mime_type": string,"party_id": string | null,"project_id": string | null,"sort_order": number,"storage_path": string,"uploaded_by": string | null
@@ -1376,12 +1226,6 @@ isOneToOne: false
       columns: ["party_id"]
 isOneToOne: false
       referencedRelation: "parties"
-      referencedColumns: ["id"]
-    },{
-      foreignKeyName: "media_project_id_fkey"
-      columns: ["project_id"]
-isOneToOne: false
-      referencedRelation: "mcp_projects"
       referencedColumns: ["id"]
     },{
       foreignKeyName: "media_project_id_fkey"
@@ -1425,12 +1269,6 @@ isOneToOne: false
       foreignKeyName: "meetings_project_id_fkey"
       columns: ["project_id"]
 isOneToOne: false
-      referencedRelation: "mcp_projects"
-      referencedColumns: ["id"]
-    },{
-      foreignKeyName: "meetings_project_id_fkey"
-      columns: ["project_id"]
-isOneToOne: false
       referencedRelation: "projects"
       referencedColumns: ["id"]
     }
@@ -1452,12 +1290,6 @@ isOneToOne: false
       columns: ["opportunity_id"]
 isOneToOne: false
       referencedRelation: "opportunities"
-      referencedColumns: ["id"]
-    },{
-      foreignKeyName: "milestones_project_id_fkey"
-      columns: ["project_id"]
-isOneToOne: false
-      referencedRelation: "mcp_projects"
       referencedColumns: ["id"]
     },{
       foreignKeyName: "milestones_project_id_fkey"
@@ -1989,12 +1821,6 @@ isOneToOne: false
       foreignKeyName: "portfolio_briefs_project_id_fkey"
       columns: ["project_id"]
 isOneToOne: false
-      referencedRelation: "mcp_projects"
-      referencedColumns: ["id"]
-    },{
-      foreignKeyName: "portfolio_briefs_project_id_fkey"
-      columns: ["project_id"]
-isOneToOne: false
       referencedRelation: "projects"
       referencedColumns: ["id"]
     }
@@ -2015,19 +1841,7 @@ isOneToOne: false
       foreignKeyName: "project_dependencies_downstream_project_id_fkey"
       columns: ["downstream_project_id"]
 isOneToOne: false
-      referencedRelation: "mcp_projects"
-      referencedColumns: ["id"]
-    },{
-      foreignKeyName: "project_dependencies_downstream_project_id_fkey"
-      columns: ["downstream_project_id"]
-isOneToOne: false
       referencedRelation: "projects"
-      referencedColumns: ["id"]
-    },{
-      foreignKeyName: "project_dependencies_upstream_project_id_fkey"
-      columns: ["upstream_project_id"]
-isOneToOne: false
-      referencedRelation: "mcp_projects"
       referencedColumns: ["id"]
     },{
       foreignKeyName: "project_dependencies_upstream_project_id_fkey"
@@ -2054,12 +1868,6 @@ isOneToOne: false
       columns: ["opportunity_id"]
 isOneToOne: false
       referencedRelation: "opportunities"
-      referencedColumns: ["id"]
-    },{
-      foreignKeyName: "project_parcels_project_id_fkey"
-      columns: ["project_id"]
-isOneToOne: false
-      referencedRelation: "mcp_projects"
       referencedColumns: ["id"]
     },{
       foreignKeyName: "project_parcels_project_id_fkey"
@@ -2092,12 +1900,6 @@ isOneToOne: false
       columns: ["party_id"]
 isOneToOne: false
       referencedRelation: "parties"
-      referencedColumns: ["id"]
-    },{
-      foreignKeyName: "project_players_project_id_fkey"
-      columns: ["project_id"]
-isOneToOne: false
-      referencedRelation: "mcp_projects"
       referencedColumns: ["id"]
     },{
       foreignKeyName: "project_players_project_id_fkey"
@@ -2179,12 +1981,6 @@ isOneToOne: false
       foreignKeyName: "project_spvs_project_id_fkey"
       columns: ["project_id"]
 isOneToOne: false
-      referencedRelation: "mcp_projects"
-      referencedColumns: ["id"]
-    },{
-      foreignKeyName: "project_spvs_project_id_fkey"
-      columns: ["project_id"]
-isOneToOne: false
       referencedRelation: "projects"
       referencedColumns: ["id"]
     }
@@ -2202,12 +1998,6 @@ isOneToOne: false
                   }
                   Relationships: [
                     {
-      foreignKeyName: "projects_parent_project_id_fkey"
-      columns: ["parent_project_id"]
-isOneToOne: false
-      referencedRelation: "mcp_projects"
-      referencedColumns: ["id"]
-    },{
       foreignKeyName: "projects_parent_project_id_fkey"
       columns: ["parent_project_id"]
 isOneToOne: false
@@ -2231,12 +2021,6 @@ isOneToOne: false
       foreignKeyName: "proposal_intake_sessions_confirmed_project_id_fkey"
       columns: ["confirmed_project_id"]
 isOneToOne: false
-      referencedRelation: "mcp_projects"
-      referencedColumns: ["id"]
-    },{
-      foreignKeyName: "proposal_intake_sessions_confirmed_project_id_fkey"
-      columns: ["confirmed_project_id"]
-isOneToOne: false
       referencedRelation: "projects"
       referencedColumns: ["id"]
     }
@@ -2254,12 +2038,6 @@ isOneToOne: false
                   }
                   Relationships: [
                     {
-      foreignKeyName: "raises_project_id_fkey"
-      columns: ["project_id"]
-isOneToOne: false
-      referencedRelation: "mcp_projects"
-      referencedColumns: ["id"]
-    },{
       foreignKeyName: "raises_project_id_fkey"
       columns: ["project_id"]
 isOneToOne: false
@@ -2327,12 +2105,6 @@ isOneToOne: false
       foreignKeyName: "related_party_transactions_project_id_fkey"
       columns: ["project_id"]
 isOneToOne: false
-      referencedRelation: "mcp_projects"
-      referencedColumns: ["id"]
-    },{
-      foreignKeyName: "related_party_transactions_project_id_fkey"
-      columns: ["project_id"]
-isOneToOne: false
       referencedRelation: "projects"
       referencedColumns: ["id"]
     },{
@@ -2360,12 +2132,6 @@ isOneToOne: false
       columns: ["opportunity_id"]
 isOneToOne: false
       referencedRelation: "opportunities"
-      referencedColumns: ["id"]
-    },{
-      foreignKeyName: "research_artifacts_project_id_fkey"
-      columns: ["project_id"]
-isOneToOne: false
-      referencedRelation: "mcp_projects"
       referencedColumns: ["id"]
     },{
       foreignKeyName: "research_artifacts_project_id_fkey"
@@ -2429,12 +2195,6 @@ isOneToOne: false
       foreignKeyName: "review_queue_project_id_fkey"
       columns: ["project_id"]
 isOneToOne: false
-      referencedRelation: "mcp_projects"
-      referencedColumns: ["id"]
-    },{
-      foreignKeyName: "review_queue_project_id_fkey"
-      columns: ["project_id"]
-isOneToOne: false
       referencedRelation: "projects"
       referencedColumns: ["id"]
     }
@@ -2452,12 +2212,6 @@ isOneToOne: false
                   }
                   Relationships: [
                     {
-      foreignKeyName: "risk_scores_project_id_fkey"
-      columns: ["project_id"]
-isOneToOne: false
-      referencedRelation: "mcp_projects"
-      referencedColumns: ["id"]
-    },{
       foreignKeyName: "risk_scores_project_id_fkey"
       columns: ["project_id"]
 isOneToOne: false
@@ -2599,12 +2353,6 @@ isOneToOne: false
       foreignKeyName: "step_up_sessions_project_id_fkey"
       columns: ["project_id"]
 isOneToOne: false
-      referencedRelation: "mcp_projects"
-      referencedColumns: ["id"]
-    },{
-      foreignKeyName: "step_up_sessions_project_id_fkey"
-      columns: ["project_id"]
-isOneToOne: false
       referencedRelation: "projects"
       referencedColumns: ["id"]
     }
@@ -2631,12 +2379,6 @@ isOneToOne: false
       foreignKeyName: "stored_briefs_project_id_fkey"
       columns: ["project_id"]
 isOneToOne: false
-      referencedRelation: "mcp_projects"
-      referencedColumns: ["id"]
-    },{
-      foreignKeyName: "stored_briefs_project_id_fkey"
-      columns: ["project_id"]
-isOneToOne: false
       referencedRelation: "projects"
       referencedColumns: ["id"]
     }
@@ -2654,12 +2396,6 @@ isOneToOne: false
                   }
                   Relationships: [
                     {
-      foreignKeyName: "task_google_links_task_id_fkey"
-      columns: ["task_id"]
-isOneToOne: false
-      referencedRelation: "mcp_tasks"
-      referencedColumns: ["id"]
-    },{
       foreignKeyName: "task_google_links_task_id_fkey"
       columns: ["task_id"]
 isOneToOne: false
@@ -2686,12 +2422,6 @@ isOneToOne: false
                   }
                   Relationships: [
                     {
-      foreignKeyName: "task_notes_task_id_fkey"
-      columns: ["task_id"]
-isOneToOne: false
-      referencedRelation: "mcp_tasks"
-      referencedColumns: ["id"]
-    },{
       foreignKeyName: "task_notes_task_id_fkey"
       columns: ["task_id"]
 isOneToOne: false
@@ -2740,12 +2470,6 @@ isOneToOne: false
       columns: ["opportunity_id"]
 isOneToOne: false
       referencedRelation: "opportunities"
-      referencedColumns: ["id"]
-    },{
-      foreignKeyName: "tasks_project_id_fkey"
-      columns: ["project_id"]
-isOneToOne: false
-      referencedRelation: "mcp_projects"
       referencedColumns: ["id"]
     },{
       foreignKeyName: "tasks_project_id_fkey"
@@ -2823,12 +2547,6 @@ isOneToOne: false
       foreignKeyName: "thread_clusters_project_id_fkey"
       columns: ["project_id"]
 isOneToOne: false
-      referencedRelation: "mcp_projects"
-      referencedColumns: ["id"]
-    },{
-      foreignKeyName: "thread_clusters_project_id_fkey"
-      columns: ["project_id"]
-isOneToOne: false
       referencedRelation: "projects"
       referencedColumns: ["id"]
     },{
@@ -2875,12 +2593,6 @@ isOneToOne: false
       foreignKeyName: "updates_project_id_fkey"
       columns: ["project_id"]
 isOneToOne: false
-      referencedRelation: "mcp_projects"
-      referencedColumns: ["id"]
-    },{
-      foreignKeyName: "updates_project_id_fkey"
-      columns: ["project_id"]
-isOneToOne: false
       referencedRelation: "projects"
       referencedColumns: ["id"]
     }
@@ -2888,41 +2600,7 @@ isOneToOne: false
                 }
           }
           Views: {
-            "mcp_projects": {
-                  Row: {
-                    "bid_due_date": string | null,"id": string | null,"location": string | null,"name": string | null,"next_milestone_date": string | null,"open_task_count": number | null,"sector": string | null,"stage": string | null,"status": string | null,"win_probability": number | null
-                  }
-                  ComputedFields: never
-                  Insert: {
-                           "bid_due_date"?: string | null,"id"?: string | null,"location"?: string | null,"name"?: string | null,"next_milestone_date"?: never,"open_task_count"?: never,"sector"?: never,"stage"?: never,"status"?: never,"win_probability"?: number | null
-                         }
-                        Update: {
-                           "bid_due_date"?: string | null,"id"?: string | null,"location"?: string | null,"name"?: string | null,"next_milestone_date"?: never,"open_task_count"?: never,"sector"?: never,"stage"?: never,"status"?: never,"win_probability"?: number | null
-                         }
-                        Relationships: [
-                    
-                  ]
-                },"mcp_tasks": {
-                  Row: {
-                    "assignee_name": string | null,"due_date": string | null,"id": string | null,"project_id": string | null,"project_name": string | null,"status": string | null,"title": string | null,"what": string | null,"why": string | null
-                  }
-                  ComputedFields: never
-                  Relationships: [
-                    {
-      foreignKeyName: "tasks_project_id_fkey"
-      columns: ["project_id"]
-isOneToOne: false
-      referencedRelation: "mcp_projects"
-      referencedColumns: ["id"]
-    },{
-      foreignKeyName: "tasks_project_id_fkey"
-      columns: ["project_id"]
-isOneToOne: false
-      referencedRelation: "projects"
-      referencedColumns: ["id"]
-    }
-                  ]
-                }
+            [_ in never]: never
           }
           Functions: {
             "match_chunks":
