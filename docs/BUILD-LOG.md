@@ -13,6 +13,41 @@ Split out of `CLAUDE.md` on 2026-09-23, when that file reached 606k characters a
 
 161 entries, 2026-06-22 → 2026-10-12. ⚠ Counted with `grep -c "^\*\*Done 2026"`, not incremented by hand: two sessions editing this file on 2026-10-08 each bumped the old figure by one and both landed on 146 against a real 148.
 
+**Done 2026-10-12 (a recorded phone call becomes a transcript, and it needed neither Drive nor an Apps Script):**
+
+Richard: *"the iphone auto creates the notes folder and names it however it does. How do I get that to automatically push up to the drive? That way pepper doesn't need to try and read my notes."*
+
+Three measurements answered it, and the answer was that nothing needs to be pushed anywhere.
+
+⚠ **THERE IS NO AUTO-CREATED FOLDER ON THIS ACCOUNT.** Folders present: `Notes`, `Recently Deleted`, `New Folder`, `Podcast episodes`. Both recordings sit in the DEFAULT folder. What iOS generates is the **note title** — `Call with <name>` — so title-plus-audio is the structural signal and a folder was never the thing to nominate. Only 4 of 352 notes carry audio at all (one real call, one 2025 screen-recording, the meditation tracks).
+
+⚠ **THE RECORDING'S NOTE BODY IS 254 BYTES** — a title and an attachment pointer, with NO transcript. The audio IS the content, so pushing the text to Drive would have pushed nothing. And an Apps Script could not have reached the audio either: it runs in Google's cloud and cannot see Apple Notes. Getting the bytes out would need an Apple automation on the Mac or phone, and Shortcuts cannot extract a Notes attachment.
+
+⚠ **AND THE AUDIO WAS ALREADY ON THIS MAC — my previous session's "Media holds ZERO files" was my own error.** I looked at `group.com.apple.notes/Media`; the real path is `group.com.apple.notes/Accounts/<id>/Media`. It holds **146 files**, including `Call with Eric Tuaone.m4a` (12.3MB) and `Call with Chelsea.m4a` (whose note has since been deleted, leaving the file orphaned). iCloud downloads Notes attachments **while Notes.app runs** — which it was not. Opening it moved the local store from **1 Oct to the same minute**, 348 notes to 352. That also confirms the staleness diagnosis from earlier in the day.
+
+**So the shape is:** `bw-snapshot` copies Notes audio → the reader resolves a note's audio through the database → whisper transcribes on-box → the transcript becomes the note's body → every existing phase (summarize, route, append, commitments, embed) sees what was actually said. Nothing leaves the box, which is the whole reason this is better than the Drive route rather than merely equivalent to it.
+
+**Audio extensions ONLY in the snapshot, and that is a privacy decision rather than a size one.** That Media tree holds family photos, screenshots and PDFs the platform has no use for; copying them into a directory the app CAN read would widen this binary's blast radius for nothing. 16 audio files, 214MB — of which most is meditation tracks, an accepted cost of keeping the allowlist dumb and free of database access.
+
+⚠ **RESOLVED THROUGH THE FK CHAIN, NEVER BY FILENAME**, and this corpus proves why: `attachment → ZMEDIA → that row's ZIDENTIFIER / ZGENERATION1 / ZFILENAME` is exactly the on-disk layout. Three different notes each carry a `recording.m4a`, and `Call with Eric Tuaone.m4a` has TWO media rows in two directories because the file has two generations. A filename match would have been ambiguous on the one file that matters. Note the attachment row's own `ZIDENTIFIER` is **not** the directory — chasing that was the wrong turn, and the directory row is the one reached through `ZMEDIA`.
+
+⚠ **MY FIRST MEMORY GUARD WAS WRONG IN BOTH DIRECTIONS, AND MEASURING FIXED IT.** §12 says never run OCR and the chat model together — with the 22GB model resident, swap hit 21.5GB and `bw-ocr` was being KILLED, 2 documents in 20 minutes. I assumed whisper inherited that and gated on 2GB free.
+
+- **"Free" is not the metric on this box.** With the chat model fully UNLOADED, free pages were still **135MB** — macOS holds the rest compressed and inactive (1.2M inactive pages, ~18.6GB reclaimable). A free-pages gate never opens, so the guard deferred every call forever while reporting a tidy reason for it. What actually moved on unload was *swap*: 20.7GB → 16.2GB.
+- **Whisper is not OCR.** OCR's problem is rendering pages at 200 DPI. Whisper large-v3-turbo needs ~1.6GB and completed with the chat model fully resident: **29.7s** for a 16-minute call, against 13.9s with it unloaded. Both runs produced the same substance.
+
+So the default is now to ATTEMPT, with a kill reported as a deferral carrying the remedy (`lms unload`, re-run, then `lmstudio-check.sh --fix`). The cost of trying and failing is one deferred transcript on the next sweep; the cost of refusing pre-emptively was the entire feature.
+
+**Verified end to end on the real call.** 959 seconds of audio → 5,956 characters of transcript → one `email_threads` row at 6,170 characters, `pipeline='deal'`, `summary_state='pending'`. The content is exactly what the platform should hold: *"what we need to have put together so that we can get the PID for the public infrastructure development for New York Life… we have to meet with DA Davidson to do the capital structure… I already got Amy to do the broker's assessment"*, then the insurance, bonds and what the GC needs. ⚠ One artifact worth knowing: whisper fell into a repetition loop on a stretch of this audio (*"It's more defensive"* sixteen times), a known large-v3-turbo failure on certain passages. The bulk is clean; a repetition filter is not worth building for one occurrence.
+
+**A call with no transcript is NOT stored.** Its body would be the title alone, which summarizes to nothing, indexes as noise, and then reads on the record as though the call had been ingested — the worst of the three outcomes. Deferred calls are reported and retried on the next sweep.
+
+⚠ **AND THE REBUILD BROKE THE SNAPSHOT'S FULL DISK ACCESS, WHICH IS THE ONE THING RICHARD MUST FIX.** `scripts/build-snapshot.sh` warns in so many words that TCC keys the grant to the binary and that re-granting after every rebuild is the cost of the design. Verified live rather than assumed: after the rebuild, `launchctl kickstart` of the snapshot agent failed on **every** file — `0 database(s) copied, 2 FAILED` — including `chat.db`, so the TEXT sweep is affected too, not just Notes. My hand-runs succeeded only because this shell holds its own grant, which is exactly the trap the header describes ("the terminal you test from has its own grant, so a hand run succeeds while launchd's keeps being denied"). The snapshot is frozen at 10-12 09:00 until the grant is replaced. Promoted to §13.
+
+**Also in this session:** the two doors are independent, which is what answers *"so Pepper doesn't need to read my notes"* better than Drive would — with `NOTES_FOLDER_NAMES` pointing at a folder that does not exist, the sweep reads **only** the recorded call and nothing else. 308 tests passing.
+
+---
+
 **Done 2026-10-12 (Apple Notes becomes a source, the recorded call turns out to have no bytes, and CLAUDE.md is cut by a third):**
 
 Richard: *"How do we get connected to the notes. DO I need to have notes get pushed up into the Google Drive with an app script or something. We need those recorded calls to land in the right place and be ingested into the system."* And: *"Make the md much shorter if you can. There is probably some old baggage as we have iterated on this over and over."*
