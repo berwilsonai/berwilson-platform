@@ -871,6 +871,9 @@ export async function syncTaskSheet(): Promise<TaskSheetResult> {
   const wanted = wantedTabs(members, visible, existingTabs, result.unassigned)
   const tabsByTitle = await ensureTabs(spreadsheetId, wanted, result)
 
+  // THREE phases, and the order between them is load-bearing — see the writes
+  // at the bottom of this function.
+  const grows: SheetRequest[] = []
   const structural: SheetRequest[] = []
   const writes: { range: string; values: CellValue[][] }[] = []
 
@@ -906,8 +909,14 @@ export async function syncTaskSheet(): Promise<TaskSheetResult> {
     }
 
     const lastRow = 1 + body.length
+    // ⚠ GROWS GO IN THEIR OWN BUCKET, APPLIED BEFORE THE VALUES WRITE.
+    // `values.update` does NOT auto-expand the grid — it rejects a range past
+    // the tab's last row — so a board that has outgrown its 1,000-row tab fails
+    // the write, and a grow queued behind that write never runs. Invisible at
+    // 46 rows and fatal at a thousand, which is the shape of bug this repo
+    // keeps finding: correct today, and nothing reports the day it stops being.
     const grow = ensureRowsRequest(sheet.sheetId, sheet.rowCount, lastRow + 200)
-    if (grow) structural.push(grow)
+    if (grow) grows.push(grow)
 
     // Clear below what is about to be written, so a board that shrank does not
     // leave yesterday's rows sitting under today's — a stale row with a live
@@ -928,9 +937,15 @@ export async function syncTaskSheet(): Promise<TaskSheetResult> {
     result.tabs.push({ title: tab.title, rows: tasks.length })
   }
 
-  // Values first, then formatting: the checkbox rule spans rows that must
-  // already hold booleans, and a validation rule applied over a text cell shows
-  // Sheets' red "invalid" corner until the next write.
+  // Grow, then values, then formatting.
+  //
+  //  1. GROW first, or a write past the grid's last row is rejected outright.
+  //  2. VALUES next.
+  //  3. FORMATTING last, because the checkbox rule spans rows that must already
+  //     hold booleans — a validation rule applied over a text cell shows
+  //     Sheets' red "invalid" corner until the next write — and because the
+  //     clear-below-the-data request must not wipe what step 2 just wrote.
+  await batchUpdate(spreadsheetId, grows)
   await batchUpdateValues(spreadsheetId, writes)
   await batchUpdate(spreadsheetId, structural)
 
