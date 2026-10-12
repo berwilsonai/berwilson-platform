@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.berwilson.cron-pepper-text</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/zsh</string>
+    <string>-c</string>
+    <string>curl -sS -m 1700 -H "Authorization: Bearer $(grep '^CRON_SECRET=' __APP_DIR__/.env.local | cut -d= -f2-)" http://localhost:3000/api/cron/pepper-text</string>
+  </array>
+  <!--
+    Weekdays at 6:45am local — the morning text, five minutes AHEAD of the
+    email note, because a text is what gets read first and the email is where
+    the detail waits. On Mondays the route sends the WEEK AHEAD instead; it
+    replaces the daily text rather than arriving beside it, because two texts
+    in one minute is one text nobody reads.
+
+    ⚠ NO MODEL CALL, so it costs the crowded hour nothing: it reuses the same
+    `assembleCommon` / `assembleForMember` the 06:50 email makes, and the only
+    thing it decides is what fits in four lines. Sharing the assembly is what
+    stops the two messages disagreeing about what you owe (§12: one quantity,
+    one definition).
+
+      06:20  curator         (a read, ~3s)
+      06:45  THIS            (two assemblies, no model)
+      06:50  Pepper's note   (one call per person)
+      07:00  daily digest    (one call)
+
+    ⚠ UNTIL THE TWO SHORTCUTS ARE BUILT BY HAND this logs a clear per-recipient
+    error and sends nothing — macOS 27 removed Messages' AppleScript dictionary
+    entirely, so there is no scriptable send and no way to automate the setup.
+    See deploy/pepper-text-setup.md. The email note needs none of this and is
+    unaffected.
+  -->
+  <key>StartCalendarInterval</key>
+  <array>
+    <dict><key>Weekday</key><integer>1</integer><key>Hour</key><integer>6</integer><key>Minute</key><integer>45</integer></dict>
+    <dict><key>Weekday</key><integer>2</integer><key>Hour</key><integer>6</integer><key>Minute</key><integer>45</integer></dict>
+    <dict><key>Weekday</key><integer>3</integer><key>Hour</key><integer>6</integer><key>Minute</key><integer>45</integer></dict>
+    <dict><key>Weekday</key><integer>4</integer><key>Hour</key><integer>6</integer><key>Minute</key><integer>45</integer></dict>
+    <dict><key>Weekday</key><integer>5</integer><key>Hour</key><integer>6</integer><key>Minute</key><integer>45</integer></dict>
+  </array>
+  <key>StandardOutPath</key>
+  <string>__LOG_DIR__/cron-pepper-text.log</string>
+  <key>StandardErrorPath</key>
+  <string>__LOG_DIR__/cron-pepper-text.err.log</string>
+</dict>
+</plist>

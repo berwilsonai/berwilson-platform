@@ -74,7 +74,7 @@ export function composeMorningText(args: {
       todaysMeetings
         .slice(0, 3)
         .map((m) => {
-          const who = m.counterparties[0]?.name
+          const who = personLabel(m.counterparties[0]?.name)
           // ⚠ The subject is SHORTENED here. Every other section caps itself
           // by item count, which is what actually keeps the message short; a
           // calendar subject is one item of unbounded length ("FW: RE: Ber
@@ -91,10 +91,19 @@ export function composeMorningText(args: {
   // ⚠ TWO QUANTITIES, TWO WORDS. §12: one quantity, one definition, or the
   // reader trusts none of them — three "needs attention" numbers on one screen
   // were 1, 99+ and 197 because each surface summed its own list.
+  // ⚠ THE DECIDE TOTAL IS DELIBERATELY NOT HERE, AND THE FIRST LIVE DRY RUN IS
+  // WHY. It rendered as "272 to decide" — which is the exact failure this
+  // channel was built to escape. Pepper's twelve email subject lines went
+  // 19 → 82 for Richard and 90 → 154 for Eric, flawless delivery of a number
+  // that could only grow, and nobody settled one of 407 commitments in eleven
+  // mornings. Putting a 272 in a four-line text spends the whole message
+  // telling somebody they are behind. The queue belongs in the 06:50 email,
+  // which has room for it and a link on every row; what belongs here is
+  // today's. Owed and waiting stay because they are per-person, small, and
+  // closeable from the email's one-tap links.
   const ledger: string[] = []
   if (note.owed.length > 0) ledger.push(`you owe ${note.owed.length}`)
   if (note.awaited.length > 0) ledger.push(`waiting on ${note.awaited.length}`)
-  if (note.decide.total > 0) ledger.push(`${note.decide.total} to decide`)
   if (ledger.length > 0) lines.push(capitalize(ledger.join(', ')))
 
   if (lines.length === 0) {
@@ -132,7 +141,14 @@ export function composeWeekAheadText(args: {
   const weekEnd = isoDate(addDays(now, 7))
   const today = isoDate(now)
 
-  const meetings = note.meetings.filter((m) => m.start.slice(0, 10) <= weekEnd)
+  // ⚠ AN ALL-DAY CALENDAR ENTRY IS A DEADLINE, NOT A MEETING. The live dry run
+  // said "3 meetings" where two were all-day `BID DUE — …` markers. §12: one
+  // quantity, one definition — counting a deadline as a meeting makes the one
+  // number in the line mean two things, and the reader checks the calendar
+  // anyway to find out which.
+  const meetings = note.meetings.filter(
+    (m) => !m.isAllDay && m.start.slice(0, 10) >= today && m.start.slice(0, 10) <= weekEnd
+  )
   if (meetings.length > 0) {
     lines.push(
       `${meetings.length} meeting${meetings.length === 1 ? '' : 's'}: ` +
@@ -143,30 +159,47 @@ export function composeWeekAheadText(args: {
     )
   }
 
-  // Deadlines inside the week, from tasks AND commitments — two sources of the
-  // same kind of fact, so they are merged here and counted once.
-  const deadlines = [
+  // Deadlines from tasks, commitments AND all-day calendar markers — three
+  // sources of the same kind of fact, merged here and counted once.
+  const dated = [
     ...note.overdueTasks.map((t) => ({ when: t.due_date, what: t.title })),
     ...note.dueSoonTasks.map((t) => ({ when: t.due_date, what: t.title })),
     ...note.owed.map((c) => ({ when: c.row.due_date, what: c.row.what })),
-  ]
-    .filter((d): d is { when: string; what: string } => Boolean(d.when) && d.when! <= weekEnd)
+    ...note.meetings
+      .filter((m) => m.isAllDay)
+      .map((m) => ({ when: m.start.slice(0, 10), what: m.subject })),
+  ].filter((d): d is { when: string; what: string } => Boolean(d.when))
+
+  // ⚠ A LOWER BOUND, WHICH THE FIRST VERSION HAD NOT GOT. It filtered on
+  // `when <= weekEnd` alone, so the live dry run reported "Due this week:
+  // 9 Sept …; 18 Sept …" to Richard and "11 Feb …; 20 Feb …" to Eric — months
+  // in the PAST, under a heading that said this week. 71 of 407 open
+  // commitments carry a date and most of those dates are gone, so the bug was
+  // guaranteed to fire on the first real Monday. Past-dated items are real and
+  // belong in the note; what they are not is this week's.
+  const overdue = dated.filter((d) => d.when < today)
+  const thisWeek = dated
+    .filter((d) => d.when >= today && d.when <= weekEnd)
     .sort((a, b) => a.when.localeCompare(b.when))
 
-  if (deadlines.length > 0) {
+  if (overdue.length > 0) {
+    lines.push(`${overdue.length} already overdue.`)
+  }
+  if (thisWeek.length > 0) {
     lines.push(
       `Due this week: ` +
-        deadlines
+        thisWeek
           .slice(0, 4)
           .map((d) => `${shortDate(d.when)} ${shorten(d.what, 42)}`)
           .join('; ')
     )
   }
 
+  // Same reasoning as the morning text: two per-person quantities, no queue
+  // total. See the note above `ledger` in composeMorningText.
   const ledger: string[] = []
   if (note.owed.length > 0) ledger.push(`you owe ${note.owed.length}`)
   if (note.awaited.length > 0) ledger.push(`waiting on ${note.awaited.length}`)
-  if (note.decide.total > 0) ledger.push(`${note.decide.total} to decide`)
   if (ledger.length > 0) lines.push(capitalize(ledger.join(', ')))
 
   if (lines.length === 0) {
@@ -216,6 +249,22 @@ function nameList(items: string[], show: number): string {
 function shorten(text: string, max: number): string {
   const t = text.trim().replace(/\s+/g, ' ')
   return t.length <= max ? t : `${t.slice(0, max - 1)}…`
+}
+
+/**
+ * A counterparty's name, or nothing if all we have is an address.
+ *
+ * ⚠ THE LIVE DRY RUN PRINTED `Ber Wilson chat W Taylor
+ * (englertmining@gmail.com)`. When a calendar attendee has never been resolved
+ * to a contact, `name` IS the address — and an address in the slot where a
+ * person's name goes reads as a failed render, the same way §12's bare em dash
+ * does. Better to say the meeting and omit the who than to print plumbing.
+ */
+function personLabel(name: string | undefined): string | null {
+  const n = name?.trim()
+  if (!n) return null
+  if (n.includes('@')) return null
+  return n
 }
 
 function firstName(name: string): string {

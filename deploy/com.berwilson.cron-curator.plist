@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.berwilson.cron-curator</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/zsh</string>
+    <string>-c</string>
+    <string>curl -sS -m 540 -H "Authorization: Bearer $(grep '^CRON_SECRET=' __APP_DIR__/.env.local | cut -d= -f2-)" http://localhost:3000/api/cron/curator</string>
+  </array>
+  <!--
+    Weekdays at 6:20am local — fold what the correspondence says onto the
+    records, so the 06:50 note and 06:45 text report a CURRENT picture.
+
+    ⚠ IT CAN SIT IN THE CROWDED HOUR BECAUSE IT MAKES NO MODEL CALL. Every
+    other job in this window holds LM Studio for a minute or more and the
+    model serves one request at a time (§12), which is why the slots are
+    spaced. This one is a read over 26 records and their already-extracted
+    evidence — measured at about three seconds for the whole portfolio — so
+    it costs the brief nothing and must run BEFORE the two messages that
+    report what it changed.
+
+      06:20  THIS            (a read, ~3s, no model)
+      06:30  weekly brief    (Mondays only, one ~90s call)
+      06:45  Pepper's text   (two assemblies, no model)
+      06:50  Pepper's note   (one call per person)
+      07:00  daily digest    (one call)
+
+    No `?housekeeping=1` here — the duplicate fold is model-heavy and runs on
+    its own agent at 23:10. Mixing them would put a 45-minute budget in front
+    of the brief.
+
+    Weekdays only, matching the note: the curator's whole output is a line in
+    a message nobody is sent on a Saturday, and a change reported to nobody
+    is the one failure this design must not have.
+  -->
+  <key>StartCalendarInterval</key>
+  <array>
+    <dict><key>Weekday</key><integer>1</integer><key>Hour</key><integer>6</integer><key>Minute</key><integer>20</integer></dict>
+    <dict><key>Weekday</key><integer>2</integer><key>Hour</key><integer>6</integer><key>Minute</key><integer>20</integer></dict>
+    <dict><key>Weekday</key><integer>3</integer><key>Hour</key><integer>6</integer><key>Minute</key><integer>20</integer></dict>
+    <dict><key>Weekday</key><integer>4</integer><key>Hour</key><integer>6</integer><key>Minute</key><integer>20</integer></dict>
+    <dict><key>Weekday</key><integer>5</integer><key>Hour</key><integer>6</integer><key>Minute</key><integer>20</integer></dict>
+  </array>
+  <key>StandardOutPath</key>
+  <string>__LOG_DIR__/cron-curator.log</string>
+  <key>StandardErrorPath</key>
+  <string>__LOG_DIR__/cron-curator.err.log</string>
+</dict>
+</plist>

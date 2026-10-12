@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.berwilson.cron-curator-housekeeping</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/zsh</string>
+    <string>-c</string>
+    <string>curl -sS -m 3500 -H "Authorization: Bearer $(grep '^CRON_SECRET=' __APP_DIR__/.env.local | cut -d= -f2-)" "http://localhost:3000/api/cron/curator?housekeeping=1"</string>
+  </array>
+  <!--
+    23:10 nightly — fold duplicate staged proposals.
+
+    ⚠ A SEPARATE AGENT FROM THE CURATOR BECAUSE OF THE MODEL, NOT THE LOGIC.
+    `dedupePendingSessions` makes one grouping call per batch with up to a
+    45-minute budget; the curator makes none and runs in seconds. Putting them
+    on one schedule would mean either the fold ran in front of the morning
+    brief or the curation waited until midnight. Same route, different hour.
+
+    23:10 is clear of everything: risk-scores 01:00, contacts-sync 02:45,
+    drive-sync 03:15, drive-publish 03:45, lead-sweep 04:30, imessage-sweep
+    04:40, chase 05:30, curator 06:20, brief 06:30, text 06:45, note 06:50,
+    digest 07:00, and the hourly drive-watch / meet-import pairs which stop at
+    12:20 and 16:20.
+
+    ⚠ 212 staged proposals as of 2026-10-12, 100 of them over thirty days old —
+    and the oldest are LIVE deals already on the books (IAN Acquisition,
+    Fort Polk, Myton islanded grid), which is why there is no retire-by-age
+    rule anywhere in this feature. What makes a staged proposal disposable is
+    that its deal already exists, which is this pass's question.
+  -->
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Hour</key><integer>23</integer>
+    <key>Minute</key><integer>10</integer>
+  </dict>
+  <key>StandardOutPath</key>
+  <string>__LOG_DIR__/cron-curator-housekeeping.log</string>
+  <key>StandardErrorPath</key>
+  <string>__LOG_DIR__/cron-curator-housekeeping.err.log</string>
+</dict>
+</plist>

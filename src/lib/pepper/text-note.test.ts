@@ -119,7 +119,11 @@ test('the two ledger quantities are NAMED APART and never summed', () => {
     appUrl: null,
     now: NOW,
   })
-  assert.match(r.body, /You owe 3, waiting on 2, 12 to decide/)
+  assert.match(r.body, /You owe 3, waiting on 2/)
+  // ⚠ The decide total is deliberately absent: the live dry run rendered it as
+  // "272 to decide", which is the only-ever-grows number this channel exists
+  // to escape. It stays in the 06:50 email, which has a link on every row.
+  assert.doesNotMatch(r.body, /to decide/)
   assert.doesNotMatch(r.body, /17|15/)
 })
 
@@ -167,6 +171,40 @@ test('an unbounded calendar subject is shortened, not printed whole', () => {
   assert.match(r.body, /…/)
 })
 
+test('the week-ahead NEVER reports a past date as due this week', () => {
+  // ⚠ THE LIVE DRY RUN DID EXACTLY THIS: "Due this week: 9 Sept …; 11 Feb …".
+  // The filter had an upper bound and no lower one, and most of the dated
+  // commitments in this ledger are months gone, so it was certain to fire.
+  const r = composeWeekAheadText({
+    note: emptyNote({
+      owed: [
+        owed('old', 'Something from September', '2026-09-09'),
+        owed('soon', 'Steelton PSA closing', '2026-10-15'),
+      ],
+    }),
+    appUrl: null,
+    now: NOW,
+  })
+  assert.doesNotMatch(r.body, /Sept/)
+  assert.match(r.body, /1 already overdue\./)
+  assert.match(r.body, /Due this week: 15 Oct Steelton PSA closing/)
+})
+
+test('an all-day calendar marker counts as a deadline, not a meeting', () => {
+  const r = composeWeekAheadText({
+    note: emptyNote({
+      meetings: [
+        { subject: 'BID DUE — Adams County', start: '2026-10-14T00:00:00Z', isAllDay: true, location: null, counterparties: [] },
+        { subject: 'Tensor IQ', start: '2026-10-13T15:30:00Z', isAllDay: false, location: null, counterparties: [] },
+      ],
+    }),
+    appUrl: null,
+    now: NOW,
+  })
+  assert.match(r.body, /1 meeting: Tue Tensor IQ/)
+  assert.match(r.body, /Due this week: 14 Oct BID DUE — Adams County/)
+})
+
 test('the week-ahead names weekdays and dates, and stops at the week', () => {
   const r = composeWeekAheadText({
     note: emptyNote({
@@ -183,6 +221,19 @@ test('the week-ahead names weekdays and dates, and stops at the week', () => {
   assert.match(r.body, /1 meeting: Tue Tensor IQ/)
   assert.doesNotMatch(r.body, /Far future/)
   assert.match(r.body, /Due this week: 15 Oct Steelton PSA closing/)
+})
+
+test('a counterparty known only by address is omitted, not printed', () => {
+  const r = composeMorningText({
+    note: emptyNote({
+      meetings: [{ subject: 'Ber Wilson chat', start: '2026-10-12T15:00:00Z', isAllDay: false, location: null,
+        counterparties: [{ name: 'englertmining@gmail.com', email: 'englertmining@gmail.com', lastContactDays: 1, openItems: [] }] }],
+    }),
+    appUrl: null,
+    now: NOW,
+  })
+  assert.match(r.body, /Ber Wilson chat/)
+  assert.doesNotMatch(r.body, /@/)
 })
 
 test('a name with no surname still gets a greeting', () => {
