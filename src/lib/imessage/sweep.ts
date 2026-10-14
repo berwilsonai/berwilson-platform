@@ -22,7 +22,7 @@ import { storeFetchedThreads } from '@/lib/email-sweep/fetch-phase'
 import { messagesReadable, readChats, snapshotDbPath } from './read'
 import { buildTargets, scoreChats } from './targets'
 import { chatToThreads } from './to-thread'
-import { redactPrivateTexts } from './redact'
+import { redactPrivateLocalThreads } from '@/lib/email-sweep/redact'
 
 /**
  * How far back sessions are written. Older ones are not revisited.
@@ -170,7 +170,7 @@ export async function runIMessageSweep(
   // The backstop. Summarize redacts a private session the moment it classifies
   // one, so this normally finds nothing — what it reaches is anything
   // summarized before that existed, or a session whose redaction failed.
-  const redacted = await redactPrivateTexts()
+  const redacted = await redactPrivateLocalThreads()
   base.redacted = redacted.redacted
   base.chunksRemoved = redacted.chunksRemoved
 

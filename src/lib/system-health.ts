@@ -1231,6 +1231,94 @@ export async function probeIMessageSweep(): Promise<{
 }
 
 /**
+ * Voice memos — can an in-person meeting still reach the platform?
+ *
+ * ⚠ THREE THINGS HAVE TO BE TRUE AND NONE OF THEM REPORTS ITSELF. Voice Memos
+ * must be RUNNING on the Studio for iCloud to sync anything down (the trap
+ * Notes set on 10-12, when the local store sat eleven days behind the phone
+ * with nothing saying so); `bw-snapshot` must still hold Full Disk Access,
+ * which a macOS update can revoke; and the sweep must be reaching the
+ * recordings. Every one of those failures leaves the previous snapshot sitting
+ * there, perfectly readable, simply not changing — so each run succeeds, finds
+ * nothing new, and reports a quiet week. §12: watch the CLOCK, not the count.
+ *
+ * `unconfigured` is a real and expected state here, distinct from broken: until
+ * Voice Memos.app has been opened once on this Mac, the group container exists
+ * and holds nothing at all.
+ */
+export async function probeVoiceMemos(): Promise<{
+  state: 'ok' | 'empty' | 'unconfigured' | 'failed'
+  detail: string
+}> {
+  const { voiceMemoSnapshotPath } = await import('@/lib/voicememos/read')
+  const path = voiceMemoSnapshotPath()
+
+  let ageMs: number | null = null
+  try {
+    const { statSync } = await import('node:fs')
+    ageMs = Date.now() - statSync(path).mtimeMs
+  } catch {
+    return {
+      state: 'unconfigured',
+      detail:
+        `No Voice Memos store at ${path}. In order: switch on iCloud → Voice Memos on the ` +
+        `iPhone, open Voice Memos.app on the Studio and LEAVE IT RUNNING (it syncs only ` +
+        `while open), then \`launchctl kickstart -k gui/$(id -u)/com.berwilson.snapshot\`. ` +
+        `Until then an in-person meeting has no way in.`,
+    }
+  }
+
+  const supabase = createAdminClient()
+  const { count: recordings } = await supabase
+    .from('email_threads')
+    .select('id', { count: 'exact', head: true })
+    .like('gmail_thread_id', 'voicememo:%')
+
+  const { data: newest } = await supabase
+    .from('email_threads')
+    .select('last_at')
+    .like('gmail_thread_id', 'voicememo:%')
+    .order('last_at', { ascending: false })
+    .limit(1)
+
+  const hours = Math.round(ageMs / 3_600_000)
+  const tally = `${recordings ?? 0} recording${recordings === 1 ? '' : 's'} in the corpus`
+  const latest = newest?.[0]?.last_at
+    ? `, newest ${String(newest[0].last_at).slice(0, 10)}`
+    : ''
+
+  // The snapshot agent runs four times a day, so anything past ~8h is a miss.
+  if (ageMs > 8 * 3_600_000) {
+    return {
+      state: 'failed',
+      detail:
+        `The Voice Memos store here is ${hours}h old. Either com.berwilson.snapshot is not ` +
+        `running, or bw-snapshot has lost Full Disk Access (a macOS update can revoke it), or ` +
+        `Voice Memos.app is closed on the Studio — it syncs only while open. A meeting ` +
+        `recorded since then has not arrived and nothing else would say so. ${tally}${latest}.`,
+    }
+  }
+
+  if (!recordings) {
+    return {
+      state: 'empty',
+      detail:
+        `The store is ${hours}h old and readable, but no recording has ever been ingested. ` +
+        `If you have recorded one, check what the sweep sees: ` +
+        `curl -H "Authorization: Bearer $CRON_SECRET" "localhost:3000/api/cron/voice-memo-sweep?dry=1".`,
+    }
+  }
+
+  return {
+    state: 'ok',
+    detail:
+      `Store ${hours}h old. ${tally}${latest}. Every memo is transcribed on this box and ` +
+      `judged; a recording the summarizer calls private has its transcript, chunks and audio ` +
+      `discarded and is never read again.`,
+  }
+}
+
+/**
  * Business-card scanner — is the local OCR binary built on this host?
  *
  * It is a compiled artifact living outside the repo (~/.local/bin/bw-ocr), so a

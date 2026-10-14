@@ -21,7 +21,7 @@
  * affordable on a box that serves one model request at a time.
  */
 
-import { isIMessageThread } from '@/lib/imessage/to-thread'
+import { threadSource } from '@/lib/email-sweep/thread-source'
 import { provDb } from '@/lib/provenance/db'
 
 /** How much evidence goes into one model call. */
@@ -78,7 +78,7 @@ export interface ThreadPerson {
 }
 
 export interface EvidenceItem {
-  kind: 'email_thread' | 'text_session' | 'meeting' | 'document'
+  kind: 'email_thread' | 'text_session' | 'note' | 'recording' | 'meeting' | 'document'
   /** The row id, carried into provenance as `source_ref`. */
   ref: string
   label: string
@@ -98,6 +98,32 @@ export interface RecordEvidence {
    *  quietly curating a deal on a third of its own correspondence. */
   truncatedItems: number
   error: string | null
+}
+
+/**
+ * What to call a thread when telling a reader where a proposal came from.
+ *
+ * A closed mapping over `threadSource`, so a new source cannot silently become
+ * "email" on a provenance line Pepper puts in front of Richard. A phone call
+ * and a recorded meeting are deliberately both `recording` here — the curator's
+ * reader wants to know it was SPOKEN, where `apply-phase` keeps them apart
+ * because a project's feed shows the event.
+ */
+function evidenceKind(
+  gmailThreadId: string | null | undefined,
+  subject: string | null | undefined
+): EvidenceItem['kind'] {
+  switch (threadSource(gmailThreadId, subject)) {
+    case 'imessage':
+      return 'text_session'
+    case 'note':
+      return 'note'
+    case 'call':
+    case 'recording':
+      return 'recording'
+    case 'email':
+      return 'email_thread'
+  }
 }
 
 export async function gatherEvidence(args: {
@@ -179,14 +205,14 @@ export async function gatherEvidence(args: {
       .join('\n')
     if (!prose.trim()) continue
     items.push({
-      // ⚠ NOT `gmail_thread_id == null`. A text session's id is PRESENT and
-      // prefixed `imessage:` — that is the iMessage layer's own structural
-      // discriminator, and it exports `isIMessageThread` for exactly this.
-      // The first draft tested for null and therefore labelled every text
-      // message as an email, which would have told a reader asking "where did
-      // she get that" the wrong answer about its source. §12: grep for the
-      // helper before writing the test yourself.
-      kind: isIMessageThread(t.gmail_thread_id) ? 'text_session' : 'email_thread',
+      // ⚠ NOT `gmail_thread_id == null`, AND NOT A TWO-WAY GUESS EITHER. A
+      // local thread's id is PRESENT and prefixed — `imessage:`, `note:`,
+      // `voicememo:` — which is the structural discriminator every local layer
+      // uses. The first draft tested for null and labelled every text message
+      // as an email; the second knew about texts only, so a filed note, a
+      // recorded call and now a recorded meeting were all reported to the
+      // reader as email. `threadSource` answers it once (§12).
+      kind: evidenceKind(t.gmail_thread_id, t.subject),
       ref: t.id,
       label: t.subject ?? '(no subject)',
       at: t.last_at ?? link.updated_at ?? null,

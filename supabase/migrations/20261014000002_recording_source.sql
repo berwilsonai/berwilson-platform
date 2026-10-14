@@ -1,0 +1,24 @@
+-- A recording somebody made in the room gets its own provenance.
+--
+-- The third pass at the same omission — and the last one this enum should need,
+-- because the branching that caused it is being collapsed into a single
+-- predicate in the same change (`src/lib/email-sweep/thread-source.ts`).
+-- 20261011000003 added 'imessage' for texts; 20261014000001 added 'call' and
+-- 'note' for the two kinds of Apple Notes row, found by reading the live update
+-- a recorded phone call had written ("Email — Call with Eric Tuaone", false in
+-- both arms). An in-person meeting captured in iPhone Voice Memos reaches
+-- `apply-phase.ts` the same way, as an `email_threads` row, and would have
+-- fallen into the same `else`.
+--
+-- ⚠ 'recording' AND NOT 'voice_memo', deliberately. The value names what the
+-- artifact IS — a recording of a conversation that happened in a room — not the
+-- app it arrived through. The transport will change (a Drive-dropped audio file
+-- and an in-app recorder are both specified and both land here); the provenance
+-- a reader sees on the project's feed should not change with it. 'call' stays
+-- separate because a phone call is a different event, titled by iOS and with a
+-- known counterparty at both ends.
+--
+-- `update_source` is an ENUM, not a CHECK constraint, so this is ALTER TYPE.
+-- ⚠ It must land BEFORE any code writes the value: a value outside an enum
+-- fails the whole UPDATE, not the row (§12).
+alter type update_source add value if not exists 'recording';

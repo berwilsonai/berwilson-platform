@@ -20,8 +20,8 @@ import {
 } from '@/lib/ai/prompts/thread-summary'
 import { SYSTEM_USER_ID } from '@/lib/email-ingestion/analyze'
 import { sweepDb, type EmailThreadRow } from './db'
-import { isIMessageThread } from '@/lib/imessage/to-thread'
-import { redactPrivateTexts } from '@/lib/imessage/redact'
+import { isLocalThread } from '@/lib/email-sweep/thread-source'
+import { redactPrivateLocalThreads } from '@/lib/email-sweep/redact'
 
 /**
  * Hard ceiling on thread text sent to the model. The local model has 64k
@@ -95,7 +95,27 @@ function normalize(raw: unknown): ThreadSummary {
  *                  under any hard timeout above this.
  */
 export async function summarizePending(
-  opts: { budgetMs?: number; maxThreads?: number; userId?: string } = {}
+  opts: {
+    budgetMs?: number
+    maxThreads?: number
+    userId?: string
+    /**
+     * Summarize only THESE threads.
+     *
+     * ⚠ ADDED FOR THE VOICE-MEMO SWEEP, WHICH NEEDS THE VERDICT AND NOT JUST
+     * THE SIDE EFFECT. Every memo is transcribed and stored, and the
+     * summarizer's `relevance` is the gate that decides whether a recording
+     * becomes a meeting record or is discarded as private — so that sweep has
+     * to summarize the rows it just wrote and read the answer. Without this it
+     * would summarize whatever is newest, which is usually but not always the
+     * same thing: an hourly mail sweep running concurrently can take the
+     * memo first, and then the gate reads a verdict for someone else's thread.
+     *
+     * `routeThreads` has carried the same option for the same reason since
+     * 10-08. Unset = the queue, newest first, exactly as before.
+     */
+    threadIds?: string[]
+  } = {}
 ): Promise<SummarizeProgress> {
   const budgetMs = opts.budgetMs ?? 50 * 60 * 1000 // 50 minutes
   const maxThreads = opts.maxThreads ?? Infinity
@@ -120,7 +140,7 @@ export async function summarizePending(
 
     // Newest first: if the run is cut short, the CRM gets the live pipeline
     // before it gets 2019's archive.
-    const { data, error } = await db
+    let query = db
       .from('email_threads')
       .select('id, subject, raw_markdown, last_at, gmail_thread_id')
       .eq('summary_state', 'pending')
@@ -128,6 +148,12 @@ export async function summarizePending(
       .eq('pipeline', 'deal')
       .order('last_at', { ascending: false })
       .limit(BATCH)
+    // Named threads only, when the caller named some. The `pending` filter
+    // stays: a thread already summarized has nothing to redo, and asking for
+    // one is a no-op rather than a second model pass.
+    if (opts.threadIds?.length) query = query.in('id', opts.threadIds)
+
+    const { data, error } = await query
 
     if (error) throw new Error(`Could not load pending threads: ${error.message}`)
     const rows = (data ?? []) as Pick<
@@ -181,18 +207,27 @@ export async function summarizePending(
         progress.summarized++
         progress.byRelevance[summary.relevance]++
 
-        // ⚠ FORGET A PRIVATE TEXT HERE, NOT ON THE NEXT SWEEP. The text sweep
-        // runs four times a day, so a backstop there would leave a personal
-        // conversation's full text sitting in `email_threads` for up to six
-        // hours — searchable by /api/thread-links the whole time. The moment
-        // the model says it is not work, there is no reason to still hold it.
-        // Non-fatal: failing to redact must not fail the summary that earned it.
-        if (summary.relevance === 'noise' && isIMessageThread(row.gmail_thread_id)) {
+        // ⚠ FORGET A PRIVATE LOCAL CONVERSATION HERE, NOT ON THE NEXT SWEEP.
+        // The local sweeps run four times a day, so a backstop there would
+        // leave a personal conversation's full text sitting in `email_threads`
+        // for up to six hours — searchable by /api/thread-links the whole time.
+        // The moment the model says it is not work, there is no reason to still
+        // hold it. Non-fatal: failing to redact must not fail the summary that
+        // earned it.
+        //
+        // ⚠ EVERY LOCAL SOURCE, NOT JUST TEXTS. This read `isIMessageThread`
+        // until 10-14, which was right when texts were the only local source
+        // and wrong the moment Voice Memos arrived — and voice memos are read
+        // with NO nominated folder, so this verdict is the only thing standing
+        // between a personal recording and a permanent searchable transcript.
+        // §12: when a function branches on where something came from, every
+        // source that can reach it needs an arm.
+        if (summary.relevance === 'noise' && isLocalThread(row.gmail_thread_id)) {
           try {
-            await redactPrivateTexts([row.id])
+            await redactPrivateLocalThreads([row.id])
           } catch (redactErr) {
             console.error(
-              '[sweep/summarize] could not discard private text:',
+              '[sweep/summarize] could not discard private local thread:',
               redactErr instanceof Error ? redactErr.message : redactErr
             )
           }

@@ -11,7 +11,66 @@ Split out of `CLAUDE.md` on 2026-09-23, when that file reached 606k characters a
 - A block of **2026-08-23 → 2026-08-31** entries sits *after* the June entries, near the end of the file.
 - One **2026-07-03** entry ("migrations applied + pursuit profile seeded") is last in the file.
 
-166 entries, 2026-06-22 → 2026-10-14. ⚠ Counted with `grep -c "^\*\*Done 2026"`, not incremented by hand: two sessions editing this file on 2026-10-08 each bumped the old figure by one and both landed on 146 against a real 148.
+167 entries, 2026-06-22 → 2026-10-14. ⚠ Counted with `grep -c "^\*\*Done 2026"`, not incremented by hand: two sessions editing this file on 2026-10-08 each bumped the old figure by one and both landed on 146 against a real 148.
+
+**Done 2026-10-14 (an in-person meeting gets a door, and it is the iPhone's own recorder — not a button in the app):**
+
+Richard asked for a Record Meeting button at the top of Ber Intelligence, above the calculator: *"That way Eric and I can quickly open the app and record a conversation we are having. When that recording ends, that call gets parsed through and updates the relevant projects with the details."* Then, mid-build, the better question: *"I understand that I can record a phone conversation on iphone, it lands in notes and BI will get those. I am talking about what is the best way to capture in person meetings... I just don't want the audio lost due to screen lock/sleeping or things of that nature."*
+
+**The button was the wrong primary door, on the one device he wants to use.** On iOS, locking the screen or leaving Safari suspends the page and WebAudio capture stops — exactly the failure he named, and it arrives silently at the end of a meeting rather than at the start. Voice Memos holds a system background-audio entitlement and records through a locked screen for hours. Otter and Plaud were excluded on a different ground: they transcribe in their own cloud, and raw conversation audio about live deals leaving the box is what Grok Bot was removed for on 10-11.
+
+**Measured on the box before planning, because three of the four facts were not what they looked like:**
+
+```
+Full Disk Access          LIVE — bw-snapshot copied chat.db at 11:35 today.
+                          The failures in snapshot.err.log are stale (10-12 15:35,
+                          before the signing fix), and 09ab3a4 signs with a stable
+                          identity so a rebuild no longer voids the grant
+Notes audio               ON DISK — "Call with Eric Tuaone.m4a" and four others
+Voice Memos container     EXISTS AND IS EMPTY — 4.0K, no CloudRecordings.db
+                          anywhere. The app has never been opened on this Mac
+whisper                   reads m4a already (afconvert), ~32x realtime, and the
+                          16-minute call measured 29.7s with the chat model resident
+```
+
+Richard's four calls, taken before any code: read **every** memo with the summarizer as the gate (zero taps on the phone) rather than a nominated folder; stay on the **existing 4×/day** snapshot cadence; **file the certain, stage the rest**; and **defer** the in-app button until this path is proven in a real meeting.
+
+**What was built is a source and a gate, not a pipeline.** `CloudRecordings.db` and its `.m4a` files join `bw-snapshot`'s allowlist; a reader, a transcriber and a sweep sit on top; and from there every step is the one the mail sweep already runs. A memo is transcribed on-box, written as an `email_threads` row prefixed `voicememo:`, and summarized — and the verdict is the fork:
+
+```
+noise  → transcript nulled, chunks deleted, copied audio DELETED, memo skip-listed.
+         The row survives as the tombstone, so it is never read again
+work   → route → apply (the write-up lands on the deal it names, `linked` only) →
+         embed → commitments → internal tasks, AND a `meetings` row with the recap
+         staged for a one-tap confirm at /decide
+```
+
+That is what makes "every memo" safe without a folder: a note has no participants, which is why automatic classification measured useless there (30% of 334 notes matched a record name, essentially all falsely), but a recording is SPEECH, so the same pass that judges a text conversation business-or-not can judge it. The precedent is the text sweep, which already forgets a private conversation the moment it is classified.
+
+**⚠ THE PROVENANCE BRANCH HAD BEEN EXTENDED THREE TIMES AND EVERY FIX MISSED THE OTHER SOURCES.** Texts got an arm on 10-11; notes and calls got one on 10-14 after the Helper project's feed was found reading **"Email — Call with Eric Tuaone"**, false in both halves; a voice memo would have been the fourth. Four separate readers were each branching on the same question with their own predicate, which is precisely what let each fix be local. They are now one closed union in `src/lib/email-sweep/thread-source.ts`, over an exhaustive switch, so **adding a source makes the build fail until every reader has an arm** — and it did: the first `tsc` run after writing it refused `'recording'` because `database.ts` predated the migration. Two live bugs fell out of the collapse:
+
+- **`importThreadAttachments` was fetching Gmail for note and call threads.** It bailed on `isIMessageThread` alone, so a `note:` id went to a real mailbox as a thread id — a round trip that can only 404, inside a try/catch, reporting nothing.
+- **`commitments/chase.ts` was drafting replies to them.** Same test, same gap: `createDraft` against a synthetic thread id, and because the catch stores the composed text anyway, the row looks identical to one that was never eligible.
+
+**⚠ AND THE REDACTION GATE WAS `imessage:`-ONLY, which is the one that would have mattered.** `redactPrivateTexts` filtered on that prefix, so under "read every memo" a personal recording's transcript would have stayed in `raw_markdown` — searchable by /api/thread-links — permanently. It is now `redactPrivateLocalThreads` in `email-sweep/`, covering every local prefix, deliberately not mail (a noise email is still a business record, and nobody's private life is in `moose@` the way it is in their Messages or their voice memos).
+
+**⚠ NULLING THE TEXT IS NOT ENOUGH WHEN THE SOURCE IS SOUND, and deleting the file alone is a loop.** The transcript is the derivative; the m4a copied into a directory the app process can read is the original, and `bw-snapshot` would copy it straight back within six hours. So a discarded memo is also **skip-listed** — and the list is keyed on the audio FILE NAME rather than the recording's identifier, which is the one place these two programs disagree on purpose: the identifier→file mapping lives in the database, and giving the Full-Disk-Access binary a SQLite client to follow it would widen the one thing that must stay narrow. The list can only ever remove files from the copy set, so its header's promise that no input widens its reach is intact.
+
+**⚠ MY OWN PLAUSIBILITY WINDOW WOULD HAVE DATED A MEETING TO 2053, and the test is what caught it.** The known failure here is Apple's: `ZCREATIONDATE1` is null for all 353 notes and a sentinel fallback dated that corpus to 1970. So the reader rejects an unreadable date rather than defaulting — but the first window was 2005-2100, and the obvious guard ("reject 1970") is aimed at the wrong end. Apple has shipped "seconds since 2001" and "seconds since 1970" in adjacent columns of the same table, and reading the second as the first produces a confident date 27 years in the FUTURE, not an obviously broken one. A recording cannot have happened after today; the window now closes at now + 2 days of clock slack. 9 tests over a synthetic store, including Recently Deleted by both signals, the un-renamed title fallback, and an unrecognised schema that must hand back the real column list rather than an empty answer.
+
+**⚠ `summarizePending` HAD NO THREAD FILTER WHILE `routeThreads` HAS HAD ONE SINCE 10-08** — and this sweep needs the verdict, not just the side effect. Summarizing "whatever is newest" is usually the same rows, but an hourly mail sweep running concurrently can take a memo first, and then the gate reads a verdict belonging to someone else's thread. Same shape on the other end: `applyThreadUpdates` with no `linkIds` drains the whole queue, so the sweep would have reported every unapplied mail thread on the box as its own work.
+
+**⚠ AND THE §13 ROW SAYING CLAUDE.md WAS 1,300 CHARACTERS FROM SILENT TRUNCATION WAS STALE BY 45,929 OF THEM.** The 10-12 split moved §12's full text to `docs/HARD-WON-RULES.md` and halved the file; measured today it is 104,071 characters with §12 at 21.9%. The row asking Richard which rules to retire is answered for now and has been corrected — a hand-written status paragraph drifts exactly like a hand-incremented count.
+
+Also shared rather than forked (§12): the recap-and-register pass moved out of `notes/call-record.ts` into `meetings/record-local.ts`, which both transports now call. What stays in the call path is the only part genuinely about a phone call — iOS writes the counterparty into the title, so both ends are known structurally, without a similarity score. An in-person recording names nobody, which is the whole difference between the two callers. `notes/call-attach.ts` became `meetings/attach-recording.ts` for the same reason.
+
+**Two habits worth more than any of this code**, both told to Richard rather than built: say who is in the room, the date and the deal name in the first ten seconds — whisper runs `-nt -bs 5` with no diarization, so the recap can only attribute what the audio says — and rename the memo after the deal, because `resolveMeetingTarget` matches a learned title or an exact record name deterministically, which is the difference between the write-up landing on Steelton by itself and waiting for a tap.
+
+**Deliberately not built:** the in-app button (deferred by decision; the segmented-upload design is understood — ~60s segments transcribed on arrival, so a crash costs at most the last minute — and the Mac is where it would be trustworthy); transcript timestamps, which would help a reader jump through a 60-minute meeting but change a shared pass and add ~15% to every context; diarization, which nothing on this box has room for; and a new table, because `email_threads.fingerprint` already answers "have I seen this memo".
+
+**Verified:** 346 tests pass (21 new), `tsc` clean, build exit 0 with the route registered, the cron route answers its own `Unauthorized` rather than the gate's `Not authenticated` (so `middleware.ts` names it), 25 launchd agents loaded including `cron-voice-memo-sweep`, and `bw-snapshot` rebuilt, re-signed and run **through launchd** — grant intact, two databases copied, `CloudRecordings.db` correctly reported absent rather than fatal.
+
+⚠ **NOT YET VERIFIED END TO END, AND IT CANNOT BE FROM HERE.** The container is empty until Voice Memos.app is opened on the Studio and iCloud syncs something down, so the column names in `readVoiceMemos` are resolved from a candidate list against a schema nobody here has read — which is why a missing column returns the real `pragma table_info` output and a pointer to the file to fix, rather than an empty answer that reads as "no recordings". The dry run today returns exactly the sentence it should: Voice Memos.app must be running, then bw-snapshot copies it. Richard's three minutes are in §13. (DEPLOYED + MIGRATED)
 
 **Done 2026-10-14 (a call about three deals updates three deals, and the matcher that found them was failing 9 times in 10):**
 

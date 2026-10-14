@@ -2,11 +2,11 @@
 // can read them. It does nothing else, and that is the entire point.
 //
 // ⚠ FULL DISK ACCESS IS NOT GRANULAR, SO THE THING THAT HOLDS IT MUST BE SMALL.
-// ~/Library/Messages and the Notes group container are TCC-protected: whatever
-// reads them needs Full Disk Access, and that grant reaches the whole home
-// folder. The platform's own node process must never hold it — it also holds
-// the service-role key, the Google refresh tokens and the mail corpus, so a
-// compromise there would reach every file Richard owns.
+// ~/Library/Messages and the Notes and Voice Memos group containers are
+// TCC-protected: whatever reads them needs Full Disk Access, and that grant
+// reaches the whole home folder. The platform's own node process must never
+// hold it — it also holds the service-role key, the Google refresh tokens and
+// the mail corpus, so a compromise there would reach every file Richard owns.
 //
 // So FDA is granted to THIS binary, whose only capability is to copy a fixed
 // allowlist of paths into ~/berwilson-data/local-sources/. There is no argument
@@ -35,6 +35,18 @@ let databases: [(name: String, path: URL)] = [
     (
         "NoteStore.sqlite",
         home.appending(path: "Library/Group Containers/group.com.apple.notes/NoteStore.sqlite")
+    ),
+    // iPhone Voice Memos, synced by iCloud — the door for an IN-PERSON meeting.
+    // ⚠ Optional, and absent until Voice Memos.app has been opened once on this
+    // Mac: the container exists from account setup but holds nothing until the
+    // app runs, and it keeps syncing only while it runs (the same trap Notes
+    // set on 10-12). A missing store is skipped and reported, never fatal — the
+    // exit contract below still only fails on a FAILED copy.
+    (
+        "CloudRecordings.db",
+        home.appending(
+            path: "Library/Group Containers/group.com.apple.VoiceMemos.shared/Recordings/CloudRecordings.db"
+        )
     ),
 ]
 
@@ -177,11 +189,95 @@ if let accounts = try? fm.contentsOfDirectory(at: mediaRoots, includingPropertie
     }
 }
 
+// ── Recordings from iPhone Voice Memos ──────────────────────────────────────
+//
+// ⚠ THIS IS THE AUDIO FOR AN IN-PERSON MEETING, AND IT IS THE CONTENT ITSELF.
+// Voice Memos stores the m4a beside its database in the same group container,
+// so unlike Notes there is no FK chain to walk and no Media tree of family
+// photos to filter — every file here is a recording somebody made deliberately.
+// The database row carries the title and the date; this carries the only thing
+// whisper can read.
+//
+// ⚠ IT HONOURS A SKIP LIST, WHICH IS THE PLATFORM TELLING THIS BINARY TO FORGET
+// SOMETHING. Every memo is transcribed and then judged by the summarizer; a
+// recording judged private has its transcript, its chunks and its copied audio
+// deleted. Without this list the next run would copy that audio straight back —
+// four times a day, forever — and a personal recording would sit permanently in
+// a directory the app process can read, which is exactly the blast-radius
+// widening the Notes block above refuses.
+//
+// The list is FILE NAMES, one per line, because that is what this binary can
+// act on: the mapping from a recording's identifier to its file lives in the
+// database, and giving this program a SQLite client to read it would widen the
+// one thing that must stay narrow. It can only ever REMOVE files from the copy
+// set, so nothing a caller writes there can make this read more than it already
+// could — the header's promise is intact.
+let voiceMemosRoot = home.appending(
+    path: "Library/Group Containers/group.com.apple.VoiceMemos.shared/Recordings",
+    directoryHint: .isDirectory
+)
+let voiceMemosDestination = destination.appending(path: "voice-memos", directoryHint: .isDirectory)
+let skipListPath = voiceMemosDestination.appending(path: ".skip")
+
+var skipNames: Set<String> = []
+if let raw = try? String(contentsOf: skipListPath, encoding: .utf8) {
+    for line in raw.split(separator: "\n") {
+        let name = line.trimmingCharacters(in: .whitespaces)
+        if !name.isEmpty && !name.hasPrefix("#") { skipNames.insert(name) }
+    }
+}
+
+var memoCopied = 0
+var memoFailed = 0
+var memoSkipped = 0
+
+if let files = try? fm.contentsOfDirectory(at: voiceMemosRoot, includingPropertiesForKeys: nil) {
+    for file in files {
+        guard audioExtensions.contains(file.pathExtension.lowercased()) else { continue }
+        let name = file.lastPathComponent
+        if skipNames.contains(name) {
+            memoSkipped += 1
+            continue
+        }
+        let to = voiceMemosDestination.appending(path: name)
+        do {
+            // Already copied and unchanged in size? Leave it. An hour of audio
+            // is tens of megabytes and this runs four times a day.
+            if let existing = try? fm.attributesOfItem(atPath: to.path)[.size] as? Int,
+               let current = try? fm.attributesOfItem(atPath: file.path)[.size] as? Int,
+               existing == current {
+                continue
+            }
+            try fm.createDirectory(
+                at: voiceMemosDestination,
+                withIntermediateDirectories: true,
+                attributes: [.posixPermissions: 0o700]
+            )
+            if fm.fileExists(atPath: to.path) { try fm.removeItem(at: to) }
+            try fm.copyItem(at: file, to: to)
+            try fm.setAttributes([.posixPermissions: 0o600], ofItemAtPath: to.path)
+            memoCopied += 1
+        } catch {
+            FileHandle.standardError.write(
+                "bw-snapshot: FAILED recording \(name): \(error.localizedDescription)\n"
+                    .data(using: .utf8)!
+            )
+            memoFailed += 1
+        }
+    }
+}
+
 print("bw-snapshot: \(copied) database(s) copied to \(destination.path)\(failed > 0 ? ", \(failed) FAILED" : "")")
 print("bw-snapshot: \(audioCopied) audio attachment(s) copied\(audioFailed > 0 ? ", \(audioFailed) FAILED" : "")")
+print(
+    "bw-snapshot: \(memoCopied) recording(s) copied"
+        + (memoSkipped > 0 ? ", \(memoSkipped) skip-listed as private" : "")
+        + (memoFailed > 0 ? ", \(memoFailed) FAILED" : "")
+)
+
 
 // ⚠ A NON-ZERO EXIT IS THE ONLY SIGNAL THE CRON HAS. If this exits 0 having
 // copied nothing, the sweep reads a stale snapshot and reports a quiet inbox —
 // which is indistinguishable from there being no texts. A liveness check needs
 // a clock, not a count (§12), so the sweep also checks the snapshot's age.
-exit(failed > 0 || copied == 0 ? 1 : 0)
+exit(failed > 0 || memoFailed > 0 || copied == 0 ? 1 : 0)

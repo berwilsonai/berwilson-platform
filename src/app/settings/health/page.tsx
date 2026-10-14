@@ -32,6 +32,7 @@ import {
   probeCorrespondenceIndex,
   probeMeetImport,
   probeIMessageSweep,
+  probeVoiceMemos,
   probeScopeCoverage,
   probeDisk,
 } from '@/lib/system-health'
@@ -100,7 +101,7 @@ async function runChecks(): Promise<HealthCheck[]> {
   const dayAgo = new Date(Date.now() - 86_400_000).toISOString()
   const localAI = process.env.AI_PROVIDER === 'local'
 
-  const [brief, riskScore, lastAi, aiDayCount, failedRuns, mailbox, lmStudio, backups, drive, leadInbox, docIndexing, driveSources, driveFiling, scopes, disk, lastDigest, failedDigests, contacts, taskSheet, drivePublish, meetImport, dealIntake, routing, corpus, dailyDigest, commitmentBacklog, openCommitments, settledRecently, quietedCommitments, imessageSweep] =
+  const [brief, riskScore, lastAi, aiDayCount, failedRuns, mailbox, lmStudio, backups, drive, leadInbox, docIndexing, driveSources, driveFiling, scopes, disk, lastDigest, failedDigests, contacts, taskSheet, drivePublish, meetImport, dealIntake, routing, corpus, dailyDigest, commitmentBacklog, openCommitments, settledRecently, quietedCommitments, imessageSweep, voiceMemos] =
     await Promise.all([
       supabase
         .from('stored_briefs')
@@ -193,6 +194,7 @@ async function runChecks(): Promise<HealthCheck[]> {
         .eq('status', 'open')
         .gt('snoozed_until', new Date().toISOString().slice(0, 10)),
       probeIMessageSweep(),
+      probeVoiceMemos(),
     ])
 
   const checks: HealthCheck[] = []
@@ -635,6 +637,27 @@ async function runChecks(): Promise<HealthCheck[]> {
               ? 'Snapshot helper not installed'
               : 'Texts have stopped arriving',
       detail: imessageSweep.detail,
+      action: { label: 'Open Decide', href: '/decide' },
+    })
+  }
+
+  // Recorded meetings from the iPhone. The same clock-not-count reasoning as
+  // texts, with one more silent failure in the chain: Voice Memos syncs from
+  // the phone only while the app is RUNNING on this Mac, which is invisible
+  // from everywhere except the age of the file it stopped updating.
+  {
+    checks.push({
+      name: 'Voice Memo Sweep',
+      status: voiceMemos.state === 'ok' ? 'ok' : voiceMemos.state === 'failed' ? 'fail' : 'warn',
+      headline:
+        voiceMemos.state === 'ok'
+          ? 'Reading recorded meetings'
+          : voiceMemos.state === 'empty'
+            ? 'No recording has been ingested yet'
+            : voiceMemos.state === 'unconfigured'
+              ? 'Voice Memos has never synced to this Mac'
+              : 'Recordings have stopped arriving',
+      detail: voiceMemos.detail,
       action: { label: 'Open Decide', href: '/decide' },
     })
   }

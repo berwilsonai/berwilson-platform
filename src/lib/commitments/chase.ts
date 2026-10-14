@@ -27,7 +27,7 @@ import { SYSTEM_USER_ID } from '@/lib/system-user'
 import { GmailScopeError, createDraft } from '@/lib/integrations/gmail-write'
 import { readOpenCommitments } from './read'
 import type { CommitmentRow } from './db'
-import { isIMessageThread } from '@/lib/imessage/to-thread'
+import { isLocalThread } from '@/lib/email-sweep/thread-source'
 
 export const CHASE_PROMPT_VERSION = 'commitment-chase-1.0'
 
@@ -201,8 +201,14 @@ export async function runChasePass(opts: { dryRun?: boolean; limit?: number } = 
      * on a synthetic thread id. The chase text is still composed and stored on
      * the row, which is what /commitments offers for copying — the same
      * outcome as the 223 of 231 mail rows whose mailbox holds no write scope.
+     *
+     * ⚠ AND IT TESTED TEXTS ALONE UNTIL 10-14, so a filed note and a recorded
+     * call — both `email_threads` rows with synthetic ids — reached a live
+     * `createDraft` against a real mailbox. The failure was invisible: it
+     * throws, the catch stores the text anyway, and the row looks identical to
+     * one that was never eligible. `isLocalThread` names every prefix.
      */
-    if (thread?.gmail_thread_id && thread.mailbox && !isIMessageThread(thread.gmail_thread_id)) {
+    if (thread?.gmail_thread_id && thread.mailbox && !isLocalThread(thread.gmail_thread_id)) {
       try {
         draftId = await createDraft({
           mailbox: thread.mailbox,

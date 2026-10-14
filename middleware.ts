@@ -64,6 +64,7 @@ export async function middleware(request: NextRequest) {
     pathname === '/api/cron/meeting-prep' ||         // Pre-meeting nudge (self-guards via CRON_SECRET)
     pathname === '/api/cron/commitment-chase' ||     // Chase drafting pass (self-guards via CRON_SECRET)
     pathname === '/api/cron/imessage-sweep' ||       // Local text-message sweep (self-guards via CRON_SECRET)
+    pathname === '/api/cron/voice-memo-sweep' ||     // Voice Memos sweep: in-person meetings (self-guards via CRON_SECRET)
     // ⚠ THE SETTLE LINK FROM PEPPER'S NOTE, AND THE TOKEN IS THE CREDENTIAL.
     // Public because the reader is on a phone at 06:50 and may hold no session;
     // requiring one is what kept the settle controls two navigations from where

@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.berwilson.cron-voice-memo-sweep</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/zsh</string>
+    <string>-c</string>
+    <string>curl -sS -m 1700 -H "Authorization: Bearer $(grep '^CRON_SECRET=' __APP_DIR__/.env.local | cut -d= -f2-)" http://localhost:3000/api/cron/voice-memo-sweep</string>
+  </array>
+  <!--
+    :50 past the four snapshot hours — five minutes behind the notes sweep.
+
+    bw-snapshot runs at 04:35 / 11:35 / 15:35 / 19:35 and copies all three local
+    stores; the text sweep reads chat.db at :40, the notes sweep reads
+    NoteStore.sqlite at :45, and this reads CloudRecordings.db at :50. Spaced
+    rather than parallel: each new recording costs whisper AND a summarize pass,
+    and LM Studio serves one request at a time (§12), so two sweeps at the same
+    minute queue behind each other while holding two corpora in memory on a box
+    that already pages.
+
+    ⚠ A MEETING IS THE LONGEST AUDIO THIS BOX TRANSCRIBES. whisper measured ~32x
+    realtime here (a 16-minute call in 29.7s with the chat model resident), so an
+    hour-long meeting is about two minutes — but the per-run ceiling in sweep.ts
+    is what keeps a first run against a full memo library from transcribing for
+    an hour inside one cron. The rest arrive on the next run, newest first.
+
+    ⚠ TWO HUMAN REQUIREMENTS, BOTH OF WHICH FAIL SILENTLY. Voice Memos syncs from
+    the phone only while Voice Memos.app is RUNNING on the Studio (the same trap
+    Notes set on 10-12, when the local store sat eleven days behind the phone),
+    and bw-snapshot must hold Full Disk Access. Either failure leaves this route
+    reporting success having read nothing new, so it reports the snapshot's AGE
+    and the health page watches it — a liveness check needs a clock, not a count.
+  -->
+  <key>StartCalendarInterval</key>
+  <array>
+    <dict><key>Hour</key><integer>4</integer><key>Minute</key><integer>50</integer></dict>
+    <dict><key>Hour</key><integer>11</integer><key>Minute</key><integer>50</integer></dict>
+    <dict><key>Hour</key><integer>15</integer><key>Minute</key><integer>50</integer></dict>
+    <dict><key>Hour</key><integer>19</integer><key>Minute</key><integer>50</integer></dict>
+  </array>
+  <key>StandardOutPath</key>
+  <string>__LOG_DIR__/cron-voice-memo-sweep.log</string>
+  <key>StandardErrorPath</key>
+  <string>__LOG_DIR__/cron-voice-memo-sweep.err.log</string>
+</dict>
+</plist>
