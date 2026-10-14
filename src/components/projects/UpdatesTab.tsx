@@ -181,7 +181,13 @@ function UpdateCard({ update, onSaved }: { update: Update; onSaved: () => void }
             className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
           >
             {expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-            {update.source === 'email' ? 'View original email' : 'Raw content'}
+            {update.source === 'email'
+              ? 'View original email'
+              : update.source === 'call'
+                ? 'View transcript'
+                : update.source === 'imessage'
+                  ? 'View the messages'
+                  : 'Raw content'}
           </button>
           {expanded && update.source === 'email' ? (
             <EmailBody raw={update.raw_content} />

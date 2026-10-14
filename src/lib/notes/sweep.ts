@@ -7,6 +7,11 @@
  *   3. the credential refusal — defence in depth, fails closed, skips WHOLE
  *   4. `storeFetchedThreads`, the same writer mail and texts use
  *
+ * A RECORDED CALL takes one more step, which is not a narrowing: it is also
+ * handed to `./call-record.ts`, so it lands in the meeting register and on the
+ * contact it was with. The thread carries the words; the meeting carries the
+ * event. See that file's header for why both.
+ *
  * ⚠ IT ADDS A CALLER, NOT A PIPELINE. §12 forbids forking a shared pass, and
  * every phase after this one — summarize, route, append, embed, commitments,
  * predecide — reads `email_threads` and needs no change. A note filed in the
@@ -18,6 +23,7 @@ import { storeFetchedThreads } from '@/lib/email-sweep/fetch-phase'
 import type { ResolvedThread } from '@/lib/integrations/gmail-search'
 
 import { isCallRecording, transcribeCallNote } from './calls'
+import { callAlreadyRecorded, recordCallNote } from './call-record'
 import { nominatedFolders, readNotes, type NoteRow } from './read'
 import { judgeSecrets } from './secrets'
 import { noteToThread } from './to-thread'
@@ -36,8 +42,22 @@ export interface NotesSweepResult {
   undecodable: number
   /** Notes carrying attachments the platform can see but not read. */
   withUnreadableAttachments: number
-  /** Recorded calls found, transcribed, and deferred — counted apart. */
-  calls: { found: number; transcribed: number; deferred: { title: string; why: string }[] }
+  /**
+   * Recorded calls found, transcribed, and deferred — counted apart.
+   *
+   * `alreadyRecorded` is the normal steady state, not a problem: the audio of a
+   * call never changes, so one already in the meeting register is skipped
+   * BEFORE whisper runs. It had been re-transcribing the same 16-minute call on
+   * every sweep — four times a day, 30 seconds each, for an identical answer.
+   */
+  calls: {
+    found: number
+    transcribed: number
+    alreadyRecorded: number
+    /** Meeting rows written, with the contact each was put on. */
+    recorded: { title: string; contact: string | null; note?: string }[]
+    deferred: { title: string; why: string }[]
+  }
   inserted: number
   refreshed: number
   notes: string[]
@@ -57,7 +77,7 @@ export async function runNotesSweep(
     refused: [],
     undecodable: 0,
     withUnreadableAttachments: 0,
-    calls: { found: 0, transcribed: 0, deferred: [] },
+    calls: { found: 0, transcribed: 0, alreadyRecorded: 0, recorded: [], deferred: [] },
     inserted: 0,
     refreshed: 0,
     notes: [],
@@ -106,14 +126,59 @@ export async function runNotesSweep(
   for (const note of keep) {
     if (!isCallRecording(note)) continue
     base.calls.found += 1
+
+    // ⚠ ASKED BEFORE WHISPER RUNS, NOT AFTER. The register is keyed on the
+    // note's stable identifier, and a recording's audio never changes, so a
+    // call already in it has nothing left to learn. Without this the sweep
+    // re-transcribed the same 16-minute call on all four daily runs — and, now
+    // that a recap follows, would have spent a second model pass on it too.
+    if (!dryRun && (await callAlreadyRecorded(note.identifier).catch(() => false))) {
+      base.calls.alreadyRecorded += 1
+      continue
+    }
+
     const result = await transcribeCallNote(note, { freeMb })
-    if (result.text) {
-      // The transcript replaces the 254-byte stub, so every downstream phase —
-      // summarize, route, commitments, embed — sees what was actually said.
-      note.body = `${note.title}\n\n${result.text}`
-      base.calls.transcribed += 1
-    } else {
+    if (!result.text) {
       base.calls.deferred.push({ title: note.title.slice(0, 48), why: result.skipped ?? 'unknown' })
+      continue
+    }
+
+    // The transcript replaces the 254-byte stub, so every downstream phase —
+    // summarize, route, commitments, embed — sees what was actually said.
+    note.body = `${note.title}\n\n${result.text}`
+    base.calls.transcribed += 1
+
+    if (dryRun) continue
+
+    // ── And the call becomes a MEETING, on the contact it was with ──────────
+    //
+    // Separate from the thread above and not instead of it: the thread carries
+    // the words into retrieval and the obligation ledger, the meeting carries
+    // the EVENT — into `search_meetings`, onto the contact's profile, and into
+    // the queue where it gets attached to a deal. Non-fatal: a failure here
+    // costs the register entry, never the transcript.
+    const recorded = await recordCallNote(note, result.text).catch((err) => {
+      console.error('[notes] call record failed:', err)
+      return null
+    })
+    if (!recorded || recorded.skipped) {
+      base.notes.push(
+        `${note.title}: transcribed, but not registered as a meeting — ${recorded?.skipped ?? 'unknown'}`
+      )
+    } else {
+      base.calls.recorded.push({
+        title: note.title.slice(0, 48),
+        contact: recorded.contact ? `${recorded.contact.name} (${recorded.contact.reason})` : null,
+        // Say when nobody was linked and why — a silent null reads as "there
+        // was nobody on the call" (§12: name the reason beside the number).
+        note:
+          recorded.ambiguous ??
+          (recorded.contact
+            ? undefined
+            : recorded.counterparty
+              ? `no contact answers to "${recorded.counterparty}" — add them in the Directory and the next call links itself`
+              : 'the title names nobody'),
+      })
     }
   }
 
@@ -121,7 +186,8 @@ export async function runNotesSweep(
   // alone, which summarizes to nothing, indexes as noise, and then reads on the
   // record as though the call had been ingested — the worst of the three
   // outcomes. Deferred calls are reported and retried on the next sweep, when
-  // the box may not be paging.
+  // the box may not be paging. The same test excludes a call that was skipped
+  // as already recorded, for the same reason and with no second thread written.
   const storable = keep.filter((n) => !isCallRecording(n) || n.body.trim() !== n.title.trim())
 
   const threads: ResolvedThread[] = storable.map((n) => noteToThread(n))
@@ -132,7 +198,14 @@ export async function runNotesSweep(
   }
 
   if (threads.length === 0) {
-    base.notes.push('nothing storable — every candidate was refused, unreadable or an untranscribed call')
+    // Name WHICH of the three it was. "nothing storable" over a steady state
+    // where the only note is a call already in the register reads as a fault,
+    // and that is the message this route prints four times a day.
+    base.notes.push(
+      base.calls.alreadyRecorded === base.found && base.found > 0
+        ? `nothing new — ${base.found} recorded call(s), already transcribed and registered`
+        : 'nothing storable — every candidate was refused, unreadable or an untranscribed call'
+    )
     return { ...base, ok: true }
   }
 

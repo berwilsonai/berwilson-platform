@@ -2115,14 +2115,14 @@ isOneToOne: false
                   ]
                 },"record_field_provenance": {
                   Row: {
-                    "as_of": string | null,"confidence": number | null,"created_at": string,"evidence": string | null,"field_key": string,"id": string,"record_id": string,"source_kind": string | null,"source_ref": string | null,"table_name": string,"updated_at": string,"written_by": string
+                    "as_of": string | null,"confidence": number | null,"created_at": string,"evidence": string | null,"field_key": string,"id": string,"previous_value": string | null,"record_id": string,"source_kind": string | null,"source_ref": string | null,"table_name": string,"updated_at": string,"written_by": string
                   }
                   ComputedFields: never
                   Insert: {
-                    "as_of"?: string | null,"confidence"?: number | null,"created_at"?: string,"evidence"?: string | null,"field_key": string,"id"?: string,"record_id": string,"source_kind"?: string | null,"source_ref"?: string | null,"table_name": string,"updated_at"?: string,"written_by": string
+                    "as_of"?: string | null,"confidence"?: number | null,"created_at"?: string,"evidence"?: string | null,"field_key": string,"id"?: string,"previous_value"?: string | null,"record_id": string,"source_kind"?: string | null,"source_ref"?: string | null,"table_name": string,"updated_at"?: string,"written_by": string
                   }
                   Update: {
-                    "as_of"?: string | null,"confidence"?: number | null,"created_at"?: string,"evidence"?: string | null,"field_key"?: string,"id"?: string,"record_id"?: string,"source_kind"?: string | null,"source_ref"?: string | null,"table_name"?: string,"updated_at"?: string,"written_by"?: string
+                    "as_of"?: string | null,"confidence"?: number | null,"created_at"?: string,"evidence"?: string | null,"field_key"?: string,"id"?: string,"previous_value"?: string | null,"record_id"?: string,"source_kind"?: string | null,"source_ref"?: string | null,"table_name"?: string,"updated_at"?: string,"written_by"?: string
                   }
                   Relationships: [
                     
@@ -2679,7 +2679,12 @@ isOneToOne: false
             [_ in never]: never
           }
           Functions: {
-            "match_chunks":
+            "enum_members":
+{ Args: { "enum_name": string }; Returns: {
+              "label": string
+            }[]
+                           },
+"match_chunks":
 { Args: { "filter_after"?: string,"filter_company_only"?: boolean,"filter_entity_ids"?: (string)[],"filter_exclude_project_ids"?: (string)[],"filter_include_company"?: boolean,"filter_opportunity_ids"?: (string)[],"filter_project_ids"?: (string)[],"match_count"?: number,"query_embedding": string }; Returns: {
               "chunk_index": number,"content": string,"created_at": string,"document_id": string,"entity_id": string,"id": string,"investor_id": string,"is_company": boolean,"opportunity_id": string,"party_id": string,"project_id": string,"similarity": number,"source_confidence": number,"source_type": string,"token_count": number,"update_id": string
             }[]
@@ -2710,7 +2715,7 @@ isOneToOne: false
                            }
           }
           Enums: {
-            "compliance_status": "not_started"|"in_progress"|"compliant"|"non_compliant"|"waived","dd_severity": "info"|"watch"|"critical"|"blocker","entity_category": "vendor"|"partner"|"contractor","entity_type": "llc"|"corp"|"jv"|"subsidiary"|"trust"|"fund"|"other","project_sector": "government"|"infrastructure"|"real_estate"|"prefab"|"institutional"|"technology"|"health","project_stage": "pursuit"|"capture"|"bid"|"award"|"mobilization"|"execution"|"closeout","project_status": "active"|"on_hold"|"won"|"lost"|"closed","review_state": "pending"|"approved"|"rejected","update_source": "email"|"manual_paste"|"document"|"agent"|"procore"|"manual_task"|"imessage"
+            "compliance_status": "not_started"|"in_progress"|"compliant"|"non_compliant"|"waived","dd_severity": "info"|"watch"|"critical"|"blocker","entity_category": "vendor"|"partner"|"contractor","entity_type": "llc"|"corp"|"jv"|"subsidiary"|"trust"|"fund"|"other","project_sector": "government"|"infrastructure"|"real_estate"|"prefab"|"institutional"|"technology"|"health","project_stage": "pursuit"|"capture"|"bid"|"award"|"mobilization"|"execution"|"closeout","project_status": "active"|"on_hold"|"won"|"lost"|"closed","review_state": "pending"|"approved"|"rejected","update_source": "email"|"manual_paste"|"document"|"agent"|"procore"|"manual_task"|"imessage"|"call"|"note"
           }
           CompositeTypes: {
             [_ in never]: never
@@ -2826,7 +2831,7 @@ export type CompositeTypes<
 export const Constants = {
   "public": {
           Enums: {
-            "compliance_status": ["not_started", "in_progress", "compliant", "non_compliant", "waived"],"dd_severity": ["info", "watch", "critical", "blocker"],"entity_category": ["vendor", "partner", "contractor"],"entity_type": ["llc", "corp", "jv", "subsidiary", "trust", "fund", "other"],"project_sector": ["government", "infrastructure", "real_estate", "prefab", "institutional", "technology", "health"],"project_stage": ["pursuit", "capture", "bid", "award", "mobilization", "execution", "closeout"],"project_status": ["active", "on_hold", "won", "lost", "closed"],"review_state": ["pending", "approved", "rejected"],"update_source": ["email", "manual_paste", "document", "agent", "procore", "manual_task", "imessage"]
+            "compliance_status": ["not_started", "in_progress", "compliant", "non_compliant", "waived"],"dd_severity": ["info", "watch", "critical", "blocker"],"entity_category": ["vendor", "partner", "contractor"],"entity_type": ["llc", "corp", "jv", "subsidiary", "trust", "fund", "other"],"project_sector": ["government", "infrastructure", "real_estate", "prefab", "institutional", "technology", "health"],"project_stage": ["pursuit", "capture", "bid", "award", "mobilization", "execution", "closeout"],"project_status": ["active", "on_hold", "won", "lost", "closed"],"review_state": ["pending", "approved", "rejected"],"update_source": ["email", "manual_paste", "document", "agent", "procore", "manual_task", "imessage", "call", "note"]
           }
         }
 } as const

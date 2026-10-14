@@ -227,6 +227,7 @@ export default async function ContactDetailPage({ params, searchParams }: PagePr
       title?: string
       meeting_date?: string
       scope?: string
+      kind?: string | null
       project_id?: string | null
       opportunity_id?: string | null
     } | null
@@ -746,7 +747,10 @@ export default async function ContactDetailPage({ params, searchParams }: PagePr
                           ? `/opportunities/${meta.opportunity_id}`
                           : scope === 'company'
                             ? '/company/board'
-                            : null
+                            : // 'unfiled' is a real conversation on no record yet — a
+                              // recorded call the platform transcribed. The queue is
+                              // where it gets a deal, so that is where this points.
+                              '/intake?tab=meeting'
                     const when = meta.meeting_date
                       ? new Date(`${meta.meeting_date}T00:00:00`).toLocaleDateString('en-US', {
                           month: 'short', day: 'numeric', year: 'numeric',
@@ -754,7 +758,20 @@ export default async function ContactDetailPage({ params, searchParams }: PagePr
                       : m.created_at
                         ? new Date(m.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
                         : ''
-                    const scopeLabel = scope === 'company' ? 'Board' : scope === 'opportunity' ? 'Opportunity' : 'Project'
+                    // ⚠ NAME WHAT IT IS, AND SAY WHEN IT IS ON NOTHING. This read
+                    // "Project meeting" for every row — including scope 'unfiled',
+                    // which is a call nobody has filed on a deal, and 'call', which
+                    // is how a recorded phone call arrives.
+                    const scopeLabel =
+                      scope === 'company'
+                        ? 'Board meeting'
+                        : scope === 'opportunity'
+                          ? 'Opportunity meeting'
+                          : scope === 'project'
+                            ? 'Project meeting'
+                            : meta.kind === 'call'
+                              ? 'Recorded call — not filed on a deal yet'
+                              : 'Not filed on a deal yet'
                     const inner = (
                       <div className="px-4 py-3 flex items-center justify-between gap-3">
                         <div className="min-w-0">

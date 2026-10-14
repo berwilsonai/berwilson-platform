@@ -34,6 +34,25 @@ export function isNoteThread(gmailThreadId: string | null | undefined): boolean 
 }
 
 /**
+ * What KIND of note a thread is, for the readers that must say so truthfully.
+ *
+ * ⚠ TWO VALUES, BECAUSE A RECORDED CALL IS NOT A NOTE A PERSON TYPED. Both
+ * arrive through this module and both were reaching `apply-phase.ts`, which
+ * stamped `source: 'email'` on each — so the Helper project's feed read "Email —
+ * Call with Eric Tuaone" (§12: a provenance line that invents a provenance is
+ * worse than no line). The discriminator is the thread id plus iOS's own title,
+ * exactly as `isCallRecording` uses it; audio cannot be re-checked from here,
+ * and by this point the transcript is the body, so the title stands alone.
+ */
+export function noteThreadKind(
+  gmailThreadId: string | null | undefined,
+  subject: string | null | undefined
+): 'call' | 'note' | null {
+  if (!isNoteThread(gmailThreadId)) return null
+  return /^\s*call with\s+\S/i.test(subject ?? '') ? 'call' : 'note'
+}
+
+/**
  * Build the thread for one note.
  *
  * ⚠ THE THREAD ID CARRIES THE MODIFICATION TIME, so editing a note produces a

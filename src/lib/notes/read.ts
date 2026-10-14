@@ -156,7 +156,22 @@ export function readNotes(
           `select n.ZIDENTIFIER as identifier,
                   n.ZTITLE1     as title,
                   f.ZTITLE2     as folder,
-                  n.ZCREATIONDATE1     as created,
+                  -- ⚠ ZCREATIONDATE1 IS NULL FOR EVERY NOTE IN THIS STORE —
+                  -- all 353 of them, measured 2026-10-14. Apple keeps the
+                  -- creation time in ZCREATIONDATE3 here; 1 and 2 are legacy
+                  -- columns that still EXIST, which is why selecting one
+                  -- returned no error and no value. appleDate(null) then fell
+                  -- back to the epoch, so every note and every recorded call
+                  -- ingested since 10-12 was dated 1970-01-01 — on the thread's
+                  -- first_at, on the meeting row, and on the attendee's contact
+                  -- profile ("1969-12-31", the epoch in Mountain Time).
+                  --
+                  -- Coalesced rather than swapped: a store that does populate
+                  -- the older column is not worth a second code path, and the
+                  -- verified value for the one recorded call is 22:14:20
+                  -- against a 22:30:20 modification — the sixteen minutes the
+                  -- call actually ran.
+                  coalesce(n.ZCREATIONDATE1, n.ZCREATIONDATE3) as created,
                   n.ZMODIFICATIONDATE1 as modified,
                   d.ZDATA       as data
              from ZICCLOUDSYNCINGOBJECT n
@@ -206,7 +221,11 @@ export function readNotes(
           // thread read as a note with nothing in it.
           body: text.trim() || row.title.replace(/\s+/g, ' ').trim(),
           folder,
-          createdAt: appleDate(row.created),
+          // And if BOTH are missing, the modification time — never the epoch.
+          // A note has to have been written at some point; 1970 is a value no
+          // reader can tell from a real one, and it sorts to the top of every
+          // list that orders by date.
+          createdAt: appleDate(row.created ?? row.modified),
           modifiedAt: appleDate(row.modified),
           attachments: attachmentsByNote.get(row.identifier ?? '') ?? [],
           audio,

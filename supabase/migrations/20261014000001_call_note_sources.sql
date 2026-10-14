@@ -1,0 +1,22 @@
+-- A recorded phone call, and a filed note, each get their own provenance.
+--
+-- The same omission the iMessage migration (20261011000003) fixed for texts,
+-- found by reading the live row it produced. A recorded iPhone call reaches
+-- `apply-phase.ts` as an `email_threads` row — deliberately, so it inherits all
+-- eight mail phases — and that function stamped `source: 'email'` on anything
+-- that was not a text. So the Helper project's feed carried, as of 10-12:
+--
+--     source=email   "Email — Call with Eric Tuaone"
+--
+-- which is false in both arms. §12: a provenance line that invents a provenance
+-- is worse than no line, and that sentence outlives the thread it came from.
+--
+-- TWO values, not one, because two kinds of local note reach that function and
+-- both were lying. A recorded call is a CALL — iOS titles it, whisper transcribes
+-- it, and it is the one artifact on the record that somebody spoke aloud. A note
+-- filed in a nominated folder is a NOTE, which is neither a call nor an email.
+--
+-- `update_source` is an ENUM, so this is ALTER TYPE rather than a
+-- drop-and-recreate.
+alter type update_source add value if not exists 'call';
+alter type update_source add value if not exists 'note';

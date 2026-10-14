@@ -431,6 +431,7 @@ export async function threadsMatchingIdentifiers(
 //     identity-bearing-word floor is what refuses those.
 //   - OUR OWN NAME leads most of these titles, so NEVER_LEARN applies here too.
 //   - The MAIL ROUTER must not see these at all — see loadIdentifiers().
+//   - A TITLE THAT NAMES A PERSON names no deal — see PERSON_TITLE below.
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
@@ -446,10 +447,26 @@ const GENERIC_MEETING_WORDS = new Set([
   'quarterly', 'biweekly', 'recurring', 'intro', 'introduction', 'kickoff',
   'kick', 'off', 'discussion', 'discuss', 'review', 'update', 'updates',
   'followup', 'follow', 'status', 'briefing', 'brief', 'chat', 'conversation',
+  // ⚠ 'project' WAS MISSING, AND THIS LIST'S OWN DOCSTRING USED IT AS THE
+  // EXAMPLE: "Weekly Project Review Meeting … names no deal". It did not
+  // refuse it — every other word fell away and `project` was left standing as
+  // the identity-bearing one, so that title WAS learnable as a filing key.
+  // `GENERIC_NAME_WORDS` in analyze-meeting.ts has held it all along, for the
+  // same reason: four live records are called "<place> Development Project".
+  'project', 'projects',
   'session', 'zoom', 'teams', 'google', 'notes', 'transcript', 'copy', 'draft',
   'and', 'the', 'with', 'for', 'our', 'their', 'team', 'internal', 'external',
   'new', 'old', 'next', 'last', 'morning', 'afternoon', 'am', 'pm',
 ])
+
+/**
+ * A title that names who was on the call rather than what it was about.
+ *
+ * Matched on the NORMALIZED string, so "Call with …" and "call w/ …" are one
+ * shape. Anchored at the start: a deal title that happens to contain the words
+ * ("Steelton — call with the lender") is not this.
+ */
+const PERSON_TITLE = /^call (?:with|w)\s+\S/
 
 /**
  * A meeting title reduced to its comparison key, or null when it identifies
@@ -466,6 +483,20 @@ export function normalizeMeetingTitle(value: string): string | null {
     .replace(/\s+/g, ' ')
     .trim()
   if (cleaned.length < 4) return null
+
+  // ⚠ A TITLE OF THE FORM `Call with <someone>` IDENTIFIES A PERSON, AND A
+  // PERSON IS NOT A DEAL. iOS generates exactly this title for every recorded
+  // phone call, so without this guard the first call filed onto a project would
+  // teach "call with eric tuaone" as that project's filing key — and every
+  // later call with a colleague, about anything at all, would file itself onto
+  // that one deal from its second occurrence onward. The identity-bearing-word
+  // floor below does not catch it: "eric" and "tuaone" are perfectly
+  // distinctive words, which is the problem rather than the defence.
+  //
+  // It costs the auto-filing of a Meet invitation someone titled "Call with
+  // TensorIQ" — one extra click, once, against a silent misfiling that
+  // compounds. §12: ambiguity must mean no match.
+  if (PERSON_TITLE.test(cleaned)) return null
 
   const words = cleaned.split(' ')
   // A date or time left on the title by a stamping convention is not identity.

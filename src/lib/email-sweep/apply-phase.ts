@@ -35,6 +35,8 @@ import { notifyTeam, type NotificationEvent } from '@/lib/notifications'
 import { sweepDb, type EmailThreadRow, type ThreadLinkRow, type LinkRecordKind } from './db'
 import { extractIdentifiers } from './identifiers'
 import { isIMessageThread } from '@/lib/imessage/to-thread'
+import { noteThreadKind } from '@/lib/notes/to-thread'
+import { attachCallMeeting } from '@/lib/notes/call-attach'
 
 const BATCH = 100
 
@@ -58,6 +60,8 @@ export interface ApplyProgress {
   /** Links whose record is lost/closed/on hold — kept, but held back. */
   dormantSkipped: number
   failed: number
+  /** Recorded calls whose meeting row was moved onto the deal it was filed on. */
+  callMeetingsFiled: number
   /** True when the budget ran out with links still to consider. */
   outOfTime: boolean
 }
@@ -140,6 +144,7 @@ export async function applyThreadUpdates(
     staleLinksDropped: 0,
     dormantSkipped: 0,
     failed: 0,
+    callMeetingsFiled: 0,
     outOfTime: false,
   }
 
@@ -292,6 +297,27 @@ export async function applyThreadUpdates(
 
           await advance(link.id, delta.newCount)
         }
+      }
+
+      // ── A recorded call's meeting row follows its thread ───────────────────
+      //
+      // Outside the `needsText` block on purpose: the text cursor is spent
+      // after the first run, and the meeting may still be sitting unfiled —
+      // which is exactly the state the one call already on the live database
+      // was in. Costs a string test for everything that is not a call.
+      try {
+        const attached = await attachCallMeeting({
+          gmailThreadId: thread.gmail_thread_id,
+          subject: thread.subject,
+          certainty: link.certainty,
+          recordKind: link.record_kind,
+          recordId: link.record_id,
+        })
+        if (attached.moved) progress.callMeetingsFiled++
+      } catch (err) {
+        // Non-fatal: the update is posted and the meeting stays unfiled, which
+        // is the state a reviewer can still fix from the queue.
+        console.error('[apply] could not file the call meeting:', err)
       }
 
       // Attachments run on their OWN cursor and independently of whether there
@@ -486,15 +512,32 @@ async function applyToRecord(
    * and "Email — …" would be stamped onto a project update describing a text,
    * and that sentence outlives the thread it came from.
    *
+   * ⚠ AND THE FIX FOR TEXTS DID NOT COVER NOTES, which is the same bug a second
+   * time: a recorded phone call and a filed note both reach here too, and both
+   * fell into the `else` arm. Measured on the live row 2026-10-14 — the Helper
+   * project's feed carried `source=email`, "Email — Call with Eric Tuaone".
+   * When a function branches on where something came from, every source that
+   * can reach it needs an arm, not just the one being added today.
+   *
    * Keyed on `gmail_thread_id`, which is structural: it is the one column that
    * can never hold a Gmail id for a local source.
    */
   const isText = isIMessageThread(thread.gmail_thread_id)
-  const source = isText ? ('imessage' as const) : ('email' as const)
-  const label = thread.subject?.trim() || (isText ? 'Text conversation' : 'Email thread')
-  // A text session's subject is already self-describing ("Texts with X — date"),
-  // where a mail subject is not, so prefixing both gave "Texts — Texts with …".
-  const heading = isText ? label : `Email — ${label}`
+  const noteKind = noteThreadKind(thread.gmail_thread_id, thread.subject)
+  const source = isText
+    ? ('imessage' as const)
+    : noteKind === 'call'
+      ? ('call' as const)
+      : noteKind === 'note'
+        ? ('note' as const)
+        : ('email' as const)
+  const label =
+    thread.subject?.trim() ||
+    (isText ? 'Text conversation' : noteKind === 'call' ? 'Recorded call' : noteKind ? 'Note' : 'Email thread')
+  // A text session's subject is already self-describing ("Texts with X — date")
+  // and so is a call's ("Call with X"), where a mail subject is not — prefixing
+  // all of them gave "Texts — Texts with …" and "Email — Call with …".
+  const heading = isText || noteKind ? label : `Email — ${label}`
   // Certainty, not content, decides whether a human sees this first.
   const approved = link.certainty === 'linked'
 

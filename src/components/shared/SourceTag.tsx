@@ -1,4 +1,4 @@
-import { Mail, ClipboardPaste, FileText, Bot, ListChecks } from 'lucide-react'
+import { Mail, ClipboardPaste, FileText, Bot, ListChecks, MessageSquare, Phone, NotebookPen } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { UpdateSource } from '@/lib/supabase/types'
 
@@ -30,6 +30,27 @@ const SOURCE_CONFIG: Record<
     label: 'Task',
     icon: ListChecks,
     style: 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 ring-emerald-200 dark:ring-emerald-800/60',
+  },
+  // ⚠ THE THREE LOCAL SOURCES, WHICH FELL THROUGH TO "Document". The fallback
+  // below is `SOURCE_CONFIG.document`, so a text message on a project read as a
+  // document — the same class of mislabelling the `update_source` migrations
+  // fixed in the database, surviving in the component that renders it. An enum
+  // member with no entry here is invisible rather than wrong-looking, which is
+  // why it lasted (§12: never print a stored enum at a reader).
+  imessage: {
+    label: 'Text',
+    icon: MessageSquare,
+    style: 'bg-green-50 dark:bg-green-950/40 text-green-700 dark:text-green-300 ring-green-200 dark:ring-green-800/60',
+  },
+  call: {
+    label: 'Call',
+    icon: Phone,
+    style: 'bg-teal-50 dark:bg-teal-950/40 text-teal-700 dark:text-teal-300 ring-teal-200 dark:ring-teal-800/60',
+  },
+  note: {
+    label: 'Note',
+    icon: NotebookPen,
+    style: 'bg-yellow-50 dark:bg-yellow-950/40 text-yellow-800 dark:text-yellow-300 ring-yellow-200 dark:ring-yellow-800/60',
   },
 }
 

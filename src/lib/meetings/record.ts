@@ -23,7 +23,9 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { parseAttendees, parseDecisions, type MeetingAttendee } from '@/lib/utils/meetings'
 import type { SeedTarget } from '@/lib/email-ingestion/analyze-meeting'
+import type { PartyMatch } from '@/lib/ai/proposal-matching'
 import type { TablesInsert, JsonIn, TablesUpdate } from '@/lib/supabase/types'
+import { syncAttendeeActivity } from './attendee-activity'
 
 type AdminClient = ReturnType<typeof createAdminClient>
 
@@ -43,6 +45,122 @@ export interface MeetingRecordInput {
   driveFileId: string | null
   /** The record it is already known to belong to, if any. */
   target: SeedTarget | null
+  /**
+   * Attendee → directory-contact matches the analysis already made, aligned to
+   * `attendees` by `extracted_index`. See {@link linkAttendees}.
+   */
+  partyMatches?: PartyMatch[] | null
+  /**
+   * Links the CALLER resolved itself, by attendee name. A recorded phone call
+   * knows who it was with from iOS's own title, which is better evidence than
+   * anything in the transcript — see `src/lib/notes/call-party.ts`.
+   */
+  partyOverrides?: { name: string; partyId: string }[] | null
+}
+
+/**
+ * Stamp `party_id` onto the attendees an identity match resolved.
+ *
+ * ⚠ THE CONTACT-LEVEL HALF OF A MEETING HAD NEVER ONCE FIRED, and this is why.
+ * `syncAttendeeActivity` keys entirely on `attendee.party_id`, nothing on the
+ * automatic path ever set one, and only the hand-typed form called it at all.
+ * Measured 2026-10-14 on the live database: 6 imported meetings, 8 rows in
+ * `meetings`, and **zero** `meeting_attended` rows against any contact. So a
+ * call with someone was invisible on their profile no matter how many times the
+ * platform read the transcript.
+ *
+ * ⚠ IDENTITY MATCHES ONLY — `exact_email` and `exact_name`. `fuzzy_name` is the
+ * top trigram hit with no ambiguity check at all (`matchExtractedParties` step
+ * 3), which is precisely §12's unchallenged match: one hit on a weak key put
+ * "Cliff" on an unrelated academic. A fuzzy hit stays where it already is — a
+ * suggestion in the review screen, for a human to accept in one click.
+ */
+export async function linkAttendees(
+  attendees: MeetingAttendee[],
+  partyMatches?: PartyMatch[] | null,
+  overrides?: { name: string; partyId: string }[] | null
+): Promise<MeetingAttendee[]> {
+  const out = attendees.map((a) => ({ ...a }))
+
+  const proposed = new Map<number, string>()
+  for (const m of partyMatches ?? []) {
+    if (!m.matched_party_id) continue
+    if (m.match_type !== 'exact_email' && m.match_type !== 'exact_name') continue
+    const at = out[m.extracted_index]
+    if (at && !at.party_id) proposed.set(m.extracted_index, m.matched_party_id)
+  }
+
+  if (proposed.size > 0) {
+    const directory = await peopleByName()
+    for (const [index, partyId] of proposed) {
+      const name = out[index].name.trim().toLowerCase()
+      const byName = directory.get(name)
+      // ⚠ ONLY A PERSON ATTENDS A MEETING, AND THE MODEL LISTS COMPANIES.
+      // Measured across the six imported transcripts: the attendee lists name
+      // "Ber Wilson" (three times) and "Bloom Energy", each a real `parties` row
+      // with `is_organization = true` and an exact name match. Stamping those
+      // would put "attended a call" on our own company's profile and on a
+      // vendor's, which is not a fact about anybody — `meeting_attended` exists
+      // to answer "when did I last speak to this person". The flag decides, not
+      // the name, for the same reason `meet-import.ts` drops our own company
+      // from filing candidates. An organization party is simply absent from this
+      // map, so a match on one stamps nothing.
+      //
+      // ⚠ AND ONE NAME MUST MEAN ONE PERSON (§12: ambiguity must mean no
+      // match, and one hit is an unchallenged match rather than a unique one).
+      // `matchExtractedParties` ends its exact-name branch with `.limit(1)
+      // .single()`, so two people called Chris Walker would hand back whichever
+      // sorted first. Checked here rather than relied upon, because this is the
+      // path that writes without a human looking.
+      if (!byName || byName.length !== 1) continue
+      if (byName[0] !== partyId) continue
+      out[index].party_id = partyId
+    }
+  }
+
+  for (const o of overrides ?? []) {
+    const key = o.name.trim().toLowerCase()
+    const at = out.find((a) => a.name.trim().toLowerCase() === key)
+    if (at) {
+      // The caller's own resolution wins over a fuzzy pre-match it may have
+      // been given, which is the only case where two answers can disagree.
+      at.party_id = o.partyId
+    } else {
+      out.push({ name: o.name.trim(), role: null, org: null, party_id: o.partyId, team_member_id: null })
+    }
+  }
+
+  return out
+}
+
+/**
+ * The directory's PEOPLE, by lowercased name — and every id that answers to it,
+ * so a repeated name can be refused rather than resolved.
+ *
+ * One page is enough at this directory's size and PostgREST caps a response at
+ * 1000 rows silently (§12), so the read is paged rather than limited.
+ */
+async function peopleByName(): Promise<Map<string, string[]>> {
+  const supabase = createAdminClient()
+  const out = new Map<string, string[]>()
+  const PAGE = 1000
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await supabase
+      .from('parties')
+      .select('id, full_name, is_organization')
+      .eq('is_organization', false)
+      .not('full_name', 'is', null)
+      .order('id')
+      .range(from, from + PAGE - 1)
+    if (error || !data || data.length === 0) break
+    for (const p of data) {
+      const key = (p.full_name ?? '').trim().toLowerCase()
+      if (!key) continue
+      out.set(key, [...(out.get(key) ?? []), p.id])
+    }
+    if (data.length < PAGE) break
+  }
+  return out
 }
 
 export interface MeetingRecordResult {
@@ -87,6 +205,11 @@ export async function upsertMeetingFromImport(
   }
 
   const scope = scopeFor(input.target)
+  const attendees = await linkAttendees(
+    parseAttendees(input.attendees),
+    input.partyMatches,
+    input.partyOverrides
+  )
   const row: TablesInsert<'meetings'> = {
     // 'call' rather than 'client': a Meet recording is a call, and the reviewer
     // can retitle the kind. 'board' is never guessed — the governance register
@@ -97,7 +220,7 @@ export async function upsertMeetingFromImport(
     opportunity_id: input.target?.kind === 'opportunity' ? input.target.id : null,
     title: input.title,
     meeting_date: input.meetingDate,
-    attendees: parseAttendees(input.attendees) as unknown as JsonIn,
+    attendees: attendees as unknown as JsonIn,
     summary: input.summary,
     minutes: input.minutes,
     transcript: input.transcript,
@@ -129,6 +252,26 @@ export async function upsertMeetingFromImport(
     console.error('[meetings] could not create the meeting record:', error?.message)
     return null
   }
+
+  // ⚠ THE SAME CALL THE HAND-TYPED FORM MAKES, AT THE SHARED CHOKE POINT.
+  // §12: an automatic producer must write the same table the manual one does,
+  // or every reader sees only the hand-typed half — and `/contacts/[id]` reads
+  // `activity_log` for `meeting_attended` and nothing else. Only POST and PATCH
+  // /api/meetings called this, so no imported call had ever reached a profile.
+  // Non-fatal: the meeting is recorded either way.
+  await syncAttendeeActivity(
+    supabase,
+    {
+      id: data.id,
+      title: row.title ?? input.title,
+      meeting_date: input.meetingDate,
+      scope,
+      kind: row.kind ?? null,
+      project_id: row.project_id ?? null,
+      opportunity_id: row.opportunity_id ?? null,
+    },
+    attendees
+  )
 
   return { id: data.id, created: true, scope }
 }
@@ -196,6 +339,17 @@ export async function attachMeetingToRecord(
     console.error('[meetings] could not attach the meeting to its record:', error.message)
     return { moved: false, reason: error.message }
   }
+
+  // The attendees' copies carry the title, the date and the SCOPE, so a move
+  // leaves them saying "not filed on a deal yet" about a call that now is.
+  // Re-read rather than patched together from `patch`, which is partial.
+  const { data: moved } = await supabase
+    .from('meetings')
+    .select('id, title, meeting_date, scope, kind, project_id, opportunity_id, attendees')
+    .eq('id', meetingId)
+    .maybeSingle()
+  if (moved) await syncAttendeeActivity(supabase, moved, moved.attendees)
+
   return { moved: !alreadyFiled }
 }
 
