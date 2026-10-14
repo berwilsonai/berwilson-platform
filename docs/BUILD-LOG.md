@@ -11,7 +11,52 @@ Split out of `CLAUDE.md` on 2026-09-23, when that file reached 606k characters a
 - A block of **2026-08-23 → 2026-08-31** entries sits *after* the June entries, near the end of the file.
 - One **2026-07-03** entry ("migrations applied + pursuit profile seeded") is last in the file.
 
-165 entries, 2026-06-22 → 2026-10-14. ⚠ Counted with `grep -c "^\*\*Done 2026"`, not incremented by hand: two sessions editing this file on 2026-10-08 each bumped the old figure by one and both landed on 146 against a real 148.
+166 entries, 2026-06-22 → 2026-10-14. ⚠ Counted with `grep -c "^\*\*Done 2026"`, not incremented by hand: two sessions editing this file on 2026-10-08 each bumped the old figure by one and both landed on 146 against a real 148.
+
+**Done 2026-10-14 (a call about three deals updates three deals, and the matcher that found them was failing 9 times in 10):**
+
+Richard, immediately after the entry below: *"sometimes our call will be talking about multiple different deals. Does this have the ability to parse out and update any important information on the particular project."*
+
+**Measured before answering, and the premise turned out to be the normal case rather than an edge one: 9 of the 10 staged meetings name between 2 and 8 records each, median 5.** A broker hour or a portfolio review is inherently multi-deal. The recap had been parsing them out all along — `referenced_records` is a list with a per-record note, `tasks` carry a `record_hint`, and the confirm screen files one call onto several records at once. Two things were wrong underneath that, and only one of them was the thing he asked about.
+
+**1. The matcher found almost nothing: 5 of 52 named deals resolved to a record.** The cause is one hand-picked number, and §12 already states the rule it breaks — a fuzzy threshold is measured against the real corpus, never chosen. `match_projects_by_name` ran at 0.3:
+
+```
+"Riverdale Site" → Riverdale — Cleveland-Cliffs (IL)   = 0.30303    ✓ matched
+"Steelton Site"  → Steelton — Cleveland-Cliffs (PA)    = 0.290323   ✗ no candidates at all
+```
+
+Two names of identical shape, one letter of difference in the place name, opposite outcomes — and the blank pre-match was on a deal the platform holds 162 documents for. Lowering 0.3 moves the cliff to the next pair.
+
+**The fix was not to write a matcher. `resolveMeetingTarget` already existed and already did this properly** — both tables, learned titles, an exact-name bar kept separate from a suggestion bar, an ambiguity refusal, and a stopword list tuned against this corpus including the industry words. It was wired to a meeting's TITLE and nothing else, while the deals a meeting NAMED went through the trigram threshold plus a bare `ilike` for opportunities, behind a *second* copy of `GENERIC_NAME_WORDS` that had already diverged. §12: a shared renderer wired to one surface is worse than no shared renderer — grep for one before building, and then for every surface that should be calling it. **5 of 52 → 20 of 52**, the trigram path and the duplicate list deleted, and 11 new matches re-read onto the sessions already sitting in the queue (`rematch-meeting-records.mts`, pending only — a confirmed session is the record of what a human was shown).
+
+**⚠ Found on the first run of the better resolver: a compass direction is a qualifier, not a place.** "West Virginia Power Site", "West Virginia Data Center" and "West Virginia Portfolio" each resolved to **West Wendover** — wrong state, wrong deal — on the word *west*, while `virginia` matched nothing in the portfolio. The file's own comment keeps PLACE names out of the stopword list deliberately (Myton, Delta, Heber, Steelton are what distinguish these records), and a direction had been riding along inside that exemption. Both records here carrying one are identified by the word beside it, so nothing is lost. **23 matches with 3 wrong became 20 with 1.** The survivor is "Golden Dome Initiative" — the missile-defence programme — matching Alaska Golden Summit on *golden*; every guard tried for it also killed real matches, so it stays as a pre-tick to untick.
+
+**⚠ Found while wiring it: the model's `kind` is a guess and a match is a fact.** The review screen seeded each target from the model's `referenced_records[i].kind` and the resolver's `matched_id` — two sources for one record. "Elite Solutions" is an `opportunities` row and arrives labelled `project`, so the confirm route would have sent an opportunity's uuid into its projects branch. `matched_kind` now travels with the match; the model's label never picks the table.
+
+**2. Then the thing he actually asked about: every deal got the whole call.** The confirm step composed one `feedBody(meeting)` from the minutes and the fan-out loop wrote it to each record — and the prompt's own field header described that as the intent ("the update/note added to each record"). So Riverdale's feed carried the Steelton negotiation and the Weirton walk-through. §12 holds the field-level form of the same failure: one thread covering those three deals had newest-wins rewrite each deal's own address to "Steelton, Riverdale, Weirton". It is the describes-versus-mentions test, applied to a whole ENTRY.
+
+Asked and answered (Richard chose the per-deal section, and chose to keep the confirm): prompt **`meeting-intake-1.2`** adds `discussion` per referenced record — everything the call said about THAT deal and nothing else, written to be read on that deal's page by someone who does not care about the others, and **null when the deal was only mentioned**. Verified first run on the real 56,197-character Steelton/Riverdale transcript, 127.8s:
+
+```
+✓ Steelton Site    485 chars  ~280 acres over two parcels, PPL at 420 MW ramping to
+                              900 via new 230-kV lines, ballast solar on the capped
+                              landfill, free slag aggregate, 3-month demolition
+✓ Riverdale Site   395 chars  28 miles from downtown Chicago, four rail yards (UP, NS,
+                              CNX, CSX), dark fiber, water treatment idled Aug 2025,
+                              230 MW substation, ComEd procurement
+· Indiana Site     NULL       named in passing — no paragraph
+```
+
+That last line is the part that matters most: the model was asked to return null for a deal it was only told about, and obeyed without tuning. A record entry is a claim that the call was about that record.
+
+Two conditions make a slice safe rather than thin, and both are tested: the entry **says it is a slice** and names what else the call covered, and the whole call stays reachable — the minutes document is saved on every target in the same loop and now names the records in it. Decisions still reach every record, because a decision belongs to the call. And it **falls back to the whole call, never to nothing**, in the three cases that are one case (a session staged before 1.2, a target the reviewer added by hand, a deal judged mentioned-only); an empty entry would read as a call about nothing. The composers moved to `src/lib/meetings/feed.ts` so the rule is testable rather than only observable after a confirm — 7 tests.
+
+**The queue was re-read under the new prompt** (`reextract-meeting-sessions.mts`, pending only, ~2 minutes of local model each, sequential because LM Studio serves one request at a time). All 7: **38 records named, 34 with their own paragraph, 4 correctly judged mentioned-only** (Eagle Mountain and the Steelton data room on the Tensor call, the Indiana site, ComEd's cold-storage property). The re-extraction also enumerated deals the first pass had folded together — 6→9 on the TensorIQ partnership call, 4→7 on the Zenthium portfolio review — and it re-matches in the same pass, because `match_candidates` is aligned to `referenced_records` **by index** and stale indices would open the review screen with one deal's record ticked against another deal's name. A second run reports nothing. `source_title` is untouched, so "Ber Wilson / Zenthium" is still the filing key on the call §13 flags.
+
+⚠ **The cost, recorded rather than glossed:** the model is not deterministic, so the recaps now read differently — task counts moved in both directions (9→6 on Steelton/Riverdale, 8→11 on the Tensor call), and the TensorIQ sessions stopped listing "Elite Solutions" as a referenced record because this pass enumerated the DEALS rather than the counterparty, which lost an exact match while producing a better deal list. That is why re-extraction is a one-shot with a dry run and not a cron.
+
+**Verified:** 325 tests pass, `tsc` clean, build exit 0, lint unchanged at 23 pre-existing, deployed and answering on the tailnet. (DEPLOYED + PUSHED)
 
 **Done 2026-10-14 (a recorded call lands on the contact and the deal, not just in the corpus):**
 
