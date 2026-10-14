@@ -55,8 +55,13 @@ export const REDACTED_NOTE = 'private — not work-related, text discarded after
 export interface RedactResult {
   redacted: number
   chunksRemoved: number
-  /** Audio files deleted for discarded recordings, and ids added to `.skip`. */
+  /** Audio files deleted for discarded recordings. */
   audioDiscarded: number
+  /**
+   * Recordings whose audio could not even be NAMED, so it was neither deleted
+   * nor skip-listed. Never zero by assumption — see `voicememos/discard.ts`.
+   */
+  audioUnresolved: number
 }
 
 /**
@@ -86,7 +91,8 @@ export async function redactPrivateLocalThreads(threadIds?: string[]): Promise<R
   const { data, error } = await q
   if (error) throw new Error(`Could not find private local threads: ${error.message}`)
   const rows = (data ?? []) as { id: string; gmail_thread_id: string | null }[]
-  if (rows.length === 0) return { redacted: 0, chunksRemoved: 0, audioDiscarded: 0 }
+  if (rows.length === 0)
+    return { redacted: 0, chunksRemoved: 0, audioDiscarded: 0, audioUnresolved: 0 }
   const ids = rows.map((r) => r.id)
 
   // Chunks first: `thread_chunks` is what retrieval reads, so it is the half
@@ -121,17 +127,26 @@ export async function redactPrivateLocalThreads(threadIds?: string[]): Promise<R
     .map((r) => r.gmail_thread_id)
     .filter((id): id is string => isVoiceMemoThread(id))
   let audioDiscarded = 0
+  let audioUnresolved = 0
   if (memoIds.length > 0) {
     try {
       const { discardMemoAudio } = await import('@/lib/voicememos/discard')
-      audioDiscarded = await discardMemoAudio(memoIds)
+      const discarded = await discardMemoAudio(memoIds)
+      audioDiscarded = discarded.deleted
+      audioUnresolved = discarded.unresolved
     } catch (err) {
       console.error(
         '[sweep/redact] could not discard recording audio:',
         err instanceof Error ? err.message : err
       )
+      audioUnresolved = memoIds.length
     }
   }
 
-  return { redacted: ids.length, chunksRemoved: chunksRemoved ?? 0, audioDiscarded }
+  return {
+    redacted: ids.length,
+    chunksRemoved: chunksRemoved ?? 0,
+    audioDiscarded,
+    audioUnresolved,
+  }
 }

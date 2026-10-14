@@ -24,7 +24,7 @@
  */
 
 import { appendFileSync, existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs'
-import { dirname } from 'node:path'
+import { dirname, join } from 'node:path'
 
 import { readVoiceMemos, voiceMemoAudioDir, voiceMemoSkipListPath } from './read'
 import { VOICEMEMO_THREAD_PREFIX } from './to-thread'
@@ -70,43 +70,82 @@ export function addToSkipList(fileNames: string[]): number {
   return fresh.length
 }
 
+export interface DiscardResult {
+  /** Audio files actually removed from the snapshot directory. */
+  deleted: number
+  /** File names added to the skip list, so the copier stops bringing them back. */
+  skipListed: number
+  /**
+   * Recordings whose FILE could not be named, and so could neither be deleted
+   * nor skip-listed.
+   *
+   * ⚠ THIS FIELD EXISTS BECAUSE THE FIRST VERSION REPORTED A DISCARD IT HAD NOT
+   * PERFORMED. Measured 2026-10-14 on the first synthetic end-to-end run: the
+   * sweep printed "transcript, chunks and audio discarded" while the m4a was
+   * still on disk and the skip list had never been created, because the
+   * identifier→file mapping is resolved by re-reading the store and that read
+   * found no store. §12 — a pass that reports what it did must read before it
+   * writes, and the reason belongs beside the number.
+   */
+  unresolved: number
+}
+
 /**
- * Delete the audio for these memo THREADS and skip-list them.
+ * Delete these audio FILES and skip-list them. No database, no resolution.
  *
- * Takes thread ids (`voicememo:<identifier>`) because that is what the
- * redaction pass holds; the identifier is what the copier keys on.
+ * The honest primitive: the caller that knows the file name is the caller that
+ * can be sure. The sweep always knows it, because it just read the row.
  */
-export async function discardMemoAudio(threadIds: string[]): Promise<number> {
+export function discardMemoAudioFiles(fileNames: string[]): DiscardResult {
+  const unique = [...new Set(fileNames.filter(Boolean))]
+  let deleted = 0
+  for (const name of unique) {
+    const path = join(voiceMemoAudioDir(), name)
+    if (!existsSync(path)) continue
+    try {
+      rmSync(path, { force: true })
+      deleted += 1
+    } catch (err) {
+      console.error(
+        `[voicememos] could not delete ${name} from ${voiceMemoAudioDir()}:`,
+        err instanceof Error ? err.message : err
+      )
+    }
+  }
+  // Skip-listing matters even when the file was already gone: it is what stops
+  // the next snapshot copying it back in six hours.
+  const skipListed = addToSkipList(unique)
+  return { deleted, skipListed, unresolved: 0 }
+}
+
+/**
+ * Discard the audio for these memo THREADS, resolving each file from the store.
+ *
+ * Used by the redaction pass, whose only handle is a thread id — it is called
+ * from the summarize phase, which has never seen the recording's row. Where the
+ * caller DOES know the file name (the sweep), it calls
+ * {@link discardMemoAudioFiles} instead and nothing has to be resolved.
+ *
+ * ⚠ AN UNRESOLVED RECORDING IS COUNTED, NOT SWALLOWED. If the store cannot be
+ * read, there is no file name to delete and none to skip-list, and the honest
+ * answer is that nothing was discarded — not a log line nobody reads. The
+ * transcript and the chunks are already gone by this point, which is the half
+ * that could answer a question out loud; the audio is retried by the next
+ * sweep, because the thread row survives as the tombstone and the memo is
+ * therefore never re-transcribed.
+ */
+export async function discardMemoAudio(threadIds: string[]): Promise<DiscardResult> {
   const identifiers = threadIds
     .filter((t) => t.startsWith(VOICEMEMO_THREAD_PREFIX))
     .map((t) => t.slice(VOICEMEMO_THREAD_PREFIX.length))
-  if (identifiers.length === 0) return 0
+  if (identifiers.length === 0) return { deleted: 0, skipListed: 0, unresolved: 0 }
 
-  // The database is the only thing that maps an identifier to its file, so the
-  // file is resolved by reading it. ⚠ A snapshot that has since gone missing
-  // costs BOTH halves here — there is no file name to delete and none to
-  // skip-list — so the caller is told nothing was discarded rather than being
-  // left to believe it was. The next run resolves it: the thread row survives
-  // as the tombstone, so the memo is never re-read, and the audio is deleted
-  // the first time the database can be opened again.
   const wanted = new Set(identifiers)
   const fileNames: string[] = []
-  let deleted = 0
   try {
     const read = readVoiceMemos()
     for (const memo of read.memos) {
-      if (!wanted.has(memo.identifier)) continue
-      fileNames.push(memo.fileName)
-      if (!memo.audioPath) continue
-      try {
-        rmSync(memo.audioPath, { force: true })
-        deleted += 1
-      } catch (err) {
-        console.error(
-          `[voicememos] could not delete ${memo.fileName} from ${voiceMemoAudioDir()}:`,
-          err instanceof Error ? err.message : err
-        )
-      }
+      if (wanted.has(memo.identifier)) fileNames.push(memo.fileName)
     }
   } catch (err) {
     console.error(
@@ -115,6 +154,6 @@ export async function discardMemoAudio(threadIds: string[]): Promise<number> {
     )
   }
 
-  addToSkipList(fileNames)
-  return deleted
+  const result = discardMemoAudioFiles(fileNames)
+  return { ...result, unresolved: identifiers.length - fileNames.length }
 }

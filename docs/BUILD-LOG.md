@@ -68,9 +68,40 @@ Also shared rather than forked (§12): the recap-and-register pass moved out of 
 
 **Deliberately not built:** the in-app button (deferred by decision; the segmented-upload design is understood — ~60s segments transcribed on arrival, so a crash costs at most the last minute — and the Mac is where it would be trustworthy); transcript timestamps, which would help a reader jump through a 60-minute meeting but change a shared pass and add ~15% to every context; diarization, which nothing on this box has room for; and a new table, because `email_threads.fingerprint` already answers "have I seen this memo".
 
-**Verified:** 346 tests pass (21 new), `tsc` clean, build exit 0 with the route registered, the cron route answers its own `Unauthorized` rather than the gate's `Not authenticated` (so `middleware.ts` names it), 25 launchd agents loaded including `cron-voice-memo-sweep`, and `bw-snapshot` rebuilt, re-signed and run **through launchd** — grant intact, two databases copied, `CloudRecordings.db` correctly reported absent rather than fatal.
+**Then it was run end to end against a SYNTHETIC store rather than waiting for Richard's first real meeting** — a `CloudRecordings.db` built with Apple's column names, and audio generated with macOS `say`, so the whole chain could be exercised before anyone depends on it. Both branches, cleaned up afterwards.
 
-⚠ **NOT YET VERIFIED END TO END, AND IT CANNOT BE FROM HERE.** The container is empty until Voice Memos.app is opened on the Studio and iCloud syncs something down, so the column names in `readVoiceMemos` are resolved from a candidate list against a schema nobody here has read — which is why a missing column returns the real `pragma table_info` output and a pointer to the file to fix, rather than an empty answer that reads as "no recordings". The dry run today returns exactly the sentence it should: Voice Memos.app must be running, then bw-snapshot copies it. Richard's three minutes are in §13. (DEPLOYED + MIGRATED)
+**The work branch, on a 62-second recording naming no existing deal** (deliberately — a real record name would have written onto a real project's feed):
+
+```
+whisper            62s of audio → 2.05s                      (30x realtime)
+whole chain        2m50s wall clock, sequential
+thread             relevance 'deal', 941 chars, 1 chunk embedded → quotable by Ber AI
+meetings row       "Bramblewood Quarry Site Review", scope unfiled, status draft
+  decisions        "Land acquisition price is capped at $4.2 million."
+                   "Walk away if the new power feeder cost exceeds $2 million."
+staged recap       pending, source_title = the memo's own name (the filing key),
+                   model's rewrite kept separately, 4 attendees, 1 task
+commitments        2, both side='us'
+tasks              2, created with NO human confirm (§11's narrow exception) —
+                   and "by Friday" resolved to 2026-10-16, which it is
+routing            no record matched, so NOTHING was written to any project, and
+                   the report says so in words rather than reporting silence
+meeting_attended   1 row, against Richard's own contact
+```
+
+That last line matters: the 10-14 session found `meeting_attended` had never fired for any meeting, ever. It fires for a voice memo, from the owner override — nobody has to be named in the audio for the person who recorded it to be on the record.
+
+**The noise branch, on a 20-second recording of a fictional conversation**, judged `noise` by the summarizer with no tuning: `raw_markdown` NULL, 0 chunks, no `meetings` row, no staged session, the row surviving as the tombstone carrying `{"relevance":"noise"}` and the reason string. Which is where the first real defect turned up.
+
+**⚠ THE SWEEP REPORTED A DISCARD IT HAD NOT PERFORMED.** It printed "transcript, chunks and audio discarded" while the m4a was still on disk and the skip list had never been created. Two causes, both worth the finding: the note was composed unconditionally, and `discardMemoAudio` resolves an identifier to a file name by **re-reading the store at its default path** — which in the test was not the path the sweep had been handed. §12 already holds this rule twice over ("a pass that reports what it did must read before it writes", "name the reason beside the number") and I wrote the lie anyway, in the one place where the claim is about privacy. Now: `discardMemoAudioFiles(fileNames)` is the honest primitive and the SWEEP calls it, because the sweep is holding the row and never has to resolve anything; the resolving path survives for the inline call from `summarize-phase`, which only ever has a thread id, and it **counts what it could not name** rather than logging it. The report prints deletions and skip-listings separately and flags anything unmatched. 5 more tests.
+
+**⚠ AND THE COMMITMENT AND TASK COUNTS WERE THE QUEUE'S, NOT THE RECORDING'S.** `extractCommitments`, `embedPendingThreads` and `promoteInternalCommitments` take no id filter and did not need one — whatever else is pending is work the hourly sweep would do anyway — but their return values then include it, so a sweep could report "2 commitments, 2 tasks" for a memo when both belonged to a mail thread. It happened to be honest here (both were genuinely from the recording, verified by `thread_id`), which is exactly how this class of mistake survives. The counts are now read back from the rows. The same trap was caught earlier in the build for `applyThreadUpdates`, which does take `linkIds`.
+
+**Cleaned up afterwards:** both threads, 1 chunk, 1 meeting, 1 staged session, 2 commitments, 2 tasks and both audio files. One `meeting_attended` row was deleted from the append-only `activity_log` **by hand in psql, deliberately and once** — it renders on Richard's own contact profile under Activity, so leaving it would have put a meeting that never happened in front of him as history. The `INSERT`/`DELETE` rows for the test tasks and meeting were left where they are: they are true, they carry the old row in `metadata`, and tidying an audit log of accurate entries is worse than the noise.
+
+**Verified:** 351 tests pass (26 new), `tsc` clean, build exit 0 with the route registered, lint unchanged at 23 pre-existing (none in the new files), the cron route answers its own `Unauthorized` rather than the gate's `Not authenticated` (so `middleware.ts` names it), 25 launchd agents loaded including `cron-voice-memo-sweep`, `bw-snapshot` rebuilt and re-signed and run **through launchd** — grant intact, two databases copied, `CloudRecordings.db` correctly reported absent rather than fatal — and the local-prefix `.or()` filter checked against the live corpus: 156 rows (155 texts, 1 note), no mail leaked.
+
+⚠ **ONE THING REMAINS UNVERIFIABLE FROM HERE: APPLE'S OWN SCHEMA.** The synthetic store uses the column names `readVoiceMemos` expects, which proves the pipeline and not the names. The container stays empty until Voice Memos.app is opened on the Studio, so those names are resolved from a candidate list against a schema nobody here has read — which is why a miss returns the real `pragma table_info` output and names the file to fix, rather than an empty answer that reads as "no recordings". Richard's three minutes are in §13. (DEPLOYED + MIGRATED)
 
 **Done 2026-10-14 (a call about three deals updates three deals, and the matcher that found them was failing 9 times in 10):**
 

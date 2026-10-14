@@ -44,7 +44,7 @@ import { promoteInternalCommitments } from '@/lib/commitments/internal-tasks'
 import { recordLocalRecording, localDateString } from '@/lib/meetings/record-local'
 import type { ResolvedThread } from '@/lib/integrations/gmail-search'
 
-import { readSkipList } from './discard'
+import { discardMemoAudioFiles, readSkipList } from './discard'
 import { readVoiceMemos, type MemoRow } from './read'
 import { transcribeMemo } from './transcribe'
 import { memoThreadId, memoToThread } from './to-thread'
@@ -84,8 +84,12 @@ export interface VoiceMemoSweepResult {
   transcribeMs: number
   /** Could not be transcribed this run, with why. Retried next run. */
   deferred: { title: string; why: string }[]
-  /** Judged private: transcript, chunks and audio discarded. */
+  /** Judged private: transcript and chunks discarded. */
   discarded: number
+  /** Audio files actually removed from the snapshot directory. */
+  audioDeleted: number
+  /** Names added to the copier's skip list, so the audio does not come back. */
+  audioSkipListed: number
   /** Became records: the meeting row, and the deal if routing was certain. */
   recorded: { title: string; meetingId: string | null; note?: string }[]
   /** What the shared phases did with them. */
@@ -96,7 +100,9 @@ export interface VoiceMemoSweepResult {
     updatesPosted: number
     updatesStaged: number
     meetingsFiled: number
+    /** Obligations extracted from THESE recordings, counted from the rows. */
     commitments: number
+    /** Of those, the ones that became a task with no human confirm (§11). */
     tasksCreated: number
   }
   notes: string[]
@@ -120,6 +126,8 @@ export async function runVoiceMemoSweep(
     transcribeMs: 0,
     deferred: [],
     discarded: 0,
+    audioDeleted: 0,
+    audioSkipListed: 0,
     recorded: [],
     phases: {
       summarized: 0,
@@ -297,18 +305,38 @@ export async function runVoiceMemoSweep(
   // is the backstop that also reaches anything whose redaction failed, and it
   // is what reports the count.
   if (noiseIds.length > 0) {
+    base.discarded = noiseIds.length
     try {
-      const discarded = await redactPrivateLocalThreads(noiseIds)
-      base.discarded = Math.max(discarded.redacted, noiseIds.length)
-      base.notes.push(
-        `${noiseIds.length} recording(s) judged private — transcript, chunks and audio discarded` +
-          (discarded.audioDiscarded ? `, ${discarded.audioDiscarded} audio file(s) deleted` : '')
-      )
+      await redactPrivateLocalThreads(noiseIds)
     } catch (err) {
       base.notes.push(
-        `⚠ A private recording could not be discarded: ${err instanceof Error ? err.message : String(err)}`
+        `⚠ A private recording's TEXT could not be discarded: ${err instanceof Error ? err.message : String(err)}`
       )
     }
+
+    // ⚠ THE AUDIO IS DISCARDED BY FILE NAME, FROM THE ROWS THIS RUN READ — not
+    // by asking the redaction pass to resolve it again. Measured on the first
+    // synthetic end-to-end run (10-14): the report said "transcript, chunks and
+    // audio discarded" while the m4a was still on disk and the skip list had
+    // never been written, because the resolver re-read the store at its DEFAULT
+    // path. The sweep is holding the file name already. §12 — a pass that
+    // reports what it did must read before it writes.
+    const noiseFiles = take
+      .filter((m) => {
+        const id = threadIdByMemo.get(m.identifier)
+        return id ? noiseIds.includes(id) : false
+      })
+      .map((m) => m.fileName)
+    const audio = discardMemoAudioFiles(noiseFiles)
+    base.audioDeleted = audio.deleted
+    base.audioSkipListed = audio.skipListed
+    base.notes.push(
+      `${noiseIds.length} recording(s) judged private — transcript and chunks discarded; ` +
+        `${audio.deleted} audio file(s) deleted, ${audio.skipListed} added to the copier's skip list` +
+        (noiseFiles.length < noiseIds.length
+          ? `. ⚠ ${noiseIds.length - noiseFiles.length} could not be matched to a file and may be re-copied`
+          : '')
+    )
   }
 
   if (workIds.length === 0) {
@@ -356,10 +384,30 @@ export async function runVoiceMemoSweep(
   // pending is work the hourly sweep would do anyway, on the same budget.
   try {
     await embedPendingThreads({ budgetMs: 4 * 60 * 1000 })
-    const commitments = await extractCommitments({ budgetMs: 4 * 60 * 1000 })
-    base.phases.commitments = commitments.created
+    await extractCommitments({ budgetMs: 4 * 60 * 1000 })
     const internal = await promoteInternalCommitments()
-    base.phases.tasksCreated = internal.created
+
+    // ⚠ COUNTED FROM THE ROWS, NOT FROM THE PHASES' OWN TOTALS. These three
+    // phases work the QUEUE — they take no id filter and did not need one,
+    // because whatever else is pending is work the hourly sweep would do
+    // anyway. But their return values then include that other work, and a
+    // sweep reporting "2 commitments, 2 tasks" for one recording when both
+    // belonged to a mail thread is the same lie `applyThreadUpdates` told
+    // above. So the report asks the database what THESE threads produced.
+    const { data: mine } = await db
+      .from('commitments')
+      .select('id')
+      .in('thread_id', workIds)
+    const commitmentIds = (mine ?? []).map((c) => (c as { id: string }).id)
+    base.phases.commitments = commitmentIds.length
+    if (commitmentIds.length > 0) {
+      const { count: tasks } = await db
+        .from('tasks')
+        .select('id', { count: 'exact', head: true })
+        .in('commitment_id', commitmentIds)
+      base.phases.tasksCreated = tasks ?? 0
+    }
+
     if (internal.created > 0) {
       // The board publishes to a shared Google Sheet; a follow-up from a
       // meeting that just ended has to reach the phone this hour.
