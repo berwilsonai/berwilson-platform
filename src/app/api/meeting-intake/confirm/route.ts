@@ -15,6 +15,7 @@ import { fileMeetingDocument, findFiledTranscript, type FileTarget } from '@/lib
 import { refileDocument } from '@/lib/documents/refile'
 import { attachMeetingToRecord, linkDocumentToMeeting } from '@/lib/meetings/record'
 import { learnMeetingTitles } from '@/lib/email-sweep/identifiers'
+import { recordFeedBody, meetingDoc, type MeetingMeta } from '@/lib/meetings/feed'
 import { meetingTargetFromTitle } from '@/lib/meetings/meet-import'
 import { parseAttendees } from '@/lib/utils/meetings'
 import { createLeadFromMeeting } from '@/lib/leads/from-meeting'
@@ -72,14 +73,17 @@ interface TargetInput {
    * and nothing else. A lead is neither of those things yet; that is the point.
    */
   new_fields?: Record<string, unknown> | null
-}
-
-interface MeetingMeta {
-  title: string | null
-  date: string | null
-  summary: string | null
-  minutes: string | null
-  decisions: string[]
+  /**
+   * What the call said about THIS deal — written to this record's feed in place
+   * of the whole call's minutes. See {@link recordFeedBody}.
+   */
+  discussion?: string | null
+  /**
+   * The record's name as the review screen showed it. DISPLAY ONLY — it names
+   * the other deals in the "this call also covered …" line and decides nothing.
+   * The id is what every write uses.
+   */
+  name?: string | null
 }
 
 interface ConfirmBody {
@@ -88,33 +92,6 @@ interface ConfirmBody {
   targets: TargetInput[]
   attendee_actions: PartyAction[]
   task_actions: TaskAction[]
-}
-
-/** Compose the feed body (minutes + decisions) added to each record's update/note. */
-function feedBody(meeting: MeetingMeta): string {
-  const parts: string[] = []
-  if (str(meeting.summary)) parts.push(meeting.summary!.trim())
-  if (str(meeting.minutes)) parts.push(meeting.minutes!.trim())
-  if (meeting.decisions.length > 0) {
-    parts.push(`Decisions:\n${meeting.decisions.map((d) => `- ${d}`).join('\n')}`)
-  }
-  return parts.join('\n\n').slice(0, 100_000)
-}
-
-/** Compose the standalone meeting-minutes markdown document. */
-function meetingDoc(meeting: MeetingMeta, attendees: { name: string; role: string | null }[]): string {
-  const title = str(meeting.title) || 'Meeting notes'
-  const lines: string[] = [`# ${title}`]
-  if (str(meeting.date)) lines.push(`\n_${meeting.date}_`)
-  if (attendees.length > 0) {
-    lines.push(`\n**Attendees:** ${attendees.map((a) => (a.role ? `${a.name} (${a.role})` : a.name)).join(', ')}`)
-  }
-  if (str(meeting.summary)) lines.push(`\n## Summary\n\n${meeting.summary!.trim()}`)
-  if (meeting.decisions.length > 0) {
-    lines.push(`\n## Decisions\n\n${meeting.decisions.map((d) => `- ${d}`).join('\n')}`)
-  }
-  if (str(meeting.minutes)) lines.push(`\n## Minutes\n\n${meeting.minutes!.trim()}`)
-  return lines.join('\n')
 }
 
 export async function POST(request: NextRequest) {
@@ -280,8 +257,14 @@ export async function POST(request: NextRequest) {
   }
 
   // ── 3. Fan the meeting out onto each target record ───────────────────────────
-  const body_feed = feedBody(meeting)
-  const docContent = meetingDoc(meeting, linkedPeople)
+  //
+  // Each record gets its OWN paragraph (recordFeedBody); the minutes document
+  // saved below carries the whole call and goes on every one of them, so nothing
+  // is lost by not repeating the other deals on each feed.
+  const allRecordNames = (body.targets ?? [])
+    .filter((t) => (t.kind === 'project' || t.kind === 'opportunity') && str(t.name))
+    .map((t) => t.name!.trim())
+  const docContent = meetingDoc(meeting, linkedPeople, allRecordNames)
   const docTitle = `Meeting notes — ${str(meeting.title) || session.label || 'meeting'}`
   const attendeeNote =
     linkedPeople.length > 0
@@ -290,18 +273,36 @@ export async function POST(request: NextRequest) {
           .join('\n')}`
       : null
 
-  for (const tgt of targets) {
+  // ⚠ ITERATED BY REF, NOT BY VALUE, so each record can be handed the paragraph
+  // the recap wrote about IT (see recordFeedBody). `resolved` is keyed by the
+  // review screen's client ref, which is the only thing tying a written record
+  // back to the referenced record it came from.
+  const inputByRef = new Map((body.targets ?? []).map((t) => [t.ref, t]))
+  /** The other records this same confirm is writing to, for the slice header. */
+  const recordNameByRef = new Map(
+    [...resolved.entries()]
+      .filter(([, v]) => v.kind === 'project' || v.kind === 'opportunity')
+      .map(([ref]) => [ref, str(inputByRef.get(ref)?.name) ? inputByRef.get(ref)!.name!.trim() : null])
+  )
+
+  for (const [tgtRef, tgt] of resolved.entries()) {
     // A lead already carries the meeting in its own note (createLeadFromMeeting)
     // and has no update feed, players list or document shelf to fan out onto.
     if (tgt.kind === 'lead') continue
 
+    const input = inputByRef.get(tgtRef)
+    const others = [...recordNameByRef.entries()]
+      .filter(([ref, name]) => ref !== tgtRef && !!name)
+      .map(([, name]) => name!)
+    const feedForThisRecord = recordFeedBody(meeting, input ?? { ref: tgtRef, kind: tgt.kind }, others)
+
     if (tgt.kind === 'project') {
       // Update feed + embedding
-      if (body_feed) {
+      if (feedForThisRecord) {
         const updateRow: TablesInsert<'updates'> = {
           project_id: tgt.id,
           source: 'manual_paste',
-          raw_content: body_feed,
+          raw_content: feedForThisRecord,
           summary: `Meeting — ${str(meeting.title) || 'notes'}`,
           review_state: 'approved',
         }
@@ -311,7 +312,7 @@ export async function POST(request: NextRequest) {
           .select('id')
           .single()
         if (updateErr) console.error('Meeting update insert failed:', updateErr)
-        else embedUpdate(update.id, tgt.id, body_feed).catch(console.error)
+        else embedUpdate(update.id, tgt.id, feedForThisRecord).catch(console.error)
       }
       // Players
       for (const person of linkedPeople) {
@@ -323,13 +324,13 @@ export async function POST(request: NextRequest) {
       }
     } else if (tgt.kind === 'opportunity') {
       // Opportunity: notes feed + embedding
-      if (body_feed) {
+      if (feedForThisRecord) {
         await supabase.from('opportunity_notes').insert({
           opportunity_id: tgt.id,
-          body: `Meeting — ${str(meeting.title) || 'notes'}\n\n${body_feed}`,
+          body: `Meeting — ${str(meeting.title) || 'notes'}\n\n${feedForThisRecord}`,
           author: 'Meeting intake',
         })
-        embedOpportunityReport(tgt.id, body_feed).catch(console.error)
+        embedOpportunityReport(tgt.id, feedForThisRecord).catch(console.error)
         embedOpportunitySnapshot(tgt.id).catch(console.error)
       }
       if (attendeeNote) {
@@ -352,7 +353,7 @@ export async function POST(request: NextRequest) {
       createdRecordIds.document_ids.push(docId)
       // Company minutes have no update/note carrier — embed the doc directly so
       // Ber AI can retrieve it (project/opportunity targets embed via their feed).
-      if (tgt.kind === 'company' && body_feed) {
+      if (tgt.kind === 'company' && feedForThisRecord) {
         embedDocument(docId, null, docContent, null, true).catch(console.error)
       }
     }

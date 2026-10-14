@@ -18,7 +18,7 @@
 
 import type { EmailIntakePerson } from './email-intake'
 
-export const MEETING_INTAKE_PROMPT_VERSION = 'meeting-intake-1.1'
+export const MEETING_INTAKE_PROMPT_VERSION = 'meeting-intake-1.2'
 
 export interface MeetingIntakeTask {
   title: string
@@ -43,6 +43,30 @@ export interface MeetingReferencedRecord {
   name: string
   /** How the meeting touched it (e.g. "reviewed schedule slip", "discussed teaming terms"). */
   note: string | null
+  /**
+   * What the meeting said about THIS deal, as a paragraph or two — the text
+   * written onto this record's own update feed.
+   *
+   * ⚠ WHY THIS IS NOT `minutes`. A recorded call covers several deals: measured
+   * across every staged meeting on 2026-10-14, 9 of 10 named between 2 and 8
+   * records, median 5. `minutes` is one narrative of the whole call, and the
+   * confirm step wrote it to EVERY record the call touched — so Riverdale's feed
+   * carried the Steelton negotiation and the Weirton walk-through, and a feed
+   * whose entries are mostly about other deals stops being read. §12 already
+   * records the sharper version of this failure: one thread covering Steelton,
+   * Riverdale and Weirton had newest-wins rewrite each deal's own address to
+   * "Steelton, Riverdale, Weirton".
+   *
+   * Null when the deal was only MENTIONED. That distinction is the one §12 draws
+   * between a source that DESCRIBES a field's subject and one that merely names
+   * it, and the prompt asks for null rather than a thin paragraph because an
+   * entry on a record is a claim that the call was about it.
+   *
+   * Absent on sessions staged before 2026-10-14 (prompt version 1.1 and
+   * earlier); readers fall back to the whole minutes, which is what those
+   * sessions were always going to write.
+   */
+  discussion?: string | null
   /**
    * Descriptive facts about the deal itself, when the meeting stated them.
    *
@@ -93,6 +117,7 @@ Produce:
 - "attendees": every distinguishable person (and organization) present or referenced. Set is_organization=true for companies. Give each a short role (e.g. "Ber Wilson EVP", "GC principal", "lender", "owner's rep").
 - "decisions": the concrete decisions the group reached, one clear statement each. Omit if none were made.
 - "referenced_records": the specific projects and opportunities the meeting was about. Use "project" for built work Ber Wilson would build/bid/develop/deliver; use "opportunity" ONLY for a corporate transaction (acquiring a company, merger, divestiture, equity investment in a business). Give the record's name as spoken and a short note on how the meeting touched it. Include a record even if you're only fairly sure it exists — the human will match it. Also fill "location", "sector" and "estimated_value" from what the meeting actually said about that deal, and null for any the meeting did not state. A broker or site-selection call names many properties in one hour: list every one as its own referenced record rather than folding them into a single entry, because each is a separate decision.
+  Each referenced record also gets "discussion": everything this meeting said about THAT DEAL AND NOTHING ELSE, as one or two paragraphs written to be read on that deal's own page by someone who was not in the room and does not care about the other deals. Include its figures, dates, terms, positions taken and open questions. Do NOT summarize the meeting as a whole here, do not mention the other records except where the meeting genuinely connected them (e.g. "priced against the Riverdale offer"), and do not repeat "minutes". If the meeting only named the deal in passing with nothing said about it, set "discussion" to null — a record that was merely mentioned must not be given a paragraph that implies it was discussed.
 - "tasks": the follow-up action items. Each gets a crisp title and, where supported, what/why/how, a due_date (YYYY-MM-DD), a best-guess assignee name, and "record_hint" = the name of the referenced project/opportunity it belongs to (exactly as in referenced_records), or null if it isn't about a specific record.
 
 Ground everything strictly in the notes — never invent people, dollar figures, dates, decisions, or scope. If a fact is uncertain, omit it rather than guessing. When you propose enum-constrained values for a brand-new record, use only:
@@ -107,7 +132,7 @@ Return ONLY valid JSON matching exactly this shape (no markdown, no commentary):
   "minutes": string,
   "attendees": [{ "name": string, "email": string|null, "company": string|null, "title": string|null, "role": string|null, "is_organization": boolean }],
   "decisions": [string],
-  "referenced_records": [{ "kind": "project" | "opportunity", "name": string, "note": string|null, "location": string|null, "sector": string|null, "estimated_value": number|null }],
+  "referenced_records": [{ "kind": "project" | "opportunity", "name": string, "note": string|null, "discussion": string|null, "location": string|null, "sector": string|null, "estimated_value": number|null }],
   "tasks": [{ "title": string, "what": string|null, "why": string|null, "how": string|null, "assignee": string|null, "due_date": string|null, "record_hint": string|null }],
   "confidence": 0.0
 }`

@@ -171,6 +171,14 @@ interface SelectedTarget {
   name: string
   isNew: boolean
   fields?: NewFields
+  /**
+   * What the call said about THIS deal, from the extraction — the text written
+   * to this record's feed instead of the whole call's minutes when the call
+   * touched more than one record. Undefined for a target the reviewer added by
+   * hand and for sessions staged before prompt version 1.2, both of which fall
+   * back to the minutes in the confirm route.
+   */
+  discussion?: string | null
 }
 
 const inputCls = 'w-full h-9 px-3 rounded-md border border-input bg-background text-sm'
@@ -206,6 +214,7 @@ export default function MeetingIntakeReview({
       if (match?.matched_id) {
         seeded.push({
           ref: `seed-${i}`,
+          discussion: rec.discussion ?? null,
           // The MATCH's kind, not the model's. It searched both tables and the
           // model cannot see either — "Elite Solutions" is an opportunity and
           // arrived labelled `project`, which would send an opportunity's uuid
@@ -487,8 +496,8 @@ export default function MeetingIntakeReview({
     const decisions = decisionsText.split('\n').map((d) => d.trim()).filter(Boolean)
 
     const targetPayload = targets.map((t) => {
-      if (t.kind === 'company') return { ref: t.ref, kind: 'company' as const, id: COMPANY_REF, new_fields: null }
-      if (!t.isNew) return { ref: t.ref, kind: t.kind, id: t.id, new_fields: null }
+      if (t.kind === 'company') return { ref: t.ref, kind: 'company' as const, id: COMPANY_REF, new_fields: null, discussion: null, name: t.name }
+      if (!t.isNew) return { ref: t.ref, kind: t.kind, id: t.id, new_fields: null, discussion: t.discussion ?? null, name: t.name }
       const f = t.fields!
       const new_fields: Record<string, unknown> =
         t.kind === 'lead'
@@ -503,7 +512,7 @@ export default function MeetingIntakeReview({
           : t.kind === 'project'
             ? { name: f.name, sector: f.sector, stage: f.stage, location: f.location, description: f.description }
             : { name: f.name, opp_type: f.opp_type, sector: f.sector, location: f.location, objective: f.description }
-      return { ref: t.ref, kind: t.kind, id: null, new_fields }
+      return { ref: t.ref, kind: t.kind, id: null, new_fields, discussion: t.discussion ?? null, name: t.name }
     })
 
     setSubmitting(true)

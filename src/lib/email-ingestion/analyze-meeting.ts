@@ -158,6 +158,10 @@ function normalize(
             kind: rec.kind === 'opportunity' ? ('opportunity' as const) : ('project' as const),
             name: (rec.name as string).trim(),
             note: nullableStr(rec.note),
+            // What the meeting said about THIS deal — the text that goes on this
+            // record's feed instead of the whole call's minutes. Null when the
+            // deal was only mentioned; see the prompt's field header.
+            discussion: nullableStr(rec.discussion),
           }))
       : [],
     tasks: Array.isArray(r.tasks)
