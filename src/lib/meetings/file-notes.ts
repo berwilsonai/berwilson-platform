@@ -56,6 +56,18 @@ const GENERIC_NAME_WORDS = new Set([
   // Steelton and Stockton are precisely what distinguishes these records.
   'power', 'energy', 'mining', 'capital', 'steel', 'rail', 'solar', 'gas',
   'oil', 'grid', 'water', 'land', 'data', 'quantum', 'resilience',
+  // ⚠ A COMPASS DIRECTION IS NOT A PLACE, and leaving it in cost three wrong
+  // suggestions out of 52 when this resolver was pointed at the deals a call
+  // NAMES rather than at its title (10-14). "West Virginia Power Site", "West
+  // Virginia Data Center" and "West Virginia Portfolio" each resolved to
+  // **West Wendover** — a different state, a different deal — on the word
+  // *west* alone, while `virginia` matched nothing. The two records here that
+  // carry a direction are both identified by the word beside it (`wendover`,
+  // `summit`), so nothing is lost: verified against the live corpus, which has
+  // no record distinguished only by a direction.
+  'west', 'east', 'north', 'south', 'western', 'eastern', 'northern',
+  'southern', 'upper', 'lower', 'new', 'old', 'greenfield', 'brownfield',
+  'prospective', 'additional',
 ])
 
 /** Identity-bearing words in a name, lowercased. */

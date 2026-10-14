@@ -206,7 +206,13 @@ export default function MeetingIntakeReview({
       if (match?.matched_id) {
         seeded.push({
           ref: `seed-${i}`,
-          kind: rec.kind,
+          // The MATCH's kind, not the model's. It searched both tables and the
+          // model cannot see either — "Elite Solutions" is an opportunity and
+          // arrived labelled `project`, which would send an opportunity's uuid
+          // to the projects branch of the confirm route. Falls back to the
+          // model's kind for sessions staged before 2026-10-14, which carry no
+          // `matched_kind`.
+          kind: match.matched_kind ?? rec.kind,
           id: match.matched_id,
           name: match.matched_name ?? rec.name,
           isNew: false,
