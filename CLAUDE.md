@@ -15,7 +15,7 @@ Canonical reference for every Claude Code session working on the Ber Wilson plat
 | File | Holds | Split out |
 |---|---|---|
 | [`docs/BUILD-LOG.md`](docs/BUILD-LOG.md) | the session-by-session history, with the reasoning and measurements behind every decision | 2026-09-23, at 606k characters |
-| [`docs/HARD-WON-RULES.md`](docs/HARD-WON-RULES.md) | all 178 rules in full, with their evidence; §12 keeps the claim and the fix | 2026-10-12, at 150k |
+| [`docs/HARD-WON-RULES.md`](docs/HARD-WON-RULES.md) | every rule in full, with its evidence; §12 keeps the claim and the fix. ⚠ Count it, never trust a number here: `grep -c "^- \*\*" docs/HARD-WON-RULES.md` (183 on 10-14) | 2026-10-12, at 150k |
 | [`docs/OPEN-ITEMS.md`](docs/OPEN-ITEMS.md) | the full open-items table; §13 keeps only the rows wanting a decision from Richard | 2026-10-01, at 143k |
 
 **Builder:** Richard (EVP, Ber Wilson) — builds in Claude Code terminal. Not a developer.
@@ -348,7 +348,7 @@ Note the drift flagged in §9: `entities`/vendors partly duplicate this. The *su
 
 Each line is a bug that cost real hours, several of them twice. **The full
 version of every rule — the story, the measurement, the date — is in
-[`docs/HARD-WON-RULES.md`](docs/HARD-WON-RULES.md)** (178 rules; not
+[`docs/HARD-WON-RULES.md`](docs/HARD-WON-RULES.md)** (183 rules on 10-14, counted not incremented; not
 auto-loaded, grep it). What follows is the claim and the fix.
 
 ⚠ **ADDING A RULE: the full version goes in that file, only the claim comes
@@ -443,6 +443,7 @@ is a finding for `BUILD-LOG.md`, not a rule.
 - **A fuzzy threshold is measured against the real corpus, never chosen** — and an AUTOMATIC bar and a PRE-TICK bar are two bars, never one number. A threshold that is a share of the corpus gets looser the less it reads.
 - **A SHARED INDUSTRY WORD IS THE ONE THING AN IDENTIFIER MUST NOT BE** — it put Bloom Energy's logo on `bfaenergy.com`, and counting matched tokens let a hospital/airport project claim a 664-message family thread. Require the whole name or one token rare in the corpus; keep PLACE names out of the stopword list.
 - **A mailbox is a better key than a name** — and check what the field MEANS on each side, or resolving `side='them'` says someone owes themselves.
+- **A HUMAN NAME HAS STRUCTURE A SIMILARITY SCORE THROWS AWAY.** The name on a phone is not the name in the CRM (`Eric Tuaone` vs `Ericson Tua'one`, 0.473 and meaningless): delete punctuation rather than split on it, require the surname WHOLE, allow a first name only as a prefix of something longer, and never accept a prefix alone. And **a person-shaped field a model filled holds organizations** — our own company "attended" four of its own calls — so decide on the `is_organization` flag, never on the name.
 - **Never print a reader's own name back at them.** When the owner IS the reader, "this one is yours" is the information.
 - **A matcher must never learn from its own matches**, and a self-loop guard keyed on a DISPLAY NAME is defeated by a rename that is itself a good idea — 27% of the commitment ledger turned out to be Pepper reading her own notes. Key the guard on the ADDRESS, which is structural.
 - **A new record type is a destination for the HUMAN, never a classification for the model.** The model has no sight of the database.
@@ -460,8 +461,9 @@ is a finding for `BUILD-LOG.md`, not a rule.
 - **A pass that reports what it did must read before it writes, or it claims work it did not do.** Pair every fill-not-overwrite pass with a script that calls it TWICE and asserts the second run reports nothing.
 - **A destination that does not carry what creating carries reads as losing the work.** If two paths differ only in WHERE the work lands, they are one pass with a target parameter.
 - **A record created with no owner is invisible under a default "mine" scope**, and a promotion must carry everything the record's next button needs.
-- **A provenance line that invents a provenance is worse than no line** — every arm of it must be true for every source.
-- **An orphaned projection looks perfectly live, and renaming or splitting its source is what orphans it.** Build the "still live" set from what SHOULD publish, not from what succeeded this run.
+- **A provenance line that invents a provenance is worse than no line** — every arm of it must be true for every source. **When a function branches on where something came from, every source that can reach it needs an arm, not just the one being added today**: the fix for texts left notes stamped "Email — Call with …", one source late.
+- **An orphaned projection looks perfectly live, and renaming or splitting its source is what orphans it.** Build the "still live" set from what SHOULD publish, not from what succeeded this run. **A projection of a record that MOVES goes stale the same way** — reconcile its FIELDS, not just its membership.
+- **A COLUMN THAT STILL EXISTS BUT HOLDS NOTHING READS AS AN EMPTY ANSWER**, and a sentinel default then dates the whole corpus to 1970: Apple keeps a note's creation time in `ZCREATIONDATE3` and `…DATE1` is null for all 353. Verify one row against something you know, and never fall back to a value a reader cannot tell from a real one.
 - **A verification script whose `finally` calls `process.exit` swallows the throw it is unwinding.** And when a check fails, suspect the check.
 - **MEASURE BEFORE BUILDING, AND MEASURE THE DATA'S SHAPE RATHER THAN ITS SIZE.** Repeatedly the premise was wrong: the Drive was already clean, three planned passes were built and then removed, deal records turned out to be clean while the rolodex was the mess, and a "stale proposals" purge would have retired live deals. Absence of a flag is not a withheld answer.
 
@@ -510,8 +512,8 @@ is a finding for `BUILD-LOG.md`, not a rule.
 | **governance** | three admin-only registers under `/company`: Personnel (employment records, agreements, a 25-step offboarding that closes signing authority and revokes the login), Corporate record (resolutions, appointments, ownership), Compliance (filing calendar, conflicts, related parties, policies) |
 | **Directory** | one destination — Contacts \| Vendors tabs — plus a business-card scanner (photo → on-device OCR → researched contact) |
 | **/intake** | Email \| People \| Cards \| Meeting \| Proposal \| Document. Sweeps and staged packages become records on a human confirm |
-| **meetings** | a Meet recording becomes a record the night it happens: transcript filed and indexed, a row in `meetings`, so Ber AI can quote what somebody said. Confirming teaches the title so the next call in the series files itself |
-| **texts** / **notes** | iMessage sessions and nominated Apple Notes folders become `email_threads` rows, inheriting all eight mail phases. A text is read only if it clearly names a record or a CRM contact; a note only if filed in a nominated folder, and never if it looks like credentials |
+| **meetings** | a Meet recording OR a recorded iPhone call becomes a record the night it happens: transcript filed and indexed, a row in `meetings`, attendees linked to their directory contacts so the call shows on each profile, so Ber AI can quote what somebody said. Confirming teaches the title so the next call in the series files itself — except a `Call with <person>` title, which names nobody's deal |
+| **texts** / **notes** | iMessage sessions and nominated Apple Notes folders become `email_threads` rows, inheriting all eight mail phases. A text is read only if it clearly names a record or a CRM contact; a note only if filed in a nominated folder, and never if it looks like credentials. **A recorded call ALSO becomes a meeting** (`src/lib/notes/call-record.ts`): whisper transcribes it, iOS's `Call with <name>` title resolves the contact structurally rather than by score, and the thread's `linked` filing moves the meeting onto the deal |
 | **Pepper** | the assistant layer: a per-person morning note by email at 06:50 weekdays and a **text at 06:45** (Monday's is the week ahead), a nudge ~20 min before each external meeting, memory of what she has already said, the chase, and **autonomous CRM curation at 06:20** (§11) |
 | **intel** | RAG + streaming agent, plus the ambient **Ask Ber AI** dock (⌘J, every page) |
 | also | dashboard (single attention surface), timeline, capacity, company profile (thin), review queue, activity log, manual-paste extraction |
@@ -522,7 +524,7 @@ Calendar/meeting-prep and mail both run on Google Workspace via per-mailbox OAut
 
 ### Open items (Richard)
 
-**The full table — 48 rows, including everything marked *as reported* / *cosmetic* / *standing* / *self-resolving* — lives in [`docs/OPEN-ITEMS.md`](docs/OPEN-ITEMS.md)** (split out 2026-10-01 to get this file back under its own 100k threshold). It is not auto-loaded; read it when picking up work. Below are only the rows that want something from Richard. Each is **as last reported on its date, not re-verified** — confirm against the live system before acting.
+**The full table — count it with `grep -c "^| " docs/OPEN-ITEMS.md` (94 on 10-14; the "48" written here was wrong by half), including everything marked *as reported* / *cosmetic* / *standing* / *self-resolving* — lives in [`docs/OPEN-ITEMS.md`](docs/OPEN-ITEMS.md)** (split out 2026-10-01 to get this file back under its own 100k threshold). It is not auto-loaded; read it when picking up work. Below are only the rows that want something from Richard. Each is **as last reported on its date, not re-verified** — confirm against the live system before acting.
 
 **Do this first (5 minutes):** enrol an authenticator at `/settings/security` **before protecting any project** — otherwise the only way back into a protected project is `delete from step_up_sessions` in psql. Eric needs his own; a factor is per-person by design. — 09-30
 
@@ -546,7 +548,7 @@ Calendar/meeting-prep and mail both run on Google Workspace via per-mailbox OAut
 | ⚠ **Steelton's PSA closing is 17 Oct by the agreement and Ber Wilson is pushing to 1 Nov — that is 9 days out and unresolved in the mail.** Seller is Cleveland-Cliffs Steelton LLC (signatory Paul Finan), financing JPMorgan Chase via Tensor IQ, Merlin Corbin on a 4% broker fee. Both dates are milestones on the record | `/projects/…` Steelton | 10-08 |
 | **Duplicate staged proposals now fold nightly (23:10, 10-12).** Several still name one deal — ten Steelton, six Myton — so glance before confirming: a press creates what it shows | `/intake` | 10-08 |
 | Then clear them — "Select the N Ber AI is sure about" accepts the confident block in one sitting | `/decide` | 09-24 |
-| **FIVE recorded meetings are staged and un-confirmed, and every one is searchable but on no deal.** All five transcripts are now filed and indexed, so Ber AI can already quote them — what confirming adds is the deal, the people, the follow-up TASKS (8 from the Tensor call alone), and the title learned so the next call files itself. Yesterday's Tensor call leads the queue | `/decide`, `/intake?tab=meeting` | 10-08 |
+| **SIX recorded meetings are staged and un-confirmed, and every one is searchable but on no deal.** All six transcripts are filed and indexed, so Ber AI can already quote them — what confirming adds is the deal, the people, the follow-up TASKS (8 from the Tensor call alone), and the title learned so the next call files itself. **The sixth (10-14) is your recorded phone call with Eric, which the platform already attached to the Helper project by itself** and which needs no confirm for that; confirming it adds the follow-up tasks. Every attendee the platform could identify is now on their own contact profile without a confirm | `/decide`, `/intake?tab=meeting` | 10-14 |
 | **The call titled `Ber Wilson / Zenthium` (09-29) is almost certainly the `Zenthium Partnership` opportunity** — the platform suggests it but will not file it, because the title is not the record's name. One confirm attaches it AND teaches the title. ⚠ Note the model retitled that call "Steelton & Riverdale Site Reviews & Power Capacity Analysis", so it does not look like a Zenthium call in any list that shows the model's title | `/intake?tab=meeting` | 10-08 |
 | 17 site photos and logo SVGs are pre-ticked as "not a document" — one batch accept clears them | `/decide` | 09-30 |
 | The `Corporate /M & A/` shelf is a per-deal subtree answering as company knowledge — 52% of company chunks; 21 have a one-click home, the rest need a look | `/decide`, `/company` | 09-30 |
@@ -588,6 +590,7 @@ Ordered against the two jobs in **WHAT THIS FILE IS** — query the corpus, and 
 
 Newest first, a **one-week window**. **[`docs/BUILD-LOG.md`](docs/BUILD-LOG.md) is the complete dated history** — grep it for anything older, or for the reasoning behind any line here.
 
+- **10-14** — a recorded call stops being only words in the corpus and becomes a record: a `meetings` row Ber AI's meeting tools can find, the contact it was with on their own profile, and the right provenance on the deal's feed. ⚠ Found: `meeting_attended` had NEVER fired — 9 meetings, zero rows, because only the hand-typed form linked attendees (7 meetings and 19 links backfilled); `ZCREATIONDATE1` is null for all 353 notes so every note since 10-12 was dated 1970; the sweep re-transcribed the same call four times a day; and `Call with <person>` was learnable as a project's filing key (DEPLOYED + MIGRATED + PUSHED)
 - **10-12** — a recorded phone call becomes a transcript, needing neither Drive nor an Apps Script: the audio was already on the Mac, iOS titles the note `Call with …`, whisper does the rest in 29.7s. ⚠ Found: whisper is NOT OCR (it survives a resident chat model, where my free-pages guard would have deferred every call forever), and rebuilding `bw-snapshot` revoked its Full Disk Access — launchd now fails on chat.db too (DEPLOYED + PUSHED)
 - **10-12** — Apple Notes becomes a source, and CLAUDE.md halved. ⚠ Found: 39 of 332 notes (12%) hold credentials in plain text — including a live Anthropic key and the `info@` password — so a note is read only from a folder a human nominated and a credential-looking one is refused outright; automatic classification was built, measured (30% matched, essentially all falsely) and thrown away, because a note has no participants; and the recorded call in Notes has no bytes on disk (DEPLOYED + PUSHED)
 - **10-12** — Pepper writes to the CRM unattended: field provenance, so a figure a human typed is proposed not overwritten; plus a morning text from the box. ⚠ Found: macOS 27 removed Messages' AppleScript dictionary, failing as a HANG; and 17 live writes left ONE audit row, `opportunities` and `parties` having no trigger (DEPLOYED + MIGRATED)
