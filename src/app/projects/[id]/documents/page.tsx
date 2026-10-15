@@ -4,6 +4,9 @@ import DocumentsTab from '@/components/projects/DocumentsTab'
 
 export const metadata = { title: 'Documents — Ber Wilson Intelligence' }
 
+/** Rows the tab renders. One under PostgREST's own silent cap, deliberately. */
+const DOCUMENT_LIMIT = 999
+
 interface PageProps {
   params: Promise<{ id: string }>
 }
@@ -15,11 +18,20 @@ export default async function DocumentsPage({ params }: PageProps) {
   // The project row is fetched only for its Drive folder link, so the tab can
   // show "open the folder" without a round trip to Google on every render.
   const [{ data: documents }, { data: project }, viewer] = await Promise.all([
+    // ⚠ EXPLICIT, because PostgREST truncates at 1000 rows SILENTLY (§12) and a
+    // flat `select('*')` would simply stop listing a bigger data room with
+    // nothing anywhere saying so. Asking for 1001 is how the page can tell a
+    // record that happens to hold exactly the cap from one that has more: if
+    // the extra row comes back, the list is incomplete and says so.
+    //
+    // The biggest record today is 187 documents (Weirton, whose rail diligence
+    // shelf alone is 105), so this is a guard and not a live limit.
     supabase
       .from('documents')
       .select('*')
       .eq('project_id', id)
-      .order('uploaded_at', { ascending: false }),
+      .order('uploaded_at', { ascending: false })
+      .limit(DOCUMENT_LIMIT + 1),
     supabase
       .from('projects')
       .select('drive_folder_url, deal_folder_id, drive_source_folder_id, drive_source_folder_url')
@@ -28,10 +40,14 @@ export default async function DocumentsPage({ params }: PageProps) {
     getViewer(),
   ])
 
+  const rows = documents ?? []
+  const truncated = rows.length > DOCUMENT_LIMIT
+
   return (
     <DocumentsTab
       projectId={id}
-      initialDocuments={documents ?? []}
+      initialDocuments={truncated ? rows.slice(0, DOCUMENT_LIMIT) : rows}
+      truncated={truncated}
       driveFolderUrl={project?.drive_folder_url ?? null}
       hasDealFolder={!!project?.deal_folder_id}
       sourceFolderId={project?.drive_source_folder_id ?? null}

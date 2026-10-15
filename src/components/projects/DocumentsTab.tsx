@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useMemo, useCallback } from 'react'
+import { useRouter, usePathname, useSearchParams } from 'next/navigation'
 import {
   FileText,
   Upload,
@@ -13,6 +14,8 @@ import {
   Archive,
   ArchiveRestore,
   FolderOpen,
+  Search,
+  ChevronRight,
 } from 'lucide-react'
 import EmptyState from '@/components/shared/EmptyState'
 import ConfidenceBadge from '@/components/shared/ConfidenceBadge'
@@ -23,13 +26,31 @@ import type { Document } from '@/lib/supabase/types'
 import DrivePublishButton from '@/components/shared/DrivePublishButton'
 import DriveImportButton from '@/components/shared/DriveImportButton'
 import DriveFolderLink from '@/components/shared/DriveFolderLink'
-import { formatDate } from '@/lib/utils/constants'
+import { formatDate, enumLabel } from '@/lib/utils/constants'
+import { shelveByFolder } from '@/lib/documents/shelve'
 import { formatBytes } from '@/lib/utils/format'
 
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
 
+/**
+ * The types the UPLOAD picker offers. Deliberately a short, curated list: this
+ * is what a person should choose from when filing a document by hand.
+ *
+ * ⚠ IT IS NOT THE SET OF TYPES THAT EXIST, and must never be used as one.
+ * `documents.doc_type` has no CHECK and no registry behind it — the lead
+ * promoter, the Drive classifier and the mail import all write values of their
+ * own — so any list written out here drifts the moment one of them learns a new
+ * word. It already had: a comment below once patched in 'solicitation' and
+ * 'diligence' after exactly that, and as of 2026-10-15 six more were missing
+ * ('capability', 'capability_statement', 'reference', 'transcript',
+ * 'site_plan', 'quote'), which is 163 live documents that could not be filtered
+ * for because the filter did not know they existed.
+ *
+ * So the FILTER derives its chips from the documents actually on the record —
+ * the rows are the registry — and only this picker reads the list.
+ */
 const DOC_TYPES = [
   'proposal',
   'contract',
@@ -37,9 +58,6 @@ const DOC_TYPES = [
   'email',
   'report',
   'correspondence',
-  // Both are written by lead promotion — 'solicitation' for a bid package that
-  // arrived by email, 'diligence' for a document imported from a deal folder —
-  // and were missing here, so neither could be filtered for.
   'solicitation',
   'diligence',
   'other',
@@ -220,9 +238,12 @@ function DocumentRow({
             )}
             {/* doc_type badge */}
             <span
-              className={`inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium ring-1 ring-inset capitalize ${badgeColor}`}
+              className={`inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium ring-1 ring-inset ${badgeColor}`}
             >
-              {docType}
+              {/* Through enumLabel, never the raw column (§12). `capitalize`
+                  rendered 'capability_statement' as "Capability_statement" —
+                  the underscore printed at a reader, on 11 documents. */}
+              {enumLabel(docType)}
             </span>
             {/* Where it sits in the team's Drive folder. Shown because filing
                 is otherwise invisible from here, and a document in _Unsorted is
@@ -622,6 +643,51 @@ interface DocumentsTabProps {
   sourceFolderUrl?: string | null
   /** Publishing is a sharing decision, so the control is admin-only. */
   canPublish?: boolean
+  /**
+   * The server stopped at its row limit, so this is not the whole record.
+   * Said out loud rather than silently shown — a truncated list that looks
+   * complete is the failure the limit exists to prevent.
+   */
+  truncated?: boolean
+}
+
+// ---------------------------------------------------------------------------
+// Grouping and filtering
+// ---------------------------------------------------------------------------
+
+/**
+ * Below this many live documents the list reads fine flat, and disclosure
+ * headers over three rows are furniture. Above it, a data room needs shelves:
+ * Weirton's documents tab was 187 rows in one scroll, of which 105 were the
+ * same Drive folder.
+ */
+const GROUP_THRESHOLD = 12
+
+function FilterChip({
+  label,
+  count,
+  active,
+  onClick,
+}: {
+  label: string
+  count: number
+  active: boolean
+  onClick: () => void
+}) {
+  return (
+    <button
+      onClick={onClick}
+      aria-pressed={active}
+      className={`inline-flex items-center gap-1.5 h-7 px-2.5 rounded-full text-xs font-medium ring-1 ring-inset transition-colors outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 ${
+        active
+          ? 'bg-foreground text-background ring-transparent'
+          : 'bg-background text-muted-foreground ring-border hover:text-foreground hover:bg-accent'
+      }`}
+    >
+      {label}
+      <span className={active ? 'opacity-70' : 'opacity-60'}>{count}</span>
+    </button>
+  )
 }
 
 export default function DocumentsTab({
@@ -632,10 +698,37 @@ export default function DocumentsTab({
   sourceFolderId,
   sourceFolderUrl,
   canPublish,
+  truncated,
 }: DocumentsTabProps) {
   const [documents, setDocuments] = useState<Document[]>(initialDocuments)
   const [showUpload, setShowUpload] = useState(false)
   const [showRetired, setShowRetired] = useState(false)
+
+  /**
+   * The filter lives in the URL, not in component state.
+   *
+   * A filtered view has to be a thing you can link, reload and send to Eric —
+   * a filter kept only in state is not a view (§12). It also means the back
+   * button undoes a filter, which is what everyone tries first.
+   */
+  const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
+  const typeFilter = searchParams.get('type') ?? ''
+  const query = searchParams.get('q') ?? ''
+
+  const setParam = useCallback(
+    (key: string, value: string) => {
+      const params = new URLSearchParams(searchParams.toString())
+      if (value) params.set(key, value)
+      else params.delete(key)
+      const qs = params.toString()
+      // `scroll: false` — a filter chip at the top of a long list must not
+      // throw the reader back to the top of the page on every tap.
+      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false })
+    },
+    [router, pathname, searchParams]
+  )
 
   /**
    * Retired documents are kept and still reachable, but out of the way.
@@ -650,6 +743,46 @@ export default function DocumentsTab({
   const liveDocuments = documents.filter((d) => !d.superseded_at)
   const retiredDocuments = documents.filter((d) => d.superseded_at)
   const duplicateCount = retiredDocuments.filter((d) => d.duplicate_of).length
+
+  /**
+   * The chips, derived from the documents on this record rather than written
+   * out — see the note on DOC_TYPES. A type nobody has used here is not offered,
+   * and a type invented tomorrow appears without a code change.
+   */
+  const presentTypes = useMemo(() => {
+    const counts = new Map<string, number>()
+    for (const d of liveDocuments) {
+      const t = d.doc_type ?? 'other'
+      counts.set(t, (counts.get(t) ?? 0) + 1)
+    }
+    return [...counts.entries()]
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+      .map(([type, count]) => ({ type, count }))
+  }, [liveDocuments])
+
+  const filtered = useMemo(() => {
+    const needle = query.trim().toLowerCase()
+    return liveDocuments.filter((d) => {
+      if (typeFilter && (d.doc_type ?? 'other') !== typeFilter) return false
+      if (!needle) return true
+      // Name and summary both: the name is often uninformative ("Business
+      // Plan.docx") and the summary is where the deal is actually named.
+      return (
+        (d.file_name ?? '').toLowerCase().includes(needle) ||
+        (d.ai_summary ?? '').toLowerCase().includes(needle) ||
+        (d.drive_folder_path ?? '').toLowerCase().includes(needle)
+      )
+    })
+  }, [liveDocuments, typeFilter, query])
+
+  const isFiltering = !!typeFilter || !!query.trim()
+  // Grouped only when there is enough to shelve, and never while filtering —
+  // a filter already narrows the list, and collapsed headers over a four-row
+  // result is the reader doing the work twice.
+  const groups = useMemo(
+    () => (filtered.length > GROUP_THRESHOLD && !isFiltering ? shelveByFolder(filtered) : null),
+    [filtered, isFiltering]
+  )
 
   function handleUploaded(doc: Document) {
     setDocuments((prev) => [doc, ...prev])
@@ -722,14 +855,117 @@ export default function DocumentsTab({
         />
       ) : (
         <div className="space-y-3">
-          {liveDocuments.map((doc) => (
-            <DocumentRow
-              key={doc.id}
-              doc={doc}
-              onDelete={handleDeleted}
-              onChange={handleChanged}
-            />
-          ))}
+          {/* Filter bar. Offered once the list is long enough to need it —
+              three chips over four documents is furniture. */}
+          {liveDocuments.length > GROUP_THRESHOLD && (
+            <div className="space-y-2 pb-1">
+              <div className="relative">
+                <Search
+                  size={14}
+                  className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none"
+                />
+                <input
+                  type="search"
+                  value={query}
+                  onChange={(e) => setParam('q', e.target.value)}
+                  placeholder="Search name, summary or folder…"
+                  aria-label="Search documents"
+                  className="w-full h-9 pl-8 pr-3 rounded-md border border-input bg-background text-sm placeholder:text-muted-foreground outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                />
+              </div>
+              <div className="flex flex-wrap items-center gap-1.5">
+                <FilterChip
+                  label="All"
+                  count={liveDocuments.length}
+                  active={!typeFilter}
+                  onClick={() => setParam('type', '')}
+                />
+                {presentTypes.map(({ type, count }) => (
+                  <FilterChip
+                    key={type}
+                    label={enumLabel(type)}
+                    count={count}
+                    active={typeFilter === type}
+                    onClick={() => setParam('type', typeFilter === type ? '' : type)}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* What the filter actually produced. Said in words, because an empty
+              list under an active filter is indistinguishable from an empty
+              record otherwise. */}
+          {isFiltering && (
+            <p className="text-xs text-muted-foreground">
+              {filtered.length === 0
+                ? 'No documents match. '
+                : `${filtered.length} of ${liveDocuments.length} document${liveDocuments.length === 1 ? '' : 's'}. `}
+              <button
+                onClick={() => {
+                  setParam('type', '')
+                  setParam('q', '')
+                }}
+                className="underline hover:text-foreground outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 rounded"
+              >
+                Clear
+              </button>
+            </p>
+          )}
+
+          {groups
+            ? groups.map((group, i) => (
+                <details
+                  key={group.label}
+                  // The FIRST shelf open, the rest closed — and `shelveByFolder`
+                  // puts `_Unsorted` first, so what opens is the shelf asking
+                  // for a decision (17 documents on Weirton, 3 on Steelton).
+                  // Opening everything is the flat list again; opening nothing
+                  // hides the record behind a row of headers.
+                  open={i === 0}
+                  className="group rounded-lg border border-border bg-card/40"
+                >
+                  <summary className="flex items-center gap-2 px-3 py-2.5 cursor-pointer list-none rounded-lg outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50">
+                    <ChevronRight
+                      size={14}
+                      className="text-muted-foreground transition-transform group-open:rotate-90 shrink-0"
+                    />
+                    <FolderOpen size={13} className="text-muted-foreground shrink-0" />
+                    <span className="text-sm font-medium text-foreground truncate">
+                      {group.label}
+                    </span>
+                    <span className="text-xs text-muted-foreground shrink-0">
+                      {group.docs.length}
+                    </span>
+                  </summary>
+                  <div className="space-y-3 px-3 pb-3">
+                    {group.docs.map((doc) => (
+                      <DocumentRow
+                        key={doc.id}
+                        doc={doc}
+                        onDelete={handleDeleted}
+                        onChange={handleChanged}
+                      />
+                    ))}
+                  </div>
+                </details>
+              ))
+            : filtered.map((doc) => (
+                <DocumentRow
+                  key={doc.id}
+                  doc={doc}
+                  onDelete={handleDeleted}
+                  onChange={handleChanged}
+                />
+              ))}
+
+          {truncated && (
+            <p className="text-xs text-amber-700 dark:text-amber-300 flex items-start gap-1.5">
+              <AlertCircle size={13} className="shrink-0 mt-0.5" />
+              This record holds more documents than this list shows. Open the Drive
+              folder for the complete set.
+            </p>
+          )}
 
           {retiredDocuments.length > 0 && (
             <div className="pt-2">
