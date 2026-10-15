@@ -24,7 +24,11 @@ import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { Chip } from '@/components/ui/chip'
 import { FIELD_CONTROL_CLASS } from '@/lib/utils/field-classes'
-import type { CommitmentListItem, CommitmentListFilters } from '@/lib/commitments/list'
+import type {
+  CommitmentListItem,
+  CommitmentListFilters,
+  CommitmentListResult,
+} from '@/lib/commitments/list'
 
 type Verdict = 'done' | 'dismissed' | 'snoozed' | 'open'
 
@@ -32,6 +36,11 @@ const VIEWS: { key: NonNullable<CommitmentListFilters['view']>; label: string }[
   { key: 'open', label: 'Live' },
   { key: 'quiet', label: 'Quieted' },
   { key: 'settled', label: 'Settled' },
+  // What the aging pass closed. Its own tab rather than folded into Settled,
+  // because a person deciding something is done and the platform noticing the
+  // conversation died are two different events — §12: two quantities must be
+  // named apart, and summing them would make "settled" measure nobody's work.
+  { key: 'retired', label: 'Retired' },
   { key: 'all', label: 'All open' },
 ]
 
@@ -74,7 +83,9 @@ export default function CommitmentsClient({
   withheld,
 }: {
   items: CommitmentListItem[]
-  totals: { open: number; quiet: number; settled: number; undated: number }
+  // ⚠ DERIVED, NOT RETYPED (§12). This was spelled out here and the server
+  // added a fifth total, which a hand-written copy cannot notice.
+  totals: CommitmentListResult['totals']
   filters: CommitmentListFilters
   mailboxes: string[]
   loadError: string | null
@@ -179,6 +190,7 @@ export default function CommitmentsClient({
         <Chip>{totals.undated} with no agreed date</Chip>
         {totals.quiet > 0 && <Chip>{totals.quiet} quieted</Chip>}
         <Chip>{totals.settled} settled</Chip>
+        {totals.retired > 0 && <Chip>{totals.retired} retired as stale</Chip>}
       </div>
 
       {loadError && (
@@ -265,9 +277,11 @@ export default function CommitmentsClient({
           {rows.length === 0
             ? view === 'settled'
               ? 'Nothing has been settled yet.'
-              : view === 'quiet'
-                ? 'Nothing is quieted — every open obligation is live.'
-                : 'Nothing open. The ledger is clear.'
+              : view === 'retired'
+                ? 'Nothing has been retired as stale.'
+                : view === 'quiet'
+                  ? 'Nothing is quieted — every open obligation is live.'
+                  : 'Nothing open. The ledger is clear.'
             : 'No obligation matches that search.'}
         </p>
       ) : (
@@ -279,7 +293,7 @@ export default function CommitmentsClient({
             settle={settle}
             copyChase={copyChase}
             busy={busy}
-            settledView={view === 'settled'}
+            settledView={view === 'settled' || view === 'retired'}
           />
           <Section
             title="Waiting on"
@@ -288,7 +302,7 @@ export default function CommitmentsClient({
             settle={settle}
             copyChase={copyChase}
             busy={busy}
-            settledView={view === 'settled'}
+            settledView={view === 'settled' || view === 'retired'}
           />
         </div>
       )}

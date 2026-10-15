@@ -27,6 +27,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { assembleCommon, assembleForMember, type PepperNote } from '@/lib/pepper/assemble'
 import { composeMorningText, composeWeekAheadText } from '@/lib/pepper/text-note'
 import { notify } from '@/lib/notify'
+import { recordMentions, type RecordedMention } from '@/lib/pepper/memory'
 import { createAdminClient } from '@/lib/supabase/admin'
 
 /** Two assemblies, no model call. Seconds. */
@@ -128,9 +129,30 @@ export async function GET(request: NextRequest) {
 
     if (result.ok) sent++
     else failed++
+
+    /**
+     * Write down what she said — AFTER the send, and from this channel too.
+     *
+     * ⚠ THIS CHANNEL RECORDED NOTHING UNTIL 2026-10-15, so for anyone whose
+     * email note `noteIsEmpty` skips, the same two task titles went out every
+     * morning with `times_named` stuck at zero: no escalation clause, no
+     * rotation, forever. `recordMentions` is idempotent per DAY, so the 06:50
+     * email recording the same ids a few minutes later does not double-count
+     * them — and `Mention.previousMornings` is what keeps the clause honest
+     * about which of the two ran first.
+     */
+    if (result.ok && composed.namedTaskIds.length > 0) {
+      const mentioned: RecordedMention[] = composed.namedTaskIds.map((id) => ({
+        kind: 'task' as const,
+        itemKey: id,
+      }))
+      await recordMentions(member.id, mentioned, today)
+    }
+
     results.push({
       member: member.name,
       ok: result.ok,
+      ...(composed.namedTaskIds.length > 0 ? { named: composed.namedTaskIds.length } : {}),
       ...(result.error ? { error: result.error } : {}),
     })
 

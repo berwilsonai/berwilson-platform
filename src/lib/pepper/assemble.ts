@@ -19,13 +19,20 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { sweepDb } from '@/lib/email-sweep/db'
 import { readOpenCommitments, type CommitmentWithMailbox } from '@/lib/commitments/read'
+import { countRetiredSince } from '@/lib/commitments/aging'
 import { fetchCalendarEvents } from '@/lib/integrations/google-workspace'
 import { fetchTasksForDigest, type DigestTask } from '@/lib/tasks/queries'
 import { loadLiveContext, taskTier, EMPTY_LIVE_CONTEXT, type LiveContext } from '@/lib/tasks/priority'
 import { summarizeDecideQueue, type DecideSummary } from '@/lib/decide/count'
 import { computeAttention, type AttentionItem } from '@/lib/attention'
 import type { CommitmentRow } from '@/lib/commitments/db'
-import { attribute, loadPepperMembers, type PepperMember } from './attribution'
+import {
+  attribute,
+  internalSet,
+  isExternalTo,
+  loadPepperMembers,
+  type PepperMember,
+} from './attribution'
 import { ESCALATE_AFTER, loadMentions, type Mention } from './memory'
 
 /** How many portfolio-level cracks to name. More than this is a report. */
@@ -43,6 +50,25 @@ const MAX_CRACKS = 5
 const MAX_PER_SECTION = 12
 /** A meeting attendee we have not spoken to in this long is worth flagging. */
 const STALE_CONTACT_DAYS = 21
+/** How many of today's meetings carry counterparty context. One day's worth. */
+const MAX_MEETINGS_TODAY = 8
+/** How many the week-ahead text may draw on. A week of a busy calendar. */
+const MAX_MEETINGS_WEEK = 40
+
+/**
+ * Today, as the calendar feed spells it.
+ *
+ * ⚠ LOCAL, NOT `toISOString().slice(0, 10)`. Google returns a local-time stamp
+ * for a timed event, so comparing it against a UTC date key puts every meeting
+ * after 5pm Mountain on tomorrow — and `weekMeetings` would then disagree with
+ * `meetings` about which day today is.
+ */
+function localDateKey(d: Date): string {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
 
 export interface MeetingContext {
   subject: string
@@ -97,6 +123,17 @@ export interface OvernightWork {
    * too when the next step is a human's.
    */
   meetingsImported: number
+  /**
+   * Obligations the aging pass retired because their conversation is over.
+   *
+   * ⚠ THE ONE NUMBER IN THIS BLOCK THAT GOES DOWN, AND IT MUST BE SAID OUT
+   * LOUD. The pass closes rows with nobody approving it, which is defensible
+   * only while the reader is told: §11 traded the approval gate for
+   * legibility, not for silence. A ledger that shrank overnight with no line
+   * explaining why is the platform quietly deciding something stopped
+   * mattering.
+   */
+  commitmentsRetired: number
 }
 
 export interface PepperNote {
@@ -126,7 +163,33 @@ export interface PepperNote {
    * never applied to tasks.
    */
   liveTasks: DigestTask[]
+  /**
+   * What Pepper has already said about each TASK, by task id.
+   *
+   * ⚠ THESE ROWS WERE WRITTEN EVERY MORNING AND READ BY NOBODY. The note has
+   * recorded a `kind='task'` mention after every successful send since 10-09,
+   * and `loadMentions` was only ever called with `'commitment'` — so a task
+   * raised four mornings running got no escalation clause while a commitment
+   * beside it did. The write was already there; this is the read.
+   */
+  taskMentions: Map<string, Mention>
   meetings: MeetingContext[]
+  /**
+   * Every timed meeting and all-day marker in the next seven days, WITHOUT
+   * counterparty context — the Monday week-ahead text names subjects and days
+   * and nothing else, so resolving attendees for a whole week would be a lot of
+   * queries for a line nobody reads.
+   *
+   * ⚠ THIS FIELD EXISTS BECAUSE THE WEEK-AHEAD TEXT WAS STRUCTURALLY INCAPABLE
+   * OF NAMING A MEETING AFTER MONDAY. `composeWeekAheadText` filtered a 7-day
+   * window over `meetings`, which `assembleMeetings` only ever filled with
+   * TODAY — so "3 meetings this week" could only ever count Monday's, and the
+   * `weekdayOf()` formatter beside it had nothing but Mondays to format. Its
+   * test passed throughout because the fixture injects a Tuesday meeting
+   * directly into `meetings`, bypassing the one-day fetch. §12: a cap or a
+   * window sized for one caller is wrong for the sibling that shares the field.
+   */
+  weekMeetings: MeetingContext[]
   decide: DecideSummary
   /** Portfolio-level items falling through the cracks, shared by both notes. */
   cracks: AttentionItem[]
@@ -276,9 +339,10 @@ async function assembleOvernight(sinceIso: string): Promise<OvernightWork> {
     documentsFiled: 0,
     leadsScored: 0,
     meetingsImported: 0,
+    commitmentsRetired: 0,
   }
   try {
-    const [threads, commitments, documents, leads, meetings] = await Promise.all([
+    const [threads, commitments, documents, leads, meetings, retired] = await Promise.all([
       sweep
         .from('email_threads')
         .select('id', { count: 'exact', head: true })
@@ -304,6 +368,7 @@ async function assembleOvernight(sinceIso: string): Promise<OvernightWork> {
         .select('id', { count: 'exact', head: true })
         .not('drive_file_id', 'is', null)
         .gte('created_at', sinceIso),
+      countRetiredSince(sinceIso),
     ])
     return {
       threadsFiled: threads.count ?? 0,
@@ -311,6 +376,7 @@ async function assembleOvernight(sinceIso: string): Promise<OvernightWork> {
       documentsFiled: documents.count ?? 0,
       leadsScored: leads.count ?? 0,
       meetingsImported: meetings.count ?? 0,
+      commitmentsRetired: retired,
     }
   } catch {
     // A missing count costs one line of the note, never the note.
@@ -388,8 +454,12 @@ function commitmentWeight(c: CommitmentRow, mentions?: Map<string, Mention>): nu
  */
 function recentPenalty(m: Mention | undefined): number {
   if (!m || m.daysSinceNamed === null || m.daysSinceNamed > 2) return 0
-  if (m.timesNamed >= ESCALATE_AFTER) return 0
-  return m.timesNamed * 25
+  // ⚠ `previousMornings`, NOT `timesNamed`, for the same reason the clause uses
+  // it: the 06:45 text records what it named, so today may already be counted
+  // by the time this runs and a row would step aside one band harder on the
+  // strength of having been shown an hour ago. See `Mention`.
+  if (m.previousMornings >= ESCALATE_AFTER) return 0
+  return m.previousMornings * 25
 }
 
 function rankRows(rows: CommitmentRow[], mentions?: Map<string, Mention>): CommitmentRow[] {
@@ -417,7 +487,11 @@ export async function assembleForMember(
 
   // What Pepper has already said to THIS person. Per-member by definition —
   // "the fourth morning" is only true of the reader who saw the other three.
-  const mentions = await loadMentions(member.id, 'commitment')
+  // Both kinds in one round trip; the table is indexed on (member, kind).
+  const [mentions, taskMentions] = await Promise.all([
+    loadMentions(member.id, 'commitment'),
+    loadMentions(member.id, 'task'),
+  ])
 
   const mine: NoteCommitment[] = []
   const shared: CommitmentRow[] = []
@@ -440,7 +514,12 @@ export async function assembleForMember(
   const in7 = daysFromNow(7)
   const myTasks = common.tasks.filter((t) => t.assignee_id === member.id)
 
-  const meetings = await assembleMeetings(member, now, notes)
+  const { today: meetings, week: weekMeetings } = await assembleMeetings(
+    member,
+    common.members,
+    now,
+    notes
+  )
 
   const owed = rank(mine.filter((c) => c.row.side === 'us' && near(c.row)), mentions)
   const awaited = rank(mine.filter((c) => c.row.side === 'them' && near(c.row)), mentions)
@@ -472,7 +551,9 @@ export async function assembleForMember(
       (t) =>
         (!t.due_date || t.due_date > in7) && taskTier(t, common.live) === 'live'
     ),
+    taskMentions,
     meetings,
+    weekMeetings,
     decide: common.decide,
     cracks: common.cracks,
     overnight: common.overnight,
@@ -481,51 +562,64 @@ export async function assembleForMember(
 }
 
 /**
- * Today's meetings from this person's OWN calendar, with the counterparty
- * context an assistant would have looked up before the meeting.
+ * This person's OWN calendar, with the counterparty context an assistant would
+ * have looked up before the meeting.
+ *
+ * ⚠ ONE FETCH, TWO HORIZONS. The week is read because the Monday text needs it
+ * (see `PepperNote.weekMeetings`); the counterparty resolution is confined to
+ * TODAY because that is the only block that prints a counterparty, and
+ * resolving a week of attendees would be a query storm for nothing.
  *
  * Best-effort throughout: a Google outage costs the meetings block and says so,
  * because silence here is indistinguishable from an empty calendar.
  */
 async function assembleMeetings(
   member: PepperMember,
+  members: PepperMember[],
   now: Date,
   notes: string[]
-): Promise<MeetingContext[]> {
+): Promise<{ today: MeetingContext[]; week: MeetingContext[] }> {
   let events
   try {
-    const dayEnd = new Date(now)
-    dayEnd.setHours(23, 59, 59, 999)
-    events = await fetchCalendarEvents(now.toISOString(), dayEnd.toISOString(), member.mailbox)
+    const weekEnd = new Date(now)
+    weekEnd.setDate(weekEnd.getDate() + 7)
+    weekEnd.setHours(23, 59, 59, 999)
+    events = await fetchCalendarEvents(now.toISOString(), weekEnd.toISOString(), member.mailbox)
   } catch (err) {
     notes.push(
       `Calendar unavailable, so today's meetings are missing: ${err instanceof Error ? err.message : String(err)}`
     )
-    return []
+    return { today: [], week: [] }
   }
 
-  const internal = new Set(member.email.split('@')[1] ? [member.email] : [])
-  const upcoming = events.slice(0, 8)
+  // ⚠ FROM THE ROSTER, NOT FROM ONE ADDRESS. This was
+  // `new Set([member.email])`, which made the morning note call the other
+  // executive an external counterparty and recite his open commitments back —
+  // the exact bug `meeting-prep.ts` was fixed for on 2026-10-09, in the module
+  // that assembles this note five minutes earlier. See `internalSet`.
+  const internal = internalSet(members)
+  const isExternal = (email: string) => isExternalTo(internal, email)
 
-  // Every external address across every meeting, resolved in ONE pass rather
+  const todayKey = localDateKey(now)
+  const todaysEvents = events.filter((e) => e.start.slice(0, 10) === todayKey).slice(0, MAX_MEETINGS_TODAY)
+
+  // Every external address across TODAY's meetings, resolved in ONE pass rather
   // than a query per attendee.
   const emails = [
     ...new Set(
-      upcoming
-        .flatMap((e) => e.attendees.map((a) => a.email.toLowerCase()))
-        .filter((e) => e && !internal.has(e))
+      todaysEvents.flatMap((e) => e.attendees.map((a) => a.email.toLowerCase())).filter(isExternal)
     ),
   ]
 
   const context = await counterpartyContext(emails)
 
-  return upcoming.map((e) => ({
+  const today = todaysEvents.map((e) => ({
     subject: e.subject,
     start: e.start,
     isAllDay: e.isAllDay,
     location: e.location,
     counterparties: e.attendees
-      .filter((a) => !internal.has(a.email.toLowerCase()))
+      .filter((a) => isExternal(a.email))
       .slice(0, 6)
       .map((a) => {
         const ctx = context.get(a.email.toLowerCase())
@@ -537,6 +631,19 @@ async function assembleMeetings(
         }
       }),
   }))
+
+  // The week, bare. Counterparties are deliberately empty rather than absent:
+  // the field is required by the type and an empty list is the honest answer to
+  // "who is in it" when nobody asked.
+  const week = events.slice(0, MAX_MEETINGS_WEEK).map((e) => ({
+    subject: e.subject,
+    start: e.start,
+    isAllDay: e.isAllDay,
+    location: e.location,
+    counterparties: [],
+  }))
+
+  return { today, week }
 }
 
 /** Last contact and open obligations for a set of addresses, in two queries. */

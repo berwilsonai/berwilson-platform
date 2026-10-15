@@ -1515,3 +1515,224 @@ export async function probeLeadInbox(): Promise<{
     }
   }
 }
+
+/**
+ * Pepper's 06:45 text — the channel she is read on, and the one nothing watched.
+ *
+ * ⚠ THIS IS THE EXACT FOOTING THE MORNING NOTE WAS ON UNTIL 2026-10-08, when
+ * its check turned out to be reading `task_digest` — the retired Monday email —
+ * so the live channel went unmonitored while the dead one reported healthy. The
+ * text has had the same shape of row in `notification_log` since 10-13 and no
+ * card at all, and it is the message that arrives first: `pepper-text/route.ts`
+ * calls it "what gets read first" in its own header.
+ *
+ * A clock, not a count (§12). Four days, for the same reason the note's check
+ * uses four: weekdays only, so a Monday reading is three days after Friday's
+ * send with nothing wrong.
+ */
+export async function probePepperText(): Promise<{
+  state: 'ok' | 'stale' | 'failed' | 'never'
+  detail: string
+}> {
+  const supabase = createAdminClient()
+  const weekAgo = new Date(Date.now() - 7 * 86_400_000).toISOString()
+
+  const [last, failed] = await Promise.all([
+    supabase
+      .from('notification_log')
+      .select('created_at')
+      .eq('kind', 'pepper_text')
+      .eq('status', 'sent')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    supabase
+      .from('notification_log')
+      .select('id', { count: 'exact', head: true })
+      .eq('kind', 'pepper_text')
+      .eq('status', 'failed')
+      .gte('created_at', weekAgo),
+  ])
+
+  const failures = failed.count ?? 0
+  if (failures > 0) {
+    return {
+      state: 'failed',
+      detail:
+        `${failures} text${failures === 1 ? '' : 's'} failed to send in the last 7 days. ` +
+        'The transport is a hand-built Shortcut per recipient (macOS 27 removed ' +
+        "Messages' AppleScript dictionary), so a failure is usually a renamed or " +
+        'deleted Shortcut. Assert them with zsh deploy/pepper-text-check.sh — it does not send.',
+    }
+  }
+
+  if (!last.data?.created_at) {
+    return {
+      state: 'never',
+      detail:
+        'No morning text has ever sent. PEPPER_TEXT_TARGETS must name each recipient ' +
+        'as email=handle=shortcut, and the two Shortcuts must exist — see deploy/pepper-text-setup.md.',
+    }
+  }
+
+  const hours = (Date.now() - new Date(last.data.created_at).getTime()) / 3_600_000
+  if (hours > 96) {
+    return {
+      state: 'stale',
+      detail:
+        `The last text sent ${Math.round(hours / 24)} days ago. Weekdays at 06:45, ` +
+        'ahead of the email note. Check com.berwilson.cron-pepper-text is loaded and ' +
+        'that the Shortcuts still exist under those names.',
+    }
+  }
+  return { state: 'ok', detail: 'Sending on schedule, ahead of the morning email.' }
+}
+
+/**
+ * The autonomous curator — 06:20 weekdays, writing to the CRM unattended.
+ *
+ * ⚠ IT HAD NO CHECK OF ANY KIND. The one pass in the platform that changes
+ * records with no human in the loop (whitelisted to 40 columns, §11) was the
+ * one pass nothing watched, and its failure mode is the worst shape there is:
+ * records quietly stop being updated, which from outside is indistinguishable
+ * from "nothing changed in the mail". §12: a check on a pass whose failure is
+ * doing nothing needs a clock.
+ *
+ * The clock is `curator_cursors.last_run_at`, which the pass stamps on every
+ * record it considers — including the ones it skipped as unchanged, so a quiet
+ * corpus still advances it.
+ */
+export async function probeCurator(): Promise<{
+  state: 'ok' | 'stale' | 'errored' | 'never'
+  detail: string
+}> {
+  const supabase = createAdminClient()
+
+  const [last, errored, proposals] = await Promise.all([
+    supabase
+      .from('curator_cursors')
+      .select('last_run_at')
+      .order('last_run_at', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    supabase
+      .from('curator_cursors')
+      .select('id', { count: 'exact', head: true })
+      .not('last_error', 'is', null),
+    // Not a liveness signal — a standing one. A proposal is a question she is
+    // waiting on an answer to, and until /decide renders them they accumulate
+    // with no door, so the count belongs where somebody reads it.
+    supabase
+      .from('field_update_proposals')
+      .select('id', { count: 'exact', head: true })
+      .eq('status', 'pending'),
+  ])
+
+  const pending = proposals.count ?? 0
+  const pendingNote = pending > 0 ? ` ${pending} field question${pending === 1 ? '' : 's'} waiting on /decide.` : ''
+
+  if (!last.data?.last_run_at) {
+    return {
+      state: 'never',
+      detail:
+        'The curator has never run. It walks every project and opportunity at 06:20 on ' +
+        'weekdays and fills blanks from the correspondence already filed on each record. ' +
+        'Check com.berwilson.cron-curator is loaded.',
+    }
+  }
+
+  const failures = errored.count ?? 0
+  if (failures > 0) {
+    return {
+      state: 'errored',
+      detail:
+        `${failures} record${failures === 1 ? '' : 's'} ended their last pass on an error. ` +
+        `Run it by hand with ?dry=1 to see them: the cursor row carries last_error.${pendingNote}`,
+    }
+  }
+
+  const hours = (Date.now() - new Date(last.data.last_run_at).getTime()) / 3_600_000
+  if (hours > 96) {
+    return {
+      state: 'stale',
+      detail:
+        `No record has been considered in ${Math.round(hours / 24)} days. Weekdays at 06:20. ` +
+        `A dead job here looks exactly like a quiet month in the mail, which is why this ` +
+        `check is a clock rather than a count of what changed.${pendingNote}`,
+    }
+  }
+  return {
+    state: 'ok',
+    detail: `Walking records on schedule.${pendingNote}`,
+  }
+}
+
+/**
+ * The chase pass — 05:30 weekdays, composing the follow-up for what we are owed.
+ *
+ * The clock is `chase_composed_at`, added 2026-10-15 for exactly this: the
+ * column that existed (`chase_drafted_at`) is set only where a real Gmail draft
+ * could be created, and only info@ holds a write scope, so on ~96% of the work
+ * the pass left no timestamp at all and a dead cron was unobservable.
+ *
+ * ⚠ AND THE BACKLOG IS REPORTED BESIDE IT, NOT INSTEAD OF IT. The pass is
+ * capped at 12 a run, so a growing eligible set is normal for a while and only
+ * means something next to a clock that says the job is alive.
+ */
+export async function probeCommitmentChase(): Promise<{
+  state: 'ok' | 'stale' | 'never'
+  detail: string
+}> {
+  const db = sweepDb()
+
+  const [last, unchased] = await Promise.all([
+    db
+      .from('commitments')
+      .select('chase_composed_at')
+      .not('chase_composed_at', 'is', null)
+      .order('chase_composed_at', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    // Owed TO us, still open, never chased. The pass's own eligibility adds two
+    // age bars on top of this, so it is an upper bound on its queue.
+    db
+      .from('commitments')
+      .select('id', { count: 'exact', head: true })
+      .eq('status', 'open')
+      .eq('side', 'them')
+      .is('chase_text', null),
+  ])
+
+  const queue = unchased.count ?? 0
+  const queueNote = ` ${queue} open obligation${queue === 1 ? '' : 's'} owed to us carry no chase yet.`
+
+  if (!last.data?.chase_composed_at) {
+    return {
+      state: 'never',
+      detail:
+        'No chase has ever been composed. The pass runs weekdays at 05:30 over ' +
+        'obligations owed to us that are a day past due, or undated and 21 days silent. ' +
+        `Check com.berwilson.cron-commitment-chase is loaded.${queueNote}`,
+    }
+  }
+
+  const hours = (Date.now() - new Date(last.data.chase_composed_at).getTime()) / 3_600_000
+  // Wider than the note's four days: the pass legitimately composes nothing on
+  // a morning when every eligible row has already been chased once — the latch
+  // is one chase per commitment, ever. Ten days of silence with a queue behind
+  // it is the shape that means the job stopped.
+  if (hours > 240 && queue > 0) {
+    return {
+      state: 'stale',
+      detail:
+        `No chase composed in ${Math.round(hours / 24)} days, with work waiting. ` +
+        `Weekdays at 05:30, 12 a run.${queueNote}`,
+    }
+  }
+  return {
+    state: 'ok',
+    detail:
+      `Last chase composed ${Math.round(hours / 24)} day${Math.round(hours / 24) === 1 ? '' : 's'} ago. ` +
+      `A quiet run is normal — one chase per obligation, ever.${queueNote}`,
+  }
+}

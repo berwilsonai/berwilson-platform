@@ -273,7 +273,12 @@ export async function GET(request: NextRequest) {
        */
       const mentioned: RecordedMention[] = [
         ...named.map((c) => ({ kind: 'commitment' as const, itemKey: c.row.id })),
-        ...[...note.overdueTasks, ...note.dueSoonTasks].map((t) => ({
+        // ⚠ `liveTasks` BELONGS HERE TOO. It is itemised in the email and was
+        // the one named section never recorded, so an undated task on a live
+        // deal could be shown twenty mornings running and never escalate —
+        // and those are precisely the rows with no date to escalate them
+        // instead (34 of the 38 obligations promoted on 10-12 carry none).
+        ...[...note.overdueTasks, ...note.dueSoonTasks, ...note.liveTasks].map((t) => ({
           kind: 'task' as const,
           itemKey: t.id,
         })),

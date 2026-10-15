@@ -252,6 +252,10 @@ export async function runChasePass(opts: { dryRun?: boolean; limit?: number } = 
         // when it is the second sends somebody looking for a draft that is not
         // there.
         chase_drafted_at: draftId ? new Date().toISOString() : null,
+        // Set ALWAYS, draft or not — this is the one that says the pass ran.
+        // Without it the 05:30 job has no clock of its own on ~96% of the
+        // work (only info@ can hold a draft), so a dead cron is invisible.
+        chase_composed_at: new Date().toISOString(),
         chase_draft_id: draftId,
         chase_mailbox: draftMailbox,
       })

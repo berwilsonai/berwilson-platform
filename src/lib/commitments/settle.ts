@@ -57,7 +57,20 @@ export async function settleCommitment(
     verdict === 'open'
       ? // The undo: no closer, no quiet. A row that kept its settler would
         // carry somebody who has not looked at it since.
-        { status: 'open' as const, settled_at: null, settled_by: null, snoozed_until: null }
+        //
+        // ⚠ AND IT IS MARKED AS REOPENED, WHICH IS THE WHOLE POINT. Clearing
+        // the three columns returns the row to exactly the state the aging pass
+        // selects — open, on a conversation that is still silent — so without
+        // this mark the undo worked once and the next morning's pass closed it
+        // again, every day, forever. `reopened_at` is what survives the undo,
+        // the way `snoozed_until` survives it. See the migration.
+        {
+          status: 'open' as const,
+          settled_at: null,
+          settled_by: null,
+          snoozed_until: null,
+          reopened_at: new Date().toISOString(),
+        }
       : verdict === 'snoozed'
         ? {
             status: 'open' as const,

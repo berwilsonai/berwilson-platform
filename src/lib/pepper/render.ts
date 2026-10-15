@@ -21,7 +21,7 @@ import {
   type NoteCommitment,
   type PepperNote,
 } from './assemble'
-import { mentionClause } from './memory'
+import { mentionClause, type Mention } from './memory'
 
 function ageInDays(iso: string | null): number | null {
   if (!iso) return null
@@ -113,10 +113,17 @@ function overflow(n: number): string[] {
   return n > 0 ? [`- (and ${n} more not shown)`] : []
 }
 
-function taskLine(t: DigestTask): string {
+/**
+ * One task, with the escalation clause a commitment already got.
+ *
+ * `mentions` is optional so a caller that predates this renders without it
+ * rather than failing — the same shim `liveTasks` carries in ./email.
+ */
+function taskLine(t: DigestTask, mentions?: Map<string, Mention>): string {
   const tag = t.project_name ?? t.opportunity_name
   const why = t.why ? ` — ${t.why}` : ''
-  return `- ${t.title}${why}${dueClause(t.due_date)}${tag ? ` [${tag}]` : ''}`
+  const raised = mentionClause(mentions?.get(t.id)) ?? ''
+  return `- ${t.title}${why}${dueClause(t.due_date)}${tag ? ` [${tag}]` : ''}${raised}`
 }
 
 function meetingLines(m: MeetingContext): string[] {
@@ -193,8 +200,9 @@ export function renderNoteInput(n: PepperNote): string {
       [...n.sharedAwaited.map(commitmentLine), ...overflow(n.omitted.sharedAwaited)]
     )
   )
-  parts.push(...section('OVERDUE TASKS ASSIGNED TO THEM:', n.overdueTasks.map(taskLine)))
-  parts.push(...section('THEIR TASKS DUE THIS WEEK:', n.dueSoonTasks.map(taskLine)))
+  const task = (t: DigestTask) => taskLine(t, n.taskMentions)
+  parts.push(...section('OVERDUE TASKS ASSIGNED TO THEM:', n.overdueTasks.map(task)))
+  parts.push(...section('THEIR TASKS DUE THIS WEEK:', n.dueSoonTasks.map(task)))
   /**
    * ⚠ CAPPED IN THE PROMPT, UNCAPPED IN THE EMAIL, AND THE ASYMMETRY IS THE
    * POINT. This is the longest section — 38 rows on the first run — and the
@@ -210,7 +218,7 @@ export function renderNoteInput(n: PepperNote): string {
     ...section(
       'THEIR OPEN WORK ON LIVE DEALS (no deadline agreed — mostly obligations read out of the two of them talking, so these are what is outstanding rather than what is scheduled; the full list is itemised beneath the note):',
       [
-        ...n.liveTasks.slice(0, MAX_TASKS_IN_PROMPT).map(taskLine),
+        ...n.liveTasks.slice(0, MAX_TASKS_IN_PROMPT).map(task),
         ...overflow(Math.max(0, n.liveTasks.length - MAX_TASKS_IN_PROMPT)),
       ]
     )
@@ -241,6 +249,16 @@ export function renderNoteInput(n: PepperNote): string {
         ? `, and read ${o.meetingsImported} recorded meeting${o.meetingsImported === 1 ? '' : 's'}.`
         : '.')
   )
+  // Said as its own sentence rather than folded into the list above, because it
+  // is the only figure here that went DOWN and the reader has to be able to
+  // disagree with it. The prompt is told to keep it.
+  if (o.commitmentsRetired > 0) {
+    parts.push(
+      `AND RETIRED ${o.commitmentsRetired} obligation${o.commitmentsRetired === 1 ? '' : 's'} ` +
+        `whose conversation has been silent for over six weeks — they are off the ledger, not ` +
+        `deleted, and they come back if anybody writes on those threads again.`
+    )
+  }
 
   if (n.notes.length > 0) {
     parts.push('')

@@ -13,8 +13,9 @@
  */
 
 import { sweepDb } from '@/lib/email-sweep/db'
+import { hiddenProjectIds, notInList } from '@/lib/security/confidential'
 import { readOpenCommitments } from './read'
-import type { CommitmentRow, CommitmentStatus } from './db'
+import { HUMAN_SETTLED, type CommitmentRow, type CommitmentStatus } from './db'
 
 export interface CommitmentListItem {
   id: string
@@ -35,8 +36,16 @@ export interface CommitmentListItem {
 
 export interface CommitmentListFilters {
   side?: 'us' | 'them'
-  /** 'open' hides snoozed rows; 'quiet' shows only them; 'settled' the history. */
-  view?: 'open' | 'quiet' | 'settled' | 'all'
+  /**
+   * 'open' hides snoozed rows; 'quiet' shows only them; 'settled' the human
+   * history; 'retired' what the aging pass closed.
+   *
+   * ⚠ 'retired' EXISTS SO THE AGING PASS IS REVERSIBLE IN PRACTICE AND NOT
+   * ONLY IN PRINCIPLE. A row it closes is `resolved`, which every other view
+   * filters out — so without this the undo (`settleCommitment(id,'open')`)
+   * existed with no screen that could reach the row.
+   */
+  view?: 'open' | 'quiet' | 'settled' | 'all' | 'retired'
   mailbox?: string
   /** Free-text over the obligation itself. */
   q?: string
@@ -45,7 +54,7 @@ export interface CommitmentListFilters {
 export interface CommitmentListResult {
   items: CommitmentListItem[]
   /** Honest totals for the whole ledger, independent of the current filter. */
-  totals: { open: number; quiet: number; settled: number; undated: number }
+  totals: { open: number; quiet: number; settled: number; undated: number; retired: number }
   error: string | null
   withheld: number
 }
@@ -81,30 +90,111 @@ async function resolveRecordNames(
   return names
 }
 
-/** The ledger's shape, for the counts above the list. */
+/**
+ * The ledger's shape, for the counts above the list.
+ *
+ * ⚠ THE CONFIDENTIALITY FILTER APPLIES HERE TOO, AND IT DID NOT. These four
+ * counts read the raw table while the list they head has protected rows removed
+ * by `readOpenCommitments` — so the header said "527 open" over a list of 505
+ * and the reader had no way to tell which number described what they could see.
+ * The header comment called them "honest totals … independent of the current
+ * filter", which was true of the VIEW filter and silently untrue of the
+ * SECURITY filter, and those are not the same kind of independence.
+ *
+ * §12: a security filter belongs at the choke point as a default. This is not
+ * the choke point, so it is applied the same way `readOpenCommitments` applies
+ * it — in SQL, before the count — and it fails closed, because
+ * `hiddenProjectIds(null)` enumerates every project if its own read fails.
+ */
 async function loadTotals(): Promise<CommitmentListResult['totals']> {
   const db = sweepDb()
   const today = new Date().toISOString().slice(0, 10)
-  const [open, quiet, settled, undated] = await Promise.all([
-    db.from('commitments').select('id', { count: 'exact', head: true }).eq('status', 'open'),
-    db
-      .from('commitments')
-      .select('id', { count: 'exact', head: true })
-      .eq('status', 'open')
-      .gt('snoozed_until', today),
-    db.from('commitments').select('id', { count: 'exact', head: true }).in('status', ['done', 'dismissed']),
-    db
-      .from('commitments')
-      .select('id', { count: 'exact', head: true })
-      .eq('status', 'open')
-      .is('due_date', null),
+
+  const hidden = await hiddenProjectIds(null)
+  const exclude = notInList(hidden)
+  /**
+   * The exclusion, as one `.or()` arm set.
+   *
+   * `project_id.is.null` is required: an obligation filed on no record at all
+   * has a NULL pointer, and §12 records that `.not.in` is NULL — and therefore
+   * not true — for a NULL column, so without this arm every unfiled row would
+   * vanish from the counts. 519 of 672 are unfiled.
+   */
+  const scoped = <T extends { or: (f: string) => T }>(q: T): T =>
+    exclude ? q.or(`project_id.is.null,project_id.not.in.${exclude}`) : q
+
+  const [open, quiet, settled, undated, retired] = await Promise.all([
+    scoped(db.from('commitments').select('id', { count: 'exact', head: true }).eq('status', 'open')),
+    scoped(
+      db
+        .from('commitments')
+        .select('id', { count: 'exact', head: true })
+        .eq('status', 'open')
+        .gt('snoozed_until', today)
+    ),
+    // ⚠ HUMAN statuses only, never `settled_at is not null`. The aging pass
+    // closes stale rows as `resolved`, which is the machine state — counting
+    // those here would make the one number that measures whether anybody is
+    // working the ledger go up on its own. §12: two quantities, named apart.
+    scoped(
+      db
+        .from('commitments')
+        .select('id', { count: 'exact', head: true })
+        .in('status', HUMAN_SETTLED)
+    ),
+    scoped(
+      db
+        .from('commitments')
+        .select('id', { count: 'exact', head: true })
+        .eq('status', 'open')
+        .is('due_date', null)
+    ),
+    // Closed by the aging pass specifically — NOT every `resolved` row. The
+    // extractor also resolves rows (when a re-read of a grown thread no longer
+    // claims them), and those are a different event the reader never asked
+    // about. The reason string in `settled_by` is what tells them apart.
+    scoped(
+      db
+        .from('commitments')
+        .select('id', { count: 'exact', head: true })
+        .eq('status', 'resolved')
+        .like('settled_by', 'aged out —%')
+    ),
   ])
   return {
     open: open.count ?? 0,
     quiet: quiet.count ?? 0,
     settled: settled.count ?? 0,
     undated: undated.count ?? 0,
+    retired: retired.count ?? 0,
   }
+}
+
+
+/**
+ * Apply the confidentiality filter to a history read, in memory.
+ *
+ * ⚠ IT WAS A COMMENT AND NOTHING ELSE. The settled branch carried the line
+ * "It still applies the confidentiality filter, in memory — the set is small"
+ * and applied none, returning `withheld: 0` over a completely unfiltered read —
+ * so a protected project's settled obligations rendered on the page under a
+ * disclosure that asserted nothing was hidden. §12: a workaround's recorded
+ * reason must be re-tested before it is inherited, and a comment claiming a
+ * control that is not there is worse than no comment at all.
+ *
+ * `readOpenCommitments` cannot serve these views: it is scoped to
+ * `status='open'` by name. So the exclusion runs here, over a set bounded at
+ * 300 — and `rows.length - visible.length` is an honest count in THIS case,
+ * unlike at the choke point where it is structurally zero because the SQL
+ * already removed them.
+ */
+async function withoutProtected<T extends { project_id: string | null }>(
+  rows: T[]
+): Promise<{ visible: T[]; withheld: number }> {
+  const hidden = await hiddenProjectIds(null)
+  if (hidden.size === 0) return { visible: rows, withheld: 0 }
+  const visible = rows.filter((r) => !r.project_id || !hidden.has(r.project_id))
+  return { visible, withheld: rows.length - visible.length }
 }
 
 export async function listCommitments(
@@ -114,25 +204,37 @@ export async function listCommitments(
   const view = filters.view ?? 'open'
   const totals = await loadTotals()
 
-  // The settled history is a different question from the live ledger and does
+  // The two history views are a different question from the live ledger and do
   // not go through readOpenCommitments, which is scoped to open rows by name.
-  // It still applies the confidentiality filter, in memory — the set is small.
-  if (view === 'settled') {
+  // Both apply the confidentiality filter through `withoutProtected` — read its
+  // header before trusting any comment about that filter again.
+  if (view === 'retired') {
     const { data, error } = await sweepDb()
       .from('commitments')
       .select('*, thread:email_threads(mailbox)')
-      .in('status', ['done', 'dismissed'])
+      .eq('status', 'resolved')
+      .like('settled_by', 'aged out —%')
       .order('settled_at', { ascending: false, nullsFirst: false })
       .limit(300)
     if (error) return { items: [], totals, error: error.message, withheld: 0 }
     const rows = (data ?? []) as (CommitmentRow & { thread: unknown })[]
-    const names = await resolveRecordNames(rows)
-    return {
-      items: rows.map((r) => shape(r, names)),
-      totals,
-      error: null,
-      withheld: 0,
-    }
+    const { visible, withheld } = await withoutProtected(rows)
+    const names = await resolveRecordNames(visible)
+    return { items: visible.map((r) => shape(r, names)), totals, error: null, withheld }
+  }
+
+  if (view === 'settled') {
+    const { data, error } = await sweepDb()
+      .from('commitments')
+      .select('*, thread:email_threads(mailbox)')
+      .in('status', HUMAN_SETTLED)
+      .order('settled_at', { ascending: false, nullsFirst: false })
+      .limit(300)
+    if (error) return { items: [], totals, error: error.message, withheld: 0 }
+    const rows = (data ?? []) as (CommitmentRow & { thread: unknown })[]
+    const { visible, withheld } = await withoutProtected(rows)
+    const names = await resolveRecordNames(visible)
+    return { items: visible.map((r) => shape(r, names)), totals, error: null, withheld }
   }
 
   const { rows, error, withheld } = await readOpenCommitments({

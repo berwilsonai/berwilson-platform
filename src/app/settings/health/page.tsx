@@ -35,6 +35,9 @@ import {
   probeVoiceMemos,
   probeScopeCoverage,
   probeDisk,
+  probePepperText,
+  probeCurator,
+  probeCommitmentChase,
 } from '@/lib/system-health'
 import { isGoogleConfigured } from '@/lib/integrations/google-workspace'
 import { sweepDb } from '@/lib/email-sweep/db'
@@ -101,7 +104,7 @@ async function runChecks(): Promise<HealthCheck[]> {
   const dayAgo = new Date(Date.now() - 86_400_000).toISOString()
   const localAI = process.env.AI_PROVIDER === 'local'
 
-  const [brief, riskScore, lastAi, aiDayCount, failedRuns, mailbox, lmStudio, backups, drive, leadInbox, docIndexing, driveSources, driveFiling, scopes, disk, lastDigest, failedDigests, contacts, taskSheet, drivePublish, meetImport, dealIntake, routing, corpus, dailyDigest, commitmentBacklog, openCommitments, settledRecently, quietedCommitments, imessageSweep, voiceMemos] =
+  const [brief, riskScore, lastAi, aiDayCount, failedRuns, mailbox, lmStudio, backups, drive, leadInbox, docIndexing, driveSources, driveFiling, scopes, disk, lastDigest, failedDigests, contacts, taskSheet, drivePublish, meetImport, dealIntake, routing, corpus, dailyDigest, commitmentBacklog, openCommitments, settledRecently, quietedCommitments, imessageSweep, voiceMemos, pepperText, curator, chase] =
     await Promise.all([
       supabase
         .from('stored_briefs')
@@ -195,6 +198,9 @@ async function runChecks(): Promise<HealthCheck[]> {
         .gt('snoozed_until', new Date().toISOString().slice(0, 10)),
       probeIMessageSweep(),
       probeVoiceMemos(),
+      probePepperText(),
+      probeCurator(),
+      probeCommitmentChase(),
     ])
 
   const checks: HealthCheck[] = []
@@ -464,6 +470,64 @@ async function runChecks(): Promise<HealthCheck[]> {
             : h === null
               ? `Emails each person what they owe, what they are owed, their day, and the queue — with their tasks itemised. Nothing sends to someone with an empty note. ${cronLogsHint}`
               : 'Sending on schedule.',
+    })
+  }
+
+  // 8c. Pepper's morning TEXT (launchd, weekdays 06:45) — added 2026-10-15,
+  //     having had no card at all since the channel went live on 10-13. It is
+  //     the message that arrives first and the one most likely to be read, and
+  //     it was on exactly the footing 8b above was on before 10-08.
+  {
+    const bad = pepperText.state === 'failed' || pepperText.state === 'never'
+    checks.push({
+      name: "Pepper's Morning Text",
+      status: bad ? 'warn' : pepperText.state === 'stale' ? 'warn' : 'ok',
+      headline:
+        pepperText.state === 'ok'
+          ? 'Sending on schedule'
+          : pepperText.state === 'never'
+            ? 'No text has ever sent'
+            : pepperText.state === 'stale'
+              ? 'No text in over four days'
+              : 'A send failed this week',
+      detail: pepperText.detail,
+    })
+  }
+
+  // 8d. The autonomous curator (launchd, weekdays 06:20) — the one pass that
+  //     changes records with nobody approving it, and until 2026-10-15 the one
+  //     pass nothing here watched. Its failure mode is silence, which is why
+  //     this reads a clock off curator_cursors rather than counting writes.
+  {
+    checks.push({
+      name: 'Autonomous CRM Curation',
+      status: curator.state === 'ok' ? 'ok' : curator.state === 'never' ? 'warn' : 'warn',
+      headline:
+        curator.state === 'ok'
+          ? 'Walking records on schedule'
+          : curator.state === 'never'
+            ? 'Has never run'
+            : curator.state === 'errored'
+              ? 'Records ended on an error'
+              : 'No record considered in over four days',
+      detail: curator.detail,
+    })
+  }
+
+  // 8e. The chase pass (launchd, weekdays 05:30). The clock is
+  //     `chase_composed_at`; see the migration for why the column it had could
+  //     never serve as one.
+  {
+    checks.push({
+      name: 'Commitment Chase',
+      status: chase.state === 'ok' ? 'ok' : 'warn',
+      headline:
+        chase.state === 'ok'
+          ? 'Composing on schedule'
+          : chase.state === 'never'
+            ? 'No chase has ever been composed'
+            : 'No chase composed in ten days, with work waiting',
+      detail: chase.detail,
     })
   }
 

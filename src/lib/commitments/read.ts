@@ -113,16 +113,37 @@ export async function readOpenCommitments(
    *
    * Only asked when something is actually hidden, so the normal case costs
    * nothing.
+   *
+   * ⚠ AND IT CARRIES THE CALLER'S OWN PREDICATES, WHICH IT DID NOT. The count
+   * was taken over every open row on a protected project, ignoring `side`,
+   * `threadIds` and `excludeSnoozed` — so `listCommitments({side:'us'})`
+   * disclosed "22 withheld" drawn from both sides, and a meeting's
+   * thread-scoped read disclosed the whole portfolio's protected backlog
+   * against four rows. §12: one quantity, one definition. A disclosure that
+   * describes a different population than the list it sits under is a third
+   * number masquerading as a reconciliation.
    */
-  const withheldPromise =
+  let withheldQuery =
     hidden.size > 0
       ? sweepDb()
           .from('commitments')
           .select('id', { count: 'exact', head: true })
           .eq('status', 'open')
           .in('project_id', [...hidden])
-          .then((r) => r.count ?? 0)
-      : Promise.resolve(0)
+      : null
+
+  if (withheldQuery) {
+    if (side) withheldQuery = withheldQuery.eq('side', side)
+    // `threadIds` is never empty here — the empty case returned above.
+    if (threadIds) withheldQuery = withheldQuery.in('thread_id', threadIds)
+    if (excludeSnoozed) {
+      withheldQuery = withheldQuery.or(`snoozed_until.is.null,snoozed_until.lte.${today}`)
+    }
+  }
+
+  const withheldPromise = withheldQuery
+    ? withheldQuery.then((r) => r.count ?? 0)
+    : Promise.resolve(0)
 
   const [{ data, error }, withheld] = await Promise.all([query, withheldPromise])
 

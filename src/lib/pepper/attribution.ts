@@ -210,3 +210,54 @@ export function attribute(
   if (member?.isAssistantSeat) return { kind: 'shared', reason: 'front-door mailbox' }
   return { kind: 'shared', reason: box ? `unrecognized mailbox ${box}` : 'no mailbox recorded' }
 }
+
+/**
+ * Who counts as "us".
+ *
+ * Built from the roster rather than hard-coded, so adding an executive needs no
+ * code change — and it carries ADDRESSES as well as domains for the reason in
+ * `isExternalTo` below.
+ *
+ * ⚠ IT LIVES HERE, NOT BESIDE ITS FIRST CALLER. It was written in
+ * `meeting-prep.ts` to fix the bug documented on `PepperMember.addresses`, and
+ * the morning note's own copy of the question — a bare
+ * `new Set([member.email])` in `assembleMeetings` — was never converted. So the
+ * nudge stopped calling the other executive an external counterparty and the
+ * note, assembled by the same module five minutes earlier, went on doing it.
+ * §12: a shared renderer wired to one surface is worse than no shared renderer.
+ */
+export function internalSet(members: PepperMember[]): {
+  domains: Set<string>
+  addresses: Set<string>
+} {
+  const domains = new Set<string>()
+  const addresses = new Set<string>()
+  for (const m of members) {
+    for (const a of m.addresses) {
+      addresses.add(a)
+      const d = a.split('@')[1]
+      if (d) domains.add(d)
+    }
+  }
+  return { domains, addresses }
+}
+
+/**
+ * Is this address somebody outside the company?
+ *
+ * ⚠ ADDRESS FIRST, THEN DOMAIN. A domain-only test announced Richard as an
+ * external counterparty on Eric's nudge and recited Richard's own open
+ * commitments as the counterparty's, because he attends some meetings from the
+ * personal address his own contact record carries. §12's rule about never
+ * printing a reader's own name back at them has a sibling here: never print
+ * their colleague back at them as the other side.
+ */
+export function isExternalTo(
+  internal: { domains: Set<string>; addresses: Set<string> },
+  email: string
+): boolean {
+  const addr = email.toLowerCase()
+  if (internal.addresses.has(addr)) return false
+  const domain = addr.split('@')[1]
+  return !!domain && !internal.domains.has(domain)
+}

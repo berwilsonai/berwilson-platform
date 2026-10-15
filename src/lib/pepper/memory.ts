@@ -42,7 +42,21 @@ export type NoteItemKind = 'commitment' | 'task' | 'crack'
 
 /** What Pepper remembers about one item, for one reader. */
 export interface Mention {
+  /** Every morning it has been named, TODAY INCLUDED if it already has been. */
   timesNamed: number
+  /**
+   * Mornings before this one — what "the fourth morning" actually counts.
+   *
+   * ⚠ THIS IS NOT `timesNamed` AND THE DIFFERENCE IS ORDERING. Both channels
+   * record what they named, so by the time the 06:50 email loads memory the
+   * 06:45 text may already have counted today — and `timesNamed` would then
+   * make the clause say "RAISED ON 4 PREVIOUS MORNINGS" on the fourth morning.
+   * The same overstatement was already reachable with `?force=1`, which
+   * re-sends a note on a day it has been recorded. Deriving the figure the
+   * clause means, rather than relying on which cron ran first, makes it true
+   * by construction.
+   */
+  previousMornings: number
   firstNamedOn: string
   lastNamedOn: string
   /** Days since she last raised it, or null if she never has. */
@@ -69,7 +83,8 @@ function daysSinceDate(date: string): number | null {
  */
 export async function loadMentions(
   teamMemberId: string,
-  kind: NoteItemKind
+  kind: NoteItemKind,
+  today = new Date().toISOString().slice(0, 10)
 ): Promise<Map<string, Mention>> {
   const out = new Map<string, Mention>()
   const { data, error } = await createAdminClient()
@@ -92,8 +107,10 @@ export async function loadMentions(
     NoteItemRow,
     'item_key' | 'times_named' | 'first_named_on' | 'last_named_on'
   >[]) {
+    const namedToday = row.last_named_on === today
     out.set(row.item_key, {
       timesNamed: row.times_named,
+      previousMornings: Math.max(0, row.times_named - (namedToday ? 1 : 0)),
       firstNamedOn: row.first_named_on,
       lastNamedOn: row.last_named_on,
       daysSinceNamed: daysSinceDate(row.last_named_on),
@@ -145,7 +162,17 @@ export async function recordMentions(
   // ⚠ ONE STATEMENT WITH A UNIFORM COLUMN LIST (§12). Every row names every
   // column; a row that omitted one would receive an explicit NULL rather than
   // the default, which is loud on these NOT NULL columns and silent on nothing.
-  const rows = items.map((i) => {
+  //
+  // ⚠ DEDUPED FIRST. `ON CONFLICT DO UPDATE cannot affect row a second time` is
+  // what Postgres answers to one statement carrying the same (kind, item_key)
+  // twice, and it fails the WHOLE upsert — every other mention in the note
+  // along with it. The three task buckets are disjoint today and owed/awaited
+  // are split by `side`, so nothing reaches it; the guard is here because the
+  // cost of a new caller getting that wrong is the entire morning's memory.
+  const unique = new Map<string, RecordedMention>()
+  for (const i of items) unique.set(`${i.kind}:${i.itemKey}`, i)
+
+  const rows = [...unique.values()].map((i) => {
     const prior = seen.get(`${i.kind}:${i.itemKey}`)
     const sameDay = prior?.last_named_on === today
     return {
@@ -176,6 +203,6 @@ export async function recordMentions(
  * nothing — the whole point is that the count means something when it appears.
  */
 export function mentionClause(m: Mention | undefined): string | null {
-  if (!m || m.timesNamed < ESCALATE_AFTER) return null
-  return `, RAISED ON ${m.timesNamed} PREVIOUS MORNINGS and still open — first on ${m.firstNamedOn}`
+  if (!m || m.previousMornings < ESCALATE_AFTER) return null
+  return `, RAISED ON ${m.previousMornings} PREVIOUS MORNINGS and still open — first on ${m.firstNamedOn}`
 }

@@ -32,6 +32,18 @@ export interface TextNote {
   body: string
   /** Why it is empty, when it is. An empty text is never sent. */
   emptyReason: string | null
+  /**
+   * The task ids this message actually NAMED, for Pepper's memory.
+   *
+   * ⚠ THE TEXT RECORDED NOTHING, AND FOR A QUIET READER THAT MEANT IT NEVER
+   * ESCALATED. Only the 06:50 email wrote mentions, and it skips anyone whose
+   * note `noteIsEmpty` — so somebody with two overdue tasks and nothing else
+   * got the same two titles texted every morning forever, with the count stuck
+   * at zero and the rotation never engaging. What she said is what she NAMED,
+   * which for this channel is the handful of titles that fit, not everything
+   * the assembly held.
+   */
+  namedTaskIds: string[]
 }
 
 /**
@@ -51,6 +63,9 @@ export function composeMorningText(args: {
   const { note, appUrl, now = new Date() } = args
   const lines: string[] = []
   const first = firstName(note.member.name)
+  // Only the titles that actually fit — `nameList` prints TWO and counts the
+  // rest, so recording all of them would claim she named what she summarised.
+  const named: string[] = []
 
   const today = isoDate(now)
   const dueToday = [...note.overdueTasks, ...note.dueSoonTasks].filter(
@@ -61,10 +76,12 @@ export function composeMorningText(args: {
   // ── What cannot wait ──────────────────────────────────────────────────────
   if (overdue.length > 0) {
     lines.push(`${overdue.length} overdue: ${nameList(overdue.map((t) => t.title), 2)}`)
+    named.push(...overdue.slice(0, 2).map((t) => t.id))
   }
   const dueNotOverdue = dueToday.filter((t) => !overdue.some((o) => o.id === t.id))
   if (dueNotOverdue.length > 0) {
     lines.push(`Due today: ${nameList(dueNotOverdue.map((t) => t.title), 2)}`)
+    named.push(...dueNotOverdue.slice(0, 2).map((t) => t.id))
   }
 
   // ── Fixed points ──────────────────────────────────────────────────────────
@@ -111,12 +128,16 @@ export function composeMorningText(args: {
     // reason rather than a cheerful nothing lets the caller decide; the cron
     // does not send an empty text, because a daily message that is usually
     // "nothing today" trains the reader to stop opening it.
-    return { body: '', emptyReason: 'nothing due, no meetings, no open obligations' }
+    return { body: '', emptyReason: 'nothing due, no meetings, no open obligations', namedTaskIds: [] }
   }
 
   const head = `Morning${first ? `, ${first}` : ''}.`
   const tail = appUrl ? `\n${appUrl.replace(/\/$/, '')}/attention` : ''
-  return { body: clamp(`${head}\n\n${lines.join('\n')}${tail}`), emptyReason: null }
+  return {
+    body: clamp(`${head}\n\n${lines.join('\n')}${tail}`),
+    emptyReason: null,
+    namedTaskIds: [...new Set(named)],
+  }
 }
 
 /**
@@ -146,7 +167,12 @@ export function composeWeekAheadText(args: {
   // quantity, one definition — counting a deadline as a meeting makes the one
   // number in the line mean two things, and the reader checks the calendar
   // anyway to find out which.
-  const meetings = note.meetings.filter(
+  //
+  // ⚠ `weekMeetings`, NOT `meetings`. This filtered a 7-day window over a feed
+  // that only ever held TODAY, so the count could never exceed Monday's and the
+  // `weekdayOf()` beside it had nothing but Mondays to format. See the field's
+  // own comment in ./assemble.
+  const meetings = note.weekMeetings.filter(
     (m) => !m.isAllDay && m.start.slice(0, 10) >= today && m.start.slice(0, 10) <= weekEnd
   )
   if (meetings.length > 0) {
@@ -162,13 +188,15 @@ export function composeWeekAheadText(args: {
   // Deadlines from tasks, commitments AND all-day calendar markers — three
   // sources of the same kind of fact, merged here and counted once.
   const dated = [
-    ...note.overdueTasks.map((t) => ({ when: t.due_date, what: t.title })),
-    ...note.dueSoonTasks.map((t) => ({ when: t.due_date, what: t.title })),
-    ...note.owed.map((c) => ({ when: c.row.due_date, what: c.row.what })),
-    ...note.meetings
+    ...note.overdueTasks.map((t) => ({ when: t.due_date, what: t.title, taskId: t.id })),
+    ...note.dueSoonTasks.map((t) => ({ when: t.due_date, what: t.title, taskId: t.id })),
+    ...note.owed.map((c) => ({ when: c.row.due_date, what: c.row.what, taskId: null })),
+    // Also from the week, for the same reason: a `BID DUE —` marker on Thursday
+    // is exactly what a Monday text is for, and today's feed cannot see it.
+    ...note.weekMeetings
       .filter((m) => m.isAllDay)
       .map((m) => ({ when: m.start.slice(0, 10), what: m.subject })),
-  ].filter((d): d is { when: string; what: string } => Boolean(d.when))
+  ].filter((d): d is { when: string; what: string; taskId: string | null } => Boolean(d.when))
 
   // ⚠ A LOWER BOUND, WHICH THE FIRST VERSION HAD NOT GOT. It filtered on
   // `when <= weekEnd` alone, so the live dry run reported "Due this week:
@@ -203,12 +231,29 @@ export function composeWeekAheadText(args: {
   if (ledger.length > 0) lines.push(capitalize(ledger.join(', ')))
 
   if (lines.length === 0) {
-    return { body: '', emptyReason: 'no meetings, no deadlines, no open obligations this week' }
+    return {
+      body: '',
+      emptyReason: 'no meetings, no deadlines, no open obligations this week',
+      namedTaskIds: [],
+    }
   }
 
   const head = `Week ahead${first ? `, ${first}` : ''}.`
   const tail = appUrl ? `\n${appUrl.replace(/\/$/, '')}/attention` : ''
-  return { body: clamp(`${head}\n\n${lines.join('\n')}${tail}`), emptyReason: null }
+  return {
+    body: clamp(`${head}\n\n${lines.join('\n')}${tail}`),
+    emptyReason: null,
+    // The four `thisWeek` rows it printed, and only those — the same rule as
+    // the morning text: what she named, not what the assembly held.
+    namedTaskIds: [
+      ...new Set(
+        thisWeek
+          .slice(0, 4)
+          .map((d) => d.taskId)
+          .filter((id): id is string => !!id)
+      ),
+    ],
+  }
 }
 
 // ── Shaping ──────────────────────────────────────────────────────────────────
@@ -290,12 +335,21 @@ function clockOf(m: { start: string; isAllDay: boolean }): string {
   if (m.isAllDay) return 'All day'
   const d = new Date(m.start)
   if (Number.isNaN(d.getTime())) return ''
-  return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+  // Pinned, like render.ts/email.ts/meeting-prep.ts. Without it the clock
+  // follows the server's zone, so a 4pm meeting reads as 22:00 the one time the
+  // launchd environment differs from the box's own locale.
+  return d.toLocaleTimeString('en-US', {
+    hour: 'numeric',
+    minute: '2-digit',
+    timeZone: 'America/Denver',
+  })
 }
 
 function weekdayOf(iso: string): string {
   const d = new Date(iso)
-  return Number.isNaN(d.getTime()) ? '' : d.toLocaleDateString('en-US', { weekday: 'short' })
+  return Number.isNaN(d.getTime())
+    ? ''
+    : d.toLocaleDateString('en-US', { weekday: 'short', timeZone: 'America/Denver' })
 }
 
 /** "1 Nov" — the form a deadline gets said out loud in. */

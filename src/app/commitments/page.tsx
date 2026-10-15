@@ -34,7 +34,9 @@ export default async function CommitmentsPage({
   const filters: CommitmentListFilters = {
     side: sp.side === 'us' || sp.side === 'them' ? sp.side : undefined,
     view:
-      sp.view === 'quiet' || sp.view === 'settled' || sp.view === 'all' ? sp.view : 'open',
+      sp.view === 'quiet' || sp.view === 'settled' || sp.view === 'all' || sp.view === 'retired'
+        ? sp.view
+        : 'open',
     mailbox: sp.mailbox || undefined,
     q: sp.q || undefined,
   }

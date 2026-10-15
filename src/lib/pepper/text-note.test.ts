@@ -27,6 +27,7 @@ function emptyNote(over: Partial<PepperNote> = {}): PepperNote {
     dueSoonTasks: [],
     liveTasks: [],
     meetings: [],
+    weekMeetings: [],
     decide: { total: 0, leads: 0, intake: 0, meetings: 0, review: 0, documents: 0, economics: 0, top: [] },
     cracks: [],
     overnight: {},
@@ -193,7 +194,7 @@ test('the week-ahead NEVER reports a past date as due this week', () => {
 test('an all-day calendar marker counts as a deadline, not a meeting', () => {
   const r = composeWeekAheadText({
     note: emptyNote({
-      meetings: [
+      weekMeetings: [
         { subject: 'BID DUE — Adams County', start: '2026-10-14T00:00:00Z', isAllDay: true, location: null, counterparties: [] },
         { subject: 'Tensor IQ', start: '2026-10-13T15:30:00Z', isAllDay: false, location: null, counterparties: [] },
       ],
@@ -208,7 +209,7 @@ test('an all-day calendar marker counts as a deadline, not a meeting', () => {
 test('the week-ahead names weekdays and dates, and stops at the week', () => {
   const r = composeWeekAheadText({
     note: emptyNote({
-      meetings: [
+      weekMeetings: [
         { subject: 'Tensor IQ', start: '2026-10-13T15:30:00Z', isAllDay: false, location: null, counterparties: [] },
         { subject: 'Far future', start: '2026-11-30T15:30:00Z', isAllDay: false, location: null, counterparties: [] },
       ],
@@ -221,6 +222,42 @@ test('the week-ahead names weekdays and dates, and stops at the week', () => {
   assert.match(r.body, /1 meeting: Tue Tensor IQ/)
   assert.doesNotMatch(r.body, /Far future/)
   assert.match(r.body, /Due this week: 15 Oct Steelton PSA closing/)
+})
+
+/**
+ * ⚠ THE TEST THAT WAS MISSING, AND ITS ABSENCE IS WHY THE BUG SURVIVED.
+ *
+ * `composeWeekAheadText` filtered a seven-day window over `note.meetings`,
+ * which `assembleMeetings` only ever populated with TODAY — so the Monday text
+ * was structurally incapable of naming a meeting later in the week. Every
+ * existing test passed because the fixture injected a Tuesday meeting straight
+ * into `meetings`, bypassing the one-day fetch that was the actual defect.
+ *
+ * This asserts the two fields are not interchangeable: a meeting that exists
+ * ONLY in today's feed must not be counted as the week's, and the week's feed
+ * is what gets read. It fails against the old code in both directions.
+ */
+test('the week-ahead reads weekMeetings, never today-only meetings', () => {
+  const r = composeWeekAheadText({
+    note: emptyNote({
+      // Today's block, with its counterparty context. Not the week's.
+      meetings: [
+        { subject: 'Monday standup', start: '2026-10-12T15:00:00Z', isAllDay: false, location: null, counterparties: [] },
+      ],
+      weekMeetings: [
+        { subject: 'Thursday closing call', start: '2026-10-15T16:00:00Z', isAllDay: false, location: null, counterparties: [] },
+        { subject: 'BID DUE — Weirton', start: '2026-10-16T00:00:00Z', isAllDay: true, location: null, counterparties: [] },
+      ],
+    }),
+    appUrl: null,
+    now: NOW,
+  })
+  // The week's meeting is named, with its own weekday — not Monday's.
+  assert.match(r.body, /1 meeting: Thu Thursday closing call/)
+  assert.doesNotMatch(r.body, /Monday standup/)
+  // And an all-day marker later in the week reaches the deadline list, which
+  // today's feed could never have shown.
+  assert.match(r.body, /Due this week: 16 Oct BID DUE — Weirton/)
 })
 
 test('a counterparty known only by address is omitted, not printed', () => {
@@ -243,4 +280,50 @@ test('a name with no surname still gets a greeting', () => {
     now: NOW,
   })
   assert.match(r.body, /^Morning, Richard\./)
+})
+
+/**
+ * ⚠ WHAT SHE NAMED, NOT WHAT SHE HELD.
+ *
+ * `namedTaskIds` feeds `recordMentions`, so it is the difference between "this
+ * is the fourth morning" being true and being a guess. `nameList` prints two
+ * titles and counts the rest, so recording all five would have Pepper claiming
+ * she named three tasks she only summarised — and the escalation clause would
+ * then fire on rows the reader has never seen written out.
+ */
+test('namedTaskIds carries only the titles that were actually printed', () => {
+  const r = composeMorningText({
+    note: emptyNote({
+      overdueTasks: [
+        task({ id: 'a', title: 'Steelton PSA signature', due_date: '2026-10-05' }),
+        task({ id: 'b', title: 'Weirton data room', due_date: '2026-10-06' }),
+        task({ id: 'c', title: 'Riverdale survey', due_date: '2026-10-07' }),
+      ],
+    }),
+    appUrl: null,
+    now: NOW,
+  })
+  // Three overdue, two titles printed, one counted.
+  assert.match(r.body, /3 overdue: Steelton PSA signature, Weirton data room/)
+  assert.deepEqual(r.namedTaskIds, ['a', 'b'])
+})
+
+test('an empty text names nothing, so a skipped send records nothing', () => {
+  const r = composeMorningText({ note: emptyNote(), appUrl: null, now: NOW })
+  assert.equal(r.body, '')
+  assert.deepEqual(r.namedTaskIds, [])
+})
+
+test('the week-ahead records the dated tasks it printed, never the commitments', () => {
+  const r = composeWeekAheadText({
+    note: emptyNote({
+      dueSoonTasks: [task({ id: 'wk1', title: 'File the rezone exhibit', due_date: '2026-10-14' })],
+      // A commitment has no task row to escalate, so it contributes no id.
+      owed: [owed('c1', 'Steelton PSA closing', '2026-10-15')],
+    }),
+    appUrl: null,
+    now: NOW,
+  })
+  assert.match(r.body, /Due this week: 14 Oct File the rezone exhibit/)
+  assert.deepEqual(r.namedTaskIds, ['wk1'])
 })

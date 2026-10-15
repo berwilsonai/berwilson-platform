@@ -22,7 +22,11 @@ import { fetchCalendarEvents } from '@/lib/integrations/google-workspace'
 import { readOpenCommitments } from '@/lib/commitments/read'
 import { COMMITMENT_MATCH_THRESHOLD, commitmentSimilarity } from '@/lib/commitments/db'
 import { sweepDb } from '@/lib/email-sweep/db'
-import type { PepperMember } from './attribution'
+import { internalSet, isExternalTo, type PepperMember } from './attribution'
+
+// Re-exported so the cron keeps one import site; the definition is in
+// ./attribution, which is where the morning note reads it from too.
+export { internalSet }
 
 /** How far ahead to look. One cron interval plus a margin. */
 export const LOOKAHEAD_MIN = 35
@@ -30,29 +34,6 @@ export const LOOKAHEAD_MIN = 35
 export const LEAD_TIME_MIN = 5
 /** A contact we have not spoken to in this long is worth flagging. */
 const STALE_CONTACT_DAYS = 21
-
-/**
- * Who counts as "us".
- *
- * Built from the roster rather than hard-coded, so adding an executive needs no
- * code change — and it carries ADDRESSES as well as domains for the reason in
- * `isExternal` below.
- */
-export function internalSet(members: PepperMember[]): {
-  domains: Set<string>
-  addresses: Set<string>
-} {
-  const domains = new Set<string>()
-  const addresses = new Set<string>()
-  for (const m of members) {
-    for (const a of m.addresses) {
-      addresses.add(a)
-      const d = a.split('@')[1]
-      if (d) domains.add(d)
-    }
-  }
-  return { domains, addresses }
-}
 
 export interface PrepCounterparty {
   name: string
@@ -114,20 +95,7 @@ export async function prepsForMember(
   })
   if (soon.length === 0) return { preps: [], notes }
 
-  /**
-   * ⚠ ADDRESS FIRST, THEN DOMAIN. A domain-only test announced Richard as an
-   * external counterparty on Eric's nudge and recited Richard's own open
-   * commitments as the counterparty's, because he attends some meetings from
-   * the personal address his own contact record carries. §12's rule about never
-   * printing a reader's own name back at them has a sibling here: never print
-   * their colleague back at them as the other side.
-   */
-  const isExternal = (email: string) => {
-    const addr = email.toLowerCase()
-    if (internal.addresses.has(addr)) return false
-    const domain = addr.split('@')[1]
-    return !!domain && !internal.domains.has(domain)
-  }
+  const isExternal = (email: string) => isExternalTo(internal, email)
 
   const emails = [
     ...new Set(
