@@ -151,6 +151,11 @@ const KIND_META: Record<DecideKind, { label: string; icon: typeof Radar; tone: s
     icon: Inbox,
     tone: 'bg-violet-50 text-violet-700 ring-violet-200 dark:bg-violet-950/40 dark:text-violet-300 dark:ring-violet-900',
   },
+  review: {
+    label: 'Needs a check',
+    icon: ClipboardCheck,
+    tone: 'bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:ring-amber-900',
+  },
   document: {
     label: 'Unfiled document',
     icon: FileText,
@@ -170,11 +175,6 @@ const KIND_META: Record<DecideKind, { label: string; icon: typeof Radar; tone: s
     label: 'Deal figures',
     icon: Calculator,
     tone: 'bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:ring-emerald-900',
-  },
-  review: {
-    label: 'Needs a check',
-    icon: ClipboardCheck,
-    tone: 'bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:ring-amber-900',
   },
 }
 
@@ -788,7 +788,17 @@ export default function DecideClient({ items }: { items: DecideItem[] }) {
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-1.5">
-        {(['all', 'lead', 'intake', 'review', 'document', 'economics'] as const).map((k) => (
+        {/*
+          ⚠ DERIVED FROM `KIND_META`, NOT WRITTEN OUT. The note on `counts`
+          above records this exact bug being fixed there — a kind-keyed
+          structure beside the registry, missing the registry's newest key —
+          and it was still written out HERE, one structure over. Adding
+          'misfiled' gave it a count and no chip, so the rows existed in
+          "Everything" and could not be filtered to. Reading order is
+          KIND_META's declaration order, which is therefore the place to
+          change it.
+        */}
+        {(['all', ...(Object.keys(KIND_META) as DecideKind[])] as const).map((k) => (
           <button
             key={k}
             onClick={() => setKind(k)}
