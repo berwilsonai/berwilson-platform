@@ -13,6 +13,7 @@ import { listCategories } from '@/lib/leads/categories'
 import { findMisfiledCompanyDocuments } from '@/lib/documents/unfiled'
 import { findMisfiledRecordDocuments } from '@/lib/documents/misfiled'
 import { pendingProposalGroups } from '@/lib/economics/store'
+import { readOpenProposals } from '@/lib/provenance/report'
 import type { EmailIntakeExtraction } from '@/lib/ai/prompts/email-intake'
 import type { PartyMatch } from '@/lib/ai/proposal-matching'
 
@@ -34,6 +35,22 @@ export const metadata = { title: 'Decide — Ber Wilson Intelligence' }
  * Deliberately excludes open tasks. A task is work you have already decided to
  * do; mixing it in here would turn a decision list back into a to-do list.
  */
+/**
+ * Where to go to see a proposed field in context.
+ *
+ * ⚠ ONLY TABLES WITH A PAGE, AND A FALLBACK THAT IS HONEST. A milestone and an
+ * SPV participant are children rendered inside a tab, with no route of their
+ * own — sending the reader to a URL assembled from the table name would be a
+ * second routing table drifting beside the real one (§12). Those rows point at
+ * the queue itself, which is where the question is answerable anyway.
+ */
+function recordHref(table: string, recordId: string): string {
+  if (table === 'projects') return `/projects/${recordId}`
+  if (table === 'opportunities') return `/opportunities/${recordId}`
+  if (table === 'parties') return `/contacts/${recordId}`
+  return '/decide'
+}
+
 export default async function DecidePage() {
   const viewer = await getViewer()
   if (viewer && !viewer.isAdmin) redirect('/tasks')
@@ -47,6 +64,7 @@ export default async function DecidePage() {
     unfiledDocs,
     misfiledDocs,
     economicsGroups,
+    fieldQuestions,
   ] = await Promise.all([
     supabase
       .from('email_intake_sessions')
@@ -80,6 +98,7 @@ export default async function DecidePage() {
     // The other half of the same question — see the header of misfiled.ts.
     findMisfiledRecordDocuments().catch(() => []),
     pendingProposalGroups().catch(() => []),
+    readOpenProposals(100),
   ])
 
   const items: DecideItem[] = []
@@ -393,6 +412,42 @@ export default async function DecidePage() {
       accept: null,
       blocker: 'Open the deal to read each figure against its quote',
       confidence: null,
+    })
+  }
+
+  // --- Guarded fields Pepper will not overwrite ----------------------------
+  //
+  //
+  // Why these are a DECISION and not a write: the registry
+  // (lib/provenance/fields.ts) marks a field `guarded` when being wrong about
+  // it costs money or a legal position — stage, status, a bid due date, an
+  // estimated value, an equity split. Pepper fills those freely when they are
+  // blank, and when a HUMAN has typed one she proposes instead. Until
+  // 2026-10-15 the proposal went into a table with no reader anywhere: three
+  // module headers describe reporting as the thing that makes unattended
+  // writing safe, and the questions were accumulating unasked.
+  for (const q of fieldQuestions.proposals) {
+    items.push({
+      id: q.id,
+      kind: 'proposal',
+      title: `${q.recordLabel} — ${q.fieldLabel}`,
+      subtitle: q.recordLabel,
+      href: recordHref(q.table, q.recordId),
+      verdict: null,
+      score: null,
+      note:
+        `On file: ${q.current ?? 'blank'}. The correspondence says: ${q.proposed ?? 'blank'}.` +
+        (q.evidence ? ` ${q.evidence}` : ''),
+      deadline: null,
+      accept: 'confirmfield',
+      acceptName: `${q.recordLabel}'s ${q.fieldLabel.toLowerCase()}`,
+      // ⚠ NEVER BATCH-SELECTED BY CONFIDENCE. These are precisely the fields
+      // where a confident model is not sufficient grounds — that is what
+      // `guarded` MEANS — so there is no score to draw a batch with and the
+      // row has to be read. Leaving it null keeps it out of
+      // "select the N Ber AI is sure about".
+      confidence: null,
+      blocker: null,
     })
   }
 

@@ -203,6 +203,16 @@ export async function GET(request: NextRequest) {
       liveTasks: note.liveTasks,
       decideTotal: note.decide.total,
       settle,
+      // From the rows, not from the prose — see `proposalList`. These are the
+      // guarded fields she declined to overwrite, which until 2026-10-15 were
+      // raised into a table with no reader at all.
+      proposals: note.curation.proposals.map((p) => ({
+        recordLabel: p.recordLabel,
+        fieldLabel: p.fieldLabel,
+        current: p.current,
+        proposed: p.proposed,
+      })),
+      proposalsTotal: note.curation.proposalsTotal,
       appUrl,
       now,
     })

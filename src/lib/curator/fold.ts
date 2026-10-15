@@ -261,8 +261,23 @@ function collectMentions(threads: EvidenceItem[]): PersonMention[] {
 export async function applyPeople(args: {
   mentions: PersonMention[]
   dryRun: boolean
+  /**
+   * Fill blanks only, never replace a value that is already there.
+   *
+   * ⚠ WHICH ACT IS SAFE DEPENDS ON THE SOURCE, NOT ON THE FIELD (§12). The
+   * record pass reads the evidence of ONE deal, where a person named on that
+   * deal's own correspondence is being described; overwriting there is right.
+   * The rolodex sweep reads every thread in the corpus, where most sightings
+   * are incidental — and its dry run proved the difference: it proposed
+   * `Timothy Seibert: Managing Member → CEO`, `Rebecca Leonardi: Transaction
+   * lead → CEO`, `Ocean Patel: Myton Land Owner → Energence` and, worst,
+   * `Mark Urbina: mark.urbina@noircgrp.com → mark.urbina@gmail.com` —
+   * trading a work address for a personal one on the strength of one mention.
+   * So the broad source fills and the narrow source decides.
+   */
+  fillOnly?: boolean
 }): Promise<{ outcomes: PersonOutcome[]; unmatched: string[]; error: string | null }> {
-  const { mentions, dryRun } = args
+  const { mentions, dryRun, fillOnly = false } = args
 
   // ⚠ OUR OWN PEOPLE ARE NEVER CURATED FROM MAIL, AND THE DRY RUN IS WHY. It
   // proposed `Richard White: Title="Advisor"` — a model's incidental role guess
@@ -304,7 +319,18 @@ export async function applyPeople(args: {
       if (name && isReportableName(name)) unmatched.add(name)
       continue
     }
-    if (internal.ids.has(party.id) || isInternalAddress(party.email)) continue
+    // ⚠ THE INCOMING ADDRESS AS WELL AS THE STORED ONE. Checking only
+    // `party.email` lets an internal person through whenever their contact row
+    // has no address yet — which is exactly the row most in need of filling,
+    // and precisely how `info@berwilson.com`, the assistant's own seat, came up
+    // for writing onto a party record in the sweep's dry run.
+    if (
+      internal.ids.has(party.id) ||
+      isInternalAddress(party.email) ||
+      isInternalAddress(m.person.email ?? null)
+    ) {
+      continue
+    }
     let entry = byParty.get(party.id)
     if (!entry) {
       entry = { party, fields: new Map() }
@@ -327,6 +353,7 @@ export async function applyPeople(args: {
     const updates = [...fields.entries()].map(([field, { value, mention }]) => ({
       field,
       value,
+      fillOnly,
       sourceKind: mention.sourceKind,
       sourceRef: mention.sourceRef,
       evidence: `named in "${mention.sourceLabel}"`,
@@ -411,6 +438,17 @@ interface PartyLite {
   id: string
   full_name: string
   email: string | null
+  /**
+   * ⚠ CARRIED SO A PERSON-MENTION CAN NEVER RESOLVE TO AN ORGANIZATION. §12: a
+   * person-shaped field a model filled holds organizations — our own company
+   * "attended" four of its own calls — so the decision is the
+   * `is_organization` FLAG and never the name. Found by the rolodex sweep's
+   * dry run, which proposed writing `Title = CEO/Founder`,
+   * `Company = Ber Wilson` and `Email = info@berwilson.com` onto the party row
+   * for Ber Wilson itself: the model had marked the sighting as a person, and
+   * nothing downstream re-checked.
+   */
+  is_organization: boolean | null
 }
 
 /** Email first; then an exact, unique, multi-word name; otherwise refuse. */
@@ -421,13 +459,15 @@ async function matchParty(
   if (email) {
     const { data, error } = await provDb()
       .from('parties')
-      .select('id, full_name, email')
+      .select('id, full_name, email, is_organization')
       .ilike('email', email)
       .limit(2)
     if (error) return { party: null, error: `match by email: ${error.message}` }
     const rows = (data ?? []) as PartyLite[]
     // Two parties on one address is a data problem, not a match. Refuse.
-    if (rows.length === 1) return { party: rows[0], error: null }
+    if (rows.length === 1) {
+      return { party: rows[0].is_organization ? null : rows[0], error: null }
+    }
     if (rows.length > 1) return { party: null, error: null }
   }
 
@@ -439,18 +479,24 @@ async function matchParty(
 
   const { data, error } = await provDb()
     .from('parties')
-    .select('id, full_name, email')
+    .select('id, full_name, email, is_organization')
     .ilike('full_name', name)
     .limit(2)
   if (error) return { party: null, error: `match by name: ${error.message}` }
   const rows = (data ?? []) as PartyLite[]
-  if (rows.length === 1) return { party: rows[0], error: null }
+  // An organization row is not a person, however person-shaped the sighting was.
+  if (rows.length === 1) {
+    return { party: rows[0].is_organization ? null : rows[0], error: null }
+  }
   return { party: null, error: null }
 }
 
 // ── The cursor ───────────────────────────────────────────────────────────────
+//
+// Exported so the rolodex sweep in ./people shares them rather than growing a
+// second pair — §12: never fork a shared pass.
 
-async function readCursor(
+export async function readCursor(
   table: string,
   recordId: string
 ): Promise<{ evidenceThrough: string | null; error: string | null }> {
@@ -464,7 +510,7 @@ async function readCursor(
   return { evidenceThrough: (data as { evidence_through: string | null } | null)?.evidence_through ?? null, error: null }
 }
 
-async function writeCursor(
+export async function writeCursor(
   table: string,
   recordId: string,
   evidenceThrough: string | null,

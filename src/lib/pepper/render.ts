@@ -108,6 +108,21 @@ function attributedLine(c: NoteCommitment, reader: string): string {
  * for the same reason and was measured there.
  */
 const MAX_TASKS_IN_PROMPT = 12
+/**
+ * How many of Pepper's own changes go into the prompt.
+ *
+ * Her writes are reversible and individually small, so the note's job is to
+ * make them NOTICEABLE rather than to enumerate them — the full list is on the
+ * record's own feed. The true total rides along in the overflow line, because
+ * §12's rule is that withholding from a reader means handing them the count.
+ */
+const MAX_CURATION_IN_PROMPT = 8
+
+/** One line of evidence, trimmed. A whole email in the prompt is not evidence. */
+function firstLine(text: string): string {
+  const line = text.split('\n').find((l) => l.trim()) ?? ''
+  return line.length > 120 ? `${line.slice(0, 117)}…` : line
+}
 
 function overflow(n: number): string[] {
   return n > 0 ? [`- (and ${n} more not shown)`] : []
@@ -239,6 +254,45 @@ export function renderNoteInput(n: PepperNote): string {
           : '.')
     )
     for (const line of n.decide.top) parts.push(`- ${line}`)
+  }
+
+  // ── What she did to the records herself ──────────────────────────────────
+  //
+  // ⚠ THE SECTION THAT MAKES THE WHOLE ARRANGEMENT HONEST. Pepper writes to
+  // the CRM unattended (§11, Richard 10-12) and the trade for the approval gate
+  // was that every change is reported each morning. Until 2026-10-15 nothing
+  // reported any of them, and `field_update_proposals` — the questions she
+  // raises instead of overwriting a human's figure — had no reader anywhere.
+  if (n.curation.changes.length > 0) {
+    const lines = n.curation.changes
+      .slice(0, MAX_CURATION_IN_PROMPT)
+      .map(
+        (c) =>
+          `- ${c.recordLabel} — ${c.fieldLabel}: ${c.from ? `was "${c.from}", now` : 'was blank, now'} "${c.to ?? '(blank)'}"` +
+          (c.evidence ? ` (${firstLine(c.evidence)})` : '')
+      )
+    parts.push(
+      ...section('WHAT I CHANGED IN THE RECORDS MYSELF:', [
+        ...lines,
+        ...overflow(Math.max(0, n.curation.changes.length - MAX_CURATION_IN_PROMPT)),
+      ])
+    )
+  }
+
+  if (n.curation.proposals.length > 0) {
+    const lines = n.curation.proposals
+      .slice(0, MAX_CURATION_IN_PROMPT)
+      .map(
+        (pr) =>
+          `- ${pr.recordLabel} — ${pr.fieldLabel}: you have "${pr.current ?? '(blank)'}", the mail says "${pr.proposed ?? '(blank)'}"` +
+          (pr.evidence ? ` (${firstLine(pr.evidence)})` : '')
+      )
+    parts.push(
+      ...section('FIELDS I WILL NOT CHANGE WITHOUT YOU SAYING SO:', [
+        ...lines,
+        ...overflow(Math.max(0, n.curation.proposalsTotal - MAX_CURATION_IN_PROMPT)),
+      ])
+    )
   }
 
   const o = n.overnight

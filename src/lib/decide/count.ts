@@ -79,6 +79,16 @@ export interface DecideSummary {
   documents: number
   /** Deals with economics figures proposed and undecided. One per DEAL. */
   economics: number
+  /**
+   * Guarded fields Pepper is asking about rather than overwriting.
+   *
+   * ⚠ COUNTED HERE SO THE QUEUE'S OWN TOTAL INCLUDES THEM. The chip row and
+   * the count map on /decide both derive from the kind registry, so the screen
+   * picked this lane up for free — but `total` is summed by name, and a lane
+   * missing from it makes the badge and the morning note disagree with the
+   * screen about how big the queue is (§12).
+   */
+  fieldQuestions: number
   /** The most consequential items, already ranked, as prose lines. */
   top: string[]
 }
@@ -100,10 +110,12 @@ export interface DecideSummary {
 export async function summarizeDecideQueue(now = Date.now()): Promise<DecideSummary> {
   const supabase = createAdminClient()
   const empty: DecideSummary = {
-    total: 0, leads: 0, intake: 0, meetings: 0, review: 0, documents: 0, economics: 0, top: [],
+    total: 0, leads: 0, intake: 0, meetings: 0, review: 0, documents: 0, economics: 0,
+    fieldQuestions: 0, top: [],
   }
   try {
-    const [intake, leads, review, unfiledDocs, economicsGroups] = await Promise.all([
+    const [intake, leads, review, unfiledDocs, economicsGroups, fieldQuestions] =
+      await Promise.all([
       supabase
         .from('email_intake_sessions')
         .select('id, label, predecision, fit_assessment, intake_kind, extraction_result, source_title')
@@ -121,6 +133,12 @@ export async function summarizeDecideQueue(now = Date.now()): Promise<DecideSumm
         .is('resolved_at', null),
       findMisfiledCompanyDocuments(),
       pendingProposalGroups().catch(() => []),
+      // Head-only count: the queue's size, not its contents. The page reads the
+      // rows themselves.
+      supabase
+        .from('field_update_proposals')
+        .select('id', { count: 'exact', head: true })
+        .eq('status', 'pending'),
     ])
 
     const rows: Array<{
@@ -227,14 +245,23 @@ export async function summarizeDecideQueue(now = Date.now()): Promise<DecideSumm
     const reviewCount = review.count ?? 0
     const documentCount = unfiledDocs.length
     const economicsCount = economicsGroups.length
+    const fieldQuestionCount = fieldQuestions.count ?? 0
     return {
-      total: intakeCount + meetingCount + leadCount + reviewCount + documentCount + economicsCount,
+      total:
+        intakeCount +
+        meetingCount +
+        leadCount +
+        reviewCount +
+        documentCount +
+        economicsCount +
+        fieldQuestionCount,
       leads: leadCount,
       intake: intakeCount,
       meetings: meetingCount,
       review: reviewCount,
       documents: documentCount,
       economics: economicsCount,
+      fieldQuestions: fieldQuestionCount,
       top: rows.slice(0, 5).map((r) => r.line),
     }
   } catch {

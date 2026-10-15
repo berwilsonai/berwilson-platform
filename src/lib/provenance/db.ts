@@ -1,13 +1,18 @@
 /**
  * Database access for field provenance and the "just ask me" queue.
  *
- * ⚠ UNTYPED CLIENTS WITH HAND-WRITTEN ROW SHAPES, deliberately and temporarily.
- * `npm run gen-types` works again as of 2026-10-08 and these three tables
- * SHOULD be in src/types/database.ts — but a concurrent session has that file
- * modified in the working tree, and gen-types refuses to overwrite it while it
- * has uncommitted changes (§4, and the reason is two sessions sharing this
- * repo). Regenerate and retire these interfaces once the tree is clean; the
- * `Refine` convention in src/lib/supabase/types.ts is where they should land.
+ * ⚠ UNTYPED CLIENTS, AND THE REASON WRITTEN HERE WAS STALE BY 2026-10-15.
+ * This said the three tables were missing from src/types/database.ts because a
+ * concurrent session had the file modified and gen-types would not overwrite
+ * it. All three are typed now — checked, not assumed, which is §12's rule that
+ * a workaround's recorded reason must be re-tested before it is inherited.
+ *
+ * The UNTYPED CLIENT still has to stay: `applyFieldUpdates` takes the table as
+ * a runtime string (that is the whole point of a registry-driven writer), and
+ * the generated client cannot infer a column set from a value. What could now
+ * go is the hand-written ROW SHAPES below, which should become `Refine` aliases
+ * of the generated rows per src/lib/supabase/types.ts — left as is only because
+ * this module is a security boundary and the change buys no behaviour.
  *
  * ⚠ WRITES GO THROUGH `provDbAs(PEPPER)`, NEVER `provDb()`. The whole safety
  * argument for removing the approval gate is that every autonomous change is

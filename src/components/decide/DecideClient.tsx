@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { Radar, Inbox, ClipboardCheck, FileText, ArrowRight, X, Loader2, Check, CheckCheck, Calculator} from 'lucide-react'
+import { Radar, Inbox, ClipboardCheck, FileText, ArrowRight, X, Loader2, Check, CheckCheck, Calculator, HelpCircle } from 'lucide-react'
 import { Panel } from '@/components/ui/card'
 import { Kbd } from '@/components/ui/kbd'
 import EmptyState from '@/components/shared/EmptyState'
@@ -13,7 +13,14 @@ import { enumLabel, formatValue, formatDate } from '@/lib/utils/constants'
 import { SECTOR_LABELS } from '@/lib/utils/sectors'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 
-export type DecideKind = 'lead' | 'intake' | 'review' | 'document' | 'misfiled' | 'economics'
+export type DecideKind =
+  | 'lead'
+  | 'intake'
+  | 'review'
+  | 'document'
+  | 'misfiled'
+  | 'economics'
+  | 'proposal'
 
 export interface DecideFacts {
   /** Estimated contract value in dollars. */
@@ -136,6 +143,7 @@ export type AcceptAction =
   | 'approve'
   | 'file'
   | 'setaside'
+  | 'confirmfield'
 
 /** An item with its days-to-deadline resolved against a fixed clock. */
 type Dated = DecideItem & { daysLeft: number | null }
@@ -166,6 +174,20 @@ const KIND_META: Record<DecideKind, { label: string; icon: typeof Radar; tone: s
   // one is a gap, the other is an answer already being given about the wrong
   // record. One label for both quantities is how a reader stops trusting
   // either (§12).
+  /**
+   * A guarded field Pepper will not overwrite.
+   *
+   * Its own chip, not folded into 'review': a flagged AI item is something the
+   * model was unsure about, where this is something the model is CONFIDENT
+   * about and declines to do anyway, because a person typed the value and being
+   * wrong about money or a closing date costs something. Two quantities, named
+   * apart (§12).
+   */
+  proposal: {
+    label: 'Field question',
+    icon: HelpCircle,
+    tone: 'bg-teal-50 text-teal-700 ring-teal-200 dark:bg-teal-950/40 dark:text-teal-300 dark:ring-teal-900',
+  },
   misfiled: {
     label: 'Wrong deal',
     icon: FileText,
@@ -290,6 +312,19 @@ const DISMISS: Partial<
     body: (item) => ({ confirm: true, source: item.fileSource ?? 'documents' }),
     verb: 'Kept on this deal',
   },
+  /**
+   * Dismissing a field question means "the value on file is right".
+   *
+   * A real answer, and recorded as one — the same reasoning as the document
+   * rows above. The queue is computed from pending rows, so a question that is
+   * merely hidden comes back tomorrow morning in the note as well as here, and
+   * a queue that cannot reach zero teaches people to accept rows to clear them.
+   */
+  proposal: {
+    url: (id) => `/api/provenance/proposals/${id}`,
+    body: () => ({ verdict: 'reject' }),
+    verb: 'Kept what you had',
+  },
 }
 
 async function readError(res: Response): Promise<never> {
@@ -366,6 +401,12 @@ const ACCEPT_COPY: Record<AcceptAction, { verb: string; ask: (n: string) => stri
     ask: (n) =>
       `File this document on “${n}”? Its indexed passages move with it, so it stops widening every other project's answers and starts answering for this one. Nothing is re-read and nothing is deleted.`,
     done: 'Filed on the record',
+  },
+  confirmfield: {
+    verb: 'Use the new value',
+    ask: (n) =>
+      `Update ${n} to what the correspondence says? You typed the value on file, so I left it alone — this replaces it and records the change as yours.`,
+    done: 'Field updated',
   },
   setaside: {
     verb: 'Set aside',
@@ -613,6 +654,8 @@ export default function DecideClient({ items }: { items: DecideItem[] }) {
         // acceptable. Refuse loudly rather than silently doing nothing.
         throw new Error('This document has no record to file it on.')
       }
+    } else if (item.kind === 'proposal') {
+      await patch(`/api/provenance/proposals/${item.id}`, { verdict: 'accept' })
     } else {
       await patch(`/api/review/${item.id}`, { resolution: 'approved' })
     }

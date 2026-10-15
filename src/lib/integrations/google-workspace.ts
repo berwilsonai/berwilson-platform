@@ -1580,7 +1580,7 @@ export async function fetchCalendarEvents(
     mailbox
   )
 
-  return (data.items ?? [])
+  const mapped = (data.items ?? [])
     .filter((e) => e.status !== 'cancelled')
     .map((e) => {
       const isAllDay = Boolean(e.start?.date)
@@ -1612,6 +1612,55 @@ export async function fetchCalendarEvents(
         joinUrl: meetUri,
       }
     })
+
+  return dedupeEvents(mapped)
+}
+
+/**
+ * One meeting, once — however many calendar entries describe it.
+ *
+ * ⚠ THE EVENT ID IS NOT EVIDENCE OF DIFFERENCE. Found 2026-10-15 in a dry run
+ * of the morning text, which rendered "6:00 PM KAVA Talks" twice in a message
+ * that only has four lines. Google returned four events for Eric's week and
+ * they were two meetings: the same recurring series exists on his calendar
+ * twice, under ids `_60q30c1g…_20261016T000000Z` and
+ * `tln6evvl…_20261016T000000Z`, because a duplicate invite was accepted. Same
+ * start, same subject, different id.
+ *
+ * It is deduped HERE rather than in any caller because every caller has the
+ * bug: the morning note and text double a line, the 15-minute nudge keys its
+ * one-per-meeting latch on `eventId` and so sends TWO nudges for one meeting,
+ * and the brief counts it twice. §12: a filter of this kind belongs at the
+ * choke point as a default, where it also covers the caller added next year.
+ *
+ * ⚠ ATTENDEES ARE MERGED, NOT DISCARDED WITH THE DUPLICATE. Two invites to one
+ * meeting can carry different guest lists, and keeping only the first would
+ * silently drop a counterparty — which on this path means the note omits the
+ * one person the reader needed to know was in the room.
+ */
+function dedupeEvents(events: CalendarEvent[]): CalendarEvent[] {
+  const byMeeting = new Map<string, CalendarEvent>()
+  for (const e of events) {
+    // Start plus subject. Not the id (which is what differs), and not the
+    // start alone — two genuinely different meetings can begin at once.
+    const key = `${e.start}|${e.subject.trim().toLowerCase()}`
+    const seen = byMeeting.get(key)
+    if (!seen) {
+      byMeeting.set(key, e)
+      continue
+    }
+    const addresses = new Set(seen.attendees.map((a) => a.email))
+    for (const a of e.attendees) {
+      if (addresses.has(a.email)) continue
+      addresses.add(a.email)
+      seen.attendees.push(a)
+    }
+    // Prefer whichever copy actually carries a join link and a location: a
+    // duplicate invite is often the emptier of the two.
+    if (!seen.joinUrl && e.joinUrl) seen.joinUrl = e.joinUrl
+    if (!seen.location && e.location) seen.location = e.location
+  }
+  return [...byMeeting.values()]
 }
 
 // ---------------------------------------------------------------------------

@@ -20,6 +20,12 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { sweepDb } from '@/lib/email-sweep/db'
 import { readOpenCommitments, type CommitmentWithMailbox } from '@/lib/commitments/read'
 import { countRetiredSince } from '@/lib/commitments/aging'
+import {
+  readOpenProposals,
+  readPepperChanges,
+  type CuratedChange,
+  type OpenProposal,
+} from '@/lib/provenance/report'
 import { fetchCalendarEvents } from '@/lib/integrations/google-workspace'
 import { fetchTasksForDigest, type DigestTask } from '@/lib/tasks/queries'
 import { loadLiveContext, taskTier, EMPTY_LIVE_CONTEXT, type LiveContext } from '@/lib/tasks/priority'
@@ -194,6 +200,15 @@ export interface PepperNote {
   /** Portfolio-level items falling through the cracks, shared by both notes. */
   cracks: AttentionItem[]
   overnight: OvernightWork
+  /**
+   * Pepper's own CRM writes and the questions she is holding.
+   *
+   * ⚠ THIS IS WHAT MAKES §11's TRADE SOUND. Richard's 10-12 direction removed
+   * the approval gate for updates in exchange for every change being reported
+   * each morning — and the reporting half was never built, so she had been
+   * writing to records unattended with no line anywhere saying what she did.
+   */
+  curation: Curation
   /** Stated out loud so a silent failure never reads as a quiet morning. */
   notes: string[]
 }
@@ -239,6 +254,21 @@ function reach(now: Date): { sinceIso: string; sinceLabel: string } {
   }
 }
 
+/**
+ * What Pepper changed in the CRM by herself, and what she will not change
+ * without being told.
+ *
+ * ⚠ SHARED, NOT PER-PERSON. A field on a deal record belongs to the company;
+ * attributing it to whoever happens to be reading would be inventing an owner.
+ * Both notes carry the same block, the way `cracks` already does.
+ */
+export interface Curation {
+  changes: CuratedChange[]
+  proposals: OpenProposal[]
+  /** The true pending total, which the list above is capped below. */
+  proposalsTotal: number
+}
+
 /** Everything shared between the notes, gathered once rather than per person. */
 export interface PepperCommon {
   members: PepperMember[]
@@ -249,6 +279,7 @@ export interface PepperCommon {
   decide: DecideSummary
   cracks: AttentionItem[]
   overnight: OvernightWork
+  curation: Curation
   notes: string[]
 }
 
@@ -266,7 +297,8 @@ export async function assembleCommon(now = new Date()): Promise<PepperCommon> {
 
   const members = await loadPepperMembers(supabase)
 
-  const [commitmentsRes, tasks, decide, attentionItems, overnight, live] = await Promise.all([
+  const [commitmentsRes, tasks, decide, attentionItems, overnight, live, curation] =
+    await Promise.all([
     // ⚠ THROUGH THE CHOKE POINT, NOT A QUERY OF ITS OWN. This read used to be
     // inline here with no confidentiality filter at all, which made a protected
     // project's obligations reachable by an OUTBOUND channel — see the header of
@@ -293,6 +325,7 @@ export async function assembleCommon(now = new Date()): Promise<PepperCommon> {
       )
       return { ...EMPTY_LIVE_CONTEXT, error: null }
     }),
+    assembleCuration(sinceIso, notes),
   ])
 
   if (commitmentsRes.error) {
@@ -326,7 +359,40 @@ export async function assembleCommon(now = new Date()): Promise<PepperCommon> {
 
   if (live.error) notes.push(`Could not tell which deals are active: ${live.error}`)
 
-  return { members, commitments, tasks, live, decide, cracks, overnight, notes }
+  return { members, commitments, tasks, live, decide, cracks, overnight, curation, notes }
+}
+
+/**
+ * Pepper's own writes and her open questions.
+ *
+ * Degrades like everything else here: a failed read costs the block and SAYS
+ * so, because silence about what she changed is the one failure this section
+ * exists to prevent.
+ */
+async function assembleCuration(sinceIso: string, notes: string[]): Promise<Curation> {
+  const empty: Curation = { changes: [], proposals: [], proposalsTotal: 0 }
+  try {
+    const [changes, proposals] = await Promise.all([
+      readPepperChanges(sinceIso),
+      readOpenProposals(),
+    ])
+    if (changes.error) {
+      notes.push(`I could not read back what I changed in the CRM: ${changes.error}`)
+    }
+    if (proposals.error) {
+      notes.push(`I could not read the fields I am waiting to ask you about: ${proposals.error}`)
+    }
+    return {
+      changes: changes.changes,
+      proposals: proposals.proposals,
+      proposalsTotal: proposals.total,
+    }
+  } catch (err) {
+    notes.push(
+      `I could not read back my own CRM changes: ${err instanceof Error ? err.message : String(err)}`
+    )
+    return empty
+  }
 }
 
 /** What the platform did while nobody was watching. Counts only, all cheap. */
@@ -557,6 +623,7 @@ export async function assembleForMember(
     decide: common.decide,
     cracks: common.cracks,
     overnight: common.overnight,
+    curation: common.curation,
     notes,
   }
 }

@@ -189,6 +189,14 @@ export interface NoteSettleRow {
   token: string | null
 }
 
+/** One guarded field Pepper is asking about rather than overwriting. */
+export interface NoteProposalRow {
+  recordLabel: string
+  fieldLabel: string
+  current: string | null
+  proposed: string | null
+}
+
 /**
  * The settle block — the reason this note can ever make a number go down.
  *
@@ -240,6 +248,57 @@ function settleList(rows: NoteSettleRow[], appUrl: string): string {
     </div>`
 }
 
+/**
+ * The fields Pepper is holding a question about.
+ *
+ * ⚠ FROM THE ROWS, LIKE THE SETTLE LIST AND FOR THE SAME REASON. The prose
+ * above is composed by a model, so a link anchored by regex into generated text
+ * would attach to the wrong record the one morning it mattered. These are the
+ * guarded fields (§4, provenance/fields.ts) — money, ownership, a legally
+ * effective date — where a human already typed a value and the mail now
+ * disagrees. She will not overwrite them, which is the point; but until
+ * 2026-10-15 the proposal she raised instead had no reader anywhere, so the
+ * question was asked into a table nobody selected from.
+ *
+ * No one-tap verdict here, deliberately. Settling an obligation is reversible
+ * and self-describing; changing a figure on a deal is neither, and §12 holds
+ * that a link in an email is fetched by things that are not the reader. The
+ * decision belongs on a page.
+ */
+function proposalList(rows: NoteProposalRow[], total: number, appUrl: string): string {
+  if (rows.length === 0) return ''
+
+  const item = (r: NoteProposalRow) => `
+      <tr>
+        <td style="padding:9px 0;border-bottom:1px solid #e5e7eb;">
+          <div style="font-size:14px;font-weight:600;">${escapeHtml(r.recordLabel)} · ${escapeHtml(r.fieldLabel)}</div>
+          <div style="font-size:12px;color:#6b7280;margin-top:2px;">
+            on file: ${escapeHtml(r.current ?? 'blank')} &nbsp;·&nbsp; the mail says: ${escapeHtml(r.proposed ?? 'blank')}
+          </div>
+        </td>
+      </tr>`
+
+  // The TRUE total, not the rendered count (§12).
+  const more = total > rows.length ? ` of ${total}` : ''
+  const open = appUrl
+    ? `<p style="font-size:12px;color:#6b7280;margin:6px 0 0;">
+         Decide these on <a href="${appUrl}/decide" style="color:#1d4ed8;text-decoration:none;">the Decide queue</a>. I have changed nothing here.
+       </p>`
+    : ''
+
+  return `
+    <div style="margin-top:24px;">
+      <div style="font-size:11px;font-weight:700;letter-spacing:0.05em;text-transform:uppercase;color:#6b7280;">Waiting on your answer (${rows.length}${more})</div>
+      <p style="font-size:12px;color:#6b7280;margin:4px 0 0;">
+        You typed these. The correspondence now says something different, so I have left them alone.
+      </p>
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:6px;">
+        ${rows.map(item).join('')}
+      </table>
+      ${open}
+    </div>`
+}
+
 /** Subject and body for one person's note. */
 export function renderNoteEmail(input: {
   firstName: string
@@ -254,6 +313,9 @@ export function renderNoteEmail(input: {
   decideTotal: number
   /** Commitments the note named, each with its one-tap link. */
   settle?: NoteSettleRow[]
+  /** Guarded fields she will not overwrite. Optional, like `liveTasks`. */
+  proposals?: NoteProposalRow[]
+  proposalsTotal?: number
   appUrl: string
   now?: Date
 }): { subject: string; html: string } {
@@ -302,6 +364,7 @@ export function renderNoteEmail(input: {
     ${noteToHtml(input.markdown)}
     ${taskList(input.overdue, input.dueSoon, input.liveTasks ?? [], now)}
     ${settleList(input.settle ?? [], input.appUrl)}
+    ${proposalList(input.proposals ?? [], input.proposalsTotal ?? 0, input.appUrl)}
     ${link}
     <div style="font-size:11px;color:#9ca3af;margin-top:28px;border-top:1px solid #e5e7eb;padding-top:12px;">
       Pepper · Ber Wilson. Read out of correspondence already on file — nothing here was sent on your behalf.

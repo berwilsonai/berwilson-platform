@@ -15,6 +15,7 @@
 
 import { assertPepper, provDb } from '@/lib/provenance/db'
 import { applyPeople, curateRecord, type CurateOutcome, type PersonMention, type PersonOutcome } from './fold'
+import { runPeopleSweep, type PeopleSweepResult } from './people'
 import type { RecordKind } from './evidence'
 
 export interface CuratorRunResult {
@@ -30,6 +31,16 @@ export interface CuratorRunResult {
   outcomes: CurateOutcome[]
   /** Contacts enriched, deduped by party across the whole run. */
   peopleOutcomes: PersonOutcome[]
+  /**
+   * The rolodex sweep, which walks the correspondence rather than the records.
+   *
+   * ⚠ NAMESPACED, NOT FOLDED INTO `fieldsWritten`. That counter already mixes
+   * two populations — deal columns from the record loop and rolodex columns
+   * from `applyPeople` — so a reader seeing "40 written" cannot tell which.
+   * Adding a third source to it would finish the job of making it meaningless.
+   * §12: two quantities must be named apart and never summed.
+   */
+  peopleSweep: PeopleSweepResult | null
   /** Named in the mail, matched to no contact. Reported, never created (§11). */
   unmatchedPeople: string[]
   errors: string[]
@@ -56,6 +67,7 @@ export async function runCurator(
     peopleEnriched: 0,
     outcomes: [],
     peopleOutcomes: [],
+    peopleSweep: null,
     unmatchedPeople: [],
     errors: [],
   }
@@ -143,6 +155,30 @@ export async function runCurator(
     result.fieldsWritten += p.written.length
     result.fieldsProposed += p.proposed.length
     if (p.written.length > 0) result.peopleEnriched += 1
+  }
+
+  // ── The rolodex, from the whole corpus rather than from linked records ────
+  //
+  // ⚠ LAST, AND DELIBERATELY AFTER `applyPeople`. The record pass reads the
+  // evidence of the deals it walked, which is the narrower and better-attested
+  // source; this one reads every summarized thread. Running it second means a
+  // field already filled this run is `unchanged` and skipped by `canWrite`
+  // rather than rewritten from a weaker sighting.
+  //
+  // ⚠ AND `only` SKIPS IT. `?only=<record>` means "curate this one deal"; a
+  // corpus-wide rolodex sweep is not that, and running it anyway would make a
+  // narrow debugging flag write 97 contacts.
+  if (!only) {
+    const sweep = await runPeopleSweep({ dryRun, force })
+    result.peopleSweep = sweep
+    if (sweep.error) {
+      result.ok = false
+      result.errors.push(`rolodex sweep: ${sweep.error}`)
+    }
+    // Merged for the reader, since an unmatched name is the same gap whichever
+    // pass noticed it — and `unmatchedPeople` is already a deduped set.
+    const unmatched = new Set([...result.unmatchedPeople, ...sweep.unmatched])
+    result.unmatchedPeople = [...unmatched]
   }
 
   return result
