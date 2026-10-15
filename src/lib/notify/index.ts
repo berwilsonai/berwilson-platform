@@ -57,26 +57,47 @@ export interface NotifyOptions {
    * never be optional in practice.
    */
   textKind?: TextKind
+  /**
+   * Email channel only: reply INTO this Gmail thread rather than starting one.
+   *
+   * ⚠ NOT `threadKey`, which is the Chat channel's unrelated grouping string.
+   * Named apart deliberately; one field serving both would thread a Chat post
+   * into a Gmail conversation the first time somebody passed the wrong one.
+   */
+  threadId?: string
+  /** Email channel only: Message-ID of the message being answered. */
+  inReplyTo?: string | null
 }
 
 export interface NotifyResult {
   ok: boolean
   error?: string
+  /**
+   * Gmail's ids for the message, on the email channel only.
+   *
+   * Carried so a caller can remember what Pepper sent — which is how a REPLY
+   * to one of her messages is recognised later, without asking a human to
+   * remember a subject convention on a phone. Absent on every other channel.
+   */
+  sent?: { id: string; threadId: string }
 }
 
 export async function notify(opts: NotifyOptions): Promise<NotifyResult> {
   try {
     switch (opts.channel) {
-      case 'email':
-        await sendMail({
+      case 'email': {
+        const sent = await sendMail({
           to: opts.to,
           subject: opts.subject,
           html: opts.html,
           attachments: opts.attachments,
           from: opts.from,
           fromName: opts.fromName,
+          threadId: opts.threadId,
+          inReplyTo: opts.inReplyTo,
         })
-        return { ok: true }
+        return { ok: true, sent }
+      }
       case 'chat':
         await sendChat(
           opts.to,

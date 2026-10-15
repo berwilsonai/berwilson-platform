@@ -38,6 +38,7 @@ import {
   probePepperText,
   probeCurator,
   probeCommitmentChase,
+  probePepperReply,
 } from '@/lib/system-health'
 import { isGoogleConfigured } from '@/lib/integrations/google-workspace'
 import { sweepDb } from '@/lib/email-sweep/db'
@@ -104,7 +105,7 @@ async function runChecks(): Promise<HealthCheck[]> {
   const dayAgo = new Date(Date.now() - 86_400_000).toISOString()
   const localAI = process.env.AI_PROVIDER === 'local'
 
-  const [brief, riskScore, lastAi, aiDayCount, failedRuns, mailbox, lmStudio, backups, drive, leadInbox, docIndexing, driveSources, driveFiling, scopes, disk, lastDigest, failedDigests, contacts, taskSheet, drivePublish, meetImport, dealIntake, routing, corpus, dailyDigest, commitmentBacklog, openCommitments, settledRecently, quietedCommitments, imessageSweep, voiceMemos, pepperText, curator, chase] =
+  const [brief, riskScore, lastAi, aiDayCount, failedRuns, mailbox, lmStudio, backups, drive, leadInbox, docIndexing, driveSources, driveFiling, scopes, disk, lastDigest, failedDigests, contacts, taskSheet, drivePublish, meetImport, dealIntake, routing, corpus, dailyDigest, commitmentBacklog, openCommitments, settledRecently, quietedCommitments, imessageSweep, voiceMemos, pepperText, curator, chase, pepperReply] =
     await Promise.all([
       supabase
         .from('stored_briefs')
@@ -201,6 +202,7 @@ async function runChecks(): Promise<HealthCheck[]> {
       probePepperText(),
       probeCurator(),
       probeCommitmentChase(),
+      probePepperReply(),
     ])
 
   const checks: HealthCheck[] = []
@@ -491,6 +493,26 @@ async function runChecks(): Promise<HealthCheck[]> {
               ? 'No text in over four days'
               : 'A send failed this week',
       detail: pepperText.detail,
+    })
+  }
+
+  // 8c-ii. Pepper answering a question emailed to her (launchd, weekdays
+  //        07:30-18:00 every 15 min). Watched from the day it shipped — see the
+  //        probe's header for why this is NOT a clock: the channel only speaks
+  //        when spoken to, so silence is an empty inbox rather than an outage.
+  {
+    checks.push({
+      name: 'Pepper Answers Email',
+      status: pepperReply.state === 'ok' ? 'ok' : 'warn',
+      headline:
+        pepperReply.state === 'ok'
+          ? 'Listening for replies'
+          : pepperReply.state === 'unconfigured'
+            ? 'Nobody is allowed to ask'
+            : pepperReply.state === 'blind'
+              ? 'Her sends carry no thread id — a reply cannot be recognised'
+              : 'A reply failed to send',
+      detail: pepperReply.detail,
     })
   }
 

@@ -1361,14 +1361,14 @@ isOneToOne: false
                   ]
                 },"notification_log": {
                   Row: {
-                    "channel": string,"created_at": string | null,"dedupe_key": string | null,"error": string | null,"id": string,"kind": string,"sent_date": string,"status": string,"task_count": number | null,"team_member_id": string | null
+                    "channel": string,"created_at": string | null,"dedupe_key": string | null,"error": string | null,"gmail_message_id": string | null,"gmail_thread_id": string | null,"id": string,"kind": string,"sent_date": string,"status": string,"task_count": number | null,"team_member_id": string | null
                   }
                   ComputedFields: never
                   Insert: {
-                    "channel": string,"created_at"?: string | null,"dedupe_key"?: string | null,"error"?: string | null,"id"?: string,"kind"?: string,"sent_date"?: string,"status"?: string,"task_count"?: number | null,"team_member_id"?: string | null
+                    "channel": string,"created_at"?: string | null,"dedupe_key"?: string | null,"error"?: string | null,"gmail_message_id"?: string | null,"gmail_thread_id"?: string | null,"id"?: string,"kind"?: string,"sent_date"?: string,"status"?: string,"task_count"?: number | null,"team_member_id"?: string | null
                   }
                   Update: {
-                    "channel"?: string,"created_at"?: string | null,"dedupe_key"?: string | null,"error"?: string | null,"id"?: string,"kind"?: string,"sent_date"?: string,"status"?: string,"task_count"?: number | null,"team_member_id"?: string | null
+                    "channel"?: string,"created_at"?: string | null,"dedupe_key"?: string | null,"error"?: string | null,"gmail_message_id"?: string | null,"gmail_thread_id"?: string | null,"id"?: string,"kind"?: string,"sent_date"?: string,"status"?: string,"task_count"?: number | null,"team_member_id"?: string | null
                   }
                   Relationships: [
                     {

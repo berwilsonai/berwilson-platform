@@ -1147,6 +1147,21 @@ export const PLATFORM_SENDER_NAME = 'Ber Intelligence'
  * added will fail here with a 403 — the error below names the fix rather than
  * leaving a bare Google error in notification_log.
  */
+/**
+ * What Gmail says about a message it accepted.
+ *
+ * ⚠ RETURNED AS OF 2026-10-15, HAVING BEEN DISCARDED BEFORE. `sendMail` threw
+ * on failure and returned nothing on success, so nothing in the platform knew
+ * the id of anything Pepper had ever sent — which is exactly what is needed to
+ * recognise a REPLY to one of her messages. Without it the only way to tell
+ * "this mail is for Pepper" is a subject convention, and a convention is
+ * something a human has to remember on a phone at 7am.
+ */
+export interface SentMessage {
+  id: string
+  threadId: string
+}
+
 export async function sendMail(opts: {
   to: string
   subject: string
@@ -1155,13 +1170,30 @@ export async function sendMail(opts: {
   /** Overrides {@link PLATFORM_SENDER_NAME}; pass '' to send with no display name. */
   fromName?: string
   attachments?: MailAttachment[]
-}): Promise<void> {
+  /**
+   * The thread to send INTO, so the message lands in the conversation.
+   *
+   * ⚠ BOTH THIS AND `inReplyTo` ARE NEEDED, and the reason is written out at
+   * `createDraft` in ./gmail-write: `threadId` is what makes GMAIL file it in
+   * the conversation, and In-Reply-To/References are what make every other mail
+   * client agree. Gmail's own threading is not the standard. This is the same
+   * pair, on the send path rather than the draft path — the deal mailboxes hold
+   * `gmail.send` but not `gmail.modify`, so a reply from moose@ or tuaone@ can
+   * only ever be a send.
+   */
+  threadId?: string
+  /** Message-ID of the message being answered. */
+  inReplyTo?: string | null
+}): Promise<SentMessage> {
   const from = opts.from ?? PRIMARY_MAILBOX
   const token = await getAccessToken(from)
   const raw = buildRawMessage({
     ...opts,
     from,
     fromName: opts.fromName ?? PLATFORM_SENDER_NAME,
+    extraHeaders: opts.inReplyTo
+      ? [`In-Reply-To: ${opts.inReplyTo}`, `References: ${opts.inReplyTo}`]
+      : [],
   })
 
   const res = await fetch(
@@ -1175,7 +1207,7 @@ export async function sendMail(opts: {
         Authorization: `Bearer ${token}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ raw }),
+      body: JSON.stringify(opts.threadId ? { raw, threadId: opts.threadId } : { raw }),
     }
   )
 
@@ -1189,6 +1221,12 @@ export async function sendMail(opts: {
     }
     throw new Error(`Gmail send as ${from} failed: ${res.status} — ${explainTokenError(err)}`)
   }
+
+  // A 200 with an unreadable body is still a sent message, so the ids are
+  // best-effort rather than a reason to throw: the mail HAS gone, and failing
+  // here would have the caller retry a send that already succeeded.
+  const sent = (await res.json().catch(() => ({}))) as { id?: string; threadId?: string }
+  return { id: sent.id ?? '', threadId: sent.threadId ?? '' }
 }
 
 // ---------------------------------------------------------------------------

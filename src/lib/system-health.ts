@@ -1736,3 +1736,107 @@ export async function probeCommitmentChase(): Promise<{
       `A quiet run is normal — one chase per obligation, ever.${queueNote}`,
   }
 }
+
+/** "3 hours ago" / "2 days ago". The page has its own copy for its own cards. */
+function describeAge(iso: string): string {
+  const hours = (Date.now() - new Date(iso).getTime()) / 3_600_000
+  if (!isFinite(hours)) return 'at an unknown time'
+  if (hours < 1) return 'in the last hour'
+  if (hours < 48) return `${Math.round(hours)} hours ago`
+  return `${Math.round(hours / 24)} days ago`
+}
+
+/**
+ * Pepper answering a question emailed to her.
+ *
+ * ⚠ WATCHED FROM THE DAY IT SHIPPED, which is the one lesson this page has
+ * learned twice the hard way: the morning note went unmonitored until
+ * 2026-10-08 because its check was reading the retired `task_digest`, and the
+ * 06:45 text had no card at all until 10-15. A channel nobody watches fails
+ * silently, and this one fails in the worst possible shape — a question
+ * answered by nothing looks exactly like a question nobody asked.
+ *
+ * ⚠ AND IT IS DELIBERATELY NOT A CLOCK. Every other channel here is scheduled,
+ * so silence means a dead job. This one only speaks when spoken to: a week with
+ * no questions is the normal state of an inbox, not an outage. What CAN be
+ * checked is that the machinery behind it is in place — the allowlist resolves,
+ * and the sends it needs to recognise a reply are being recorded.
+ */
+export async function probePepperReply(): Promise<{
+  state: 'ok' | 'unconfigured' | 'blind' | 'failed'
+  detail: string
+}> {
+  const supabase = createAdminClient()
+
+  const [callers, sentWithIds, answers, failures] = await Promise.all([
+    import('@/lib/pepper/inbound').then((m) => m.pepperCallers()),
+    // Notes sent in the last 7 days that carry a thread id. Without these she
+    // cannot recognise a reply at all, however well everything else works.
+    supabase
+      .from('notification_log')
+      .select('id', { count: 'exact', head: true })
+      .eq('channel', 'email')
+      .eq('status', 'sent')
+      .not('gmail_thread_id', 'is', null)
+      .gte('created_at', new Date(Date.now() - 7 * 86_400_000).toISOString()),
+    supabase
+      .from('notification_log')
+      .select('created_at')
+      .eq('kind', 'pepper_answer')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    supabase
+      .from('notification_log')
+      .select('id', { count: 'exact', head: true })
+      .eq('kind', 'pepper_answer')
+      .eq('status', 'failed')
+      .gte('created_at', new Date(Date.now() - 7 * 86_400_000).toISOString()),
+  ])
+
+  if (callers.error || callers.callers.length === 0) {
+    return {
+      state: 'unconfigured',
+      detail:
+        `No one is allowed to ask: the roster resolved to ${callers.callers.length} callers` +
+        (callers.error ? ` (${callers.error})` : '') +
+        '. The allowlist is built from active team_members with a linked contact record, ' +
+        'excluding the info@ seat — so an empty list means the roster read failed, which ' +
+        'fails CLOSED and answers nobody.',
+    }
+  }
+
+  const withIds = sentWithIds.count ?? 0
+  if (withIds === 0) {
+    return {
+      state: 'blind',
+      detail:
+        'No email Pepper sent in the last 7 days carries a Gmail thread id, so a reply to ' +
+        'one cannot be recognised. Her sends record it as of 2026-10-15 — if this stays at ' +
+        'zero after a morning note has gone out, `sendMail` is not returning ids ' +
+        '(check that the send response body parses) and the inbound door is deaf.',
+    }
+  }
+
+  const failed = failures.count ?? 0
+  if (failed > 0) {
+    return {
+      state: 'failed',
+      detail:
+        `${failed} repl${failed === 1 ? 'y' : 'ies'} failed to send in the last 7 days. ` +
+        'The reply goes out from the mailbox the question arrived in, which needs gmail.send ' +
+        'on that mailbox — re-consent it with node scripts/setup-google-oauth.mjs --only <address>.',
+    }
+  }
+
+  const everAnswered = answers.data?.created_at
+  return {
+    state: 'ok',
+    detail:
+      `${callers.callers.length} ${callers.callers.length === 1 ? 'person' : 'people'} may ask; ` +
+      `${withIds} of her sends this week can be replied to. ` +
+      (everAnswered
+        ? `Last answered ${describeAge(everAnswered)}.`
+        : 'No question asked yet — reply to any of her emails to try it. Silence here is an empty inbox, not an outage.'),
+  }
+}

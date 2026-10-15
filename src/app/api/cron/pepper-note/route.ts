@@ -263,6 +263,11 @@ export async function GET(request: NextRequest) {
       sent_date: today,
       status: result.ok ? 'sent' : 'failed',
       error: result.ok ? null : (result.error ?? 'unknown'),
+      // Remembered so a REPLY to this note is recognisable as a question for
+      // Pepper — see the migration. Null on a failed send, and tolerant of a
+      // 200 whose body could not be read: the mail went either way.
+      gmail_message_id: result.sent?.id ?? null,
+      gmail_thread_id: result.sent?.threadId ?? null,
     })
     if (logError) {
       console.error(
