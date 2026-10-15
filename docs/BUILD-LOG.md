@@ -13,6 +13,49 @@ Split out of `CLAUDE.md` on 2026-09-23, when that file reached 606k characters a
 
 170 entries, 2026-06-22 → 2026-10-15. ⚠ Counted with `grep -c "^\*\*Done 2026"`, not incremented by hand: two sessions editing this file on 2026-10-08 each bumped the old figure by one and both landed on 146 against a real 148.
 
+**Done 2026-10-15 (finishing a deploy the box's shutdown cut off three steps short):**
+
+Richard's Mac shut down mid-session and he asked whether the enhancement had finished. The
+code had: four commits (`cf5d594`..`3c8184d`), the working tree clean but for one untracked
+diagnostic, `.next/BUILD_ID` at 15:44 with **no source file newer than the build**, and both
+10-15 migrations present in the live database (`notification_log.gmail_message_id` /
+`gmail_thread_id` + its partial index, `commitments.reopened_at`). Both `tailscale serve`
+listeners were up and the app answered 200. What had NOT happened was the tail of the runbook:
+
+- ⚠ **`com.berwilson.cron-pepper-reply` had never been installed.** The plist was written and
+  committed with the feature, the route existed, and `middleware.ts:68` named it — and
+  `~/Library/LaunchAgents` held 25 agents, not 26. So Pepper's new inbound email door was
+  inert: nothing would ever have called it, on a schedule or otherwise. This is exactly the
+  failure `install-agents.sh`'s own header warns about ("a plist that is never installed … so
+  adding a plist is adding a file"), which is why the installer is idempotent and takes the
+  whole directory. `zsh deploy/install-agents.sh` → **all 26 loaded**.
+- ⚠ **LM Studio held NO models at all** — the shutdown's doing, and every runtime AI call
+  would have failed while the app itself reported healthy. `lmstudio-check.sh --fix` reloaded
+  the chat model (20.55 GiB, 9.57s) and, as documented, **did not load the embedder** — the
+  one failure it cannot repair and the worst to have, since retrieval returns nothing while
+  chat keeps answering. Loaded by hand (4.77s); `lms ps` then clean at context 131072,
+  parallel 1, no `:2` duplicate copy. Swap is at 16.1GB with 319MB free, so the standing
+  "unload before OCR or a re-embed" warning holds.
+- The four commits were **unpushed**; GitHub backup now current at `3c8184d`.
+
+Verified rather than assumed: the new route answers `{"ok":true,…,"questions":0}` when authed
+and `{"error":"Unauthorized"}` when not — the ROUTE's own word, not the gate's `Not
+authenticated`, which is how you tell middleware let it through. `scanned: 0` is correct and
+not a fault: **all 55 `notification_log` rows predate the column that makes a send replyable**
+(0 of 55 carry a `gmail_thread_id`; 12 meeting_prep, 6 pepper_note, 6 pepper_text in the last
+three days). The first note to store its ids goes out at 06:50 tomorrow, so **a reply to
+today's note cannot be answered and a reply to tomorrow's can** — worth knowing before
+treating silence as a bug.
+
+⚠ **Found, and it retires a standing §13 instruction: `bw-snapshot` has its Full Disk Access
+back.** CLAUDE.md had been telling Richard since 10-12 that the grant was void and the
+snapshot "frozen at 10-12 09:00". It is not: `chat.db` recopied on a kickstart, **growing
+642,772,992 → 643,072,000 bytes**, three databases copied with no permission error, NoteStore
+at 10:59 today, and the text sweep reading 551 chats / 21 business / 126 sessions off it. The
+row is removed from §13. The lesson is the inverse of the usual one — when a check passes that
+the documentation says must fail, the documentation is the stale artifact, and a standing
+instruction nobody re-tests is how a repo asks for work that was already done.
+
 **Done 2026-10-15 (Pepper's four weak edges, each measured before it was built):**
 
 Richard asked what else would make Pepper more efficient, helpful or accurate. The whole
