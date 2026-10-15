@@ -144,7 +144,17 @@ for db in databases {
 // deterministically through the database FK chain (attachment → ZMEDIA → that
 // row's ZIDENTIFIER / ZGENERATION1 / ZFILENAME) rather than matching on a
 // filename — three different notes here each carry a `recording.m4a`.
-let audioExtensions: Set<String> = ["m4a", "mp3", "mp4", "caf", "wav", "aac", "aiff"]
+// ⚠ `qta` IS NOT OPTIONAL HERE AND ITS ABSENCE WAS SILENT. Voice Memos
+// writes a QuickTime container (`ftyp qt  `, AAC inside) rather than an m4a
+// for anything recorded by a recent iOS, and 39 of the 111 recordings on this
+// box — EVERY ONE made in 2026, including both of the hour-long ones — carry
+// that extension. With no branch for it the copier reported "0 recording(s)
+// copied" and the reader reported 111 memos with 71 audio files, which reads
+// as a quiet corpus rather than a missing format (§12 — a file type with no
+// branch is invisible, not unreadable, and nothing reports it). Verified
+// 2026-10-15: `afinfo` identifies it, `afconvert` decodes it to 16 kHz mono
+// in 0.04s, and whisper returned real speech from the result.
+let audioExtensions: Set<String> = ["m4a", "mp3", "mp4", "caf", "wav", "aac", "aiff", "qta"]
 let mediaRoots = home.appending(path: "Library/Group Containers/group.com.apple.notes/Accounts")
 let mediaDestination = destination.appending(path: "notes-media", directoryHint: .isDirectory)
 

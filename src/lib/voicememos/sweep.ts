@@ -65,6 +65,29 @@ const SNAPSHOT_STALE_MINUTES = 8 * 60
  *  for an hour inside a cron; the rest arrive on the next run, newest first. */
 const MAX_PER_RUN = 8
 
+/**
+ * How far back a recording is worth reading. **0 disables the window.**
+ *
+ * ⚠ A SCOPE DECISION, NOT A RELEVANCE ONE — the two are easy to conflate here.
+ * The header's rule stands: every memo INSIDE the window is read, because a
+ * recording is speech and the summarizer can judge it where a note could not.
+ * This is the prior question of which recordings are even candidates, and it is
+ * answered by a clock because a voice memo library is a PERSONAL archive that
+ * happens to contain work, not a work corpus that happens to be old.
+ *
+ * Measured 2026-10-15 on the real store: 111 recordings over 45.7 hours, of
+ * which 59 (~31 hours, the longest a 3-hour 2018 recording) predate 2025 and
+ * cannot concern a live deal — the platform did not exist. Reading them costs
+ * about an hour of whisper and, worse, writes transcripts of a decade of
+ * personal audio that the noise gate then has to delete. The last 90 days is
+ * 10 recordings and 6.2 hours. Richard's call, 10-15.
+ *
+ * Rolling rather than a fixed date so it needs no maintenance, and raising it
+ * is an env change plus a rerun — nothing is deleted, and a memo that ages out
+ * before it was ever read is reported, never silently dropped.
+ */
+const MAX_AGE_DAYS = Number(process.env.VOICE_MEMO_MAX_AGE_DAYS ?? 90)
+
 export interface VoiceMemoSweepResult {
   ok: boolean
   dryRun: boolean
@@ -77,6 +100,8 @@ export interface VoiceMemoSweepResult {
   alreadyIngested: number
   /** Skip-listed as private by an earlier run. Never read again. */
   skipListed: number
+  /** Outside MAX_AGE_DAYS. Counted with its reason so a gap is never silent. */
+  tooOld: number
   /** Rows the reader could not use, with the reason beside each (§12). */
   unreadable: { fileName: string; reason: string }[]
   transcribed: number
@@ -121,6 +146,7 @@ export async function runVoiceMemoSweep(
     found: 0,
     alreadyIngested: 0,
     skipListed: 0,
+    tooOld: 0,
     unreadable: [],
     transcribed: 0,
     transcribeMs: 0,
@@ -181,6 +207,11 @@ export async function runVoiceMemoSweep(
   const skip = readSkipList()
   const candidates: MemoRow[] = []
   const known = await ingestedIdentifiers(read.memos.map((m) => m.identifier))
+  // Ordered cheapest-first, and the age test sits with the other two for the
+  // same reason they do: it must run BEFORE whisper, not after a transcript
+  // exists to throw away.
+  const oldestAllowed =
+    MAX_AGE_DAYS > 0 ? Date.now() - MAX_AGE_DAYS * 86_400_000 : null
   for (const memo of read.memos) {
     if (skip.has(memo.fileName)) {
       base.skipListed += 1
@@ -190,7 +221,17 @@ export async function runVoiceMemoSweep(
       base.alreadyIngested += 1
       continue
     }
+    if (oldestAllowed !== null && Date.parse(memo.createdAt) < oldestAllowed) {
+      base.tooOld += 1
+      continue
+    }
     candidates.push(memo)
+  }
+  if (base.tooOld > 0) {
+    base.notes.push(
+      `${base.tooOld} recording(s) older than ${MAX_AGE_DAYS} days were not read ` +
+        `(VOICE_MEMO_MAX_AGE_DAYS). They are untouched in the store, so raising it reads them.`
+    )
   }
 
   if (candidates.length === 0) {

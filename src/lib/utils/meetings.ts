@@ -220,6 +220,10 @@ export const RECORDING_ACCEPT = [
   'video/*',
   // audio containers
   '.mp3', '.m4a', '.m4b', '.wav', '.aac', '.adts', '.aif', '.aiff', '.aifc', '.caf', '.flac', '.amr', '.ac3',
+  // `.qta` is what Voice Memos itself writes on a recent iOS — a QuickTime
+  // container holding AAC. afconvert decodes it (verified 2026-10-15), so a
+  // memo exported off the phone must not be greyed out at the picker.
+  '.qta',
   // video containers (afconvert reads the audio track)
   '.mp4', '.m4v', '.mov', '.3gp',
 ].join(',')

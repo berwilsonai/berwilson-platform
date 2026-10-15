@@ -13,6 +13,62 @@ Split out of `CLAUDE.md` on 2026-09-23, when that file reached 606k characters a
 
 170 entries, 2026-06-22 → 2026-10-15. ⚠ Counted with `grep -c "^\*\*Done 2026"`, not incremented by hand: two sessions editing this file on 2026-10-08 each bumped the old figure by one and both landed on 146 against a real 148.
 
+**Done 2026-10-15 (in-person meetings start working, and the box stops paging — both were one invisible thing):**
+
+Richard asked to finish the Voice Memos setup and to deal with "the swap", which he said he did
+not understand. Neither turned out to be the task as written. The §13 row said the store on the
+Studio was EMPTY and Apple's column names were unverified; both premises were stale, and the
+real blocker was a file extension.
+
+⚠ **`.qta` HAD NO BRANCH, AND THAT IS WHY NOTHING WORKED.** iCloud sync and Voice Memos.app
+were already running — the store held **111 recordings over 45.7 hours going back to 2015**,
+and `readVoiceMemos` resolved every column correctly on the first try (`ZUNIQUEID`, `ZPATH`,
+`ZDATE`, `ZCUSTOMLABEL`, `ZDURATION`, `ZFOLDER` all present; no trashed column, which degrades
+to `null as trashed`; dates landed in 2026, not 1970 or 2053). But the reader reported **111
+memos with 71 audio files** and `bw-snapshot` logged **"0 recording(s) copied"** — because a
+recent iOS writes a QuickTime container (`ftyp qt  `, AAC inside, extension `.qta`) rather than
+an m4a, and `audioExtensions` in `snapshot.swift` did not list it. **39 of the 111 carried it,
+including every recording made in 2026 and both hour-long ones.** This is §12 exactly — a file
+type with no branch is invisible, not unreadable, and nothing reports it — and the count that
+should have screamed read as a quiet corpus instead. Verified before changing anything: `afinfo`
+identifies it, `afconvert` decodes it to 16 kHz mono in **0.04s**, and whisper returned real
+speech from the result. One word added to a set that the **Notes recorded-call path shares**, so
+the same blind spot is fixed on both doors at once; `.qta` also joined `RECORDING_ACCEPT` so a
+memo exported off the phone is not greyed out at the upload picker. Rebuilt, and the 10-09
+stable signing identity held — **Full Disk Access survived the rebuild**, empty `snapshot.err.log`
+under launchd, **39 recordings copied**.
+
+**A window, because scope and relevance are different questions.** The header's rule stands —
+every memo inside the window is read, since a recording is speech the summarizer can judge where
+a note could not. But a voice memo library is a personal archive that happens to contain work,
+not a work corpus that happens to be old: 59 of the 111 (~31 of the 45.7 hours, the longest a
+3-hour 2018 recording) predate 2025 and cannot concern a live deal. Reading them costs about an
+hour of whisper and writes transcripts of a decade of personal audio for the noise gate to
+delete. Richard chose **the last 3 months**, so `VOICE_MEMO_MAX_AGE_DAYS` (default 90, rolling,
+0 disables) filters BEFORE whisper beside the two existing pre-transcription filters, and
+`tooOld` is counted and reported — never a silent drop. Measured: 10 recordings, 6.2 hours.
+
+**Proven end to end on the real thing.** A 67-minute in-person recording transcribed in **96.9s
+(~41x realtime)** with the 22GB chat model resident, judged work rather than noise, and became
+a `meetings` row the agent can search: *"Tensor Site Construction Management & Demo Power
+Discussion"*, 2026-10-09 — **Ber Wilson confirmed as construction management firm for the entire
+Tensor site**, state licensing and teaming-agreement structures, **120 MW activated for the demo
+phase within two to four weeks** — 8,434 characters of transcript, 3 attendees, `scope='unfiled'`
+and `status='draft'` awaiting one tap. Whole run 3:58. It did not self-file because every memo on
+the phone is still titled with an ISO timestamp; naming one after the deal is what closes that gap.
+
+⚠ **AND THE SWAP WAS THE SAME CLASS OF BUG: A COPY NOTHING COULD SEE.** `lms ps` was clean —
+one chat model, one embedder, context 131072, no `:2` suffix — while `ps` showed **two
+`llama-server` processes holding 19.71GB and 19.70GB, 39.4GB of weights on a 36GB box.** The
+second was pid 51852, backend **2.55.0** against the live **2.59.0**, resident **3 days 8 hours**,
+holding the same 21GB Qwen GGUF open, and **`ppid=1`** — reparented to launchd when its LM Studio
+parent died, which is precisely why `lms ps` cannot see it: LM Studio has no handle on a process
+it no longer owns. The documented `:2` tell is for duplicates LM Studio KNOWS about; an orphan
+presents as nothing at all. SIGTERM took **swap used 16.3GB → 4.8GB and shrank the swap file
+17.4GB → 6.1GB**, with both models still serving afterwards (chat returned `ok`, embeddings
+returned 1024 dims). `lmstudio-check.sh` now tests for it by ppid rather than by version, because
+the version will differ next time and the parentage will not.
+
 **Done 2026-10-15 (finishing a deploy the box's shutdown cut off three steps short):**
 
 Richard's Mac shut down mid-session and he asked whether the enhancement had finished. The

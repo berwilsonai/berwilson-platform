@@ -122,6 +122,32 @@ if (( ${SWAP_USED%%.*} > 4096 )); then
   warn "swap over 4GB — the box is paging. Unload the chat model before any OCR or re-embed pass"
 fi
 
+# ── Orphaned backends ─────────────────────────────────────────────────────────
+#
+# ⚠ `lms ps` CANNOT SEE THIS, WHICH IS WHY IT IS A SEPARATE TEST. The ':2'
+# duplicate above is LM Studio reporting two copies it knows about. An ORPHAN is
+# a llama-server whose parent died — an app quit, a crash, a backend upgrade —
+# leaving a reparented process (ppid 1) still holding its weights. LM Studio has
+# no handle on it, so `lms ps` reports a clean single model while the RAM is
+# gone.
+#
+# Measured 2026-10-15: a 2.55.0 llama-server from an earlier backend had been
+# resident 3 days 8 hours holding 19.70GB of the same Qwen GGUF the live 2.59.0
+# server had open — 39.4GB of weights on a 36GB box. Swap sat at 16.3GB of a
+# 17.4GB file with every other check green; killing the orphan took swap to
+# 4.8GB and shrank the file to 6.1GB. The tell is the ppid, not the version:
+# a legitimate server is a CHILD of the LM Studio app.
+orphans="$(ps -Ao pid,ppid,rss,comm | awk '$2 == 1 && $4 ~ /llama-server/ { printf "%s %.1f\n", $1, $3/1048576 }')"
+if [[ -n "$orphans" ]]; then
+  while read -r opid orss; do
+    [[ -z "$opid" ]] && continue
+    bad "ORPHANED llama-server pid $opid holding ${orss}GB (ppid 1 — LM Studio does not own it, so \`lms ps\` cannot see it)"
+    print "    kill it:  kill -TERM $opid"
+  done <<< "$orphans"
+else
+  print "  ✓ no orphaned llama-server (every backend is owned by LM Studio)"
+fi
+
 if (( FAIL )) && (( FIX )); then
   b "5. Fixing"
   print "  reloading $CHAT_MODEL at -c $WANT_CTX --parallel $WANT_PARALLEL"
