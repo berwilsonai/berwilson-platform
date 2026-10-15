@@ -11,7 +11,284 @@ Split out of `CLAUDE.md` on 2026-09-23, when that file reached 606k characters a
 - A block of **2026-08-23 → 2026-08-31** entries sits *after* the June entries, near the end of the file.
 - One **2026-07-03** entry ("migrations applied + pursuit profile seeded") is last in the file.
 
-169 entries, 2026-06-22 → 2026-10-15. ⚠ Counted with `grep -c "^\*\*Done 2026"`, not incremented by hand: two sessions editing this file on 2026-10-08 each bumped the old figure by one and both landed on 146 against a real 148.
+170 entries, 2026-06-22 → 2026-10-15. ⚠ Counted with `grep -c "^\*\*Done 2026"`, not incremented by hand: two sessions editing this file on 2026-10-08 each bumped the old figure by one and both landed on 146 against a real 148.
+
+**Done 2026-10-15 (Pepper's four weak edges, each measured before it was built):**
+
+Richard asked what else would make Pepper more efficient, helpful or accurate. The whole
+assistant layer was mapped — `src/lib/pepper/*`, the curator, the commitment loop, the five
+morning crons — and then the live database was measured rather than reasoned about, which
+changed what got built and in one case changed the design completely.
+
+**What the measurement said.** Open commitments 444 (`status='open'`; the 527 first counted was
+`settled_at is null`, which includes the 83 the extractor had already machine-`resolved` — two
+different questions and the first one wrong). Of those 444, **294 sat on threads with no message
+in 14 days and 82 on threads silent 90+**, with 246 of the 294 carrying no due date. Against that,
+**14 had ever been settled by a human** — the other 131 "settled" were the 10-09 self-loop repair
+script. Contacts: 97 rows, **72 with no title, 54 no email, 45 no company**, while
+`curator_cursors` held 23 rows and **every one was a project or an opportunity, none a party** —
+though `parties` has been in the writable registry with all six of its columns on the OPEN tier
+since 10-12. `field_update_proposals`: 0 rows ever, and **no reader anywhere in the codebase**
+outside its own writer. `pepper_text`, the curator and the chase: no health card of any kind.
+
+**1. The ledger could only grow.** A commitment is re-judged exactly once, when its thread grows:
+`email-sweep/fetch-phase.ts` clears `commitments_at` on a refreshed thread, `extract-phase.ts`
+re-reads it and auto-`resolved`s any open row the new extraction no longer claims. That machinery
+is right and is why the live half of the ledger stays honest. But a thread that goes QUIET is
+never re-read, because nothing clears the marker again — those 294 obligations were immortal, and
+the number only going up is why nobody was working it (§13 had recorded exactly that of the note).
+
+`src/lib/commitments/aging.ts`, no model call, riding on the existing 05:30 chase cron — which is
+where it belongs, because the chase and the retirement are two halves of one question and have to
+agree about the order: a row must be chased BEFORE it can be aged out, or Pepper closes things she
+never asked about. Running them in one job in that order makes it true by construction rather than
+by two cron times happening not to collide.
+
+⚠ **The threshold was measured, not chosen** (§12), and the sweep is in
+`scripts/one-shot/dry-aging.mts`: at 30 days 174 rows, at 45 days 151, at 60 days 119, at 90 days
+80, each printed with its eight closest boundary cases so a human could read what was about to be
+closed. Split by side: `them` 95/86/65/34, `us` 100/86/73/48. Richard chose 45 for both sides —
+two full chase cycles past the 21-day undated chase bar, so everything it closes has had its
+follow-up composed and three more weeks of silence after it. **444 → 293 open.**
+
+It writes `status='resolved'` rather than inventing a status, and that single decision is what
+made the rest fall out for free: `CommitmentStatus` already separates the machine's verdict from a
+person's, every reader already filters `status='open'`, the human-progress counts already filter
+`HUMAN_SETTLED`, and a thread that revives puts the obligation back through re-extraction. The
+reason travels in `settled_by` ("aged out — conversation silent since 2026-08-12"), where the
+10-09 self-loop repair put its own reason for the same purpose: the table carries no audit
+trigger, so the column IS the record.
+
+⚠ **AND THE UNDO AND THE PASS WERE A LOOP.** Found by verifying the documented undo rather than by
+reading the code. `settleCommitment(id,'open')` clears `settled_at`, `settled_by` and
+`snoozed_until` and returns the row to `status='open'` — which is to say it restores the row to
+EXACTLY the state the pass selects: open, on a thread that is still silent. The undo worked once
+and the platform overruled it the next morning, and every morning after, with the reader watching
+a row they had deliberately reinstated disappear again. The snooze was already immune and nobody
+had noticed why: `snoozed_until` survives the pass because its whole job is to persist, while the
+undo's whole job is to clear columns. Fixed with `reopened_at` (migration
+`20261015000003`), which permanently exempts a reopened row from the AUTOMATIC close while leaving
+every human verdict available. ⚠ **Two runs cannot catch this.** The standing idempotency check —
+run the pass twice, assert the second reports nothing — passed perfectly, because the loop needs a
+human action BETWEEN the runs. `scripts/one-shot/verify-aging.mts` now reopens a row between two
+passes and asserts it survives; it reported `✗ the undo is a loop` before the fix and
+`✓ the undo holds — reopened row survived a pass (2 exempt)` after.
+
+Retired rows needed somewhere to be seen or the undo was theoretical, so `/commitments` gains a
+**Retired** tab with its own total chip — deliberately not folded into Settled, because a person
+deciding something is done and the platform noticing a conversation died are two different events
+and summing them would make "settled" measure nobody's work.
+
+**2. The curator had never walked the rolodex.** It gathers person-mentions from the evidence of
+each DEAL it walks, and that evidence comes strictly from `thread_links` — so a contact's title is
+learned only if some linked project happened to have new correspondence that cycle, and a
+signature block on an unfiled thread is invisible however often it appears. `src/lib/curator/people.ts`
+walks the CORRESPONDENCE instead: 1,680 summarized deal threads, their structured `people` already
+extracted by the sweep (§12 — check whether the data is already on the row before calling it an
+extraction problem), one cursor row keyed on a sentinel because what has to be remembered is how
+far through the MAIL the pass has read, paged ascending on `last_at` so a partial run still
+advances to a point everything before which was genuinely read. No model call. It reuses
+`applyPeople` rather than forking it, because everything that makes that function safe lives
+inside it.
+
+⚠ **Its dry run is why it is fill-only, and this is the whole value of dry-running a pass.**
+Unrestricted over 1,919 sightings it proposed 20 changes to 14 contacts, and reading them was
+alarming: `Timothy Seibert: Managing Member → CEO`, `Rebecca Leonardi: Transaction lead → CEO`,
+`Nancy Thunnel: ASEA → Aurevia LLC`, `Ocean Patel: Myton Land Owner → Energence`,
+`Michael W. Moyer: Associate → Partner` and, worst, **`Mark Urbina:
+mark.urbina@noircgrp.com → mark.urbina@gmail.com`** — trading a work address for a personal one
+off a single passing mention. §12 says which act is safe turns on whether the source DESCRIBES its
+subject or merely mentions it; a corpus-wide sweep is structurally the mentioning kind, while the
+record pass reading one deal's own correspondence is the describing kind. So `applyPeople` took a
+`fillOnly` parameter and **the broad source fills while the narrow source decides**. 20 proposed
+changes became **8 blank-fills, all correct** (Merlin Corbin → Advisor, Elizabeth Hales → Real
+Estate Broker, Sam Wadsworth → Wadsworth Development, Christopher Johnson → Co-Founder /
+c-link.world, Jerry Chizmadia → HVAC Expert, Ken Berg → PE, Mark Urbina → Manager). Blank titles
+72 → 66, blank companies 45 → 43. Second run wrote nothing.
+
+⚠ **And it proposed writing our own company onto a party row as a person** — `Title = CEO/Founder`,
+`Company = Ber Wilson`, `Email = info@berwilson.com`, the assistant's own seat. Two pre-existing
+bugs in `fold.ts`, both now fixed where BOTH passes benefit: `matchParty` selected
+`id, full_name, email` and never `is_organization`, so a person-shaped sighting could resolve to an
+organization row with no column in hand to refuse it (§12 says decide on the FLAG, never the name —
+but the flag has to be selected on the row the matcher RETURNS, not only checked on the source);
+and the internal-person guard tested only the party's STORED address, so an internal person whose
+contact row has no email yet walked straight through, which is exactly the row most in need of
+filling.
+
+**3. The guarded tier wrote into a void.** Three module headers — `cron/curator/route.ts`,
+`provenance/fields.ts` and `provenance/write.ts` — all argue that what makes unattended CRM
+writing safe is that every change is REPORTED, and the route's own comment says the run "RETURNS
+what it changed, which the morning note reads out". It did not:
+`grep -rin 'curat|provenance' src/lib/pepper/` was empty. Richard's 10-12 direction traded the
+approval gate for legibility and the legible half was never built, so a guarded field — money,
+ownership, a legally effective date, the things the registry protects precisely because being
+wrong costs something — raised a question that accumulated as a pending row with no screen, no
+note line and nowhere to answer it.
+
+`src/lib/provenance/report.ts` reads both halves: what she wrote (off `record_field_provenance`,
+not `activity_log`, because `opportunities` and `parties` carry no audit trigger — 17 live writes
+on 10-12 left exactly one activity row, which is why `previous_value` lives on the provenance row)
+and what she is holding. The note carries both; the email itemises the questions **from the rows,
+never from the prose**, the pattern the settle list beside it already establishes; and `/decide`
+gains a **Field question** lane. `KIND_META` is the registry the chip row and count map both derive
+from, so the lane picked those up for free — the 10-15 fix for that drift paying for itself one day
+later. The new `/api/provenance/proposals/[id]` route keeps `fieldSpec` as the boundary (a
+proposal names its own table and column, and this must not become a way to write an arbitrary
+column by posting a crafted id), checks `allowedValues` before writing because a non-member value
+fails the WHOLE update with 22P02, and carries THE READER as the actor.
+
+Answering one is the **first real caller of `recordHumanWrite`**, which had zero — so until now
+protection rested entirely on the "unknown provenance reads as human" default, and a field a
+person had just explicitly approved would have read as Pepper's to revise. Verified end to end:
+the registry refuses `confidential` and an unknown column, the enum guard rejects a non-member
+`stage`, accepting marks the field `written_by='human'` with the reader's address, and `canWrite`
+then answers `propose` rather than `write` on the next pass.
+
+⚠ **The first thing the reporting surfaced was a bad write**: `Dino Plumbing | Sector: (blank) →
+technology`. Dino is the acquired plumbing/HVAC operating company. 31 of Pepper's writes became
+visible for the first time.
+
+**4. The morning channel.** One real bug first: `composeWeekAheadText` filtered a seven-day window
+over `note.meetings`, which `assembleMeetings` only ever populated with TODAY
+(`dayEnd.setHours(23,59,59,999)`). **Monday's week-ahead text was structurally incapable of naming
+a meeting later in the week**, the `weekdayOf()` formatter beside it had nothing but Mondays to
+format, and "N meetings this week" could only ever be Monday's. Three tests covered that text and
+all three passed, because **each one injected a Tuesday meeting straight into `note.meetings`,
+bypassing the one-day fetch that WAS the defect** — a unit test of a pure renderer proves the
+renderer and says nothing about whether anything upstream ever puts that shape in the field. One
+calendar fetch now covers the week and splits into `meetings` (today, with counterparty context)
+and `weekMeetings` (the week, bare, because the week-ahead text names subjects and days and
+nothing else). The regression test fails against the old code in both directions.
+
+⚠ **And one meeting arrived under two Google event ids.** Found in the end-to-end dry run: Eric's
+text rendered "6:00 PM KAVA Talks" TWICE inside a four-line budget. Google returned four events
+for his week and they were two meetings — the same recurring series exists on his calendar twice,
+under `_60q30c1g…_20261016T000000Z` and `tln6evvl…_20261016T000000Z`, because a duplicate invite
+was accepted. Same start, same subject, different id. Deduped in `fetchCalendarEvents` itself
+because every caller had it: the note doubles a line, the brief counts it twice, and the
+pre-meeting nudge keys its one-per-meeting latch on `eventId` and **would have sent two nudges for
+one meeting**. Attendees are MERGED rather than discarded with the duplicate — two invites to one
+meeting can carry different guest lists, and keeping the first would silently drop a counterparty.
+
+Then the accuracy items. `assembleMeetings` built "us" as `new Set([member.email])` while
+`meeting-prep.ts` builds domains plus every roster address *precisely because* that bug announced
+one executive as the other's external counterparty and recited his own commitments back as the
+counterparty's — the fix landed in the nudge on 10-09 and the note, assembled by the same module
+five minutes earlier, was never converted. `internalSet`/`isExternalTo` now live in
+`attribution.ts`, which is the module whose job is who-counts-as-whom. The text's `clockOf` called
+`toLocaleTimeString` with no `timeZone` while every other renderer pins `America/Denver`.
+
+`loadMentions` was only ever called with `'commitment'`, so the `kind='task'` mentions written
+after every successful send since 10-09 were **read by nobody** — a task raised four mornings
+running got no escalation clause while a commitment beside it did. And the 06:45 text recorded
+nothing at all, so for anyone whose email note `noteIsEmpty` skips, the same two task titles went
+out every morning with `times_named` stuck at zero: no escalation, no rotation, forever. It now
+records what it NAMED (the two titles `nameList` actually prints, not everything the assembly
+held — recording the rest would claim she named what she summarised). ⚠ That ordering then made
+`mentionClause` able to say "4 PREVIOUS MORNINGS" on the fourth morning, since the text counts
+today before the email reads memory — already reachable with `?force=1`. `Mention.previousMornings`
+derives the figure the clause means rather than relying on which cron ran first.
+
+⚠ **The merge of the two morning crons was deliberately NOT done**, against the plan. The stated
+gain was one assembly instead of two; re-reading the code, both routes see the same mention state
+(recording happens only after the email sends), so the two provably cannot disagree, and the cost
+would have been a single point of failure for both channels against a design whose header
+explicitly says the email "still goes at 06:50" when the text channel is absent. The substantive
+half of that item — the text contributing nothing to memory — is fixed above without the
+resilience trade.
+
+**Three unwatched channels.** `pepper_text` had no card since the channel went live on 10-13, the
+curator had none at all, and the chase had two cards that were both COUNTS. This page has learned
+that lesson twice already — its own comment records that a commitment check "printed 476 open in
+green for sixteen days" — so all three are clocks now. The chase needed a column first:
+`chase_drafted_at` is set only where a Gmail draft is possible, which is 3.5% of the work, so on
+~96% of it the pass left no timestamp anywhere and a dead cron was unobservable.
+`chase_composed_at` (migration `20261015000002`) is set whenever text is stored, draft or not,
+backfilled from `coalesce(chase_drafted_at, updated_at)` for the 49 existing rows rather than
+`now()`, which would have dated the whole backlog to the migration.
+
+**Two count-honesty fixes found in the same read.** `loadTotals` counted the raw table while the
+list it heads has protected rows removed by the choke point, under a header comment calling them
+"honest totals … independent of the current filter" — true of the VIEW filter and silently untrue
+of the SECURITY filter. And `withheld` ignored `side`, `threadIds` and `excludeSnoozed`, so
+`listCommitments({side:'us'})` disclosed a figure drawn from both sides and a meeting's
+thread-scoped read disclosed the whole portfolio's protected backlog against four rows. ⚠ **Worse,
+the settled view's comment claimed a confidentiality filter that was not there at all** — "It
+still applies the confidentiality filter, in memory — the set is small" over a completely
+unfiltered read returning `withheld: 0`, so a protected project's settled obligations rendered on
+the page under a disclosure asserting nothing was hidden. Both history views now go through one
+`withoutProtected` helper.
+
+**5. Pepper's ears.** CLAUDE.md's highest-leverage item said to email `info@` because it "is
+already swept and is the one mailbox that can send". Two of those three premises do not hold:
+**every** mailbox holds `gmail.send` (what only `info@` holds is `gmail.modify`, which buys drafts
+and labels and is not needed to reply), and `info@` is swept by the LEAD pipeline once a day at
+04:30 and runs marketing triage and bid scoring — a question there waits up to 24 hours and is
+then scored as a sales lead. Richard's direction this session settled it: `info@` is "mainly junk
+and solicitations", while 100% of project and opportunity correspondence is in `moose@` and
+`tuaone@`. So the ears are on the deal mailboxes, and no re-consent is needed from anybody.
+
+⚠ **What makes a message a question for her is that it REPLIES to one of hers** — not a subject
+convention, which is something a human has to remember on a phone at 7am and which anyone emailing
+the mailbox can trip by accident. That needed her sent ids, and nothing had them: `sendMail` threw
+on failure and returned NOTHING on success, so the platform had never known the id of anything she
+sent. It now returns `{id, threadId}`, accepts `threadId` + `inReplyTo` (lifting the header pair
+out of `createDraft`, which documents why Gmail's own threading is not enough for other clients),
+and `notification_log` stores both on the row it already writes per send — two columns on an
+existing row rather than a second ledger to keep in step.
+
+⚠ **Idempotency is the Gmail thread itself**, which is why there is no latch table: a thread is
+only picked up when its LAST message is from the asker, so the moment Pepper replies the last
+message is hers and the thread drops out. A send that succeeded cannot be answered twice even if
+the logging after it failed.
+
+The sender allowlist did not exist in any form — `grep allowlist|whitelist|allowedSender` over
+`src/`, `deploy/` and `scripts/` returns only route-permission and column lists. It is built from
+the roster, keyed on ADDRESS (§12's most expensive bug in this repo was a guard keyed on a DISPLAY
+NAME, defeated by a rename that was itself a good idea — 27% of the commitment ledger turned out
+to be Pepper reading her own notes), excludes the `info@` seat, fails CLOSED, and gives an
+unrecognised sender SILENCE rather than a polite refusal: a reply to a stranger is an outbound
+egress hole, not a courtesy. It resolved live to `Richard [moose@berwilson.com,
+richmwhite@gmail.com] | Eric [tuaone@berwilson.com]` — the personal address included, which is
+exactly what `PepperMember.addresses` was added for.
+
+Answering imports `runAgent` directly rather than calling `/api/ai/agent`, which 401s without a
+session cookie (and §12 forbids agent paths fetching the app's own HTTP routes). It is cookie-free,
+uses the admin client, and already calls `hiddenProjectIds(null)` + `scrubHiddenProjects`, so it is
+blind to a protected deal whoever asks — which matters because an emailed answer leaves the box and
+containment is the half that can never be unlocked afterwards. All 43 tools were audited read-only:
+not one `.insert(`, `.update(`, `.upsert(` or `.delete(` across `agent-tools.ts` or
+`agent-tools-modules.ts`. There is no mode to switch off and nothing to switch on; that is the
+standing constraint on `answer.ts`, and a mutating tool must not become reachable from it.
+
+⚠ **Caught in the dry run:** a reply typed with nothing above the signature left "Sent from my
+iPhone" as the question, which would have spent a whole agent turn — on a box serving one model
+request at a time — answering a phone's footer. Seven tests cover the stripper, including her own
+note quoted bare, which must yield nothing: handing the agent the note it is replying to is the
+self-loop shape again.
+
+Scheduled weekdays 07:30–18:00 every 15 minutes, deliberately clear of the 05:30–07:00 block where
+the chase, curator, brief, text, note and digest already queue behind one GPU; `MAX_PER_MEMBER` is
+3 so a flurry of replies cannot hold it for an hour; curl times out at 1750s against the route's
+own 1800 so a run that completed is never recorded as a failure. And it is watched from the day it
+ships — deliberately NOT as a clock, because this channel only speaks when spoken to and silence is
+an empty inbox. What the card checks is that the allowlist resolves and that her sends carry the
+ids a reply needs; it reads **blind** until the first morning note goes out, then turns green.
+
+**Also found:** `recordMentions` did not dedupe its batch, and one duplicate `(kind, item_key)`
+fails the WHOLE upsert with "ON CONFLICT DO UPDATE cannot affect row a second time", taking every
+other mention in the note with it — unreachable today but a sharp edge for the next caller. And a
+loader limit worth recording: tsx loads `src/lib` modules as CJS namespaces and Node's
+`cjs-module-lexer` surfaces an `export function` but not an `export const`, so
+`import { runAgingPass, STALE_THREAD_DAYS }` fails at link time naming the constant, which reads
+as a typo rather than as a limit.
+
+**Verification.** 372 tests pass (7 new on the stripper, 4 on the text's memory and the week-ahead
+field). `npm run build` exit 0, captured unpiped. The aging pass run twice plus a reopen between
+two runs. The rolodex sweep run twice. The proposal accept path exercised through every guard and
+then rolled back, with the test proposal, its provenance row and the project's value all restored.
+Both notes assembled end to end against the live database for both executives.
 
 **Done 2026-10-15 (an attachment's text belongs in one corpus, and the jam was never where it looked):**
 
