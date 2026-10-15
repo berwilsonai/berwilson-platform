@@ -13,7 +13,7 @@ import { enumLabel, formatValue, formatDate } from '@/lib/utils/constants'
 import { SECTOR_LABELS } from '@/lib/utils/sectors'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 
-export type DecideKind = 'lead' | 'intake' | 'review' | 'document' | 'economics'
+export type DecideKind = 'lead' | 'intake' | 'review' | 'document' | 'misfiled' | 'economics'
 
 export interface DecideFacts {
   /** Estimated contract value in dollars. */
@@ -85,6 +85,14 @@ export interface DecideItem {
    * be indistinguishable from one that knew.
    */
   fileTarget?: { kind: 'project' | 'opportunity' | 'steel_deal'; id: string } | null
+  /**
+   * Which table this document row lives in, for the refile call.
+   *
+   * Omitted means `documents`, which is every company-knowledge row. An
+   * opportunity's documents are their own table, and sending the default for
+   * one of those is a refused request rather than a wrong write.
+   */
+  fileSource?: 'documents' | 'opportunity_documents' | null
   /** Why Accept is unavailable. Shown in place of the button. */
   blocker?: string | null
   /**
@@ -147,6 +155,16 @@ const KIND_META: Record<DecideKind, { label: string; icon: typeof Radar; tone: s
     label: 'Unfiled document',
     icon: FileText,
     tone: 'bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:ring-amber-900',
+  },
+  // Deliberately NOT the same chip as 'document'. An unfiled document has no
+  // deal; a misfiled one has the wrong deal, and the two are read differently —
+  // one is a gap, the other is an answer already being given about the wrong
+  // record. One label for both quantities is how a reader stops trusting
+  // either (§12).
+  misfiled: {
+    label: 'Wrong deal',
+    icon: FileText,
+    tone: 'bg-rose-50 text-rose-700 ring-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:ring-rose-900',
   },
   economics: {
     label: 'Deal figures',
@@ -228,17 +246,20 @@ const VERDICT_TONE: Record<string, string> = {
  * points at nothing.
  */
 const DISMISS: Partial<
-  Record<DecideKind, { url: (id: string) => string; body: unknown; verb: string }>
+  Record<
+    DecideKind,
+    { url: (id: string) => string; body: (item: DecideItem) => unknown; verb: string }
+  >
 > = {
-  lead: { url: (id) => `/api/leads/${id}`, body: { status: 'ignored' }, verb: 'Lead set aside' },
+  lead: { url: (id) => `/api/leads/${id}`, body: () => ({ status: 'ignored' }), verb: 'Lead set aside' },
   intake: {
     url: (id) => `/api/email-ingestion/sessions/${id}`,
-    body: {},
+    body: () => ({}),
     verb: 'Correspondence dismissed',
   },
   review: {
     url: (id) => `/api/review/${id}`,
-    body: { resolution: 'rejected' },
+    body: () => ({ resolution: 'rejected' }),
     verb: 'Flagged item rejected',
   },
   /**
@@ -252,8 +273,22 @@ const DISMISS: Partial<
    */
   document: {
     url: (id) => `/api/documents/${id}/refile`,
-    body: { confirm: true },
+    body: (item) => ({ confirm: true, source: item.fileSource ?? 'documents' }),
     verb: 'Kept as company knowledge',
+  },
+  /**
+   * Dismissing a WRONG-DEAL row means "it is on the right deal after all".
+   *
+   * Same write, different sentence — and the sentence matters, because the two
+   * rows are read differently. Saying "kept as company knowledge" about a
+   * document sitting on Weirton would be false: it is not company knowledge and
+   * never was, it is Weirton's. A provenance line that invents a provenance is
+   * worse than no line (§12).
+   */
+  misfiled: {
+    url: (id) => `/api/documents/${id}/refile`,
+    body: (item) => ({ confirm: true, source: item.fileSource ?? 'documents' }),
+    verb: 'Kept on this deal',
   },
 }
 
@@ -520,7 +555,7 @@ export default function DecideClient({ items }: { items: DecideItem[] }) {
       const res = await fetch(spec.url(item.id), {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(spec.body),
+        body: JSON.stringify(spec.body(item)),
       })
       if (!res.ok) {
         const data = (await res.json().catch(() => ({}))) as { error?: string }
@@ -561,11 +596,18 @@ export default function DecideClient({ items }: { items: DecideItem[] }) {
       } else {
         await post(`/api/leads/${item.id}/promote`, { target: item.accept })
       }
-    } else if (item.kind === 'document') {
+    } else if (item.kind === 'document' || item.kind === 'misfiled') {
       if (item.accept === 'setaside') {
-        await post(`/api/documents/${item.id}/refile`, { exclude: true, reason: item.note })
+        await post(`/api/documents/${item.id}/refile`, {
+          exclude: true,
+          reason: item.note,
+          source: item.fileSource ?? 'documents',
+        })
       } else if (item.fileTarget) {
-        await post(`/api/documents/${item.id}/refile`, { target: item.fileTarget })
+        await post(`/api/documents/${item.id}/refile`, {
+          target: item.fileTarget,
+          source: item.fileSource ?? 'documents',
+        })
       } else {
         // No target and not a set-aside is not a row that should have been
         // acceptable. Refuse loudly rather than silently doing nothing.

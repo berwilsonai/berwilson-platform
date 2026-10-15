@@ -92,3 +92,97 @@ export async function deleteDocumentChunks(supabase: Db, documentId: string): Pr
 
   return total
 }
+
+// ── The same three operations, for a document that lives in the OPPORTUNITY
+//    table ───────────────────────────────────────────────────────────────────
+//
+// `chunks` points at an opportunity's document through its OWN column, so every
+// function above — all of which filter on `document_id` — matches nothing for
+// one of those rows and returns 0. Zero reads as "never indexed", which is the
+// one answer that makes a misfiled document look harmless, so these are not an
+// optional symmetry: without them the project-side filing queue could list an
+// opportunity document and do nothing on press.
+
+async function countOpportunityChunks(supabase: Db, opportunityDocumentId: string): Promise<number> {
+  const { count, error } = await supabase
+    .from('chunks')
+    .select('id', { count: 'exact', head: true })
+    .eq('opportunity_document_id', opportunityDocumentId)
+  if (error) throw new Error(`could not count chunks: ${error.message}`)
+  return count ?? 0
+}
+
+/** Move an opportunity document's chunks to a different opportunity. */
+export async function repointOpportunityChunksToOpportunity(
+  supabase: Db,
+  opportunityDocumentId: string,
+  opportunityId: string
+): Promise<number> {
+  const total = await countOpportunityChunks(supabase, opportunityDocumentId)
+  if (total === 0) return 0
+
+  const { error } = await supabase
+    .from('chunks')
+    .update({ opportunity_id: opportunityId })
+    .eq('opportunity_document_id', opportunityDocumentId)
+  if (error) throw new Error(`could not re-point chunks: ${error.message}`)
+
+  return total
+}
+
+/**
+ * Carry an opportunity document's chunks onto a project document.
+ *
+ * ⚠ `opportunity_document_id` MUST be cleared, and for the mirror of the reason
+ * in repointChunksToOpportunity: it is ON DELETE CASCADE, so leaving it set
+ * would have the caller's subsequent delete of the source row destroy every
+ * vector this move exists to preserve. `chunks_source_check` is satisfied by
+ * the new `document_id`.
+ *
+ * `projectId` may be null, for a steel deal: `chunks` has no steel_deal_id
+ * column, so the deal keeps its document and the passage simply stops being
+ * scoped to the opportunity.
+ */
+export async function repointOpportunityChunksToProject(
+  supabase: Db,
+  opportunityDocumentId: string,
+  documentId: string,
+  projectId: string | null
+): Promise<number> {
+  const total = await countOpportunityChunks(supabase, opportunityDocumentId)
+  if (total === 0) return 0
+
+  const { error } = await supabase
+    .from('chunks')
+    .update({
+      opportunity_document_id: null,
+      opportunity_id: null,
+      document_id: documentId,
+      project_id: projectId,
+      is_company: false,
+      // Matches what the project-side embedder writes, so these rows are
+      // indistinguishable from natively-embedded ones.
+      source_type: null,
+    })
+    .eq('opportunity_document_id', opportunityDocumentId)
+  if (error) throw new Error(`could not re-point chunks: ${error.message}`)
+
+  return total
+}
+
+/** Drop an opportunity document's chunks so it leaves retrieval. */
+export async function deleteOpportunityDocumentChunks(
+  supabase: Db,
+  opportunityDocumentId: string
+): Promise<number> {
+  const total = await countOpportunityChunks(supabase, opportunityDocumentId)
+  if (total === 0) return 0
+
+  const { error } = await supabase
+    .from('chunks')
+    .delete()
+    .eq('opportunity_document_id', opportunityDocumentId)
+  if (error) throw new Error(`could not remove chunks: ${error.message}`)
+
+  return total
+}

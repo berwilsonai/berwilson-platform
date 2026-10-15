@@ -5,6 +5,7 @@ import {
   excludeDocument,
   confirmDocumentFiling,
   type RefileTarget,
+  type DocumentSource,
 } from '@/lib/documents/refile'
 
 /**
@@ -30,6 +31,19 @@ const TARGET_TABLES = {
   steel_deal: 'steel_deals',
 } as const
 
+/**
+ * Which table the document being acted on lives in.
+ *
+ * ⚠ Defaults to `documents`, which is both every existing caller's behaviour
+ * and the SAFE default: naming the wrong table means "document not found" and a
+ * refused request, never a write to the wrong row. Only the two literals are
+ * accepted — anything else is the default, not an error, because an unrecognised
+ * hint must not be able to steer a table name.
+ */
+function sourceOf(body: Record<string, unknown>): DocumentSource {
+  return body.source === 'opportunity_documents' ? 'opportunity_documents' : 'documents'
+}
+
 export async function POST(request: NextRequest, { params }: RouteContext) {
   const viewer = await getViewer()
   if (!viewer?.isAdmin) return forbiddenJson()
@@ -46,7 +60,7 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
         ? body.reason.trim()
         : 'Not company knowledge.'
     try {
-      const { chunks } = await excludeDocument(supabase, id, reason)
+      const { chunks } = await excludeDocument(supabase, id, reason, sourceOf(body))
       return Response.json({ excluded: true, chunks })
     } catch (err) {
       return Response.json(
@@ -83,7 +97,12 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
   if (!dest) return Response.json({ error: `That ${kind.replace('_', ' ')} no longer exists.` }, { status: 404 })
 
   try {
-    const result = await refileDocument(supabase, id, { kind, id: targetId } as RefileTarget)
+    const result = await refileDocument(
+      supabase,
+      id,
+      { kind, id: targetId } as RefileTarget,
+      sourceOf(body)
+    )
     return Response.json({
       filed: true,
       target: { kind, id: targetId, name: (dest as { name: string }).name },
@@ -117,7 +136,7 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
 
   const supabase = await actorAdminClient()
   try {
-    await confirmDocumentFiling(supabase, id, body.confirm)
+    await confirmDocumentFiling(supabase, id, body.confirm, sourceOf(body))
     return Response.json({ confirmed: body.confirm })
   } catch (err) {
     return Response.json(

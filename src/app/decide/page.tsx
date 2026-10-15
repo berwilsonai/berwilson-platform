@@ -11,6 +11,7 @@ import { parseStagedAttachments } from '@/lib/email-ingestion/attachments'
 import { promoteTargetFor } from '@/lib/utils/leads'
 import { listCategories } from '@/lib/leads/categories'
 import { findMisfiledCompanyDocuments } from '@/lib/documents/unfiled'
+import { findMisfiledRecordDocuments } from '@/lib/documents/misfiled'
 import { pendingProposalGroups } from '@/lib/economics/store'
 import type { EmailIntakeExtraction } from '@/lib/ai/prompts/email-intake'
 import type { PartyMatch } from '@/lib/ai/proposal-matching'
@@ -39,7 +40,14 @@ export default async function DecidePage() {
 
   const supabase = createAdminClient()
 
-  const [{ data: sessions }, { data: leadRows }, { data: reviewRows }, unfiledDocs, economicsGroups] = await Promise.all([
+  const [
+    { data: sessions },
+    { data: leadRows },
+    { data: reviewRows },
+    unfiledDocs,
+    misfiledDocs,
+    economicsGroups,
+  ] = await Promise.all([
     supabase
       .from('email_intake_sessions')
       .select(
@@ -68,6 +76,9 @@ export default async function DecidePage() {
     // The same pass backs the knowledge-base list on /company, so the queue and
     // that page can never disagree about what is waiting (§12).
     findMisfiledCompanyDocuments(),
+    // Documents already on a deal, whose own name points at a DIFFERENT deal.
+    // The other half of the same question — see the header of misfiled.ts.
+    findMisfiledRecordDocuments().catch(() => []),
     pendingProposalGroups().catch(() => []),
   ])
 
@@ -305,6 +316,41 @@ export default async function DecidePage() {
       fileTarget: doc.target ? { kind: doc.target.kind, id: doc.target.id } : null,
       // Never thresholded as a number at the reader; it only draws the batch.
       confidence: doc.confidence ?? (isNotADocument ? 1 : null),
+      blocker: null,
+    })
+  }
+
+  // --- Documents on the wrong deal ----------------------------------------
+  //
+  // Why this is a decision and not a script: these are confident proposals, and
+  // a confident proposal is still a proposal. Moving a document changes which
+  // deal answers for it — 384 indexed passages at the time of writing — and
+  // where a document belongs is a judgement (§12). The two causes behind every
+  // row are in the header of misfiled.ts; the fan-out that produced most of
+  // them is fixed at source, so this list should shrink and not refill.
+  for (const doc of misfiledDocs) {
+    items.push({
+      id: doc.id,
+      kind: 'misfiled',
+      title: doc.fileName,
+      // Where it sits TODAY. The accept button names where it would go, so the
+      // two together read as the move without the row having to spell it out.
+      subtitle: `on ${doc.sitsOn.name}${doc.folderPath ? ` · ${doc.folderPath}` : ''}`,
+      href: doc.sitsOn.kind === 'project' ? `/projects/${doc.sitsOn.id}/documents` : `/opportunities/${doc.sitsOn.id}/documents`,
+      verdict: null,
+      score: null,
+      // The fact the decision turns on: what it costs to leave it. A document
+      // with no chunks is misfiled and answering nothing, which is a smaller
+      // problem and says so rather than being padded into the same sentence.
+      note: doc.chunks > 0
+        ? `${doc.chunks} indexed passage${doc.chunks === 1 ? '' : 's'} answering for ${doc.sitsOn.name} instead of ${doc.target.name} — ${doc.reason}`
+        : `Filed on ${doc.sitsOn.name}, names ${doc.target.name} — ${doc.reason}. Not indexed, so nothing is answering from it yet.`,
+      deadline: null,
+      accept: 'file',
+      acceptName: doc.target.name,
+      fileTarget: { kind: doc.target.kind, id: doc.target.id },
+      fileSource: doc.side === 'opportunity' ? 'opportunity_documents' : 'documents',
+      confidence: doc.confidence,
       blocker: null,
     })
   }

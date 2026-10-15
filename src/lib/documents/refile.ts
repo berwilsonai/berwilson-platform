@@ -18,7 +18,14 @@
  * change in the numbers.
  */
 
-import { deleteDocumentChunks, repointChunksToProject, repointChunksToOpportunity } from './chunks'
+import {
+  deleteDocumentChunks,
+  deleteOpportunityDocumentChunks,
+  repointChunksToProject,
+  repointChunksToOpportunity,
+  repointOpportunityChunksToOpportunity,
+  repointOpportunityChunksToProject,
+} from './chunks'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Database } from '@/types/database'
 
@@ -28,6 +35,17 @@ export type RefileTarget =
   | { kind: 'steel_deal'; id: string }
 
 type Db = SupabaseClient<Database>
+
+/**
+ * Which table the document being moved lives in.
+ *
+ * ⚠ DEFAULTS TO `documents`, so every caller written before the opportunity
+ * side existed keeps its exact behaviour. The parameter exists because a
+ * filing queue over both tables was built and the opportunity half of it would
+ * have thrown "Document not found" on press: all three operations below read
+ * `documents` by name, and an opportunity's documents are their own table.
+ */
+export type DocumentSource = 'documents' | 'opportunity_documents'
 
 export interface RefileResult {
   /** Where it went, for the activity line and the toast. */
@@ -61,8 +79,12 @@ const SOURCE_COLUMNS =
 export async function refileDocument(
   supabase: Db,
   documentId: string,
-  target: RefileTarget
+  target: RefileTarget,
+  source: DocumentSource = 'documents'
 ): Promise<RefileResult> {
+  if (source === 'opportunity_documents') {
+    return refileOpportunityDocument(supabase, documentId, target)
+  }
   const { data: raw, error: readErr } = await supabase
     .from('documents')
     .select(SOURCE_COLUMNS)
@@ -149,6 +171,103 @@ export async function refileDocument(
 }
 
 /**
+ * Move a document that lives in `opportunity_documents`.
+ *
+ * The mirror of the function above, and it crosses tables in the opposite
+ * direction. Both halves exist for one reason: two deals genuinely swap
+ * paperwork — the Alaska Strategic Materials JV brief sat on the Alaska Golden
+ * Summit opportunity while a True North ore report sat on the JV project — so
+ * "which table is it in" is not a property of the problem, only of the row.
+ *
+ * ⚠ ORDER IS LOAD-BEARING IN THE CROSSING CASE, exactly as it is going the
+ * other way. `chunks.opportunity_document_id` is ON DELETE CASCADE, so deleting
+ * the source row first would destroy every vector the move exists to preserve.
+ * Re-point, THEN delete.
+ */
+async function refileOpportunityDocument(
+  supabase: Db,
+  documentId: string,
+  target: RefileTarget
+): Promise<RefileResult> {
+  const { data: raw, error: readErr } = await supabase
+    .from('opportunity_documents')
+    .select(SOURCE_COLUMNS)
+    .eq('id', documentId)
+    .single()
+  if (readErr || !raw) {
+    throw new Error(readErr?.message ?? 'Document not found')
+  }
+  const doc: SourceDoc = raw
+
+  // Staying in the same table: one UPDATE, and the storage object never moves.
+  if (target.kind === 'opportunity') {
+    const { error } = await supabase
+      .from('opportunity_documents')
+      .update({ opportunity_id: target.id })
+      .eq('id', documentId)
+    if (error) throw new Error(`could not re-file document: ${error.message}`)
+
+    const chunks = await repointOpportunityChunksToOpportunity(supabase, documentId, target.id)
+    return { target, chunks, crossedTables: false }
+  }
+
+  // A project or a steel deal lives on `documents`, so the row crosses. The
+  // storage object is deliberately NOT copied: storage_path is only a key and
+  // both tables sign and remove by it verbatim, so re-using it avoids both a
+  // needless copy and an orphaned object.
+  const { data: inserted, error: insErr } = await supabase
+    .from('documents')
+    .insert({
+      project_id: target.kind === 'project' ? target.id : null,
+      steel_deal_id: target.kind === 'steel_deal' ? target.id : null,
+      storage_path: doc.storage_path,
+      file_name: doc.file_name,
+      mime_type: doc.mime_type,
+      file_size_bytes: doc.file_size_bytes,
+      doc_type: doc.doc_type,
+      ai_summary: doc.ai_summary,
+      extracted_text: doc.extracted_text,
+      embedding_status: doc.embedding_status,
+      content_sha256: doc.content_sha256,
+      // Carried so BOTH Drive importers recognise the file as owned here;
+      // without it the file looks new and is re-imported as knowledge on the
+      // next nightly run.
+      drive_file_id: doc.drive_file_id,
+      drive_modified_at: doc.drive_modified_at,
+      drive_folder_path: doc.drive_folder_path,
+    })
+    .select('id')
+    .single()
+  if (insErr || !inserted) {
+    throw new Error(`could not create the document: ${insErr?.message ?? 'insert failed'}`)
+  }
+  const newId = (inserted as { id: string }).id
+
+  const chunks = await repointOpportunityChunksToProject(
+    supabase,
+    documentId,
+    newId,
+    target.kind === 'project' ? target.id : null
+  )
+
+  const { error: delErr } = await supabase
+    .from('opportunity_documents')
+    .delete()
+    .eq('id', documentId)
+  if (delErr) {
+    // The chunks already point at the new row, so the document is filed and
+    // answering questions. A stale source row is untidy, not broken — say so
+    // rather than failing a move that has already happened.
+    console.error(
+      `[refile] ${documentId} copied to documents but the source row remains:`,
+      delErr.message
+    )
+  }
+
+  return { target, chunks, crossedTables: true }
+}
+
+/**
  * "Not knowledge" — a filing decision, not a deletion.
  *
  * The ROW IS THE TOMBSTONE. Keeping it preserves drive_file_id, whose unique
@@ -161,17 +280,26 @@ export async function refileDocument(
 export async function excludeDocument(
   supabase: Db,
   documentId: string,
-  reason: string
+  reason: string,
+  source: DocumentSource = 'documents'
 ): Promise<{ chunks: number }> {
-  const chunks = await deleteDocumentChunks(supabase, documentId)
+  const patch = { excluded_at: new Date().toISOString(), excluded_reason: reason }
 
-  const { error } = await supabase
-    .from('documents')
-    .update({
-      excluded_at: new Date().toISOString(),
-      excluded_reason: reason,
-    })
-    .eq('id', documentId)
+  // Branched rather than parameterised by table name: a union of table names
+  // makes the column filter a union too, which the typed client cannot check,
+  // and this repo is at zero `any` escapes.
+  if (source === 'opportunity_documents') {
+    const chunks = await deleteOpportunityDocumentChunks(supabase, documentId)
+    const { error } = await supabase
+      .from('opportunity_documents')
+      .update(patch)
+      .eq('id', documentId)
+    if (error) throw new Error(`could not exclude document: ${error.message}`)
+    return { chunks }
+  }
+
+  const chunks = await deleteDocumentChunks(supabase, documentId)
+  const { error } = await supabase.from('documents').update(patch).eq('id', documentId)
   if (error) throw new Error(`could not exclude document: ${error.message}`)
 
   return { chunks }
@@ -189,12 +317,14 @@ export async function excludeDocument(
 export async function confirmDocumentFiling(
   supabase: Db,
   documentId: string,
-  confirmed = true
+  confirmed = true,
+  source: DocumentSource = 'documents'
 ): Promise<void> {
-  const { error } = await supabase
-    .from('documents')
-    .update({ filing_confirmed_at: confirmed ? new Date().toISOString() : null })
-    .eq('id', documentId)
+  const patch = { filing_confirmed_at: confirmed ? new Date().toISOString() : null }
+  const { error } =
+    source === 'opportunity_documents'
+      ? await supabase.from('opportunity_documents').update(patch).eq('id', documentId)
+      : await supabase.from('documents').update(patch).eq('id', documentId)
   if (error) throw new Error(`could not record the filing decision: ${error.message}`)
 }
 

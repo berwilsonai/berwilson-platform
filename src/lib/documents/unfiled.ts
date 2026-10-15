@@ -22,17 +22,12 @@
  */
 
 import { createAdminClient } from '@/lib/supabase/admin'
-import { bestMatch, loadTargets, type Target } from '@/lib/email-sweep/route-phase'
-import type { ThreadSummary } from '@/lib/ai/prompts/thread-summary'
-
-/**
- * Document text fed to identifier extraction.
- *
- * Capped, and deliberately not raised: a parcel number or an owning entity is
- * named in a title commitment's first page, and reading 88,000 characters of
- * every document to find it would make the queue a scan of the whole corpus.
- */
-const IDENTIFIER_TEXT_CHARS = 4000
+import { loadTargets, type Target } from '@/lib/email-sweep/route-phase'
+import {
+  DOCUMENT_MATCH_COLUMNS,
+  matchDocument,
+  type DocumentMatchRow,
+} from './match'
 
 export interface CompanyKnowledgeDoc {
   id: string
@@ -73,22 +68,10 @@ export interface CompanyKnowledgeDoc {
   confidence: number | null
 }
 
-/** Columns every surface reads. ONE definition, deliberately. */
-const CANDIDATE_COLUMNS =
-  'id, file_name, doc_type, mime_type, ai_summary, extracted_text, drive_folder_path, embedding_status, drive_file_id, filing_confirmed_at'
-
-interface CandidateRow {
-  id: string
-  file_name: string
-  doc_type: string | null
-  mime_type: string | null
-  ai_summary: string | null
-  extracted_text: string | null
-  drive_folder_path: string | null
-  embedding_status: string | null
-  drive_file_id: string | null
-  filing_confirmed_at: string | null
-}
+/** Columns, the composed name and the matcher all live in `match.ts` now —
+ * the project-side queue and the mail sweep ask the same question (§12). */
+const CANDIDATE_COLUMNS = DOCUMENT_MATCH_COLUMNS
+type CandidateRow = DocumentMatchRow
 
 /**
  * A file that can never be company knowledge, whatever folder it sits in.
@@ -104,55 +87,6 @@ function isNotKnowledge(row: CandidateRow): string | null {
     return mime === 'image/svg+xml' ? 'a logo or graphic, not a document' : 'a photograph, not a document'
   }
   return null
-}
-
-/**
- * A synthetic thread summary, so a document can be matched by the same routing
- * logic as correspondence.
- *
- * This is the `toProjectStub` trick from analyze-meeting.ts: `bestMatch` reads
- * `deal_name` for name tokens and `key_facts` for solicitation numbers and
- * learned identifiers, so a document's name, summary and opening text go in
- * exactly those two places. Everything else is filled to satisfy the shape and
- * is never read — notably `counterparty`, which bestMatch pointedly ignores.
- */
-function asSummary(row: CandidateRow, name: string): ThreadSummary {
-  const facts: string[] = []
-  if (row.ai_summary) facts.push(row.ai_summary)
-  if (row.extracted_text) facts.push(row.extracted_text.slice(0, IDENTIFIER_TEXT_CHARS))
-  return {
-    relevance: 'deal',
-    // ⚠ MUST be the composed name, not the bare file name. bestMatch reads
-    // `summary.deal_name` IN PREFERENCE to its own `subject` argument
-    // (`summary?.deal_name ?? subject`), so a deal_name set here silently
-    // discards everything the subject added — which cost the folder path and,
-    // with it, every match that only the folder could make.
-    deal_name: name,
-    counterparty: null,
-    sector: null,
-    location: null,
-    estimated_value: null,
-    stage_signal: null,
-    people: [],
-    key_facts: facts,
-    open_items: [],
-    summary: row.ai_summary ?? '',
-    confidence: 0,
-  }
-}
-
-/**
- * The name a document is matched on.
- *
- * The Drive folder is included because it is often the only place the deal is
- * named — "Business Plan Myton 1" holds files called "Business Plan.docx". It
- * cannot produce a false positive on its own: bestMatch still requires two
- * distinctive shared words or a record's whole name, so "Corporate" matches
- * nothing.
- */
-function documentName(row: CandidateRow): string {
-  const stem = row.file_name.replace(/\.[a-z0-9]{1,5}$/i, '')
-  return [stem, row.drive_folder_path ?? ''].filter(Boolean).join(' ')
 }
 
 /**
@@ -221,9 +155,7 @@ export async function loadCompanyKnowledge(): Promise<CompanyKnowledgeDoc[]> {
       continue
     }
 
-    // One composed name for both arguments — see the warning in asSummary.
-    const name = documentName(row)
-    const match = targets.length > 0 ? bestMatch(name, asSummary(row, name), [], targets) : null
+    const match = matchDocument(row, targets)
     if (!match) {
       // No proposal is the COMMON and correct outcome: a capability statement
       // has no deal home, and reaching for the closest record is how real
@@ -307,33 +239,60 @@ export async function listFilingTargets(): Promise<
   }
 }
 
-/** Chunk counts per document id, paged — PostgREST caps a select at 1000 (§12). */
-async function countChunksByDocument(
+/**
+ * Chunk counts per document id, paged — PostgREST caps a select at 1000 (§12).
+ *
+ * Exported for the project-side queue (`misfiled.ts`), which asks the identical
+ * question. Forking it was the alternative, and a forked pager is a pager with
+ * one copy of the 1000-row bug fixed.
+ */
+export async function countChunksByDocument(
   supabase: ReturnType<typeof createAdminClient>,
-  documentIds: string[]
+  documentIds: string[],
+  /**
+   * Which pointer to count on. An opportunity's documents live in their own
+   * table and `chunks` points at them through their OWN column, so counting an
+   * opportunity document's footprint on `document_id` returns zero — and zero
+   * reads as "never indexed", which is the one answer that would make a
+   * misfiled document look harmless.
+   */
+  column: 'document_id' | 'opportunity_document_id' = 'document_id'
 ): Promise<Map<string, number>> {
   const counts = new Map<string, number>()
   if (documentIds.length === 0) return counts
 
   const PAGE = 1000
-  let from = 0
-  for (;;) {
-    const { data, error } = await supabase
-      .from('chunks')
-      .select('document_id')
-      .in('document_id', documentIds)
-      .range(from, from + PAGE - 1)
-    if (error) {
-      console.error('[unfiled] could not count chunks:', error.message)
-      return counts
+  /**
+   * ⚠ IDS ARE CHUNKED SEPARATELY FROM ROWS, because two different limits
+   * apply. `PAGE` is PostgREST's silent 1000-row response cap. This is the URL
+   * length: a filter travels in the query string, and 1000 uuids is a 37KB GET
+   * that Kong refuses outright with "URI too long" — measured 2026-10-14
+   * against 550 ids. One constant cannot serve both caps.
+   */
+  const ID_CHUNK = 200
+
+  for (let start = 0; start < documentIds.length; start += ID_CHUNK) {
+    const ids = documentIds.slice(start, start + ID_CHUNK)
+    let from = 0
+    for (;;) {
+      const { data, error } = await supabase
+        .from('chunks')
+        .select(column)
+        .in(column, ids)
+        .range(from, from + PAGE - 1)
+      if (error) {
+        console.error('[unfiled] could not count chunks:', error.message)
+        return counts
+      }
+      const page = (data ?? []) as unknown as Array<Record<string, string | null>>
+      for (const c of page) {
+        const id = c[column]
+        if (!id) continue
+        counts.set(id, (counts.get(id) ?? 0) + 1)
+      }
+      if (page.length < PAGE) break
+      from += PAGE
     }
-    const page = (data ?? []) as { document_id: string | null }[]
-    for (const c of page) {
-      if (!c.document_id) continue
-      counts.set(c.document_id, (counts.get(c.document_id) ?? 0) + 1)
-    }
-    if (page.length < PAGE) break
-    from += PAGE
   }
   return counts
 }

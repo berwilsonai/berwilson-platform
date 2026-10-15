@@ -25,9 +25,11 @@
  */
 
 import { hashDocumentBytes } from '@/lib/documents/dedupe'
+import { matchDocument } from '@/lib/documents/match'
+import { loadTargets, type Target } from './route-phase'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { runDocumentAiPass } from '@/lib/ai/document-pipeline'
-import { fileRecordDocumentsQuietly } from '@/lib/drive/file-document'
+import { fileRecordDocumentsQuietly, isFileable } from '@/lib/drive/file-document'
 import { fetchThread, fetchAttachmentBytes } from '@/lib/integrations/google-workspace'
 import type { TablesInsert } from '@/lib/supabase/types'
 import { isOpportunityLive, isProjectLive, isSteelDealLive } from '@/lib/records/live'
@@ -46,6 +48,18 @@ const BATCH = 100
 
 /** PostgREST caps a response at 1000 rows and says nothing about it. */
 const PAGE = 1000
+
+/**
+ * How many ids may go into one `.in()` filter.
+ *
+ * ⚠ NOT `PAGE`, and the difference is a real failure. A PostgREST filter travels
+ * in the QUERY STRING, so 1000 uuids is a 37KB URL and Kong answers "URI too
+ * long" — found on the first live run of the reaper below, against 550 lead
+ * links. 200 uuids is about 7.4KB, inside every practical limit with room to
+ * spare. The row cap and the URL cap are two different limits and one constant
+ * cannot serve both.
+ */
+const ID_FILTER_CHUNK = 200
 
 /** Matches the caps used elsewhere in the sweep. */
 const MAX_UPDATE_CHARS = 100_000
@@ -151,6 +165,11 @@ export async function applyThreadUpdates(
     recordingMeetingsFiled: 0,
     outOfTime: false,
   }
+
+  // Links pointing at a record that no longer exists, dropped before anything
+  // else — see reapOrphanedLinks for why the existing drop could never reach
+  // them.
+  progress.staleLinksDropped += await reapOrphanedLinks()
 
   // ⚠ THE BATCH IS CHOSEN IN TWO STEPS, AND A ONE-STEP VERSION STARVES.
   //
@@ -418,6 +437,96 @@ function attachmentsPending(
  * liveness rules used to live inside the function that posts the update. Narrow
  * on purpose — only the two kinds that can hold documents.
  */
+/**
+ * Drop links pointing at a record that no longer exists.
+ *
+ * ⚠ THIS CANNOT BE LEFT TO THE DROP INSIDE THE LOOP, AND THE REASON IS THE
+ * WHOLE POINT. That drop is a side effect of HAVING WORK TO DO: a link is only
+ * examined when its text cursor is behind or its thread carries attachments.
+ * A link that is caught up on both is never selected, so if its record is
+ * deleted it becomes immortal and invisible — no foreign key can catch it
+ * either, because `record_id` points at one of four tables.
+ *
+ * Measured 2026-10-14: ten such links, all to one deleted project ("Stockton
+ * 225 housing development"), matched at 0.67–0.75 on the name and sitting there
+ * since 9 September. Nothing reported them, and they were not harmless: they
+ * made two live Stockton threads look multi-record to the attachment guard,
+ * which is how a guard that counts its siblings before resolving them gets the
+ * wrong answer.
+ *
+ * Reads the id sets rather than joining, because PostgREST cannot express
+ * "where not exists". Four small indexed reads against `idx_thread_links_record`
+ * and the records' own primary keys, once per phase.
+ */
+async function reapOrphanedLinks(): Promise<number> {
+  const db = sweepDb()
+  const KINDS = [
+    { kind: 'project' as const, table: 'projects' as const },
+    { kind: 'opportunity' as const, table: 'opportunities' as const },
+    { kind: 'lead' as const, table: 'leads' as const },
+    { kind: 'steel_deal' as const, table: 'steel_deals' as const },
+  ]
+
+  let dropped = 0
+  for (const { kind, table } of KINDS) {
+    // Paged: PostgREST truncates at 1000 rows silently (§12), and `thread_links`
+    // grows by one row per thread per record. An un-paged read here would
+    // under-reap without saying so, which is the same failure this function
+    // exists to fix.
+    const rows: Array<{ id: string; record_id: string }> = []
+    let failed = false
+    for (let from = 0; ; from += PAGE) {
+      const { data: links, error: linkErr } = await db
+        .from('thread_links')
+        .select('id, record_id')
+        .eq('record_kind', kind)
+        .range(from, from + PAGE - 1)
+      if (linkErr) {
+        console.error(`[sweep/apply] could not list ${kind} links:`, linkErr.message)
+        failed = true
+        break
+      }
+      const page = (links ?? []) as Array<{ id: string; record_id: string }>
+      rows.push(...page)
+      if (page.length < PAGE) break
+    }
+    if (failed || rows.length === 0) continue
+
+    // ⚠ A FAILED READ HERE MUST NOT READ AS "NO RECORDS EXIST", or this
+    // function deletes every link of that kind. Bail on the error rather than
+    // treating an empty result as the truth.
+    const wanted = [...new Set(rows.map((r) => r.record_id))]
+    const alive = new Set<string>()
+    let checkFailed = false
+    for (let from = 0; from < wanted.length; from += ID_FILTER_CHUNK) {
+      const { data: records, error: recErr } = await db
+        .from(table)
+        .select('id')
+        .in('id', wanted.slice(from, from + ID_FILTER_CHUNK))
+      if (recErr) {
+        console.error(`[sweep/apply] could not check ${table} before reaping:`, recErr.message)
+        checkFailed = true
+        break
+      }
+      for (const r of (records ?? []) as Array<{ id: string }>) alive.add(r.id)
+    }
+    if (checkFailed) continue
+    const orphans = rows.filter((r) => !alive.has(r.record_id)).map((r) => r.id)
+    if (orphans.length === 0) continue
+
+    const { error: delErr } = await db.from('thread_links').delete().in('id', orphans)
+    if (delErr) {
+      console.error(`[sweep/apply] could not drop orphaned ${kind} links:`, delErr.message)
+      continue
+    }
+    console.log(
+      `[sweep/apply] dropped ${orphans.length} ${kind} link(s) pointing at a deleted record`
+    )
+    dropped += orphans.length
+  }
+  return dropped
+}
+
 async function recordLiveness(link: ThreadLinkRow): Promise<'live' | 'missing' | 'dormant'> {
   const supabase = createAdminClient()
   if (link.record_kind === 'project') {
@@ -721,6 +830,58 @@ async function applyToRecord(
 }
 
 /**
+ * The OTHER project/opportunity records this thread is filed onto, as routing
+ * targets.
+ *
+ * Returns an empty array for the overwhelmingly common single-record thread —
+ * 173 of 180 links — so the cost of this whole question is one indexed query
+ * on `idx_thread_links_thread` and nothing more.
+ *
+ * ⚠ The set INCLUDES this link's own record, deliberately. `matchDocument`
+ * scores each target independently and only the ambiguity check compares them,
+ * so handing it the full sibling set is what lets it answer "this one, not the
+ * others" — and a set missing the right answer would make every file look like
+ * a sibling's. `loadTargets` is the portfolio-wide loader, filtered here rather
+ * than re-queried, because it is what carries the human-asserted aliases
+ * ("Project Steelton", "Cliffs-Weirton") that do most of the work.
+ */
+async function siblingTargets(link: ThreadLinkRow): Promise<Target[]> {
+  const db = sweepDb()
+  const { data, error } = await db
+    .from('thread_links')
+    .select('record_kind, record_id')
+    .eq('thread_id', link.thread_id)
+    .in('record_kind', ['project', 'opportunity'])
+  if (error) {
+    // A failed read must not silently turn the guard off and re-open the
+    // fan-out. Say so, and skip the guard for this run only — the cursor has
+    // not moved, so nothing is lost.
+    console.error('[sweep/apply] could not read sibling links:', error.message)
+    return []
+  }
+  const rows = (data ?? []) as Array<{ record_kind: LinkRecordKind; record_id: string }>
+  if (rows.length < 2) return []
+
+  const wanted = new Set(rows.map((r) => `${r.record_kind}:${r.record_id}`))
+  let resolved: Target[]
+  try {
+    resolved = (await loadTargets()).filter((t) => wanted.has(`${t.kind}:${t.id}`))
+  } catch (err) {
+    console.error('[sweep/apply] could not load targets for the sibling test:', err)
+    return []
+  }
+
+  // ⚠ COUNTED AFTER THE FILTER, NOT BEFORE. A link can point at a record that
+  // no longer exists — ten did, all to one deleted project — and such a link
+  // survives in `thread_links` while contributing no target. The set then
+  // collapses to one, and "which of these records is this file for?" asked of a
+  // single record is not the question this guard exists to ask: it can only
+  // answer "that one" or "no idea", so it must not be asked at all.
+  if (resolved.length < 2) return []
+  return resolved
+}
+
+/**
  * Copy the files on this thread onto the record, from the attachment cursor on.
  *
  * ⚠ THIS USED TO SLICE AT `applied_message_count` AND THEREFORE ALMOST NEVER RAN.
@@ -780,6 +941,15 @@ async function importThreadAttachments(
       for (const a of messages[i].attachments) {
         if (a.isInline || a.size <= 0 || a.size > MAX_ATTACHMENT_BYTES) continue
         if (isMailChrome(a.name, a.mimeType, a.size)) continue
+        // ⚠ `isFileable` IS ASKED HERE, NOT ONLY WHEN FILING TO DRIVE. It has
+        // always known a calendar invite is not a document — that is what keeps
+        // four copies of `invite.ics` out of a project's Drive folder — but it
+        // was consulted by `fileDocumentToDrive` alone, AFTER the `documents`
+        // row existed. So the row was created, summarised and listed on the
+        // record, and only the Drive copy was spared. Measured 2026-10-14: 39
+        // `.ics` rows across both document tables, none of them indexed, all of
+        // them in the way on a documents tab.
+        if (!isFileable(a.name, a.mimeType)) continue
         const key = a.name.toLowerCase()
         if (seen.has(key)) continue
         seen.add(key)
@@ -804,6 +974,25 @@ async function importThreadAttachments(
     const supabase = createAdminClient()
     const isProject = link.record_kind === 'project'
     const folder = isProject ? 'projects' : 'opportunities'
+
+    // ⚠ A THREAD CAN BE ABOUT THREE DEALS; A DOCUMENT USUALLY IS NOT.
+    //
+    // Each link imports independently, so a thread filed onto three records
+    // copied EVERY attachment onto all three — and the per-record hash dedupe
+    // cannot see it, because the three copies are on three different records.
+    // Measured 2026-10-14: 7 of 180 links were multi-record and produced 41
+    // document rows from 16 files, among them the Steelton PSA, the Dynegy
+    // attestation and the PPL power confirmation sitting on Weirton AND
+    // Riverdale. The LINKS were all correct and human-made at certainty
+    // 'linked' — "Assignment Doc for Steelton, Weirton and Riverdale" really is
+    // about three sites. The fan-out was the bug, not the filing.
+    //
+    // So where the thread has siblings, each file is asked which of THEM it
+    // names. Nothing else changes: a file naming none of them, or several of
+    // them, still goes to all of them — "Site DD for Steelton, Weirton and
+    // Riverdale.xlsx" genuinely belongs on three records, and the safe side of
+    // this question is the one that keeps a document reachable (§12).
+    const siblings = await siblingTargets(link)
     // What the record already holds, so a file that arrived on one thread is not
     // imported again from another. Several threads about the same deal routinely
     // carry the same attachment, and a duplicate is not merely untidy: it doubles
@@ -847,6 +1036,25 @@ async function importThreadAttachments(
       // now, not a per-thread one: a thread carrying thirty drawings used to have
       // twenty of them silently discarded.
       if (Date.now() >= deadline || taken >= MAX_NEW_ATTACHMENTS) break
+
+      // Asked before the byte fetch: the test reads the file NAME, so a file
+      // belonging to a sibling costs no Gmail round trip at all. The cursor
+      // advances — this link is done with the file, permanently, and the
+      // sibling link imports it on its own pass.
+      if (siblings.length > 0) {
+        const owner = matchDocument(
+          { file_name: ref.name, doc_type: null, drive_folder_path: null, ai_summary: null, extracted_text: null },
+          siblings
+        )
+        if (owner && !(owner.target.kind === link.record_kind && owner.target.id === link.record_id)) {
+          console.log(
+            `[sweep/apply] ${ref.name} names ${owner.target.name} — leaving it off this record`
+          )
+          through = capped(Math.max(through, ref.through), blockedAt)
+          await advanceAttachments(link.id, through)
+          continue
+        }
+      }
 
       taken++
       const base64 = await fetchAttachmentBytes(thread.mailbox, ref.messageId, ref.attachmentId)
@@ -1023,8 +1231,17 @@ async function importThreadAttachments(
 const CHROME_NAME = /^(?:image\d{2,4}|ATT\d{4,6}|oledata|~WRD\d+|Outlook-[a-z0-9]+)\.\w+$/i
 const CHROME_MAX_BYTES = 200 * 1024
 
+/**
+ * ⚠ A MAIL CLIENT ALSO SENDS AN IMAGE WITH NO NAME AT ALL, which `CHROME_NAME`
+ * cannot match because it requires an extension. Two 66,624-byte PNGs called
+ * literally `noname` reached the corpus as project documents, and because they
+ * are byte-identical the deduper retired one and left the other.
+ */
+const UNNAMED_CHROME = /^(?:noname|untitled|unnamed)$/i
+
 export function isMailChrome(name: string, mimeType: string, size: number): boolean {
-  if (!CHROME_NAME.test(name.trim())) return false
+  const trimmed = name.trim()
+  if (!CHROME_NAME.test(trimmed) && !UNNAMED_CHROME.test(trimmed)) return false
   // A large file is somebody's actual document whatever it is called.
   if (size > CHROME_MAX_BYTES) return false
   // Only images and mail-client blobs; a PDF named image001.pdf is a document.
