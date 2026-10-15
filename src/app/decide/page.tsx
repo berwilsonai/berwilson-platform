@@ -307,9 +307,17 @@ export default async function DecidePage() {
       score: null,
       // What it costs to leave it: how many passages answer from the company
       // corpus today. This is the fact the decision turns on.
+      //
+      // ⚠ A ZERO HERE IS NOT NECESSARILY "NOT INDEXED". A document whose text
+      // was indexed with its email thread holds no chunks of its own, so
+      // `chunks` is 0 while the text is fully searchable — and saying nothing
+      // about that would read as "this one answers nothing", the one claim that
+      // makes the decision look free.
       note: doc.chunks > 0
         ? `${doc.chunks} indexed passage${doc.chunks === 1 ? '' : 's'} answering as Ber Wilson company knowledge${doc.reason ? ` — ${doc.reason}` : ''}`
-        : doc.reason,
+        : doc.mailChunks > 0
+          ? `${doc.mailChunks} passage${doc.mailChunks === 1 ? '' : 's'} indexed with its email thread, not as company knowledge${doc.reason ? ` — ${doc.reason}` : ''}`
+          : doc.reason,
       deadline: null,
       accept: isNotADocument ? 'setaside' : 'file',
       acceptName: isNotADocument ? doc.fileName : (doc.target?.name ?? null),
@@ -342,9 +350,16 @@ export default async function DecidePage() {
       // The fact the decision turns on: what it costs to leave it. A document
       // with no chunks is misfiled and answering nothing, which is a smaller
       // problem and says so rather than being padded into the same sentence.
+      //
+      // ⚠ Unless its text is indexed with its THREAD, in which case it is
+      // searchable and only the FILE is on the wrong deal. Saying "not indexed"
+      // over that document would have been false, and false in the direction
+      // that makes the row look safe to leave.
       note: doc.chunks > 0
         ? `${doc.chunks} indexed passage${doc.chunks === 1 ? '' : 's'} answering for ${doc.sitsOn.name} instead of ${doc.target.name} — ${doc.reason}`
-        : `Filed on ${doc.sitsOn.name}, names ${doc.target.name} — ${doc.reason}. Not indexed, so nothing is answering from it yet.`,
+        : doc.mailChunks > 0
+          ? `Filed on ${doc.sitsOn.name}, names ${doc.target.name} — ${doc.reason}. Its ${doc.mailChunks} passage${doc.mailChunks === 1 ? '' : 's'} are indexed with its email thread, so filing moves the file and not the text.`
+          : `Filed on ${doc.sitsOn.name}, names ${doc.target.name} — ${doc.reason}. Not indexed, so nothing is answering from it yet.`,
       deadline: null,
       accept: 'file',
       acceptName: doc.target.name,

@@ -22,6 +22,10 @@ import {
 import { routeThreads, type RouteProgress } from './route-phase'
 import { applyThreadUpdates, type ApplyProgress } from './apply-phase'
 import { embedPendingThreads, type EmbedProgress } from '@/lib/ai/thread-embeddings'
+import {
+  reconcileMailIndexedDocuments,
+  type ReconcileProgress,
+} from '@/lib/email-sweep/reconcile-mail-index'
 import { extractCommitments, type CommitmentProgress } from '@/lib/commitments/extract-phase'
 import {
   promoteInternalCommitments,
@@ -61,6 +65,7 @@ export interface SweepRunResult {
   route?: RouteProgress
   apply?: ApplyProgress
   embed?: EmbedProgress
+  reconcile?: ReconcileProgress
   commitments?: CommitmentProgress
   internalTasks?: InternalTaskProgress
   predecide?: PredecideProgress
@@ -105,6 +110,17 @@ const APPLY_MAX_MS = 10 * 60 * 1000
 /** Threads indexed per run, and the ceiling on doing it. */
 const EMBED_BATCH = 50
 const EMBED_MAX_MS = 10 * 60 * 1000
+
+/**
+ * Ceiling on settling the documents the import left to the mail index.
+ *
+ * Small on purpose. The normal outcome is a grouped read and no work at all —
+ * the mail index already holds the text — and the exception embeds from the
+ * `extracted_text` already on the row, with no model call. Only a document
+ * with no stored text goes back to storage for its bytes, which is the one
+ * expensive path and the rare one.
+ */
+const RECONCILE_MAX_MS = 3 * 60 * 1000
 
 /**
  * Ceiling on commitment extraction.
@@ -224,6 +240,22 @@ export async function runSweep(opts: SweepRunOptions = {}): Promise<SweepRunResu
     })
     result.ranPhases.push('embed')
     if (result.embed.remaining > 0) result.moreWork = true
+
+    // ⚠ THE TAIL OF THIS PHASE, NOT A PHASE OF ITS OWN, AND THE ORDER IS THE
+    // WHOLE POINT. `apply` imports an attachment and defers its indexing
+    // decision (`skipEmbed`) because `thread_chunks` is empty for that thread
+    // until the lines above have run. Only here is the mail index
+    // authoritative, so only here can a document be asked whether its text is
+    // already searchable — and whatever the mail index could not read (an
+    // xlsx, a pptx, a failed byte fetch) gets indexed as a document after all.
+    //
+    // Runs whenever `embed` does, with no `moreWork` of its own: it is bounded
+    // by its own batch and settles what the run just created. A leftover is
+    // picked up by the next run, which is where it belongs — the alternative
+    // was the sweep refusing to finish on a backlog it has already handled.
+    result.reconcile = await reconcileMailIndexedDocuments({
+      budgetMs: Math.max(0, Math.min(remaining(), RECONCILE_MAX_MS)),
+    })
   }
 
   // ── Commitments ───────────────────────────────────────────────────────────

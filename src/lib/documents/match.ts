@@ -35,7 +35,7 @@ const IDENTIFIER_TEXT_CHARS = 4000
 
 /** Columns every surface that matches a document reads. ONE definition. */
 export const DOCUMENT_MATCH_COLUMNS =
-  'id, file_name, doc_type, mime_type, ai_summary, extracted_text, drive_folder_path, embedding_status, drive_file_id, filing_confirmed_at'
+  'id, file_name, doc_type, mime_type, ai_summary, extracted_text, drive_folder_path, embedding_status, drive_file_id, filing_confirmed_at, source_thread_id'
 
 export interface DocumentMatchRow {
   id: string
@@ -48,6 +48,14 @@ export interface DocumentMatchRow {
   embedding_status: string | null
   drive_file_id: string | null
   filing_confirmed_at: string | null
+  /**
+   * The thread that delivered the file, where one did. Carried here because
+   * both queues print a document's retrieval footprint, and a mail-indexed
+   * document's passages live in `thread_chunks` under this thread — counting
+   * only `chunks` would report it as 0, and zero reads as "never indexed",
+   * which is the one answer that makes a misfiled document look harmless.
+   */
+  source_thread_id: string | null
 }
 
 /**

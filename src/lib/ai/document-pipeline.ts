@@ -4,12 +4,17 @@ import { isLocalAI } from '@/lib/ai/local'
 import { embedDocument, embedOpportunityDocument } from '@/lib/ai/embeddings'
 import type { createAdminClient } from '@/lib/supabase/admin'
 import { SYSTEM_USER_ID } from '@/lib/system-user'
+// Declared in its own import-free module so a reader of the STATUS does not
+// have to import this whole pipeline (and the Google layer behind it).
+import { INDEXED_IN_MAIL } from '@/lib/documents/status'
+export { INDEXED_IN_MAIL }
 
 // Shared AI pass for rows in the `documents` table: summary + full-text
 // extraction + embedding, with an honest embedding_status at the end —
-// 'complete', 'error', or 'skipped' (file type we can't read). Used by both
-// document-upload routes and the reindex route, so a doc can always be
-// re-run from storage instead of re-uploaded.
+// 'complete', 'error', 'skipped' (file type we can't read), or
+// 'indexed_in_mail' (the text is searchable through its email thread instead).
+// Used by both document-upload routes and the reindex route, so a doc can
+// always be re-run from storage instead of re-uploaded.
 
 type AdminClient = ReturnType<typeof createAdminClient>
 
@@ -67,7 +72,7 @@ export function documentKind(
 type DocSummary = { summary?: string; confidence?: number } | string
 
 export interface AiPassResult {
-  status: 'complete' | 'error' | 'skipped'
+  status: 'complete' | 'error' | 'skipped' | 'indexed_in_mail'
   aiSummary: string | null
   confidence: number | null
 }
@@ -110,26 +115,34 @@ async function setStatus(
 /**
  * Is this document's AI pass unfinished, and therefore worth running again?
  *
- * The two settled states are 'complete' and 'skipped'. Everything else —
- * 'error', 'processing', 'pending', or a row that predates the column — means
- * the pass never reached an end, and the document has a file but no text and no
- * chunks: invisible to the search it was imported for, while change detection
- * correctly reports its bytes as unchanged and never comes back for it.
+ * The settled states are 'complete', 'skipped' and 'indexed_in_mail' — the
+ * document is searchable, unreadable, or searchable through its thread.
+ * Everything else — 'error', 'processing', 'pending', or a row that predates the
+ * column — means the pass never reached an end, and the document has a file but
+ * no text and no chunks: invisible to the search it was imported for, while
+ * change detection correctly reports its bytes as unchanged and never comes
+ * back for it.
+ *
+ * ⚠ 'indexed_in_mail' was added 2026-10-15 and had to be added HERE in the same
+ * change. Left out, the Drive sync would read every mail-indexed document as
+ * stranded and re-run a ~48s model pass on it on every nightly run, forever,
+ * reporting success each time.
  *
  * Lives here, next to the statuses it interprets, because every sync that
  * imports documents needs the same answer and one of them not having it is how
  * sixteen company documents sat unreadable indefinitely.
  */
 export function needsAnotherPass(status: string | null | undefined): boolean {
-  return status !== 'complete' && status !== 'skipped'
+  return status !== 'complete' && status !== 'skipped' && status !== INDEXED_IN_MAIL
 }
 
 /**
  * Run the full AI pass on one document and settle its embedding_status.
  *
- * Never throws. The end state distinguishes three things that look alike from
- * the outside: 'complete', 'error' (worth retrying), and 'skipped' (nothing
- * here can read this file, so retrying is waste).
+ * Never throws. The end state distinguishes four things that look alike from
+ * the outside: 'complete', 'error' (worth retrying), 'skipped' (nothing here can
+ * read this file, so retrying is waste), and 'indexed_in_mail' (searchable, but
+ * through its email thread rather than through chunks of its own).
  */
 export async function runDocumentAiPass(input: {
   supabase: AdminClient
@@ -162,6 +175,26 @@ export async function runDocumentAiPass(input: {
    * filled in later by re-running the pass without this flag.
    */
   skipSummary?: boolean
+  /**
+   * Extract and summarize, but do NOT chunk or embed — settle as
+   * `INDEXED_IN_MAIL` instead.
+   *
+   * For an attachment arriving off an email thread, whose verbatim text
+   * `readAttachmentText` already indexes as `thread_chunks`. The document still
+   * gets everything that makes it USABLE — the file, the summary
+   * `list_documents` presents it by, the `extracted_text` that
+   * `get_document_content` reads — and loses only a second copy of its text in
+   * a second corpus.
+   *
+   * ⚠ NOT A PREDICTION, AND MUST NOT BE USED AS ONE. The caller cannot know at
+   * import time whether the mail index will actually read the file: an xlsx, a
+   * pptx and an image all come back from `readAttachmentText` empty, and a byte
+   * fetch can simply fail. So every document left in this state is re-examined
+   * by `reconcileMailIndexedDocuments` once the embed phase has run, and any
+   * whose text is NOT in `thread_chunks` is embedded properly after all. Set
+   * this flag without that reconcile and files go silently unsearchable.
+   */
+  skipEmbed?: boolean
 }): Promise<AiPassResult> {
   const { supabase, documentId, projectId, fileName, mimeType, buffer } = input
   const target = input.target ?? DEFAULT_TARGET
@@ -292,6 +325,19 @@ export async function runDocumentAiPass(input: {
 
     // 3. Embed — full text when we have it, summary as the fallback.
     const embedText = fullText ?? aiSummary
+
+    // Asked for deliberately: this document's text is indexed with its email
+    // thread, so chunking it here would put the same bytes in a second corpus.
+    //
+    // Settled BEFORE the no-text check below, and deliberately so. A file the
+    // mail index can read but this pass cannot (a scan whose OCR failed on this
+    // attempt) must not be written off as 'skipped' — the reconcile is what
+    // decides, and it needs to find the row in this state to decide anything.
+    if (input.skipEmbed) {
+      await setStatus(supabase, target, documentId, INDEXED_IN_MAIL)
+      return { status: 'indexed_in_mail', aiSummary, confidence }
+    }
+
     if (!embedText) {
       // Neither text nor summary, and step 2 no longer swallows the text on a
       // model hiccup — so this is a file whose content genuinely cannot be read

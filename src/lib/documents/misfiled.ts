@@ -34,7 +34,7 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { loadTargets, type Target } from '@/lib/email-sweep/route-phase'
 import { DOCUMENT_MATCH_COLUMNS, matchDocument, type DocumentMatchRow } from './match'
-import { countChunksByDocument } from './unfiled'
+import { countChunksByDocument, countMailChunksByDocument } from './unfiled'
 
 export interface MisfiledDoc {
   id: string
@@ -50,6 +50,20 @@ export interface MisfiledDoc {
   confidence: number
   /** How many indexed passages answer for the wrong deal today. */
   chunks: number
+  /**
+   * Passages indexed under this file's EMAIL THREAD rather than under the
+   * document row — the footprint of a document settled as `INDEXED_IN_MAIL`.
+   *
+   * Reported APART from `chunks` rather than summed into it, because the two
+   * answer different questions. Filing the document moves `chunks`; the mail
+   * passages follow the THREAD's links and do not move at all. Summing would
+   * promise the tap does more than it does, and showing only `chunks` would
+   * print "not indexed, nothing is answering from it" over a document whose
+   * text is fully searchable. Neither is true, so both numbers are carried.
+   */
+  mailChunks: number
+  /** The thread that delivered the file, where one did. Keys `mailChunks`. */
+  threadId: string | null
   folderPath: string | null
 }
 
@@ -139,6 +153,8 @@ export async function findMisfiledRecordDocuments(): Promise<MisfiledDoc[]> {
       reason: match.reason,
       confidence: match.confidence,
       chunks: 0,
+      mailChunks: 0,
+      threadId: row.source_thread_id,
       folderPath: row.drive_folder_path,
     })
   }
@@ -154,13 +170,25 @@ export async function findMisfiledRecordDocuments(): Promise<MisfiledDoc[]> {
       'opportunity_document_id'
     ),
   ])
+  // And the footprint of the ones indexed with their mail instead. One read
+  // for both sides, because `thread_chunks` keys on the THREAD and knows
+  // nothing about which document table the file was registered in.
+  const mailCounts = await countMailChunksByDocument(
+    supabase,
+    out.map((d) => ({ id: d.id, threadId: d.threadId, fileName: d.fileName }))
+  )
   for (const d of out) {
     d.chunks = (d.side === 'project' ? projectCounts : oppCounts).get(d.id) ?? 0
+    d.mailChunks = mailCounts.get(d.id) ?? 0
   }
 
   // Biggest footprint first: the document answering for the most wrong
-  // questions is the one worth deciding about first.
-  out.sort((a, b) => b.chunks - a.chunks || a.fileName.localeCompare(b.fileName))
+  // questions is the one worth deciding about first. Sorted on `chunks` alone
+  // — what the decision actually moves — with the mail footprint breaking ties
+  // so a mail-indexed document is not pinned to the bottom of the queue.
+  out.sort(
+    (a, b) => b.chunks - a.chunks || b.mailChunks - a.mailChunks || a.fileName.localeCompare(b.fileName)
+  )
   return out
 }
 

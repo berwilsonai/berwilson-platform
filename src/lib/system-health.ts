@@ -27,6 +27,7 @@ import { listMeetTranscripts } from '@/lib/integrations/google-drive'
 import { isChatConfigured } from '@/lib/notify/chat'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { isFileable } from '@/lib/drive/file-document'
+import { INDEXED_IN_MAIL } from '@/lib/documents/status'
 import { leadsDb } from '@/lib/leads/db'
 import { sweepDb } from '@/lib/email-sweep/db'
 
@@ -411,6 +412,12 @@ export async function probeDocumentIndexing(): Promise<{
     const rows = [...((docsRes.data ?? []) as Row[]), ...((oppRes.data ?? []) as Row[])]
     let complete = 0
     let skipped = 0
+    // Searchable, but through its email thread rather than through chunks of
+    // its own — a settled state, and counted apart so the card can say so. A
+    // reader who sees these folded into `complete` has no way to tell the two
+    // corpora apart, and a reader who sees them in `stuck` is looking at a
+    // backlog that does not exist.
+    let inMail = 0
     const stuck: Record<string, number> = {}
     // A 'processing' row that is genuinely in flight was touched by the pass
     // running right now, and a pass only ever touches a document it has just
@@ -426,6 +433,7 @@ export async function probeDocumentIndexing(): Promise<{
       const status = r.embedding_status ?? 'pending'
       if (status === 'complete') complete++
       else if (status === 'skipped') skipped++
+      else if (status === INDEXED_IN_MAIL) inMail++
       else {
         stuck[status] = (stuck[status] ?? 0) + 1
         if (status === 'processing') {
@@ -440,7 +448,10 @@ export async function probeDocumentIndexing(): Promise<{
       }
     }
 
-    const tail = `${complete} indexed, ${skipped} not readable (correctly skipped).`
+    const tail =
+      `${complete} indexed` +
+      (inMail ? `, ${inMail} indexed with their email thread` : '') +
+      `, ${skipped} not readable (correctly skipped).`
 
     // 'processing' means a pass is RUNNING, and the syncs work one document at
     // a time — so a single one is almost certainly in flight right now, and

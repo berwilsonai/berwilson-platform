@@ -43,6 +43,13 @@ export interface CompanyKnowledgeDoc {
   /** How much of the searchable index this document accounts for. */
   chunks: number
   /**
+   * Passages indexed under this file's EMAIL THREAD instead — a document
+   * settled as `INDEXED_IN_MAIL` holds no `chunks` of its own. Carried apart
+   * from `chunks` because filing moves one and not the other; see the same
+   * field on `MisfiledDoc`.
+   */
+  mailChunks: number
+  /**
    * Came from a nominated Drive folder.
    *
    * Decides which removal is offered: a hard delete of a Drive-sourced row is
@@ -119,11 +126,18 @@ export async function loadCompanyKnowledge(): Promise<CompanyKnowledgeDoc[]> {
   const rows = (data ?? []) as unknown as CandidateRow[]
   if (rows.length === 0) return []
 
-  // Chunk counts in one grouped read rather than per document.
-  const chunkCounts = await countChunksByDocument(
-    supabase,
-    rows.map((r) => r.id)
-  )
+  // Chunk counts in one grouped read rather than per document — and the mail
+  // index's counts beside them, for the rows whose text was never chunked here.
+  const [chunkCounts, mailCounts] = await Promise.all([
+    countChunksByDocument(
+      supabase,
+      rows.map((r) => r.id)
+    ),
+    countMailChunksByDocument(
+      supabase,
+      rows.map((r) => ({ id: r.id, threadId: r.source_thread_id, fileName: r.file_name }))
+    ),
+  ])
 
   let targets: Target[] = []
   try {
@@ -145,6 +159,7 @@ export async function loadCompanyKnowledge(): Promise<CompanyKnowledgeDoc[]> {
       folderPath: row.drive_folder_path,
       embeddingStatus: row.embedding_status,
       chunks: chunkCounts.get(row.id) ?? 0,
+      mailChunks: mailCounts.get(row.id) ?? 0,
       fromDrive: row.drive_file_id !== null,
       filingConfirmed: row.filing_confirmed_at !== null,
     }
@@ -177,8 +192,11 @@ export async function loadCompanyKnowledge(): Promise<CompanyKnowledgeDoc[]> {
   }
 
   // Biggest retrieval footprint first — the document polluting the most
-  // answers is the one worth deciding about first.
-  out.sort((a, b) => b.chunks - a.chunks || a.fileName.localeCompare(b.fileName))
+  // answers is the one worth deciding about first. On `chunks`, which is what
+  // filing moves, with the mail footprint breaking ties.
+  out.sort(
+    (a, b) => b.chunks - a.chunks || b.mailChunks - a.mailChunks || a.fileName.localeCompare(b.fileName)
+  )
   return out
 }
 
@@ -289,6 +307,79 @@ export async function countChunksByDocument(
         const id = c[column]
         if (!id) continue
         counts.set(id, (counts.get(id) ?? 0) + 1)
+      }
+      if (page.length < PAGE) break
+      from += PAGE
+    }
+  }
+  return counts
+}
+
+/**
+ * Passage counts for documents whose text is indexed with their EMAIL THREAD.
+ *
+ * The companion to `countChunksByDocument`, and needed for the same reason it
+ * takes a `column` argument: a document's retrieval footprint is not always in
+ * `chunks`. An attachment imported off a thread is settled as
+ * `INDEXED_IN_MAIL` — its verbatim text lives in `thread_chunks` under
+ * (thread_id, attachment_name) and `chunks` holds nothing for it at all. Asked
+ * on `document_id` alone it counts 0, and zero reads as "never indexed".
+ *
+ * Matched on the thread AND the file name, never the file name alone. Highland
+ * Title sends one thread per parcel and every one of them attaches a "Title
+ * Commitment - AS.pdf", so a name on its own would pool four parcels' passages
+ * onto whichever document asked first.
+ */
+export async function countMailChunksByDocument(
+  supabase: ReturnType<typeof createAdminClient>,
+  docs: Array<{ id: string; threadId: string | null; fileName: string | null }>
+): Promise<Map<string, number>> {
+  const counts = new Map<string, number>()
+  const withThread = docs.filter(
+    (d): d is { id: string; threadId: string; fileName: string } => !!d.threadId && !!d.fileName
+  )
+  if (withThread.length === 0) return counts
+
+  // (thread, lowercased name) -> the documents asking about it. A list, because
+  // the same file legitimately sits on three records off one thread when it
+  // names all three (§12), and each of those rows wants the same count.
+  const wanted = new Map<string, string[]>()
+  for (const d of withThread) {
+    const key = `${d.threadId}:${d.fileName.toLowerCase()}`
+    const ids = wanted.get(key)
+    if (ids) ids.push(d.id)
+    else wanted.set(key, [d.id])
+  }
+
+  const threadIds = [...new Set(withThread.map((d) => d.threadId))]
+  // Both caps again — PostgREST's silent 1000-row response limit and Kong's
+  // URI length, which 1000 uuids in a filter exceeds outright (§12).
+  const PAGE = 1000
+  const ID_CHUNK = 200
+
+  for (let start = 0; start < threadIds.length; start += ID_CHUNK) {
+    const ids = threadIds.slice(start, start + ID_CHUNK)
+    let from = 0
+    for (;;) {
+      const { data, error } = await supabase
+        .from('thread_chunks')
+        .select('thread_id, attachment_name')
+        .in('thread_id', ids)
+        .eq('source', 'attachment')
+        .range(from, from + PAGE - 1)
+      if (error) {
+        console.error('[unfiled] could not count mail chunks:', error.message)
+        return counts
+      }
+      const page = (data ?? []) as unknown as Array<{
+        thread_id: string | null
+        attachment_name: string | null
+      }>
+      for (const c of page) {
+        if (!c.thread_id || !c.attachment_name) continue
+        const forKey = wanted.get(`${c.thread_id}:${c.attachment_name.toLowerCase()}`)
+        if (!forKey) continue
+        for (const id of forKey) counts.set(id, (counts.get(id) ?? 0) + 1)
       }
       if (page.length < PAGE) break
       from += PAGE

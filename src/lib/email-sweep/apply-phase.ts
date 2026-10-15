@@ -1121,6 +1121,11 @@ async function importThreadAttachments(
             doc_type: 'correspondence',
             source: 'document',
             content_sha256: digest,
+            // Which thread delivered it. The pair (source_thread_id, file_name)
+            // is what lets `reconcileMailIndexedDocuments` ask whether this
+            // file's text is already in `thread_chunks` — without it the two
+            // corpora cannot be compared and the duplicate index is unavoidable.
+            source_thread_id: thread.id,
           } )
           .select('id')
           .single()
@@ -1130,6 +1135,23 @@ async function importThreadAttachments(
         }
         imported++
         // Settles embedding_status itself and never throws.
+        //
+        // ⚠ `skipEmbed` — EXTRACT AND SUMMARIZE, DO NOT CHUNK. The thread's own
+        // embed pass already reads this file out of Gmail and indexes its
+        // verbatim text as `thread_chunks`, so chunking it here put the same
+        // bytes in two corpora: measured 2026-10-15, 63 of 89 correspondence
+        // documents held 1,074 chunks that `search_correspondence` already
+        // answered from. The document keeps everything that makes it usable —
+        // the file, the summary `list_documents` presents it by, the
+        // `extracted_text` the agent reads — and loses only the second copy.
+        //
+        // This is NOT a judgement that the mail index will succeed. It cannot
+        // be made here: `apply` runs BEFORE `embed` (see ALL_PHASES), so
+        // `thread_chunks` is empty for this thread at this moment, and an xlsx,
+        // a pptx or a failed byte fetch yields no mail text at all.
+        // `reconcileMailIndexedDocuments` re-examines every row left in this
+        // state once the embed phase has run and indexes properly whatever the
+        // mail index could not read. Without that pass this flag loses files.
         await runDocumentAiPass({
           supabase,
           documentId: (doc as { id: string }).id,
@@ -1140,6 +1162,7 @@ async function importThreadAttachments(
             buffer.byteOffset,
             buffer.byteOffset + buffer.byteLength
           ) as ArrayBuffer,
+          skipEmbed: true,
         })
       } else {
         const { data: doc, error } = await supabase
@@ -1152,6 +1175,7 @@ async function importThreadAttachments(
             file_size_bytes: ref.size,
             doc_type: 'correspondence',
             content_sha256: digest,
+            source_thread_id: thread.id,
           } )
           .select('id')
           .single()
@@ -1176,6 +1200,11 @@ async function importThreadAttachments(
             buffer.byteOffset + buffer.byteLength
           ) as ArrayBuffer,
           target: { table: 'opportunity_documents', opportunityId: link.record_id },
+          // Same reasoning as the project branch above, and it matters MORE
+          // here: on the opportunity side the attachments are very nearly the
+          // whole documents tab (GridEdge 22 of 23, IAN 13 of 13), so this is
+          // where the duplicate corpus was largest.
+          skipEmbed: true,
         })
       }
 
