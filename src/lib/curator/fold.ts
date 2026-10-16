@@ -347,9 +347,9 @@ export async function applyPeople(args: {
       // ⚠ THE INTERNAL TEST COMES BEFORE CREATION, NOT AFTER. The check below
       // runs on a party that already exists; an address of ours that has no
       // contact row yet would sail past it and be created as a counterparty.
-      // That is how `berwilsonllc@outlook.com` (Eric's own alternate) and
-      // "Ber Wilson - COO Tarek Nosseir" showed up as external candidates in
-      // the 10-15 dry run — neither is on `team_members`.
+      // That is how `berwilsonllc@outlook.com` — Eric's own alternate, on no
+      // `team_members` row — showed up as an external candidate in the 10-15
+      // dry run.
       const created =
         allowCreate && !isInternalAddress(m.person.email ?? null)
           ? await createContact(m, dryRun)

@@ -286,7 +286,7 @@ export default function MeetingForm({ scope, projectId, opportunityId, meeting, 
             </div>
             <div>
               <label className={labelClass}>Chair</label>
-              <input className={inputClass} value={chair} onChange={(e) => setChair(e.target.value)} placeholder="e.g. Nancy Norton" />
+              <input className={inputClass} value={chair} onChange={(e) => setChair(e.target.value)} placeholder="e.g. Ericson Tua'one" />
             </div>
             <div>
               <label className={labelClass}>Secretary</label>

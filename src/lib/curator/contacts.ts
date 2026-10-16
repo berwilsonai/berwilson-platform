@@ -202,12 +202,14 @@ async function internalPhoneDigits(internal: Set<string>): Promise<Set<string>> 
 /**
  * Does this name belong to one of ours?
  *
- * ⚠ A THIRD TEST, BECAUSE THE ROSTER IS INCOMPLETE. `team_members` holds three
- * rows; the 10-15 dry run surfaced `Ber Wilson - COO Tarek Nosseir` (our COO,
- * on no roster and with no address on his contact row) and
- * `berwilsonllc@outlook.com` signed `Ericson Tua'one` as external candidates.
- * Our own company name inside a person's display name is the structural tell,
- * and it costs nothing to honour.
+ * ⚠ A THIRD TEST, BECAUSE A ROSTER IS A LIST OF LOGINS, NOT A LIST OF
+ * ADDRESSES. `team_members` holds Eric, Richard and Pepper and that IS the
+ * company (2026-10-16) — but an executive writes from more addresses than he
+ * holds logins for, and the 10-15 dry run surfaced `berwilsonllc@outlook.com`,
+ * signed `Ericson Tua'one`, as an external candidate. Our own company name
+ * inside a person's display name is the structural tell, and it costs nothing
+ * to honour. It is the alternate address this defends against, not a missing
+ * colleague.
  */
 function namesOurselves(name: string | null): boolean {
   return !!name && /\bber\s*wilson\b/i.test(name)

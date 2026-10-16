@@ -64,9 +64,10 @@ const admin0 = createAdminClient()
  * Who counts as "us".
  *
  * ⚠ REUSED, NOT REWRITTEN. `internalAddresses` already covers the two
- * mailboxes, every address on a team member's own contact record (Tarek is COO
- * and corresponds from a gmail address; Richard attends some meetings from a
- * personal one) and the `<digits>@imessage.local` handles Eric texts from. It
+ * mailboxes, every address on a team member's own contact record (Richard
+ * attends some meetings from a personal one; Eric also writes from
+ * `berwilsonllc@outlook.com`) and the `<digits>@imessage.local` handles Eric
+ * texts from. It
  * also deliberately excludes the assistant seat, which is exactly what this
  * measurement needs — Pepper's own morning notes land in the deal pipeline.
  */

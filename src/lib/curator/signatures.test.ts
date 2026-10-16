@@ -25,8 +25,8 @@ test('reads dotted and parenthesised forms', () => {
     '8015975700'
   )
   assert.equal(
-    phoneForAddress('Nancy <nancy.norton.thunell@gmail.com> (801) 637-8970', 'nancy.norton.thunell@gmail.com'),
-    '8016378970'
+    phoneForAddress('Dana <dana.norton.whitfield@gmail.com> (801) 555-0303', 'dana.norton.whitfield@gmail.com'),
+    '8015550303'
   )
 })
 

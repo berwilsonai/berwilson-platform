@@ -13,6 +13,78 @@ Split out of `CLAUDE.md` on 2026-09-23, when that file reached 606k characters a
 
 174 entries, 2026-06-22 → 2026-10-15. ⚠ Counted with `grep -c "^\*\*Done 2026"`, not incremented by hand: two sessions editing this file on 2026-10-08 each bumped the old figure by one and both landed on 146 against a real 148.
 
+**Done 2026-10-16 (there is no COO — the roster is two people):**
+
+Richard: *"We don't have a COO. Get rid of traces of Tarek or Nancy or anyone else.
+The company is just Eric and Richard right now."*
+
+**What was there.** Measured before touching anything, because the question is which
+of these are CLAIMS about who we are and which are RECORDS of what happened — and the
+two deserve opposite treatment.
+
+| Where | What it said |
+|---|---|
+| `org_people` | `Tarek "Rick" Nosseir — Director`, leadership tier, detail reading *"joint CFO oversight with Nancy"*. Plus Amy Clark (Director, Real Estate), Brooke Stonebraker (Director of Underwriting), and Colton / Rocky / Dr Gary Samuelson / Doc Elements attached to four SPV nodes |
+| `project_players` | Tarek on Myton Rail as *"New COO overseeing operations, strategy, and international expansion"*; Nancy on Myton Rail, and on Stockton as *"Ber Wilson Evaluator"* |
+| `parties` | a bare `Tarek` stub with no email or phone, and `Nancy Thunnel — ASEA, Advisor`. Separately, four contacts carried `company = 'Ber Wilson'`: Jerrod Ewell, Jerry Chizmadia, Jonathan Sipe, Taylor Scalley |
+| `20260718000001_org_structure.sql` | still SEEDS Nancy as Chairwoman / interim CFO, Tarek as COO and Dennis Allen as a director — fires on any rebuilt database, so all three come back |
+| `src/lib/curator/contacts.ts`, `fold.ts` | two comments stating Tarek **is** our COO, used as the standing justification for the `namesOurselves` rule |
+| `scripts/measure-rolodex.mts` | *"Tarek is COO and corresponds from a gmail address"* |
+| `docs/OPEN-ITEMS.md` | a live row instructing a future session to **put Tarek's address on his contact row** so `internalAddresses()` would treat him as one of ours |
+| `signatures.test.ts` / `MeetingForm.tsx` | Nancy's real gmail and real phone as a test fixture; *"e.g. Nancy Norton"* as a form placeholder |
+
+`team_members` was already clean (Eric, Richard, Pepper), and `personnel` is empty.
+
+**⚠ THE DOCS WERE WORSE THAN THE DATA.** A stale row in `org_people` is a wrong chart
+somebody looks at once. The open-items row was an instruction to a future session to
+*wire a departed COO into `internalAddresses()`* — which is the function that decides
+whose correspondence is internal, and therefore ingested rather than scored. Of the
+eight places the names lived, the three that would have caused new wrong work were all
+prose: the open-items row, and the two code comments offering Tarek as the reason the
+`namesOurselves` test exists. §12 already says a workaround's recorded reason must be
+re-tested before it is inherited; this is the same failure with a person in it.
+
+**The split.** Richard's calls, taken before any delete: strip **every** name from the
+chart but keep the three vacant seats (they are roles, not people); **archive** the two
+contact rows rather than delete them, and keep the correspondence.
+
+Kept, deliberately: **82 email threads, 16 commitments, 2 meetings and 245 indexed
+passages** name these people. They really did correspond, and that is a true record.
+What went is only the claim that they work here. Archiving (`status = 'archived'`) is
+the app's own soft delete — the same thing the Archive button on `/contacts` does — so
+it is one `update` to reverse.
+
+**`20261016000001_roster_is_two_people.sql`.** Deletes every NAMED `org_people` row
+other than the two executives, matched **by name rather than by id** so it also catches
+the seeded copies on a rebuilt database, where the ids are freshly generated. Drops the
+three `project_players` roles, archives the two `parties` rows, and clears
+`company = 'Ber Wilson'` off the four contacts that were never employees (the contact
+itself is untouched — only the employer claim). Applied: `DELETE 7`, `DELETE 3`,
+`UPDATE 2`, `UPDATE 4`.
+
+⚠ **`parties` AND `project_players` CARRY NO AUDIT TRIGGER** — only `org_people` does —
+so `activity_log` cannot recover any of this. The full row snapshots are written into
+the migration file as comments, which makes git the undo. That is also why the four
+`company` clears were done as an UPDATE of one field rather than anything broader.
+
+⚠ **The seed migration was left alone.** It is history, it has been applied, and the
+new migration runs after it in both directions — on the live database now, and on a
+rebuild after the seed re-inserts. Editing an applied migration to make the past look
+different is how a rebuild and a running database stop agreeing.
+
+**What survived and why.** The `namesOurselves` test itself stays: `berwilsonllc@outlook.com`
+signs *"Ericson Tua'one"* and is on no `team_members` row, so a display name carrying
+our own company name is still the structural tell. Its docblock now says so — a roster
+is a list of logins, not a list of addresses — instead of citing a COO who does not
+exist. The `EVP/COO` **persona** in the four AI prompts is untouched: that is how the
+agent is told to think, not a claim about anybody's job.
+
+**Verified:** `tsc` clean, 456 tests pass, `next build` exits 0 (unpiped, per §12).
+Chart re-read after the migration: leadership is Ericson Tua'one and Richard White, the
+three vacant director seats remain, no SPV node carries a name. Every `staff` render
+path was already guarded by `staff.length > 0` and `staffByNode.get(id) ?? []`, so the
+newly empty node groups needed no code change.
+
 **Done 2026-10-15 (the rolodex builds itself, and most of the curator wiring was already decided against):**
 
 Richard asked for a critique of the Google Workspace and Pepper setup. The Workspace
