@@ -115,21 +115,37 @@ export const PRIMARY_ONLY_SCOPES = [
   // the spreadsheet exports (the Sheets API accepts drive.file for app-created
   // files, so no broader spreadsheets scope is needed).
   'https://www.googleapis.com/auth/drive.file',
-  // ⚠⚠ TEMPORARY — REMOVE AFTER THE 2026-10-08 DRIVE RESTRUCTURE ⚠⚠
+  // ⚠⚠ KEPT DELIBERATELY — RICHARD'S DECISION, 2026-10-15 ⚠⚠
   //
   // The broadest grant in this file by a wide margin: read, write, move, rename
-  // and trash ANYTHING moose@ can reach, held by a long-running server. It is
-  // here for exactly one job — scripts/migrate-drive-structure.mts has to
-  // re-parent ~264 files that PEOPLE created, and drive.file reaches only what
-  // this app created, so every move 403s without it.
+  // and trash ANYTHING moose@ can reach, held by a long-running server. It
+  // arrived for one job — scripts/migrate-drive-structure.mts had to re-parent
+  // ~264 files that PEOPLE created, and drive.file reaches only what this app
+  // created, so every move 403s without it — and this block used to say
+  // "TEMPORARY — REMOVE AFTER THE 2026-10-08 DRIVE RESTRUCTURE", with
+  // instructions for handing it back.
   //
-  // Nothing in src/ asks for it and nothing should. Hand it back the way this
-  // block's own doc comment describes: delete this line, re-run
-  // `node scripts/setup-google-oauth.mjs --only moose@berwilson.com`, then
-  // `launchctl kickstart -k gui/$(id -u)/com.berwilson.platform`. Re-consenting
-  // without an entry REMOVES the grant; that is the mechanism, not a side effect.
+  // Asked on 2026-10-15 whether to hand it back, Richard chose to keep it:
+  // *"You can have full access to drive or any other gsuite product to help us
+  // better."* He reads Drive as the surface for granting pieces of the business
+  // to people he does not want inside Ber Intelligence, and a scope that can
+  // only touch files this app created cannot serve that.
   //
-  // Check with: node --env-file=.env.local scripts/verify-google-auth.mjs
+  // ⚠ SO DO NOT REMOVE IT, and do not read the absence of a src/ caller as
+  // evidence that it is unused — that is what the old comment said and acting
+  // on it would revoke a permission its owner chose to hold. §12: a comment
+  // claiming a control that is not there is worse than no comment.
+  //
+  // ⚠ AND NEITHER CHECK CAN SEE THIS SCOPE, which is worth knowing before
+  // trusting a green light about it. `scripts/verify-google-auth.mjs` — which
+  // the old comment named as the way to verify the hand-back — discards the
+  // `scope` field Google returns in the per-mailbox OAuth mode that is actually
+  // in use, tests only that a Gmail profile read works, never looks at info@ at
+  // all, and then prints "All checks passed". `probeScopeCoverage()` below is
+  // correct but one-directional by construction: it reports scopes we DECLARE
+  // and were not GRANTED, so an over-grant is invisible to it. Deleting this
+  // line would therefore leave the health page green while the grant persisted
+  // until a re-consent.
   'https://www.googleapis.com/auth/drive',
 ] as const
 

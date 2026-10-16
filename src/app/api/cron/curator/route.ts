@@ -97,6 +97,18 @@ export async function GET(request: NextRequest) {
       // signal — so the list is available in the dry-run script where somebody
       // is actually looking, and the nightly log carries the number.
       unmatchedPeople: result.unmatchedPeople.length,
+      // The one pass that creates a record names every record it created. A
+      // count alone would be the wrong shape here: these are new rows in the
+      // directory, and the reader has to be able to see which.
+      contactSweep: result.contactSweep
+        ? {
+            ...result.contactSweep,
+            outcomes: result.contactSweep.outcomes.length,
+            created: result.contactSweep.created.map(
+              (c) => `${c.name} <${c.email}>${c.phone ? ` ${c.phone}` : ''}`
+            ),
+          }
+        : null,
     })
   } catch (err) {
     // assertPepper throws here rather than writing unattributed. That is the

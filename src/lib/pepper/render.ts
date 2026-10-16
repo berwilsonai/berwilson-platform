@@ -279,6 +279,21 @@ export function renderNoteInput(n: PepperNote): string {
     )
   }
 
+  // ⚠ ITS OWN SECTION, NOT FOLDED INTO "WHAT I CHANGED". A contact she ADDED
+  // and a field she FILLED are different events, and §12's rule about one
+  // quantity with one definition is why they are never counted together.
+  if (n.curation.contactsAdded.length > 0) {
+    const lines = n.curation.contactsAdded
+      .slice(0, MAX_CURATION_IN_PROMPT)
+      .map((c) => `- ${c.name}${c.company ? ` (${c.company})` : ''}`)
+    parts.push(
+      ...section('CONTACTS I ADDED FROM MAIL YOU REPLIED TO:', [
+        ...lines,
+        ...overflow(Math.max(0, n.curation.contactsAddedTotal - MAX_CURATION_IN_PROMPT)),
+      ])
+    )
+  }
+
   if (n.curation.proposals.length > 0) {
     const lines = n.curation.proposals
       .slice(0, MAX_CURATION_IN_PROMPT)

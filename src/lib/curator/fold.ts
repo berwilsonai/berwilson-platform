@@ -46,6 +46,14 @@ export interface PersonOutcome {
   proposed: AppliedField[]
   /** Why nothing happened, when nothing did. */
   note?: string
+  /**
+   * Set only when this pass CREATED the contact rather than finding it.
+   *
+   * Present so the morning note can say "added" rather than "updated" — a
+   * created record and a filled field are different events to a reader, and
+   * §12's rule about one quantity with one definition applies to both.
+   */
+  created?: { email: string; phone: string | null; title: string | null; company: string | null }
 }
 
 export interface CurateOutcome {
@@ -276,8 +284,23 @@ export async function applyPeople(args: {
    * So the broad source fills and the narrow source decides.
    */
   fillOnly?: boolean
+  /**
+   * Create a contact when none matched, instead of reporting the name.
+   *
+   * ⚠ OFF BY DEFAULT, AND ONLY `curator/contacts.ts` TURNS IT ON. §11 reserves
+   * record creation for a human confirm; Richard amended it on 2026-10-15 for
+   * contacts alone and only where the mail is RECIPROCATED — one of the two
+   * executives wrote on the thread. That gate cannot be judged here, where a
+   * mention has no thread, so the caller owns it: this flag is the target
+   * `applyPeople` adds rather than a second copy of the pass (§12).
+   *
+   * Everything that makes the matching safe runs first regardless — a creation
+   * only ever happens after `matchParty` has declined, which is what stops it
+   * duplicating a contact that already exists under another spelling.
+   */
+  allowCreate?: boolean
 }): Promise<{ outcomes: PersonOutcome[]; unmatched: string[]; error: string | null }> {
-  const { mentions, dryRun, fillOnly = false } = args
+  const { mentions, dryRun, fillOnly = false, allowCreate = false } = args
 
   // ⚠ OUR OWN PEOPLE ARE NEVER CURATED FROM MAIL, AND THE DRY RUN IS WHY. It
   // proposed `Richard White: Title="Advisor"` — a model's incidental role guess
@@ -303,6 +326,11 @@ export async function applyPeople(args: {
   const byParty = new Map<string, { party: PartyLite; fields: Map<string, { value: string; mention: PersonMention }> }>()
   const unmatched = new Set<string>()
   const matchCache = new Map<string, PartyLite | null>()
+  /** Parties this call brought into existence, for the outcome's `created`. */
+  const createdIds = new Map<
+    string,
+    { email: string; phone: string | null; title: string | null; company: string | null }
+  >()
 
   for (const m of ordered) {
     const key = (m.person.email?.trim().toLowerCase() || m.person.name?.trim().toLowerCase()) ?? ''
@@ -316,8 +344,36 @@ export async function applyPeople(args: {
     }
     if (!party) {
       const name = m.person.name?.trim()
-      if (name && isReportableName(name)) unmatched.add(name)
-      continue
+      // ⚠ THE INTERNAL TEST COMES BEFORE CREATION, NOT AFTER. The check below
+      // runs on a party that already exists; an address of ours that has no
+      // contact row yet would sail past it and be created as a counterparty.
+      // That is how `berwilsonllc@outlook.com` (Eric's own alternate) and
+      // "Ber Wilson - COO Tarek Nosseir" showed up as external candidates in
+      // the 10-15 dry run — neither is on `team_members`.
+      const created =
+        allowCreate && !isInternalAddress(m.person.email ?? null)
+          ? await createContact(m, dryRun)
+          : null
+      if (created?.error) return { outcomes: [], unmatched: [], error: created.error }
+      if (created?.party) {
+        party = created.party
+        matchCache.set(key, party)
+        createdIds.set(party.id, {
+          email: m.person.email?.trim().toLowerCase() ?? '',
+          phone: m.person.phone ?? null,
+          title: m.person.title ?? null,
+          company: m.person.company ?? null,
+        })
+        // ⚠ A DRY RUN HAS NO ROW TO WRITE AGAINST. `applyFieldUpdates` reads
+        // the record to capture `previous_value`, so handing it a sentinel id
+        // fails the whole pass with a uuid syntax error — which is exactly what
+        // the first dry run did. The creation is reported from `createdIds`
+        // instead, carrying the fields it would have filled.
+        if (dryRun) continue
+      } else {
+        if (name && isReportableName(name)) unmatched.add(name)
+        continue
+      }
     }
     // ⚠ THE INCOMING ADDRESS AS WELL AS THE STORED ONE. Checking only
     // `party.email` lets an internal person through whenever their contact row
@@ -340,6 +396,7 @@ export async function applyPeople(args: {
       ['title', m.person.title],
       ['company', m.person.company],
       ['email', m.person.email],
+      ['phone', m.person.phone],
     ] as const) {
       const value = raw?.trim()
       if (!value) continue
@@ -369,17 +426,88 @@ export async function applyPeople(args: {
       dryRun,
     })
     if (result.error) return { outcomes, unmatched: [...unmatched], error: result.error }
-    if (result.written.length > 0 || result.proposed.length > 0) {
+    const created = createdIds.get(party.id)
+    if (result.written.length > 0 || result.proposed.length > 0 || created) {
       outcomes.push({
         partyId: party.id,
         name: party.full_name,
         written: result.written,
         proposed: result.proposed,
+        ...(created ? { created } : {}),
       })
     }
   }
 
+  // ⚠ A CREATION WITH NOTHING LEFT TO FILL IS STILL AN EVENT. `byParty` only
+  // holds parties that collected a field, so a contact created from an address
+  // and a name alone — no title, no company, no phone in the signature — would
+  // otherwise be inserted and never reported, which is the one failure mode
+  // unattended writing may not have (run.ts's header).
+  for (const [partyId, created] of createdIds) {
+    if (outcomes.some((o) => o.partyId === partyId)) continue
+    const fromBatch = [...byParty.values()].find((e) => e.party.id === partyId)?.party.full_name
+    const fromCache = [...matchCache.values()].find((p) => p?.id === partyId)?.full_name
+    outcomes.push({
+      partyId,
+      name: fromBatch ?? fromCache ?? created.email,
+      written: [],
+      proposed: [],
+      created,
+    })
+  }
+
   return { outcomes, unmatched: [...unmatched].sort(), error: null }
+}
+
+/**
+ * Bring a contact into existence from correspondence.
+ *
+ * ⚠ THE NARROWEST POSSIBLE INSERT. Only identity goes in — the name, the
+ * address, the flag and a provenance line. Title, company and phone are left
+ * to `applyFieldUpdates` immediately afterwards so each one gets a
+ * `record_field_provenance` row carrying its evidence and a `previous_value`,
+ * which is what makes every one of them individually reversible. Writing them
+ * here would create the record with no provenance at all.
+ *
+ * ⚠ A TWO-WORD NAME IS REQUIRED. `matchParty` can never resolve a bare first
+ * name, so creating one guarantees a contact nobody can find and a duplicate
+ * the next time the surname appears (§12).
+ */
+const DRY_RUN_ID = 'dry-run'
+
+async function createContact(
+  m: PersonMention,
+  dryRun: boolean
+): Promise<{ party: PartyLite | null; error: string | null }> {
+  const name = m.person.name?.trim()
+  const email = m.person.email?.trim().toLowerCase()
+  if (!name || !email) return { party: null, error: null }
+  if (!isReportableName(name) || name.split(/\s+/).length < 2) return { party: null, error: null }
+
+  if (dryRun) {
+    return {
+      party: { id: `${DRY_RUN_ID}:${email}`, full_name: name, email, is_organization: false },
+      error: null,
+    }
+  }
+
+  const { data, error } = await provDbAs(PEPPER_ACTOR)
+    .from('parties')
+    .insert({
+      full_name: name,
+      email,
+      is_organization: false,
+      // The tag is the handle for undoing a whole run: every contact this pass
+      // has ever created is selectable, and `/api/parties/bulk-delete` already
+      // archives in bulk without deleting anything.
+      tags: ['auto-contact'],
+      relationship_notes: `Added by Pepper from "${m.sourceLabel}" — correspondence an executive took part in.`,
+    })
+    .select('id, full_name, email, is_organization')
+    .single()
+
+  if (error) return { party: null, error: `could not add ${name}: ${error.message}` }
+  return { party: data as PartyLite, error: null }
 }
 
 /**

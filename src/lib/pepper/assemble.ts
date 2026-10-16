@@ -267,6 +267,18 @@ export interface Curation {
   proposals: OpenProposal[]
   /** The true pending total, which the list above is capped below. */
   proposalsTotal: number
+  /**
+   * Contacts Pepper ADDED, which is a different event from a field she filled.
+   *
+   * ⚠ READ FROM `parties`, NOT FROM `record_field_provenance`. A creation is
+   * not a field write, so the provenance table — which is what
+   * `readPepperChanges` reads — cannot see one. The `auto-contact` tag is the
+   * structural record of "this row exists because she made it", and it is also
+   * the handle for undoing a whole run.
+   */
+  contactsAdded: { name: string; company: string | null }[]
+  /** The true total added in the window, which the list above is capped below. */
+  contactsAddedTotal: number
 }
 
 /** Everything shared between the notes, gathered once rather than per person. */
@@ -370,11 +382,24 @@ export async function assembleCommon(now = new Date()): Promise<PepperCommon> {
  * exists to prevent.
  */
 async function assembleCuration(sinceIso: string, notes: string[]): Promise<Curation> {
-  const empty: Curation = { changes: [], proposals: [], proposalsTotal: 0 }
+  const empty: Curation = {
+    changes: [],
+    proposals: [],
+    proposalsTotal: 0,
+    contactsAdded: [],
+    contactsAddedTotal: 0,
+  }
   try {
-    const [changes, proposals] = await Promise.all([
+    const [changes, proposals, added] = await Promise.all([
       readPepperChanges(sinceIso),
       readOpenProposals(),
+      createAdminClient()
+        .from('parties')
+        .select('full_name, company', { count: 'exact' })
+        .contains('tags', ['auto-contact'])
+        .gte('created_at', sinceIso)
+        .order('created_at', { ascending: false })
+        .limit(MAX_PER_SECTION),
     ])
     if (changes.error) {
       notes.push(`I could not read back what I changed in the CRM: ${changes.error}`)
@@ -382,10 +407,17 @@ async function assembleCuration(sinceIso: string, notes: string[]): Promise<Cura
     if (proposals.error) {
       notes.push(`I could not read the fields I am waiting to ask you about: ${proposals.error}`)
     }
+    if (added.error) {
+      notes.push(`I could not read back the contacts I added: ${added.error.message}`)
+    }
     return {
       changes: changes.changes,
       proposals: proposals.proposals,
       proposalsTotal: proposals.total,
+      contactsAdded: ((added.data ?? []) as { full_name: string; company: string | null }[]).map(
+        (r) => ({ name: r.full_name, company: r.company })
+      ),
+      contactsAddedTotal: added.count ?? 0,
     }
   } catch (err) {
     notes.push(
@@ -765,6 +797,15 @@ async function counterpartyContext(
 /**
  * True when this person has nothing to hear. A note that arrives every morning
  * saying "nothing today" is the fastest way to teach someone to filter it.
+ *
+ * ⚠ WHAT PEPPER DID TO THE CRM COUNTS AS SOMETHING TO HEAR. This tested only
+ * the reader's own work — obligations, tasks, meetings, cracks, the queue — so
+ * a morning whose only news was that she had changed records or added contacts
+ * sent NO NOTE, and the change went unreported. The whole safety argument for
+ * writing to the CRM unattended is that every change is reported in this note
+ * (§11, and the header of `curator/run.ts`): a quiet morning must not be able
+ * to swallow it. Her questions count too — an unanswered proposal is a thing
+ * she is waiting on the reader for.
  */
 export function noteIsEmpty(n: PepperNote): boolean {
   return (
@@ -775,7 +816,10 @@ export function noteIsEmpty(n: PepperNote): boolean {
     n.liveTasks.length === 0 &&
     n.meetings.length === 0 &&
     n.cracks.length === 0 &&
-    n.decide.total === 0
+    n.decide.total === 0 &&
+    n.curation.changes.length === 0 &&
+    n.curation.proposals.length === 0 &&
+    n.curation.contactsAdded.length === 0
   )
 }
 

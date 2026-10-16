@@ -11,7 +11,165 @@ Split out of `CLAUDE.md` on 2026-09-23, when that file reached 606k characters a
 - A block of **2026-08-23 → 2026-08-31** entries sits *after* the June entries, near the end of the file.
 - One **2026-07-03** entry ("migrations applied + pursuit profile seeded") is last in the file.
 
-173 entries, 2026-06-22 → 2026-10-15. ⚠ Counted with `grep -c "^\*\*Done 2026"`, not incremented by hand: two sessions editing this file on 2026-10-08 each bumped the old figure by one and both landed on 146 against a real 148.
+174 entries, 2026-06-22 → 2026-10-15. ⚠ Counted with `grep -c "^\*\*Done 2026"`, not incremented by hand: two sessions editing this file on 2026-10-08 each bumped the old figure by one and both landed on 146 against a real 148.
+
+**Done 2026-10-15 (the rolodex builds itself, and most of the curator wiring was already decided against):**
+
+Richard asked for a critique of the Google Workspace and Pepper setup. The Workspace
+half came back close to complete — Gmail tiered per mailbox, Drive read + app-scoped
+write + permission grants and revocations, Docs token-templating to PDF, Sheets with
+live checkboxes, Calendar read, People write into a managed contact group, Chat
+webhooks; the unused parts (Admin SDK, Groups, Vault, Slides, Forms, Apps Script,
+Gmail/Drive push) are either impossible on a tailnet-only box or serve an org that
+does not exist at two people. The gap was Pepper, and it was not where it looked.
+
+**What the measurement overturned.** The approved plan was "wire the curator's 35 idle
+columns". Two scripts were written before any of it:
+
+- `scripts/measure-rolodex.mts` — the reciprocity question and the info@ question.
+- A throwaway fill-rate read over all 40 registry columns.
+
+Both premises were wrong, in opposite directions.
+
+- **The info@ cleanup is 2 rows.** `leads/promote.ts` tags every lead-sourced party
+  `inbound-lead`; the whole directory holds **two** of them, neither reciprocated.
+  Richard's instruction to "remove any contacts that came through info@berwilson.com"
+  describes a two-row job, not a cleanup project. The directory was never polluted
+  from that end.
+- **The deal records are nearly clean, and the two most attractive columns are
+  deliberately excluded.** `projects.location` is blank on **0 of 19**, `sector` on
+  **0 of 19**, `description` on 1. `fold.ts`'s header already records why
+  `counterparty` is not folded (that extractor answered "whose deal is this" with
+  `Carbon County`, `Bank of Utah` and `Richard White` — the reader himself; 164
+  candidate identifiers became 15 once it was dropped) and why `estimated_value` is
+  not (a human deliberately CLEARED it so the pipeline reads $0 until the first
+  economics model exists; re-filling it would generate twenty cards asking to undo a
+  decision). Wiring either would have re-introduced a measured-bad extractor.
+- **`milestones.target_date` and `project_spv_participants.equity_pct` have a surface
+  of 5 and 3 rows.** The registry can only UPDATE a row that exists, and there are
+  five milestones and three participants in total. Steelton's 17 Oct PSA date and
+  Delta's splits are typing, not automation — and a wrong equity % flows straight
+  into net capture value.
+- **The real gap is the rolodex.** `parties.phone` blank on **82 of 97** — the
+  emptiest column in the whole writable registry — `relationship_notes` on 63,
+  `linkedin_url` on 97 (no source in mail). Which is the same conclusion `fold.ts`
+  reached on 10-12: "the main event here is contact enrichment and the deal fields
+  are the small half".
+
+**What was built.** `src/lib/curator/contacts.ts` — the reciprocity sweep, and the one
+pass that creates a record. The gate is a rule, not a score: `pipeline='deal'`, one of
+the two executives must have personally SENT a message on the thread, and the person
+must have written too. `info@` is unreachable by construction rather than by a flag,
+and `internalAddresses()` already excludes the assistant seat so Pepper's own morning
+notes — which land in the deal pipeline as ordinary threads — cannot read as a reply.
+A confidential project's threads are skipped for the reason `run.ts` gives: what makes
+unattended writing safe is that every change is reported, and the note is an outbound
+channel a protected deal may never reach.
+
+`applyPeople` gained `allowCreate` as a TARGET rather than being forked (§12), so
+every guard that makes it safe runs first — a creation only happens after `matchParty`
+has declined, which is what stops it duplicating a contact under another spelling.
+`src/lib/curator/signatures.ts` is new: phones, which the model's thread summary does
+not extract at all.
+
+**Result, live.** 1,768 deal threads, 447 with a reply from one of ours, 71 candidates,
+**53 contacts created** (23 with a phone, 32 with a title), 5 existing contacts given
+their number, 1 internal person and 3 organizations skipped. Directory 97 → 143 active.
+A second run reports **0 created, 0 enriched** — the §12 idempotency test. Titles and
+companies are real: Benjamin Wilhelm VP Public Finance at D.A. Davidson, Brad Dobson
+Water Right Manager at First American Title, Calvin Vass VP Strategic Alliances at
+Goavant, Jonathan Houk CEO at Tensor IQ.
+
+⚠ **A DETAIL BELONGS TO THE MESSAGE IT WAS IN, NOT TO THE THREAD — and the first
+version shipped the opposite.** It searched a whole thread for the target's address and
+took the nearest number, guarded by "only if this address is the closest one", which
+sounds sufficient and is not: a rendered thread puts a `To:` line directly under every
+message heading, so a signature's number at the FOOT of one message is nearer the NEXT
+message's recipient than its own sender. The live dry run offered Eric's own cell
+`385-436-6519` as the phone number for **Merlin Corbin, Ocean Patel, Amy Clark and
+Courtney**, spread one `410-991-1469` across three unrelated people, and gave
+Christopher Johnson the number Mark Welsko had been seen with seven times. Splitting on
+the `### <ts> — <From>` headings and attributing only to the SENDER took it from 14
+recoveries with 7 wrong to 7 with 0 wrong; Merlin got his own `949-637-7555`. Two
+further guards were still needed: a number two addresses claim goes to the one with
+strictly more sightings and the other gets nothing (a quoted forward puts somebody
+else's signature inside your message), and a number belonging to one of OURS is never
+written onto a counterparty — that leak is a NUMBER, not an address, so
+`internalAddresses()` cannot see it and the set has to be read off the directory.
+
+⚠ **`c.isOrg ?? nameTest` LET A MODEL'S `is_organization: false` SILENTLY DISABLE THE
+RULE.** `??` only falls through on null, so a summary asserting "this is a person"
+skipped the name test entirely — and `Wallace Incorporated`, `Dino Plumbing HVAC &
+Electrical` and a `Consulate of Israel` desk were each about to be created as PEOPLE by
+a pass that had an explicit rule against exactly them. The model's flag is the
+unreliable half here, so it may convict and never acquit: the tests are now additive,
+and where no flag exists at all the rule is to SKIP rather than guess.
+
+⚠ **`noteIsEmpty` IGNORED CURATION ENTIRELY.** It tested the reader's own work —
+obligations, tasks, meetings, cracks, the queue — so a morning whose only news was that
+Pepper had changed records or added contacts sent **no note at all**, and the change
+went unreported. That is the one failure mode the whole unattended-write design may not
+have (§11, and `curator/run.ts`'s header). Her open questions were in the same hole.
+Fixed, and a `CONTACTS I ADDED FROM MAIL YOU REPLIED TO` section added to the note —
+read from `parties` by the `auto-contact` tag, because a creation is not a field write
+and `record_field_provenance` cannot see one.
+
+⚠ **Smaller finds.** A candidate arrived named `a.hillyard yesprintcopy.com` — a mail
+client had written the address either side of a space, and every `@` guard passed it. An
+Outlook `To:` line is semicolon-separated, so splitting on commas alone read one whole
+recipient list as a single display name. The roster is incomplete in a way that matters
+here: `team_members` holds three rows, so our own COO (`tareknosseir@gmail.com`, signing
+"Ber Wilson - COO Tarek Nosseir") and `berwilsonllc@outlook.com` signed "Ericson
+Tua'one" both presented as external candidates — caught by a name test for our own
+company, and by moving the internal check BEFORE creation, since the existing one runs
+on a party that already exists.
+
+**The expected tail, for Richard.** Reciprocity admits everyone the two of them
+answered, which includes some non-deal mail: an insurance agent off "Examples of Life
+Insurance Policy with 11Mil Death Benefit", a benefits-plan address, two civic contacts
+(`piba@slchamber.com`, `susi@pik2ar.org`). All are real people who got a reply. Every
+created row carries the `auto-contact` tag, which is the handle for archiving a whole
+run through the existing `POST /api/parties/bulk-delete` (soft-delete, `status` flips to
+`archived`, nothing is deleted).
+
+**The Drive scope: kept, deliberately.** `PRIMARY_ONLY_SCOPES` has carried full
+`auth/drive` — read, write, move, rename and trash anything `moose@` can reach, held by
+a long-running server — marked `⚠⚠ TEMPORARY — REMOVE AFTER THE 2026-10-08 DRIVE
+RESTRUCTURE ⚠⚠` with instructions for handing it back. Asked, Richard chose to keep it:
+*"You can have full access to drive or any other gsuite product to help us better."* He
+reads Drive as the surface for granting pieces of the business to people he does not
+want inside Ber Intelligence, which a `drive.file` scope cannot serve. The comment now
+records the decision, because the old one instructed the next session to revoke a
+permission its owner wants. ⚠ And **neither check can see that scope**:
+`scripts/verify-google-auth.mjs`, which the old comment named as the way to verify the
+hand-back, discards the `scope` field Google returns in the per-mailbox OAuth mode that
+is actually in use, tests only that a Gmail profile read works, never looks at `info@`
+at all, and prints "All checks passed" followed by stale "next: apply the migration"
+onboarding text; its hardcoded `SCOPES` is a stale 4-item list that mode never reads.
+`probeScopeCoverage()` is correct but one-directional by construction —
+`scopesFor(mailbox).filter(w => !granted.includes(w))` reports what we DECLARE and were
+not GRANTED, so an over-grant is invisible. Deleting the line would have left the health
+page green while the grant persisted until a re-consent. Not fixed this session; logged.
+
+**Also found while surveying, not fixed.** Four functions with zero callers anywhere in
+`src/`, `scripts/` or `middleware.ts`: `upsertCalendarEvent` (the `calendar.events`
+write scope is granted on all three mailboxes and backs no code since `leads/calendar.ts`
+was deleted on 10-08); `restoreExcludedDocument` — the undo behind `/decide`'s own
+"Reversible, and the nightly Drive sync will not bring it back" dialog copy;
+`countMisfiledRecordDocuments`, written so the sidebar badge would match its page, which
+is why `countDecideItems()` still omits the wrong-deal rows and the pending field
+proposals it links to; and `retryFailedTriage`. Richard asked to skip the calendar work
+(he does not want calendar clutter), so `upsertCalendarEvent` stays as it is
+deliberately. `site_visit_date` and `rfi_due_date` are extracted on every lead and have
+**zero** coverage in `attention.ts`, which reads `bid_due_date` only.
+
+**Files:** new `src/lib/curator/contacts.ts`, `src/lib/curator/signatures.ts` (+ both
+test files, 15 new tests), `scripts/measure-rolodex.mts`. Changed
+`src/lib/curator/{fold,run,evidence}.ts`, `src/lib/pepper/{assemble,render}.ts`,
+`src/app/api/cron/curator/route.ts`,
+`src/lib/integrations/google-workspace.ts` (comment only).
+`npx tsc --noEmit` clean; `npm test` 456 pass / 0 fail (39 files; 15 of the tests are new here); eslint **23 problems (13
+errors, 10 warnings)** — identical to the §9 baseline.
 
 **Done 2026-10-15 (the TensorIQ partnership becomes arithmetic, and the agreement's own illustration is the test):**
 

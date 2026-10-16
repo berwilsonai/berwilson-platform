@@ -16,6 +16,7 @@
 import { assertPepper, provDb } from '@/lib/provenance/db'
 import { applyPeople, curateRecord, type CurateOutcome, type PersonMention, type PersonOutcome } from './fold'
 import { runPeopleSweep, type PeopleSweepResult } from './people'
+import { runContactSweep, type ContactSweepResult } from './contacts'
 import type { RecordKind } from './evidence'
 
 export interface CuratorRunResult {
@@ -41,6 +42,14 @@ export interface CuratorRunResult {
    * §12: two quantities must be named apart and never summed.
    */
   peopleSweep: PeopleSweepResult | null
+  /**
+   * The reciprocity sweep — the one pass that CREATES a record.
+   *
+   * ⚠ NAMESPACED FOR THE SAME REASON AS `peopleSweep`, and more so: a contact
+   * CREATED and a field FILLED are different events to a reader, so they are
+   * never added together (§12 — one quantity, one definition).
+   */
+  contactSweep: ContactSweepResult | null
   /** Named in the mail, matched to no contact. Reported, never created (§11). */
   unmatchedPeople: string[]
   errors: string[]
@@ -68,6 +77,7 @@ export async function runCurator(
     outcomes: [],
     peopleOutcomes: [],
     peopleSweep: null,
+    contactSweep: null,
     unmatchedPeople: [],
     errors: [],
   }
@@ -179,6 +189,27 @@ export async function runCurator(
     // pass noticed it — and `unmatchedPeople` is already a deduped set.
     const unmatched = new Set([...result.unmatchedPeople, ...sweep.unmatched])
     result.unmatchedPeople = [...unmatched]
+
+    // ── The contacts nobody typed ────────────────────────────────────────────
+    //
+    // ⚠ LAST OF ALL, AND AFTER BOTH ENRICHMENT PASSES. This is the only pass
+    // that creates a `parties` row, so everything that could have MATCHED an
+    // existing contact has already run: a name the record pass or the rolodex
+    // sweep resolved is a name this pass finds in the directory rather than
+    // creates beside it.
+    //
+    // ⚠ `only` SKIPS IT, exactly as it skips the rolodex sweep — a narrow
+    // debugging flag must not create 54 contacts.
+    const contacts = await runContactSweep({ dryRun })
+    result.contactSweep = contacts
+    if (!contacts.ok) {
+      result.ok = false
+      for (const e of contacts.errors) result.errors.push(`contact sweep: ${e}`)
+    }
+    // A created contact's own fields are reported inside `contactSweep`, and
+    // are deliberately NOT added to `fieldsWritten`: filling a blank on a
+    // record that existed and bringing a record into being are not the same
+    // act, and §11's amendment is about the second one only.
   }
 
   return result

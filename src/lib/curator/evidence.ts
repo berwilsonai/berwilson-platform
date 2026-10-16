@@ -75,6 +75,14 @@ export interface ThreadPerson {
   email?: string | null
   role?: string | null
   is_organization?: boolean | null
+  /**
+   * ⚠ NOT PART OF THE MODEL'S EXTRACTION — the thread summary carries no
+   * number. It is filled by `curator/contacts.ts` from the sender's own
+   * signature (`curator/signatures.ts`), which is why it is optional here and
+   * absent on every mention the record pass builds. `parties.phone` was the
+   * emptiest column in the writable registry (82 of 97 blank, 2026-10-15).
+   */
+  phone?: string | null
 }
 
 export interface EvidenceItem {
