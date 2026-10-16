@@ -11,7 +11,158 @@ Split out of `CLAUDE.md` on 2026-09-23, when that file reached 606k characters a
 - A block of **2026-08-23 → 2026-08-31** entries sits *after* the June entries, near the end of the file.
 - One **2026-07-03** entry ("migrations applied + pursuit profile seeded") is last in the file.
 
-170 entries, 2026-06-22 → 2026-10-15. ⚠ Counted with `grep -c "^\*\*Done 2026"`, not incremented by hand: two sessions editing this file on 2026-10-08 each bumped the old figure by one and both landed on 146 against a real 148.
+173 entries, 2026-06-22 → 2026-10-15. ⚠ Counted with `grep -c "^\*\*Done 2026"`, not incremented by hand: two sessions editing this file on 2026-10-08 each bumped the old figure by one and both landed on 146 against a real 148.
+
+**Done 2026-10-15 (the TensorIQ partnership becomes arithmetic, and the agreement's own illustration is the test):**
+
+Richard asked for a calculation layer: read the correspondence, populate the deal details and the
+revenue opportunities, and build the formulas in — what a data center or power opportunity is worth
+to Ber Wilson under the TensorIQ Master Strategic Partnership Agreement, plus a sanity check on the
+project economics TensorIQ presents. He supplied a long specification of the fee schedule, the role
+protection stages, and TensorIQ's own project model, with two validation cases to reproduce.
+
+**The first thing measured was whether the specification was true**, because it arrived as prose and
+the authority is a signed document. Both are in the corpus: the executed
+`BerWilson_TensorIQ_Master_Strategic_Partnership_Agreement_v6.5` (147,079 characters) and
+`PCA_01_Steelton_PA_signed`, signed by Jonathan Houk and Sterling Orr on 2026-10-12. Schedule 1 and
+Sections 8.5 / 8.7 / 8.9 / 8.12 / 9.4 check out line for line — the marginal tiers, the 7.0% EPCM and
+12.0% converted Scope B rates, the 9.0% aggregate fee cap and its reduction order, the 0.5%
+preconstruction fee, the 1.5% utility coordination fee, the 10/25/40% protection stages, the
+$50k/$150k per-MW fallback and the 3.0%/2.5% cap. Nothing in the paste had drifted. **So the
+agreement's own $1.0B fee illustration became the test**, and `fees.test.ts` now asserts every line
+of that contract table: A $26.0M on $700M, B $14.0M at 7%, C $6.0M, D $30.0M, preconstruction $5.0M,
+total $81.0M (8.1%), and the converted case at $91.0M with Scope A–D at 8.6% still inside the cap.
+
+⚠ **THE ILLUSTRATION CANNOT DISTINGUISH THE PRECONSTRUCTION FEE BASE FROM TPC, BECAUSE ITS NUMBERS
+COINCIDE.** The base is "estimated Cost of the Work for the engaged Scope", and in the illustration
+A+B+C is $700M + $200M + $100M = $1,000M, which happens to equal the $1.0B TPC exactly. Both
+readings give $5.0M, so the worked example is no evidence of which is right — and on any real phase
+carrying soft costs inside TPC, or with land excluded from it, the two diverge. Implemented off the
+scope costs, with a test that moves TPC to $1.2B and asserts the fee does not follow it.
+
+⚠ **STEELTON'S PLANNED IT CAPACITY AND ITS OWN GRID ROADMAP DO NOT MEET.** PCA item 3 reads "Planned
+IT Capacity and phasing — Up to 900 MW", and the MSPA defines Planned IT Capacity as IT load, so the
+basis is contractually settled: 900 IT MW needs about **1,260 utility MW** at PUE 1.4, and 1,080 even
+at immersion's 1.2. But the same record's Grid Expansion Roadmap reads Phase 1 300 MW / Phase 2
+500 MW / Phase 3 700 MW, PPL's interconnection "supports up to 300 MW" today, the existing
+configuration is 120 MW, and $135,000,000 at closing buys the first 120 MW. Either the 900 is utility
+load mislabelled as Planned IT Capacity in a signed agreement, or the project needs roughly 560 MW
+more than its own roadmap plans for. Nothing in the corpus resolves it, and it is the single most
+consequential open question on the deal — a factor-of-1.4 error on every fee, cost and return below.
+
+⚠ **AND SEEDING THE PHASES FROM THAT ROADMAP IS HOW THE ERROR PROPAGATES.** Entered as increments,
+300 / 500 / 700 is 1,500 MW against a 900 MW cap, and every fee downstream inherits it — the smoke
+test produced $1.40B of fees that way before anything noticed. Nothing in the chain was watching, so
+`assess.ts` now refuses a phase list summing past the project's own capacity and says the figures are
+probably cumulative rather than incremental.
+
+**TensorIQ's model was reimplemented beside the contract half and deliberately kept at a different
+confidence.** The tearsheet Sterling Orr sent at 00:03 on 10-15 (`TLH_74MW_14OCT2026`) was already
+indexed in `thread_chunks` — 27 passages, 52,584 characters — and publishes every intermediate
+figure, so `sizing.test.ts` reproduces it rather than trusting the paste: 3,384 servers, effective
+overhead ×1.47, **52.9 IT MW**, **74.0 utility MW**, 177,688 sqft, 3,203,145 available GPU-hours per
+utility MW-year, **$3.26B** hardware at $120K/GPU and $61.6M per IT MW, **$586M** direct facility and
+**$710.3M** loaded at 21.1% — the last to within 0.03%. The annual stack reproduces too: $127.9M
+lease, $58.4M power, $74.0M opex, $186.2M rack rent, $260.3M total.
+
+⚠ **STERLING'S "~$10.5M PER MW" IS THE RE DEVCO FIGURE, NOT THE FACILITY FIGURE.** His covering note
+said to extrapolate from the example at that rate. The loaded facility is **$9.6M per utility MW**;
+the RE DevCo, which adds property at $1M/MW, is **$10.6M**. Land purchase price is excluded from Total
+Project Cost by Section 8.6, so extrapolating a Cost of the Work base at $10.5M/MW quietly puts
+excluded land into a Schedule 1 fee base. A test asserts which of the two figures the number is nearer.
+
+⚠ **WE CANNOT RECONSTRUCT THEIR 14.9x MOIC / 72% IRR, AND DO NOT PRETEND TO.** Their expense stack
+reproduces to within 1%, but the equity base does not: $149.4M against $3.97B of capex is under 4%,
+and it depends on the drawdown timing of a ~$1.9B customer prepayment, the tax and depreciation
+schedule, the community-benefit charge and the IT sustaining reserve — none of which we were sent. At
+that leverage small changes in those internals move MOIC by multiples. Every scenario therefore
+carries the divergence as a caveat naming their published figure beside ours. **A reconstruction
+presented as their number would be the worst of both.**
+
+⚠ **THREE INCONSISTENCIES FOUND IN THE MODEL ITSELF.** (1) The stated power blend does not produce
+the stated rate: 80% grid at $0.09 and 20% behind-the-meter at $0.18 blends to **$0.108/kWh**, against
+the $0.09 used — a 16.7% understatement of a $58.4M/year line, about $11.7M. (2) The RE DevCo's
+construction loan-to-cost and permanent loan-to-value are **both 65%**, which makes leverage exactly
+multiple-neutral, since (value − 0.65·value) ÷ (cost − 0.65·cost) reduces to value ÷ cost. Levered
+and unlevered multiples are identical by construction, so a published 5.0x levered against ~2.0x
+unlevered cannot come from this capital structure. (3) At an 8% cap rate the permanent loan ($1.02B)
+**exceeds total cost** ($784M), so the refinance returns every dollar of equity and $235M besides —
+a result produced entirely by the cap-rate assumption, not by the development. Also corrected a basis
+error of our own on the way: striking the RE lease on improvements net of land gave NOI of $113.7M
+against the published $125M, and on total cost it gives $125.5M and a $1.569B value, matching both.
+
+**All 26 records were classified**, not just the ones with figures: **8 in scope, 8 covered but
+unsized, 10 not MSPA deals at all** — a garage conversion, a state office building, two mining JVs and
+a plumbing company among them, each with its reason written down, because running Schedule 1 fee logic
+over them would produce a number that looks real and means nothing. Every capacity figure carries its
+source quotation and the figures that disagree with it, and `measure-mspa-register.mts` checks the
+register against the live database rather than trusting what was typed: **26 of 26 agree**. The honest
+headline is in that summary — **8 records have a stated MW, only 3 have a confirmed basis, 1 has a
+signed PCA, and NONE has a cost estimate**, which is why every fee figure on the page rests on the
+TensorIQ facility model and says so.
+
+Worth recording what the corpus actually holds, since five of the eight sized records disagree with
+themselves: Weirton carries 300 MW now plus a 200–300 MW ramp, but also "Total Ramp = 400MW" and
+"= 220MW" in the same material, substations rated 480 MW, and a 900 MW figure — the same 900 that
+appears on Steelton and Riverdale, which is worth confirming is three figures and not one copied
+across three teasers. ⚠ A PPL "Will Serve" letter for 120 MW sits in **Weirton's** correspondence,
+and PPL is a Pennsylvania utility. Riverdale's only contracted number is a 65 MW ESA against "up to
+900MW" of ambition. Zorro spans **15 MW to 75 MW** on one record. Stockton's envelope is "a generic
+300 MW" in its own words, and the corpus also contains "1,011,984 MW", which is an artefact and must
+never be read as a figure. Whiskey is the clean one and the useful one: **74.9 MW is an Oncor
+interconnection tranche**, so unambiguously utility load, deliberately set just under the 75 MW
+threshold — and at PUE 1.4 it carries 53.5 IT MW, which makes it the one record on the register
+directly comparable to TensorIQ's own worked example. Its facility lands on $9.6M per utility MW.
+
+**Part F's flags fire on the real documents, which is the only test that matters for a flag.**
+TensorIQ's pipeline report carries **"Western, WV – 800 GW"** (800,000 MW, roughly two-thirds of total
+US generating capacity, and it collides with Weirton on the register), **"Newport, AK – 140 MW"**
+(there is no Newport, Alaska; Newport, Arkansas is real and AR is one keystroke from AK),
+**"Calgary, CA – 2,000 MW"** (Alberta, and "CA" reads as California in a US state column), an
+**"Allentown, PA – 120 MW"** line we treat as retired (Steelton is in Dauphin County, ~80 miles away,
+so probably not the same site — but close enough to need asking), and a claimed **3,867 MW of powered
+projects** against its own tracked pipeline of **73.3–93.4 MW**, a **41x** gap. ⚠ **Eagle Mountain is
+named on the Project Register with no record on the platform at all**, so nothing can be sized for it.
+The 16 pipeline rows are stored with their bare percentages as "TensorIQ stated confidence, definition
+unconfirmed"; nothing converts one to a probability or weights a figure by it.
+
+⚠ **A SELF-MATCH CHECK RUN AGAINST OUR OWN RECORDS FLAGS THEM AGAINST THEMSELVES** — "Steelton may be
+Steelton, PA on Ber Wilson's register" — which is noise that trains a reader to ignore the flag list
+entirely. The register-collision check is for a counterparty's label only now, with a test asserting
+no in-scope record collides with itself and that an external "Chicago, IL" line still does.
+
+⚠ **AND A LISTED ROUTE IS NOT AN ANSWERING ONE.** `/mspa` is admin-only by default-deny, so a curl
+returns 307 exactly as `/calc` does — which proves middleware works and nothing else, and the Chrome
+profile on the box is not signed in. `scripts/verify-mspa-render.tsx` renders the component tree
+directly for all 26 records across three input modes — **78 renders** — and asserts no `NaN`,
+`undefined` or `Infinity` reaches the markup, since a bare em dash reads as a failed render and `NaN`
+reads as a number. Getting it to run cost three tooling failures none of which `tsc` or `next build`
+can see: Node's own TypeScript handling does not do JSX, so a `.tsx` import dies with
+`ERR_UNKNOWN_FILE_EXTENSION` under `deploy/register.mjs`; as a `.mts` it is native ESM and cannot
+`require()` the component (`ERR_REQUIRE_CYCLE_MODULE`); and the component importing from the
+`@/lib/mspa` barrel closed that cycle, because the barrel re-exports `assess`, which the script
+imports directly. It is a `.tsx` run under tsx, importing specific modules, with default exports added
+to `assess.ts` and `params.ts` for the same reason `register.ts` already had one.
+
+**What it produces.** Steelton at 900 IT MW / 1,260 utility MW, Stage 2 (Secured) on every phase by
+the PCA's own words, scopes A–D plus utility coordination, Schedule 1 unvaried, Scope B at 7.0% EPCM
+with the conversion exception expressly "none", and a power role protection amount left blank — which
+means **$0**, because the PCA says "If blank, no amount is implied." Its protection goes down the
+per-MW fallback at $150,000 per affected IT MW, **$135M**, uncapped and flagged as such: ⚠ **the
+fallback exists precisely because no cost estimate exists, yet the agreement subjects even that figure
+to a cap expressed as a percentage of estimated TPC.** With no estimate there is no cap to apply, so
+the number is a ceiling-free maximum and the result says so rather than presenting it as settled.
+Whiskey at 74.9 utility MW produces $63.0M of fees on a $718.6M modelled TPC, 8.27% against the 9.0%
+cap, Stage 1 protection of $2.7M, and no blockers — the only in-scope record with none, because its
+basis is known.
+
+61 tests in `src/lib/mspa`, 456 across the platform, lint clean, typecheck clean, build exits 0 with
+`/mspa` registered, `tailnet-setup.sh` asserting both listeners and all three endpoints at 200/401,
+`lmstudio-check.sh` green with both models loaded at 131072 and no orphaned backend. ⚠ The box is
+paging again — 11.5GB of swap, 115MB free, 27.7GB wired against 36GB — but it is one properly
+parented llama-server holding 20.6GB, which is the documented cost of the 131k window, not the
+invisible second copy found on 10-15. `lms unload` before any OCR or re-embed pass, as the runbook
+says. (DEPLOYED + PUSHED)
 
 **Done 2026-10-15 (in-person meetings start working, and the box stops paging — both were one invisible thing):**
 
