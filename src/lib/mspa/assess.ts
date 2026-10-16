@@ -395,3 +395,16 @@ export function assessOpportunity(spec: OpportunitySpec): Assessment {
     missing,
   }
 }
+
+/**
+ * Default export, so a verification script can import this module.
+ *
+ * ⚠ A SCRIPT CANNOT RELIABLY NAMED-IMPORT FROM `src/lib` — Node's own TypeScript
+ * handling does not surface every named export to an ESM importer, and the
+ * failure is a `SyntaxError: does not provide an export named …` at load time
+ * rather than anything a typecheck catches (CLAUDE.md §12). The default export
+ * is the way in; `scripts/verify-mspa-render.mts` uses it.
+ */
+const assessModule = { assessOpportunity }
+
+export default assessModule

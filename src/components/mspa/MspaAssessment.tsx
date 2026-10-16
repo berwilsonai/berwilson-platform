@@ -2,14 +2,15 @@ import Link from 'next/link'
 import { Panel, PanelHeader } from '@/components/ui/card'
 import { Chip } from '@/components/ui/chip'
 import { formatMoney, formatValue } from '@/lib/utils/constants'
-import {
-  COOLING_LABELS,
-  MW_BASIS_LABELS,
-  SCOPE_FEE_BASE_LABELS,
-  type Assessment,
-  type Flag,
-  type FlagSeverity,
-} from '@/lib/mspa'
+// ⚠ IMPORTED FROM THE SPECIFIC MODULES, NOT FROM THE BARREL. `@/lib/mspa`
+// re-exports `assess`, which a verification script also imports directly, and
+// the two paths form a require cycle under Node's CJS interop
+// (ERR_REQUIRE_CYCLE_MODULE). It typechecks and builds either way; only the
+// script fails, at load time.
+import type { Assessment } from '@/lib/mspa/assess'
+import { COOLING_LABELS, MW_BASIS_LABELS } from '@/lib/mspa/capacity'
+import { SCOPE_FEE_BASE_LABELS } from '@/lib/mspa/fees'
+import type { Flag, FlagSeverity } from '@/lib/mspa/flags'
 
 /**
  * The assessment, rendered in Part E's order.

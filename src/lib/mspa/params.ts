@@ -162,3 +162,8 @@ export function paramsFromSpec(spec: OpportunitySpec): string {
   }
   return p.toString()
 }
+
+/** Default export, for the same reason as `assess.ts` — see the note there. */
+const paramsModule = { specFromParams, paramsFromSpec, recordFromParams }
+
+export default paramsModule
