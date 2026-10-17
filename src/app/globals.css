@@ -13,6 +13,30 @@
   --text-xs--line-height: 1.4;
   --text-sm: 0.90625rem;  /* 14.5px, was 14px */
   --text-sm--line-height: 1.45;
+  /* ── The rest of the ladder ───────────────────────────────────────────────
+     Only xs and sm were tokenised, so the five sizes above them were stock
+     Tailwind and lived nowhere — which meant the scale could not be adjusted
+     in one place, which is the whole reason the type looks unconsidered at the
+     top end (69 h1 elements in 25 different spellings).
+
+     ⚠ THESE ARE DELIBERATELY SET TO TAILWIND'S OWN DEFAULTS, TO THE EXACT
+     VALUE. Tokenising the ladder is structural; changing it is a design
+     decision, and this file's own xs/sm comment shows the two are easy to
+     conflate. Phase 1 of the UI work ships with zero visual diff on purpose —
+     that is what makes it safe to deploy mid-week — so the numbers move only
+     when a direction has been chosen, and then they move HERE, once.
+
+     Line-heights keep Tailwind's ratio form so they scale with the size. */
+  --text-base: 1rem;         /* 16px */
+  --text-base--line-height: calc(1.5 / 1);
+  --text-lg: 1.125rem;       /* 18px */
+  --text-lg--line-height: calc(1.75 / 1.125);
+  --text-xl: 1.25rem;        /* 20px */
+  --text-xl--line-height: calc(1.75 / 1.25);
+  --text-2xl: 1.5rem;        /* 24px */
+  --text-2xl--line-height: calc(2 / 1.5);
+  --text-3xl: 1.875rem;      /* 30px */
+  --text-3xl--line-height: calc(2.25 / 1.875);
 }
 
 @theme inline {
@@ -40,6 +64,20 @@
   --color-input: var(--input);
   --color-border: var(--border);
   --color-destructive: var(--destructive);
+  /* Status tones → `text-positive`, `bg-caution-surface`, `ring-critical-edge`.
+     Declared here so one class carries both themes; see the block in :root. */
+  --color-positive: var(--positive);
+  --color-positive-surface: var(--positive-surface);
+  --color-positive-edge: var(--positive-edge);
+  --color-caution: var(--caution);
+  --color-caution-surface: var(--caution-surface);
+  --color-caution-edge: var(--caution-edge);
+  --color-critical: var(--critical);
+  --color-critical-surface: var(--critical-surface);
+  --color-critical-edge: var(--critical-edge);
+  --color-info: var(--info);
+  --color-info-surface: var(--info-surface);
+  --color-info-edge: var(--info-edge);
   --color-accent-foreground: var(--accent-foreground);
   --color-accent: var(--accent);
   --color-muted-foreground: var(--muted-foreground);
@@ -108,6 +146,49 @@
   --sidebar-accent-foreground: oklch(0.92 0 0);
   --sidebar-border: oklch(0.25 0.02 260);
   --sidebar-ring: oklch(0.55 0.08 260);
+
+  /* ── Status tones ──────────────────────────────────────────────────────────
+     Four meanings, three slots each: `ink` for text and icons, `surface` for a
+     tinted block, `edge` for the ring that holds it. A Tailwind utility built
+     on these carries BOTH themes in one class — `text-caution` rather than
+     `text-amber-600 dark:text-amber-400` — which is the point: it makes a
+     missing `dark:` variant impossible rather than merely discouraged.
+
+     MEASURED, NOT CHOSEN (src/lib/ui/contrast.ts, asserted in tone.test.ts).
+     Every ink clears 4.5:1 on the card AND on its own surface, in both themes;
+     the worst case is `positive` on its own surface at 4.74:1, and `caution`
+     had to come down from L 0.55 to L 0.52 to clear it at all — yellow always
+     does. ⚠ AND THE `edge` IS LOAD-BEARING IN LIGHT MODE: the canvas is
+     oklch(0.976) and these surfaces are 0.964–0.968, so a tinted block on the
+     bare background reads at just 1.02–1.06:1. On a white card it is 1.10:1 and
+     fine. Off a card, the ring is the only thing that gives the block an edge —
+     do not drop it to "simplify".
+
+     ⚠ `--critical` IS NOT `--destructive`, and they must not be aliased.
+     `destructive` is a destructive ACTION — the Delete button, shadcn's
+     semantics. `critical` is a STATUS — a blocker diligence item, an overdue
+     close. Collapsing them is how you end up with a red Save button. */
+  --positive: oklch(0.52 0.12 155);
+  --positive-surface: oklch(0.965 0.028 155);
+  --positive-edge: oklch(0.88 0.055 155);
+  --caution: oklch(0.52 0.105 75);
+  --caution-surface: oklch(0.968 0.034 85);
+  --caution-edge: oklch(0.88 0.065 85);
+  --critical: oklch(0.52 0.19 25);
+  --critical-surface: oklch(0.966 0.030 25);
+  --critical-edge: oklch(0.88 0.065 25);
+  --info: oklch(0.48 0.10 250);
+  --info-surface: oklch(0.964 0.022 250);
+  --info-edge: oklch(0.88 0.045 250);
+
+  /* ── Motion ───────────────────────────────────────────────────────────────
+     There were no duration tokens, so dialog animated at 100ms, sheet at 200ms
+     and `.lift` at a hardcoded 0.2s — three answers to one question. The
+     reduced-motion block at the foot of this file still overrides all of it. */
+  --dur-fast: 120ms;
+  --dur: 200ms;     /* the value `.lift` already used, so adopting it moves nothing */
+  --dur-slow: 260ms;
+  --ease: cubic-bezier(0.2, 0, 0, 1);
 }
 
 .dark {
@@ -146,6 +227,26 @@
   --sidebar-accent-foreground: oklch(0.92 0 0);
   --sidebar-border: oklch(0.30 0.02 260);
   --sidebar-ring: oklch(0.55 0.08 260);
+
+  /* Status tones, dark. REAL second values, not the same numbers — see
+     `--chart-*` directly above, which is identical in both themes and only
+     gets away with it because nothing renders it yet. Ink is lightened and
+     surfaces are a dim tint of the same hue; every pair was re-measured
+     against the dark CARD (oklch(0.205)) rather than against black, which is
+     the mistake that makes dark palettes look fine and read badly. Worst case
+     here is `critical` ink on its own surface at 5.76:1. */
+  --positive: oklch(0.80 0.14 158);
+  --positive-surface: oklch(0.30 0.05 158);
+  --positive-edge: oklch(0.45 0.08 158);
+  --caution: oklch(0.84 0.13 85);
+  --caution-surface: oklch(0.31 0.05 85);
+  --caution-edge: oklch(0.46 0.08 85);
+  --critical: oklch(0.75 0.16 25);
+  --critical-surface: oklch(0.30 0.06 25);
+  --critical-edge: oklch(0.45 0.09 25);
+  --info: oklch(0.78 0.11 250);
+  --info-surface: oklch(0.30 0.05 250);
+  --info-edge: oklch(0.45 0.07 250);
 }
 
 @layer base {
@@ -263,7 +364,10 @@
 
 /* Interactive lift — for clickable cards/tiles. Pairs with .elev-1 at rest. */
 .lift {
-  transition: box-shadow 0.2s ease, transform 0.2s ease, border-color 0.2s ease;
+  /* Durations come from the token; the easing is still `ease` on purpose —
+     swapping in `var(--ease)` would change the curve, and this phase changes
+     no pixels. The curve moves when a direction is chosen. */
+  transition: box-shadow var(--dur) ease, transform var(--dur) ease, border-color var(--dur) ease;
 }
 .lift:hover {
   box-shadow: var(--elev-3);

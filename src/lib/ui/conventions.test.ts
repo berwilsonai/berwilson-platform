@@ -1,0 +1,161 @@
+import { test } from 'node:test'
+import assert from 'node:assert/strict'
+import { existsSync, readdirSync, statSync } from 'node:fs'
+import { join } from 'node:path'
+
+import { count, scan, sourceFiles } from './source-scan'
+
+/**
+ * The house conventions, as assertions over the source tree.
+ *
+ * ⚠ EVERY NUMBER HERE IS A RATCHET, NOT A TARGET. Each asserts "no worse than
+ * the baseline recorded on this date". Two sessions share this repo, so a test
+ * that demanded perfection would block the other one's unrelated work; a test
+ * that only forbids REGRESSION never does. When a count drops, lower the
+ * baseline in the same commit — that is the progress record.
+ *
+ * ⚠ AND THE COUNTS STRIP COMMENTS FIRST (see source-scan.ts). A naive grep for
+ * `focus:` finds 2 hits and both are docblocks explaining why it is banned, so
+ * a ratchet on the raw number could never reach zero and would be ignored.
+ *
+ * This is not a lint rule because ESLint cannot see a Tailwind class string, or
+ * that a particular `div` is secretly a `Panel`. The repo's lint baseline is a
+ * deliberately frozen 23 problems (§9) and this must not disturb it.
+ *
+ * Several of these encode a §12 rule mechanically for the first time.
+ */
+
+const BASELINE_DATE = '2026-10-17'
+
+// ─── invariants already held: these must stay at zero ────────────────────────
+
+test('focus: is never used — it fires on a mouse click too', () => {
+  // §12. Measured 0 real uses against 396 `focus-visible:`; the convention is
+  // fully honoured and the only job here is keeping it that way.
+  const hits = scan(/(?:^|[^-\w])focus:[a-z-]/)
+  assert.deepEqual(
+    hits.map((h) => `${h.file}:${h.line}`),
+    [],
+    'use focus-visible: — see button.tsx for the idiom'
+  )
+})
+
+test('no window.alert or window.confirm', () => {
+  // `ui/confirm-dialog.tsx` exists and 34 files use it.
+  const hits = scan(/window\.(?:alert|confirm)\(/)
+  assert.deepEqual(hits.map((h) => `${h.file}:${h.line}`), [])
+})
+
+test('no loading.tsx at a route group ROOT', () => {
+  // §12: a `loading.tsx` at a route group's root 500s the whole route, and a
+  // build that exits 0 having listed the route is not evidence it answers. In a
+  // subsegment it is fine and necessary. This is the first mechanical check for
+  // it — until now the rule was prose and had already cost the hours once.
+  const groups: string[] = []
+  const walk = (dir: string) => {
+    for (const entry of readdirSync(dir)) {
+      const full = join(dir, entry)
+      if (!statSync(full).isDirectory()) continue
+      if (entry.startsWith('(') && entry.endsWith(')')) groups.push(full)
+      walk(full)
+    }
+  }
+  walk('src/app')
+  assert.ok(groups.length > 0, 'expected at least one route group — has the layout changed?')
+  for (const g of groups) {
+    assert.ok(!existsSync(join(g, 'loading.tsx')), `${g}/loading.tsx will 500 the whole route`)
+  }
+})
+
+test('a Tailwind class is never assembled from a variable', () => {
+  // §12: a Tailwind class string stored in the database is never generated —
+  // and the same is true of one built by interpolation at runtime.
+  //
+  // ⚠ THE LOOKBEHIND IS LOAD-BEARING. Written as `(?:bg|text|ring|border)-\$\{`
+  // this matched `pepper-text-${Date.now()}` in notify/text.ts — a temp
+  // FILENAME, not a class. That is §12's own trap ("a substring hint matches
+  // any word that CONTAINS it", the one that put `title` inside
+  // `Entitlements`), so the prefix must start a token rather than end one.
+  const hits = scan(/(?<![\w-])(?:bg|text|ring|border)-\$\{/)
+  assert.deepEqual(hits.map((h) => `${h.file}:${h.line}`), [])
+})
+
+// ─── ratchets: these must shrink, never grow ─────────────────────────────────
+
+/** Assert a count is at or below its baseline, and say so usefully when not. */
+function ratchet(label: string, actual: number, baseline: number, fix: string) {
+  assert.ok(
+    actual <= baseline,
+    `${label}: ${actual}, up from the ${BASELINE_DATE} baseline of ${baseline}. ${fix}`
+  )
+}
+
+test(`the card shell is converging on Panel (baseline ${BASELINE_DATE})`, () => {
+  // `Panel` (ui/card.tsx) is the card and is used 107 times, but the shell is
+  // still hand-written — and the dominant hand-rolled radius disagrees with
+  // Panel's own `rounded-xl`, so two card radii appear on one screen.
+  //
+  // ⚠ /settings/ui IS EXEMPT, AND THIS RATCHET IS WHY THE EXEMPTION IS NAMED
+  // RATHER THAN ABSORBED. It caught its own author within minutes: the style
+  // guide's elevation swatches pushed the count 84 → 86. They cannot be
+  // `Panel`s — Panel bakes in `elev-1`, so a swatch demonstrating `elev-2`
+  // would be showing two elevations at once. The style guide is the one file
+  // whose job is to render a primitive's raw ingredients. Raising the baseline
+  // instead would have been the easy move and would have retired the ratchet.
+  const files = sourceFiles().filter((f) => !f.endsWith('src/app/settings/ui/page.tsx'))
+  ratchet('hand-rolled card shell at rounded-lg', count(/rounded-lg border border-border bg-card/, files), 145,
+    'Use <Panel> from @/components/ui/card, or at least rounded-xl to match it.')
+  ratchet('hand-rolled card shell at rounded-xl', count(/rounded-xl border border-border bg-card/, files), 84,
+    'Use <Panel> from @/components/ui/card.')
+})
+
+test(`elevation is .elev-*, not raw shadow-* (baseline ${BASELINE_DATE})`, () => {
+  // §12 / §7. The remaining 15 include 5 legitimate SVG map markers.
+  ratchet('raw shadow-* in components', count(/shadow-(?:sm|md|lg|xl|2xl|\[)/, sourceFiles('src/components')), 15,
+    'Use .elev-1/.elev-2/.elev-3, declared in globals.css.')
+})
+
+test(`form controls come from field.tsx (baseline ${BASELINE_DATE})`, () => {
+  // §7. 39 local declarations remain; most now alias the shared constants, but
+  // the names keep the old pattern alive and two re-spell the control by hand
+  // with the wrong radius and no focus ring at all.
+  ratchet('local input/label/textarea class constants',
+    count(/const\s+(?:input|label|textarea)\w*(?:Class|Cls|Classes)\s*=/), 39,
+    'Import FIELD_CONTROL_CLASS etc. from @/lib/utils/field-classes, or use <Field>.')
+})
+
+test(`label-caps replaces its own longhand (baseline ${BASELINE_DATE})`, () => {
+  // `label-caps` is a real @utility (globals.css) used 303 times; these 256
+  // sites spell the same 11px uppercase label out by hand.
+  ratchet('text-[11px]', count(/text-\[11px\]/), 256, 'Use the label-caps utility.')
+})
+
+test(`colour is converging on tone names (baseline ${BASELINE_DATE})`, () => {
+  // The palette now lives in src/lib/ui/tone.ts as thirteen names. These are
+  // raw bg+text palette pairs still written inline or in a *_BADGE map.
+  // ⚠ tone.ts itself is excluded: it IS the palette, declared literally in
+  // source, which is the shape §12 mandates.
+  const files = sourceFiles().filter((f) => !f.endsWith('src/lib/ui/tone.ts'))
+  ratchet('raw colour pairs outside tone.ts',
+    count(/'[^']*\bbg-[a-z]+-\d+[^']*\btext-[a-z]+-\d+[^']*'/, files), 326,
+    'Use a Tone name: <Chip tone="caution">. See src/lib/ui/tone.ts.')
+})
+
+test('the slate ramp is not growing — it does not respond to the theme', () => {
+  // Measured 572 uses, of which ~90 are the print routes and the map, where
+  // fixed colours are CORRECT (a print view styled text-foreground would
+  // inherit dark mode). The rest are a dark-mode bug waiting to be noticed.
+  ratchet('slate-* utilities', count(/\b(?:bg|text|ring|border|from|to|via)-slate-\d+/), 572,
+    'Use the OKLCH neutrals (muted / muted-foreground / border) or tone "neutral". ' +
+    'Print routes are the deliberate exception.')
+})
+
+// ─── a floor, not a ceiling ──────────────────────────────────────────────────
+
+test('aria-current is only ever added, never removed', () => {
+  // The inverse ratchet. There are zero today: the sidebar's active row is
+  // purely visual, so a screen reader cannot tell which page it is on. Once
+  // the nav work lands this number only goes up.
+  const n = count(/aria-current/)
+  assert.ok(n >= 0, `aria-current count: ${n}`)
+})

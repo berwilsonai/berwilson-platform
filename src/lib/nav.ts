@@ -137,6 +137,10 @@ export const TITLE_EXTRAS: { href: string; title: string }[] = [
   { href: '/calendar', title: 'Calendar' },
   { href: '/email-ingestion', title: 'Intake' },
   { href: '/company/structure', title: 'Ber Wilson — Structure' },
+  // The style guide. URL-only and in no nav group on purpose: it is the
+  // instrument for checking the interface, not one of the company's working
+  // surfaces. Admin-only by the /settings prefix.
+  { href: '/settings/ui', title: 'Interface' },
 ]
 
 /** Palette-only rows (query-param destinations, secondary tabs). */
