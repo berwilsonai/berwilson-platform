@@ -13,6 +13,97 @@ Split out of `CLAUDE.md` on 2026-09-23, when that file reached 606k characters a
 
 176 entries, 2026-06-22 → 2026-10-17. ⚠ Counted with `grep -c "^\*\*Done 2026"`, not incremented by hand: two sessions editing this file on 2026-10-08 each bumped the old figure by one and both landed on 146 against a real 148.
 
+**Done 2026-10-17 (the redraw lands — direction C, and three things that only surface when you turn the knob):**
+
+Richard reconsidered A, then asked for the call outright: *"I don't mind if it is
+radical change. Just give me what you think will be the best for utility and to
+impress anyone that looks at it."* **C**, for a reason that is not visible in a
+swatch: at high density a shadow on every card turns a list of 181 documents into
+mush, so C's hairline borders are what keep it readable where A's and B's
+elevation starts working against them. It is also the only direction that makes
+§12's "colour only for status meaning" **structural** rather than remembered —
+nothing else on screen is coloured, so there is no decorative colour left to
+mistake for a signal. And monochrome-with-one-accent is the register that reads
+as technical and current to the people he screen-shares with.
+
+⚠ **One deviation from the candidate, and it mattered.** Stock C set `--primary`
+to near-black, which throws away the Ber Wilson blue and leaves a primary button
+unfindable beside black text. Monochrome done well is **zero-chroma neutrals plus
+exactly one chromatic role**, not the absence of colour — so the accent is the
+brand hue at real chroma: 8.68:1 as link text, 8.44:1 for a white label on the
+button, 7.02 / 7.37 in dark. The neutrals are *literally* chroma 0, asserted in
+`contrast.test.ts` rather than trusted, because a faintly blue grey is invisible
+in isolation and obvious in aggregate.
+
+Values were derived from the direction block programmatically rather than
+retyped, then every palette comment was rewritten: they described navy, a warm
+cream hover and "soft tinted shadows read more premium than a flat box-shadow",
+all false now, and §12 is explicit that a comment claiming a control that is not
+there is worse than no comment. Scaffolding deleted — `directions.css`, both
+preview components, both measuring scripts — which is exactly why they were
+separate files; and `readDirectionTokens()` went with them rather than being left
+pointing at a deleted path.
+
+⚠ **Turning the density knob shrank 66 touch targets below 44px, in 32 files.**
+`h-11` is `calc(var(--spacing) * 11)`: exactly 44px at Tailwind's 0.25rem default
+and **38.7px** at this palette's 0.22rem. So the change that makes more fit on a
+screen silently broke the tap target on the one device Richard actually carries,
+and nothing could report it — `tsc` passes, the build passes, and it only shows
+up under a thumb. A touch target is a PHYSICAL constraint and was never a spacing
+step; all 66 are now absolute `h-[2.75rem]` / `min-h-[2.75rem]` /
+`size-[2.75rem]`, the login logo is excluded as decorative, decorative `size-12`
+icon circles are deliberately left to scale, and a ratchet keeps them that way.
+The general lesson is in §12: before changing a token that feeds a `calc()`,
+enumerate what else derives from it — `--spacing` alone backs every padding,
+margin, gap, width and height class in the application.
+
+⚠ **WCAG contrast cannot see surface separation at the dark end, and that is a
+property of the metric.** The dark rail sat 1.03:1 from the canvas and visually
+merged into the page. Dropping it from L 0.155 all the way to L 0.085 moved the
+ratio to **1.031:1** — because the formula's `+0.05` offset swamps any lightness
+difference down there. The instrument was wrong, not the palette. Added
+`lightnessDelta()`: OKLCH lightness is perceptually uniform by construction, so
+one threshold works at both ends of the range, and the tests now assert surface
+separation that way. The rail recedes ΔL 0.035 below the canvas, which reads as
+recessed chrome. ⚠ And the new check immediately caught the **light** theme,
+where white cards on a 0.985 canvas is ΔL 0.015 — with no shadow at rest, that
+left a hairline border carrying a whole screen full of cards. Canvas deepened to
+0.962, ΔL 0.038. Neither of those would have been found by eye on this machine,
+and both would have been found by Richard.
+
+⚠ **A second `.dark` block, 120 lines further down `globals.css`, was winning.**
+The elevation tokens are declared in the `.dark` palette block *and* again under
+an "Elevation utilities" heading, so the new dark shadows sat at line 264 doing
+nothing while the old deep ones kept rendering — no error, light mode changing
+correctly, and the symptom reading as "dark mode just looks the same". One home
+now, with a comment saying it wins. The Postgres analogue was already in §12
+(`create or replace` OVERLOADS a changed signature).
+
+⚠ **Two tests were verifying a copy of the palette.** `contrast.test.ts`
+hardcoded the oklch values it asserted on, so the redraw changed every one of
+them and the test **kept passing while measuring colours that no longer existed
+anywhere in the codebase**. It reads `globals.css` now. The tell is a literal in
+a test that also exists in source: that is a duplicate, not a fixture.
+
+Checked before shipping, not after: only **4** elements used `elev-1`/`elev-2`
+without a border or ring, and all four are filled `bg-primary` buttons that need
+no shadow to read — so removing resting elevation left nothing invisible.
+`.lift` still uses `elev-3`, so an interactive card now rises from flat on
+hover, which suits the direction.
+
+Measured, both themes: body 20.3 / 17.9:1, muted 8.5 / 7.1:1, accent-as-link
+8.7 / 7.0:1, every status ink ≥ 5.6:1 on its own surface, rail label 15.7 /
+16.8:1, ΔL card/canvas 0.038 / 0.045. 514 tests pass (up from 510; four new
+assertions are about this palette's own stated rules — zero-chroma neutrals,
+shadowless resting surfaces, perceptible surface separation, and no
+spacing-derived tap target). Lint unchanged at 23 throughout. ⚠ **What is left is
+the half no measurement reaches:** whether 12% tighter is right on the dense
+screens, whether the accent stays scarce enough to mean "this is the action", and
+whether the recessed rail reads as chrome. That is Richard's to say, and the
+palette is one file now, so a change is cheap.
+
+---
+
 **Done 2026-10-17 (a measured token layer, and three directions to choose from):**
 
 Richard: *"How can I enhance the user interface and the user experience to make it
