@@ -67,28 +67,104 @@ export interface AttentionSummary {
  * work awaiting a call, it is counted by `countDecideItems()`, and the two are
  * never summed.
  */
+/**
+ * The four things the badge counts, named once.
+ *
+ * `countAttention()` head-counts exactly these and `computeAttention()` scores
+ * them among its ten categories. The list is here so the two cannot silently
+ * come to disagree about WHICH quantities "needs attention" means — the failure
+ * this whole module's docblock is about.
+ *
+ * `expiring_certification` reads `certifications`, which is a COMPANY record
+ * with no project at all. `expiring_compliance` in `AttentionSummary` is a
+ * different table (`compliance_items`) under a similar name; they are not
+ * interchangeable and must never be summed together.
+ */
+export const COUNTED_ATTENTION_KINDS = [
+  'overdue_milestone',
+  'critical_dd',
+  'overdue_task',
+  'expiring_certification',
+] as const
+
+export type CountedAttentionKind = (typeof COUNTED_ATTENTION_KINDS)[number]
+
+/**
+ * Exclude confidential projects from a head count, in SQL.
+ *
+ * ⚠ THE WHOLE REASON THIS EXISTS. `computeAttention()` filters with
+ * `dropHidden()` AFTER it has the rows, which a head count cannot do — it never
+ * receives any. So until 2026-10-17 the sidebar badge, which renders in the
+ * root layout on EVERY page for EVERY viewer, counted a confidential project's
+ * overdue milestones, overdue tasks and critical diligence items. §8 is
+ * explicit that containment keeps such a project out of "every aggregate", and
+ * a count is an aggregate.
+ *
+ * ⚠ AND IT MUST KEEP NULL `project_id` ROWS. These are §4 shared children:
+ * `milestones`, `dd_items` and `tasks` all hang off a project OR an
+ * opportunity, so project_id is nullable. A bare `.not('project_id','in',…)`
+ * is NULL for those rows and therefore not true, which would silently discard
+ * every opportunity-attached row — §12's `.neq()`-is-NULL trap, wearing a
+ * different operator. `dropHidden()` keeps them (`!id || !hidden.has(id)`), so
+ * this keeps them too: the two readers must filter identically or the badge and
+ * the list disagree again.
+ */
+export function hiddenProjectFilter(hidden: Set<string>): string | null {
+  if (hidden.size === 0) return null
+  // A uuid cannot contain a comma or a parenthesis, so this interpolation
+  // cannot break out of the filter — but §12 says the quoting IS the defence,
+  // so anything that is not a uuid is dropped rather than trusted.
+  const ids = [...hidden].filter((id) =>
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
+  )
+  if (ids.length === 0) return null
+  return `project_id.is.null,project_id.not.in.(${ids.join(',')})`
+}
+
+function excludeHidden<T extends { or: (f: string) => T }>(query: T, hidden: Set<string>): T {
+  const filter = hiddenProjectFilter(hidden)
+  return filter === null ? query : query.or(filter)
+}
+
 export async function countAttention(): Promise<number> {
   const supabase = createAdminClient()
   const today = new Date().toISOString().split('T')[0]
   const in90Days = new Date(Date.now() + 90 * 86_400_000).toISOString().split('T')[0]
 
+  // No viewer: containment, not access. A step-up opens a project's own pages,
+  // never a portfolio-wide aggregate, so this count is the same for both
+  // admins. Fails CLOSED — a transient error returns every project id, which
+  // reads the badge low rather than leaking a name.
+  const hidden = await hiddenProjectIds(null)
+
   const [{ count: overdueMilestones }, { count: criticalDd }, { count: overdueTasks }, { count: expiringCerts }] =
     await Promise.all([
-      supabase
-        .from('milestones')
-        .select('id', { count: 'exact', head: true })
-        .is('completed_at', null)
-        .lt('target_date', today),
-      supabase
-        .from('dd_items')
-        .select('id', { count: 'exact', head: true })
-        .neq('status', 'resolved')
-        .in('severity', ['critical', 'blocker']),
-      supabase
-        .from('tasks')
-        .select('id', { count: 'exact', head: true })
-        .eq('status', 'open')
-        .lt('due_date', today),
+      excludeHidden(
+        supabase
+          .from('milestones')
+          .select('id', { count: 'exact', head: true })
+          .is('completed_at', null)
+          .lt('target_date', today),
+        hidden
+      ),
+      excludeHidden(
+        supabase
+          .from('dd_items')
+          .select('id', { count: 'exact', head: true })
+          .neq('status', 'resolved')
+          .in('severity', ['critical', 'blocker']),
+        hidden
+      ),
+      excludeHidden(
+        supabase
+          .from('tasks')
+          .select('id', { count: 'exact', head: true })
+          .eq('status', 'open')
+          .lt('due_date', today),
+        hidden
+      ),
+      // NOT filtered, and not an oversight: `certifications` is a company-level
+      // record with no project_id to filter on. See COUNTED_ATTENTION_KINDS.
       supabase
         .from('certifications')
         .select('id', { count: 'exact', head: true })

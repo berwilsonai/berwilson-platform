@@ -530,6 +530,8 @@ export default async function DashboardPage({ searchParams }: PageProps) {
             overdueItems={overdueItems}
             ddItems={ddItems}
             reviewCount={visibleReview.length}
+            overdueCount={overdueCount}
+            ddCount={visibleDd.length}
             overdueTasks={overdueTasks}
             investorFollowUps={investorFollowUpsRaw ?? []}
             mailboxAlert={mailboxAlert}

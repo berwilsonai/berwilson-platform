@@ -38,7 +38,7 @@ import type { VehicleDocument } from '@/lib/spvs/documents'
 import type { VehiclePipeline } from '@/lib/spvs/portfolio'
 import ParticipantLedger from './ParticipantLedger'
 import VehicleDocuments from './VehicleDocuments'
-import { outbound, useApiCall, type Draft } from './use-api-call'
+import { outbound, useApiCall, type Draft } from '@/hooks/use-api-call'
 
 interface SpvCardProps {
   spv: ProjectSpv

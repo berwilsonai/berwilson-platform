@@ -1,8 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { Loader2 } from 'lucide-react'
+import { useApiCall } from '@/hooks/use-api-call'
 import { INVESTOR_STAGES, INVESTOR_STAGE_LABELS } from '@/lib/utils/investors'
 
 interface InvestorStageControlProps {
@@ -11,24 +11,23 @@ interface InvestorStageControlProps {
 }
 
 export default function InvestorStageControl({ investorId, stage }: InvestorStageControlProps) {
-  const router = useRouter()
-  const [saving, setSaving] = useState(false)
+  const { busy, call } = useApiCall()
   const [value, setValue] = useState(stage)
 
+  /**
+   * Optimistic, and reverted when the save fails — see the note in
+   * OpportunityStatusControl, which is the same control over a different
+   * column. A relationship stage that only LOOKS advanced is worse than one
+   * that visibly refused to move.
+   */
   async function change(next: string) {
+    const previous = value
     setValue(next)
-    setSaving(true)
-    try {
-      await fetch(`/api/investors/${investorId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ stage: next }),
-      })
-      router.refresh()
-    } finally {
-      setSaving(false)
-    }
+    const ok = await call('stage', `/api/investors/${investorId}`, 'PATCH', { stage: next })
+    if (!ok) setValue(previous)
   }
+
+  const saving = busy === 'stage'
 
   return (
     <div className="inline-flex items-center gap-1.5">
@@ -36,6 +35,7 @@ export default function InvestorStageControl({ investorId, stage }: InvestorStag
         value={value}
         onChange={(e) => change(e.target.value)}
         disabled={saving}
+        aria-label="Investor stage"
         className="h-8 rounded-md border border-input bg-background px-2.5 text-xs font-medium text-foreground outline-none focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-60"
       >
         {INVESTOR_STAGES.map((s) => (

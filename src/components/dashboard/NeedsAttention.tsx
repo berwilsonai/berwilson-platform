@@ -71,9 +71,18 @@ export type DinoPaymentDue = {
 }
 
 interface NeedsAttentionProps {
+  /**
+   * ⚠ THESE THREE ARRIVE ALREADY SLICED TO 6 (dashboard/page.tsx), so their
+   * `.length` is a display cap and NOT a count. Every number shown about them
+   * must come from the `*Count` props beside them. The other lists below
+   * arrive whole and are sliced at render, so for those `.length` is the truth.
+   */
   reviewItems: ReviewWithProject[]
   overdueItems: MilestoneWithProject[]
   ddItems: DdWithProject[]
+  /** True totals for the three sliced lists above. */
+  overdueCount: number
+  ddCount: number
   reviewCount: number
   overdueTasks?: TaskSummary[]
   investorFollowUps?: InvestorFollowUp[]
@@ -85,9 +94,33 @@ interface NeedsAttentionProps {
   leads?: LeadDue[]
 }
 
-export default function NeedsAttention({ reviewItems, overdueItems, ddItems, reviewCount, overdueTasks = [], investorFollowUps = [], mailboxAlert = null, expiringCerts = [], dinoPayments = [], leads = [] }: NeedsAttentionProps) {
+export default function NeedsAttention({ reviewItems, overdueItems, ddItems, reviewCount, overdueCount, ddCount, overdueTasks = [], investorFollowUps = [], mailboxAlert = null, expiringCerts = [], dinoPayments = [], leads = [] }: NeedsAttentionProps) {
   const hasCritical = !!mailboxAlert || expiringCerts.length > 0
   const hasAttention = hasCritical || reviewItems.length > 0 || overdueItems.length > 0 || ddItems.length > 0 || overdueTasks.length > 0 || investorFollowUps.length > 0 || dinoPayments.length > 0 || leads.length > 0
+
+  /**
+   * What this card's badge counts.
+   *
+   * ⚠ IT USED TO SUM `.length` OF THREE ALREADY-SLICED LISTS, so the header
+   * capped each of those contributions at 6 and the card under-reported itself
+   * by construction — a badge cap inventing a third quantity (§12). It now
+   * reads the true totals.
+   *
+   * ⚠ AND IT NO LONGER ADDS THE REVIEW QUEUE. That is the Decide backlog, an
+   * order of magnitude larger and counted by `countDecideItems()`; folding it
+   * in here is the exact mistake HealthPanel's docblock records making once
+   * already (the tile read 197 while the sidebar read 1). The review section
+   * still renders below with its own count — it is shown, not summed.
+   */
+  const attentionTotal =
+    overdueCount +
+    ddCount +
+    overdueTasks.length +
+    investorFollowUps.length +
+    dinoPayments.length +
+    leads.length +
+    expiringCerts.length +
+    (mailboxAlert ? 1 : 0)
 
   return (
     <div className="rounded-xl border border-border bg-card elev-1">
@@ -96,7 +129,7 @@ export default function NeedsAttention({ reviewItems, overdueItems, ddItems, rev
         <h2 className="label-caps text-muted-foreground">Needs Attention</h2>
         {hasAttention && (
           <span className="ml-auto text-xs font-medium tnum bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 rounded px-1.5 py-0.5">
-            {reviewItems.length + overdueItems.length + ddItems.length + overdueTasks.length + investorFollowUps.length + dinoPayments.length + leads.length + expiringCerts.length + (mailboxAlert ? 1 : 0)}
+            {attentionTotal}
           </span>
         )}
       </div>
@@ -336,7 +369,7 @@ export default function NeedsAttention({ reviewItems, overdueItems, ddItems, rev
                 <span className="label-caps text-muted-foreground">
                   Review Queue
                 </span>
-                <span className="ml-auto text-xs text-muted-foreground tnum">{reviewItems.length}</span>
+                <span className="ml-auto text-xs text-muted-foreground tnum">{reviewCount}</span>
               </div>
               <div className="space-y-1">
                 {reviewItems.map((item) => (
@@ -389,7 +422,7 @@ export default function NeedsAttention({ reviewItems, overdueItems, ddItems, rev
                 <span className="label-caps text-muted-foreground">
                   Overdue Milestones
                 </span>
-                <span className="ml-auto text-xs text-muted-foreground tnum">{overdueItems.length}</span>
+                <span className="ml-auto text-xs text-muted-foreground tnum">{overdueCount}</span>
               </div>
               <div className="space-y-1">
                 {overdueItems.map((m) => (
@@ -411,6 +444,15 @@ export default function NeedsAttention({ reviewItems, overdueItems, ddItems, rev
                     )}
                   </Link>
                 ))}
+                {/* Not a link yet: there is no cross-portfolio page for these, and
+                    `/attention` is not a route until the engine gets its UI. Saying
+                    the number is still better than truncating in silence, which is
+                    what this card did until 2026-10-17. */}
+                {overdueCount > overdueItems.length && (
+                  <p className="px-2 py-1 text-xs text-muted-foreground">
+                    +{overdueCount - overdueItems.length} more
+                  </p>
+                )}
               </div>
             </div>
           )}
@@ -424,7 +466,7 @@ export default function NeedsAttention({ reviewItems, overdueItems, ddItems, rev
                 <span className="label-caps text-muted-foreground">
                   Due Diligence
                 </span>
-                <span className="ml-auto text-xs text-muted-foreground tnum">{ddItems.length}</span>
+                <span className="ml-auto text-xs text-muted-foreground tnum">{ddCount}</span>
               </div>
               <div className="space-y-1">
                 {ddItems.map((dd) => (
@@ -444,6 +486,15 @@ export default function NeedsAttention({ reviewItems, overdueItems, ddItems, rev
                     </Chip>
                   </Link>
                 ))}
+                {/* Not a link yet: there is no cross-portfolio page for these, and
+                    `/attention` is not a route until the engine gets its UI. Saying
+                    the number is still better than truncating in silence, which is
+                    what this card did until 2026-10-17. */}
+                {ddCount > ddItems.length && (
+                  <p className="px-2 py-1 text-xs text-muted-foreground">
+                    +{ddCount - ddItems.length} more
+                  </p>
+                )}
               </div>
             </div>
           )}

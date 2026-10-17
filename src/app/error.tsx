@@ -8,7 +8,9 @@ interface ErrorProps {
   reset: () => void
 }
 
-export default function GlobalError({ error, reset }: ErrorProps) {
+// Named for what it is: the boundary INSIDE the root layout. The one that
+// catches the layout itself failing is `global-error.tsx`, added 2026-10-17.
+export default function RootError({ error, reset }: ErrorProps) {
   useEffect(() => {
     console.error(error)
   }, [error])

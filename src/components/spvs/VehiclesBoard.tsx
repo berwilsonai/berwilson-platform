@@ -7,7 +7,7 @@
  * save ends in `router.refresh()` rather than this component keeping its own
  * idea of the answer. One engine, one number on the screen.
  *
- * Clearing a field sends null, never 0 — see `outbound` in ./use-api-call.
+ * Clearing a field sends null, never 0 — see `outbound` in @/hooks/use-api-call.
  */
 
 import { useState } from 'react'
@@ -27,7 +27,7 @@ import {
   type ProjectSpv,
 } from '@/lib/spvs/types'
 import SpvCard from './SpvCard'
-import { outbound, useApiCall, type Draft } from './use-api-call'
+import { outbound, useApiCall, type Draft } from '@/hooks/use-api-call'
 
 interface VehiclesBoardProps {
   recordKind: RecordKind

@@ -1,17 +1,23 @@
 'use client'
 
 /**
- * The one fetch helper the vehicle surfaces share, and the draft coercion.
+ * The one fetch helper for a client-side mutation: status check, the server's
+ * own error sentence in a toast, a success toast, then `router.refresh()`.
  *
- * ⚠ ITS OWN MODULE TO BREAK A CYCLE. The board renders the cards and the cards
- * need the helper, so leaving it on the board made the two import each other.
- * A bundler tolerates that; a reader does not, and the next helper added to
- * either file would inherit the tangle.
+ * ⚠ USE THIS RATHER THAN A BARE `fetch`. Two controls hand-rolled it without
+ * checking `res.ok` and without a catch, so on a 500 the select showed the new
+ * value, the spinner stopped, and `router.refresh()` then snapped it back to
+ * the old one with nothing said — a save that silently did not happen
+ * (OpportunityStatusControl / InvestorStageControl, repaired 2026-10-17).
  *
- * `OrgNodeOption` deliberately lives in src/lib/spvs/types.ts instead, because
- * a SERVER component reads the org chart for the picker — and every export of a
- * `'use client'` module becomes a client reference, which throws at REQUEST
- * time with neither `tsc` nor the build catching it (CLAUDE.md §12, 07-11).
+ * ⚠ LIVES IN src/hooks, NOT src/lib. It is a hook, so only a client component
+ * can call it — and src/lib is where a SERVER page looks, where importing a
+ * `'use client'` export throws at REQUEST time with neither `tsc` nor the build
+ * catching it (CLAUDE.md §12, 07-11). It was in components/spvs/ until 10-17,
+ * its own module there to stop the board and the cards importing each other.
+ *
+ * `OrgNodeOption` deliberately lives in src/lib/spvs/types.ts for that same
+ * server-import reason.
  */
 
 import { useState } from 'react'

@@ -33,7 +33,7 @@ import {
   type ProjectSpv,
   type SpvParticipant,
 } from '@/lib/spvs/types'
-import { outbound, useApiCall, type Draft } from './use-api-call'
+import { outbound, useApiCall, type Draft } from '@/hooks/use-api-call'
 
 interface ParticipantLedgerProps {
   spv: ProjectSpv
