@@ -148,11 +148,50 @@ else
   print "  ✓ no orphaned llama-server (every backend is owned by LM Studio)"
 fi
 
+# Everything above this line is about the MODELS; the binding below is not, and
+# --fix must be able to repair one without paying for the other. A reload is a
+# 22GB round trip, so it may not ride along on a binding-only drift.
+MODEL_BAD=$FAIL
+
+b "\n5. Server binding"
+# The model server must answer on LOOPBACK ONLY. Measured 2026-10-16: it was
+# bound to `*:1234` and answering on the LAN at 192.168.86.38, which hands any
+# device on the network a free, unauthenticated LLM running on the production
+# box — and `lms server start --help` documents 127.0.0.1 as the DEFAULT, so
+# this was switched on deliberately at some point (the GUI's "Serve on Local
+# Network" toggle). That toggle wins on next launch, which is why this is
+# asserted here every deploy rather than fixed once.
+BIND_BAD=0
+for addr in ${(f)"$(lsof -nP -iTCP:1234 -sTCP:LISTEN 2>/dev/null | awk 'NR>1 {print $9}' | sort -u)"}; do
+  [[ -z "$addr" ]] && continue
+  [[ "$addr" == 127.0.0.1:* || "$addr" == "[::1]:"* ]] && continue
+  bad "server is listening on $addr — reachable beyond this machine"
+  BIND_BAD=1
+done
+if (( BIND_BAD )); then
+  print "    fix:  lms server start --bind 127.0.0.1"
+  print "    then turn OFF \"Serve on Local Network\" in the GUI, or it returns on next launch"
+  FAIL=1
+else
+  ok "server listens on loopback only"
+fi
+
 if (( FAIL )) && (( FIX )); then
-  b "5. Fixing"
-  print "  reloading $CHAT_MODEL at -c $WANT_CTX --parallel $WANT_PARALLEL"
-  $LMS unload "$CHAT_MODEL" 2>/dev/null
-  $LMS load "$CHAT_MODEL" -c $WANT_CTX --parallel $WANT_PARALLEL -y || exit 1
+  b "6. Fixing"
+  if (( BIND_BAD )); then
+    print "  rebinding the server to 127.0.0.1"
+    # Does NOT unload anything: this starts/rebinds the HTTP server only, and the
+    # resident models survive it (verified 2026-10-17 — context and --parallel
+    # both unchanged afterwards).
+    $LMS server start --bind 127.0.0.1 || exit 1
+  fi
+  if (( MODEL_BAD )); then
+    print "  reloading $CHAT_MODEL at -c $WANT_CTX --parallel $WANT_PARALLEL"
+    $LMS unload "$CHAT_MODEL" 2>/dev/null
+    $LMS load "$CHAT_MODEL" -c $WANT_CTX --parallel $WANT_PARALLEL -y || exit 1
+  else
+    print "  models were already correct — not reloading (a reload is a 22GB round trip)"
+  fi
   print "  re-run without --fix to confirm"
   exit 0
 fi

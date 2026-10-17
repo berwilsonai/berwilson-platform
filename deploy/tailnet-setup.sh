@@ -167,7 +167,45 @@ C1=$(code http://localhost:3000/login);           [[ $C1 == 200 ]] && ok "localh
 C2=$(code "https://${FQDN}/login");               [[ $C2 == 200 ]] && ok "tailnet 443 /login -> 200"   || { bad "tailnet 443 /login -> $C2"; FAIL=1 }
 C3=$(code "https://${FQDN}:8443/auth/v1/health"); [[ $C3 == 200 || $C3 == 401 ]] && ok "tailnet 8443 supabase -> $C3 (reachable)" || { bad "tailnet 8443 -> $C3"; FAIL=1 }
 
-b "\n6. Next step"
+b "\n6. Loopback bindings"
+# WHY THIS EXISTS. "Tailnet-only" was a claim about `tailscale serve`, not about
+# the ports underneath it. Measured 2026-10-16: Postgres (5432), the Supabase
+# gateway (8000/8443), the app (3000) and LM Studio (1234) were ALL listening on
+# `*` and answering on the LAN at 192.168.86.38 — while §8 relied on middleware
+# as the auth boundary, app traffic using the service role, so RLS was never
+# going to stop anything that reached PostgREST directly.
+#
+# Three different layers hold the fix, which is why it is asserted rather than
+# trusted:
+#   3000            -> `next start -H 127.0.0.1` in com.berwilson.platform.plist
+#   5432/8000/8443  -> ~/.colima/_lima/_config/override.yaml (lima forwards guest
+#                      0.0.0.0 to host 0.0.0.0 by default; the override narrows
+#                      the HOST side). ⚠ NOT a docker-compose change: binding the
+#                      container to 127.0.0.1 inside the guest stops lima
+#                      forwarding it at all and took the platform down once.
+#   1234            -> `lms server start --bind 127.0.0.1`, and the GUI's
+#                      "Serve on Local Network" toggle wins on next launch.
+# Every one of those lives OUTSIDE this repo, so each can come back on an
+# upgrade, a reinstall or a GUI click with nothing reporting it — the same reason
+# the serve config is re-asserted above.
+typeset -a EXPOSED
+for port in 3000 5432 6543 8000 8443 1234; do
+  for addr in ${(f)"$(lsof -nP -iTCP:$port -sTCP:LISTEN 2>/dev/null | awk 'NR>1 {print $9}' | sort -u)"}; do
+    [[ -z "$addr" ]] && continue
+    # A missing listener is fine (6543 is not forwarded in the lean stack).
+    [[ "$addr" == 127.0.0.1:* || "$addr" == "[::1]:"* ]] && continue
+    EXPOSED+=("${port} on ${addr}")
+  done
+done
+if (( ${#EXPOSED} == 0 )); then
+  ok "no platform port listens off loopback (3000/5432/6543/8000/8443/1234)"
+else
+  for e in $EXPOSED; do bad "REACHABLE OFF LOOPBACK: $e"; done
+  bad "the database and/or app are exposed beyond the tailnet — see this section's header"
+  FAIL=1
+fi
+
+b "\n7. Next step"
 if (( DRIFT == 1 )); then
   print "  .env.local is STALE. Re-run with --fix, then REBUILD (a restart is not enough —"
   print "  NEXT_PUBLIC_* is baked into the bundle at build time):"

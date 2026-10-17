@@ -1,0 +1,53 @@
+# Bind Colima's host-side port forwards to loopback.
+#
+# INSTALL TO:  ~/.colima/_lima/_config/override.yaml
+#   cp deploy/colima-lima-override.yaml ~/.colima/_lima/_config/override.yaml
+#   colima restart          # the generated instance config is only re-read on start
+#
+# WHY. Colima generates ~/.colima/_lima/colima/lima.yaml on every start, and its
+# catch-all forwarding rule reads:
+#
+#     - guestIPMustBeZero: true
+#       guestIP: 0.0.0.0
+#       hostIP: 0.0.0.0        <-- forwards every published container port to
+#       proto: tcp                 EVERY host interface, not just loopback
+#
+# So on 2026-10-16 Postgres (5432) and the Supabase gateway (8000) were both
+# answering on the LAN at 192.168.86.38, while CLAUDE.md §2/§8/§13 described the
+# platform as tailnet-only and §8 relied on middleware as the auth boundary —
+# app traffic uses the service role, so RLS was not going to stop anything that
+# reached PostgREST directly.
+#
+# ⚠ THE FIX BELONGS AT THIS LAYER, NOT IN docker-compose. Binding the CONTAINER
+#   to 127.0.0.1 inside the guest was tried first and TOOK THE PLATFORM DOWN:
+#   lima only forwards a guest port it can see on 0.0.0.0, so the host lost Kong
+#   entirely (curl 56, app could not reach its own database). The container must
+#   keep publishing on 0.0.0.0 *inside the VM*; it is the HOST side of the
+#   forward that has to be narrowed. Reverted and done here instead.
+#
+# ⚠ lima.yaml ITSELF IS GENERATED — editing it is undone by the next
+#   `colima start`. This file is lima's global override (_config/override.yaml),
+#   which is merged over every instance on each start, so it survives a restart,
+#   a colima upgrade and a VM recreate. Same lesson as the serve config in
+#   deploy/tailnet-setup.sh: state that lives outside the repo gets re-asserted,
+#   never assumed.
+#
+# Safe because nothing off-box reaches these except `tailscale serve`, which runs
+# on the host and already proxies to loopback:
+#   :443  -> http://127.0.0.1:3000   (the app)
+#   :8443 -> http://localhost:8000   (kong)
+#
+# Asserted on every deploy by deploy/tailnet-setup.sh.
+portForwards:
+  - guestIPMustBeZero: true
+    guestIP: 0.0.0.0
+    guestPortRange: [1, 65535]
+    hostIP: 127.0.0.1
+    hostPortRange: [1, 65535]
+    proto: tcp
+  - guestIPMustBeZero: true
+    guestIP: 0.0.0.0
+    guestPortRange: [1, 65535]
+    hostIP: 127.0.0.1
+    hostPortRange: [1, 65535]
+    proto: udp

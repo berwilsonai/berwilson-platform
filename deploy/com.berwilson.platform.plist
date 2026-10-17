@@ -8,7 +8,11 @@
   <array>
     <string>/bin/zsh</string>
     <string>-lc</string>
-    <string>exec npx next start -p 3000</string>
+    <string>exec npx next start -p 3000 -H 127.0.0.1</string>
+    <!-- -H 127.0.0.1: next binds :: by default, which put the app on the LAN
+         (192.168.86.38:3000) while CLAUDE.md described it as tailnet-only.
+         Safe because `tailscale serve` runs on the HOST and already proxies
+         :443 -> http://127.0.0.1:3000. Asserted by deploy/tailnet-setup.sh. -->
   </array>
   <key>WorkingDirectory</key>
   <string>__APP_DIR__</string>
