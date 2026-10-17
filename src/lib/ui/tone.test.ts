@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 
 import { contrastOklch } from './contrast'
-import { readThemeTokens } from './tokens'
+import { measureTones, MEASURED_TONES, readThemeTokens } from './tokens'
 import { TONES, STATUS_TONES, CATEGORY_TONES, chipTone, inkTone, isTone } from './tone'
 
 /**
@@ -160,5 +160,20 @@ test('every status token named in the palette exists in both blocks of globals.c
   for (const name of used) {
     assert.doesNotThrow(() => token(name, ':root'), `--${name} missing from :root`)
     assert.doesNotThrow(() => token(name, '.dark'), `--${name} missing from .dark`)
+  }
+})
+
+test('measureTones gives /settings/ui a complete table, with no gaps to render', () => {
+  // The style guide prints these numbers. A null becomes an em dash and a
+  // missing token becomes a blank cell, so the page would quietly under-report
+  // the palette it exists to audit — the one failure it must not have.
+  const rows = measureTones()
+  assert.equal(rows.length, MEASURED_TONES.length * 2, 'expected every tone in both themes')
+  for (const r of rows) {
+    for (const [slot, v] of Object.entries(r)) {
+      if (slot === 'tone' || slot === 'theme') continue
+      assert.equal(typeof v, 'number', `${r.theme}/${r.tone}: ${slot} did not measure`)
+      assert.ok(Number.isFinite(v as number), `${r.theme}/${r.tone}: ${slot} is not finite`)
+    }
   }
 })
