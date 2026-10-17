@@ -137,7 +137,7 @@ test(`colour is converging on tone names (baseline ${BASELINE_DATE})`, () => {
   // source, which is the shape §12 mandates.
   const files = sourceFiles().filter((f) => !f.endsWith('src/lib/ui/tone.ts'))
   ratchet('raw colour pairs outside tone.ts',
-    count(/'[^']*\bbg-[a-z]+-\d+[^']*\btext-[a-z]+-\d+[^']*'/, files), 326,
+    count(/'[^']*\bbg-[a-z]+-\d+[^']*\btext-[a-z]+-\d+[^']*'/, files), 324,
     'Use a Tone name: <Chip tone="caution">. See src/lib/ui/tone.ts.')
 })
 

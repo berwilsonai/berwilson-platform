@@ -8,6 +8,7 @@ import { STAGE_LABELS, STAGE_BADGE } from '@/lib/utils/stages'
 import { STATUS_BADGE, STATUS_LABELS } from '@/lib/utils/constants'
 import RecordTabBar from '@/components/records/RecordTabBar'
 import TrackVisit from '@/components/shared/TrackVisit'
+import RecordPager from '@/components/records/RecordPager'
 import { PROJECT_TABS } from '@/components/records/tabs'
 import { getViewer, canAccessProject } from '@/lib/auth/viewer'
 import { parcelDb } from '@/lib/parcels/queries'
@@ -105,7 +106,12 @@ export default async function ProjectLayout({ children, params }: LayoutProps) {
 
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div className="min-w-0">
-            <h1 className="text-xl font-semibold leading-tight truncate">{project.name}</h1>
+            <div className="flex items-center gap-3">
+              <h1 className="text-xl font-semibold leading-tight truncate">{project.name}</h1>
+              <div className="shrink-0">
+                <RecordPager kind="project" currentId={id} />
+              </div>
+            </div>
             {project.client_entity && (
               <p className="text-sm text-muted-foreground mt-0.5">{project.client_entity}</p>
             )}

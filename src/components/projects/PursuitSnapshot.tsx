@@ -36,8 +36,10 @@ export default function PursuitSnapshot({ project }: { project: ProjectWithCaptu
     { label: 'Substantial Completion', value: project.substantial_completion_date, highlight: false },
   ].filter((d) => d.value)
 
+  // The offset clears the sticky record tab bar above it — see --record-bar-h
+  // in globals.css. `lg:top-4` put this rail UNDER the bar as it scrolled.
   return (
-    <aside className="lg:sticky lg:top-4 space-y-3">
+    <aside className="lg:sticky lg:top-[calc(var(--record-bar-h)+0.75rem)] space-y-3">
       {/* Bid deadline hero */}
       {bidDue && isPreAward && (
         <div

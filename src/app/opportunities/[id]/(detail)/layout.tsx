@@ -23,6 +23,8 @@ import OpportunityStatusControl from '@/components/opportunities/OpportunityStat
 import GenerateBriefButton from '@/components/projects/GenerateBriefButton'
 import OpportunityDeleteButton from '@/components/opportunities/OpportunityDeleteButton'
 import RecordTabBar, { type TabKey } from '@/components/records/RecordTabBar'
+import RecordPager from '@/components/records/RecordPager'
+import { chipTone } from '@/lib/ui/tone'
 import TrackVisit from '@/components/shared/TrackVisit'
 import { OPPORTUNITY_TABS } from '@/components/records/tabs'
 
@@ -113,7 +115,12 @@ export default async function OpportunityDetailLayout({ children, params }: Layo
                 {OPPORTUNITY_PRIORITY_LABELS[p]} priority
               </span>
             </div>
-            <h1 className="text-xl font-semibold leading-tight">{opportunity.name}</h1>
+            <div className="flex items-center gap-3">
+              <h1 className="text-xl font-semibold leading-tight truncate">{opportunity.name}</h1>
+              <div className="shrink-0">
+                <RecordPager kind="opportunity" currentId={id} />
+              </div>
+            </div>
             {opportunity.target_name && (
               <p className="text-sm text-muted-foreground">{opportunity.target_name}</p>
             )}
@@ -157,16 +164,14 @@ export default async function OpportunityDetailLayout({ children, params }: Layo
           </div>
         )}
         {onHold && (
-          <div className="rounded-md px-3 py-2 text-sm font-medium ring-1 ring-inset bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-500/15 dark:text-amber-300 dark:ring-amber-500/30">
+          <div className={cn('rounded-md px-3 py-2 text-sm font-medium ring-1 ring-inset', chipTone('caution'))}>
             On Hold
           </div>
         )}
         {closed && (
           <div className={cn(
             'rounded-md px-3 py-2 text-sm font-medium ring-1 ring-inset',
-            opportunity.status === 'closed_won'
-              ? 'bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-500/15 dark:text-emerald-300 dark:ring-emerald-500/30'
-              : 'bg-red-50 text-red-600 ring-red-200 dark:bg-red-500/15 dark:text-red-300 dark:ring-red-500/30'
+            chipTone(opportunity.status === 'closed_won' ? 'positive' : 'critical')
           )}>
             {OPPORTUNITY_STATUS_LABELS[s]}
           </div>

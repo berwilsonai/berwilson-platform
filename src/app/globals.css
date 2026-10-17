@@ -55,6 +55,14 @@
      conventions test keeps them that way. Decorative `size-12` circles were
      left alone deliberately — they may shrink. */
   --spacing: 0.22rem;
+
+  /* ── The sticky record bar ────────────────────────────────────────────────
+     The height of the tab bar on a project or opportunity, which is `sticky
+     top-0` inside the scroll container. Anything else that sticks BELOW it has
+     to clear it, and there is exactly one such thing today: the Overview rail
+     (`PursuitSnapshot`). One value, two consumers — the alternative is a magic
+     number in a component that silently stops matching when the bar changes. */
+  --record-bar-h: 2.75rem;
 }
 
 @theme inline {

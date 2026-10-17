@@ -51,7 +51,30 @@ export default function RecordTabBar({ basePath: base, tabs, counts }: RecordTab
   const hidden = tabs.filter((t) => !visible.includes(t))
 
   return (
-    <div className="border-b border-border flex items-stretch">
+    /*
+     * ⚠ STICKY, AND THE NEGATIVE MARGINS ARE WHY IT WORKS.
+     *
+     * `main` is the scroll container (app/layout.tsx) and `AppHeader` is its
+     * SIBLING, so `sticky top-0` here pins to the top of the content area,
+     * just under the chrome. Without the bleed the bar would stick inside
+     * `main`'s `p-5 sm:p-6` and the canvas would show through a 20px strip
+     * beside and above it as content scrolled past.
+     *
+     * This is the fix for the single worst thing about a populated record:
+     * scroll to the bottom of a 181-document Documents tab and you had lost
+     * the project name, the chips AND the tab bar — there was no way back to
+     * another tab without scrolling to the top first.
+     *
+     * The header above it deliberately still scrolls away. The full block is
+     * ~130px, which is most of a phone screen; the tab bar alone is ~44px and
+     * carries the navigation, which is the part you actually lose.
+     *
+     * `z-30` sits above page content and above the `lg:sticky` Overview rail
+     * (which offsets itself by `--record-bar-h`), and below `AppHeader`'s own
+     * stacking context. The More menu is a descendant, so it escapes content
+     * without needing a z of its own at page level.
+     */
+    <div className="sticky top-0 z-30 -mx-5 sm:-mx-6 px-5 sm:px-6 bg-background border-b border-border flex items-stretch">
       {/*
         The scroll container and `min-w-max` must be on DIFFERENT elements.
         Both on the nav (as they were) cancel out: `min-width: max-content`
@@ -99,7 +122,7 @@ export default function RecordTabBar({ basePath: base, tabs, counts }: RecordTab
             <ChevronDown size={14} className={cn('transition-transform', moreOpen && 'rotate-180')} />
           </button>
           {moreOpen && (
-            <div className="absolute right-0 top-full z-20 mt-1 min-w-48 rounded-md border border-border bg-card elev-2 py-1">
+            <div className="absolute right-0 top-full z-20 mt-1 min-w-48 rounded-md border border-border bg-card elev-3 py-1">
               {hidden.map(({ label, segment }) => (
                 <Link
                   key={segment}
