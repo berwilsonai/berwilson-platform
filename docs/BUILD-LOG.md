@@ -11,7 +11,179 @@ Split out of `CLAUDE.md` on 2026-09-23, when that file reached 606k characters a
 - A block of **2026-08-23 → 2026-08-31** entries sits *after* the June entries, near the end of the file.
 - One **2026-07-03** entry ("migrations applied + pursuit profile seeded") is last in the file.
 
-174 entries, 2026-06-22 → 2026-10-15. ⚠ Counted with `grep -c "^\*\*Done 2026"`, not incremented by hand: two sessions editing this file on 2026-10-08 each bumped the old figure by one and both landed on 146 against a real 148.
+176 entries, 2026-06-22 → 2026-10-17. ⚠ Counted with `grep -c "^\*\*Done 2026"`, not incremented by hand: two sessions editing this file on 2026-10-08 each bumped the old figure by one and both landed on 146 against a real 148.
+
+**Done 2026-10-17 (the ports under the proxy, and the matcher under the queue):**
+
+Richard: *"what can we improve?"* — so the session began by measuring the live box
+rather than reading §13, and most of what §13 worries about turned out to be fine.
+All 26 launchd agents had run that day, 456 tests passed, backups were nightly and
+offsite (the alarming `backup.err.log` was stale from 1 October), both models were
+resident at the documented 131072/parallel-1 with no orphaned `llama-server`, and the
+1,203 `fetch failed` lines in `platform.err.log` were ONE contiguous outage block
+rather than an ongoing fault. The `note:`-id Gmail bug found on 10-14 no longer fires.
+Two things were genuinely wrong, and both were invisible to every check that existed.
+
+---
+
+**1. "Tailnet-only" was a claim about the proxy, not about the ports underneath it.**
+
+`tailscale serve` was configured exactly right — `:443 -> 127.0.0.1:3000`,
+`:8443 -> localhost:8000`, both "tailnet only" — and §2, §8 and §13 all described the
+platform as tailnet-only on the strength of it. Measured from the box's own LAN
+address, `192.168.86.38`: **Postgres (5432), the Supabase gateway (8000/8443), the app
+(3000) and LM Studio (1234) were all listening on `*` and all answering.** §8 says
+plainly that middleware is the auth boundary, because app traffic uses the service role
+and RLS is defence-in-depth only — so any device on that network reached PostgREST
+underneath the gate, and the model server was a free unauthenticated LLM to the
+building. Nothing had ever reported it because every existing check tested the proxy.
+
+⚠ **The obvious fix is the wrong layer, and it cost an outage.** Binding the CONTAINER
+to `127.0.0.1` in `docker-compose` was tried first — and lima only forwards a guest port
+it can SEE on `0.0.0.0`, so the host lost Kong entirely: `curl` exit 56, the app unable
+to reach its own database, `supabase-rest` unhealthy. Reverted inside two minutes
+(`docker-compose.lean.yml.bak-20261017`, service restored, data intact at 19 projects /
+10,033 chunks) and fixed at the forwarder instead. The container must keep publishing on
+0.0.0.0 *inside* the guest; it is the HOST side that gets narrowed. An abandoned
+`deploy/supabase-compose.override.yml` was deleted rather than shipped — a file carrying
+"INSTALL TO:" instructions for an approach that takes production down is worse than no
+file, and the dead end is recorded in the header of the one that works.
+
+Also found while reading the compose files: the live stack is `docker-compose.lean.yml`
+with **no supavisor container at all**, so the first override was written against ports
+the running system does not even publish.
+
+Three layers hold the fix and **not one of them is in this repo**:
+
+| port | layer | file |
+|---|---|---|
+| 5432 / 8000 / 8443 | lima's catch-all forward, `hostIP: 0.0.0.0` | `~/.colima/_lima/_config/override.yaml` (kept at `deploy/colima-lima-override.yaml`) |
+| 3000 | `next start` binds `::` | `deploy/com.berwilson.platform.plist`, `-H 127.0.0.1` |
+| 1234 | LM Studio's "Serve on Local Network" | `lms server start --bind 127.0.0.1` |
+
+lima's global `_config/override.yaml` was chosen deliberately over editing the generated
+`lima.yaml`, which colima rewrites on every start. ⚠ Worth knowing: the override is
+merged at RUNTIME and never appears in the generated file, so `lima.yaml` still reads
+`hostIP: 0.0.0.0` and looks untouched — the proof is in the host agent log,
+`guestAddr 0.0.0.0:5432 -> hostAddr 127.0.0.1:5432`, and in the listeners themselves.
+
+Both deploy scripts now assert it, because all three layers come back on an upgrade, a
+reinstall or a GUI click: `tailnet-setup.sh` §6 fails on any non-loopback listener
+across the six ports, and `lmstudio-check.sh` §5 asserts the bind and `--fix` repairs
+it. That `--fix` reload is now gated on a new `MODEL_BAD` flag, so a binding-only drift
+no longer pays for a 22GB model round trip. **The §6 assertion was itself tested
+against a deliberate `0.0.0.0:6543` listener** — it names the address and exits 1.
+
+Verified after: all six ports refuse from 192.168.86.38 while loopback answers; tailnet
+443 and 8443 still serve; kong REST with the anon key returns 200; models still resident
+at 131072/parallel 1. What remains on all interfaces is macOS's own — AirPlay (5000,
+7000), Continuity (63001) and lima's DNS (53).
+
+**And the deploy footgun beside it.** CLAUDE.md line 39 recorded
+`deploy/deploy-to-studio.sh` as retired when the Studio became the repo, while §2
+(line 68) and §7 (line 308) BOTH still named it as *the* deploy command — two of three
+places pointing the next session at a script that would ssh to this box from this box,
+`rsync -az --delete` the repo over itself and `scp` a `.env.local` over the live one.
+Guarded rather than deleted, because a deleted file takes its warning with it: it now
+refuses on `LocalHostName == Richards-Mac-Studio` and prints the real runbook. Both
+CLAUDE.md lines corrected.
+
+---
+
+**2. The intake queue could not offer a merge, and that is why nobody worked it.**
+
+`/decide` has carried a "Select the N Ber AI is sure about" button since 09-24 and it
+has **never been pressed**. The measurements killed two plausible explanations before
+finding the real one:
+
+- *Mis-calibration?* No. Of 106 "dismissals" in the table's history, **102 were the
+  model's OWN `disposition='dismiss'`**, which `/decide` skips by design. The human
+  verdict history is 8 confirmed and ~4 dismissed — there is barely any human behaviour
+  to calibrate against.
+- *Duplicate fear?* No. The confident block holds no exact-title duplicates;
+  `dedupe.ts` is doing its job.
+
+The real cause was one matcher. `findMatchingProjects` built `match_candidates` — the
+CLOSED LIST the pre-decide model must choose a merge target from — and it searched
+**`projects` only**. `MatchCandidate` had no `opportunity_id`/`opportunity_name` field
+at all, so none of the 7 live opportunities could ever be a merge target. ⚠ And
+`resolveMergeTarget` had been reading exactly those two fields since the day it was
+written: **a branch nothing could ever satisfy, with no test and no error**, because an
+unreachable branch reports nothing. Its name bar was trigram at threshold 0.3, the exact
+cliff §12 documents.
+
+A model that cannot NAME the record proposes a new one. Measured 2026-10-16: **110 of
+126 pending sessions proposed CREATING a record, at 0.93 average confidence**, against a
+register of 19 projects and 7 opportunities — so pressing the button would have made
+~105 projects. 53 of those sessions were a month old.
+
+The fix already existed, wired to one surface. `resolveMeetingTarget`'s bars 2 and 3
+were never a meetings question: they read BOTH tables, asking for an exact unique name
+and then a single identity-bearing word, with an ambiguity refusal that names the
+records that collided. Extracted whole to **`src/lib/records/resolve.ts`**; the meetings
+path keeps bar 1 (a title a human filed before) and delegates the rest. Not forked.
+
+⚠ **Measuring it on the real queue is what corrected it.** The first run produced 21
+matches and reading them found **three wrong — all on a word that QUALIFIES a noun
+rather than naming a deal**, which is the compass-direction argument again:
+*"General Stillwell … Bldg 1520"* matched *"DFCM Camp Williams Bldg. 4140"* (two
+different buildings on two different bases), and both *"Golden Rock"* and the DoD
+*"Golden Dome White Paper Pursuit"* took *Alaska Golden Summit*. `building` was already
+stopworded; the **abbreviation** was not. Added `bldg`/`bldgs`/`golden` and then proved
+nothing was lost — the real Englert Mining thread still reaches that record on `summit`.
+The matched WORD is now carried out of the resolver into `match_reasons`, because
+`0.55` tells a reader nothing and `record_name_shared_word:steelton` is checkable.
+
+After that correction, over the live backlog: **24 of 113 sessions got better
+candidates, 15 gained one where there had been none, 7 reached an opportunity for the
+first time, and ZERO lost a candidate** — the word bar only adds. Two show the cliff
+outright: trigram had ranked *Heber Development* (0.51) and *American Energy Rail
+Corridor — Community Development* (0.61) **above** the right answer, *DUBHES Helper*, on
+the words "Development" and "Community Development".
+
+⚠ **A prompt-version bump was the wrong tool, and `match_candidates` is written by the
+SWEEP, not by predecide.** Re-running the model over the old rows would have re-read the
+same stale candidate list and reached the same conclusion. And predecide only revisits a
+session whose verdict is null or whose `prompt_version` is stale — all 118 carried the
+current `intake-predecide-2.0`, so a bump would have re-decided all 118 to re-derive 94
+answers that could not change, at ~90 minutes of exclusive LM Studio time.
+`scripts/restage-intake-candidates.mts` recomputes candidates with **no model call**,
+and `--redecide` nulls the verdict on only the rows that can actually move — a predicate
+derived from the data (candidates carrying a `record_name_` reason, verdict still
+`create`), never remembered, which makes it idempotent.
+
+**The result, end to end: 19 sessions re-decided, 9 of them flipped to `merge`, 1 to
+dismiss, 0 failed. Merges in the queue went 7 → 16**, and every one is a pairing a human
+would recognise — Steelton, three Helper threads, two Myton, two West Wendover,
+Stockton, Box Elder Quantum, and four onto OPPORTUNITIES that were structurally
+unreachable that morning: Elite Solutions, GridEdge, Zenthium Partnership and Alaska
+Golden Summit.
+
+**Found on the way:** `resolveMergeTarget` **threw** on a null element in the jsonb
+candidate array — `TypeError: Cannot read properties of null` — which would have 500'd
+the merge button on a human's click. Caught by the first test ever written for that
+function, in the same commit that made its opportunity branch reachable.
+
+**Verified:** 472 tests (456 → 472), all passing. ⚠ The stopword tests were checked for
+TEETH rather than assumed: deliberately dropping three words from the list fails exactly
+3 of them, and restoring brings 472/472 back. (A first attempt at that probe reported
+"0 failures" and was itself wrong — it grepped for TAP's `not ok` against a reporter
+that prints `✖`, and its `python3 replace` printed success without asserting the edit
+had applied.) `scripts/verify-record-resolver.mts` exercises 18 real queue titles
+against the LIVE register, 18/18, including both §12 pairs — *Eagle Mountain
+Development* must NOT take Myton Development, *Delta, Utah Campus* must reach Delta
+Industrial Campus — and the controls that must stay unresolved. The restage is
+idempotent on both halves. `/decide` renders with a clean console. ⚠ Its rows are not
+ARIA-exposed, so the accessibility tree reads `main` as empty and a screenshot is the
+only honest check.
+
+**Deliberately not done:** the economics backlog (`deal_economics` still has 0 rows, so
+0 of 26 records carry a capture value and the pipeline reads $0) — real, but data entry
+against a working engine rather than a build task. And a `/decide` lane for the 208
+unfiled deal-relevant threads: this change should reduce that number as a by-product, so
+it wants re-measuring before anything is built for it.
+
+---
 
 **Done 2026-10-16 (there is no COO — the roster is two people):**
 
