@@ -211,7 +211,7 @@ export default function PersonnelRegister({
                       type="button"
                       onClick={() => setSelectedId(p.id)}
                       className={[
-                        'relative flex min-h-11 w-full flex-col gap-0.5 px-4 py-2.5 text-left outline-none transition-colors',
+                        'relative flex min-h-[2.75rem] w-full flex-col gap-0.5 px-4 py-2.5 text-left outline-none transition-colors',
                         'focus-visible:ring-3 focus-visible:ring-ring/50',
                         isSelected ? 'bg-muted' : 'hover:bg-muted/50',
                       ].join(' ')}
@@ -1138,7 +1138,7 @@ function OffboardingChecklist({
                     type="button"
                     disabled={!canEdit}
                     onClick={() => toggle(s)}
-                    className="group relative flex min-h-11 w-full items-start gap-2 rounded-md px-1 py-1.5 text-left outline-none transition-colors hover:bg-muted/50 focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-default disabled:hover:bg-transparent sm:min-h-0"
+                    className="group relative flex min-h-[2.75rem] w-full items-start gap-2 rounded-md px-1 py-1.5 text-left outline-none transition-colors hover:bg-muted/50 focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-default disabled:hover:bg-transparent sm:min-h-0"
                   >
                     {s.completed_at ? (
                       <CheckCircle2 size={15} className="mt-0.5 shrink-0 text-emerald-500" />

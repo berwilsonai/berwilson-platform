@@ -76,3 +76,24 @@ export function contrastOklch(fg: string, bg: string): number {
   if (!f || !b) throw new Error(`Not an oklch() colour: ${!f ? fg : bg}`)
   return contrast(oklchToRgb(f.l, f.c, f.h), oklchToRgb(b.l, b.c, b.h))
 }
+
+/**
+ * Perceptual lightness difference between two OKLCH colours, 0..1.
+ *
+ * ⚠ USE THIS, NOT `contrast()`, FOR SURFACE-vs-SURFACE SEPARATION. WCAG
+ * contrast is a ratio with a `+0.05` floor, which swamps any real difference
+ * at near-black: the dark sidebar at L 0.155 measured 1.03:1 against the
+ * canvas, and dropping it all the way to L 0.085 still measured 1.031:1 — the
+ * metric simply cannot see a change a human sees immediately. OKLCH lightness
+ * is perceptually uniform by construction, so a delta in it means the same
+ * thing at the top and the bottom of the range.
+ *
+ * Contrast is still the right tool for TEXT on a background, which is what it
+ * was designed for.
+ */
+export function lightnessDelta(a: string, b: string): number {
+  const pa = parseOklch(a)
+  const pb = parseOklch(b)
+  if (!pa || !pb) throw new Error(`Not an oklch() colour: ${!pa ? a : b}`)
+  return Math.abs(pa.l - pb.l)
+}

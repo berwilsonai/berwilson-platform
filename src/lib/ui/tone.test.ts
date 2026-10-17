@@ -2,7 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 
-import { contrastOklch } from './contrast'
+import { contrastOklch, lightnessDelta } from './contrast'
 import { measureTones, MEASURED_TONES, readThemeTokens } from './tokens'
 import { TONES, STATUS_TONES, CATEGORY_TONES, chipTone, inkTone, isTone } from './tone'
 
@@ -174,6 +174,46 @@ test('measureTones gives /settings/ui a complete table, with no gaps to render',
       if (slot === 'tone' || slot === 'theme') continue
       assert.equal(typeof v, 'number', `${r.theme}/${r.tone}: ${slot} did not measure`)
       assert.ok(Number.isFinite(v as number), `${r.theme}/${r.tone}: ${slot} is not finite`)
+    }
+  }
+})
+
+test('every surface is perceptibly separated from the one behind it', () => {
+  // ⚠ MEASURED AS A LIGHTNESS DELTA, NOT A CONTRAST RATIO. WCAG contrast has a
+  // +0.05 floor that swamps real differences at near-black — the dark sidebar
+  // read 1.03:1 against the canvas at L 0.155 and still read 1.031:1 at
+  // L 0.085, so the metric could not see a change that is obvious to look at.
+  // OKLCH lightness is perceptually uniform, so one threshold works at both
+  // ends of the range. This palette has no shadows on resting surfaces, which
+  // makes these steps the only thing distinguishing one plane from another.
+  const MIN = 0.03
+  for (const theme of ['light', 'dark'] as const) {
+    const t = readThemeTokens()[theme]
+    const pairs: [string, string][] = [
+      ['card', 'background'],
+      ['sidebar', 'background'],
+      ['sidebar-accent', 'sidebar'],
+      ['muted', 'card'],
+    ]
+    for (const [a, b] of pairs) {
+      // `--border` and friends carry alpha in dark mode and are not comparable.
+      if (t[a].includes('%') || t[b].includes('%')) continue
+      const d = lightnessDelta(t[a], t[b])
+      assert.ok(d >= MIN, `${theme}: --${a} is only ΔL ${d.toFixed(3)} from --${b} (need ${MIN})`)
+    }
+  }
+})
+
+test('a resting surface carries no shadow, in either theme', () => {
+  // The palette's stated rule, and the one most likely to be undone by someone
+  // adding "just a little lift". elev-3 survives for things that genuinely
+  // float — dialog, sheet, popover.
+  const css = readFileSync('src/app/globals.css', 'utf8')
+  for (const slot of ['elev-1', 'elev-2']) {
+    const hits = [...css.matchAll(new RegExp(`--${slot}:\\s*([^;]+);`, 'g'))].map((m) => m[1].trim())
+    assert.ok(hits.length >= 2, `expected --${slot} in both themes, found ${hits.length}`)
+    for (const v of hits) {
+      assert.equal(v, '0 0 0 0 transparent', `--${slot} is "${v}" — a resting surface should use a border`)
     }
   }
 })

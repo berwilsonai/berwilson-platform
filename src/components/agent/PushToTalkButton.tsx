@@ -153,7 +153,7 @@ export default function PushToTalkButton({
       title={label}
       className={[
         // 44px on touch, compact on desktop — this app's tap-target minimum.
-        'relative shrink-0 size-11 sm:size-8 rounded-lg flex items-center justify-center transition-colors',
+        'relative shrink-0 size-[2.75rem] sm:size-8 rounded-lg flex items-center justify-center transition-colors',
         'outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50',
         'disabled:opacity-40 disabled:cursor-not-allowed',
         recording

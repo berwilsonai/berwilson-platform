@@ -90,7 +90,7 @@ export default function SettleCard({
         <p className="mt-4 border-t border-border pt-3 text-sm">{what}</p>
         <a
           href="/commitments"
-          className="mt-5 inline-flex h-11 items-center rounded-lg border border-border px-4 text-sm font-semibold outline-none hover:bg-accent focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+          className="mt-5 inline-flex h-[2.75rem] items-center rounded-lg border border-border px-4 text-sm font-semibold outline-none hover:bg-accent focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
         >
           See the rest
         </a>
@@ -125,7 +125,7 @@ export default function SettleCard({
             // 44px minimum touch target — this is read on a phone and nothing
             // else on the page competes for the tap (§12).
             className={cn(
-              'flex min-h-11 w-full items-center gap-3 rounded-lg border px-4 py-2.5 text-left outline-none transition-colors',
+              'flex min-h-[2.75rem] w-full items-center gap-3 rounded-lg border px-4 py-2.5 text-left outline-none transition-colors',
               'focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50',
               'disabled:opacity-50',
               v === 'done'

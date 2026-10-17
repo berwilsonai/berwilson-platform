@@ -113,7 +113,7 @@ export default function DevNoteDock() {
                 key={k}
                 type="button"
                 onClick={() => setKind(k)}
-                className={`h-11 sm:h-8 px-3 rounded-md text-xs font-medium ring-1 ring-inset transition-colors ${
+                className={`h-[2.75rem] sm:h-8 px-3 rounded-md text-xs font-medium ring-1 ring-inset transition-colors ${
                   kind === k
                     ? 'bg-primary text-primary-foreground ring-primary'
                     : 'bg-muted/40 text-muted-foreground ring-border hover:text-foreground'
@@ -139,7 +139,7 @@ export default function DevNoteDock() {
                   ? 'e.g. The task due date saves a day early'
                   : 'e.g. Let me filter tasks by project on mobile'
               }
-              className="mt-1 w-full h-11 sm:h-9 px-2.5 rounded-md border border-border bg-background text-base sm:text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+              className="mt-1 w-full h-[2.75rem] sm:h-9 px-2.5 rounded-md border border-border bg-background text-base sm:text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
             />
           </div>
 

@@ -159,7 +159,7 @@ export default function CardBatchUpload() {
           type="button"
           onClick={() => fileRef.current?.click()}
           disabled={busy}
-          className="mt-3 inline-flex items-center gap-1.5 h-11 sm:h-9 px-4 rounded-md border border-input text-sm font-medium hover:bg-accent transition-colors disabled:opacity-60"
+          className="mt-3 inline-flex items-center gap-1.5 h-[2.75rem] sm:h-9 px-4 rounded-md border border-input text-sm font-medium hover:bg-accent transition-colors disabled:opacity-60"
         >
           <Upload size={15} />
           Choose photos
@@ -245,7 +245,7 @@ export default function CardBatchUpload() {
           type="button"
           onClick={start}
           disabled={busy || read.length === 0}
-          className="inline-flex items-center gap-1.5 h-11 sm:h-9 px-4 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-60"
+          className="inline-flex items-center gap-1.5 h-[2.75rem] sm:h-9 px-4 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-60"
         >
           {starting ? <Loader2 size={15} className="animate-spin" /> : <ScanLine size={15} />}
           {starting ? 'Starting…' : reading ? 'Reading photos…' : `Research ${read.length || ''} card${read.length === 1 ? '' : 's'}`}

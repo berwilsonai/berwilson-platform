@@ -516,7 +516,7 @@ export default function AgentChat({
             // placeholder was being clipped by the box. Keeping the placeholder
             // on one line (ellipsised) is what actually fixes that; the 44px
             // floor on touch is the tap-target minimum.
-            className="flex-1 min-w-0 resize-none rounded-lg border bg-muted/30 px-3 py-2 text-base sm:text-sm placeholder:text-muted-foreground placeholder:whitespace-nowrap placeholder:overflow-hidden placeholder:text-ellipsis outline-none focus-visible:ring-1 focus-visible:ring-primary/40 min-h-11 sm:min-h-[36px] max-h-[120px]"
+            className="flex-1 min-w-0 resize-none rounded-lg border bg-muted/30 px-3 py-2 text-base sm:text-sm placeholder:text-muted-foreground placeholder:whitespace-nowrap placeholder:overflow-hidden placeholder:text-ellipsis outline-none focus-visible:ring-1 focus-visible:ring-primary/40 min-h-[2.75rem] sm:min-h-[36px] max-h-[120px]"
             style={{ height: 'auto', overflow: 'hidden' }}
             onInput={(e) => {
               const el = e.currentTarget
@@ -542,7 +542,7 @@ export default function AgentChat({
           <button
             onClick={sendMessage}
             disabled={!input.trim() || loading}
-            className="shrink-0 size-11 sm:size-8 rounded-lg bg-primary text-primary-foreground flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed hover:bg-primary/90 transition-colors"
+            className="shrink-0 size-[2.75rem] sm:size-8 rounded-lg bg-primary text-primary-foreground flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed hover:bg-primary/90 transition-colors"
           >
             <Send size={16} className="sm:size-3.5" />
           </button>

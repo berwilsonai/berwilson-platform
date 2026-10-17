@@ -845,7 +845,7 @@ export default function DecideClient({ items }: { items: DecideItem[] }) {
           <button
             key={k}
             onClick={() => setKind(k)}
-            className={`inline-flex items-center text-xs px-3 sm:px-2.5 min-h-11 sm:min-h-0 sm:py-1 rounded-full ring-1 ring-inset transition-colors ${
+            className={`inline-flex items-center text-xs px-3 sm:px-2.5 min-h-[2.75rem] sm:min-h-0 sm:py-1 rounded-full ring-1 ring-inset transition-colors ${
               kind === k
                 ? 'bg-primary text-primary-foreground ring-primary'
                 : 'bg-card text-muted-foreground ring-border hover:bg-accent'
@@ -898,7 +898,7 @@ export default function DecideClient({ items }: { items: DecideItem[] }) {
                     onClick={() =>
                       setSelected(new Set(confident.map((i) => `${i.kind}:${i.id}`)))
                     }
-                    className="inline-flex items-center h-11 sm:h-7 px-3 sm:px-2.5 rounded-md text-xs font-medium bg-card ring-1 ring-inset ring-border hover:bg-accent transition-colors"
+                    className="inline-flex items-center h-[2.75rem] sm:h-7 px-3 sm:px-2.5 rounded-md text-xs font-medium bg-card ring-1 ring-inset ring-border hover:bg-accent transition-colors"
                   >
                     Select {confident.length} high-confidence
                   </button>
@@ -916,7 +916,7 @@ export default function DecideClient({ items }: { items: DecideItem[] }) {
                       return next
                     })
                   }
-                  className="inline-flex items-center h-11 sm:h-7 px-3 sm:px-2.5 rounded-md text-xs font-medium bg-card ring-1 ring-inset ring-border hover:bg-accent transition-colors"
+                  className="inline-flex items-center h-[2.75rem] sm:h-7 px-3 sm:px-2.5 rounded-md text-xs font-medium bg-card ring-1 ring-inset ring-border hover:bg-accent transition-colors"
                 >
                   {allShownSelected ? 'Clear shown' : 'Select all shown'}
                 </button>
@@ -924,7 +924,7 @@ export default function DecideClient({ items }: { items: DecideItem[] }) {
                   type="button"
                   disabled={selectedItems.length === 0}
                   onClick={() => setAskingBatch(true)}
-                  className="inline-flex items-center gap-1.5 h-11 sm:h-7 px-3 sm:px-2.5 rounded-md text-xs font-medium bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-40 transition-colors"
+                  className="inline-flex items-center gap-1.5 h-[2.75rem] sm:h-7 px-3 sm:px-2.5 rounded-md text-xs font-medium bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-40 transition-colors"
                 >
                   <CheckCheck size={13} />
                   Accept {selectedItems.length > 0 ? selectedItems.length : ''}
@@ -1064,7 +1064,7 @@ export default function DecideClient({ items }: { items: DecideItem[] }) {
                     onClick={() => setAsking(item)}
                     disabled={pending === `${item.kind}:${item.id}`}
                     title={acceptVerb(item)}
-                    className="inline-flex items-center gap-1 h-11 sm:h-7 px-3 sm:px-2 rounded-md text-xs font-medium bg-primary/10 text-primary hover:bg-primary/20 disabled:opacity-40 transition-colors"
+                    className="inline-flex items-center gap-1 h-[2.75rem] sm:h-7 px-3 sm:px-2 rounded-md text-xs font-medium bg-primary/10 text-primary hover:bg-primary/20 disabled:opacity-40 transition-colors"
                   >
                     {pending === `${item.kind}:${item.id}` ? (
                       <Loader2 size={13} className="animate-spin" />
@@ -1103,7 +1103,7 @@ export default function DecideClient({ items }: { items: DecideItem[] }) {
                   disabled={pending === `${item.kind}:${item.id}`}
                   aria-label={`Set aside: ${item.title}`}
                   title="Set aside — reversible, nothing is deleted"
-                  className="inline-flex items-center justify-center size-11 sm:size-7 -my-1.5 sm:my-0 rounded-md text-muted-foreground hover:text-foreground hover:bg-background sm:opacity-0 sm:group-hover:opacity-100 focus-visible:opacity-100 transition-opacity disabled:opacity-40"
+                  className="inline-flex items-center justify-center size-[2.75rem] sm:size-7 -my-1.5 sm:my-0 rounded-md text-muted-foreground hover:text-foreground hover:bg-background sm:opacity-0 sm:group-hover:opacity-100 focus-visible:opacity-100 transition-opacity disabled:opacity-40"
                 >
                   {pending === `${item.kind}:${item.id}` ? (
                     <Loader2 size={13} className="animate-spin" />

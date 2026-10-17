@@ -147,7 +147,7 @@ export default async function DirectoryPage({ searchParams }: PageProps) {
           {activeTab === 'contacts' && (
             <Link
               href="/intake?tab=people"
-              className="inline-flex items-center gap-1.5 h-11 sm:h-8 px-3 rounded-md border border-input bg-background text-xs font-medium hover:bg-accent transition-colors"
+              className="inline-flex items-center gap-1.5 h-[2.75rem] sm:h-8 px-3 rounded-md border border-input bg-background text-xs font-medium hover:bg-accent transition-colors"
             >
               <UserSearch size={14} />
               <span className="whitespace-nowrap">Profile from Email</span>
@@ -155,7 +155,7 @@ export default async function DirectoryPage({ searchParams }: PageProps) {
           )}
           <Link
             href={activeTab === 'vendors' ? '/vendors/new' : '/contacts/new'}
-            className="inline-flex items-center gap-1.5 h-11 sm:h-8 px-3 rounded-md bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors"
+            className="inline-flex items-center gap-1.5 h-[2.75rem] sm:h-8 px-3 rounded-md bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors"
           >
             <Plus size={14} />
             <span className="whitespace-nowrap">{activeTab === 'vendors' ? 'Add Vendor' : 'Add Contact'}</span>

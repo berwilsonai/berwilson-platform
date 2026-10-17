@@ -236,17 +236,17 @@ export default function SecurityManager({ factors }: { factors: Factor[] }) {
                     inputMode="numeric"
                     autoComplete="one-time-code"
                     placeholder="000000"
-                    className="h-11 w-36 rounded-lg border border-border bg-background px-3 text-center font-mono text-base tracking-[0.3em] tnum outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                    className="h-[2.75rem] w-36 rounded-lg border border-border bg-background px-3 text-center font-mono text-base tracking-[0.3em] tnum outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
                   />
                 </div>
-                <Button type="submit" className="h-11" disabled={busy === 'confirm' || code.length !== 6}>
+                <Button type="submit" className="h-[2.75rem]" disabled={busy === 'confirm' || code.length !== 6}>
                   {busy === 'confirm' ? <Loader2 className="animate-spin" aria-hidden /> : <ShieldCheck aria-hidden />}
                   Confirm
                 </Button>
                 <Button
                   type="button"
                   variant="ghost"
-                  className="h-11"
+                  className="h-[2.75rem]"
                   onClick={() => setEnrollment(null)}
                 >
                   Cancel

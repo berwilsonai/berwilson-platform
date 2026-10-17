@@ -13,7 +13,7 @@ export default function Error({ error, reset }: { error: Error; reset: () => voi
         <button
           type="button"
           onClick={reset}
-          className="mt-4 inline-flex h-11 items-center rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+          className="mt-4 inline-flex h-[2.75rem] items-center rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
         >
           Try again
         </button>

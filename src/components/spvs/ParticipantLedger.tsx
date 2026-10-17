@@ -348,7 +348,7 @@ export default function ParticipantLedger({ spv, canEdit }: ParticipantLedgerPro
               </Select>
             </Field>
             <Field id={`pours-${spv.id}`} label="Is this Ber Wilson?">
-              <label className="flex min-h-11 items-center gap-2 text-sm sm:min-h-9">
+              <label className="flex min-h-[2.75rem] items-center gap-2 text-sm sm:min-h-9">
                 <input
                   id={`pours-${spv.id}`}
                   type="checkbox"

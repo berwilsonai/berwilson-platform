@@ -48,30 +48,6 @@ export function readThemeTokens(cssPath = 'src/app/globals.css') {
   }
 }
 
-/**
- * A candidate direction's tokens, falling back to the live theme for anything
- * the direction does not override.
- *
- * ⚠ THE FALLBACK IS THE POINT. A direction declares ~30 of the ~50 tokens, so
- * measuring its blocks alone would read `card` as missing and report every
- * ratio as unmeasurable. The browser resolves the rest by inheritance from
- * :root; this has to do the same, or the measurement describes a palette that
- * never renders.
- */
-export function readDirectionTokens(
-  id: string,
-  theme: ThemeName,
-  cssPath = 'src/app/directions.css',
-  baseCssPath = 'src/app/globals.css'
-): Record<string, string> {
-  const selector = theme === 'light' ? `[data-direction='${id}']:not(.dark)` : `.dark[data-direction='${id}']`
-  return { ...readThemeTokens(baseCssPath)[theme], ...readBlock(selector, cssPath) }
-}
-
-export function token(name: string, theme: ThemeName, cssPath?: string): string | null {
-  return readThemeTokens(cssPath)[theme][name] ?? null
-}
-
 export interface ToneMeasurement {
   tone: string
   theme: ThemeName

@@ -94,12 +94,12 @@ const fieldClass =
 // the row and the four filters wrapped onto three lines of ragged widths.
 // Bound them and let the native control truncate its own label.
 const filterFieldClass =
-  'h-11 sm:h-8 w-[10.5rem] sm:w-[9.5rem] max-w-full rounded-md border border-input bg-background px-2 text-sm sm:text-xs outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50'
+  'h-[2.75rem] sm:h-8 w-[10.5rem] sm:w-[9.5rem] max-w-full rounded-md border border-input bg-background px-2 text-sm sm:text-xs outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50'
 
 // 44px on touch (Apple HIG / WCAG 2.5.5 target size), the tighter 32px on
 // pointer devices. `whitespace-nowrap` keeps a two-word label off two lines.
 const headerButtonClass =
-  'inline-flex items-center justify-center gap-1.5 whitespace-nowrap h-11 sm:h-8 px-3 rounded-md border border-border bg-card text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-accent transition-colors'
+  'inline-flex items-center justify-center gap-1.5 whitespace-nowrap h-[2.75rem] sm:h-8 px-3 rounded-md border border-border bg-card text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-accent transition-colors'
 
 export default function TeamTaskBoard({
   initialTasks,
@@ -458,7 +458,7 @@ export default function TeamTaskBoard({
           )}
           <button
             onClick={() => setShowAdd((s) => !s)}
-            className="inline-flex items-center justify-center gap-1.5 whitespace-nowrap h-11 sm:h-8 px-3.5 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 active:scale-[0.98] transition-all elev-1"
+            className="inline-flex items-center justify-center gap-1.5 whitespace-nowrap h-[2.75rem] sm:h-8 px-3.5 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 active:scale-[0.98] transition-all elev-1"
           >
             <Plus size={14} /> New task
           </button>
@@ -478,7 +478,7 @@ export default function TeamTaskBoard({
                 key={member.id}
                 onClick={() => setAssigneeFilter(active ? 'all' : member.id)}
                 className={cn(
-                  'inline-flex shrink-0 items-center gap-2 h-11 sm:h-9 pl-1.5 pr-3 rounded-full border text-sm transition-colors',
+                  'inline-flex shrink-0 items-center gap-2 h-[2.75rem] sm:h-9 pl-1.5 pr-3 rounded-full border text-sm transition-colors',
                   active
                     ? 'border-primary/50 bg-primary/10 text-foreground'
                     : 'border-border bg-card text-muted-foreground hover:text-foreground hover:bg-accent',
@@ -673,14 +673,14 @@ export default function TeamTaskBoard({
         <div className="inline-flex rounded-lg border border-border overflow-hidden text-sm">
           <button
             onClick={() => setStatus('open')}
-            className={cn('px-3 h-11 sm:h-auto sm:py-1.5 inline-flex items-center gap-1.5 transition-colors',
+            className={cn('px-3 h-[2.75rem] sm:h-auto sm:py-1.5 inline-flex items-center gap-1.5 transition-colors',
               status === 'open' ? 'bg-primary text-primary-foreground' : 'bg-background text-muted-foreground hover:text-foreground hover:bg-muted')}
           >
             <ListChecks size={14} /> Open
           </button>
           <button
             onClick={() => setStatus('done')}
-            className={cn('px-3 h-11 sm:h-auto sm:py-1.5 inline-flex items-center gap-1.5 transition-colors border-l border-border',
+            className={cn('px-3 h-[2.75rem] sm:h-auto sm:py-1.5 inline-flex items-center gap-1.5 transition-colors border-l border-border',
               status === 'done' ? 'bg-primary text-primary-foreground' : 'bg-background text-muted-foreground hover:text-foreground hover:bg-muted')}
           >
             <Archive size={14} /> Archive
@@ -697,7 +697,7 @@ export default function TeamTaskBoard({
           <button
             onClick={() => setFiltersOpen((o) => !o)}
             className={cn(
-              'sm:hidden inline-flex items-center gap-1.5 h-11 px-3 rounded-md border text-sm font-medium transition-colors',
+              'sm:hidden inline-flex items-center gap-1.5 h-[2.75rem] px-3 rounded-md border text-sm font-medium transition-colors',
               activeRecordFilters > 0
                 ? 'border-primary/50 bg-primary/10 text-foreground'
                 : 'border-input bg-background text-muted-foreground',

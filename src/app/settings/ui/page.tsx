@@ -8,7 +8,6 @@ import { Chip } from '@/components/ui/chip'
 import { Kbd } from '@/components/ui/kbd'
 import { STATUS_TONES, CATEGORY_TONES, type Tone } from '@/lib/ui/tone'
 import { measureTones, readThemeTokens } from '@/lib/ui/tokens'
-import DirectionGallery from './DirectionGallery'
 
 export const metadata = { title: 'Interface — Ber Wilson Intelligence' }
 
@@ -32,15 +31,9 @@ export const metadata = { title: 'Interface — Ber Wilson Intelligence' }
  * no nav group, because a style guide is not one of the company's working
  * surfaces.
  */
-export default async function UiSettingsPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ direction?: string }>
-}) {
+export default async function UiSettingsPage() {
   const viewer = await getViewer()
   if (viewer && !viewer.isAdmin) redirect('/tasks')
-
-  const { direction } = await searchParams
 
   const measurements = measureTones()
   const tokens = readThemeTokens()
@@ -57,16 +50,6 @@ export default async function UiSettingsPage({
           contrast failure is invisible everywhere else until someone hits it on a real screen.
         </p>
       </header>
-
-      <DirectionGallery only={direction} />
-
-      <div className="border-t border-border pt-5">
-        <h2 className="text-lg font-semibold">Current tokens and primitives</h2>
-        <p className="mt-1 max-w-prose text-sm text-muted-foreground">
-          What is live today. The directions above do not touch any of this — they are scoped to
-          their own previews.
-        </p>
-      </div>
 
       {/* ── Tones ──────────────────────────────────────────────────────────── */}
       <Panel>

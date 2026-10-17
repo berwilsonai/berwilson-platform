@@ -91,14 +91,14 @@ export default function StepUpPrompt({
               aria-invalid={!!error}
               aria-describedby={error ? `${codeId}-error` : undefined}
               placeholder="000000"
-              className="h-11 w-full rounded-lg border border-border bg-background px-3 text-center font-mono text-xl tracking-[0.4em] tnum outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 aria-invalid:border-destructive"
+              className="h-[2.75rem] w-full rounded-lg border border-border bg-background px-3 text-center font-mono text-xl tracking-[0.4em] tnum outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 aria-invalid:border-destructive"
             />
             {error && (
               <p id={`${codeId}-error`} role="alert" className="text-sm text-destructive">
                 {error}
               </p>
             )}
-            <Button type="submit" disabled={busy || code.length !== 6} className="h-11 w-full">
+            <Button type="submit" disabled={busy || code.length !== 6} className="h-[2.75rem] w-full">
               {busy ? (
                 <>
                   <Loader2 className="animate-spin" aria-hidden /> Checking
@@ -118,7 +118,7 @@ export default function StepUpPrompt({
             </p>
             <Link
               href="/settings/security"
-              className={buttonVariants({ className: 'h-11 w-full' })}
+              className={buttonVariants({ className: 'h-[2.75rem] w-full' })}
             >
               <ShieldCheck aria-hidden /> Set up an authenticator
             </Link>

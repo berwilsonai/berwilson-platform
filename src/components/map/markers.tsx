@@ -83,7 +83,7 @@ function markerTier(value: number | null | undefined): MarkerTier {
 const TIER_STYLE: Record<MarkerTier, { puck: string; glyph: number; tip: string }> = {
   sm: { puck: 'size-7', glyph: 14, tip: 'size-1.5' },
   md: { puck: 'size-9', glyph: 18, tip: 'size-2' },
-  lg: { puck: 'size-11', glyph: 22, tip: 'size-2.5' },
+  lg: { puck: 'size-[2.75rem]', glyph: 22, tip: 'size-2.5' },
   xl: { puck: 'size-13', glyph: 26, tip: 'size-3' },
 }
 
@@ -191,7 +191,7 @@ export function buildClusterElement(members: MapProject[]): HTMLDivElement {
     total >= 10_000_000_000
       ? 'size-12 text-sm'
       : total >= 1_000_000_000 || count >= 10
-        ? 'size-11 text-sm'
+        ? 'size-[2.75rem] text-sm'
         : count >= 5
           ? 'size-10 text-sm'
           : 'size-9 text-xs'

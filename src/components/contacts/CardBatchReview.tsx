@@ -373,7 +373,7 @@ export default function CardBatchReview({
                             set(row.ref, 'link_target', v)
                             if (v) set(row.ref, 'action', 'link')
                           }}
-                          className="w-full h-11 sm:h-9 px-2.5 rounded-md border border-input bg-background text-sm"
+                          className="w-full h-[2.75rem] sm:h-9 px-2.5 rounded-md border border-input bg-background text-sm"
                         >
                           <option value="">— create a new contact —</option>
                           {row.candidates.map((c) => (
@@ -440,7 +440,7 @@ export default function CardBatchReview({
             type="button"
             onClick={save}
             disabled={saving || selected.length === 0}
-            className="inline-flex items-center gap-1.5 h-11 sm:h-9 px-4 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-60"
+            className="inline-flex items-center gap-1.5 h-[2.75rem] sm:h-9 px-4 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-60"
           >
             {saving ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} />}
             Save {selected.length} contact{selected.length === 1 ? '' : 's'}
@@ -471,7 +471,7 @@ function ActionPicker({ row, onChange }: { row: Row; onChange: (a: Action) => vo
           onClick={() => onChange(value)}
           title={disabled ? 'No existing contact is matched to this card' : label}
           className={cn(
-            'inline-flex items-center gap-1 h-11 sm:h-8 px-2 text-xs font-medium transition-colors border-l border-border first:border-l-0',
+            'inline-flex items-center gap-1 h-[2.75rem] sm:h-8 px-2 text-xs font-medium transition-colors border-l border-border first:border-l-0',
             row.action === value
               ? 'bg-primary text-primary-foreground'
               : 'hover:bg-accent text-muted-foreground disabled:opacity-40 disabled:hover:bg-transparent',

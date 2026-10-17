@@ -31,7 +31,7 @@ export default function ProtectedProjectList({
           <li key={project.id}>
             <Link
               href={`/projects/${project.id}`}
-              className="flex min-h-11 items-center gap-2.5 px-4 py-2.5 text-sm transition-colors hover:bg-accent/50 focus-visible:bg-accent/50 focus-visible:outline-none"
+              className="flex min-h-[2.75rem] items-center gap-2.5 px-4 py-2.5 text-sm transition-colors hover:bg-accent/50 focus-visible:bg-accent/50 focus-visible:outline-none"
             >
               <Lock className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
               <span className="min-w-0 flex-1 truncate font-medium">{project.name}</span>

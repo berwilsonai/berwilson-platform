@@ -215,7 +215,7 @@ export default function MobileQuickUpload() {
                       <select
                         value={selectedProject}
                         onChange={(e) => setSelectedProject(e.target.value)}
-                        className="w-full h-11 rounded-lg border border-input bg-background px-3 text-sm outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+                        className="w-full h-[2.75rem] rounded-lg border border-input bg-background px-3 text-sm outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
                       >
                         <option value="">Select a project...</option>
                         {projects.map((p) => (
@@ -268,7 +268,7 @@ export default function MobileQuickUpload() {
                   <button
                     onClick={handleUpload}
                     disabled={!selectedFile || !selectedProject || uploading}
-                    className="w-full h-12 rounded-xl bg-foreground text-background text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed active:scale-[0.98] transition-transform"
+                    className="w-full h-[3rem] rounded-xl bg-foreground text-background text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed active:scale-[0.98] transition-transform"
                   >
                     {uploading ? (
                       <>

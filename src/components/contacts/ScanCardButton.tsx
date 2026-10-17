@@ -180,7 +180,7 @@ export default function ScanCardButton() {
         type="button"
         onClick={() => fileRef.current?.click()}
         disabled={stage === 'scanning'}
-        className="inline-flex items-center gap-1.5 h-11 sm:h-8 px-3 rounded-md border border-input text-xs font-medium hover:bg-accent transition-colors shrink-0 disabled:opacity-60"
+        className="inline-flex items-center gap-1.5 h-[2.75rem] sm:h-8 px-3 rounded-md border border-input text-xs font-medium hover:bg-accent transition-colors shrink-0 disabled:opacity-60"
       >
         {stage === 'scanning' ? <Loader2 size={14} className="animate-spin" /> : <Camera size={14} />}
         <span className="whitespace-nowrap">Scan Card</span>
@@ -343,7 +343,7 @@ export default function ScanCardButton() {
             <button
               onClick={save}
               disabled={stage === 'saving' || !(draft.full_name || draft.company)}
-              className="inline-flex items-center gap-1.5 h-11 sm:h-9 px-3 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-60"
+              className="inline-flex items-center gap-1.5 h-[2.75rem] sm:h-9 px-3 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-60"
             >
               {stage === 'saving' ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
               {linkExisting ? 'Fill in contact' : 'Save contact'}
@@ -351,7 +351,7 @@ export default function ScanCardButton() {
             <button
               onClick={discard}
               disabled={stage === 'saving'}
-              className="inline-flex items-center h-11 sm:h-9 px-3 rounded-md border border-input text-sm font-medium hover:bg-accent transition-colors"
+              className="inline-flex items-center h-[2.75rem] sm:h-9 px-3 rounded-md border border-input text-sm font-medium hover:bg-accent transition-colors"
             >
               Discard
             </button>

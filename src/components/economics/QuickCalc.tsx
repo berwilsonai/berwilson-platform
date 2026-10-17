@@ -183,7 +183,7 @@ export default function QuickCalc({ initial, showSave = true, syncUrl = true }: 
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="flex min-h-11 items-center gap-1 text-sm text-muted-foreground outline-none focus-visible:ring-3 focus-visible:ring-ring/50 sm:min-h-0"
+        className="flex min-h-[2.75rem] items-center gap-1 text-sm text-muted-foreground outline-none focus-visible:ring-3 focus-visible:ring-ring/50 sm:min-h-0"
         aria-expanded={open}
       >
         <ChevronDown className={open ? 'size-4 rotate-180' : 'size-4'} />

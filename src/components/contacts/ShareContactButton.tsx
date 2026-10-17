@@ -176,7 +176,7 @@ export default function ShareContactButton(props: Props) {
       type="button"
       onClick={handleShare}
       disabled={busy}
-      className="inline-flex items-center gap-1.5 h-11 sm:h-8 px-3 rounded-md border border-input text-xs font-medium hover:bg-accent transition-colors shrink-0 disabled:opacity-60"
+      className="inline-flex items-center gap-1.5 h-[2.75rem] sm:h-8 px-3 rounded-md border border-input text-xs font-medium hover:bg-accent transition-colors shrink-0 disabled:opacity-60"
       title="Share this contact"
     >
       {busy ? <Loader2 size={14} className="animate-spin" /> : <Share2 size={14} />}

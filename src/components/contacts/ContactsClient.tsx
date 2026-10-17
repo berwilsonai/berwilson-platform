@@ -526,7 +526,7 @@ function ContactRow({
             aria-label={`Delete ${contact.full_name}`}
             onClick={() => setConfirming(true)}
             disabled={deleting}
-            className="inline-flex items-center justify-center size-11 sm:size-8 rounded-md text-muted-foreground transition-opacity hover:text-destructive sm:opacity-0 group-hover:opacity-100 focus-visible:opacity-100 disabled:opacity-40"
+            className="inline-flex items-center justify-center size-[2.75rem] sm:size-8 rounded-md text-muted-foreground transition-opacity hover:text-destructive sm:opacity-0 group-hover:opacity-100 focus-visible:opacity-100 disabled:opacity-40"
           >
             <Trash2 size={14} />
           </button>

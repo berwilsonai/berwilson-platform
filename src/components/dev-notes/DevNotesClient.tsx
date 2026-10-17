@@ -231,7 +231,7 @@ export default function DevNotesClient({ notes, isAdmin, teamMemberId, initialOp
                 <select
                   value={status}
                   onChange={(e) => patch(note, { status: e.target.value as DevNoteStatus })}
-                  className="h-11 sm:h-8 px-2 rounded-md border border-border bg-background text-xs"
+                  className="h-[2.75rem] sm:h-8 px-2 rounded-md border border-border bg-background text-xs"
                   aria-label="Status"
                 >
                   {DEV_NOTE_STATUSES.map((s) => (
@@ -247,7 +247,7 @@ export default function DevNotesClient({ notes, isAdmin, teamMemberId, initialOp
                   <select
                     value={priority}
                     onChange={(e) => patch(note, { priority: e.target.value })}
-                    className="h-11 sm:h-8 px-2 rounded-md border border-border bg-background text-xs"
+                    className="h-[2.75rem] sm:h-8 px-2 rounded-md border border-border bg-background text-xs"
                     aria-label="Priority"
                   >
                     {DEV_NOTE_PRIORITIES.map((p) => (
@@ -299,7 +299,7 @@ export default function DevNotesClient({ notes, isAdmin, teamMemberId, initialOp
         <select
           value={kindFilter}
           onChange={(e) => setKindFilter(e.target.value)}
-          className="h-11 sm:h-8 px-2 rounded-md border border-border bg-background text-xs"
+          className="h-[2.75rem] sm:h-8 px-2 rounded-md border border-border bg-background text-xs"
           aria-label="Filter by kind"
         >
           <option value="">All kinds</option>

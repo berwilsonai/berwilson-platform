@@ -313,7 +313,7 @@ export default function RegisterSection({
                     ))}
                   </Select>
                 ) : f.type === 'bool' ? (
-                  <label className="relative flex h-11 items-center gap-2 text-sm sm:h-9">
+                  <label className="relative flex h-[2.75rem] items-center gap-2 text-sm sm:h-9">
                     <input
                       type="checkbox"
                       checked={form[f.name] === true}

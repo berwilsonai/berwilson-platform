@@ -123,11 +123,11 @@ const controlVariants = cva(
          * 44px on touch, 36px from `sm` up. This is the app's documented
          * minimum target size and the default for anything a thumb meets.
          */
-        default: 'h-11 sm:h-9 px-3 text-base sm:text-sm',
+        default: 'h-[2.75rem] sm:h-9 px-3 text-base sm:text-sm',
         /** Inline editors and table cells, where the row height is the constraint. */
         sm: 'h-9 sm:h-8 px-2.5 text-sm sm:text-xs',
         /** Prominent single fields — a title, a search. */
-        lg: 'h-12 sm:h-11 px-3.5 text-base',
+        lg: 'h-[3rem] sm:h-[2.75rem] px-3.5 text-base',
       },
     },
     defaultVariants: { size: 'default' },

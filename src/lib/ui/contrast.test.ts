@@ -2,6 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 
 import { oklchToRgb, contrast, contrastOklch, parseOklch } from './contrast'
+import { readThemeTokens } from './tokens'
 
 const hex = (l: number, c: number, h: number) => {
   const { r, g, b } = oklchToRgb(l, c, h)
@@ -51,20 +52,47 @@ test('parseOklch reads the forms globals.css actually uses', () => {
 })
 
 test("the palette's own documented claims hold", () => {
-  // globals.css says --primary is "Dark enough for white text (~6.5:1)" and
-  // --muted-foreground is "comfortably legible at small sizes (~6:1 on white)".
-  // If a future palette edit breaks either, the comment becomes a lie — which
-  // is worse than no comment.
-  const primaryOnWhite = contrastOklch('oklch(0.40 0.105 262)', 'oklch(1 0 0)')
-  assert.ok(primaryOnWhite >= 6.0, `--primary on white is ${primaryOnWhite.toFixed(2)}:1`)
+  // ⚠ READ FROM globals.css, NEVER RETYPED. This test first hardcoded the
+  // palette's oklch values, and the 10-17 redraw changed every one of them —
+  // so it kept passing while measuring colours that no longer existed
+  // anywhere. A test with a copied constant in it verifies the copy.
+  const t = readThemeTokens()
 
-  const mutedOnWhite = contrastOklch('oklch(0.46 0.015 260)', 'oklch(1 0 0)')
-  assert.ok(mutedOnWhite >= 5.5, `--muted-foreground on white is ${mutedOnWhite.toFixed(2)}:1`)
+  const primaryOnWhite = contrastOklch(t.light['primary'], t.light['card'])
+  assert.ok(primaryOnWhite >= 6.0, `--primary on card is ${primaryOnWhite.toFixed(2)}:1`)
+  const mutedOnWhite = contrastOklch(t.light['muted-foreground'], t.light['card'])
+  assert.ok(mutedOnWhite >= 5.5, `--muted-foreground on card is ${mutedOnWhite.toFixed(2)}:1`)
 
-  // And the dark theme's counterparts, against the dark card rather than black.
-  const darkCard = 'oklch(0.205 0.01 260)'
-  const primaryDark = contrastOklch('oklch(0.72 0.10 262)', darkCard)
+  const primaryDark = contrastOklch(t.dark['primary'], t.dark['card'])
   assert.ok(primaryDark >= 6.0, `dark --primary on card is ${primaryDark.toFixed(2)}:1`)
-  const mutedDark = contrastOklch('oklch(0.75 0.01 260)', darkCard)
+  const mutedDark = contrastOklch(t.dark['muted-foreground'], t.dark['card'])
   assert.ok(mutedDark >= 5.5, `dark --muted-foreground on card is ${mutedDark.toFixed(2)}:1`)
+
+  // The accent is the only chromatic role in this palette, so its label has to
+  // read on the filled button as well as the accent reads on the card.
+  const labelOnPrimary = contrastOklch(t.light['primary-foreground'], t.light['primary'])
+  assert.ok(labelOnPrimary >= 4.5, `light button label is ${labelOnPrimary.toFixed(2)}:1`)
+  const labelOnPrimaryDark = contrastOklch(t.dark['primary-foreground'], t.dark['primary'])
+  assert.ok(labelOnPrimaryDark >= 4.5, `dark button label is ${labelOnPrimaryDark.toFixed(2)}:1`)
+
+  // And the body text, which is most of what anyone actually reads.
+  for (const theme of ['light', 'dark'] as const) {
+    const body = contrastOklch(t[theme]['foreground'], t[theme]['card'])
+    assert.ok(body >= 12, `${theme} body text on card is only ${body.toFixed(2)}:1`)
+  }
+})
+
+test('the neutrals are neutral — zero chroma, by assertion', () => {
+  // The palette's stated rule is "neutrals at zero chroma, and exactly one
+  // chromatic role". That is only true if nobody tints a grey later, and a
+  // slightly blue grey is invisible in isolation and obvious in aggregate.
+  const t = readThemeTokens()
+  const NEUTRAL = ['background', 'foreground', 'card', 'muted', 'muted-foreground', 'secondary', 'accent']
+  for (const theme of ['light', 'dark'] as const) {
+    for (const name of NEUTRAL) {
+      const parsed = parseOklch(t[theme][name])
+      assert.ok(parsed, `${theme}/${name} is not an oklch() value`)
+      assert.ok(parsed.c === 0, `${theme} --${name} has chroma ${parsed.c}; the neutrals are zero-chroma`)
+    }
+  }
 })

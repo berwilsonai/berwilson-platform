@@ -150,6 +150,25 @@ test('the slate ramp is not growing — it does not respond to the theme', () =>
     'Print routes are the deliberate exception.')
 })
 
+test('a touch target is never derived from the spacing scale', () => {
+  // ⚠ `h-11` is calc(var(--spacing) * 11). At Tailwind's 0.25rem default that
+  // is exactly the 44px minimum; at this app's 0.22rem it is 38.7px. So the
+  // density knob silently shrinks every tap target below the floor — it did,
+  // to 66 of them, on the one device where it matters. A touch target is a
+  // PHYSICAL constraint, so it is written absolutely and is immune to density.
+  //
+  // The two survivors are the login logo (`h-11 w-auto`), which is decorative
+  // and may shrink. Decorative `size-12` icon circles are deliberately out of
+  // scope for the same reason.
+  const hits = scan(/\b(?:min-h|h|size)-11\b/)
+  const nonLogo = hits.filter((h) => !h.file.endsWith('LoginForm.tsx'))
+  assert.deepEqual(
+    nonLogo.map((h) => `${h.file}:${h.line}`),
+    [],
+    'use h-[2.75rem] / min-h-[2.75rem] / size-[2.75rem] — 44px, independent of --spacing'
+  )
+})
+
 // ─── a floor, not a ceiling ──────────────────────────────────────────────────
 
 test('aria-current is only ever added, never removed', () => {

@@ -170,7 +170,7 @@ export default function EconomicsEditor({
       return (
         <label
           key={field.name}
-          className="relative flex min-h-11 items-start gap-2 text-sm sm:col-span-2"
+          className="relative flex min-h-[2.75rem] items-start gap-2 text-sm sm:col-span-2"
         >
           <input
             type="checkbox"
