@@ -1,4 +1,5 @@
 import { createAdminClient } from '@/lib/supabase/admin'
+import { resolveRecordByName } from '@/lib/records/resolve'
 
 export interface ExtractedProject {
   name: string | null
@@ -53,15 +54,49 @@ export interface ProposalExtraction {
 }
 
 export interface MatchCandidate {
-  project_id: string
-  project_name: string
+  /**
+   * Which table this candidate is in.
+   *
+   * ⚠ A DISCRIMINATOR, NEVER INFERRED FROM WHICH ID IS SET. §12: "a new record
+   * type is a destination for the HUMAN, never a classification for the model —
+   * carry the kind the MATCH came from." Seeding a target from the model's own
+   * guess at a kind once sent an opportunity's uuid down the projects branch.
+   */
+  kind: 'project' | 'opportunity'
+  project_id: string | null
+  project_name: string | null
+  opportunity_id: string | null
+  opportunity_name: string | null
   score: number
   match_reasons: string[]
   extracted_project_index: number
 }
 
-export async function findMatchingProjects(
-  projects: ExtractedProject[]
+/**
+ * Find the existing records an extracted project might already BE.
+ *
+ * ⚠ RENAMED FROM findMatchingProjects 2026-10-17, because it no longer searches
+ * only projects — and the old name was the bug. An opportunity could never be a
+ * candidate here (MatchCandidate had no field for one), so the pre-decide model,
+ * which may only choose a merge target from the closed list it is shown, had no
+ * way to say "this is the GridEdge opportunity" and said `create` instead.
+ * Measured 2026-10-16: 110 of 126 pending sessions proposed creating a new
+ * record at 0.93 average confidence, against a register of 19 projects and 7
+ * opportunities, with titles like "Steelton Letter-PPL" and "WES / GridEdge
+ * Modular Data Center Partnership" among them. `resolveMergeTarget` had been
+ * reading `opportunity_name` off these candidates since it was written — a
+ * branch nothing could ever satisfy.
+ *
+ * `includeOpportunities` exists because the two callers want different things
+ * and §12 says to add a target rather than fork the pass: the email intake path
+ * needs both tables, while /proposals/intake attaches its result to a PROJECT by
+ * id and has no opportunity branch in its wizard. Default is false, so a caller
+ * that forgets gets the old, narrower behaviour rather than a candidate it
+ * cannot render.
+ */
+export async function findMatchingRecords(
+  projects: ExtractedProject[],
+  opts: { includeOpportunities?: boolean } = {}
 ): Promise<MatchCandidate[]> {
   const supabase = createAdminClient()
   const allCandidates: MatchCandidate[] = []
@@ -69,6 +104,48 @@ export async function findMatchingProjects(
   for (let i = 0; i < projects.length; i++) {
     const extraction = projects[i]
     const candidates: Map<string, MatchCandidate> = new Map()
+
+    // 0. The record-name ladder shared with the meetings path
+    //    (src/lib/records/resolve.ts): an exact name, then a single
+    //    identity-bearing word. This runs FIRST and over BOTH tables because it
+    //    is the only bar here that can reach an opportunity at all, and because
+    //    it answers the cases trigram structurally cannot — "Steelton Site"
+    //    scores 0.290 against Steelton — Cleveland-Cliffs (PA) and loses, while
+    //    "Riverdale Site" scores 0.303 and wins (§12: two identically shaped
+    //    names fall either side of any number you pick).
+    //
+    //    ⚠ FED THE NAME ONLY, not the location or the client. Those are already
+    //    weak +0.2 signals against `projects` below, and a shared WORD test over
+    //    a location would match a record name on the place in it — which is the
+    //    right answer for "Delta, Utah" and the wrong one for a thread that
+    //    merely mentions three sites (§12: a deal's location in a three-deal
+    //    thread is incidental).
+    if (opts.includeOpportunities && extraction.name) {
+      const resolved = await resolveRecordByName([extraction.name]).catch(() => null)
+      const hit = resolved?.target ?? resolved?.suggestion ?? null
+      if (hit) {
+        // An exact, unique name is strong enough to act on; a shared word is a
+        // suggestion for a human and is deliberately scored below the 0.7 the
+        // proposals wizard auto-attaches at.
+        const exact = resolved?.via === 'exact_name'
+        candidates.set(hit.id, {
+          kind: hit.kind,
+          project_id: hit.kind === 'project' ? hit.id : null,
+          project_name: hit.kind === 'project' ? hit.name : null,
+          opportunity_id: hit.kind === 'opportunity' ? hit.id : null,
+          opportunity_name: hit.kind === 'opportunity' ? hit.name : null,
+          score: exact ? 1.0 : 0.55,
+          // Names the WORD, not just the bar: "record_name_shared_word:steelton"
+          // is checkable by a reader, "0.55" is not (§12).
+          match_reasons: [
+            exact
+              ? 'record_name_exact'
+              : `record_name_shared_word:${(resolved?.matchedWords ?? []).join('+') || '?'}`,
+          ],
+          extracted_project_index: i,
+        })
+      }
+    }
 
     // 1. Solicitation number exact match
     if (extraction.solicitation_number) {
@@ -80,8 +157,11 @@ export async function findMatchingProjects(
       if (solMatches?.length) {
         for (const p of solMatches) {
           candidates.set(p.id, {
+            kind: 'project',
             project_id: p.id,
             project_name: p.name,
+            opportunity_id: null,
+            opportunity_name: null,
             score: 1.0,
             match_reasons: ['solicitation_number_exact'],
             extracted_project_index: i,
@@ -108,8 +188,11 @@ export async function findMatchingProjects(
             existing.match_reasons.push('name_similarity')
           } else {
             candidates.set(m.id, {
+              kind: 'project',
               project_id: m.id,
               project_name: m.name,
+              opportunity_id: null,
+              opportunity_name: null,
               score: nameScore,
               match_reasons: ['name_similarity'],
               extracted_project_index: i,
@@ -135,8 +218,11 @@ export async function findMatchingProjects(
             existing.match_reasons.push('location_match')
           } else {
             candidates.set(p.id, {
+              kind: 'project',
               project_id: p.id,
               project_name: p.name,
+              opportunity_id: null,
+              opportunity_name: null,
               score: 0.2,
               match_reasons: ['location_match'],
               extracted_project_index: i,
@@ -161,8 +247,11 @@ export async function findMatchingProjects(
             existing.match_reasons.push('client_entity_match')
           } else {
             candidates.set(p.id, {
+              kind: 'project',
               project_id: p.id,
               project_name: p.name,
+              opportunity_id: null,
+              opportunity_name: null,
               score: 0.2,
               match_reasons: ['client_entity_match'],
               extracted_project_index: i,

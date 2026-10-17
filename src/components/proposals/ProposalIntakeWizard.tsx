@@ -70,6 +70,15 @@ interface FitAssessment {
 interface UploadedFile { temp_path: string; file_name: string; file_size_bytes: number; mime_type: string; is_primary: boolean }
 
 interface MatchCandidate {
+  /**
+   * ⚠ This wizard attaches a proposal to a PROJECT by id and has no branch for
+   * an opportunity, so a non-project candidate must be filtered out rather than
+   * rendered with an undefined id. `findMatchingRecords` only returns them when
+   * a caller passes includeOpportunities, which the /proposals/intake route
+   * deliberately does not — the filters are here so that staying true is not a
+   * condition for this screen working.
+   */
+  kind?: 'project' | 'opportunity'
   project_id: string
   project_name: string
   score: number
@@ -301,6 +310,7 @@ export default function ProposalIntakeWizard({ availableParents: initialParents 
       // Pre-fill attachments for high-confidence matches
       const attachments: Record<number, string | null> = {}
       for (const mc of ((data.match_candidates as MatchCandidate[]) || [])) {
+        if (mc.kind && mc.kind !== 'project') continue
         if (mc.score >= 0.7) {
           attachments[mc.extracted_project_index] = mc.project_id
         }
@@ -607,7 +617,7 @@ export default function ProposalIntakeWizard({ availableParents: initialParents 
                       )}
                       {/* Existing project match */}
                       {(() => {
-                        const matches = matchCandidates.filter(mc => mc.extracted_project_index === i && mc.score > 0.3)
+                        const matches = matchCandidates.filter(mc => mc.extracted_project_index === i && mc.score > 0.3 && (!mc.kind || mc.kind === 'project'))
                         if (!matches.length) return null
                         const attached = projectAttachments[i]
                         return (

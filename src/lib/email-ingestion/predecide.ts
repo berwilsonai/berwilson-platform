@@ -89,7 +89,14 @@ function candidateNames(raw: unknown): string[] {
       if (typeof c === 'string') return c
       if (c && typeof c === 'object') {
         const o = c as Record<string, unknown>
-        return str(o.name) ?? str(o.title) ?? str(o.project_name) ?? null
+        // ⚠ opportunity_name IS LOAD-BEARING. The model may only choose a
+        // merge target from the names in this list, so a key missing here is a
+        // record it cannot name — which is exactly how 7 opportunities stayed
+        // unreachable while the queue filled with `create` (see
+        // findMatchingRecords). Added 2026-10-17 with the candidate shape.
+        return (
+          str(o.name) ?? str(o.title) ?? str(o.project_name) ?? str(o.opportunity_name) ?? null
+        )
       }
       return null
     })

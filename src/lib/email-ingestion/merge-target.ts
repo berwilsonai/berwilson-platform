@@ -45,6 +45,12 @@ export function resolveMergeTarget(
   const hits: Array<{ projectId: string | null; opportunityId: string | null; name: string }> = []
 
   for (const c of candidates) {
+    // ⚠ `match_candidates` is jsonb and predates several shape changes, so an
+    // element can be null or a scalar — and reading a field off it THREW,
+    // 500ing the merge button on a human's click. Found 2026-10-17 by the first
+    // test ever written for this function. A bad element is skipped, not fatal:
+    // the other candidates in the list are still answerable.
+    if (!c || typeof c !== 'object') continue
     if (norm(c.project_name) === wanted && typeof c.project_id === 'string') {
       hits.push({ projectId: c.project_id, opportunityId: null, name: String(c.project_name) })
     }

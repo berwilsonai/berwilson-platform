@@ -17,68 +17,8 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { storeExtractedText } from '@/lib/ai/document-text'
 import { embedDocument, embedOpportunityDocument } from '@/lib/ai/embeddings'
 import { matchLearnedMeetingTitle } from '@/lib/email-sweep/identifiers'
+import { resolveRecordByName } from '@/lib/records/resolve'
 import type { SeedTarget } from '@/lib/email-ingestion/analyze-meeting'
-
-/** Match names case-insensitively but EXACTLY — see resolveMeetingTarget. */
-function escapeLike(s: string): string {
-  return s.replace(/[%_\\]/g, (c) => `\\${c}`)
-}
-
-/**
- * Words that carry no identity in a Ber Wilson record name.
- *
- * The same list, and the same argument, as analyze-meeting.ts: four live
- * projects are called Heber Development, Myton Development, Tonga Development
- * Project and American Energy Rail Corridor - Community Development, so
- * "Development" is shared vocabulary rather than a name. Place names are
- * deliberately absent — Myton, Delta, Heber and Tooele are exactly what
- * distinguishes these records from each other.
- */
-const GENERIC_NAME_WORDS = new Set([
-  'development', 'developments', 'project', 'projects', 'site', 'sites', 'campus',
-  'expansion', 'portfolio', 'initiative', 'phase', 'center', 'centre', 'complex',
-  'park', 'building', 'buildings', 'construction', 'community', 'corridor',
-  'industrial', 'group', 'holdings', 'company', 'the', 'and', 'for', 'llc', 'inc',
-  // Calendar vocabulary, which a meeting title carries and a record name does not.
-  'meeting', 'call', 'sync', 'review', 'reviews', 'update', 'updates', 'discuss',
-  'discussion', 'intro', 'kickoff', 'weekly', 'notes', 'analysis', 'joint',
-  'strategic', 'partnership', 'partnerships', 'coordination', 'acquisition',
-  'solutions', 'services', 'systems', 'capacity', 'technology',
-  // ⚠ INDUSTRY WORDS, AND THE FIRST DRY RUN IS WHY THEY ARE HERE. Without them
-  // "Steelton & Riverdale Site Reviews & Power Capacity Analysis" was suggested
-  // as "Stockton Power Nexus - ER Hospital & Medevac Airport Tower" — two deals
-  // in different states, matched on the word *power*. This is the §12 rule that
-  // already governs company domains ("a shared industry word is the one thing an
-  // identifier must not be"), and a vertically integrated energy and
-  // construction business has a portfolio full of them.
-  //
-  // PLACE NAMES STAY OUT OF THIS LIST on purpose: Myton, Delta, Heber, Tooele,
-  // Steelton and Stockton are precisely what distinguishes these records.
-  'power', 'energy', 'mining', 'capital', 'steel', 'rail', 'solar', 'gas',
-  'oil', 'grid', 'water', 'land', 'data', 'quantum', 'resilience',
-  // ⚠ A COMPASS DIRECTION IS NOT A PLACE, and leaving it in cost three wrong
-  // suggestions out of 52 when this resolver was pointed at the deals a call
-  // NAMES rather than at its title (10-14). "West Virginia Power Site", "West
-  // Virginia Data Center" and "West Virginia Portfolio" each resolved to
-  // **West Wendover** — a different state, a different deal — on the word
-  // *west* alone, while `virginia` matched nothing. The two records here that
-  // carry a direction are both identified by the word beside it (`wendover`,
-  // `summit`), so nothing is lost: verified against the live corpus, which has
-  // no record distinguished only by a direction.
-  'west', 'east', 'north', 'south', 'western', 'eastern', 'northern',
-  'southern', 'upper', 'lower', 'new', 'old', 'greenfield', 'brownfield',
-  'prospective', 'additional',
-])
-
-/** Identity-bearing words in a name, lowercased. */
-function distinguishingWords(name: string): Set<string> {
-  return new Set(
-    name
-      .toLowerCase()
-      .split(/[^a-z0-9]+/)
-      .filter((w) => w.length >= 3 && !GENERIC_NAME_WORDS.has(w))
-  )
-}
 
 export interface MeetingTargetResolution {
   /**
@@ -160,82 +100,13 @@ export async function resolveMeetingTarget(
     }
   }
 
-  // ── 2. An exact record name ────────────────────────────────────────────────
-  for (const name of candidates) {
-    const needle = escapeLike(name.trim())
-    if (needle.length < 3) continue // "JV", "Q3" — too thin to act on
-
-    const [projects, opportunities] = await Promise.all([
-      supabase.from('projects').select('id, name').ilike('name', needle).limit(5),
-      supabase.from('opportunities').select('id, name').ilike('name', needle).limit(5),
-    ])
-
-    const hits: SeedTarget[] = [
-      ...(projects.data ?? []).map((r) => ({ kind: 'project' as const, id: r.id, name: r.name })),
-      ...(opportunities.data ?? []).map((r) => ({
-        kind: 'opportunity' as const,
-        id: r.id,
-        name: r.name,
-      })),
-    ]
-
-    if (hits.length === 1) {
-      return { target: hits[0], suggestion: null, ambiguous: null, via: 'exact_name' }
-    }
-    if (hits.length > 1) {
-      // Say WHICH records collided. "Could not file" with no reason is the kind
-      // of silence that let the folder-name bug survive 192 runs.
-      return {
-        ...none,
-        ambiguous: `"${name}" matches ${hits.length} records (${hits
-          .map((h) => `${h.name} [${h.kind}]`)
-          .join(', ')})`,
-      }
-    }
-  }
-
-  // ── 3. A shared identity-bearing word — suggestion only ───────────────────
-  //
-  // Read whole rather than searched: both tables together are a couple of dozen
-  // rows, so one select each is cheaper than a trigram call per candidate and
-  // treats projects and opportunities by the same rule. (`match_projects_by_name`
-  // exists but has no opportunity twin, and a score is the wrong signal here
-  // anyway — see the bars above.)
-  const [allProjects, allOpportunities] = await Promise.all([
-    supabase.from('projects').select('id, name').limit(500),
-    supabase.from('opportunities').select('id, name').limit(500),
-  ])
-  const everything: SeedTarget[] = [
-    ...(allProjects.data ?? []).map((r) => ({ kind: 'project' as const, id: r.id, name: r.name })),
-    ...(allOpportunities.data ?? []).map((r) => ({
-      kind: 'opportunity' as const,
-      id: r.id,
-      name: r.name,
-    })),
-  ]
-
-  for (const name of candidates) {
-    const words = distinguishingWords(name)
-    if (words.size === 0) continue
-    const hits = everything.filter((r) => {
-      const theirs = distinguishingWords(r.name)
-      for (const w of words) if (theirs.has(w)) return true
-      return false
-    })
-    if (hits.length === 1) {
-      return { target: null, suggestion: hits[0], ambiguous: null, via: 'suggested' }
-    }
-    if (hits.length > 1) {
-      return {
-        ...none,
-        ambiguous: `"${name}" looks like ${hits.length} records (${hits
-          .map((h) => h.name)
-          .join(', ')})`,
-      }
-    }
-  }
-
-  return none
+  // ── 2 & 3. Exact name, then a shared identity-bearing word ───────────────
+  // Delegated to src/lib/records/resolve.ts. These two bars were never a
+  // meetings question — the email intake path needed the same ladder and was
+  // using a trigram threshold instead (§12: a shared renderer wired to one
+  // surface is worse than no shared renderer). Bar 1 above stays here because a
+  // LEARNED TITLE is specific to a meeting: it is a title a human filed before.
+  return await resolveRecordByName(candidates)
 }
 
 /** Which shelf a transcript is sitting on. */

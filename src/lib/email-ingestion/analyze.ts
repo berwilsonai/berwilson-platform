@@ -8,7 +8,7 @@ import {
   type EmailIntakeExtraction,
 } from '@/lib/ai/prompts/email-intake'
 import {
-  findMatchingProjects,
+  findMatchingRecords,
   matchExtractedParties,
   type ProposalExtraction,
   type MatchCandidate,
@@ -166,7 +166,15 @@ function normalize(raw: Partial<EmailIntakeExtraction> | null): EmailIntakeExtra
 
 /** Adapt the unified email extraction into a ProposalExtraction so we can reuse the
  *  existing project/party matchers and the fit-assessment engine. */
-function toProposalExtraction(ex: EmailIntakeExtraction): ProposalExtraction {
+/**
+ * The email extraction, reshaped for the record matchers.
+ *
+ * Exported so the restage script can build the SAME shape the sweep does —
+ * §12: never fork a shared pass. A second copy of this mapping would drift from
+ * the one the live sweep uses, and the restage would then recompute candidates
+ * against a shape no real session ever had.
+ */
+export function toProposalExtraction(ex: EmailIntakeExtraction): ProposalExtraction {
   const usingProject = ex.suggested_record === 'project'
   const name = usingProject ? ex.project.name : ex.opportunity.name
   return {
@@ -252,7 +260,10 @@ export async function analyzeEmailReport(
   // 2. Reuse existing matchers + fit assessment (all non-fatal).
   const proposalShape = toProposalExtraction(extraction)
   const [matchCandidates, partyMatches, fitAssessment] = await Promise.all([
-    findMatchingProjects(proposalShape.projects).catch(() => []),
+    // includeOpportunities: THIS is the path whose merge targets were broken —
+    // an opportunity could never be a candidate, so the pre-decide model said
+    // `create` for threads about GridEdge, Elite Solutions and Zenthium.
+    findMatchingRecords(proposalShape.projects, { includeOpportunities: true }).catch(() => []),
     matchExtractedParties(proposalShape.parties).catch(() => []),
     assessFit(proposalShape, userId).catch(() => null),
   ])

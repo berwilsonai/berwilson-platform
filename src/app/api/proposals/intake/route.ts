@@ -4,7 +4,7 @@ import { actorAdminClient } from '@/lib/auth/viewer'
 import { createClient } from '@/lib/supabase/server'
 import { callGemini, callGeminiWithFile } from '@/lib/ai/gemini'
 import { PROPOSAL_INTAKE_SYSTEM_PROMPT, PROPOSAL_INTAKE_PROMPT_VERSION } from '@/lib/ai/prompts/proposal-intake'
-import { findMatchingProjects, matchExtractedParties, type ProposalExtraction } from '@/lib/ai/proposal-matching'
+import { findMatchingRecords, matchExtractedParties, type ProposalExtraction } from '@/lib/ai/proposal-matching'
 import { assessFit, type FitAssessment } from '@/lib/ai/fit-assessment'
 import type { JsonIn } from '@/lib/supabase/types'
 import { SYSTEM_USER_ID } from '@/lib/system-user'
@@ -219,10 +219,10 @@ export async function POST(request: NextRequest) {
     }
 
     // Find matching projects and parties (non-fatal)
-    let matchCandidates: Awaited<ReturnType<typeof findMatchingProjects>> = []
+    let matchCandidates: Awaited<ReturnType<typeof findMatchingRecords>> = []
     let partyMatches: Awaited<ReturnType<typeof matchExtractedParties>> = []
     try {
-      if (extraction.projects?.length) matchCandidates = await findMatchingProjects(extraction.projects)
+      if (extraction.projects?.length) matchCandidates = await findMatchingRecords(extraction.projects)
       if (extraction.parties?.length) partyMatches = await matchExtractedParties(extraction.parties)
     } catch {
       // non-fatal
