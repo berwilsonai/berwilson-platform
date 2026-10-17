@@ -2,6 +2,9 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 @import "maplibre-gl/dist/maplibre-gl.css"; /* /map — must be global: CSS inside the ssr:false dynamic chunk never gets linked */
+/* Candidate redraw directions, scoped to [data-direction] and used only by
+   /settings/ui. Temporary — see the docblock in that file. */
+@import "./directions.css";
 
 @custom-variant dark (&:is(.dark *));
 

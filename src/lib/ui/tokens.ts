@@ -20,23 +20,52 @@ export type ThemeName = 'light' | 'dark'
 
 const BLOCK: Record<ThemeName, string> = { light: ':root', dark: '.dark' }
 
-let cache: { light: Record<string, string>; dark: Record<string, string> } | null = null
+const cache = new Map<string, Record<string, string>>()
+
+/** Every `--token: value;` inside the first block matching `selector`. */
+export function readBlock(selector: string, cssPath = 'src/app/globals.css'): Record<string, string> {
+  const key = `${cssPath}::${selector}`
+  const hit = cache.get(key)
+  if (hit) return hit
+  const css = readFileSync(cssPath, 'utf8')
+  const out: Record<string, string> = {}
+  const start = css.indexOf(`${selector} {`)
+  if (start !== -1) {
+    const end = css.indexOf('\n}', start)
+    for (const m of css.slice(start, end).matchAll(/--([\w-]+):\s*([^;]+);/g)) {
+      out[m[1]] = m[2].trim()
+    }
+  }
+  cache.set(key, out)
+  return out
+}
 
 /** Every `--token: value;` in the `:root` and `.dark` blocks. */
 export function readThemeTokens(cssPath = 'src/app/globals.css') {
-  if (cache) return cache
-  const css = readFileSync(cssPath, 'utf8')
-  const out = { light: {} as Record<string, string>, dark: {} as Record<string, string> }
-  for (const theme of ['light', 'dark'] as ThemeName[]) {
-    const start = css.indexOf(`${BLOCK[theme]} {`)
-    if (start === -1) continue
-    const end = css.indexOf('\n}', start)
-    for (const m of css.slice(start, end).matchAll(/--([\w-]+):\s*([^;]+);/g)) {
-      out[theme][m[1]] = m[2].trim()
-    }
+  return {
+    light: readBlock(BLOCK.light, cssPath),
+    dark: readBlock(BLOCK.dark, cssPath),
   }
-  cache = out
-  return out
+}
+
+/**
+ * A candidate direction's tokens, falling back to the live theme for anything
+ * the direction does not override.
+ *
+ * ⚠ THE FALLBACK IS THE POINT. A direction declares ~30 of the ~50 tokens, so
+ * measuring its blocks alone would read `card` as missing and report every
+ * ratio as unmeasurable. The browser resolves the rest by inheritance from
+ * :root; this has to do the same, or the measurement describes a palette that
+ * never renders.
+ */
+export function readDirectionTokens(
+  id: string,
+  theme: ThemeName,
+  cssPath = 'src/app/directions.css',
+  baseCssPath = 'src/app/globals.css'
+): Record<string, string> {
+  const selector = theme === 'light' ? `[data-direction='${id}']:not(.dark)` : `.dark[data-direction='${id}']`
+  return { ...readThemeTokens(baseCssPath)[theme], ...readBlock(selector, cssPath) }
 }
 
 export function token(name: string, theme: ThemeName, cssPath?: string): string | null {
