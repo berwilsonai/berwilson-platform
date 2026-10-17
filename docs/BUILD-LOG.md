@@ -13,6 +13,260 @@ Split out of `CLAUDE.md` on 2026-09-23, when that file reached 606k characters a
 
 176 entries, 2026-06-22 → 2026-10-17. ⚠ Counted with `grep -c "^\*\*Done 2026"`, not incremented by hand: two sessions editing this file on 2026-10-08 each bumped the old figure by one and both landed on 146 against a real 148.
 
+**Done 2026-10-17 (a measured token layer, and three directions to choose from):**
+
+Richard: *"How can I enhance the user interface and the user experience to make it
+truly impressive?"* Three parallel audits first — design system, high-traffic
+surfaces, polish layer — and the headline finding was worth stating plainly:
+**this is a high-craft codebase with systemic drift, not a sloppy one.** 396
+`focus-visible:` against 0 real `focus:`. Zero `window.alert`, zero
+`window.confirm`, zero empty catch blocks. 63 `loading.tsx` files containing no
+spinners and no "Loading…" strings. `/decide` renders its own keyboard legend
+because "the shortcuts, stated rather than discovered". `AgentChat` recovers a
+dropped SSE stream by polling for the answer the server finished persisting. The
+problem was never taste — it was that the good decisions are **bypassed at
+scale**: `Panel` is the card but the shell is hand-written 229 times; the OKLCH
+tokens are the palette but 3,489 raw palette utilities and a 572-use theme-BLIND
+`slate` ramp run beside them; `field.tsx` is excellent and 12 files import it.
+
+Richard chose: audience is both execs **plus** partners on screen-share, a third
+user arriving, and the phone; dark mode is in real use; scope is everything,
+systematically; and the visual identity should be **redrawn**, not merely
+enforced. That last answer reorders everything, because of one dependency worth
+recording: **a redraw cannot land while 3,489 colour utilities and 229
+hand-rolled shells bypass the token layer.** Change `--primary` today and most
+of the app does not move. The convergence work is not a rival of the redraw, it
+is the mechanism by which a redraw reaches the screen at all.
+
+**Phase 0 — three defects that were not cosmetic.**
+
+⚠ **A containment leak wearing a UI costume.** `countAttention()` ran four
+*unfiltered* head counts while `computeAttention()` filtered confidential
+projects with `dropHidden()`. That badge renders in the ROOT LAYOUT on every
+page for every viewer, so a protected project's overdue milestones, tasks and
+critical diligence were reaching a portfolio-wide aggregate — and §8 is explicit
+that containment keeps such a project out of "every aggregate". **A head count
+never receives rows, so `dropHidden()` has no equivalent: the exclusion has to
+happen in SQL**, and two traps meet there. A malformed `.or()` returns an empty
+set with no error; and a bare `.not('project_id','in',…)` is NULL for a NULL
+column and therefore not true. `milestones`, `dd_items` and `tasks` are all §4
+shared children with a **nullable** `project_id`, so the naive form would have
+silently discarded every opportunity-attached row. Confirmed against the live
+schema, then proved against the live database inside a rolled-back transaction —
+two synthetic overdue tasks, one on a hidden project and one with a null
+project_id: baseline 3, **this filter 2** (hidden gone, null kept, matching
+`dropHidden`'s own `!id || !hidden.has(id)` exactly), **naive bare `not in` 1**.
+Re-proved end to end through PostgREST: 1 unfiltered, 0 excluding the row's own
+project, 1 excluding an unrelated one. `certifications` stays unfiltered because
+it is a company record with no `project_id` at all, and now says so —
+and note it is a *different table* from `compliance_items`, which
+`AttentionSummary` counts as `expiring_compliance` under a similar name.
+
+⚠ **Two saves that lied.** `OpportunityStatusControl` and `InvestorStageControl`
+awaited a `fetch` with no `res.ok`, no catch and no toast, so on a 500 the select
+showed the new value, the spinner stopped, and `router.refresh()` then reverted it
+with nothing said. Both now run on `useApiCall()` — which already encoded
+status-check → the route's own error sentence → success → refresh, and was used
+by exactly three files while 107 other mutating components hand-rolled it. Moved
+to `src/hooks/` (NOT `src/lib`, which is where a server page would import a
+`'use client'` export and throw at request time), and the optimistic value is
+restored when the save actually fails.
+
+⚠ **A badge that under-reported itself by construction.** `NeedsAttention`
+summed `.length` of three lists the dashboard had **already sliced to 6** at
+`dashboard/page.tsx:366-369`, while the true total (`reviewCount`) was passed in
+beside them and ignored — a badge cap inventing a third quantity. Rendering the
+real component with 20 review / 14 milestone / 9 diligence rows now reads **24**
+rather than the old capped **19**, the section headers read 20/14/9 rather than
+6/6/6, and the two sections that truncated in silence say how many they hide. It
+also no longer adds the review queue: that is the Decide backlog, counted by
+`countDecideItems()`, and folding it in is the exact mistake `HealthPanel`'s own
+docblock records making once already (the tile read 197 while the sidebar read 1).
+
+Also: `dashboard/loading.tsx` was animating an 84px radial health gauge removed
+from `HealthPanel` on 2026-07-03 plus a stat-card row that is not on the page, so
+every load animated one layout and snapped to another. And `global-error.tsx` did
+not exist — the only boundary that catches the ROOT LAYOUT failing, which matters
+precisely because that layout awaits three database reads on every page; styled
+inline on purpose, since the layout is what imports `globals.css`.
+
+**Phase 1 — the token layer, measured rather than chosen.**
+
+Four status tones (positive / caution / critical / info), each with three slots:
+`ink` for text, `surface` for a tinted block, `edge` for the ring. A new pure
+module `src/lib/ui/contrast.ts` converts OKLCH → OKLab → linear sRGB → sRGB and
+computes WCAG contrast, verified first against values whose answer is known
+(white/black = 21.00 exactly, a mid grey neutral in all three channels,
+out-of-gamut clamping rather than wrapping) — because a colour conversion that is
+subtly wrong produces plausible numbers and would certify an unreadable palette.
+It also confirmed the palette's **existing** documented claims: `--primary` on
+white is 6.5:1 as its comment says, `--muted-foreground` 6.1:1.
+
+Every tone was then tuned against the surface it actually sits on. Light:
+ink/card 5.20–6.52, ink-on-its-own-surface 4.74–5.87. Dark: 7.38–10.89 and
+5.76–8.03. `caution` had to come down from L 0.55 to L 0.52 to clear 4.5:1 on its
+own surface at all — yellow always does. ⚠ **Found while measuring: in LIGHT mode
+a tinted surface reads at just 1.02–1.06:1 against the canvas** (0.976 vs
+0.964–0.968), where on a white card it is 1.10:1. So off a card the ring is the
+only thing giving the block an edge — it is load-bearing, not decoration, and
+there is now a test saying so, because that is exactly the kind of thing a later
+session "simplifies" away.
+
+The dark values are **real second values**. `--chart-1..5` are byte-identical in
+`:root` and `.dark` and only get away with it because nothing renders them yet;
+a test now asserts no status token can repeat that. `--critical` is deliberately
+**not** `--destructive`: a status and a destructive action are different
+questions, and aliasing them is how a Save button turns red.
+
+**Tone names, derived from the corpus rather than invented.** Measured 46
+distinct bg/text/ring triples over 192 uses in 12 files, resolving to 14 hue
+families — slate 34, emerald 27, amber 26, blue 17, red 16, then violet 15,
+indigo 12, cyan 9, sky 9, teal 7, rose 7, orange 5. The first five carry meaning
+in every map that uses them; the rest only ever mean "a different kind from that
+one", so those stay Tailwind classes with both halves explicit rather than
+earning 21 CSS tokens nobody can name. `neutral` maps the **34 theme-blind slate
+uses** onto `bg-muted / text-muted-foreground / ring-border`, which is the single
+biggest dark-mode correctness win available and is one line. `chipTone()` throws
+on an unknown name (§12). `Chip` now accepts `Tone | (string & {})`, so all 192
+existing call sites keep working untouched and conversion goes one file at a
+time; narrowing that to `Tone` later makes `tsc` enumerate the stragglers, which
+is the only completion proof worth having.
+
+**The type ladder is tokenised at Tailwind's exact defaults.** Only `--text-xs`
+and `--text-sm` had ever been tokenised, so the five sizes above them lived
+nowhere and the scale could not be adjusted in one place — which is why the top
+end reads unconsidered (69 `h1` elements in 25 spellings). ⚠ **The first draft of
+this changed the numbers** — `text-2xl` 24 → 27px — which is a visual change to
+every heading and would have destroyed the one property making Phase 1 safe to
+deploy mid-week. Caught and reverted: all ten values verified field-by-field
+against `node_modules/tailwindcss/theme.css`, identical including the `calc()`
+line-height form. Tokenising is structural; moving the numbers is a design
+decision and belongs to the phase where a direction gets chosen. Same discipline
+for motion: `--dur` was set to **200ms**, the value `.lift` already hardcoded, so
+repointing it moved nothing and the token gained a real consumer.
+
+**`/settings/ui`** renders every tone, type step, elevation, button state and
+callout in **both themes side by side**, the right column wrapped in `.dark` —
+which is all the theme switch is, so it is genuinely the dark theme rather than a
+mock-up of one. The contrast ratios are computed **at render** from
+`globals.css` through the same module the tests assert on, so the page cannot
+claim a ratio the palette does not have. URL-only, in `TITLE_EXTRAS`, in no nav
+group: a style guide is an instrument, not a working surface.
+
+**Conventions as ratcheting tests.** `src/lib/ui/conventions.test.ts` asserts
+each count is at or below a recorded baseline — never equality, because two
+sessions share this repo and a test demanding perfection would block the other
+one's unrelated work while a test forbidding regression never does. Zero-tolerance
+invariants: no `focus:`, no `window.alert`/`confirm`, **no `loading.tsx` at a
+route group root** (§12's rule made mechanical for the first time — it had
+already cost the hours once as prose), no Tailwind class built by interpolation.
+Ratchets recorded: card shell 145 at `rounded-lg` + 84 at `rounded-xl`, raw
+`shadow-*` 15, local input-class constants 39, `text-[11px]` 256, raw colour
+pairs 326, `slate-*` 572.
+
+⚠ **Three findings from writing those checks, all of them about the checks.**
+First, **the counts must strip comments**: a naive grep for `focus:` returns 2
+hits and *both are docblocks explaining why it is banned*, and the only
+`window.confirm` in the repo is the line recording that `confirm-dialog.tsx`
+replaced it — so a ratchet on the raw numbers could never reach zero and would be
+permanently ignored. Real usage of both is zero; the audit's "2 focus:" was the
+rule's own documentation. Second, **the scan counted itself**:
+`conventions.test.ts` holds every banned pattern as a regex literal, which
+reported three false regressions on the first run, all its own source — test
+files are now excluded. Third, `(?:bg|text|ring|border)-\$\{` matched
+`` `pepper-text-${Date.now()}` `` in `notify/text.ts`, a temp **filename**, which
+is §12's own trap about a substring matching any word that contains it (the one
+that put `title` inside `Entitlements`); the pattern now requires the prefix to
+start a token rather than end one.
+
+⚠ **And the ratchet caught its own author within minutes of existing.** The style
+guide's elevation swatches pushed the card-shell count 84 → 86. They cannot be
+`Panel`s — `Panel` bakes in `elev-1`, so a swatch demonstrating `elev-2` would
+show two elevations at once — so that one file is exempt **by name, with the
+reason recorded**. Raising the baseline was the easy move and would have retired
+the ratchet on day one.
+
+Both new test groups were verified to **fail** when the palette is deliberately
+broken (paling an ink; making dark identical to light), because a check that
+cannot fail is not a check.
+
+**Phase 2.1 — three directions, for Richard to choose.**
+
+⚠ **The enabling discovery: Tailwind v4 emits every utility as a `var()`
+resolved at USE time**, confirmed by reading the built CSS — `.text-sm` →
+`var(--text-sm)`, `.rounded-xl` → `calc(var(--radius) * 1.4)`, `.elev-1` →
+`var(--elev-1)`, and `.p-4` → `calc(var(--spacing) * 4)`. That last one is the
+surprise: **`--spacing` (0.25rem) is a single multiplier behind every padding,
+margin and gap in the application**, so DENSITY is a token like any other. A
+whole visual direction is therefore ~30 declarations in a scoped selector, not a
+rewrite — which is what made showing three of them tractable at all.
+
+  * **A — Institutional.** The navy lineage sharpened: cooler neutrals, 6px
+    radius, elevation cut almost to hairlines so the borders carry the
+    structure, spacing in 6%. The most information per screen.
+  * **B — Editorial.** Warm paper canvas, 14px radius, real layered elevation,
+    10% more air, type scale a notch up. Best for the narrative brief and long
+    diligence text; costs roughly a fifth of the rows per screen.
+  * **C — Engineered.** Near-monochrome with one accent, 4px radius, **no shadow
+    at all** on resting surfaces, tightest spacing. Colour can only ever mean
+    status because nothing else is coloured. Densest on a phone, and the most
+    legible of the three — body text 20.3:1 light / 17.9:1 dark.
+
+All three were measured before being shown, through the same module Phase 1's
+tests use (`scripts/measure-directions.mts`), and all three clear every
+threshold in both themes on the first pass: body 16.3–20.3:1, muted 6.9–8.5:1,
+every status ink ≥ 5.14:1 on its own surface.
+
+The preview is a **real record**, not tidy fixture data: Steelton —
+Cleveland-Cliffs (PA), capture stage, 99% win probability, 181 live documents,
+PSA closing dated 17 Oct 2026 against Ber Wilson's 1 Nov revision, the
+Cleveland-Cliffs / Paul Finan / JPMorgan / 4% broker facts, and the 900 MW
+capacity flag — all read out of the live database. So each direction is judged
+against a title that wraps, an address that truncates, a capture value that is
+genuinely unset, and a figure that must not read as a failed render. The
+**current** look renders alongside as the baseline, because three options with
+nothing to measure against is a mood board.
+
+⚠ The selector shape is load-bearing: the theme class and the direction
+attribute sit on the **same element** (`[data-direction='a']:not(.dark)` /
+`.dark[data-direction='a']`). Written as a descendant selector, the light rule
+would also match inside `.dark` and the dark column would silently render the
+light palette — the exact failure a side-by-side view exists to catch.
+
+⚠ And `scripts/verify-directions.tsx` exists for **token purity**, not for "does
+it render". A single `text-amber-700` in the preview would sit unchanged across
+all three columns while everything around it moved, so the screen would show
+three directions that differ less than they really do — a mock-up pretending to
+be a measurement. Nothing else catches it: it builds, it typechecks, it looks
+plausible. Verified to fail when a hardcoded colour is deliberately planted.
+
+⚠ **The ratchet caught me a second time, and this time it was right and I was
+wrong:** the preview hand-rolled the card shell five times. `Panel` is exactly
+`rounded-xl border border-border bg-card elev-1`, every class token-backed, so it
+varies per direction correctly and there was never a reason to imitate it.
+Converted, and the count fell back under baseline on its own.
+
+`directions.css` is deliberately its own file: when a direction is chosen, its
+values move into `:root` / `.dark` and the file is deleted along with the two
+rejects, so the cleanup is `rm` rather than a careful excision from a file two
+sessions share.
+
+Four commits, each deployed and asserted (`tailnet-setup.sh` + `lmstudio-check.sh`
+green; the LM Studio check reports the box paging at 197MB free / 15.7GB swap,
+pre-existing and unrelated). 510 tests pass, up from 479; lint unchanged at the
+documented 23 problems throughout. ⚠ **Still open for Richard: the direction
+choice.** Phases 3–5 of the plan (sticky record header, `/attention` as the UI
+for an engine that has none, the mechanical colour and card-shell retrofit, nav
+IA, URL state, `BriefMarkdown` links and agent citations) all follow from it.
+
+⚠ Noted in passing, not fixed: `src/lib/security/confidential.ts` carries a
+comment saying `npm run gen-types` is a disabled stub, which §4 contradicts — it
+works and covers 104 of 104 tables. That is §12's "a workaround's recorded reason
+must be re-tested before it is inherited" shape, and six modules once grew 1,290
+lines of workaround around exactly that note.
+
+---
+
 **Done 2026-10-17 (the ports under the proxy, and the matcher under the queue):**
 
 Richard: *"what can we improve?"* — so the session began by measuring the live box
