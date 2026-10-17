@@ -65,7 +65,7 @@ Then confirm: `git log --oneline -1` and check the app responds. If `npm run bui
 | File Storage | Supabase Storage (`documents` bucket) | Organized by project / entity / site ID. |
 | Map tiles | **Self-hosted PMTiles archives** read by byte range (`src/lib/map/pmtiles.ts`) | Basemap (Protomaps world + US detail) and the **BTS/NTAD rail network** (`rail.pmtiles`, 66MB, z2-12, STRACNET flagged). All in `~/berwilson-data/maps/` — outside the app dir, so a deploy never deletes them. |
 | Local sources | **Messages, Apple Notes and iPhone Voice Memos, read on-box** (`src/lib/imessage/*`, `src/lib/notes/*`, `src/lib/voicememos/*`) | All three become `email_threads` rows and inherit all eight mail phases: texts split into 6h sessions, notes one row each. Read from a snapshot made by `bw-snapshot` — the ONLY thing granted Full Disk Access; the app process must never hold it. **Notes: two doors.** A **recorded call** is admitted from ANY folder on iOS's own signal (a `Call with …` title plus audio) and whisper turns it into the note's body — verified end to end, 16-minute call, 29.7s, with the chat model resident. Everything ELSE needs a human to have filed it into a nominated folder (`NOTES_FOLDER_NAMES`), and a credential-looking note is refused outright: 12% of that corpus holds secrets. **Voice Memos is the door for an IN-PERSON meeting** (2026-10-14) and takes the opposite rule: **every** memo is read, because a recording is SPEECH and the thread summarizer can judge it where a note (no participants) could not. A `noise` verdict discards the transcript, the chunks AND the copied audio, and skip-lists the memo so `bw-snapshot` never copies it again. A `work` verdict runs all eight phases and writes a `meetings` row. ⚠ Notes AND Voice Memos sync only while **their app runs** on the Studio. `bw-snapshot` is signed with a stable identity as of 10-09, so **a rebuild no longer voids the Full Disk Access grant** — the build script says which case it is. |
-| Deployment | **Mac Studio, tailnet-only** (launchd + `tailscale serve`) | `zsh deploy/deploy-to-studio.sh` from the MacBook. Vercel deleted 2026-07-07; `git push` = GitHub backup only. Crons are launchd agents on the Studio. |
+| Deployment | **Mac Studio, tailnet-only** (launchd + `tailscale serve`) | Deploy = the runbook at the top of this file (commit, push, `npm run build`, kickstart, then `tailnet-setup.sh` + `lmstudio-check.sh`). Vercel deleted 2026-07-07; `git push` = GitHub backup only. Crons are launchd agents on the Studio. |
 
 ### AI Model Rules (CURRENT — FULLY LOCAL since 2026-07-07)
 
@@ -305,7 +305,7 @@ LEAD_DRAFT_REPLIES=              # optional; "off" stops drafting replies to pur
 STEEL_QUOTES_FOLDER_ID=          # optional; the team's own Drive folder quote PDFs are filed into. UNSET = quotes stay in the platform's own deal folder. Works under drive.file only because it is a SHARED DRIVE folder (§12)
 ```
 ### Git
-- Main branch: `main`. Pushing is GitHub backup only (Vercel deleted 2026-07-07) — **deploying = `zsh deploy/deploy-to-studio.sh`** after pushing.
+- Main branch: `main`. Pushing is GitHub backup only (Vercel deleted 2026-07-07) — **deploying = the runbook at the top of this file**, run here on the Studio. ⚠ `deploy/deploy-to-studio.sh` is RETIRED and refuses to run on the Studio; it was the old MacBook→Studio push and would rsync --delete the repo over itself.
 - Conventional commits: `feat:`, `fix:`, `refactor:`, `docs:`. Never commit `.env.local`.
 
 ---

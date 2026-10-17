@@ -1,8 +1,37 @@
 #!/bin/zsh
-# Deploy the Ber Wilson platform to the Mac Studio (Tailscale-only hosting).
-# Run from the repo root on the MacBook:  zsh deploy/deploy-to-studio.sh
-# Idempotent — run again to redeploy after changes.
+# ⚠ RETIRED 2026-08-25, AND IT REFUSES TO RUN ON THE STUDIO. DO NOT USE.
+#
+# This pushed the platform FROM the MacBook TO the Mac Studio. That flow no
+# longer exists: the Studio IS the repo and IS production, so there is nothing
+# to push from. The live runbook is at the top of CLAUDE.md —
+#   git add <files> && git commit && git push && npm run build
+#   launchctl kickstart -k gui/$(id -u)/com.berwilson.platform
+#   zsh deploy/tailnet-setup.sh && zsh deploy/lmstudio-check.sh
+#
+# WHY IT IS STILL HERE WITH A GUARD RATHER THAN DELETED. Until 2026-10-17, §2 and
+# §7 of CLAUDE.md both still named this script as THE deploy command while §39
+# said it had been retired — two of three places pointing the next session at it.
+# Run on the Studio it would ssh to itself and then
+#   rsync -az --delete  the repo over itself, and
+#   scp                 a .env.local over the LIVE one.
+# A file that is merely deleted takes its warning with it; this refuses and says
+# what to do instead. The rsync/scp body below is kept only as the record of how
+# the old two-machine flow worked.
 set -euo pipefail
+
+# The guard. LocalHostName is the tailnet/Bonjour name, which is what identifies
+# this box regardless of what `hostname` happens to return (it is "mac.lan" here).
+if [[ "$(scutil --get LocalHostName 2>/dev/null)" == "Richards-Mac-Studio" ]]; then
+  print -u2 "REFUSING: this IS the Studio, and this script deploys TO the Studio."
+  print -u2 "It would rsync --delete the repo over itself and scp .env.local over the live one."
+  print -u2 ""
+  print -u2 "To deploy, use the runbook at the top of CLAUDE.md:"
+  print -u2 "  git add <files> && git commit -m \"...\" && git push origin main"
+  print -u2 "  export PATH=\"\$HOME/.node/bin:\$PATH\" && npm run build"
+  print -u2 "  launchctl kickstart -k gui/\$(id -u)/com.berwilson.platform"
+  print -u2 "  zsh deploy/tailnet-setup.sh && zsh deploy/lmstudio-check.sh"
+  exit 1
+fi
 
 # MagicDNS name, not a 100.x literal — node IPs are reassigned whenever the tailnet changes.
 STUDIO="${STUDIO_HOST:-richardwhite@richards-mac-studio}"
