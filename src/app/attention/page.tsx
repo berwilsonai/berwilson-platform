@@ -1,7 +1,7 @@
 import { TriangleAlert } from 'lucide-react'
 
-import { computeAttention } from '@/lib/attention'
-import type { AttentionCategory } from '@/lib/attention-kinds'
+import { computeAttention, countAttention } from '@/lib/attention'
+import { ATTENTION_KINDS } from '@/lib/attention-kinds'
 import AttentionClient, { type AttentionRow } from '@/components/attention/AttentionClient'
 
 export const metadata = { title: 'Attention — Ber Wilson Intelligence' }
@@ -41,50 +41,49 @@ export default async function AttentionPage() {
   }))
 
   /*
-    ⚠ TWO QUANTITIES, NAMED APART, NEVER SUMMED (§12).
+    ⚠ TWO QUANTITIES, NAMED APART, NEVER SUMMED (§12) — AND BOTH READ FROM
+    THEIR OWN SOURCE RATHER THAN ONE INFERRED FROM THE OTHER.
 
-    The sidebar badge is four CHEAP HEAD COUNTS — the things past a hard date —
-    because it renders in the root layout on every page and cannot afford this
-    engine's dozen queries. This list is wider: it also carries the softer
-    signals (a thread waiting on someone, a decision with no follow-through, a
-    dependency at risk). So the badge will read lower than the list is long,
-    and the only safe thing to do with that is SAY SO rather than print one
-    total and let the reader discover the contradiction.
+    The sidebar badge is `countAttention()`: four cheap head counts, because it
+    renders in the root layout on every page and cannot afford this engine's
+    dozen queries. This list is `computeAttention()`, which is wider — it also
+    carries the softer signals (a thread waiting on someone, a decision with no
+    follow-through, a dependency at risk) — and it is wider in a way that does
+    NOT nest: the badge counts milestones already OVERDUE while the engine
+    scores milestones approaching within 30 days, and the badge counts
+    `certifications` where the engine reads `compliance_items`.
 
-    Derived from the items already in hand, so it costs no extra query. The
-    badge's own vocabulary differs slightly again — it counts `certifications`
-    where this counts `compliance_items`, which COUNTED_ATTENTION_KINDS records.
+    ⚠ So the badge's number cannot be derived by filtering these items, and an
+    earlier draft of this page did exactly that and asserted the result WAS the
+    badge — it read 3 against a badge of 1. Calling `countAttention()` here is
+    four head counts and makes the page agree with the chrome instead of
+    guessing at it.
   */
-  const PAST_A_DATE: AttentionCategory[] = [
-    'overdue_action',
-    'critical_dd',
-    'approaching_milestone',
-    'expiring_compliance',
-  ]
-  const pastDue = items.filter((i) => PAST_A_DATE.includes(i.category)).length
-  const softer = summary.total - pastDue
+  const badgeCount = await countAttention()
 
   return (
     <div className="space-y-5">
       <header>
         <div className="flex items-center gap-2">
-          <TriangleAlert size={16} className={pastDue > 0 ? 'text-caution' : 'text-muted-foreground'} />
+          <TriangleAlert size={16} className={summary.total > 0 ? 'text-caution' : 'text-muted-foreground'} />
           <h1 className="text-xl font-semibold">Attention</h1>
         </div>
         <p className="mt-1 max-w-prose text-sm text-muted-foreground">
-          Work that is slipping, ranked by urgency rather than by when it arrived.{' '}
-          <span className="text-foreground font-medium tnum">{pastDue}</span>{' '}
-          {pastDue === 1 ? 'item is' : 'items are'} past a date — that is the number on the sidebar
-          badge
-          {softer > 0 && (
-            <>
-              {' '}— and{' '}
-              <span className="text-foreground font-medium tnum">{softer}</span> more are softer
-              signals: waiting on someone, a decision adrift, a dependency at risk
-            </>
-          )}
-          . Inbound things awaiting a decision are counted separately on{' '}
-          <span className="font-medium text-foreground">Decide</span>, and the two are never summed.
+          Everything that is slipping, ranked by urgency rather than by when it arrived —{' '}
+          <span className="text-foreground font-medium tnum">{summary.total}</span>{' '}
+          {summary.total === 1 ? 'item' : 'items'} across {ATTENTION_KINDS.length} kinds.
+        </p>
+        {/* The sidebar's number, named as its own quantity. It is NOT a subset
+            of the list: it counts overdue milestones where this scores
+            approaching ones, and certifications where this reads compliance
+            items. Printing one total and letting a reader find the mismatch is
+            how three contradictory "needs attention" numbers happened before. */}
+        <p className="mt-1 max-w-prose text-xs text-muted-foreground">
+          The sidebar badge is a narrower count —{' '}
+          <span className="text-foreground font-medium tnum">{badgeCount}</span> past a hard date —
+          and is measured separately so it can run on every page. Inbound things awaiting a
+          decision are counted on <span className="font-medium text-foreground">Decide</span>, and
+          none of these three are ever summed.
         </p>
       </header>
 
