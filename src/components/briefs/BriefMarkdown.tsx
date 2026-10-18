@@ -1,4 +1,5 @@
 import * as React from 'react'
+import Link from 'next/link'
 
 import { Chip } from '@/components/ui/chip'
 import { SEVERITY_BADGE } from '@/lib/utils/constants'
@@ -8,9 +9,26 @@ import { SEVERITY_BADGE } from '@/lib/utils/constants'
  *
  * Deliberately one component rather than one per surface: a brief printed for a
  * meeting must be the same document that was read on screen, and two renderers
- * of one document is two things to keep in step. Handles only what the brief
- * prompt actually emits — headings, bold, bullets, and bracketed tags — so
- * there is no markdown library to carry.
+ * of one document is two things to keep in step. There is no markdown library
+ * to carry.
+ *
+ * ⚠ IT WAS WRITTEN FOR THE BRIEF PROMPT AND THEN REUSED FOR FREE-FORM CHAT.
+ * `AgentChat` has rendered agent answers through this since the agent shipped,
+ * and the vocabulary was headings, bold, bullets and bracketed tags — nothing
+ * else. So **the executive intelligence agent could not link to the record it
+ * was discussing**: `[Steelton](/projects/abc)` reached the reader as that
+ * literal string, a pipe table rendered as a paragraph, and `1.` rendered as a
+ * paragraph. Links, ordered lists, inline code and fenced code were added
+ * 2026-10-17.
+ *
+ * ⚠ ADDITIVE ON PURPOSE. The brief prompt emits none of the new syntax, so the
+ * print views render byte-identically — which matters because this component's
+ * whole reason for existing is that the printed brief and the on-screen brief
+ * are the same document.
+ *
+ * ⚠ AND A LINK MUST BE INTERNAL. An `href` the model composed is untrusted:
+ * anything not starting with `/` renders as plain text, so an answer cannot
+ * become a route off the box or a phishing target in a brief someone emails.
  */
 export function BriefMarkdown({
   text,
@@ -49,6 +67,47 @@ export function BriefMarkdown({
     if (line.startsWith('### ')) {
       elements.push(<h3 key={i} className="text-sm font-semibold mt-3 mb-1">{renderInline(line.slice(4))}</h3>)
       i++; continue
+    }
+    // Fenced code. Consumes to the closing fence, or to the end if the model
+    // never closed it — an unterminated fence must not swallow nothing and
+    // leave the backticks on screen.
+    if (line.startsWith('```')) {
+      const body: string[] = []
+      i++
+      while (i < lines.length && !lines[i].startsWith('```')) {
+        body.push(lines[i])
+        i++
+      }
+      if (i < lines.length) i++ // the closing fence
+      elements.push(
+        <pre
+          key={`pre-${i}`}
+          className="my-2 overflow-x-auto rounded-md border border-border bg-muted px-3 py-2 text-xs"
+        >
+          <code className="font-mono">{body.join('\n')}</code>
+        </pre>
+      )
+      continue
+    }
+    // Ordered list. `start` is taken from the first marker so a list the model
+    // begins at 3 is not silently renumbered to 1.
+    if (/^\d+[.)] /.test(line)) {
+      const items: React.ReactNode[] = []
+      const start = Number(/^(\d+)/.exec(line)![1])
+      while (i < lines.length && /^\d+[.)] /.test(lines[i])) {
+        items.push(
+          <li key={i} className="text-sm leading-relaxed">
+            {renderInline(lines[i].replace(/^\d+[.)] /, ''))}
+          </li>
+        )
+        i++
+      }
+      elements.push(
+        <ol key={`ol-${i}`} start={start} className="list-decimal pl-5 space-y-0.5 my-1.5">
+          {items}
+        </ol>
+      )
+      continue
     }
     // Bullet
     if (line.match(/^[-*] /)) {
@@ -110,11 +169,46 @@ function tagLabel(token: string): string {
   return token.charAt(0) + token.slice(1).toLowerCase()
 }
 
+/**
+ * ⚠ THE LINK ALTERNATIVE MUST PRECEDE THE TAG ALTERNATIVE. `[WATCH]` and
+ * `[text](/path)` both open with a bracket; a tag pattern tried first would
+ * claim the label half of a link and leave `(/path)` as loose text.
+ */
+const INLINE = /(\*\*[^*]+\*\*|\[[^\]\n]+\]\([^)\s]+\)|`[^`\n]+`|\[[A-Z]{3,}\])/
+
 function renderInline(text: string): React.ReactNode[] {
-  const parts = text.split(/(\*\*[^*]+\*\*|\[[A-Z]{3,}\])/)
+  const parts = text.split(INLINE)
   return parts.map((part, i) => {
     if (part.startsWith('**') && part.endsWith('**')) {
       return <strong key={i}>{part.slice(2, -2)}</strong>
+    }
+    // Inline code — a column name, a flag, an id.
+    if (part.length > 2 && part.startsWith('`') && part.endsWith('`')) {
+      return (
+        <code key={i} className="rounded bg-muted px-1 py-0.5 font-mono text-[0.9em]">
+          {part.slice(1, -1)}
+        </code>
+      )
+    }
+    const link = /^\[([^\]]+)\]\(([^)\s]+)\)$/.exec(part)
+    if (link) {
+      const [, label, href] = link
+      // ⚠ INTERNAL ONLY. The href came from a model, so it is untrusted input:
+      // an external one is rendered as text rather than followed, which keeps
+      // an answer from becoming a route off the box or a link someone clicks
+      // out of an emailed brief.
+      if (href.startsWith('/') && !href.startsWith('//')) {
+        return (
+          <Link
+            key={i}
+            href={href}
+            className="text-primary underline underline-offset-2 hover:no-underline"
+          >
+            {label}
+          </Link>
+        )
+      }
+      return <span key={i}>{label}</span>
     }
     const tag = /^\[([A-Z]{3,})\]$/.exec(part)
     // A tag only counts at the head of the line or after a sentence ends.
