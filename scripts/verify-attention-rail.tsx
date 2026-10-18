@@ -94,11 +94,51 @@ check('milestones say they are hiding 8', markup.includes('+8 more'))
 check('diligence says it is hiding 3', markup.includes('+3 more'))
 check('review keeps its +14 more link', markup.includes('+14 more'))
 
+/*
+  ⚠ EVERY TRUNCATING SECTION MUST OFFER A WAY TO THE REST, AND IT MUST BE A
+  LINK. Six of the eight sections used to cut off at six items in silence; two
+  of them (milestones, diligence) then got the COUNT in plain text, because
+  there is no cross-portfolio page for either and /attention did not exist yet.
+  Naming a number a reader cannot reach is only half a fix.
+*/
+const overflows = [...markup.matchAll(/\+(\d+) more →/g)].map((m) => m[0])
+check('every overflow is rendered as an anchor, not text',
+  overflows.every((o) => {
+    const i = markup.indexOf(o)
+    return markup.lastIndexOf('<a', i) > markup.lastIndexOf('<p', i)
+  }),
+  overflows.join(', '))
+check('milestones overflow points at /attention, which is now a route',
+  markup.includes('href="/attention?kind=approaching_milestone"'))
+check('diligence overflow points at /attention',
+  markup.includes('href="/attention?kind=critical_dd"'))
+check('the card header is itself a link to the full list',
+  markup.includes('href="/attention"'))
+
 // Only six rows of each are actually drawn.
 check('only 6 milestone rows rendered', (markup.match(/Milestone \d+</g) ?? []).length === 6,
   `got ${(markup.match(/Milestone \d+</g) ?? []).length}`)
 
 // Nothing broken reaches the reader.
+// The three sections that silently truncated now say so too.
+const many = Array.from({ length: 9 }, (_, i) => ({ id: `x${i}` }))
+check('a section given more than six items always offers the rest',
+  (() => {
+    /* eslint-disable @typescript-eslint/no-explicit-any */
+    const m = renderToStaticMarkup(
+      React.createElement(NeedsAttention as any, {
+        reviewItems: [], overdueItems: [], ddItems: [],
+        reviewCount: 0, overdueCount: 0, ddCount: 0,
+        overdueTasks: [],
+        investorFollowUps: many.map((r, i) => ({ ...r, name: `Investor ${i}`, stage: 'hot', next_step: 'Call', next_step_date: '2026-10-01' })),
+        dinoPayments: [], leads: [], expiringCerts: [], mailboxAlert: null,
+      })
+    )
+    /* eslint-enable @typescript-eslint/no-explicit-any */
+    return m.includes('+3 more →') && m.includes('href="/investors"')
+  })(),
+  'an investor list of 9 should offer the 3 it hides')
+
 for (const bad of ['NaN', 'undefined', 'Infinity', '[object Object]']) {
   check(`no ${bad} in the markup`, !markup.includes(bad))
 }

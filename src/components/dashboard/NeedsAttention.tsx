@@ -124,15 +124,20 @@ export default function NeedsAttention({ reviewItems, overdueItems, ddItems, rev
 
   return (
     <div className="rounded-xl border border-border bg-card elev-1">
-      <div className="flex items-center gap-2 px-4 py-2.5 border-b border-border">
-        <AlertTriangle size={13} className={cn(hasAttention ? 'text-amber-500 dark:text-amber-400' : 'text-muted-foreground')} />
+      {/* The header is the way out. This card is a ranked-ish SLICE — six per
+          section — and /attention is the whole thing, ordered by urgency. */}
+      <Link
+        href="/attention"
+        className="flex items-center gap-2 px-4 py-2.5 border-b border-border transition-colors hover:bg-accent/60 outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+      >
+        <AlertTriangle size={13} className={cn(hasAttention ? 'text-caution' : 'text-muted-foreground')} />
         <h2 className="label-caps text-muted-foreground">Needs Attention</h2>
         {hasAttention && (
-          <span className="ml-auto text-xs font-medium tnum bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 rounded px-1.5 py-0.5">
+          <span className="ml-auto text-xs font-medium tnum bg-caution-surface text-caution ring-1 ring-inset ring-caution-edge rounded px-1.5 py-0.5">
             {attentionTotal}
           </span>
         )}
-      </div>
+      </Link>
 
       {!hasAttention ? (
         <div className="px-4 py-6 text-center">
@@ -144,18 +149,18 @@ export default function NeedsAttention({ reviewItems, overdueItems, ddItems, rev
 
           {/* Critical — system + compliance items that outrank everything below */}
           {hasCritical && (
-            <div className="rounded-md bg-red-50/60 dark:bg-red-950/30 ring-1 ring-inset ring-red-200 dark:ring-red-900/50 p-3">
+            <div className="rounded-md bg-critical-surface/60 ring-1 ring-inset ring-critical-edge p-3">
               <div className="flex items-center gap-1.5 mb-2">
-                <span className="size-1.5 rounded-full bg-red-500 shrink-0" />
-                <span className="label-caps text-red-700 dark:text-red-300">Critical</span>
+                <span className="size-1.5 rounded-full bg-critical shrink-0" />
+                <span className="label-caps text-critical">Critical</span>
               </div>
               <div className="space-y-1">
                 {mailboxAlert && (
                   <Link
                     href="/settings/health"
-                    className="flex items-start gap-2 rounded-md px-2 py-2 hover:bg-red-100/50 dark:hover:bg-red-900/20 transition-colors"
+                    className="flex items-start gap-2 rounded-md px-2 py-2 hover:bg-critical-surface transition-colors"
                   >
-                    <MailWarning size={13} className="text-red-600 dark:text-red-400 shrink-0 mt-0.5" />
+                    <MailWarning size={13} className="text-critical shrink-0 mt-0.5" />
                     <div className="flex-1 min-w-0">
                       <p className="text-xs font-medium text-foreground">Mailbox sweep failing ({mailboxAlert.email})</p>
                       <p className="text-xs text-muted-foreground mt-0.5">
@@ -175,9 +180,9 @@ export default function NeedsAttention({ reviewItems, overdueItems, ddItems, rev
                     <Link
                       key={cert.id}
                       href="/company"
-                      className="flex items-start gap-2 rounded-md px-2 py-2 hover:bg-red-100/50 dark:hover:bg-red-900/20 transition-colors"
+                      className="flex items-start gap-2 rounded-md px-2 py-2 hover:bg-critical-surface transition-colors"
                     >
-                      <BadgeAlert size={13} className="text-red-600 dark:text-red-400 shrink-0 mt-0.5" />
+                      <BadgeAlert size={13} className="text-critical shrink-0 mt-0.5" />
                       <div className="flex-1 min-w-0">
                         <p className="text-xs font-medium text-foreground truncate">
                           {isExpired ? 'Cert expired: ' : `Cert expiring in ${days}d: `}
@@ -198,7 +203,7 @@ export default function NeedsAttention({ reviewItems, overdueItems, ddItems, rev
           {overdueTasks.length > 0 && (
             <div className="rounded-md bg-muted/30 p-3">
               <div className="flex items-center gap-1.5 mb-2">
-                <span className="size-1.5 rounded-full bg-red-400 shrink-0" />
+                <span className="size-1.5 rounded-full bg-critical shrink-0" />
                 <ListChecks size={12} className="text-red-500 dark:text-red-400 shrink-0" />
                 <span className="label-caps text-muted-foreground">
                   Overdue Tasks
@@ -241,7 +246,7 @@ export default function NeedsAttention({ reviewItems, overdueItems, ddItems, rev
           {investorFollowUps.length > 0 && (
             <div className="rounded-md bg-muted/30 p-3">
               <div className="flex items-center gap-1.5 mb-2">
-                <span className="size-1.5 rounded-full bg-red-400 shrink-0" />
+                <span className="size-1.5 rounded-full bg-critical shrink-0" />
                 <HandCoins size={12} className="text-red-500 dark:text-red-400 shrink-0" />
                 <span className="label-caps text-muted-foreground">
                   Investor Follow-ups
@@ -268,6 +273,11 @@ export default function NeedsAttention({ reviewItems, overdueItems, ddItems, rev
                     )}
                   </Link>
                 ))}
+                {investorFollowUps.length > 6 && (
+                  <Link href="/investors" className="block px-2 py-1 text-xs text-primary hover:underline">
+                    +{investorFollowUps.length - 6} more →
+                  </Link>
+                )}
               </div>
             </div>
           )}
@@ -276,7 +286,7 @@ export default function NeedsAttention({ reviewItems, overdueItems, ddItems, rev
           {dinoPayments.length > 0 && (
             <div className="rounded-md bg-muted/30 p-3">
               <div className="flex items-center gap-1.5 mb-2">
-                <span className="size-1.5 rounded-full bg-amber-400 shrink-0" />
+                <span className="size-1.5 rounded-full bg-caution shrink-0" />
                 <Wrench size={12} className="text-amber-500 dark:text-amber-400 shrink-0" />
                 <span className="label-caps text-muted-foreground">
                   Dino Payments
@@ -308,6 +318,11 @@ export default function NeedsAttention({ reviewItems, overdueItems, ddItems, rev
                     </Link>
                   )
                 })}
+                {dinoPayments.length > 6 && (
+                  <Link href="/dino" className="block px-2 py-1 text-xs text-primary hover:underline">
+                    +{dinoPayments.length - 6} more →
+                  </Link>
+                )}
               </div>
             </div>
           )}
@@ -316,7 +331,7 @@ export default function NeedsAttention({ reviewItems, overdueItems, ddItems, rev
           {leads.length > 0 && (
             <div className="rounded-md bg-muted/30 p-3">
               <div className="flex items-center gap-1.5 mb-2">
-                <span className="size-1.5 rounded-full bg-amber-400 shrink-0" />
+                <span className="size-1.5 rounded-full bg-caution shrink-0" />
                 <Radar size={12} className="text-amber-500 dark:text-amber-400 shrink-0" />
                 <span className="label-caps text-muted-foreground">
                   Inbound Leads
@@ -356,6 +371,11 @@ export default function NeedsAttention({ reviewItems, overdueItems, ddItems, rev
                     </Link>
                   )
                 })}
+                {leads.length > 6 && (
+                  <Link href="/leads" className="block px-2 py-1 text-xs text-primary hover:underline">
+                    +{leads.length - 6} more →
+                  </Link>
+                )}
               </div>
             </div>
           )}
@@ -364,7 +384,7 @@ export default function NeedsAttention({ reviewItems, overdueItems, ddItems, rev
           {reviewItems.length > 0 && (
             <div className="rounded-md bg-muted/30 p-3">
               <div className="flex items-center gap-1.5 mb-2">
-                <span className="size-1.5 rounded-full bg-amber-400 shrink-0" />
+                <span className="size-1.5 rounded-full bg-caution shrink-0" />
                 <ClipboardCheck size={12} className="text-muted-foreground shrink-0" />
                 <span className="label-caps text-muted-foreground">
                   Review Queue
@@ -417,7 +437,7 @@ export default function NeedsAttention({ reviewItems, overdueItems, ddItems, rev
           {overdueItems.length > 0 && (
             <div className="rounded-md bg-muted/30 p-3">
               <div className="flex items-center gap-1.5 mb-2">
-                <span className="size-1.5 rounded-full bg-red-400 shrink-0" />
+                <span className="size-1.5 rounded-full bg-critical shrink-0" />
                 <CalendarClock size={12} className="text-red-500 dark:text-red-400 shrink-0" />
                 <span className="label-caps text-muted-foreground">
                   Overdue Milestones
@@ -444,14 +464,13 @@ export default function NeedsAttention({ reviewItems, overdueItems, ddItems, rev
                     )}
                   </Link>
                 ))}
-                {/* Not a link yet: there is no cross-portfolio page for these, and
-                    `/attention` is not a route until the engine gets its UI. Saying
-                    the number is still better than truncating in silence, which is
-                    what this card did until 2026-10-17. */}
+                {/* These two had NO destination at all until /attention existed —
+                    there is no cross-portfolio milestones or diligence page, so the
+                    overflow was plain text naming a number you could not reach. */}
                 {overdueCount > overdueItems.length && (
-                  <p className="px-2 py-1 text-xs text-muted-foreground">
-                    +{overdueCount - overdueItems.length} more
-                  </p>
+                  <Link href="/attention?kind=approaching_milestone" className="block px-2 py-1 text-xs text-primary hover:underline">
+                    +{overdueCount - overdueItems.length} more →
+                  </Link>
                 )}
               </div>
             </div>
@@ -461,7 +480,7 @@ export default function NeedsAttention({ reviewItems, overdueItems, ddItems, rev
           {ddItems.length > 0 && (
             <div className="rounded-md bg-muted/30 p-3">
               <div className="flex items-center gap-1.5 mb-2">
-                <span className="size-1.5 rounded-full bg-orange-400 shrink-0" />
+                <span className="size-1.5 rounded-full bg-caution shrink-0" />
                 <TrendingUp size={12} className="text-red-500 dark:text-red-400 shrink-0" />
                 <span className="label-caps text-muted-foreground">
                   Due Diligence
@@ -486,14 +505,13 @@ export default function NeedsAttention({ reviewItems, overdueItems, ddItems, rev
                     </Chip>
                   </Link>
                 ))}
-                {/* Not a link yet: there is no cross-portfolio page for these, and
-                    `/attention` is not a route until the engine gets its UI. Saying
-                    the number is still better than truncating in silence, which is
-                    what this card did until 2026-10-17. */}
+                {/* These two had NO destination at all until /attention existed —
+                    there is no cross-portfolio milestones or diligence page, so the
+                    overflow was plain text naming a number you could not reach. */}
                 {ddCount > ddItems.length && (
-                  <p className="px-2 py-1 text-xs text-muted-foreground">
-                    +{ddCount - ddItems.length} more
-                  </p>
+                  <Link href="/attention?kind=critical_dd" className="block px-2 py-1 text-xs text-primary hover:underline">
+                    +{ddCount - ddItems.length} more →
+                  </Link>
                 )}
               </div>
             </div>
