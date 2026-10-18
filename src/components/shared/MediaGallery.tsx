@@ -195,11 +195,15 @@ export default function MediaGallery({ initialPhotos, scope }: Props) {
               className="w-full h-full object-cover"
             />
             {/* Set primary */}
+            {/* §12: a control that only appears on hover does not exist on a
+                phone, and one with no focus-visible state is invisible to a
+                keyboard. This was the last of 25 group-hover sites without a
+                fallback: it now shows always below sm, and on focus. */}
             <button
               type="button"
               onClick={() => handleSetPrimary(photo)}
               disabled={!!settingPrimaryId}
-              className="absolute inset-0 bg-black/0 hover:bg-black/40 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100"
+              className="absolute inset-0 bg-black/0 hover:bg-black/40 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100 focus-visible:opacity-100 max-sm:opacity-100"
               title="Set as cover photo"
             >
               {settingPrimaryId === photo.id ? (

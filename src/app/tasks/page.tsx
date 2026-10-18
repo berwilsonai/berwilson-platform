@@ -75,6 +75,20 @@ export default async function TasksPage({
   // gets no investor picker/chips, even executives.
   const investorOptions: InvestorOption[] =
     !viewer || viewer.isAdmin ? ((investors ?? []) as InvestorOption[]) : []
+  /*
+   * ⚠ STARTED HERE, AWAITED AT THE BOTTOM. Both of these depend on nothing
+   * between — the sheet row is a single `maybeSingle()` and the hidden set is a
+   * read of `projects.confidential` — so awaiting them after the viewer-filter
+   * block made four round trips where two would do, on a `mobilePrimary` route.
+   * Kicking them off now overlaps them with the filtering above and with each
+   * other.
+   */
+  const sheetStatePromise = supabase
+    .from('task_sheet_state')
+    .select('spreadsheet_id, spreadsheet_url')
+    .maybeSingle()
+  const hiddenPromise = viewerHiddenProjectIds()
+
   let visibleObjectives = objectiveOptions
   if (viewer && !viewer.isAdmin && viewer.role !== 'executive') {
     boardTasks = await filterTasksForViewer(viewer, boardTasks)
@@ -99,10 +113,7 @@ export default async function TasksPage({
   // workbook is CREATED by the platform on first sync — the id is not
   // configuration (see the 20261011000010 migration). A failed select or a
   // sync that has never run yields null, which renders no button.
-  const { data: sheetState } = await supabase
-    .from('task_sheet_state')
-    .select('spreadsheet_id, spreadsheet_url')
-    .maybeSingle()
+  const [{ data: sheetState }, hidden] = await Promise.all([sheetStatePromise, hiddenPromise])
   const sheetUrl =
     !viewer || viewer.isAdmin || viewer.role === 'executive'
       ? (sheetState?.spreadsheet_url ??
@@ -111,7 +122,6 @@ export default async function TasksPage({
           : null))
       : null
 
-  const hidden = await viewerHiddenProjectIds()
   boardTasks = dropHidden(boardTasks, (t) => t.project_id, hidden)
   projectOptions = dropHidden(projectOptions, (p) => p.id, hidden)
 

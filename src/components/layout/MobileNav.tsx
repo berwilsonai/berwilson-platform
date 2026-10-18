@@ -112,7 +112,7 @@ export default function MobileNav({ pendingCount = 0, role = 'admin', emptyModul
 
       {/* Bottom tab bar */}
       <nav
-        className="md:hidden fixed bottom-0 inset-x-0 z-50 bg-sidebar border-t border-sidebar-border"
+        className="print:hidden md:hidden fixed bottom-0 inset-x-0 z-50 bg-sidebar border-t border-sidebar-border"
         style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
       >
         <div className="flex">

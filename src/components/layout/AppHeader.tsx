@@ -39,7 +39,7 @@ export default function AppHeader({
 
   return (
     <>
-      <header className="h-14 flex items-center justify-between px-4 sm:px-6 border-b border-border bg-background/80 backdrop-blur-sm shrink-0 sticky top-0 z-10">
+      <header className="print:hidden h-14 flex items-center justify-between px-4 sm:px-6 border-b border-border bg-background/80 backdrop-blur-sm shrink-0 sticky top-0 z-10">
         {/* Logo + page title */}
         <div className="flex items-center gap-2.5 min-w-0">
           {/* The wordmark is cream on the supplied artwork, which disappears

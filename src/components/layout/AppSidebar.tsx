@@ -68,7 +68,7 @@ export default function AppSidebar({ pendingReviewCount = 0, attentionCount = 0,
 
   return (
     <aside
-      className={`hidden md:flex flex-col sidebar-gradient shrink-0 transition-[width] duration-200 ease-in-out ${
+      className={`print:hidden hidden md:flex flex-col sidebar-gradient shrink-0 transition-[width] duration-200 ease-in-out ${
         collapsed ? 'w-14' : 'w-56'
       }`}
     >

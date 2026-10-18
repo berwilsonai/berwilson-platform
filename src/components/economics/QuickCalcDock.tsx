@@ -43,7 +43,7 @@ export default function QuickCalcDock() {
 
   return (
     <div
-      className={`fixed inset-0 z-[70] ${open ? '' : 'pointer-events-none'}`}
+      className={`print:hidden fixed inset-0 z-[70] ${open ? '' : 'pointer-events-none'}`}
       aria-hidden={!open}
     >
       <div

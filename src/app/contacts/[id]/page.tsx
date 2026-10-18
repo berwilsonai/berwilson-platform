@@ -239,60 +239,90 @@ export default async function ContactDetailPage({ params, searchParams }: PagePr
   let meetingActivity: MeetingActivityRow[] = []
 
   if (tab === 'activity') {
-    // Meetings this contact was tagged as an attendee on.
-    const { data: meetingRows } = await supabase
-      .from('activity_log')
-      .select('id, created_at, metadata')
-      .eq('table_name', 'parties')
-      .eq('record_id', id)
-      .eq('action', 'meeting_attended')
-      .order('created_at', { ascending: false })
-      .limit(50)
+    /*
+     * ⚠ TWO STAGES, NOT SIX SERIAL READS. This page had 18 awaits and no
+     * `Promise.all` anywhere — the highest await count in the repo — and its
+     * `loading.tsx` was the one bare three-bar skeleton in the app, so the
+     * waterfall was also the least masked. Only the two `updates` queries
+     * actually need `projectIds`; the meeting log, the player links, the
+     * diligence items and the compliance items depend on nothing but the
+     * party id and each other not at all.
+     */
+    const [{ data: meetingRows }, { data: playerLinks }, { data: dd }, { data: compliance }] =
+      await Promise.all([
+        // Meetings this contact was tagged as an attendee on.
+        supabase
+          .from('activity_log')
+          .select('id, created_at, metadata')
+          .eq('table_name', 'parties')
+          .eq('record_id', id)
+          .eq('action', 'meeting_attended')
+          .order('created_at', { ascending: false })
+          .limit(50),
+        // The projects this party is a player on.
+        supabase.from('project_players').select('project_id').eq('party_id', id),
+        // DD items assigned to this party.
+        supabase
+          .from('dd_items')
+          .select('id, item, category, status, severity, created_at, projects(name)')
+          .eq('assigned_to', id)
+          .order('created_at', { ascending: false }),
+        // Compliance items they are responsible for.
+        supabase
+          .from('compliance_items')
+          .select('id, requirement, framework, status, due_date, projects(name)')
+          .eq('responsible_party', id)
+          .order('created_at', { ascending: false }),
+      ])
+
     meetingActivity = (meetingRows as MeetingActivityRow[]) ?? []
+    ddItems = (dd as DdRow[]) ?? []
+    complianceItems = (compliance as ComplianceRow[]) ?? []
 
-    // Updates for projects this party is involved in
-    const { data: playerLinks } = await supabase
-      .from('project_players')
-      .select('project_id')
-      .eq('party_id', id)
+    const projectIds = (playerLinks ?? []).map((p) => p.project_id)
 
-    const projectIds = (playerLinks ?? []).map(p => p.project_id)
-
+    /*
+     * Stage two: both of these need `projectIds`, and nothing needs them.
+     *
+     * The second one finds updates on OTHER projects that mention this party by
+     * name. The name lives inside `mentioned_parties`, a jsonb array of
+     * {name, role, company}. This used to filter on `'mentioned_parties::text'`
+     * — but PostgREST drops the cast and hands raw jsonb to ilike, so the query
+     * failed with "operator does not exist: jsonb ~~* unknown" EVERY time. A
+     * failed query returns null, which is indistinguishable from "no matches",
+     * so this section silently showed nothing on every contact. The table is
+     * small (tens of rows), so match in JS instead.
+     *
+     * ⚠ And the exclusion of the projects already listed only applies when
+     * there ARE any: the old `in.(null)` placeholder errors on a uuid column
+     * ("invalid input syntax for type uuid"), which killed this section for
+     * every contact with no linked projects.
+     */
+    let mentionQuery = supabase
+      .from('updates')
+      .select('id, summary, created_at, source, mentioned_parties, projects(name)')
+      .not('mentioned_parties', 'is', null)
+      .order('created_at', { ascending: false })
+      .limit(200)
     if (projectIds.length > 0) {
-      const { data: updates } = await supabase
-        .from('updates')
-        .select('id, summary, created_at, source, projects(name)')
-        .in('project_id', projectIds)
-        .order('created_at', { ascending: false })
-        .limit(30)
-      activityUpdates = (updates as UpdateRow[]) ?? []
+      mentionQuery = mentionQuery.not('project_id', 'in', `(${projectIds.join(',')})`)
     }
 
-    // Also find updates on OTHER projects that mention this party by name.
-    //
-    // The name lives inside mentioned_parties, a jsonb array of
-    // {name, role, company}. This used to filter on 'mentioned_parties::text'
-    // — but PostgREST drops the cast and hands raw jsonb to ilike, so the
-    // query failed with "operator does not exist: jsonb ~~* unknown" EVERY
-    // time. A failed query returns null, which is indistinguishable from "no
-    // matches", so this section silently showed nothing on every contact.
-    // The table is small (tens of rows), so match in JS instead.
-    if (party.full_name) {
-      // Exclude the projects already listed above — but only when there are
-      // any. The old `in.(null)` placeholder errors on a uuid column
-      // ("invalid input syntax for type uuid"), which killed this section for
-      // every contact with no linked projects.
-      let mentionQuery = supabase
-        .from('updates')
-        .select('id, summary, created_at, source, mentioned_parties, projects(name)')
-        .not('mentioned_parties', 'is', null)
-        .order('created_at', { ascending: false })
-        .limit(200)
-      if (projectIds.length > 0) {
-        mentionQuery = mentionQuery.not('project_id', 'in', `(${projectIds.join(',')})`)
-      }
-      const { data: mentionUpdates } = await mentionQuery
+    const [{ data: updates }, { data: mentionUpdates }] = await Promise.all([
+      projectIds.length > 0
+        ? supabase
+            .from('updates')
+            .select('id, summary, created_at, source, projects(name)')
+            .in('project_id', projectIds)
+            .order('created_at', { ascending: false })
+            .limit(30)
+        : Promise.resolve({ data: null }),
+      party.full_name ? mentionQuery : Promise.resolve({ data: null }),
+    ])
 
+    activityUpdates = (updates as UpdateRow[]) ?? []
+
+    if (party.full_name) {
       const needle = party.full_name.toLowerCase()
       const matches = (mentionUpdates ?? []).filter((u) => {
         const mentioned = (u as { mentioned_parties?: unknown }).mentioned_parties
@@ -309,22 +339,6 @@ export default async function ContactDetailPage({ params, searchParams }: PagePr
         activityUpdates = [...activityUpdates, ...(matches.slice(0, 20) as unknown as UpdateRow[])]
       }
     }
-
-    // DD items assigned to this party
-    const { data: dd } = await supabase
-      .from('dd_items')
-      .select('id, item, category, status, severity, created_at, projects(name)')
-      .eq('assigned_to', id)
-      .order('created_at', { ascending: false })
-    ddItems = (dd as DdRow[]) ?? []
-
-    // Compliance items
-    const { data: compliance } = await supabase
-      .from('compliance_items')
-      .select('id, requirement, framework, status, due_date, projects(name)')
-      .eq('responsible_party', id)
-      .order('created_at', { ascending: false })
-    complianceItems = (compliance as ComplianceRow[]) ?? []
   }
 
   // ─── Notes tab data ───────────────────────────────────────────────────────

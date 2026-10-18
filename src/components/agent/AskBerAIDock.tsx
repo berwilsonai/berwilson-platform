@@ -71,7 +71,7 @@ export default function AskBerAIDock() {
 
   // Stays mounted while closed so the conversation survives close/reopen.
   return (
-    <div className={`fixed inset-0 z-[70] ${open ? '' : 'pointer-events-none'}`} aria-hidden={!open}>
+    <div className={`print:hidden fixed inset-0 z-[70] ${open ? '' : 'pointer-events-none'}`} aria-hidden={!open}>
       {/* Backdrop */}
       {open && (
         <button
