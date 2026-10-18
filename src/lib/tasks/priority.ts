@@ -34,6 +34,7 @@
  */
 
 import { createUntypedAdminClient } from '@/lib/supabase/admin'
+import { chipTone } from '@/lib/ui/tone'
 
 /**
  * How recently a conversation must have moved to count as live.
@@ -129,7 +130,7 @@ export const TIER_BORDER: Record<TaskTier, string> = {
 }
 
 export const TIER_CHIP: Record<TaskTier, string> = {
-  live: 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200 dark:bg-emerald-500/15 dark:text-emerald-300 dark:ring-emerald-500/30',
+  live: 'ring-1 ' + chipTone('positive'),
   tagged: '',
   unattached: '',
 }

@@ -36,8 +36,8 @@ export const ORG_ENTITY_TYPE_SHORT: Record<OrgEntityType, string> = {
 // Standalone = outside capital, the distinction that matters — it gets the
 // warm tone; series stays muted.
 export const ORG_ENTITY_BADGE: Record<OrgEntityType, string> = {
-  series: 'bg-slate-100 text-slate-600 ring-slate-200 dark:bg-slate-400/15 dark:text-slate-300 dark:ring-slate-400/25',
-  standalone: 'bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-500/15 dark:text-amber-300 dark:ring-amber-500/30',
+  series: chipTone('neutral'),
+  standalone: chipTone('caution'),
 }
 
 export function orgEntityType(value: string | null | undefined): OrgEntityType | null {
@@ -64,6 +64,7 @@ export function orgTier(value: string | null | undefined): OrgTier | null {
 // ─── Grouping (shared by the chart renderer + print view) ────────────────────
 
 import type { OrgNode, OrgPerson } from '@/lib/supabase/types'
+import { chipTone } from '@/lib/ui/tone'
 
 export interface OrgGroups {
   arms: OrgNode[]

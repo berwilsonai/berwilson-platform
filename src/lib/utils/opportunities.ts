@@ -1,3 +1,5 @@
+import { chipTone } from '@/lib/ui/tone'
+
 /**
  * Constants for the Opportunities module — types, statuses, priorities, and their
  * labels/badge styles. Stored as text in the DB (no Postgres enums), so this file
@@ -35,15 +37,15 @@ export const OPPORTUNITY_TYPE_LABELS: Record<OpportunityType, string> = {
 }
 
 export const OPPORTUNITY_TYPE_BADGE: Record<OpportunityType, string> = {
-  acquisition: 'bg-violet-50 text-violet-700 ring-violet-200 dark:bg-violet-500/15 dark:text-violet-300 dark:ring-violet-500/30',
-  partnership: 'bg-blue-50 text-blue-700 ring-blue-200 dark:bg-blue-500/15 dark:text-blue-300 dark:ring-blue-500/30',
-  joint_venture: 'bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-500/15 dark:text-emerald-300 dark:ring-emerald-500/30',
-  investment: 'bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-500/15 dark:text-amber-300 dark:ring-amber-500/30',
-  merger: 'bg-indigo-50 text-indigo-700 ring-indigo-200 dark:bg-indigo-500/15 dark:text-indigo-300 dark:ring-indigo-500/30',
-  divestiture: 'bg-rose-50 text-rose-700 ring-rose-200 dark:bg-rose-500/15 dark:text-rose-300 dark:ring-rose-500/30',
-  teaming: 'bg-cyan-50 text-cyan-700 ring-cyan-200 dark:bg-cyan-500/15 dark:text-cyan-300 dark:ring-cyan-500/30',
-  market_entry: 'bg-orange-50 text-orange-700 ring-orange-200 dark:bg-orange-500/15 dark:text-orange-300 dark:ring-orange-500/30',
-  other: 'bg-slate-100 text-slate-600 ring-slate-200 dark:bg-slate-400/15 dark:text-slate-300 dark:ring-slate-400/25',
+  acquisition: chipTone('violet'),
+  partnership: chipTone('info'),
+  joint_venture: chipTone('positive'),
+  investment: chipTone('caution'),
+  merger: chipTone('indigo'),
+  divestiture: chipTone('rose'),
+  teaming: chipTone('cyan'),
+  market_entry: chipTone('orange'),
+  other: chipTone('neutral'),
 }
 
 export const OPPORTUNITY_TYPE_BORDER: Record<OpportunityType, string> = {
@@ -55,7 +57,7 @@ export const OPPORTUNITY_TYPE_BORDER: Record<OpportunityType, string> = {
   divestiture: 'border-l-rose-400',
   teaming: 'border-l-cyan-400',
   market_entry: 'border-l-orange-400',
-  other: 'border-l-slate-300',
+  other: 'border-l-border',
 }
 
 export function oppType(value: string | null | undefined): OpportunityType {
@@ -112,15 +114,15 @@ export const OPPORTUNITY_STATUS_INDEX: Record<OpportunityStatus, number> = {
 }
 
 export const OPPORTUNITY_STATUS_BADGE: Record<OpportunityStatus, string> = {
-  identified: 'bg-slate-100 text-slate-600 ring-slate-200 dark:bg-slate-400/15 dark:text-slate-300 dark:ring-slate-400/25',
-  evaluating: 'bg-blue-50 text-blue-700 ring-blue-200 dark:bg-blue-500/15 dark:text-blue-300 dark:ring-blue-500/30',
-  in_discussion: 'bg-cyan-50 text-cyan-700 ring-cyan-200 dark:bg-cyan-500/15 dark:text-cyan-300 dark:ring-cyan-500/30',
-  due_diligence: 'bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-500/15 dark:text-amber-300 dark:ring-amber-500/30',
-  negotiating: 'bg-violet-50 text-violet-700 ring-violet-200 dark:bg-violet-500/15 dark:text-violet-300 dark:ring-violet-500/30',
-  agreement: 'bg-indigo-50 text-indigo-700 ring-indigo-200 dark:bg-indigo-500/15 dark:text-indigo-300 dark:ring-indigo-500/30',
-  on_hold: 'bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-500/15 dark:text-amber-300 dark:ring-amber-500/30',
-  closed_won: 'bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-500/15 dark:text-emerald-300 dark:ring-emerald-500/30',
-  closed_passed: 'bg-red-50 text-red-600 ring-red-200 dark:bg-red-500/15 dark:text-red-300 dark:ring-red-500/30',
+  identified: chipTone('neutral'),
+  evaluating: chipTone('info'),
+  in_discussion: chipTone('cyan'),
+  due_diligence: chipTone('caution'),
+  negotiating: chipTone('violet'),
+  agreement: chipTone('indigo'),
+  on_hold: chipTone('caution'),
+  closed_won: chipTone('positive'),
+  closed_passed: chipTone('critical'),
 }
 
 export function oppStatus(value: string | null | undefined): OpportunityStatus {
@@ -146,9 +148,9 @@ export const OPPORTUNITY_PRIORITY_LABELS: Record<OpportunityPriority, string> = 
 }
 
 export const OPPORTUNITY_PRIORITY_BADGE: Record<OpportunityPriority, string> = {
-  low: 'bg-slate-100 text-slate-600 ring-slate-200 dark:bg-slate-400/15 dark:text-slate-300 dark:ring-slate-400/25',
-  medium: 'bg-blue-50 text-blue-700 ring-blue-200 dark:bg-blue-500/15 dark:text-blue-300 dark:ring-blue-500/30',
-  high: 'bg-red-50 text-red-600 ring-red-200 dark:bg-red-500/15 dark:text-red-300 dark:ring-red-500/30',
+  low: chipTone('neutral'),
+  medium: chipTone('info'),
+  high: chipTone('critical'),
 }
 
 export function oppPriority(value: string | null | undefined): OpportunityPriority {

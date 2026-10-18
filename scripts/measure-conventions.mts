@@ -10,6 +10,7 @@ const rows: [string, number, string][] = [
   ['text-[11px] (label-caps longhand)',   count(/text-\[11px\]/),                               'src'],
   ['local input/label class constants',   count(/const\s+(?:input|label|textarea)\w*(?:Class|Cls|Classes)\s*=/), 'src'],
   ['raw badge triples outside tone.ts',   count(/'[^']*\bbg-[a-z]+-\d+[^']*\btext-[a-z]+-\d+[^']*'/), 'src'],
+  ['slate-* (theme-blind ramp)',          count(/\b(?:bg|text|ring|border|from|to|via)-slate-\d+/), 'src'],
   ['aria-current (want MORE of this)',    count(/aria-current/),                                'src'],
 ]
 console.log('\n  count  convention')

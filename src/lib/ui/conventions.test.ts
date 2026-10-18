@@ -131,21 +131,24 @@ test(`label-caps replaces its own longhand (baseline ${BASELINE_DATE})`, () => {
 })
 
 test(`colour is converging on tone names (baseline ${BASELINE_DATE})`, () => {
-  // The palette now lives in src/lib/ui/tone.ts as thirteen names. These are
-  // raw bg+text palette pairs still written inline or in a *_BADGE map.
+  // The palette now lives in src/lib/ui/tone.ts as thirteen names. The 33
+  // *_BADGE maps were converted on 10-17 (324 -> 149): they still return a
+  // class STRING, so none of their 71 consumers had to change, but they get it
+  // from chipTone() now. What is left is inline chips in components.
   // ⚠ tone.ts itself is excluded: it IS the palette, declared literally in
   // source, which is the shape §12 mandates.
   const files = sourceFiles().filter((f) => !f.endsWith('src/lib/ui/tone.ts'))
   ratchet('raw colour pairs outside tone.ts',
-    count(/'[^']*\bbg-[a-z]+-\d+[^']*\btext-[a-z]+-\d+[^']*'/, files), 324,
+    count(/'[^']*\bbg-[a-z]+-\d+[^']*\btext-[a-z]+-\d+[^']*'/, files), 149,
     'Use a Tone name: <Chip tone="caution">. See src/lib/ui/tone.ts.')
 })
 
 test('the slate ramp is not growing — it does not respond to the theme', () => {
-  // Measured 572 uses, of which ~90 are the print routes and the map, where
-  // fixed colours are CORRECT (a print view styled text-foreground would
-  // inherit dark mode). The rest are a dark-mode bug waiting to be noticed.
-  ratchet('slate-* utilities', count(/\b(?:bg|text|ring|border|from|to|via)-slate-\d+/), 572,
+  // 572 -> 365 when the *_BADGE maps were converted (10-17). Of the rest, ~90
+  // are the print routes and the map, where fixed colours are CORRECT — a print
+  // view styled text-foreground would inherit dark mode. The remainder are a
+  // dark-mode bug waiting to be noticed.
+  ratchet('slate-* utilities', count(/\b(?:bg|text|ring|border|from|to|via)-slate-\d+/), 365,
     'Use the OKLCH neutrals (muted / muted-foreground / border) or tone "neutral". ' +
     'Print routes are the deliberate exception.')
 })

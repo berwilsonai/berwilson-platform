@@ -1,3 +1,5 @@
+import { chipTone } from '@/lib/ui/tone'
+
 /**
  * Constants for the Investors module — investor types, relationship pipeline
  * stages, interest levels, investment (commitment) stages, instruments, and
@@ -38,16 +40,16 @@ export const INVESTOR_TYPE_LABELS: Record<InvestorType, string> = {
 }
 
 export const INVESTOR_TYPE_BADGE: Record<InvestorType, string> = {
-  individual: 'bg-blue-50 text-blue-700 ring-blue-200 dark:bg-blue-500/15 dark:text-blue-300 dark:ring-blue-500/30',
-  family_office: 'bg-violet-50 text-violet-700 ring-violet-200 dark:bg-violet-500/15 dark:text-violet-300 dark:ring-violet-500/30',
-  private_equity: 'bg-indigo-50 text-indigo-700 ring-indigo-200 dark:bg-indigo-500/15 dark:text-indigo-300 dark:ring-indigo-500/30',
-  venture_capital: 'bg-cyan-50 text-cyan-700 ring-cyan-200 dark:bg-cyan-500/15 dark:text-cyan-300 dark:ring-cyan-500/30',
-  institutional: 'bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-500/15 dark:text-emerald-300 dark:ring-emerald-500/30',
-  bank_lender: 'bg-slate-100 text-slate-600 ring-slate-200 dark:bg-slate-400/15 dark:text-slate-300 dark:ring-slate-400/25',
-  private_lender: 'bg-teal-50 text-teal-700 ring-teal-200 dark:bg-teal-500/15 dark:text-teal-300 dark:ring-teal-500/30',
-  tribal: 'bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-500/15 dark:text-amber-300 dark:ring-amber-500/30',
-  strategic: 'bg-orange-50 text-orange-700 ring-orange-200 dark:bg-orange-500/15 dark:text-orange-300 dark:ring-orange-500/30',
-  other: 'bg-slate-100 text-slate-600 ring-slate-200 dark:bg-slate-400/15 dark:text-slate-300 dark:ring-slate-400/25',
+  individual: chipTone('info'),
+  family_office: chipTone('violet'),
+  private_equity: chipTone('indigo'),
+  venture_capital: chipTone('cyan'),
+  institutional: chipTone('positive'),
+  bank_lender: chipTone('neutral'),
+  private_lender: chipTone('teal'),
+  tribal: chipTone('caution'),
+  strategic: chipTone('orange'),
+  other: chipTone('neutral'),
 }
 
 export const INVESTOR_TYPE_BORDER: Record<InvestorType, string> = {
@@ -56,11 +58,11 @@ export const INVESTOR_TYPE_BORDER: Record<InvestorType, string> = {
   private_equity: 'border-l-indigo-400',
   venture_capital: 'border-l-cyan-400',
   institutional: 'border-l-emerald-400',
-  bank_lender: 'border-l-slate-300',
+  bank_lender: 'border-l-border',
   private_lender: 'border-l-teal-400',
   tribal: 'border-l-amber-400',
   strategic: 'border-l-orange-400',
-  other: 'border-l-slate-300',
+  other: 'border-l-border',
 }
 
 export function investorType(value: string | null | undefined): InvestorType {
@@ -127,16 +129,16 @@ export const INVESTOR_STAGE_INDEX: Record<InvestorStage, number> = {
 }
 
 export const INVESTOR_STAGE_BADGE: Record<InvestorStage, string> = {
-  identified: 'bg-slate-100 text-slate-600 ring-slate-200 dark:bg-slate-400/15 dark:text-slate-300 dark:ring-slate-400/25',
-  contacted: 'bg-blue-50 text-blue-700 ring-blue-200 dark:bg-blue-500/15 dark:text-blue-300 dark:ring-blue-500/30',
-  in_conversation: 'bg-cyan-50 text-cyan-700 ring-cyan-200 dark:bg-cyan-500/15 dark:text-cyan-300 dark:ring-cyan-500/30',
-  materials_sent: 'bg-sky-50 text-sky-700 ring-sky-200 dark:bg-sky-500/15 dark:text-sky-300 dark:ring-sky-500/30',
-  diligence: 'bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-500/15 dark:text-amber-300 dark:ring-amber-500/30',
-  soft_committed: 'bg-violet-50 text-violet-700 ring-violet-200 dark:bg-violet-500/15 dark:text-violet-300 dark:ring-violet-500/30',
-  committed: 'bg-indigo-50 text-indigo-700 ring-indigo-200 dark:bg-indigo-500/15 dark:text-indigo-300 dark:ring-indigo-500/30',
-  funded: 'bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-500/15 dark:text-emerald-300 dark:ring-emerald-500/30',
-  passed: 'bg-red-50 text-red-600 ring-red-200 dark:bg-red-500/15 dark:text-red-300 dark:ring-red-500/30',
-  dormant: 'bg-slate-100 text-slate-500 ring-slate-200 dark:bg-slate-400/15 dark:text-slate-400 dark:ring-slate-400/25',
+  identified: chipTone('neutral'),
+  contacted: chipTone('info'),
+  in_conversation: chipTone('cyan'),
+  materials_sent: chipTone('sky'),
+  diligence: chipTone('caution'),
+  soft_committed: chipTone('violet'),
+  committed: chipTone('indigo'),
+  funded: chipTone('positive'),
+  passed: chipTone('critical'),
+  dormant: chipTone('neutral'),
 }
 
 export function investorStage(value: string | null | undefined): InvestorStage {
@@ -172,10 +174,10 @@ export const INTEREST_LEVEL_LABELS: Record<InterestLevel, string> = {
 }
 
 export const INTEREST_LEVEL_BADGE: Record<InterestLevel, string> = {
-  hot: 'bg-red-50 text-red-600 ring-red-200 dark:bg-red-500/15 dark:text-red-300 dark:ring-red-500/30',
-  warm: 'bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-500/15 dark:text-amber-300 dark:ring-amber-500/30',
-  cool: 'bg-sky-50 text-sky-700 ring-sky-200 dark:bg-sky-500/15 dark:text-sky-300 dark:ring-sky-500/30',
-  cold: 'bg-slate-100 text-slate-600 ring-slate-200 dark:bg-slate-400/15 dark:text-slate-300 dark:ring-slate-400/25',
+  hot: chipTone('critical'),
+  warm: chipTone('caution'),
+  cool: chipTone('sky'),
+  cold: chipTone('neutral'),
 }
 
 export function interestLevel(value: string | null | undefined): InterestLevel {
@@ -210,13 +212,13 @@ export const INVESTMENT_STAGE_LABELS: Record<InvestmentStage, string> = {
 }
 
 export const INVESTMENT_STAGE_BADGE: Record<InvestmentStage, string> = {
-  discussing: 'bg-slate-100 text-slate-600 ring-slate-200 dark:bg-slate-400/15 dark:text-slate-300 dark:ring-slate-400/25',
-  soft_circled: 'bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-500/15 dark:text-amber-300 dark:ring-amber-500/30',
-  term_sheet: 'bg-violet-50 text-violet-700 ring-violet-200 dark:bg-violet-500/15 dark:text-violet-300 dark:ring-violet-500/30',
-  committed: 'bg-indigo-50 text-indigo-700 ring-indigo-200 dark:bg-indigo-500/15 dark:text-indigo-300 dark:ring-indigo-500/30',
-  docs: 'bg-cyan-50 text-cyan-700 ring-cyan-200 dark:bg-cyan-500/15 dark:text-cyan-300 dark:ring-cyan-500/30',
-  funded: 'bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-500/15 dark:text-emerald-300 dark:ring-emerald-500/30',
-  passed: 'bg-red-50 text-red-600 ring-red-200 dark:bg-red-500/15 dark:text-red-300 dark:ring-red-500/30',
+  discussing: chipTone('neutral'),
+  soft_circled: chipTone('caution'),
+  term_sheet: chipTone('violet'),
+  committed: chipTone('indigo'),
+  docs: chipTone('cyan'),
+  funded: chipTone('positive'),
+  passed: chipTone('critical'),
 }
 
 export function investmentStage(value: string | null | undefined): InvestmentStage {
@@ -280,9 +282,9 @@ export const RAISE_STATUS_LABELS: Record<RaiseStatus, string> = {
 }
 
 export const RAISE_STATUS_BADGE: Record<RaiseStatus, string> = {
-  planned: 'bg-slate-100 text-slate-600 ring-slate-200 dark:bg-slate-400/15 dark:text-slate-300 dark:ring-slate-400/25',
-  open: 'bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-500/15 dark:text-emerald-300 dark:ring-emerald-500/30',
-  closed: 'bg-indigo-50 text-indigo-700 ring-indigo-200 dark:bg-indigo-500/15 dark:text-indigo-300 dark:ring-indigo-500/30',
+  planned: chipTone('neutral'),
+  open: chipTone('positive'),
+  closed: chipTone('indigo'),
 }
 
 export function raiseStatus(value: string | null | undefined): RaiseStatus {

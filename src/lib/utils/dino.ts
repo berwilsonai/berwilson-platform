@@ -1,3 +1,5 @@
+import { chipTone } from '@/lib/ui/tone'
+
 /**
  * Constants + math for the Dino module — the revenue ledger split by SOURCE
  * (internal = Ber Wilson work vs external = Dino's existing clients) and the
@@ -21,7 +23,7 @@ export const DINO_SOURCE_LABELS: Record<DinoSource, string> = {
 
 export const DINO_SOURCE_BADGE: Record<DinoSource, string> = {
   internal: 'bg-primary/10 text-primary ring-primary/20 dark:bg-primary/15 dark:text-primary dark:ring-primary/30',
-  external: 'bg-slate-100 text-slate-600 ring-slate-200 dark:bg-slate-400/15 dark:text-slate-300 dark:ring-slate-400/25',
+  external: chipTone('neutral'),
 }
 
 export function dinoSource(value: string | null | undefined): DinoSource {

@@ -9,6 +9,7 @@
 
 import { enumLabel } from '@/lib/utils/constants'
 import type { LeadStatus, FitRecommendation, LeadSource } from '@/lib/leads/db'
+import { chipTone } from '@/lib/ui/tone'
 
 /**
  * What a lead of a category becomes when a human accepts it.
@@ -66,21 +67,21 @@ export interface LeadCategoryView {
  * dropdown instead of a text field.
  */
 export const TONE_BADGE: Record<string, string> = {
-  blue: 'bg-blue-50 text-blue-700 ring-blue-200 dark:bg-blue-500/15 dark:text-blue-300 dark:ring-blue-500/30',
+  blue: chipTone('info'),
   violet:
-    'bg-violet-50 text-violet-700 ring-violet-200 dark:bg-violet-500/15 dark:text-violet-300 dark:ring-violet-500/30',
-  cyan: 'bg-cyan-50 text-cyan-700 ring-cyan-200 dark:bg-cyan-500/15 dark:text-cyan-300 dark:ring-cyan-500/30',
-  teal: 'bg-teal-50 text-teal-700 ring-teal-200 dark:bg-teal-500/15 dark:text-teal-300 dark:ring-teal-500/30',
+    chipTone('violet'),
+  cyan: chipTone('cyan'),
+  teal: chipTone('teal'),
   amber:
-    'bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-500/15 dark:text-amber-300 dark:ring-amber-500/30',
-  rose: 'bg-rose-50 text-rose-700 ring-rose-200 dark:bg-rose-500/15 dark:text-rose-300 dark:ring-rose-500/30',
+    chipTone('caution'),
+  rose: chipTone('rose'),
   emerald:
-    'bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-500/15 dark:text-emerald-300 dark:ring-emerald-500/30',
+    chipTone('positive'),
   indigo:
-    'bg-indigo-50 text-indigo-700 ring-indigo-200 dark:bg-indigo-500/15 dark:text-indigo-300 dark:ring-indigo-500/30',
-  sky: 'bg-sky-50 text-sky-700 ring-sky-200 dark:bg-sky-500/15 dark:text-sky-300 dark:ring-sky-500/30',
+    chipTone('indigo'),
+  sky: chipTone('sky'),
   slate:
-    'bg-slate-50 text-slate-600 ring-slate-200 dark:bg-slate-500/15 dark:text-slate-300 dark:ring-slate-500/30',
+    chipTone('neutral'),
 }
 
 /** Tone names offered in the settings screen, in the order they are shown. */
@@ -124,11 +125,11 @@ export const SOURCE_LABELS: Record<LeadSource, string> = {
 
 export const SOURCE_BADGE: Record<LeadSource, string> = {
   email:
-    'bg-slate-50 text-slate-600 ring-slate-200 dark:bg-slate-500/15 dark:text-slate-300 dark:ring-slate-500/30',
+    chipTone('neutral'),
   web_form:
-    'bg-sky-50 text-sky-700 ring-sky-200 dark:bg-sky-500/15 dark:text-sky-300 dark:ring-sky-500/30',
+    chipTone('sky'),
   meeting:
-    'bg-violet-50 text-violet-700 ring-violet-200 dark:bg-violet-500/15 dark:text-violet-300 dark:ring-violet-500/30',
+    chipTone('violet'),
 }
 
 export const STATUS_LABELS: Record<LeadStatus, string> = {
@@ -144,25 +145,25 @@ export const STATUS_LABELS: Record<LeadStatus, string> = {
 export const STATUS_BADGE: Record<LeadStatus, string> = {
   new: 'bg-primary/10 text-primary ring-primary/20',
   reviewing:
-    'bg-indigo-50 text-indigo-700 ring-indigo-200 dark:bg-indigo-500/15 dark:text-indigo-300 dark:ring-indigo-500/30',
+    chipTone('indigo'),
   promoted:
-    'bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-500/15 dark:text-emerald-300 dark:ring-emerald-500/30',
+    chipTone('positive'),
   forwarded:
-    'bg-teal-50 text-teal-700 ring-teal-200 dark:bg-teal-500/15 dark:text-teal-300 dark:ring-teal-500/30',
+    chipTone('teal'),
   ignored:
-    'bg-slate-50 text-slate-600 ring-slate-200 dark:bg-slate-500/15 dark:text-slate-300 dark:ring-slate-500/30',
+    chipTone('neutral'),
   expired:
-    'bg-slate-50 text-slate-500 ring-slate-200 dark:bg-slate-500/10 dark:text-slate-400 dark:ring-slate-500/20',
+    chipTone('neutral'),
   spam:
-    'bg-slate-50 text-slate-500 ring-slate-200 dark:bg-slate-500/10 dark:text-slate-400 dark:ring-slate-500/20',
+    chipTone('neutral'),
 }
 
 export const FIT_BADGE: Record<FitRecommendation, string> = {
   pursue:
-    'bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-500/15 dark:text-emerald-300 dark:ring-emerald-500/30',
+    chipTone('positive'),
   consider:
-    'bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-500/15 dark:text-amber-300 dark:ring-amber-500/30',
-  pass: 'bg-slate-100 text-slate-600 ring-slate-200 dark:bg-slate-500/15 dark:text-slate-300 dark:ring-slate-500/30',
+    chipTone('caution'),
+  pass: chipTone('neutral'),
 }
 
 export const FIT_LABELS: Record<FitRecommendation, string> = {

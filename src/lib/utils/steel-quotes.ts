@@ -1,3 +1,5 @@
+import { chipTone } from '@/lib/ui/tone'
+
 /**
  * Quote status vocabulary. Plain text with app-side constants, following the
  * convention used by steel stages, opportunities and leads — a check constraint
@@ -31,12 +33,12 @@ export const QUOTE_STATUS_LABELS: Record<QuoteStatus, string> = {
 }
 
 export const QUOTE_STATUS_BADGE: Record<QuoteStatus, string> = {
-  generating: 'bg-slate-100 text-slate-700 dark:bg-slate-900/40 dark:text-slate-300',
-  draft: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200',
-  issued: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200',
+  generating: chipTone('neutral'),
+  draft: chipTone('caution'),
+  issued: chipTone('positive'),
   accepted: 'bg-emerald-600 text-white dark:bg-emerald-700',
-  declined: 'bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-200',
-  superseded: 'bg-slate-100 text-slate-500 dark:bg-slate-900/40 dark:text-slate-400',
+  declined: chipTone('rose'),
+  superseded: chipTone('neutral'),
 }
 
 export function quoteStatus(value: string | null | undefined): QuoteStatus {

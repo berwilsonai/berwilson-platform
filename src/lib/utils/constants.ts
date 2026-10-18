@@ -12,6 +12,7 @@ import type {
   EntityType,
   ComplianceStatus,
 } from '@/lib/supabase/types'
+import { chipTone, inkTone } from '@/lib/ui/tone'
 
 // ─── Sectors ─────────────────────────────────────────────────────────────────
 
@@ -40,13 +41,13 @@ export const SECTOR_SHORT: Record<ProjectSector, string> = {
 }
 
 export const SECTOR_BADGE: Record<ProjectSector, string> = {
-  government: 'bg-blue-50 text-blue-700 ring-blue-200 dark:bg-blue-500/15 dark:text-blue-300 dark:ring-blue-500/30',
-  infrastructure: 'bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-500/15 dark:text-amber-300 dark:ring-amber-500/30',
-  real_estate: 'bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-500/15 dark:text-emerald-300 dark:ring-emerald-500/30',
-  prefab: 'bg-violet-50 text-violet-700 ring-violet-200 dark:bg-violet-500/15 dark:text-violet-300 dark:ring-violet-500/30',
-  institutional: 'bg-slate-100 text-slate-600 ring-slate-200 dark:bg-slate-400/15 dark:text-slate-300 dark:ring-slate-400/25',
-  technology: 'bg-sky-50 text-sky-700 ring-sky-200 dark:bg-sky-500/15 dark:text-sky-300 dark:ring-sky-500/30',
-  health: 'bg-rose-50 text-rose-700 ring-rose-200 dark:bg-rose-500/15 dark:text-rose-300 dark:ring-rose-500/30',
+  government: chipTone('info'),
+  infrastructure: chipTone('caution'),
+  real_estate: chipTone('positive'),
+  prefab: chipTone('violet'),
+  institutional: chipTone('neutral'),
+  technology: chipTone('sky'),
+  health: chipTone('rose'),
 }
 
 // ─── Statuses ────────────────────────────────────────────────────────────────
@@ -64,11 +65,11 @@ export const STATUS_LABELS: Record<ProjectStatus, string> = {
 }
 
 export const STATUS_BADGE: Record<ProjectStatus, string> = {
-  active: 'bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-500/15 dark:text-emerald-300 dark:ring-emerald-500/30',
-  on_hold: 'bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-500/15 dark:text-amber-300 dark:ring-amber-500/30',
-  won: 'bg-blue-50 text-blue-700 ring-blue-200 dark:bg-blue-500/15 dark:text-blue-300 dark:ring-blue-500/30',
-  lost: 'bg-red-50 text-red-600 ring-red-200 dark:bg-red-500/15 dark:text-red-300 dark:ring-red-500/30',
-  closed: 'bg-slate-100 text-slate-600 ring-slate-200 dark:bg-slate-400/15 dark:text-slate-300 dark:ring-slate-400/25',
+  active: chipTone('positive'),
+  on_hold: chipTone('caution'),
+  won: chipTone('info'),
+  lost: chipTone('critical'),
+  closed: chipTone('neutral'),
 }
 
 // ─── Stages ──────────────────────────────────────────────────────────────────
@@ -98,17 +99,17 @@ export const STAGE_INDEX: Record<ProjectStage, number> = {
 }
 
 export const STAGE_BADGE: Record<ProjectStage, string> = {
-  pursuit: 'bg-slate-100 text-slate-600 ring-slate-200 dark:bg-slate-400/15 dark:text-slate-300 dark:ring-slate-400/25',
-  capture: 'bg-violet-50 text-violet-700 ring-violet-200 dark:bg-violet-500/15 dark:text-violet-300 dark:ring-violet-500/30',
-  bid: 'bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-500/15 dark:text-amber-300 dark:ring-amber-500/30',
-  award: 'bg-blue-50 text-blue-700 ring-blue-200 dark:bg-blue-500/15 dark:text-blue-300 dark:ring-blue-500/30',
-  mobilization: 'bg-cyan-50 text-cyan-700 ring-cyan-200 dark:bg-cyan-500/15 dark:text-cyan-300 dark:ring-cyan-500/30',
-  execution: 'bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-500/15 dark:text-emerald-300 dark:ring-emerald-500/30',
-  closeout: 'bg-indigo-50 text-indigo-700 ring-indigo-200 dark:bg-indigo-500/15 dark:text-indigo-300 dark:ring-indigo-500/30',
+  pursuit: chipTone('neutral'),
+  capture: chipTone('violet'),
+  bid: chipTone('caution'),
+  award: chipTone('info'),
+  mobilization: chipTone('cyan'),
+  execution: chipTone('positive'),
+  closeout: chipTone('indigo'),
 }
 
 export const STAGE_COLOR: Record<ProjectStage, string> = {
-  pursuit: 'bg-slate-400',
+  pursuit: 'bg-muted-foreground/60',
   capture: 'bg-violet-500',
   bid: 'bg-amber-500',
   award: 'bg-blue-500',
@@ -118,7 +119,7 @@ export const STAGE_COLOR: Record<ProjectStage, string> = {
 }
 
 export const STAGE_BORDER: Record<ProjectStage, string> = {
-  pursuit: 'border-l-slate-300 [--card-glow-color:oklch(0.60_0_0)]',
+  pursuit: 'border-l-border [--card-glow-color:oklch(0.60_0_0)]',
   capture: 'border-l-violet-400 [--card-glow-color:oklch(0.55_0.18_290)]',
   bid: 'border-l-amber-400 [--card-glow-color:oklch(0.70_0.12_85)]',
   award: 'border-l-blue-400 [--card-glow-color:oklch(0.55_0.15_260)]',
@@ -139,10 +140,10 @@ export const SEVERITY_LABELS: Record<DdSeverity, string> = {
 }
 
 export const SEVERITY_BADGE: Record<DdSeverity, string> = {
-  info: 'bg-slate-50 text-slate-600 ring-slate-200 dark:bg-slate-400/15 dark:text-slate-300 dark:ring-slate-400/25',
-  watch: 'bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-500/15 dark:text-amber-300 dark:ring-amber-500/30',
-  critical: 'bg-orange-50 text-orange-700 ring-orange-200 dark:bg-orange-500/15 dark:text-orange-300 dark:ring-orange-500/30',
-  blocker: 'bg-red-100 text-red-700 ring-red-200 dark:bg-red-500/20 dark:text-red-300 dark:ring-red-500/35',
+  info: chipTone('neutral'),
+  watch: chipTone('caution'),
+  critical: chipTone('orange'),
+  blocker: chipTone('critical'),
 }
 
 // ─── Entity Types ────────────────────────────────────────────────────────────
@@ -162,13 +163,13 @@ export const ENTITY_TYPE_LABELS: Record<EntityType, string> = {
 }
 
 export const ENTITY_TYPE_BADGE: Record<EntityType, string> = {
-  llc: 'bg-blue-50 text-blue-700 ring-blue-200 dark:bg-blue-500/15 dark:text-blue-300 dark:ring-blue-500/30',
-  corp: 'bg-violet-50 text-violet-700 ring-violet-200 dark:bg-violet-500/15 dark:text-violet-300 dark:ring-violet-500/30',
-  jv: 'bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-500/15 dark:text-emerald-300 dark:ring-emerald-500/30',
-  subsidiary: 'bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-500/15 dark:text-amber-300 dark:ring-amber-500/30',
-  trust: 'bg-rose-50 text-rose-700 ring-rose-200 dark:bg-rose-500/15 dark:text-rose-300 dark:ring-rose-500/30',
-  fund: 'bg-indigo-50 text-indigo-700 ring-indigo-200 dark:bg-indigo-500/15 dark:text-indigo-300 dark:ring-indigo-500/30',
-  other: 'bg-slate-50 text-slate-600 ring-slate-200 dark:bg-slate-400/15 dark:text-slate-300 dark:ring-slate-400/25',
+  llc: chipTone('info'),
+  corp: chipTone('violet'),
+  jv: chipTone('positive'),
+  subsidiary: chipTone('caution'),
+  trust: chipTone('rose'),
+  fund: chipTone('indigo'),
+  other: chipTone('neutral'),
 }
 
 // ─── Compliance Status ───────────────────────────────────────────────────────
@@ -246,9 +247,9 @@ export const ACTIVITY_TABLE_LABELS: Record<string, string> = {
 }
 
 export const ACTIVITY_ACTION_STYLES: Record<string, string> = {
-  INSERT: 'bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-500/15 dark:text-emerald-300 dark:ring-emerald-500/30',
-  UPDATE: 'bg-blue-50 text-blue-700 ring-blue-200 dark:bg-blue-500/15 dark:text-blue-300 dark:ring-blue-500/30',
-  DELETE: 'bg-red-50 text-red-600 ring-red-200 dark:bg-red-500/15 dark:text-red-300 dark:ring-red-500/30',
+  INSERT: chipTone('positive'),
+  UPDATE: chipTone('info'),
+  DELETE: chipTone('critical'),
 }
 
 // ─── Entity Relationships ────────────────────────────────────────────────────
@@ -279,9 +280,9 @@ export const BID_DECISION_SHORT: Record<BidDecision, string> = {
 }
 
 export const BID_DECISION_BADGE: Record<BidDecision, string> = {
-  undecided: 'bg-slate-100 text-slate-600 ring-slate-200 dark:bg-slate-400/15 dark:text-slate-300 dark:ring-slate-400/25',
-  pursue: 'bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-500/15 dark:text-emerald-300 dark:ring-emerald-500/30',
-  no_bid: 'bg-red-50 text-red-600 ring-red-200 dark:bg-red-500/15 dark:text-red-300 dark:ring-red-500/30',
+  undecided: chipTone('neutral'),
+  pursue: chipTone('positive'),
+  no_bid: chipTone('critical'),
 }
 
 /** Normalize a possibly-null/legacy bid_decision value to a known key. */
@@ -297,10 +298,10 @@ export function weightedValue(estimatedValue: number | null, winProbability: num
 
 /** Color for a P-win badge, scaled by confidence. */
 export function pwinBadge(p: number | null | undefined): string {
-  if (p == null) return 'bg-slate-100 text-slate-500 ring-slate-200 dark:bg-slate-400/15 dark:text-slate-300 dark:ring-slate-400/25'
-  if (p >= 60) return 'bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-500/15 dark:text-emerald-300 dark:ring-emerald-500/30'
-  if (p >= 35) return 'bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-500/15 dark:text-amber-300 dark:ring-amber-500/30'
-  return 'bg-red-50 text-red-600 ring-red-200 dark:bg-red-500/15 dark:text-red-300 dark:ring-red-500/30'
+  if (p == null) return chipTone('neutral')
+  if (p >= 60) return chipTone('positive')
+  if (p >= 35) return chipTone('caution')
+  return chipTone('critical')
 }
 
 /** Whole days from today (local) until a date string; negative = overdue. */
@@ -324,13 +325,19 @@ export function bidDueLabel(dateStr: string | null | undefined): string | null {
 }
 
 /** Urgency color band for a bid deadline. */
+/**
+ * ⚠ RETURNED A BARE PALETTE COLOUR WITH NO `dark:` VARIANT, so an overdue bid
+ * date rendered `text-red-700` on a dark card — legible in one theme and murky
+ * in the other, on the single most time-critical figure on a project. The two
+ * red levels (700 for overdue, 600 for within a week) were also imperceptibly
+ * different; urgency is carried by the words beside it, not by that 1 step.
+ */
 export function bidDueColor(dateStr: string | null | undefined): string {
   const d = daysUntilDate(dateStr)
   if (d == null) return 'text-muted-foreground'
-  if (d < 0) return 'text-red-700'
-  if (d <= 7) return 'text-red-600'
-  if (d <= 21) return 'text-amber-600'
-  return 'text-slate-600'
+  if (d <= 7) return inkTone('critical')
+  if (d <= 21) return inkTone('caution')
+  return 'text-muted-foreground'
 }
 
 /** Parse a competitors JSON value (array of strings) defensively. */
@@ -545,9 +552,9 @@ export const ENTITY_CATEGORY_LABELS: Record<EntityCategory, string> = {
 }
 
 export const ENTITY_CATEGORY_BADGE: Record<EntityCategory, string> = {
-  vendor: 'bg-blue-50 text-blue-700 ring-blue-200 dark:bg-blue-500/15 dark:text-blue-300 dark:ring-blue-500/30',
-  partner: 'bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-500/15 dark:text-emerald-300 dark:ring-emerald-500/30',
-  contractor: 'bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-500/15 dark:text-amber-300 dark:ring-amber-500/30',
+  vendor: chipTone('info'),
+  partner: chipTone('positive'),
+  contractor: chipTone('caution'),
 }
 
 // ─── Federal Standards ──────────────────────────────────────────────────────
@@ -567,8 +574,8 @@ export const FEDERAL_STANDARD_DESCRIPTIONS: Record<FederalStandard, string> = {
 }
 
 export const FEDERAL_STANDARD_BADGE: Record<FederalStandard, string> = {
-  usace_qm: 'bg-blue-50 text-blue-700 ring-blue-200 dark:bg-blue-500/15 dark:text-blue-300 dark:ring-blue-500/30',
-  dod_385: 'bg-orange-50 text-orange-700 ring-orange-200 dark:bg-orange-500/15 dark:text-orange-300 dark:ring-orange-500/30',
+  usace_qm: chipTone('info'),
+  dod_385: chipTone('orange'),
 }
 
 // USACE Quality Management scorecard criteria
@@ -605,11 +612,12 @@ export const SCORECARD_RATING_LABELS: Record<number, string> = {
   5: 'Exceptional',
 }
 
+/** Also carried no dark variant — see the note on `bidDueColor`. */
 export const SCORECARD_RATING_COLORS: Record<number, string> = {
-  0: 'text-slate-400',
-  1: 'text-red-600',
-  2: 'text-orange-500',
-  3: 'text-amber-500',
-  4: 'text-emerald-500',
-  5: 'text-green-600',
+  0: 'text-muted-foreground',
+  1: inkTone('critical'),
+  2: inkTone('orange'),
+  3: inkTone('caution'),
+  4: inkTone('positive'),
+  5: inkTone('positive'),
 }

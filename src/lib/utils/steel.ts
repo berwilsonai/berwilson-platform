@@ -1,3 +1,5 @@
+import { chipTone } from '@/lib/ui/tone'
+
 /**
  * Constants for the Prefab Steel CRM — deal stages, lead sources, and their
  * labels/badge styles. Stored as text in the DB (no Postgres enums), so this
@@ -53,14 +55,14 @@ export const STEEL_STAGE_INDEX: Record<SteelStage, number> = {
 }
 
 export const STEEL_STAGE_BADGE: Record<SteelStage, string> = {
-  quote: 'bg-blue-50 text-blue-700 ring-blue-200 dark:bg-blue-500/15 dark:text-blue-300 dark:ring-blue-500/30',
-  engineering: 'bg-violet-50 text-violet-700 ring-violet-200 dark:bg-violet-500/15 dark:text-violet-300 dark:ring-violet-500/30',
-  order_placed: 'bg-indigo-50 text-indigo-700 ring-indigo-200 dark:bg-indigo-500/15 dark:text-indigo-300 dark:ring-indigo-500/30',
-  delivered: 'bg-cyan-50 text-cyan-700 ring-cyan-200 dark:bg-cyan-500/15 dark:text-cyan-300 dark:ring-cyan-500/30',
-  assembled: 'bg-teal-50 text-teal-700 ring-teal-200 dark:bg-teal-500/15 dark:text-teal-300 dark:ring-teal-500/30',
-  invoiced: 'bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-500/15 dark:text-amber-300 dark:ring-amber-500/30',
-  paid: 'bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-500/15 dark:text-emerald-300 dark:ring-emerald-500/30',
-  lost: 'bg-red-50 text-red-600 ring-red-200 dark:bg-red-500/15 dark:text-red-300 dark:ring-red-500/30',
+  quote: chipTone('info'),
+  engineering: chipTone('violet'),
+  order_placed: chipTone('indigo'),
+  delivered: chipTone('cyan'),
+  assembled: chipTone('teal'),
+  invoiced: chipTone('caution'),
+  paid: chipTone('positive'),
+  lost: chipTone('critical'),
 }
 
 export const STEEL_STAGE_BORDER: Record<SteelStage, string> = {
@@ -132,18 +134,18 @@ export function leadSourceLabel(value: string | null | undefined): string {
 // Fixed chip palette; a source's color is hashed from its label so any new
 // source gets a stable color without a config entry.
 const LEAD_SOURCE_TONES: string[] = [
-  'bg-violet-50 text-violet-700 ring-violet-200 dark:bg-violet-500/15 dark:text-violet-300 dark:ring-violet-500/30',
-  'bg-blue-50 text-blue-700 ring-blue-200 dark:bg-blue-500/15 dark:text-blue-300 dark:ring-blue-500/30',
-  'bg-cyan-50 text-cyan-700 ring-cyan-200 dark:bg-cyan-500/15 dark:text-cyan-300 dark:ring-cyan-500/30',
-  'bg-sky-50 text-sky-700 ring-sky-200 dark:bg-sky-500/15 dark:text-sky-300 dark:ring-sky-500/30',
-  'bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-500/15 dark:text-emerald-300 dark:ring-emerald-500/30',
-  'bg-teal-50 text-teal-700 ring-teal-200 dark:bg-teal-500/15 dark:text-teal-300 dark:ring-teal-500/30',
-  'bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-500/15 dark:text-amber-300 dark:ring-amber-500/30',
-  'bg-rose-50 text-rose-700 ring-rose-200 dark:bg-rose-500/15 dark:text-rose-300 dark:ring-rose-500/30',
+  chipTone('violet'),
+  chipTone('info'),
+  chipTone('cyan'),
+  chipTone('sky'),
+  chipTone('positive'),
+  chipTone('teal'),
+  chipTone('caution'),
+  chipTone('rose'),
 ]
 
 const LEAD_SOURCE_NEUTRAL =
-  'bg-slate-100 text-slate-600 ring-slate-200 dark:bg-slate-400/15 dark:text-slate-300 dark:ring-slate-400/25'
+  chipTone('neutral')
 
 export function leadSourceBadge(value: string | null | undefined): string {
   const label = leadSourceLabel(value)

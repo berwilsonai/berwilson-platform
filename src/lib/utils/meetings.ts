@@ -1,3 +1,5 @@
+import { chipTone } from '@/lib/ui/tone'
+
 /**
  * Constants + helpers for the Meetings module — the durable record of board /
  * governance meetings (company scope) and per-project client interactions
@@ -34,11 +36,11 @@ export const MEETING_KIND_LABELS: Record<MeetingKind, string> = {
 
 export const MEETING_KIND_BADGE: Record<MeetingKind, string> = {
   board: 'bg-primary/10 text-primary ring-primary/20 dark:bg-primary/15 dark:text-primary dark:ring-primary/30',
-  client: 'bg-blue-50 text-blue-700 ring-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:ring-blue-800/60',
-  site_visit: 'bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:ring-amber-800/60',
-  call: 'bg-teal-50 text-teal-700 ring-teal-200 dark:bg-teal-950/40 dark:text-teal-300 dark:ring-teal-800/60',
-  internal: 'bg-violet-50 text-violet-700 ring-violet-200 dark:bg-violet-950/40 dark:text-violet-300 dark:ring-violet-800/60',
-  other: 'bg-slate-100 text-slate-600 ring-slate-200 dark:bg-slate-400/15 dark:text-slate-300 dark:ring-slate-400/25',
+  client: chipTone('info'),
+  site_visit: chipTone('caution'),
+  call: chipTone('teal'),
+  internal: chipTone('violet'),
+  other: chipTone('neutral'),
 }
 
 export function meetingKind(value: string | null | undefined): MeetingKind {
@@ -82,8 +84,8 @@ export const MEETING_STATUS_LABELS: Record<MeetingStatus, string> = {
 }
 
 export const MEETING_STATUS_BADGE: Record<MeetingStatus, string> = {
-  draft: 'bg-slate-100 text-slate-600 ring-slate-200 dark:bg-slate-400/15 dark:text-slate-300 dark:ring-slate-400/25',
-  approved: 'bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:ring-emerald-800/60',
+  draft: chipTone('neutral'),
+  approved: chipTone('positive'),
 }
 
 export function meetingStatus(value: string | null | undefined): MeetingStatus {

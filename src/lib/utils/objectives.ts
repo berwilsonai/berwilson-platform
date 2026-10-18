@@ -1,3 +1,5 @@
+import { chipTone } from '@/lib/ui/tone'
+
 /**
  * Constants for the Objectives board — the Now / Soon / Possibly buckets and
  * how they render. Stored as text in the DB (no Postgres enums), so this file
@@ -18,13 +20,13 @@ export const OBJECTIVE_BUCKET_LABELS: Record<ObjectiveBucket, string> = {
 export const OBJECTIVE_BUCKET_ACCENT: Record<ObjectiveBucket, string> = {
   now: 'bg-red-500',
   soon: 'bg-amber-400',
-  possibly: 'bg-slate-400',
+  possibly: 'bg-muted-foreground/60',
 }
 
 export const OBJECTIVE_BUCKET_BADGE: Record<ObjectiveBucket, string> = {
-  now: 'bg-red-50 text-red-700 ring-red-200 dark:bg-red-500/15 dark:text-red-300 dark:ring-red-500/30',
-  soon: 'bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-500/15 dark:text-amber-300 dark:ring-amber-500/30',
-  possibly: 'bg-slate-100 text-slate-600 ring-slate-200 dark:bg-slate-400/15 dark:text-slate-300 dark:ring-slate-400/25',
+  now: chipTone('critical'),
+  soon: chipTone('caution'),
+  possibly: chipTone('neutral'),
 }
 
 export function objectiveBucket(value: string | null | undefined): ObjectiveBucket {
@@ -49,9 +51,9 @@ export const OBJECTIVE_HEALTH_LABELS: Record<ObjectiveHealth, string> = {
 }
 
 export const OBJECTIVE_HEALTH_BADGE: Record<ObjectiveHealth, string> = {
-  on_track: 'bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-500/15 dark:text-emerald-300 dark:ring-emerald-500/30',
-  at_risk: 'bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-500/15 dark:text-amber-300 dark:ring-amber-500/30',
-  stalled: 'bg-red-50 text-red-700 ring-red-200 dark:bg-red-500/15 dark:text-red-300 dark:ring-red-500/30',
+  on_track: chipTone('positive'),
+  at_risk: chipTone('caution'),
+  stalled: chipTone('critical'),
 }
 
 export function objectiveHealth(value: string | null | undefined): ObjectiveHealth {
