@@ -11,6 +11,7 @@ import {
   Lightbulb,
   Inbox,
   Target,
+  TriangleAlert,
   UserCog,
   HeartPulse,
   Split,
@@ -85,7 +86,14 @@ export function resolveNavItem(item: NavItem, allowed: (href: string) => boolean
 export const NAV_ITEMS: NavItem[] = [
   { href: '/decide', label: 'Decide', title: 'Decide', icon: Gavel, group: 'primary', keywords: 'review queue approve confirm pending inbox decisions bids intake what needs me triage backlog', mobilePrimary: true, badge: 'review', alsoMatches: ['/review'] },
   { href: '/tasks', label: 'Tasks', title: 'Team Tasks', icon: ListChecks, group: 'primary', keywords: 'todo action items team workload capacity', mobilePrimary: true },
-  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, group: 'primary', keywords: 'home overview alerts urgent overdue attention', mobilePrimary: true, badge: 'attention' },
+  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, group: 'primary', keywords: 'home overview alerts urgent overdue', mobilePrimary: true },
+  // ⚠ THE ATTENTION BADGE MOVED HERE FROM /dashboard (10-17). It had always
+  // counted `countAttention()`, so a reader saw a number next to "Dashboard"
+  // and had no way to reach the thing it counted — the dashboard rail showed a
+  // truncated, unranked slice of it and nothing showed item number seven. The
+  // badge and the list it names are now the same destination, and both read the
+  // same registry, so they cannot come to disagree.
+  { href: '/attention', label: 'Attention', title: 'Attention', icon: TriangleAlert, group: 'primary', keywords: 'attention urgent overdue stale slipping cracks falling through needs me what needs my attention ranked urgency milestones diligence compliance waiting on decisions adrift dependency risk', badge: 'attention' },
   // ⚠ NO `alsoMatches` FOR `/s/*`. That is the settle landing page reached from
   // Pepper's note, it is deliberately outside the app chrome, and claiming it
   // here would light this row for a page that has no sidebar at all.

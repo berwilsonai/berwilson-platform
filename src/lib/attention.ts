@@ -19,10 +19,18 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { dropHidden, hiddenProjectIds } from '@/lib/security/confidential'
 import { leadsDb } from '@/lib/leads/db'
 import { fetchOpenTasks } from '@/lib/tasks/queries'
+import {
+  ATTENTION_KINDS,
+  type AttentionCategory,
+  type AttentionSummary,
+} from '@/lib/attention-kinds'
+
+export { ATTENTION_KINDS, attentionKind, attentionHref, urgencyBand } from '@/lib/attention-kinds'
+export type { AttentionCategory, AttentionSummary } from '@/lib/attention-kinds'
 
 export interface AttentionItem {
   id: string
-  category: 'overdue_action' | 'stale_waiting' | 'approaching_milestone' | 'critical_dd' | 'expiring_compliance' | 'stale_decision' | 'dependency_risk' | 'investor_followup' | 'dino_payment' | 'lead_review'
+  category: AttentionCategory
   urgency: number // 0-100, higher = more urgent
   title: string
   detail: string
@@ -33,19 +41,6 @@ export interface AttentionItem {
   source_date: string
 }
 
-export interface AttentionSummary {
-  total: number
-  overdue_actions: number
-  stale_waiting: number
-  approaching_milestones: number
-  critical_dd: number
-  expiring_compliance: number
-  stale_decisions: number
-  dependency_risks: number
-  investor_followups: number
-  dino_payments: number
-  lead_reviews: number
-}
 
 /**
  * The one "needs attention" count.
@@ -543,20 +538,12 @@ export async function computeAttention(): Promise<{ items: AttentionItem[]; summ
   // Sort by urgency descending
   visible.sort((a, b) => b.urgency - a.urgency)
 
-  // Summary counts
-  const summary: AttentionSummary = {
-    total: visible.length,
-    overdue_actions: visible.filter(i => i.category === 'overdue_action').length,
-    stale_waiting: visible.filter(i => i.category === 'stale_waiting').length,
-    approaching_milestones: visible.filter(i => i.category === 'approaching_milestone').length,
-    critical_dd: visible.filter(i => i.category === 'critical_dd').length,
-    expiring_compliance: visible.filter(i => i.category === 'expiring_compliance').length,
-    stale_decisions: visible.filter(i => i.category === 'stale_decision').length,
-    dependency_risks: visible.filter(i => i.category === 'dependency_risk').length,
-    investor_followups: visible.filter(i => i.category === 'investor_followup').length,
-    dino_payments: visible.filter(i => i.category === 'dino_payment').length,
-    lead_reviews: visible.filter(i => i.category === 'lead_review').length,
+  // Summary counts, one per registry row. Was eleven hand-written lines.
+  const counts = {} as Record<(typeof ATTENTION_KINDS)[number]['summaryKey'], number>
+  for (const k of ATTENTION_KINDS) {
+    counts[k.summaryKey] = visible.filter((i) => i.category === k.category).length
   }
+  const summary: AttentionSummary = { total: visible.length, ...counts }
 
   return { items: visible, summary }
 }
