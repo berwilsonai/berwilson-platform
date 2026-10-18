@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import { useUrlState } from '@/hooks/use-url-state'
 import Link from 'next/link'
 import {
   Plus,
@@ -84,7 +85,10 @@ interface TeamTaskBoardProps {
   liveError?: string | null
 }
 
-type StatusFilter = 'open' | 'done'
+/** ⚠ The array is the source: `useUrlState` validates against it, because a
+ *  query string is user input that reaches a database filter. */
+const STATUS_FILTERS = ['open', 'done'] as const
+type StatusFilter = (typeof STATUS_FILTERS)[number]
 
 const fieldClass =
   'h-8 rounded-md border border-input bg-background px-3 text-sm outline-none focus-visible:ring-3 focus-visible:ring-ring/50'
@@ -148,13 +152,21 @@ export default function TeamTaskBoard({
   const [tasks, setTasks] = useState<BoardTask[]>(initialTasks)
   const [members, setMembers] = useState<TeamMember[]>(teamMembers)
 
-  // filters
-  const [status, setStatus] = useState<StatusFilter>('open')
-  const [assigneeFilter, setAssigneeFilter] = useState('all')
-  const [projectFilter, setProjectFilter] = useState('all')
-  const [opportunityFilter, setOpportunityFilter] = useState('all')
-  const [investorFilter, setInvestorFilter] = useState('all')
-  const [objectiveFilter, setObjectiveFilter] = useState('all')
+  /*
+   * Filters, in the URL. ⚠ All six were `useState`, so a filtered board was
+   * not a link — "Eric's overdue Weirton tasks" could not be sent to the other
+   * executive, could not be bookmarked, and was wiped by a refresh. §12: a
+   * filter kept only in component state is not a view.
+   *
+   * The default is absent from the URL rather than written into it, so a bare
+   * /tasks is the default board and a shared link carries only what differs.
+   */
+  const [status, setStatus] = useUrlState<StatusFilter>('status', 'open', STATUS_FILTERS)
+  const [assigneeFilter, setAssigneeFilter] = useUrlState<string>('assignee', 'all')
+  const [projectFilter, setProjectFilter] = useUrlState<string>('project', 'all')
+  const [opportunityFilter, setOpportunityFilter] = useUrlState<string>('opportunity', 'all')
+  const [investorFilter, setInvestorFilter] = useUrlState<string>('investor', 'all')
+  const [objectiveFilter, setObjectiveFilter] = useUrlState<string>('objective', 'all')
   // Record filters are collapsed on phones; `sm:flex` re-reveals them regardless.
   const [filtersOpen, setFiltersOpen] = useState(false)
 

@@ -1,10 +1,9 @@
 'use client'
 
 import { useRouter, useSearchParams, usePathname } from 'next/navigation'
-import { useCallback, useEffect, useRef } from 'react'
+import { useCallback } from 'react'
 import { X } from 'lucide-react'
 
-const FILTER_STORAGE_KEY = 'bw.projects.filters'
 import { SECTOR_LABELS } from '@/lib/utils/sectors'
 import { STAGE_LABELS, STAGES } from '@/lib/utils/stages'
 import type { ProjectSector, ProjectStatus, ProjectStage } from '@/lib/supabase/types'
@@ -30,38 +29,25 @@ export default function ProjectFilters({ sector, status, stage }: ProjectFilters
   const pathname = usePathname()
   const searchParams = useSearchParams()
 
-  // On first load, re-apply the last-used filters if the user landed here with
-  // no filters in the URL. Persisted per browser, so each person keeps their
-  // own view (e.g. sales vs operations) across sessions.
-  const appliedRef = useRef(false)
-  useEffect(() => {
-    if (appliedRef.current) return
-    appliedRef.current = true
-    if (sector || status || stage) return
-    try {
-      const raw = window.localStorage.getItem(FILTER_STORAGE_KEY)
-      if (!raw) return
-      const f = JSON.parse(raw) as { sector?: string; status?: string; stage?: string }
-      const params = new URLSearchParams()
-      if (f.sector) params.set('sector', f.sector)
-      if (f.status) params.set('status', f.status)
-      if (f.stage) params.set('stage', f.stage)
-      const qs = params.toString()
-      if (qs) router.replace(`${pathname}?${qs}`)
-    } catch {
-      /* ignore */
-    }
-    // mount only
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-
-  function persist(next: { sector: string; status: string; stage: string }) {
-    try {
-      window.localStorage.setItem(FILTER_STORAGE_KEY, JSON.stringify(next))
-    } catch {
-      /* ignore */
-    }
-  }
+  /*
+   * ⚠ THE localStorage REPLAY IS GONE, AND IT WAS A BUG, NOT A CONVENIENCE.
+   *
+   * This used to mirror the URL filters into localStorage and then, on mount,
+   * replay them into the URL whenever someone arrived with none. Two
+   * consequences, both bad for a two-person company that sends each other
+   * links: a bare `/projects` rendered DIFFERENTLY for each executive, and the
+   * sender could not tell — and because the replay ran after hydration, the
+   * list visibly re-rendered under the reader on every arrival.
+   *
+   * §12 is explicit on both halves: a filter kept outside the URL is not a
+   * view, and a localStorage copy of something that lives in the database is
+   * not a cache — it is the only copy that page can see. The URL *is* the view,
+   * so a bare link must mean a bare view. Anyone who wants their own default
+   * can bookmark the filtered URL, which is also shareable.
+   *
+   * Removing it also drops one of the 11 `set-state-in-effect` lint warnings
+   * recorded in §9.
+   */
 
   const setParam = useCallback(
     (key: string, value: string) => {
@@ -71,11 +57,6 @@ export default function ProjectFilters({ sector, status, stage }: ProjectFilters
       } else {
         params.delete(key)
       }
-      persist({
-        sector: params.get('sector') ?? '',
-        status: params.get('status') ?? '',
-        stage: params.get('stage') ?? '',
-      })
       router.push(`${pathname}?${params.toString()}`)
     },
     [router, pathname, searchParams]
@@ -84,7 +65,6 @@ export default function ProjectFilters({ sector, status, stage }: ProjectFilters
   const hasFilters = sector || status || stage
 
   function clearAll() {
-    persist({ sector: '', status: '', stage: '' })
     router.push(pathname)
   }
 
