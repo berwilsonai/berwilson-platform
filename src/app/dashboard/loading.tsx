@@ -28,7 +28,7 @@ export default function DashboardLoading() {
       </div>
 
       {/* KPI band — HealthPanel */}
-      <div className="rounded-xl border border-border bg-card elev-1 px-5 py-4 sm:px-6">
+      <div className="rounded-lg border border-border bg-card elev-1 px-5 py-4 sm:px-6">
         <div className="grid grid-cols-2 gap-x-8 gap-y-5 lg:grid-cols-3">
           {Array.from({ length: 3 }).map((_, i) => (
             <div key={i} className="min-w-0 flex items-start gap-3">
@@ -63,7 +63,7 @@ export default function DashboardLoading() {
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {Array.from({ length: 4 }).map((_, i) => (
-              <div key={i} className="rounded-xl border border-border bg-card elev-1 p-4 sm:p-5 space-y-3">
+              <div key={i} className="rounded-lg border border-border bg-card elev-1 p-4 sm:p-5 space-y-3">
                 <div className="flex items-center gap-2">
                   <div className="h-5 w-12 rounded bg-muted" />
                   <div className="h-5 w-14 rounded bg-muted" />
@@ -91,7 +91,7 @@ export default function DashboardLoading() {
 
         {/* Rail — Commitments, then Needs Attention */}
         <div className="w-full lg:w-72 xl:w-80 shrink-0 space-y-3">
-          <div className="rounded-xl border border-border bg-card elev-1 p-4 space-y-3">
+          <div className="rounded-lg border border-border bg-card elev-1 p-4 space-y-3">
             <div className="h-3 w-28 rounded bg-muted" />
             {Array.from({ length: 3 }).map((_, i) => (
               <div key={i} className="flex items-center justify-between gap-2">
@@ -100,7 +100,7 @@ export default function DashboardLoading() {
               </div>
             ))}
           </div>
-          <div className="rounded-xl border border-border bg-card elev-1">
+          <div className="rounded-lg border border-border bg-card elev-1">
             <div className="flex items-center gap-2 px-4 py-2.5 border-b border-border">
               <div className="size-3.5 rounded bg-muted" />
               <div className="h-3 w-28 rounded bg-muted" />

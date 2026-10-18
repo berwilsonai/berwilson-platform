@@ -81,7 +81,7 @@ export default function SettleCard({
 
   if (settled) {
     return (
-      <div className="rounded-xl border border-border bg-card p-6 elev-1">
+      <div className="rounded-lg border border-border bg-card p-6 elev-1">
         <div className="flex items-center gap-2">
           <Check className="size-5 text-emerald-600 dark:text-emerald-400" aria-hidden />
           <h1 className="text-base font-semibold">{COPY[settled].label}</h1>
@@ -101,7 +101,7 @@ export default function SettleCard({
   const age = daysAgo(createdAt)
 
   return (
-    <div className="rounded-xl border border-border bg-card p-6 elev-1">
+    <div className="rounded-lg border border-border bg-card p-6 elev-1">
       <span className="label-caps text-muted-foreground">
         {side === 'us' ? 'You owe this' : 'You are waiting on this'}
       </span>

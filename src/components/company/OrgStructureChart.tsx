@@ -197,7 +197,7 @@ export default function OrgStructureChart({ nodes, people }: OrgStructureChartPr
     <div className="space-y-4">
       {controls}
       {/* Diagram canvas */}
-      <div className="rounded-xl border border-border bg-card elev-1 overflow-hidden">
+      <div className="rounded-lg border border-border bg-card elev-1 overflow-hidden">
         <div className="overflow-x-auto p-6" style={DOT_GRID}>
           {chart}
         </div>

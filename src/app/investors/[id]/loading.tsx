@@ -12,7 +12,7 @@ export default function InvestorDetailLoading() {
       <div className="h-2 w-full rounded bg-muted" />
       <div className="grid grid-cols-3 gap-3">
         {Array.from({ length: 3 }).map((_, i) => (
-          <div key={i} className="h-20 rounded-xl border border-border bg-card" />
+          <div key={i} className="h-20 rounded-lg border border-border bg-card" />
         ))}
       </div>
       <div className="h-32 rounded-lg border border-border bg-card" />

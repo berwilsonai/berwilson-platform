@@ -75,7 +75,7 @@ export default function HealthPanel({
   const showWeighted = weightedPipelineValue > 0
 
   return (
-    <div className="rounded-xl border border-border bg-card elev-1 px-5 py-4 sm:px-6">
+    <div className="rounded-lg border border-border bg-card elev-1 px-5 py-4 sm:px-6">
       <dl className={cn('grid grid-cols-2 gap-x-8 gap-y-5', showWeighted ? 'lg:grid-cols-4' : 'lg:grid-cols-3')}>
         <div className="min-w-0 flex items-start gap-3">
           <span className="mt-0.5 size-9 shrink-0 rounded-lg bg-primary/10 text-primary dark:bg-primary/20 flex items-center justify-center">

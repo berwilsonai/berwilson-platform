@@ -347,14 +347,14 @@ function DivisionChartCard({
     return (
       <button
         onClick={onToggle}
-        className="w-full text-left rounded-xl border border-border bg-card elev-1 overflow-hidden lift"
+        className="w-full text-left rounded-lg border border-border bg-card elev-1 overflow-hidden lift"
       >
         {body}
       </button>
     )
   }
   return (
-    <div className="rounded-xl border border-border bg-card elev-1 overflow-hidden">{body}</div>
+    <div className="rounded-lg border border-border bg-card elev-1 overflow-hidden">{body}</div>
   )
 }
 
@@ -517,7 +517,7 @@ function RosterPerson({ person }: { person: OrgPerson }) {
 
 function LeadershipBand({ roster }: { roster: Record<'leadership' | 'director', OrgPerson[]> }) {
   return (
-    <div className="mt-5 mx-auto max-w-3xl rounded-xl border border-border bg-card elev-1 overflow-hidden">
+    <div className="mt-5 mx-auto max-w-3xl rounded-lg border border-border bg-card elev-1 overflow-hidden">
       <div className="px-4 py-2 border-b border-border bg-muted/30">
         <p className="label-caps text-muted-foreground">Leadership</p>
       </div>

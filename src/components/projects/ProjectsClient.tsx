@@ -52,7 +52,7 @@ function ProgramBanner({
   const value = rolledPipelineValue(program, allProjects)
 
   return (
-    <div className="flex items-stretch gap-0 rounded-xl border border-border bg-card elev-1 overflow-hidden">
+    <div className="flex items-stretch gap-0 rounded-lg border border-border bg-card elev-1 overflow-hidden">
       <Link
         href={`/projects/${program.id}`}
         className="group flex items-center gap-4 px-5 py-4 flex-1 min-w-0 hover:bg-accent/50 transition-colors"

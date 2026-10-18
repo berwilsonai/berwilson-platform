@@ -61,7 +61,7 @@ export default async function DocumentReaderPage({ params }: PageProps) {
       </div>
 
       {/* Summary */}
-      <div className="rounded-xl border border-border bg-card elev-1 p-4 sm:p-5">
+      <div className="rounded-lg border border-border bg-card elev-1 p-4 sm:p-5">
         <div className="flex items-center justify-between gap-2 mb-2">
           <h2 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
             Summary
@@ -94,7 +94,7 @@ export default async function DocumentReaderPage({ params }: PageProps) {
         <h2 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-2">
           Ask about this document
         </h2>
-        <div className="rounded-xl border border-border bg-card elev-1 h-[600px] overflow-hidden">
+        <div className="rounded-lg border border-border bg-card elev-1 h-[600px] overflow-hidden">
           <AgentChat documentId={doc.id} placeholder="Ask anything about this document…" showClear />
         </div>
       </div>

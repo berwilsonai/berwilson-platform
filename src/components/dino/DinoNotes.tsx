@@ -69,7 +69,7 @@ export default function DinoNotes({ notes }: { notes: DinoNoteRow[] }) {
   }
 
   return (
-    <div className="rounded-xl border border-border bg-card elev-1">
+    <div className="rounded-lg border border-border bg-card elev-1">
       <div className="px-4 py-2.5 border-b border-border">
         <h2 className="label-caps text-muted-foreground">Notes</h2>
       </div>

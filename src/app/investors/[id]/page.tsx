@@ -258,7 +258,7 @@ export default async function InvestorDetailPage({ params }: PageProps) {
           ['Committed', committed, 'Signed'],
           ['Funded', funded, 'Wired'],
         ] as const).map(([label, value, sub]) => (
-          <div key={label} className="rounded-xl border border-border bg-card px-4 py-3 elev-1">
+          <div key={label} className="rounded-lg border border-border bg-card px-4 py-3 elev-1">
             <p className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</p>
             <p className="text-lg font-semibold tnum mt-0.5">{value > 0 ? formatValue(value) : '—'}</p>
             <p className="text-[11px] text-muted-foreground mt-0.5">{sub}</p>

@@ -273,7 +273,7 @@ export default function CommitmentsClient({
       </div>
 
       {visible.length === 0 ? (
-        <p className="rounded-xl border border-border bg-card p-6 text-sm text-muted-foreground elev-1">
+        <p className="rounded-lg border border-border bg-card p-6 text-sm text-muted-foreground elev-1">
           {rows.length === 0
             ? view === 'settled'
               ? 'Nothing has been settled yet.'
@@ -330,7 +330,7 @@ function Section({
   if (list.length === 0) return null
 
   return (
-    <div className="rounded-xl border border-border bg-card elev-1">
+    <div className="rounded-lg border border-border bg-card elev-1">
       <div className="flex items-baseline justify-between border-b border-border px-4 py-3">
         <div>
           <span className="label-caps text-muted-foreground">{title}</span>

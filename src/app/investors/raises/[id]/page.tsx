@@ -32,7 +32,7 @@ export async function generateMetadata({ params }: PageProps) {
 
 function Stat({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
-    <div className="rounded-xl border border-border bg-card px-4 py-3 elev-1">
+    <div className="rounded-lg border border-border bg-card px-4 py-3 elev-1">
       <p className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</p>
       <p className="text-lg font-semibold tnum mt-0.5">{value}</p>
       {sub && <p className="text-[11px] text-muted-foreground mt-0.5">{sub}</p>}
@@ -154,7 +154,7 @@ export default async function RaiseDetailPage({ params }: PageProps) {
 
       {/* Tranche waterfall */}
       {fills.length > 0 && (
-        <div className="rounded-xl border border-border bg-card p-4 elev-1 space-y-4">
+        <div className="rounded-lg border border-border bg-card p-4 elev-1 space-y-4">
           <div className="flex items-center justify-between gap-3 flex-wrap">
             <h2 className="label-caps text-muted-foreground">
               Tranche Fill <span className="font-normal normal-case">(commitments fill in order)</span>
@@ -234,7 +234,7 @@ export default async function RaiseDetailPage({ params }: PageProps) {
             </div>
           </div>
         ) : (
-          <div className="rounded-xl border border-border bg-card elev-1 overflow-x-auto">
+          <div className="rounded-lg border border-border bg-card elev-1 overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-[11px] uppercase tracking-wide text-muted-foreground">

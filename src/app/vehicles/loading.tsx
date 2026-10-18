@@ -10,11 +10,11 @@ export default function VehiclesLoading() {
       </div>
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {Array.from({ length: 4 }).map((_, i) => (
-          <div key={i} className="h-20 rounded-xl border border-border bg-card" />
+          <div key={i} className="h-20 rounded-lg border border-border bg-card" />
         ))}
       </div>
       {Array.from({ length: 2 }).map((_, i) => (
-        <div key={i} className="h-40 rounded-xl border border-border bg-card" />
+        <div key={i} className="h-40 rounded-lg border border-border bg-card" />
       ))}
     </div>
   )

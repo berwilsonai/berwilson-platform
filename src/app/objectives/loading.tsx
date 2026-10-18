@@ -7,7 +7,7 @@ export default function ObjectivesLoading() {
       </div>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {Array.from({ length: 3 }).map((_, i) => (
-          <div key={i} className="rounded-xl border border-border bg-card h-64" />
+          <div key={i} className="rounded-lg border border-border bg-card h-64" />
         ))}
       </div>
     </div>

@@ -280,7 +280,7 @@ export default async function SteelDealDetailPage({ params }: PageProps) {
           ['Square Feet', formatSqft(deal.square_feet), 'Building size'],
           ['Price / SF', deal.price_per_sqft != null ? `$${deal.price_per_sqft.toLocaleString('en-US', { maximumFractionDigits: 2 })}` : '—', 'Quoted rate'],
         ] as const).map(([label, value, sub]) => (
-          <div key={label} className="rounded-xl border border-border bg-card px-4 py-3 elev-1">
+          <div key={label} className="rounded-lg border border-border bg-card px-4 py-3 elev-1">
             <p className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</p>
             <p className="text-lg font-semibold tnum mt-0.5">{value}</p>
             <p className="text-[11px] text-muted-foreground mt-0.5">{sub}</p>

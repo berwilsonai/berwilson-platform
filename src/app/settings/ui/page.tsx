@@ -156,11 +156,11 @@ export default async function UiSettingsPage() {
         <TwoThemes>
           <div className="flex flex-wrap gap-3">
             {['elev-1', 'elev-2', 'elev-3'].map((e) => (
-              <div key={e} className={`rounded-xl border border-border bg-card px-4 py-3 text-xs ${e}`}>
+              <div key={e} className={`rounded-lg border border-border bg-card px-4 py-3 text-xs ${e}`}>
                 {e}
               </div>
             ))}
-            <div className="rounded-xl border border-border bg-card px-4 py-3 text-xs elev-1 lift">
+            <div className="rounded-lg border border-border bg-card px-4 py-3 text-xs elev-1 lift">
               .lift (hover)
             </div>
           </div>

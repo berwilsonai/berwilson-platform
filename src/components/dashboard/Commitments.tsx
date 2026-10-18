@@ -184,7 +184,7 @@ export default function Commitments({ items }: { items: CommitmentItem[] }) {
   }
 
   return (
-    <div className="rounded-xl border border-border bg-card elev-1">
+    <div className="rounded-lg border border-border bg-card elev-1">
       <div className="border-b border-border px-4 py-3">
         <h2 className="text-sm font-medium">Commitments</h2>
         <p className="mt-0.5 text-xs text-muted-foreground">

@@ -42,7 +42,7 @@ export default function PlacementPanel({
   const withLocation = unplaced.filter((p) => p.location?.trim()).length
 
   return (
-    <div className="absolute bottom-4 left-4 z-10 w-72 overflow-hidden rounded-xl border border-border bg-card elev-2">
+    <div className="absolute bottom-4 left-4 z-10 w-72 overflow-hidden rounded-lg border border-border bg-card elev-2">
       <button
         onClick={() => setOpen(!open)}
         className="flex w-full items-center justify-between gap-2 px-3 py-2.5 text-left"

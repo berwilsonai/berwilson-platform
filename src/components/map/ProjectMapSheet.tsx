@@ -179,7 +179,7 @@ export default function ProjectMapSheet({
 
             <div className="space-y-5 px-4 pb-4">
               {/* Value */}
-              <div className="rounded-xl border border-border bg-card p-3 elev-1">
+              <div className="rounded-lg border border-border bg-card p-3 elev-1">
                 <div className="flex items-baseline justify-between gap-3">
                   <div>
                     <SectionLabel>Estimated Value</SectionLabel>

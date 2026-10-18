@@ -991,7 +991,7 @@ export default async function SystemHealthPage() {
         </span>
       </div>
 
-      <div className="rounded-xl border border-border bg-card elev-1">
+      <div className="rounded-lg border border-border bg-card elev-1">
         <div className="border-b border-border px-4 py-3">
           <span className="label-caps text-muted-foreground">
             Checks

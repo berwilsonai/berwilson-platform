@@ -134,7 +134,7 @@ export default function RaiseForm({ projects, initial }: RaiseFormProps) {
   return (
     <div className="space-y-5 max-w-2xl">
       {/* Identity */}
-      <div className="rounded-xl border border-border bg-card p-4 elev-1 space-y-4">
+      <div className="rounded-lg border border-border bg-card p-4 elev-1 space-y-4">
         <div>
           <label className={labelClass}>Raise Name</label>
           <input
@@ -215,7 +215,7 @@ export default function RaiseForm({ projects, initial }: RaiseFormProps) {
       </div>
 
       {/* Tranches */}
-      <div className="rounded-xl border border-border bg-card p-4 elev-1 space-y-3">
+      <div className="rounded-lg border border-border bg-card p-4 elev-1 space-y-3">
         <div className="flex items-center justify-between">
           <h3 className="label-caps text-muted-foreground">
             Tranches <span className="font-normal normal-case">(targets — commitments fill them in order)</span>

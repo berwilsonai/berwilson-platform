@@ -317,7 +317,7 @@ export default function ContactsClient({ contacts: initialContacts }: ContactsCl
           No contacts match your search.
         </div>
       ) : density === 'list' ? (
-        <div className="rounded-xl border border-border bg-card divide-y divide-border overflow-hidden">
+        <div className="rounded-lg border border-border bg-card divide-y divide-border overflow-hidden">
           {filtered.map(contact => (
             <ContactRow
               key={contact.id}

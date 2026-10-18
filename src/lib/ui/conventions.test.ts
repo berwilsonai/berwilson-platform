@@ -103,9 +103,21 @@ test(`the card shell is converging on Panel (baseline ${BASELINE_DATE})`, () => 
   // whose job is to render a primitive's raw ingredients. Raising the baseline
   // instead would have been the easy move and would have retired the ratchet.
   const files = sourceFiles().filter((f) => !f.endsWith('src/app/settings/ui/page.tsx'))
-  ratchet('hand-rolled card shell at rounded-lg', count(/rounded-lg border border-border bg-card/, files), 145,
-    'Use <Panel> from @/components/ui/card, or at least rounded-xl to match it.')
-  ratchet('hand-rolled card shell at rounded-xl', count(/rounded-xl border border-border bg-card/, files), 84,
+  // ⚠ ONE RADIUS IS NOW AN INVARIANT, NOT A RATCHET. `Panel` is `rounded-lg`
+  // (= `--radius` exactly, 4px) and the 85 `rounded-xl` outliers were converged
+  // on 10-17, so a card at xl is a NEW second radius on the same screen rather
+  // than inherited debt — there is nothing to drain down to.
+  const xl = scan(/rounded-xl border border-border bg-card/).filter(
+    (h) => !h.file.endsWith('src/app/settings/ui/page.tsx')
+  )
+  assert.deepEqual(
+    xl.map((h) => `${h.file}:${h.line}`),
+    [],
+    'a card is rounded-lg (= --radius). Use <Panel> from @/components/ui/card.'
+  )
+  // The hand-rolled count itself is still attrition: swap the div for <Panel>
+  // when a file is open for another reason.
+  ratchet('hand-rolled card shell', count(/rounded-lg border border-border bg-card/, files), 231,
     'Use <Panel> from @/components/ui/card.')
 })
 

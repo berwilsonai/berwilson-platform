@@ -38,7 +38,7 @@ export default async function VersionHistory({ economicsId }: { economicsId: str
   if (versions.length === 0) return null
 
   return (
-    <div className="rounded-xl border border-border bg-card elev-1 p-4 sm:p-5">
+    <div className="rounded-lg border border-border bg-card elev-1 p-4 sm:p-5">
       <h2 className="label-caps text-muted-foreground">Version history</h2>
       <ul className="mt-2 space-y-1.5 text-sm">
         {versions.map((v) => (

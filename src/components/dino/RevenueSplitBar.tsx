@@ -12,7 +12,7 @@ export default function RevenueSplitBar({ buckets }: { buckets: PeriodBucket[] }
 
   if (maxTotal === 0) {
     return (
-      <div className="rounded-xl border border-border bg-card p-4 elev-1">
+      <div className="rounded-lg border border-border bg-card p-4 elev-1">
         <SplitBarHeader />
         <p className="py-8 text-center text-sm text-muted-foreground">No revenue recorded in this range yet.</p>
       </div>
@@ -20,7 +20,7 @@ export default function RevenueSplitBar({ buckets }: { buckets: PeriodBucket[] }
   }
 
   return (
-    <div className="rounded-xl border border-border bg-card p-4 elev-1">
+    <div className="rounded-lg border border-border bg-card p-4 elev-1">
       <SplitBarHeader />
       <div className="mt-4 flex items-end gap-1.5 h-36">
         {buckets.map((b) => {

@@ -7,7 +7,7 @@ export default function MeetingsLoading() {
       </div>
       <div className="space-y-2">
         {[1, 2, 3].map((i) => (
-          <div key={i} className="h-24 rounded-xl border border-border bg-card animate-pulse" />
+          <div key={i} className="h-24 rounded-lg border border-border bg-card animate-pulse" />
         ))}
       </div>
     </div>

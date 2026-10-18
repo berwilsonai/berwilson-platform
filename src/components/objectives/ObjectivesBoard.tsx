@@ -454,7 +454,7 @@ export default function ObjectivesBoard({ initialObjectives, teamMembers }: Obje
               <p className="text-xs text-muted-foreground">Archived objectives land here for the record.</p>
             ) : (
               archived.map((obj) => (
-                <div key={obj.id} className="flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-2.5 opacity-70">
+                <div key={obj.id} className="flex items-center gap-3 rounded-lg border border-border bg-card px-4 py-2.5 opacity-70">
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-medium text-muted-foreground truncate">{obj.title}</p>
                     {obj.note && <p className="text-xs text-muted-foreground/80 truncate">{obj.note}</p>}
@@ -555,7 +555,7 @@ function ObjectiveCard({
       }}
       onClick={onEdit}
       className={cn(
-        'group relative flex items-start gap-2.5 rounded-xl border border-border bg-card px-3 py-3 cursor-grab active:cursor-grabbing lift',
+        'group relative flex items-start gap-2.5 rounded-lg border border-border bg-card px-3 py-3 cursor-grab active:cursor-grabbing lift',
         dragging && 'opacity-40',
       )}
     >

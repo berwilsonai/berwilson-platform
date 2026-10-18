@@ -159,7 +159,7 @@ export default function PaymentSchedule({ payments }: { payments: DinoPaymentRow
   )
 
   return (
-    <div className="rounded-xl border border-border bg-card elev-1">
+    <div className="rounded-lg border border-border bg-card elev-1">
       <div className="flex items-center gap-2 px-4 py-2.5 border-b border-border">
         <CircleDollarSign size={13} className="text-muted-foreground" />
         <h2 className="label-caps text-muted-foreground">Owed to Dino</h2>

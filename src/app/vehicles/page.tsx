@@ -60,7 +60,7 @@ function Stat({
   sub?: string
 }) {
   return (
-    <div className="rounded-xl border border-border bg-card px-4 py-3 elev-1">
+    <div className="rounded-lg border border-border bg-card px-4 py-3 elev-1">
       <p className="label-caps text-muted-foreground">{label}</p>
       {value == null ? (
         <p className="mt-0.5 text-sm text-muted-foreground">Nothing recorded</p>

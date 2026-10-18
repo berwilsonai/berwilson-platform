@@ -56,7 +56,7 @@ export default function LeadCard({
 
   return (
     <div
-      className={`relative w-full rounded-xl border border-border bg-card elev-1 lift p-4 ${
+      className={`relative w-full rounded-lg border border-border bg-card elev-1 lift p-4 ${
         lead.status === 'spam' ? 'opacity-60' : ''
       } ${deleting ? 'opacity-50' : ''}`}
     >

@@ -7,7 +7,7 @@ export default function InvestorsLoading() {
       </div>
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {Array.from({ length: 4 }).map((_, i) => (
-          <div key={i} className="h-20 rounded-xl border border-border bg-card" />
+          <div key={i} className="h-20 rounded-lg border border-border bg-card" />
         ))}
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">

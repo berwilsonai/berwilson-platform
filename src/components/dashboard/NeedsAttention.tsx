@@ -123,7 +123,7 @@ export default function NeedsAttention({ reviewItems, overdueItems, ddItems, rev
     (mailboxAlert ? 1 : 0)
 
   return (
-    <div className="rounded-xl border border-border bg-card elev-1">
+    <div className="rounded-lg border border-border bg-card elev-1">
       {/* The header is the way out. This card is a ranked-ish SLICE — six per
           section — and /attention is the whole thing, ordered by urgency. */}
       <Link

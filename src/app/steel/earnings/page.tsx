@@ -216,7 +216,7 @@ function Stat({ label, value, sub, tone }: { label: string; value: string; sub?:
         ? 'text-emerald-600 dark:text-emerald-400'
         : ''
   return (
-    <div className="rounded-xl border border-border bg-card px-4 py-3 elev-1">
+    <div className="rounded-lg border border-border bg-card px-4 py-3 elev-1">
       <p className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</p>
       <p className={`text-lg font-semibold tnum mt-0.5 ${cls}`}>{value}</p>
       {sub && <p className="text-[11px] text-muted-foreground mt-0.5">{sub}</p>}

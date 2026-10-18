@@ -36,7 +36,7 @@ export function ListTabSkeleton({ rows = 5, avatar = false }: { rows?: number; a
         <div className="h-5 w-24 rounded bg-muted" />
         <div className="h-8 w-24 rounded bg-muted" />
       </div>
-      <div className="rounded-xl border border-border bg-card divide-y divide-border">
+      <div className="rounded-lg border border-border bg-card divide-y divide-border">
         {Array.from({ length: rows }).map((_, i) => (
           <div key={i} className="flex items-center gap-3 px-4 py-3">
             {avatar && <div className="size-9 rounded-full bg-muted shrink-0" />}
@@ -53,7 +53,7 @@ export function PanelsTabSkeleton({ panels = 2, lines = 6 }: { panels?: number; 
   return (
     <div className="space-y-4 animate-pulse">
       {Array.from({ length: panels }).map((_, i) => (
-        <div key={i} className="rounded-xl border border-border bg-card p-5">
+        <div key={i} className="rounded-lg border border-border bg-card p-5">
           <LoadingSkeleton lines={lines} />
         </div>
       ))}
@@ -70,7 +70,7 @@ export function DocumentsTabSkeleton() {
         <div className="h-8 w-28 rounded bg-muted" />
       </div>
       <div className="h-32 rounded-xl border-2 border-dashed border-border bg-muted/30" />
-      <div className="rounded-xl border border-border bg-card divide-y divide-border">
+      <div className="rounded-lg border border-border bg-card divide-y divide-border">
         {[0, 1, 2].map((i) => (
           <div key={i} className="flex items-center gap-3 px-4 py-3">
             <div className="size-8 rounded bg-muted shrink-0" />
@@ -91,7 +91,7 @@ export function ChecklistTabSkeleton({ rows = 6 }: { rows?: number }) {
         <div className="h-5 w-32 rounded bg-muted" />
         <div className="h-8 w-28 rounded bg-muted" />
       </div>
-      <div className="rounded-xl border border-border bg-card divide-y divide-border">
+      <div className="rounded-lg border border-border bg-card divide-y divide-border">
         {Array.from({ length: rows }).map((_, i) => (
           <div key={i} className="flex items-center gap-3 px-4 py-3">
             <div className="size-4 rounded bg-muted shrink-0" />

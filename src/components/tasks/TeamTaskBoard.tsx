@@ -503,7 +503,7 @@ export default function TeamTaskBoard({
 
       {/* Add form */}
       {showAdd && (
-        <div className="relative rounded-xl border border-border bg-card p-4 pt-4 space-y-3 elev-2 animate-fade-in-up">
+        <div className="relative rounded-lg border border-border bg-card p-4 pt-4 space-y-3 elev-2 animate-fade-in-up">
           <button
             onClick={() => setShowAdd(false)}
             className="absolute right-3 top-3 inline-flex items-center justify-center size-7 rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
@@ -779,7 +779,7 @@ export default function TeamTaskBoard({
                 key={task.id}
                 onClick={() => setOpenTaskId(task.id)}
                 className={cn(
-                  'group flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3 cursor-pointer lift',
+                  'group flex items-center gap-3 rounded-lg border border-border bg-card px-4 py-3 cursor-pointer lift',
                   // ⚠ ONE COLOUR MEANS SOMETHING AND THE REST RECEDE (§12: when
                   // every row is red, red has stopped signifying). Only 'live'
                   // is tinted; 'unattached' is dimmed; 'tagged' is the ordinary

@@ -221,7 +221,7 @@ export default function CompanyKnowledgeBase({ documents, setAside, targets }: C
       </div>
 
       {/* Upload area */}
-      <div className="rounded-xl border border-border bg-card p-3 elev-1 space-y-3">
+      <div className="rounded-lg border border-border bg-card p-3 elev-1 space-y-3">
         <div className="flex items-center gap-2 flex-wrap">
           <label className="text-xs text-muted-foreground">Document type</label>
           <select
@@ -281,7 +281,7 @@ export default function CompanyKnowledgeBase({ documents, setAside, targets }: C
           {documents.map((doc) => (
             <div
               key={doc.id}
-              className="group rounded-xl border border-border bg-card px-4 py-3 elev-1"
+              className="group rounded-lg border border-border bg-card px-4 py-3 elev-1"
             >
               <div className="flex items-start gap-3">
                 <FileText size={18} className="shrink-0 mt-0.5 text-muted-foreground" />
@@ -450,7 +450,7 @@ export default function CompanyKnowledgeBase({ documents, setAside, targets }: C
 
       {/* Set aside — a count, not nine more rows in the corpus list. */}
       {setAside.length > 0 && (
-        <details className="rounded-xl border border-border bg-card px-4 py-3">
+        <details className="rounded-lg border border-border bg-card px-4 py-3">
           <summary className="cursor-pointer text-xs text-muted-foreground">
             {setAside.filter((d) => d.state === 'excluded').length} set aside,{' '}
             {setAside.filter((d) => d.state === 'retired').length} retired — not used for answers

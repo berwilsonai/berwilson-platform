@@ -5,7 +5,7 @@ export default function SystemHealthLoading() {
         <div className="h-7 w-40 rounded bg-muted" />
         <div className="h-5 w-32 rounded bg-muted" />
       </div>
-      <div className="rounded-xl border border-border bg-card h-80" />
+      <div className="rounded-lg border border-border bg-card h-80" />
     </div>
   )
 }
