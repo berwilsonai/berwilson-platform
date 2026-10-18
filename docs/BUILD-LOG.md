@@ -13,6 +13,164 @@ Split out of `CLAUDE.md` on 2026-09-23, when that file reached 606k characters a
 
 176 entries, 2026-06-22 → 2026-10-17. ⚠ Counted with `grep -c "^\*\*Done 2026"`, not incremented by hand: two sessions editing this file on 2026-10-08 each bumped the old figure by one and both landed on 146 against a real 148.
 
+**Done 2026-10-17 (Phase 3: the record bar stays put, and the attention engine gets a face):**
+
+Three things, two of them long-standing complaints and one of them a surface
+that should have existed since September.
+
+**3.1 — the record bar is sticky, and you can walk the register.**
+
+The worst thing about a populated deal: scroll to the bottom of Steelton's
+181-document Documents tab and you had lost the project name, the stage and
+sector chips, AND the tab bar — there was no way to another tab without
+scrolling all the way back up. `main` is the scroll container
+(`app/layout.tsx`) and `AppHeader` is its SIBLING, so `sticky top-0` inside
+`RecordTabBar` pins to the top of the content area, just under the chrome, and
+both record layouts get it from the one component.
+
+⚠ **The negative margins are load-bearing.** `main` carries `p-5 sm:p-6`, so
+without `-mx-5 sm:-mx-6 px-5 sm:px-6` and an opaque background the bar sticks
+*inside* that padding and the canvas shows through a 20px strip beside and above
+it as content passes under. ⚠ And `PursuitSnapshot` was `lg:sticky lg:top-4`,
+which would have slid the Overview rail underneath the new bar — both now read
+`--record-bar-h` from globals.css, because a magic number in a component
+silently stops matching the thing it was measured against. ⚠ The More menu also
+used `elev-2`, which this palette made transparent; a floating menu is exactly
+what `elev-3` survived for.
+
+The header above it deliberately still scrolls away. The full block is ~130px,
+which is most of a phone screen; the tab bar alone is ~44px and carries the
+navigation, which is the part a reader actually loses.
+
+**Prev/next** closes the other gap: there was no way to get from one deal to the
+next, so comparing two records meant a round trip through a 19-card grid every
+time. Ordered by NAME, deliberately — a chain has to be stable and `updated_at`
+reorders itself as you work — and the control says so.
+
+⚠ **The interesting half of a prev/next control is containment, not the arrows.**
+The chain is a cross-portfolio list, and §8 takes a protected project out of
+every one of those: so a confidential project is not in the chain, and standing
+on one renders nothing at all, because a position in a list the record has been
+removed from is not a meaningful number and a chain drawn around it would leak
+its neighbours' order. The filter and the TOTAL are decided together inside
+`pagerPosition()` so the count can never be taken before the exclusion — the
+shape §12 records as how a disclosure happens. That function is pure and in
+`src/lib` precisely so the rules are asserted rather than reviewed: seven tests
+cover the hidden-current case, the hidden-sibling count, a record missing from
+its own register, and no-wrap at the ends.
+
+Folded in while the opportunity layout was open: its three inline bg/text/ring
+triples became tone names, so the colour ratchet dropped 326 → 324.
+
+**3.2 — `/attention`, for an engine that never had a UI.**
+
+`src/lib/attention.ts` has scored ten categories of falling-through-the-cracks
+work 0–100 since it was written, and its consumers were an API route, the
+sidebar badge, and an agent tool. The one place any of it reached a reader was
+the dashboard rail, which truncated six of its eight sections at six items with
+no overflow link — so **there was no way in the product to see attention item
+number seven**, and the urgency score had never been shown to anyone at all.
+CLAUDE.md §3 has listed the route as existing since September.
+
+`ATTENTION_KINDS` replaces three hand-written lists: a ten-member category
+union, eleven lines building the summary, and the chip row the UI would have
+added as a third. The category type, the summary's field names, the counts and
+the chips all derive from it, so a new kind appears everywhere or nowhere — §12
+records this failure twice, most recently `/decide` shipping a kind that got a
+count and no chip.
+
+⚠ **Deliberately no `counted` flag in that registry.** What the sidebar badge
+sums is a separate, narrower question that `COUNTED_ATTENTION_KINDS` already
+answers, in a vocabulary that is genuinely different: the badge head-counts
+`certifications` (a company record) while the registry's `expiring_compliance`
+reads `compliance_items` (a project child). Two near-identical names over two
+different tables. A second answer in the same row is the drift the registry
+exists to prevent.
+
+⚠ **THE REGISTRY NEEDED ITS OWN MODULE.** A client component reads it, and
+`attention.ts` imports the service-role Supabase client and the leads client —
+importing the registry from there drags all of that into the browser bundle.
+§12 states the mirror of this rule (a helper shared with a server page must not
+live in a `'use client'` file); it runs both ways.
+
+⚠ **AND THE LIST HAD TO BE SPLIT FROM ITS URL WRAPPER TO BE VERIFIABLE.**
+`useSearchParams`/`useRouter` throw *invariant expected app router to be
+mounted* outside a Next request, so a component that reads them cannot be
+rendered by `renderToStaticMarkup` — and §12 is explicit that a listed route is
+not an answering one and that a curl behind auth returns the same redirect
+either way. `AttentionList` takes the active filter as a prop and the two
+navigations as callbacks; `AttentionClient` supplies them from the URL, which is
+where a filter belongs because a view has to be a link.
+
+⚠ **That render check immediately found a real bug.** `cn()` is tailwind-merge,
+so the cursor row's `bg-accent` and the urgency band's `bg-critical-surface/40`
+are the same utility group: the later one wins and the earlier is **deleted from
+the class string entirely**. The most urgent row lost its colour at the exact
+moment you navigated onto it. Invisible to `tsc`, to the build, and to a glance
+at the source, where both classes are plainly present. The check counted 3
+tinted rows against 4 at `now`. The cursor is a ring now — a different group,
+which composes.
+
+⚠ **And the page's first draft asserted something false with confidence.** It
+derived the sidebar badge's number by filtering the engine's items to four
+categories and said *"that is the number on the sidebar badge"*. It is not, and
+cannot be: the badge counts milestones already OVERDUE while the engine scores
+milestones approaching within 30 days, and it counts certifications where the
+engine reads compliance items. **And the wrong derivation returned 3 while the
+real badge is also 3** — two overdue actions plus one approaching milestone,
+against one overdue task plus two expiring certifications. Checking the screen
+by eye against that day's database would have confirmed the bug. §12's rule
+about a worked example whose figures coincide, met in the wild on a derived
+number rather than a reference case. Both quantities are now measured from
+their own source and printed side by side: **badge 3, list 9**, Decide counted
+separately, none of the three ever summed.
+
+Copies `/decide`'s idioms on purpose, because that surface is this app's quality
+bar: chips derived with counts, `j`/`k`/`↵`/`esc` with the shortcuts STATED
+rather than discovered, an empty state that says you are done, and only the
+`now` band tinted so red still signifies. The sidebar badge moved off Dashboard
+onto this route — it had always counted attention, so a reader saw a number
+beside "Dashboard" and had no way to reach the thing it counted.
+
+Verified against the live database: 9 items, ranked — an overdue task at 100,
+three inbound leads at 95/95/79, and Steelton's PSA closing (dated that day) at
+74, each resolving to a destination that exists.
+
+**3.3 — the rail stops naming numbers you cannot reach.**
+
+Phase 0 gave two sections their true COUNT in plain text; this makes all five
+overflows real links, including the two that had no destination in the world
+until `/attention` existed. The card header links out too, because the card is
+a six-per-section slice and `/attention` is the whole thing ranked. The Critical
+block came off the theme-blind reds onto tone names.
+
+⚠ **MEASURED AND DELIBERATELY NOT DONE: feeding the rail from the engine.** The
+plan assumed it would be "likely a net query win" and the opposite is true —
+`ddRaw` and `overdueRaw` also build the per-project CARD badges (blockingCount,
+overdueCount, nextDeadline), so they cannot be removed, and adding
+`computeAttention()`'s dozen queries to the most-visited page in the app would
+buy ranking at a real latency cost. Only a larger restructure of the card-badge
+derivation makes it pay. The single-definition problem it was meant to solve is
+already addressed: the badge moved, and the page names its quantities apart.
+Also left: collapsing the ~200 lines of near-duplicate section markup. Each of
+the eight row shapes genuinely differs (a review row shows confidence, a Dino
+row an amount, a lead a bid date), so the shared part is the header-and-overflow
+shell rather than the row — worth extracting, not worth a blind rewrite of a
+506-line file in the same pass as a behaviour change. Recorded as debt.
+
+The render check now forbids the regression: every truncating section must offer
+the rest, and that offer must be an **anchor** rather than text, asserted by
+finding each "+N more" and checking which tag opens it.
+
+Four commits, each deployed and asserted. 528 tests pass, up from 514; lint
+unchanged at the documented 23 throughout. ⚠ CLAUDE.md reached 144,071
+characters and was pruned to 140,287 — and for once the bloat WAS where the rule
+said to look, because it was this session's own: three entries totalling 7,426
+characters under a heading whose stated contract is one line each, with the full
+versions already here.
+
+---
+
 **Done 2026-10-17 (the redraw lands — direction C, and three things that only surface when you turn the knob):**
 
 Richard reconsidered A, then asked for the call outright: *"I don't mind if it is
