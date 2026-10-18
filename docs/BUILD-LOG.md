@@ -13,6 +13,219 @@ Split out of `CLAUDE.md` on 2026-09-23, when that file reached 606k characters a
 
 176 entries, 2026-06-22 → 2026-10-17. ⚠ Counted with `grep -c "^\*\*Done 2026"`, not incremented by hand: two sessions editing this file on 2026-10-08 each bumped the old figure by one and both landed on 146 against a real 148.
 
+**Done 2026-10-17 (Phases 4 and 5: the palette reaches the screens, and the agent can finally point at things):**
+
+**Phase 4 — the colour migration, and it is the shape of the change that made it safe.**
+
+324 raw bg/text/ring triples down to **149**, and the theme-blind `slate` ramp
+from 572 uses to **365**. 39 distinct spellings over 12 hues folded to 13 tones,
+the vocabulary DERIVED from the corpus rather than invented (§12): slate 34,
+emerald 26, amber 26, blue 17, violet 16, red 16, indigo 13, cyan 10, sky 10,
+teal 8, rose 8, orange 6.
+
+⚠ **IT REWRITES THE VALUES, NOT THE TYPE, AND THAT IS THE WHOLE DECISION.**
+Measured before touching anything: of the 71 sites consuming a `*_BADGE` map,
+only **22** pass it to `<Chip tone=>`. The other 49 hand-roll their own chip as
+`cn('inline-flex … ring-1 ring-inset', MAP[x])`. So converting the map VALUES to
+tone names — the obvious move, and what the plan called for — would have meant
+editing all 49, each with a visual shift as `Chip`'s own padding and text size
+took over. Keeping `Record<K, string>` and sourcing the string from `chipTone()`
+changes nothing downstream and buys the identical correctness win. The
+type-level completion proof (narrowing `Chip`'s prop to `Tone`) is deferred, not
+lost.
+
+⚠ **`avatar.ts` IS EXCLUDED BY NAME.** Its eight values are a hash ramp — a
+contact gets a colour from their name so that two people look different — and
+three of those hues map to STATUS tones. Folding them in would render someone's
+initials as `positive` or `caution`: a person's face reading as an alert.
+Decoration and status are different questions and this palette keeps them apart.
+The avatar classes already carry both themes, so there was nothing theme-blind
+there to fix anyway.
+
+⚠ **`TIER_CHIP.live` CARRIES ITS OWN `ring-1`** because its consumer does not add
+one, while `chipTone()` omits it because `<Chip>` supplies it. The codemod
+preserves it rather than silently removing that chip's ring.
+
+⚠ **THE CODEMOD'S FIRST RUN PUT THE IMPORT INSIDE A MULTI-LINE `import type { … }`
+BLOCK** — 40 syntax errors in `constants.ts` — because it matched the last line
+that STARTS an import rather than the last that CLOSES one. Reverted from the
+codemod's own manifest, fixed, re-run. ⚠ And I hit the same trap again later in
+the session, by hand, in a one-off script, writing the fix a second time instead
+of reusing the one I had just written: a trap you have just fixed is still a trap
+in the next file you open manually.
+
+Then the single-class maps the codemod could not see, and those were real bugs:
+`bidDueColor()` returned `text-red-700` / `text-amber-600` / `text-slate-600`
+with **no dark variant at all**, on the most time-critical figure on a project —
+murky in exactly one theme. Same for `SCORECARD_RATING_COLORS`. (Its two red
+levels, 700 for overdue and 600 for within a week, were also imperceptibly
+different; urgency is carried by the words beside the date.)
+
+**One card radius.** `Panel` was `rounded-xl` while 145 hand-rolled shells were
+`rounded-lg`, so two card radii appeared on one screen. Under the chosen palette
+`--radius` is 0.25rem, which makes `rounded-lg` exactly 4px — the radius the
+direction specifies — so the base was right and the 85 xl outliers were wrong.
+The ratchet changed shape with it: a card at `rounded-xl` is now an INVARIANT at
+zero rather than a count to drain, because after this it would be a NEW second
+radius rather than inherited debt.
+
+**Phase 5 — reach.**
+
+**Print.** There were 15 `print:*` utilities in the whole app and four were the
+print toolbars, so printing any ordinary page emitted the sidebar, the header,
+the mobile tab bar and the docks. Five classes across five chrome components
+makes all 98 pages printable instead of 5.
+
+**`/tasks` had neither a skeleton nor an error boundary**, despite being one of
+the five routes in the mobile tab bar: a throw replaced the whole page and eight
+queries ran with the previous screen frozen. Its 4-deep serial tail is now 2.
+
+**`contacts/[id]` was the worst waterfall in the repo** — 18 awaits, zero
+`Promise.all`, and its `loading.tsx` was the one bare three-bar skeleton in the
+app, so the slowest route also had the least informative wait. The activity
+tab's six serial reads are two stages now; only the two `updates` queries
+actually need `projectIds`. Every hard-won comment in that block survived — the
+jsonb `::text` cast PostgREST silently drops, and the `in.(null)` that errors on
+a uuid column.
+
+**Ber AI can link to the record it is discussing.** `BriefMarkdown` was written
+for the brief prompt's vocabulary — headings, bold, bullets, bracketed tags —
+and then reused for free-form chat, where it has rendered every agent answer
+since the agent shipped. So `[Steelton](/projects/abc)` reached the reader as
+that literal string, a numbered list rendered as a paragraph, and a pipe table
+rendered as prose. Added links, ordered lists, inline code and fenced blocks,
+additively, so both print views render byte-identically.
+⚠ **A LINK MUST BE INTERNAL:** an href in an agent answer is a string a model
+composed, so `https://`, `javascript:`, `mailto:`, protocol-relative `//` and
+`../` traversal are all rendered as plain text — asserted, because a brief is a
+document that gets emailed. ⚠ And the LINK alternative has to precede the TAG
+alternative in the inline split, or `[WATCH]` claims the label half of a link.
+⚠ Then the prompt had to be told, because a renderer that accepts links is
+useless while the model believes it cannot use them (§12: a stale prompt example
+is a lie the model repeats with confidence). A new test asserts every path the
+prompt offers is a real route, checked against the filesystem — it caught the
+first draft offering `/documents` as a suffix the model would have to assemble,
+and `/opportunities/<id>`, whose index lives under a `(detail)` route group that
+is invisible in the URL.
+
+**An answer's sources are clickable.** Every stored message has carried
+`toolCalls: { name, args }[]` all along and the UI printed
+`Data sources: query project data, search documents` — the names, joined with
+commas, args discarded. So an answer about Steelton's lease could not be checked
+against the record it came from. ⚠ The mapping is pure and tested because a
+citation pointing at the wrong record is worse than none: **the KIND decides the
+route, never the shape of the id** (a project uuid is indistinguishable from an
+opportunity uuid, and §12 records one being sent to the wrong branch), a value
+that is not a uuid never becomes a route, and a uuid in a term field is not
+printed at the reader as a search term.
+
+**The sidebar is four labelled groups** — Today, Pipeline, Divisions,
+Intelligence — instead of 13 unlabelled rows mixing triage, records, two
+business units, a strategy board and a map, while the three groups that WERE
+labelled were the three small ones. Leads left "Intelligence", where it sat
+between a calculator and the agent. Declaration order is the reading order.
+`aria-current="page"` on the sidebar and both mobile link sets: there were ZERO
+in the entire codebase, so the active row was a background colour and a screen
+reader could not tell which page it was on. Collapse is remembered — it was
+`useState(false)` while the lead-lane disclosure three lines below it, a far
+less consequential preference, was already stored. A new nav test makes the
+file's own two ⚠ comments mechanical: no path lights two rows, no `alsoMatches`
+duplicates an href, every destination is a real route, every group is labelled,
+no visible group exceeds seven rows, the mobile bar holds exactly five.
+
+**A filtered board is a link.** The task board's six filters were `useState`, so
+"Eric's overdue Weirton tasks" could not be sent to the other executive,
+bookmarked, or survive a refresh. Three decisions in the new `useUrlState` hook,
+each reversing a specific bug: it REPLACES rather than pushes (with `push`, Back
+walks the reader through every dropdown they touched); the default is DELETED
+from the query string rather than serialised (or every shared link carries four
+redundant params and the bare case never occurs); and the incoming value is
+VALIDATED against an allow-list, because a query string is user input that
+reaches `.eq('status', …)` and §12 records that a value outside an enum fails
+the WHOLE query with `22P02` and a null row set.
+⚠ **And `ProjectFilters`' localStorage replay is deleted.** It mirrored the URL
+filters into localStorage and replayed them on mount whenever someone arrived
+with none — so a bare `/projects` rendered DIFFERENTLY for each executive and the
+sender could not tell, and because the replay ran after hydration the list
+visibly re-rendered on arrival. ⚠ Correction to the plan: this was supposed to
+drop one of the 11 `set-state-in-effect` warnings. It does not — that effect
+called `router.replace`, not setState. Counted after: still 11.
+
+**`?` opens a shortcuts overlay**, generated from a new typed dock registry. The
+best-executed interactions in the app were the least findable: ⌘/ was
+discoverable only through a `title=` attribute, which never appears on keyboard
+focus and does not exist on a phone. ⚠ The four dock events were untyped string
+literals dispatched from eight sites, and the convention check written to catch
+them matched `new Event(` only — so the two dispatches carrying a payload used
+`new CustomEvent(`, and **one of those was the single site that also kept its own
+second copy of the event name** (`QUICK_CALC_EVENT`, exported from the dock and
+dispatched by hand from the header). The hardest case hid behind the narrow
+pattern. Checked both directions now: an entry nothing listens for is a dead
+dock, a listener nothing can dispatch is a dock that never opens.
+
+**17 nameless icon buttons**, including the SEND BUTTON ON THE AGENT — the
+most-used control in the app's headline feature — and three modal closes in
+`UserAccessManager`. Plus two byte-identical hand-written input constants in the
+mail and meeting review screens: wrong radius, no 44px mobile height, and **no
+focus ring at all**, so a keyboard user could not see which field they were in
+on the two screens that stage records.
+⚠ **The check for this took three narrowings and each broad version cost
+evidence** (§12). Reading the text after the icon flagged all 20
+`<Plus/> Add Requirement` buttons. Stripping `{expressions}` flagged every
+`{saving ? 'Saving…' : 'Save Profile'}` button, because the label is a literal
+INSIDE the expression. Counting those literals still flagged the multi-line
+`{cond ? (<Icon/> Text) : (…)}` form, because a non-greedy brace match stops
+inside `size={14}`. The shipped version matches only children that are exactly
+one self-closing element: it misses a button labelled through a conditional, and
+that is the right trade — a narrow check that is trusted beats a broad one that
+gets muted. ⚠ And `title=` DOES count toward the accessible name, so the audit's
+figure of 34 was overstated; the real number was 17.
+
+**Eleven skeletons** for the routes that actually wait — the whole /steel detail
+family, /vendors/[id], the four /intake confirmation routes,
+/email-ingestion/[id], a named raise. ⚠ `/opportunities/[id]/(detail)` left
+alone: it is the app's only route group and §12 records that a `loading.tsx` at a
+route group's ROOT 500s the whole route. The Phase 1 conventions test enforces
+that, which is the only reason this pass could be run mechanically.
+
+**Deleting a task asks first.** Measured rather than assumed: 40 files issue a
+DELETE, 15 had no `ConfirmDialog`, but three of those are fine — two use an
+inline two-step and `LeadsClient` carries a documented decision that the
+friction is why the queue stalls. So 12, not the audited 16. The task sheet was
+fixed because it is touched daily; the other 11 are recorded in OPEN-ITEMS with
+the measured list, worst first, because each needs its own dialog wired to its
+own handler in a differently shaped component and twelve careless edits to
+destructive paths is worse than none.
+
+**Measured and deliberately NOT done**, each with the measurement:
+  * **The dashboard rail on the attention engine.** The plan called it "likely a
+    net query win"; the opposite is true. `ddRaw` and `overdueRaw` also build
+    the per-project CARD badges (blockingCount, overdueCount, nextDeadline), so
+    they cannot be removed — adding `computeAttention()`'s dozen queries to the
+    most-visited page in the app would buy ranking at a real latency cost. Only
+    a larger restructure of the card-badge derivation makes it pay, and the
+    single-definition problem it was meant to solve is already addressed.
+  * **Collapsing the rail's ~200 lines of near-duplicate markup.** Each of the
+    eight row shapes genuinely differs (a review row shows confidence, a Dino
+    row an amount, a lead a bid date), so the shared part is the
+    header-and-overflow shell rather than the row — worth extracting, not worth
+    a blind rewrite of a 506-line file in the same pass as a behaviour change.
+  * **h1 → PageHeader.** The chrome already renders the page `h1` from
+    `nav.ts`, so the 69 page-level ones are SECOND h1s: the win is consistency,
+    not a defect.
+  * **aria-invalid on ~33 forms** — `field-classes.ts` already ships the
+    styling, so each is a one-line prop beside an existing `setError`.
+  * **~30 mutating components worth a toast**, ordered by blast radius.
+
+Twelve commits, each deployed and asserted. **557 tests pass**, up from 528;
+lint unchanged at the documented 23 throughout; `tailnet-setup.sh` green on every
+deploy. ⚠ CLAUDE.md went 140,777 → 144,095 and was pruned to 141,932 — and for
+the second time in one day the bloat was this session's own Recent-sessions
+entry, under a heading whose stated contract is one line. The window is now ~5
+days rather than a week, which is the honest trade and is recorded there.
+
+---
+
 **Done 2026-10-17 (Phase 3: the record bar stays put, and the attention engine gets a face):**
 
 Three things, two of them long-standing complaints and one of them a surface
