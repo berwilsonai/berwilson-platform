@@ -1,12 +1,14 @@
 'use client'
 
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
-import { Send, Bot, User, Loader2, AlertCircle, ThumbsUp, ThumbsDown, Trash2 } from 'lucide-react'
+import { Send, Bot, User, Loader2, AlertCircle, ThumbsUp, ThumbsDown, Trash2, ArrowUpRight } from 'lucide-react'
 
 import { BriefMarkdown } from '@/components/briefs/BriefMarkdown'
 import ReadAloudButton from '@/components/shared/ReadAloudButton'
+import Link from 'next/link'
 import PushToTalkButton from './PushToTalkButton'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
+import { citationsFor } from '@/lib/agent/citations'
 
 interface Message {
   id: string
@@ -437,13 +439,51 @@ export default function AgentChat({
               ) : (
                 <p className="whitespace-pre-wrap">{msg.content}</p>
               )}
-              {msg.toolCalls && msg.toolCalls.length > 0 && (
-                <div className="mt-2 pt-2 border-t border-border/40">
-                  <p className="text-xs text-muted-foreground uppercase tracking-wide">
-                    Data sources: {msg.toolCalls.map(t => t.name.replace(/_/g, ' ')).join(', ')}
-                  </p>
-                </div>
-              )}
+              {/*
+                Citations. ⚠ This used to print the tool NAMES joined with
+                commas and discard `args` entirely, so an answer about a lease
+                could not be checked against the record it came from — no link,
+                no search term, no sign of which project was read. The ids were
+                in the stored message the whole time.
+              */}
+              {(() => {
+                const cites = citationsFor(msg.toolCalls)
+                if (cites.length === 0) return null
+                return (
+                  <div className="mt-2 pt-2 border-t border-border/40">
+                    <p className="label-caps text-muted-foreground mb-1.5">Sources</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {cites.map((c, ci) => {
+                        const body = (
+                          <>
+                            <span>{c.tool}</span>
+                            {c.term && (
+                              <span className="text-muted-foreground/70">&ldquo;{c.term}&rdquo;</span>
+                            )}
+                          </>
+                        )
+                        return c.href ? (
+                          <Link
+                            key={ci}
+                            href={c.href}
+                            className="inline-flex items-center gap-1.5 rounded px-1.5 py-0.5 text-xs ring-1 ring-inset ring-border bg-card text-muted-foreground transition-colors hover:text-foreground hover:bg-accent outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+                          >
+                            {body}
+                            <ArrowUpRight size={11} className="shrink-0" />
+                          </Link>
+                        ) : (
+                          <span
+                            key={ci}
+                            className="inline-flex items-center gap-1.5 rounded px-1.5 py-0.5 text-xs ring-1 ring-inset ring-border text-muted-foreground"
+                          >
+                            {body}
+                          </span>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )
+              })()}
               {msg.latencyMs && (
                 <p className="text-xs text-muted-foreground mt-1">
                   {(msg.latencyMs / 1000).toFixed(1)}s
