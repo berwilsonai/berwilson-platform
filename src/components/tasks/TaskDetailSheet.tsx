@@ -22,6 +22,7 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet'
 import { DatePicker } from '@/components/ui/date-picker'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { formatCurrencyCompact } from '@/lib/utils/format'
 import { SECTOR_LABELS } from '@/lib/utils/constants'
 import { cn } from '@/lib/utils'
@@ -192,6 +193,18 @@ export default function TaskDetailSheet({
       onClose()
     }
   }
+
+  /*
+   * ⚠ DELETING A TASK HAD NO CONFIRM STEP. One click on a 32px button in the
+   * sheet footer and the record was gone — and unlike a status change there is
+   * no undo on the screen. `tasks` carries the audit trigger, so the row is
+   * recoverable from `activity_log` (§4: a DELETE survives itself), but that is
+   * a psql recovery, not a product one.
+   *
+   * Measured 10-17: 12 of 40 DELETE paths still had no confirmation and no
+   * two-step. This is the one a reader touches daily.
+   */
+  const [confirmDelete, setConfirmDelete] = useState(false)
 
   async function handleDelete() {
     if (!task) return
@@ -526,7 +539,7 @@ export default function TaskDetailSheet({
             {/* Footer actions */}
             <div className="border-t border-border p-3 flex items-center justify-between">
               <button
-                onClick={handleDelete}
+                onClick={() => setConfirmDelete(true)}
                 className="inline-flex items-center gap-1.5 h-8 px-2.5 rounded-md text-xs font-medium text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
               >
                 <Trash2 size={13} /> Delete
@@ -542,6 +555,19 @@ export default function TaskDetailSheet({
             </div>
           </>
         )}
+        <ConfirmDialog
+          open={confirmDelete}
+          onOpenChange={setConfirmDelete}
+          title="Delete this task?"
+          description={
+            task
+              ? `"${task.title}" and its notes will be removed from the board. This cannot be undone from here.`
+              : undefined
+          }
+          confirmLabel="Delete task"
+          destructive
+          onConfirm={handleDelete}
+        />
       </SheetContent>
     </Sheet>
   )
