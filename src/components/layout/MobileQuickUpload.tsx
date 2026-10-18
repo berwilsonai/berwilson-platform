@@ -150,6 +150,7 @@ export default function MobileQuickUpload() {
               <h2 className="text-lg font-semibold text-foreground">Quick Upload</h2>
               <button
                 onClick={handleClose}
+                aria-label="Close"
                 className="p-2 -mr-2 rounded-full hover:bg-muted transition-colors"
               >
                 <X size={20} className="text-muted-foreground" />

@@ -426,7 +426,7 @@ function GrantsModal({
       >
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-semibold">{title}</h3>
-          <button onClick={onClose} className="p-1 rounded text-muted-foreground hover:text-foreground">
+          <button onClick={onClose} aria-label="Close" className="p-1 rounded text-muted-foreground hover:text-foreground outline-none focus-visible:ring-3 focus-visible:ring-ring/50">
             <X size={15} />
           </button>
         </div>
@@ -543,7 +543,7 @@ function PasswordModal({
             {granting ? <UserPlus size={14} /> : <KeyRound size={14} />}
             {granting ? 'Grant access' : 'Reset password'} — {member.name}
           </h3>
-          <button onClick={onClose} className="p-1 rounded text-muted-foreground hover:text-foreground">
+          <button onClick={onClose} aria-label="Close" className="p-1 rounded text-muted-foreground hover:text-foreground outline-none focus-visible:ring-3 focus-visible:ring-ring/50">
             <X size={15} />
           </button>
         </div>
@@ -735,7 +735,7 @@ function AddUserModal({
           <h3 className="text-sm font-semibold flex items-center gap-1.5">
             <UserPlus size={14} /> Add User
           </h3>
-          <button onClick={onClose} className="p-1 rounded text-muted-foreground hover:text-foreground">
+          <button onClick={onClose} aria-label="Close" className="p-1 rounded text-muted-foreground hover:text-foreground outline-none focus-visible:ring-3 focus-visible:ring-ring/50">
             <X size={15} />
           </button>
         </div>

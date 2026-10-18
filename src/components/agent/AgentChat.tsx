@@ -582,6 +582,10 @@ export default function AgentChat({
           <button
             onClick={sendMessage}
             disabled={!input.trim() || loading}
+            /* ⚠ The send button on the agent — the most-used control in the
+               app's headline feature — had no accessible name at all: an icon
+               and nothing else. A screen reader announced "button". */
+            aria-label="Send message"
             className="shrink-0 size-[2.75rem] sm:size-8 rounded-lg bg-primary text-primary-foreground flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed hover:bg-primary/90 transition-colors"
           >
             <Send size={16} className="sm:size-3.5" />

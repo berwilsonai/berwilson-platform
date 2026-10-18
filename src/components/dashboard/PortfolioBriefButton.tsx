@@ -93,6 +93,7 @@ export default function PortfolioBriefButton() {
                 )}
                 <button
                   onClick={close}
+                  aria-label="Close"
                   className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
                 >
                   <X size={14} />

@@ -64,7 +64,7 @@ export default function VendorEditForm({ entity, onClose }: VendorEditFormProps)
     <form onSubmit={handleSubmit} className="rounded-lg border border-border p-4 space-y-3 bg-muted/30">
       <div className="flex items-center justify-between">
         <h3 className="text-xs font-semibold">Edit Vendor Profile</h3>
-        <button type="button" onClick={onClose} className="p-1 hover:bg-muted rounded">
+        <button type="button" onClick={onClose} aria-label="Close" className="p-1 hover:bg-muted rounded outline-none focus-visible:ring-3 focus-visible:ring-ring/50">
           <X size={14} />
         </button>
       </div>

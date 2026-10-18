@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { existsSync, readdirSync, statSync } from 'node:fs'
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { count, scan, sourceFiles } from './source-scan'
@@ -193,4 +193,44 @@ test('aria-current is only ever added, never removed', () => {
   // sets); this number only goes up.
   const n = count(/aria-current/)
   assert.ok(n >= 3, `aria-current is down to ${n} — an active row needs it`)
+})
+
+test('an icon-only button has an accessible name', () => {
+  /*
+   * A `<button>` whose only child is an icon announces as "button" and nothing
+   * else. 17 were fixed on 10-17, including the SEND BUTTON ON THE AGENT — the
+   * most-used control in the app's headline feature — and three modal closes in
+   * UserAccessManager.
+   *
+   * ⚠ `title=` COUNTS. An audit reported 34 of these by ignoring it, but
+   * `title` IS part of the accessible-name computation; what it does not do is
+   * appear on keyboard focus or exist on a phone, which is why new code gets
+   * `aria-label` as well.
+   *
+   * ⚠ AND THE PATTERN IS DELIBERATELY NARROW: the button's children must be
+   * EXACTLY one self-closing element. Three broader versions were tried and
+   * each cost evidence (§12 — a filter must be measured against the corpus, and
+   * every clever version withholds more of it). Looking at the text after the
+   * icon flagged all 20 `<Plus/> Add Requirement` buttons; stripping
+   * `{expressions}` flagged every `{saving ? 'Saving…' : 'Save'}` button,
+   * because the label is a literal INSIDE the expression; counting those
+   * literals still flagged the multi-line `{cond ? (<Icon/> Text) : (…)}` form,
+   * because a non-greedy brace match stops inside `size={14}`.
+   *
+   * So this catches only the shape that is unambiguously nameless, and it
+   * catches it with no false positives. A button labelled through a conditional
+   * is out of scope — that is a real gap, and a narrow check that is trusted
+   * beats a broad one that gets muted.
+   */
+  const bad: string[] = []
+  for (const file of sourceFiles('src/components', ['.tsx'])) {
+    const src = readFileSync(file, 'utf8')
+    for (const m of src.matchAll(/<button\b([^>]*?)>([\s\S]*?)<\/button>/g)) {
+      const [, attrs, inner] = m
+      if (/aria-label|title=|sr-only/.test(attrs)) continue
+      if (!/^<\w+[^<>]*\/>$/.test(inner.trim())) continue
+      bad.push(`${file}:${src.slice(0, m.index).split('\n').length}`)
+    }
+  }
+  assert.deepEqual(bad, [], 'give an icon-only button an aria-label')
 })

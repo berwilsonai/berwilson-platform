@@ -336,6 +336,7 @@ export default function EnrichProfileButton({
       <div className="space-y-2">
         <button
           onClick={runEnrichment}
+          aria-label="Enrich profile from the web"
           className="w-full inline-flex items-center justify-center gap-1.5 h-9 px-3 rounded-md border border-input text-sm font-medium hover:bg-accent transition-colors"
         >
           <Sparkles size={14} className="text-purple-500 dark:text-purple-400" />
@@ -394,7 +395,7 @@ export default function EnrichProfileButton({
             <Sparkles size={14} className="text-purple-500 dark:text-purple-400" />
             <span className="text-sm font-semibold">Review Enrichment</span>
           </div>
-          <button onClick={discard} className="text-muted-foreground hover:text-foreground transition-colors">
+          <button onClick={discard} aria-label="Discard" className="text-muted-foreground hover:text-foreground transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50">
             <X size={14} />
           </button>
         </div>
@@ -465,6 +466,7 @@ export default function EnrichProfileButton({
           )}
           <button
             onClick={discard}
+            aria-label="Discard"
             className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md border border-input text-xs font-medium hover:bg-accent transition-colors"
           >
             Discard

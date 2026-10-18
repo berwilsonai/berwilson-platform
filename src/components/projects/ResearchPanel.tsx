@@ -265,6 +265,7 @@ export default function ResearchPanel({
             <h4 className="text-sm font-semibold">Research Query</h4>
             <button
               onClick={closePanel}
+              aria-label="Close"
               className="text-muted-foreground hover:text-foreground transition-colors"
             >
               <X size={15} />

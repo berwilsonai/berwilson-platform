@@ -206,7 +206,7 @@ export default function ScanCardButton() {
               <Sparkles size={14} className="text-purple-500 dark:text-purple-400" />
               Review contact from card
             </DialogTitle>
-            <button onClick={discard} className="text-muted-foreground hover:text-foreground transition-colors">
+            <button onClick={discard} aria-label="Discard" className="text-muted-foreground hover:text-foreground transition-colors">
               <X size={16} />
             </button>
           </div>

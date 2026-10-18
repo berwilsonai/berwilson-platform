@@ -421,6 +421,7 @@ export default function MilestonesTab({
                         </button>
                         <button
                           onClick={cancelAdd}
+                          aria-label="Cancel"
                           className="h-6 w-6 inline-flex items-center justify-center rounded border border-input text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
                         >
                           <X size={10} />

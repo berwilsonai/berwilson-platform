@@ -20,6 +20,7 @@ import {
   OPPORTUNITY_TYPE_LABELS,
   type OpportunityType,
 } from '@/lib/utils/opportunities'
+import { FIELD_CONTROL_CLASS, FIELD_LABEL_CLASS } from '@/lib/utils/field-classes'
 
 export interface RecordOption {
   id: string
@@ -72,8 +73,16 @@ type PersonRow = EmailIntakeExtraction['people'][number] & {
 
 type TaskRow = EmailIntakeExtraction['tasks'][number] & { include: boolean }
 
-const inputCls = 'w-full h-9 px-3 rounded-md border border-input bg-background text-sm'
-const labelCls = 'label-caps text-muted-foreground'
+/*
+ * ⚠ THESE TWO LINES WERE BYTE-IDENTICAL IN TWO FILES AND BOTH WERE WRONG.
+ * The hand-written control had `rounded-md` where every other control in the
+ * app has the field radius, `h-9` with no 44px mobile height, and — the part
+ * that matters — NO FOCUS RING AT ALL. So on the two review screens that stage
+ * mail and meetings into records, a keyboard user could not see which field
+ * they were in. §12: never fork a shared pass; add a target.
+ */
+const inputCls = FIELD_CONTROL_CLASS
+const labelCls = FIELD_LABEL_CLASS
 
 /** Where this package lands: a new record, or one that already exists. */
 type Destination =

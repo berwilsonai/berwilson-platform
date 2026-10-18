@@ -297,6 +297,7 @@ export default function InvestorRequirements({
             </h4>
             <button
               onClick={cancelForm}
+              aria-label="Cancel"
               className="text-muted-foreground hover:text-foreground transition-colors"
             >
               <X size={16} />
