@@ -38,7 +38,13 @@ export default function AppSidebar({ pendingReviewCount = 0, attentionCount = 0,
   // clicking a division TAB on the page moves this highlight too — the sidebar
   // and the page can never disagree about where the reader is.
   const searchParams = useSearchParams()
-  const [collapsed, setCollapsed] = useState(false)
+  /*
+   * ⚠ REMEMBERED. This was `useState(false)`, while the lead-lane disclosure
+   * three lines below it — a far less consequential preference — was already
+   * stored. So a reader who collapsed the rail to get screen width had it
+   * spring back open on every navigation that remounted the shell.
+   */
+  const [collapsed, setCollapsed] = useStoredState('sidebar-collapsed', false)
   const [systemOpen, setSystemOpen] = useState(false)
   // Remembered per browser. A disclosure is exactly the per-viewer convenience
   // localStorage is for; nothing here needs to survive a cleared cache.
@@ -133,6 +139,13 @@ export default function AppSidebar({ pendingReviewCount = 0, attentionCount = 0,
                     key={href}
                     href={href}
                     title={collapsed ? (showBadge ? `${label} (${badgeCount})` : label) : undefined}
+                    /*
+                     * ⚠ THE ACTIVE ROW WAS PURELY VISUAL. There was not one
+                     * `aria-current` in the entire codebase, so a screen reader
+                     * could not tell which page it was on — the highlight is a
+                     * background colour and nothing else.
+                     */
+                    aria-current={active ? 'page' : undefined}
                     className={`flex items-center gap-3 px-2.5 py-2 rounded text-sm font-medium transition-colors ${
                       active
                         ? 'sidebar-nav-active text-sidebar-foreground'
@@ -142,7 +155,7 @@ export default function AppSidebar({ pendingReviewCount = 0, attentionCount = 0,
                     <span className="relative shrink-0">
                       <Icon size={16} />
                       {showBadge && collapsed && (
-                        <span className="absolute -top-1 -right-1 size-2 rounded-full bg-amber-400" />
+                        <span className="absolute -top-1 -right-1 size-2 rounded-full bg-caution" />
                       )}
                     </span>
                     {!collapsed && (
@@ -298,7 +311,7 @@ export default function AppSidebar({ pendingReviewCount = 0, attentionCount = 0,
             <span className="relative shrink-0">
               <Settings size={16} />
               {pendingReviewCount > 0 && !systemOpen && !systemActive && (
-                <span className="absolute -top-1 -right-1 size-2 rounded-full bg-amber-400" />
+                <span className="absolute -top-1 -right-1 size-2 rounded-full bg-caution" />
               )}
             </span>
             {!collapsed && <span className="truncate flex-1 text-left">System</span>}

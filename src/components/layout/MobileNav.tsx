@@ -97,6 +97,7 @@ export default function MobileNav({ pendingCount = 0, role = 'admin', emptyModul
               <Link
                 key={href}
                 href={href}
+                aria-current={active ? 'page' : undefined}
                 onClick={() => setMoreOpen(false)}
                 className={`flex flex-col items-center gap-1.5 py-4 text-xs font-medium transition-colors bg-sidebar ${
                   active ? 'text-sidebar-foreground' : 'text-sidebar-foreground/75 hover:text-sidebar-foreground'
@@ -126,6 +127,7 @@ export default function MobileNav({ pendingCount = 0, role = 'admin', emptyModul
               <Link
                 key={href}
                 href={href}
+                aria-current={active ? 'page' : undefined}
                 className={`flex-1 flex flex-col items-center gap-1 py-3 text-xs font-medium transition-colors ${
                   active
                     ? 'text-sidebar-foreground bg-sidebar-accent'

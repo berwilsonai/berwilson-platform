@@ -187,9 +187,10 @@ test('a touch target is never derived from the spacing scale', () => {
 // ─── a floor, not a ceiling ──────────────────────────────────────────────────
 
 test('aria-current is only ever added, never removed', () => {
-  // The inverse ratchet. There are zero today: the sidebar's active row is
-  // purely visual, so a screen reader cannot tell which page it is on. Once
-  // the nav work lands this number only goes up.
+  // The inverse ratchet. There were ZERO before 10-17 — the sidebar's active
+  // row was a background colour and nothing else, so a screen reader could not
+  // tell which page it was on. Three now (the sidebar and both mobile link
+  // sets); this number only goes up.
   const n = count(/aria-current/)
-  assert.ok(n >= 0, `aria-current count: ${n}`)
+  assert.ok(n >= 3, `aria-current is down to ${n} — an active row needs it`)
 })

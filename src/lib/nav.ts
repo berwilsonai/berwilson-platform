@@ -35,7 +35,16 @@ import {
  * (`canAccessPage(role, href)` at render time); this module is pure data.
  */
 
-export type NavGroup = 'primary' | 'intelligence' | 'directory' | 'system'
+/**
+ * ⚠ `primary` WAS 13 UNLABELLED ITEMS AND IT WAS THE WORST THING IN THE NAV.
+ * It mixed daily triage (Decide, Tasks, Commitments), portfolio records
+ * (Projects, Opportunities, Investors, Vehicles), two whole business units
+ * (Steel, Dino), a strategy board and a map — thirteen undifferentiated rows,
+ * well past scannable, while the three groups that WERE labelled were the three
+ * small ones. Split 2026-10-17 into four labelled groups by what a row is FOR,
+ * not by how important it is.
+ */
+export type NavGroup = 'triage' | 'records' | 'units' | 'intelligence' | 'directory' | 'system'
 export type NavBadge = 'review' | 'attention'
 
 export interface NavItem {
@@ -84,38 +93,38 @@ export function resolveNavItem(item: NavItem, allowed: (href: string) => boolean
 }
 
 export const NAV_ITEMS: NavItem[] = [
-  { href: '/decide', label: 'Decide', title: 'Decide', icon: Gavel, group: 'primary', keywords: 'review queue approve confirm pending inbox decisions bids intake what needs me triage backlog', mobilePrimary: true, badge: 'review', alsoMatches: ['/review'] },
-  { href: '/tasks', label: 'Tasks', title: 'Team Tasks', icon: ListChecks, group: 'primary', keywords: 'todo action items team workload capacity', mobilePrimary: true },
-  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, group: 'primary', keywords: 'home overview alerts urgent overdue', mobilePrimary: true },
+  { href: '/decide', label: 'Decide', title: 'Decide', icon: Gavel, group: 'triage', keywords: 'review queue approve confirm pending inbox decisions bids intake what needs me triage backlog', mobilePrimary: true, badge: 'review', alsoMatches: ['/review'] },
   // ⚠ THE ATTENTION BADGE MOVED HERE FROM /dashboard (10-17). It had always
   // counted `countAttention()`, so a reader saw a number next to "Dashboard"
   // and had no way to reach the thing it counted — the dashboard rail showed a
   // truncated, unranked slice of it and nothing showed item number seven. The
   // badge and the list it names are now the same destination, and both read the
   // same registry, so they cannot come to disagree.
-  { href: '/attention', label: 'Attention', title: 'Attention', icon: TriangleAlert, group: 'primary', keywords: 'attention urgent overdue stale slipping cracks falling through needs me what needs my attention ranked urgency milestones diligence compliance waiting on decisions adrift dependency risk', badge: 'attention' },
+  { href: '/attention', label: 'Attention', title: 'Attention', icon: TriangleAlert, group: 'triage', keywords: 'attention urgent overdue stale slipping cracks falling through needs me what needs my attention ranked urgency milestones diligence compliance waiting on decisions adrift dependency risk', badge: 'attention' },
+  { href: '/tasks', label: 'Tasks', title: 'Team Tasks', icon: ListChecks, group: 'triage', keywords: 'todo action items team workload capacity', mobilePrimary: true },
   // ⚠ NO `alsoMatches` FOR `/s/*`. That is the settle landing page reached from
   // Pepper's note, it is deliberately outside the app chrome, and claiming it
   // here would light this row for a page that has no sidebar at all.
-  { href: '/commitments', label: 'Commitments', title: 'Commitment Ledger', icon: Handshake, group: 'primary', keywords: 'commitments obligations promises owed waiting on follow up chase ledger settle done snooze correspondence who owes what undated' },
-  { href: '/objectives', label: 'Objectives', icon: Target, group: 'primary', keywords: 'priorities goals strategy steering now soon possibly focus' },
-  { href: '/projects', label: 'Projects', icon: FolderKanban, group: 'primary', keywords: 'pipeline deals', mobilePrimary: true },
-  { href: '/opportunities', label: 'Opportunities', icon: Lightbulb, group: 'primary', keywords: 'acquisitions partnerships jv mergers investments deals' },
-  { href: '/leads', label: 'Leads', title: 'Inbound Leads', icon: Radar, group: 'intelligence', keywords: 'inbound bids invitations itb ifb rfp rfq solicitations plan room prospects enquiries info inbox scored triage' },
-  { href: '/investors', label: 'Investors', icon: HandCoins, group: 'primary', keywords: 'capital raise fundraising equity spv commitments funding money lp' },
+  { href: '/commitments', label: 'Commitments', title: 'Commitment Ledger', icon: Handshake, group: 'triage', keywords: 'commitments obligations promises owed waiting on follow up chase ledger settle done snooze correspondence who owes what undated' },
+  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, group: 'triage', keywords: 'home overview alerts urgent overdue', mobilePrimary: true },
+  { href: '/projects', label: 'Projects', icon: FolderKanban, group: 'records', keywords: 'pipeline deals', mobilePrimary: true },
+  { href: '/opportunities', label: 'Opportunities', icon: Lightbulb, group: 'records', keywords: 'acquisitions partnerships jv mergers investments deals' },
+  { href: '/leads', label: 'Leads', title: 'Inbound Leads', icon: Radar, group: 'records', keywords: 'inbound bids invitations itb ifb rfp rfq solicitations plan room prospects enquiries info inbox scored triage' },
+  { href: '/investors', label: 'Investors', icon: HandCoins, group: 'records', keywords: 'capital raise fundraising equity spv commitments funding money lp' },
   // ⚠ NO `alsoMatches` FOR `/projects/*/vehicles`. `navItemActive` is per-item
   // with no dedupe, so claiming a path that already belongs to another item
   // lights two sidebar rows at once — and the reader believes the highlighted
   // one, which made a real destination read as a sub-view of the wrong queue
   // (§12, 10-03).
-  { href: '/vehicles', label: 'Vehicles', title: 'Vehicles & Cap Tables', icon: Boxes, group: 'primary', keywords: 'spv spvs vehicles cap table captable holdco landco equity split ownership participants members llc capital committed funded raise structure who owns what' },
-  { href: '/steel', label: 'Steel CRM', icon: Factory, group: 'primary', keywords: 'prefab steel sales deals quotes square feet sqft plant manufacturing buildings customers' },
-  { href: '/dino', label: 'Dino', title: 'Dino Service Pros', icon: Wrench, group: 'primary', hideWhenEmpty: 'dino', keywords: 'dino service pros plumbing hvac mechanical revenue operating company internal trades payments' },
-  { href: '/mspa', label: 'TensorIQ MSPA', title: 'TensorIQ Partnership Economics', icon: Percent, group: 'intelligence', keywords: 'tensoriq tensor iq mspa master strategic partnership schedule 1 scope a b c d fee cap role protection payment stage secured contracted unearned fees preconstruction utility coordination gpu gb300 pue it load utility load data center powerco epcm fixed price epc what is this worth to us if we get cut out' },
-  { href: '/calc', label: 'Quick Calc', title: 'Quick Calc', icon: Calculator, group: 'intelligence', keywords: 'calculator economics deal size megawatts mw price per kwh kw-month lease rate capture margin fee npv escalator pue load factor scratchpad back of envelope how big is this quick math' },
-  { href: '/map', label: 'Map', title: 'Project Map', icon: MapIcon, group: 'primary', keywords: 'map geography utah locations sites markers rail corridors presentation visualize' },
+  { href: '/vehicles', label: 'Vehicles', title: 'Vehicles & Cap Tables', icon: Boxes, group: 'records', keywords: 'spv spvs vehicles cap table captable holdco landco equity split ownership participants members llc capital committed funded raise structure who owns what' },
+  { href: '/objectives', label: 'Objectives', icon: Target, group: 'records', keywords: 'priorities goals strategy steering now soon possibly focus' },
+  { href: '/map', label: 'Map', title: 'Project Map', icon: MapIcon, group: 'records', keywords: 'map geography utah locations sites markers rail corridors presentation visualize' },
+  { href: '/steel', label: 'Steel CRM', icon: Factory, group: 'units', keywords: 'prefab steel sales deals quotes square feet sqft plant manufacturing buildings customers' },
+  { href: '/dino', label: 'Dino', title: 'Dino Service Pros', icon: Wrench, group: 'units', hideWhenEmpty: 'dino', keywords: 'dino service pros plumbing hvac mechanical revenue operating company internal trades payments' },
   { href: '/intel', label: 'Intel', icon: Brain, group: 'intelligence', keywords: 'ask query search ai agent calendar meetings', mobilePrimary: true, alsoMatches: ['/calendar'] },
   { href: '/intake', label: 'Intake', icon: Inbox, group: 'intelligence', keywords: 'email inbox ingest gmail sweep research proposal rfp upload document intake meeting notes minutes attendees follow-up transcript recap digest summarize read aloud understand', alsoMatches: ['/email-ingestion', '/proposals/intake', '/intake/meeting', '/intake/document'] },
+  { href: '/mspa', label: 'TensorIQ MSPA', title: 'TensorIQ Partnership Economics', icon: Percent, group: 'intelligence', keywords: 'tensoriq tensor iq mspa master strategic partnership schedule 1 scope a b c d fee cap role protection payment stage secured contracted unearned fees preconstruction utility coordination gpu gb300 pue it load utility load data center powerco epcm fixed price epc what is this worth to us if we get cut out' },
+  { href: '/calc', label: 'Quick Calc', title: 'Quick Calc', icon: Calculator, group: 'intelligence', keywords: 'calculator economics deal size megawatts mw price per kwh kw-month lease rate capture margin fee npv escalator pue load factor scratchpad back of envelope how big is this quick math' },
   { href: '/contacts', label: 'Contacts & Vendors', title: 'Directory', icon: Users, group: 'directory', keywords: 'people parties rolodex directory contacts vendors', alsoMatches: ['/vendors'] },
   { href: '/company', label: 'Ber Wilson', icon: Shield, group: 'directory', keywords: 'company profile capabilities certs', fallback: { href: '/company/structure', label: 'Org Structure' } },
   { href: '/activity', label: 'Activity', icon: Activity, group: 'system', keywords: 'audit log history changes' },
@@ -127,8 +136,18 @@ export const NAV_ITEMS: NavItem[] = [
 ]
 
 /** Ordered sidebar groups (primary renders unlabeled). */
+/**
+ * Ordered sidebar groups. Every group is LABELLED now — an unlabelled block is
+ * only readable while it is short, and `primary` had reached thirteen rows.
+ *
+ * The order is the reading order: what needs you today, then the portfolio you
+ * steer, then the operating companies, then the tools you reach for. `system`
+ * stays out of the list entirely and lives behind the gear at the bottom.
+ */
 export const NAV_GROUP_ORDER: { group: NavGroup; label: string | null }[] = [
-  { group: 'primary', label: null },
+  { group: 'triage', label: 'Today' },
+  { group: 'records', label: 'Pipeline' },
+  { group: 'units', label: 'Divisions' },
   { group: 'intelligence', label: 'Intelligence' },
   { group: 'directory', label: 'Directory' },
   { group: 'system', label: 'System' },
