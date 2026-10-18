@@ -35,6 +35,7 @@ import {
   isDevNoteClosed,
   type DevNoteStatus,
 } from '@/lib/utils/dev-notes'
+import { openDock } from '@/lib/ui/docks'
 
 interface Props {
   notes: DevNoteRow[]
@@ -293,7 +294,7 @@ export default function DevNotesClient({ notes, isAdmin, teamMemberId, initialOp
     <div className="space-y-4">
       {/* Toolbar */}
       <div className="flex flex-wrap items-center gap-2">
-        <Button size="sm" onClick={() => window.dispatchEvent(new Event('open-dev-note'))}>
+        <Button size="sm" onClick={() => openDock('open-dev-note')}>
           <Plus size={14} /> New report
         </Button>
         <select

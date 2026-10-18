@@ -16,8 +16,15 @@ import Link from 'next/link'
 import { Calculator, ExternalLink, X } from 'lucide-react'
 import QuickCalc from './QuickCalc'
 import { EMPTY_SCRATCH } from '@/lib/economics/scratch'
+import type { DockEvent } from '@/lib/ui/docks'
 
-export const QUICK_CALC_EVENT = 'open-quick-calc'
+/**
+ * ⚠ WAS ITS OWN COPY OF THE EVENT NAME. A second source of truth for a string
+ * contract: `AppHeader` dispatched the same literal by hand, and nothing
+ * connected the two. The names now come from `src/lib/ui/docks.ts`, which is
+ * also what generates the `?` help.
+ */
+const QUICK_CALC_EVENT: DockEvent = 'open-quick-calc'
 
 export default function QuickCalcDock() {
   const [open, setOpen] = useState(false)

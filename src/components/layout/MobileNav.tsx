@@ -6,6 +6,7 @@ import { useState } from 'react'
 import { MoreHorizontal, FileUp, X, Bug } from 'lucide-react'
 import { canAccessPage, type Role } from '@/lib/auth/permissions'
 import { NAV_ITEMS, navItemActive, resolveNavItem } from '@/lib/nav'
+import { openDock } from '@/lib/ui/docks'
 
 interface MobileNavProps {
   /** Module keys with no data — their nav rows are hidden. */
@@ -66,7 +67,7 @@ export default function MobileNav({ pendingCount = 0, role = 'admin', emptyModul
             <button
               onClick={() => {
                 setMoreOpen(false)
-                window.dispatchEvent(new Event('open-quick-upload'))
+                openDock('open-quick-upload')
               }}
               className="flex flex-col items-center gap-1.5 py-4 text-xs font-medium transition-colors bg-sidebar text-sidebar-foreground/75 hover:text-sidebar-foreground"
             >
@@ -83,7 +84,7 @@ export default function MobileNav({ pendingCount = 0, role = 'admin', emptyModul
           <button
             onClick={() => {
               setMoreOpen(false)
-              window.dispatchEvent(new Event('open-dev-note'))
+              openDock('open-dev-note')
             }}
             className="flex flex-col items-center gap-1.5 py-4 text-xs font-medium transition-colors bg-sidebar text-sidebar-foreground/75 hover:text-sidebar-foreground"
           >

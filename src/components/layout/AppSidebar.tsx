@@ -9,6 +9,7 @@ import { canAccessPage, type Role } from '@/lib/auth/permissions'
 import { NAV_ITEMS, NAV_GROUP_ORDER, navItemActive, resolveNavItem } from '@/lib/nav'
 import { useStoredState } from '@/hooks/use-stored-state'
 import type { LeadLane } from '@/lib/utils/leads'
+import { openDock } from '@/lib/ui/docks'
 
 interface AppSidebarProps {
   /** Module keys with no data — their nav rows are hidden. */
@@ -241,7 +242,7 @@ export default function AppSidebar({ pendingReviewCount = 0, attentionCount = 0,
       */}
       <div className="px-2 pt-2 border-t border-sidebar-border">
         <button
-          onClick={() => window.dispatchEvent(new Event('open-dev-note'))}
+          onClick={() => openDock('open-dev-note')}
           title={collapsed ? 'Report a bug or request a feature' : undefined}
           className="w-full flex items-center gap-3 px-2.5 py-2 rounded text-sm font-medium text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent transition-colors"
         >

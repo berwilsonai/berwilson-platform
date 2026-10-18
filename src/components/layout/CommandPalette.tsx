@@ -21,6 +21,7 @@ import {
 import type { SearchResult } from '@/app/api/search/route'
 import { NAV_ITEMS, PALETTE_EXTRAS } from '@/lib/nav'
 import { readRecents, type RecentRecord } from '@/lib/recents'
+import { openDock } from '@/lib/ui/docks'
 
 // Static destinations — always searchable, shown when the query is short.
 // Derived from the single nav source plus palette-only extras.
@@ -168,7 +169,7 @@ export default function CommandPalette({ onClose }: { onClose: () => void }) {
   // Hand the current query to the ambient Ask Ber AI dock.
   const runAsk = useCallback(() => {
     onClose()
-    window.dispatchEvent(new CustomEvent('open-ber-ai', { detail: { query: term } }))
+    openDock('open-ber-ai', { query: term })
   }, [onClose, term])
 
   const activate = useCallback(

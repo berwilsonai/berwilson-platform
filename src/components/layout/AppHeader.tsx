@@ -8,6 +8,7 @@ import UserMenu from './UserMenu'
 import CommandPalette from './CommandPalette'
 import type { Role } from '@/lib/auth/permissions'
 import { pageTitle } from '@/lib/nav'
+import { openDock } from '@/lib/ui/docks'
 
 export default function AppHeader({
   email,
@@ -79,7 +80,7 @@ export default function AppHeader({
           <>
           {/* Ask Ber AI — ambient agent, available everywhere */}
           <button
-            onClick={() => window.dispatchEvent(new CustomEvent('open-ber-ai'))}
+            onClick={() => openDock('open-ber-ai')}
             className="hidden md:flex items-center gap-1.5 h-8 px-2.5 rounded-lg border border-primary/30 bg-primary/5 text-primary hover:bg-primary/10 transition-colors"
             aria-label="Ask Ber AI"
           >
@@ -90,7 +91,7 @@ export default function AppHeader({
             </kbd>
           </button>
           <button
-            onClick={() => window.dispatchEvent(new CustomEvent('open-ber-ai'))}
+            onClick={() => openDock('open-ber-ai')}
             className="p-2 rounded-md text-primary hover:bg-primary/10 transition-colors md:hidden"
             aria-label="Ask Ber AI"
           >
@@ -101,7 +102,7 @@ export default function AppHeader({
               Icon-only on desktop too: it sits beside a labelled button and a
               second label there crowds the search box off narrow screens. */}
           <button
-            onClick={() => window.dispatchEvent(new CustomEvent('open-quick-calc'))}
+            onClick={() => openDock('open-quick-calc')}
             className="p-2 rounded-md text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
             aria-label="Quick calc (Command + slash)"
             title="Quick calc  ⌘/"

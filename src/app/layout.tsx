@@ -5,6 +5,7 @@ import { headers } from "next/headers"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { countDecideItems } from '@/lib/decide/count'
 import { countAttention } from '@/lib/attention'
+import ShortcutsOverlay from '@/components/layout/ShortcutsOverlay'
 import { getViewer } from "@/lib/auth/viewer"
 import { Toaster } from "sonner"
 import AppSidebar from "@/components/layout/AppSidebar"
@@ -168,6 +169,8 @@ export default async function RootLayout({
               </main>
             </div>
             <MobileNav pendingCount={pendingReviewCount} role={role} emptyModules={emptyModules} />
+            {/* `?` anywhere. Generated from the shortcut registry in src/lib/ui/docks.ts. */}
+            <ShortcutsOverlay />
             {isAdmin && <MobileQuickUpload />}
             {isAdmin && <AskBerAIDock />}
             {/* Reachable from any page with Cmd+/ or the header button. Stays
