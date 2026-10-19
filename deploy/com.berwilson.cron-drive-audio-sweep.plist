@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.berwilson.cron-drive-audio-sweep</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/zsh</string>
+    <string>-c</string>
+    <string>curl -sS -m 1700 -H "Authorization: Bearer $(grep '^CRON_SECRET=' __APP_DIR__/.env.local | cut -d= -f2-)" http://localhost:3000/api/cron/drive-audio-sweep</string>
+  </array>
+  <!--
+    :35 past the hour, business hours plus an evening run.
+
+    ⚠ SPACED AGAINST FOUR OTHER SWEEPS ON PURPOSE. LM Studio serves ONE request
+    at a time (§12) and whisper holds a CPU beside it, so the audio sweeps are
+    deliberately staggered: bw-snapshot runs at :35 of its four hours, the text
+    sweep reads chat.db at :40, the notes sweep at :45, the voice memo sweep at
+    :50 — and this at :35, which is also clear of the hourly email sweep. Two
+    transcription passes at the same minute queue behind each other while
+    holding two corpora in memory on a box that already pages.
+
+    ⚠ HOURLY RATHER THAN FOUR TIMES A DAY, which the local sweeps are. They are
+    bounded by bw-snapshot's own schedule — there is no point reading a snapshot
+    that has not been retaken. This source has no snapshot: a file is in Drive
+    the moment it finishes uploading, and a call that ended twenty minutes ago
+    is the most valuable thing the platform can hold. Cheap when nothing
+    changed: an empty folder is one Drive listing, and an already-read file
+    costs one row in a fingerprint query and no download at all.
+
+    ⚠ IT IS OFF UNTIL A FOLDER IS NOMINATED. With GOOGLE_AUDIO_INTAKE_FOLDER_ID
+    unset the route answers immediately saying so — deliberately not an error,
+    because "no folder chosen yet" and "the id is wrong" must not look the same
+    in this log. The per-run ceiling in sweep.ts is what keeps a first run
+    against a folder somebody has been filling for a month from transcribing for
+    an hour inside one cron; the rest arrive on the next run, newest first.
+  -->
+  <key>StartCalendarInterval</key>
+  <array>
+    <dict><key>Hour</key><integer>7</integer><key>Minute</key><integer>35</integer></dict>
+    <dict><key>Hour</key><integer>8</integer><key>Minute</key><integer>35</integer></dict>
+    <dict><key>Hour</key><integer>9</integer><key>Minute</key><integer>35</integer></dict>
+    <dict><key>Hour</key><integer>10</integer><key>Minute</key><integer>35</integer></dict>
+    <dict><key>Hour</key><integer>11</integer><key>Minute</key><integer>35</integer></dict>
+    <dict><key>Hour</key><integer>12</integer><key>Minute</key><integer>35</integer></dict>
+    <dict><key>Hour</key><integer>13</integer><key>Minute</key><integer>35</integer></dict>
+    <dict><key>Hour</key><integer>14</integer><key>Minute</key><integer>35</integer></dict>
+    <dict><key>Hour</key><integer>15</integer><key>Minute</key><integer>35</integer></dict>
+    <dict><key>Hour</key><integer>16</integer><key>Minute</key><integer>35</integer></dict>
+    <dict><key>Hour</key><integer>17</integer><key>Minute</key><integer>35</integer></dict>
+    <dict><key>Hour</key><integer>18</integer><key>Minute</key><integer>35</integer></dict>
+    <dict><key>Hour</key><integer>20</integer><key>Minute</key><integer>35</integer></dict>
+  </array>
+  <key>AbandonProcessGroup</key>
+  <false/>
+  <key>StandardOutPath</key>
+  <string>__LOG_DIR__/cron-drive-audio-sweep.log</string>
+  <key>StandardErrorPath</key>
+  <string>__LOG_DIR__/cron-drive-audio-sweep.err.log</string>
+</dict>
+</plist>

@@ -42,6 +42,7 @@ import { embedPendingThreads } from '@/lib/ai/thread-embeddings'
 import { extractCommitments } from '@/lib/commitments/extract-phase'
 import { promoteInternalCommitments } from '@/lib/commitments/internal-tasks'
 import { recordLocalRecording, localDateString } from '@/lib/meetings/record-local'
+import { fileMeetingFromThreadLinks } from '@/lib/meetings/attach-recording'
 import type { ResolvedThread } from '@/lib/integrations/gmail-search'
 
 import { discardMemoAudioFiles, readSkipList } from './discard'
@@ -497,12 +498,25 @@ export async function runVoiceMemoSweep(
       )
       continue
     }
+    // ⚠ THE SAME HOLE THIS SWEEP HAD SINCE IT WAS WRITTEN, found 2026-10-18 from
+    // the Drive audio source and then checked here: BOTH voice memos on the box
+    // had a `linked` thread and an `unfiled` meeting, one of them the 67-minute
+    // Tensor construction-management meeting. The register is written last
+    // because the recap is a model pass, so `applyThreadUpdates` had no row to
+    // move when it visited the link — and a link with nothing owing is never
+    // visited again (§12: a cleanup that is a side effect of having work to do
+    // never reaches the rows with no work). A no-op when the thread is unfiled.
+    const movedOnto = await fileMeetingFromThreadLinks(threadId).catch(() => null)
+    if (movedOnto?.moved) base.phases.meetingsFiled += 1
+
     base.recorded.push({
       title: memo.title.slice(0, 48),
       meetingId: recorded.meetingId,
       // Say what is still owed. A silent success here reads as "fully filed",
       // when what is actually waiting is the confirm that creates the tasks.
-      note: 'recap staged — confirm at /decide to create the follow-up tasks and link the people',
+      note: movedOnto?.moved
+        ? 'filed on the deal; confirm at /decide to create the follow-up tasks and link the people'
+        : 'recap staged — confirm at /decide to create the follow-up tasks and link the people',
     })
   }
 

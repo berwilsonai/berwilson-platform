@@ -204,22 +204,20 @@ export function composeMeetingDocument(m: MeetingDocInput): string {
 // ─── Recording upload ────────────────────────────────────────────────────────
 
 /**
- * `accept` for the meeting-recording file inputs.
+ * Every container `afconvert` can decode, so whisper can read it.
  *
- * The wildcards alone are NOT enough. A browser expands `audio/*` into a set of
- * file types via its own MIME→extension table, and that expansion is where the
- * macOS/iOS file picker decides what to grey out — mp3 was being rejected at the
- * picker even though nothing server-side objects (the `documents` bucket is
- * unrestricted) and afconvert decodes it fine. Literal extensions bypass the
- * expansion entirely, so they are the reliable half of this list.
+ * ⚠ ONE LIST, TWO READERS, AND THE SECOND ONE IS NOT A BROWSER. This started as
+ * the file picker's `accept` and is now also what the Drive audio sweep uses to
+ * decide whether a file in the intake folder is a recording at all
+ * (`driveaudio/read.ts`). A file type with no branch is invisible rather than
+ * unreadable and nothing reports it (§12) — which is exactly how `.qta` hid
+ * every 2026 voice memo — so the two must never drift into separate lists.
  *
- * Keep this to containers `afconvert` can actually decode (see `afconvert -hf`)
- * — offering a file the transcription pipeline will choke on is worse than
- * greying it out.
+ * Keep it to containers afconvert actually decodes (see `afconvert -hf`):
+ * admitting a file the transcription pipeline will choke on is worse than
+ * leaving it out, because it costs a byte fetch and a deferral every run.
  */
-export const RECORDING_ACCEPT = [
-  'audio/*',
-  'video/*',
+export const RECORDING_EXTENSIONS = [
   // audio containers
   '.mp3', '.m4a', '.m4b', '.wav', '.aac', '.adts', '.aif', '.aiff', '.aifc', '.caf', '.flac', '.amr', '.ac3',
   // `.qta` is what Voice Memos itself writes on a recent iOS — a QuickTime
@@ -228,4 +226,29 @@ export const RECORDING_ACCEPT = [
   '.qta',
   // video containers (afconvert reads the audio track)
   '.mp4', '.m4v', '.mov', '.3gp',
-].join(',')
+] as const
+
+/**
+ * `accept` for the meeting-recording file inputs.
+ *
+ * The wildcards alone are NOT enough. A browser expands `audio/*` into a set of
+ * file types via its own MIME→extension table, and that expansion is where the
+ * macOS/iOS file picker decides what to grey out — mp3 was being rejected at the
+ * picker even though nothing server-side objects (the `documents` bucket is
+ * unrestricted) and afconvert decodes it fine. Literal extensions bypass the
+ * expansion entirely, so they are the reliable half of this list.
+ */
+export const RECORDING_ACCEPT = ['audio/*', 'video/*', ...RECORDING_EXTENSIONS].join(',')
+
+/**
+ * Is this file name a recording this box can transcribe?
+ *
+ * Asked by name rather than by mime type because the two disagree in both
+ * directions: Drive serves some uploads as `application/octet-stream`, and a
+ * `video/*` mime is transcribable here (afconvert reads the audio track) while
+ * a browser's own expansion of that wildcard is not the question.
+ */
+export function isRecordingFileName(fileName: string | null | undefined): boolean {
+  const name = (fileName ?? '').trim().toLowerCase()
+  return RECORDING_EXTENSIONS.some((ext) => name.endsWith(ext))
+}

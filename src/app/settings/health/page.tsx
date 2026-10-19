@@ -33,6 +33,7 @@ import {
   probeMeetImport,
   probeIMessageSweep,
   probeVoiceMemos,
+  probeDriveAudio,
   probeScopeCoverage,
   probeDisk,
   probePepperText,
@@ -105,7 +106,7 @@ async function runChecks(): Promise<HealthCheck[]> {
   const dayAgo = new Date(Date.now() - 86_400_000).toISOString()
   const localAI = process.env.AI_PROVIDER === 'local'
 
-  const [brief, riskScore, lastAi, aiDayCount, failedRuns, mailbox, lmStudio, backups, drive, leadInbox, docIndexing, driveSources, driveFiling, scopes, disk, lastDigest, failedDigests, contacts, taskSheet, drivePublish, meetImport, dealIntake, routing, corpus, dailyDigest, commitmentBacklog, openCommitments, settledRecently, quietedCommitments, imessageSweep, voiceMemos, pepperText, curator, chase, pepperReply] =
+  const [brief, riskScore, lastAi, aiDayCount, failedRuns, mailbox, lmStudio, backups, drive, leadInbox, docIndexing, driveSources, driveFiling, scopes, disk, lastDigest, failedDigests, contacts, taskSheet, drivePublish, meetImport, dealIntake, routing, corpus, dailyDigest, commitmentBacklog, openCommitments, settledRecently, quietedCommitments, imessageSweep, voiceMemos, driveAudio, pepperText, curator, chase, pepperReply] =
     await Promise.all([
       supabase
         .from('stored_briefs')
@@ -199,6 +200,7 @@ async function runChecks(): Promise<HealthCheck[]> {
         .gt('snoozed_until', new Date().toISOString().slice(0, 10)),
       probeIMessageSweep(),
       probeVoiceMemos(),
+      probeDriveAudio(),
       probePepperText(),
       probeCurator(),
       probeCommitmentChase(),
@@ -744,6 +746,28 @@ async function runChecks(): Promise<HealthCheck[]> {
               ? 'Voice Memos has never synced to this Mac'
               : 'Recordings have stopped arriving',
       detail: voiceMemos.detail,
+      action: { label: 'Open Decide', href: '/decide' },
+    })
+  }
+
+  // Recordings exported to Drive — the door for a recorder that is not an Apple
+  // device. Deliberately watched on the BACKLOG rather than a clock: unlike the
+  // local sources there is no snapshot whose age means anything, but the folder
+  // itself says what is owed, which is a direct read on whether the consuming
+  // half of the loop is running (§12) rather than an inference from silence.
+  {
+    checks.push({
+      name: 'Drive Audio Sweep',
+      status: driveAudio.state === 'ok' ? 'ok' : driveAudio.state === 'failed' ? 'fail' : 'warn',
+      headline:
+        driveAudio.state === 'ok'
+          ? 'Reading recordings dropped in Drive'
+          : driveAudio.state === 'empty'
+            ? 'No recording has been exported to the folder yet'
+            : driveAudio.state === 'unconfigured'
+              ? 'No audio intake folder is nominated'
+              : 'Recordings are not being read',
+      detail: driveAudio.detail,
       action: { label: 'Open Decide', href: '/decide' },
     })
   }

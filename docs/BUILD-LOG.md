@@ -11,7 +11,168 @@ Split out of `CLAUDE.md` on 2026-09-23, when that file reached 606k characters a
 - A block of **2026-08-23 → 2026-08-31** entries sits *after* the June entries, near the end of the file.
 - One **2026-07-03** entry ("migrations applied + pursuit profile seeded") is last in the file.
 
-176 entries, 2026-06-22 → 2026-10-17. ⚠ Counted with `grep -c "^\*\*Done 2026"`, not incremented by hand: two sessions editing this file on 2026-10-08 each bumped the old figure by one and both landed on 146 against a real 148.
+181 entries, 2026-06-22 → 2026-10-18. ⚠ Counted with `grep -c "^\*\*Done 2026"`, not incremented by hand: two sessions editing this file on 2026-10-08 each bumped the old figure by one and both landed on 146 against a real 148.
+
+**Done 2026-10-18 (a hardware recorder gets a door, and the register was not following the thread):**
+
+**The ask.** Richard has a Plaude recorder and wants the raw mp3 of a sensitive
+call read by the platform rather than by a vendor — exporting either to Apple
+Notes or to a Drive folder, and asking which. Measured both before building:
+
+- **Notes cannot carry it.** The notes sweep transcribes a note's audio only
+  when `isCallRecording` passes, which is iOS's own generated title
+  (`/^call with\s+\S/i`) plus an attachment — a deliberately narrow door, because
+  that title is a signal iOS writes and not a human's prose. A Plaude export is
+  titled with a timestamp, so it would fall to the nominated-folder path, and
+  that path has no whisper call in it at all (`sweep.ts:127` gates the
+  transcription loop on the same test). The result would be a thread whose body
+  is a timestamp. Notes also only syncs while Notes.app is open, which is already
+  a live open item.
+- **Drive could not either.** `meet-import` *counts* `recordingsWithoutTranscript`
+  and never transcribes one; a knowledge folder runs an mp3 through
+  `documentKind`, which returns `'unsupported'` — a `documents` row with no text
+  and a null `ai_summary`, which §12 calls a document the agent never opens.
+- So the only manual door was a project's **Meetings tab → Recording**, which is
+  per-record (what Richard wanted to avoid) and is the THIN path: transcript,
+  summary, indexed — no commitments, no tasks, no attendee links.
+
+**Built: `src/lib/driveaudio/*` + `/api/cron/drive-audio-sweep`.** A nominated
+Drive folder, read hourly in business hours, downloaded, transcribed on-box by
+whisper, then handed to the eight mail phases — so a recording becomes a thread,
+a `meetings` row, an `updates` entry on the deal, and its obligations. The new
+code is the reader, the transcriber and the ordering; every phase is the one the
+mail sweep runs (§12: add a caller, not a pipeline). `recordLocalRecording`'s own
+docblock had specified this case since 10-14 ("audio dropped in Drive and an
+in-app recorder are both specified"), so the expensive half was already written.
+
+Folder created on the shared drive as **Ber AI Recordings**
+(`scripts/setup-audio-intake.mts`, idempotent) — on "Ber Wilson Proper" rather
+than a My Drive so either executive can drop a file and the sweep, which reads as
+`moose@`, sees all of it.
+
+**⚠ THE FOLDER HINT, AND WHY IT NEEDED MORE THAN A SUBJECT.** A subfolder's name
+is read as the deal, because a Plaude export — like a voice memo — is named with
+a timestamp and "rename it after the deal" is a habit nobody keeps, while
+dragging a file into a folder survives being in a hurry. First live run, with the
+file in a subfolder called `Tooele`, the exact name of a real project:
+**`linked: 0`**. `bestMatch` was working exactly as designed — a ONE-WORD record
+name is ambiguous evidence by nature ("GridEdge" is a brand, "Tooele" is a
+county) so it needs a shared CONTACT to corroborate it, and a recording
+structurally has no external participants at all. That is §12 arriving for the
+third time: *a two-signal bar makes a record invisible where one signal cannot
+exist for the source* — documents hit it (38 M&A documents sat as company
+knowledge), and the rule's own text already names Tooele as the example.
+
+The bar did not need weakening, because a folder name is not a DESCRIPTION the
+platform extracted from prose — it is an assertion a human made by dragging a
+file, which has the standing of an alias. So the hint resolves through
+`resolveMeetingTarget` (bar 1: a title a human already filed; bar 2: an exact
+record name unique across both tables) and the sweep writes the `thread_links`
+row itself at `linked`. A `suggestion` is deliberately NOT acted on — that bar
+exists to pre-tick a checkbox, never to file. `routeThreads` already respects an
+existing `linked` link and skips guessing, so nothing in the matcher changed.
+
+**⚠ AND THE FINDING THAT WAS NOT MINE: A RECORDING'S `meetings` ROW HAS NEVER
+FOLLOWED ITS FILED THREAD.** With the folder hint working, `updatesPosted: 1` and
+`meetingsFiled: 0`. Every recording sweep writes the register row LAST, because
+the recap costs a model pass — so at the moment `applyThreadUpdates` visits the
+link there is no meeting to move, and by the next run the link is caught up on
+text AND attachments and `continue`s at `apply-phase.ts:228`, never visited
+again. The comment at `apply-phase.ts:327` says the call sits outside the
+`needsText` block *on purpose* because "the meeting may still be sitting
+unfiled" — true, and not enough: it is inside the loop that skips a caught-up
+link entirely. §12, third occurrence: **a cleanup that is a side effect of having
+work to do never reaches the rows with no work.**
+
+Checked against the live database rather than assumed, and it was real and
+pre-existing: **both voice memos on the box had a `linked` thread and an
+`unfiled` meeting**, including the 67-minute Tensor construction-management
+meeting the 10-15 session recorded as "filed as the Tensor Site Construction
+Management meeting". `search_meetings` filtered by project answered that there
+had been no calls on either deal. Fixed forward in
+`fileMeetingFromThreadLinks` (`meetings/attach-recording.ts`), asked from the
+side that just changed, called by BOTH sweeps at the moment they write the row,
+refusing on ambiguity (a recording names 2–8 deals, and the register holds the
+event once). Backfilled with `scripts/one-shot/file-stranded-recording-meetings.mts`
+— 3 stranded, 3 filed. ⚠ Worth Richard's eye: one of the two is a *Helper, Utah*
+recording now on **Box Elder Quantum Campus**, which is the thread's own
+human-asserted alias link (`known as "Quantum Campus"`, confidence 0.99), not a
+new guess — the register now agrees with the thread instead of saying the call
+belonged to nobody, but the thread may itself be on the wrong deal.
+
+**Verified end to end on a real mp3**, twice, against production: a 54-second
+`say`-generated call named `2026-10-18 141500.mp3` (435KB, 64kbps mono, real
+MPEG container) in a `Tooele` subfolder. Downloaded, **transcribed in 3.1s**,
+summarized, filed on Tooele by the folder name, update posted to the project's
+feed with `source: 'recording'` (the `thread-source.ts` arm, confirmed on the
+live row — without it the feed would read "Email — Tooele — 2026-10-18"), a
+`meetings` row written and then moved onto Tooele, **2 commitments extracted and
+1 promoted to a task**: *"I will send the surveyor the scope… by Wednesday"* →
+`side='us'`, `due 2026-10-21`, a task; *"Can you ask the title company…"* →
+`side='them'`, correctly NOT a task (§11). All test rows and the Drive file were
+then removed; `activity_log` keeps the trace, as it should.
+
+**Two reporting bugs in my own first draft**, both caught by reading the output
+rather than the code: the dry-run line printed `recordedAt.slice(0,16)`, so a
+file named `141500` listed as `20:15` and read as a failed parse (it is UTC —
+the siblings do this harmlessly because nothing is there to compare against);
+and `Math.round(bytes/1024/1024)` printed a 435KB file as **`0MB`**, which reads
+as an empty upload. Both now print what they mean.
+
+**Smaller decisions, each with a reason:**
+
+- **The gate is the folder, not the summarizer.** Every voice memo is read
+  because a memo library is a personal archive with no filing decision in it;
+  here somebody chose the file, which is the Notes and knowledge-base control
+  model (§7). A `noise` verdict still discards the TEXT, because the prefix is in
+  `LOCAL_THREAD_PREFIXES` and `summarize-phase` redacts there by default — a
+  filter at the choke point, not a parameter each caller passes. The AUDIO is
+  never touched: `redact.ts` gates deletion on `isVoiceMemoThread`, and the
+  platform does not get to delete a document a human deliberately filed. Which
+  also makes a wrong verdict recoverable, and the report says how (upload a
+  copy — a copy is a new Drive id; re-dropping the same file is not).
+- **`driveaudio:` maps onto the existing `recording` ThreadSource**, so there is
+  no `update_source` enum migration and no new arm in `curator/evidence.ts` or
+  `commitments/chase.ts`. The prefix still had to be named in `thread-source.ts`
+  twice — once for the source, once for `LOCAL_THREAD_PREFIXES` — which is the
+  file whose header exists because this bug has cost hours three times.
+- **The thread id is Drive's file id with no modification stamp**, following
+  `voicememo:` and not `note:`. Audio never changes, and the id survives a rename
+  AND a move, so renaming the file after it has been read costs nothing.
+- **A date is parsed out of the file name** (`2026-10-18 10-30-00`,
+  `20261018_103000`, `Plaude 2026-10-18T10.30`), bounded to 2020..now+2d,
+  rejecting a rolled-over `2026-02-30` and refusing eight digits that are merely
+  an invoice number — falling back to Drive's modified time and REPORTING which,
+  because an export that sat on the device for three days would otherwise file a
+  Tuesday call above the mail that answered it. Date-only names land at midday,
+  never `new Date('YYYY-MM-DD')`.
+- **`RECORDING_EXTENSIONS` is now one list** with `isRecordingFileName()` over
+  it, shared by the file picker and this sweep. `.qta` is why: a recent iOS
+  writes it, there was no branch, and 39 of 111 voice memos — every 2026
+  recording — read as a quiet corpus.
+- **Guards the local sources do not need:** a 24KB floor (Drive reports no
+  duration for audio, so the 5-second floor has no measure here, and whisper
+  answers confident hallucinated text on silence) and a 500MB ceiling, because
+  this folder is a place a human can drop a 4GB screen recording and
+  `fetchDriveFile` buffers the body on a box that already pages.
+- **Watched on the BACKLOG, not a clock** (`probeDriveAudio`). The local sweeps
+  watch a snapshot's age because their faults are invisible otherwise; this one
+  has no snapshot, but the folder itself says what is owed, which is a direct
+  read on whether the consuming half of the loop runs rather than an inference
+  from silence. Exercised directly, since the health page is behind auth.
+- Cron at **:35 hourly in business hours**, clear of the email sweep and of the
+  three local sweeps at :40/:45/:50 — LM Studio serves one request at a time and
+  whisper holds a CPU beside it, so a latency measured while another sweep runs
+  is measuring the queue.
+
+⚠ **What is NOT built, deliberately:** nothing moves or deletes the file after
+reading it. A move needs the `drive` scope that is marked TEMPORARY, and the
+"already ingested" check makes the folder self-limiting anyway — the report says
+the file can be trashed or dragged into an `Archive` subfolder, which
+`isArchiveFolder` already skips. Also unbuilt: Richard's audio has already left
+his hardware via Plaude's own cloud before any of this runs, so the local-only
+guarantee here covers PROCESSING, not the recording (said plainly to him rather
+than designed around). (DEPLOYED + AGENT INSTALLED)
 
 **Done 2026-10-17 (Phases 4 and 5: the palette reaches the screens, and the agent can finally point at things):**
 

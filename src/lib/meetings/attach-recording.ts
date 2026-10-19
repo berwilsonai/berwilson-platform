@@ -24,7 +24,8 @@
  * transport and needs exactly the same move, and leaving the original behind
  * would have been a second copy of this reasoning that drifts. The only
  * per-source part is how a thread id maps back to the meeting's key, which is
- * one switch below.
+ * one switch below — and the third source (audio dropped in Drive, 10-18) cost
+ * exactly one line there, which is what this file being shared was for.
  *
  * `attachMeetingToRecord` is the shared mover and already refuses to relocate a
  * meeting that carries a record — a human's filing decision outranks this.
@@ -36,6 +37,7 @@ import { threadSource } from '@/lib/email-sweep/thread-source'
 import { callSourceRef } from '@/lib/notes/call-record'
 import { NOTE_THREAD_PREFIX } from '@/lib/notes/to-thread'
 import { isVoiceMemoThread } from '@/lib/voicememos/to-thread'
+import { isDriveAudioThread } from '@/lib/driveaudio/to-thread'
 
 export interface AttachRecordingResult {
   moved: boolean
@@ -48,12 +50,14 @@ export interface AttachRecordingResult {
  * ⚠ THE TWO ARE NOT THE SAME STRING, AND ONLY ONE SOURCE MAKES THEM DIFFER. A
  * note's thread id carries its modification time (`note:<id>:<stamp>`) so that
  * editing a note re-summarizes it, while the meeting is keyed on the stable
- * identifier alone. A voice memo has no stamp in either — its audio cannot
- * change — so the thread id IS the meeting key. Returning null rather than
- * guessing: a wrong key silently attaches nothing.
+ * identifier alone. Neither a voice memo nor a file in the Drive intake folder
+ * has a stamp in either — audio cannot change — so for both of those the thread
+ * id IS the meeting key. Returning null rather than guessing: a wrong key
+ * silently attaches nothing.
  */
 export function meetingRefFromThreadId(gmailThreadId: string): string | null {
   if (isVoiceMemoThread(gmailThreadId)) return gmailThreadId
+  if (isDriveAudioThread(gmailThreadId)) return gmailThreadId
   if (gmailThreadId.startsWith(NOTE_THREAD_PREFIX)) {
     // `note:<identifier>:<YYYY-MM-DDTHH:MM:SS>` — the identifier is a UUID with
     // no colons in it, so the FIRST colon after the prefix ends it. Split from
@@ -98,5 +102,73 @@ export async function attachRecordingMeeting(opts: {
   return attachMeetingToRecord(supabase, meeting.id, {
     kind: opts.recordKind as 'project' | 'opportunity',
     id: opts.recordId,
+  })
+}
+
+/**
+ * The other direction: the meeting is new, and its thread may ALREADY be filed.
+ *
+ * ⚠ THIS CLOSES A HOLE THAT WAS LIVE AND SILENT, MEASURED 2026-10-18 ON THE REAL
+ * DATABASE. `attachRecordingMeeting` above is called from `apply-phase.ts`, and
+ * its comment there says it sits outside the `needsText` block on purpose
+ * because "the meeting may still be sitting unfiled". True, and not enough: it
+ * is inside the loop that `continue`s past any link already caught up on text
+ * AND attachments. Every recording sweep creates its `meetings` row AFTER
+ * running the phases — the recap costs a model pass, so it goes last — which
+ * means at the moment apply visits the link there is no meeting to move, and by
+ * the next run the link has nothing owing and is never visited again.
+ *
+ * So the meeting stayed `unfiled` forever while its own thread sat correctly
+ * linked. Found on the Drive audio source's first run and checked against the
+ * two voice memos already on the box: BOTH were in exactly this state, one of
+ * them the 67-minute Tensor construction-management meeting.
+ *
+ * §12, third occurrence: a cleanup that is a side effect of having work to do
+ * never reaches the rows with no work. The remedy is to ask from the side that
+ * has just changed — a sweep calls this right after it writes the meeting, and
+ * it is a no-op (one indexed read) when the thread is not yet filed.
+ */
+export async function fileMeetingFromThreadLinks(
+  threadId: string
+): Promise<AttachRecordingResult> {
+  const supabase = createAdminClient()
+
+  const { data: thread } = await supabase
+    .from('email_threads')
+    .select('gmail_thread_id, subject')
+    .eq('id', threadId)
+    .maybeSingle()
+  if (!thread?.gmail_thread_id) return { moved: false, reason: 'no such thread' }
+
+  const source = threadSource(thread.gmail_thread_id, thread.subject)
+  if (source !== 'call' && source !== 'recording') return { moved: false }
+
+  // ⚠ `linked` ONLY, which is the same line `attachRecordingMeeting` draws and
+  // for the same reason: an `inferred` guess stages an update for review, so
+  // moving the register on one would assert what the feed is still asking
+  // about. And a record kind that is not a deal (a steel deal, a lead) has
+  // nowhere on a meeting to go.
+  const { data: links } = await supabase
+    .from('thread_links')
+    .select('record_kind, record_id')
+    .eq('thread_id', threadId)
+    .eq('certainty', 'linked')
+    .in('record_kind', ['project', 'opportunity'])
+
+  const rows = (links ?? []) as { record_kind: string; record_id: string }[]
+  if (rows.length === 0) return { moved: false, reason: 'the thread is not filed on a deal yet' }
+  // Ambiguity means no move (§12). A recording legitimately names several deals
+  // — 9 of 10 name two to eight — and the register holds the EVENT once, so
+  // which of them it belongs to is a human's call, not a coin flip.
+  if (rows.length > 1) {
+    return { moved: false, reason: `the thread is filed on ${rows.length} records` }
+  }
+
+  return attachRecordingMeeting({
+    gmailThreadId: thread.gmail_thread_id,
+    subject: thread.subject,
+    certainty: 'linked',
+    recordKind: rows[0].record_kind,
+    recordId: rows[0].record_id,
   })
 }

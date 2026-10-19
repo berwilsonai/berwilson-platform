@@ -1242,6 +1242,115 @@ export async function probeIMessageSweep(): Promise<{
 }
 
 /**
+ * Is the Drive audio intake folder being read?
+ *
+ * ⚠ THE FAILURE MODES HERE ARE NOT THE VOICE MEMO ONES, WHICH IS WHY THIS IS A
+ * SEPARATE PROBE RATHER THAN A SECOND CALLER. A memo arrives through a snapshot,
+ * so its probe watches a FILE's clock: the two silent faults are Voice Memos.app
+ * being closed and `bw-snapshot` losing Full Disk Access. Nothing in this chain
+ * has a snapshot or a local file — the faults are a folder id nobody set, a
+ * folder the mailbox can no longer open (a revoked scope, a deleted folder, a
+ * shared drive somebody left), and a backlog that is not draining because
+ * whisper is failing on every file.
+ *
+ * ⚠ A BACKLOG IS THE SIGNAL, NOT A COUNT OF WHAT WAS READ. §12: a count that
+ * has stopped growing is indistinguishable from a quiet week. Here there is
+ * something better than a clock — the folder itself says what is owed, so
+ * "files present that have no thread" is a direct measure of whether the
+ * consuming half of the loop is running at all.
+ */
+export async function probeDriveAudio(): Promise<{
+  state: 'ok' | 'empty' | 'unconfigured' | 'failed'
+  detail: string
+}> {
+  const { driveAudioFolderId, readDriveAudio } = await import('@/lib/driveaudio/read')
+  const { driveAudioThreadId } = await import('@/lib/driveaudio/to-thread')
+
+  const folderId = driveAudioFolderId()
+  if (!folderId) {
+    return {
+      state: 'unconfigured',
+      detail:
+        'No audio intake folder is nominated, so a recording exported to Drive is read by ' +
+        'nothing. Create one with `node --experimental-strip-types --import ./deploy/register.mjs ' +
+        '--env-file=.env.local scripts/setup-audio-intake.mts`, put the id in ' +
+        'GOOGLE_AUDIO_INTAKE_FOLDER_ID, then rebuild and kickstart.',
+    }
+  }
+
+  const read = await readDriveAudio()
+  if (read.error) {
+    return {
+      state: 'failed',
+      detail:
+        `The intake folder (${folderId}) could not be read: ${read.error} A deleted folder, a ` +
+        `revoked Drive scope and a shared drive the mailbox was removed from all look like this.`,
+    }
+  }
+
+  const supabase = createAdminClient()
+  const { count: ingested } = await supabase
+    .from('email_threads')
+    .select('id', { count: 'exact', head: true })
+    .like('gmail_thread_id', 'driveaudio:%')
+
+  // What is in the folder but not in the corpus. Chunked for the same reason
+  // the sweep chunks it: a filter rides in the query string (§12).
+  let waiting = 0
+  if (read.files.length > 0) {
+    const ids = read.files.map((f) => driveAudioThreadId(f.fileId))
+    const seen = new Set<string>()
+    for (let i = 0; i < ids.length; i += 200) {
+      const { data } = await supabase
+        .from('email_threads')
+        .select('fingerprint')
+        .in('fingerprint', ids.slice(i, i + 200))
+      for (const r of (data ?? []) as { fingerprint: string | null }[]) {
+        if (r.fingerprint) seen.add(r.fingerprint)
+      }
+    }
+    waiting = ids.filter((id) => !seen.has(id)).length
+  }
+
+  const tally =
+    `${ingested ?? 0} recording${ingested === 1 ? '' : 's'} read from the folder, ` +
+    `${read.files.length} file${read.files.length === 1 ? '' : 's'} in it now`
+
+  // More than one run's ceiling still waiting means the sweep is not getting
+  // through them — whisper missing, the box paging, or every file deferring.
+  if (waiting > 6) {
+    return {
+      state: 'failed',
+      detail:
+        `${waiting} recording(s) are sitting in the intake folder unread. The sweep takes 6 per ` +
+        `run, so a backlog this size is not a queue — check the log for a repeating reason: ` +
+        `\`tail ~/Library/Logs/berwilson/cron-drive-audio-sweep.log\`, and ` +
+        `\`curl -H "Authorization: Bearer $CRON_SECRET" "localhost:3000/api/cron/drive-audio-sweep?dry=1"\`. ${tally}.`,
+    }
+  }
+
+  if (!ingested) {
+    return {
+      state: 'empty',
+      detail:
+        read.files.length === 0
+          ? `The folder is readable and empty. Export a recording into it (or into a subfolder ` +
+            `named after the deal) and it is read within the hour. ${tally}.`
+          : `The folder is readable and holds ${read.files.length} file(s), but nothing has been ` +
+            `read from it yet — the next run takes them. ${tally}.`,
+    }
+  }
+
+  return {
+    state: 'ok',
+    detail:
+      waiting > 0
+        ? `${tally}, ${waiting} waiting for the next run (hourly in business hours).`
+        : `${tally}, nothing waiting.`,
+  }
+}
+
+/**
  * Voice memos — can an in-person meeting still reach the platform?
  *
  * ⚠ THREE THINGS HAVE TO BE TRUE AND NONE OF THEM REPORTS ITSELF. Voice Memos

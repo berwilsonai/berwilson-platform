@@ -10,7 +10,14 @@
  *          into the same `else`. The Helper project's feed read, on the live
  *          row: `source=email`, "Email — Call with Eric Tuaone" — false in both
  *          arms. Fixed for notes (migration …014000001).
- *   now    a voice memo of an in-person meeting arrives the same way again.
+ *   10-15  a voice memo of an in-person meeting arrives the same way again.
+ *   now    audio dropped in a Drive folder (a hardware recorder) arrives the
+ *          same way a FOURTH time — and this is the first one the closed union
+ *          below actually caught, because it maps onto the existing `recording`
+ *          member rather than needing a new one. The prefix still has to be
+ *          named in both places here: `threadSource` would otherwise call it
+ *          `email` and stamp a project's feed "Email — Steelton — 2026-10-18",
+ *          and `isLocalThread` would send a synthetic id to a live Gmail fetch.
  *
  * Four readers were each branching on this question with their own predicate,
  * which is what let the second and third fixes miss the others:
@@ -37,6 +44,7 @@
 import { IMESSAGE_THREAD_PREFIX } from '@/lib/imessage/to-thread'
 import { NOTE_THREAD_PREFIX, noteThreadKind } from '@/lib/notes/to-thread'
 import { VOICEMEMO_THREAD_PREFIX } from '@/lib/voicememos/to-thread'
+import { DRIVE_AUDIO_THREAD_PREFIX } from '@/lib/driveaudio/to-thread'
 import type { Database } from '@/types/database'
 
 /**
@@ -75,6 +83,12 @@ export function threadSource(
   if (typeof gmailThreadId !== 'string') return 'email'
   if (gmailThreadId.startsWith(IMESSAGE_THREAD_PREFIX)) return 'imessage'
   if (gmailThreadId.startsWith(VOICEMEMO_THREAD_PREFIX)) return 'recording'
+  // Audio filed in the Drive intake folder. The same member as a voice memo on
+  // purpose: to every reader downstream these are one kind of thing — a
+  // conversation somebody recorded, transcribed on this box — and they differ
+  // only in how the bytes arrived. A new member would mean an `update_source`
+  // enum migration and a new arm in every switch that already handles this one.
+  if (gmailThreadId.startsWith(DRIVE_AUDIO_THREAD_PREFIX)) return 'recording'
   if (gmailThreadId.startsWith(NOTE_THREAD_PREFIX)) {
     return noteThreadKind(gmailThreadId, subject) === 'call' ? 'call' : 'note'
   }
@@ -82,15 +96,26 @@ export function threadSource(
 }
 
 /**
- * Every thread-id prefix that means "this exists only on this box".
+ * Every thread-id prefix that means "there is no Gmail thread behind this row".
  *
  * Exported as the registry it is, so a reader filtering by prefix in SQL does
  * not have to assemble the list itself.
+ *
+ * ⚠ IT ANSWERS TWO QUESTIONS AND THE SECOND ONE IS A DISCARD. Besides keeping a
+ * synthetic id out of a live Gmail fetch, this list is what `redact.ts` filters
+ * on — so a prefix named here means a `noise` verdict DISCARDS the text. That
+ * is wanted for every member: a text conversation, a note, a memo and a
+ * recording all carry someone's private life in a way `moose@`'s inbox does
+ * not. `driveaudio:` keeps it even though a human filed that file deliberately,
+ * because the cost of being wrong is asymmetric and recoverable — the mp3 is
+ * untouched in Drive (audio deletion is gated on `isVoiceMemoThread`), so a
+ * misjudged recording is re-read by uploading a copy.
  */
 export const LOCAL_THREAD_PREFIXES = [
   IMESSAGE_THREAD_PREFIX,
   NOTE_THREAD_PREFIX,
   VOICEMEMO_THREAD_PREFIX,
+  DRIVE_AUDIO_THREAD_PREFIX,
 ] as const
 
 /**
