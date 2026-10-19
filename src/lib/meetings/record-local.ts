@@ -46,6 +46,7 @@
  */
 
 import { analyzeMeetingNotes, type SeedAttendee } from '@/lib/email-ingestion/analyze-meeting'
+import type { MeetingIntakeExtraction } from '@/lib/ai/prompts/meeting-intake'
 import { SYSTEM_USER_ID } from '@/lib/email-ingestion/analyze'
 import { upsertMeetingFromImport } from '@/lib/meetings/record'
 import { createAdminClient } from '@/lib/supabase/admin'
@@ -97,6 +98,16 @@ export interface LocalRecordingResult {
   sessionId: string | null
   /** Why nothing was recorded, when nothing was. Never silent. */
   skipped: string | null
+  /**
+   * The recap itself, so a caller can act on it without a second model call.
+   *
+   * Carried for `promoteRecordingRecords` (src/lib/records/from-recording.ts),
+   * which needs the per-record `discussion` paragraphs and the dated tasks this
+   * pass has already paid for. Re-reading them off the staged session would be
+   * a query for data that is in hand, and re-asking the model would be a
+   * summary of a summary. Null whenever nothing was staged.
+   */
+  extraction: MeetingIntakeExtraction | null
 }
 
 /**
@@ -105,7 +116,7 @@ export interface LocalRecordingResult {
 export async function recordLocalRecording(
   input: LocalRecordingInput
 ): Promise<LocalRecordingResult> {
-  if (!input.transcript.trim()) return { meetingId: null, sessionId: null, skipped: 'no transcript' }
+  if (!input.transcript.trim()) return { meetingId: null, sessionId: null, skipped: 'no transcript', extraction: null }
 
   let staged
   try {
@@ -124,9 +135,9 @@ export async function recordLocalRecording(
     // The unique index on `drive_file_id` is the real guard against two runs
     // staging one recording. Losing that race is a no-op, not a failure.
     if (msg.includes('23505') || msg.includes('drive_file_id')) {
-      return { meetingId: null, sessionId: null, skipped: 'already staged by an earlier run' }
+      return { meetingId: null, sessionId: null, skipped: 'already staged by an earlier run', extraction: null }
     }
-    return { meetingId: null, sessionId: null, skipped: `recap failed: ${msg}` }
+    return { meetingId: null, sessionId: null, skipped: `recap failed: ${msg}`, extraction: null }
   }
 
   const extraction = staged.extraction
@@ -159,9 +170,10 @@ export async function recordLocalRecording(
       meetingId: null,
       sessionId: staged.session_id,
       skipped: 'the meeting record could not be written',
+      extraction,
     }
   }
-  return { meetingId: meeting.id, sessionId: staged.session_id, skipped: null }
+  return { meetingId: meeting.id, sessionId: staged.session_id, skipped: null, extraction }
 }
 
 /**

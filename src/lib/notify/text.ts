@@ -58,6 +58,72 @@ export interface TextTarget {
   handle: string
   /** The Shortcuts shortcut that sends to that handle. */
   shortcut: string
+  /**
+   * The carrier's email-to-SMS domain for this handle, when one is known.
+   *
+   * Set it and the message goes out as mail to `<digits>@<domain>`, which the
+   * carrier delivers as a text. See {@link gatewayAddress} for why that is now
+   * the preferred transport rather than a fallback.
+   */
+  carrierDomain?: string | null
+}
+
+/**
+ * Default carrier domain for every target that does not name its own.
+ *
+ * Both executives are on T-Mobile (`tmomail.net`), so one variable covers the
+ * roster; a fourth field on a `PEPPER_TEXT_TARGETS` entry overrides it for one
+ * person when somebody changes carrier.
+ */
+const DEFAULT_CARRIER_DOMAIN = process.env.PEPPER_TEXT_GATEWAY_DOMAIN ?? null
+
+/**
+ * The carrier gateway address for a target, or null when none is configured.
+ *
+ * ⚠ THIS IS THE TRANSPORT THAT WORKS, AND THE SHORTCUT IS THE ONE THAT DID NOT.
+ * Measured 2026-10-19: every Pepper text since the channel shipped on 10-12 had
+ * failed — ten consecutive runs of `Couldn't find shortcut "Pepper Text
+ * Richard"` — because the two shortcuts must be built BY HAND in Shortcuts.app
+ * (macOS 27 removed Messages' AppleScript dictionary) and never had been. A
+ * channel whose setup cannot be automated is a channel that is off.
+ *
+ * Three things the gateway fixes at once:
+ *
+ *   1. **No hand-built step, and nothing to lose.** It is a Gmail send, which
+ *      this platform already does every morning.
+ *   2. **IT KILLS THE SELF-LOOP AT THE SOURCE.** The Shortcut sends as
+ *      Richard's own Apple ID, so a text to Eric lands in the Richard↔Eric
+ *      conversation the iMessage sweep ingests — the 2026-10-09 failure that
+ *      made 131 of 481 open commitments Pepper reading her own notes. A gateway
+ *      message arrives from a carrier shortcode, in a conversation that is not
+ *      one of ours at all. The hash guard below is still written, because
+ *      belt-and-braces costs one insert.
+ *   3. **One sender for both people.** Each executive gets a single Pepper
+ *      thread on their phone, separate from their human texts.
+ *
+ * ⚠ AND WHAT IT COSTS, SAID PLAINLY. The body travels Gmail → the carrier,
+ * where the on-box transport did not. That is the same path Pepper's morning
+ * EMAIL note already takes daily with the same content, so it adds no exposure
+ * the 2026-07-07 cutover had closed — but it is a real difference from the
+ * docblock at the top of this file, which was written when the Shortcut was the
+ * only plan. A confidential project must never reach this channel either way;
+ * that is enforced where the message is composed, not here.
+ */
+export function gatewayAddress(
+  target: TextTarget,
+  // ⚠ INJECTABLE, so a test is not reading an env var captured at module load —
+  // §12: a test that hardcodes (or reaches around) the value it verifies is
+  // testing the copy. Production passes nothing and gets the configured domain.
+  opts: { defaultDomain?: string | null } = {}
+): string | null {
+  const fallback = opts.defaultDomain === undefined ? DEFAULT_CARRIER_DOMAIN : opts.defaultDomain
+  const domain = (target.carrierDomain ?? fallback ?? '').trim().replace(/^@/, '')
+  if (!domain || !domain.includes('.')) return null
+  const digits = target.handle.replace(/\D/g, '')
+  // US gateways are addressed by the 10-digit number, without the country code.
+  const local = digits.length === 11 && digits.startsWith('1') ? digits.slice(1) : digits
+  if (local.length < 10) return null
+  return `${local}@${domain}`
 }
 
 /**
@@ -82,11 +148,11 @@ export function parseTextTargets(raw: string | undefined): {
     const entry = chunk.trim()
     if (!entry) continue
     const parts = entry.split('=').map((p) => p.trim())
-    if (parts.length !== 3 || parts.some((p) => !p)) {
-      problems.push(`malformed target (want email=handle=shortcut): ${entry}`)
+    if (parts.length < 3 || parts.length > 4 || parts.some((p) => !p)) {
+      problems.push(`malformed target (want email=handle=shortcut[=carrier.domain]): ${entry}`)
       continue
     }
-    const [email, handleRaw, shortcut] = parts
+    const [email, handleRaw, shortcut, carrierDomain] = parts
     const handle = normalizeHandle(handleRaw)
     if (!handle) {
       problems.push(`unusable handle for ${email}: ${handleRaw}`)
@@ -96,7 +162,12 @@ export function parseTextTargets(raw: string | undefined): {
       problems.push(`not an email address: ${email}`)
       continue
     }
-    targets.push({ email: email.toLowerCase(), handle, shortcut })
+    targets.push({
+      email: email.toLowerCase(),
+      handle,
+      shortcut,
+      carrierDomain: carrierDomain ?? null,
+    })
   }
   return { targets, problems }
 }
@@ -143,7 +214,21 @@ export interface SendTextResult {
   error?: string
   /** True when the body was recorded but the transport was not attempted. */
   dryRun?: boolean
+  /** Which transport carried it. A log that cannot say this cannot be believed. */
+  via?: 'gateway' | 'shortcut'
 }
+
+/** Who a gateway text is sent AS. Pepper's own seat, so the thread is hers. */
+const GATEWAY_FROM = process.env.PEPPER_TEXT_FROM ?? 'info@berwilson.com'
+const GATEWAY_FROM_NAME = process.env.PEPPER_TEXT_FROM_NAME ?? 'Pepper'
+
+/**
+ * The subject on a gateway message.
+ *
+ * Carriers render the subject as the first line of the text, so it is one short
+ * label and never a summary — the body already says what happened.
+ */
+const GATEWAY_SUBJECT = process.env.PEPPER_TEXT_SUBJECT ?? 'Ber AI'
 
 /**
  * Send one text.
@@ -185,9 +270,48 @@ export async function sendText(args: {
 
   if (dryRun) return { ok: true, handle: target.handle, dryRun: true }
 
+  // ⚠ GATEWAY FIRST, SHORTCUT SECOND — and the order is the whole fix, not a
+  // preference. See `gatewayAddress`: the shortcut transport had delivered
+  // nothing in the seven days it had been live, because its one manual setup
+  // step was never done. The shortcut is kept as the fallback for a box with no
+  // carrier domain configured, which is also the only configuration the
+  // existing tests describe.
+  const gateway = gatewayAddress(target)
+  if (gateway) {
+    try {
+      const { sendMail } = await import('@/lib/integrations/google-workspace')
+      await sendMail({
+        to: gateway,
+        subject: GATEWAY_SUBJECT,
+        // A carrier strips markup; `<br>` is the one thing that survives as a
+        // line break across both the SMS and MMS renderings.
+        html: escapeHtml(clean).replace(/\n/g, '<br>'),
+        from: GATEWAY_FROM,
+        fromName: GATEWAY_FROM_NAME,
+      })
+      return { ok: true, handle: target.handle, via: 'gateway' }
+    } catch (err) {
+      // Fall through to the shortcut rather than giving up: a Gmail hiccup
+      // should not cost the message when a second transport exists.
+      const reason = err instanceof Error ? err.message : String(err)
+      try {
+        await runShortcut(target.shortcut, clean)
+        return { ok: true, handle: target.handle, via: 'shortcut' }
+      } catch (err2) {
+        return {
+          ok: false,
+          handle: target.handle,
+          error:
+            `gateway (${gateway}) failed: ${reason}; and the shortcut fallback failed: ` +
+            `${err2 instanceof Error ? err2.message : String(err2)}`,
+        }
+      }
+    }
+  }
+
   try {
     await runShortcut(target.shortcut, clean)
-    return { ok: true, handle: target.handle }
+    return { ok: true, handle: target.handle, via: 'shortcut' }
   } catch (err) {
     return {
       ok: false,
@@ -195,6 +319,14 @@ export async function sendText(args: {
       error: err instanceof Error ? err.message : String(err),
     }
   }
+}
+
+/** Minimal escaping — the body is plain text going into an HTML mail part. */
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
 }
 
 /**

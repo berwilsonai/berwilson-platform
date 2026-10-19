@@ -43,6 +43,7 @@ import { extractCommitments } from '@/lib/commitments/extract-phase'
 import { promoteInternalCommitments } from '@/lib/commitments/internal-tasks'
 import { recordLocalRecording, localDateString } from '@/lib/meetings/record-local'
 import { fileMeetingFromThreadLinks } from '@/lib/meetings/attach-recording'
+import { promoteAndAlert } from '@/lib/audio/promote'
 import type { ResolvedThread } from '@/lib/integrations/gmail-search'
 
 import { discardMemoAudioFiles, readSkipList } from './discard'
@@ -131,6 +132,16 @@ export interface VoiceMemoSweepResult {
     /** Of those, the ones that became a task with no human confirm (§11). */
     tasksCreated: number
   }
+  /**
+   * Deals this recording named that the platform did not have, and what became
+   * of each (§11's 10-19 amendment). `created` carries the gate's own fact.
+   */
+  promoted: {
+    created: { kind: string; name: string; id: string; fact: string }[]
+    skipped: { name: string; why: string }[]
+    texted: number
+    textFailed: number
+  }
   notes: string[]
   error: string | null
 }
@@ -156,6 +167,7 @@ export async function runVoiceMemoSweep(
     audioDeleted: 0,
     audioSkipListed: 0,
     recorded: [],
+    promoted: { created: [], skipped: [], texted: 0, textFailed: 0 },
     phases: {
       summarized: 0,
       linked: 0,
@@ -508,6 +520,30 @@ export async function runVoiceMemoSweep(
     // never reaches the rows with no work). A no-op when the thread is unfiled.
     const movedOnto = await fileMeetingFromThreadLinks(threadId).catch(() => null)
     if (movedOnto?.moved) base.phases.meetingsFiled += 1
+
+
+    // ── The 10-19 amendment: a deal this recording NAMED and we do not have ──
+    //
+    // Shared with every other recorder deliberately (§12: a sibling module
+    // written days apart is the fork hardest to see). The gate is two facts —
+    // nothing in either register resolves the name, AND the conversation
+    // produced something checkable — and it runs whether or not the transcript
+    // filed onto an existing deal: one call can be about Steelton and also be
+    // first contact on something new.
+    const promotion = await promoteAndAlert({
+      extraction: recorded.extraction,
+      sourceRef: memoThreadId(memo.identifier),
+      recordedOn: localDateString(memo.createdAt),
+      sourceTitle: memo.title,
+      dryRun,
+    })
+    for (const c of promotion.created) {
+      base.promoted.created.push({ kind: c.kind, name: c.name, id: c.id, fact: `${c.fact.kind}: ${c.fact.detail}` })
+    }
+    base.promoted.skipped.push(...promotion.skipped)
+    base.promoted.texted += promotion.alert?.sent ?? 0
+    base.promoted.textFailed += promotion.alert?.failed ?? 0
+    for (const n of [...promotion.notes, ...(promotion.alert?.notes ?? [])]) base.notes.push(n)
 
     base.recorded.push({
       title: memo.title.slice(0, 48),

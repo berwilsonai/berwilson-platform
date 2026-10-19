@@ -51,6 +51,12 @@ export interface NotifyOptions {
   /** Chat only. Groups related posts into one thread in the space. */
   threadKey?: string
   /**
+   * Text only. Record the self-loop guard row and decide everything, but do not
+   * hand the body to a transport. Exposed so a pass that composes a message can
+   * be verified end to end without a phone buzzing.
+   */
+  dryRun?: boolean
+  /**
    * Text only. Which kind of message this is, for the send record. Defaults to
    * 'ad_hoc' so a caller that forgets still gets a guard row — the guard is
    * what stops the sweep reading our own texts back as obligations, and it must
@@ -80,6 +86,12 @@ export interface NotifyResult {
    * remember a subject convention on a phone. Absent on every other channel.
    */
   sent?: { id: string; threadId: string }
+  /**
+   * Text channel only: which transport carried it — the carrier gateway or the
+   * on-box Shortcut. Two transports that can silently swap places need the log
+   * to say which one answered.
+   */
+  via?: 'gateway' | 'shortcut'
 }
 
 export async function notify(opts: NotifyOptions): Promise<NotifyResult> {
@@ -127,8 +139,9 @@ export async function notify(opts: NotifyOptions): Promise<NotifyResult> {
           target,
           body: opts.text,
           kind: opts.textKind ?? 'ad_hoc',
+          dryRun: opts.dryRun,
         })
-        return result.ok ? { ok: true } : { ok: false, error: result.error }
+        return result.ok ? { ok: true, via: result.via } : { ok: false, error: result.error }
       }
       default:
         return { ok: false, error: `Unsupported channel: ${opts.channel}` }

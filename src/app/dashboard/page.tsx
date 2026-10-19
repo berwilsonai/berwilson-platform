@@ -13,6 +13,7 @@ import DailyBrief from '@/components/dashboard/DailyBrief'
 import HealthPanel from '@/components/dashboard/HealthPanel'
 import NeedsAttention, { type LeadDue } from '@/components/dashboard/NeedsAttention'
 import NowObjectives, { type NowObjectiveItem } from '@/components/dashboard/NowObjectives'
+import JustIn from '@/components/dashboard/JustIn'
 import Commitments from '@/components/dashboard/Commitments'
 import { loadOpenCommitments } from '@/lib/commitments/load'
 import { weightedValue } from '@/lib/utils/constants'
@@ -29,6 +30,7 @@ import { viewerHiddenProjectIds } from '@/lib/security/request'
 import { mailboxLooksBroken } from '@/lib/system-health'
 import { sweepDb } from '@/lib/email-sweep/db'
 import { countDecideItems } from '@/lib/decide/count'
+import { readJustIn } from '@/lib/records/just-in'
 import EmptyState from '@/components/shared/EmptyState'
 import type { WaitingOnItem, RiskItem } from '@/types/domain'
 import type { DdSeverity } from '@/lib/supabase/types'
@@ -201,6 +203,9 @@ export default async function DashboardPage({ searchParams }: PageProps) {
   // coverage signal (§12), and a portfolio value quietly missing a project is
   // worse than one that says so.
   const hidden = await viewerHiddenProjectIds()
+  // What arrived since Friday and is on no record yet. Viewer-aware: the band
+  // takes the same hidden set every other figure on this page is filtered by.
+  const justIn = await readJustIn({ hidden }).catch(() => [])
   const activeProjects = dropHidden(projectsRaw ?? [], (p) => p.id, hidden)
   const protectedCount = (projectsRaw ?? []).length - activeProjects.length
   const projectIds = activeProjects.map((p) => p.id)
@@ -432,6 +437,15 @@ export default async function DashboardPage({ searchParams }: PageProps) {
           .
         </p>
       )}
+
+      {/*
+        ── Just in ───────────────────────────────────────────────────────────
+        Above the objectives deliberately. The objectives are what we SAID
+        matters, which does not change between mornings; this is what changed
+        overnight, and a recorded call attached to nothing is the single item on
+        this page with the shortest useful life.
+      */}
+      <JustIn items={justIn} />
 
       {/* ── Steering board: Now objectives lead the morning read ─────────── */}
       {nowObjectives.length > 0 && <NowObjectives items={nowObjectives} />}

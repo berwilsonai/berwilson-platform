@@ -51,6 +51,7 @@ import { promoteInternalCommitments } from '@/lib/commitments/internal-tasks'
 import { recordLocalRecording, localDateString } from '@/lib/meetings/record-local'
 import { resolveMeetingTarget } from '@/lib/meetings/file-notes'
 import { fileMeetingFromThreadLinks } from '@/lib/meetings/attach-recording'
+import { promoteAndAlert } from '@/lib/audio/promote'
 import { upsertLink } from '@/lib/email-sweep/route-phase'
 import { isGoogleConfigured } from '@/lib/integrations/google-workspace'
 import type { ResolvedThread } from '@/lib/integrations/gmail-search'
@@ -103,6 +104,16 @@ export interface DriveAudioSweepResult {
     commitments: number
     tasksCreated: number
   }
+  /**
+   * Deals this recording named that the platform did not have, and what became
+   * of each (§11's 10-19 amendment). `created` carries the gate's own fact.
+   */
+  promoted: {
+    created: { kind: string; name: string; id: string; fact: string }[]
+    skipped: { name: string; why: string }[]
+    texted: number
+    textFailed: number
+  }
   notes: string[]
   error: string | null
 }
@@ -125,6 +136,7 @@ export async function runDriveAudioSweep(
     deferred: [],
     discarded: [],
     recorded: [],
+    promoted: { created: [], skipped: [], texted: 0, textFailed: 0 },
     filedByFolder: [],
     phases: {
       summarized: 0,
@@ -508,6 +520,30 @@ export async function runDriveAudioSweep(
     // unfiled for exactly this reason. A no-op when the thread is not filed.
     const movedOnto = await fileMeetingFromThreadLinks(threadId).catch(() => null)
     if (movedOnto?.moved) base.phases.meetingsFiled += 1
+
+
+    // ── The 10-19 amendment: a deal this recording NAMED and we do not have ──
+    //
+    // Shared with every other recorder deliberately (§12: a sibling module
+    // written days apart is the fork hardest to see). The gate is two facts —
+    // nothing in either register resolves the name, AND the conversation
+    // produced something checkable — and it runs whether or not the transcript
+    // filed onto an existing deal: one call can be about Steelton and also be
+    // first contact on something new.
+    const promotion = await promoteAndAlert({
+      extraction: recorded.extraction,
+      sourceRef: driveAudioThreadId(file.fileId),
+      recordedOn: localDateString(file.recordedAt),
+      sourceTitle: driveAudioSubject(file),
+      dryRun,
+    })
+    for (const c of promotion.created) {
+      base.promoted.created.push({ kind: c.kind, name: c.name, id: c.id, fact: `${c.fact.kind}: ${c.fact.detail}` })
+    }
+    base.promoted.skipped.push(...promotion.skipped)
+    base.promoted.texted += promotion.alert?.sent ?? 0
+    base.promoted.textFailed += promotion.alert?.failed ?? 0
+    for (const n of [...promotion.notes, ...(promotion.alert?.notes ?? [])]) base.notes.push(n)
 
     base.recorded.push({
       title: driveAudioSubject(file).slice(0, 60),
