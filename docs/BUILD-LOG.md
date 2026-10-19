@@ -11,7 +11,133 @@ Split out of `CLAUDE.md` on 2026-09-23, when that file reached 606k characters a
 - A block of **2026-08-23 → 2026-08-31** entries sits *after* the June entries, near the end of the file.
 - One **2026-07-03** entry ("migrations applied + pursuit profile seeded") is last in the file.
 
-181 entries, 2026-06-22 → 2026-10-18. ⚠ Counted with `grep -c "^\*\*Done 2026"`, not incremented by hand: two sessions editing this file on 2026-10-08 each bumped the old figure by one and both landed on 146 against a real 148.
+182 entries, 2026-06-22 → 2026-10-18. ⚠ Counted with `grep -c "^\*\*Done 2026"`, not incremented by hand: two sessions editing this file on 2026-10-08 each bumped the old figure by one and both landed on 146 against a real 148.
+
+**Done 2026-10-18 (one obvious place to log by hand, and the tab bar reads in order):**
+
+**The ask.** *"How do I manually log a meeting on a project? There are times
+where I will want to type notes, paste in a summary etc… I don't see a clear
+and obvious way to log activity manually. Make sure that is there and make
+sure that when I view a project, that the order of things displayed makes the
+most sense. How would you organize it? Do the same for opportunities."*
+
+**Measured first, and the premise was half wrong — which changed what got
+built.** Nothing was missing. The Meetings tab has carried a complete form
+since it shipped: title, kind, date, time, location, attendees picked from
+`team_members` and `parties`, a transcript box, summary, minutes, decisions, a
+`confidential` flag, an `index_ai` flag, a recording upload that spawns
+whisper, and a **Draft from transcript** button that runs `/api/meetings/draft`
+and fills the summary, minutes, decisions and attendees from pasted text. The
+project Updates tab has carried `PasteInput` — extract with AI, or save as-is —
+which writes `updates` with `source='manual_paste'`, embeds into `chunks`, and
+turns confirmed action items into real tasks. An opportunity's Notes composer
+writes `opportunity_notes` and embeds through `embedOpportunityNote`.
+
+So this was never a build gap. It was a **discoverability** one, and the cause
+is a rule this file praises elsewhere: `RecordTabBar` hides a tab with no rows
+under **More**. Counted on the live database:
+
+| tab | projects with ≥1 row (of 19) | rows |
+|---|---|---|
+| documents | 17 | 682 |
+| updates | 14 | 179 |
+| players | 13 | 70 |
+| tasks | 4 | 31 |
+| milestones | 2 | 5 |
+| **meetings** | **2** | **3** |
+| vehicles | 1 | 3 |
+| parcels | 1 | 11 |
+| financing / entities / economics / dd_items | 0 | — |
+
+And on opportunities (of 7): documents 6, notes 6, tasks 3, **meetings 2**,
+everything else 0. So on **17 of 19 projects and 5 of 7 opportunities the only
+door to logging a meeting was two clicks down a menu labelled "More"** —
+exactly the question asked. ⚠ **Count-gating a tab is right for READING a
+populated record and exactly wrong for the first WRITE.** By rows alone
+Meetings and Tasks belong under More, and they are the two tabs a human types
+into. A rule that ranks by what a record already holds cannot see the act of
+putting the first thing in it.
+
+**What got built.**
+
+- **`RecordLogMenu`** in both record headers — a primary **Log** button,
+  present on every tab, independent of every count: Meeting · Update (Note on
+  an opportunity) · Task · Milestone · Document, each with a line on what goes
+  in it. Creation lives in the header; the count-gating stays for reading.
+- **`src/lib/records/log-menu.ts`** holds what the menu offers and where each
+  entry lands. In `src/lib` rather than exported from the `'use client'`
+  component so the verifier can read it (§12), and carrying **`autoOpens`** per
+  entry: `?new=1` is appended **only** where the destination page reads it.
+  Meetings, Tasks and the record's own feed open their form from it; Milestones
+  and Documents are offered without it, because their add control is already in
+  place on arrival and a param nothing reads would make the menu a promise the
+  page fails to keep.
+- The param is read on the **server** and passed in as `startNew` / `startAdd`
+  / `autoFocus`, so the form is in the first paint — no `useSearchParams` in an
+  effect and no flash of the empty list. `MeetingsView` honours `canEdit`
+  first, so a non-admin arriving at `?new=1` gets the read-only list rather
+  than a form they cannot submit.
+- **The project header gains the action row the opportunity header already
+  had** (Log, Brief, Edit, Protect). They had sat mid-page on the Overview tab,
+  right-aligned, **below the photo gallery** — so Edit and Generate Brief were
+  unreachable from any of the other twelve tabs, and the stage/sector chips
+  moved down under the name where they read as identity rather than competing
+  with the buttons for the same corner.
+- **`PasteInput`'s placeholder and the Updates buttons were pasting-only in
+  their wording** — "Paste Update", "Paste an email, meeting notes…", "Paste
+  First Update" — against a box that has always accepted typing. Richard's
+  words were *"type notes, paste in a summary"*, and two thirds of the label
+  described the half he was not asking about. Now "Log an update" over "Type
+  notes, or paste an email, a meeting summary, or a call recap…".
+
+**Tab order — the reading order, not the row counts.** Both records now read
+Overview → *the pulse* → *the file* → *the structure*:
+
+`Overview · Updates|Notes · Meetings · Tasks · Documents · Players ·
+Milestones · [Land] · Economics · Vehicles · Financing · Diligence · Entities`
+
+Documents moves from third to fifth on purpose, despite being the heaviest
+tab: it is a surface you go to deliberately, by name, where the first four are
+what you scan. Five tabs are `always`, and the verifier **ratchets that at
+five** — past it, an empty record shows a bar of empties again, which is the
+bug the gating was built to fix. Vehicles still precedes Economics: the
+structure is settled before anything is priced.
+
+**Overview section order.**
+
+- An **opportunity now leads with Next Step.** It was the *last* block on the
+  page, under the facts grid, the description and two prose cards — the one
+  line saying what to actually do, below the fold, with everything above it
+  reference.
+- A **project's Contract block moves above Sub-Projects**: how big and by when,
+  then what it is made of.
+- ⚠ The project's audit section is renamed **Change History**. It was "Recent
+  Activity" — and the tab three inches above it is where a human reads what
+  actually happened on the deal, while that table is `log_activity`'s
+  who-changed-which-column. Two surfaces called activity meaning different
+  things is the one-quantity-one-definition rule (§12); the collision was there
+  before this session and would have got worse the moment the Log menu made
+  the feed easy to reach.
+
+**Found while measuring, not fixed here.** An opportunity's Notes are embedded
+but **never extracted** — `opportunity_notes` gets `embedOpportunityNote` and
+nothing else, where a project's Updates run `/api/ai/extract` and produce
+tasks, risks and decisions. So the same typed paragraph yields follow-up work
+on a project and nothing on an opportunity. Listed in `OPEN-ITEMS.md`; it is a
+real asymmetry, not a bug, and worth a measurement before it is closed.
+
+**Verification.** `scripts/verify-record-log.tsx` — ⚠ a record page is behind
+auth, so a curl returns the same redirect whether it answers or throws (§12).
+It renders the components directly and asserts: the trigger is a closed menu
+on both records; **every entry names a segment that exists in that record's
+tab registry**; **`?new=1` appears on exactly the entries whose page reads it**
+(the check that stops the menu rotting — a href is a string and `tsc` cannot
+see either failure); `startNew` shows the form and hides the list; a non-admin
+gets no form; the composer's "save as-is" is offered alongside the AI pass;
+all five manual tabs are visible on a record holding nothing; no more than five
+are always-on; and the two registries carry the same tabs in the same order bar
+Land. 41 checks, all passing. `npm test` 567/567, `tsc` clean, lint unchanged
+at 23 problems, `npm run build` exit 0 (captured unpiped — §12).
 
 **Done 2026-10-18 (a hardware recorder gets a door, and the register was not following the thread):**
 
