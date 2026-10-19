@@ -42,7 +42,7 @@ export default function EditRoleButton({ playerId, currentRole, playerName }: Ed
     setSaving(true)
     setError(null)
     try {
-      const res = await fetch(`/api/project-players/${playerId}`, {
+      const res = await fetch(`/api/records/project-players/${playerId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ role: finalRole }),

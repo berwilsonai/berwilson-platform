@@ -19,7 +19,13 @@ import { cn } from '@/lib/utils'
 import { DatePicker } from '@/components/ui/date-picker'
 import type { DdItem, ComplianceItem, Party, Document, DdSeverity, ComplianceStatus, ResearchArtifact } from '@/lib/supabase/types'
 import ResearchPanel from './ResearchPanel'
-import { formatDate } from '@/lib/utils/constants'
+import {
+  DD_STATUS_LABELS,
+  DD_STATUSES,
+  formatDate,
+  SEVERITIES,
+  SEVERITY_LABELS,
+} from '@/lib/utils/constants'
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
@@ -50,24 +56,6 @@ const CATEGORY_LABELS: Record<string, string> = {
   financial: 'Financial',
   market: 'Market',
   other: 'Other',
-}
-
-const DD_STATUSES = ['open', 'in_progress', 'resolved', 'accepted_risk'] as const
-
-const DD_STATUS_LABELS: Record<string, string> = {
-  open: 'Open',
-  in_progress: 'In Progress',
-  resolved: 'Resolved',
-  accepted_risk: 'Accepted Risk',
-}
-
-const SEVERITIES: DdSeverity[] = ['info', 'watch', 'critical', 'blocker']
-
-const SEVERITY_LABELS: Record<DdSeverity, string> = {
-  info: 'Info',
-  watch: 'Watch',
-  critical: 'Critical',
-  blocker: 'Blocker',
 }
 
 const COMPLIANCE_FRAMEWORKS = [
@@ -246,13 +234,13 @@ function DdSection({ recordKind, recordId, initialItems, parties }: DdSectionPro
     try {
       let res: Response
       if (mode === 'edit' && editId) {
-        res = await fetch(`/api/dd-items/${editId}`, {
+        res = await fetch(`/api/records/dd-items/${editId}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload),
         })
       } else {
-        res = await fetch('/api/dd-items', {
+        res = await fetch('/api/records/dd-items', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ ...scopeBody(recordKind, recordId), ...payload }),
@@ -264,7 +252,7 @@ function DdSection({ recordKind, recordId, initialItems, parties }: DdSectionPro
         throw new Error(data.error ?? 'Save failed')
       }
 
-      const { dd_item } = await res.json()
+      const { row: dd_item } = await res.json()
       if (mode === 'edit') {
         setItems((prev) => prev.map((i) => (i.id === dd_item.id ? dd_item : i)))
       } else {
@@ -283,7 +271,7 @@ function DdSection({ recordKind, recordId, initialItems, parties }: DdSectionPro
     setSaving(true)
     setError(null)
     try {
-      const res = await fetch(`/api/dd-items/${editId}`, { method: 'DELETE' })
+      const res = await fetch(`/api/records/dd-items/${editId}`, { method: 'DELETE' })
       if (!res.ok) {
         const data = await res.json()
         throw new Error(data.error ?? 'Delete failed')
@@ -303,7 +291,7 @@ function DdSection({ recordKind, recordId, initialItems, parties }: DdSectionPro
     setItems((all) => all.map((i) => (i.id === item.id ? { ...i, status: newStatus } : i)))
 
     try {
-      const res = await fetch(`/api/dd-items/${item.id}`, {
+      const res = await fetch(`/api/records/dd-items/${item.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: newStatus }),
@@ -312,7 +300,7 @@ function DdSection({ recordKind, recordId, initialItems, parties }: DdSectionPro
         setItems((all) => all.map((i) => (i.id === prev.id ? prev : i)))
         return
       }
-      const { dd_item } = await res.json()
+      const { row: dd_item } = await res.json()
       setItems((all) => all.map((i) => (i.id === dd_item.id ? dd_item : i)))
     } catch {
       setItems((all) => all.map((i) => (i.id === prev.id ? prev : i)))
@@ -723,13 +711,13 @@ function ComplianceSection({
     try {
       let res: Response
       if (mode === 'edit' && editId) {
-        res = await fetch(`/api/compliance-items/${editId}`, {
+        res = await fetch(`/api/records/compliance-items/${editId}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload),
         })
       } else {
-        res = await fetch('/api/compliance-items', {
+        res = await fetch('/api/records/compliance-items', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ ...scopeBody(recordKind, recordId), ...payload }),
@@ -741,7 +729,7 @@ function ComplianceSection({
         throw new Error(data.error ?? 'Save failed')
       }
 
-      const { compliance_item } = await res.json()
+      const { row: compliance_item } = await res.json()
       if (mode === 'edit') {
         setItems((prev) => prev.map((i) => (i.id === compliance_item.id ? compliance_item : i)))
       } else {
@@ -760,7 +748,7 @@ function ComplianceSection({
     setSaving(true)
     setError(null)
     try {
-      const res = await fetch(`/api/compliance-items/${editId}`, { method: 'DELETE' })
+      const res = await fetch(`/api/records/compliance-items/${editId}`, { method: 'DELETE' })
       if (!res.ok) {
         const data = await res.json()
         throw new Error(data.error ?? 'Delete failed')
@@ -780,7 +768,7 @@ function ComplianceSection({
     setItems((all) => all.map((i) => (i.id === item.id ? { ...i, status: newStatus } : i)))
 
     try {
-      const res = await fetch(`/api/compliance-items/${item.id}`, {
+      const res = await fetch(`/api/records/compliance-items/${item.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: newStatus }),
@@ -789,7 +777,7 @@ function ComplianceSection({
         setItems((all) => all.map((i) => (i.id === prev.id ? prev : i)))
         return
       }
-      const { compliance_item } = await res.json()
+      const { row: compliance_item } = await res.json()
       setItems((all) => all.map((i) => (i.id === compliance_item.id ? compliance_item : i)))
     } catch {
       setItems((all) => all.map((i) => (i.id === prev.id ? prev : i)))

@@ -146,6 +146,24 @@ export const SEVERITY_BADGE: Record<DdSeverity, string> = {
   blocker: chipTone('critical'),
 }
 
+/**
+ * Where a diligence item stands.
+ *
+ * ⚠ `dd_items.status` IS PLAIN TEXT WITH NO CHECK, so this list is the only
+ * definition there is — and it lived inside DiligenceTab.tsx until 2026-10-19,
+ * where the registry that validates the column could not see it (§12 — a
+ * hand-written enumeration beside a registry drifts). Both the form and
+ * src/lib/records/children.ts read it from here now.
+ */
+export const DD_STATUSES = ['open', 'in_progress', 'resolved', 'accepted_risk'] as const
+
+export const DD_STATUS_LABELS: Record<string, string> = {
+  open: 'Open',
+  in_progress: 'In Progress',
+  resolved: 'Resolved',
+  accepted_risk: 'Accepted Risk',
+}
+
 // ─── Entity Types ────────────────────────────────────────────────────────────
 
 export const ENTITY_TYPES: EntityType[] = [

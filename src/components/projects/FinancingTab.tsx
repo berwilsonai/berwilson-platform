@@ -507,13 +507,13 @@ export default function FinancingTab({
     try {
       let res: Response
       if (financing) {
-        res = await fetch(`/api/financing/${financing.id}`, {
+        res = await fetch(`/api/records/financing/${financing.id}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload),
         })
       } else {
-        res = await fetch('/api/financing', {
+        res = await fetch('/api/records/financing', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ ...scopeBody(recordKind, recordId), ...payload }),
@@ -525,7 +525,7 @@ export default function FinancingTab({
         throw new Error(data.error ?? 'Save failed')
       }
 
-      const { financing: saved } = await res.json()
+      const { row: saved } = await res.json()
       const typed: FinancingWithSchedule = {
         ...saved,
         draw_schedule: Array.isArray(saved.draw_schedule)

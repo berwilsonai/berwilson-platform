@@ -98,7 +98,7 @@ export default function MilestonesTab({
     )
 
     try {
-      const res = await fetch(`/api/milestones/${milestone.id}`, {
+      const res = await fetch(`/api/records/milestones/${milestone.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ completed: nowComplete }),
@@ -107,7 +107,7 @@ export default function MilestonesTab({
         const data = await res.json()
         throw new Error(data.error ?? 'Failed to update milestone')
       }
-      const { milestone: updated } = await res.json()
+      const { row: updated } = await res.json()
       setMilestones((prev) => prev.map((m) => (m.id === updated.id ? updated : m)))
     } catch (err) {
       // Revert
@@ -128,7 +128,7 @@ export default function MilestonesTab({
     setError(null)
 
     try {
-      const res = await fetch('/api/milestones', {
+      const res = await fetch('/api/records/milestones', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -142,7 +142,7 @@ export default function MilestonesTab({
         const data = await res.json()
         throw new Error(data.error ?? 'Failed to add milestone')
       }
-      const { milestone } = await res.json()
+      const { row: milestone } = await res.json()
       setMilestones((prev) => [...prev, milestone])
       setNewLabel('')
       setNewTargetDate('')

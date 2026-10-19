@@ -84,7 +84,7 @@ export default function AddPlayerModal({ recordKind, recordId }: AddPlayerModalP
 
     try {
       const finalRole = role === '__custom__' ? customRole.trim() : role.trim()
-      const res = await fetch('/api/project-players', {
+      const res = await fetch('/api/records/project-players', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

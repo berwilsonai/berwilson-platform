@@ -18,19 +18,9 @@
  * crafted body cannot restamp an HR note's author or forge a status.
  */
 
-const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+import { normalizePayload, type FieldKind, type NormalizeResult } from '@/lib/registry/fields'
 
-export type FieldKind =
-  | 'text'
-  | 'date'
-  | 'bool'
-  /** Nullable bool — null means "nobody has decided", which differs from false. */
-  | 'tribool'
-  | 'int'
-  | 'money'
-  | 'uuid'
-  | 'textarray'
+export type { FieldKind, NormalizeResult }
 
 export interface SnapshotSpec {
   /** The FK column the reader picked. */
@@ -405,110 +395,26 @@ export function getRegister(name: string): RegisterSpec | null {
 
 // ─── Normalisation ───────────────────────────────────────────────────────────
 
-export type NormalizeResult =
-  | { ok: true; value: Record<string, unknown> }
-  | { ok: false; error: string }
-
-function coerce(
-  kind: FieldKind,
-  raw: unknown,
-  column: string
-): { ok: true; value: unknown } | { ok: false; error: string } {
-  if (raw === null || raw === undefined) return { ok: true, value: null }
-
-  switch (kind) {
-    case 'text': {
-      if (typeof raw !== 'string') return { ok: false, error: `${column} must be text` }
-      const trimmed = raw.trim()
-      // '' means "cleared", not "empty string" — a blank text column should read
-      // as absent everywhere, and `is null` is the only filter that finds it.
-      return { ok: true, value: trimmed.length ? trimmed : null }
-    }
-    case 'date': {
-      if (typeof raw !== 'string') return { ok: false, error: `${column} must be a date` }
-      const trimmed = raw.trim()
-      if (!trimmed) return { ok: true, value: null }
-      if (!DATE_RE.test(trimmed)) return { ok: false, error: `${column} must be a date (YYYY-MM-DD)` }
-      return { ok: true, value: trimmed }
-    }
-    case 'bool':
-      return { ok: true, value: raw === true || raw === 'true' || raw === 1 || raw === '1' }
-    case 'tribool': {
-      if (raw === '' ) return { ok: true, value: null }
-      return { ok: true, value: raw === true || raw === 'true' || raw === 1 || raw === '1' }
-    }
-    case 'int':
-    case 'money': {
-      if (typeof raw === 'string' && raw.trim() === '') return { ok: true, value: null }
-      // Strip the separators a person types into a money field. A reader who
-      // writes "1,250,000" means a number, and rejecting it teaches them to
-      // distrust the form rather than to type differently.
-      const cleaned = typeof raw === 'string' ? raw.replace(/[$,\s]/g, '') : raw
-      const n = Number(cleaned)
-      if (!Number.isFinite(n)) return { ok: false, error: `${column} must be a number` }
-      return { ok: true, value: kind === 'int' ? Math.trunc(n) : n }
-    }
-    case 'uuid': {
-      if (typeof raw !== 'string') return { ok: false, error: `${column} must be an id` }
-      const trimmed = raw.trim()
-      if (!trimmed) return { ok: true, value: null }
-      if (!UUID_RE.test(trimmed)) return { ok: false, error: `${column} is not a valid id` }
-      return { ok: true, value: trimmed }
-    }
-    case 'textarray': {
-      if (!Array.isArray(raw)) return { ok: false, error: `${column} must be a list` }
-      return {
-        ok: true,
-        value: raw
-          .filter((v): v is string => typeof v === 'string')
-          .map((v) => v.trim())
-          .filter((v) => v.length > 0),
-      }
-    }
-  }
-}
-
 /**
  * Turn a request body into a row for `spec.table`, or an error a person can act
  * on.
  *
- * `partial` is the PATCH case: only the keys present are touched, and nothing
- * is required. On a create every `spec.required` column must arrive non-null —
- * which is where "4 staged intake sessions cannot be accepted until a name is
- * typed" comes from on the other side of the app, and is better than a 500.
+ * The coercion itself lives in src/lib/registry/fields.ts, shared with the
+ * record-children registry — see the header there. What stays here is the one
+ * thing specific to these registers: `author` is stamped from the VIEWER and is
+ * deliberately absent from every `fields` map, so an HR note's author is not
+ * something a client can set. A register whose author the reader can choose is
+ * not evidence of anything.
  */
 export function normalizeRegisterPayload(
   spec: RegisterSpec,
   body: Record<string, unknown>,
   opts: { partial?: boolean; author?: string | null } = {}
 ): NormalizeResult {
-  const value: Record<string, unknown> = {}
-
-  for (const [column, kind] of Object.entries(spec.fields)) {
-    if (!(column in body)) continue
-    const result = coerce(kind, body[column], column)
-    if (!result.ok) return { ok: false, error: result.error }
-
-    const allowed = spec.enums?.[column]
-    if (allowed && result.value !== null && !allowed.includes(String(result.value))) {
-      return { ok: false, error: `${column} must be one of: ${allowed.join(', ')}` }
-    }
-    value[column] = result.value
-  }
-
-  if (!opts.partial) {
-    for (const column of spec.required) {
-      if (value[column] === undefined || value[column] === null || value[column] === '') {
-        return { ok: false, error: `${column.replace(/_/g, ' ')} is required` }
-      }
-    }
-    if (spec.stampAuthor) value.author = opts.author ?? null
-  }
-
-  if (Object.keys(value).length === 0) {
-    return { ok: false, error: 'Nothing to save' }
-  }
-  return { ok: true, value }
+  const parsed = normalizePayload(spec, body, { partial: opts.partial })
+  if (!parsed.ok) return parsed
+  if (!opts.partial && spec.stampAuthor) parsed.value.author = opts.author ?? null
+  return parsed
 }
 
 /**

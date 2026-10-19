@@ -490,7 +490,7 @@ export default function EntitiesTab({
     setSaving(true)
     setError(null)
     try {
-      const res = await fetch('/api/entity-projects', {
+      const res = await fetch('/api/records/entity-projects', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -505,7 +505,7 @@ export default function EntitiesTab({
         const d = await res.json()
         throw new Error(d.error ?? 'Link failed')
       }
-      const { entityProject } = await res.json()
+      const { row: entityProject } = await res.json()
       setLinked((prev) => [...prev, entityProject as EntityProjectWithEntity])
       setMode({ type: 'view' })
     } catch (err) {
@@ -519,7 +519,7 @@ export default function EntitiesTab({
     setSaving(true)
     setError(null)
     try {
-      const res = await fetch(`/api/entity-projects/${ep.id}`, {
+      const res = await fetch(`/api/records/entity-projects/${ep.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -532,7 +532,7 @@ export default function EntitiesTab({
         const d = await res.json()
         throw new Error(d.error ?? 'Update failed')
       }
-      const { entityProject } = await res.json()
+      const { row: entityProject } = await res.json()
       setLinked((prev) =>
         prev.map((p) => (p.id === ep.id ? (entityProject as EntityProjectWithEntity) : p))
       )
@@ -546,7 +546,7 @@ export default function EntitiesTab({
 
   async function handleUnlink(ep: EntityProjectWithEntity) {
     try {
-      const res = await fetch(`/api/entity-projects/${ep.id}`, { method: 'DELETE' })
+      const res = await fetch(`/api/records/entity-projects/${ep.id}`, { method: 'DELETE' })
       if (!res.ok) throw new Error('Unlink failed')
       setLinked((prev) => prev.filter((p) => p.id !== ep.id))
       toast.success(`${ep.entity.name} removed from project`)

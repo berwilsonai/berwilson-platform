@@ -29,7 +29,7 @@ export default function RemovePlayerButton({
           disabled={removing}
           onClick={async () => {
             setRemoving(true)
-            const res = await fetch(`/api/project-players/${playerId}`, { method: 'DELETE' })
+            const res = await fetch(`/api/records/project-players/${playerId}`, { method: 'DELETE' })
             if (res.ok) {
               toast.success(`${playerName} removed from project`)
               router.refresh()

@@ -86,7 +86,12 @@ const ROLE_API_PREFIXES: Record<Exclude<Role, 'admin'>, string[]> = {
     '/api/projects',
     '/api/opportunities',
     '/api/documents',
-    '/api/milestones',
+    // ⚠ THE CHILD NAME, NOT `/api/records` — the registry behind that path
+    // serves six tables (diligence, financing, compliance, players, entity
+    // links and this), and `matchesPrefix` is a prefix match, so the shorter
+    // string would hand a project_manager all six in one line. Every child has
+    // its own path precisely so this list can name one (src/lib/records/children.ts).
+    '/api/records/milestones',
     '/api/dev-notes',
   ],
   member: ['/api/tasks', '/api/team-members', '/api/dev-notes'],

@@ -1,5 +1,4 @@
 import { cache } from 'react'
-import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import type { Role } from './permissions'
 import { isRole } from './permissions'
@@ -33,6 +32,15 @@ export interface Viewer {
 }
 
 export const getViewer = cache(async (): Promise<Viewer | null> => {
+  // ⚠ IMPORTED HERE, NOT AT THE TOP, AND NOT FOR TIDINESS. `@/lib/supabase/server`
+  // reads cookies through `next/headers`, which does not resolve outside Next —
+  // so a top-level import made this whole module unloadable by any verification
+  // script or test, including the pure checks below that need no request at all
+  // (§12: a verification script importing src/lib hits four load-time failures
+  // neither tsc nor the build can see). Only getViewer needs a request; keeping
+  // its dependency inside it is what lets canAccessRecord be asked questions
+  // against the live database. Same idiom as the confidential.ts import below.
+  const { createClient } = await import('@/lib/supabase/server')
   const supabase = await createClient()
   const {
     data: { user },
