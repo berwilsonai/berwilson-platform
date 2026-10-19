@@ -257,16 +257,42 @@ export async function analyzeEmailReport(
     throw new EmailIntakeError(500, 'AI analysis failed. Check the Gemini key and try again.')
   }
 
-  // 2. Reuse existing matchers + fit assessment (all non-fatal).
+  // 2. Reuse existing matchers (all non-fatal).
   const proposalShape = toProposalExtraction(extraction)
-  const [matchCandidates, partyMatches, fitAssessment] = await Promise.all([
+  const [matchCandidates, partyMatches] = await Promise.all([
     // includeOpportunities: THIS is the path whose merge targets were broken —
     // an opportunity could never be a candidate, so the pre-decide model said
     // `create` for threads about GridEdge, Elite Solutions and Zenthium.
     findMatchingRecords(proposalShape.projects, { includeOpportunities: true }).catch(() => []),
     matchExtractedParties(proposalShape.parties).catch(() => []),
-    assessFit(proposalShape, userId).catch(() => null),
   ])
+
+  /*
+   * Fit assessment, but ONLY where the question applies.
+   *
+   * ⚠ Measured 2026-10-19: this path had been assessing pursuit fit on EVERY
+   * thread it staged — 230 of 251 sessions carried a verdict, and 112 of them
+   * said `pass` about Steelton, Weirton and Riverdale, deals already under
+   * way. "Should Ber Wilson pursue this?" is the wrong question to ask of
+   * correspondence on work already in hand, and the wrong answer is worse than
+   * no answer: 92 of the 230 also set `profile_incomplete`, so the card said
+   * "pass, and I am not sure" above a live PSA.
+   *
+   * It also cost the most GPU of anything here for a figure nothing reads.
+   * `decideWeight` does not use `fit_score`, DecideClient deliberately never
+   * prints it (§12 — ±20 points of noise), so the only consumer was the card
+   * on /email-ingestion/<id>. ~50s of a one-request-at-a-time model per
+   * thread, which every interactive Ber AI question then queues behind.
+   *
+   * The gate is the matcher's own answer, not a model's: if an existing
+   * project or opportunity matched, we HAVE this deal and fit is moot. A
+   * thread that matches nothing is the only kind that might be a new pursuit,
+   * which is exactly the case the assessor was written for.
+   */
+  const fitAssessment =
+    matchCandidates.length === 0
+      ? await assessFit(proposalShape, userId).catch(() => null)
+      : null
 
   // 3. Stage the session for review (never auto-confirmed).
   const payload = {

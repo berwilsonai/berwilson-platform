@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { Inbox, FileUp, Users, FileText, Loader2, UserSearch, Camera } from 'lucide-react'
+import { Inbox, FileUp, Users, FileText, Loader2, UserSearch, Camera, Gavel } from 'lucide-react'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { cn } from '@/lib/utils'
 import EmailResearchForm from '@/components/email-ingestion/EmailResearchForm'
@@ -101,8 +101,6 @@ type Predecision = {
   headline?: string | null
 }
 
-const DISPOSITION_RANK: Record<string, number> = { create: 0, merge: 1, none: 2, dismiss: 3 }
-
 const DISPOSITION_LABEL: Record<string, string> = {
   create: 'Create',
   merge: 'Merge',
@@ -136,12 +134,17 @@ async function EmailTab({ supabase }: { supabase: ReturnType<typeof createAdminC
   // inferred from the rows. Scoped to what the dedupe pass itself reads
   // (`create`), because a number beside a button has to mean what the button
   // will act on.
-  const [{ data: sessions }, { count: pendingCreate }] = await Promise.all([
+  const [{ data: sessions }, { count: pendingCreate }, { count: pendingTotal }] = await Promise.all([
     supabase
       .from('email_intake_sessions')
       .select('id, label, status, updated_at, extraction_result, predecision')
       .eq('intake_kind', 'email')
-      .neq('status', 'dismissed')
+      // ⚠ IN SQL, BEFORE THE LIMIT. Filtering `pending` out in the caller
+      // afterwards returned an EMPTY list — the 25 newest undismissed rows are
+      // all pending, so every confirmed run fell outside the window (§12: an
+      // exclusion must be applied before the LIMIT). `running` is stored;
+      // `failed` is a stale `running`, which is why it is not a status here.
+      .in('status', ['running', 'confirmed'])
       .order('updated_at', { ascending: false })
       .limit(25),
     supabase
@@ -150,20 +153,36 @@ async function EmailTab({ supabase }: { supabase: ReturnType<typeof createAdminC
       .eq('intake_kind', 'email')
       .eq('status', 'pending')
       .eq('predecision->>disposition', 'create'),
+    // Everything this tab USED to list and now points at instead. Counted in
+    // SQL rather than from `rows`, which is capped at 25 against a backlog
+    // routinely four times that.
+    supabase
+      .from('email_intake_sessions')
+      .select('id', { count: 'exact', head: true })
+      .eq('intake_kind', 'email')
+      .eq('status', 'pending'),
   ])
 
-  const rows = (sessions ?? [])
-    .map((s) => ({
-      ...s,
-      effective: effectiveEmailIntakeStatus(s.status, s.updated_at),
-      pre: readPredecision(s.predecision),
-    }))
-    // Best first: what Ber AI says to CREATE leads the list, then merges, then
-    // anything it has not judged yet. A queue in arrival order makes the reader
-    // do the sorting, which is the work we are trying to remove.
-    .sort((a, b) => DISPOSITION_RANK[a.pre?.disposition ?? 'none'] - DISPOSITION_RANK[b.pre?.disposition ?? 'none'])
+  /*
+   * ⚠ This tab used to list the pending sessions too, ranked by
+   * DISPOSITION_RANK — a SECOND decide queue over the same rows /decide ranks
+   * by `decideWeight`, with its own order and its own dismiss buttons. On
+   * 2026-10-19 that was 101 rows appearing twice, in two different orders,
+   * each page implying it was the queue. CLAUDE.md §12: one quantity, one
+   * definition, or the reader trusts neither.
+   *
+   * So the split is by WHO the row is waiting on. A `running` or `failed`
+   * session is this page's own job — it is the research form's output and
+   * belongs beside the form that started it. A `pending` session is waiting on
+   * a human judgement, which is Decide's whole purpose, and is a count and a
+   * link from here. Nothing is hidden; it has one home.
+   */
+  const rows = (sessions ?? []).map((s) => ({
+    ...s,
+    effective: effectiveEmailIntakeStatus(s.status, s.updated_at),
+    pre: readPredecision(s.predecision),
+  }))
   const anyRunning = rows.some((r) => r.effective === 'running')
-  const judged = rows.filter((r) => r.pre).length
 
   return (
     <>
@@ -181,6 +200,24 @@ async function EmailTab({ supabase }: { supabase: ReturnType<typeof createAdminC
 
       <DedupeProposalsButton pending={pendingCreate ?? 0} />
 
+      {/* Where the pending ones went. One destination, named, with its count. */}
+      {(pendingTotal ?? 0) > 0 && (
+        <Link
+          href="/decide"
+          className="flex items-center justify-between gap-3 rounded-lg border border-border bg-card px-4 py-3 hover:bg-accent transition-colors"
+        >
+          <span className="min-w-0">
+            <span className="text-sm font-medium block">
+              {pendingTotal} research {pendingTotal === 1 ? 'package is' : 'packages are'} waiting on you
+            </span>
+            <span className="text-xs text-muted-foreground">
+              Ber AI has read them and proposed what to do. Decide is where they get confirmed, merged or dismissed.
+            </span>
+          </span>
+          <Gavel size={16} className="text-muted-foreground shrink-0" />
+        </Link>
+      )}
+
       {/* Manual fallback — reports produced outside the mailbox sweep */}
       <details className="group rounded-lg border border-border bg-card">
         <summary className="cursor-pointer select-none px-4 py-3 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
@@ -193,9 +230,7 @@ async function EmailTab({ supabase }: { supabase: ReturnType<typeof createAdminC
 
       {rows.length > 0 && (
         <div className="space-y-2">
-          <h2 className="label-caps text-muted-foreground">
-            Recent{judged > 0 && <span className="ml-2 normal-case tracking-normal">· {judged} pre-read by Ber AI</span>}
-          </h2>
+          <h2 className="label-caps text-muted-foreground">Recent runs</h2>
           <div className="rounded-lg border border-border bg-card divide-y divide-border">
             {rows.map((s) => {
               const st = s.effective
@@ -267,7 +302,6 @@ async function EmailTab({ supabase }: { supabase: ReturnType<typeof createAdminC
                       </span>
                     )}
                     {badge}
-                    {st === 'pending' && <DismissSessionButton sessionId={s.id} />}
                   </span>
                 </Link>
               )
@@ -485,13 +519,23 @@ async function CardsTab({ supabase }: { supabase: ReturnType<typeof createAdminC
 }
 
 async function MeetingTab({ supabase }: { supabase: ReturnType<typeof createAdminClient> }) {
-  const { data: sessions } = await supabase
-    .from('email_intake_sessions')
-    .select('id, label, status, updated_at, created_record_ids')
-    .eq('intake_kind', 'meeting')
-    .neq('status', 'dismissed')
-    .order('updated_at', { ascending: false })
-    .limit(25)
+  // Confirmed only, for the same reason as the Email tab: a staged meeting is
+  // already a lane on /decide (14 of them on 2026-10-19), and a row that
+  // appears in two queues makes the reader wonder which one is authoritative.
+  const [{ data: sessions }, { count: pendingTotal }] = await Promise.all([
+    supabase
+      .from('email_intake_sessions')
+      .select('id, label, status, updated_at, created_record_ids')
+      .eq('intake_kind', 'meeting')
+      .eq('status', 'confirmed')
+      .order('updated_at', { ascending: false })
+      .limit(25),
+    supabase
+      .from('email_intake_sessions')
+      .select('id', { count: 'exact', head: true })
+      .eq('intake_kind', 'meeting')
+      .eq('status', 'pending'),
+  ])
 
   const dateFmt = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' })
   const rows = (sessions ?? []).map((s) => {
@@ -524,12 +568,29 @@ async function MeetingTab({ supabase }: { supabase: ReturnType<typeof createAdmi
 
       <MeetingIntakeForm />
 
+      {(pendingTotal ?? 0) > 0 && (
+        <Link
+          href="/decide"
+          className="flex items-center justify-between gap-3 rounded-lg border border-border bg-card px-4 py-3 hover:bg-accent transition-colors"
+        >
+          <span className="min-w-0">
+            <span className="text-sm font-medium block">
+              {pendingTotal} recorded {pendingTotal === 1 ? 'meeting is' : 'meetings are'} waiting on you
+            </span>
+            <span className="text-xs text-muted-foreground">
+              Already transcribed and searchable. Confirming adds the deal, the attendees and the follow-up tasks.
+            </span>
+          </span>
+          <Gavel size={16} className="text-muted-foreground shrink-0" />
+        </Link>
+      )}
+
       {rows.length > 0 && (
         <div className="space-y-2">
-          <h2 className="label-caps text-muted-foreground">Recent</h2>
+          <h2 className="label-caps text-muted-foreground">Confirmed</h2>
           <div className="rounded-lg border border-border bg-card divide-y divide-border">
             {rows.map((s) => {
-              const st = s.status === 'confirmed' ? 'confirmed' : 'pending'
+              const st = 'confirmed' as const
               const badge = (
                 <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full ring-1 ring-inset shrink-0 inline-flex items-center gap-1 ${EMAIL_INTAKE_STATUS_BADGE[st]}`}>
                   {EMAIL_INTAKE_STATUS_LABELS[st]}
@@ -547,7 +608,6 @@ async function MeetingTab({ supabase }: { supabase: ReturnType<typeof createAdmi
                   </span>
                   <span className="flex items-center gap-1.5 shrink-0">
                     {badge}
-                    {st === 'pending' && <DismissSessionButton sessionId={s.id} />}
                   </span>
                 </Link>
               )
