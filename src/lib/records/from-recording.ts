@@ -273,15 +273,17 @@ export async function findHardFact(args: {
     return { kind: 'dated_next_step', detail: dated.label }
   }
 
-  const words = searchWords(args.name, args.counterparty)
-  if (words.length === 0) return null
+  // ⚠ THE RECORD'S OWN NAME, NOT THE COUNTERPARTY'S. See `identifiesRecord` for
+  // the measurement that forced this: counterparty words made one Tensor MNDA
+  // the "fact" behind four unrelated sites on one call.
+  if ([...distinguishingWords(args.name)].length === 0) return null
 
   // (b) A document that came back EXECUTED near the conversation.
-  const signed = await executedDocument(words, args.recordedOn).catch(() => null)
+  const signed = await executedDocument(args.name, args.recordedOn).catch(() => null)
   if (signed) return { kind: 'executed_document', detail: signed }
 
   // (c) A follow-up already on the calendar.
-  const booked = await followUpBooked(words, args.mailboxes).catch(() => null)
+  const booked = await followUpBooked(args.name, args.mailboxes).catch(() => null)
   if (booked) return { kind: 'follow_up_meeting', detail: booked }
 
   return null
@@ -311,8 +313,8 @@ export function datedNextStep(
   return null
 }
 
-/** A subject in the window that says a document was executed. */
-async function executedDocument(words: string[], recordedOn: string): Promise<string | null> {
+/** A subject in the window that says a document was executed AND names this deal. */
+async function executedDocument(recordName: string, recordedOn: string): Promise<string | null> {
   const supabase = createAdminClient()
   const anchor = new Date(`${recordedOn}T12:00:00Z`).getTime()
   if (!isFinite(anchor)) return null
@@ -338,15 +340,19 @@ async function executedDocument(words: string[], recordedOn: string): Promise<st
 
   for (const row of (data ?? []) as { subject: string | null; last_at: string | null }[]) {
     const subject = (row.subject ?? '').toLowerCase()
+    // The wrapper decides WHETHER a document was executed…
     if (!EXECUTED_SUBJECT_PATTERNS.some((p) => subject.includes(p))) continue
-    if (!words.some((w) => subject.includes(w))) continue
+    // …and the document's own name decides WHICH deal it is about. Matching the
+    // deal against the whole subject let "eSigned Document Ready:" supply the
+    // word that convicted a template (see `identifiesRecord`).
+    if (!identifiesRecord(documentNameFromSubject(row.subject ?? ''), recordName)) continue
     return `${(row.subject ?? '').trim().slice(0, 90)} (${(row.last_at ?? '').slice(0, 10)})`
   }
   return null
 }
 
-/** A calendar event ahead of us whose title names this deal or counterparty. */
-async function followUpBooked(words: string[], mailboxes?: string[]): Promise<string | null> {
+/** A calendar event ahead of us whose title names THIS deal. */
+async function followUpBooked(recordName: string, mailboxes?: string[]): Promise<string | null> {
   const { fetchCalendarEvents, allMailboxes, isGoogleConfigured } = await import(
     '@/lib/integrations/google-workspace'
   )
@@ -359,8 +365,11 @@ async function followUpBooked(words: string[], mailboxes?: string[]): Promise<st
   for (const mailbox of boxes) {
     const events = await fetchCalendarEvents(timeMin, timeMax, mailbox).catch(() => [])
     for (const ev of events) {
-      const haystack = `${ev.subject ?? ''}`.toLowerCase()
-      if (!words.some((w) => haystack.includes(w))) continue
+      // Same bar as the document: the whole name, or it is a shared word. A
+      // solicitation titled "AMD 0001 IDIQ" matched "SBIR Phase 3 / $102M IDIQ
+      // Vehicle" on `idiq` under the any-word rule — a contract-vehicle noun,
+      // not a deal.
+      if (!identifiesRecord(ev.subject ?? '', recordName)) continue
       return `${(ev.subject ?? '').trim().slice(0, 70)} on ${(ev.start ?? '').slice(0, 10)}`
     }
   }
@@ -368,18 +377,69 @@ async function followUpBooked(words: string[], mailboxes?: string[]): Promise<st
 }
 
 /**
- * The words a document or an event may be recognised by.
+ * Does this text name THIS deal — the whole name, contiguously?
  *
- * ⚠ `distinguishingWords` IS THE SHARED ANSWER AND NOT A LOCAL STOPWORD LIST.
- * §12 records a duplicate list drifting beside the resolver's, and the cost of
- * a generic word here is a false positive on the one gate that is supposed to
- * be made of facts — "development" would match half the corpus.
+ * ⚠ THREE RULES WERE TRIED HERE AND THE REAL CORPUS KILLED THE FIRST TWO.
+ * Measured 2026-10-19 by running the gate over 18 already-staged meetings:
+ *
+ *   1. **ANY distinguishing word matches.** 9 records would have been created
+ *      and every one was wrong. The search included the COUNTERPARTY's words,
+ *      so one `Tensor MNDA (with Non-Circumvention)` became the "fact" behind
+ *      *Uintah Basin Project*, *Alberta Project*, *Weber Data Center* and *Deer
+ *      Creek Public Infrastructure*. And Gmail's own wrapper is in the
+ *      haystack: *West Virginia Power-**Ready** Site* matched a **template** on
+ *      the word in *"eSigned Document **Ready**:"*.
+ *   2. **EVERY distinguishing word matches, counterparty excluded.** Down to 3,
+ *      all still wrong — because `distinguishingWords` correctly drops the
+ *      vocabulary every record shares, so *Tensor Site* and *Tensor IQ Data
+ *      Center* both reduce to the single word `tensor`, which is the
+ *      counterparty's. "Every word" and "one shared word" are the same test on
+ *      a two-word name, which is §12's shared-industry-word trap with no
+ *      threshold that escapes it.
+ *   3. **"…and the counterparty is new to the register."** Measured before
+ *      building it, and it does not discriminate at all: `Tensor IQ` is named
+ *      by **0** projects and opportunities, exactly like `Synetra`.
+ *
+ * What survives is the strict, threshold-free form: **the document is named
+ * after the deal.** The record's whole name must appear contiguously, once
+ * punctuation is flattened. `synetra` ⊂ `bw mnda synetra with non circumvention
+ * docx` passes — which is the case this gate exists for, a first MNDA with a
+ * counterparty whose name IS the deal. `tensor iq data center` ⊄ `tensor mnda`
+ * does not, and that deal stays staged for a human, which is where it already
+ * was. A long name (`Weirton — Cleveland-Cliffs (WV)`) will never be created
+ * this way, and that is the right answer: it already exists.
+ *
+ * ⚠ `distinguishingWords` is still consulted, for one job only — a name with no
+ * identity-bearing word at all ("The Project") must not match on its filler.
  */
-function searchWords(name: string, counterparty: string | null): string[] {
-  const words = new Set<string>()
-  for (const w of distinguishingWords(name)) words.add(w)
-  if (counterparty) for (const w of distinguishingWords(counterparty)) words.add(w)
-  return [...words].filter((w) => w.length >= 4)
+export function identifiesRecord(text: string, recordName: string): boolean {
+  if ([...distinguishingWords(recordName)].length === 0) return false
+  const flat = (v: string) =>
+    v
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, ' ')
+      .trim()
+  const needle = flat(recordName)
+  if (needle.length < 3) return false
+  return flat(text).includes(needle)
+}
+
+/**
+ * A subject with the vendor's own wrapper removed, so only the document's name
+ * is matched against.
+ *
+ * Gmail's eSignature subjects are `eSigned Document Ready: "<file>.docx - …"`,
+ * and a forwarded one adds `Fwd:`. Where a quoted file name is present it IS
+ * the answer; otherwise the known prefixes come off. Leaving them on is what
+ * let the word "ready" convict a template, above.
+ */
+export function documentNameFromSubject(subject: string): string {
+  const quoted = subject.match(/"([^"]{3,})"/)
+  if (quoted) return quoted[1]
+  return subject
+    .replace(/^\s*(re|fwd|fw)\s*:\s*/gi, '')
+    .replace(/^\s*(esigned document ready|esignature completed|signature completed|completed)\s*:\s*/i, '')
+    .trim()
 }
 
 // ─── the record itself ───────────────────────────────────────────────────────

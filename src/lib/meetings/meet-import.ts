@@ -34,6 +34,7 @@ import { analyzeMeetingNotes, type SeedAttendee } from '@/lib/email-ingestion/an
 import { SYSTEM_USER_ID } from '@/lib/email-ingestion/analyze'
 import { splitGeminiNotes } from '@/lib/meetings/gemini-notes'
 import { resolveMeetingTarget, fileMeetingDocument, type FileTarget } from '@/lib/meetings/file-notes'
+import { promoteAndAlert, type PromotionReport } from '@/lib/audio/promote'
 import { upsertMeetingFromImport, linkDocumentToMeeting } from '@/lib/meetings/record'
 
 /**
@@ -67,6 +68,18 @@ export interface MeetImportResult {
   recordingsWithoutTranscript: number
   /** Mailboxes with no Meet folder at all. */
   noMeetFolder: string[]
+  /**
+   * Deals a Meet call named that the platform did not have, and what became of
+   * each (§11's 10-19 amendment). The SAME pass the recording sweeps run — a
+   * Gemini notes document is a transcript with the recap already attached, so
+   * it reaches the gate on exactly the same terms and through one function.
+   */
+  promoted: {
+    created: { kind: string; name: string; id: string; fact: string }[]
+    skipped: { name: string; why: string }[]
+    texted: number
+    textFailed: number
+  }
   /** Notes filed straight onto a project/opportunity named in the title. */
   filed: number
   /**
@@ -100,7 +113,11 @@ export function meetingTitleFromFileName(name: string): string {
   return (
     name
       .replace(/\.txt$/i, '')
-      .replace(/\s*-\s*(Notes by Gemini|Transcript)\s*$/i, '')
+      // ⚠ `Recording` BELONGS IN THIS LIST TOO, and its absence from the
+      // sibling in google-drive.ts made the "no transcript beside it" count lie
+      // on every run (see `meetArtifactKey`). A hand-written enumeration beside
+      // another hand-written enumeration drifts — §12.
+      .replace(/\s*-\s*(Notes by Gemini|Transcript|Recording)\s*$/i, '')
       // "- 2026/09/25 10:58 MDT" / "- 2026-09-25 10:58 GMT-6": the trailing
       // timestamp. Anchored to the END so a date inside a real title survives.
       .replace(/\s*-\s*\d{4}[/-]\d{2}[/-]\d{2}[ T]\d{1,2}:\d{2}(:\d{2})?\s*[A-Z]{2,5}(?:[+-]\d{1,2})?\s*$/, '')
@@ -199,6 +216,7 @@ export async function importMeetTranscripts(
     tooShort: 0,
     failed: 0,
     recordingsWithoutTranscript: 0,
+    promoted: { created: [], skipped: [], texted: 0, textFailed: 0 },
     noMeetFolder: [],
     filed: 0,
     filedReference: 0,
@@ -285,6 +303,22 @@ export async function importMeetTranscripts(
         } else if (one.outcome === 'too_short') result.tooShort++
         else result.alreadyImported++
         if (one.note) result.notes.push(one.note)
+        if (one.promotion) {
+          for (const c of one.promotion.created) {
+            result.promoted.created.push({
+              kind: c.kind,
+              name: c.name,
+              id: c.id,
+              fact: `${c.fact.kind}: ${c.fact.detail}`,
+            })
+          }
+          result.promoted.skipped.push(...one.promotion.skipped)
+          result.promoted.texted += one.promotion.alert?.sent ?? 0
+          result.promoted.textFailed += one.promotion.alert?.failed ?? 0
+          for (const n of [...one.promotion.notes, ...(one.promotion.alert?.notes ?? [])]) {
+            result.notes.push(n)
+          }
+        }
         seen.add(file.id)
       } catch (err) {
         result.failed++
@@ -337,6 +371,8 @@ interface ImportOutcome {
   meetingCreated: boolean
   /** Why it was not filed on a record, when that is worth saying out loud. */
   note?: string
+  /** What the promotion pass created off this call, and what it refused. */
+  promotion?: PromotionReport
 }
 
 /**
@@ -500,11 +536,34 @@ async function importOne(
     note = `${title}: filed on ${target.name} from a title you filed before.`
   }
 
+  // ── A deal this call NAMED that the platform does not have ────────────────
+  //
+  // ⚠ THE SAME FUNCTION THE TWO RECORDING SWEEPS CALL, not a third copy of the
+  // rule. §12's hardest fork to see is a sibling module written days apart that
+  // answers the same question for a second source — and this IS that second
+  // source: a Gemini notes document is a transcript with the recap attached, so
+  // the only thing that differs is where the words came from. The gate itself
+  // (nothing resolves the name, and one hard fact) has one home.
+  //
+  // Runs whether or not the TITLE filed onto a record: a call titled for one
+  // deal routinely names another, and `referenced_records` is per-deal where
+  // the title is per-call.
+  const promotion = await promoteAndAlert({
+    extraction,
+    // `meet:` so a reader of `auto_created_from` can tell which door a record
+    // came through, matching `voicememo:` and `driveaudio:`.
+    sourceRef: `meet:${file.id}`,
+    recordedOn: extraction.meeting_date ?? meetingDate,
+    sourceTitle: title,
+    mailboxes: [mailbox],
+  })
+
   return {
     outcome: 'imported',
     filed: onRecord,
     filedReference: onReference,
     meetingCreated: Boolean(meeting?.created),
     note,
+    promotion,
   }
 }

@@ -643,9 +643,9 @@ export async function listMeetTranscripts(
 
   // A recording is "covered" when an artifact shares its meeting title.
   const covered = new Set(chosen.map((t) => meetArtifactKey(t.name)))
-  const uncovered = recordings.filter(
-    (r) => !covered.has(meetArtifactKey(r.name.replace(/\.[a-z0-9]+$/i, '')))
-  ).length
+  // `meetArtifactKey` strips the extension AND the ` - Recording` suffix, so
+  // the caller does neither — doing it here is what hid the bug above.
+  const uncovered = recordings.filter((r) => !covered.has(meetArtifactKey(r.name))).length
 
   return {
     transcripts: opts.limit ? chosen.slice(0, opts.limit) : chosen,
@@ -664,11 +664,30 @@ function isMeetArtifactName(name: string): boolean {
   return name.includes(TRANSCRIPT_MARKER) || isGeminiNotesName(name)
 }
 
-/** The meeting a Meet artifact belongs to: its name with the artifact suffix
- *  stripped. Two files sharing this key describe the same call. */
+/**
+ * The meeting a Meet artifact belongs to: its name with the artifact suffix
+ * stripped. Two files sharing this key describe the same call.
+ *
+ * ⚠ `Recording` IS ONE OF THE SUFFIXES, and leaving it out made the
+ * "no transcript beside it" count lie. Measured 2026-10-19: tuaone@ held
+ * `Ber Wilson chat W Taylor - 2026/10/12 09:00 MDT - Recording` (239MB) and
+ * `Ber Wilson / Zenthium - 2026/09/29 13:57 MDT - Recording` (751MB), both
+ * beside their own imported `… - Notes by Gemini` document — and the importer
+ * reported *"2 recording(s) have no transcript beside them"* on every run,
+ * because the recording's key kept its ` - Recording` tail and could never
+ * equal the notes document's key. The caller tried to compensate by stripping a
+ * file EXTENSION (`.mp4`), which Drive does not put in `name` at all. §12, in
+ * the vendor-naming family: a vendor's file-name suffix is a UI string, so
+ * match a LIST of them in the one place that defines the key.
+ */
+const MEET_ARTIFACT_SUFFIXES = /\s*-\s*(Notes by Gemini|Transcript|Recording)\s*$/i
+
 function meetArtifactKey(name: string): string {
   return name
-    .replace(/\s*-\s*(Notes by Gemini|Transcript)\s*$/i, '')
+    // The extension too, for a feed that does include one — harmless here and
+    // the reason the caller was doing it separately.
+    .replace(/\.[a-z0-9]{2,4}$/i, '')
+    .replace(MEET_ARTIFACT_SUFFIXES, '')
     .trim()
     .toLowerCase()
 }

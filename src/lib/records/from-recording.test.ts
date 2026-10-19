@@ -9,7 +9,15 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 
 import type { MeetingIntakeExtraction, MeetingReferencedRecord } from '@/lib/ai/prompts/meeting-intake'
-import { composeTldr, datedNextStep, destinationFor, opportunityType, succinct } from './from-recording'
+import {
+  composeTldr,
+  datedNextStep,
+  destinationFor,
+  documentNameFromSubject,
+  identifiesRecord,
+  opportunityType,
+  succinct,
+} from './from-recording'
 
 function ref(over: Partial<MeetingReferencedRecord> = {}): MeetingReferencedRecord {
   return {
@@ -137,4 +145,61 @@ test('succinct cuts at a sentence and never mid-word', () => {
 
 test('a short line is returned untouched — no ellipsis on a complete sentence', () => {
   assert.equal(succinct('Short and done.'), 'Short and done.')
+})
+
+// ─── what counts as "this document is about that deal" ──────────────────────
+//
+// Every case below is a real false positive the any-word rule produced, found
+// by running the gate over 18 already-staged meetings on 2026-10-19. Three
+// rules were tried; these pin the two that failed so neither comes back.
+
+test('a document named after the deal identifies it', () => {
+  assert.ok(identifiesRecord('BW MNDA Synetra (with Non-Circumvention).docx', 'Synetra'))
+  assert.ok(identifiesRecord('Tooele Pad B - PSA executed.pdf', 'Tooele Pad B'))
+  // Punctuation is flattened on both sides, not stripped from one.
+  assert.ok(identifiesRecord('BW_MNDA_Firm-Power_final.docx', 'Firm Power'))
+})
+
+test('ONE SHARED WORD IS NOT IDENTIFICATION — the counterparty is not the deal', () => {
+  // The whole 10-19 measurement: one Tensor MNDA was the "fact" behind four
+  // unrelated sites, because every one of those names reduces to `tensor`
+  // once the shared vocabulary ("data", "center", "project", "site") is
+  // dropped. A signed NDA with Tensor says nothing about which site is real.
+  const mnda = 'Tensor MNDA (with Non-Circumvention).docx - 9/23/26, 2:22 PM'
+  assert.equal(identifiesRecord(mnda, 'Tensor IQ Data Center'), false)
+  assert.equal(identifiesRecord(mnda, 'Tensor Site'), false)
+  assert.equal(identifiesRecord(mnda, 'Uintah Basin Project'), false)
+  assert.equal(identifiesRecord(mnda, 'Alberta Project'), false)
+  assert.equal(
+    identifiesRecord('BerWilson_TensorIQ_Master_Strategic_Partnership_Agreement_Final', 'Tensor Site'),
+    false
+  )
+})
+
+test('a TEMPLATE is not evidence about any deal', () => {
+  // `West Virginia Power-Ready Site` matched `BW MNDA Template` on the word
+  // "ready" — supplied by Gmail's own wrapper, "eSigned Document Ready:".
+  assert.equal(
+    identifiesRecord('BW MNDA Template (with Non-Circumvention).docx', 'West Virginia Power-Ready Site'),
+    false
+  )
+})
+
+test('the vendor’s wrapper is not part of the document’s name', () => {
+  assert.equal(
+    documentNameFromSubject('eSigned Document Ready: "BW MNDA Synetra (with Non-Circumvention).docx - 10/19/26, 10:20 AM"'),
+    'BW MNDA Synetra (with Non-Circumvention).docx - 10/19/26, 10:20 AM'
+  )
+  assert.equal(documentNameFromSubject('Fwd: Qlocity_IAN Fully executed MDNA'), 'Qlocity_IAN Fully executed MDNA')
+  // ⚠ The word "Ready" must not survive into the haystack as if it were part
+  // of a file name — that is what convicted the template above.
+  const stripped = documentNameFromSubject('eSigned Document Ready: BW MNDA Template.docx')
+  assert.doesNotMatch(stripped, /^esigned/i)
+  assert.equal(identifiesRecord(stripped, 'West Virginia Power-Ready Site'), false)
+})
+
+test('a name with no identity-bearing word matches nothing', () => {
+  // "The Project" is filler; without this a document would match on nothing.
+  assert.equal(identifiesRecord('Anything at all - Project.docx', 'The Project'), false)
+  assert.equal(identifiesRecord('xx', 'ab'), false)
 })
