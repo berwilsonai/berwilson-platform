@@ -74,6 +74,8 @@ interface TeamTaskBoardProps {
   sheetUrl?: string | null
   /** Open this task's detail sheet on mount (deep link from search: /tasks?task=<id>). */
   initialOpenTaskId?: string | null
+  /** Open the add form on mount — a record's header Log menu arriving at `?new=1`. */
+  startAdd?: boolean
   /**
    * Records and commitments whose conversations have moved inside
    * LIVE_CORRESPONDENCE_DAYS. Arrays rather than Sets because this crosses the
@@ -119,6 +121,7 @@ export default function TeamTaskBoard({
   showWeeklyReport = false,
   sheetUrl = null,
   initialOpenTaskId = null,
+  startAdd = false,
   liveRecordIds = [],
   liveCommitmentIds = [],
   liveError = null,
@@ -174,7 +177,7 @@ export default function TeamTaskBoard({
   const [openTaskId, setOpenTaskId] = useState<string | null>(initialOpenTaskId)
 
   // add form
-  const [showAdd, setShowAdd] = useState(false)
+  const [showAdd, setShowAdd] = useState(startAdd)
   const [title, setTitle] = useState('')
   const [assigneeId, setAssigneeId] = useState('')
   const [projectId, setProjectId] = useState(scopeProjectId ?? '')

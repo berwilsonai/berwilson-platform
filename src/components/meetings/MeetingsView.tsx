@@ -38,12 +38,19 @@ interface Props {
   contacts: ContactOption[]
   canEdit: boolean
   canDelete: boolean
+  /**
+   * Open the form on arrival — `?new=1`, which is how `RecordLogMenu` in the
+   * record header gets here. Read on the server and passed in, rather than
+   * read from `useSearchParams` in an effect, so the form is in the first
+   * paint and there is no flash of the empty list.
+   */
+  startNew?: boolean
 }
 
-export default function MeetingsView({ scope, projectId, opportunityId, initialMeetings, initialFiles, teamMembers, contacts, canEdit, canDelete }: Props) {
+export default function MeetingsView({ scope, projectId, opportunityId, initialMeetings, initialFiles, teamMembers, contacts, canEdit, canDelete, startNew = false }: Props) {
   const [meetings, setMeetings] = useState<Meeting[]>(initialMeetings)
   const [files, setFiles] = useState<Document[]>(initialFiles)
-  const [mode, setMode] = useState<Mode>('list')
+  const [mode, setMode] = useState<Mode>(startNew && canEdit ? 'new' : 'list')
 
   const board = scope === 'company'
   const filesFor = (id: string) => files.filter((f) => f.meeting_id === id)

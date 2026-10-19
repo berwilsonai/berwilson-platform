@@ -23,6 +23,7 @@ import OpportunityStatusControl from '@/components/opportunities/OpportunityStat
 import GenerateBriefButton from '@/components/projects/GenerateBriefButton'
 import OpportunityDeleteButton from '@/components/opportunities/OpportunityDeleteButton'
 import RecordTabBar, { type TabKey } from '@/components/records/RecordTabBar'
+import RecordLogMenu from '@/components/records/RecordLogMenu'
 import RecordPager from '@/components/records/RecordPager'
 import { chipTone } from '@/lib/ui/tone'
 import TrackVisit from '@/components/shared/TrackVisit'
@@ -127,6 +128,14 @@ export default async function OpportunityDetailLayout({ children, params }: Layo
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
+            {/* Creating leads — it is the act you arrive wanting to do, and
+                until this existed the only door to logging a meeting by hand
+                was a tab hidden under "More" on 5 of 7 opportunities. */}
+            <RecordLogMenu
+              basePath={`/opportunities/${id}`}
+              kind="opportunity"
+              canLogMeeting={viewer?.isAdmin ?? false}
+            />
             <GenerateBriefButton recordId={id} recordName={opportunity.name} kind="opportunity" />
             <OpportunityStatusControl opportunityId={id} status={s} />
             <Link

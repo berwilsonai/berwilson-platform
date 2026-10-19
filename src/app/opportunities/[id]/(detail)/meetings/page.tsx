@@ -8,10 +8,13 @@ export const metadata = { title: 'Meetings — Ber Wilson Intelligence' }
 
 interface PageProps {
   params: Promise<{ id: string }>
+  searchParams: Promise<{ new?: string }>
 }
 
-export default async function OpportunityMeetingsPage({ params }: PageProps) {
+export default async function OpportunityMeetingsPage({ params, searchParams }: PageProps) {
   const { id } = await params
+  // `?new=1` — the header's Log menu arriving with the form already open.
+  const { new: startNew } = await searchParams
   const supabase = createAdminClient()
 
   const [{ data: meetings }, viewer] = await Promise.all([
@@ -39,6 +42,7 @@ export default async function OpportunityMeetingsPage({ params }: PageProps) {
       contacts={contacts}
       canEdit={viewer?.isAdmin ?? false}
       canDelete={viewer?.isAdmin ?? false}
+      startNew={startNew === '1'}
     />
   )
 }

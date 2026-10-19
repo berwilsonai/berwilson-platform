@@ -205,11 +205,17 @@ function UpdateCard({ update, onSaved }: { update: Update; onSaved: () => void }
 interface UpdatesTabProps {
   projectId: string
   initialUpdates: Update[]
+  /**
+   * Open the composer on arrival — `?new=1`, which is how `RecordLogMenu` in
+   * the record header gets here. Read on the server and passed in so the box
+   * is in the first paint and the reader can start typing.
+   */
+  startNew?: boolean
 }
 
-export default function UpdatesTab({ projectId, initialUpdates }: UpdatesTabProps) {
+export default function UpdatesTab({ projectId, initialUpdates, startNew = false }: UpdatesTabProps) {
   const [updates] = useState(initialUpdates)
-  const [showPaste, setShowPaste] = useState(false)
+  const [showPaste, setShowPaste] = useState(startNew)
 
   function handleSaved() {
     // Re-fetch updates from the page (simple approach: reload)
@@ -228,14 +234,14 @@ export default function UpdatesTab({ projectId, initialUpdates }: UpdatesTabProp
           className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md border border-input bg-background text-xs font-medium hover:bg-accent transition-colors"
         >
           <Plus size={12} />
-          Paste Update
+          Log an update
         </button>
       </div>
 
       {/* Paste input area */}
       {showPaste && (
         <div className="rounded-lg border border-border bg-card p-4">
-          <PasteInput projectId={projectId} onSaved={handleSaved} />
+          <PasteInput projectId={projectId} onSaved={handleSaved} autoFocus />
         </div>
       )}
 
@@ -244,14 +250,14 @@ export default function UpdatesTab({ projectId, initialUpdates }: UpdatesTabProp
         <EmptyState
           icon={MessageSquare}
           title="No updates yet"
-          description="Paste an email, meeting notes, or project correspondence to extract intelligence."
+          description="Type notes, or paste an email or meeting summary. Ber AI pulls out the tasks, risks and decisions — or save it exactly as you wrote it."
           action={
             <button
               onClick={() => setShowPaste(true)}
               className="inline-flex items-center gap-1.5 h-9 px-4 rounded-md bg-foreground text-background text-sm font-medium hover:bg-foreground/90 transition-colors"
             >
               <Plus size={14} />
-              Paste First Update
+              Log the first update
             </button>
           }
         />

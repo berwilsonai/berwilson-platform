@@ -1,9 +1,8 @@
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
-import { Pencil, ExternalLink, Layers, ChevronRight, Plus } from 'lucide-react'
+import { ExternalLink, Layers, ChevronRight, Plus } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { createAdminClient } from '@/lib/supabase/admin'
-import GenerateBriefButton from '@/components/projects/GenerateBriefButton'
 import ProjectNarrativeBrief from '@/components/projects/ProjectNarrativeBrief'
 import MediaGallery from '@/components/shared/MediaGallery'
 import DependenciesTab from '@/components/projects/DependenciesTab'
@@ -19,8 +18,6 @@ import {
 } from '@/lib/utils/constants'
 import PursuitSnapshot from '@/components/projects/PursuitSnapshot'
 import { mixedTotalNote, pipelineTotal, pipelineValue } from '@/lib/economics/pipeline'
-import ProjectProtection from '@/components/security/ProjectProtection'
-import { getViewer } from '@/lib/auth/viewer'
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params
@@ -82,9 +79,6 @@ interface PageProps {
 export default async function ProjectOverviewPage({ params }: PageProps) {
   const { id } = await params
   const supabase = createAdminClient()
-  // Only an admin sees the protection control — mirrors mayStepUp(), which is
-  // the one place that decides who can hold a step-up.
-  const viewer = await getViewer()
 
   const [{ data: project }, { data: activityLogs }, { data: entityLinksRaw }, { data: childProjects }, { data: projectPhotos }, { data: allProjectsRaw }, { data: storedBrief }] = await Promise.all([
     supabase.from('projects').select('*').eq('id', id).single(),
@@ -186,20 +180,9 @@ export default async function ProjectOverviewPage({ params }: PageProps) {
         />
       )}
 
-      {/* Actions */}
-      <div className="flex flex-wrap items-center justify-end gap-2">
-        {viewer?.isAdmin && (
-          <ProjectProtection projectId={id} confidential={project.confidential === true} />
-        )}
-        <GenerateBriefButton recordId={id} recordName={project.name} />
-        <Link
-          href={`/projects/${id}/edit`}
-          className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md border border-input bg-background text-xs font-medium hover:bg-accent transition-colors"
-        >
-          <Pencil size={12} />
-          Edit
-        </Link>
-      </div>
+      {/* ⚠ NO ACTION ROW HERE. Edit / Brief / Protect and the Log menu live in
+          the record header (`projects/[id]/layout.tsx`), so they are reachable
+          from every tab rather than only this one. Do not re-add them. */}
 
       {/* Two-column: detail (left) + pursuit snapshot rail (right) */}
       <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_300px] gap-8 items-start">
@@ -222,6 +205,32 @@ export default async function ProjectOverviewPage({ params }: PageProps) {
           <p className="text-sm text-foreground leading-relaxed">{project.description}</p>
         </section>
       )}
+
+      {/* Contract & value */}
+      <section className="space-y-3">
+        <h2 className="label-caps text-muted-foreground">
+          Contract
+        </h2>
+        <dl className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-4">
+          {/* Named by which quantity it is, so a computed capture figure and a
+              hand-entered guess cannot be mistaken for one another. */}
+          <Field
+            label={pipelineValue(project).definition}
+            value={
+              pipelineValue(project).amount != null
+                ? formatValue(pipelineValue(project).amount)
+                : null
+            }
+          />
+          <Field label="Contract Type" value={enumLabel(project.contract_type, undefined, { empty: '' })} />
+          <Field label="Delivery Method" value={enumLabel(project.delivery_method, undefined, { empty: '' })} />
+          <Field label="Client Entity" value={project.client_entity} />
+          <Field label="Location" value={project.location} />
+          {project.solicitation_number && (
+            <Field label="Solicitation No." value={project.solicitation_number} />
+          )}
+        </dl>
+      </section>
 
       {/* Sub-Projects (for programs) */}
       {isProgram && (
@@ -318,32 +327,6 @@ export default async function ProjectOverviewPage({ params }: PageProps) {
           })()}
         </section>
       )}
-
-      {/* Contract & value */}
-      <section className="space-y-3">
-        <h2 className="label-caps text-muted-foreground">
-          Contract
-        </h2>
-        <dl className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-4">
-          {/* Named by which quantity it is, so a computed capture figure and a
-              hand-entered guess cannot be mistaken for one another. */}
-          <Field
-            label={pipelineValue(project).definition}
-            value={
-              pipelineValue(project).amount != null
-                ? formatValue(pipelineValue(project).amount)
-                : null
-            }
-          />
-          <Field label="Contract Type" value={enumLabel(project.contract_type, undefined, { empty: '' })} />
-          <Field label="Delivery Method" value={enumLabel(project.delivery_method, undefined, { empty: '' })} />
-          <Field label="Client Entity" value={project.client_entity} />
-          <Field label="Location" value={project.location} />
-          {project.solicitation_number && (
-            <Field label="Solicitation No." value={project.solicitation_number} />
-          )}
-        </dl>
-      </section>
 
       {/* Competitive landscape */}
       {(() => {
@@ -491,11 +474,17 @@ export default async function ProjectOverviewPage({ params }: PageProps) {
         />
       </section>
 
-      {/* Activity feed */}
+      {/*
+        The audit log — WHO CHANGED WHAT on the record, not what happened on
+        the deal. Named "Change History" because "Recent Activity" collided
+        with the Updates tab, which is where a human reads what has actually
+        happened: two surfaces called activity meaning different things, which
+        is the one-quantity-one-definition rule (§12).
+      */}
       <section className="space-y-3">
         <div className="flex items-center justify-between">
           <h2 className="label-caps text-muted-foreground">
-            Recent Activity
+            Change History
           </h2>
           <Link
             href={`/activity?project=${id}`}

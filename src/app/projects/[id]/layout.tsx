@@ -1,12 +1,15 @@
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
-import { Map as MapIcon } from 'lucide-react'
+import { Map as MapIcon, Pencil } from 'lucide-react'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { Chip } from '@/components/ui/chip'
 import { SECTOR_BADGE, SECTOR_LABELS } from '@/lib/utils/sectors'
 import { STAGE_LABELS, STAGE_BADGE } from '@/lib/utils/stages'
 import { STATUS_BADGE, STATUS_LABELS } from '@/lib/utils/constants'
 import RecordTabBar from '@/components/records/RecordTabBar'
+import RecordLogMenu from '@/components/records/RecordLogMenu'
+import GenerateBriefButton from '@/components/projects/GenerateBriefButton'
+import ProjectProtection from '@/components/security/ProjectProtection'
 import TrackVisit from '@/components/shared/TrackVisit'
 import RecordPager from '@/components/records/RecordPager'
 import { PROJECT_TABS } from '@/components/records/tabs'
@@ -26,7 +29,7 @@ export default async function ProjectLayout({ children, params }: LayoutProps) {
 
   const { data: project } = await supabase
     .from('projects')
-    .select('id, name, sector, status, stage, client_entity, location, latitude, longitude, map_geometry')
+    .select('id, name, sector, status, stage, client_entity, location, latitude, longitude, map_geometry, confidential')
     .eq('id', id)
     .single()
 
@@ -38,13 +41,10 @@ export default async function ProjectLayout({ children, params }: LayoutProps) {
   const viewer = await getViewer()
   if (viewer && !viewer.isAdmin && !(await canAccessProject(viewer, id))) notFound()
 
-  // Which tabs actually hold anything.
-  //
-  // Measured across all 15 projects on 2026-09-21: Diligence, Financing,
-  // Entities & Vendors and Meetings had rows on ZERO of them, and Milestones
-  // and Tasks on one each — while every project page showed all ten tabs. The
-  // two that carry the work, Updates and Documents, were the 7th and 6th
-  // along a bar you had to scan past seven empty ones to reach.
+  // Which tabs actually hold anything — a tab with no rows waits under More
+  // unless `tabs.ts` marks it `always`. Read the reasoning there; the short
+  // version is that gating is right for READING and wrong for the first WRITE,
+  // which is why the five tabs a human types into no longer depend on a count.
   //
   // Head counts with a filter on an indexed column, run in parallel: the rows
   // are never fetched, only counted, so this is one cheap round trip.
@@ -117,24 +117,51 @@ export default async function ProjectLayout({ children, params }: LayoutProps) {
             )}
           </div>
 
-          {/* Stage / sector / status badges */}
-          <div className="flex items-center gap-2 flex-wrap shrink-0">
-            <Chip tone={STAGE_BADGE[stage]}>{STAGE_LABELS[stage]}</Chip>
-            <Chip tone={SECTOR_BADGE[project.sector]}>{SECTOR_LABELS[project.sector]}</Chip>
-            {status !== 'active' && (
-              <Chip tone={STATUS_BADGE[status]}>{STATUS_LABELS[status]}</Chip>
-            )}
-            {/* /map is admin-only, so only admins get the link */}
-            {viewer?.isAdmin && (project.latitude != null || project.map_geometry != null) && (
-              <Link
-                href={`/map?project=${project.id}`}
-                className="inline-flex items-center gap-1 rounded-md border border-border bg-card px-2 py-0.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-              >
-                <MapIcon size={12} />
-                View on map
-              </Link>
+          {/*
+            Identity on the left, ACTIONS on the right — the same shape the
+            opportunity header already had. They used to sit mid-page on the
+            Overview tab, below the photo gallery, which meant Edit and Brief
+            were unreachable from any other tab and "log something by hand"
+            had no home at all. `RecordLogMenu` leads, because creating is the
+            act you arrive wanting to do.
+          */}
+          <div className="flex items-center gap-2 shrink-0">
+            <RecordLogMenu
+              basePath={`/projects/${id}`}
+              kind="project"
+              canLogMeeting={viewer?.isAdmin ?? false}
+            />
+            <GenerateBriefButton recordId={id} recordName={project.name} />
+            <Link
+              href={`/projects/${id}/edit`}
+              className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md border border-input bg-background text-xs font-medium hover:bg-accent transition-colors"
+            >
+              <Pencil size={13} />
+              Edit
+            </Link>
+            {viewer?.isAdmin && (
+              <ProjectProtection projectId={id} confidential={project.confidential === true} />
             )}
           </div>
+        </div>
+
+        {/* Stage / sector / status — what the record IS, under its name. */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <Chip tone={STAGE_BADGE[stage]}>{STAGE_LABELS[stage]}</Chip>
+          <Chip tone={SECTOR_BADGE[project.sector]}>{SECTOR_LABELS[project.sector]}</Chip>
+          {status !== 'active' && (
+            <Chip tone={STATUS_BADGE[status]}>{STATUS_LABELS[status]}</Chip>
+          )}
+          {/* /map is admin-only, so only admins get the link */}
+          {viewer?.isAdmin && (project.latitude != null || project.map_geometry != null) && (
+            <Link
+              href={`/map?project=${project.id}`}
+              className="inline-flex items-center gap-1 rounded-md border border-border bg-card px-2 py-0.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+            >
+              <MapIcon size={12} />
+              View on map
+            </Link>
+          )}
         </div>
       </div>
 

@@ -7,10 +7,13 @@ export const metadata = { title: 'Meetings — Ber Wilson Intelligence' }
 
 interface PageProps {
   params: Promise<{ id: string }>
+  searchParams: Promise<{ new?: string }>
 }
 
-export default async function ProjectMeetingsPage({ params }: PageProps) {
+export default async function ProjectMeetingsPage({ params, searchParams }: PageProps) {
   const { id } = await params
+  // `?new=1` — the header's Log menu arriving with the form already open.
+  const { new: startNew } = await searchParams
   const supabase = createAdminClient()
   const viewer = await getViewer()
   // v1 is admin-driven: non-admins with project access read the log (and can
@@ -40,6 +43,7 @@ export default async function ProjectMeetingsPage({ params }: PageProps) {
       contacts={contacts}
       canEdit={isAdmin}
       canDelete={isAdmin}
+      startNew={startNew === '1'}
     />
   )
 }

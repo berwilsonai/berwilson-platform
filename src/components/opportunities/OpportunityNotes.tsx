@@ -18,9 +18,15 @@ function formatWhen(ts: string | null): string {
 interface OpportunityNotesProps {
   opportunityId: string
   notes: OpportunityNote[]
+  /**
+   * Focus the composer on arrival — `?new=1`, which is how `RecordLogMenu` in
+   * the record header gets here. The correspondence panel sits above this
+   * section, so focusing is also what scrolls the box into view.
+   */
+  autoFocus?: boolean
 }
 
-export default function OpportunityNotes({ opportunityId, notes }: OpportunityNotesProps) {
+export default function OpportunityNotes({ opportunityId, notes, autoFocus = false }: OpportunityNotesProps) {
   const router = useRouter()
   const [body, setBody] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -57,6 +63,7 @@ export default function OpportunityNotes({ opportunityId, notes }: OpportunityNo
         <textarea
           value={body}
           onChange={(e) => setBody(e.target.value)}
+          autoFocus={autoFocus}
           placeholder="Log progress, a call, a decision, or a next step…"
           className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground outline-none focus-visible:ring-3 focus-visible:ring-ring/50 min-h-[72px] resize-y"
         />

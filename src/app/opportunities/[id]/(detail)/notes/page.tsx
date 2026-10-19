@@ -8,10 +8,13 @@ export const metadata = { title: 'Notes — Ber Wilson Intelligence' }
 
 interface PageProps {
   params: Promise<{ id: string }>
+  searchParams: Promise<{ new?: string }>
 }
 
-export default async function OpportunityNotesPage({ params }: PageProps) {
+export default async function OpportunityNotesPage({ params, searchParams }: PageProps) {
   const { id } = await params
+  // `?new=1` — the header's Log menu arriving with the composer focused.
+  const { new: startNew } = await searchParams
   const supabase = createAdminClient()
 
   const [{ data: notes }, filedThreads] = await Promise.all([
@@ -35,7 +38,7 @@ export default async function OpportunityNotesPage({ params }: PageProps) {
         <h2 className="flex items-center gap-1.5 text-sm font-semibold mb-3">
           <MessageSquare size={15} /> Progress Notes
         </h2>
-        <OpportunityNotes opportunityId={id} notes={notes ?? []} />
+        <OpportunityNotes opportunityId={id} notes={notes ?? []} autoFocus={startNew === '1'} />
       </section>
     </div>
   )

@@ -7,10 +7,13 @@ export const metadata = { title: 'Updates — Ber Wilson Intelligence' }
 
 interface PageProps {
   params: Promise<{ id: string }>
+  searchParams: Promise<{ new?: string }>
 }
 
-export default async function UpdatesPage({ params }: PageProps) {
+export default async function UpdatesPage({ params, searchParams }: PageProps) {
   const { id } = await params
+  // `?new=1` — the header's Log menu arriving with the composer already open.
+  const { new: startNew } = await searchParams
   const supabase = createAdminClient()
 
   const [{ data: updates }, filed] = await Promise.all([
@@ -25,7 +28,7 @@ export default async function UpdatesPage({ params }: PageProps) {
   return (
     <div className="space-y-4">
       <RecordCorrespondence recordKind="project" recordId={id} initialFiled={filed} />
-      <UpdatesTab projectId={id} initialUpdates={updates ?? []} />
+      <UpdatesTab projectId={id} initialUpdates={updates ?? []} startNew={startNew === '1'} />
     </div>
   )
 }

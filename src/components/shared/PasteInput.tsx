@@ -16,11 +16,17 @@ const SEVERITY_COLORS: Record<string, string> = {
 interface PasteInputProps {
   projectId: string
   onSaved?: () => void
+  /**
+   * Focus the box on mount. Set when the composer was opened deliberately —
+   * the header's Log menu, or the empty state's button — which also scrolls it
+   * into view, since the correspondence panel sits above it on the tab.
+   */
+  autoFocus?: boolean
 }
 
 type Phase = 'input' | 'loading' | 'review' | 'saving' | 'done'
 
-export default function PasteInput({ projectId, onSaved }: PasteInputProps) {
+export default function PasteInput({ projectId, onSaved, autoFocus = false }: PasteInputProps) {
   const [rawText, setRawText] = useState('')
   const [phase, setPhase] = useState<Phase>('input')
   const [extraction, setExtraction] = useState<ExtractionResult | null>(null)
@@ -186,7 +192,8 @@ export default function PasteInput({ projectId, onSaved }: PasteInputProps) {
         <textarea
           value={rawText}
           onChange={(e) => setRawText(e.target.value)}
-          placeholder="Paste an email, meeting notes, or project update here..."
+          autoFocus={autoFocus}
+          placeholder="Type notes, or paste an email, a meeting summary, or a call recap…"
           rows={6}
           disabled={phase === 'loading' || savingRaw}
           className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground outline-none focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-50 resize-y"

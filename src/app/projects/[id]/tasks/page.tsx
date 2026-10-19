@@ -6,10 +6,13 @@ export const metadata = { title: 'Tasks — Ber Wilson Intelligence' }
 
 interface PageProps {
   params: Promise<{ id: string }>
+  searchParams: Promise<{ new?: string }>
 }
 
-export default async function TasksPage({ params }: PageProps) {
+export default async function TasksPage({ params, searchParams }: PageProps) {
   const { id } = await params
+  // `?new=1` — the header's Log menu arriving with the add form already open.
+  const { new: startNew } = await searchParams
   const supabase = createAdminClient()
 
   const [{ data: tasks }, { data: members }] = await Promise.all([
@@ -31,6 +34,7 @@ export default async function TasksPage({ params }: PageProps) {
       projectId={id}
       initialTasks={(tasks ?? []) as unknown as BoardTask[]}
       teamMembers={(members ?? []) as TeamMember[]}
+      startAdd={startNew === '1'}
     />
   )
 }

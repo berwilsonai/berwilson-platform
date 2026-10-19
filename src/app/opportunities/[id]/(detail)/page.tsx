@@ -36,7 +36,19 @@ export default async function OpportunityOverviewPage({ params }: PageProps) {
 
   return (
     <div className="space-y-6">
-      {/* Key facts */}
+      {/*
+        NEXT STEP LEADS. It was the last block on the page, under the facts
+        grid, the description and two prose cards — the one line that says what
+        to actually do, below the fold. Everything else here is reference.
+      */}
+      {opportunity.next_step && (
+        <div className="rounded-lg border border-primary/30 bg-primary/5 px-4 py-3">
+          <span className="text-[11px] uppercase tracking-wide text-primary font-semibold">Next Step</span>
+          <p className="text-sm text-foreground mt-0.5">{opportunity.next_step}</p>
+        </div>
+      )}
+
+      {/* Key facts — the deal in numbers, then the prose that explains them. */}
       <div className="rounded-lg border border-border bg-card p-4 elev-1">
         <dl className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
           <Fact label="Estimated Value" value={<span className="font-semibold tnum">{formatValue(opportunity.estimated_value)}</span>} />
@@ -90,14 +102,6 @@ export default async function OpportunityOverviewPage({ params }: PageProps) {
           </p>
         </section>
       </div>
-
-      {/* Next step */}
-      {opportunity.next_step && (
-        <div className="rounded-lg border border-primary/30 bg-primary/5 px-4 py-3">
-          <span className="text-[11px] uppercase tracking-wide text-primary font-semibold">Next Step</span>
-          <p className="text-sm text-foreground mt-0.5">{opportunity.next_step}</p>
-        </div>
-      )}
     </div>
   )
 }
