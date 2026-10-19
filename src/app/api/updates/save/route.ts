@@ -1,14 +1,27 @@
 import { NextRequest } from 'next/server'
 import { requireProjectAccess } from '@/lib/security/guard'
-import { actorAdminClient } from '@/lib/auth/viewer'
-import { embedUpdate } from '@/lib/ai/embeddings'
-import { createTasksFromActionItems, type ActionItemLike } from '@/lib/tasks/from-action-items'
-import type { TablesInsert } from '@/lib/supabase/types'
+import { actorAdminClient, getViewer, canAccessOpportunity, forbiddenJson } from '@/lib/auth/viewer'
+import { logEntry, type LogTarget } from '@/lib/records/log-entry'
 
+/**
+ * A human logged something on a deal — one door for both record kinds.
+ *
+ * Takes `project_id` XOR `opportunity_id`. The write itself is `logEntry` in
+ * `src/lib/records/log-entry.ts`, which is one pass with a target: it picks the
+ * table (`updates` / `opportunity_notes`), stores the extraction beside the raw
+ * text, turns the confirmed action items into real tasks, and indexes it.
+ *
+ * ⚠ The two kinds take DIFFERENT access checks and that is not an oversight.
+ * A project may be `confidential`, so it goes through `requireProjectAccess`,
+ * which can answer "locked — step up first". An opportunity has no such flag;
+ * its gate is the access grant, and the id arrives in the BODY where the
+ * middleware cannot see it either way (§12).
+ */
 export async function POST(request: NextRequest) {
   const body = await request.json()
   const {
     project_id,
+    opportunity_id,
     raw_content,
     summary,
     action_items,
@@ -19,47 +32,54 @@ export async function POST(request: NextRequest) {
     confidence,
   } = body
 
-  if (!project_id || !raw_content) {
-    return Response.json({ error: 'project_id and raw_content are required' }, { status: 400 })
+  if (!raw_content || typeof raw_content !== 'string' || !raw_content.trim()) {
+    return Response.json({ error: 'raw_content is required' }, { status: 400 })
+  }
+  // Exactly one, never both — the same exactly-one rule the shared-children
+  // tables carry as a CHECK (§4). Naming both is a caller bug, not a choice to
+  // resolve by preferring one.
+  if (!!project_id === !!opportunity_id) {
+    return Response.json(
+      { error: 'exactly one of project_id or opportunity_id is required' },
+      { status: 400 },
+    )
   }
 
-  // This route writes an update AND embeds it into `chunks`, so it is one of the
-  // two doors content enters retrieval through. The project id is in the body,
-  // where the middleware gate cannot see it.
-  const denied = await requireProjectAccess(project_id)
-  if (denied) return denied
+  const target: LogTarget = project_id
+    ? { kind: 'project', id: project_id }
+    : { kind: 'opportunity', id: opportunity_id }
+
+  const viewer = await getViewer()
+
+  if (target.kind === 'project') {
+    // This route writes an update AND embeds it into `chunks`, so it is one of
+    // the two doors content enters retrieval through.
+    const denied = await requireProjectAccess(target.id)
+    if (denied) return denied
+  } else if (viewer && !viewer.isAdmin && !canAccessOpportunity(viewer, target.id)) {
+    return forbiddenJson()
+  }
 
   const supabase = await actorAdminClient()
 
-  // action_items deliberately not stored on the update — human-confirmed items
-  // become real tasks below (the column is being dropped).
-  const row: TablesInsert<'updates'> = {
-    project_id,
-    source: 'manual_paste',
-    raw_content,
-    summary: summary ?? null,
-    waiting_on: waiting_on ?? [],
-    risks: risks ?? [],
-    decisions: decisions ?? [],
-    mentioned_parties: mentioned_parties ?? [],
-    confidence: typeof confidence === 'number' ? confidence : null,
-    review_state: 'approved',
+  try {
+    const result = await logEntry(supabase, target, {
+      rawContent: raw_content,
+      summary,
+      actionItems: Array.isArray(action_items) ? action_items : [],
+      waitingOn: Array.isArray(waiting_on) ? waiting_on : [],
+      risks: Array.isArray(risks) ? risks : [],
+      decisions: Array.isArray(decisions) ? decisions : [],
+      mentionedParties: Array.isArray(mentioned_parties) ? mentioned_parties : [],
+      confidence,
+      // Stamped from the signed-in viewer, never from the client — otherwise a
+      // note could be posted under someone else's name.
+      author: viewer?.teamMemberName ?? viewer?.email ?? null,
+    })
+    return Response.json({ id: result.id, tasks_created: result.tasksCreated, table: result.table })
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Save failed'
+    console.error('Save entry failed:', message)
+    return Response.json({ error: message }, { status: 500 })
   }
-
-  const { data, error } = await supabase.from('updates').insert(row).select('id').single()
-
-  if (error) {
-    console.error('Save update failed:', error)
-    return Response.json({ error: error.message }, { status: 500 })
-  }
-
-  // Confirmed action items → tasks on the board (user already reviewed them in the wizard)
-  const tasksCreated = Array.isArray(action_items)
-    ? await createTasksFromActionItems(supabase, action_items as ActionItemLike[], { projectId: project_id })
-    : 0
-
-  // Fire-and-forget: chunk and embed in background (manual pastes auto-approve)
-  embedUpdate(data.id, project_id, raw_content).catch(console.error)
-
-  return Response.json({ id: data.id, tasks_created: tasksCreated })
 }

@@ -23,6 +23,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import RecordLogMenu from '../src/components/records/RecordLogMenu'
 import MeetingsView from '../src/components/meetings/MeetingsView'
 import UpdatesTab from '../src/components/projects/UpdatesTab'
+import { OpportunityNotesView } from '../src/components/opportunities/OpportunityNotes'
 import { PROJECT_TABS, OPPORTUNITY_TABS } from '../src/components/records/tabs'
 import type { RecordTab } from '../src/components/records/RecordTabBar'
 import { logEntries, logHref } from '../src/lib/records/log-menu'
@@ -129,6 +130,58 @@ const updatesOpen = renderToStaticMarkup(
 )
 check('updates, ?new=1: the composer is open', updatesOpen.includes('Extract with AI'))
 check('updates, ?new=1: "save as-is" is offered too', updatesOpen.includes('Save as-is'))
+
+// ── An opportunity note is the SAME composer and the SAME card ─────────────
+// ⚠ The whole point of the 10-18 extraction work: typing on an opportunity
+// offered no AI pass at all, so these two assertions are the regression.
+console.log('\nAn opportunity note behaves like a project update\n')
+
+const notesClosed = renderToStaticMarkup(
+  React.createElement(OpportunityNotesView, { opportunityId: PID, notes: [], onSaved: () => {} }),
+)
+check('notes, no param: the composer is closed', !notesClosed.includes('Extract with AI'))
+check('notes, no param: the empty state offers the first one', notesClosed.includes('Log the first note'))
+
+const notesOpen = renderToStaticMarkup(
+  React.createElement(OpportunityNotesView, { opportunityId: PID, notes: [], startNew: true, onSaved: () => {} }),
+)
+check('notes, ?new=1: the SAME AI pass is offered', notesOpen.includes('Extract with AI'))
+check('notes, ?new=1: "save as-is" keeps the instant path', notesOpen.includes('Save as-is'))
+check('notes, ?new=1: the save button names a Note, not an Update', notesOpen.includes('Save as-is'))
+
+// A note carrying an extraction renders it; one saved as-is renders its text.
+const extracted = {
+  id: 'n1', opportunity_id: PID, created_at: '2026-10-18T12:00:00Z', author: 'Richard',
+  body: 'Long raw text the human actually typed, which goes behind a disclosure.',
+  summary: 'Seller counsel wants closing pushed to 1 Nov.',
+  confidence: 0.82,
+  waiting_on: [{ text: 'Redline from seller counsel', party: 'Seller counsel' }],
+  risks: [{ text: 'Financing contingency unresolved', severity: 'critical' }],
+  decisions: [{ text: 'Push the PSA closing to 1 Nov', made_by: 'Richard' }],
+}
+const asIs = {
+  id: 'n2', opportunity_id: PID, created_at: '2026-10-17T09:00:00Z', author: 'Ber AI',
+  body: 'Called Merlin, no answer, will try Monday.',
+  summary: null, confidence: null, waiting_on: [], risks: [], decisions: [],
+}
+type NoteRow = Parameters<typeof OpportunityNotesView>[0]['notes'][number]
+const feed = renderToStaticMarkup(
+  React.createElement(OpportunityNotesView, {
+    opportunityId: PID,
+    notes: [extracted as unknown as NoteRow, asIs as unknown as NoteRow],
+    onSaved: () => {},
+  }),
+)
+check('an extracted note shows its summary', feed.includes('closing pushed to 1 Nov'))
+check('…its waiting-on', feed.includes('Redline from seller counsel'))
+check('…its risk, with the severity', feed.includes('Financing contingency') && feed.includes('critical'))
+check('…its decision', feed.includes('Push the PSA closing'))
+check('…its confidence', feed.includes('82'))
+check('…and the raw text behind a disclosure, not inline', feed.includes('What I wrote'))
+check('a saved-as-is note shows its text directly', feed.includes('Called Merlin'))
+check('…and offers no empty disclosure', !feed.includes('What I wrote</button><p'))
+// ⚠ A bare em dash at a value's own weight reads as a failed render (§12).
+check('nothing renders as NaN / undefined / Infinity', !/NaN|undefined|Infinity/.test(feed))
 
 // ── 3. An empty record still shows the tabs a human types into ─────────────
 console.log('\nAn empty record keeps its manual doors\n')

@@ -1300,7 +1300,10 @@ async function executeToolCallInner(
       // milestones, diligence, capital structure — since 2026-09-23.
       const [oppRes, notesRes, docsRes, playersRes, milestonesRes, ddRes, finRes] = await Promise.all([
         supabase.from('opportunities').select('*').eq('id', oppId).single(),
-        supabase.from('opportunity_notes').select('body, author, created_at').eq('opportunity_id', oppId).order('created_at', { ascending: false }).limit(10),
+        // The extracted columns too (added 2026-10-18) — a note's risks and
+        // decisions are the part the agent is usually being asked about, and
+        // `body` alone made it re-read the prose to find them.
+        supabase.from('opportunity_notes').select('body, author, created_at, summary, waiting_on, risks, decisions').eq('opportunity_id', oppId).order('created_at', { ascending: false }).limit(10),
         supabase.from('opportunity_documents').select('id, file_name, doc_type, ai_summary, uploaded_at').eq('opportunity_id', oppId).order('uploaded_at', { ascending: false }),
         supabase.from('project_players').select('role, is_primary, party:parties(full_name, company, title, email)').eq('opportunity_id', oppId),
         supabase.from('milestones').select('label, stage, target_date, completed_at').eq('opportunity_id', oppId).order('sort_order'),

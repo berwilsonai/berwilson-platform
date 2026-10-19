@@ -1,4 +1,3 @@
-import { MessageSquare } from 'lucide-react'
 import { createAdminClient } from '@/lib/supabase/admin'
 import OpportunityNotes from '@/components/opportunities/OpportunityNotes'
 import RecordCorrespondence from '@/components/correspondence/RecordCorrespondence'
@@ -13,7 +12,7 @@ interface PageProps {
 
 export default async function OpportunityNotesPage({ params, searchParams }: PageProps) {
   const { id } = await params
-  // `?new=1` — the header's Log menu arriving with the composer focused.
+  // `?new=1` — the header's Log menu arriving with the composer open.
   const { new: startNew } = await searchParams
   const supabase = createAdminClient()
 
@@ -35,10 +34,7 @@ export default async function OpportunityNotesPage({ params, searchParams }: Pag
       </section>
 
       <section>
-        <h2 className="flex items-center gap-1.5 text-sm font-semibold mb-3">
-          <MessageSquare size={15} /> Progress Notes
-        </h2>
-        <OpportunityNotes opportunityId={id} notes={notes ?? []} autoFocus={startNew === '1'} />
+        <OpportunityNotes opportunityId={id} notes={notes ?? []} startNew={startNew === '1'} />
       </section>
     </div>
   )

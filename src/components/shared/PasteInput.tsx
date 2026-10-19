@@ -13,8 +13,17 @@ const SEVERITY_COLORS: Record<string, string> = {
   blocker: 'bg-red-200 dark:bg-red-900/60 text-red-800 dark:text-red-300',
 }
 
+/**
+ * Which record the entry lands on. Mirrors `LogTarget` in
+ * `src/lib/records/log-entry.ts` — a project's commentary is `updates`, an
+ * opportunity's is `opportunity_notes`, and the composer is the same because
+ * the act is (§12: two paths differing only in WHERE the work lands are one
+ * pass with a target parameter).
+ */
+export type PasteTarget = { kind: 'project' | 'opportunity'; id: string }
+
 interface PasteInputProps {
-  projectId: string
+  target: PasteTarget
   onSaved?: () => void
   /**
    * Focus the box on mount. Set when the composer was opened deliberately —
@@ -26,7 +35,11 @@ interface PasteInputProps {
 
 type Phase = 'input' | 'loading' | 'review' | 'saving' | 'done'
 
-export default function PasteInput({ projectId, onSaved, autoFocus = false }: PasteInputProps) {
+export default function PasteInput({ target, onSaved, autoFocus = false }: PasteInputProps) {
+  // The route takes `project_id` XOR `opportunity_id` and refuses both.
+  const recordId = target.kind === 'project'
+    ? { project_id: target.id }
+    : { opportunity_id: target.id }
   const [rawText, setRawText] = useState('')
   const [phase, setPhase] = useState<Phase>('input')
   const [extraction, setExtraction] = useState<ExtractionResult | null>(null)
@@ -86,7 +99,7 @@ export default function PasteInput({ projectId, onSaved, autoFocus = false }: Pa
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          project_id: projectId,
+          ...recordId,
           raw_content: rawText,
           summary: null,
           action_items: [],
@@ -105,7 +118,7 @@ export default function PasteInput({ projectId, onSaved, autoFocus = false }: Pa
       setRawText('')
       setSavingRaw(false)
       onSaved?.()
-      toast.success('Update saved as-is')
+      toast.success(target.kind === 'project' ? 'Update saved as-is' : 'Note saved as-is')
 
       setTimeout(() => setPhase('input'), 2000)
     } catch (err) {
@@ -125,7 +138,7 @@ export default function PasteInput({ projectId, onSaved, autoFocus = false }: Pa
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          project_id: projectId,
+          ...recordId,
           raw_content: rawText,
           summary,
           action_items: actionItems,
@@ -145,10 +158,11 @@ export default function PasteInput({ projectId, onSaved, autoFocus = false }: Pa
       setRawText('')
       setExtraction(null)
       onSaved?.()
+      const noun = target.kind === 'project' ? 'Update' : 'Note'
       toast.success(
         data.tasks_created > 0
-          ? `Update saved — ${data.tasks_created} task${data.tasks_created !== 1 ? 's' : ''} added to the board`
-          : 'Update saved successfully',
+          ? `${noun} saved — ${data.tasks_created} task${data.tasks_created !== 1 ? 's' : ''} added to the board`
+          : `${noun} saved successfully`,
       )
 
       // Reset after brief success message
@@ -251,7 +265,7 @@ export default function PasteInput({ projectId, onSaved, autoFocus = false }: Pa
     return (
       <div className="flex items-center gap-2 py-4 text-sm text-emerald-700 dark:text-emerald-300">
         <Check size={16} />
-        Update saved successfully.
+        {target.kind === 'project' ? 'Update' : 'Note'} saved successfully.
       </div>
     )
   }
@@ -288,7 +302,7 @@ export default function PasteInput({ projectId, onSaved, autoFocus = false }: Pa
             ) : (
               <Check size={12} />
             )}
-            Save Update
+            Save {target.kind === 'project' ? 'Update' : 'Note'}
           </button>
         </div>
       </div>

@@ -128,6 +128,50 @@ type FinancingLine = {
 type ComplianceLine = { framework: string | null; requirement: string | null; status: string | null; due_date: string | null }
 type PlayerLine = { role: string | null; party: unknown }
 
+/**
+ * A record's running commentary, formatted once for both arms.
+ *
+ * ⚠ THESE WERE TWO FORMATTERS FOR ONE SHAPE, AND THEY DISAGREED. A project's
+ * updates were rendered as `summary` plus the risks, waiting-on and decisions
+ * underneath; an opportunity's notes were 500 truncated characters of raw
+ * prose, because `opportunity_notes` had no extracted columns to render. It
+ * has them as of 2026-10-18, so there is one formatter — and it falls back to
+ * the body, which is what the mail sweep's own notes carry and all a saved
+ * as-is entry ever has.
+ */
+function commentaryLines(
+  rows: readonly {
+    created_at: string | null
+    summary?: string | null
+    body?: string | null
+    author?: string | null
+    waiting_on?: unknown
+    risks?: unknown
+    decisions?: unknown
+  }[]
+): string[] {
+  const arr = <T,>(v: unknown): T[] => (Array.isArray(v) ? (v as T[]) : [])
+  return rows.map((r) => {
+    const byline = r.author ? ` ${r.author}:` : ''
+    // The summary when there is one; otherwise the text itself, flattened and
+    // capped — a saved-as-is note has no summary and is still the record.
+    const head = r.summary?.trim()
+      ? r.summary.trim()
+      : (r.body ?? '').replace(/\s+/g, ' ').slice(0, 500)
+    const bits = [`- [${ymd(r.created_at)}]${byline} ${head}`]
+    for (const x of arr<{ text?: string; severity?: string }>(r.risks).slice(0, 4)) {
+      if (x?.text) bits.push(`    risk (${x.severity ?? 'unrated'}): ${x.text}`)
+    }
+    for (const x of arr<{ text?: string }>(r.waiting_on).slice(0, 4)) {
+      if (x?.text) bits.push(`    waiting on: ${x.text}`)
+    }
+    for (const x of arr<{ text?: string }>(r.decisions).slice(0, 4)) {
+      if (x?.text) bits.push(`    decision: ${x.text}`)
+    }
+    return bits.join('\n')
+  })
+}
+
 function milestoneLines(rows: MilestoneLine[]): string[] {
   return rows.map(
     (m) => `- ${m.label ?? 'Unnamed'} — target ${ymd(m.target_date)}${m.completed_at ? ` (completed ${ymd(m.completed_at)})` : ' (open)'}`
@@ -458,21 +502,7 @@ export async function assembleProjectBrief(
 
   push('OPEN TASKS', openTasks.length > 0 ? [formatTasksForPrompt(openTasks, now)] : [])
 
-  push(
-    'RECENT UPDATES (newest first)',
-    (updates ?? []).map((u) => {
-      const bits = [`- [${ymd(u.created_at)}] ${u.summary ?? ''}`]
-      const risks = (u.risks ?? []) as Array<{ text?: string; severity?: string }>
-      for (const r of risks.slice(0, 4)) {
-        if (r?.text) bits.push(`    risk (${r.severity ?? 'unrated'}): ${r.text}`)
-      }
-      const waiting = (u.waiting_on ?? []) as Array<{ text?: string }>
-      for (const w of waiting.slice(0, 4)) if (w?.text) bits.push(`    waiting on: ${w.text}`)
-      const decisions = (u.decisions ?? []) as Array<{ text?: string }>
-      for (const d of decisions.slice(0, 4)) if (d?.text) bits.push(`    decision: ${d.text}`)
-      return bits.join('\n')
-    })
-  )
+  push('RECENT UPDATES (newest first)', commentaryLines(updates ?? []))
 
   push('MILESTONES', milestoneLines(milestones ?? []))
   push('DUE DILIGENCE', ddLines(ddItems ?? []))
@@ -574,7 +604,9 @@ export async function assembleOpportunityBrief(
     fetchOpenTasks(admin, { opportunityId, limit: 50 }),
     admin
       .from('opportunity_notes')
-      .select('body, author, created_at')
+      // ⚠ Selecting the extracted columns too — a new column is worth nothing
+      // if nothing reads it, and `commentaryLines` renders all four.
+      .select('body, author, created_at, summary, waiting_on, risks, decisions')
       .eq('opportunity_id', opportunityId)
       .order('created_at', { ascending: false })
       .limit(12),
@@ -690,12 +722,7 @@ export async function assembleOpportunityBrief(
 
   push('OPEN TASKS', openTasks.length > 0 ? [formatTasksForPrompt(openTasks, now)] : [])
 
-  push(
-    'NOTES (newest first)',
-    (notes ?? []).map(
-      (n) => `- [${ymd(n.created_at)}]${n.author ? ` ${n.author}:` : ''} ${(n.body ?? '').replace(/\s+/g, ' ').slice(0, 500)}`
-    )
-  )
+  push('NOTES (newest first)', commentaryLines(notes ?? []))
 
   push('MILESTONES', milestoneLines(milestones ?? []))
   push('DUE DILIGENCE', ddLines(ddItems ?? []))

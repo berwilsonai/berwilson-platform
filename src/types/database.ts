@@ -1447,14 +1447,14 @@ isOneToOne: false
                   ]
                 },"opportunity_notes": {
                   Row: {
-                    "author": string | null,"body": string,"created_at": string | null,"id": string,"opportunity_id": string
+                    "author": string | null,"body": string,"confidence": number | null,"created_at": string | null,"decisions": NonNullable<Json>,"id": string,"opportunity_id": string,"risks": NonNullable<Json>,"summary": string | null,"waiting_on": NonNullable<Json>
                   }
                   ComputedFields: never
                   Insert: {
-                    "author"?: string | null,"body": string,"created_at"?: string | null,"id"?: string,"opportunity_id": string
+                    "author"?: string | null,"body": string,"confidence"?: number | null,"created_at"?: string | null,"decisions"?: NonNullable<Json>,"id"?: string,"opportunity_id": string,"risks"?: NonNullable<Json>,"summary"?: string | null,"waiting_on"?: NonNullable<Json>
                   }
                   Update: {
-                    "author"?: string | null,"body"?: string,"created_at"?: string | null,"id"?: string,"opportunity_id"?: string
+                    "author"?: string | null,"body"?: string,"confidence"?: number | null,"created_at"?: string | null,"decisions"?: NonNullable<Json>,"id"?: string,"opportunity_id"?: string,"risks"?: NonNullable<Json>,"summary"?: string | null,"waiting_on"?: NonNullable<Json>
                   }
                   Relationships: [
                     {

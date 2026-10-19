@@ -2,17 +2,14 @@
 
 import { useState } from 'react'
 import { MessageSquare, Plus, ChevronDown, ChevronRight } from 'lucide-react'
+import { Panel } from '@/components/ui/card'
 import EmptyState from '@/components/shared/EmptyState'
 import SourceTag from '@/components/shared/SourceTag'
 import ConfidenceBadge from '@/components/shared/ConfidenceBadge'
 import PasteInput from '@/components/shared/PasteInput'
+import ExtractedItems, { hasExtractedItems } from '@/components/shared/ExtractedItems'
 import UpdateEditModal from '@/components/projects/UpdateEditModal'
 import type { Update } from '@/lib/supabase/types'
-import type {
-  WaitingOnItem,
-  RiskItem,
-  DecisionItem,
-} from '@/types/domain'
 
 /** Renders a stored email (raw_content) as a styled email view with headers and body. */
 function EmailBody({ raw }: { raw: string }) {
@@ -56,13 +53,6 @@ function EmailBody({ raw }: { raw: string }) {
   )
 }
 
-const SEVERITY_COLORS: Record<string, string> = {
-  info: 'bg-slate-100 dark:bg-slate-900/40 text-slate-600 dark:text-slate-400',
-  watch: 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300',
-  critical: 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300',
-  blocker: 'bg-red-200 dark:bg-red-900/60 text-red-800 dark:text-red-300',
-}
-
 function formatTimestamp(ts: string | null): string {
   if (!ts) return ''
   return new Date(ts).toLocaleDateString('en-US', {
@@ -74,24 +64,13 @@ function formatTimestamp(ts: string | null): string {
   })
 }
 
-function safeArray<T>(val: unknown): T[] {
-  if (Array.isArray(val)) return val as T[]
-  if (typeof val === 'string') {
-    try { const p = JSON.parse(val); return Array.isArray(p) ? p : [] } catch { return [] }
-  }
-  return []
-}
-
 function UpdateCard({ update, onSaved }: { update: Update; onSaved: () => void }) {
   const [expanded, setExpanded] = useState(false)
 
-  const waitingOn = safeArray<WaitingOnItem>(update.waiting_on)
-  const risks = safeArray<RiskItem>(update.risks)
-  const decisions = safeArray<DecisionItem>(update.decisions)
-  const hasExtracted = waitingOn.length > 0 || risks.length > 0 || decisions.length > 0
+  const hasExtracted = hasExtractedItems(update)
 
   return (
-    <div className="rounded-lg border border-border bg-card">
+    <Panel>
       {/* Header */}
       <div className="flex items-start justify-between gap-3 px-4 py-3">
         <div className="flex items-center gap-2 min-w-0">
@@ -111,65 +90,15 @@ function UpdateCard({ update, onSaved }: { update: Update; onSaved: () => void }
         </div>
       )}
 
-      {/* Extracted Items */}
+      {/* ⚠ The shared renderer — an opportunity note carries the same three
+          columns and renders them the same way. See ExtractedItems. */}
       {hasExtracted && (
-        <div className="border-t border-border px-4 py-3 space-y-3">
-          {/* Waiting On */}
-          {waitingOn.length > 0 && (
-            <div className="space-y-1">
-              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                Waiting On
-              </p>
-              {waitingOn.map((item, idx) => (
-                <div key={idx} className="text-sm">
-                  <span>{item.text}</span>
-                  {item.party && (
-                    <span className="ml-1 text-xs text-muted-foreground">
-                      [{item.party}]
-                    </span>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Risks */}
-          {risks.length > 0 && (
-            <div className="space-y-1">
-              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                Risks
-              </p>
-              {risks.map((item, idx) => (
-                <div key={idx} className="flex items-start gap-2 text-sm">
-                  <span
-                    className={`shrink-0 mt-0.5 inline-flex rounded px-1 py-0.5 text-xs font-semibold uppercase ${SEVERITY_COLORS[item.severity] ?? SEVERITY_COLORS.info}`}
-                  >
-                    {item.severity}
-                  </span>
-                  <span>{item.text}</span>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Decisions */}
-          {decisions.length > 0 && (
-            <div className="space-y-1">
-              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                Decisions
-              </p>
-              {decisions.map((item, idx) => (
-                <div key={idx} className="text-sm">
-                  <span>{item.text}</span>
-                  {item.made_by && (
-                    <span className="ml-1 text-xs text-muted-foreground">
-                      — {item.made_by}
-                    </span>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
+        <div className="border-t border-border px-4 py-3">
+          <ExtractedItems
+            waitingOn={update.waiting_on}
+            risks={update.risks}
+            decisions={update.decisions}
+          />
         </div>
       )}
 
@@ -198,7 +127,7 @@ function UpdateCard({ update, onSaved }: { update: Update; onSaved: () => void }
           ) : null}
         </div>
       ) : null}
-    </div>
+    </Panel>
   )
 }
 
@@ -240,9 +169,9 @@ export default function UpdatesTab({ projectId, initialUpdates, startNew = false
 
       {/* Paste input area */}
       {showPaste && (
-        <div className="rounded-lg border border-border bg-card p-4">
-          <PasteInput projectId={projectId} onSaved={handleSaved} autoFocus />
-        </div>
+        <Panel className="p-4">
+          <PasteInput target={{ kind: 'project', id: projectId }} onSaved={handleSaved} autoFocus />
+        </Panel>
       )}
 
       {/* Updates feed */}
