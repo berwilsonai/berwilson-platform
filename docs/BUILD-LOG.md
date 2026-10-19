@@ -11,7 +11,140 @@ Split out of `CLAUDE.md` on 2026-09-23, when that file reached 606k characters a
 - A block of **2026-08-23 → 2026-08-31** entries sits *after* the June entries, near the end of the file.
 - One **2026-07-03** entry ("migrations applied + pursuit profile seeded") is last in the file.
 
-182 entries, 2026-06-22 → 2026-10-18. ⚠ Counted with `grep -c "^\*\*Done 2026"`, not incremented by hand: two sessions editing this file on 2026-10-08 each bumped the old figure by one and both landed on 146 against a real 148.
+183 entries, 2026-06-22 → 2026-10-18. ⚠ Counted with `grep -c "^\*\*Done 2026"`, not incremented by hand: two sessions editing this file on 2026-10-08 each bumped the old figure by one and both landed on 146 against a real 148.
+
+**Done 2026-10-18 (an opportunity's typed note does what a project's does, and the measurement picked the design):**
+
+**The ask.** *"Fix the opportunity notes extraction too. Do what you think is
+best."* — the ⚠ I had flagged an hour earlier and deliberately not closed.
+
+**The defect, restated precisely.** `/api/opportunities/[id]/notes` wrote
+`opportunity_notes` and called `embedOpportunityNote`. That is all it did: the
+text became searchable and nothing else happened. The identical paragraph typed
+on a project went through `PasteInput` → `/api/ai/extract` → `/api/updates/save`
+and produced a summary, `waiting_on`, `risks`, `decisions`, a confidence, and
+**real tasks on the board** via `createTasksFromActionItems`. So one typed
+paragraph yielded follow-up work on a project and none on a pursuit. Invisible
+from every angle: the screen looked right, `tsc` was happy, and the only symptom
+was work that never appeared.
+
+**Three ways to close it, and the measurement chose.** I had written them into
+`OPEN-ITEMS.md` with "measure which notes would actually have produced a task
+before building any of the three". Doing that is what settled it:
+
+| | |
+|---|---|
+| notes | **90** across 6 opportunities |
+| median length | **2,096 characters** (80 of 90 over 300; max 42,829) |
+| written by **`Ber AI`** | **86** |
+| by `Email ingestion` | 2 |
+| **by a human** | **2** |
+
+So the corpus is not one-liners — these are substantial — but it is almost
+entirely **the mail sweep's own output stored as prose**. Two consequences,
+both of which changed the plan:
+
+1. ⚠ **No backfill, deliberately.** Re-extracting 86 Ber AI summaries is the
+   model reading itself — the self-loop failure that turned out to be 27% of
+   the commitment ledger on 10-09. The feature is for what gets typed NEXT.
+2. ⚠ **The table does not move.** Making `updates` a shared child (§4) was the
+   architecturally pure option and `updates.project_id` is *already* nullable,
+   so it looked cheap. It is not: 23 call sites read or write `updates`, their
+   `chunks` point at `opportunity_id` + `source_type='opportunity_note'` rather
+   than `update_id`, 5 writers would need rewiring — and **four readers
+   (`attention.ts`, `daily-brief`, two in `agent-tools.ts`) select `updates`
+   with no project filter and then `dropHidden(rows, r => r.project_id)`**,
+   whose predicate is `!id || !hidden.has(id)`. An opportunity-attached update
+   has a NULL `project_id` and passes straight through — precisely the §12 rule
+   about a nullable pointer breaking a security filter without touching it. All
+   of that to relocate **2 human rows**.
+
+**So the tables stay two and the PASS becomes one**, which is what §12 actually
+demands ("never fork a shared pass — add a target"; "if two paths differ only
+in WHERE the work lands, they are one pass with a target parameter"):
+
+- **`src/lib/records/log-entry.ts`** — `logEntry(supabase, target, input)`,
+  `target` being `{kind:'project'|'opportunity', id}`. It picks the table,
+  stores the extraction beside the raw text, creates the tasks, touches the
+  parent and indexes it. In `src/lib`, not the route, per the rule that agent
+  tools never fetch the app's own HTTP routes.
+- **`createTasksFromActionItems` takes a record target**, not `{ projectId }`.
+  `tasks.opportunity_id` has existed the whole time and nothing could reach it
+  — that was half the defect on its own.
+- **`/api/updates/save` takes `project_id` XOR `opportunity_id`** and refuses
+  both (the exactly-one rule the shared-children tables carry as a CHECK).
+  ⚠ The two arms take *different* access checks and that is not an oversight: a
+  project can be `confidential` so it goes through `requireProjectAccess`,
+  which can answer "locked — step up first"; an opportunity has no such flag
+  and its gate is the access grant. **`/api/opportunities/[id]/notes` is
+  retired** — one door.
+- Migration `20261018000001`: `opportunity_notes` gains `summary`,
+  `waiting_on`, `risks`, `decisions`, `confidence`, shaped to match `updates`
+  exactly (arrays NOT NULL default `'[]'`, same `numeric(3,2)`). All five
+  existing writers insert `(opportunity_id, body, author)` only, so the
+  defaults mean none of them changes. `npm run gen-types` regenerated 104/104
+  and touched exactly those three row types.
+- **`ExtractedItems`** is ONE renderer for both cards — they were about to be
+  two copies of the same 60 lines — and severity goes through `chipTone`
+  instead of a sixth local colour map spelling the same four levels in the
+  theme-blind `slate` ramp.
+- ⚠ **The brief had two formatters for one shape and they disagreed.** A
+  project's updates rendered as `summary` plus risks, waiting-on and decisions;
+  an opportunity's notes as **500 truncated characters of raw prose**, because
+  there were no extracted columns to render. One `commentaryLines` now, falling
+  back to the body — which is what a saved-as-is note and all 86 sweep notes
+  carry. The brief and `get_opportunity` both now **select** the columns they
+  render: a new column is worth nothing if nothing reads it.
+- "Save as-is" keeps the instant path this tab used to be. The extract pass is
+  30–60s on a 35B local model and is never forced.
+
+**⚠ Findings.**
+
+- **§12's script-loading rule prescribes a fix that is wrong here, and I
+  reproduced both failures before finding the cause.** `import { logEntry }`
+  from a `.mts` script threw *"does not provide an export named 'logEntry'"* on
+  a plain `export function`; appending `.ts` to the path (which two existing
+  scripts do) did not help; and **adding a default export merely moved the
+  failure one step**, to *"logEntry is not a function"*. Probing the namespace
+  showed why: under `npx tsx` the module resolves as CJS and the ESM namespace
+  holds `{ default, 'module.exports' }` with the real exports nested inside
+  `default`. **It is the loader, not the import.** Run it under the repo's own
+  `deploy/register.mjs` — what `npm test` already uses — and a named import
+  resolves normally. The rule is amended rather than extended.
+- **The conventions ratchet caught me**, 231 → 232: `NoteCard` hand-rolled
+  `rounded-lg border border-border bg-card` instead of `<Panel>`. §12 forbids
+  absorbing that by raising the baseline, so both it *and* the project
+  `UpdateCard` beside it moved to `Panel` — the ratchet goes down, not sideways.
+- **`useRouter()` made the component unrenderable**, so the only honest check
+  was impossible (a record page is behind auth; a curl returns the same
+  redirect whether it answers or throws). Split into `OpportunityNotesView`
+  (pure) and a thin router wrapper — the same split `/attention`'s list needed
+  on 10-17, for the same reason.
+- **A deleted opportunity note's chunks are unreachable forever.** My cleanup
+  left 4 orphans in the corpus, because `chunks` has `update_id` with
+  `ON DELETE CASCADE` for a project update and **no pointer to a note at all**
+  — a note chunk names only its opportunity, so an orphan is indistinguishable
+  from a live one. Latent, not live: there is no delete path for
+  `opportunity_notes` anywhere in the app, and the corpus has 153 note chunks
+  against 90 notes (several per note). Recorded in `OPEN-ITEMS.md` rather than
+  reaped, because there is no producer of the problem yet.
+- `updates` holds **32 rows with a NULL `project_id`** — all `source='email'`,
+  all `review_state='rejected'`, all from 3–5 May, dead output of the scraper
+  removed on 06-25. Correctly invisible; chased because a nullable pointer with
+  live rows behind it would have changed the design.
+
+**Verification.** `scripts/verify-log-entry.mts` — 28 checks against the LIVE
+database, calling the producer rather than building the row (a fixture that
+builds the field directly cannot catch a producer that never fills it, §12).
+It asserts both arms store the same summary and the same risks from the same
+payload; that the opportunity's tasks carry `opportunity_id` and NOT
+`project_id`, and the project's the reverse; that a named assignee resolves and
+an unnamed one stays unassigned; that saved-as-is stores a NULL summary and
+NULL confidence but empty arrays, never nulls; and it deletes every row it
+made, with a `finally` that does **not** call `process.exit` (that swallows the
+throw it is unwinding, §12). `verify-record-log.tsx` grew to 63 checks covering
+the new card in both states. `npm test` 567/567, `tsc` clean, lint unchanged at
+23, `npm run build` exit 0 captured unpiped.
 
 **Done 2026-10-18 (one obvious place to log by hand, and the tab bar reads in order):**
 
