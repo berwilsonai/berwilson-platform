@@ -1234,7 +1234,12 @@ export async function executeModuleTool(
         intake_sessions_by_status: tally(sessions.data, 'status'),
         review_queue_open: review.data?.length ?? 0,
         review_reasons: tally(review.data, 'reason'),
-        note: 'Threads move pending → summarized, then group into candidate deals, then stage as pending intake sessions for a human to confirm. Nothing reaches the CRM without that confirmation.',
+        note:
+          'Threads move pending → summarized, then group into candidate deals, then stage as pending intake sessions for a human to confirm. ' +
+          "Nothing reaches the CRM without that confirmation. A candidate deal in state 'held' did NOT clear the staging bar — it is a single " +
+          'unanswered message with nothing attached, which measured 1 confirmation in 111 — so it was deliberately not put in front of anybody. ' +
+          'Its threads are still summarized, still searchable here, and still filed onto a record by the routing phase; a reply or an attachment ' +
+          'reopens it. So a deal you can find in the correspondence but not in the queue is most likely held, not missed.',
       }
     }
 

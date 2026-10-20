@@ -67,8 +67,17 @@ export type SummaryState = 'pending' | 'summarized' | 'failed' | 'skipped'
  * stage took. A confirmed cluster has become a real record; follow-ups still
  * attach to it, and the route phase sends them to that record rather than
  * stranding them as the pre-2026-09-09 pipeline did.
+ *
+ * 'held' (2026-10-20) is the same app-level kind: a cluster that did not clear
+ * `clusterStagingVerdict` in stage-phase.ts. ⚠ IT IS NOT 'dismissed' AND THE
+ * DIFFERENCE IS LOAD-BEARING — a dismissed cluster is excluded from the attach
+ * pass, so a later reply would form a fresh cluster and stage without the first
+ * message; a held one absorbs the reply and is reopened. Both consumers of this
+ * column outside the sweep (the intake-status agent tool and
+ * /api/email-sweep/status) tally states dynamically rather than enumerating
+ * them, so neither needed a change — verified, not assumed.
  */
-export type ClusterState = 'open' | 'staged' | 'dismissed' | 'confirmed'
+export type ClusterState = 'open' | 'staged' | 'held' | 'dismissed' | 'confirmed'
 
 /** Which kind of record a thread has been tied to. */
 export type LinkRecordKind = 'project' | 'opportunity' | 'lead' | 'steel_deal'

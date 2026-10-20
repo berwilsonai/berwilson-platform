@@ -131,6 +131,8 @@ export interface ClusterProgress {
   threadsConsidered: number
   clustersCreated: number
   threadsAttachedToExisting: number
+  /** Held clusters put back in front of the stage gate by new correspondence. */
+  reopened?: number
   reasons: Record<string, number>
 }
 
@@ -202,12 +204,20 @@ export async function clusterUnassigned(
   // must reach THAT record. Attaching here is what puts the thread in front of
   // the route phase, which sends it to the record the cluster became.
   //
+  // 'held' is included, and it is the state that would break WORST if it were
+  // not. A held cluster did not clear `clusterStagingVerdict` — one message,
+  // nothing attached — which is precisely the cluster most likely to grow into
+  // something real. Leaving it out would send the reply that makes it a deal
+  // off to form a FRESH cluster, which would then stage on its own with the
+  // first message missing from its evidence. Attaching instead reopens it (see
+  // `reopened` below) so the gate judges the whole conversation.
+  //
   // 'dismissed' is excluded: that deal was judged not real, and a new thread
   // there deserves to be reconsidered on its own.
   const { data: openData } = await db
     .from('thread_clusters')
-    .select('id, label, participants, first_at, last_at, thread_count')
-    .in('state', ['open', 'staged', 'confirmed'])
+    .select('id, label, state, participants, first_at, last_at, thread_count')
+    .in('state', ['open', 'staged', 'held', 'confirmed'])
 
   const openClusters = ((openData ?? []) as ThreadClusterRow[]).map((c) => ({
     row: c,
@@ -221,6 +231,9 @@ export async function clusterUnassigned(
       participants: c.participants ?? [],
     } as Candidate,
   }))
+
+  /** Held clusters that absorbed a thread this run and must be re-judged. */
+  const reopened = new Set<string>()
 
   const leftovers: Candidate[] = []
   for (const cand of candidates) {
@@ -245,6 +258,13 @@ export async function clusterUnassigned(
       const target = openClusters.find((o) => o.row.id === best!.clusterId)!
       for (const p of cand.participants) target.candidate.participants.push(p)
       target.candidate.external = externalParticipants(target.candidate.participants)
+      // New evidence on a cluster the stage gate had set aside: put it back in
+      // front of the gate. Recorded on the local row too, so the rollup loop
+      // below cannot reopen it twice and the count stays honest.
+      if (target.row.state === 'held') {
+        target.row.state = 'open'
+        reopened.add(target.row.id)
+      }
       progress.threadsAttachedToExisting++
       progress.reasons[best.reason] = (progress.reasons[best.reason] ?? 0) + 1
     } else {
@@ -321,6 +341,18 @@ export async function clusterUnassigned(
   // (Cheap, and only these were candidates for attachment.)
   for (const open of openClusters) {
     await refreshClusterRollups(open.row.id)
+  }
+
+  // Reopen after the rollups, so `thread_count` is already correct when the
+  // stage phase reads the cluster back — it filters on that column, and a
+  // cluster reopened against a stale count of 1 would be judged on the
+  // evidence it had before the thread that reopened it arrived.
+  if (reopened.size > 0) {
+    await db
+      .from('thread_clusters')
+      .update({ state: 'open', reason: 'reopened: new correspondence on a held deal' })
+      .in('id', [...reopened])
+    progress.reopened = reopened.size
   }
 
   return progress

@@ -26,6 +26,7 @@ import {
   repointOpportunityChunksToOpportunity,
   repointOpportunityChunksToProject,
 } from './chunks'
+import { invalidateDecideDocumentCounts } from '@/lib/decide/count'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Database } from '@/types/database'
 
@@ -82,6 +83,16 @@ export async function refileDocument(
   target: RefileTarget,
   source: DocumentSource = 'documents'
 ): Promise<RefileResult> {
+  // ⚠ AT THE CHOKE POINT, NOT AT EACH CALLER. The Decide badge caches the two
+  // document matcher passes for 60s because it renders in the root layout
+  // (see src/lib/decide/count.ts); without this, filing a document from
+  // /decide left the sidebar claiming it was still waiting. Here rather than
+  // in the route because `meeting-intake/confirm` also refiles, and a cache
+  // that is only invalidated by the door somebody remembered is the failure
+  // §12 describes — forgetting to opt in costs the correctness of the number.
+  // Invalidated at ENTRY: an invalidation that only runs on success would be
+  // skipped by the partial writes these functions can leave behind on a throw.
+  invalidateDecideDocumentCounts()
   if (source === 'opportunity_documents') {
     return refileOpportunityDocument(supabase, documentId, target)
   }
@@ -283,6 +294,7 @@ export async function excludeDocument(
   reason: string,
   source: DocumentSource = 'documents'
 ): Promise<{ chunks: number }> {
+  invalidateDecideDocumentCounts()
   const patch = { excluded_at: new Date().toISOString(), excluded_reason: reason }
 
   // Branched rather than parameterised by table name: a union of table names
@@ -320,6 +332,7 @@ export async function confirmDocumentFiling(
   confirmed = true,
   source: DocumentSource = 'documents'
 ): Promise<void> {
+  invalidateDecideDocumentCounts()
   const patch = { filing_confirmed_at: confirmed ? new Date().toISOString() : null }
   const { error } =
     source === 'opportunity_documents'
@@ -330,6 +343,7 @@ export async function confirmDocumentFiling(
 
 /** Undo an exclusion. The next Drive sync re-indexes the file. */
 export async function restoreExcludedDocument(supabase: Db, documentId: string): Promise<void> {
+  invalidateDecideDocumentCounts()
   const { error } = await supabase
     .from('documents')
     .update({ excluded_at: null, excluded_reason: null, embedding_status: 'pending' })

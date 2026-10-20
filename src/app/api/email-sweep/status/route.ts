@@ -50,6 +50,19 @@ export async function GET() {
       .select('id', { count: 'exact', head: true })
       .eq('state', 'staged')
 
+    // ⚠ REPORTED, BECAUSE A GATE NOBODY CAN SEE IS A BLACK HOLE. The stage
+    // phase holds a cluster that is one unanswered message with nothing
+    // attached (`clusterStagingVerdict`), which keeps 141 of 225 rows off the
+    // Decide queue — and §12 is explicit that a surface hidden because it is
+    // quiet is hidden exactly when somebody needs to look at it. Nothing is
+    // lost: the threads stay summarized, indexed and routable, and a reply or
+    // an attachment reopens the cluster. But the number has to be sayable, or
+    // "why is that deal not in the queue?" has no answer anywhere.
+    const { count: heldClusters } = await db
+      .from('thread_clusters')
+      .select('id', { count: 'exact', head: true })
+      .eq('state', 'held')
+
     const { count: pendingReview } = await db
       .from('email_intake_sessions')
       .select('id', { count: 'exact', head: true })
@@ -81,6 +94,8 @@ export async function GET() {
       clusters: {
         awaitingStaging: openClusters ?? 0,
         staged: stagedClusters ?? 0,
+        /** Below the staging bar — see clusterStagingVerdict in stage-phase.ts. */
+        held: heldClusters ?? 0,
       },
       review: { pending: pendingReview ?? 0 },
     })

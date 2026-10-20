@@ -26,9 +26,87 @@ const MAX_DOCUMENT_CHARS = 400_000
 export interface StageProgress {
   staged: number
   failed: number
+  /** Clusters that did not clear the staging bar. See `clusterStagingVerdict`. */
+  held: number
   remaining: number
   outOfTime: boolean
   errors: string[]
+}
+
+/**
+ * WHETHER A CLUSTER OF CORRESPONDENCE IS WORTH PUTTING IN FRONT OF A HUMAN.
+ *
+ * ⚠ MEASURED, NOT CHOSEN, AND THE MEASUREMENT IS THE WHOLE REASON THIS EXISTS.
+ * Until 2026-10-20 the gate was `thread_count >= 1`, which is no gate at all:
+ * every distinguishable topic in two executives' mailboxes became a candidate
+ * project. Of 225 sessions staged that way, 251 were decided and FOUR were
+ * confirmed — a 1.6% yield — and on 10-20 Richard dismissed 119 in one sitting,
+ * 92 of them carrying the model's own confident `create`. The labels say why:
+ * "Due Diligence Letter", "Compton", "Alex Wells new home", "Big Client
+ * Pursuit", and a dozen federal bid NOTICES that belong on /leads. Those are
+ * conversations, not deals.
+ *
+ * The two conditions below are the only ones in the staged corpus that
+ * discriminated. Counted over all 225 sessions against what Richard actually
+ * confirmed:
+ *
+ *   gate                                    queue    confirms kept (of 4)
+ *   ───────────────────────────────────────────────────────────────────────
+ *   thread_count >= 1  (what shipped)         225     4
+ *   an attachment anywhere in the cluster     122     4
+ *   somebody replied (message_count > 1)      114     3
+ *   attachment AND a reply                     62     3
+ *   thread_count > 1                           49     2
+ *   (attachment AND reply) OR >1 thread        84     4   ← this
+ *
+ * So: 225 → 84, losing none of the four. 103 sessions had no attachment
+ * anywhere and produced ZERO confirmations; 111 came from a cluster whose
+ * busiest thread was a single message and produced one.
+ *
+ * ⚠ THE EVIDENCE IS STRONG ABOUT WHAT TO DROP AND WEAK ABOUT WHAT TO KEEP.
+ * Four positives cannot validate a gate; what they can do is rule one out, and
+ * every tighter gate above drops a confirmation. So this is deliberately the
+ * LOOSEST rule that keeps all four, not the tightest that fits.
+ *
+ * WHY THESE TWO FACTS AND NOT A SCORE. Both are structural — they are counts
+ * Gmail gave us, not judgements a model made — which is the same shape as the
+ * recording gate in §11 that went from 9-wrong-out-of-9 to 0 by refusing to
+ * read intent and requiring a fact instead. A reply means somebody here
+ * engaged; an attachment means paper moved. A single unanswered message with
+ * nothing attached is a notice, and a notice is searchable in `thread_chunks`
+ * without anybody deciding anything about it — which is Richard's own point:
+ * Ber AI can already read the mailbox, so staging adds a decision, not an
+ * answer.
+ *
+ * NOTHING IS LOST BY FAILING THIS. The threads stay in `email_threads`, stay
+ * summarized, stay indexed, stay routable onto a record, and the cluster is
+ * HELD rather than dismissed — so when a reply or an attachment arrives,
+ * `clusterUnassigned` attaches it, reopens the cluster, and this runs again.
+ */
+export function clusterStagingVerdict(
+  threads: Array<Pick<EmailThreadRow, 'message_count' | 'attachment_count'>>
+): { stage: boolean; reason: string } {
+  if (threads.length > 1) {
+    return { stage: true, reason: `${threads.length} threads on one deal` }
+  }
+  const attachments = threads.reduce((n, t) => n + (t.attachment_count ?? 0), 0)
+  const busiest = threads.reduce((n, t) => Math.max(n, t.message_count ?? 0), 0)
+  if (attachments > 0 && busiest > 1) {
+    return {
+      stage: true,
+      reason: `${busiest} messages and ${attachments} attachment${attachments === 1 ? '' : 's'}`,
+    }
+  }
+  // Named in full, because this string is what /intake and the agent's
+  // intake-status tool report back when somebody asks why a deal they remember
+  // is not in the queue.
+  if (attachments === 0 && busiest <= 1) {
+    return { stage: false, reason: 'held: one message, nothing attached, no reply' }
+  }
+  if (attachments === 0) {
+    return { stage: false, reason: `held: ${busiest} messages but nothing attached` }
+  }
+  return { stage: false, reason: `held: ${attachments} attachment(s) but nobody replied` }
 }
 
 /** Render one cluster's summaries into the compact report the model reads. */
@@ -113,22 +191,39 @@ export async function stageOpenClusters(
   const progress: StageProgress = {
     staged: 0,
     failed: 0,
+    held: 0,
     remaining: 0,
     outOfTime: false,
     errors: [],
   }
 
-  const { data, error } = await db
-    .from('thread_clusters')
-    .select('id, label, thread_count, first_at, last_at')
-    .eq('state', 'open')
-    .is('session_id', null)
-    .gte('thread_count', opts.minThreads ?? 1)
-    .order('last_at', { ascending: false })
-    .limit(500)
+  const load = (state: 'open' | 'held', limit: number) =>
+    db
+      .from('thread_clusters')
+      .select('id, label, thread_count, first_at, last_at')
+      .eq('state', state)
+      .is('session_id', null)
+      .gte('thread_count', opts.minThreads ?? 1)
+      .order('last_at', { ascending: false })
+      .limit(limit)
 
-  if (error) throw new Error(`Could not load open clusters: ${error.message}`)
-  const clusters = (data ?? []) as ThreadClusterRow[]
+  // ⚠ 'held' IS READ BACK, NOT JUST WRITTEN — AND IN A SECOND QUERY, AFTER THE
+  // OPEN ONES. A held cluster that later absorbs a thread is reopened by
+  // `clusterUnassigned`, so growth already brings it back as 'open'; reading
+  // held ones as well means a cluster held under an OLDER version of
+  // `clusterStagingVerdict` is re-judged by the current one rather than being
+  // stranded by a rule that has since changed. Two queries rather than one
+  // `.in()` because held rows accumulate and share the newest-first ordering:
+  // a single capped query would eventually let 500 held clusters crowd out the
+  // open one that actually needs staging, which is the failure mode of every
+  // "it is in the same list" shortcut. The verdict runs before any model call,
+  // so re-reading a held cluster costs one cheap query and nothing else.
+  const [openRes, heldRes] = await Promise.all([load('open', 500), load('held', 200)])
+  if (openRes.error) throw new Error(`Could not load open clusters: ${openRes.error.message}`)
+  const clusters = [
+    ...((openRes.data ?? []) as ThreadClusterRow[]),
+    ...((heldRes.data ?? []) as ThreadClusterRow[]),
+  ]
 
   for (const cluster of clusters) {
     if (progress.staged >= maxClusters) break
@@ -140,19 +235,44 @@ export async function stageOpenClusters(
     try {
       const { data: threadData, error: threadErr } = await db
         .from('email_threads')
-        .select('subject, mailbox, first_at, last_at, summary, raw_markdown')
+        .select(
+          'subject, mailbox, first_at, last_at, summary, raw_markdown, message_count, attachment_count'
+        )
         .eq('cluster_id', cluster.id)
         .order('last_at', { ascending: true })
 
       if (threadErr) throw new Error(threadErr.message)
       const threads = (threadData ?? []) as Pick<
         EmailThreadRow,
-        'subject' | 'mailbox' | 'first_at' | 'last_at' | 'summary' | 'raw_markdown'
+        | 'subject'
+        | 'mailbox'
+        | 'first_at'
+        | 'last_at'
+        | 'summary'
+        | 'raw_markdown'
+        | 'message_count'
+        | 'attachment_count'
       >[]
 
       if (threads.length === 0) {
         // Every thread was reassigned or deleted out from under it.
         await db.from('thread_clusters').update({ state: 'dismissed' }).eq('id', cluster.id)
+        continue
+      }
+
+      // ⚠ BEFORE THE MODEL CALL, DELIBERATELY. The verdict reads two integers
+      // Gmail already gave us, so a cluster that does not clear the bar costs
+      // nothing — no extraction, no matcher, no fit pass, no 30-60s of a
+      // server that serves one request at a time. Measured on the staged
+      // corpus this skips 141 of 225, which is 141 extraction passes a day the
+      // box was spending to produce rows a human then dismissed.
+      const verdict = clusterStagingVerdict(threads)
+      if (!verdict.stage) {
+        await db
+          .from('thread_clusters')
+          .update({ state: 'held', reason: verdict.reason })
+          .eq('id', cluster.id)
+        progress.held++
         continue
       }
 

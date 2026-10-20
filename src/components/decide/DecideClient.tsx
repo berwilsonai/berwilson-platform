@@ -583,6 +583,39 @@ export default function DecideClient({ items }: { items: DecideItem[] }) {
     anchorRef.current = index
   }, [visible])
 
+  /**
+   * TELL THE SERVER SOMETHING CHANGED — ONCE, AFTER THE LAST WRITE.
+   *
+   * ⚠ WITHOUT THIS THE NUMBERS LIE FOR AS LONG AS THE TAB STAYS OPEN, and that
+   * is not a cosmetic complaint: on 2026-10-20 Richard cleared 119 sessions in
+   * one sitting and the sidebar still read 248, because every dismissal here is
+   * optimistic LOCAL state and the badge is server-rendered in the root layout
+   * — which App Router reuses across soft navigations. The database said 1. He
+   * reasonably read the unchanged number as the work not having taken, and
+   * asked whether dismissing was the wrong verb. It was not; nothing had told
+   * the server to re-render.
+   *
+   * Debounced rather than per-row: a clearing session is a hundred writes, and
+   * a hundred refreshes would re-run `countDecideItems`, `computeAttention` and
+   * every sidebar count a hundred times against a box that serves one model
+   * request at a time. The trailing edge is the only one that matters — the
+   * count is only interesting once the reader stops.
+   */
+  const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const scheduleRefresh = useCallback(() => {
+    if (refreshTimer.current) clearTimeout(refreshTimer.current)
+    refreshTimer.current = setTimeout(() => {
+      refreshTimer.current = null
+      router.refresh()
+    }, 1500)
+  }, [router])
+  useEffect(
+    () => () => {
+      if (refreshTimer.current) clearTimeout(refreshTimer.current)
+    },
+    []
+  )
+
   async function dismiss(item: Dated) {
     const key = `${item.kind}:${item.id}`
     const spec = DISMISS[item.kind]
@@ -603,6 +636,7 @@ export default function DecideClient({ items }: { items: DecideItem[] }) {
         throw new Error(data.error ?? `Failed (${res.status})`)
       }
       toast.success(spec.verb, { description: item.title })
+      scheduleRefresh()
     } catch (err) {
       // Put it back: a row that vanished without being written is worse than
       // one that never moved, because the reader believes it was handled.
@@ -675,6 +709,7 @@ export default function DecideClient({ items }: { items: DecideItem[] }) {
       await performAccept(item)
       setDismissed((prev) => new Set(prev).add(key))
       toast.success(copy.done, { description: item.acceptName ?? item.title })
+      scheduleRefresh()
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Could not accept that')
     } finally {
@@ -723,6 +758,10 @@ export default function DecideClient({ items }: { items: DecideItem[] }) {
     }
 
     setBulk(null)
+    // One refresh for the batch, whatever the mix of outcomes: even an
+    // all-failed run may have moved rows, and the reader is about to read a
+    // count either way.
+    if (done > 0) scheduleRefresh()
     if (failed === 0) {
       toast.success(`${done} accepted`, { description: 'Records created and filed.' })
     } else {

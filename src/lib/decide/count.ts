@@ -18,16 +18,73 @@ import {
   countMisfiledCompanyDocuments,
   findMisfiledCompanyDocuments,
 } from '@/lib/documents/unfiled'
+import { countMisfiledRecordDocuments } from '@/lib/documents/misfiled'
 import { pendingProposalGroups } from '@/lib/economics/store'
+
+/**
+ * The two document lanes, cached — because this badge renders in the ROOT
+ * LAYOUT on every page.
+ *
+ * ⚠ MEASURED 2026-10-20: `countDecideItems()` took 1,041ms, and adding the
+ * wrong-deal lane it was missing would have taken it past 1.6s. That is a
+ * second of latency on every navigation in the app, spent on a number in the
+ * sidebar. The cost is not SQL — it is the two matcher passes, which run
+ * `loadTargets()` and score every live document against every record, because
+ * "does this document have a deal home" is a question no WHERE clause can
+ * answer (see the header of unfiled.ts).
+ *
+ * So the passes stay exact and the BADGE remembers them for 60 seconds. Same
+ * shape and same TTL as `listCategories` in src/lib/leads/categories.ts, and
+ * the same reason for a TTL rather than a permanent cache: `next start` holds
+ * one process for days (§12), so a permanent cache would mean filing a
+ * document never changed the badge until the next deploy. The writers call
+ * `invalidateDecideDocumentCounts()` so a tap is visible at once.
+ *
+ * ⚠ THE PAGE IS NEVER SERVED FROM HERE. /decide calls the passes directly, so
+ * the rows a reader acts on are always live; this cache can only make the
+ * BADGE up to a minute stale, which is the right thing to be imprecise about.
+ */
+let docCache: { unfiled: number; misfiled: number; at: number } | null = null
+const DOC_TTL_MS = 60_000
+
+export function invalidateDecideDocumentCounts(): void {
+  docCache = null
+}
+
+async function documentCounts(): Promise<{ unfiled: number; misfiled: number }> {
+  if (docCache && Date.now() - docCache.at < DOC_TTL_MS) return docCache
+  const [unfiled, misfiled] = await Promise.all([
+    countMisfiledCompanyDocuments(),
+    countMisfiledRecordDocuments().catch(() => 0),
+  ])
+  docCache = { unfiled, misfiled, at: Date.now() }
+  return docCache
+}
 
 export async function countDecideItems(): Promise<number> {
   const supabase = createAdminClient()
   try {
-    const [intake, leads, review, documents, economics] = await Promise.all([
+    const [intake, leads, review, documents, economics, fieldQuestions] = await Promise.all([
+      // ⚠ NOT A head:true COUNT, AND THE REASON IS THE BUG THIS BADGE EXISTS TO
+      // AVOID. Both the page (decide/page.tsx) and the brief
+      // (summarizeDecideQueue below) skip a session whose predecision is
+      // `dismiss` — the model has already judged it and the row is not a
+      // decision anybody has to make. The badge did not, so it counted rows its
+      // own destination refuses to render: measured 2026-10-20, 125 of 247
+      // decided sessions carried that verdict, and the badge over-reported the
+      // page it points at by roughly double for weeks. §12 — one quantity, one
+      // definition, and the definition lives with the rows.
+      //
+      // `predecision` is jsonb, so this cannot be a SQL predicate the count
+      // would honour (a `->>` filter inside a head count is exactly the kind of
+      // PostgREST silent-drop §12 warns about). Reading the column and counting
+      // in JS is the honest version, and it is one narrow query: the page
+      // already fetches these same rows with their full payload.
       supabase
         .from('email_intake_sessions')
-        .select('id', { count: 'exact', head: true })
-        .eq('status', 'pending'),
+        .select('id, predecision')
+        .eq('status', 'pending')
+        .limit(1000),
       leadsDb()
         .from('leads')
         .select('id', { count: 'exact', head: true })
@@ -41,19 +98,45 @@ export async function countDecideItems(): Promise<number> {
         .from('review_queue')
         .select('id', { count: 'exact', head: true })
         .is('resolved_at', null),
-      // ⚠ NOT a head:true count of its own. Unfiled documents are decided by a
-      // matcher, not a WHERE clause — the question is "does this document have
-      // a deal home", which no SQL predicate can answer. So this calls the same
-      // pass the page renders. A second definition would drift, and then the
-      // badge and the page report different numbers for one quantity (§12).
-      countMisfiledCompanyDocuments(),
+      // ⚠ NOT head:true counts of their own. Both document lanes are decided
+      // by a matcher, not a WHERE clause — "does this document have a deal
+      // home" and "does its name point at a DIFFERENT deal" are questions no
+      // SQL predicate can answer. So these call the same passes the page
+      // renders, through the 60s cache above. A second definition would drift,
+      // and then the badge and the page report different numbers for one
+      // quantity (§12).
+      //
+      // ⚠ THE WRONG-DEAL LANE WAS SIMPLY MISSING HERE. /decide renders it as
+      // its own `misfiled` chip and the brief has never counted it either, so
+      // this badge has always been able to read lower than the page it points
+      // at — the mirror of the `dismiss` bug above, in the same number. Small
+      // today (2 rows) and 38 as recently as 10-14.
+      documentCounts(),
       // Economics figures the AI proposed and nobody has decided. Counted as
       // one item per DEAL, not per figure: forty figures out of one proposal
       // document are one sitting, and counting them individually would make
       // this badge read 40 for what is one decision.
       pendingProposalGroups().then((g) => g.length).catch(() => 0),
+      // Guarded fields Pepper is asking about rather than overwriting. Counted
+      // by `summarizeDecideQueue` and rendered by the page; this badge left
+      // them out, which is the third definition of one quantity.
+      supabase
+        .from('field_update_proposals')
+        .select('id', { count: 'exact', head: true })
+        .eq('status', 'pending'),
     ])
-    return (intake.count ?? 0) + (leads.count ?? 0) + (review.count ?? 0) + documents + economics
+    const intakeCount = (intake.data ?? []).filter(
+      (s) => (s.predecision as { disposition?: string } | null)?.disposition !== 'dismiss'
+    ).length
+    return (
+      intakeCount +
+      (leads.count ?? 0) +
+      (review.count ?? 0) +
+      documents.unfiled +
+      documents.misfiled +
+      economics +
+      (fieldQuestions.count ?? 0)
+    )
   } catch {
     // The shell must render even if a count fails; a missing badge is a far
     // smaller problem than a missing sidebar.
@@ -77,6 +160,16 @@ export interface DecideSummary {
   review: number
   /** Company documents that belong on a deal, or are not documents at all. */
   documents: number
+  /**
+   * Documents already ON a deal whose own name points at a DIFFERENT one.
+   *
+   * ⚠ A SEPARATE FIELD, NEVER FOLDED INTO `documents`. They are two
+   * quantities: one is a gap (no deal at all), the other is an answer already
+   * being given about the wrong record, and the correction is different —
+   * see the header of misfiled.ts. /decide has always rendered them as its own
+   * chip; this and `countDecideItems` were the two readers that left them out.
+   */
+  misfiled: number
   /** Deals with economics figures proposed and undecided. One per DEAL. */
   economics: number
   /**
@@ -110,11 +203,11 @@ export interface DecideSummary {
 export async function summarizeDecideQueue(now = Date.now()): Promise<DecideSummary> {
   const supabase = createAdminClient()
   const empty: DecideSummary = {
-    total: 0, leads: 0, intake: 0, meetings: 0, review: 0, documents: 0, economics: 0,
-    fieldQuestions: 0, top: [],
+    total: 0, leads: 0, intake: 0, meetings: 0, review: 0, documents: 0, misfiled: 0,
+    economics: 0, fieldQuestions: 0, top: [],
   }
   try {
-    const [intake, leads, review, unfiledDocs, economicsGroups, fieldQuestions] =
+    const [intake, leads, review, unfiledDocs, misfiledCount, economicsGroups, fieldQuestions] =
       await Promise.all([
       supabase
         .from('email_intake_sessions')
@@ -132,6 +225,7 @@ export async function summarizeDecideQueue(now = Date.now()): Promise<DecideSumm
         .select('id', { count: 'exact', head: true })
         .is('resolved_at', null),
       findMisfiledCompanyDocuments(),
+      countMisfiledRecordDocuments().catch(() => 0),
       pendingProposalGroups().catch(() => []),
       // Head-only count: the queue's size, not its contents. The page reads the
       // rows themselves.
@@ -235,7 +329,13 @@ export async function summarizeDecideQueue(now = Date.now()): Promise<DecideSumm
 
     rows.sort((a, b) => decideWeight(b) - decideWeight(a))
 
-    const sessions = intake.data ?? []
+    // ⚠ FILTERED THE SAME WAY THE `rows` LOOP ABOVE FILTERS. That loop skips a
+    // `dismiss` predecision when building the prose lines; counting the
+    // unfiltered array made the brief's total larger than the list it was the
+    // total of, and larger than the page. One definition, applied once, here.
+    const sessions = (intake.data ?? []).filter(
+      (s) => (s.predecision as { disposition?: string } | null)?.disposition !== 'dismiss'
+    )
     // Split, never double-counted: the two together must still equal what
     // countDecideItems() counts in one query, or the badge and the brief report
     // different sizes for one queue (§12 — one quantity, one definition).
@@ -244,6 +344,7 @@ export async function summarizeDecideQueue(now = Date.now()): Promise<DecideSumm
     const leadCount = (leads.data ?? []).length
     const reviewCount = review.count ?? 0
     const documentCount = unfiledDocs.length
+    const misfiledDocCount = misfiledCount
     const economicsCount = economicsGroups.length
     const fieldQuestionCount = fieldQuestions.count ?? 0
     return {
@@ -253,6 +354,7 @@ export async function summarizeDecideQueue(now = Date.now()): Promise<DecideSumm
         leadCount +
         reviewCount +
         documentCount +
+        misfiledDocCount +
         economicsCount +
         fieldQuestionCount,
       leads: leadCount,
@@ -260,6 +362,7 @@ export async function summarizeDecideQueue(now = Date.now()): Promise<DecideSumm
       meetings: meetingCount,
       review: reviewCount,
       documents: documentCount,
+      misfiled: misfiledDocCount,
       economics: economicsCount,
       fieldQuestions: fieldQuestionCount,
       top: rows.slice(0, 5).map((r) => r.line),
