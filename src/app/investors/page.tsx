@@ -94,6 +94,10 @@ export default async function InvestorsPage({ searchParams }: PageProps) {
   // confidential-project filter itself, so a commitment into a protected deal's
   // vehicle is named as such rather than by its deal.
   const viewer = await getViewer()
+  // `?? true` matches /opportunities exactly: with no viewer at all the app is
+  // in pre-migration bootstrap, where everyone is an admin. One definition of
+  // "may delete", not two — `/api/investors/[id]` is the real boundary anyway.
+  const canDelete = viewer?.isAdmin ?? true
   const vehicleRefs = await resolveVehicleRefs(
     allInvestments.map((i) => i.spv_id).filter((v): v is string => !!v),
     viewer?.authUserId ?? null
@@ -316,7 +320,7 @@ export default async function InvestorsPage({ searchParams }: PageProps) {
           }
         />
       ) : (
-        <InvestorsClient items={items} />
+        <InvestorsClient items={items} canDelete={canDelete} />
       )}
     </div>
   )

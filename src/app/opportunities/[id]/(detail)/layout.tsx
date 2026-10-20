@@ -21,7 +21,7 @@ import {
 } from '@/lib/utils/opportunities'
 import OpportunityStatusControl from '@/components/opportunities/OpportunityStatusControl'
 import GenerateBriefButton from '@/components/projects/GenerateBriefButton'
-import OpportunityDeleteButton from '@/components/opportunities/OpportunityDeleteButton'
+import RecordDeleteAndLeave from '@/components/shared/RecordDeleteAndLeave'
 import RecordTabBar, { type TabKey } from '@/components/records/RecordTabBar'
 import RecordLogMenu from '@/components/records/RecordLogMenu'
 import RecordPager from '@/components/records/RecordPager'
@@ -145,7 +145,15 @@ export default async function OpportunityDetailLayout({ children, params }: Layo
               <Pencil size={13} />
               Edit
             </Link>
-            <OpportunityDeleteButton opportunityId={id} name={opportunity.name} />
+            <RecordDeleteAndLeave
+              backTo="/opportunities"
+              target={{
+                endpoint: `/api/opportunities/${id}`,
+                noun: 'opportunity',
+                name: opportunity.name,
+                description: 'This removes the opportunity and its attached documents.',
+              }}
+            />
           </div>
         </div>
 

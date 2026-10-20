@@ -103,7 +103,7 @@ export default async function OpportunitiesPage({ searchParams }: PageProps) {
           }
         />
       ) : (
-        <OpportunitiesClient opportunities={opportunities ?? []} />
+        <OpportunitiesClient opportunities={opportunities ?? []} canDelete={isAdmin} />
       )}
     </div>
   )

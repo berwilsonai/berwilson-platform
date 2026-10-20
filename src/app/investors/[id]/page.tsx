@@ -25,7 +25,7 @@ import {
   REQUIREMENT_OPEN_STATUSES,
 } from '@/lib/utils/investors'
 import InvestorStageControl from '@/components/investors/InvestorStageControl'
-import InvestorDeleteButton from '@/components/investors/InvestorDeleteButton'
+import RecordDeleteAndLeave from '@/components/shared/RecordDeleteAndLeave'
 import InvestorNotes from '@/components/investors/InvestorNotes'
 import InvestorTasks from '@/components/investors/InvestorTasks'
 import InvestmentsSection, { type InvestmentRow } from '@/components/investors/InvestmentsSection'
@@ -213,7 +213,16 @@ export default async function InvestorDetailPage({ params }: PageProps) {
             <Pencil size={13} />
             Edit
           </Link>
-          <InvestorDeleteButton investorId={id} name={investor.name} />
+          <RecordDeleteAndLeave
+            backTo="/investors"
+            target={{
+              endpoint: `/api/investors/${id}`,
+              noun: 'investor',
+              name: investor.name,
+              description:
+                'This removes the investor, their investments and their notes. The directory contact stays.',
+            }}
+          />
         </div>
       </div>
 
