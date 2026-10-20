@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { actorAdminClient } from '@/lib/auth/viewer'
 import type { TablesInsert } from '@/lib/supabase/types'
 
 export async function GET() {
@@ -25,7 +26,7 @@ export async function POST(request: NextRequest) {
     return Response.json({ error: 'entity_type is required' }, { status: 400 })
   }
 
-  const supabase = createAdminClient()
+  const supabase = await actorAdminClient()
 
   const row: TablesInsert<'entities'> = {
     name: body.name.trim(),

@@ -125,6 +125,73 @@ select 'investor_snapshot=' || coalesce((
    where record_id = 'bbbbbbbb-0000-4000-8000-000000000002' and action = 'DELETE' limit 1
 ), 'MISSING');
 
+-- The directory, audited from 2026-10-20. These two tables carried no trigger
+-- at all, so nothing a human OR Pepper did to a contact left a trace. They are
+-- in _audited_in_full, so an UPDATE must also carry a per-FIELD diff: that is
+-- the half that answers "who changed this counterparty's phone number", which
+-- is the question a rolodex actually raises.
+insert into parties (id, full_name, is_organization, phone)
+values ('cccccccc-0000-4000-8000-000000000001', 'VERIFY scratch party', false, '801-555-0100');
+
+select 'party_insert_logged=' || count(*) from activity_log
+  where record_id = 'cccccccc-0000-4000-8000-000000000001' and action = 'INSERT';
+
+update parties set phone = '801-555-0199'
+ where id = 'cccccccc-0000-4000-8000-000000000001';
+
+select 'party_update_diff=' || coalesce((
+  select field_changes->'phone'->>'old' || ' -> ' || (field_changes->'phone'->>'new')
+    from activity_log
+   where record_id = 'cccccccc-0000-4000-8000-000000000001' and action = 'UPDATE'
+   order by created_at desc limit 1
+), 'MISSING');
+
+-- updated_at must NOT appear in the diff, or every edit carries a timestamp
+-- change nobody asked about and the diff stops being readable.
+select 'party_diff_keys=' || coalesce((
+  select string_agg(k, ',' order by k) from (
+    select jsonb_object_keys(field_changes) k from activity_log
+     where record_id = 'cccccccc-0000-4000-8000-000000000001' and action = 'UPDATE'
+     order by created_at desc limit 1
+  ) x
+), 'MISSING');
+
+delete from parties where id = 'cccccccc-0000-4000-8000-000000000001';
+
+select 'party_delete_snapshot=' || coalesce((
+  select metadata->>'full_name' from activity_log
+   where record_id = 'cccccccc-0000-4000-8000-000000000001' and action = 'DELETE' limit 1
+), 'MISSING');
+
+insert into entities (id, name, entity_type)
+values ('cccccccc-0000-4000-8000-000000000002', 'VERIFY scratch entity', 'llc');
+delete from entities where id = 'cccccccc-0000-4000-8000-000000000002';
+
+-- ATTRIBUTION. The trigger reads the acting user out of request.headers, which
+-- actorAdminClient() sets as x-actor-id / x-actor-email. A write WITHOUT them
+-- records actor_type='system', which is what five of the eight parties/entities
+-- write paths were doing until 10-20 — an audit trail whose every row says
+-- "system" answers nothing. The two inserts below prove both directions.
+select 'unattributed_actor=' || coalesce((
+  select actor_type from activity_log
+   where record_id = 'cccccccc-0000-4000-8000-000000000002' and action = 'INSERT' limit 1
+), 'MISSING');
+
+set local request.headers = '{"x-actor-email":"moose@berwilson.com"}';
+insert into parties (id, full_name, is_organization)
+values ('cccccccc-0000-4000-8000-000000000003', 'VERIFY scratch attributed', false);
+reset request.headers;
+
+select 'attributed_email=' || coalesce((
+  select actor_email from activity_log
+   where record_id = 'cccccccc-0000-4000-8000-000000000003' and action = 'INSERT' limit 1
+), 'MISSING');
+
+select 'entity_delete_snapshot=' || coalesce((
+  select metadata->>'name' from activity_log
+   where record_id = 'cccccccc-0000-4000-8000-000000000002' and action = 'DELETE' limit 1
+), 'MISSING');
+
 rollback;
 `
 
@@ -165,13 +232,31 @@ if (Object.keys(out).length > 0) {
     out.investment_logged === '1', `${out.investment_logged} rows`)
   check('the log row actually CARRIES the deleted row, not just its id',
     out.investor_snapshot === 'VERIFY scratch investor', out.investor_snapshot)
+
+  // ── The directory (2026-10-20) ────────────────────────────────────────────
+  check('creating a contact is now logged — Pepper does this on her own',
+    out.party_insert_logged === '1', `${out.party_insert_logged} rows`)
+  check('⚠ and an edit carries the FIELD that changed, not just "touched"',
+    out.party_update_diff === '801-555-0100 -> 801-555-0199', out.party_update_diff)
+  check('the diff holds ONLY the changed field — no updated_at noise',
+    out.party_diff_keys === 'phone', out.party_diff_keys)
+  check('a deleted contact is recoverable from the log', 
+    out.party_delete_snapshot === 'VERIFY scratch party', out.party_delete_snapshot)
+  check('so is a deleted entity', 
+    out.entity_delete_snapshot === 'VERIFY scratch entity', out.entity_delete_snapshot)
+  check('a write with no actor headers is honestly marked "system"',
+    out.unattributed_actor === 'system', out.unattributed_actor)
+  check('⚠ and one WITH them names the person — what actorAdminClient() buys',
+    out.attributed_email === 'moose@berwilson.com', out.attributed_email)
 }
 
 // Nothing to clean up: the whole thing rolled back.
 const leftovers = psql(
   `select count(*) from opportunities where name like 'VERIFY scratch%'
    union all select count(*) from investors where name like 'VERIFY scratch%'
-   union all select count(*) from parties where full_name like 'VERIFY scratch%'`
+   union all select count(*) from parties where full_name like 'VERIFY scratch%'
+   union all select count(*) from entities where name like 'VERIFY scratch%'
+   union all select count(*) from activity_log where metadata->>'full_name' like 'VERIFY scratch%'`
 )
 check('the rollback left nothing behind', leftovers.split('\n').every((n) => n.trim() === '0'),
   leftovers.replace(/\n/g, ','))

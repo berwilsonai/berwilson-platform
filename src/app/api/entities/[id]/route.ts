@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server'
-import { createAdminClient } from '@/lib/supabase/admin'
+import { actorAdminClient } from '@/lib/auth/viewer'
 
 interface RouteContext {
   params: Promise<{ id: string }>
@@ -8,7 +8,7 @@ interface RouteContext {
 export async function PATCH(request: NextRequest, { params }: RouteContext) {
   const { id } = await params
   const body = await request.json()
-  const supabase = createAdminClient()
+  const supabase = await actorAdminClient()
 
   // Build update payload — only include fields that were sent
   const updates: import('@/lib/supabase/types').TablesUpdate<'entities'> = {}
@@ -50,7 +50,7 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
 
 export async function DELETE(_request: NextRequest, { params }: RouteContext) {
   const { id } = await params
-  const supabase = createAdminClient()
+  const supabase = await actorAdminClient()
 
   // Prevent deleting entities that have children referencing them
   const { count: childCount } = await supabase

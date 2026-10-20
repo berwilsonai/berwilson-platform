@@ -9,7 +9,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { createAdminClient } from '@/lib/supabase/admin'
+import { actorAdminClient } from '@/lib/auth/viewer'
 import { upsertAliases } from '@/lib/contacts/aliases'
 
 export async function POST(request: NextRequest) {
@@ -31,7 +31,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'alias and party_id are required' }, { status: 400 })
   }
 
-  const admin = createAdminClient()
+  const admin = await actorAdminClient()
 
   // Verify the party exists
   const { data: party, error: partyError } = await admin
