@@ -9,6 +9,27 @@
  */
 
 /**
+ * What a reader can DO to a row of this kind, without leaving the list.
+ *
+ * ⚠ ONLY WHERE THE VERB IS HONEST, AND NULL RENDERS NO BUTTON RATHER THAN A
+ * DEAD ONE. Four of the ten kinds carry a row that can be deleted — a task, a
+ * lead, a diligence item, a compliance item — and each deletes through the
+ * route that already owns it, so the record-level guard, the enum checks and
+ * the `activity_log` attribution are the ones that surface already has. The
+ * other six have no such verb: a milestone and a cross-project dependency are
+ * real records a triage screen has no business destroying, `stale_waiting` and
+ * `stale_decision` are entries inside an `updates` jsonb array with no row of
+ * their own at all, and an investor going cold is DERIVED from a record nobody
+ * would delete to quieten a list. Those six get Dismiss, which every kind gets.
+ */
+export interface AttentionSource {
+  /** The route that owns this row. DELETE here; its own guard applies. */
+  endpoint: (rowId: string) => string
+  /** What the confirmation calls the thing, in the reader's words. */
+  noun: string
+}
+
+/**
  * THE REGISTRY OF ATTENTION KINDS. One row per thing that can need you.
  *
  * ⚠ EVERYTHING KEYED BY KIND DERIVES FROM HERE — the category union, the
@@ -32,16 +53,68 @@
  * chips cannot invent a colour.
  */
 export const ATTENTION_KINDS = [
-  { category: 'overdue_action',       summaryKey: 'overdue_actions',       label: 'Overdue tasks',        tone: 'critical' },
-  { category: 'critical_dd',          summaryKey: 'critical_dd',           label: 'Critical diligence',   tone: 'critical' },
-  { category: 'approaching_milestone',summaryKey: 'approaching_milestones',label: 'Milestones',           tone: 'caution' },
-  { category: 'expiring_compliance',  summaryKey: 'expiring_compliance',   label: 'Compliance',           tone: 'caution' },
-  { category: 'stale_waiting',        summaryKey: 'stale_waiting',         label: 'Waiting on someone',   tone: 'caution' },
-  { category: 'stale_decision',       summaryKey: 'stale_decisions',       label: 'Decisions adrift',     tone: 'info' },
-  { category: 'dependency_risk',      summaryKey: 'dependency_risks',      label: 'Dependency risk',      tone: 'critical' },
-  { category: 'investor_followup',    summaryKey: 'investor_followups',    label: 'Investor follow-ups',  tone: 'info' },
-  { category: 'dino_payment',         summaryKey: 'dino_payments',         label: 'Dino payments',        tone: 'info' },
-  { category: 'lead_review',          summaryKey: 'lead_reviews',          label: 'Inbound leads',        tone: 'neutral' },
+  {
+    category: 'overdue_action',        summaryKey: 'overdue_actions',        label: 'Overdue tasks',        tone: 'critical',
+    idPrefixes: ['task-'],             rowTable: 'tasks',
+    deletable: { endpoint: (id: string) => `/api/tasks/${id}`, noun: 'task' },
+  },
+  {
+    category: 'critical_dd',           summaryKey: 'critical_dd',            label: 'Critical diligence',   tone: 'critical',
+    idPrefixes: ['dd-'],               rowTable: 'dd_items',
+    deletable: { endpoint: (id: string) => `/api/records/dd-items/${id}`, noun: 'diligence item' },
+  },
+  {
+    category: 'approaching_milestone', summaryKey: 'approaching_milestones', label: 'Milestones',           tone: 'caution',
+    idPrefixes: ['milestone-'],        rowTable: 'milestones',
+    // Deliberately not deletable. `CHILDREN.milestones` in
+    // src/lib/records/children.ts withholds DELETE too, for the same reason:
+    // a dated milestone is the record of a commitment, and the registry does
+    // not grant a destructive verb nothing asked for (§11).
+    deletable: null,
+  },
+  {
+    category: 'expiring_compliance',   summaryKey: 'expiring_compliance',    label: 'Compliance',           tone: 'caution',
+    idPrefixes: ['comp-'],             rowTable: 'compliance_items',
+    deletable: { endpoint: (id: string) => `/api/records/compliance-items/${id}`, noun: 'compliance item' },
+  },
+  {
+    category: 'stale_waiting',         summaryKey: 'stale_waiting',          label: 'Waiting on someone',   tone: 'caution',
+    // ⚠ NO ROW AND THEREFORE NO UUID. The key is
+    // `waiting-<update uuid>-<text slice>`: one entry inside an `updates`
+    // jsonb array, which is why `rowTable` is null and `attentionRowId()`
+    // refuses it rather than handing a caller a mangled id.
+    idPrefixes: ['waiting-'],          rowTable: null, deletable: null,
+  },
+  {
+    category: 'stale_decision',        summaryKey: 'stale_decisions',        label: 'Decisions adrift',     tone: 'info',
+    idPrefixes: ['decision-'],         rowTable: null, deletable: null,
+  },
+  {
+    category: 'dependency_risk',       summaryKey: 'dependency_risks',       label: 'Dependency risk',      tone: 'critical',
+    // A DELETE route exists (`/api/dependencies/[id]`) and is still not offered
+    // here: removing a link changes the dependency graph that the project
+    // detail page and the timeline both read, which is not what "get this off
+    // my screen" means.
+    idPrefixes: ['dep-'],              rowTable: 'project_dependencies', deletable: null,
+  },
+  {
+    category: 'investor_followup',     summaryKey: 'investor_followups',     label: 'Investor follow-ups',  tone: 'info',
+    // ⚠ TWO PREFIXES, ONE KIND — an overdue next step and an investor going
+    // cold are both this category. A single-prefix assumption would have left
+    // half of them unparseable, which is why this field is a list.
+    idPrefixes: ['investor-next-', 'investor-cold-'], rowTable: 'investors', deletable: null,
+  },
+  {
+    category: 'dino_payment',          summaryKey: 'dino_payments',          label: 'Dino payments',        tone: 'info',
+    idPrefixes: ['dino-payment-'],     rowTable: 'dino_payments', deletable: null,
+  },
+  {
+    category: 'lead_review',           summaryKey: 'lead_reviews',           label: 'Inbound leads',        tone: 'neutral',
+    idPrefixes: ['lead-'],             rowTable: 'leads',
+    // Matches the X already on the card at /leads — same route, same verb, so
+    // the two surfaces cannot come to mean different things by "delete".
+    deletable: { endpoint: (id: string) => `/api/leads/${id}`, noun: 'lead' },
+  },
 ] as const
 
 export type AttentionCategory = (typeof ATTENTION_KINDS)[number]['category']
@@ -101,4 +174,77 @@ export function urgencyBand(urgency: number): 'now' | 'soon' | 'watch' {
   if (urgency >= 75) return 'now'
   if (urgency >= 50) return 'soon'
   return 'watch'
+}
+
+
+/* ── Acting on a row, from the registry ──────────────────────────────────── */
+
+/** How long a dismissal lasts. Richard's call (10-20): two weeks. */
+export const ATTENTION_DISMISS_DAYS = 14
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+/**
+ * Which kind an item key belongs to, read off its prefix.
+ *
+ * ⚠ A PREFIX DISCRIMINATOR IS A REGISTRY WITH NO TYPE BEHIND IT (§12). The
+ * recording work hit this three switches deep: an unrecognised prefix fell
+ * through to a default arm and a whole filing step was skipped in silence. So
+ * the prefixes live in the registry above, this is the only thing that reads
+ * them, and `attention-kinds.test.ts` asserts every id `computeAttention()`
+ * actually produces matches its own category's list — the assertion, not a
+ * second hand-written switch.
+ *
+ * Longest prefix first, so `investor-next-` can never be mistaken for a shorter
+ * sibling if one is ever added.
+ */
+export function attentionCategoryForKey(itemKey: string): AttentionCategory | null {
+  let best: { category: AttentionCategory; length: number } | null = null
+  for (const kind of ATTENTION_KINDS) {
+    for (const prefix of kind.idPrefixes) {
+      if (!itemKey.startsWith(prefix)) continue
+      if (!best || prefix.length > best.length) {
+        best = { category: kind.category, length: prefix.length }
+      }
+    }
+  }
+  return best?.category ?? null
+}
+
+/**
+ * The source row's uuid behind an item key, or null where there is not one.
+ *
+ * ⚠ IT REFUSES RATHER THAN GUESSES, AND THAT IS THE WHOLE JOB. Two kinds build
+ * their key as `<prefix><update uuid>-<text slice>` because the item is an
+ * entry inside an `updates` jsonb array with no row of its own: stripping the
+ * prefix there yields `<uuid>-Sign the MNDA`, which is not an id and must never
+ * be sent to a DELETE. Those kinds declare `rowTable: null`, and anything that
+ * is not a bare uuid after the prefix is refused — so a caller cannot reach a
+ * route with a mangled id, and `null` means "this kind has no row", which is
+ * exactly the question every caller is asking.
+ */
+export function attentionRowId(itemKey: string): { category: AttentionCategory; table: string; rowId: string } | null {
+  const category = attentionCategoryForKey(itemKey)
+  if (!category) return null
+  const kind = attentionKind(category)
+  if (!kind.rowTable) return null
+  for (const prefix of kind.idPrefixes) {
+    if (!itemKey.startsWith(prefix)) continue
+    const rest = itemKey.slice(prefix.length)
+    if (!UUID.test(rest)) return null
+    return { category, table: kind.rowTable, rowId: rest }
+  }
+  return null
+}
+
+/** The delete route for a kind, or null where deleting is not the honest verb. */
+export function attentionDeleteTarget(
+  category: AttentionCategory,
+  itemKey: string
+): { url: string; noun: string } | null {
+  const kind = attentionKind(category)
+  if (!kind.deletable) return null
+  const row = attentionRowId(itemKey)
+  if (!row || row.category !== category) return null
+  return { url: kind.deletable.endpoint(row.rowId), noun: kind.deletable.noun }
 }

@@ -2,7 +2,7 @@ import { TriangleAlert } from 'lucide-react'
 
 import { computeAttention, countAttention } from '@/lib/attention'
 import { ATTENTION_KINDS } from '@/lib/attention-kinds'
-import AttentionClient, { type AttentionRow } from '@/components/attention/AttentionClient'
+import AttentionClient, { type AttentionRow, type DismissedRow } from '@/components/attention/AttentionClient'
 
 export const metadata = { title: 'Attention — Ber Wilson Intelligence' }
 
@@ -26,7 +26,7 @@ export const metadata = { title: 'Attention — Ber Wilson Intelligence' }
  * choke point, so this page cannot forget to.
  */
 export default async function AttentionPage() {
-  const { items, summary } = await computeAttention()
+  const { items, summary, dismissed } = await computeAttention()
 
   const rows: AttentionRow[] = items.map((i) => ({
     id: i.id,
@@ -61,6 +61,21 @@ export default async function AttentionPage() {
   */
   const badgeCount = await countAttention()
 
+  /*
+    The dismissals, already contained by `computeAttention()` (§8 — a list of
+    titles somebody silenced is a cross-portfolio surface like any other).
+    Narrowed to what the Dismissed view renders rather than passed whole, so a
+    column added to that table later does not silently reach the browser.
+  */
+  const quiet: DismissedRow[] = dismissed.map((d) => ({
+    item_key: d.item_key,
+    category: d.category,
+    title: d.title,
+    project_name: d.project_name,
+    dismissed_until: d.dismissed_until,
+    dismissed_by: d.dismissed_by,
+  }))
+
   return (
     <div className="space-y-5">
       <header>
@@ -71,7 +86,8 @@ export default async function AttentionPage() {
         <p className="mt-1 max-w-prose text-sm text-muted-foreground">
           Everything that is slipping, ranked by urgency rather than by when it arrived —{' '}
           <span className="text-foreground font-medium tnum">{summary.total}</span>{' '}
-          {summary.total === 1 ? 'item' : 'items'} across {ATTENTION_KINDS.length} kinds.
+          {summary.total === 1 ? 'item' : 'items'} across {ATTENTION_KINDS.length} kinds. Dismiss a
+          row to quiet it for two weeks, or delete the record behind it where that is what you mean.
         </p>
         {/* The sidebar's number, named as its own quantity. It is NOT a subset
             of the list: it counts overdue milestones where this scores
@@ -87,7 +103,7 @@ export default async function AttentionPage() {
         </p>
       </header>
 
-      <AttentionClient items={rows} />
+      <AttentionClient items={rows} dismissed={quiet} />
     </div>
   )
 }

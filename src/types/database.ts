@@ -205,6 +205,26 @@ isOneToOne: false
       referencedColumns: ["id"]
     }
                   ]
+                },"attention_dismissals": {
+                  Row: {
+                    "category": string,"created_at": string,"dismissed_by": string | null,"dismissed_until": string,"id": string,"item_key": string,"project_id": string | null,"project_name": string | null,"title": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "category": string,"created_at"?: string,"dismissed_by"?: string | null,"dismissed_until": string,"id"?: string,"item_key": string,"project_id"?: string | null,"project_name"?: string | null,"title": string
+                  }
+                  Update: {
+                    "category"?: string,"created_at"?: string,"dismissed_by"?: string | null,"dismissed_until"?: string,"id"?: string,"item_key"?: string,"project_id"?: string | null,"project_name"?: string | null,"title"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "attention_dismissals_project_id_fkey"
+      columns: ["project_id"]
+isOneToOne: false
+      referencedRelation: "projects"
+      referencedColumns: ["id"]
+    }
+                  ]
                 },"certifications": {
                   Row: {
                     "cert_number": string | null,"created_at": string,"document_id": string | null,"expiration_date": string | null,"id": string,"is_active": boolean,"issued_date": string | null,"issuing_body": string | null,"name": string,"notes": string | null,"updated_at": string

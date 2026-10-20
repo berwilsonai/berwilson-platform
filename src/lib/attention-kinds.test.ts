@@ -1,7 +1,15 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 
-import { ATTENTION_KINDS, attentionHref, attentionKind, urgencyBand } from './attention-kinds'
+import {
+  ATTENTION_KINDS,
+  attentionCategoryForKey,
+  attentionDeleteTarget,
+  attentionHref,
+  attentionKind,
+  attentionRowId,
+  urgencyBand,
+} from './attention-kinds'
 import { isTone } from './ui/tone'
 
 /**
@@ -81,4 +89,186 @@ test('the four past-a-date kinds lead the registry, because the list is ranked',
     'approaching_milestone',
     'expiring_compliance',
   ])
+})
+
+/* ── Quick actions, 10-20 ──────────────────────────────────────────────── */
+
+/**
+ * The prefix registry, held to what `computeAttention()` actually emits.
+ *
+ * ⚠ A PREFIX DISCRIMINATOR IS A REGISTRY WITH NO TYPE BEHIND IT, AND THIS
+ * CODEBASE HAS ALREADY PAID FOR THAT ONCE. §12, 10-19: a fourth recording door
+ * needed an arm in THREE separate prefix switches, 15 of 16 live checks passed,
+ * and the meeting sat `unfiled` under a correctly linked thread because an
+ * unrecognised prefix fell through to a default. The lasting fix there was a
+ * test that loops every member across every switch rather than fixing them one
+ * failure at a time, and this is the same test for the same shape.
+ *
+ * The id formats below are COPIED FROM src/lib/attention.ts, one per `id:`
+ * site in the ten item-building blocks, so a renamed prefix fails here instead
+ * of silently making a row undismissable.
+ */
+
+/**
+ * One sample key per shape the engine builds, with the category that built it.
+ * `null` for a rowId means the key carries no bare uuid — see `stale_waiting`.
+ */
+const UUID = '4f48f348-39b6-4d5a-9a98-92218501fd05'
+
+const EMITTED: { key: string; category: string; rowId: string | null; table: string | null }[] = [
+  // `id: \`task-${t.id}\``
+  { key: `task-${UUID}`, category: 'overdue_action', rowId: UUID, table: 'tasks' },
+  // `id: \`waiting-${u.id}-${item.text?.slice(0, 20)}\`` — an update's jsonb entry
+  { key: `waiting-${UUID}-Sign the MNDA`, category: 'stale_waiting', rowId: null, table: null },
+  // `id: \`milestone-${m.id}\``
+  { key: `milestone-${UUID}`, category: 'approaching_milestone', rowId: UUID, table: 'milestones' },
+  // `id: \`dd-${dd.id}\``
+  { key: `dd-${UUID}`, category: 'critical_dd', rowId: UUID, table: 'dd_items' },
+  // `id: \`comp-${c.id}\``
+  { key: `comp-${UUID}`, category: 'expiring_compliance', rowId: UUID, table: 'compliance_items' },
+  // `id: \`decision-${u.id}-${d.text.slice(0, 20)}\``
+  { key: `decision-${UUID}-Push to 1 Nov`, category: 'stale_decision', rowId: null, table: null },
+  // `id: \`dep-${dep.id}\``
+  { key: `dep-${UUID}`, category: 'dependency_risk', rowId: UUID, table: 'project_dependencies' },
+  // `id: \`investor-next-${inv.id}\`` and `id: \`investor-cold-${inv.id}\`` — ONE
+  // category, TWO prefixes. A single-prefix assumption leaves half of these
+  // unparseable, which is why `idPrefixes` is a list.
+  { key: `investor-next-${UUID}`, category: 'investor_followup', rowId: UUID, table: 'investors' },
+  { key: `investor-cold-${UUID}`, category: 'investor_followup', rowId: UUID, table: 'investors' },
+  // `id: \`dino-payment-${p.id}\``
+  { key: `dino-payment-${UUID}`, category: 'dino_payment', rowId: UUID, table: 'dino_payments' },
+  // `id: \`lead-${l.id}\``
+  { key: `lead-${UUID}`, category: 'lead_review', rowId: UUID, table: 'leads' },
+]
+
+test('every id shape the engine emits resolves to the kind that built it', () => {
+  for (const e of EMITTED) {
+    assert.equal(
+      attentionCategoryForKey(e.key),
+      e.category,
+      `${e.key} must resolve to ${e.category} — a key that resolves to nothing cannot be ` +
+        'dismissed, and one that resolves to the WRONG kind would offer another kind\'s delete route'
+    )
+  }
+})
+
+test('every registry kind is covered by a sample above', () => {
+  const covered = new Set(EMITTED.map((e) => e.category))
+  for (const kind of ATTENTION_KINDS) {
+    assert.ok(
+      covered.has(kind.category),
+      `${kind.category} has no sample key here. A kind added to the registry without one is a ` +
+        'row whose quick actions nothing has ever exercised — add its `id:` format from ' +
+        'src/lib/attention.ts'
+    )
+  }
+})
+
+test('every sample key starts with one of its own kind\'s declared prefixes', () => {
+  for (const e of EMITTED) {
+    const kind = ATTENTION_KINDS.find((k) => k.category === e.category)
+    assert.ok(kind, `${e.category} is not in the registry`)
+    assert.ok(
+      kind.idPrefixes.some((p) => e.key.startsWith(p)),
+      `${e.key} matches none of ${e.category}'s prefixes (${kind.idPrefixes.join(', ')})`
+    )
+  }
+})
+
+test('no prefix is a prefix of another kind\'s prefix', () => {
+  // The lookup takes the LONGEST match, so an overlap would not silently
+  // misroute today — but it would make the registry's reading order load-bearing
+  // in a way nothing states, which is how `bldg`/`building` and `title`/
+  // `Entitlements` went wrong (§12).
+  const all = ATTENTION_KINDS.flatMap((k) => k.idPrefixes.map((p) => ({ p, c: k.category })))
+  for (const a of all) {
+    for (const b of all) {
+      if (a.p === b.p && a.c === b.c) continue
+      if (a.c === b.c) continue
+      assert.ok(
+        !b.p.startsWith(a.p),
+        `"${b.p}" (${b.c}) starts with "${a.p}" (${a.c}) — two kinds would contend for one key`
+      )
+    }
+  }
+})
+
+test('a key with no bare uuid behind it is REFUSED, not mangled', () => {
+  for (const e of EMITTED) {
+    const row = attentionRowId(e.key)
+    if (e.rowId === null) {
+      assert.equal(
+        row,
+        null,
+        `${e.key} has no row of its own (it is an entry inside an updates jsonb array). ` +
+          'Stripping the prefix yields "<uuid>-Sign the MNDA", which must never reach a DELETE'
+      )
+      continue
+    }
+    assert.ok(row, `${e.key} should resolve to a row`)
+    assert.equal(row.rowId, e.rowId)
+    assert.equal(row.table, e.table)
+    assert.equal(row.category, e.category)
+  }
+})
+
+test('garbage is refused rather than guessed at', () => {
+  assert.equal(attentionCategoryForKey('nonsense-123'), null)
+  assert.equal(attentionCategoryForKey(''), null)
+  // Right prefix, wrong payload: not a uuid, so no route is offered.
+  assert.equal(attentionRowId('task-not-a-uuid'), null)
+  assert.equal(attentionRowId(`task-${UUID}x`), null)
+})
+
+test('delete is offered on exactly the four kinds that have an honest row', () => {
+  const offered = ATTENTION_KINDS.filter((k) => k.deletable).map((k) => k.category).sort()
+  assert.deepEqual(
+    offered,
+    ['critical_dd', 'expiring_compliance', 'lead_review', 'overdue_action'],
+    'Adding a fifth is a deliberate decision about a destructive verb, not a refactor. ' +
+      'Milestones and dependencies are withheld on purpose (see the registry comments), and ' +
+      'stale_waiting/stale_decision have no row at all.'
+  )
+})
+
+test('a delete target names the route that already owns the row', () => {
+  // ⚠ NOT A ROUTE ASSEMBLED FROM A TABLE NAME. §12: a second routing table
+  // drifting beside the real one is how `/decide` went wrong. Each of these is
+  // an existing handler with its own record-level guard, enum checks and
+  // activity_log attribution — which is the whole reason the delete goes
+  // through it rather than straight to Postgres.
+  assert.deepEqual(attentionDeleteTarget('overdue_action', `task-${UUID}`), {
+    url: `/api/tasks/${UUID}`,
+    noun: 'task',
+  })
+  assert.deepEqual(attentionDeleteTarget('lead_review', `lead-${UUID}`), {
+    url: `/api/leads/${UUID}`,
+    noun: 'lead',
+  })
+  assert.deepEqual(attentionDeleteTarget('critical_dd', `dd-${UUID}`), {
+    url: `/api/records/dd-items/${UUID}`,
+    noun: 'diligence item',
+  })
+  assert.deepEqual(attentionDeleteTarget('expiring_compliance', `comp-${UUID}`), {
+    url: `/api/records/compliance-items/${UUID}`,
+    noun: 'compliance item',
+  })
+})
+
+test('a kind with no delete returns null, so no button is rendered', () => {
+  assert.equal(attentionDeleteTarget('approaching_milestone', `milestone-${UUID}`), null)
+  assert.equal(attentionDeleteTarget('dependency_risk', `dep-${UUID}`), null)
+  assert.equal(attentionDeleteTarget('stale_waiting', `waiting-${UUID}-x`), null)
+  assert.equal(attentionDeleteTarget('investor_followup', `investor-next-${UUID}`), null)
+  assert.equal(attentionDeleteTarget('dino_payment', `dino-payment-${UUID}`), null)
+})
+
+test('a delete target refuses a key belonging to a DIFFERENT kind', () => {
+  // The category and the key both arrive from the row, but they arrive
+  // separately — §12: a new record type is a destination for the human, never a
+  // classification for the model, and seeding a target from one source's kind
+  // and another's id sent an opportunity's uuid to the projects branch. Here it
+  // would send a lead's uuid to /api/tasks.
+  assert.equal(attentionDeleteTarget('overdue_action', `lead-${UUID}`), null)
+  assert.equal(attentionDeleteTarget('lead_review', `task-${UUID}`), null)
 })

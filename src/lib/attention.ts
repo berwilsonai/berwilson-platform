@@ -18,6 +18,12 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { dropHidden, hiddenProjectIds } from '@/lib/security/confidential'
 import { leadsDb } from '@/lib/leads/db'
+import {
+  activeDismissals,
+  dismissedRowIds,
+  excludeDismissed,
+  type AttentionDismissal,
+} from '@/lib/attention-dismissals'
 import { fetchOpenTasks } from '@/lib/tasks/queries'
 import {
   ATTENTION_KINDS,
@@ -126,6 +132,22 @@ export async function countAttention(): Promise<number> {
   const today = new Date().toISOString().split('T')[0]
   const in90Days = new Date(Date.now() + 90 * 86_400_000).toISOString().split('T')[0]
 
+  /*
+    ⚠ DISMISSALS HAVE TO BE APPLIED HERE TOO, IN SQL, AND THIS IS THE READER
+    THAT CANNOT DO IT ANY OTHER WAY. These are `head: true` counts: they never
+    receive a row, so there is nothing for a JavaScript filter to run against
+    (§12 — a count is an aggregate and a row-filter has no equivalent on one,
+    the same shape as the bug that let a confidential project reach this badge).
+    Dismissing an overdue task on /attention and watching the sidebar keep
+    counting it is how three contradictory "needs attention" numbers happen, and
+    this module's own docblock is about nothing else.
+
+    `certifications` is not filtered because nothing can dismiss one: it is a
+    company record with no attention kind pointing at it, which is the same
+    reason it has no project filter either. See COUNTED_ATTENTION_KINDS.
+  */
+  const dismissed = dismissedRowIds(await activeDismissals())
+
   // No viewer: containment, not access. A step-up opens a project's own pages,
   // never a portfolio-wide aggregate, so this count is the same for both
   // admins. Fails CLOSED — a transient error returns every project id, which
@@ -134,29 +156,41 @@ export async function countAttention(): Promise<number> {
 
   const [{ count: overdueMilestones }, { count: criticalDd }, { count: overdueTasks }, { count: expiringCerts }] =
     await Promise.all([
-      excludeHidden(
-        supabase
-          .from('milestones')
-          .select('id', { count: 'exact', head: true })
-          .is('completed_at', null)
-          .lt('target_date', today),
-        hidden
+      excludeDismissed(
+        excludeHidden(
+          supabase
+            .from('milestones')
+            .select('id', { count: 'exact', head: true })
+            .is('completed_at', null)
+            .lt('target_date', today),
+          hidden
+        ),
+        dismissed,
+        'milestones'
       ),
-      excludeHidden(
-        supabase
-          .from('dd_items')
-          .select('id', { count: 'exact', head: true })
-          .neq('status', 'resolved')
-          .in('severity', ['critical', 'blocker']),
-        hidden
+      excludeDismissed(
+        excludeHidden(
+          supabase
+            .from('dd_items')
+            .select('id', { count: 'exact', head: true })
+            .neq('status', 'resolved')
+            .in('severity', ['critical', 'blocker']),
+          hidden
+        ),
+        dismissed,
+        'dd_items'
       ),
-      excludeHidden(
-        supabase
-          .from('tasks')
-          .select('id', { count: 'exact', head: true })
-          .eq('status', 'open')
-          .lt('due_date', today),
-        hidden
+      excludeDismissed(
+        excludeHidden(
+          supabase
+            .from('tasks')
+            .select('id', { count: 'exact', head: true })
+            .eq('status', 'open')
+            .lt('due_date', today),
+          hidden
+        ),
+        dismissed,
+        'tasks'
       ),
       // NOT filtered, and not an oversight: `certifications` is a company-level
       // record with no project_id to filter on. See COUNTED_ATTENTION_KINDS.
@@ -170,7 +204,20 @@ export async function countAttention(): Promise<number> {
   return (overdueMilestones ?? 0) + (criticalDd ?? 0) + (overdueTasks ?? 0) + (expiringCerts ?? 0)
 }
 
-export async function computeAttention(): Promise<{ items: AttentionItem[]; summary: AttentionSummary }> {
+export async function computeAttention(): Promise<{
+  items: AttentionItem[]
+  summary: AttentionSummary
+  /**
+   * The items a human has pushed out of sight, still in force.
+   *
+   * Returned so the one surface with a reader can offer the undo — a dismissal
+   * nobody can see or restore is indistinguishable from a delete, and §12 is
+   * blunt that an automatic pass and the undo for it have to be a pair. The
+   * four other callers (the rail, the agent tool, Pepper's note, the API)
+   * simply ignore it.
+   */
+  dismissed: AttentionDismissal[]
+}> {
   const supabase = createAdminClient()
   const now = new Date()
   const today = now.toISOString().split('T')[0]
@@ -533,7 +580,25 @@ export async function computeAttention(): Promise<{ items: AttentionItem[]; summ
   // An item with no project (a lead, a Dino payment) is never withheld; it
   // belongs to nothing that can be protected.
   const hidden = await hiddenProjectIds(null)
-  const visible = dropHidden(items, (i) => i.project_id, hidden)
+  const withheld = dropHidden(items, (i) => i.project_id, hidden)
+
+  /*
+    ── Dismissed items, removed in the same place and for the same reason ─────
+
+    ⚠ HERE RATHER THAN IN EACH CALLER. §12: a filter belongs at the choke point
+    as a DEFAULT, not as a parameter every caller passes — forgetting to opt in
+    is how /attention, the dashboard rail, the sidebar badge, Ber AI's
+    `get_attention_items` and Pepper's 06:50 note would come to disagree about
+    one list, and the note is the one that cannot be taken back once sent.
+
+    A dismissal is a QUIET, not a verdict: the row is untouched, the engine will
+    rebuild the item from it the moment the quiet lapses, and deleting the mark
+    puts it back immediately. Compare `commitments.snoozed_until`, which took
+    the same shape for the same reason.
+  */
+  const dismissed = await activeDismissals()
+  const suppressed = new Set(dismissed.map((d) => d.item_key))
+  const visible = withheld.filter((i) => !suppressed.has(i.id))
 
   // Sort by urgency descending
   visible.sort((a, b) => b.urgency - a.urgency)
@@ -545,5 +610,16 @@ export async function computeAttention(): Promise<{ items: AttentionItem[]; summ
   }
   const summary: AttentionSummary = { total: visible.length, ...counts }
 
-  return { items: visible, summary }
+  /*
+    ⚠ THE DISMISSED LIST IS A CROSS-PORTFOLIO SURFACE AND IS CONTAINED LIKE ONE.
+    It holds a snapshot of each item's title, so a protected project's milestone
+    would be readable there by anyone — §8 says a `confidential` project leaves
+    EVERY cross-portfolio surface, and a list of things somebody silenced is one.
+    Filtered with the same `dropHidden()` and the same `hidden` set as the items
+    above, because §12's lesson is that a table gaining a second way to name its
+    record breaks an existing security filter without touching it.
+  */
+  const visibleDismissed = dropHidden(dismissed, (d) => d.project_id, hidden)
+
+  return { items: visible, summary, dismissed: visibleDismissed }
 }

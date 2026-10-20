@@ -19,9 +19,11 @@ import {
   Users2,
   SlidersHorizontal,
   Table2,
+  Trash2,
 } from 'lucide-react'
 import EmptyState from '@/components/shared/EmptyState'
 import { DatePicker } from '@/components/ui/date-picker'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import TaskDetailSheet from './TaskDetailSheet'
 import ManageTeamDialog from './ManageTeamDialog'
 import { cn } from '@/lib/utils'
@@ -175,6 +177,8 @@ export default function TeamTaskBoard({
 
   // detail sheet
   const [openTaskId, setOpenTaskId] = useState<string | null>(initialOpenTaskId)
+  /** The row awaiting a delete confirmation, if any. */
+  const [pendingDelete, setPendingDelete] = useState<BoardTask | null>(null)
 
   // add form
   const [showAdd, setShowAdd] = useState(startAdd)
@@ -320,6 +324,45 @@ export default function TeamTaskBoard({
       setTasks((prev) => prev.map((t) => (t.id === task.id ? { ...t, status: previous } : t)))
       toast.error('Failed to update')
       return false
+    }
+  }
+
+  /**
+   * Delete a task from the row, rather than from inside the detail sheet.
+   *
+   * ⚠ COMPLETING AND DELETING ARE DIFFERENT CLAIMS AND ONLY ONE OF THEM WAS
+   * REACHABLE HERE. Richard, 10-20: *"I suppose i can just mark complete but if
+   * we are tracking the activity, I don't want to mark complete a task that
+   * really just needs to be deleted."* He is right that it matters: ticking the
+   * circle stamps `completed_at`, writes a `done` row into `activity_log`, and
+   * — where the task came from a commitment — calls `settleCommitmentForTask`,
+   * which settles the obligation on the counterparty's thread as though the
+   * work had happened. A task that should never have existed must not leave
+   * that trail. Delete was already built; it was three interactions away,
+   * behind opening the sheet and scrolling to the bottom.
+   *
+   * ⚠ CONFIRMED, UNLIKE COMPLETE, AND THE ASYMMETRY IS DELIBERATE. Completing
+   * is one tap with an Undo toast because the row survives it. This destroys
+   * the task and its notes; the only way back is `to_jsonb(old)` in
+   * `activity_log` (§4), which is not a button. So the dialog NAMES the task
+   * before it goes, and no Undo is offered that could not honour itself — §12:
+   * a destination that does not carry what the act carries reads as losing the
+   * work, and a promised undo that cannot restore the same row is worse.
+   */
+  async function deleteTask(task: BoardTask) {
+    const previous = tasks
+    setTasks((prev) => prev.filter((t) => t.id !== task.id))
+    try {
+      const res = await fetch(`/api/tasks/${task.id}`, { method: 'DELETE' })
+      if (handleAuthError(res)) {
+        setTasks(previous)
+        return
+      }
+      if (!res.ok) throw new Error()
+      toast.success('Task deleted')
+    } catch {
+      setTasks(previous)
+      toast.error('Failed to delete')
     }
   }
 
@@ -880,6 +923,29 @@ export default function TeamTaskBoard({
                     {initials(task.assignee.name)}
                   </span>
                 )}
+
+                {/* ⚠ `stopPropagation` BECAUSE THE WHOLE ROW IS THE OPEN
+                    HANDLER. Without it the sheet opens behind the confirmation
+                    dialog and the dialog's own dismiss lands on a changed
+                    screen. The complete circle above does the same thing for
+                    the same reason.
+
+                    ⚠ AND IT IS VISIBLE ON FOCUS AND ALWAYS BELOW `sm` (§12): a
+                    control that only appears on hover does not exist on a
+                    phone, and one without `focus-visible:opacity-100` is
+                    invisible to a keyboard user. The tap target is written
+                    ABSOLUTELY (`size-[2.75rem]`) rather than as `size-11`,
+                    because that utility is `calc(var(--spacing) * 11)` and the
+                    10-17 density change took every one of those below the 44px
+                    floor. */}
+                <button
+                  onClick={(e) => { e.stopPropagation(); setPendingDelete(task) }}
+                  title="Delete this task"
+                  aria-label={`Delete task "${task.title}"`}
+                  className="shrink-0 inline-flex size-[2.75rem] items-center justify-center rounded-md text-muted-foreground opacity-100 transition-colors outline-none hover:bg-critical-surface hover:text-critical focus-visible:opacity-100 focus-visible:ring-3 focus-visible:ring-ring/50 sm:size-7 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100"
+                >
+                  <Trash2 size={14} />
+                </button>
               </div>
             )
           })}
@@ -896,6 +962,24 @@ export default function TeamTaskBoard({
           onRemoved={handleMemberRemoved}
         />
       )}
+
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        onOpenChange={(open) => { if (!open) setPendingDelete(null) }}
+        title="Delete this task?"
+        description={
+          pendingDelete
+            ? `"${pendingDelete.title}" and its notes go for good. Complete it instead if the work actually happened — that is what the activity log and any linked commitment will record.`
+            : undefined
+        }
+        confirmLabel="Delete task"
+        destructive
+        onConfirm={async () => {
+          const task = pendingDelete
+          setPendingDelete(null)
+          if (task) await deleteTask(task)
+        }}
+      />
 
       <TaskDetailSheet
         taskId={openTaskId}
