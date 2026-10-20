@@ -17,6 +17,8 @@
 
 import { callGemini } from '@/lib/ai/gemini'
 import { sweepDb } from '@/lib/email-sweep/db'
+import { loadPepperMembers } from '@/lib/pepper/attribution'
+import { correctSides } from './side'
 import { SYSTEM_USER_ID } from '@/lib/email-ingestion/analyze'
 import {
   COMMITMENT_SYSTEM_PROMPT,
@@ -61,6 +63,12 @@ export interface CommitmentProgress {
   failed: number
   remaining: number
   outOfTime: boolean
+  /**
+   * Rows the model filed as the counterparty's whose named owner is one of
+   * ours, corrected to `us` before the write. Reported rather than silent,
+   * because it measures how often the prompt gets `side` wrong.
+   */
+  sideCorrected: number
 }
 
 interface ThreadForExtraction {
@@ -131,6 +139,10 @@ export async function extractCommitments(
   const db = sweepDb()
   const deadline = Date.now() + budgetMs
 
+  // Loaded once for the whole run rather than per thread: it is one query and
+  // the roster cannot change mid-pass.
+  const members = await loadPepperMembers(db)
+
   const progress: CommitmentProgress = {
     processed: 0,
     examined: 0,
@@ -139,6 +151,7 @@ export async function extractCommitments(
     updated: 0,
     autoResolved: 0,
     failed: 0,
+    sideCorrected: 0,
     remaining: 0,
     outOfTime: false,
   }
@@ -211,9 +224,16 @@ export async function extractCommitments(
 
         if (!raw || typeof raw !== 'object') throw new Error('Model did not return JSON.')
 
-        const extracted = normalize(raw).filter(
+        const parsed = normalize(raw).filter(
           (c) => c.still_open && c.confidence >= MIN_CONFIDENCE
         )
+
+        // An obligation the model filed as the counterparty's while naming one
+        // of OUR people as its owner is ours. See commitments/side.ts — the
+        // model sets the two fields independently and 20% of the live
+        // `them` ledger was our own work sitting in the follow-up column.
+        const { rows: extracted, corrections } = correctSides(parsed, members)
+        progress.sideCorrected += corrections.length
 
         await reconcileThread(db, row.id, extracted, progress)
         progress.examined++

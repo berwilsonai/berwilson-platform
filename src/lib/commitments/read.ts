@@ -26,8 +26,11 @@ import { sweepDb } from '@/lib/email-sweep/db'
 import { hiddenProjectIds, notInList } from '@/lib/security/confidential'
 import type { CommitmentRow } from './db'
 
-/** A commitment plus the mailbox of the thread it was read out of. */
-export type CommitmentWithMailbox = CommitmentRow & { mailbox: string | null }
+/** A commitment plus the mailbox and last activity of its thread. */
+export type CommitmentWithMailbox = CommitmentRow & {
+  mailbox: string | null
+  thread_last_at: string | null
+}
 
 export interface ReadOpenOptions {
   /**
@@ -53,7 +56,32 @@ export interface ReadOpenOptions {
   threadIds?: string[]
   /** PostgREST caps at 1000 rows silently (§12) — pass what you can render. */
   limit?: number
+  /**
+   * Row order. Defaults to `due` — the deadline-first order every outbound
+   * channel wants, and the one this function has always applied.
+   *
+   * ⚠ `due` IS THE WRONG DEFAULT FOR A SCREEN AND WAS THE ONLY ONE ON OFFER.
+   * It reads `due_date asc nullsFirst:false` then `created_at ASC`, so with 213
+   * of 244 open rows carrying no date the page was 87% oldest-first — anything
+   * the extractor found this week sat at the bottom of a 244-row list. The
+   * module header on `list.ts` claimed "newest attention first" the whole time,
+   * which is §12's rule about a comment describing a control that is not there.
+   *
+   * `newest` is what the page now defaults to. `activity` cannot be ordered
+   * here (it lives on the joined thread, and PostgREST will not order a filtered
+   * read by an embedded column) — `list.ts` sorts that one in memory.
+   */
+  sort?: CommitmentSort
 }
+
+/**
+ * The orders a reader can ask for.
+ *
+ * A union rather than free text because it reaches `.order()`: §12 records that
+ * a value outside an enum fails the WHOLE query with `22P02` and a NULL row
+ * set, which every caller here would swallow into "no commitments".
+ */
+export type CommitmentSort = 'due' | 'newest' | 'oldest' | 'activity'
 
 export interface OpenCommitments {
   rows: CommitmentWithMailbox[]
@@ -63,23 +91,57 @@ export interface OpenCommitments {
   withheld: number
 }
 
+/**
+ * Apply one of the four orders.
+ *
+ * Generic over the builder rather than typed to it: PostgREST's filter builder
+ * changes type on every `.order()`, and naming the concrete type here would
+ * pin this to one shape of query.
+ *
+ * ⚠ `activity` DELIBERATELY FALLS BACK TO `newest` RATHER THAN ORDERING BY THE
+ * EMBEDDED COLUMN. `order('thread(last_at)')` is accepted by PostgREST and
+ * silently returns the rows in an arbitrary order once the read is also
+ * filtered — the same class of silent-wrong as §12's note on `.filter()`
+ * dropping a cast. `list.ts` sorts that view in memory, where the thread date
+ * is already in hand.
+ */
+function applySort<T extends { order: (col: string, o: { ascending: boolean; nullsFirst?: boolean }) => T }>(
+  q: T,
+  sort: CommitmentSort
+): T {
+  switch (sort) {
+    case 'newest':
+    case 'activity':
+      return q.order('created_at', { ascending: false })
+    case 'oldest':
+      return q.order('created_at', { ascending: true })
+    case 'due':
+    default:
+      return q
+        .order('due_date', { ascending: true, nullsFirst: false })
+        .order('created_at', { ascending: true })
+  }
+}
+
 export async function readOpenCommitments(
   opts: ReadOpenOptions = {}
 ): Promise<OpenCommitments> {
-  const { authUserId = null, excludeSnoozed = false, side, threadIds, limit = 500 } = opts
+  const { authUserId = null, excludeSnoozed = false, side, threadIds, limit = 500, sort = 'due' } = opts
   const today = new Date().toISOString().slice(0, 10)
 
   const hidden = await hiddenProjectIds(authUserId)
 
-  let query = sweepDb()
+  const base = sweepDb()
     .from('commitments')
     // The mailbox comes along because it is the fallback attribution key and
     // the join is free here — resolving it later would be one query per row.
-    .select('*, thread:email_threads(mailbox)')
+    // `last_at` rides with it for the same reason: it is what tells a reader
+    // whether an obligation is quiet because it is done or because the whole
+    // conversation stopped, and it is the key the `activity` sort orders by.
+    .select('*, thread:email_threads(mailbox, last_at)')
     .eq('status', 'open')
-    .order('due_date', { ascending: true, nullsFirst: false })
-    .order('created_at', { ascending: true })
-    .limit(limit)
+
+  let query = applySort(base, sort).limit(limit)
 
   if (side) query = query.eq('side', side)
 
@@ -153,7 +215,12 @@ export async function readOpenCommitments(
 
   const rows = ((data ?? []) as (CommitmentRow & { thread: unknown })[]).map((row) => {
     const t = Array.isArray(row.thread) ? row.thread[0] : row.thread
-    return { ...row, mailbox: (t as { mailbox?: string } | null)?.mailbox ?? null }
+    const embedded = t as { mailbox?: string; last_at?: string | null } | null
+    return {
+      ...row,
+      mailbox: embedded?.mailbox ?? null,
+      thread_last_at: embedded?.last_at ?? null,
+    }
   })
 
   // The post-filter is a BACKSTOP, never the mechanism — it catches the case

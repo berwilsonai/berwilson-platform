@@ -14,7 +14,7 @@
 
 import { sweepDb } from '@/lib/email-sweep/db'
 import { hiddenProjectIds, notInList } from '@/lib/security/confidential'
-import { readOpenCommitments } from './read'
+import { readOpenCommitments, type CommitmentSort } from './read'
 import { HUMAN_SETTLED, type CommitmentRow, type CommitmentStatus } from './db'
 
 export interface CommitmentListItem {
@@ -32,6 +32,16 @@ export interface CommitmentListItem {
   mailbox: string | null
   chase_text: string | null
   chase_drafted_at: string | null
+  /**
+   * The newest message on the conversation this came from.
+   *
+   * Carried so the reader can see WHY a row is quiet — a 3-day-old obligation
+   * on a thread nobody has touched in six weeks is a different thing from one
+   * on a live negotiation, and the age of the row alone cannot tell them
+   * apart. It is also the key the `activity` sort orders by (in memory — see
+   * the note on `applySort`).
+   */
+  thread_last_at: string | null
 }
 
 export interface CommitmentListFilters {
@@ -49,6 +59,19 @@ export interface CommitmentListFilters {
   mailbox?: string
   /** Free-text over the obligation itself. */
   q?: string
+  /**
+   * Row order. Defaults to `newest`.
+   *
+   * ⚠ THE DEFAULT WAS `due` AND THE HEADER ABOVE CLAIMED OTHERWISE. This
+   * module's own docstring has said "newest attention first" since it was
+   * written, while `readOpenCommitments` ordered `created_at` ASCENDING —
+   * oldest first. With 213 of 244 open rows carrying no date, the deadline key
+   * decided almost nothing and the page was effectively oldest-first: anything
+   * found this week sat at the bottom of a 244-row list. Richard's words on
+   * 10-19 were that the ledger was "overwhelming to sift through", and this
+   * was half of why.
+   */
+  sort?: CommitmentSort
 }
 
 export interface CommitmentListResult {
@@ -211,7 +234,7 @@ export async function listCommitments(
   if (view === 'retired') {
     const { data, error } = await sweepDb()
       .from('commitments')
-      .select('*, thread:email_threads(mailbox)')
+      .select('*, thread:email_threads(mailbox, last_at)')
       .eq('status', 'resolved')
       .like('settled_by', 'aged out —%')
       .order('settled_at', { ascending: false, nullsFirst: false })
@@ -226,7 +249,7 @@ export async function listCommitments(
   if (view === 'settled') {
     const { data, error } = await sweepDb()
       .from('commitments')
-      .select('*, thread:email_threads(mailbox)')
+      .select('*, thread:email_threads(mailbox, last_at)')
       .in('status', HUMAN_SETTLED)
       .order('settled_at', { ascending: false, nullsFirst: false })
       .limit(300)
@@ -237,6 +260,7 @@ export async function listCommitments(
     return { items: visible.map((r) => shape(r, names)), totals, error: null, withheld }
   }
 
+  const sort = filters.sort ?? 'newest'
   const { rows, error, withheld } = await readOpenCommitments({
     authUserId,
     // 'open' is the working view and hides what somebody deliberately quieted;
@@ -244,6 +268,7 @@ export async function listCommitments(
     excludeSnoozed: view === 'open',
     side: filters.side,
     limit: 1000,
+    sort,
   })
   if (error) return { items: [], totals, error, withheld }
 
@@ -267,16 +292,42 @@ export async function listCommitments(
   }
 
   const names = await resolveRecordNames(filtered)
-  return { items: filtered.map((r) => shape(r, names)), totals, error: null, withheld }
+  const items = filtered.map((r) => shape(r, names))
+
+  /**
+   * `activity` is ordered HERE, not in SQL.
+   *
+   * The key lives on the embedded thread, and PostgREST will not reliably
+   * order a filtered read by an embedded column — see the note on `applySort`.
+   * The set is already bounded at 1000 and in hand, so sorting it costs
+   * nothing and cannot be silently wrong about the order.
+   *
+   * Nulls last in both directions: a row whose thread carries no date is not
+   * "the oldest conversation on file", it is one we cannot place, and §12's
+   * rule is that a missing value must never be rendered as an extreme one.
+   */
+  if (sort === 'activity') {
+    items.sort((a, b) => {
+      if (!a.thread_last_at) return b.thread_last_at ? 1 : 0
+      if (!b.thread_last_at) return -1
+      return b.thread_last_at.localeCompare(a.thread_last_at)
+    })
+  }
+
+  return { items, totals, error: null, withheld }
 }
 
 function shape(
-  r: CommitmentRow & { mailbox?: string | null; thread?: unknown },
+  r: CommitmentRow & {
+    mailbox?: string | null
+    thread_last_at?: string | null
+    thread?: unknown
+  },
   names: Map<string, string>
 ): CommitmentListItem {
   const t = Array.isArray(r.thread) ? r.thread[0] : r.thread
-  const mailbox =
-    r.mailbox ?? ((t as { mailbox?: string } | null)?.mailbox ?? null)
+  const embedded = t as { mailbox?: string; last_at?: string | null } | null
+  const mailbox = r.mailbox ?? (embedded?.mailbox ?? null)
   return {
     id: r.id,
     what: r.what,
@@ -295,5 +346,6 @@ function shape(
     mailbox,
     chase_text: r.chase_text,
     chase_drafted_at: r.chase_drafted_at,
+    thread_last_at: r.thread_last_at ?? embedded?.last_at ?? null,
   }
 }

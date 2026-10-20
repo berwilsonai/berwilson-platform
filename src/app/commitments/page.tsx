@@ -25,7 +25,13 @@ export const metadata = { title: 'Commitments — Ber Wilson' }
 export default async function CommitmentsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ side?: string; view?: string; mailbox?: string; q?: string }>
+  searchParams: Promise<{
+    side?: string
+    view?: string
+    mailbox?: string
+    q?: string
+    sort?: string
+  }>
 }) {
   const viewer = await getViewer()
   if (viewer && !viewer.isAdmin) redirect('/tasks')
@@ -39,6 +45,15 @@ export default async function CommitmentsPage({
         : 'open',
     mailbox: sp.mailbox || undefined,
     q: sp.q || undefined,
+    // ⚠ VALIDATED AGAINST THE UNION, NOT PASSED THROUGH. This reaches
+    // `.order()`, and §12 records that a value outside an enum fails the WHOLE
+    // query with 22P02 and a NULL row set — which `listCommitments` would
+    // report as an empty ledger. An unrecognised ?sort= falls back to the
+    // default rather than emptying the page.
+    sort:
+      sp.sort === 'due' || sp.sort === 'oldest' || sp.sort === 'activity'
+        ? sp.sort
+        : 'newest',
   }
 
   // Only an admin can hold a step-up (§8), so a non-admin's id would widen

@@ -49,8 +49,19 @@ import type { CommitmentRow } from './db'
  * ordinary gap in a land deal.
  *
  * Verify before changing it: `npx tsx scripts/one-shot/dry-aging.mts`.
+ *
+ * ⚠ 45 → 21 ON 2026-10-19, measured, on Richard's call: the ledger was
+ * "overwhelming to sift through". At 45 the pass had done its job and the
+ * ledger still stood at 244 open across only 125 conversations, with 203 of
+ * those rows on threads already silent a week or more. Re-swept over the live
+ * corpus: 30d retires 35 (leaving 209, barely moving it), 21d retires 76
+ * (leaving 168), 14d retires 123 — and 14 is the one the paragraph above still
+ * rules out, because a fortnight is an ordinary gap in a land deal and that
+ * has not changed. 21 keeps the original argument intact: it is still two full
+ * chase cycles past the undated chase bar, so every row this closes has had a
+ * follow-up composed and a further week of silence after it.
  */
-export const STALE_THREAD_DAYS = 45
+export const STALE_THREAD_DAYS = 21
 
 /**
  * Extra grace for a row that was chased.
@@ -92,6 +103,14 @@ export interface AgingProgress {
   skippedChaseGrace: number
   /** No thread row to date, so staleness is unknowable. Never retired. */
   skippedUndatable: number
+  /**
+   * Still open because the obligation's own due date has not arrived.
+   *
+   * Counted separately rather than folded into the others because it is the
+   * one keep-reason that says the row is LIVE — §12: count the reason beside
+   * the number, an unlabelled count is not a coverage signal.
+   */
+  skippedFutureDue: number
   /** True when the read hit its ceiling and there may be more. */
   truncated: boolean
   failed: number
@@ -132,7 +151,10 @@ async function threadActivity(threadIds: string[]): Promise<Map<string, string |
  * eligible — and so the threshold can be swept without touching the database.
  */
 export function agingVerdict(
-  row: Pick<CommitmentRow, 'snoozed_until' | 'chase_composed_at' | 'chase_text' | 'reopened_at'>,
+  row: Pick<
+    CommitmentRow,
+    'snoozed_until' | 'chase_composed_at' | 'chase_text' | 'reopened_at' | 'due_date'
+  >,
   threadLastAt: string | null,
   staleDays: number,
   today = new Date().toISOString().slice(0, 10)
@@ -144,6 +166,18 @@ export function agingVerdict(
   // dismiss or quiet it — what they get is immunity from the AUTOMATIC close.
   if (row.reopened_at) {
     return { action: 'keep', reason: 'reopened by a human' }
+  }
+
+  // ⚠ A DATE STILL AHEAD IS THE OBLIGATION SAYING IT IS LIVE, WHATEVER THE
+  // THREAD DID. This pass reads silence as "the conversation is over", which is
+  // a fair inference for the 87% of rows carrying no date at all — but a
+  // counterparty who said "by the 30th" and then went quiet is exactly on
+  // schedule, and retiring them deletes the one row that would have chased it.
+  // Latent at 45 days (0 of 158 retired rows had a future date) and live at 21,
+  // where one does: §12's rule that a threshold change can break a filter it
+  // never touched.
+  if (row.due_date && row.due_date >= today) {
+    return { action: 'keep', reason: `due ${row.due_date}, which has not passed` }
   }
 
   // A human saying "ask me next week" is a decision. The row stays open and
@@ -197,6 +231,7 @@ export async function runAgingPass(
     skippedReopened: 0,
     skippedChaseGrace: 0,
     skippedUndatable: 0,
+    skippedFutureDue: 0,
     truncated: false,
     failed: 0,
     errors: [],
@@ -239,6 +274,7 @@ export async function runAgingPass(
       else if (verdict.reason === 'snoozed') progress.skippedSnoozed++
       else if (verdict.reason.startsWith('chased')) progress.skippedChaseGrace++
       else if (verdict.reason.startsWith('no thread activity')) progress.skippedUndatable++
+      else if (verdict.reason.startsWith('due ')) progress.skippedFutureDue++
       continue
     }
 
