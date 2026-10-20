@@ -34,16 +34,12 @@
 
 import { storeFetchedThreads } from '@/lib/email-sweep/fetch-phase'
 import { summarizePending } from '@/lib/email-sweep/summarize-phase'
-import { routeThreads } from '@/lib/email-sweep/route-phase'
-import { applyThreadUpdates } from '@/lib/email-sweep/apply-phase'
 import { redactPrivateLocalThreads } from '@/lib/email-sweep/redact'
 import { sweepDb } from '@/lib/email-sweep/db'
-import { embedPendingThreads } from '@/lib/ai/thread-embeddings'
-import { extractCommitments } from '@/lib/commitments/extract-phase'
-import { promoteInternalCommitments } from '@/lib/commitments/internal-tasks'
 import { recordLocalRecording, localDateString } from '@/lib/meetings/record-local'
 import { fileMeetingFromThreadLinks } from '@/lib/meetings/attach-recording'
 import { promoteAndAlert } from '@/lib/audio/promote'
+import { runRecordingPhases } from '@/lib/audio/phases'
 import type { ResolvedThread } from '@/lib/integrations/gmail-search'
 
 import { discardMemoAudioFiles, readSkipList } from './discard'
@@ -399,80 +395,20 @@ export async function runVoiceMemoSweep(
   }
 
   // ── 7. The shared phases, on the work ones ────────────────────────────────
-  try {
-    const routed = await routeThreads({ threadIds: workIds })
-    base.phases.linked = routed.linked
-    base.phases.inferred = routed.inferred
-
-    // ⚠ NAMED LINKS, SO THE REPORT IS ABOUT THESE RECORDINGS. `applyThreadUpdates`
-    // drains the whole queue when given nothing, and the counts it returns would
-    // then include every unapplied mail thread on the box — a sweep claiming it
-    // posted eleven updates for one memo. §12: never make a report count work it
-    // did not do. The links exist only now, because `routeThreads` just wrote
-    // them.
-    const { data: links } = await db
-      .from('thread_links')
-      .select('id')
-      .in('thread_id', workIds)
-    const linkIds = (links ?? []).map((l) => (l as { id: string }).id)
-    if (linkIds.length > 0) {
-      const applied = await applyThreadUpdates({ linkIds, budgetMs: 5 * 60 * 1000 })
-      base.phases.updatesPosted = applied.updatesPosted
-      base.phases.updatesStaged = applied.updatesStaged
-      base.phases.meetingsFiled = applied.recordingMeetingsFiled
-    } else {
-      base.notes.push(
-        'No recording named a record with enough certainty to file — each one is ' +
-          'searchable and staged at /decide, where one tap attaches it.'
-      )
-    }
-  } catch (err) {
-    base.notes.push(
-      `⚠ Routing or applying failed: ${err instanceof Error ? err.message : String(err)} — the ` +
-        `transcripts are stored and the hourly mail sweep will pick them up.`
-    )
-  }
-
-  // Embed, commitments and internal tasks work the QUEUE rather than named
-  // rows — they have no id filter, and did not need one: whatever else is
-  // pending is work the hourly sweep would do anyway, on the same budget.
-  try {
-    await embedPendingThreads({ budgetMs: 4 * 60 * 1000 })
-    await extractCommitments({ budgetMs: 4 * 60 * 1000 })
-    const internal = await promoteInternalCommitments()
-
-    // ⚠ COUNTED FROM THE ROWS, NOT FROM THE PHASES' OWN TOTALS. These three
-    // phases work the QUEUE — they take no id filter and did not need one,
-    // because whatever else is pending is work the hourly sweep would do
-    // anyway. But their return values then include that other work, and a
-    // sweep reporting "2 commitments, 2 tasks" for one recording when both
-    // belonged to a mail thread is the same lie `applyThreadUpdates` told
-    // above. So the report asks the database what THESE threads produced.
-    const { data: mine } = await db
-      .from('commitments')
-      .select('id')
-      .in('thread_id', workIds)
-    const commitmentIds = (mine ?? []).map((c) => (c as { id: string }).id)
-    base.phases.commitments = commitmentIds.length
-    if (commitmentIds.length > 0) {
-      const { count: tasks } = await db
-        .from('tasks')
-        .select('id', { count: 'exact', head: true })
-        .in('commitment_id', commitmentIds)
-      base.phases.tasksCreated = tasks ?? 0
-    }
-
-    if (internal.created > 0) {
-      // The board publishes to a shared Google Sheet; a follow-up from a
-      // meeting that just ended has to reach the phone this hour.
-      const { queueTaskSheetRefresh } = await import('@/lib/tasks/sheet-refresh')
-      queueTaskSheetRefresh()
-    }
-  } catch (err) {
-    base.notes.push(
-      `⚠ Indexing or commitments failed: ${err instanceof Error ? err.message : String(err)}`
-    )
-  }
+  //
+  // ⚠ ONE COPY FOR EVERY RECORDING DOOR — see `src/lib/audio/phases.ts`. This
+  // sequence was written out here and again in the Drive-audio sweep, ~85%
+  // identical with the differences all in note wording, which is §12's hardest
+  // fork to see. A memo asserts no record (there is no folder to drag it into),
+  // so it passes no assertions and the advice it gives is about renaming.
+  const phased = await runRecordingPhases({
+    threadIds: workIds,
+    nothingFiledAdvice:
+      'No recording named a record with enough certainty to file — each one is ' +
+      'searchable and staged at /decide, where one tap attaches it.',
+  })
+  base.phases = { ...base.phases, ...phased.counts }
+  base.notes.push(...phased.notes)
 
   // ── 8. And each one becomes a MEETING ─────────────────────────────────────
   //

@@ -541,14 +541,36 @@ async function insertRecord(args: {
     return { kind, id: (data as { id: string }).id, name: (data as { name: string }).name, oppType }
   }
 
+  // ⚠ `projects.sector` IS NOT NULL AND HAS NO DEFAULT — found by the upload
+  // verification on 2026-10-19, which could not even create its own scratch
+  // project. §12 says a field the caller never mentioned must be OMITTED rather
+  // than nulled, because an explicit NULL does not fall back to the column
+  // DEFAULT — and that rule has an unstated precondition: omission only works
+  // where a default EXISTS. Here `status` and `stage` have one and `sector` does
+  // not, so omitting it is a `23502`, which this pass would have reported as a
+  // skip with a Postgres message in it.
+  //
+  // The fix is NOT to pick a sector. The enum is government | infrastructure |
+  // real_estate | prefab | institutional | technology | health, there is no
+  // "unknown" member, and a guessed sector reads on the record as a fact
+  // somebody established. A conversation that did not say what KIND of work a
+  // deal is has not given enough to open a project, so it stays staged for a
+  // human — which is where it already was.
+  const sector = safeSector(ref.sector)
+  if (!sector) {
+    return (
+      `project "${name}" was not created: the recording never said what sector it is ` +
+      `(projects.sector is required and there is no honest default). It stays staged at /decide, ` +
+      `where one tap creates it with the sector you pick.`
+    )
+  }
+
   const { data, error } = await db
     .from('projects')
     .insert({
       name,
-      // ⚠ OMITTED RATHER THAN NULLED where the recording said nothing: §12, an
-      // explicit NULL does not fall back to the column DEFAULT, and `sector`,
-      // `stage` and `status` are all enums with one.
-      ...(safeSector(ref.sector) ? { sector: safeSector(ref.sector) } : {}),
+      sector,
+      // Omitted-vs-nulled still applies to these two, which DO have defaults.
       stage: 'pursuit',
       status: 'active',
       description: body,

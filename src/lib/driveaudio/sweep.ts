@@ -41,18 +41,13 @@
 
 import { storeFetchedThreads } from '@/lib/email-sweep/fetch-phase'
 import { summarizePending } from '@/lib/email-sweep/summarize-phase'
-import { routeThreads } from '@/lib/email-sweep/route-phase'
-import { applyThreadUpdates } from '@/lib/email-sweep/apply-phase'
 import { redactPrivateLocalThreads } from '@/lib/email-sweep/redact'
 import { sweepDb } from '@/lib/email-sweep/db'
-import { embedPendingThreads } from '@/lib/ai/thread-embeddings'
-import { extractCommitments } from '@/lib/commitments/extract-phase'
-import { promoteInternalCommitments } from '@/lib/commitments/internal-tasks'
 import { recordLocalRecording, localDateString } from '@/lib/meetings/record-local'
 import { resolveMeetingTarget } from '@/lib/meetings/file-notes'
 import { fileMeetingFromThreadLinks } from '@/lib/meetings/attach-recording'
 import { promoteAndAlert } from '@/lib/audio/promote'
-import { upsertLink } from '@/lib/email-sweep/route-phase'
+import { runRecordingPhases, type ThreadAssertion } from '@/lib/audio/phases'
 import { isGoogleConfigured } from '@/lib/integrations/google-workspace'
 import type { ResolvedThread } from '@/lib/integrations/gmail-search'
 
@@ -367,10 +362,7 @@ export async function runDriveAudioSweep(
   // tables. A `suggestion` is deliberately not acted on — that bar exists to
   // pre-tick a checkbox for a person, never to file (§12: an automatic bar and
   // a pre-tick bar are two bars).
-  //
-  // Writing the link here rather than teaching `bestMatch` about folders keeps
-  // the knowledge where it belongs: `routeThreads` already respects an existing
-  // `linked` link and skips guessing entirely for that thread.
+  const assertions: ThreadAssertion[] = []
   for (const file of take) {
     if (!file.folderHint) continue
     const threadId = threadIdByFile.get(file.fileId)
@@ -390,14 +382,12 @@ export async function runDriveAudioSweep(
       )
       continue
     }
-    await upsertLink(
+    assertions.push({
       threadId,
-      resolved.target.kind,
-      resolved.target.id,
-      'linked',
-      1,
-      `filed in Drive under "${file.folderHint}" — ${resolved.target.name}`
-    )
+      kind: resolved.target.kind,
+      recordId: resolved.target.id,
+      reason: `filed in Drive under "${file.folderHint}" — ${resolved.target.name}`,
+    })
     base.filedByFolder.push({
       title: driveAudioSubject(file).slice(0, 60),
       record: resolved.target.name,
@@ -405,71 +395,20 @@ export async function runDriveAudioSweep(
   }
 
   // ── 8. The shared phases, on the work ones ────────────────────────────────
-  try {
-    const routed = await routeThreads({ threadIds: workIds })
-    base.phases.linked = routed.linked
-    base.phases.inferred = routed.inferred
-
-    // ⚠ NAMED LINKS, SO THE REPORT IS ABOUT THESE RECORDINGS.
-    // `applyThreadUpdates` drains the whole queue when given nothing, and the
-    // counts it returns would then include every unapplied mail thread on the
-    // box — a sweep claiming it posted eleven updates for one call (§12: never
-    // let a report count work it did not do). The links exist only now, because
-    // `routeThreads` just wrote them.
-    const { data: links } = await db.from('thread_links').select('id').in('thread_id', workIds)
-    const linkIds = (links ?? []).map((l) => (l as { id: string }).id)
-    if (linkIds.length > 0) {
-      const applied = await applyThreadUpdates({ linkIds, budgetMs: 5 * 60 * 1000 })
-      base.phases.updatesPosted = applied.updatesPosted
-      base.phases.updatesStaged = applied.updatesStaged
-      base.phases.meetingsFiled = applied.recordingMeetingsFiled
-    } else {
-      base.notes.push(
-        'No recording named a record with enough certainty to file — each one is searchable ' +
-          'and staged at /decide, where one tap attaches it. Naming the file after the deal, or ' +
-          'dropping it in a subfolder named after the deal, files it without the tap.'
-      )
-    }
-  } catch (err) {
-    base.notes.push(
-      `⚠ Routing or applying failed: ${err instanceof Error ? err.message : String(err)} — the ` +
-        `transcripts are stored and the hourly mail sweep will pick them up.`
-    )
-  }
-
-  // Embed, commitments and internal tasks work the QUEUE rather than named
-  // rows — they take no id filter and did not need one: whatever else is
-  // pending is work the hourly sweep would do anyway, on the same budget.
-  try {
-    await embedPendingThreads({ budgetMs: 4 * 60 * 1000 })
-    await extractCommitments({ budgetMs: 4 * 60 * 1000 })
-    const internal = await promoteInternalCommitments()
-
-    // ⚠ COUNTED FROM THE ROWS, NOT FROM THE PHASES' OWN TOTALS, for the reason
-    // above: those three drain the queue, so their return values include other
-    // threads' work. The report asks the database what THESE threads produced.
-    const { data: mine } = await db.from('commitments').select('id').in('thread_id', workIds)
-    const commitmentIds = (mine ?? []).map((c) => (c as { id: string }).id)
-    base.phases.commitments = commitmentIds.length
-    if (commitmentIds.length > 0) {
-      const { count: tasks } = await db
-        .from('tasks')
-        .select('id', { count: 'exact', head: true })
-        .in('commitment_id', commitmentIds)
-      base.phases.tasksCreated = tasks ?? 0
-    }
-
-    if (internal.created > 0) {
-      // The board publishes to a shared Google Sheet; a follow-up from a call
-      // that just ended has to reach the phone this hour.
-      const { queueTaskSheetRefresh } = await import('@/lib/tasks/sheet-refresh')
-      queueTaskSheetRefresh()
-    }
-  } catch (err) {
-    base.notes.push(
-      `⚠ Indexing or commitments failed: ${err instanceof Error ? err.message : String(err)}`
-    )
-  }
+  //
+  // ⚠ ONE COPY FOR EVERY RECORDING DOOR — see `src/lib/audio/phases.ts`. This
+  // sequence was written out here and again in the voice-memo sweep, ~85%
+  // identical, which is §12's hardest fork to see.
+  const phased = await runRecordingPhases({
+    threadIds: workIds,
+    assertions,
+    nothingFiledAdvice:
+      'No recording named a record with enough certainty to file — each one is searchable ' +
+      'and staged at /decide, where one tap attaches it. Naming the file after the deal, or ' +
+      'dropping it in a subfolder named after the deal, files it without the tap.',
+  })
+  base.phases = { ...base.phases, ...phased.counts }
+  base.notes.push(...phased.notes)
 
   // ── 9. And each one becomes a MEETING ─────────────────────────────────────
   //

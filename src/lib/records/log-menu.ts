@@ -39,13 +39,19 @@ export type RecordKind = 'project' | 'opportunity'
  */
 function feedEntry(kind: RecordKind): LogEntry {
   return kind === 'opportunity'
-    ? { label: 'Note', hint: 'Type progress, a call, a decision', segment: 'notes', autoOpens: true, icon: MessageSquare }
-    : { label: 'Update', hint: 'Type or paste notes — AI extracts the rest', segment: 'updates', autoOpens: true, icon: MessageSquare }
+    ? { label: 'Note', hint: 'Type it, or upload a recording', segment: 'notes', autoOpens: true, icon: MessageSquare }
+    : { label: 'Update', hint: 'Type it, paste it, or upload a recording', segment: 'updates', autoOpens: true, icon: MessageSquare }
 }
 
 /**
  * The menu, in the order a deal generates these: something was said, it got
  * written down, it created work, the work has a date, and paper arrived.
+ *
+ * ⚠ THERE IS NO SEPARATE "RECORDING" ENTRY, on purpose. The upload panel
+ * (10-19) sits beside the composer on the feed tab and opens with it from
+ * `?new=1`, so the Note/Update entry already reaches it in one tap — a second
+ * entry pointing at the same segment would be two doors to one surface, which
+ * is the kind of duplication §12 keeps catching. The hint says so instead.
  *
  * `canLogMeeting` mirrors `MeetingsView`'s own `canEdit` — only an admin
  * creates a meeting record, so a non-admin is not offered a form they cannot

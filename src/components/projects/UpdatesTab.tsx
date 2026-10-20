@@ -7,6 +7,7 @@ import EmptyState from '@/components/shared/EmptyState'
 import SourceTag from '@/components/shared/SourceTag'
 import ConfidenceBadge from '@/components/shared/ConfidenceBadge'
 import PasteInput from '@/components/shared/PasteInput'
+import RecordingUpload from '@/components/records/RecordingUpload'
 import ExtractedItems, { hasExtractedItems } from '@/components/shared/ExtractedItems'
 import UpdateEditModal from '@/components/projects/UpdateEditModal'
 import type { Update } from '@/lib/supabase/types'
@@ -169,9 +170,18 @@ export default function UpdatesTab({ projectId, initialUpdates, startNew = false
 
       {/* Paste input area */}
       {showPaste && (
-        <Panel className="p-4">
-          <PasteInput target={{ kind: 'project', id: projectId }} onSaved={handleSaved} autoFocus />
-        </Panel>
+        <>
+          <Panel className="p-4">
+            <PasteInput target={{ kind: 'project', id: projectId }} onSaved={handleSaved} autoFocus />
+          </Panel>
+          {/*
+            The recording door, beside the typing one. ⚠ Shown with the form
+            rather than always: the Drive folder is the primary path (it reads
+            every export within the hour and deduces the deal), and this is the
+            fallback for when deduction fails or there is no time to wait.
+          */}
+          <RecordingUpload target={{ kind: 'project', id: projectId }} onDone={handleSaved} />
+        </>
       )}
 
       {/* Updates feed */}

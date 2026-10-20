@@ -38,6 +38,7 @@ import { callSourceRef } from '@/lib/notes/call-record'
 import { NOTE_THREAD_PREFIX } from '@/lib/notes/to-thread'
 import { isVoiceMemoThread } from '@/lib/voicememos/to-thread'
 import { isDriveAudioThread } from '@/lib/driveaudio/to-thread'
+import { isUploadThread } from '@/lib/audio/upload-ref'
 
 export interface AttachRecordingResult {
   moved: boolean
@@ -58,6 +59,15 @@ export interface AttachRecordingResult {
 export function meetingRefFromThreadId(gmailThreadId: string): string | null {
   if (isVoiceMemoThread(gmailThreadId)) return gmailThreadId
   if (isDriveAudioThread(gmailThreadId)) return gmailThreadId
+  // ⚠ THE THIRD SOURCE NEEDED ITS OWN ARM, and forgetting it was caught by the
+  // live upload verification on 2026-10-19: everything else passed — the
+  // transcript, the asserted `linked` link, 3 obligations, 2 tasks, an update
+  // on the record — and the meeting sat `scope='unfiled', project_id=null`,
+  // because this function returned null for an `upload:` id and so
+  // `fileMeetingFromThreadLinks` could not find the row to move. §12 exactly:
+  // when a function branches on where something came from, every source that
+  // can reach it needs an arm, not just the one being added today.
+  if (isUploadThread(gmailThreadId)) return gmailThreadId
   if (gmailThreadId.startsWith(NOTE_THREAD_PREFIX)) {
     // `note:<identifier>:<YYYY-MM-DDTHH:MM:SS>` — the identifier is a UUID with
     // no colons in it, so the FIRST colon after the prefix ends it. Split from

@@ -1,5 +1,6 @@
 /**
- * Does the "Just in" band actually render, for every shape a row can take?
+ * Does the 10-19 UI actually render — the "Just in" band for every shape a row
+ * can take, and the recording-upload panel on both record kinds?
  *
  * ⚠ BEHIND AUTH A CURL CANNOT TELL AN ANSWER FROM A THROW (§12) — `/dashboard`
  * returns the same 307 whether the band works or crashes the page. So the
@@ -16,6 +17,7 @@ import React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 
 import JustIn from '../src/components/dashboard/JustIn'
+import RecordingUpload from '../src/components/records/RecordingUpload'
 import type { JustInItem } from '../src/lib/records/just-in'
 
 let pass = 0
@@ -109,6 +111,31 @@ const empty = renderToStaticMarkup(React.createElement(JustIn, { items: [] }))
 // loud — so when nothing arrived it must render NOTHING, not an empty panel
 // with a shrug in it.
 check('an empty list renders no markup at all', empty === '', `got ${empty.length} chars`)
+
+// ─── the recording upload panel ──────────────────────────────────────────────
+//
+// ⚠ A CLIENT COMPONENT STILL HAS TO MOUNT, and tsc cannot tell you that it
+// does: §12 records that a helper reached from a 'use client' file throws at
+// REQUEST time, where neither the typecheck nor the build sees it. The static
+// render only reaches the idle state — which is the state that composes Panel,
+// Field, Input and FieldDate, i.e. everything that can fail on arrival.
+console.log('\nRecording upload — render')
+for (const kind of ['project', 'opportunity'] as const) {
+  let markup = ''
+  try {
+    markup = renderToStaticMarkup(
+      React.createElement(RecordingUpload, { target: { kind, id: 'abc-123' } })
+    )
+  } catch (err) {
+    check(`${kind}`, false, `threw: ${err instanceof Error ? err.message : String(err)}`)
+    continue
+  }
+  check(`${kind}: the panel renders`, markup.includes('Upload a recording'), markup.slice(0, 160))
+  check(`${kind}: it says the filing is certain`, /cannot land on\s+the wrong deal|cannot land on the wrong deal/.test(markup))
+  check(`${kind}: a file input is present`, /type="file"/.test(markup))
+  check(`${kind}: the label is tied to the control`, /<label[^>]*for="/.test(markup))
+  check(`${kind}: nothing renders as NaN or undefined`, !/NaN|"undefined"|>undefined</.test(markup))
+}
 
 console.log(`\n${pass} passed, ${fail} failed\n`)
 process.exitCode = fail === 0 ? 0 : 1

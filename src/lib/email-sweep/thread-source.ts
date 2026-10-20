@@ -45,6 +45,7 @@ import { IMESSAGE_THREAD_PREFIX } from '@/lib/imessage/to-thread'
 import { NOTE_THREAD_PREFIX, noteThreadKind } from '@/lib/notes/to-thread'
 import { VOICEMEMO_THREAD_PREFIX } from '@/lib/voicememos/to-thread'
 import { DRIVE_AUDIO_THREAD_PREFIX } from '@/lib/driveaudio/to-thread'
+import { UPLOAD_THREAD_ID_PREFIX } from '@/lib/audio/upload-ref'
 import type { Database } from '@/types/database'
 
 /**
@@ -89,6 +90,15 @@ export function threadSource(
   // only in how the bytes arrived. A new member would mean an `update_source`
   // enum migration and a new arm in every switch that already handles this one.
   if (gmailThreadId.startsWith(DRIVE_AUDIO_THREAD_PREFIX)) return 'recording'
+  // An mp3 a person uploaded onto a record (10-19). The same `recording` member
+  // again, for the reason written just above — and the omission of this ONE LINE
+  // is what left an upload's meeting `unfiled` under a correctly `linked`
+  // thread: `fileMeetingFromThreadLinks` opens with `source !== 'call' &&
+  // source !== 'recording'`, so an unrecognised prefix is classified `email`
+  // and the whole filing step is skipped silently. Three separate prefix
+  // switches had to learn this door — here, `meetingRefFromThreadId`, and
+  // LOCAL_THREAD_PREFIXES below — and only the middle one was obvious.
+  if (gmailThreadId.startsWith(UPLOAD_THREAD_ID_PREFIX)) return 'recording'
   if (gmailThreadId.startsWith(NOTE_THREAD_PREFIX)) {
     return noteThreadKind(gmailThreadId, subject) === 'call' ? 'call' : 'note'
   }
@@ -116,6 +126,13 @@ export const LOCAL_THREAD_PREFIXES = [
   NOTE_THREAD_PREFIX,
   VOICEMEMO_THREAD_PREFIX,
   DRIVE_AUDIO_THREAD_PREFIX,
+  // `upload:` is here for the FIRST of the two questions only — keeping a
+  // synthetic id out of a live Gmail fetch. The discard half cannot fire on it:
+  // the upload path skips the work/noise gate entirely (a human who attached a
+  // file to a named deal has already judged it), so no `noise` verdict exists
+  // to redact. It is listed anyway rather than special-cased, because the day
+  // somebody does run a verdict over these rows, discarding is the safe answer.
+  UPLOAD_THREAD_ID_PREFIX,
 ] as const
 
 /**

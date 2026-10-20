@@ -6,6 +6,7 @@ import { Plus, MessageSquare, ChevronDown, ChevronRight } from 'lucide-react'
 import { Panel } from '@/components/ui/card'
 import EmptyState from '@/components/shared/EmptyState'
 import PasteInput from '@/components/shared/PasteInput'
+import RecordingUpload from '@/components/records/RecordingUpload'
 import ExtractedItems, { hasExtractedItems } from '@/components/shared/ExtractedItems'
 import ConfidenceBadge from '@/components/shared/ConfidenceBadge'
 import type { OpportunityNote } from '@/lib/supabase/types'
@@ -134,13 +135,23 @@ export function OpportunityNotesView({
       </div>
 
       {showComposer && (
-        <Panel className="p-4">
-          <PasteInput
-            target={{ kind: 'opportunity', id: opportunityId }}
-            onSaved={onSaved}
-            autoFocus
-          />
-        </Panel>
+        <>
+          <Panel className="p-4">
+            <PasteInput
+              target={{ kind: 'opportunity', id: opportunityId }}
+              onSaved={onSaved}
+              autoFocus
+            />
+          </Panel>
+          {/*
+            ⚠ THE SAME COMPONENT THE PROJECT SIDE USES, not a thinner copy. The
+            opportunity half of this app has repeatedly received the lesser
+            version of a project feature — a typed note went unextracted here
+            for months (10-18) — so the recording door is literally the same
+            file with a different target.
+          */}
+          <RecordingUpload target={{ kind: 'opportunity', id: opportunityId }} onDone={onSaved} />
+        </>
       )}
 
       {notes.length === 0 && !showComposer ? (
