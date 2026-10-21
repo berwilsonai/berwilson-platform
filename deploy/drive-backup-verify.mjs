@@ -142,6 +142,10 @@ async function main() {
 
   const ok = bad === 0
   try {
+    // mkdir first: a marker that cannot be written reads as "never run", which
+    // is not the same thing as "ran and failed" — and the health card tells
+    // them apart.
+    fs.mkdirSync(BACKUP_DIR, { recursive: true })
     fs.writeFileSync(
       VERIFY_FILE,
       JSON.stringify({ ok, at: new Date().toISOString(), checked: results.length, failed: bad, results }) + '\n'
@@ -156,6 +160,7 @@ async function main() {
 main().catch((e) => {
   log(`ERROR ${e.message}`)
   try {
+    fs.mkdirSync(BACKUP_DIR, { recursive: true })
     fs.writeFileSync(VERIFY_FILE, JSON.stringify({ ok: false, at: new Date().toISOString(), detail: e.message }) + '\n')
   } catch { /* nothing more to do */ }
   process.exit(1)
