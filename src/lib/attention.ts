@@ -17,7 +17,6 @@
 
 import { createAdminClient } from '@/lib/supabase/admin'
 import { dropHidden, hiddenProjectIds } from '@/lib/security/confidential'
-import { leadsDb } from '@/lib/leads/db'
 import {
   activeDismissals,
   dismissedRowIds,
@@ -234,7 +233,6 @@ export async function computeAttention(): Promise<{
     { data: dependencies },
     { data: investors },
     { data: dinoPayments },
-    { data: openLeads },
   ] = await Promise.all([
     fetchOpenTasks(supabase, { dueBefore: today }),
     supabase.from('projects').select('id, name').eq('status', 'active'),
@@ -280,19 +278,6 @@ export async function computeAttention(): Promise<{
       .not('due_date', 'is', null)
       .lte('due_date', new Date(now.getTime() + 30 * 86_400_000).toISOString().split('T')[0])
       .order('due_date'),
-    // Inbound leads awaiting a decision. Only the ones the AI thinks are worth
-    // pursuing, and only with a real bid date — an undated lead is not urgent,
-    // and surfacing every arrival would drown the panel. Goes through leadsDb()
-    // because `leads` is not in the generated Database type (gen-types is
-    // disabled on this stack); fails quietly pre-migration → null → no items.
-    leadsDb()
-      .from('leads')
-      .select('id, title, sender_company, bid_due_date, fit_recommendation, fit_score, route')
-      .in('status', ['new', 'reviewing'])
-      .in('fit_recommendation', ['pursue', 'consider'])
-      .not('bid_due_date', 'is', null)
-      .lte('bid_due_date', new Date(now.getTime() + 14 * 86_400_000).toISOString().split('T')[0])
-      .order('bid_due_date'),
   ])
 
   const projectName = (u: { projects: unknown }) =>
@@ -538,36 +523,13 @@ export async function computeAttention(): Promise<{
     })
   }
 
-  // 10. Inbound leads — a bid closing with nobody assigned to it
-  for (const l of (openLeads ?? []) as unknown as Array<{
-    id: string
-    title: string
-    sender_company: string | null
-    bid_due_date: string
-    fit_recommendation: string | null
-    fit_score: number | null
-  }>) {
-    const daysUntil = Math.floor((new Date(l.bid_due_date).getTime() - now.getTime()) / 86_400_000)
-    const isOverdue = l.bid_due_date < today
-    // A bid date is a hard wall — urgency climbs steeply as it approaches, and
-    // an already-closed one stays loud until somebody dismisses it.
-    items.push({
-      id: `lead-${l.id}`,
-      category: 'lead_review',
-      urgency: isOverdue ? 60 : Math.min(95, 95 - daysUntil * 4),
-      title: `${l.title}${l.sender_company ? ` — ${l.sender_company}` : ''}`,
-      detail: isOverdue
-        ? `Bid closed ${Math.abs(daysUntil)}d ago, never decided`
-        : `Bid due in ${daysUntil}d · AI says ${l.fit_recommendation}${
-            l.fit_score != null ? ` (${l.fit_score}/100)` : ''
-          }`,
-      project_id: null,
-      project_name: 'Inbound Leads',
-      age_days: isOverdue ? Math.abs(daysUntil) : 0,
-      due_date: l.bid_due_date,
-      source_date: l.bid_due_date,
-    })
-  }
+  // ⚠ INBOUND LEADS USED TO BE ITEM 10 HERE AND WERE REMOVED ON 2026-10-21.
+  // /decide owns them: it ranks every lead by its bid deadline, prints the
+  // date on the row and carries Accept and Delete. Listing them here as well
+  // put one quantity on two screens under two different filters — see the note
+  // at the foot of ATTENTION_KINDS for why the "only the imminent ones" middle
+  // option is worse rather than better. `openLeads` and the `leadsDb()` fetch
+  // went with it, so this function no longer reads the leads table at all.
 
   // ── Protected projects, removed once at the end ─────────────────────────────
   //

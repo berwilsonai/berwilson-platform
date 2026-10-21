@@ -137,8 +137,12 @@ const EMITTED: { key: string; category: string; rowId: string | null; table: str
   { key: `investor-cold-${UUID}`, category: 'investor_followup', rowId: UUID, table: 'investors' },
   // `id: \`dino-payment-${p.id}\``
   { key: `dino-payment-${UUID}`, category: 'dino_payment', rowId: UUID, table: 'dino_payments' },
-  // `id: \`lead-${l.id}\``
-  { key: `lead-${UUID}`, category: 'lead_review', rowId: UUID, table: 'leads' },
+  // ⚠ NO `lead-` ENTRY: inbound leads left this registry on 2026-10-21, because
+  // a bid invitation is inbound work awaiting a call and /decide owns that.
+  // `attention.ts` no longer emits the prefix either — see the note at the foot
+  // of ATTENTION_KINDS. This list is asserted to cover every id the engine
+  // emits, so if the lead block ever comes back without a registry entry, the
+  // coverage test below is what says so.
 ]
 
 test('every id shape the engine emits resolves to the kind that built it', () => {
@@ -220,12 +224,12 @@ test('garbage is refused rather than guessed at', () => {
   assert.equal(attentionRowId(`task-${UUID}x`), null)
 })
 
-test('delete is offered on exactly the four kinds that have an honest row', () => {
+test('delete is offered on exactly the three kinds that have an honest row', () => {
   const offered = ATTENTION_KINDS.filter((k) => k.deletable).map((k) => k.category).sort()
   assert.deepEqual(
     offered,
-    ['critical_dd', 'expiring_compliance', 'lead_review', 'overdue_action'],
-    'Adding a fifth is a deliberate decision about a destructive verb, not a refactor. ' +
+    ['critical_dd', 'expiring_compliance', 'overdue_action'],
+    'Adding a fourth is a deliberate decision about a destructive verb, not a refactor. ' +
       'Milestones and dependencies are withheld on purpose (see the registry comments), and ' +
       'stale_waiting/stale_decision have no row at all.'
   )
@@ -240,10 +244,6 @@ test('a delete target names the route that already owns the row', () => {
   assert.deepEqual(attentionDeleteTarget('overdue_action', `task-${UUID}`), {
     url: `/api/tasks/${UUID}`,
     noun: 'task',
-  })
-  assert.deepEqual(attentionDeleteTarget('lead_review', `lead-${UUID}`), {
-    url: `/api/leads/${UUID}`,
-    noun: 'lead',
   })
   assert.deepEqual(attentionDeleteTarget('critical_dd', `dd-${UUID}`), {
     url: `/api/records/dd-items/${UUID}`,
@@ -269,6 +269,11 @@ test('a delete target refuses a key belonging to a DIFFERENT kind', () => {
   // classification for the model, and seeding a target from one source's kind
   // and another's id sent an opportunity's uuid to the projects branch. Here it
   // would send a lead's uuid to /api/tasks.
+  // ⚠ `lead-` IS NO LONGER ANY KIND'S PREFIX — inbound leads left this registry
+  // on 2026-10-21 (see the note at the foot of ATTENTION_KINDS). Kept as a case
+  // precisely because it is now an unknown prefix, which is the shape §12 warns
+  // about: an unrecognised discriminator must refuse, never fall through to a
+  // default arm.
   assert.equal(attentionDeleteTarget('overdue_action', `lead-${UUID}`), null)
-  assert.equal(attentionDeleteTarget('lead_review', `task-${UUID}`), null)
+  assert.equal(attentionDeleteTarget('critical_dd', `task-${UUID}`), null)
 })

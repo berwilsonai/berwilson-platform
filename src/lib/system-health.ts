@@ -1949,3 +1949,69 @@ export async function probePepperReply(): Promise<{
         : 'No question asked yet — reply to any of her emails to try it. Silence here is an empty inbox, not an outage.'),
   }
 }
+
+/**
+ * Are Pepper's texts actually being delivered?
+ *
+ * ⚠ THE RULE §12 WROTE ABOUT THIS CHANNEL IS "ASSERT DELIVERY, NOT
+ * CONFIGURATION", and until 2026-10-21 nothing did. The hand-built Shortcut
+ * transport failed silently for seven days while every other part of the
+ * morning pass reported success, and the carrier gateway that replaced it
+ * returns no receipt — so the only check that existed was Richard looking at
+ * his phone, which is not a check the platform can run.
+ *
+ * `reportTextDelivery` is the assertion: a carrier bounce in `info@` is proof
+ * of failure, and its absence across a week of sends is evidence of delivery.
+ * The two are reported as different things, because they are.
+ */
+export async function probeTextDelivery(): Promise<{
+  state: 'ok' | 'empty' | 'warn' | 'failed'
+  detail: string
+}> {
+  try {
+    const { reportTextDelivery } = await import('@/lib/notify/text-delivery')
+    const reports = await reportTextDelivery()
+    if (reports.length === 0) {
+      return { state: 'empty', detail: 'No text targets configured (PEPPER_TEXT_TARGETS).' }
+    }
+    const bounced = reports.filter((r) => r.verdict === 'bounced')
+    if (bounced.length > 0) {
+      return {
+        state: 'failed',
+        detail: `The carrier is REJECTING texts to ${bounced
+          .map((r) => r.handle)
+          .join(', ')} — ${bounced[0].bounce}`,
+      }
+    }
+    const unconfigured = reports.filter((r) => r.verdict === 'not_configured')
+    if (unconfigured.length > 0) {
+      return {
+        state: 'warn',
+        detail: `${unconfigured.length} of ${reports.length} targets have no carrier gateway and fall back to the Shortcut transport, which has never delivered. Set PEPPER_TEXT_GATEWAY_DOMAIN.`,
+      }
+    }
+    const silent = reports.filter((r) => r.sent === 0)
+    if (silent.length === reports.length) {
+      // ⚠ A COUNT THAT HAS STOPPED GROWING IS INDISTINGUISHABLE FROM A QUIET
+      // WEEK (§12), so this is a warn that names the ambiguity rather than an ok.
+      return {
+        state: 'warn',
+        detail: 'No texts sent in the last 7 days — the channel is untested, not proven broken.',
+      }
+    }
+    const sent = reports.reduce((n, r) => n + r.sent, 0)
+    const pending = reports.filter((r) => r.verdict === 'pending' && r.sent > 0).length
+    return {
+      state: 'ok',
+      detail:
+        `${sent} texts in 7 days to ${reports.length} handle(s) over the carrier gateway, ` +
+        `none rejected${pending > 0 ? ` (${pending} still inside the bounce window)` : ''}. ` +
+        'Evidence of delivery — a gateway returns no receipt, so it is not proof.',
+    }
+  } catch (err) {
+    return {
+      state: 'failed',
+      detail: `Could not check text delivery: ${err instanceof Error ? err.message : String(err)}`,
+    }
+  }
+}

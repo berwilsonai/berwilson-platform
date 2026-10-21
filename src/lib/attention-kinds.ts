@@ -108,14 +108,31 @@ export const ATTENTION_KINDS = [
     category: 'dino_payment',          summaryKey: 'dino_payments',          label: 'Dino payments',        tone: 'info',
     idPrefixes: ['dino-payment-'],     rowTable: 'dino_payments', deletable: null,
   },
-  {
-    category: 'lead_review',           summaryKey: 'lead_reviews',           label: 'Inbound leads',        tone: 'neutral',
-    idPrefixes: ['lead-'],             rowTable: 'leads',
-    // Matches the X already on the card at /leads — same route, same verb, so
-    // the two surfaces cannot come to mean different things by "delete".
-    deletable: { endpoint: (id: string) => `/api/leads/${id}`, noun: 'lead' },
-  },
 ] as const
+
+/*
+ * ⚠ `lead_review` WAS REMOVED FROM THIS REGISTRY ON 2026-10-21 AND MUST NOT
+ * COME BACK WITHOUT A REASON THAT IS NOT "leads are urgent".
+ *
+ * It was raised as a question on 10-17 — "/attention now has quick actions; use
+ * them for a week, then say whether inbound leads belong there at all" — because
+ * 8 of the 10 items on the screen were inbound leads, which are also the Decide
+ * queue's entire business. Richard's answer on 10-21 was to fix it.
+ *
+ * The architectural line is the one this module's own header draws: ATTENTION is
+ * work falling through the cracks, DECIDE is inbound work awaiting a call, and
+ * the two are never summed. A bid invitation is inbound work awaiting a call by
+ * definition — /decide already ranks leads by deadline through `decideWeight`,
+ * already shows the bid date on the row, and already carries Accept and Delete.
+ * Listing them here as well was one quantity on two screens under two different
+ * filters, which is the §12 failure this file exists to prevent.
+ *
+ * ⚠ AND THE MIDDLE OPTION IS WORSE, WHICH IS WHY IT WAS NOT TAKEN: keeping only
+ * leads whose bid closes within three days would have put a THIRD threshold on
+ * the same rows (/decide ranks every lead, /attention filtered at 14 days, a
+ * tighter gate would make three), so the two screens would disagree about which
+ * bids matter and a reader would trust neither.
+ */
 
 export type AttentionCategory = (typeof ATTENTION_KINDS)[number]['category']
 type AttentionSummaryKey = (typeof ATTENTION_KINDS)[number]['summaryKey']
@@ -164,8 +181,6 @@ export function attentionHref(category: AttentionCategory, projectId: string | n
       return '/investors'
     case 'dino_payment':
       return '/dino'
-    case 'lead_review':
-      return '/leads'
   }
 }
 

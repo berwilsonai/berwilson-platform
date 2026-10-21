@@ -137,8 +137,18 @@ check('there are some of each, so neither half passes vacuously',
 // The delete label NAMES the thing, so "Delete" is never ambiguous on a terse
 // row. ⚠ The quote is `&quot;` in the markup — an aria-label is an attribute,
 // so React escapes it. Matching on a literal `"` reported a false failure.
-check('a delete names its noun',
-  markup.includes('Delete lead &quot;') && markup.includes('Delete task &quot;'))
+// ⚠ DERIVED FROM THE REGISTRY, NOT WRITTEN OUT. The first version named
+// 'Delete lead' and 'Delete task' literally, and when inbound leads left
+// ATTENTION_KINDS on 2026-10-21 it failed on a noun that no longer exists —
+// which is the right failure, but it is the test needing an edit rather than the
+// code. Asserting EVERY deletable kind's own noun appears means a kind added or
+// removed moves this check with it, and it covers three nouns instead of two.
+const expectedNouns = ATTENTION_KINDS.filter((k) => k.deletable).map((k) => k.deletable!.noun)
+check(
+  'a delete names its noun, for every deletable kind',
+  expectedNouns.every((noun) => markup.includes(`Delete ${noun} &quot;`)),
+  expectedNouns.join(', ')
+)
 
 /*
   ⚠ NO BUTTON INSIDE AN ANCHOR. This is the bug the row was restructured to
@@ -182,11 +192,15 @@ const quiet: DismissedRow[] = [
     dismissed_until: '2026-11-03',
     dismissed_by: 'Eric',
   },
-  // A lead has no project, which is the shape that breaks a project-name row.
+  // ⚠ A NULL PROJECT IS THE SHAPE THAT BREAKS A PROJECT-NAME ROW, and it has to
+  // stay covered. This was an inbound lead until 2026-10-21, when leads left the
+  // registry; a Dino payment is the replacement because it is the other kind
+  // that genuinely has no project — a task would not do, since §4 makes
+  // `tasks.project_id` nullable but the fixture above already covers that.
   {
-    item_key: `lead-${UUID}`,
-    category: 'lead_review',
-    title: 'ITB — Ogden Transit Center',
+    item_key: `dino-payment-${UUID}`,
+    category: 'dino_payment',
+    title: 'Installment 4 of 12',
     project_name: null,
     dismissed_until: '2026-11-03',
     dismissed_by: null,

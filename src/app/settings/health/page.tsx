@@ -30,6 +30,7 @@ import {
   probeDealIntake,
   probeThreadRouting,
   probeCorrespondenceIndex,
+  probeTextDelivery,
   probeMeetImport,
   probeIMessageSweep,
   probeVoiceMemos,
@@ -106,7 +107,7 @@ async function runChecks(): Promise<HealthCheck[]> {
   const dayAgo = new Date(Date.now() - 86_400_000).toISOString()
   const localAI = process.env.AI_PROVIDER === 'local'
 
-  const [brief, riskScore, lastAi, aiDayCount, failedRuns, mailbox, lmStudio, backups, drive, leadInbox, docIndexing, driveSources, driveFiling, scopes, disk, lastDigest, failedDigests, contacts, taskSheet, drivePublish, meetImport, dealIntake, routing, corpus, dailyDigest, commitmentBacklog, openCommitments, settledRecently, quietedCommitments, imessageSweep, voiceMemos, driveAudio, pepperText, curator, chase, pepperReply] =
+  const [brief, riskScore, lastAi, aiDayCount, failedRuns, mailbox, lmStudio, backups, drive, leadInbox, docIndexing, driveSources, driveFiling, scopes, disk, lastDigest, failedDigests, contacts, taskSheet, drivePublish, meetImport, dealIntake, routing, corpus, dailyDigest, commitmentBacklog, openCommitments, settledRecently, quietedCommitments, imessageSweep, voiceMemos, driveAudio, pepperText, curator, chase, pepperReply, textDelivery] =
     await Promise.all([
       supabase
         .from('stored_briefs')
@@ -205,6 +206,8 @@ async function runChecks(): Promise<HealthCheck[]> {
       probeCurator(),
       probeCommitmentChase(),
       probePepperReply(),
+      // 8d — is the text actually ARRIVING? (§12: assert delivery, not configuration)
+      probeTextDelivery(),
     ])
 
   const checks: HealthCheck[] = []
@@ -495,6 +498,30 @@ async function runChecks(): Promise<HealthCheck[]> {
               ? 'No text in over four days'
               : 'A send failed this week',
       detail: pepperText.detail,
+    })
+  }
+
+  // 8d. Did those texts ARRIVE? — added 2026-10-21, and it is a different
+  //     question from 8c above, which only knows whether a SEND was attempted.
+  //     §12's rule for this channel is "assert DELIVERY, not configuration",
+  //     written because the Shortcut transport failed silently for seven days
+  //     while every other part of the pass reported success. A carrier bounce
+  //     in info@ is proof of failure; its absence across a week of sends is
+  //     evidence of delivery and is worded as such, never as proof.
+  {
+    checks.push({
+      name: 'Text Delivery',
+      status:
+        textDelivery.state === 'ok' ? 'ok' : textDelivery.state === 'failed' ? 'fail' : 'warn',
+      headline:
+        textDelivery.state === 'ok'
+          ? 'No text has been rejected by the carrier'
+          : textDelivery.state === 'failed'
+            ? 'Texts are being rejected'
+            : textDelivery.state === 'empty'
+              ? 'No text target is configured'
+              : 'Delivery cannot be confirmed',
+      detail: textDelivery.detail,
     })
   }
 
