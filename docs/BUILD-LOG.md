@@ -11,7 +11,7 @@ Split out of `CLAUDE.md` on 2026-09-23, when that file reached 606k characters a
 - A block of **2026-08-23 → 2026-08-31** entries sits *after* the June entries, near the end of the file.
 - One **2026-07-03** entry ("migrations applied + pursuit profile seeded") is last in the file.
 
-196 entries, 2026-06-22 → 2026-10-21. ⚠ Counted with `grep -c "^\*\*Done 2026"`, not incremented by hand: two sessions editing this file on 2026-10-08 each bumped the old figure by one and both landed on 146 against a real 148.
+197 entries, 2026-06-22 → 2026-10-21. ⚠ Counted with `grep -c "^\*\*Done 2026"`, not incremented by hand: two sessions editing this file on 2026-10-08 each bumped the old figure by one and both landed on 146 against a real 148.
 
 **Done 2026-10-21 (Pepper holds her tongue, and one message takes the whole channel):**
 
@@ -71,7 +71,13 @@ A new ratchet guards the seam: no file outside `src/lib/notify/` (plus the Gmail
 
 **What this reminder now needs from a human, and it is the whole of it:** due dates. 30 open tasks, 10 carrying one. On a real Monday as the corpus stands, Richard gets a single line and Eric gets nothing, because his four dated tasks are all 31 Oct / 1 Nov.
 
-709 tests (673 → 709), lint 23 unchanged, migration applied. ⚠ **Not kickstarted:** a parallel Claude session was mid-feature in `AgentChat.tsx`, `lib/ai/agent.ts` and a new `lib/ai/run-state.ts`, and the deploy runbook builds the WORKING TREE rather than `HEAD` — so a kickstart would have shipped somebody else's half-finished work. The two sessions also independently took migration number `20261021000007`, for the second time in three weeks; mine was renumbered to `000008`.
+716 tests (673 → 716, the last seven from the parallel session), lint 22 against a 23 baseline, migration applied.
+
+⚠ **AND THE DEPLOY HAPPENED WITHOUT A KICKSTART, WHICH I HAD TOLD A PEER TWICE IT COULD NOT.** A parallel Claude session was mid-feature in `AgentChat.tsx`, `lib/ai/agent.ts` and a new `lib/ai/run-state.ts`; the runbook builds the WORKING TREE rather than `HEAD`, so I deliberately held the `launchctl kickstart` and said so. Then `curl` against `/api/cron/task-reminder` answered — not 404 — and the route is new. `com.berwilson.platform` is **`KeepAlive: true`**: `npm run build` replaced `.next` under the running `next start`, which died, and launchd brought it back on the new build. Verified by timestamps rather than inferred — build finished **16:14:31**, `ps` shows the server started **16:15:35**, log reads `✓ Ready in 88ms`. So §12's *"a rebuild without kickstart changes nothing"* is wrong on this box in the direction that matters, the runbook's step order implies a build is inert when it is the deploy, and that session's unfinished work went to the tailnet because of my build. Told them immediately and corrected the rule in both files. **On this box `npm run build` IS the deploy.**
+
+The two sessions also independently took migration number `20261021000007`, for the second time in three weeks; mine was renumbered to `000008`.
+
+⚠ **A SHARED POLICY TABLE IS A SHARED SEAM, AND IT WORKED THE WAY IT SHOULD.** The other session added its own `agent_answer` row to `policy.ts` mid-session, and my test `"Richard's 2026-10-21 decision is what the table says"` failed — which is exactly what it was written for. The first version asserted the live set exactly; that would make any parallel session's new channel a red build and invite whoever hit it to add their name to a list without thinking. The shipped version asserts the property Richard actually decided: **of the kinds that send on a SCHEDULE, only the two task reminders may be live.** A `human` or `event` trigger passes without ceremony, because "hold off on the messaging" is about what arrives unasked, and that is §11's own automatic-versus-human-confirm line. Their row is a human-triggered answer to a question somebody asked and walked away from — the same class as `lead_handoff` — so it was left live.
 
 **Done 2026-10-21 (a contact has a role, and the vocabulary nobody used became the one that rules):**
 
