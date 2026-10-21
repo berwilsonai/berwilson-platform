@@ -73,6 +73,50 @@ const AUTOMATED_RE =
   /^(no-?reply|noreply|donotreply|do-not-reply|notifications?|alerts?|mailer|bounce|postmaster|messenger|support|helpdesk|billing|invoices?|receipts?|news|newsletter|updates?|admin|automated|system|webmaster|abuse|security|sales|careers|jobs|hr|accounts?|accounting|payroll|service|customerservice)([.\-_+]|$)|_support$|^info$/i
 
 /**
+ * The same markers, anywhere in the local part — not only at the front.
+ *
+ * ⚠ `AUTOMATED_RE` IS ANCHORED AT `^`, AND A SUFFIX WALKS STRAIGHT PAST IT.
+ * Measured 2026-10-21 on the 57 contacts the reciprocity rule had created:
+ * `drive-shares-dm-noreply@google.com` became a party called "Merlin Corbin
+ * (via Google Drive)" — a Google Drive share notification stored as a person,
+ * because the marker is the LAST token of the local part rather than the first.
+ *
+ * This is §12's substring rule arriving inverted. There it is "a substring hint
+ * matches any word that CONTAINS it — the prefix must START a token"; here the
+ * anchor was so strict that a token in any other position was invisible. So the
+ * test is on WHOLE TOKENS of the local part, split on the separators a vendor
+ * actually uses, which keeps the precision the anchor was protecting: `noreply`
+ * matches, and `norah` or `replyall` do not.
+ *
+ * Only the unambiguous markers are listed. `support`, `sales` and `service` stay
+ * prefix-only above, because a surname can legitimately end in them.
+ */
+const AUTOMATED_TOKENS = new Set([
+  'noreply', 'no-reply', 'donotreply', 'do-not-reply', 'notification', 'notifications',
+  'mailer', 'bounce', 'postmaster', 'daemon', 'automated', 'autoreply', 'auto-reply',
+])
+
+/** Is this local part an automated mailbox, by prefix OR by any whole token? */
+export function isAutomatedLocalPart(localPart: string): boolean {
+  const lower = localPart.trim().toLowerCase()
+  if (!lower) return false
+  if (AUTOMATED_RE.test(lower)) return true
+  // Split on the separators vendors put between words, then also test the
+  // hyphen-joined pairs so `no-reply` is caught as the two tokens it becomes.
+  const parts = lower.split(/[.\-_+]+/).filter(Boolean)
+  if (parts.some((t) => AUTOMATED_TOKENS.has(t))) return true
+  for (let i = 0; i < parts.length - 1; i++) {
+    if (AUTOMATED_TOKENS.has(`${parts[i]}-${parts[i + 1]}`)) return true
+  }
+  if (parts.length >= 3) {
+    for (let i = 0; i < parts.length - 2; i++) {
+      if (AUTOMATED_TOKENS.has(`${parts[i]}-${parts[i + 1]}-${parts[i + 2]}`)) return true
+    }
+  }
+  return false
+}
+
+/**
  * A name that is a company, a team or a role rather than a person.
  *
  * ⚠ §12 SAYS DECIDE ON THE `is_organization` FLAG AND NEVER ON THE NAME — our
@@ -352,7 +396,7 @@ export async function gatherReciprocatedContacts(): Promise<{
         // person is real but has to be matched on `parties.phone`, so counting
         // one here would propose a contact named `+13854366519`.
         if (email.endsWith('@imessage.local')) continue
-        if (AUTOMATED_RE.test(email.split('@')[0])) continue
+        if (isAutomatedLocalPart(email.split('@')[0])) continue
 
         const existing = candidates.get(email)
         const c: Candidate =
