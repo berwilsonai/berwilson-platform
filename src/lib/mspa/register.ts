@@ -537,7 +537,82 @@ export const MSPA_REGISTER: readonly RegisterRecord[] = [
     statedMw: null, mwBasis: null, mwSource: null, conflictingFigures: [],
     scopesHeld: [], pcaSigned: false, siteControl: false, powerProtectionAmount: null,
     notes: [
-      'The recorded call titled "Ber Wilson / Zenthium" (09-29) is almost certainly this record; the model retitled it "Steelton & Riverdale Site Reviews & Power Capacity Analysis", so it does not look like a Zenthium call in any list.',
+      'The recorded call of 09-29 is now FILED on this record (2026-10-21), resolved from the organiser\'s own title "Ber Wilson / Zenthium" against an asserted alias. The model had retitled it "Steelton & Riverdale Site Reviews & Power Capacity Analysis", which is why it had looked like a Steelton call in every list.',
+    ],
+  },
+  // ── Added 2026-10-21, on Richard's instruction, from evidence already on file.
+  // Each was a real engagement sitting on no record; all three are `out` or
+  // `unsized` rather than `in`, because none has a capacity figure a document
+  // actually states — which is the register's whole discipline.
+  {
+    name: 'Synetra',
+    kind: 'opportunity',
+    mspaScope: 'out',
+    rationale:
+      'An MNDA and one call. No site, no capacity and no construction scope on the record, so Schedule 1 has nothing to apply to.',
+    state: null,
+    statedMw: null, mwBasis: null, mwSource: null, conflictingFigures: [],
+    scopesHeld: [], pcaSigned: false, siteControl: false, powerProtectionAmount: null,
+    notes: [
+      'Bahadir Yetki. The MNDA with non-circumvention was eSigned by both sides at 10:57 on 2026-10-19, and a second MNDA (Firm Power) at 11:14.',
+      '⚠ What was SAID on the 10:00 call is on no record: no recording of it exists. The invite and both signatures are on file; the substance is not.',
+    ],
+  },
+  {
+    name: 'Deseret / Bonanza Power Generation',
+    kind: 'opportunity',
+    mspaScope: 'unsized',
+    rationale:
+      'A power generation deal the partnership would cover, but the 438 MW figure is the PLANT\'s nameplate rather than a load Ber Wilson is contracted to deliver — so nothing computes until a scope exists.',
+    state: 'UT',
+    statedMw: 438,
+    // ⚠ NULL ON PURPOSE AND IT IS A BLOCKER, NOT A GAP. 438 MW is generation
+    // capacity at the plant, which is neither IT load nor utility load drawn by
+    // a data centre — the two quantities Schedule 1 is written in. Guessing a
+    // basis here is the unit trap this register exists to refuse.
+    mwBasis: null,
+    mwSource: '"Bonanza, which is a coal fire plant on the border of Eastern Utah… 438 megawatts" — recorded call, 2026-08-20',
+    conflictingFigures: [],
+    scopesHeld: [], pcaSigned: false, siteControl: false, powerProtectionAmount: null,
+    notes: [
+      'Operated by Deseret Power Electric Cooperative, which the call described as community-first and not for-profit.',
+      'The call set a hard next step: a conditional partnership agreement to be drafted within 10 days (from 2026-08-20). That date has long passed — worth checking whether it was ever drafted.',
+      'A $5B funding structure and three unresolved regulatory items were named on the call.',
+    ],
+  },
+  {
+    name: 'Tensor Site Construction Management',
+    kind: 'opportunity',
+    mspaScope: 'unsized',
+    rationale:
+      'Construction management across the whole Tensor site — squarely MSPA scope — with no site-level capacity figure stated, so the fee base cannot be computed yet.',
+    state: null,
+    statedMw: null, mwBasis: null,
+    mwSource: '120 MW was named for the DEMO PHASE only, not for the site',
+    conflictingFigures: [
+      '"120 MW of power will be activated for the demo phase within two to four weeks" — recorded call, 2026-10-09. A phase figure, not the site figure.',
+    ],
+    // Left empty rather than guessed: the call confirmed the CM ROLE in words,
+    // and no PCA naming its Schedule 1 scopes is on file.
+    scopesHeld: [], pcaSigned: false, siteControl: false, powerProtectionAmount: null,
+    notes: [
+      'Ber Wilson confirmed on the 2026-10-09 call that it will serve as construction management firm for the ENTIRE Tensor site.',
+      'State licensing strategy and the teaming-agreement structure were discussed on the same call.',
+      '⚠ Deliberately its own record rather than folded into a Cleveland-Cliffs site: the scope is site-wide CM, which no existing record carries.',
+    ],
+  },
+  {
+    name: 'Eagle Mountain Data Center & Land Acquisition',
+    kind: 'project',
+    mspaScope: 'unsized',
+    rationale:
+      'A Utah data-centre and land play from the Project Register, with nothing in the corpus beyond its name.',
+    state: 'UT',
+    statedMw: null, mwBasis: null, mwSource: null, conflictingFigures: [],
+    scopesHeld: [], pcaSigned: false, siteControl: false, powerProtectionAmount: null,
+    notes: [
+      'Created 2026-10-21 so correspondence has somewhere to file; status is on_hold, not active.',
+      '⚠ This is §12\'s own worked example for why a similarity score cannot match a record name — "Eagle Mountain Development" scored 0.487 against Myton Development, higher than a correct match elsewhere. Its aliases are asserted for that reason.',
     ],
   },
 ]

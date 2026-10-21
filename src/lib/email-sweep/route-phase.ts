@@ -451,7 +451,7 @@ export async function routeThreads(
   const rows = (data ?? []) as Array<
     Pick<
       EmailThreadRow,
-      'id' | 'subject' | 'participants' | 'summary' | 'cluster_id' | 'message_count'
+      'id' | 'subject' | 'participants' | 'summary' | 'cluster_id' | 'message_count' | 'pipeline'
     >
   >
   if (rows.length === 0) return progress
@@ -508,7 +508,30 @@ export async function routeThreads(
     // category filter (see mailExclusions), and the matcher's own guards —
     // two shared tokens, whole-alias, ambiguity margin — already keep a
     // newsletter from reaching a record.
-    const match = bestMatch(row.subject ?? '', summary, row.participants ?? [], targets)
+    // ⚠ A LEAD-PIPELINE THREAD IS NEVER GUESSED ONTO A DEAL RECORD, and this
+    // gate is NOT the `relevance === 'noise'` mistake the note above warns
+    // about — it tests the PIPELINE, which is the question "is this inbound
+    // sales lead mail from info@, or deal mail from moose@/tuaone@". The two
+    // are different corpora with different jobs: a lead is scored and triaged
+    // on /leads, and `clusterUnassigned` has always excluded them from
+    // proposing a record (`eq('pipeline','deal')`) for exactly this reason. The
+    // router did not, and §12 names that shape: *a pass over a table shared by
+    // several KINDS must filter the kind column.*
+    //
+    // Measured 2026-10-21: 19 lead threads carried a project or opportunity
+    // link off a name or alias match — a town's name inside three
+    // "Customer T. R. needs Concrete Installation in Eagle Mountain, UT" trade
+    // notifications, and 17 AVANT marketing newsletters on a joint-venture
+    // record, because `Avant` had been asserted as an alias.
+    //
+    // ⚠ ONLY THE GUESS IS GATED, NOT THE FACT. A lead PROMOTED to a steel deal
+    // or a project keeps its pipeline and legitimately carries a `linked` row —
+    // that link is written above, from `derivedByThread`, before this runs. One
+    // such link exists ("promoted from this lead") and it must survive.
+    const match =
+      row.pipeline === 'lead'
+        ? null
+        : bestMatch(row.subject ?? '', summary, row.participants ?? [], targets)
     if (!match) {
       progress.unmatched++
       await markRouted(row.id)

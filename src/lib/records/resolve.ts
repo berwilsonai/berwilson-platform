@@ -61,8 +61,13 @@ export interface RecordResolution {
   suggestion: RecordTarget | null
   /** Why nothing was chosen, when that is worth saying out loud. */
   ambiguous: string | null
-  /** Which bar decided, so a log can be believed rather than guessed at. */
-  via: 'exact_name' | 'suggested' | null
+  /**
+   * Which bar decided, so a log can be believed rather than guessed at.
+   *
+   * 'alias' is a phrase a human asserted on the record (`match_aliases`) and
+   * files like an exact name — see bar 1b.
+   */
+  via: 'exact_name' | 'alias' | 'suggested' | null
   /**
    * The identity-bearing word(s) a `suggested` match was made on.
    *
@@ -156,6 +161,43 @@ export function distinguishingWords(name: string): Set<string> {
   )
 }
 
+/**
+ * Whole tokens of a phrase, lowercased. No stopwords — an alias is asserted.
+ *
+ * ⚠ AN APOSTROPHE IS DELETED, NOT SPLIT ON, which is §12's rule arriving in a
+ * new place: *delete punctuation rather than split on it*. Splitting turns
+ * `Dave's Farms` into `dave` + `s` + `farms`, which then fails to match the
+ * same assertion typed without the apostrophe (`Daves Farms`) — and `Dave's
+ * Farms` / `Daves Farms` is a live alias pair on the Delta record. The rule was
+ * written for `Tua'one` vs `Tuaone` and the reason is identical. Every other
+ * separator still splits.
+ */
+function tokens(value: string): string[] {
+  return value
+    .toLowerCase()
+    .replace(/['\u2019\u02bc]/g, '')
+    .split(/[^a-z0-9]+/)
+    .filter(Boolean)
+}
+
+/**
+ * Does this candidate phrase carry the whole of `alias`?
+ *
+ * Every token of the alias must be present as a whole token of the candidate.
+ * Exported so the test can pull the cases apart and so nothing writes a second
+ * version of this rule.
+ */
+export function aliasMatches(alias: string, candidate: string): boolean {
+  const want = tokens(alias)
+  if (want.length === 0) return false
+  // A one-character alias would match far too much; `JV`/`Q3` are already
+  // refused by the caller's length guard, and this covers a stray `match_aliases`
+  // entry like "A" that no caller filtered.
+  if (want.join('').length < 3) return false
+  const have = new Set(tokens(candidate))
+  return want.every((w) => have.has(w))
+}
+
 const NONE: RecordResolution = { target: null, suggestion: null, ambiguous: null, via: null }
 
 /**
@@ -202,26 +244,85 @@ export async function resolveRecordByName(candidates: string[]): Promise<RecordR
     }
   }
 
-  // ── 2. A shared identity-bearing word — suggestion only ───────────────────
-  //
-  // Read whole rather than searched: both tables together are a couple of dozen
-  // rows, so one select each is cheaper than a trigram call per candidate and
-  // treats projects and opportunities by the same rule. (`match_projects_by_name`
-  // exists but has no opportunity twin, and a score is the wrong signal here
-  // anyway — see the bars in this file's header.)
+  // Read whole rather than searched, and used by BOTH bars below: the two tables
+  // together are a couple of dozen rows, so one select each is cheaper than a
+  // trigram call per candidate and treats projects and opportunities by the same
+  // rule. (`match_projects_by_name` exists but has no opportunity twin, and a
+  // score is the wrong signal here anyway — see the bars in this file's header.)
   const [allProjects, allOpportunities] = await Promise.all([
-    supabase.from('projects').select('id, name').limit(500),
-    supabase.from('opportunities').select('id, name').limit(500),
+    supabase.from('projects').select('id, name, match_aliases').limit(500),
+    supabase.from('opportunities').select('id, name, match_aliases').limit(500),
   ])
-  const everything: RecordTarget[] = [
-    ...(allProjects.data ?? []).map((r) => ({ kind: 'project' as const, id: r.id, name: r.name })),
-    ...(allOpportunities.data ?? []).map((r) => ({
-      kind: 'opportunity' as const,
-      id: r.id,
-      name: r.name,
+  type Row = { id: string; name: string; match_aliases?: string[] | null }
+  const everything: Array<RecordTarget & { aliases: string[] }> = [
+    ...((allProjects.data ?? []) as Row[]).map((r) => ({
+      kind: 'project' as const, id: r.id, name: r.name, aliases: r.match_aliases ?? [],
+    })),
+    ...((allOpportunities.data ?? []) as Row[]).map((r) => ({
+      kind: 'opportunity' as const, id: r.id, name: r.name, aliases: r.match_aliases ?? [],
     })),
   ]
 
+  // ── 1b. AN ALIAS A HUMAN ASSERTED — files, like an exact name ─────────────
+  //
+  // ⚠ THIS LADDER COULD NOT SEE `match_aliases` AT ALL UNTIL 2026-10-21, AND
+  // THAT IS THE BUG THAT MADE §12'S OWN REMEDY NOT WORK. §12 says, of a record
+  // a matcher cannot reach: *do not weaken the bar; assert an alias.* Twenty
+  // records carry good ones — `Myton Rail` is aliased **Uintah Basin**, Tooele
+  // is aliased `TEAD`, Steelton is aliased `215 S Front St` — but only
+  // `bestMatch` in route-phase.ts ever read them, so they steered THREAD
+  // routing and nothing else. Every other caller of this ladder was blind to
+  // them: a Meet call titled *"Ber Wilson/Tensor Discuss Uintah Basin"* resolved
+  // to NOTHING and sat `scope='unfiled'`, a recording named after a deal's
+  // nickname could not file, and the intake queue could not offer the merge. One
+  // renderer wired to one surface — §12, for the third recorded time.
+  //
+  // IT SITS AT THE FILING BAR, NOT THE SUGGESTION BAR, and deliberately so: an
+  // alias is not a guess about a name, it is a person having said "this phrase
+  // means this deal". §12 treats a human's assertion — a folder they filed into,
+  // a learned title — as stronger than any similarity score, and this is the
+  // same class of fact. The learned-title bar above it is still first, because
+  // that is a replayed filing decision about this exact title.
+  //
+  // THE TEST IS `aliasMatches` AND IT IS THE HOUSE RULE, NOT A NEW ONE. Every
+  // TOKEN of the alias must appear as a whole token of the candidate — exactly
+  // what `bestMatch` in route-phase.ts has required of a thread since it was
+  // written (`aliasShared === alias.tokens.size`), measured there across 735
+  // `linked` links. Reusing it rather than inventing a second alias rule is the
+  // point: two rules for one column would drift, and a thread and a meeting
+  // would come to disagree about what a record is called.
+  //
+  // Comparing TOKENS is also what makes this word-boundary safe for free, which
+  // a substring test is not: the alias `Dino` does not match "Dinosaur Ridge",
+  // because tokenising gives `dinosaur` and `dino !== dinosaur`. Tokens need
+  // not be adjacent — `Uintah Basin` matches "Ber Wilson/Tensor Discuss Uintah
+  // Basin" — and ambiguity across records refuses and names the collision,
+  // exactly as the exact-name bar does. Two records claiming one alias is a
+  // data error worth seeing, not a coin to flip (and `True North` was one on
+  // 10-21, claimed by both Alaska deals until the weaker claim was withdrawn).
+  for (const name of candidates) {
+    if (name.trim().length < 3) continue
+    const hits = everything.filter((r) => r.aliases.some((a) => aliasMatches(a, name)))
+    if (hits.length === 1) {
+      const { kind, id, name: matched } = hits[0]
+      return {
+        target: { kind, id, name: matched },
+        suggestion: null,
+        ambiguous: null,
+        via: 'alias',
+      }
+    }
+    if (hits.length > 1) {
+      return {
+        ...NONE,
+        ambiguous: `"${name.trim()}" is an alias on ${hits.length} records (${hits
+          .map((h) => `${h.name} [${h.kind}]`)
+          .join(', ')}) — one of them is wrong`,
+      }
+    }
+  }
+
+  // ── 2. A shared identity-bearing word — suggestion only ───────────────────
   for (const name of candidates) {
     const words = distinguishingWords(name)
     if (words.size === 0) continue
@@ -233,9 +334,10 @@ export async function resolveRecordByName(candidates: string[]): Promise<RecordR
     }
     const hits = everything.filter((r) => shared.has(r.id))
     if (hits.length === 1) {
+      const { kind, id, name: matched } = hits[0]
       return {
         target: null,
-        suggestion: hits[0],
+        suggestion: { kind, id, name: matched },
         ambiguous: null,
         via: 'suggested',
         // ⚠ CARRIED OUT, because WHICH word matched is the signal and a score

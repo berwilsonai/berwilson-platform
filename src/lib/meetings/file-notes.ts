@@ -33,8 +33,16 @@ export interface MeetingTargetResolution {
   suggestion: SeedTarget | null
   /** Why nothing was chosen, when that is worth saying out loud. */
   ambiguous: string | null
-  /** Which key decided, so the import log can be believed rather than guessed at. */
-  via: 'learned_title' | 'exact_name' | 'suggested' | null
+  /**
+   * Which key decided, so the import log can be believed rather than guessed at.
+   *
+   * ⚠ KEEP THIS IN STEP WITH `RecordResolution['via']` in
+   * src/lib/records/resolve.ts — this type is the superset (it adds the
+   * learned-title bar, which is a meetings-only key) and `tsc` is what enforces
+   * it: adding `alias` there failed the build HERE until this line named it,
+   * which is the drift guard working rather than a chore.
+   */
+  via: 'learned_title' | 'exact_name' | 'alias' | 'suggested' | null
 }
 
 /**

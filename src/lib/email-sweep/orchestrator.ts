@@ -23,6 +23,10 @@ import { routeThreads, type RouteProgress } from './route-phase'
 import { applyThreadUpdates, type ApplyProgress } from './apply-phase'
 import { embedPendingThreads, type EmbedProgress } from '@/lib/ai/thread-embeddings'
 import {
+  reconcileUnfiledMeetings,
+  type ReconcileUnfiledResult,
+} from '@/lib/meetings/reconcile-unfiled'
+import {
   reconcileMailIndexedDocuments,
   type ReconcileProgress,
 } from '@/lib/email-sweep/reconcile-mail-index'
@@ -40,6 +44,7 @@ export type SweepPhase =
   | 'route'
   | 'apply'
   | 'embed'
+  | 'meetings'
   | 'commitments'
   | 'internal-tasks'
   | 'predecide'
@@ -66,6 +71,7 @@ export interface SweepRunResult {
   apply?: ApplyProgress
   embed?: EmbedProgress
   reconcile?: ReconcileProgress
+  meetings?: ReconcileUnfiledResult
   commitments?: CommitmentProgress
   internalTasks?: InternalTaskProgress
   predecide?: PredecideProgress
@@ -82,6 +88,7 @@ const ALL_PHASES: SweepPhase[] = [
   'route',
   'apply',
   'embed',
+  'meetings',
   'commitments',
   'internal-tasks',
   'predecide',
@@ -224,6 +231,23 @@ export async function runSweep(opts: SweepRunOptions = {}): Promise<SweepRunResu
     if (result.apply.outOfTime || result.apply.linksConsidered >= APPLY_BATCH) {
       result.moreWork = true
     }
+  }
+
+  // ── Meetings ──────────────────────────────────────────────────────────────
+  // ⚠ RUN UNCONDITIONALLY AND AFTER `apply`, WHICH IS THE WHOLE POINT. §12: a
+  // cleanup that is a side effect of having work to do never reaches the rows
+  // with no work. A meeting on no record is exactly such a row — its intake
+  // session may have been dismissed months ago, and `/decide` reads sessions
+  // rather than meetings, so nothing else would ever look at it again. Nine
+  // real calls, the oldest from August, were sitting invisible on 2026-10-21.
+  //
+  // After `apply` because routing may have just filed the thread a recording
+  // produced, and after `route` for the same reason: the alias that reaches a
+  // record is the same key both passes use. Cheap — a handful of rows behind a
+  // partial index, no model call.
+  if (phases.includes('meetings')) {
+    result.meetings = await reconcileUnfiledMeetings()
+    result.ranPhases.push('meetings')
   }
 
   // ── Embed ─────────────────────────────────────────────────────────────────
