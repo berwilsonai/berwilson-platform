@@ -26,43 +26,34 @@ find "$DEST" -name "*.gz" -o -name "*.tgz" | while read f; do
 done
 echo "$(date): backup ok — $(ls -lh $DEST/db-$STAMP.sql.gz | awk '{print $5}') db, $(ls -lh $DEST/storage-$STAMP.tgz 2>/dev/null | awk '{print $5}') storage"
 
-# ---- offsite encrypted copy -> Mac mini (added 2026-07-07) ----
-# age-encrypts both artifacts to a PUBLIC recipient whose PRIVATE key lives ONLY on Richard's
-# MacBook (~/.config/age/berwilson-offsite-backup.key) + his password manager — a stolen
-# Studio or mini cannot decrypt. Non-fatal: a mini outage never breaks the local backup above.
+# ---- offsite encrypted copy (age) ----
+# age-encrypts the artifacts to a PUBLIC recipient whose PRIVATE key lives ONLY on
+# Richard's MacBook (~/.config/age/berwilson-offsite-backup.key) + his password
+# manager — a stolen Studio cannot decrypt, and neither can Google.
 AGE_RECIPIENT="age1q85gt646wmguldvruj8xfq25vmc0asj7js4xn67095ykqd9mzqsq4j7zc2"
-# MagicDNS short name, not a 100.x literal: a Tailscale account/tailnet change
-# reassigns every node IP, and a hardcoded one fails here SILENTLY (BatchMode=yes
-# suppresses the host-key prompt). known_hosts is keyed by this hostname
-# (CheckHostIP=no), so it survives both the IP and the MagicDNS-suffix changing.
-MINI_HOST="richards-mac-mini"
-# Resolve through Tailscale rather than DNS. MagicDNS works from an interactive
-# shell but resolved as NXDOMAIN under launchd on 2026-09-16..23 ("Could not
-# resolve hostname richards-mac-mini"), which BatchMode=yes then reports as a
-# plain failure. `tailscale ip` asks the tailnet directly, so it needs no
-# resolver, and it still reads the CURRENT address rather than a hardcoded one.
-MINI_ADDR=$(tailscale ip -4 "$MINI_HOST" 2>/dev/null | head -1)
-[ -z "$MINI_ADDR" ] && MINI_ADDR="$MINI_HOST"
-MINI="richardwhite@$MINI_ADDR"
-# Connect by IP, but verify the host key under the NAME. known_hosts is keyed
-# by "richards-mac-mini" (4 entries, none by address), so dialling the literal
-# IP alone fails "Host key verification failed" under BatchMode=yes — which is
-# exactly what happened the first time this was changed, on 2026-09-23.
-# HostKeyAlias keeps both properties: no resolver needed, key still checked.
-MINI_SSH_OPTS=(-o "HostKeyAlias=$MINI_HOST" -o CheckHostIP=no)
-MINI_DEST="Backups/berwilson-offsite"
-# Retries are belt-and-braces, NOT the fix for the 2026-09-16..23 outage.
-# Checked rather than assumed: the mini had `sleep 0` and 7 days uptime across
-# that whole window, so it was never asleep — the cause was the tailnet move on
-# 2026-09-16 renumbering every node (the script then held the old 100.74.2.126
-# and timed out), and MagicDNS short names not resolving under launchd once it
-# was switched to a hostname. Resolving through `tailscale ip` above addresses
-# both. These retries only cover a transient link drop, which this box does
-# have: the push is ~1GB at ~17MB/min over the tailnet, so it is in flight for
-# the better part of an hour and has time to be interrupted.
-OFFSITE_TRIES=6
-OFFSITE_WAIT=300
-OFFSITE_STATUS="$DEST/.offsite-status"
+#
+# ⚠ THE MAC MINI DESTINATION WAS REMOVED 2026-10-21 (Richard's call). Google
+# Drive replaced it; the push lives further down. Why, so nobody re-adds it
+# without knowing what it cost:
+#   - The mini had 37GB free TOTAL and this held 25GB of it, at 83% capacity
+#     and growing (the storage tarball went 1.1GB -> 1.6GB in two weeks).
+#   - The GSuite pooled quota is 6,597GB with 17.6GB used. 30 nights is <1%.
+#   - It was NOT removed for security: the mini only ever held the same age
+#     ciphertext Drive now holds, and could not read it either.
+# What was lost by removing it, stated plainly: the mini was a destination with
+# an INDEPENDENT credential (an ssh key) and no dependency on Google. Drive
+# authenticates with the OAuth token store, which is ITSELF one of the files
+# backed up — so a loss of ~/berwilson-data could take the uploader's
+# credential with it. That is mitigated, not eliminated: drive-backup-push.mjs
+# keeps a second copy of the token store at ~/.config/bw-backup/ (a different
+# blast radius from the 2026-08-25 crash, which took ~/berwilson-data whole).
+# If a second independent destination is ever wanted again, THAT is the gap it
+# fills — not space, and not secrecy.
+#
+# The mini's `.offsite-status` marker is no longer written, and probeOffsite in
+# src/lib/system-health.ts deliberately does NOT fall back to it: a stale
+# marker from a decommissioned destination would report a copy that no longer
+# happens, which is the exact failure the probe exists to catch.
 set +e
 
 # ---- secrets bundle (added 2026-08-25) ----
@@ -111,31 +102,48 @@ if command -v age >/dev/null 2>&1 && [ -n "$AGE_RECIPIENT" ]; then
   if [ $E1 -eq 0 ] && [ $E2 -eq 0 ]; then
     PUSH="$DEST/db-$STAMP.sql.gz.age $DEST/storage-$STAMP.tgz.age"
     [ $E3 -eq 0 ] && PUSH="$PUSH $DEST/secrets-$STAMP.tgz.age"
-    PUSHED=1
-    ATTEMPT=1
-    while [ $ATTEMPT -le $OFFSITE_TRIES ]; do
-      ssh -o ConnectTimeout=10 -o BatchMode=yes "${MINI_SSH_OPTS[@]}" "$MINI" "mkdir -p $MINI_DEST" \
-        && rsync -a -e "ssh -o ConnectTimeout=10 -o BatchMode=yes -o HostKeyAlias=$MINI_HOST -o CheckHostIP=no" \
-             ${=PUSH} "$MINI:$MINI_DEST/"
-      if [ $? -eq 0 ]; then PUSHED=0; break; fi
-      [ $ATTEMPT -lt $OFFSITE_TRIES ] && \
-        echo "$(date): offsite attempt $ATTEMPT/$OFFSITE_TRIES failed ($MINI_ADDR) — retrying in ${OFFSITE_WAIT}s" && \
-        sleep $OFFSITE_WAIT
-      ATTEMPT=$((ATTEMPT + 1))
+
+    # ---- offsite encrypted copy -> Google Drive (added 2026-10-21) ----
+    # Richard's call: the GSuite pooled quota is 6,597GB with 17.6GB used, so a
+    # 30-night window (~50GB) is under 1% of it, where the mini had 37GB free
+    # TOTAL and the backups were 25GB of that.
+    #
+    # It pushes the SAME age ciphertext as the mini, so Google holds opaque
+    # bytes it cannot read — the private key is on Richard's MacBook and in his
+    # password manager, on no machine that writes here. That is what makes this
+    # consistent with §2's "nothing leaves his hardware": what leaves is
+    # unreadable without a key that never does.
+    #
+    # Runs BEFORE the mini push, not after: the mini block sleeps up to 25
+    # minutes across its 6 retries when that box is unreachable, and the real
+    # offsite copy should not queue behind a machine being decommissioned.
+    #
+    # Non-fatal by the same rule as the mini push — a Drive or network outage
+    # must never break the local backup above.
+    DRIVE_PUSH_SCRIPT="$HOME/berwilson-platform/deploy/drive-backup-push.mjs"
+    # Resolve node explicitly. launchd hands this script a minimal PATH, and a
+    # missing interpreter is precisely the silent outage §12 warns about — so it
+    # is reported as a WARN with the paths tried, never skipped quietly.
+    NODE_BIN=""
+    for n in "$HOME/.local/bin/node" "$HOME/.node/bin/node" /opt/homebrew/bin/node /usr/local/bin/node; do
+      [ -x "$n" ] && NODE_BIN="$n" && break
     done
-    if [ $PUSHED -eq 0 ]; then
-      ssh -o BatchMode=yes "${MINI_SSH_OPTS[@]}" "$MINI" "find $MINI_DEST -name '*.age' -type f -mtime +14 -delete" 2>/dev/null
-      echo "$(date): offsite copy pushed to mini:$MINI_DEST$([ $E3 -eq 0 ] && echo ' (incl. secrets)') (attempt $ATTEMPT)"
-      # Marker the health page reads. Without it a failed offsite push is
-      # invisible: probeBackups only ever stat'd the LOCAL artifacts, so six
-      # consecutive nights with no disaster-recovery copy reported "ok".
-      printf '{"ok":true,"at":"%s","secrets":%s,"target":"%s"}\n' \
-        "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$([ $E3 -eq 0 ] && echo true || echo false)" "$MINI_ADDR" > "$OFFSITE_STATUS"
+    DRIVE_STATUS="$DEST/.drive-status"
+    if [ -z "$NODE_BIN" ]; then
+      echo "$(date): WARN drive push SKIPPED — no node found (~/.local/bin, ~/.node/bin, homebrew, /usr/local)"
+      printf '{"ok":false,"at":"%s","detail":"no node interpreter found"}\n' \
+        "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$DRIVE_STATUS"
+    elif [ ! -f "$DRIVE_PUSH_SCRIPT" ]; then
+      echo "$(date): WARN drive push SKIPPED — $DRIVE_PUSH_SCRIPT missing"
+      printf '{"ok":false,"at":"%s","detail":"uploader script missing"}\n' \
+        "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$DRIVE_STATUS"
     else
-      echo "$(date): WARN offsite push FAILED after $OFFSITE_TRIES attempts (mini unreachable at $MINI_ADDR, asleep, or Studio key not authorized)"
-      printf '{"ok":false,"at":"%s","detail":"push failed after %s attempts to %s"}\n' \
-        "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$OFFSITE_TRIES" "$MINI_ADDR" > "$OFFSITE_STATUS"
+      # The script writes its own status marker (ok/failed, what it uploaded,
+      # what it pruned, and whether it had to RECREATE a deleted folder).
+      BACKUP_DIR="$DEST" "$NODE_BIN" "$DRIVE_PUSH_SCRIPT" ${=PUSH}
+      [ $? -ne 0 ] && echo "$(date): WARN drive push FAILED — see $DRIVE_STATUS"
     fi
+
   else
     echo "$(date): WARN offsite encryption failed (e1=$E1 e2=$E2)"
   fi

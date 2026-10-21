@@ -11,7 +11,50 @@ Split out of `CLAUDE.md` on 2026-09-23, when that file reached 606k characters a
 - A block of **2026-08-23 → 2026-08-31** entries sits *after* the June entries, near the end of the file.
 - One **2026-07-03** entry ("migrations applied + pursuit profile seeded") is last in the file.
 
-194 entries, 2026-06-22 → 2026-10-21. ⚠ Counted with `grep -c "^\*\*Done 2026"`, not incremented by hand: two sessions editing this file on 2026-10-08 each bumped the old figure by one and both landed on 146 against a real 148.
+195 entries, 2026-06-22 → 2026-10-21. ⚠ Counted with `grep -c "^\*\*Done 2026"`, not incremented by hand: two sessions editing this file on 2026-10-08 each bumped the old figure by one and both landed on 146 against a real 148.
+
+**Done 2026-10-21 (the backup left the building, and the thing nobody had ever done to it):**
+
+Richard: *"Would it be smarter to keep a backup of our Mac studio deployment in the Google cloud since we have a ton of free storage there? Also, my Mac mini is on all the time at my work desk is likely more of a security threat backing up to a computer that's always on."* Then, after the measurements: *"I trust the backup being in our GSuite Drive quota for now. Lets back everything up to the drive in a Folder labeled as backup (critical) or something of that nature so it doesn't get deleted."*
+
+**⚠ THE SECURITY PREMISE WAS ALREADY HANDLED, AND SAYING SO IS WHAT MADE THE DECISION EASY.** The mini copy has been age-encrypted since 2026-07-07 to a recipient whose private key lives only on Richard's MacBook and in his password manager — verified: there is no `~/.config/age` on the Studio. So the always-on mini was holding opaque bytes it could not read, and an attacker who took it would get nothing. That cuts both ways, which is the useful half: **Google would hold the same opaque bytes**, so encryption turns "where does the backup live" from a security question into a logistics one. On logistics it was not close.
+
+What the measurements said:
+
+| | |
+|---|---|
+| Nightly volume | 127MB db + 1.5GB storage = ~1.7GB |
+| 14-day local retention | 25GB, held twice (Studio plaintext, mini ciphertext) |
+| **Mac mini** | 228GB disk, **37GB free** — the backups were 25GB of that, at 83% capacity |
+| Studio | 926GB, 237GB free |
+| **GSuite pooled quota** | 6,597GB limit, **17.6GB used** → ~6.58TB free. 25GB is **0.4%** |
+| Upstream | `networkQuality` 57Mbps; a real timed resumable upload to Drive **5.5MB/s (44Mbps)** |
+| Scope | `moose@` **already holds full `drive`** — no re-consent, no manual step |
+
+⚠ **AND THE EXPOSURE WAS SOMEWHERE NEITHER OF US WAS LOOKING.** The *Studio's* local copies are **plaintext** — 25GB of unencrypted `pg_dumpall` output in `~/Backups/berwilson`. Encryption only ever happened on the way out the door. That is unchanged by this session and is recorded as an open item, because it is the one copy an attacker on the box can actually read.
+
+**THE EXISTING UPLOADER COULD NOT BE REUSED, AND ITS OWN DOCBLOCK SAID WHY.** `uploadToFolder` in `src/lib/integrations/google-drive-write.ts` is **multipart** and `Buffer.concat`s metadata + file into one buffer, so a 1.6GB artifact peaks ~3.2GB RSS on a 36GB box where llama-server holds ~25GB and swap already runs full. Its comment reads *"Revisit if a >100MB drawing set ever shows up"* — a backup is 16× past that line. It is also a `src/lib` module, and the backup runs from `~/supabase-selfhost/backup.sh` under launchd, which is §12's five-load-time-failures trap. So `deploy/drive-backup-push.mjs` is standalone with zero `src/lib` imports, and the old docblock's prediction is now cited in the new file rather than left to be rediscovered.
+
+⚠ **A SINGLE-REQUEST 1.6GB UPLOAD LANDS EXACTLY ON UNDICI'S 300s CEILING, WHICH IS A BUG §12 ALREADY RECORDS IN ANOTHER COSTUME.** At the measured 5.5MB/s, 1.6GB is ~291s, and a resumable `PUT` gets no response headers until the whole body is received — so `headersTimeout` fires at 300s on any night the link is slightly slow, and §12 says plainly that no option in this codebase reaches that timeout. The fix is **chunked** resumable upload: 128MiB per `PUT` (~23s each, 13 chunks for the storage artifact), which is clear of the ceiling and makes every completed chunk a resume point. ⚠ `redirect: 'manual'` is load-bearing there — an intermediate chunk answers **308 Resume Incomplete** and `fetch` treats 308 as a *redirect*, so without it the real status is never seen. On a failure the script asks the session how many bytes it actually holds (`Content-Range: bytes */TOTAL`) rather than trusting its own arithmetic.
+
+**THE FOLDER RECREATES ITSELF, WHICH IS THE HONEST ANSWER TO RICHARD'S QUESTION.** He asked: *"Of course if it were to get deleted, you would just back it up again right?"* Half true, and the half that is false is the one that matters — the next night re-uploads the current state, but the **history** is gone, and a 30-night window exists precisely to recover from something discovered late. So: the folder is resolved **by name** and recreated if absent (`CRITICAL — Ber AI Platform Backups (DO NOT DELETE)`, in moose@'s own My Drive so no teammate can see or delete it), Drive's trash gives 30 days to undo an accident, and the status marker records `folder_recreated` so a silent re-create shows on the health page as a warning rather than looking like a first run.
+
+⚠ **AND THE THING NOBODY HAD EVER DONE: READ THE BACKUP BACK.** §12 has said since the beginning that *a backup is not a backup until it has been read back*. Measured this session: **there is no `pg_restore` anywhere in this repo** and nothing had ever read back either copy — 50GB across two machines of artifacts that were assumed good because the script exited 0. `deploy/drive-backup-verify.mjs` streams each artifact down from Drive and compares sha256 against the hash the uploader records, plus checks the `age-encryption.org/v1` header to catch an artifact that is intact but is not an age file at all. Weekly, Sundays 04:00, own launchd agent, own health card.
+⚠ **It proves integrity and NOT recoverability, and the card says so in those words.** A restore needs the age private key, which is deliberately off-box — so the Studio *cannot* run a restore drill, by design rather than by oversight. A green card that read as "a restore drill passed" would be worse than no card.
+
+**The mini was decommissioned, and what that cost is written down rather than assumed to be nothing.** It was not removed for security — it only ever held the same ciphertext. It was removed for space. What went with it is a destination with an **independent credential**: the mini push authenticated with an ssh key, where the Drive push authenticates with the OAuth token store — **which is itself one of the files being backed up**, and which a crash destroyed whole on 2026-08-25. Mitigated rather than eliminated: the uploader keeps a second copy of the token store at `~/.config/bw-backup/`, a different blast radius from `~/berwilson-data`, refreshed automatically after every proven token refresh (§12 — a channel whose setup cannot be automated is a channel that is off, so there is no browser step). The tombstone comment in `backup.sh` names that gap as the reason to add a second destination if one is ever wanted again — not space, and not secrecy.
+
+⚠ **`probeOffsite` deliberately does NOT fall back to the mini's `.offsite-status`.** A stale marker from a decommissioned destination would report a copy that no longer happens, which is the exact failure that probe was added on 2026-09-23 to catch.
+
+Verified live rather than reasoned about: folder create, 13-chunk upload of the real 1.5GB artifact, idempotent re-run (skips on name+size), retention prune (proved with a negative retention, which also cleaned up the test artifact), and a full `backup.sh` run end to end in **11m52s**, exit 0, all three artifacts on Drive at 1.78GB. One bug found by its own output and fixed: the nightly line counted artifacts **before** pruning, so it would have reported a window one night longer than Drive actually held — a count lying about the only thing it exists to report.
+
+**The read-back result, which is the point of the session.** All three artifacts streamed back down from Drive and matched sha256 **byte-for-byte** — `db` 134,277,859 bytes, `storage` 1,647,486,668, `secrets` 6,937 — with the `age-encryption.org/v1` header present on each. Exit 0. That is the first verified backup in this project's history; every night before tonight was an assumption.
+
+⚠ **A SHELL TRAP THAT COST SIX TOOL CALLS AND IS WORTH THE LINE IN §12:** waiting on the verifier with `until ! pgrep -qf drive-backup-verify` **never ends**, because the waiting shell's own command line contains the pattern and `pgrep -f` matches it. It reported "still verifying" indefinitely while the job had minutes left, and it reads exactly like a hang. Compounded by piping the job through `| tail -10`, which buffers all output until exit, so the progress log was invisible too — the only way to tell a working job from a dead one was `netstat -ib` on the right interface (`en1`, not `en0`). Wait on the ARTIFACT the job writes, not on the job.
+
+Local retention stays at 14 nights and stays **plaintext** — unchanged by this session, now recorded as an open item, because it is the one copy an attacker with the box can read. 667 tests, lint unchanged at 23 (13 errors, 10 warnings).
+
+---
 
 **Done 2026-10-21 (the alias bar the matcher never had, and fifteen open items closed by deciding them):**
 

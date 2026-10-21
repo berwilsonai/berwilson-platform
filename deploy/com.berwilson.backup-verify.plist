@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.berwilson.backup-verify</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>__NODE_BIN__/node</string>
+    <string>__APP_DIR__/deploy/drive-backup-verify.mjs</string>
+  </array>
+  <!--
+    Reads the newest Drive backup BACK and compares sha256 against the hash the
+    uploader recorded in ~/Backups/berwilson/.drive-status.
+
+    ⚠ THIS EXISTS BECAUSE NOTHING HAD EVER READ A BACKUP BACK. §12 has said from
+    the start that a backup is not a backup until it has been read back, and
+    measured on 2026-10-21 there was no `pg_restore` anywhere in the repo and
+    neither copy had ever been verified — 50GB across two machines assumed good
+    because backup.sh exited 0. A push reporting success only proves the API
+    accepted the bytes, not that the bytes are right.
+
+    ⚠ IT PROVES INTEGRITY, NOT RECOVERABILITY, and the health card says so in
+    those words. A real restore needs the age private key, which lives only on
+    Richard's MacBook and in his password manager — so this box CANNOT run a
+    restore drill, by design rather than by oversight. A green card must never
+    be read as "a restore drill passed".
+
+    Sundays 04:00: the 02:30 backup measured 11m52s end to end on 2026-10-21,
+    so 04:00 is well clear of it. Weekly rather than nightly because the check
+    DOWNLOADS every artifact (~1.8GB) and the Studio's downstream is ~20Mbps —
+    nightly would spend ten minutes a day re-proving an unchanged answer. The
+    probe treats a verdict older than 10 days as stale, so a missed run shows.
+  -->
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Weekday</key><integer>0</integer>
+    <key>Hour</key><integer>4</integer>
+    <key>Minute</key><integer>0</integer>
+  </dict>
+  <key>StandardOutPath</key>
+  <string>__LOG_DIR__/backup-verify.log</string>
+  <key>StandardErrorPath</key>
+  <string>__LOG_DIR__/backup-verify.err.log</string>
+</dict>
+</plist>

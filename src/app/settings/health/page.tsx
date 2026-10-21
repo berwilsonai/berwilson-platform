@@ -387,7 +387,7 @@ async function runChecks(): Promise<HealthCheck[]> {
     })
   }
 
-  // 6. Nightly backups (Studio → local + encrypted offsite to the Mac mini)
+  // 6. Nightly backups (Studio → local + encrypted offsite to Google Drive)
   {
     checks.push({
       name: 'Nightly Backup',
@@ -422,6 +422,29 @@ async function runChecks(): Promise<HealthCheck[]> {
               ? 'Offsite copy has stopped'
               : 'Offsite status unknown',
       detail: backups.offsite.detail,
+    })
+
+    // And the read-back gets its own card for the same reason again, one level
+    // deeper: a push that reports success proves the API accepted the bytes,
+    // not that the bytes are right. §12 — a backup is not a backup until it
+    // has been read back.
+    checks.push({
+      name: 'Backup Read-Back',
+      status:
+        backups.readBack.state === 'ok'
+          ? 'ok'
+          : backups.readBack.state === 'unknown'
+            ? 'warn'
+            : 'fail',
+      headline:
+        backups.readBack.state === 'ok'
+          ? 'Offsite copy verified byte-for-byte'
+          : backups.readBack.state === 'failing'
+            ? 'Offsite copy does NOT match what was dumped'
+            : backups.readBack.state === 'stale'
+              ? 'Verification has stopped running'
+              : 'Offsite copy has never been verified',
+      detail: backups.readBack.detail,
     })
   }
 

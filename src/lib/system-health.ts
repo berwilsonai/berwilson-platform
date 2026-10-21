@@ -135,11 +135,21 @@ export interface BackupProbe {
   detail: string
   newestAgeHours?: number
   dir: string
-  /** The encrypted copy on the Mac mini — the only protection against losing the Studio. */
+  /** The encrypted copy on Google Drive — the only protection against losing the Studio. */
   offsite: {
     state: 'ok' | 'stale' | 'failing' | 'unknown'
     detail: string
     ageHours?: number
+  }
+  /**
+   * Whether that copy has been READ BACK and compared byte-for-byte.
+   * A push reporting success proves only that the API accepted it; §12 is
+   * explicit that a backup is not a backup until it has been read back.
+   */
+  readBack: {
+    state: 'ok' | 'stale' | 'failing' | 'unknown'
+    detail: string
+    ageDays?: number
   }
 }
 
@@ -147,14 +157,23 @@ export interface BackupProbe {
  * Freshness of the OFFSITE copy, read from the marker the backup script writes.
  *
  * This exists because the local check above cannot see it. On 2026-09-23 the
- * offsite push had failed 6 of the previous 8 nights — the mini is asleep at
- * 2:30am — while this card reported "ok" throughout, because the local
- * artifacts were written perfectly every night. A local-only backup is not a
- * backup against the failure that actually destroys it (the Studio itself),
- * and the 2026-08-25 data loss showed that failure is not hypothetical.
+ * offsite push had failed 6 of the previous 8 nights while this card reported
+ * "ok" throughout, because the local artifacts were written perfectly every
+ * night. A local-only backup is not a backup against the failure that actually
+ * destroys it (the Studio itself), and the 2026-08-25 data loss showed that
+ * failure is not hypothetical.
+ *
+ * ⚠ The destination changed on 2026-10-21 from the Mac mini to Google Drive
+ * (Richard's call — the mini had 37GB free total against 25GB of backups,
+ * where the GSuite pooled quota has ~6.58TB free). The marker it reads is
+ * `.drive-status`, written by deploy/drive-backup-push.mjs. The mini's own
+ * `.offsite-status` is no longer written and is deliberately NOT read: a
+ * fallback to a stale marker from a decommissioned destination would report a
+ * copy that no longer happens, which is the exact failure this probe exists
+ * to catch.
  */
 async function probeOffsite(dir: string): Promise<BackupProbe['offsite']> {
-  const marker = path.join(dir, '.offsite-status')
+  const marker = path.join(dir, '.drive-status')
   let raw: string
   try {
     raw = await fs.readFile(marker, 'utf8')
@@ -162,42 +181,116 @@ async function probeOffsite(dir: string): Promise<BackupProbe['offsite']> {
     return {
       state: 'unknown',
       detail:
-        'No offsite marker yet — the encrypted copy to the Mac mini has not run since this check was added. It is written by ~/supabase-selfhost/backup.sh at 2:30am.',
+        'No Drive marker yet — the encrypted push to Google Drive has not run since this check was added. It is written by ~/supabase-selfhost/backup.sh at 2:30am.',
     }
   }
-  let parsed: { ok?: boolean; at?: string; detail?: string; secrets?: boolean; target?: string }
+  let parsed: {
+    ok?: boolean
+    at?: string
+    detail?: string
+    folder?: string
+    folder_recreated?: boolean
+    artifacts?: number
+    bytes?: number
+    retain_days?: number
+    pruned?: number
+  }
   try {
     parsed = JSON.parse(raw) as typeof parsed
   } catch {
-    return { state: 'unknown', detail: `Offsite marker at ${marker} is unreadable.` }
+    return { state: 'unknown', detail: `Drive marker at ${marker} is unreadable.` }
   }
   const at = parsed.at ? Date.parse(parsed.at) : NaN
   const ageHours = Number.isNaN(at) ? undefined : (Date.now() - at) / 3_600_000
+
   if (!parsed.ok) {
     return {
       state: 'failing',
-      // Do NOT blame the mini being asleep. That was the first guess on
-      // 2026-09-23 and measuring killed it: the mini reported `sleep 0` and 7
-      // days uptime across the whole 6-night outage. Both real causes were
-      // addressing — a tailnet renumber leaving a stale IP, then MagicDNS
-      // short names failing to resolve under launchd — so point there first.
-      detail: `Last offsite push FAILED — ${parsed.detail ?? 'reason not recorded'}. Check ~/Library/Logs/berwilson/backup.err.log on the Studio: "Operation timed out" or "Could not resolve hostname" means the Mac mini moved or cannot be addressed (the backup script resolves it via \`tailscale ip\`; confirm the mini is still in the tailnet), and "Host key verification failed" means known_hosts no longer matches. Until this clears, the ONLY copy of the database is on this machine.`,
+      // Name the likely causes in the order they actually occur, rather than
+      // guessing — the 2026-09-23 lesson. A refresh-token failure is by far
+      // the most likely, because that token is shared with every other Google
+      // feature and a re-consent elsewhere can invalidate it.
+      detail: `Last Drive push FAILED — ${parsed.detail ?? 'reason not recorded'}. Check ~/Library/Logs/berwilson/backup.err.log on the Studio: a token error means moose@ needs re-consent (\`node scripts/setup-google-oauth.mjs --only moose@berwilson.com\`), a 403 means the drive.file/drive scope was dropped, and a quota error means the GSuite pool is full. Until this clears, the ONLY copy of the database is on this machine.`,
       ageHours,
     }
   }
   if (ageHours !== undefined && ageHours > 30) {
     return {
       state: 'stale',
-      detail: `Newest offsite copy is ${Math.round(ageHours / 24)}d old — the encrypted push to the Mac mini has stopped even though local backups are fine.`,
+      detail: `Newest Drive copy is ${Math.round(ageHours / 24)}d old — the encrypted push to Google Drive has stopped even though local backups are fine.`,
       ageHours,
+    }
+  }
+
+  const held = parsed.artifacts ?? 0
+  const gb = parsed.bytes ? (parsed.bytes / 1e9).toFixed(1) : '0.0'
+  const when = ageHours !== undefined && ageHours < 1 ? 'under an hour' : `${Math.round(ageHours ?? 0)}h`
+  // ⚠ Lead with the folder having been recreated. It means a human deleted it,
+  // which destroys the whole recovery WINDOW rather than one night — and the
+  // push itself still succeeds, so nothing else here would say so.
+  const recreated = parsed.folder_recreated
+    ? `⚠ The backup folder was MISSING and had to be recreated — someone deleted it, so the recovery window restarted from this run. `
+    : ''
+  // A single artifact is one night of history, which is a real degradation
+  // whatever caused it. Reported as a count, not inferred — §12.
+  const thin = held <= 1 ? ` ⚠ Only ${held} artifact${held === 1 ? '' : 's'} held, so there is no history to roll back to yet.` : ''
+  return {
+    state: 'ok',
+    detail: `${recreated}Encrypted copy pushed to Google Drive ${when} ago — ${held} artifact${held === 1 ? '' : 's'} / ${gb}GB held in "${parsed.folder ?? 'the backup folder'}", ${parsed.retain_days ?? 30}d retention.${thin}`,
+    ageHours,
+  }
+}
+
+/**
+ * Freshness and verdict of the weekly READ-BACK check.
+ *
+ * `com.berwilson.backup-verify` (Sundays 04:00) streams the newest Drive
+ * artifacts down and compares sha256 against the hash the uploader recorded.
+ * It is reported separately from the push because the two fail for completely
+ * different reasons: the push fails on auth, scope or quota, and the read-back
+ * fails on corruption — which nothing else here would ever notice.
+ *
+ * ⚠ It cannot prove the dump RESTORES. The age private key is on Richard's
+ * MacBook by design, so the Studio can verify integrity and not recoverability.
+ * Saying so here matters: a green card must not be read as "a restore drill
+ * passed", because no restore drill exists yet.
+ */
+async function probeReadBack(dir: string): Promise<BackupProbe['readBack']> {
+  const marker = path.join(dir, '.drive-verify-status')
+  let parsed: { ok?: boolean; at?: string; detail?: string; checked?: number; failed?: number }
+  try {
+    parsed = JSON.parse(await fs.readFile(marker, 'utf8')) as typeof parsed
+  } catch {
+    return {
+      state: 'unknown',
+      detail:
+        'The Drive copy has never been read back. deploy/drive-backup-verify.mjs does it (com.berwilson.backup-verify, Sundays 04:00) — run it by hand to check now.',
+    }
+  }
+  const at = parsed.at ? Date.parse(parsed.at) : NaN
+  const ageDays = Number.isNaN(at) ? undefined : (Date.now() - at) / 86_400_000
+  if (!parsed.ok) {
+    return {
+      state: 'failing',
+      detail: `Read-back FAILED — ${parsed.detail ?? `${parsed.failed ?? '?'} of ${parsed.checked ?? '?'} artifacts did not match`}. The copy on Drive is NOT a faithful copy of what was dumped. Check ~/Library/Logs/berwilson/backup-verify.err.log; a sha256 mismatch means the upload corrupted or truncated, and re-running the push re-uploads from the local original.`,
+      ageDays,
+    }
+  }
+  // A verdict nobody has refreshed is not a passing verdict. Weekly schedule,
+  // so 10 days is already a missed run.
+  if (ageDays !== undefined && ageDays > 10) {
+    return {
+      state: 'stale',
+      detail: `Last read-back passed but was ${Math.round(ageDays)}d ago — the weekly check (Sundays 04:00) has stopped running, so nothing has verified the recent copies.`,
+      ageDays,
     }
   }
   return {
     state: 'ok',
-    detail: `Encrypted copy pushed to ${parsed.target ?? 'the Mac mini'} ${
-      ageHours !== undefined && ageHours < 1 ? 'under an hour' : `${Math.round(ageHours ?? 0)}h`
-    } ago${parsed.secrets === false ? ' (WITHOUT the secrets bundle)' : ''}.`,
-    ageHours,
+    detail: `${parsed.checked ?? 0} artifact${parsed.checked === 1 ? '' : 's'} read back from Drive and matched byte-for-byte ${
+      ageDays !== undefined && ageDays < 1 ? 'today' : `${Math.round(ageDays ?? 0)}d ago`
+    }. ⚠ This proves the copy is intact, NOT that it restores — the age private key is off-box by design, so no restore drill runs here.`,
+    ageDays,
   }
 }
 
@@ -225,7 +318,9 @@ export async function probeBackups(): Promise<BackupProbe> {
       }
     }
     const offsite = await probeOffsite(dir)
-    if (newest === 0) return { state: 'missing', detail: 'Backup directory exists but is empty.', dir, offsite }
+    const readBack = await probeReadBack(dir)
+    if (newest === 0)
+      return { state: 'missing', detail: 'Backup directory exists but is empty.', dir, offsite, readBack }
 
     const ageHours = (Date.now() - newest) / 3_600_000
     if (ageHours > 30) {
@@ -235,6 +330,7 @@ export async function probeBackups(): Promise<BackupProbe> {
         newestAgeHours: ageHours,
         dir,
         offsite,
+        readBack,
       }
     }
     return {
@@ -243,6 +339,7 @@ export async function probeBackups(): Promise<BackupProbe> {
       newestAgeHours: ageHours,
       dir,
       offsite,
+      readBack,
     }
   } catch {
     return {
@@ -250,6 +347,7 @@ export async function probeBackups(): Promise<BackupProbe> {
       detail: `Backup directory not found at ${dir}. Expected on the Studio (this warning is normal on a dev machine).`,
       dir,
       offsite: { state: 'unknown', detail: 'No backup directory, so no offsite copy either.' },
+      readBack: { state: 'unknown', detail: 'No backup directory, so nothing to read back.' },
     }
   }
 }
