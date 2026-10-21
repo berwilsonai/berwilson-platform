@@ -27,6 +27,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { callGemini } from '@/lib/ai/gemini'
 import { notify } from '@/lib/notify'
+import { OUTBOUND, isHeld } from '@/lib/notify/policy'
 import { SYSTEM_USER_ID } from '@/lib/system-user'
 import {
   assembleCommon,
@@ -64,6 +65,14 @@ export async function GET(request: NextRequest) {
   const dryRun = url.searchParams.get('dryRun') === '1' || url.searchParams.get('dry') === '1'
   const force = url.searchParams.get('force') === '1'
   const only = url.searchParams.get('member')?.trim().toLowerCase() || null
+
+  // ⚠ BEFORE THE ASSEMBLY, WHICH COSTS A MODEL CALL PER PERSON. Held 2026-10-21
+  // (src/lib/notify/policy.ts). The route still answers 200 and says which
+  // switch did it, so a launchd agent still loaded reads as held rather than
+  // as broken.
+  if (isHeld('pepper_note')) {
+    return NextResponse.json({ ok: true, held: 'pepper_note', detail: OUTBOUND.pepper_note.held })
+  }
 
   const supabase = createAdminClient()
   const now = new Date()
@@ -244,6 +253,7 @@ export async function GET(request: NextRequest) {
 
     const result = await notify({
       channel: CHANNEL,
+      kind: 'pepper_note',
       to: member.email,
       subject,
       html,

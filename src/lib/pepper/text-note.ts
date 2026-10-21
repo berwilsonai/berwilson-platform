@@ -24,9 +24,28 @@
  */
 
 import type { PepperNote } from './assemble'
+import {
+  addDays,
+  capitalize,
+  clamp as clampTo,
+  firstName,
+  isoDate,
+  nameList,
+  shortDate,
+  shorten,
+  weekdayOf,
+} from './text-shape'
 
-/** About four lines on a phone. Past this it is a document, not a text. */
-const SOFT_LIMIT = 520
+/**
+ * What a cut message says instead of the lines it dropped.
+ *
+ * ⚠ IT NAMES THE EMAIL, WHICH IS WHY IT IS A CONSTANT HERE AND NOT IN THE
+ * SHARED HELPER. This pass is held as of 2026-10-21 and so is the 06:50 email
+ * it points at; the sentence is only true while both come back together.
+ */
+const MORE_IN_EMAIL = '…more in your email.'
+
+const clamp = (body: string) => clampTo(body, MORE_IN_EMAIL)
 
 export interface TextNote {
   body: string
@@ -257,44 +276,12 @@ export function composeWeekAheadText(args: {
 }
 
 // ── Shaping ──────────────────────────────────────────────────────────────────
-
-/**
- * Keep it to a readable length, cutting at a line break rather than mid-word.
- *
- * ⚠ IT CUTS AND SAYS SO. A truncating reader with no continuation is not a
- * reader (§12) — here the continuation is the link, which is always kept.
- *
- * ⚠ AND IT IS A BACKSTOP THAT SHOULD NEVER FIRE, which the tests record rather
- * than exercise: every section above caps itself (two task titles, three
- * meetings, one ledger line) and the only unbounded string — a calendar
- * subject — is shortened at the point of use. The property worth asserting is
- * that forty overdue tasks still produce a four-line text, not that the cut
- * works. This stays because it costs nothing and the alternative, the day
- * somebody adds an uncapped section, is a wall of text at 06:50.
- */
-function clamp(body: string): string {
-  if (body.length <= SOFT_LIMIT) return body
-  const lines = body.split('\n')
-  const link = lines[lines.length - 1].startsWith('http') ? lines.pop()! : null
-  let out = ''
-  for (const line of lines) {
-    if (out.length + line.length + 1 > SOFT_LIMIT - 40) break
-    out += (out ? '\n' : '') + line
-  }
-  return [out, '…more in your email.', link].filter(Boolean).join('\n')
-}
-
-/** "Steelton PSA, Fairbanks contract +3 more" */
-function nameList(items: string[], show: number): string {
-  const shown = items.slice(0, show).map((i) => shorten(i, 44))
-  const rest = items.length - shown.length
-  return shown.join(', ') + (rest > 0 ? ` +${rest} more` : '')
-}
-
-function shorten(text: string, max: number): string {
-  const t = text.trim().replace(/\s+/g, ' ')
-  return t.length <= max ? t : `${t.slice(0, max - 1)}…`
-}
+//
+// ⚠ WHAT USED TO LIVE HERE IS IN `./text-shape` AND IS SHARED. clamp, nameList,
+// shorten, firstName, capitalize, isoDate, addDays, weekdayOf and shortDate
+// moved there when the task reminder became a second sender — §12: a fork is
+// hardest to see as two sibling modules written days apart. What is left below
+// is the part that needs a MEETING, which is the line between the two files.
 
 /**
  * A counterparty's name, or nothing if all we have is an address.
@@ -312,24 +299,6 @@ function personLabel(name: string | undefined): string | null {
   return n
 }
 
-function firstName(name: string): string {
-  return name.trim().split(/\s+/)[0] ?? ''
-}
-
-function capitalize(s: string): string {
-  return s.charAt(0).toUpperCase() + s.slice(1)
-}
-
-function isoDate(d: Date): string {
-  return d.toISOString().slice(0, 10)
-}
-
-function addDays(d: Date, n: number): Date {
-  const out = new Date(d)
-  out.setDate(out.getDate() + n)
-  return out
-}
-
 /** "9:30" — an all-day item has no clock, and saying "00:00" would be a lie. */
 function clockOf(m: { start: string; isAllDay: boolean }): string {
   if (m.isAllDay) return 'All day'
@@ -343,18 +312,4 @@ function clockOf(m: { start: string; isAllDay: boolean }): string {
     minute: '2-digit',
     timeZone: 'America/Denver',
   })
-}
-
-function weekdayOf(iso: string): string {
-  const d = new Date(iso)
-  return Number.isNaN(d.getTime())
-    ? ''
-    : d.toLocaleDateString('en-US', { weekday: 'short', timeZone: 'America/Denver' })
-}
-
-/** "1 Nov" — the form a deadline gets said out loud in. */
-function shortDate(iso: string): string {
-  const d = new Date(`${iso.slice(0, 10)}T12:00:00Z`)
-  if (Number.isNaN(d.getTime())) return iso
-  return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' })
 }

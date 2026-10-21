@@ -25,6 +25,7 @@ import {
 } from '@/lib/integrations/google-workspace'
 import { listMeetTranscripts } from '@/lib/integrations/google-drive'
 import { isChatConfigured } from '@/lib/notify/chat'
+import { OUTBOUND, isHeld } from '@/lib/notify/policy'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { isFileable } from '@/lib/drive/file-document'
 import { INDEXED_IN_MAIL } from '@/lib/documents/status'
@@ -980,7 +981,10 @@ export function probeChat(): { state: 'ok' | 'unconfigured'; detail: string } {
   const extra = spaces.length ? ` Dedicated spaces: ${spaces.join(', ')}.` : ''
   return {
     state: 'ok',
-    detail: `Default space configured — the weekly brief and lead digests post there.${extra}`,
+    detail:
+      'Default space configured, but nothing posts to it: the weekly brief, the morning digest, ' +
+      'the lead digest and the activity mirror are all held (src/lib/notify/policy.ts, 2026-10-21). ' +
+      `The webhook is kept wired so turning one back on needs no setup.${extra}`,
   }
 }
 
@@ -1724,31 +1728,53 @@ export async function probeLeadInbox(): Promise<{
 }
 
 /**
- * Pepper's 06:45 text — the channel she is read on, and the one nothing watched.
+ * The task reminder — the one message that still goes out unprompted.
  *
- * ⚠ THIS IS THE EXACT FOOTING THE MORNING NOTE WAS ON UNTIL 2026-10-08, when
- * its check turned out to be reading `task_digest` — the retired Monday email —
- * so the live channel went unmonitored while the dead one reported healthy. The
- * text has had the same shape of row in `notification_log` since 10-13 and no
- * card at all, and it is the message that arrives first: `pepper-text/route.ts`
- * calls it "what gets read first" in its own header.
+ * ⚠ THIS CARD WAS "PEPPER'S MORNING TEXT" AND IS REPOINTED, NOT ADDED BESIDE
+ * IT. §12's rule here has already been paid for twice in this file: the morning
+ * note went unmonitored until 2026-10-08 because its check was reading
+ * `task_digest`, the Monday email it had replaced — the live channel unwatched
+ * while the dead one reported healthy. Holding `pepper_text` on 10-21 recreates
+ * that exact shape, so the card follows the traffic.
  *
- * A clock, not a count (§12). Four days, for the same reason the note's check
- * uses four: weekdays only, so a Monday reading is three days after Friday's
- * send with nothing wrong.
+ * ⚠ AND IT READS A CLOCK THAT A QUIET WEEK STILL ADVANCES. A reminder with
+ * nothing to say sends nothing, so counting SENDS cannot tell a clear fortnight
+ * from a dead launchd agent — §12: a liveness check needs a clock, and a count
+ * that has stopped growing is indistinguishable from a quiet inbox. The route
+ * writes a `status = 'skipped'` row with its reason when it has nothing to say,
+ * and this reads the newest row of ANY status.
  */
-export async function probePepperText(): Promise<{
-  state: 'ok' | 'stale' | 'failed' | 'never'
+export async function probeTaskReminder(): Promise<{
+  state: 'ok' | 'quiet' | 'stale' | 'failed' | 'never' | 'held'
   detail: string
 }> {
+  if (isHeld('task_week') && isHeld('task_due_today')) {
+    return {
+      state: 'held',
+      detail:
+        'Both task reminders are held in src/lib/notify/policy.ts, so nothing is scheduled to ' +
+        'send. Set live: true on task_week / task_due_today to bring them back.',
+    }
+  }
+
   const supabase = createAdminClient()
   const weekAgo = new Date(Date.now() - 7 * 86_400_000).toISOString()
+  const KINDS = ['task_week', 'task_due_today']
 
-  const [last, failed] = await Promise.all([
+  const [last, lastSent, failed] = await Promise.all([
+    // Any status: a skip is the pass reporting a quiet morning, which is still
+    // proof the agent fired.
+    supabase
+      .from('notification_log')
+      .select('created_at, status, error')
+      .in('kind', KINDS)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
     supabase
       .from('notification_log')
       .select('created_at')
-      .eq('kind', 'pepper_text')
+      .in('kind', KINDS)
       .eq('status', 'sent')
       .order('created_at', { ascending: false })
       .limit(1)
@@ -1756,7 +1782,7 @@ export async function probePepperText(): Promise<{
     supabase
       .from('notification_log')
       .select('id', { count: 'exact', head: true })
-      .eq('kind', 'pepper_text')
+      .in('kind', KINDS)
       .eq('status', 'failed')
       .gte('created_at', weekAgo),
   ])
@@ -1766,10 +1792,10 @@ export async function probePepperText(): Promise<{
     return {
       state: 'failed',
       detail:
-        `${failures} text${failures === 1 ? '' : 's'} failed to send in the last 7 days. ` +
-        'The transport is a hand-built Shortcut per recipient (macOS 27 removed ' +
-        "Messages' AppleScript dictionary), so a failure is usually a renamed or " +
-        'deleted Shortcut. Assert them with zsh deploy/pepper-text-check.sh — it does not send.',
+        `${failures} reminder${failures === 1 ? '' : 's'} failed to send in the last 7 days. ` +
+        'The transport is the carrier email-to-SMS gateway (PEPPER_TEXT_GATEWAY_DOMAIN) with the ' +
+        'hand-built Shortcut as fallback — assert both with zsh deploy/pepper-text-check.sh, ' +
+        'which does not send.',
     }
   }
 
@@ -1777,22 +1803,52 @@ export async function probePepperText(): Promise<{
     return {
       state: 'never',
       detail:
-        'No morning text has ever sent. PEPPER_TEXT_TARGETS must name each recipient ' +
-        'as email=handle=shortcut, and the two Shortcuts must exist — see deploy/pepper-text-setup.md.',
+        'The task reminder has never run. It is one launchd agent — ' +
+        'com.berwilson.cron-task-reminder, weekdays 06:45 — and PEPPER_TEXT_TARGETS must name ' +
+        'each recipient. Try it without sending: /api/cron/task-reminder?dry=1&kind=week.',
     }
   }
 
-  const hours = (Date.now() - new Date(last.data.created_at).getTime()) / 3_600_000
-  if (hours > 96) {
+  // The agent's own clock. 96 hours because the job is weekdays only, so a
+  // Monday reading is three days after Friday's run with nothing wrong.
+  const ranHours = (Date.now() - new Date(last.data.created_at).getTime()) / 3_600_000
+  if (ranHours > 96) {
     return {
       state: 'stale',
       detail:
-        `The last text sent ${Math.round(hours / 24)} days ago. Weekdays at 06:45, ` +
-        'ahead of the email note. Check com.berwilson.cron-pepper-text is loaded and ' +
-        'that the Shortcuts still exist under those names.',
+        `The pass has not run for ${Math.round(ranHours / 24)} days — not "nothing was due", ` +
+        'but no run at all, since a quiet morning still writes a skipped row. Check ' +
+        '`launchctl list | grep task-reminder` and ~/Library/Logs/berwilson/.',
     }
   }
-  return { state: 'ok', detail: 'Sending on schedule, ahead of the morning email.' }
+
+  const sentHours = lastSent.data?.created_at
+    ? (Date.now() - new Date(lastSent.data.created_at).getTime()) / 3_600_000
+    : null
+
+  // Ran recently, sent nothing. Legitimate and worth distinguishing: Monday is
+  // the only guaranteed send, so eight days without one means two Mondays with
+  // no dated task on anybody's board — true, and worth a look.
+  if (sentHours === null || sentHours > 8 * 24) {
+    return {
+      state: 'quiet',
+      detail:
+        `The pass is running (last ${describeAge(last.data.created_at)}) but has sent nothing` +
+        (sentHours === null ? ' ever' : ` for ${Math.round(sentHours / 24)} days`) +
+        `. Its most recent verdict: ${last.data.error ?? last.data.status}. That is correct when ` +
+        'no task carries a due date — the reminder is deliberately silent rather than padded — ' +
+        'but two quiet Mondays usually means due dates are not being set on /tasks.',
+    }
+  }
+
+  return {
+    state: 'ok',
+    detail:
+      `Monday names the week's dated tasks; Tuesday to Friday only speak if something is due ` +
+      `that day and still open. Last sent ${
+        lastSent.data?.created_at ? describeAge(lastSent.data.created_at) : 'never'
+      }.`,
+  }
 }
 
 /**
@@ -1970,9 +2026,22 @@ function describeAge(iso: string): string {
  * and the sends it needs to recognise a reply are being recorded.
  */
 export async function probePepperReply(): Promise<{
-  state: 'ok' | 'unconfigured' | 'blind' | 'failed'
+  state: 'ok' | 'unconfigured' | 'blind' | 'failed' | 'held'
   detail: string
 }> {
+  // Held 2026-10-21 with the rest of her mail. Said plainly rather than left to
+  // read as an outage: the cron now returns before it even scans, so every
+  // counter below would sit at zero and look like a fault.
+  if (isHeld('pepper_answer')) {
+    return {
+      state: 'held',
+      detail:
+        `${OUTBOUND.pepper_answer.held} The cron returns before reading the mailbox, so a ` +
+        'question asked today is left unread rather than consumed — nothing is lost by ' +
+        'setting live: true in src/lib/notify/policy.ts.',
+    }
+  }
+
   const supabase = createAdminClient()
 
   const [callers, sentWithIds, answers, failures] = await Promise.all([

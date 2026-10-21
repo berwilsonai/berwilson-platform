@@ -27,6 +27,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { assembleCommon, assembleForMember, type PepperNote } from '@/lib/pepper/assemble'
 import { composeMorningText, composeWeekAheadText } from '@/lib/pepper/text-note'
 import { notify } from '@/lib/notify'
+import { OUTBOUND, isHeld } from '@/lib/notify/policy'
 import { recordMentions, type RecordedMention } from '@/lib/pepper/memory'
 import { createAdminClient } from '@/lib/supabase/admin'
 
@@ -49,6 +50,12 @@ export async function GET(request: NextRequest) {
   // `?kind=week` sends the week-ahead on any day, for trying it out on a
   // Tuesday rather than waiting for Monday.
   const kindParam = url.searchParams.get('kind')
+
+  // Held 2026-10-21 — replaced on this channel by /api/cron/task-reminder.
+  // Checked before the two assemblies, which read every mailbox's calendar.
+  if (isHeld('pepper_text')) {
+    return NextResponse.json({ ok: true, held: 'pepper_text', detail: OUTBOUND.pepper_text.held })
+  }
 
   const supabase = createAdminClient()
   const now = new Date()
@@ -118,6 +125,7 @@ export async function GET(request: NextRequest) {
 
     const result = await notify({
       channel: 'text',
+      kind: 'pepper_text',
       to: member.email,
       // The text channel ignores the subject by design; it is carried only so
       // the one notify() signature serves every channel.

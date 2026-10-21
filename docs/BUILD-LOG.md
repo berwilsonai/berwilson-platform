@@ -13,6 +13,66 @@ Split out of `CLAUDE.md` on 2026-09-23, when that file reached 606k characters a
 
 196 entries, 2026-06-22 → 2026-10-21. ⚠ Counted with `grep -c "^\*\*Done 2026"`, not incremented by hand: two sessions editing this file on 2026-10-08 each bumped the old figure by one and both landed on 146 against a real 148.
 
+**Done 2026-10-21 (Pepper holds her tongue, and one message takes the whole channel):**
+
+Richard: *"Lets have pepper hold off on the emails and chat's for now. I like that the functionality is there, but the content isn't really helpful at this point. The only messaging I want to go out are reminder of important tasks that have a due date that week. Send it out Monday. You can send a reminder the day of if it still hasn't been checked off the tasks list."*
+
+**THE INVENTORY WAS THE FIRST DELIVERABLE, BECAUSE "THE EMAILS AND CHATS" IS ELEVEN PASSES, NOT TWO.** Everything that sent anything, at the start of the session:
+
+| Pass | Channel | To | When |
+|---|---|---|---|
+| `pepper-note` | email | each executive | 06:50 Mon–Fri |
+| `pepper-text` | text | each executive | 06:45 Mon–Fri (Monday = week ahead) |
+| `daily-digest` | Chat space | the team | 07:00 Mon–Fri |
+| `daily-brief` | Chat space | the team | Monday 06:30 |
+| `meeting-prep` | email | each executive | ~20 min before each external meeting, every 15 min 07:00–17:45 |
+| `record-alert` | text | both executives | when a recording creates a record |
+| `notify-leads` | email + Chat | `LEADS_NOTIFY_EMAIL` | daily after the 04:30 sweep |
+| `handoff` | email | **third-party trades** (Dino etc.) | human presses a button |
+| `pepper-reply` | email | whoever emailed her | weekdays 07:30–18:00, reactive |
+| `notifications/broadcast` | Chat | the team | from the Drive and mail syncs |
+| `commitment-chase` | Gmail **drafts**, never sent | — | 05:30 |
+
+Four decisions turned on things only Richard could answer, so they were asked before anything was built: the channel (**text only**), which of the others stay live (**the recording TLDR only**), what "important" means (**every task due that week**), and whether last week's unfinished work is carried (**yes, counted apart**).
+
+**THE SWITCH IS ONE DEFAULT-DENY TABLE AT THE SEND CHOKE POINT.** `src/lib/notify/policy.ts` enumerates every outbound kind with `live`, `channel`, `trigger` and — for a held one — the reason, which the type makes mandatory: `OutboundPass` is a union of `{live: true}` and `{live: false; held: string}`, so switching something off without saying why does not compile. `notify()` consults it before touching a transport.
+
+⚠ **`kind` IS REQUIRED RATHER THAN OPTIONAL, AND THAT IS WHAT FOUND THE CALLERS.** `tsc` named all eleven call sites in one pass instead of leaving me to grep for them, which is the same discipline §12 records for `AssertNever` on a hand-written row type. A kind the table does not know is HELD, including `undefined` — and including the old behaviour where a text with no `textKind` silently defaulted to `ad_hoc`, so a pass that does not name itself is now silent rather than unattributable.
+
+⚠ **EVERY HELD PASS RETURNS BEFORE ITS WORK, NOT AT THE SEND.** Three of them are expensive or destructive to run under a held channel: `pepper-note` makes one model call per person on a box that serves one request at a time; `meeting-prep` reads both mailboxes' calendars every fifteen minutes through the working day; and `pepper-reply` would have called `findQuestions()`, which is what marks a thread as handled — reading a question, recording it as dealt with, and replying to nobody. `daily-digest` is the deliberate exception: it still assembles and still writes `stored_briefs`, because `/dashboard` and Ber AI read that table; only the post to the room is held.
+
+⚠ **HELD, NOT DELETED, AND THE LAUNCHD AGENTS STAY LOADED.** Two switches that have to agree is exactly the drift this file keeps paying for (the Tailscale listeners, the hand-written plist list in `deploy-to-studio.sh` that fell two behind the directory). So the schedule keeps asking and the policy answers; the route returns `{ok: true, held: 'pepper_note'}` instantly, and each held plist carries a banner naming the kind and the file. One word per row reverses any of it.
+
+⚠ **`lead_handoff` STAYS LIVE, AND IT IS THE ONE JUDGEMENT CALL MADE AGAINST THE LITERAL ANSWER.** It was not in the set Richard kept. But it is reachable only from `/api/leads/[id]/handoff`, which is pressed by a human on `/leads` or approved on `/decide`, and the recipient is a trade crew with no login and no other way to be reached. Holding it is a button that does nothing. The distinction is §11's own invariant — automatic versus human confirm — and the policy table makes it explicit with `trigger: 'human'` rather than leaving it implied. Flagged to Richard in the summary; one word if he disagrees.
+
+**WHAT REPLACES ALL OF IT: `/api/cron/task-reminder`, one launchd agent, weekdays 06:45, text only.**
+
+Monday names the tasks with a due date in the calendar week (Monday→Sunday **inclusive of today**, not `now + 7` — an eight-day window puts next Monday's work in this Monday's message and again in next Monday's, and the reader cannot tell a repeat from a slip). Tuesday to Friday say nothing unless something is due **that day** and is still open; the task being `status = 'open'` IS the "still hasn't been checked off" test. One job, two messages, the weekday picking which — two agents would be two schedules to keep in step and two ways to double-text somebody on a Monday.
+
+⚠ **THE DAY-OF MESSAGE CARRIES TODAY ONLY, NEVER TODAY PLUS EVERYTHING LATE.** It is the one that can arrive four mornings running, so what keeps it worth opening is that it says something that became true that day. Overdue work is Monday's business, where it is one line among a list rather than the whole text — the §12 finding about Pepper's own twelve subject lines (Richard 19→82, Eric 90→154, flawless delivery of a number that could only grow) is what that rule is made of.
+
+⚠ **IMPORTANCE IS THE DUE DATE SOMEBODY TYPED, AND THAT IS A DECISION.** `tasks` has no priority column and never has; inventing a flag or a score would be a field nobody maintains, which §12 says reads as normal the day it is forgotten. The existing derived tier (`lib/tasks/priority.ts`) is used for something narrower and correct: choosing WHICH rows are named when more than five fit, so a stranger's RFP deadline cannot push a live deal's task off the message. That is the exact failure the tier was built for — before it, the board sorted strictly by due date and the loudest row was always whichever stranger's bid closed soonest.
+
+⚠ **A QUIET MORNING WRITES A ROW.** `notification_log` gets `status = 'skipped'` with the reason whenever there is nothing to say, and the health probe reads the newest row of ANY status. Without it, a genuinely clear fortnight and a dead launchd agent are indistinguishable — §12: a liveness check needs a clock, and a count that has stopped growing says nothing. The idempotency guard still reads `status = 'sent'`, so a skipped morning can still send if the job is re-run after somebody adds a due date.
+
+**THE HEALTH PAGE WAS REPOINTED, NOT ADDED TO.** This file has twice paid for the same mistake: the morning note went unmonitored until 2026-10-08 because its check was reading `task_digest`, the Monday email it had replaced, and the 06:45 text had no card at all until 10-15. Holding `pepper_text` recreates that shape exactly, so `probePepperText` became `probeTaskReminder` and the card "Pepper's Morning Text" became "Task Reminders". The note and reply cards now say *held* instead of growing a clock forever, the Chat card no longer claims the brief and digests post there, and a new **Outbound Messaging** card names what is live and what is quiet — at `status: 'ok'`, because a permanent amber badge for a deliberate setting is how a page stops being read.
+
+**THEN THE LIVE CORPUS OVERTURNED TWO PIECES OF THE DESIGN.** `scripts/verify-task-reminder.mts` composes every message against the real database and prints it in full.
+
+⚠ **FOUR OF TEN DATED OPEN TASKS HAVE NO ASSIGNEE, AND THREE WERE ALREADY OVERDUE** — *Finalize and Submit CRISI Predevelopment Application* and *Secure Duchesne County Authorization as Lead Public* (Myton Rail, both due 25 Jun), and *Review garage plans and submit pricing* (Case Garage, 19 Sep). `fetchTasksForDigest` filters `assignee_id is not null`, and every per-person surface in the platform groups by assignee, so a reminder built on "important tasks that have a due date" would have been structurally unable to mention any of them. §12: a record created with no owner is invisible under a default "mine" scope. The read gained an opt-in parameter — off by default, so Pepper's note and the digest are unchanged (§12: never fork a shared pass, add a target) — and Monday names them once, as a count, with how many are overdue.
+
+⚠ **BUT THE SHARED LINE MUST NOT OPEN THE ENVELOPE.** The first version sent on the strength of the unowned line alone, and the live run showed what that means: Eric has no deadline of his own this week, so his entire Monday message would have been three overdue tasks that are not his — the identical text to two people every Monday until one of them acted, since an unowned task changes only when somebody picks it up. A shared line rides along; it never justifies a send.
+
+⚠ **AND READING THE REAL OUTPUT FOUND A THIRD BUG.** Both composers built their body as `[head, '', ...lines, link].filter(Boolean).join('\n')` — which drops the deliberate blank separator line along with an absent link, because two different things were being tested for truthiness at once. The greeting came out welded onto the first task. Now one `assemble()` helper, with the separator and the link as separate decisions.
+
+**VERIFIED.** `task_week` and `task_due_today` both accepted through a real `notify({dryRun: true})`, which decides everything and writes the self-loop guard row without handing anything to a transport — the check that matters, because that row is an INSERT against a CHECK constraint which did not know either kind until migration `20261021000008`, a value outside a CHECK fails the WHOLE insert, and `sendText` REFUSES to send without the guard row. The first Monday would have been total silence with the message composed perfectly. Both rows confirmed in `pepper_outbound_texts`. The mirror asserted too: `pepper_text` refuses at the choke point with `held: true` rather than `ok: false`, so a `notification_log` row says held rather than failed.
+
+A new ratchet guards the seam: no file outside `src/lib/notify/` (plus the Gmail client) may call `sendMail`, `sendChat` or `sendText` directly, so a future pass cannot route around the policy — comments stripped before scanning, per §12.
+
+**What this reminder now needs from a human, and it is the whole of it:** due dates. 30 open tasks, 10 carrying one. On a real Monday as the corpus stands, Richard gets a single line and Eric gets nothing, because his four dated tasks are all 31 Oct / 1 Nov.
+
+709 tests (673 → 709), lint 23 unchanged, migration applied. ⚠ **Not kickstarted:** a parallel Claude session was mid-feature in `AgentChat.tsx`, `lib/ai/agent.ts` and a new `lib/ai/run-state.ts`, and the deploy runbook builds the WORKING TREE rather than `HEAD` — so a kickstart would have shipped somebody else's half-finished work. The two sessions also independently took migration number `20261021000007`, for the second time in three weeks; mine was renumbered to `000008`.
+
 **Done 2026-10-21 (a contact has a role, and the vocabulary nobody used became the one that rules):**
 
 Richard: *"We have a lot of different contact types. Some of them are lenders, investors, general contractors, partners… at times when I need to search for somebody and I don't remember their name, I need to be able to look it up by their role. How do you like the way we have it now? What are we missing? What can we get rid of… there are certain people that are just really important contacts for us that are gonna counsel us."* Then: *"Yes build it all."*

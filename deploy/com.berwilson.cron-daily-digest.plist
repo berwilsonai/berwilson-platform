@@ -4,6 +4,13 @@
 <dict>
   <key>Label</key>
   <string>com.berwilson.cron-daily-digest</string>
+  <!--
+    ⚠ HELD SINCE 2026-10-21. src/lib/notify/policy.ts holds `daily_digest`, so this
+    route returns immediately and sends nothing — the agent stays loaded and
+    scheduled on purpose, because ONE switch is better than two that have to
+    agree. The reason, and the one word that reverses it, are in that table;
+    /settings/health → Outbound Messaging says so on screen.
+  -->
   <key>ProgramArguments</key>
   <array>
     <string>/bin/zsh</string>

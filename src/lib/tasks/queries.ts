@@ -132,12 +132,35 @@ export interface DigestTask {
  * the same asymmetry that made the board's date-first sort unreadable. The note
  * decides what to say about an undated task; this just stops hiding it.
  */
-export async function fetchTasksForDigest(supabase: AdminClient): Promise<DigestTask[]> {
-  const { data: tasks, error } = await supabase
+export async function fetchTasksForDigest(
+  supabase: AdminClient,
+  opts: {
+    /**
+     * Include tasks nobody owns.
+     *
+     * ⚠ OFF BY DEFAULT, AND THE DEFAULT IS THE OLD BEHAVIOUR ON PURPOSE. Every
+     * existing caller groups by person, so an unowned row would reach nobody's
+     * section and be silently dropped — §12: never fork a shared pass, add a
+     * target. The target is the weekly task reminder, which is the one reader
+     * that can honestly say "nobody is on this".
+     *
+     * ⚠ MEASURED 2026-10-21, WHICH IS WHY IT EXISTS: of 10 open tasks carrying
+     * a due date, FOUR had no assignee and THREE of those were already overdue
+     * — the Myton Rail CRISI application and the Duchesne County authorization
+     * (both 25 Jun) and the Case Garage pricing (19 Sep). A reminder built on
+     * "important tasks that have a due date" would have been structurally
+     * unable to mention any of them.
+     */
+    includeUnassigned?: boolean
+  } = {}
+): Promise<DigestTask[]> {
+  let query = supabase
     .from('tasks')
     .select('id, title, why, due_date, assignee_id, project_id, opportunity_id, commitment_id')
     .eq('status', 'open')
-    .not('assignee_id', 'is', null)
+  if (!opts.includeUnassigned) query = query.not('assignee_id', 'is', null)
+
+  const { data: tasks, error } = await query
     .order('due_date', { ascending: true, nullsFirst: false })
     .limit(1000)
 

@@ -9,6 +9,14 @@
  * built the awkward way it is (see ./text).
  * Keep this file the ONLY place that knows how a channel sends.
  *
+ * ⚠ EVERY CALLER NAMES ITS `kind`, AND THE KIND DECIDES WHETHER ANYTHING IS
+ * SENT AT ALL. `src/lib/notify/policy.ts` holds the enumeration and the on/off
+ * beside it; this function consults it before it touches a transport, so a pass
+ * that is held costs nothing and a kind the policy does not know sends nothing.
+ * Required rather than optional on purpose — `tsc` names every caller that has
+ * not been thought about, which is the only way an enumeration like this stays
+ * honest (§12).
+ *
  * ⚠ `text` IS NOT A SHORTER EMAIL. It takes `opts.text` and sends exactly that
  * — no subject line, no HTML conversion. A subject rendered as a text's first
  * line reads as a header on a message that has no room for one, and converting
@@ -18,12 +26,22 @@
 
 import { sendMail, type MailAttachment } from '@/lib/integrations/google-workspace'
 import { htmlToChatText, sendChat } from './chat'
+import { outboundAllowed, type OutboundKind } from './policy'
 import { sendText, textTargets, type TextKind } from './text'
 
 export type NotifyChannel = 'email' | 'chat' | 'text'
 
 export interface NotifyOptions {
   channel: NotifyChannel
+  /**
+   * WHICH PASS THIS IS. Gates the send through `./policy` and never defaults.
+   *
+   * ⚠ NOT the same field as `textKind`, and they are deliberately not merged:
+   * this says which PASS is speaking (one row in the policy table, one on/off),
+   * while `textKind` says which MESSAGE it is in the self-loop ledger — the
+   * morning text is one pass and two messages ('morning', 'week_ahead').
+   */
+  kind: OutboundKind
   /** Email address, or — for chat — a webhook URL or a configured space key. */
   to: string
   subject: string
@@ -79,6 +97,16 @@ export interface NotifyResult {
   ok: boolean
   error?: string
   /**
+   * True when nothing was sent because `./policy` holds this kind.
+   *
+   * ⚠ IT IS NOT AN ERROR AND MUST NOT BE LOGGED AS A FAILED SEND. A caller that
+   * can be held should ask `isHeld()` before it assembles anything; this flag is
+   * the backstop for the one that forgets, and it exists so a `notification_log`
+   * row says "held" rather than "failed" — a week of fake failures is how a
+   * health card stops meaning anything.
+   */
+  held?: boolean
+  /**
    * Gmail's ids for the message, on the email channel only.
    *
    * Carried so a caller can remember what Pepper sent — which is how a REPLY
@@ -95,6 +123,11 @@ export interface NotifyResult {
 }
 
 export async function notify(opts: NotifyOptions): Promise<NotifyResult> {
+  const verdict = outboundAllowed(opts.kind)
+  if (!verdict.allowed) {
+    return { ok: false, held: true, error: verdict.reason }
+  }
+
   try {
     switch (opts.channel) {
       case 'email': {
@@ -138,7 +171,10 @@ export async function notify(opts: NotifyOptions): Promise<NotifyResult> {
         const result = await sendText({
           target,
           body: opts.text,
-          kind: opts.textKind ?? 'ad_hoc',
+          // The ledger kind, which defaults to the pass's own name when that
+          // name is one the ledger accepts. A caller sending two shapes of
+          // message from one pass says which.
+          kind: opts.textKind ?? defaultTextKind(opts.kind),
           dryRun: opts.dryRun,
         })
         return result.ok ? { ok: true, via: result.via } : { ok: false, error: result.error }
@@ -148,5 +184,31 @@ export async function notify(opts: NotifyOptions): Promise<NotifyResult> {
     }
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : String(err) }
+  }
+}
+
+/**
+ * The self-loop ledger's kind for a pass that did not name one.
+ *
+ * ⚠ THE LEDGER'S VALUE SET IS A CHECK CONSTRAINT ON `pepper_outbound_texts`,
+ * so this may only return a member of it — a plausible-but-wrong value fails
+ * the whole INSERT (§12), and `sendText` REFUSES to send without the guard row.
+ * Hence the explicit list rather than a cast: a new policy kind that texts has
+ * to be added here and to the constraint in the same change.
+ */
+function defaultTextKind(kind: OutboundKind): TextKind {
+  switch (kind) {
+    case 'task_week':
+      return 'task_week'
+    case 'task_due_today':
+      return 'task_due_today'
+    case 'record_alert':
+      return 'record_alert'
+    case 'meeting_prep':
+      return 'nudge'
+    case 'pepper_answer':
+      return 'reply'
+    default:
+      return 'ad_hoc'
   }
 }

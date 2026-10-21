@@ -37,12 +37,13 @@ import {
   probeDriveAudio,
   probeScopeCoverage,
   probeDisk,
-  probePepperText,
+  probeTaskReminder,
   probeCurator,
   probeCommitmentChase,
   probePepperReply,
 } from '@/lib/system-health'
 import { isGoogleConfigured } from '@/lib/integrations/google-workspace'
+import { OUTBOUND, heldKinds, heldSummary, isHeld, liveKinds } from '@/lib/notify/policy'
 import { sweepDb } from '@/lib/email-sweep/db'
 
 export const metadata = { title: 'System Health — Ber Wilson Intelligence' }
@@ -107,7 +108,7 @@ async function runChecks(): Promise<HealthCheck[]> {
   const dayAgo = new Date(Date.now() - 86_400_000).toISOString()
   const localAI = process.env.AI_PROVIDER === 'local'
 
-  const [brief, riskScore, lastAi, aiDayCount, failedRuns, mailbox, lmStudio, backups, drive, leadInbox, docIndexing, driveSources, driveFiling, scopes, disk, lastDigest, failedDigests, contacts, taskSheet, drivePublish, meetImport, dealIntake, routing, corpus, dailyDigest, commitmentBacklog, openCommitments, settledRecently, quietedCommitments, imessageSweep, voiceMemos, driveAudio, pepperText, curator, chase, pepperReply, textDelivery] =
+  const [brief, riskScore, lastAi, aiDayCount, failedRuns, mailbox, lmStudio, backups, drive, leadInbox, docIndexing, driveSources, driveFiling, scopes, disk, lastDigest, failedDigests, contacts, taskSheet, drivePublish, meetImport, dealIntake, routing, corpus, dailyDigest, commitmentBacklog, openCommitments, settledRecently, quietedCommitments, imessageSweep, voiceMemos, driveAudio, taskReminder, curator, chase, pepperReply, textDelivery] =
     await Promise.all([
       supabase
         .from('stored_briefs')
@@ -202,7 +203,7 @@ async function runChecks(): Promise<HealthCheck[]> {
       probeIMessageSweep(),
       probeVoiceMemos(),
       probeDriveAudio(),
-      probePepperText(),
+      probeTaskReminder(),
       probeCurator(),
       probeCommitmentChase(),
       probePepperReply(),
@@ -473,27 +474,57 @@ async function runChecks(): Promise<HealthCheck[]> {
     })
   }
 
-  // 8b. Pepper's morning note (launchd, weekdays 06:50) — the platform's only
-  //     per-person channel, and until 2026-10-08 NOTHING HERE WATCHED IT: this
-  //     check read `task_digest`, the Monday email Pepper replaced, so the live
-  //     channel was unmonitored while the retired one was reported as healthy.
-  //     Threshold is 4 days because the note is weekdays only, so a Monday
-  //     reading is three days after the Friday send with nothing wrong.
+  // 8a-ii. WHAT IS ALLOWED TO LEAVE AT ALL — the card that makes a held channel
+  //        visible. §12: a channel whose delivery cannot be asserted is a
+  //        channel that is off while nothing says so, which cost seven days of
+  //        morning texts going to nobody. The policy table is the switch; this
+  //        is the only place a reader who has not read it finds out.
   {
+    const held = heldKinds().filter((k) => k !== 'ad_hoc')
+    const live = liveKinds()
+    checks.push({
+      name: 'Outbound Messaging',
+      // Not a warning. Held is a decision Richard made on 2026-10-21, and a
+      // permanent amber badge for a deliberate setting is how a page stops
+      // being read.
+      status: 'ok',
+      headline:
+        held.length === 0
+          ? 'Every channel is live'
+          : `${live.length} live, ${held.length} held`,
+      detail:
+        `Live: ${live.map((k) => OUTBOUND[k].what).join('; ')}. ` +
+        (held.length === 0 ? '' : `${heldSummary()} `) +
+        'The table is src/lib/notify/policy.ts — one word per row, and notify() refuses any kind ' +
+        'it does not find there, so a pass added later is silent until it is listed.',
+    })
+  }
+
+  // 8b. Pepper's morning note — HELD 2026-10-21. The clock below would read
+  //     "no notes sent in N days" forever and go on growing, which is §12's own
+  //     definition of a check nobody reads on the day it is right. So the card
+  //     answers the question the reader actually has — is this off on purpose?
+  //     — and the staleness branch is kept for the day it comes back.
+  {
+    const held = isHeld('pepper_note')
     const h = hoursAgo(lastDigest.data?.created_at)
     const failed = failedDigests.count ?? 0
-    const stale = h !== null && h > 96
+    const stale = !held && h !== null && h > 96
     checks.push({
       name: "Pepper's Morning Note",
-      status: failed > 0 || stale ? 'warn' : 'ok',
-      headline:
-        failed > 0
+      status: held ? 'ok' : failed > 0 || stale ? 'warn' : 'ok',
+      headline: held
+        ? 'Held — sends nothing'
+        : failed > 0
           ? `${failed} failed send${failed === 1 ? '' : 's'} in 7 days`
           : h === null
             ? 'No notes sent yet'
             : `Last sent ${ageLabel(lastDigest.data?.created_at)}`,
-      detail:
-        failed > 0
+      detail: held
+        ? `Richard held the 06:50 email on 2026-10-21: the machinery and its tests are intact, the ` +
+          `cron returns before it assembles anything, and one word in src/lib/notify/policy.ts ` +
+          `brings it back. ${lastDigest.data?.created_at ? `Last went out ${ageLabel(lastDigest.data.created_at)}.` : ''}`
+        : failed > 0
           ? 'A note failed to send. Sending needs the gmail.send scope on the connected mailbox — re-run scripts/setup-google-oauth.mjs to grant it, or check the member has a valid email.'
           : stale
             ? `Weekday mornings at 06:50. Pepper stays quiet for anyone with nothing owed, owed to them, or waiting — so this can be a genuinely clear week, but four days of silence across the whole roster is worth a look. ${cronLogsHint}`
@@ -503,24 +534,28 @@ async function runChecks(): Promise<HealthCheck[]> {
     })
   }
 
-  // 8c. Pepper's morning TEXT (launchd, weekdays 06:45) — added 2026-10-15,
-  //     having had no card at all since the channel went live on 10-13. It is
-  //     the message that arrives first and the one most likely to be read, and
-  //     it was on exactly the footing 8b above was on before 10-08.
+  // 8c. The task reminder (launchd, weekdays 06:45) — the only message that
+  //      still goes out unprompted, and the card that used to watch the morning
+  //      text it replaced. Repointed rather than added beside: see the probe's
+  //      header for why a second card would be the 2026-10-08 mistake again.
   {
-    const bad = pepperText.state === 'failed' || pepperText.state === 'never'
+    const r = taskReminder.state
     checks.push({
-      name: "Pepper's Morning Text",
-      status: bad ? 'warn' : pepperText.state === 'stale' ? 'warn' : 'ok',
+      name: 'Task Reminders',
+      status: r === 'failed' || r === 'never' || r === 'stale' ? 'warn' : 'ok',
       headline:
-        pepperText.state === 'ok'
+        r === 'ok'
           ? 'Sending on schedule'
-          : pepperText.state === 'never'
-            ? 'No text has ever sent'
-            : pepperText.state === 'stale'
-              ? 'No text in over four days'
-              : 'A send failed this week',
-      detail: pepperText.detail,
+          : r === 'held'
+            ? 'Held — nothing is scheduled'
+            : r === 'never'
+              ? 'Has never run'
+              : r === 'stale'
+                ? 'The pass has not run in over four days'
+                : r === 'quiet'
+                  ? 'Running, but nothing has been due'
+                  : 'A send failed this week',
+      detail: taskReminder.detail,
     })
   }
 
@@ -555,11 +590,13 @@ async function runChecks(): Promise<HealthCheck[]> {
   {
     checks.push({
       name: 'Pepper Answers Email',
-      status: pepperReply.state === 'ok' ? 'ok' : 'warn',
+      status: pepperReply.state === 'ok' || pepperReply.state === 'held' ? 'ok' : 'warn',
       headline:
         pepperReply.state === 'ok'
           ? 'Listening for replies'
-          : pepperReply.state === 'unconfigured'
+          : pepperReply.state === 'held'
+            ? 'Held — not listening'
+            : pepperReply.state === 'unconfigured'
             ? 'Nobody is allowed to ask'
             : pepperReply.state === 'blind'
               ? 'Her sends carry no thread id — a reply cannot be recognised'

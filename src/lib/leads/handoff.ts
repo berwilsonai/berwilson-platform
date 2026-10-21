@@ -167,7 +167,17 @@ export async function handOffLead(lead: LeadRow, to?: string): Promise<HandoffRe
       )
     : html
 
-  const result = await notify({ channel: 'email', to: address, subject, html: noteHtml, attachments })
+  // ⚠ LIVE WHILE PEPPER'S OWN MAIL IS HELD, AND THE POLICY TABLE SAYS WHY: a
+  // human pressed Hand off and is waiting, and the recipient is a crew with no
+  // login. Holding this would be a button that does nothing.
+  const result = await notify({
+    channel: 'email',
+    kind: 'lead_handoff',
+    to: address,
+    subject,
+    html: noteHtml,
+    attachments,
+  })
   if (!result.ok) throw new Error(result.error ?? 'Send failed.')
 
   const { error: markErr } = await leadsDb()

@@ -16,6 +16,7 @@
 
 import { isChatConfigured } from './chat'
 import { notify } from './index'
+import { OUTBOUND, isHeld } from './policy'
 
 /**
  * Markdown → Google Chat's own small dialect.
@@ -63,6 +64,12 @@ export interface BroadcastResult {
 }
 
 export async function broadcastBrief(title: string, markdown: string): Promise<BroadcastResult> {
+  // Held 2026-10-21. The brief itself is unaffected — it is written to
+  // `stored_briefs` before this is called, which is where the dashboard reads
+  // it; what is held is the post to the Chat space.
+  if (isHeld('weekly_brief')) {
+    return { ok: true, skipped: true, error: OUTBOUND.weekly_brief.held }
+  }
   if (!isChatConfigured()) return { ok: false, skipped: true }
 
   let text = markdownToChatText(markdown)
@@ -72,6 +79,7 @@ export async function broadcastBrief(title: string, markdown: string): Promise<B
 
   const res = await notify({
     channel: 'chat',
+    kind: 'weekly_brief',
     to: 'brief',
     subject: title,
     html: '',

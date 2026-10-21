@@ -101,6 +101,7 @@ export async function answerQuestion(
 
   const result = await notify({
     channel: 'email',
+    kind: 'pepper_answer',
     to: q.caller.member.email,
     subject: q.subject,
     html: asHtml(answer),

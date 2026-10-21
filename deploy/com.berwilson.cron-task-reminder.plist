@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.berwilson.cron-task-reminder</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/zsh</string>
+    <string>-c</string>
+    <string>curl -sS -m 280 -H "Authorization: Bearer $(grep '^CRON_SECRET=' __APP_DIR__/.env.local | cut -d= -f2-)" http://localhost:3000/api/cron/task-reminder</string>
+  </array>
+  <!--
+    Weekdays at 6:45am local — the ONE message the platform still sends
+    unprompted (Richard, 2026-10-21). Monday names the tasks with a due date
+    this week; Tuesday to Friday send nothing unless something is due THAT DAY
+    and is still open.
+
+    ⚠ ONE AGENT, NOT TWO. The route picks the message from the weekday, so
+    there is a single schedule to keep in step and no way to double-text
+    somebody on a Monday. Which message it would send right now:
+    /api/cron/task-reminder?dry=1 — and ?kind=week forces Monday's on any day.
+
+    ⚠ NO MODEL CALL, so it costs the crowded hour nothing: two reads and a
+    handful of sends, every figure already a fact.
+
+      06:20  curator          (a read, ~3s)
+      06:45  THIS             (two reads, no model)
+      06:50  Pepper's note    (HELD 2026-10-21 — returns immediately)
+      07:00  daily digest     (still generated and stored; the Chat post is HELD)
+
+    ⚠ A QUIET MORNING STILL WRITES A ROW. `status = 'skipped'` with its reason,
+    so /settings/health can tell a clear week from a dead agent — a count that
+    has stopped growing cannot (§12).
+
+    ⚠ AND THE SWITCH IS NOT THIS FILE. src/lib/notify/policy.ts decides whether
+    anything may be sent; this agent only decides when the question gets asked.
+    Keeping it to one switch is deliberate: two that must agree is how a channel
+    ends up off while every check reports healthy.
+  -->
+  <key>StartCalendarInterval</key>
+  <array>
+    <dict><key>Weekday</key><integer>1</integer><key>Hour</key><integer>6</integer><key>Minute</key><integer>45</integer></dict>
+    <dict><key>Weekday</key><integer>2</integer><key>Hour</key><integer>6</integer><key>Minute</key><integer>45</integer></dict>
+    <dict><key>Weekday</key><integer>3</integer><key>Hour</key><integer>6</integer><key>Minute</key><integer>45</integer></dict>
+    <dict><key>Weekday</key><integer>4</integer><key>Hour</key><integer>6</integer><key>Minute</key><integer>45</integer></dict>
+    <dict><key>Weekday</key><integer>5</integer><key>Hour</key><integer>6</integer><key>Minute</key><integer>45</integer></dict>
+  </array>
+  <key>StandardOutPath</key>
+  <string>__LOG_DIR__/cron-task-reminder.log</string>
+  <key>StandardErrorPath</key>
+  <string>__LOG_DIR__/cron-task-reminder.log</string>
+  <key>RunAtLoad</key>
+  <false/>
+</dict>
+</plist>

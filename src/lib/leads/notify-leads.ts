@@ -20,6 +20,7 @@
 
 import { notify } from '@/lib/notify'
 import { isChatConfigured } from '@/lib/notify/chat'
+import { OUTBOUND, isHeld } from '@/lib/notify/policy'
 import { leadsDb, type LeadRow } from './db'
 import { categoryLookup, type LeadCategoryView } from '@/lib/utils/leads'
 import { listCategories } from './categories'
@@ -214,6 +215,14 @@ export function renderLeadChat(input: LeadRow[], categories: LeadCategoryView[] 
  * the leads, and the leads are safe in the queue either way.
  */
 export async function notifyScoredLeads(): Promise<LeadNotifyProgress> {
+  // ⚠ BEFORE THE READ, SO `notified_at` IS LEFT NULL. Held is not announced —
+  // and a lead that was never announced must not be marked as though it had
+  // been, or the day this comes back every lead already in the queue is skipped
+  // and the backlog is silently invisible.
+  if (isHeld('lead_digest')) {
+    return { considered: 0, sent: 0, skipped: true, reason: OUTBOUND.lead_digest.held }
+  }
+
   const to = process.env.LEADS_NOTIFY_EMAIL?.trim()
   const chatConfigured = isChatConfigured()
 
@@ -250,7 +259,7 @@ export async function notifyScoredLeads(): Promise<LeadNotifyProgress> {
     const failures: string[] = []
 
     if (to) {
-      const res = await notify({ channel: 'email', to, subject, html })
+      const res = await notify({ channel: 'email', kind: 'lead_digest', to, subject, html })
       if (res.ok) delivered.push('email')
       else failures.push(`email: ${res.error}`)
     }
@@ -258,6 +267,7 @@ export async function notifyScoredLeads(): Promise<LeadNotifyProgress> {
     if (chatConfigured) {
       const res = await notify({
         channel: 'chat',
+        kind: 'lead_digest',
         to: 'default',
         subject,
         html,

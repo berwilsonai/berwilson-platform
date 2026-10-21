@@ -29,6 +29,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { notify } from '@/lib/notify'
+import { OUTBOUND, isHeld } from '@/lib/notify/policy'
 import { loadPepperMembers } from '@/lib/pepper/attribution'
 import { internalSet, prepsForMember, renderPrepEmail } from '@/lib/pepper/meeting-prep'
 
@@ -49,6 +50,13 @@ export async function GET(request: NextRequest) {
 
   const url = new URL(request.url)
   const dryRun = url.searchParams.get('dryRun') === '1' || url.searchParams.get('dry') === '1'
+
+  // Held 2026-10-21. Checked before the calendar reads — this job fires every
+  // fifteen minutes through the working day, so a held pass that still read
+  // both mailboxes would be the most expensive silence in the platform.
+  if (isHeld('meeting_prep')) {
+    return NextResponse.json({ ok: true, held: 'meeting_prep', detail: OUTBOUND.meeting_prep.held })
+  }
 
   const supabase = createAdminClient()
   const now = new Date()
@@ -127,6 +135,7 @@ export async function GET(request: NextRequest) {
 
       const result = await notify({
         channel: CHANNEL,
+        kind: 'meeting_prep',
         to: member.email,
         subject,
         html,

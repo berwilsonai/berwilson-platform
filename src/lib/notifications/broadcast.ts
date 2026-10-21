@@ -16,6 +16,7 @@
 
 import { notify } from '@/lib/notify'
 import { isChatConfigured } from '@/lib/notify/chat'
+import { isHeld } from '@/lib/notify/policy'
 import type { NotificationEvent } from './index'
 
 /** Escape Chat's own markup so a filename containing * or _ renders literally. */
@@ -56,6 +57,11 @@ function renderEvent(event: NotificationEvent): string {
  * @returns true when something was delivered.
  */
 export async function broadcastEvents(events: NotificationEvent[]): Promise<boolean> {
+  // Held 2026-10-21 (src/lib/notify/policy.ts). Checked here rather than left
+  // to notify(), because this is called from inside the Drive syncs and the
+  // mail sweep — a held channel should cost those passes nothing at all, and
+  // the in-app bell already has every one of these rows.
+  if (isHeld('activity_broadcast')) return false
   if (events.length === 0 || !isChatConfigured()) return false
 
   try {
@@ -71,6 +77,7 @@ export async function broadcastEvents(events: NotificationEvent[]): Promise<bool
     const today = new Date().toISOString().slice(0, 10)
     const res = await notify({
       channel: 'chat',
+      kind: 'activity_broadcast',
       to: 'records',
       subject,
       // A single-event post would otherwise repeat its own title, since notify()

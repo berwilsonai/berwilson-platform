@@ -183,6 +183,7 @@ export async function sendRecordAlert(args: {
 
     const res = await notify({
       channel: 'text',
+      kind: 'record_alert',
       to: target.email,
       subject: 'new record',
       html: body.replace(/\n/g, '<br>'),

@@ -27,6 +27,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
+import { OUTBOUND, isHeld } from '@/lib/notify/policy'
 import { findQuestions } from '@/lib/pepper/inbound'
 import { answerQuestion } from '@/lib/pepper/answer'
 
@@ -44,6 +45,19 @@ export async function GET(request: NextRequest) {
 
   const url = new URL(request.url)
   const dryRun = url.searchParams.get('dryRun') === '1' || url.searchParams.get('dry') === '1'
+
+  // ⚠ BEFORE `findQuestions`, SO A QUESTION IS NOT CONSUMED WHILE SHE CANNOT
+  // ANSWER IT. The inbound scan is how a thread gets marked as handled; running
+  // it under a held outbound channel would read the question, record it as
+  // dealt with, and reply to nobody — which is worse than not listening. Held
+  // 2026-10-21 (src/lib/notify/policy.ts).
+  if (isHeld('pepper_answer')) {
+    return NextResponse.json({
+      ok: true,
+      held: 'pepper_answer',
+      detail: OUTBOUND.pepper_answer.held,
+    })
+  }
 
   const { questions, scanned, error } = await findQuestions()
   if (error) {

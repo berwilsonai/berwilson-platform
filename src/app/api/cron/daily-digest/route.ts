@@ -29,6 +29,7 @@ import {
 import { markdownToChatText } from '@/lib/notify/broadcast-brief'
 import { notify } from '@/lib/notify'
 import { isChatConfigured } from '@/lib/notify/chat'
+import { OUTBOUND, isHeld } from '@/lib/notify/policy'
 import { SYSTEM_USER_ID } from '@/lib/system-user'
 
 /**
@@ -135,8 +136,21 @@ export async function GET(request: NextRequest) {
     console.error('[daily-digest] could not store the digest:', storeErr.message)
   }
 
-  let delivery: { ok: boolean; skipped?: boolean; error?: string } = { ok: false, skipped: true }
-  if (isChatConfigured()) {
+  let delivery: {
+    ok: boolean
+    skipped?: boolean
+    error?: string
+    /** Named apart from NotifyResult's own boolean `held` — this one is prose. */
+    heldReason?: string
+  } = { ok: false, skipped: true }
+  // ⚠ GATED AT THE DELIVERY, NOT AT THE PASS. The digest is still assembled,
+  // still written to `stored_briefs` and still read by /dashboard and Ber AI —
+  // what is held is the post to a room. §12: two paths that differ only in
+  // where the work lands are one pass with a target, and the target here is the
+  // only part Richard turned off.
+  if (isHeld('daily_digest')) {
+    delivery = { ok: true, skipped: true, heldReason: OUTBOUND.daily_digest.held }
+  } else if (isChatConfigured()) {
     let text = markdownToChatText(markdown)
     if (text.length > MAX_CHAT_CHARS) {
       text = `${text.slice(0, MAX_CHAT_CHARS).trimEnd()}\n\n_…trimmed. Open Ber Intelligence for the full digest._`
@@ -147,6 +161,7 @@ export async function GET(request: NextRequest) {
     }
     delivery = await notify({
       channel: 'chat',
+      kind: 'daily_digest',
       to: 'updates',
       subject: title,
       html: '',
