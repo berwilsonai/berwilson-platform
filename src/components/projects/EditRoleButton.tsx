@@ -10,34 +10,62 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog'
-import { PROJECT_PLAYER_ROLES, PROJECT_PLAYER_ROLE_GROUPS } from '@/lib/utils/constants'
 import { FIELD_CONTROL_CLASS } from '@/lib/utils/field-classes'
+import { groupRoles, type ContactRoleView } from '@/lib/utils/contact-roles'
 
 interface EditRoleButtonProps {
   playerId: string
   currentRole: string
+  /** The registry key already on the row, when it has one. */
+  currentRoleKey: string | null
   playerName: string
+  /** The role registry, passed from the server page. */
+  roles: ContactRoleView[]
 }
 
-export default function EditRoleButton({ playerId, currentRole, playerName }: EditRoleButtonProps) {
+/**
+ * ⚠ Reads the REGISTRY, not the old `PROJECT_PLAYER_ROLES` array.
+ *
+ * That array held 33 hand-written values that this component and AddPlayerModal
+ * read and nothing else did — 1 of 104 live rows conformed to it (measured
+ * 2026-10-21), because every automated writer bypassed both components. The
+ * list is now `contact_roles` and a role added in settings appears here with
+ * no deploy.
+ *
+ * The select writes BOTH columns: `role` gets the label (what a reader sees),
+ * `role_key` the key (what the filter reads). "Custom…" writes prose and a NULL
+ * key, which is how a row stays honestly uncategorised rather than being forced
+ * into the nearest category.
+ */
+export default function EditRoleButton({
+  playerId,
+  currentRole,
+  currentRoleKey,
+  playerName,
+  roles,
+}: EditRoleButtonProps) {
   const router = useRouter()
   const [open, setOpen] = useState(false)
-  const isKnownRole = PROJECT_PLAYER_ROLES.some(r => r.value === currentRole)
-  const [role, setRole] = useState(isKnownRole ? currentRole : '__custom__')
-  const [customRole, setCustomRole] = useState(isKnownRole ? '' : currentRole)
+  const activeRoles = roles.filter(r => r.active || r.key === currentRoleKey)
+  const initial = currentRoleKey && activeRoles.some(r => r.key === currentRoleKey)
+    ? currentRoleKey
+    : '__custom__'
+  const [role, setRole] = useState(initial)
+  const [customRole, setCustomRole] = useState(initial === '__custom__' ? currentRole : '')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   function handleOpen() {
-    const known = PROJECT_PLAYER_ROLES.some(r => r.value === currentRole)
-    setRole(known ? currentRole : '__custom__')
-    setCustomRole(known ? '' : currentRole)
+    setRole(initial)
+    setCustomRole(initial === '__custom__' ? currentRole : '')
     setError(null)
     setOpen(true)
   }
 
   async function handleSave() {
-    const finalRole = role === '__custom__' ? customRole.trim() : role.trim()
+    const custom = role === '__custom__'
+    const picked = custom ? null : activeRoles.find(r => r.key === role)
+    const finalRole = custom ? customRole.trim() : (picked?.label ?? '')
     if (!finalRole) return
     setSaving(true)
     setError(null)
@@ -45,7 +73,7 @@ export default function EditRoleButton({ playerId, currentRole, playerName }: Ed
       const res = await fetch(`/api/records/project-players/${playerId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ role: finalRole }),
+        body: JSON.stringify({ role: finalRole, role_key: picked?.key ?? null }),
       })
       if (!res.ok) {
         const data = await res.json()
@@ -92,10 +120,10 @@ export default function EditRoleButton({ playerId, currentRole, playerName }: Ed
                 className={inputClass}
               >
                 <option value="">Select a role...</option>
-                {PROJECT_PLAYER_ROLE_GROUPS.map(group => (
+                {groupRoles(activeRoles).map(({ group, roles: groupRoles_ }) => (
                   <optgroup key={group} label={group}>
-                    {PROJECT_PLAYER_ROLES.filter(r => r.group === group).map(r => (
-                      <option key={r.value} value={r.value}>{r.value}</option>
+                    {groupRoles_.map(r => (
+                      <option key={r.key} value={r.key}>{r.label}</option>
                     ))}
                   </optgroup>
                 ))}

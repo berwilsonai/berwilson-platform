@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { embedDocument } from '@/lib/ai/embeddings'
 import { SYSTEM_USER_ID } from '@/lib/system-user'
 
+import { categorizePlayerRole } from '@/lib/contacts/roles'
 
 const VALID_ENTITY_TYPES = ['llc', 'corp', 'jv', 'subsidiary', 'trust', 'fund', 'other'] as const
 type EntityType = typeof VALID_ENTITY_TYPES[number]
@@ -321,8 +322,15 @@ export async function POST(request: NextRequest) {
 
     // Link individual to all target projects
     for (const proj of allTargetProjects) {
+      const playerRole = partyAction.role || extracted.role || 'other'
       await supabase.from('project_players').upsert(
-        { project_id: proj.id, party_id: partyId, role: partyAction.role || extracted.role || 'other', is_primary: false },
+        {
+          project_id: proj.id,
+          party_id: partyId,
+          role: playerRole,
+          role_key: await categorizePlayerRole(playerRole),
+          is_primary: false,
+        },
         { onConflict: 'project_id,party_id,role' }
       )
     }

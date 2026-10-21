@@ -1,7 +1,8 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import Link from 'next/link'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { toast } from 'sonner'
 import {
   Building2,
@@ -21,6 +22,13 @@ import { cn } from '@/lib/utils'
 import { hashedAvatarClasses, nameInitials } from '@/lib/utils/avatar'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { useStoredState } from '@/hooks/use-stored-state'
+import { Panel } from '@/components/ui/card'
+import {
+  groupRoles,
+  roleChipClasses,
+  roleLabel,
+  type ContactRoleView,
+} from '@/lib/utils/contact-roles'
 
 export interface ContactWithStats {
   id: string
@@ -34,7 +42,10 @@ export interface ContactWithStats {
   tags: string[]
   relationship_notes: string | null
   project_count: number
+  /** The prose on each project_players row — kept searchable, never a filter. */
   roles: string[]
+  /** Registry keys for what this contact is TO US (party_roles). */
+  role_keys: string[]
   last_active: string | null
 }
 
@@ -53,9 +64,13 @@ type Density = 'list' | 'cards'
 
 interface ContactsClientProps {
   contacts: ContactWithStats[]
+  /** The whole registry, so a retired role still renders with its label. */
+  roles: ContactRoleView[]
 }
 
-export default function ContactsClient({ contacts: initialContacts }: ContactsClientProps) {
+export default function ContactsClient({ contacts: initialContacts, roles }: ContactsClientProps) {
+  const router = useRouter()
+  const searchParams = useSearchParams()
   const [contacts, setContacts] = useState(initialContacts)
   const [search, setSearch] = useState('')
   const [sort, setSort] = useState<SortKey>('name')
@@ -73,6 +88,63 @@ export default function ContactsClient({ contacts: initialContacts }: ContactsCl
   function handleDelete(id: string) {
     setContacts(prev => prev.filter(c => c.id !== id))
   }
+
+  /**
+   * The role filter, in the URL.
+   *
+   * §12: "a filter kept only in component state is not a view — put it in the
+   * URL." A directory filtered to Lenders is a thing to send somebody, and a
+   * back button that does not undo a filter is a back button that lies.
+   * Multi-select is OR, which is the question actually being asked — "who
+   * could lend on this" is lenders OR investors, never both at once.
+   */
+  const roleFilter = useMemo(
+    () => (searchParams.get('roles') ?? '').split(',').filter(Boolean),
+    [searchParams]
+  )
+
+  const setRoleFilter = useCallback(
+    (next: string[]) => {
+      const params = new URLSearchParams(searchParams.toString())
+      if (next.length > 0) params.set('roles', next.join(','))
+      else params.delete('roles')
+      const qs = params.toString()
+      router.replace(qs ? `/contacts?${qs}` : '/contacts', { scroll: false })
+    },
+    [router, searchParams]
+  )
+
+  const toggleRole = useCallback(
+    (key: string) => {
+      setRoleFilter(roleFilter.includes(key) ? roleFilter.filter(k => k !== key) : [...roleFilter, key])
+    },
+    [roleFilter, setRoleFilter]
+  )
+
+  /**
+   * The roles actually HELD, with counts — the filter vocabulary.
+   *
+   * ⚠ Derived from the rows, not from the registry (§12: "the ROWS are the
+   * registry — derive the filter from the values present, and keep a curated
+   * list only for what a human picks from"). The registry seeds 53 roles; a
+   * filter offering 53 chips of which 34 match nobody is a wall, not a filter.
+   * The full list appears only where somebody is CHOOSING a role, on a contact
+   * or a project player.
+   */
+  const roleCounts = useMemo(() => {
+    const counts = new Map<string, number>()
+    contacts.forEach(c => c.role_keys.forEach(k => counts.set(k, (counts.get(k) ?? 0) + 1)))
+    const held = roles.filter(r => counts.has(r.key))
+    return groupRoles(held).map(g => ({
+      ...g,
+      roles: g.roles.map(r => ({ ...r, count: counts.get(r.key) ?? 0 })),
+    }))
+  }, [contacts, roles])
+
+  const heldRoleCount = useMemo(
+    () => roleCounts.reduce((n, g) => n + g.roles.length, 0),
+    [roleCounts]
+  )
 
   // Every tag in use, with counts — the filter vocabulary
   const allTags = useMemo(() => {
@@ -93,6 +165,10 @@ export default function ContactsClient({ contacts: initialContacts }: ContactsCl
       list = list.filter(c => c.tags.includes(tagFilter))
     }
 
+    if (roleFilter.length > 0) {
+      list = list.filter(c => c.role_keys.some(k => roleFilter.includes(k)))
+    }
+
     if (search.trim()) {
       const q = search.toLowerCase()
       list = list.filter(
@@ -104,7 +180,11 @@ export default function ContactsClient({ contacts: initialContacts }: ContactsCl
           (c.phone ?? '').toLowerCase().includes(q) ||
           (c.relationship_notes ?? '').toLowerCase().includes(q) ||
           c.tags.some(t => t.toLowerCase().includes(q)) ||
-          c.roles.some(r => r.toLowerCase().includes(q))
+          c.roles.some(r => r.toLowerCase().includes(q)) ||
+          // The role LABEL, not the key — somebody types "lender", not
+          // "senior_lender". Searching the key as well would match nothing a
+          // reader has ever seen on the screen.
+          c.role_keys.some(k => roleLabel(k, roles).toLowerCase().includes(q))
       )
     }
 
@@ -120,7 +200,7 @@ export default function ContactsClient({ contacts: initialContacts }: ContactsCl
           return b.project_count - a.project_count
       }
     })
-  }, [contacts, search, sort, view, tagFilter])
+  }, [contacts, search, sort, view, tagFilter, roleFilter, roles])
 
   function toggleSelected(id: string) {
     setSelected(prev => {
@@ -311,10 +391,66 @@ export default function ContactsClient({ contacts: initialContacts }: ContactsCl
         </div>
       </div>
 
+      {/* Role filter — the lookup this directory did not have.
+          Grouped, because 19 flat chips is a word-search; the group heading is
+          what makes "Finance & Legal" scannable at a glance. */}
+      {heldRoleCount > 0 && (
+        <Panel className="px-4 py-3 space-y-2.5">
+          <div className="flex items-center gap-2">
+            <span className="label-caps text-muted-foreground">Role</span>
+            {roleFilter.length > 0 && (
+              <button
+                onClick={() => setRoleFilter([])}
+                className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2 outline-none focus-visible:ring-3 focus-visible:ring-ring/50 rounded"
+              >
+                Clear ({roleFilter.length})
+              </button>
+            )}
+            <span className="ml-auto text-xs text-muted-foreground">
+              {heldRoleCount} in use
+            </span>
+          </div>
+          {roleCounts.map(({ group, roles: groupRolesList }) => (
+            <div key={group} className="flex items-baseline gap-2 flex-wrap">
+              <span className="label-caps text-muted-foreground/70 w-full sm:w-44 shrink-0">
+                {group}
+              </span>
+              <div className="flex gap-1.5 flex-wrap">
+                {groupRolesList.map(r => {
+                  const on = roleFilter.includes(r.key)
+                  return (
+                    <button
+                      key={r.key}
+                      onClick={() => toggleRole(r.key)}
+                      aria-pressed={on}
+                      className={cn(
+                        'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs ring-1 transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
+                        // ⚠ The selected state is a RING and an offset, never a
+                        // second bg-* — `cn()` is tailwind-merge, so two classes
+                        // in the same utility group do not compose and the later
+                        // one silently deletes the earlier (§12). The tone's own
+                        // background has to survive selection.
+                        roleChipClasses(r.role_group),
+                        on && 'ring-2 ring-offset-1 ring-offset-card font-medium'
+                      )}
+                    >
+                      {r.label}
+                      <span className="tnum opacity-60">{r.count}</span>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          ))}
+        </Panel>
+      )}
+
       {/* Grid */}
       {filtered.length === 0 ? (
         <div className="py-20 text-center text-sm text-muted-foreground">
-          No contacts match your search.
+          {roleFilter.length > 0
+            ? 'No contacts hold that role yet.'
+            : 'No contacts match your search.'}
         </div>
       ) : density === 'list' ? (
         <div className="rounded-lg border border-border bg-card divide-y divide-border overflow-hidden">
@@ -327,6 +463,7 @@ export default function ContactsClient({ contacts: initialContacts }: ContactsCl
               selected={selected.has(contact.id)}
               onToggleSelect={toggleSelected}
               onTagClick={setTagFilter}
+              roles={roles}
             />
           ))}
         </div>
@@ -341,6 +478,7 @@ export default function ContactsClient({ contacts: initialContacts }: ContactsCl
               selected={selected.has(contact.id)}
               onToggleSelect={toggleSelected}
               onTagClick={setTagFilter}
+              roles={roles}
             />
           ))}
         </div>
@@ -366,6 +504,57 @@ interface ContactItemProps {
   selected: boolean
   onToggleSelect: (id: string) => void
   onTagClick: (tag: string) => void
+  /** The registry, for label and tone. Passed down rather than fetched. */
+  roles: ContactRoleView[]
+}
+
+/**
+ * The role chips on a row.
+ *
+ * Capped at two with a "+n", because a row is scanned and the third chip is
+ * where a row starts wrapping. The full set is on the record.
+ */
+function RoleChips({
+  keys,
+  roles,
+  max = 2,
+}: {
+  keys: string[]
+  roles: ContactRoleView[]
+  max?: number
+}) {
+  if (keys.length === 0) return null
+  const resolved = keys
+    .map(k => roles.find(r => r.key === k))
+    .filter((r): r is ContactRoleView => !!r)
+    .sort((a, b) => a.sort_order - b.sort_order)
+  if (resolved.length === 0) return null
+  const shown = resolved.slice(0, max)
+  const extra = resolved.length - shown.length
+
+  return (
+    <span className="flex items-center gap-1 shrink-0">
+      {shown.map(r => (
+        <span
+          key={r.key}
+          className={cn(
+            'inline-flex items-center rounded-full px-2 py-0.5 text-xs ring-1 whitespace-nowrap',
+            roleChipClasses(r.role_group)
+          )}
+        >
+          {r.label}
+        </span>
+      ))}
+      {extra > 0 && (
+        <span
+          className="text-xs text-muted-foreground"
+          title={resolved.slice(max).map(r => r.label).join(', ')}
+        >
+          +{extra}
+        </span>
+      )}
+    </span>
+  )
 }
 
 /**
@@ -419,6 +608,7 @@ function ContactRow({
   selected,
   onToggleSelect,
   onTagClick,
+  roles,
 }: ContactItemProps) {
   const { confirming, setConfirming, deleting, remove } = useContactDelete(contact, onDelete)
   const secondary = secondaryLine(contact)
@@ -477,6 +667,12 @@ function ContactRow({
           {secondary && (
             <span className="block truncate text-xs text-muted-foreground">{secondary}</span>
           )}
+        </span>
+
+        {/* What they are to us. Ahead of the mailbox deliberately: this is the
+            column the reader came to scan. */}
+        <span className="hidden md:flex">
+          <RoleChips keys={contact.role_keys} roles={roles} />
         </span>
 
         {/* The mailbox, where there is room for it — it is the field most often
@@ -553,6 +749,7 @@ function ContactCard({
   selected,
   onToggleSelect,
   onTagClick,
+  roles,
 }: ContactItemProps) {
   const { confirming, setConfirming, deleting, remove } = useContactDelete(contact, onDelete)
 
@@ -658,6 +855,13 @@ function ContactCard({
                   {contact.phone}
                 </div>
               )}
+            </div>
+          )}
+
+          {/* Roles, then tags. A card has the room for three. */}
+          {contact.role_keys.length > 0 && (
+            <div className="flex flex-wrap gap-1">
+              <RoleChips keys={contact.role_keys} roles={roles} max={3} />
             </div>
           )}
 

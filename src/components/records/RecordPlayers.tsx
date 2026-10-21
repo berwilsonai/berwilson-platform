@@ -5,6 +5,7 @@ import AddPlayerModal from '@/components/projects/AddPlayerModal'
 import RemovePlayerButton from '@/components/projects/RemovePlayerButton'
 import EditRoleButton from '@/components/projects/EditRoleButton'
 import type { RecordKind } from '@/lib/records/scope'
+import type { ContactRoleView } from '@/lib/utils/contact-roles'
 
 /**
  * The people on a record — the same table for a project and an opportunity,
@@ -15,7 +16,10 @@ import type { RecordKind } from '@/lib/records/scope'
 
 export type PlayerRow = {
   id: string
+  /** The prose — what a reader sees, and what the model wrote. */
   role: string
+  /** The registry key behind it, when the role could be categorised. */
+  role_key: string | null
   is_primary: boolean | null
   notes: string | null
   parties: {
@@ -38,9 +42,11 @@ interface RecordPlayersProps {
    * they can reach the people they work with — no profile links, no editing.
    */
   limited: boolean
+  /** The contact-role registry, for the pickers. */
+  roles: ContactRoleView[]
 }
 
-export default function RecordPlayers({ recordKind, recordId, players, limited }: RecordPlayersProps) {
+export default function RecordPlayers({ recordKind, recordId, players, limited, roles }: RecordPlayersProps) {
   const noun = recordKind === 'opportunity' ? 'deal' : 'project'
 
   if (players.length === 0) {
@@ -52,7 +58,7 @@ export default function RecordPlayers({ recordKind, recordId, players, limited }
         action={
           limited ? undefined : (
             <div className="flex items-center gap-2">
-              <AddPlayerModal recordKind={recordKind} recordId={recordId} />
+              <AddPlayerModal recordKind={recordKind} recordId={recordId} roles={roles} />
               <Link
                 href={`/contacts/new`}
                 className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md border border-input text-xs font-medium hover:bg-accent transition-colors"
@@ -72,7 +78,7 @@ export default function RecordPlayers({ recordKind, recordId, players, limited }
         <p className="text-xs text-muted-foreground">
           {players.length} player{players.length !== 1 ? 's' : ''} on this {noun}
         </p>
-        {!limited && <AddPlayerModal recordKind={recordKind} recordId={recordId} />}
+        {!limited && <AddPlayerModal recordKind={recordKind} recordId={recordId} roles={roles} />}
       </div>
 
       <div className="rounded-lg border border-border overflow-hidden">
@@ -151,7 +157,9 @@ export default function RecordPlayers({ recordKind, recordId, players, limited }
                         <EditRoleButton
                           playerId={player.id}
                           currentRole={player.role}
+                          currentRoleKey={player.role_key}
                           playerName={party.full_name}
+                          roles={roles}
                         />
                       )}
                     </div>

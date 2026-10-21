@@ -202,7 +202,12 @@ export const CHILDREN: Record<string, ChildSpec> = {
     defaults: { is_primary: false },
     fields: {
       party_id: 'uuid',
+      // The prose and the category, deliberately both (§4, 2026-10-21).
+      // `role` is what the reader sees and what the model wrote — "Broker — 4%
+      // fee" keeps its 4%. `role_key` is the registry key that makes the row
+      // filterable. An unrecognised role still lands, merely uncategorised.
       role: TEXT,
+      role_key: TEXT,
       is_primary: 'bool',
       notes: TEXT,
     },

@@ -20,6 +20,7 @@ import { meetingTargetFromTitle } from '@/lib/meetings/meet-import'
 import { parseAttendees } from '@/lib/utils/meetings'
 import { createLeadFromMeeting } from '@/lib/leads/from-meeting'
 import type { TablesInsert, JsonIn } from '@/lib/supabase/types'
+import { categorizePlayerRole } from '@/lib/contacts/roles'
 
 export const maxDuration = 300
 
@@ -320,6 +321,7 @@ export async function POST(request: NextRequest) {
           project_id: tgt.id,
           party_id: person.id,
           role: person.role ?? 'Contact',
+          role_key: await categorizePlayerRole(person.role),
         })
       }
     } else if (tgt.kind === 'opportunity') {

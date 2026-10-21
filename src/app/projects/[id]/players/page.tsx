@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation'
 import { createAdminClient } from '@/lib/supabase/admin'
 import RecordPlayers, { type PlayerRow } from '@/components/records/RecordPlayers'
+import { contactRoleViews } from '@/lib/contacts/roles'
 import { getViewer } from '@/lib/auth/viewer'
 
 export const metadata = { title: 'Team — Ber Wilson Intelligence' }
@@ -29,7 +30,7 @@ export default async function PlayersPage({ params }: PageProps) {
   const { data, error } = await supabase
     .from('project_players')
     .select(`
-      id, role, is_primary, notes,
+      id, role, role_key, is_primary, notes,
       parties(id, full_name, company, title, email, phone, is_organization)
     `)
     .eq('project_id', projectId)
@@ -37,12 +38,15 @@ export default async function PlayersPage({ params }: PageProps) {
 
   if (error) throw new Error(`Failed to load players: ${error.message}`)
 
+  const roles = await contactRoleViews()
+
   return (
     <RecordPlayers
       recordKind="project"
       recordId={projectId}
       players={(data as PlayerRow[]) ?? []}
       limited={limited}
+      roles={roles}
     />
   )
 }

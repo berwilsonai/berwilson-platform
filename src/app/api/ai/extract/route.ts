@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { callGemini } from '@/lib/ai/gemini'
 import {
-  EXTRACTION_SYSTEM_PROMPT,
+  extractionSystemPrompt,
   EXTRACTION_PROMPT_VERSION,
 } from '@/lib/ai/prompts/extraction'
 import type { ExtractionResult } from '@/types/domain'
@@ -36,7 +36,7 @@ export async function POST(request: NextRequest) {
   try {
     const result = await callGemini<ExtractionResult>({
       task: 'extract',
-      systemPrompt: EXTRACTION_SYSTEM_PROMPT,
+      systemPrompt: await extractionSystemPrompt(),
       userMessage: rawText,
       userId,
       promptVersion: EXTRACTION_PROMPT_VERSION,

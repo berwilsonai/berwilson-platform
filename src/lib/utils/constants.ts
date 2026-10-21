@@ -506,56 +506,24 @@ export function enumLabel(
 
 // ─── Project Player Roles ────────────────────────────────────────────────────
 
-export const PROJECT_PLAYER_ROLES: { value: string; group: string }[] = [
-  // Ownership & Development
-  { value: 'Owner', group: 'Ownership & Development' },
-  { value: "Owner's Rep", group: 'Ownership & Development' },
-  { value: 'Developer', group: 'Ownership & Development' },
-  { value: 'Co-Developer', group: 'Ownership & Development' },
-  { value: 'JV Partner', group: 'Ownership & Development' },
-  { value: 'PE Partner', group: 'Ownership & Development' },
-  { value: 'Equity Investor', group: 'Ownership & Development' },
-  // Construction
-  { value: 'General Contractor (GC)', group: 'Construction' },
-  { value: 'Construction Manager (CM)', group: 'Construction' },
-  { value: 'Subcontractor', group: 'Construction' },
-  { value: 'Project Manager', group: 'Construction' },
-  { value: 'Superintendent', group: 'Construction' },
-  // Design
-  { value: 'Architect', group: 'Design' },
-  { value: 'Structural Engineer', group: 'Design' },
-  { value: 'Civil Engineer', group: 'Design' },
-  { value: 'MEP Engineer', group: 'Design' },
-  { value: 'Geotechnical Engineer', group: 'Design' },
-  // Finance & Legal
-  { value: 'Lender', group: 'Finance & Legal' },
-  { value: 'Senior Lender', group: 'Finance & Legal' },
-  { value: 'Mezzanine Lender', group: 'Finance & Legal' },
-  { value: 'Legal Counsel', group: 'Finance & Legal' },
-  { value: 'Title Company', group: 'Finance & Legal' },
-  { value: 'Accountant / CPA', group: 'Finance & Legal' },
-  { value: 'Insurance Broker', group: 'Finance & Legal' },
-  // Government
-  { value: 'Contracting Officer (CO)', group: 'Government' },
-  { value: 'Contracting Officer Rep (COR)', group: 'Government' },
-  { value: 'Government PM', group: 'Government' },
-  // Consultants & Other
-  { value: 'Environmental Consultant', group: 'Consultants & Other' },
-  { value: 'Permitting Consultant', group: 'Consultants & Other' },
-  { value: 'Surveyor', group: 'Consultants & Other' },
-  { value: 'Property Manager', group: 'Consultants & Other' },
-  { value: 'Broker', group: 'Consultants & Other' },
-  { value: 'DBE Consultant', group: 'Consultants & Other' },
-]
-
-export const PROJECT_PLAYER_ROLE_GROUPS = [
-  'Ownership & Development',
-  'Construction',
-  'Design',
-  'Finance & Legal',
-  'Government',
-  'Consultants & Other',
-]
+/*
+ * PROJECT_PLAYER_ROLES and PROJECT_PLAYER_ROLE_GROUPS lived here and are GONE
+ * (2026-10-21). They were 33 hand-written role values in six groups, read by
+ * AddPlayerModal and EditRoleButton and by nothing else — and 1 of 104 live
+ * `project_players` rows conformed to them, because every automated writer
+ * (the mail sweep, the meeting confirm, the proposal confirm) passed the
+ * model's prose straight through and the model was never shown the list.
+ *
+ * The vocabulary is now the `contact_roles` TABLE, read through
+ * `src/lib/contacts/roles.ts` and rendered through
+ * `src/lib/utils/contact-roles.ts`. Every value above was carried into its
+ * seed (migration 20261021000004) along with the categories the live corpus
+ * demanded. Adding a role is an INSERT at /settings/contact-roles.
+ *
+ * §12: a taxonomy written into a prompt is a second schema and it drifts
+ * silently — so generate the enumeration from the same rows the column
+ * references. This one was not even in the prompt.
+ */
 
 // ─── Entity Categories ────────────────────────────────────────────────────
 

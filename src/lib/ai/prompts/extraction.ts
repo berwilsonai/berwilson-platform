@@ -40,11 +40,42 @@ Return ONLY valid JSON matching this exact schema:
   "waiting_on": [{"text": "what we're waiting for", "party": "who needs to act or null", "since": "YYYY-MM-DD or null"}],
   "risks": [{"text": "risk description", "severity": "info|watch|critical|blocker", "mitigation": "mitigation if mentioned or null"}],
   "decisions": [{"text": "decision made", "made_by": "who decided or null", "date": "YYYY-MM-DD or null"}],
-  "mentioned_parties": [{"name": "person or company name", "company": "company if known or null", "role": "role if known or null"}],
+  "mentioned_parties": [{"name": "person or company name", "company": "company if known or null", "role": "role if known or null", "role_key": "one key from the ROLE VOCABULARY below, or null"}],
   "mentioned_projects": [{"name_or_ref": "project name or reference", "confidence": 0.0}],
   "confidence": 0.0
 }
 
 Return ONLY valid JSON. No explanation. No markdown fences. No commentary.`
 
-export const EXTRACTION_PROMPT_VERSION = '1.1'
+export const EXTRACTION_PROMPT_VERSION = '1.2'
+
+/**
+ * The extraction prompt with the live role vocabulary appended.
+ *
+ * ⚠ GENERATED FROM `contact_roles`, THE SAME ROWS THE COLUMN REFERENCES. §12:
+ * "A taxonomy written into a prompt is a second schema and it drifts silently,
+ * because a category the model was never told about simply never fires."
+ * Spelling the roles out here as a literal is exactly how the previous
+ * vocabulary reached 1 conforming row in 104 — except that one was not even in
+ * the prompt. A role added at /settings/contact-roles is in the next call.
+ *
+ * Async, and therefore a FUNCTION rather than a const: the const is kept for
+ * callers that do not extract people.
+ */
+export async function extractionSystemPrompt(): Promise<string> {
+  const { roleVocabularyForPrompt } = await import('@/lib/contacts/roles')
+  const vocabulary = await roleVocabularyForPrompt()
+  return `${EXTRACTION_SYSTEM_PROMPT}
+
+ROLE VOCABULARY — for "role_key" on each mentioned party:
+Pick the ONE key that best describes what the person or company is in this
+text. Answer with the key exactly as written (for example \`legal_counsel\`).
+
+⚠ Use null when you are not sure. A wrong category is worse than none: it
+answers for that person on every screen until somebody notices, where a null
+is visibly uncategorised. "role" still takes your own words either way, and
+the words are what a reader sees — keep any detail the key cannot hold
+("Broker — 4% fee", "Seller entity — holds record title").
+
+${vocabulary}`
+}

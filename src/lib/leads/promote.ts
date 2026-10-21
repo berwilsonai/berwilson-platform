@@ -25,6 +25,7 @@ import { LEAD_FOLDER } from './score-phase'
 import { upsertLink } from '@/lib/email-sweep/route-phase'
 import type { LinkRecordKind } from '@/lib/email-sweep/db'
 import type { TablesInsert } from '@/lib/supabase/types'
+import { categorizePlayerRole } from '@/lib/contacts/roles'
 
 /**
  * What a lead becomes.
@@ -323,6 +324,7 @@ async function linkSenderToDirectory(
           project_id: projectId,
           party_id: player.id,
           role: player.role,
+          role_key: await categorizePlayerRole(player.role),
           notes: playerNote,
         })
         if (error) console.error('[leads/promote] could not link player:', error.message)

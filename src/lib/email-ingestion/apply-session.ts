@@ -45,6 +45,7 @@ import {
 import type { createAdminClient } from '@/lib/supabase/admin'
 import type { Tables, TablesInsert, JsonIn, TablesUpdate } from '@/lib/supabase/types'
 import type { ConfirmBody } from '@/lib/email-ingestion/defaults'
+import { categorizePlayerRole } from '@/lib/contacts/roles'
 
 type AdminClient = ReturnType<typeof createAdminClient>
 type SessionRow = Tables<'email_intake_sessions'>
@@ -310,6 +311,9 @@ export async function applySession(
       opportunity_id: opportunityId,
       party_id: partyId,
       role,
+      // The prose goes on `role`; the category comes from the ONE registry
+      // (§4, 2026-10-21). Null when nothing is certain — never a guess.
+      role_key: await categorizePlayerRole(role),
     })
     if (playerErr) console.error('Link player failed:', playerErr.message)
     else existingRoles.add(`${partyId}:${role.toLowerCase()}`)

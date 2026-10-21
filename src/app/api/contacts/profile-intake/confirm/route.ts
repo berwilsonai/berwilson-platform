@@ -19,6 +19,7 @@ import { upsertAliases } from '@/lib/contacts/aliases'
 import type { ProfileIntakeDraft, PersonProfileDraft } from '@/lib/contacts/profile-intake'
 import type { Json, TablesInsert, TablesUpdate, JsonIn } from '@/lib/supabase/types'
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { categorizePlayerRole } from '@/lib/contacts/roles'
 
 export const maxDuration = 120
 
@@ -306,6 +307,7 @@ export async function POST(request: NextRequest) {
           opportunity_id: target.kind === 'opportunity' ? target.id : null,
           party_id: partyId,
           role,
+          role_key: await categorizePlayerRole(role),
         })
         if (error) failures.push(`${fullName ?? partyId}: could not be linked to the deal (${error.message}).`)
         else linked.push(partyId)

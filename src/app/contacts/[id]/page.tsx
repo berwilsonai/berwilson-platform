@@ -24,10 +24,13 @@ import LinkedInEditor from '@/components/contacts/LinkedInEditor'
 import EnrichProfileButton from '@/components/contacts/EnrichProfileButton'
 import ContactEnrichmentDisplay from '@/components/contacts/ContactEnrichmentDisplay'
 import ContactTagsEditor from '@/components/contacts/ContactTagsEditor'
+import ContactRolesEditor from '@/components/contacts/ContactRolesEditor'
+import { contactRoleViews, getPartyRoles } from '@/lib/contacts/roles'
 import CompanyLinkEditor from '@/components/contacts/CompanyLinkEditor'
 import ShareContactButton from '@/components/contacts/ShareContactButton'
 import TrackVisit from '@/components/shared/TrackVisit'
 
+import { Panel } from '@/components/ui/card'
 interface PageProps {
   params: Promise<{ id: string }>
   searchParams: Promise<{ tab?: string }>
@@ -126,6 +129,15 @@ export default async function ContactDetailPage({ params, searchParams }: PagePr
       linkedEntity = pe.entities as unknown as LinkedEntity
     }
   }
+
+  // ─── What they are to us ──────────────────────────────────────────────────
+  // Loaded unconditionally though only the Overview tab renders the editor —
+  // two cheap indexed reads, and a tab-conditional fetch is how the next tab to
+  // want this gets a blank list nobody traces.
+  const [partyRoleKeys, roleRegistry] = await Promise.all([
+    getPartyRoles(id),
+    contactRoleViews(),
+  ])
 
   // ─── Overview tab data ────────────────────────────────────────────────────
   let projectCount = 0
@@ -468,6 +480,19 @@ export default async function ContactDetailPage({ params, searchParams }: PagePr
                     <p className="text-sm text-muted-foreground italic">No contact details on file.</p>
                   )}
                 </div>
+              </section>
+
+              {/* What they are to us — ABOVE company and tags, because it is
+                  the field somebody opens this record to check. */}
+              <section>
+                <h2 className="label-caps text-muted-foreground mb-3">Role</h2>
+                <Panel className="p-4">
+                  <ContactRolesEditor
+                    partyId={id}
+                    initialRoles={partyRoleKeys}
+                    roles={roleRegistry}
+                  />
+                </Panel>
               </section>
 
               {/* Company + tags */}

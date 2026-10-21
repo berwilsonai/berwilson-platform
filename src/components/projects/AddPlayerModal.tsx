@@ -11,7 +11,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog'
-import { PROJECT_PLAYER_ROLES, PROJECT_PLAYER_ROLE_GROUPS } from '@/lib/utils/constants'
+import { groupRoles, type ContactRoleView } from '@/lib/utils/contact-roles'
 import { scopeBody, type RecordKind } from '@/lib/records/scope'
 import { FIELD_CONTROL_CLASS, FIELD_TEXTAREA_CLASS } from '@/lib/utils/field-classes'
 import { cn } from '@/lib/utils'
@@ -29,9 +29,18 @@ interface AddPlayerModalProps {
   /** Players hang off either a project or an opportunity — same table, one scope column. */
   recordKind: RecordKind
   recordId: string
+  /**
+   * The role registry (`contact_roles`), passed from the server page.
+   *
+   * ⚠ Replaces the hand-written `PROJECT_PLAYER_ROLES` array this component
+   * used to read. That array was the only consumer of a 33-value vocabulary
+   * nothing else honoured — 1 of 104 live rows matched it (2026-10-21).
+   */
+  roles: ContactRoleView[]
 }
 
-export default function AddPlayerModal({ recordKind, recordId }: AddPlayerModalProps) {
+export default function AddPlayerModal({ recordKind, recordId, roles }: AddPlayerModalProps) {
+  const activeRoles = roles.filter(r => r.active)
   const router = useRouter()
   const [open, setOpen] = useState(false)
   const [phase, setPhase] = useState<Phase>('idle')
@@ -83,7 +92,12 @@ export default function AddPlayerModal({ recordKind, recordId }: AddPlayerModalP
     setError(null)
 
     try {
-      const finalRole = role === '__custom__' ? customRole.trim() : role.trim()
+      // Both columns. The label is what a reader sees and what search reads;
+      // the key is what the filter reads. "Custom…" writes prose and a NULL
+      // key rather than forcing the nearest category onto the row.
+      const custom = role === '__custom__'
+      const picked = custom ? null : activeRoles.find(r => r.key === role)
+      const finalRole = custom ? customRole.trim() : (picked?.label ?? '')
       const res = await fetch('/api/records/project-players', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -91,6 +105,7 @@ export default function AddPlayerModal({ recordKind, recordId }: AddPlayerModalP
           ...scopeBody(recordKind, recordId),
           party_id: selected.id,
           role: finalRole,
+          role_key: picked?.key ?? null,
           is_primary: isPrimary,
           notes: notes.trim() || null,
         }),
@@ -206,10 +221,10 @@ export default function AddPlayerModal({ recordKind, recordId }: AddPlayerModalP
               className={inputClass}
             >
               <option value="">Select a role...</option>
-              {PROJECT_PLAYER_ROLE_GROUPS.map(group => (
+              {groupRoles(activeRoles).map(({ group, roles: groupRoles_ }) => (
                 <optgroup key={group} label={group}>
-                  {PROJECT_PLAYER_ROLES.filter(r => r.group === group).map(r => (
-                    <option key={r.value} value={r.value}>{r.value}</option>
+                  {groupRoles_.map(r => (
+                    <option key={r.key} value={r.key}>{r.label}</option>
                   ))}
                 </optgroup>
               ))}

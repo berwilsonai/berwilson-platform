@@ -18,6 +18,7 @@ import { loadPortfolioVehicles, resolveVehicleRefs } from '@/lib/spvs/portfolio'
 import { participantTotals, resolveBwShare, splitWarnings } from '@/lib/spvs/ownership'
 import { SPV_PURPOSE_LABELS, SPV_ROLE_LABELS } from '@/lib/spvs/types'
 import { INVESTMENT_TARGET_KINDS, investmentTargetLabel } from '@/lib/utils/investors'
+import { categorizePlayerRole, listContactRoles, partyRoleMap } from '@/lib/contacts/roles'
 import type { AgentContext } from './agent'
 import type { Database } from '@/types/database'
 
@@ -127,13 +128,24 @@ export const agentTools = [
   },
   {
     name: 'search_parties',
-    description: 'Search people and organizations in the platform by name, company, or role. Returns contact details and relationship information.',
+    description:
+      'Search people and organizations by name, company or role. Pass `role` to list everyone of a kind — "who are our lenders", "which attorneys do we use". Returns contact details, what each one is to the business, and the deals they are on.',
     parameters: {
       type: 'object',
       properties: {
         query: { type: 'string', description: 'Name, company, or keyword to search' },
+        // ⚠ The 53 role keys are deliberately NOT enumerated here. §12: "a
+        // taxonomy written into a prompt is a second schema and it drifts
+        // silently — keep it out of tool declarations especially." The handler
+        // resolves whatever word the model uses against the live registry and,
+        // when it cannot, answers with the roles actually in use.
+        role: {
+          type: 'string',
+          description:
+            'Optional role to filter by, in plain words — "lender", "advisor", "general contractor", "endorser". Resolved against the role registry; if it matches nothing you get the list of roles in use.',
+        },
       },
-      required: ['query'],
+      required: [],
     },
   },
   {
@@ -584,35 +596,97 @@ async function executeToolCallInner(
 
     case 'search_parties': {
       const query = args.query as string | undefined
-      if (!query) return { error: 'A query is required.' }
-      const partyFilter = orIlike(['full_name', 'company', 'title'], query)
-      if (!partyFilter) return { count: 0, parties: [] }
+      const roleArg = args.role as string | undefined
+      if (!query && !roleArg) return { error: 'Give a query, a role, or both.' }
 
-      const { data, error } = await supabase
-        .from('parties')
-        .select('id, full_name, company, title, email, phone, is_organization, relationship_notes, government_contract_history')
-        .or(partyFilter)
-        .limit(10)
+      const registry = await listContactRoles()
+      const COLUMNS =
+        'id, full_name, company, title, email, phone, is_organization, relationship_notes, government_contract_history'
 
-      if (error) return { error: error.message }
-
-      // Also fetch their project roles
-      if (data && data.length > 0) {
-        const partyIds = data.map(p => p.id)
-        const { data: roles } = await supabase
-          .from('project_players')
-          .select('party_id, project_id, role, is_primary, projects(name)')
-          .in('party_id', partyIds)
-
-        return {
-          parties: data.map(p => ({
-            ...p,
-            project_roles: roles?.filter(r => r.party_id === p.id) ?? [],
-          })),
+      // ─── Resolve the role, and say so when it cannot be resolved ──────────
+      // ⚠ An unresolvable role must not silently become "no filter", which
+      // would answer a question about lenders with an unfiltered rolodex. It
+      // comes back as a refusal carrying the vocabulary, so the next round can
+      // ask properly.
+      let roleKey: string | null = null
+      if (roleArg) {
+        roleKey = await categorizePlayerRole(roleArg)
+        if (!roleKey) {
+          const { data: held } = await supabase.from('party_roles').select('role_key')
+          const inUse = [...new Set((held ?? []).map(r => r.role_key))]
+          return {
+            error: `No role matches "${roleArg}".`,
+            roles_in_use: registry.filter(r => inUse.includes(r.key)).map(r => r.label),
+          }
         }
       }
 
-      return { parties: [] }
+      let ids: string[] | null = null
+      if (roleKey) {
+        const { data: holders, error: holdersError } = await supabase
+          .from('party_roles')
+          .select('party_id')
+          .eq('role_key', roleKey)
+        if (holdersError) return { error: holdersError.message }
+        ids = [...new Set((holders ?? []).map(h => h.party_id))]
+        if (ids.length === 0) {
+          const label = registry.find(r => r.key === roleKey)?.label ?? roleKey
+          return { count: 0, parties: [], note: `Nobody is recorded as ${label}.` }
+        }
+      }
+
+      let q = supabase.from('parties').select(COLUMNS)
+
+      if (query) {
+        // The free-text path also matches a ROLE LABEL, so "lender" finds the
+        // lenders even when the model did not use the `role` parameter.
+        const matchedKeys = registry
+          .filter(r => r.label.toLowerCase().includes(query.toLowerCase()))
+          .map(r => r.key)
+        let byRole: string[] = []
+        if (matchedKeys.length > 0) {
+          const { data: holders } = await supabase
+            .from('party_roles')
+            .select('party_id')
+            .in('role_key', matchedKeys)
+          byRole = [...new Set((holders ?? []).map(h => h.party_id))]
+        }
+        const partyFilter = orIlike(['full_name', 'company', 'title'], query)
+        if (!partyFilter && byRole.length === 0) return { count: 0, parties: [] }
+        const clauses = [partyFilter, byRole.length > 0 ? `id.in.(${byRole.join(',')})` : null]
+          .filter(Boolean)
+          .join(',')
+        q = q.or(clauses)
+      }
+
+      // Applied as a SQL filter rather than in the caller — an exclusion after
+      // the LIMIT returns an empty answer when the withheld rows sort first
+      // (§12).
+      if (ids) q = q.in('id', ids)
+
+      const { data, error } = await q.limit(roleKey ? 50 : 10)
+      if (error) return { error: error.message }
+      if (!data || data.length === 0) return { count: 0, parties: [] }
+
+      const partyIds = data.map(p => p.id)
+      const [{ data: players }, roleMap] = await Promise.all([
+        supabase
+          .from('project_players')
+          .select('party_id, project_id, role, is_primary, projects(name)')
+          .in('party_id', partyIds),
+        partyRoleMap(partyIds),
+      ])
+
+      const labels = new Map(registry.map(r => [r.key, r.label]))
+      return {
+        count: data.length,
+        parties: data.map(p => ({
+          ...p,
+          // What they are to the business — the answer to "who are our X".
+          roles: (roleMap.get(p.id) ?? []).map(k => labels.get(k) ?? k),
+          project_roles: players?.filter(r => r.party_id === p.id) ?? [],
+        })),
+      }
     }
 
     case 'run_research': {

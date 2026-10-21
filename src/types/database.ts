@@ -499,6 +499,20 @@ isOneToOne: false
       referencedColumns: ["id"]
     }
                   ]
+                },"contact_roles": {
+                  Row: {
+                    "active": boolean,"created_at": string | null,"extraction_hint": string | null,"id": string,"key": string,"label": string,"role_group": string,"sort_order": number,"system": boolean,"updated_at": string | null
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "active"?: boolean,"created_at"?: string | null,"extraction_hint"?: string | null,"id"?: string,"key": string,"label": string,"role_group": string,"sort_order"?: number,"system"?: boolean,"updated_at"?: string | null
+                  }
+                  Update: {
+                    "active"?: boolean,"created_at"?: string | null,"extraction_hint"?: string | null,"id"?: string,"key"?: string,"label"?: string,"role_group"?: string,"sort_order"?: number,"system"?: boolean,"updated_at"?: string | null
+                  }
+                  Relationships: [
+                    
+                  ]
                 },"curator_cursors": {
                   Row: {
                     "created_at": string,"evidence_through": string | null,"id": string,"last_error": string | null,"last_proposed": number,"last_run_at": string | null,"last_written": number,"record_id": string,"table_name": string,"updated_at": string
@@ -935,17 +949,23 @@ isOneToOne: false
                   ]
                 },"entities": {
                   Row: {
-                    "category": Database["public"]['Enums']["entity_category"],"confidence_score": number | null,"created_at": string | null,"description": string | null,"ein": string | null,"enriched_at": string | null,"enrichment_data": Json | null,"entity_type": Database["public"]['Enums']["entity_type"],"formation_date": string | null,"headquarters": string | null,"id": string,"jurisdiction": string | null,"logo_url": string | null,"name": string,"notes": string | null,"ownership_pct": number | null,"parent_entity_id": string | null,"primary_contact_id": string | null,"quality_score": number | null,"specialties": (string)[] | null,"website_url": string | null
+                    "category": Database["public"]['Enums']["entity_category"],"confidence_score": number | null,"created_at": string | null,"description": string | null,"ein": string | null,"enriched_at": string | null,"enrichment_data": Json | null,"entity_type": Database["public"]['Enums']["entity_type"],"formation_date": string | null,"headquarters": string | null,"id": string,"jurisdiction": string | null,"logo_url": string | null,"merged_at": string | null,"merged_into_party_id": string | null,"name": string,"notes": string | null,"ownership_pct": number | null,"parent_entity_id": string | null,"primary_contact_id": string | null,"quality_score": number | null,"specialties": (string)[] | null,"website_url": string | null
                   }
                   ComputedFields: never
                   Insert: {
-                    "category"?: Database["public"]['Enums']["entity_category"],"confidence_score"?: number | null,"created_at"?: string | null,"description"?: string | null,"ein"?: string | null,"enriched_at"?: string | null,"enrichment_data"?: Json | null,"entity_type": Database["public"]['Enums']["entity_type"],"formation_date"?: string | null,"headquarters"?: string | null,"id"?: string,"jurisdiction"?: string | null,"logo_url"?: string | null,"name": string,"notes"?: string | null,"ownership_pct"?: number | null,"parent_entity_id"?: string | null,"primary_contact_id"?: string | null,"quality_score"?: number | null,"specialties"?: (string)[] | null,"website_url"?: string | null
+                    "category"?: Database["public"]['Enums']["entity_category"],"confidence_score"?: number | null,"created_at"?: string | null,"description"?: string | null,"ein"?: string | null,"enriched_at"?: string | null,"enrichment_data"?: Json | null,"entity_type": Database["public"]['Enums']["entity_type"],"formation_date"?: string | null,"headquarters"?: string | null,"id"?: string,"jurisdiction"?: string | null,"logo_url"?: string | null,"merged_at"?: string | null,"merged_into_party_id"?: string | null,"name": string,"notes"?: string | null,"ownership_pct"?: number | null,"parent_entity_id"?: string | null,"primary_contact_id"?: string | null,"quality_score"?: number | null,"specialties"?: (string)[] | null,"website_url"?: string | null
                   }
                   Update: {
-                    "category"?: Database["public"]['Enums']["entity_category"],"confidence_score"?: number | null,"created_at"?: string | null,"description"?: string | null,"ein"?: string | null,"enriched_at"?: string | null,"enrichment_data"?: Json | null,"entity_type"?: Database["public"]['Enums']["entity_type"],"formation_date"?: string | null,"headquarters"?: string | null,"id"?: string,"jurisdiction"?: string | null,"logo_url"?: string | null,"name"?: string,"notes"?: string | null,"ownership_pct"?: number | null,"parent_entity_id"?: string | null,"primary_contact_id"?: string | null,"quality_score"?: number | null,"specialties"?: (string)[] | null,"website_url"?: string | null
+                    "category"?: Database["public"]['Enums']["entity_category"],"confidence_score"?: number | null,"created_at"?: string | null,"description"?: string | null,"ein"?: string | null,"enriched_at"?: string | null,"enrichment_data"?: Json | null,"entity_type"?: Database["public"]['Enums']["entity_type"],"formation_date"?: string | null,"headquarters"?: string | null,"id"?: string,"jurisdiction"?: string | null,"logo_url"?: string | null,"merged_at"?: string | null,"merged_into_party_id"?: string | null,"name"?: string,"notes"?: string | null,"ownership_pct"?: number | null,"parent_entity_id"?: string | null,"primary_contact_id"?: string | null,"quality_score"?: number | null,"specialties"?: (string)[] | null,"website_url"?: string | null
                   }
                   Relationships: [
                     {
+      foreignKeyName: "entities_merged_into_party_id_fkey"
+      columns: ["merged_into_party_id"]
+isOneToOne: false
+      referencedRelation: "parties"
+      referencedColumns: ["id"]
+    },{
       foreignKeyName: "entities_parent_entity_id_fkey"
       columns: ["parent_entity_id"]
 isOneToOne: false
@@ -1677,6 +1697,32 @@ isOneToOne: false
       referencedColumns: ["id"]
     }
                   ]
+                },"party_roles": {
+                  Row: {
+                    "created_at": string | null,"id": string,"party_id": string,"role_key": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "created_at"?: string | null,"id"?: string,"party_id": string,"role_key": string
+                  }
+                  Update: {
+                    "created_at"?: string | null,"id"?: string,"party_id"?: string,"role_key"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "party_roles_party_id_fkey"
+      columns: ["party_id"]
+isOneToOne: false
+      referencedRelation: "parties"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "party_roles_role_key_fkey"
+      columns: ["role_key"]
+isOneToOne: false
+      referencedRelation: "contact_roles"
+      referencedColumns: ["key"]
+    }
+                  ]
                 },"pepper_note_items": {
                   Row: {
                     "created_at": string,"first_named_on": string,"id": string,"item_key": string,"kind": string,"last_named_on": string,"team_member_id": string,"times_named": number,"updated_at": string | null
@@ -1979,14 +2025,14 @@ isOneToOne: false
                   ]
                 },"project_players": {
                   Row: {
-                    "created_at": string | null,"id": string,"is_primary": boolean | null,"notes": string | null,"opportunity_id": string | null,"party_id": string,"project_id": string | null,"role": string
+                    "created_at": string | null,"id": string,"is_primary": boolean | null,"notes": string | null,"opportunity_id": string | null,"party_id": string,"project_id": string | null,"role": string,"role_key": string | null
                   }
                   ComputedFields: never
                   Insert: {
-                    "created_at"?: string | null,"id"?: string,"is_primary"?: boolean | null,"notes"?: string | null,"opportunity_id"?: string | null,"party_id": string,"project_id"?: string | null,"role": string
+                    "created_at"?: string | null,"id"?: string,"is_primary"?: boolean | null,"notes"?: string | null,"opportunity_id"?: string | null,"party_id": string,"project_id"?: string | null,"role": string,"role_key"?: string | null
                   }
                   Update: {
-                    "created_at"?: string | null,"id"?: string,"is_primary"?: boolean | null,"notes"?: string | null,"opportunity_id"?: string | null,"party_id"?: string,"project_id"?: string | null,"role"?: string
+                    "created_at"?: string | null,"id"?: string,"is_primary"?: boolean | null,"notes"?: string | null,"opportunity_id"?: string | null,"party_id"?: string,"project_id"?: string | null,"role"?: string,"role_key"?: string | null
                   }
                   Relationships: [
                     {
@@ -2007,6 +2053,12 @@ isOneToOne: false
 isOneToOne: false
       referencedRelation: "projects"
       referencedColumns: ["id"]
+    },{
+      foreignKeyName: "project_players_role_key_fkey"
+      columns: ["role_key"]
+isOneToOne: false
+      referencedRelation: "contact_roles"
+      referencedColumns: ["key"]
     }
                   ]
                 },"project_spv_participants": {

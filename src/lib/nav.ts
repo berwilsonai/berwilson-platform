@@ -174,7 +174,11 @@ export const TITLE_EXTRAS: { href: string; title: string }[] = [
 export const PALETTE_EXTRAS: { href: string; label: string; keywords: string }[] = [
   { href: '/dev-notes', label: 'Developer Notes', keywords: 'bug report feedback feature request issue broken problem suggestion improvement developer notes' },
   { href: '/timeline', label: 'Timeline', keywords: 'gantt schedule' },
-  { href: '/contacts?tab=vendors', label: 'Vendors & Contractors', keywords: 'companies organizations subs partners entities' },
+  // The Vendors tab retired 2026-10-21 — its five rows moved into `parties`.
+  // The palette entry stays, pointing at the one directory, because "vendors"
+  // and "subs" are words a reader still types.
+  { href: '/contacts', label: 'Vendors & Contractors', keywords: 'companies organizations subs partners entities vendor contractor' },
+  { href: '/settings/contact-roles', label: 'Contact Roles', keywords: 'role lender investor advisor endorser general contractor registry taxonomy directory' },
   { href: '/calendar', label: 'Calendar', keywords: 'schedule dates milestones meeting google gmail' },
   { href: '/intake?tab=proposal', label: 'Proposal Intake', keywords: 'ingest upload rfp document proposal' },
   { href: '/intake?tab=meeting', label: 'Meeting Notes', keywords: 'meeting minutes notes attendees follow-up transcript recap paste' },

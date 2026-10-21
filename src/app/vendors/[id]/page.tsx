@@ -35,6 +35,14 @@ export default async function VendorDetailPage({ params }: PageProps) {
 
   if (!entity) notFound()
 
+  const { data: mergedInto } = entity.merged_into_party_id
+    ? await supabase
+        .from('parties')
+        .select('id, full_name')
+        .eq('id', entity.merged_into_party_id)
+        .maybeSingle()
+    : { data: null }
+
   // Fetch project links with project names
   const { data: projectLinks } = await supabase
     .from('entity_projects')
@@ -83,12 +91,30 @@ export default async function VendorDetailPage({ params }: PageProps) {
       <TrackVisit kind="vendor" label={entity.name} href={`/vendors/${id}`} />
       {/* Back link */}
       <Link
-        href="/contacts?tab=vendors"
+        href="/contacts"
         className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
       >
         <ChevronLeft size={14} />
-        All Vendors
+        Directory
       </Link>
+
+      {/* ⚠ This row was folded into the rolodex on 2026-10-21 when the
+          Directory's Vendors tab retired. The ROW IS THE TOMBSTONE (§12) — it
+          is kept because a chunk and six party_entities rows point at it, and
+          because `entities` is the legal-entity table the SPVs and the
+          governance registers hang off. Saying so beats a page that looks live
+          and is nobody's source of truth. */}
+      {mergedInto && (
+        <div className="flex items-center gap-2.5 px-4 py-3 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 text-amber-800 dark:text-amber-300 text-sm">
+          <span>
+            This vendor now lives in the Directory as{' '}
+            <Link href={`/contacts/${mergedInto.id}`} className="font-semibold underline underline-offset-2">
+              {mergedInto.full_name}
+            </Link>
+            . What stays here is the legal-entity record other parts of the platform point at.
+          </span>
+        </div>
+      )}
 
       {/* Header */}
       <div className="flex items-start gap-4">
