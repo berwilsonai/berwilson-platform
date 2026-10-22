@@ -24,12 +24,13 @@ const includeAttachments = !process.argv.includes('--no-attachments')
 const log = (...a) => console.log(new Date().toISOString().slice(11, 19), ...a)
 
 const db = sweepDb()
+// ⚠ The VIEW, which is where the eligibility rule lives. This script carried
+// its own transcription of the predicate and printed "0 threads to index"
+// immediately before indexing 48 of them (2026-10-21) — the fourth copy of one
+// rule, and the one that reports to the human running it.
 const { count: todo } = await db
-  .from('email_threads')
+  .from('email_threads_pending_embed')
   .select('id', { count: 'exact', head: true })
-  .eq('summary_state', 'summarized')
-  .is('embedded_at', null)
-  .or('summary->>relevance.is.null,summary->>relevance.neq.noise')
 
 log(`${todo ?? 0} threads to index (attachments ${includeAttachments ? 'ON' : 'OFF'})`)
 

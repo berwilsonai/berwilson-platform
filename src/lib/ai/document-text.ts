@@ -17,6 +17,13 @@ import type { createAdminClient } from '@/lib/supabase/admin'
 export const PDF_FULLTEXT_MAX_BYTES = 15 * 1024 * 1024
 export const PDF_FULLTEXT_MAX_BYTES_LOCAL = 100 * 1024 * 1024
 
+/** macOS ships this; overridable for the same reason WHISPER_BIN is. */
+const TEXTUTIL_BIN = process.env.TEXTUTIL_BIN ?? '/usr/bin/textutil'
+/** Guards against a wedged converter, not against a large file. */
+const DOC_TIMEOUT_MS = Number(process.env.TEXTUTIL_TIMEOUT_MS) || 120_000
+/** A .doc predates .docx, so it is a letter or a contract, never a 2M-char export. */
+const LEGACY_DOC_MAX_CHARS = 2_000_000
+
 // Postgres text/jsonb rejects NUL bytes ("unsupported Unicode escape
 // sequence") and lone surrogates — PDFs with embedded fonts produce both.
 function sanitizeExtractedText(text: string): string {
@@ -109,6 +116,217 @@ export async function extractDocxText(buffer: ArrayBuffer): Promise<string | nul
     console.error('[document-text] docx extraction failed:', err)
     return null
   }
+}
+
+/**
+ * Extract the text of a legacy .doc (pre-2007 binary Word) via macOS textutil.
+ *
+ * Why this exists: `documentKind` had no branch for `application/msword`, so
+ * every legacy .doc fell through to 'unsupported' and was stored with no text,
+ * no summary and no chunks — §12's rule that a file type with no branch is
+ * INVISIBLE rather than unreadable, and that nothing reports it. Measured
+ * 2026-10-21, six live documents sat in that state, and they were not
+ * incidental: `54724v1 (Assignment and PSA for Steelton).doc`, three
+ * `Assignment Agreement .doc`, and the Vistra National Base Contract data
+ * centre template. Contract-grade documents the agent could not open.
+ *
+ * `textutil` ships with macOS, so this adds no dependency and holds no model
+ * resident — the same posture as whisper.cpp and bw-ocr. It reads the old
+ * binary format that mammoth (.docx only) cannot.
+ */
+export async function extractLegacyDocText(buffer: ArrayBuffer): Promise<string | null> {
+  const { spawn } = await import('node:child_process')
+  const { promises: fs } = await import('node:fs')
+  const { tmpdir } = await import('node:os')
+  const { join } = await import('node:path')
+
+  // ⚠ Stat the binary rather than trusting the path. §7 requires this of
+  // WHISPER_BIN for the same reason: a missing binary is otherwise a silent
+  // outage that looks exactly like a document with no text in it.
+  try {
+    await fs.access(TEXTUTIL_BIN)
+  } catch {
+    console.error(`[document-text] textutil not found at ${TEXTUTIL_BIN}; .doc left unread`)
+    return null
+  }
+
+  const dir = await fs.mkdtemp(join(tmpdir(), 'bw-doc-'))
+  const file = join(dir, 'input.doc')
+  try {
+    await fs.writeFile(file, Buffer.from(buffer))
+    const text = await new Promise<string>((resolve, reject) => {
+      const child = spawn(TEXTUTIL_BIN, ['-convert', 'txt', '-stdout', file], {
+        stdio: ['ignore', 'pipe', 'pipe'],
+      })
+      let out = ''
+      let err = ''
+      const timer = setTimeout(() => {
+        child.kill('SIGKILL')
+        reject(new Error(`textutil timed out after ${Math.round(DOC_TIMEOUT_MS / 1000)}s`))
+      }, DOC_TIMEOUT_MS)
+      child.stdout?.on('data', (d: Buffer) => {
+        if (out.length < LEGACY_DOC_MAX_CHARS) out += d.toString()
+      })
+      child.stderr?.on('data', (d: Buffer) => {
+        if (err.length < 20_000) err += d.toString()
+      })
+      child.on('error', (e) => {
+        clearTimeout(timer)
+        reject(e)
+      })
+      child.on('close', (code) => {
+        clearTimeout(timer)
+        if (code !== 0) reject(new Error(err.trim() || `textutil exited ${code}`))
+        else resolve(out)
+      })
+    })
+    const clean = sanitizeExtractedText(text.trim())
+    return clean.length >= 40 ? clean : null
+  } catch (err) {
+    console.error('[document-text] legacy .doc extraction failed:', err)
+    return null
+  } finally {
+    await fs.rm(dir, { recursive: true, force: true }).catch(() => {})
+  }
+}
+
+/**
+ * Extract the readable text of a saved email (.eml / message/rfc822).
+ *
+ * Same blind spot as the .doc above: no branch, so two 692KB saved threads of
+ * West Wendover Master Plan correspondence were stored holding nothing.
+ *
+ * Deliberately a plain MIME walk rather than a parser dependency. What is
+ * wanted is the prose a person wrote, so this keeps the headers worth citing
+ * (who, to whom, when, about what) and then the first text/plain part, falling
+ * back to text/html with the tags stripped. Attachments are skipped — they
+ * arrive as their own `documents` rows through the mail sweep, and inlining a
+ * base64 PDF here would embed noise and double the text.
+ */
+export function extractEmlText(buffer: ArrayBuffer): string | null {
+  try {
+    const raw = Buffer.from(buffer).toString('utf8')
+    const sep = /\r?\n\r?\n/.exec(raw)
+    if (!sep) return null
+    const head = raw.slice(0, sep.index)
+    const body = raw.slice(sep.index + sep[0].length)
+
+    // Unfold RFC 5322 continuation lines before reading any header.
+    const unfolded = head.replace(/\r?\n[ \t]+/g, ' ')
+    const header = (name: string): string | null => {
+      const m = new RegExp(`^${name}:[ \t]*(.*)$`, 'im').exec(unfolded)
+      return m ? m[1].trim() : null
+    }
+    const meta = (['From', 'To', 'Cc', 'Date', 'Subject'] as const)
+      .map((h) => {
+        const v = header(h)
+        return v ? `${h}: ${v}` : null
+      })
+      .filter((line): line is string => line !== null)
+
+    const text = emlBodyText(unfolded, body)
+    const joined = [...meta, '', text ?? ''].join('\n').trim()
+    const clean = sanitizeExtractedText(joined)
+    return clean.length >= 40 ? clean : null
+  } catch (err) {
+    console.error('[document-text] eml extraction failed:', err)
+    return null
+  }
+}
+
+/**
+ * The best readable part of a message body: text/plain, else stripped html.
+ *
+ * ⚠ RECURSIVE, AND IT HAS TO BE. Real mail is `multipart/mixed` wrapping a
+ * `multipart/alternative`, so a single-level split hands back the nested block
+ * ENTIRE — its own boundary markers, its part headers and its undecoded
+ * quoted-printable all read as prose. Measured on the first real file this met:
+ * 342,230 characters indexed carrying `=3D`, `=`-soft-breaks and leaked
+ * `Content-Transfer-Encoding:` lines. It looked like success — a large number
+ * and recognisable sentences — which is exactly why it had to be read rather
+ * than counted.
+ */
+function emlBodyText(header: string, body: string, depth = 0): string | null {
+  // A malformed or hostile message must not recurse without end.
+  if (depth > 8) return null
+
+  const contentType = /content-type:\s*([^;\r\n]+)/i.exec(header)?.[1]?.toLowerCase().trim() ?? ''
+  const boundary = /boundary="?([^";\r\n]+)"?/i.exec(header)?.[1]
+
+  // Not multipart: this IS the body, so decode it by its own header.
+  if (!boundary || !contentType.startsWith('multipart/')) {
+    const text = decodePart(header, body)
+    if (!text.trim()) return null
+    if (contentType.startsWith('text/html')) return stripHtml(text)
+    return text.trim()
+  }
+
+  const parts = body
+    .split(new RegExp(`--${boundary.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`))
+    .slice(1) // everything before the first boundary is preamble, never content
+  const read: Array<{ type: string; text: string }> = []
+  for (const part of parts) {
+    if (/^--/.test(part.trimStart())) break // closing delimiter
+    const split = /\r?\n\r?\n/.exec(part)
+    if (!split) continue
+    const pHead = part.slice(0, split.index)
+    const pBody = part.slice(split.index + split[0].length)
+    // An attachment is not prose; its own documents row carries it.
+    if (/content-disposition:\s*attachment/i.test(pHead)) continue
+    const pType = /content-type:\s*([^;\r\n]+)/i.exec(pHead)?.[1]?.toLowerCase().trim() ?? ''
+    if (pType.startsWith('multipart/')) {
+      const nested = emlBodyText(pHead, pBody, depth + 1)
+      if (nested) read.push({ type: 'text/plain', text: nested })
+      continue
+    }
+    const text = decodePart(pHead, pBody)
+    if (text.trim()) read.push({ type: pType, text })
+  }
+
+  const plain = read.find((d) => d.type.startsWith('text/plain'))
+  if (plain) return plain.text.trim()
+  const html = read.find((d) => d.type.startsWith('text/html'))
+  if (html) return stripHtml(html.text)
+  const any = read.find((d) => d.text.trim())
+  return any ? any.text.trim() : null
+}
+
+/** Undo the transfer encoding a part declares, so the text reads as written. */
+function decodePart(header: string, body: string): string {
+  const encoding = (/content-transfer-encoding:\s*([^\r\n]+)/i.exec(header)?.[1] ?? '')
+    .toLowerCase()
+    .trim()
+  if (encoding === 'base64') {
+    try {
+      return Buffer.from(body.replace(/\s+/g, ''), 'base64').toString('utf8')
+    } catch {
+      return ''
+    }
+  }
+  if (encoding === 'quoted-printable') {
+    return body
+      // A trailing '=' is a soft line break: the newline is not in the text.
+      .replace(/=\r?\n/g, '')
+      .replace(/=([0-9A-Fa-f]{2})/g, (_, h) => String.fromCharCode(parseInt(h, 16)))
+  }
+  return body
+}
+
+function stripHtml(html: string): string {
+  return html
+    .replace(/<(script|style)[\s\S]*?<\/\1>/gi, ' ')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/(p|div|tr|li|h[1-6])>/gi, '\n')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/[ \t]+/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
 }
 
 /**

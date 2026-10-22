@@ -8,6 +8,10 @@
  *     including `Lease ADL421724.pdf`, whose acreage the agent was asked for
  *     three times and could not reach.
  *   - images were never read at all.
+ *   - legacy .doc and .eml had no branch in `documentKind` at all, so six
+ *     contract-grade Word documents and two saved email threads were stored
+ *     holding nothing (2026-10-21). `--kind doc` / `--kind eml` pick them up;
+ *     neither needs a model, so both run under `--text-only`.
  *
  * Only rows with no extracted_text are touched, so re-running is cheap and safe.
  * Progress is written back after EVERY document, so an interrupted run resumes
@@ -21,7 +25,7 @@
  *
  *   node --experimental-strip-types --import ./deploy/register.mjs \
  *        --env-file=.env.local scripts/reindex-unreadable-documents.mts \
- *        [--kind pdf|image|xlsx|docx|text] [--project <uuid>] [--limit N]
+ *        [--kind pdf|image|xlsx|pptx|docx|doc|eml|text] [--project <uuid>] [--limit N]
  *        [--text-only] [--unembedded] [--missing-summary] [--dry]
  *
  * `--missing-summary` selects documents that hold text but have no ai_summary —

@@ -1,5 +1,5 @@
 import { callGemini, callGeminiWithFile, UnreadableDocumentError } from '@/lib/ai/gemini'
-import { transcribePdfText, extractDocxText, extractXlsxText, extractPptxText, extractImageText, storeExtractedText } from '@/lib/ai/document-text'
+import { transcribePdfText, extractDocxText, extractLegacyDocText, extractEmlText, extractXlsxText, extractPptxText, extractImageText, storeExtractedText } from '@/lib/ai/document-text'
 import { isLocalAI } from '@/lib/ai/local'
 import { embedDocument, embedOpportunityDocument } from '@/lib/ai/embeddings'
 import type { createAdminClient } from '@/lib/supabase/admin'
@@ -25,49 +25,26 @@ Return ONLY valid JSON: {"summary": "...", "confidence": 0.0}
 confidence is 0.0–1.0 reflecting how clearly this document presents extractable construction intelligence.
 Return ONLY valid JSON. No explanation. No markdown.`
 
-export const PDF_MIME_TYPE = 'application/pdf'
-export const DOCX_MIME_TYPE =
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-export const XLSX_MIME_TYPE =
-  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-export const PPTX_MIME_TYPE =
-  'application/vnd.openxmlformats-officedocument.presentationml.presentation'
-export const TEXT_MIME_TYPES = new Set([
-  'text/plain',
-  'text/markdown',
-  'text/csv',
-  'text/html',
-])
+// The kind taxonomy lives apart so a caller that only needs to classify a file
+// does not import this pipeline. Re-exported because callers already import it
+// from here.
+export {
+  PDF_MIME_TYPE,
+  DOCX_MIME_TYPE,
+  DOC_MIME_TYPE,
+  EML_MIME_TYPES,
+  XLSX_MIME_TYPE,
+  PPTX_MIME_TYPE,
+  TEXT_MIME_TYPES,
+  IMAGE_MIME_PREFIX,
+  documentKind,
+} from '@/lib/ai/document-kinds'
+export type { DocumentKind } from '@/lib/ai/document-kinds'
 
-/** Types Apple Vision can recognize text in (see card-ocr.ts). */
-export const IMAGE_MIME_PREFIX = 'image/'
-
-export type DocumentKind = 'pdf' | 'docx' | 'xlsx' | 'pptx' | 'image' | 'text' | 'unsupported'
+import { PDF_MIME_TYPE, documentKind } from '@/lib/ai/document-kinds'
 
 /** Internal control-flow marker for `skipSummary` — never surfaces to a caller. */
 class SkipSummary extends Error {}
-
-export function documentKind(
-  mimeType: string | null | undefined,
-  fileName?: string | null
-): DocumentKind {
-  const mime = mimeType ?? ''
-  if (mime === PDF_MIME_TYPE) return 'pdf'
-  if (mime === DOCX_MIME_TYPE) return 'docx'
-  if (mime === XLSX_MIME_TYPE) return 'xlsx'
-  if (mime === PPTX_MIME_TYPE) return 'pptx'
-  if (TEXT_MIME_TYPES.has(mime)) return 'text'
-  if (mime.startsWith(IMAGE_MIME_PREFIX)) return 'image'
-  // Fall back on the extension — browsers/Graph sometimes send octet-stream.
-  const name = (fileName ?? '').toLowerCase()
-  if (name.endsWith('.pdf')) return 'pdf'
-  if (name.endsWith('.docx')) return 'docx'
-  if (/\.(xlsx|xlsm)$/.test(name)) return 'xlsx'
-  if (name.endsWith('.pptx')) return 'pptx'
-  if (/\.(txt|md|markdown|csv|html)$/.test(name)) return 'text'
-  if (/\.(jpg|jpeg|png|heic|heif|webp|tif|tiff|gif|bmp)$/.test(name)) return 'image'
-  return 'unsupported'
-}
 
 type DocSummary = { summary?: string; confidence?: number } | string
 
@@ -223,6 +200,10 @@ export async function runDocumentAiPass(input: {
       })
     } else if (kind === 'docx') {
       fullText = await extractDocxText(buffer)
+    } else if (kind === 'doc') {
+      fullText = await extractLegacyDocText(buffer)
+    } else if (kind === 'eml') {
+      fullText = extractEmlText(buffer)
     } else if (kind === 'xlsx') {
       fullText = await extractXlsxText(buffer)
     } else if (kind === 'pptx') {
@@ -238,7 +219,8 @@ export async function runDocumentAiPass(input: {
     if (!fullText?.trim()) fullText = null
 
     // 2. Summary. PDFs go through the file path (Gemini needs the file;
-    // local mode extracts text itself); docx/text summarize the extracted text.
+    // local mode extracts text itself); every other kind summarizes the text
+    // extracted above, so a new kind needs no branch here.
     //
     // A summary failure must NOT cost the document. Extraction has already
     // succeeded at this point, and the summary is a convenience — the verbatim

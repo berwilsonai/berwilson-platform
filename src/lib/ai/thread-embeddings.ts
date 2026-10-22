@@ -35,6 +35,12 @@ const MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024
 /** Attachments read per thread. A bid package resends drawings on every reply. */
 const MAX_ATTACHMENTS = 8
 
+/**
+ * The eligibility rule, defined once in SQL.
+ * See supabase/migrations/20261021000009_threads_pending_embed.sql.
+ */
+const PENDING_VIEW = 'email_threads_pending_embed'
+
 export interface EmbedThreadResult {
   threadId: string
   bodyChunks: number
@@ -323,8 +329,31 @@ export interface EmbedProgress {
  *                   which would have excluded all 992 lead threads — including
  *                   the Hill AFB bid invitations this feature was built for.
  *                   Their marketing verdict lives in `leads.status = 'spam'`.
+ *   ⚠ asserted   — …EXCEPT that a deal-noise thread carrying a `linked`
+ *                   thread_link is indexed anyway. `relevance` grades whether a
+ *                   thread is SUBSTANTIVE PROSE, not whether it is about a real
+ *                   deal, and route-phase.ts has said so in writing since
+ *                   2026-09-22 — but only the ROUTING half was fixed then.
+ *                   Measured 2026-10-21: 48 noise threads carried an asserted
+ *                   link, including the Helper appraisal, "Fwd: Helper Data
+ *                   Center Risk Analysis" and the executed Englert agreed
+ *                   terms. Two of those are the very threads route-phase cites
+ *                   as its evidence, unsearchable by meaning for a month.
+ *                   `linked` only: it is written on an IDENTITY (solicitation
+ *                   number, learned identifier, human-asserted alias), never on
+ *                   a similarity score — a fact, not another model's guess.
  *
- * So: index a thread unless it is deal-noise or its lead was rejected as spam.
+ * So: index a thread unless it is deal-noise with nothing asserting where it
+ * belongs, or its lead was rejected as spam.
+ *
+ * The predicate lives in the VIEW rather than here so the selector and the
+ * progress count below cannot drift apart, and so the asserted-link test is a
+ * join instead of a list of ids in the query string (§12 — the URI cap).
+ *
+ * ⚠ NO REAPER IS NEEDED for a thread that gains its link later. `route` runs
+ * before `embed` in the same orchestrator pass, and a withheld thread keeps
+ * `embedded_at` NULL (it is filtered in SQL, never stamped), so the next pass
+ * re-asks the question for free. Resist adding one.
  */
 export async function embedPendingThreads(
   opts: { budgetMs?: number; limit?: number; includeAttachments?: boolean } = {}
@@ -350,13 +379,8 @@ export async function embedPendingThreads(
     }
 
     const { data, error } = await db
-      .from('email_threads')
+      .from(PENDING_VIEW)
       .select('id, subject, raw_markdown, mailbox, gmail_thread_id, attachment_count, summary, pipeline')
-      .eq('summary_state', 'summarized')
-      .is('embedded_at', null)
-      // Deal-side noise only. Lead-side exclusion happens below, because it
-      // lives in a different table.
-      .or('summary->>relevance.is.null,summary->>relevance.neq.noise')
       .order('last_at', { ascending: false })
       .limit(batch)
 
@@ -395,12 +419,12 @@ export async function embedPendingThreads(
     }
   }
 
+  // ⚠ The SAME view as the selector above, deliberately. These two read the
+  // same question and drifted apart would mean a run reporting work it will
+  // never pick up (§12 — a count must carry the list's own predicates).
   const { count } = await db
-    .from('email_threads')
+    .from(PENDING_VIEW)
     .select('id', { count: 'exact', head: true })
-    .eq('summary_state', 'summarized')
-    .is('embedded_at', null)
-    .or('summary->>relevance.is.null,summary->>relevance.neq.noise')
   progress.remaining = count ?? 0
 
   return progress

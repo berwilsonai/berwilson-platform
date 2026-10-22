@@ -29,6 +29,9 @@ import { OUTBOUND, isHeld } from '@/lib/notify/policy'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { isFileable } from '@/lib/drive/file-document'
 import { INDEXED_IN_MAIL } from '@/lib/documents/status'
+// Pure, and in its own module precisely so this card can classify a file
+// without importing the AI pipeline behind it.
+import { documentKind } from '@/lib/ai/document-kinds'
 import { leadsDb } from '@/lib/leads/db'
 import { sweepDb } from '@/lib/email-sweep/db'
 
@@ -487,6 +490,11 @@ export async function probeDriveKnowledge(): Promise<{
  * 'skipped' is deliberately NOT counted as a problem: it is the settled state
  * for a file nothing here can read, such as a scanned plat with no vision model
  * loaded, and treating it as a fault would make this permanently red.
+ *
+ * ⚠ BUT IT IS BROKEN OUT BY TYPE, because "correctly skipped" was an assertion
+ * this card never checked. A kind `documentKind` has since learned to read is
+ * counted apart and called out: that is the one skipped state somebody must
+ * act on, and it is invisible in a total.
  */
 export async function probeDocumentIndexing(): Promise<{
   state: 'ok' | 'stalled' | 'failed'
@@ -501,13 +509,24 @@ export async function probeDocumentIndexing(): Promise<{
     // A record kind the check cannot see is a record kind that goes dark
     // quietly, which is the exact failure this card exists to prevent.
     const [docsRes, oppRes] = await Promise.all([
-      supabase.from('documents').select('embedding_status, uploaded_at').is('superseded_at', null),
-      supabase.from('opportunity_documents').select('embedding_status, uploaded_at').is('superseded_at', null),
+      supabase
+        .from('documents')
+        .select('embedding_status, uploaded_at, file_name, mime_type')
+        .is('superseded_at', null),
+      supabase
+        .from('opportunity_documents')
+        .select('embedding_status, uploaded_at, file_name, mime_type')
+        .is('superseded_at', null),
     ])
     if (docsRes.error) throw new Error(docsRes.error.message)
     if (oppRes.error) throw new Error(oppRes.error.message)
 
-    type Row = { embedding_status: string | null; uploaded_at: string | null }
+    type Row = {
+      embedding_status: string | null
+      uploaded_at: string | null
+      file_name: string | null
+      mime_type: string | null
+    }
     const rows = [...((docsRes.data ?? []) as Row[]), ...((oppRes.data ?? []) as Row[])]
     let complete = 0
     let skipped = 0
@@ -518,6 +537,18 @@ export async function probeDocumentIndexing(): Promise<{
     // backlog that does not exist.
     let inMail = 0
     const stuck: Record<string, number> = {}
+    // ⚠ `skipped` USED TO BE PRINTED AS "correctly skipped" AND IT WAS NOT A
+    // COVERAGE SIGNAL. §12: count the REASON beside the number. A file type
+    // with no branch settles here looking identical to a genuinely unreadable
+    // photo, which is how six contract-grade documents — a Steelton PSA
+    // assignment, the Vistra base contract, two saved email threads — sat
+    // unread for months with this card green (measured 2026-10-21).
+    //
+    // Two buckets, because they want different actions: a kind this build
+    // STILL cannot read is settled and named, and a kind it CAN read now is a
+    // reprocessing job somebody has to run.
+    const unreadableBy: Record<string, number> = {}
+    let readableNow = 0
     // A 'processing' row that is genuinely in flight was touched by the pass
     // running right now, and a pass only ever touches a document it has just
     // read — so an old upload still sitting in 'processing' is a corpse, not a
@@ -531,7 +562,14 @@ export async function probeDocumentIndexing(): Promise<{
     for (const r of rows) {
       const status = r.embedding_status ?? 'pending'
       if (status === 'complete') complete++
-      else if (status === 'skipped') skipped++
+      else if (status === 'skipped') {
+        skipped++
+        if (documentKind(r.mime_type, r.file_name) === 'unsupported') {
+          const ext = /\.([A-Za-z0-9]{1,6})$/.exec(r.file_name ?? '')?.[1]?.toLowerCase()
+          unreadableBy[ext ? `.${ext}` : (r.mime_type ?? 'unknown type')] =
+            (unreadableBy[ext ? `.${ext}` : (r.mime_type ?? 'unknown type')] ?? 0) + 1
+        } else readableNow++
+      }
       else if (status === INDEXED_IN_MAIL) inMail++
       else {
         stuck[status] = (stuck[status] ?? 0) + 1
@@ -547,10 +585,21 @@ export async function probeDocumentIndexing(): Promise<{
       }
     }
 
+    // Named, commonest first, so a format that has quietly gone dark reads as a
+    // word rather than as part of a total.
+    const byType = Object.entries(unreadableBy)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 4)
+      .map(([t, n]) => `${n} ${t}`)
+      .join(', ')
+
     const tail =
       `${complete} indexed` +
       (inMail ? `, ${inMail} indexed with their email thread` : '') +
-      `, ${skipped} not readable (correctly skipped).`
+      (skipped ? `, ${skipped} with no reader${byType ? ` (${byType})` : ''}` : '') +
+      (readableNow
+        ? `. ⚠ ${readableNow} of those CAN be read by this build and need reprocessing — run scripts/reindex-unreadable-documents.mts`
+        : '.')
 
     // 'processing' means a pass is RUNNING, and the syncs work one document at
     // a time — so a single one is almost certainly in flight right now, and
@@ -840,15 +889,12 @@ export async function probeCorrespondenceIndex(): Promise<{
         .from('email_threads')
         .select('id', { count: 'exact', head: true })
         .not('embedded_at', 'is', null),
-      db
-        .from('email_threads')
-        .select('id', { count: 'exact', head: true })
-        .eq('summary_state', 'summarized')
-        .is('embedded_at', null)
-        // Same filter as the embedder: lead threads carry no summary, so a
-        // plain .neq() on relevance would drop every one of them and the card
-        // would under-report the backlog by ~1,000 threads.
-        .or('summary->>relevance.is.null,summary->>relevance.neq.noise'),
+      // ⚠ THE VIEW, not a third copy of the embedder's predicate. This card
+      // carried its own transcription of it, which is how a rule gets fixed in
+      // one place and left wrong in two — the asserted-link exception added
+      // 2026-10-21 would have been missing here, so the card would have
+      // reported "nothing waiting" over 48 threads the sweep was about to do.
+      db.from('email_threads_pending_embed').select('id', { count: 'exact', head: true }),
       db.from('thread_chunks').select('id', { count: 'exact', head: true }),
     ])
 
