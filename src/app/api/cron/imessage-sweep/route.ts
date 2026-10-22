@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { runIMessageSweep } from '@/lib/imessage/sweep'
+import { deferredResponse, interactiveRunInFlight } from '@/lib/ai/run-state'
 
 /**
  * GET /api/cron/imessage-sweep
@@ -28,6 +29,18 @@ export async function GET(request: NextRequest) {
   if (!process.env.CRON_SECRET || authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
+
+  // Stand aside while somebody is waiting on a Ber AI answer.
+  //
+  // LM Studio serves ONE request at a time (§2), so starting a model-heavy
+  // pass now is added directly to the wait of whoever asked. This pass
+  // checkpoints, so the next scheduled tick picks up where it left off and
+  // nothing is lost by yielding. `?force=1` overrides.
+  const waitingOnAnswer = await interactiveRunInFlight()
+  if (waitingOnAnswer.busy && !request.nextUrl.searchParams.get('force')) {
+    return NextResponse.json(deferredResponse('imessage-sweep', waitingOnAnswer))
+  }
+
 
   const days = Number(request.nextUrl.searchParams.get('days')) || undefined
   const dryRun = request.nextUrl.searchParams.get('dryRun') === 'true'

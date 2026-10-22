@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import AgentChat from '@/components/agent/AgentChat'
 import ConversationList from './ConversationList'
 
@@ -10,7 +11,18 @@ import ConversationList from './ConversationList'
  * The agent decides which tools to use based on the question.
  */
 export default function IntelTabs() {
-  const [conversationId, setConversationId] = useState<string | null>(null)
+  const router = useRouter()
+  const searchParams = useSearchParams()
+
+  /*
+    ⚠ WHICH CONVERSATION IS OPEN LIVES IN THE URL, NOT ONLY IN STATE (§12 — a
+    filter kept in component state is not a view). It was state alone, which
+    meant this page could not be linked to: the notification email, which
+    exists to say "your answer is ready", had nowhere to point but the top of
+    /intel with the answer still two clicks away.
+  */
+  const urlConversation = searchParams.get('conversation')
+  const [conversationId, setConversationId] = useState<string | null>(urlConversation)
   // Bumped only on explicit selection (or New) — remounts the chat to load
   // the picked conversation without remounting mid-stream when a fresh chat
   // gets its conversation id assigned.
@@ -20,6 +32,12 @@ export default function IntelTabs() {
   function selectConversation(id: string | null) {
     setConversationId(id)
     setChatSession(s => s + 1)
+    // Shallow — the page re-reads nothing on the server, so this only makes
+    // the open conversation linkable and survivable across a reload.
+    const next = new URLSearchParams(Array.from(searchParams.entries()))
+    if (id) next.set('conversation', id)
+    else next.delete('conversation')
+    router.replace(next.size ? `/intel?${next}` : '/intel', { scroll: false })
   }
 
   return (

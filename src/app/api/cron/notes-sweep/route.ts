@@ -29,6 +29,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { runNotesSweep } from '@/lib/notes/sweep'
+import { deferredResponse, interactiveRunInFlight } from '@/lib/ai/run-state'
 
 /** A sqlite read plus one summarize pass per new note, sequential. */
 export const maxDuration = 1800
@@ -38,6 +39,18 @@ export async function GET(request: NextRequest) {
   if (!process.env.CRON_SECRET || authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
+
+  // Stand aside while somebody is waiting on a Ber AI answer.
+  //
+  // LM Studio serves ONE request at a time (§2), so starting a model-heavy
+  // pass now is added directly to the wait of whoever asked. This pass
+  // checkpoints, so the next scheduled tick picks up where it left off and
+  // nothing is lost by yielding. `?force=1` overrides.
+  const waitingOnAnswer = await interactiveRunInFlight()
+  if (waitingOnAnswer.busy && !request.nextUrl.searchParams.get('force')) {
+    return NextResponse.json(deferredResponse('notes-sweep', waitingOnAnswer))
+  }
+
 
   const url = new URL(request.url)
   const dryRun = url.searchParams.get('dry') === '1' || url.searchParams.get('dryRun') === '1'

@@ -26,6 +26,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { runDriveAudioSweep } from '@/lib/driveaudio/sweep'
+import { deferredResponse, interactiveRunInFlight } from '@/lib/ai/run-state'
 
 /** A Drive listing, then a download + whisper + one model pass per file, serially. */
 export const maxDuration = 1800
@@ -35,6 +36,18 @@ export async function GET(request: NextRequest) {
   if (!process.env.CRON_SECRET || authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
+
+  // Stand aside while somebody is waiting on a Ber AI answer.
+  //
+  // LM Studio serves ONE request at a time (§2), so starting a model-heavy
+  // pass now is added directly to the wait of whoever asked. This pass
+  // checkpoints, so the next scheduled tick picks up where it left off and
+  // nothing is lost by yielding. `?force=1` overrides.
+  const waitingOnAnswer = await interactiveRunInFlight()
+  if (waitingOnAnswer.busy && !request.nextUrl.searchParams.get('force')) {
+    return NextResponse.json(deferredResponse('drive-audio-sweep', waitingOnAnswer))
+  }
+
 
   const url = new URL(request.url)
   const dryRun = url.searchParams.get('dry') === '1' || url.searchParams.get('dryRun') === '1'

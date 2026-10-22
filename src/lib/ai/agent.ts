@@ -10,6 +10,7 @@ import { AGENT_SYSTEM_PROMPT, projectContextPreamble, opportunityContextPreamble
 import { agentTools, executeToolCall } from './agent-tools'
 import { getCompanyContext } from './company-context'
 import { isLocalAI, localChatModel, localChatStream, type LocalChatMessage } from './local'
+import { agentTimeBudgetMs } from './run-state'
 
 const AGENT_MODEL = 'gemini-2.5-pro'
 
@@ -50,7 +51,15 @@ function envInt(name: string, fallback: number): number {
 // evidence now gets them, and the closing round still guarantees an answer at
 // the end of whichever limit is reached first.
 const maxToolRounds = () => envInt('AGENT_MAX_TOOL_ROUNDS', 30)
-const timeBudgetMs = () => envInt('AGENT_TIME_BUDGET_MS', 1_800_000)
+
+/**
+ * ⚠ IMPORTED, NOT DECLARED. This was a private `timeBudgetMs()` here until the
+ * reattach and the sweep guard needed the same horizon — a second env read
+ * would have drifted the first time either was tuned (§12). `run-state.ts`
+ * owns it and imports nothing from `next/*`, so taking it costs this module
+ * nothing.
+ */
+const timeBudgetMs = agentTimeBudgetMs
 
 /**
  * Appended as a user turn for the closing round. It has to do two jobs: forbid

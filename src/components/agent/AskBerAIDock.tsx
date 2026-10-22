@@ -1,8 +1,9 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { usePathname } from 'next/navigation'
 import { Bot, X } from 'lucide-react'
+import { toast } from 'sonner'
 import AgentChat from './AgentChat'
 
 const UUID = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'
@@ -47,6 +48,43 @@ export default function AskBerAIDock() {
   const scope = resolveScope(pathname)
 
   const close = useCallback(() => setOpen(false), [])
+
+  /*
+    Read inside the answer handler without making it a dependency.
+
+    `onAnswered` is passed to AgentChat, which lists it in a `useCallback`
+    dependency array; a handler that changed identity every time the dock
+    opened or closed would retrigger that chain mid-answer. The ref keeps the
+    handler stable while still seeing the CURRENT open state — which is the
+    only thing it needs to know.
+  */
+  const openRef = useRef(open)
+  useEffect(() => { openRef.current = open }, [open])
+
+  /**
+   * An answer arrived. Say so only if it is not already on screen.
+   *
+   * ⚠ A TOAST, NOT A BELL. An in-app notification inbox was built here and
+   * deleted on 2026-09-24: across the eight days it ran it wrote 52 rows and
+   * **zero** were ever read or dismissed. The durable copy of an answer is the
+   * conversation itself, which is one keystroke away; this is only the nudge
+   * that it is there, for the case the whole feature exists to serve — you
+   * asked, you walked off, you are three pages away.
+   */
+  const onAnswered = useCallback((answer: string) => {
+    if (openRef.current) return // they are looking straight at it
+
+    const firstLine = answer.trim().split('\n').find(l => l.trim().length > 0) ?? ''
+    // Enough to recognise WHICH question came back, never enough to read the
+    // answer from the toast and skip opening it.
+    const preview = firstLine.length > 110 ? `${firstLine.slice(0, 110).trimEnd()}…` : firstLine
+
+    toast.success('Ber AI has your answer', {
+      description: preview || undefined,
+      duration: 30_000,
+      action: { label: 'Read it', onClick: () => setOpen(true) },
+    })
+  }, [])
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
@@ -120,6 +158,7 @@ export default function AskBerAIDock() {
           initialInput={seed}
           placeholder={scope ? `Ask about this ${scope.noun}…` : 'Ask anything across the portfolio…'}
           className="flex-1 min-h-0"
+          onAnswered={onAnswered}
         />
       </div>
     </div>
