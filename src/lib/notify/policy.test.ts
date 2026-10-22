@@ -167,3 +167,56 @@ test('nothing outside the notify layer calls a transport directly', () => {
     `these call a transport without passing through notify() and its policy: ${offenders.join(', ')}`
   )
 })
+
+/**
+ * ⚠ THE TEXT LEDGER'S KINDS LIVE IN TWO PLACES AND BOTH MUST AGREE.
+ *
+ * `pepper_outbound_texts.kind` is a CHECK in the schema; `OutboundTextRow['kind']`
+ * in src/lib/provenance/db.ts is a TypeScript union mirroring it, and its own
+ * comment says it "MUST MOVE WITH IT". A value in the union but not the
+ * constraint fails the whole INSERT (§12 — a value outside an enum fails the
+ * QUERY, not the row), and because that insert is the self-loop guard row,
+ * `sendText` then refuses to send at all. So the symptom of forgetting the
+ * migration is a channel that is silently off — the exact failure this file
+ * exists to prevent, arriving by the back door.
+ *
+ * ⚠ THIS IS NOT THE SAME NAMESPACE AS `OUTBOUND` ABOVE, and writing it as
+ * though it were is how the first version of this test failed: a POLICY kind is
+ * one pass, and `pepper_text` sends two LEDGER kinds, `morning` and
+ * `week_ahead`. Two vocabularies on purpose. The pair that can drift is the
+ * union and the CHECK.
+ *
+ * Read from source and the migrations rather than a live database, so it runs
+ * in `npm test`. The LAST migration to define the constraint is the one in
+ * force, exactly as Postgres sees it.
+ */
+test('every text kind in the TypeScript union is in the schema CHECK', () => {
+  const unionSrc = readFileSync(join(process.cwd(), 'src', 'lib', 'provenance', 'db.ts'), 'utf8')
+  const unionBlock = unionSrc.slice(unionSrc.indexOf('interface OutboundTextRow'))
+  const kindDecl = unionBlock.slice(unionBlock.indexOf('kind:'))
+  // Up to the next field or the closing brace — the union is the run of
+  // quoted members immediately after `kind:`.
+  const members = Array.from(
+    kindDecl.slice(0, kindDecl.search(/\n\s*(\w+[?]?:|})/)).matchAll(/'([a-z_]+)'/g),
+    (m) => m[1]
+  )
+  assert.ok(members.length >= 5, `read only ${members.length} union members — the parse is wrong`)
+
+  const dir = join(process.cwd(), 'supabase', 'migrations')
+  const defining = readdirSync(dir)
+    .filter((f) => f.endsWith('.sql'))
+    .sort()
+    .filter((f) => /pepper_outbound_texts_kind_check/.test(readFileSync(join(dir, f), 'utf8')))
+  assert.ok(defining.length > 0, 'no migration defines the text-kind constraint')
+
+  const sql = readFileSync(join(dir, defining[defining.length - 1]), 'utf8')
+  const block = sql.slice(sql.lastIndexOf('pepper_outbound_texts_kind_check'))
+  const allowed = new Set(Array.from(block.matchAll(/'([a-z_]+)'/g), (m) => m[1]))
+
+  for (const kind of members) {
+    assert.ok(
+      allowed.has(kind),
+      `'${kind}' is in OutboundTextRow['kind'] but not in the schema CHECK — add a migration, or its first send writes no guard row and silently refuses`
+    )
+  }
+})

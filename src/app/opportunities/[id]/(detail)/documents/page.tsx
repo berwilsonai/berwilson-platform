@@ -1,6 +1,7 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getViewer } from '@/lib/auth/viewer'
 import OpportunityDocuments from '@/components/opportunities/OpportunityDocuments'
+import ComposeDocument from '@/components/documents/ComposeDocument'
 
 export const metadata = { title: 'Documents — Ber Wilson Intelligence' }
 
@@ -23,11 +24,17 @@ export default async function OpportunityDocumentsPage({ params }: PageProps) {
   ])
 
   return (
-    <OpportunityDocuments
-      opportunityId={id}
-      documents={documents ?? []}
-      driveFolderUrl={opportunity?.drive_folder_url ?? null}
-      canPublish={viewer?.isAdmin ?? false}
-    />
+    <div className="space-y-4">
+      {/* Ber AI writes one from this deal's records; the tab below lists what
+          the deal already holds. Deliberately NOT count-gated — a record with
+          no documents is exactly where a one-pager is wanted (§12). */}
+      <ComposeDocument kind="opportunity" recordId={id} />
+      <OpportunityDocuments
+        opportunityId={id}
+        documents={documents ?? []}
+        driveFolderUrl={opportunity?.drive_folder_url ?? null}
+        canPublish={viewer?.isAdmin ?? false}
+      />
+    </div>
   )
 }

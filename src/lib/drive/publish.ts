@@ -76,6 +76,91 @@ async function folderStillThere(folderId: string): Promise<boolean> {
 }
 
 /**
+ * Resolve — or create — a record's own folder under `Ber Intelligence`.
+ *
+ * Reuses the stored one when it is still real. Created rather than looked up by
+ * name, because two records may legitimately share a name and merging their bid
+ * packages would be worse than an untidy folder list.
+ */
+async function ownFolderFor(
+  kind: DriveRecordKind,
+  id: string,
+  name: string | null
+): Promise<string> {
+  const supabase = createAdminClient()
+  const { data } = await supabase
+    .from(RECORDS[kind].table)
+    .select('drive_folder_id')
+    .eq('id', id)
+    .maybeSingle()
+
+  let folderId = (data as { drive_folder_id: string | null } | null)?.drive_folder_id ?? null
+  if (folderId && !(await folderStillThere(folderId))) folderId = null
+  if (folderId) return folderId
+
+  const root = await ensureRootFolder()
+  const section = await ensureFolder(SECTION[kind], root.id)
+  const created = await ensureFolder(name?.trim() || `Untitled ${kind}`, section.id)
+  await supabase
+    .from(RECORDS[kind].table)
+    .update({ drive_folder_id: created.id, drive_folder_url: folderUrl(created.id) })
+    .eq('id', id)
+  return created.id
+}
+
+export interface RecordFolder {
+  folderId: string
+  folderUrl: string
+  /** True when this is the team's own folder rather than Ber Intelligence's. */
+  inTeamFolder: boolean
+}
+
+/**
+ * WHERE A RECORD'S FILES BELONG, ASKED IN ONE PLACE.
+ *
+ * ⚠ EXTRACTED RATHER THAN COPIED. This precedence — the team's own folder when
+ * the record is linked to one, else the record's folder under Ber Intelligence,
+ * created if need be — was reasoned out once for publishing and was about to be
+ * written a second time for composed documents. §12: a shared renderer wired to
+ * one surface is worse than no shared renderer, and two siblings written days
+ * apart are the hardest fork to see because neither looks like a copy.
+ *
+ * ⚠ CONTAINMENT IS THE CALLER'S TO ENFORCE AND IT IS NOT OPTIONAL. This
+ * function answers "where", not "whether". A protected project must never reach
+ * Drive at all — see the check at the top of `publishRecordToDrive`, which is
+ * the model to follow.
+ */
+export async function recordDriveFolder(
+  kind: DriveRecordKind,
+  id: string
+): Promise<RecordFolder> {
+  const supabase = createAdminClient()
+  const { data, error } = await supabase
+    .from(RECORDS[kind].table)
+    .select('name, drive_source_folder_id')
+    .eq('id', id)
+    .maybeSingle()
+  if (error) throw new Error(error.message)
+  if (!data) throw new Error('Record not found.')
+
+  const row = data as { name: string | null; drive_source_folder_id?: string | null }
+
+  // The team's own folder wins, for the reason given in `publishRecordToDrive`:
+  // a document belongs beside what the team put there by hand, not in a
+  // parallel tree nobody opens.
+  if ((kind === 'project' || kind === 'opportunity') && row.drive_source_folder_id) {
+    return {
+      folderId: row.drive_source_folder_id,
+      folderUrl: folderUrl(row.drive_source_folder_id),
+      inTeamFolder: true,
+    }
+  }
+
+  const folderId = await ownFolderFor(kind, id, row.name)
+  return { folderId, folderUrl: folderUrl(folderId), inTeamFolder: false }
+}
+
+/**
  * Publish every not-yet-published document on one record.
  * Throws only on a problem that makes the whole operation impossible.
  */
@@ -151,23 +236,7 @@ export async function publishRecordToDrive(
     }
   }
 
-  // Resolve the folder: reuse the stored one when it is still real, otherwise
-  // create a fresh one. Created rather than looked up by name — two records may
-  // legitimately share a name, and merging their bid packages would be worse
-  // than an untidy folder list.
-  let folderId = row.drive_folder_id
-  if (folderId && !(await folderStillThere(folderId))) folderId = null
-
-  if (!folderId) {
-    const root = await ensureRootFolder()
-    const section = await ensureFolder(SECTION[kind], root.id)
-    const created = await ensureFolder(row.name?.trim() || `Untitled ${kind}`, section.id)
-    folderId = created.id
-    await supabase
-      .from(ref.table)
-      .update({ drive_folder_id: folderId, drive_folder_url: folderUrl(folderId) })
-      .eq('id', id)
-  }
+  const folderId = await ownFolderFor(kind, id, row.name)
 
   const { data: docs, error: docErr } = await supabase
     .from(ref.docTable)

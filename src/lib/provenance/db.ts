@@ -118,8 +118,9 @@ export interface OutboundTextRow {
   /**
    * ⚠ MIRRORS THE CHECK ON `pepper_outbound_texts.kind` AND MUST MOVE WITH IT.
    * `record_alert` was added 2026-10-19 in
-   * `20261019000001_records_from_recordings.sql`, and `task_week` /
-   * `task_due_today` 2026-10-21 in `20261021000008_task_reminder_text_kinds.sql`;
+   * `20261019000001_records_from_recordings.sql`, `task_week` /
+   * `task_due_today` 2026-10-21 in `20261021000008_task_reminder_text_kinds.sql`,
+   * and `document_ready` 2026-10-22 in `20261022000001_document_compose.sql`;
    * a value not in the constraint fails the whole INSERT (§12), which here means
    * the self-loop guard row is not written and `sendText` refuses to send at all.
    */
@@ -131,6 +132,7 @@ export interface OutboundTextRow {
     | 'record_alert'
     | 'task_week'
     | 'task_due_today'
+    | 'document_ready'
     | 'ad_hoc'
   sent_at: string
   created_at: string

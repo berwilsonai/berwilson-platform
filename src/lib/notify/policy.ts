@@ -91,6 +91,30 @@ export const OUTBOUND = {
     live: true,
   },
   /**
+   * ⚠ LIVE UNDER THE HEADER'S OWN DISTINCTION, NOT AS AN EXCEPTION TO IT.
+   *
+   * Richard asked for this one by name on 2026-10-22, in the same breath as
+   * asking for the documents themselves: *"I like the idea of created documents
+   * to go to the drive and sending me a text with a link to the doc."*
+   *
+   * It is the `lead_handoff` / `agent_answer` category on every axis. He pressed
+   * a button, he is waiting for the result, and composing takes minutes — so by
+   * the time it lands he has gone to do something else and the text is the only
+   * thing that tells him it is done. The eight held passes above are held
+   * because their CONTENT did not earn an unbidden slot; nothing about them is
+   * reopened by a message somebody asked for.
+   *
+   * ⚠ A PROTECTED PROJECT NEVER REACHES HERE. Containment is enforced in
+   * `composeDocument` before the send, not by this table — a text is delivered
+   * by the time anyone reconsiders (§8).
+   */
+  document_ready: {
+    what: 'the text with a link when a document you asked Ber AI to write is ready',
+    channel: 'text',
+    trigger: 'human',
+    live: true,
+  },
+  /**
    * ⚠ LIVE UNDER THE SAME RULE AS `lead_handoff`, AND CONFIRMED BY RICHARD ON
    * 2026-10-21 AFTER THE HOLD ABOVE WAS ALREADY DECIDED. He was asked directly,
    * because the two instructions landed the same day in two sessions and only

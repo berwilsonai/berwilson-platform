@@ -363,6 +363,12 @@ isOneToOne: false
 isOneToOne: false
       referencedRelation: "email_threads"
       referencedColumns: ["id"]
+    },{
+      foreignKeyName: "commitments_thread_id_fkey"
+      columns: ["thread_id"]
+isOneToOne: false
+      referencedRelation: "email_threads_pending_embed"
+      referencedColumns: ["id"]
     }
                   ]
                 },"company_profile": {
@@ -414,6 +420,32 @@ isOneToOne: false
       columns: ["responsible_party"]
 isOneToOne: false
       referencedRelation: "parties"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"composed_documents": {
+                  Row: {
+                    "completed_at": string | null,"document_id": string | null,"document_kind": string,"document_table": string | null,"drive_file_id": string | null,"drive_file_url": string | null,"error": string | null,"figures": NonNullable<Json>,"id": string,"instructions": string,"opportunity_id": string | null,"project_id": string | null,"requested_at": string,"requested_by": string | null,"sources": NonNullable<Json>,"status": string,"title": string | null
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "completed_at"?: string | null,"document_id"?: string | null,"document_kind": string,"document_table"?: string | null,"drive_file_id"?: string | null,"drive_file_url"?: string | null,"error"?: string | null,"figures"?: NonNullable<Json>,"id"?: string,"instructions": string,"opportunity_id"?: string | null,"project_id"?: string | null,"requested_at"?: string,"requested_by"?: string | null,"sources"?: NonNullable<Json>,"status"?: string,"title"?: string | null
+                  }
+                  Update: {
+                    "completed_at"?: string | null,"document_id"?: string | null,"document_kind"?: string,"document_table"?: string | null,"drive_file_id"?: string | null,"drive_file_url"?: string | null,"error"?: string | null,"figures"?: NonNullable<Json>,"id"?: string,"instructions"?: string,"opportunity_id"?: string | null,"project_id"?: string | null,"requested_at"?: string,"requested_by"?: string | null,"sources"?: NonNullable<Json>,"status"?: string,"title"?: string | null
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "composed_documents_opportunity_id_fkey"
+      columns: ["opportunity_id"]
+isOneToOne: false
+      referencedRelation: "opportunities"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "composed_documents_project_id_fkey"
+      columns: ["project_id"]
+isOneToOne: false
+      referencedRelation: "projects"
       referencedColumns: ["id"]
     }
                   ]
@@ -694,6 +726,12 @@ isOneToOne: false
       columns: ["source_thread_id"]
 isOneToOne: false
       referencedRelation: "email_threads"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "documents_source_thread_id_fkey"
+      columns: ["source_thread_id"]
+isOneToOne: false
+      referencedRelation: "email_threads_pending_embed"
       referencedColumns: ["id"]
     },{
       foreignKeyName: "documents_steel_deal_id_fkey"
@@ -1287,6 +1325,12 @@ isOneToOne: false
 isOneToOne: false
       referencedRelation: "email_threads"
       referencedColumns: ["id"]
+    },{
+      foreignKeyName: "leads_thread_id_fkey"
+      columns: ["thread_id"]
+isOneToOne: false
+      referencedRelation: "email_threads_pending_embed"
+      referencedColumns: ["id"]
     }
                   ]
                 },"mailbox_sync": {
@@ -1482,6 +1526,12 @@ isOneToOne: false
       columns: ["source_thread_id"]
 isOneToOne: false
       referencedRelation: "email_threads"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "opportunity_documents_source_thread_id_fkey"
+      columns: ["source_thread_id"]
+isOneToOne: false
+      referencedRelation: "email_threads_pending_embed"
       referencedColumns: ["id"]
     }
                   ]
@@ -2229,6 +2279,12 @@ isOneToOne: false
 isOneToOne: false
       referencedRelation: "email_threads"
       referencedColumns: ["id"]
+    },{
+      foreignKeyName: "record_identifiers_source_thread_id_fkey"
+      columns: ["source_thread_id"]
+isOneToOne: false
+      referencedRelation: "email_threads_pending_embed"
+      referencedColumns: ["id"]
     }
                   ]
                 },"related_party_transactions": {
@@ -2683,6 +2739,12 @@ isOneToOne: false
 isOneToOne: false
       referencedRelation: "email_threads"
       referencedColumns: ["id"]
+    },{
+      foreignKeyName: "thread_chunks_thread_id_fkey"
+      columns: ["thread_id"]
+isOneToOne: false
+      referencedRelation: "email_threads_pending_embed"
+      referencedColumns: ["id"]
     }
                   ]
                 },"thread_clusters": {
@@ -2735,6 +2797,12 @@ isOneToOne: false
 isOneToOne: false
       referencedRelation: "email_threads"
       referencedColumns: ["id"]
+    },{
+      foreignKeyName: "thread_links_thread_id_fkey"
+      columns: ["thread_id"]
+isOneToOne: false
+      referencedRelation: "email_threads_pending_embed"
+      referencedColumns: ["id"]
     }
                   ]
                 },"updates": {
@@ -2760,7 +2828,21 @@ isOneToOne: false
                 }
           }
           Views: {
-            [_ in never]: never
+            "email_threads_pending_embed": {
+                  Row: {
+                    "attachment_count": number | null,"gmail_thread_id": string | null,"id": string | null,"last_at": string | null,"mailbox": string | null,"pipeline": string | null,"raw_markdown": string | null,"subject": string | null,"summary": Json | null
+                  }
+                  ComputedFields: never
+                  Insert: {
+                           "attachment_count"?: number | null,"gmail_thread_id"?: string | null,"id"?: string | null,"last_at"?: string | null,"mailbox"?: string | null,"pipeline"?: string | null,"raw_markdown"?: string | null,"subject"?: string | null,"summary"?: Json | null
+                         }
+                        Update: {
+                           "attachment_count"?: number | null,"gmail_thread_id"?: string | null,"id"?: string | null,"last_at"?: string | null,"mailbox"?: string | null,"pipeline"?: string | null,"raw_markdown"?: string | null,"subject"?: string | null,"summary"?: Json | null
+                         }
+                        Relationships: [
+                    
+                  ]
+                }
           }
           Functions: {
             "enum_members":
