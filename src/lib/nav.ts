@@ -45,7 +45,15 @@ import {
  * not by how important it is.
  */
 export type NavGroup = 'triage' | 'records' | 'units' | 'intelligence' | 'directory' | 'system'
-export type NavBadge = 'review' | 'attention'
+/**
+ * ⚠ A MEMBER HERE IS A PROMISE THE LAYOUT MUST KEEP. `badgeCounts` in
+ * AppSidebar is typed `Record<NavBadge, number>` precisely so adding a member
+ * makes `tsc` name every surface that has to supply it — the sidebar, the
+ * collapsed rail and the mobile bar. A badge keyed by a string nobody fills
+ * renders a silent zero, which is the §12 shape where a count and the page it
+ * points at drift apart with nothing reporting it.
+ */
+export type NavBadge = 'review' | 'attention' | 'leads'
 
 export interface NavItem {
   href: string
@@ -109,7 +117,16 @@ export const NAV_ITEMS: NavItem[] = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, group: 'triage', keywords: 'home overview alerts urgent overdue', mobilePrimary: true },
   { href: '/projects', label: 'Projects', icon: FolderKanban, group: 'records', keywords: 'pipeline deals', mobilePrimary: true },
   { href: '/opportunities', label: 'Opportunities', icon: Lightbulb, group: 'records', keywords: 'acquisitions partnerships jv mergers investments deals' },
-  { href: '/leads', label: 'Leads', title: 'Inbound Leads', icon: Radar, group: 'records', keywords: 'inbound bids invitations itb ifb rfp rfq solicitations plan room prospects enquiries info inbox scored triage' },
+  // ⚠ THE BADGE IS NOT DECORATION — IT IS WHAT MAKES /leads A DESTINATION.
+  // Until 10-22 inbound leads were ALSO rendered on /decide, so the Decide
+  // badge was the only thing that ever said a bid invitation had arrived.
+  // Richard took them off that page (*"all scrapings from info@berwilson to
+  // land and be worked from within the leads section"*), which left this row a
+  // plain unmarked link to a queue nobody would be told about — and a bid date
+  // is a hard deadline: two of the nine open leads closed the day of the
+  // change. `countLeadsNeedingWork` feeds it, and carries `closingSoon` so the
+  // urgency /decide's deadline ranking used to supply did not go with the rows.
+  { href: '/leads', label: 'Leads', title: 'Inbound Leads', icon: Radar, group: 'records', keywords: 'inbound bids invitations itb ifb rfp rfq solicitations plan room prospects enquiries info inbox scored triage', badge: 'leads' },
   { href: '/investors', label: 'Investors', icon: HandCoins, group: 'records', keywords: 'capital raise fundraising equity spv commitments funding money lp' },
   // ⚠ NO `alsoMatches` FOR `/projects/*/vehicles`. `navItemActive` is per-item
   // with no dedupe, so claiming a path that already belongs to another item

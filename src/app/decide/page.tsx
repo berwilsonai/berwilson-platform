@@ -1,15 +1,14 @@
 import { Gavel } from 'lucide-react'
+import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { getViewer } from '@/lib/auth/viewer'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { leadsDb, type LeadRow } from '@/lib/leads/db'
-import DecideClient, { type DecideItem, type AcceptAction } from '@/components/decide/DecideClient'
+import DecideClient, { type DecideItem } from '@/components/decide/DecideClient'
 import { reviewReasonLabel } from '@/lib/utils/review'
 import { enumLabel, ACTIVITY_TABLE_LABELS } from '@/lib/utils/constants'
 import { buildConfirmBody } from '@/lib/email-ingestion/defaults'
+import { resolveSessionTaskTarget, readExtractionTasks } from '@/lib/email-ingestion/task-target'
 import { parseStagedAttachments } from '@/lib/email-ingestion/attachments'
-import { promoteTargetFor } from '@/lib/utils/leads'
-import { listCategories } from '@/lib/leads/categories'
 import { findMisfiledCompanyDocuments } from '@/lib/documents/unfiled'
 import { findMisfiledRecordDocuments } from '@/lib/documents/misfiled'
 import { pendingProposalGroups } from '@/lib/economics/store'
@@ -59,7 +58,6 @@ export default async function DecidePage() {
 
   const [
     { data: sessions },
-    { data: leadRows },
     { data: reviewRows },
     unfiledDocs,
     misfiledDocs,
@@ -69,20 +67,14 @@ export default async function DecidePage() {
     supabase
       .from('email_intake_sessions')
       .select(
-        'id, label, status, updated_at, predecision, fit_assessment, intake_kind, extraction_result, party_matches, staged_attachments, source_title'
+        // ⚠ `match_candidates` IS LOAD-BEARING AND WAS MISSING. It is what
+        // `resolveSessionTaskTarget` resolves an email session's deal against
+        // (via resolveMergeTarget), so without it every "Task on ⟨deal⟩" offer
+        // was silently refused — see the header of task-target.ts.
+        'id, label, status, updated_at, predecision, match_candidates, fit_assessment, intake_kind, extraction_result, party_matches, staged_attachments, source_title'
       )
       .eq('status', 'pending')
       .order('updated_at', { ascending: false })
-      .limit(200),
-    leadsDb()
-      .from('leads')
-      .select('*')
-      .in('status', ['new', 'reviewing'])
-      // NOT by fit_score. The list is ranked by decideWeight (deadline, then
-      // verdict band, then value) in the client; ordering the fetch by a noisy
-      // score only decided which 200 rows survived the limit. Newest first is
-      // the honest cut.
-      .order('received_at', { ascending: false, nullsFirst: false })
       .limit(200),
     supabase
       .from('review_queue')
@@ -103,80 +95,61 @@ export default async function DecidePage() {
 
   const items: DecideItem[] = []
 
-  // --- Inbound leads: unclaimed bid invitations, best first -----------------
-  // The routing registry, read once for the whole page.
-  const categories = await listCategories()
-  const byKey = new Map(categories.map((c) => [c.key, c]))
-
   /**
-   * What accepting a lead from this queue does, and why it sometimes cannot.
+   * WHICH ROWS CAN OFFER "Task on ⟨deal⟩", resolved once for the whole page.
    *
-   * Three distinct outcomes, and they must not collapse into one: a lane with a
-   * destination is acceptable in place; an unsorted lead needs a human to place
-   * it; and a handoff lane with no address configured is acceptable in
-   * principle but would fail on press. That last one is the case worth naming —
-   * it is the DINO_LEAD_EMAIL failure, where a live-looking button 400'd.
+   * ⚠ ONLY FOR SESSIONS THAT ACTUALLY HOLD FOLLOW-UPS. `resolveSessionTaskTarget`
+   * reaches the portfolio matchers, so asking it about a session with no tasks
+   * is a lookup whose answer could never be used — and a button offered on a
+   * row with nothing behind it is the DINO_LEAD_EMAIL failure again, a live
+   * control that 400s on press.
+   *
+   * ⚠ AND IT IS COMPUTED SERVER-SIDE LIKE EVERY OTHER `accept`. The browser is
+   * never handed enough of the portfolio to choose a record, and a filing
+   * decision that guessed would be indistinguishable from one that knew.
    */
-  function leadAccept(route: string): {
-    action: AcceptAction | null
-    to: string | null
-    blocker: string | null
-  } {
-    const category = byKey.get(route)
-    const action = promoteTargetFor(category?.destination)
-    if (!action) {
-      return {
-        action: null,
-        to: null,
-        blocker: 'Unsorted — open the lead and choose its line of business.',
-      }
-    }
-    if (action === 'handoff' && !category?.handoff_email?.includes('@')) {
-      return {
-        action: null,
-        to: null,
-        blocker: `${category?.label ?? 'This line of business'} has no handoff address — add one in Settings → Lead categories.`,
-      }
-    }
-    return { action, to: action === 'handoff' ? (category?.label ?? null) : null, blocker: null }
-  }
-
-  for (const raw of (leadRows ?? []) as LeadRow[]) {
-    if (raw.fit_recommendation === 'pass') continue
-    items.push({
-      id: raw.id,
-      kind: 'lead',
-      title: raw.title,
-      subtitle: raw.sender_company ?? raw.sender_name ?? null,
-      href: `/leads?lead=${raw.id}`,
-      verdict: raw.fit_recommendation ?? null,
-      score: raw.fit_score,
-      note: raw.fit_summary,
-      // A bid date is the only hard deadline in the whole list. Days-remaining
-      // is derived client-side from a clock captured once at mount, rather than
-      // during a server render — see DecideClient.
-      deadline: raw.bid_due_date,
-      // Already on the row — the select above is `*`. These used to be thrown
-      // away here and left for the reader to find inside `fit_summary`.
-      facts: {
-        value: raw.estimated_value,
-        location: raw.location,
-        sector: raw.sector,
-        ref: raw.solicitation_number,
-        extraDate: raw.site_visit_date
-          ? { label: 'site visit', date: raw.site_visit_date }
-          : raw.rfi_due_date
-            ? { label: 'RFI by', date: raw.rfi_due_date }
-            : null,
-      },
-      // The line of business the triage already chose says which record this
-      // becomes; an unsorted lead offers no Accept rather than guessing between
-      // five destinations.
-      accept: leadAccept(raw.route).action,
-      acceptTo: leadAccept(raw.route).to,
-      blocker: leadAccept(raw.route).blocker,
+  const taskOffers = new Map<string, { name: string; count: number }>()
+  await Promise.all(
+    (sessions ?? []).map(async (s) => {
+      if (readPredecision(s.predecision)?.disposition === 'dismiss') return
+      if (readExtractionTasks(s.extraction_result).length === 0) return
+      const target = await resolveSessionTaskTarget(s).catch(() => null)
+      if (!target?.ok) return
+      taskOffers.set(s.id, { name: target.name, count: target.tasks.length })
     })
-  }
+  )
+
+  /*
+    ⚠ INBOUND LEADS USED TO BE RENDERED HERE AND ARE NOT ANY MORE (10-22).
+    Richard: *"I want to keep info@berwilson leads separate from real active
+    leads and tasks derived from Eric's and my email... The decide section
+    should be super clean with important tasks and current business."*
+
+    Measured that day, the queue held 17 rows and NINE were info@ sub-bid
+    invitations — roofing on a pharmacy remodel, fences on a UDOT box culvert,
+    earthwork at Saratoga Corners — ranked above one staged thread and seven
+    document questions about live deals. 53% of a decision queue was somebody
+    else's plan room.
+
+    ⚠ THE CUT IS `pipeline='lead'`, NOT THE MAILBOX. Eight info@ threads are
+    classified `deal` and four are correctly filed on real records (the West
+    Wendover master plan, the Myton Rail / Duchesne County review request), so
+    excluding the mailbox would have buried live business. The triage already
+    makes the right cut; this page simply stops reading one side of it.
+
+    ⚠ AND THE DEADLINE HAD TO GO SOMEWHERE. A bid date was the only hard
+    deadline in this queue — `decideWeight` still ranks on `deadline` and the
+    header still counts "closing within a week", both now permanently zero
+    here — so /leads gained a sidebar badge carrying `closingSoon` in the same
+    change (src/lib/leads/count.ts). Deleting the rows without that would have
+    traded a cluttered screen for a missed bid: two of the nine closed that day.
+
+    Nothing about the RECORDS changed, because nothing needed to. Measured
+    10-22: 0 of 1,900 lead threads link to a project or opportunity, 0
+    commitments come off one, and no path under src/lib/leads touches `tasks`.
+    The 10-21 router fix (§12 — a corpus with its own triage must not be
+    guessed into the other one's records) already holds that line.
+  */
 
   // --- Staged correspondence, carrying Ber AI's recommendation --------------
   for (const s of sessions ?? []) {
@@ -233,6 +206,16 @@ export default async function DecidePage() {
         // Never accepted from the list. Filing a meeting is choosing which deal
         // it belongs to, which is a judgement with a screen of its own.
         accept: null,
+        // ⚠ BUT ITS FOLLOW-UPS CAN BE TAKEN WITHOUT FILING THE CALL (10-22).
+        // These two are different decisions and conflating them is why a call
+        // with three dated next steps sat in the queue for weeks: filing asks
+        // "which deal does this conversation belong to", which needs the
+        // transcript, while "put those three follow-ups on Steelton's board" is
+        // answerable from the row. Offered only where the ORGANISER's own title
+        // resolves a deal — see task-target.ts.
+        altAccept: taskOffers.has(s.id)
+          ? { action: 'task' as const, name: taskOffers.get(s.id)!.name, count: taskOffers.get(s.id)!.count }
+          : null,
       })
       continue
     }
@@ -255,7 +238,10 @@ export default async function DecidePage() {
       id: s.id,
       kind: 'intake',
       title: s.label || 'Untitled research package',
-      subtitle: pre?.merge_target_name ? `Merge into ${pre.merge_target_name}` : null,
+      // ⚠ "Merge into X" WAS THE DATABASE'S WORD FOR IT. Nothing is merged — the
+      // conversation joins a record that already exists and nothing is
+      // overwritten. The button says the same thing now (see ACCEPT_COPY).
+      subtitle: pre?.merge_target_name ? `Files onto ${pre.merge_target_name}` : null,
       href: `/email-ingestion/${s.id}`,
       verdict: pre?.disposition ?? null,
       score: Number.isFinite(score) ? score : null,
@@ -269,6 +255,12 @@ export default async function DecidePage() {
             ? draft.body.record_kind
             : null,
       acceptName: draft?.recordName ?? pre?.merge_target_name ?? null,
+      // The second answer on a correspondence row: take the follow-ups and
+      // leave the conversation staged. Same resolver as `merge` above, so the
+      // two buttons can never name different deals (task-target.ts).
+      altAccept: taskOffers.has(s.id)
+        ? { action: 'task' as const, name: taskOffers.get(s.id)!.name, count: taskOffers.get(s.id)!.count }
+        : null,
       blocker: draft && !draft.ready ? draft.blocker : null,
     })
   }
@@ -460,9 +452,14 @@ export default async function DecidePage() {
         <div>
           <h1 className="text-2xl">Decide</h1>
           <p className="text-sm text-muted-foreground">
-            Everything waiting on a call from you, in one list — inbound bids, staged
-            correspondence, and anything Ber AI wasn&apos;t sure about. Ranked so the most
-            consequential is first. Nothing here has been created yet.
+            Current business waiting on a call from you — staged correspondence and
+            calls, documents filed on the wrong deal, and anything Ber AI wasn&apos;t sure
+            about. Ranked so the most consequential is first, and nothing here has been
+            created yet. Inbound bid invitations are worked on{' '}
+            <Link href="/leads" className="underline underline-offset-2 hover:text-foreground">
+              Leads
+            </Link>
+            .
           </p>
         </div>
       </div>

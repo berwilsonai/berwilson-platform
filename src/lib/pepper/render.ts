@@ -246,7 +246,7 @@ export function renderNoteInput(n: PepperNote): string {
   if (n.decide.total > 0) {
     parts.push('')
     parts.push(
-      `DECIDE QUEUE: ${n.decide.total} items awaiting a human — ${n.decide.intake} staged from correspondence, ${n.decide.leads} inbound bids, ${n.decide.review} low-confidence extractions` +
+      `DECIDE QUEUE: ${n.decide.total} items awaiting a human — ${n.decide.intake} staged from correspondence, ${n.decide.meetings} recorded meetings to file, ${n.decide.review} low-confidence extractions` +
         // Named only when there are any: a standing "0 recorded meetings" in
         // every morning note is noise that teaches the reader to skip the line.
         (n.decide.meetings > 0

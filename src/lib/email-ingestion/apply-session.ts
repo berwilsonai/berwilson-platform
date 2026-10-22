@@ -26,6 +26,7 @@
  */
 
 import { embedUpdate, embedOpportunityReport, embedOpportunitySnapshot } from '@/lib/ai/embeddings'
+import { createTasksForRecord } from '@/lib/tasks/from-extraction'
 import { linkClusterToRecord } from '@/lib/email-sweep/cluster-link'
 import { publishRecordToDrive } from '@/lib/drive/publish'
 import {
@@ -332,36 +333,17 @@ export async function applySession(
   }
 
   // ── 3. Tasks (assignee resolved by name against team_members) ──────────────
-  const includedTasks = (body.task_actions ?? []).filter((t) => t.include && str(t.title))
-  if (includedTasks.length > 0) {
-    const { data: members } = await supabase
-      .from('team_members')
-      .select('id, name')
-      .eq('active', true)
-    const memberByName = new Map((members ?? []).map((m) => [m.name.toLowerCase(), m.id]))
-
-    for (const t of includedTasks) {
-      const assigneeId = t.assignee ? memberByName.get(t.assignee.toLowerCase()) ?? null : null
-      const row: TablesInsert<'tasks'> = {
-        title: (t.title as string).trim(),
-        what: str(t.what),
-        why: str(t.why),
-        how: str(t.how),
-        assignee_id: assigneeId,
-        project_id: projectId,
-        due_date: str(t.due_date),
-        status: 'open',
-      }
-      if (opportunityId) row.opportunity_id = opportunityId
-
-      const { data, error } = await supabase.from('tasks').insert(row).select('id').single()
-      if (error) {
-        console.error('Create task failed:', error)
-        continue
-      }
-      ids.task_ids.push(data.id)
-    }
-  }
+  // ⚠ THE BODY OF THIS STEP NOW LIVES IN src/lib/tasks/from-extraction.ts, so
+  // the Decide queue's "Task on ⟨deal⟩" button writes tasks through the SAME
+  // code this does. It was lifted, not reimplemented — a second assignee
+  // resolver beside this one is the sibling-module fork §12 warns about.
+  const applied = await createTasksForRecord({
+    supabase,
+    tasks: body.task_actions ?? [],
+    projectId,
+    opportunityId,
+  })
+  ids.task_ids.push(...applied.taskIds)
 
   // ── 4. Provenance note on the record ───────────────────────────────────────
   // The verb matters: a reader opening an established project wants to know

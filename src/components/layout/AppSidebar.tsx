@@ -6,7 +6,7 @@ import { usePathname, useSearchParams } from 'next/navigation'
 import { useState } from 'react'
 import { ChevronLeft, ChevronDown, Settings, Bug, Dot } from 'lucide-react'
 import { canAccessPage, type Role } from '@/lib/auth/permissions'
-import { NAV_ITEMS, NAV_GROUP_ORDER, navItemActive, resolveNavItem } from '@/lib/nav'
+import { NAV_ITEMS, NAV_GROUP_ORDER, navItemActive, resolveNavItem, type NavBadge } from '@/lib/nav'
 import { useStoredState } from '@/hooks/use-stored-state'
 import type { LeadLane } from '@/lib/utils/leads'
 import { openDock } from '@/lib/ui/docks'
@@ -16,6 +16,16 @@ interface AppSidebarProps {
   emptyModules?: string[]
   pendingReviewCount?: number
   attentionCount?: number
+  /**
+   * Inbound leads still needing a human, and how many of those close inside a
+   * week — `countLeadsNeedingWork`.
+   *
+   * ⚠ TWO NUMBERS, AND THE SECOND IS A SUBSET OF THE FIRST, NEVER A SUM (§12).
+   * `open` is the badge's figure; `closingSoon` only changes its COLOUR, so a
+   * bid closing tomorrow reads as urgent without inventing a third quantity on
+   * screen. Leads left /decide on 10-22 and this is where their deadline went.
+   */
+  leadCounts?: { open: number; closingSoon: number }
   /** Open developer notes. Admin-only count; everyone gets the button. */
   openDevNoteCount?: number
   role?: Role
@@ -32,7 +42,7 @@ interface AppSidebarProps {
   leadLanes?: LeadLane[]
 }
 
-export default function AppSidebar({ pendingReviewCount = 0, attentionCount = 0, openDevNoteCount = 0, role = 'admin', emptyModules = [], leadLanes = [] }: AppSidebarProps) {
+export default function AppSidebar({ pendingReviewCount = 0, attentionCount = 0, leadCounts = { open: 0, closingSoon: 0 }, openDevNoteCount = 0, role = 'admin', emptyModules = [], leadLanes = [] }: AppSidebarProps) {
   const pathname = usePathname()
   // The lead queue keeps its chosen division in `?route=`. Next 16 reflects a
   // `history.replaceState` into useSearchParams without a server round trip, so
@@ -71,7 +81,27 @@ export default function AppSidebar({ pendingReviewCount = 0, attentionCount = 0,
   )
   const systemActive = systemItems.some((item) => navItemActive(item, pathname))
 
-  const badgeCounts = { review: pendingReviewCount, attention: attentionCount }
+  // ⚠ TYPED `Record<NavBadge, number>` ON PURPOSE. Inferred, a new badge in
+  // nav.ts would index this object with a key it does not hold and render a
+  // silent zero; declared, `tsc` names this line the moment the union grows.
+  const badgeCounts: Record<NavBadge, number> = {
+    review: pendingReviewCount,
+    attention: attentionCount,
+    leads: leadCounts.open,
+  }
+  /**
+   * Which badges are URGENT rather than merely non-zero.
+   *
+   * Attention is always urgent by definition. Leads are urgent only when a bid
+   * actually closes inside the week — otherwise an inbound queue would wear the
+   * same red as an overdue milestone and, per §12, when every badge is red the
+   * colour has stopped signifying.
+   */
+  const badgeUrgent: Record<NavBadge, boolean> = {
+    review: false,
+    attention: true,
+    leads: leadCounts.closingSoon > 0,
+  }
 
   return (
     <aside
@@ -164,7 +194,7 @@ export default function AppSidebar({ pendingReviewCount = 0, attentionCount = 0,
                         <span className="truncate flex-1">{label}</span>
                         {showBadge && (
                           <span className={`ml-auto text-xs font-mono font-semibold px-1.5 py-0.5 rounded-full leading-none ${
-                            badge === 'attention' ? 'bg-destructive text-white' : 'bg-amber-400 text-sidebar'
+                            badge && badgeUrgent[badge] ? 'bg-destructive text-white' : 'bg-amber-400 text-sidebar'
                           }`}>
                             {badgeCount > 999 ? '999+' : badgeCount}
                           </span>

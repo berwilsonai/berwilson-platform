@@ -4,6 +4,7 @@ import "./globals.css"
 import { headers } from "next/headers"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { countDecideItems } from '@/lib/decide/count'
+import { countLeadsNeedingWork } from '@/lib/leads/count'
 import { countAttention } from '@/lib/attention'
 import ShortcutsOverlay from '@/components/layout/ShortcutsOverlay'
 import { getViewer } from "@/lib/auth/viewer"
@@ -102,6 +103,11 @@ export default async function RootLayout({
   // surfaces, so skip the queries for everyone else.
   let pendingReviewCount = 0
   let attentionCount = 0
+  // ⚠ ZERO IS ALSO WHAT A FAILED READ LEAVES BEHIND, and that is the right
+  // default for a badge: no mark at all, rather than a number nobody can
+  // reconcile with the page. `countLeadsNeedingWork` throws rather than
+  // returning zeros for exactly this reason — the decision belongs here.
+  let leadCounts = { open: 0, closingSoon: 0 }
   // Modules with nothing in them are hidden rather than shown as dead ends.
   const emptyModules: string[] = []
   // Open bug reports / feature requests. Admin-only, like the other sidebar
@@ -114,7 +120,7 @@ export default async function RootLayout({
   let leadLanes: LeadLane[] = []
   if (showShell && isAdmin) {
     const adminClient = createAdminClient()
-    const [decideCount, attention, { count: dinoRows }, devNotes, categories] = await Promise.all([
+    const [decideCount, attention, leads, { count: dinoRows }, devNotes, categories] = await Promise.all([
       // The badge sits on Decide, so it counts what Decide holds — inbound
       // bids, staged correspondence AND flagged extractions, not the review
       // queue alone (which was a third of the page it pointed at).
@@ -123,6 +129,10 @@ export default async function RootLayout({
       // three ad-hoc counts inlined here and they disagreed on screen — see
       // countAttention.
       countAttention(),
+      // ⚠ THE BADGE THAT REPLACED THE DECIDE QUEUE'S LEAD ROWS (10-22). One
+      // small query over the undecided leads — measured at 9 rows — so this is
+      // not a cost worth caching the way the document lanes are.
+      countLeadsNeedingWork().catch(() => ({ open: 0, closingSoon: 0 })),
       adminClient.from('dino_revenue').select('id', { count: 'exact', head: true }),
       countOpenDevNotes(),
       // Cached for 60s inside listCategories, so this is not a query per render.
@@ -130,6 +140,7 @@ export default async function RootLayout({
     ])
     pendingReviewCount = decideCount
     attentionCount = attention
+    leadCounts = leads
     if ((dinoRows ?? 0) === 0) emptyModules.push('dino')
     openDevNoteCount = devNotes
     // Handoff lanes only: the other destinations (project, opportunity, steel)
@@ -155,7 +166,7 @@ export default async function RootLayout({
         />
         {showShell ? (
           <div className="flex h-full">
-            <AppSidebar pendingReviewCount={pendingReviewCount} attentionCount={attentionCount} openDevNoteCount={openDevNoteCount} role={role} emptyModules={emptyModules} leadLanes={leadLanes} />
+            <AppSidebar pendingReviewCount={pendingReviewCount} attentionCount={attentionCount} leadCounts={leadCounts} openDevNoteCount={openDevNoteCount} role={role} emptyModules={emptyModules} leadLanes={leadLanes} />
             <div className="flex flex-1 flex-col min-w-0">
               <AppHeader email={viewer?.email ?? ""} role={role} />
               <main className="flex-1 overflow-y-auto overflow-x-hidden p-5 sm:p-6 pb-24 md:pb-6 scrollbar-thin animate-fade-in-up">

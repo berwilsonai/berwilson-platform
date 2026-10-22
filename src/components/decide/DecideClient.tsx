@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { Radar, Inbox, ClipboardCheck, FileText, ArrowRight, X, Loader2, Check, CheckCheck, Calculator, HelpCircle } from 'lucide-react'
+import { Inbox, ClipboardCheck, FileText, ArrowRight, X, Loader2, Check, CheckCheck, Calculator, HelpCircle, ListChecks, type LucideIcon } from 'lucide-react'
 import { Panel } from '@/components/ui/card'
 import { Kbd } from '@/components/ui/kbd'
 import EmptyState from '@/components/shared/EmptyState'
@@ -14,7 +14,6 @@ import { SECTOR_LABELS } from '@/lib/utils/sectors'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 
 export type DecideKind =
-  | 'lead'
   | 'intake'
   | 'review'
   | 'document'
@@ -22,6 +21,19 @@ export type DecideKind =
   | 'economics'
   | 'proposal'
 
+/**
+ * ⚠ NO KIND CURRENTLY FILLS THIS, AND THAT IS WHY IT IS DOCUMENTED RATHER THAN
+ * DELETED. `facts` and `deadline` existed for the lead rows, which left this
+ * page on 10-22; every remaining producer passes `deadline: null` and none
+ * passes `facts`. So the deadline chip, the header's "N closing within a week"
+ * and `decideWeight`'s deadline band are all inert here today.
+ *
+ * Kept because they degrade to nothing rather than misreporting, and because
+ * `decideWeight` is shared with `summarizeDecideQueue`. ⚠ But do NOT read the
+ * code as evidence that this page ranks on deadlines — it cannot until
+ * something fills these again. §12: a comment claiming a control that is not
+ * there is worse than no comment, and this is the mirror of it.
+ */
 export interface DecideFacts {
   /** Estimated contract value in dollars. */
   value?: number | null
@@ -74,15 +86,27 @@ export interface DecideItem {
    * record to decide for itself.
    */
   accept: AcceptAction | null
-  /** The record's name, so the confirmation can say what it will create. */
+  /**
+   * The record's name — read by the confirmation AND, since 10-22, by the
+   * button itself for the actions whose destination is the decision ("File
+   * onto Steelton", "Task on Steelton"). See acceptVerb.
+   */
   acceptName?: string | null
   /**
-   * Who a `handoff` goes to, in words — the lane's label ("Dino Plumbing").
+   * A SECOND answer this row can give, beside its primary Accept.
    *
-   * Server-supplied: the address itself never reaches the page, only the name
-   * of the team it belongs to.
+   * ⚠ ONE ACCEPT PER ROW WAS THE LIMIT THAT HID THE REAL ANSWER. A staged
+   * conversation could be turned into a whole record, filed onto one, or
+   * dismissed — and "put its follow-ups on Steelton and leave the conversation
+   * alone" was none of those, so it meant leaving the page. A recorded meeting
+   * was worse: `accept: null`, so the row offered nothing at all but a link.
+   *
+   * Rendered quieter than the primary and NEVER tickable for a batch: the whole
+   * point is that it is the second-choice answer, and a batch that mixed
+   * "create these" with "task these" would be one button doing two things to
+   * rows the reader selected for one of them.
    */
-  acceptTo?: string | null
+  altAccept?: { action: AcceptAction; name: string; count: number } | null
   /**
    * Where a `file` accept sends the document.
    *
@@ -126,20 +150,26 @@ export interface DecideItem {
  * The click IS the human review the invariant requires; what changed is where
  * the click lives. The review screens remain for when you want to edit first.
  */
-/**
- * `handoff` was `forward`, renamed when Dino became two lanes.
- *
- * The word matters at the reader: "Send to Dino" was accurate while Dino was
- * the only destination outside the platform, and became a lie the moment a
- * flooring lead could take the same exit. What the button now says is the lane's
- * own name, carried on the row as `acceptTo`.
- */
 export type AcceptAction =
   | 'project'
   | 'opportunity'
   | 'merge'
-  | 'steel'
-  | 'handoff'
+  /**
+   * Make it a task on a deal we already have, and create nothing else.
+   *
+   * ⚠ THE MISSING MIDDLE OF THIS QUEUE (10-22). A staged call or thread offered
+   * three answers — create a whole record, merge the conversation onto one, or
+   * dismiss it — and the commonest real answer was none of them: *"that is not
+   * a project, that is a task on Steelton."* Reaching it meant leaving the page
+   * for /tasks and retyping what the extraction already held, which is the same
+   * cost that got 5 sessions confirmed out of 136 before Accept existed at all.
+   *
+   * Legal under §11: the invariant is that mail must not become a record
+   * WITHOUT human review, and the press IS the review. Nothing is created
+   * unattended — the automatic path stays the one narrow `side='us'`
+   * all-internal commitment exception, which is latched elsewhere.
+   */
+  | 'task'
   | 'approve'
   | 'file'
   | 'setaside'
@@ -148,12 +178,7 @@ export type AcceptAction =
 /** An item with its days-to-deadline resolved against a fixed clock. */
 type Dated = DecideItem & { daysLeft: number | null }
 
-const KIND_META: Record<DecideKind, { label: string; icon: typeof Radar; tone: string }> = {
-  lead: {
-    label: 'Inbound bid',
-    icon: Radar,
-    tone: 'bg-sky-50 text-sky-700 ring-sky-200 dark:bg-sky-950/40 dark:text-sky-300 dark:ring-sky-900',
-  },
+const KIND_META: Record<DecideKind, { label: string; icon: LucideIcon; tone: string }> = {
   intake: {
     label: 'Correspondence',
     icon: Inbox,
@@ -273,7 +298,6 @@ const DISMISS: Partial<
     { url: (id: string) => string; body: (item: DecideItem) => unknown; verb: string }
   >
 > = {
-  lead: { url: (id) => `/api/leads/${id}`, body: () => ({ status: 'ignored' }), verb: 'Lead set aside' },
   intake: {
     url: (id) => `/api/email-ingestion/sessions/${id}`,
     body: () => ({}),
@@ -365,7 +389,10 @@ async function getJson(url: string): Promise<unknown> {
  * something aside is reversible and creates nothing, while accepting writes a
  * record, contacts, tasks and documents, and publishes to Drive.
  */
-const ACCEPT_COPY: Record<AcceptAction, { verb: string; ask: (n: string) => string; done: string }> = {
+const ACCEPT_COPY: Record<
+  AcceptAction,
+  { verb: string | ((n: string | null) => string); ask: (n: string) => string; done: string }
+> = {
   project: {
     verb: 'Create project',
     ask: (n) => `Create the project “${n}” from this correspondence, with its people, tasks and attachments?`,
@@ -376,20 +403,30 @@ const ACCEPT_COPY: Record<AcceptAction, { verb: string; ask: (n: string) => stri
     ask: (n) => `Create the opportunity “${n}” from this correspondence, with its people, tasks and attachments?`,
     done: 'Opportunity created',
   },
+  /**
+   * ⚠ THIS BUTTON SAID "MERGE" UNTIL 10-22, WHICH IS A DATABASE WORD FOR
+   * FILING A CONVERSATION ONTO A DEAL. Nothing is merged — no two records are
+   * combined and nothing is overwritten; the thread and its attachments join a
+   * record that already exists. The verb now names the deal, so the row reads
+   * as the sentence it is: "File onto Steelton". §12 — never print a stored
+   * token at a reader, and the same applies to the vocabulary of the write.
+   *
+   * `verb` is a function here where the others are strings, because the deal's
+   * name is the informative half; with no name it degrades to the old wording
+   * rather than rendering "File onto undefined".
+   */
   merge: {
-    verb: 'Merge',
+    verb: (n) => (n ? `File onto ${n}` : 'File onto the record'),
     ask: (n) => `File this correspondence onto “${n}”? Nothing new is created — the conversation and its attachments join the existing record.`,
     done: 'Filed onto the existing record',
   },
-  steel: {
-    verb: 'Add to Steel CRM',
-    ask: (n) => `Create the steel deal “${n}” from this bid invitation?`,
-    done: 'Steel deal created',
-  },
-  handoff: {
-    verb: 'Hand off',
-    ask: (n) => `Send “${n}” by email, with its attachments? The team that does this work has no access here, so this leaves the platform.`,
-    done: 'Handed off',
+  task: {
+    verb: (n) => (n ? `Task on ${n}` : 'Make it a task'),
+    ask: (n) =>
+      n
+        ? `Add this as a task on “${n}”? The follow-up and its context are written to the task board — no project, opportunity or contact is created.`
+        : `Add this as an unassigned task? It will sit on the board with no deal attached until somebody files it.`,
+    done: 'Task created',
   },
   approve: {
     verb: 'Approve',
@@ -419,17 +456,22 @@ const ACCEPT_COPY: Record<AcceptAction, { verb: string; ask: (n: string) => stri
 /**
  * The button's words.
  *
- * A handoff names its destination — "Hand off to Dino Plumbing" — because the
- * row above it may hand off to somebody else entirely, and "Hand off" alone
- * would make three different exits look like one.
+ * ⚠ IT NAMES THE RECORD WHERE THE RECORD IS THE POINT. "Merge" and "Task" both
+ * describe a mechanism; "File onto Steelton" and "Task on Steelton" describe
+ * what will have happened, and the reader is choosing between deals, not
+ * between verbs. Two rows that both said "Merge" were the same button twice.
+ *
+ * The lead verbs this used to special-case ("Hand off to Dino Plumbing") are
+ * gone with the lead rows — a handoff is pressed on /leads now, which is the
+ * only place a lead lives (10-22).
  */
-function acceptVerb(item: { accept: AcceptAction | null; acceptTo?: string | null }): string {
+function acceptVerb(item: { accept: AcceptAction | null; acceptName?: string | null }): string {
   // Nullable rather than narrowed at each call site: every caller already sits
   // behind an `item.accept &&` guard, but the guard is on a property of an
   // object and TypeScript cannot narrow the object from it.
   if (!item.accept) return 'Accept'
-  const base = ACCEPT_COPY[item.accept].verb
-  return item.accept === 'handoff' && item.acceptTo ? `${base} to ${item.acceptTo}` : base
+  const verb = ACCEPT_COPY[item.accept].verb
+  return typeof verb === 'function' ? verb(item.acceptName ?? null) : verb
 }
 
 export default function DecideClient({ items }: { items: DecideItem[] }) {
@@ -440,7 +482,20 @@ export default function DecideClient({ items }: { items: DecideItem[] }) {
   // one nobody clears.
   const [dismissed, setDismissed] = useState<Set<string>>(new Set())
   const [pending, setPending] = useState<string | null>(null)
-  const [asking, setAsking] = useState<Dated | null>(null)
+  /**
+   * The row being confirmed, AND which of its answers.
+   *
+   * ⚠ IT USED TO BE THE ROW ALONE, which was fine while a row had exactly one
+   * Accept. Now a staged conversation can become a record OR a task on a deal,
+   * so the dialog has to know which was pressed — a confirm that read the
+   * primary action off the row would have asked about creating a project and
+   * then created a task.
+   */
+  const [asking, setAsking] = useState<{
+    item: Dated
+    action: AcceptAction
+    name: string | null
+  } | null>(null)
   // Rows ticked for a batch accept, keyed `kind:id` like everything else here.
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [askingBatch, setAskingBatch] = useState(false)
@@ -655,9 +710,17 @@ export default function DecideClient({ items }: { items: DecideItem[] }) {
    * The write behind an accept. Throws on failure so both the single-row path
    * and the batch can decide for themselves what to say about it.
    */
-  async function performAccept(item: Dated) {
-    if (!item.accept) return
-    if (item.kind === 'intake' && item.accept === 'merge') {
+  async function performAccept(item: Dated, action: AcceptAction | null = item.accept) {
+    if (!action) return
+    // ⚠ THE TASK BRANCH COMES FIRST AND IS NOT KIND-SPECIFIC. Both an email
+    // package and a recorded meeting reach it, and the route resolves the deal
+    // from the session the same way the row's primary action did — see
+    // task-target.ts. Branching on `item.kind` here would have needed two
+    // arms for one write (§12: every source that can reach a switch needs an
+    // arm, not just the one being added today).
+    if (action === 'task') {
+      await post('/api/email-ingestion/tasks', { session_id: item.id })
+    } else if (item.kind === 'intake' && action === 'merge') {
       await post('/api/email-ingestion/merge', { session_id: item.id })
     } else if (item.kind === 'intake') {
       // Fetched rather than reconstructed here: the draft is built from the
@@ -665,14 +728,8 @@ export default function DecideClient({ items }: { items: DecideItem[] }) {
       // two paths cannot produce different records.
       const draft = await getJson(`/api/email-ingestion/sessions/${item.id}`)
       await post('/api/email-ingestion/confirm', (draft as { body: unknown }).body)
-    } else if (item.kind === 'lead') {
-      if (item.accept === 'handoff') {
-        await post(`/api/leads/${item.id}/handoff`, {})
-      } else {
-        await post(`/api/leads/${item.id}/promote`, { target: item.accept })
-      }
     } else if (item.kind === 'document' || item.kind === 'misfiled') {
-      if (item.accept === 'setaside') {
+      if (action === 'setaside') {
         await post(`/api/documents/${item.id}/refile`, {
           exclude: true,
           reason: item.note,
@@ -700,15 +757,15 @@ export default function DecideClient({ items }: { items: DecideItem[] }) {
    * but the toast names what was created, because a row that simply disappears
    * gives no evidence that a record now exists somewhere.
    */
-  async function accept(item: Dated) {
-    if (!item.accept) return
+  async function accept(item: Dated, action: AcceptAction | null = item.accept, name: string | null = null) {
+    if (!action) return
     const key = `${item.kind}:${item.id}`
-    const copy = ACCEPT_COPY[item.accept]
+    const copy = ACCEPT_COPY[action]
     setPending(key)
     try {
-      await performAccept(item)
+      await performAccept(item, action)
       setDismissed((prev) => new Set(prev).add(key))
-      toast.success(copy.done, { description: item.acceptName ?? item.title })
+      toast.success(copy.done, { description: name ?? item.acceptName ?? item.title })
       scheduleRefresh()
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Could not accept that')
@@ -826,7 +883,12 @@ export default function DecideClient({ items }: { items: DecideItem[] }) {
           e.preventDefault()
           // Through the confirmation, never straight to the write: a mistyped
           // key must not create a project.
-          setAsking(cursorItem)
+          //
+          // ⚠ ALWAYS THE PRIMARY ACTION. The alternate is deliberately not
+          // bound to a key — one keystroke that does one of two different
+          // things depending on the row is how a task lands where a record was
+          // meant, and the shortcut overlay could not state it honestly.
+          setAsking({ item: cursorItem, action: cursorItem.accept, name: cursorItem.acceptName ?? null })
           break
         case 'Enter':
           if (!cursorItem) return
@@ -861,7 +923,7 @@ export default function DecideClient({ items }: { items: DecideItem[] }) {
         <EmptyState
           icon={ClipboardCheck}
           title="Nothing waiting on you"
-          description="Every inbound bid, staged thread and flagged extraction has been dealt with."
+          description="Every staged conversation, document question and flagged extraction has been dealt with. Inbound bid invitations live on Leads."
         />
       </Panel>
     )
@@ -1100,7 +1162,7 @@ export default function DecideClient({ items }: { items: DecideItem[] }) {
                 {item.accept ? (
                   <button
                     type="button"
-                    onClick={() => setAsking(item)}
+                    onClick={() => setAsking({ item, action: item.accept!, name: item.acceptName ?? null })}
                     disabled={pending === `${item.kind}:${item.id}`}
                     title={acceptVerb(item)}
                     className="inline-flex items-center gap-1 h-[2.75rem] sm:h-7 px-3 sm:px-2 rounded-md text-xs font-medium bg-primary/10 text-primary hover:bg-primary/20 disabled:opacity-40 transition-colors"
@@ -1126,6 +1188,37 @@ export default function DecideClient({ items }: { items: DecideItem[] }) {
                       {item.blocker}
                     </span>
                   )
+                )}
+                {/*
+                  The row's SECOND answer, where it has one.
+                  ⚠ QUIETER THAN THE PRIMARY AND NOT A TICK BOX. It is the
+                  alternative, not a competing recommendation, and a batch that
+                  mixed the two would do one thing to rows selected for the
+                  other. Rendered AFTER the primary so the recommended answer is
+                  the one nearest the reader's thumb.
+                  ⚠ ALWAYS VISIBLE, never hover-only: §12 — a control that only
+                  appears on hover does not exist on a phone.
+                */}
+                {item.altAccept && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setAsking({
+                        item,
+                        action: item.altAccept!.action,
+                        name: item.altAccept!.name,
+                      })
+                    }
+                    disabled={pending === `${item.kind}:${item.id}`}
+                    title={`${acceptVerb({ accept: item.altAccept.action, acceptName: item.altAccept.name })} — ${item.altAccept.count} follow-up${item.altAccept.count === 1 ? '' : 's'}, and nothing else is created`}
+                    className="inline-flex items-center gap-1 h-[2.75rem] sm:h-7 px-3 sm:px-2 rounded-md text-xs font-medium text-muted-foreground ring-1 ring-inset ring-border hover:bg-accent hover:text-foreground disabled:opacity-40 transition-colors"
+                  >
+                    <ListChecks size={13} />
+                    <span className="hidden sm:inline">
+                      {acceptVerb({ accept: item.altAccept.action, acceptName: item.altAccept.name })}
+                      <span className="ml-1 tnum opacity-70">{item.altAccept.count}</span>
+                    </span>
+                  </button>
                 )}
                 <ArrowRight
                   size={13}
@@ -1168,14 +1261,14 @@ export default function DecideClient({ items }: { items: DecideItem[] }) {
         />
       )}
 
-      {asking && asking.accept && (
+      {asking && (
         <ConfirmDialog
           open
           onOpenChange={(o) => !o && setAsking(null)}
-          title={acceptVerb(asking)}
-          description={ACCEPT_COPY[asking.accept].ask(asking.acceptName ?? asking.title)}
-          confirmLabel={acceptVerb(asking)}
-          onConfirm={() => accept(asking)}
+          title={acceptVerb({ accept: asking.action, acceptName: asking.name })}
+          description={ACCEPT_COPY[asking.action].ask(asking.name ?? asking.item.title)}
+          confirmLabel={acceptVerb({ accept: asking.action, acceptName: asking.name })}
+          onConfirm={() => accept(asking.item, asking.action, asking.name)}
         />
       )}
     </div>

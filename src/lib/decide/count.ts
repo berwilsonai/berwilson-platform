@@ -10,10 +10,26 @@
  * Kept beside the page's filters rather than inside it because the two ask
  * different questions of the same rows (a count versus the rows themselves),
  * and the only thing that must not drift is WHICH rows count.
+ *
+ * ⚠ INBOUND LEADS ARE NO LONGER ONE OF THEM (10-22). They were counted here and
+ * in `summarizeDecideQueue` until Richard took them off the page entirely —
+ * *"the decide section should be super clean with important tasks and current
+ * business"* — and 9 of the queue's 17 rows that day were info@ sub-bid
+ * invitations. Both counters, the brief's sentence and the digest's block came
+ * out in the SAME commit, because this file is where a badge first came to
+ * disagree with the page it points at: six readers share these two functions
+ * (sidebar, dashboard KPI, daily brief, digest, Pepper, attention), and one
+ * left behind would report a queue size nobody could reconcile with the screen.
+ *
+ * Leads have their own count now — `countLeadsNeedingWork` in
+ * src/lib/leads/count.ts, feeding a badge on /leads — and it carries the
+ * `closingSoon` figure that `decideWeight`'s deadline band used to provide here.
  */
 import { createAdminClient } from '@/lib/supabase/admin'
-import { leadsDb } from '@/lib/leads/db'
-import { decideWeight, daysUntil, meetingBoost } from '@/lib/decide/rank'
+// ⚠ `daysUntil` WENT WITH THE LEAD ROWS. It was imported here only to turn a
+// bid date into "due in 3d" for the brief's prose, and nothing left in this
+// queue carries a deadline (see the note on DecideFacts in DecideClient).
+import { decideWeight, meetingBoost } from '@/lib/decide/rank'
 import {
   countMisfiledCompanyDocuments,
   findMisfiledCompanyDocuments,
@@ -64,7 +80,7 @@ async function documentCounts(): Promise<{ unfiled: number; misfiled: number }> 
 export async function countDecideItems(): Promise<number> {
   const supabase = createAdminClient()
   try {
-    const [intake, leads, review, documents, economics, fieldQuestions] = await Promise.all([
+    const [intake, review, documents, economics, fieldQuestions] = await Promise.all([
       // ⚠ NOT A head:true COUNT, AND THE REASON IS THE BUG THIS BADGE EXISTS TO
       // AVOID. Both the page (decide/page.tsx) and the brief
       // (summarizeDecideQueue below) skip a session whose predecision is
@@ -85,15 +101,6 @@ export async function countDecideItems(): Promise<number> {
         .select('id, predecision')
         .eq('status', 'pending')
         .limit(1000),
-      leadsDb()
-        .from('leads')
-        .select('id', { count: 'exact', head: true })
-        .in('status', ['new', 'reviewing'])
-        // The page drops leads the assessor said to pass on. `.neq()` would
-        // ALSO drop every unscored lead, because PostgREST treats NULL as not
-        // matching — and an untriaged bid invitation is exactly the thing that
-        // most needs deciding.
-        .or('fit_recommendation.is.null,fit_recommendation.neq.pass'),
       supabase
         .from('review_queue')
         .select('id', { count: 'exact', head: true })
@@ -130,7 +137,6 @@ export async function countDecideItems(): Promise<number> {
     ).length
     return (
       intakeCount +
-      (leads.count ?? 0) +
       (review.count ?? 0) +
       documents.unfiled +
       documents.misfiled +
@@ -147,7 +153,6 @@ export async function countDecideItems(): Promise<number> {
 
 export interface DecideSummary {
   total: number
-  leads: number
   intake: number
   /**
    * Recorded meetings staged and not yet filed onto a deal.
@@ -203,22 +208,16 @@ export interface DecideSummary {
 export async function summarizeDecideQueue(now = Date.now()): Promise<DecideSummary> {
   const supabase = createAdminClient()
   const empty: DecideSummary = {
-    total: 0, leads: 0, intake: 0, meetings: 0, review: 0, documents: 0, misfiled: 0,
+    total: 0, intake: 0, meetings: 0, review: 0, documents: 0, misfiled: 0,
     economics: 0, fieldQuestions: 0, top: [],
   }
   try {
-    const [intake, leads, review, unfiledDocs, misfiledCount, economicsGroups, fieldQuestions] =
+    const [intake, review, unfiledDocs, misfiledCount, economicsGroups, fieldQuestions] =
       await Promise.all([
       supabase
         .from('email_intake_sessions')
         .select('id, label, predecision, fit_assessment, intake_kind, extraction_result, source_title')
         .eq('status', 'pending')
-        .limit(200),
-      leadsDb()
-        .from('leads')
-        .select('id, title, sender_company, bid_due_date, fit_score, fit_recommendation')
-        .in('status', ['new', 'reviewing'])
-        .or('fit_recommendation.is.null,fit_recommendation.neq.pass')
         .limit(200),
       supabase
         .from('review_queue')
@@ -242,24 +241,6 @@ export async function summarizeDecideQueue(now = Date.now()): Promise<DecideSumm
       score: number | null
       boost?: number
     }> = []
-
-    for (const raw of (leads.data ?? []) as Array<Record<string, unknown>>) {
-      const days = daysUntil((raw.bid_due_date as string) ?? null, now)
-      const when =
-        days === null
-          ? ''
-          : days < 0
-            ? ` — bid closed ${Math.abs(days)}d ago`
-            : days === 0
-              ? ' — bid due today'
-              : ` — bid due in ${days}d`
-      rows.push({
-        line: `Inbound bid: ${String(raw.title ?? 'Untitled')}${raw.sender_company ? ` (${String(raw.sender_company)})` : ''}${when}`,
-        daysLeft: days,
-        verdict: (raw.fit_recommendation as string) ?? null,
-        score: typeof raw.fit_score === 'number' ? raw.fit_score : null,
-      })
-    }
 
     for (const s of intake.data ?? []) {
       const pre = (s.predecision ?? {}) as Record<string, unknown>
@@ -341,7 +322,6 @@ export async function summarizeDecideQueue(now = Date.now()): Promise<DecideSumm
     // different sizes for one queue (§12 — one quantity, one definition).
     const meetingCount = sessions.filter((s) => s.intake_kind === 'meeting').length
     const intakeCount = sessions.length - meetingCount
-    const leadCount = (leads.data ?? []).length
     const reviewCount = review.count ?? 0
     const documentCount = unfiledDocs.length
     const misfiledDocCount = misfiledCount
@@ -351,13 +331,11 @@ export async function summarizeDecideQueue(now = Date.now()): Promise<DecideSumm
       total:
         intakeCount +
         meetingCount +
-        leadCount +
         reviewCount +
         documentCount +
         misfiledDocCount +
         economicsCount +
         fieldQuestionCount,
-      leads: leadCount,
       intake: intakeCount,
       meetings: meetingCount,
       review: reviewCount,

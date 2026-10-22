@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button'
 import EmptyState from '@/components/shared/EmptyState'
 import LeadCard from './LeadCard'
 import LeadDetailSheet, { type AttachOption } from './LeadDetailSheet'
-import { categoryLookup, type LeadCategoryView } from '@/lib/utils/leads'
+import { categoryLookup, leadNeedsWork, leadClosingSoon, type LeadCategoryView } from '@/lib/utils/leads'
 import { formatValue } from '@/lib/utils/constants'
 import type { LeadRow, LeadNote } from '@/lib/leads/db'
 
@@ -68,7 +68,23 @@ export default function LeadsClient({
   const [leads, setLeads] = useState(initialLeads)
   const [route, setRoute] = useState<RouteFilter>(initialRoute)
   const [query, setQuery] = useState('')
-  const [showFiltered, setShowFiltered] = useState(false)
+  /**
+   * Which slice of the queue is on screen.
+   *
+   * ⚠ `working` IS THE DEFAULT AND THAT IS THE WHOLE POINT OF THIS SCREEN NOW.
+   * Until 10-22 the default was every lead that was not spam — measured that
+   * day, 600 rows, of which 9 actually needed a human and the other ~591 were
+   * `ignored` or `expired`, i.e. decided history. Leads moved off /decide in
+   * the same change and gained a sidebar badge counting the 9, so a default
+   * view of 600 would have put a badge reading 9 above a list of 600 — the
+   * §12 failure where one screen carried three numbers for one quantity (1,
+   * 99+ and 197) and the reader stopped trusting all three.
+   *
+   * `all` is still one click away, because a decided lead is evidence and the
+   * triage has to be auditable — that was the documented reason (09-15) for
+   * keeping ignored rows rather than deleting them.
+   */
+  const [view, setView] = useState<'working' | 'all' | 'filtered'>('working')
   // Seeded from the URL so a link in the digest email lands on the lead itself
   // rather than on the queue, leaving the reader to find it again.
   const deepLinked = initialOpenLeadId
@@ -98,21 +114,35 @@ export default function LeadsClient({
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase()
     return leads.filter((l) => {
-      if (showFiltered ? l.status !== 'spam' : l.status === 'spam') return false
+      // Spam is its own view and never leaks into the other two.
+      if (view === 'filtered' ? l.status !== 'spam' : l.status === 'spam') return false
+      if (view === 'working' && !leadNeedsWork(l)) return false
       if (route !== 'all' && l.route !== route) return false
       if (!q) return true
       return [l.title, l.sender_company, l.sender_name, l.summary, l.location]
         .filter(Boolean)
         .some((v) => (v as string).toLowerCase().includes(q))
     })
-  }, [leads, route, query, showFiltered])
+  }, [leads, route, query, view])
 
+  /**
+   * Per-division counts for the tab row.
+   *
+   * ⚠ COUNTED OVER THE SLICE CURRENTLY SHOWN, not over everything-but-spam. A
+   * tab row whose numbers add up to 600 above a list of 9 is the same
+   * one-quantity-two-numbers bug as the stat band below, one control over —
+   * and §12 is explicit that the totals above a filtered list are part of the
+   * list. The `route` filter is deliberately NOT applied here, or every tab
+   * but the selected one would read zero.
+   */
   const counts = useMemo(() => {
-    const open = leads.filter((l) => l.status !== 'spam')
-    const map: Record<string, number> = { all: open.length }
-    for (const r of tabs) map[r] = open.filter((l) => l.route === r).length
+    const slice = leads.filter((l) =>
+      view === 'filtered' ? l.status === 'spam' : view === 'working' ? leadNeedsWork(l) : l.status !== 'spam'
+    )
+    const map: Record<string, number> = { all: slice.length }
+    for (const r of tabs) map[r] = slice.filter((l) => l.route === r).length
     return map
-  }, [leads, tabs])
+  }, [leads, tabs, view])
 
   // Captured once at mount rather than read during render — "now" moving under
   // a memo is exactly the impurity the React Compiler rejects.
@@ -149,16 +179,31 @@ export default function LeadsClient({
 
   const [mountedAt] = useState(() => Date.now())
 
+  /**
+   * The band above the queue — all four tiles over the leads that still NEED
+   * WORKING, which is the quantity the sidebar badge shows.
+   *
+   * ⚠ IT USED TO READ `status !== 'spam'` AND THAT WAS TWO BUGS. First, it
+   * counted ~600 leads as "Open" when 9 were undecided, so the figure named a
+   * mailbox rather than a workload. Second — and worse — "Closing ≤7d" was
+   * computed over that same set, so it counted bid dates on leads somebody had
+   * already IGNORED or let EXPIRE: an urgency figure made of decisions already
+   * taken, which is noise that argues with the facts (§12).
+   *
+   * `leadNeedsWork` and `leadClosingSoon` are imported, not written here. They
+   * are the same two functions `countLeadsNeedingWork` selects with for the
+   * badge, so the number in the sidebar and the number on this screen cannot
+   * come to disagree — which is precisely how /decide's badge once read 68
+   * against a page holding 238.
+   */
   const stats = useMemo(() => {
-    const open = leads.filter((l) => l.status !== 'spam')
-    const value = open.reduce((sum, l) => sum + (l.estimated_value ?? 0), 0)
-    const pursue = open.filter((l) => l.fit_recommendation === 'pursue').length
-    const closingSoon = open.filter((l) => {
-      if (!l.bid_due_date) return false
-      const days = (new Date(l.bid_due_date).getTime() - mountedAt) / 86_400_000
-      return days >= 0 && days <= 7
-    }).length
-    return { count: open.length, value, pursue, closingSoon }
+    const working = leads.filter(leadNeedsWork)
+    return {
+      count: working.length,
+      value: working.reduce((sum, l) => sum + (l.estimated_value ?? 0), 0),
+      pursue: working.filter((l) => l.fit_recommendation === 'pursue').length,
+      closingSoon: working.filter((l) => leadClosingSoon(l, mountedAt)).length,
+    }
   }, [leads, mountedAt])
 
   function replaceLead(updated: LeadRow | null) {
@@ -226,7 +271,11 @@ export default function LeadsClient({
       {/* Stat band */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         {[
-          { label: 'Open leads', value: String(stats.count) },
+          // ⚠ "Open leads" NAMED NOTHING — it was every lead that was not spam,
+          // including every one already decided. This tile is now the same
+          // number as the sidebar badge, and the label says which question it
+          // answers (§12 — two different quantities must be named apart).
+          { label: 'Needs working', value: String(stats.count) },
           { label: 'Est. value', value: formatValue(stats.value) },
           { label: 'Worth pursuing', value: String(stats.pursue) },
           { label: 'Closing ≤7d', value: String(stats.closingSoon) },
@@ -269,15 +318,42 @@ export default function LeadsClient({
           />
         </div>
 
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => setShowFiltered((v) => !v)}
-          title="Everything triage rejected as marketing or noise. Check it occasionally — this is how a wrongly-filtered bid gets caught."
-        >
-          {showFiltered ? <Eye className="size-4" /> : <EyeOff className="size-4" />}
-          {showFiltered ? 'Showing filtered' : `Filtered (${filtered})`}
-        </Button>
+        {/*
+          Three slices, one control. ⚠ A SEGMENTED CONTROL RATHER THAN TWO
+          TOGGLES: "needs working" and "show the spam" are answers to the same
+          question (which leads am I looking at), and two independent booleans
+          make four states of which one is meaningless.
+        */}
+        <div className="flex items-center rounded-md border border-border p-0.5">
+          {([
+            { key: 'working', label: 'Needs working', count: stats.count },
+            { key: 'all', label: 'All', count: null },
+            { key: 'filtered', label: 'Filtered', count: filtered },
+          ] as const).map((v) => (
+            <button
+              key={v.key}
+              type="button"
+              onClick={() => setView(v.key)}
+              title={
+                v.key === 'working'
+                  ? 'Leads nobody has decided yet — the number on the sidebar badge.'
+                  : v.key === 'all'
+                    ? 'Every lead including the ones already ignored or expired. Kept so the triage can be audited.'
+                    : 'Everything triage rejected as marketing or noise. Check it occasionally — this is how a wrongly-filtered bid gets caught.'
+              }
+              className={`inline-flex items-center gap-1.5 rounded px-2.5 text-sm min-h-[2.75rem] sm:min-h-0 sm:h-7 transition-colors ${
+                view === v.key
+                  ? 'bg-primary text-primary-foreground'
+                  : 'text-muted-foreground hover:bg-accent'
+              }`}
+            >
+              {v.key === 'filtered' &&
+                (view === 'filtered' ? <Eye className="size-3.5" /> : <EyeOff className="size-3.5" />)}
+              {v.label}
+              {v.count !== null && <span className="tnum opacity-70">{v.count}</span>}
+            </button>
+          ))}
+        </div>
 
         <Button variant="outline" size="sm" onClick={runSweep} disabled={sweeping}>
           <RefreshCw className={`size-4 ${sweeping ? 'animate-spin' : ''}`} />
@@ -288,13 +364,25 @@ export default function LeadsClient({
       {/* Queue */}
       {visible.length === 0 ? (
         <EmptyState
-          title={showFiltered ? 'Nothing filtered' : 'No leads here'}
+          title={
+            view === 'filtered'
+              ? 'Nothing filtered'
+              : view === 'working'
+                ? 'Nothing waiting on you'
+                : 'No leads here'
+          }
           description={
-            showFiltered
+            view === 'filtered'
               ? 'Nothing has been rejected as marketing yet.'
               : leads.length === 0
                 ? 'Nothing has arrived yet. Leads are read from info@ once a day — use Check now to read it immediately.'
-                : 'No leads match this filter.'
+                : // ⚠ AN EMPTY `working` VIEW OVER A FULL QUEUE IS A REAL AND GOOD
+                  // OUTCOME, not a filter mistake, and it must not read like one —
+                  // that is what the default view reaching zero MEANS. Says where
+                  // the rest went rather than leaving the reader to wonder.
+                  view === 'working'
+                  ? 'Every inbound bid has been decided. The ones already ignored or expired are under All.'
+                  : 'No leads match this filter.'
           }
         />
       ) : (

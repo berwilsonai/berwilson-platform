@@ -223,3 +223,66 @@ export function gmailThreadUrl(mailbox: string | null, threadId: string | null):
   const account = mailbox ? `?authuser=${encodeURIComponent(mailbox)}` : ''
   return `https://mail.google.com/mail/u/${account}#all/${threadId}`
 }
+
+/**
+ * WHAT "STILL NEEDS WORKING" MEANS FOR A LEAD — the one home for the predicate.
+ *
+ * ⚠ THIS EXISTS BECAUSE THE QUANTITY MOVED HOUSE. Until 2026-10-22 inbound
+ * leads were rendered on /decide, and this predicate was spelled out there in
+ * two places (the page's row loop and `countDecideItems`). Leads now live only
+ * on /leads (Richard, 10-22: *"all scrapings from info@berwilson to land and be
+ * worked from within the leads section"*), which means a sidebar badge has to
+ * carry the urgency /decide's deadline ranking used to carry — and a badge and
+ * the page it points at reporting different numbers for one quantity is the
+ * §12 bug this file has been bitten by before.
+ *
+ * So: ONE predicate, three readers — the badge (`countLeadsNeedingWork`), the
+ * /leads header line, and nothing else. A fourth reader selects from here too.
+ *
+ * ⚠ `fit_recommendation` MAY BE NULL AND A NULL STILL NEEDS WORKING. An
+ * untriaged bid invitation is the single thing most needing a human, and
+ * `.neq('pass')` in SQL drops it — PostgREST treats NULL as not matching (§12).
+ * The row test below must agree with that SQL exactly, which is why both are
+ * written here together.
+ */
+export const LEAD_NEEDS_WORK_STATUSES = ['new', 'reviewing'] as const
+
+/** The SQL half: `fit_recommendation is null OR <> 'pass'`, for `.or()`. */
+export const LEAD_NEEDS_WORK_FIT_FILTER = 'fit_recommendation.is.null,fit_recommendation.neq.pass'
+
+/**
+ * The row half. Pure, so the browser can apply it to rows it already holds
+ * rather than asking the server for a number it can derive.
+ */
+export function leadNeedsWork(lead: {
+  status: string | null
+  fit_recommendation: string | null
+}): boolean {
+  if (!lead.status) return false
+  if (!(LEAD_NEEDS_WORK_STATUSES as readonly string[]).includes(lead.status)) return false
+  return lead.fit_recommendation !== 'pass'
+}
+
+/**
+ * A lead whose bid date is inside `days` and has not passed.
+ *
+ * ⚠ THE WHOLE REASON THE BADGE NEEDED BUILDING. A bid date was the only hard
+ * deadline in the /decide queue — `decideWeight` ranked on it and the page
+ * printed "N closing within a week" — so moving leads out without carrying the
+ * deadline somewhere would have traded a cluttered screen for a missed bid.
+ * Measured 10-22: of the 9 leads then needing work, two closed THAT DAY.
+ *
+ * Takes `now` rather than reading the clock, because a server component that
+ * calls `Date.now()` is the react-hooks/purity misfire §9 records.
+ */
+export function leadClosingSoon(
+  lead: { bid_due_date: string | null },
+  now: number,
+  days = 7
+): boolean {
+  if (!lead.bid_due_date) return false
+  const due = Date.parse(`${lead.bid_due_date}T00:00:00Z`)
+  if (!Number.isFinite(due)) return false
+  const daysLeft = Math.ceil((due - now) / 86_400_000)
+  return daysLeft >= 0 && daysLeft <= days
+}

@@ -63,7 +63,7 @@ export interface DigestData {
   bidsClosing: { title: string; bidDue: string; company: string | null }[]
   tasksDue: { title: string; dueDate: string; assignee: string | null }[]
   meetings: { subject: string; start: string; attendees: number }[]
-  decide: { total: number; leads: number; intake: number; review: number; documents: number }
+  decide: { total: number; intake: number; review: number; documents: number }
   /** Stated out loud so a silent failure never reads as a quiet day. */
   notes: string[]
 }
@@ -228,7 +228,11 @@ export async function assembleDigest(now = new Date()): Promise<DigestData> {
     meetings,
     decide: {
       total: decide.total,
-      leads: decide.leads,
+      // ⚠ NO `leads` HERE SINCE 10-22. The Decide queue no longer holds them
+      // (see src/lib/decide/count.ts), and the digest already reports inbound
+      // bids from its OWN two fields — `leads` and `bidsClosing` above, read
+      // straight off the lead rows. Folding a second lead count in through the
+      // decide block is how one quantity comes to have two numbers (§12).
       intake: decide.intake,
       review: decide.review,
       documents: decide.documents,
