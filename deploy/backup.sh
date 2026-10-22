@@ -15,9 +15,26 @@
 # ─────────────────────────────────────────────────────────────────────────────
 set -e
 export PATH=$HOME/.local/bin:$PATH
+
+# ⚠ PRIVATE BY DEFAULT, FOR EVERYTHING THIS SCRIPT WRITES — not just the
+# secrets tar further down, which was the only thing that set its own umask.
+# A `pg_dumpall` IS the database: every contact, every commitment, and every
+# confidential project, in plaintext. These landed 0644 in a 0755 directory.
+#
+# ⚠ AND THIS IS THE WHOLE FIX ON PURPOSE. Encrypting them locally was the
+# obvious move and would have been theatre: the key would have to live on this
+# same box, readable by this same user — who can already read `.env.local` and
+# query Postgres directly. Measured 2026-10-21 before deciding: FileVault is
+# ON, there is no Time Machine destination configured, and the directory is
+# not inside any cloud-synced folder, so the dumps never leave the encrypted
+# volume. The offsite copy on Drive is separately age-encrypted with a key held
+# off-box. What was actually wrong was the file mode, so that is what changed.
+umask 077
+
 STAMP=$(date +%Y%m%d-%H%M)
 DEST=$HOME/Backups/berwilson
 mkdir -p "$DEST"
+chmod 700 "$DEST"
 docker exec supabase-db pg_dumpall -U postgres | gzip > "$DEST/db-$STAMP.sql.gz"
 tar -czf "$DEST/storage-$STAMP.tgz" -C $HOME/supabase-selfhost/docker/volumes storage 2>/dev/null || true
 # retention: keep 14 days
