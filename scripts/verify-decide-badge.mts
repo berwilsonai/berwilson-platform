@@ -13,6 +13,15 @@
  * A badge that is wrong in both directions at once cannot be noticed by
  * eyeballing it, which is the whole argument for asserting it.
  *
+ * ⚠ THE `leads` LANE WAS STILL IN THIS SCRIPT ON 2026-10-23, SEVEN ROWS WIDE,
+ * AND HAD BEEN FAILING SINCE 10-22. Leads left /decide that day on Richard's
+ * instruction and neither `countDecideItems` nor the page has counted them
+ * since, but this script kept summing them into its idea of "the page" — so it
+ * reported `badge 8 vs page 15`, a difference that was exactly the lead count.
+ * ⚠ A CHECK THAT CRIES WOLF IS ONE NOBODY READS ON THE DAY IT IS RIGHT (§12):
+ * removing a lane from the queue means removing it here in the same change.
+ * The `economics` lane went the same way on 10-23 with the calculator.
+ *
  * ⚠ BOTH SIDES ARE COMPUTED FROM THEIR OWN SOURCES AND THEN COMPARED. §12: a
  * derived number that agrees by coincidence proves nothing, so this does NOT
  * call `summarizeDecideQueue` and compare it to itself — it re-sums the page's
@@ -23,7 +32,6 @@
  */
 import { countDecideItems, summarizeDecideQueue } from '../src/lib/decide/count'
 import { createAdminClient } from '../src/lib/supabase/admin'
-import { leadsDb } from '../src/lib/leads/db'
 import { findMisfiledCompanyDocuments } from '../src/lib/documents/unfiled'
 import { findMisfiledRecordDocuments } from '../src/lib/documents/misfiled'
 
@@ -37,18 +45,12 @@ async function main() {
   const supabase = createAdminClient()
 
   // ── The page's lanes, rebuilt from the page's own sources ────────────────
-  const [{ data: sessions }, { data: leadRows }, { count: review }, unfiled, misfiled, { count: fields }] =
+  const [{ data: sessions }, { count: review }, unfiled, misfiled, { count: fields }] =
     await Promise.all([
       supabase
         .from('email_intake_sessions')
         .select('id, predecision, intake_kind')
         .eq('status', 'pending')
-        .limit(1000),
-      leadsDb()
-        .from('leads')
-        .select('id')
-        .in('status', ['new', 'reviewing'])
-        .or('fit_recommendation.is.null,fit_recommendation.neq.pass')
         .limit(1000),
       supabase.from('review_queue').select('id', { count: 'exact', head: true }).is('resolved_at', null),
       findMisfiledCompanyDocuments(),
@@ -68,7 +70,6 @@ async function main() {
 
   const lanes = {
     intake: shown.length,
-    leads: (leadRows ?? []).length,
     review: review ?? 0,
     documents: unfiled.length,
     misfiled: misfiled.length,
