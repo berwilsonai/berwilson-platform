@@ -33,6 +33,9 @@ const base = {
   question: 'What is the Steelton closing date?',
   answer: 'The PSA says 17 October.',
   origin: 'https://richards-mac-studio.tail9acc02.ts.net',
+  // A real uuid, because `ai_queries.user_id` is a NOT NULL uuid and the log
+  // insert is fire-and-forget — a placeholder fails 22P02 in silence.
+  userId: '00000000-0000-0000-0000-000000000003',
 }
 
 describe('notifyAfterMs', () => {

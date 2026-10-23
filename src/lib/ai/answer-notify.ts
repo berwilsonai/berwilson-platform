@@ -273,8 +273,19 @@ export async function notifyAnswer(args: {
   origin: string
   /** Set when the conversation is scoped to a deal. */
   projectId?: string
-  /** The asker, for the `ai_queries` row the TLDR call writes. */
-  userId?: string
+  /**
+   * The asker, for the `ai_queries` row the TLDR call writes.
+   *
+   * ⚠ REQUIRED, AND IT MUST BE A REAL `auth.users` UUID. `ai_queries.user_id`
+   * is a NOT NULL uuid and `logAiQuery` is fire-and-forget with no error
+   * branch, so a placeholder like `'system'` fails `22P02` and the call simply
+   * never appears in the log — breaking the §2 contract that EVERY AI call is
+   * logged, with nothing anywhere saying so. Caught on 10-23 by a verification
+   * script that passed `'verify'` and produced a model answer with no row
+   * behind it. Required rather than defaulted so `tsc` names any caller that
+   * cannot supply one.
+   */
+  userId: string
 }): Promise<AnswerNotifyResult> {
   if (args.latencyMs < notifyAfterMs()) {
     return {
@@ -377,7 +388,7 @@ export async function notifyAnswer(args: {
       const tldr = await composeTldr({
         question: args.question,
         answer: args.answer,
-        userId: args.userId ?? 'system',
+        userId: args.userId,
       })
       tldrSource = tldr.source
 
