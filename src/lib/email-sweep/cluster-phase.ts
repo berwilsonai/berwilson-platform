@@ -20,6 +20,7 @@
 import { MAILBOXES } from '@/lib/integrations/google-workspace'
 import type { ThreadSummary } from '@/lib/ai/prompts/thread-summary'
 import { sweepDb, type EmailThreadRow, type ThreadClusterRow } from './db'
+import { jaccard } from '@/lib/utils/similarity'
 
 /** Merge outright at or above this name similarity. */
 export const STRONG_NAME_SIM = 0.6
@@ -56,13 +57,14 @@ export function tokenize(name: string): Set<string> {
   )
 }
 
-/** Token-overlap similarity, 0..1. */
-export function jaccard(a: Set<string>, b: Set<string>): number {
-  if (a.size === 0 || b.size === 0) return 0
-  let shared = 0
-  for (const t of a) if (b.has(t)) shared++
-  return shared / (a.size + b.size - shared)
-}
+/**
+ * Token-overlap similarity, 0..1 — re-exported so this phase's own callers
+ * (`route-phase`, `stage-phase`) keep importing it from here, while the single
+ * definition lives in `@/lib/utils/similarity`. It had grown a second,
+ * byte-identical copy inside CommitmentsLedger.tsx, which cannot import this
+ * module at all.
+ */
+export { jaccard }
 
 /**
  * Addresses that are not ours. Internal-only overlap proves nothing — moose@ and

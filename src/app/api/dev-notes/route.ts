@@ -1,16 +1,13 @@
 import { NextRequest } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getViewer, actorAdminClient } from '@/lib/auth/viewer'
-import { notifyTeam } from '@/lib/notifications'
 import { DEV_NOTE_SELECT } from '@/lib/dev-notes/queries'
+import { fileDevNote } from '@/lib/dev-notes/file'
 import {
   DEV_NOTE_KINDS,
   DEV_NOTE_PRIORITIES,
-  DEV_NOTE_KIND_LABELS,
-  devNoteKind,
   devNotePriority,
 } from '@/lib/utils/dev-notes'
-import type { TablesInsert } from '@/lib/supabase/types'
 
 /**
  * Developer Notes API — in-app bug reports and feature requests.
@@ -67,59 +64,39 @@ export async function POST(request: NextRequest) {
     return Response.json({ error: 'invalid priority' }, { status: 400 })
   }
 
-  const kind = devNoteKind(body.kind)
-
-  const row: TablesInsert<'dev_notes'> = {
-    kind,
-    title: title.slice(0, 300),
-    body: typeof body.body === 'string' && body.body.trim() ? body.body.trim().slice(0, 8000) : null,
-    // Context captured from where the reporter was standing. Both come from the
-    // browser, so both are bounded here.
-    page_path: typeof body.page_path === 'string' ? body.page_path.slice(0, 500) || null : null,
-    user_agent: typeof body.user_agent === 'string' ? body.user_agent.slice(0, 500) || null : null,
-    // The reporter is the SESSION, never the request body — a report filed
-    // under someone else's name is worse than an anonymous one.
-    reporter_id: viewer.teamMemberId,
-    reporter_name: viewer.teamMemberName ?? viewer.email ?? 'Unknown',
-    // A reporter cannot set their own priority: everyone's bug is urgent, and a
-    // triage field anyone can set stops being a triage field. Admins triage.
-    priority: viewer.isAdmin ? devNotePriority(body.priority) : 'normal',
-    status: 'open',
-  }
-
   // actorAdminClient stamps the signed-in user onto the PostgREST request, so
-  // the activity_log trigger records WHO filed it rather than 'system'.
-  const supabase = await actorAdminClient()
-  const { data, error } = await supabase
-    .from('dev_notes')
-    .insert(row)
-    .select(DEV_NOTE_SELECT)
-    .single()
+  // the activity_log trigger records WHO filed it rather than 'system'
+  // (dev_notes carries log_dev_notes).
+  const result = await fileDevNote(
+    {
+      kind: body.kind,
+      title,
+      body: typeof body.body === 'string' ? body.body : null,
+      // Context captured from where the reporter was standing. Both come from
+      // the browser.
+      pagePath: typeof body.page_path === 'string' ? body.page_path : null,
+      userAgent: typeof body.user_agent === 'string' ? body.user_agent : null,
+      // The reporter is the SESSION, never the request body — a report filed
+      // under someone else's name is worse than an anonymous one.
+      reporterId: viewer.teamMemberId,
+      reporterName: viewer.teamMemberName ?? viewer.email ?? 'Unknown',
+      reporterEmail: viewer.email,
+      // A reporter cannot set their own priority: everyone's bug is urgent, and
+      // a triage field anyone can set stops being a triage field. Admins triage.
+      priority: viewer.isAdmin ? devNotePriority(body.priority) : 'normal',
+      // The dock shows what is already open, so a person filing from it has
+      // already seen the near-duplicates. The agent has not, which is why the
+      // check guards that door and not this one.
+      allowDuplicate: true,
+    },
+    await actorAdminClient()
+  )
 
-  if (error) {
-    console.error('Create dev note failed:', error)
-    return Response.json({ error: error.message }, { status: 500 })
+  if (!result.ok) {
+    const status = result.reason === 'invalid' ? 400 : 500
+    const message = result.reason === 'duplicate' ? 'Already reported' : result.message
+    return Response.json({ error: message }, { status })
   }
 
-  // A report nobody is told about sits in a table nobody opens — the
-  // silent-queue failure this platform has hit repeatedly, and this call site
-  // was one of its victims: until 2026-09-24 it wrote a bell row and nothing
-  // else, so every report reached an inbox with no reader. Best-effort in the
-  // strongest sense: it must never fail the report.
-  try {
-    await notifyTeam([
-      {
-        kind: 'dev_note',
-        title: `${DEV_NOTE_KIND_LABELS[kind]} reported: ${row.title}`,
-        body: row.body ? row.body.slice(0, 280) : row.page_path ? `On ${row.page_path}` : null,
-        href: `/dev-notes?note=${data.id}`,
-        actorName: row.reporter_name,
-        actorEmail: viewer.email,
-      },
-    ])
-  } catch (err) {
-    console.error('[dev-notes] notify failed:', err instanceof Error ? err.message : String(err))
-  }
-
-  return Response.json({ note: data })
+  return Response.json({ note: result.note })
 }

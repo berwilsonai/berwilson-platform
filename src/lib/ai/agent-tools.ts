@@ -1700,7 +1700,9 @@ async function executeToolCallInner(
       const status = (args.status as string) || 'open'
       let q = supabase
         .from('tasks')
-        .select('id, title, what, why, how, assignee_id, project_id, due_date, status, completed_at, created_at')
+        .select(
+          'id, title, what, why, how, assignee_id, project_id, opportunity_id, due_date, status, completed_at, created_at'
+        )
         .order('due_date', { ascending: true, nullsFirst: false })
         .limit(25)
 
@@ -1736,6 +1738,18 @@ async function executeToolCallInner(
         for (const p of projects ?? []) projName.set(p.id, p.name)
       }
 
+      // ⚠ A TASK IS A SHARED CHILD, AND THE DESCRIPTION ALREADY PROMISED THIS.
+      // The filter has always accepted `opportunity_id`, but the projection
+      // left it out, so 18 of 118 tasks came back with `project: null` and no
+      // way to say which deal they were for — the agent read them as
+      // unattached (§4: never assume `project_id` is set).
+      const oppIds = [...new Set(filtered.map((t) => t.opportunity_id).filter(Boolean))] as string[]
+      const oppName = new Map<string, string>()
+      if (oppIds.length > 0) {
+        const { data: opps } = await supabase.from('opportunities').select('id, name').in('id', oppIds)
+        for (const o of opps ?? []) oppName.set(o.id, o.name)
+      }
+
       // Latest note per task (single query, newest first)
       const taskIds = filtered.map((t) => t.id)
       const latestNote = new Map<string, string>()
@@ -1760,6 +1774,7 @@ async function executeToolCallInner(
           how: t.how,
           assignee: t.assignee_id ? memberName.get(t.assignee_id) ?? 'Unknown' : 'Unassigned',
           project: t.project_id ? projName.get(t.project_id) ?? null : null,
+          opportunity: t.opportunity_id ? oppName.get(t.opportunity_id) ?? null : null,
           due_date: t.due_date,
           status: t.status,
           completed_at: t.completed_at,
@@ -1937,7 +1952,7 @@ async function executeToolCallInner(
     }
 
     default:
-      if (MODULE_TOOL_NAMES.has(toolName)) return executeModuleTool(toolName, args)
+      if (MODULE_TOOL_NAMES.has(toolName)) return executeModuleTool(toolName, args, context)
       return { error: `Unknown tool: ${toolName}` }
   }
 }

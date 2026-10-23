@@ -33,6 +33,7 @@ import type {
   CommitmentListResult,
 } from '@/lib/commitments/list'
 import type { CommitmentSort } from '@/lib/commitments/read'
+import { jaccard, phraseTokens } from '@/lib/utils/similarity'
 
 type Verdict = 'done' | 'dismissed' | 'snoozed' | 'open'
 
@@ -71,23 +72,6 @@ const VIEWS: { key: NonNullable<CommitmentListFilters['view']>; label: string }[
  * read twice — and marking is safe even where it is wrong.
  */
 const DUPLICATE_BAR = 0.8
-
-function phraseTokens(what: string): Set<string> {
-  return new Set(
-    what
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, ' ')
-      .split(' ')
-      .filter((t) => t.length > 1)
-  )
-}
-
-function jaccard(a: Set<string>, b: Set<string>): number {
-  if (a.size === 0 || b.size === 0) return 0
-  let shared = 0
-  for (const t of a) if (b.has(t)) shared++
-  return shared / (a.size + b.size - shared)
-}
 
 /** Row id → how many OTHER rows say nearly the same thing. */
 function duplicateCounts(rows: CommitmentListItem[]): Map<string, number> {

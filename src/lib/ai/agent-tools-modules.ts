@@ -10,8 +10,11 @@
  * Kept beside agent-tools.ts rather than inside it purely for size; the two are
  * spliced into one list by `agentTools` and one switch by `executeToolCall`.
  *
- * Read-only by design. Every write in this app goes through a human review
- * step, and the agent is not that step.
+ * Read-only by design, with ONE deliberate exception: `file_dev_note`. Every
+ * write to portfolio data in this app goes through a human review step and the
+ * agent is not that step — but a Developer Note is feedback about the TOOL, not
+ * portfolio data, and §11's prohibition names projects, opportunities, parties,
+ * leads and entities. See that tool's own declaration for the full argument.
  */
 
 import { createAdminClient } from '@/lib/supabase/admin'
@@ -49,6 +52,9 @@ import {
 } from '@/lib/steel/rollups'
 import { channelAnalytics, icpBreakdown, spendByMonth } from '@/lib/steel/marketing'
 import type { SteelDeal, SteelDealService, SteelMarketingSpend } from '@/lib/supabase/types'
+import type { AgentContext } from './agent'
+import { DEV_NOTE_KINDS, DEV_NOTE_KIND_LABELS } from '@/lib/utils/dev-notes'
+import { fileDevNote } from '@/lib/dev-notes/file'
 
 // ---------------------------------------------------------------------------
 // Declarations
@@ -134,12 +140,13 @@ export const moduleTools = [
   {
     name: 'search_meetings',
     description:
-      'Search meeting records — minutes, summaries, decisions, and transcripts from project and company meetings. Use when asked what was decided or discussed in a meeting, or for meeting history on a project.',
+      'Search meeting records — minutes, summaries, decisions, and transcripts from project, opportunity and company meetings. Use when asked what was decided or discussed in a meeting, or for meeting history on a deal.',
     parameters: {
       type: 'object',
       properties: {
         query: { type: 'string', description: 'Text to search across title, summary, minutes, and transcript.' },
         project_id: { type: 'string', description: 'Optional: restrict to one project.' },
+        opportunity_id: { type: 'string', description: 'Optional: restrict to one opportunity.' },
         limit: { type: 'number', description: 'Max meetings to return (default 10).' },
       },
     },
@@ -362,6 +369,46 @@ export const moduleTools = [
       'The Dino side venture ledger — revenue entries by source, scheduled payments and what is still due, and notes. Use only for questions naming Dino.',
     parameters: { type: 'object', properties: {} },
   },
+  {
+    name: 'file_dev_note',
+    description:
+      "File a note for the platform's developer about the PLATFORM ITSELF — a bug, a feature request, an improvement, or a question about how the tool works. Use this whenever the reader asks for something the platform cannot currently do, or reports that something is broken or wrong. This is the ONLY way such a request is remembered: a reply in this conversation is forgotten, and the reader should not have to repeat themselves. Do NOT use it for anything about a deal, a project, a person or a document — those are portfolio records and are not filed here. Call it once, after you have established what the platform does today, so the note can say so.",
+    parameters: {
+      type: 'object',
+      properties: {
+        kind: {
+          type: 'string',
+          // ⚠ GENERATED FROM THE REGISTRY, NEVER SPELLED OUT. §12: a taxonomy
+          // written into a prompt is a second schema and it drifts silently,
+          // because a value the model was never told about simply never fires
+          // — and a tool declaration is the worst place for it, since the
+          // column would accept the value the model cannot name.
+          description: `What kind of note. One of: ${DEV_NOTE_KINDS.map((k) => `${k} (${DEV_NOTE_KIND_LABELS[k]})`).join(', ')}.`,
+        },
+        title: {
+          type: 'string',
+          description:
+            'One line naming the ask or the defect, as a developer would read it in a queue. Not a question, and not a restatement of the whole conversation.',
+        },
+        body: {
+          type: 'string',
+          description:
+            'The grounding, and the whole value of the note. Say: what was asked, in the reader\'s own words; what the platform does TODAY instead (name the page, the tab or the tool you checked); which records, deals or surfaces are involved; and anything you measured while looking. Write it so the developer needs no further explanation and nobody has to reconstruct the request.',
+        },
+        page_path: {
+          type: 'string',
+          description:
+            'Optional — the path of the screen this concerns, if the conversation names one (e.g. /leads, /projects).',
+        },
+        allow_duplicate: {
+          type: 'boolean',
+          description:
+            'Only after a previous call came back `already_filed` and the reader has confirmed their ask is genuinely a different one. Never set it on a first attempt.',
+        },
+      },
+      required: ['kind', 'title', 'body'],
+    },
+  },
 ]
 
 // ---------------------------------------------------------------------------
@@ -438,7 +485,8 @@ async function loadSteelRows() {
 
 export async function executeModuleTool(
   toolName: string,
-  args: Record<string, unknown>
+  args: Record<string, unknown>,
+  context: AgentContext
 ): Promise<unknown> {
   const supabase = createAdminClient()
 
@@ -771,12 +819,21 @@ export async function executeModuleTool(
       const limit = num(args.limit) ?? 10
       let q = supabase
         .from('meetings')
-        .select('id, title, kind, scope, project_id, meeting_date, location, summary, decisions, status, confidential')
+        .select(
+          'id, title, kind, scope, project_id, opportunity_id, meeting_date, location, summary, decisions, status, confidential'
+        )
         .order('meeting_date', { ascending: false })
         .limit(limit)
 
+      // ⚠ A MEETING IS A SHARED CHILD, SO `project_id` IS NOT THE ONLY PARENT
+      // (§4: never assume it is set). Measured 2026-10-22: 8 of 17 meetings
+      // hung off an opportunity and 11 of 17 had no project_id at all, so this
+      // tool could neither filter them nor report which deal they belonged to
+      // — every GridEdge and Elite Solutions call was reachable only by text.
       const projectId = str(args.project_id)
       if (projectId) q = q.eq('project_id', projectId)
+      const opportunityId = str(args.opportunity_id)
+      if (opportunityId) q = q.eq('opportunity_id', opportunityId)
 
       const query = str(args.query)
       if (query) {
@@ -796,6 +853,7 @@ export async function executeModuleTool(
           kind: m.kind,
           scope: m.scope,
           project_id: m.project_id,
+          opportunity_id: m.opportunity_id,
           date: m.meeting_date,
           location: m.location,
           status: m.status,
@@ -1492,6 +1550,105 @@ export async function executeModuleTool(
         payments: pay,
         notes: notes.data ?? [],
       }
+    }
+
+    // ── The platform itself ──────────────────────────────────────────────────
+    /**
+     * The agent's ONE write, and the line is worth stating where it is crossed.
+     *
+     * `dev_notes` is feedback about the tool, not portfolio data: §11 forbids
+     * the agent CREATING a project, opportunity, party, lead or entity, and a
+     * developer note is none of those. It is reversible by construction (a
+     * wrong note is triaged `wont_do`, archived rather than deleted), it has an
+     * existing human review surface at /dev-notes, and the alternative is the
+     * failure this platform has measured twice: an ask that reaches nobody.
+     * The GridEdge offer was asked for six times across three days because the
+     * capability existed and the DESTINATION did not.
+     */
+    case 'file_dev_note': {
+      const title = str(args.title)
+      const body = str(args.body)
+      if (!title) return { error: 'A title is required — one line naming the ask or the defect.' }
+      if (!body) {
+        return {
+          error:
+            'A body is required. An ungrounded note costs the developer the whole investigation again — ' +
+            'say what was asked, what the platform does today, and which records are involved.',
+        }
+      }
+
+      // The reporter is the asking user: it is their request, and the row's
+      // FK points at team_members. ⚠ Their name is NOT decorated with "(via
+      // Ber AI)" — §12's Drive-share-notification-that-became-a-contact is
+      // exactly that pattern, and a display string is the wrong place to carry
+      // provenance. The body says who typed it and the conversation link
+      // proves it.
+      const { data: member } = await supabase
+        .from('team_members')
+        .select('id, name, email')
+        .eq('auth_user_id', context.userId)
+        .maybeSingle()
+
+      const provenance = `Filed by Ber AI from a conversation with ${member?.name ?? 'a platform user'}.\nConversation: /intel?conversation=${context.conversationId}`
+
+      const allowDuplicate = args.allow_duplicate === true
+
+      const result = await fileDevNote(
+        {
+          kind: str(args.kind) ?? 'feature',
+          title,
+          body: `${body}\n\n---\n${provenance}`,
+          pagePath: str(args.page_path) ?? null,
+          reporterId: member?.id ?? null,
+          reporterName: member?.name ?? 'Ber AI',
+          reporterEmail: member?.email ?? null,
+          // Priority is triage and triage is a human act — the agent never
+          // sets it, exactly as a non-admin reporter never does.
+          allowDuplicate,
+        },
+        // The actor is stamped from the asking user so the activity_log says
+        // who it was for rather than 'system' (§12 — dev_notes is tracked).
+        // Taken from the agent context rather than cookies, which do not
+        // reliably reach a streaming tool round.
+        createAdminClient({ id: context.userId, email: member?.email ?? null })
+      )
+
+      if (result.ok) {
+        return {
+          filed: true,
+          note_id: result.note.id,
+          kind: result.note.kind,
+          title: result.note.title,
+          link: `/dev-notes?note=${result.note.id}`,
+          instruction:
+            'Tell the reader it is filed, in one sentence, and give them the link. ' +
+            'Do not claim it is built, scheduled or fixed — it is recorded.',
+        }
+      }
+
+      if (result.reason === 'duplicate') {
+        return {
+          filed: false,
+          // ⚠ HANDED BACK, NOT WITHHELD. §12: withholding from a model means
+          // giving it what was withheld — here the candidates themselves, so
+          // the refusal is something it can act on rather than a dead end.
+          possibly_already_filed: result.candidates.map((c) => ({
+            note_id: c.note.id,
+            title: c.note.title,
+            status: c.note.status,
+            link: `/dev-notes?note=${c.note.id}`,
+            similarity: Math.round(c.similarity * 100) / 100,
+          })),
+          instruction:
+            'NOTHING WAS FILED, because the open note(s) above may already be this ask — so it is ' +
+            'not lost either way. Read their titles and decide: if one of them IS what the reader ' +
+            'wants, tell them it is already on the list and give that link. If the reader is asking ' +
+            'for something genuinely different, say so and call file_dev_note again with ' +
+            'allow_duplicate: true. Do not leave the turn without doing one or the other.',
+        }
+      }
+
+      return { error: result.message }
     }
 
     default:
