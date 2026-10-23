@@ -62,6 +62,8 @@ const MODELS_ONLY = process.argv.includes('--models-only')
  * done it (§12).
  */
 const EXTRACT_ONLY = process.argv.includes('--extract-only')
+/** Re-extract a record that already has staged proposals. Duplicates them. */
+const REDO = process.argv.includes('--redo')
 const LIMIT = Number(process.argv[process.argv.indexOf('--limit') + 1]) || Infinity
 const ONE = process.argv.includes('--record') ? process.argv[process.argv.indexOf('--record') + 1] : null
 
@@ -88,6 +90,27 @@ async function main() {
     .from('deal_economics')
     .select('id, project_id, opportunity_id')
   if (mErr) throw new Error(`deal_economics: ${mErr.message}`)
+
+  // ── What has already been extracted, so a re-run resumes ──────────────────
+  //
+  // ⚠ WITHOUT THIS A RESTART DUPLICATES EVERY FINISHED RECORD'S PROPOSALS.
+  // The pass is ~9 hours over 629 documents and runs unattended, so it WILL be
+  // interrupted at some point — a deploy, a reboot, an OOM. §12: store what
+  // the pass needs to resume. A record with proposals already staged is done;
+  // `--redo` is the deliberate override.
+  const { data: staged, error: sErr } = await db
+    .from('economics_input_proposals')
+    .select('economics_id')
+  if (sErr) throw new Error(`economics_input_proposals: ${sErr.message}`)
+  const extracted = new Set(
+    (staged ?? []).map((r) => (r as Row).economics_id).filter((v): v is string => typeof v === 'string')
+  )
+  const modelIdFor = new Map<string, string>()
+  for (const raw of models ?? []) {
+    const m = raw as Row
+    const parent = (m.project_id ?? m.opportunity_id) as string | null
+    if (parent) modelIdFor.set(parent, String(m.id))
+  }
 
   const haveProject = new Set(
     (models ?? []).map((m) => (m as Row).project_id).filter((v): v is string => typeof v === 'string')
@@ -141,14 +164,24 @@ async function main() {
   // HAVE a model and documents to read. Asking for both with one predicate is
   // what made the second phase a no-op.
   const selected = EXTRACT_ONLY
-    ? targets.filter((t) => t.has && t.docs > 0)
+    ? targets.filter((t) => {
+        if (!t.has || t.docs === 0) return false
+        if (REDO) return true
+        const mid = modelIdFor.get(t.id)
+        return !(mid && extracted.has(mid))
+      })
     : targets.filter((t) => !t.has)
   const todo = selected.slice(0, LIMIT === Infinity ? undefined : LIMIT)
 
   console.log(
     `${APPLY ? 'APPLY' : 'DRY RUN'}${MODELS_ONLY ? ' (models only)' : ''}${EXTRACT_ONLY ? ' (extract only)' : ''} — ${
       EXTRACT_ONLY
-        ? `${todo.length} record(s) with a model and documents to read`
+        ? `${todo.length} record(s) with a model and documents to read (${
+            targets.filter((t) => {
+              const mid = modelIdFor.get(t.id)
+              return t.has && t.docs > 0 && mid && extracted.has(mid)
+            }).length
+          } already extracted, skipped)`
         : `${todo.length} record(s) need a model, ${targets.length - todo.length} already have one`
     }`
   )
