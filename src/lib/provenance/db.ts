@@ -120,7 +120,8 @@ export interface OutboundTextRow {
    * `record_alert` was added 2026-10-19 in
    * `20261019000001_records_from_recordings.sql`, `task_week` /
    * `task_due_today` 2026-10-21 in `20261021000008_task_reminder_text_kinds.sql`,
-   * and `document_ready` 2026-10-22 in `20261022000001_document_compose.sql`;
+   * `document_ready` 2026-10-22 in `20261022000001_document_compose.sql`, and
+   * `agent_answer` 2026-10-23 in `20261023000001_agent_answer_text_kind.sql`;
    * a value not in the constraint fails the whole INSERT (§12), which here means
    * the self-loop guard row is not written and `sendText` refuses to send at all.
    */
@@ -133,6 +134,7 @@ export interface OutboundTextRow {
     | 'task_week'
     | 'task_due_today'
     | 'document_ready'
+    | 'agent_answer'
     | 'ad_hoc'
   sent_at: string
   created_at: string

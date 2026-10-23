@@ -204,6 +204,10 @@ function defaultTextKind(kind: OutboundKind): TextKind {
       return 'task_due_today'
     case 'record_alert':
       return 'record_alert'
+    case 'agent_answer':
+      return 'agent_answer'
+    case 'document_ready':
+      return 'document_ready'
     case 'meeting_prep':
       return 'nudge'
     case 'pepper_answer':

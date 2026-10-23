@@ -14,7 +14,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { runAgent } from '@/lib/ai/agent'
 import { agentTimeBudgetMs, liveRuns } from '@/lib/ai/run-state'
-import { emailAnswer } from '@/lib/ai/answer-email'
+import { notifyAnswer } from '@/lib/ai/answer-notify'
 import { publicOrigin } from '@/lib/utils/request-origin'
 import { checkRateLimit } from '@/lib/rate-limit'
 import type { Content } from '@google/generative-ai'
@@ -160,7 +160,9 @@ export async function POST(request: NextRequest) {
   const origin = publicOrigin(request.headers)
 
   /**
-   * Mail the answer, if it took long enough that nobody is still watching.
+   * Text and mail the answer, if it took long enough that nobody is still
+   * watching. The text carries the bottom line and a link; the email carries
+   * the whole thing.
    *
    * Non-fatal by construction: a failed notification must never turn a
    * finished answer into an error. It is already saved and already on screen
@@ -169,7 +171,7 @@ export async function POST(request: NextRequest) {
   const announce = async (messageId: string | null, answer: string, latencyMs: number) => {
     if (!messageId || !user.email) return
     try {
-      const outcome = await emailAnswer({
+      const outcome = await notifyAnswer({
         messageId,
         conversationId: conversationId!,
         to: user.email,
@@ -178,10 +180,11 @@ export async function POST(request: NextRequest) {
         latencyMs,
         origin,
         projectId: body.projectId,
+        userId: user.id,
       })
-      if (outcome.sent) console.log(`[agent] answer emailed — ${outcome.reason}`)
+      if (outcome.emailed || outcome.texted) console.log(`[agent] answer sent — ${outcome.reason}`)
     } catch (err) {
-      console.warn('[agent] answer email failed:', err instanceof Error ? err.message : err)
+      console.warn('[agent] answer notification failed:', err instanceof Error ? err.message : err)
     }
   }
 
@@ -243,7 +246,6 @@ export async function POST(request: NextRequest) {
             .eq('id', convId)
 
           await settleRun('answered')
-          await announce(savedMsg?.id ?? null, result.content, result.latencyMs)
 
           send({
             type: 'done',
@@ -252,6 +254,24 @@ export async function POST(request: NextRequest) {
             toolCalls: result.toolCalls,
             latencyMs: result.latencyMs,
           })
+
+          /*
+            ⚠ AFTER `done`, AND STILL AWAITED INSIDE THE STREAM.
+
+            The notification now writes a bottom line with a model call, which
+            on this box means another 15-40s queued behind LM Studio's
+            one-request-at-a-time server. Sending it BEFORE `done` — which is
+            where it used to sit, when it was two database writes and a Gmail
+            send — would make a reader who STAYED wait out a message composed
+            for the reader who left.
+
+            It stays inside `start()` rather than being fired and forgotten:
+            the stream is not finished until `close()` in the `finally` below,
+            so this is work the request still owns. §12 — work fired off after
+            a handler has returned dies with the next kickstart, and a deploy
+            is a kickstart.
+          */
+          await announce(savedMsg?.id ?? null, result.content, result.latencyMs)
         } catch (err) {
           console.error('[agent] Stream error:', err)
           await settleRun('failed')

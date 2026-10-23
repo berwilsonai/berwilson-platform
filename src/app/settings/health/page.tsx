@@ -43,7 +43,7 @@ import {
   probePepperReply,
 } from '@/lib/system-health'
 import { isGoogleConfigured } from '@/lib/integrations/google-workspace'
-import { OUTBOUND, heldKinds, heldSummary, isHeld, liveKinds } from '@/lib/notify/policy'
+import { OUTBOUND, channelsOf, heldKinds, heldSummary, isHeld, liveKinds } from '@/lib/notify/policy'
 import { sweepDb } from '@/lib/email-sweep/db'
 
 export const metadata = { title: 'System Health — Ber Wilson Intelligence' }
@@ -493,7 +493,12 @@ async function runChecks(): Promise<HealthCheck[]> {
           ? 'Every channel is live'
           : `${live.length} live, ${held.length} held`,
       detail:
-        `Live: ${live.map((k) => OUTBOUND[k].what).join('; ')}. ` +
+        // ⚠ THE TRANSPORT IS NAMED, NOT ASSUMED. One pass can send on two —
+        // `agent_answer` texts the bottom line and emails the whole answer — and a
+        // card that prints only the description cannot tell a reader which of those
+        // is live. `channelsOf` is the one reader of that field, so a pass that grows
+        // a second channel shows up here without this line being touched.
+        `Live: ${live.map((k) => `${OUTBOUND[k].what} (${channelsOf(k).join(' + ')})`).join('; ')}. ` +
         (held.length === 0 ? '' : `${heldSummary()} `) +
         'The table is src/lib/notify/policy.ts — one word per row, and notify() refuses any kind ' +
         'it does not find there, so a pass added later is silent until it is listed.',

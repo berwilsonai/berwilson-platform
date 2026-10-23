@@ -41,10 +41,22 @@ export type OutboundTrigger =
   /** Somebody pressed a button and is waiting for the result. */
   | 'human'
 
+export type OutboundChannel = 'email' | 'chat' | 'text'
+
 interface OutboundPassBase {
   /** What the message is, in the words its reader would use. */
   what: string
-  channel: 'email' | 'chat' | 'text'
+  /**
+   * Which transport(s) this pass sends on.
+   *
+   * ⚠ A LIST IS ALLOWED BECAUSE ONE PASS CAN GENUINELY BE TWO MESSAGES.
+   * `agent_answer` texts the bottom line and emails the full answer — one
+   * decision, one on/off, two envelopes. Writing that as two policy rows would
+   * let somebody hold half an answer, and writing it as one channel would make
+   * this table lie about what leaves the box, which is the only thing it is
+   * for. Read it with {@link channelsOf} rather than touching the field.
+   */
+  channel: OutboundChannel | readonly OutboundChannel[]
   trigger: OutboundTrigger
 }
 
@@ -130,7 +142,12 @@ export const OUTBOUND = {
    */
   agent_answer: {
     what: 'the answer to a Ber AI question that took long enough for you to walk away',
-    channel: 'email',
+    // ⚠ TWO ENVELOPES, ONE DECISION. Richard, 2026-10-23: *"When I ask Ber AI a
+    // question, I want it to text the response to me."* The text carries the
+    // bottom line and a link, the email carries the whole answer — the median
+    // answer measured that day is 3,046 characters and the longest text this
+    // box has ever delivered is 357, so one channel could not do both jobs.
+    channel: ['text', 'email'],
     trigger: 'human',
     live: true,
   },
@@ -235,6 +252,19 @@ export function outboundAllowed(kind: OutboundKind | string | undefined): Outbou
   const pass = OUTBOUND[kind as OutboundKind]
   if (pass.live) return { allowed: true, reason: pass.what }
   return { allowed: false, reason: `held: ${pass.held}` }
+}
+
+/**
+ * The transports a kind sends on, always as a list.
+ *
+ * One reader rather than `Array.isArray` at each call site: the field is a
+ * union precisely so a pass can grow a second channel without a schema change,
+ * and every consumer that forgets the array case would silently report half of
+ * what leaves the box.
+ */
+export function channelsOf(kind: OutboundKind): readonly OutboundChannel[] {
+  const c = OUTBOUND[kind].channel
+  return typeof c === 'string' ? [c] : c
 }
 
 /** True when this kind is enumerated and switched off — the common question. */
