@@ -17,7 +17,6 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { dropHidden, hiddenProjectIds } from '@/lib/security/confidential'
-import { hiddenVehicleIds } from '@/lib/spvs/portfolio'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { callGemini } from '@/lib/ai/gemini'
 import { fetchOpenTasks, formatTaskLine } from '@/lib/tasks/queries'
@@ -172,7 +171,7 @@ export async function GET(request: NextRequest) {
       .not('stage', 'in', '(passed,dormant)'),
     supabase
       .from('investments')
-      .select('investor_id, raise_id, target_kind, stage, amount_indicated, amount_committed, amount_funded, project_id, spv_id, project:projects(name)'),
+      .select('investor_id, raise_id, target_kind, stage, amount_indicated, amount_committed, amount_funded, project_id, project:projects(name)'),
     supabase
       .from('raises')
       .select('id, name, status, target_amount, tranches')
@@ -191,22 +190,20 @@ export async function GET(request: NextRequest) {
   const hidden = await hiddenProjectIds(null)
   const visible = <T extends { project_id?: string | null }>(rows: readonly T[] | null) =>
     dropHidden(rows ?? [], (r) => r.project_id, hidden)
-  // ⚠ AN INVESTMENT CAN NAME ITS DEAL THROUGH A VEHICLE INSTEAD, AND THEN ITS
-  // `project_id` IS NULL. `visible()` drops by `project_id` and was correct for
-  // every row shape until `investments.spv_id` existed — at which point a
-  // protected deal's committed capital passed straight through into this SENT
-  // email, with nothing reporting it. Both pointers are checked now.
-  const hiddenVehicles = await hiddenVehicleIds(null)
-
+  // ⚠ `investments` NAMES ITS DEAL BY `project_id` AND NOTHING ELSE AGAIN.
+  // It briefly also named one through `spv_id`, whose rows have `project_id`
+  // NULL — and `visible()` drops by `project_id`, so a protected deal's
+  // committed capital passed straight through into this SENT email with
+  // nothing reporting it. The column went with the Vehicles module on
+  // 2026-10-23. ⚠ IF THIS TABLE EVER GAINS A SECOND WAY TO NAME ITS DEAL,
+  // THIS FILTER BREAKS AGAIN WITHOUT BEING TOUCHED (§12).
   const projects = dropHidden(projectsAll ?? [], (p) => p.id, hidden)
   const openTasks = visible(openTasksAll)
   const updates = visible(updatesAll)
   const milestones = visible(milestonesAll)
   const ddItems = visible(ddItemsAll)
   const complianceItems = visible(complianceItemsAll)
-  const investments = visible(investmentsAll).filter(
-    (i) => !((i as { spv_id?: string | null }).spv_id && hiddenVehicles.has((i as { spv_id?: string | null }).spv_id!))
-  )
+  const investments = visible(investmentsAll)
   // A dependency names BOTH ends, so either end being protected removes the row.
   const dependencies = (dependenciesAll ?? []).filter(
     (d) => !hidden.has(d.upstream_project_id) && !hidden.has(d.downstream_project_id)

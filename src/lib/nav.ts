@@ -18,7 +18,6 @@ import {
   KeyRound,
   Map as MapIcon,
   HandCoins,
-  Boxes,
   Factory,
   Wrench,
   type LucideIcon,
@@ -35,7 +34,7 @@ import {
 /**
  * ⚠ `primary` WAS 13 UNLABELLED ITEMS AND IT WAS THE WORST THING IN THE NAV.
  * It mixed daily triage (Decide, Tasks, Commitments), portfolio records
- * (Projects, Opportunities, Investors, Vehicles), two whole business units
+ * (Projects, Opportunities, Investors), two whole business units
  * (Steel, Dino), a strategy board and a map — thirteen undifferentiated rows,
  * well past scannable, while the three groups that WERE labelled were the three
  * small ones. Split 2026-10-17 into four labelled groups by what a row is FOR,
@@ -124,13 +123,7 @@ export const NAV_ITEMS: NavItem[] = [
   // change. `countLeadsNeedingWork` feeds it, and carries `closingSoon` so the
   // urgency /decide's deadline ranking used to supply did not go with the rows.
   { href: '/leads', label: 'Leads', title: 'Inbound Leads', icon: Radar, group: 'records', keywords: 'inbound bids invitations itb ifb rfp rfq solicitations plan room prospects enquiries info inbox scored triage', badge: 'leads' },
-  { href: '/investors', label: 'Investors', icon: HandCoins, group: 'records', keywords: 'capital raise fundraising equity spv commitments funding money lp' },
-  // ⚠ NO `alsoMatches` FOR `/projects/*/vehicles`. `navItemActive` is per-item
-  // with no dedupe, so claiming a path that already belongs to another item
-  // lights two sidebar rows at once — and the reader believes the highlighted
-  // one, which made a real destination read as a sub-view of the wrong queue
-  // (§12, 10-03).
-  { href: '/vehicles', label: 'Vehicles', title: 'Vehicles & Cap Tables', icon: Boxes, group: 'records', keywords: 'spv spvs vehicles cap table captable holdco landco equity split ownership participants members llc capital committed funded raise structure who owns what' },
+  { href: '/investors', label: 'Investors', icon: HandCoins, group: 'records', keywords: 'capital raise fundraising equity commitments funding money lp' },
   { href: '/objectives', label: 'Objectives', icon: Target, group: 'records', keywords: 'priorities goals strategy steering now soon possibly focus' },
   { href: '/map', label: 'Map', title: 'Project Map', icon: MapIcon, group: 'records', keywords: 'map geography utah locations sites markers rail corridors presentation visualize' },
   { href: '/steel', label: 'Steel CRM', icon: Factory, group: 'units', keywords: 'prefab steel sales deals quotes square feet sqft plant manufacturing buildings customers' },

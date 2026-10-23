@@ -13,11 +13,10 @@
  * ⚠ LIVES IN src/hooks, NOT src/lib. It is a hook, so only a client component
  * can call it — and src/lib is where a SERVER page looks, where importing a
  * `'use client'` export throws at REQUEST time with neither `tsc` nor the build
- * catching it (CLAUDE.md §12, 07-11). It was in components/spvs/ until 10-17,
- * its own module there to stop the board and the cards importing each other.
- *
- * `OrgNodeOption` deliberately lives in src/lib/spvs/types.ts for that same
- * server-import reason.
+ * catching it (CLAUDE.md §12, 07-11). It lived under the Vehicles module's own
+ * components until 10-17, moved here so a server page could reach it, and
+ * outlived that module when it was removed on 10-23 — which is the whole
+ * argument for src/lib in one sentence.
  */
 
 import { useState } from 'react'
@@ -29,9 +28,9 @@ export type Draft = Record<string, string | boolean>
 /**
  * An empty string means "nobody has said". It must never arrive as 0.
  *
- * An equity split cleared to 0% says a partner holds none of the vehicle, which
- * is a different fact from nobody having agreed one — and the engine treats the
- * two differently on purpose.
+ * A win probability cleared to 0% says we judge the deal lost, which is a
+ * different fact from nobody having judged it — and the readers treat the two
+ * differently on purpose.
  */
 export function outbound(draft: Draft): Record<string, unknown> {
   const body: Record<string, unknown> = {}

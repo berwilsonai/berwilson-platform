@@ -40,11 +40,12 @@ test('a whole table absent from the registry is never writable', () => {
 })
 
 test('filling a blank is always allowed, even on a guarded field', () => {
-  // Richard's live open item: three Delta vehicles with a NULL equity_pct.
-  // A guard that refused to fill them would make her useless on a new deal.
+  // The live case this was written for: a NULL ownership_stake on a deal
+  // nobody has priced. A guard that refused to fill a blank would make her
+  // useless on a new record, which is the opposite of the point.
   const d = canWrite({
-    table: 'project_spv_participants',
-    field: 'equity_pct',
+    table: 'opportunities',
+    field: 'ownership_stake',
     currentValue: null,
     proposedValue: 51,
     writtenBy: null,
@@ -59,10 +60,10 @@ test('an empty string counts as blank but zero and false do not', () => {
   assert.equal(isBlank(null), true)
   assert.equal(isBlank(0), false)
   assert.equal(isBlank(false), false)
-  // A zero equity_pct is a decision somebody made; it is not an empty box.
+  // A zero ownership_stake is a decision somebody made; it is not an empty box.
   const d = canWrite({
-    table: 'project_spv_participants',
-    field: 'equity_pct',
+    table: 'opportunities',
+    field: 'ownership_stake',
     currentValue: 0,
     proposedValue: 51,
     writtenBy: 'human',
@@ -108,10 +109,11 @@ test('an open field is overwritten whoever wrote it', () => {
 })
 
 test('a guarded field a human typed is PROPOSED, never overwritten', () => {
-  // Richard's carve-out, verbatim: partner split percentages.
+  // Richard's carve-out: a percentage he typed is his, and she may argue with
+  // it in the morning report but never silently move it.
   const d = canWrite({
-    table: 'project_spv_participants',
-    field: 'equity_pct',
+    table: 'opportunities',
+    field: 'ownership_stake',
     currentValue: 51,
     proposedValue: 49,
     writtenBy: 'human',

@@ -7,8 +7,9 @@
  * `assembleCommon`, `loadOpenCommitments` and `counterpartyContext` with no
  * filter at all — did not. 49 open commitments carry a `project_id`, Pepper's
  * note is an OUTBOUND channel, and nothing anywhere reported the gap. It is the
- * same shape as the 10-08 finding about `investments.spv_id`: a table nobody
- * thought of as project-scoped turning out to name a deal.
+ * same shape as the 10-08 finding about `investments.spv_id` (a column since
+ * dropped with the Vehicles module): a table nobody thought of as
+ * project-scoped turning out to name a deal.
  *
  * Nothing is leaking today — `projects.confidential` is true for 0 rows as of
  * 2026-10-09 — which is exactly why it had to be fixed now rather than on the

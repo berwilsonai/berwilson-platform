@@ -57,7 +57,7 @@ export default async function FinancingPage({ params }: PageProps) {
     <div className="space-y-6">
       <FinancingTab recordKind="project" recordId={id} initialFinancing={financing} />
 
-      {/* Investors targeting this project / its SPV */}
+      {/* Investors targeting this project */}
       {invRows.length > 0 && (
         <section>
           <div className="flex items-center justify-between gap-2 mb-3">

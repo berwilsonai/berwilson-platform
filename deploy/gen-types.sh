@@ -65,9 +65,15 @@ npx --yes supabase@2 gen types typescript --db-url "$DB_URL" --schema public \
 
 # ── Assert it is the RIGHT database, not merely a reachable one ──────────────
 # A cloud project would answer this call perfectly and produce a plausible file.
-# project_spvs post-dates the cutover by two years, so only the Studio has it.
-if ! grep -q '"project_spvs"' "$TMP"; then
-  print -u2 "✗ Generated schema has no project_spvs — that is not this database."
+# commitments post-dates the 2026-07-07 cutover, so only the Studio has it.
+#
+# ⚠ THE CANARY MUST OUTLIVE WHAT IT GUARDS. This was `project_spvs` until that
+# table was dropped with the Vehicles module on 2026-10-23 — at which point the
+# check failed against the CORRECT database and read exactly like reaching the
+# wrong one. Pick a table the platform cannot operate without: `commitments` is
+# the obligation ledger behind /commitments and Pepper's morning note.
+if ! grep -q '"commitments"' "$TMP"; then
+  print -u2 "✗ Generated schema has no commitments — that is not this database."
   exit 1
 fi
 

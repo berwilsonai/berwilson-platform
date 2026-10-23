@@ -266,7 +266,7 @@ export type TargetKind = 'company' | 'project'
 
 export const TARGET_KIND_LABELS: Record<TargetKind, string> = {
   company: 'Ber Wilson (parent)',
-  project: 'Project / SPV',
+  project: 'Project',
 }
 
 // ─── Raise status ────────────────────────────────────────────────────────────
@@ -349,20 +349,21 @@ export function requirementStatus(value: string | null | undefined): Requirement
 /**
  * What a commitment is into.
  *
- * ⚠ THE SAME THREE MEMBERS AS `investments_target_check` AND
+ * ⚠ THE SAME TWO MEMBERS AS `investments_target_check` AND
  * `INVESTMENT_TARGETS` IN src/lib/investors/parse.ts. A taxonomy written in two
  * places drifts silently, because a member one copy was never told about simply
  * never fires (§12) — which is exactly how `spv` would have been offered by the
- * form and then filtered out of every list.
+ * form and then filtered out of every list. `spv` itself was removed
+ * 2026-10-23 with the Vehicles module; the test below holds the three copies
+ * to each other.
  */
-export type InvestmentTargetKind = 'company' | 'project' | 'spv'
+export type InvestmentTargetKind = 'company' | 'project'
 
-export const INVESTMENT_TARGET_KINDS: InvestmentTargetKind[] = ['company', 'project', 'spv']
+export const INVESTMENT_TARGET_KINDS: InvestmentTargetKind[] = ['company', 'project']
 
 export const INVESTMENT_TARGET_LABELS: Record<InvestmentTargetKind, string> = {
   company: 'Ber Wilson (parent)',
   project: 'A project',
-  spv: 'An SPV on a deal',
 }
 
 export function isInvestmentTargetKind(value: unknown): value is InvestmentTargetKind {
@@ -374,26 +375,17 @@ export function isInvestmentTargetKind(value: unknown): value is InvestmentTarge
  *
  * ⚠ ONE DEFINITION, BECAUSE THERE WERE FOUR. The investors list, the investor
  * detail page, `search_investors` and the investor embedding each wrote their
- * own `target_kind === 'company' ? … : project?.name ?? 'Project'` — and every
- * one of them rendered an SPV commitment as the bare word "Project", since an
- * spv-targeted row has `project_id` NULL by design. A label that is wrong in
- * four places is a label with no owner.
+ * own `target_kind === 'company' ? … : project?.name ?? 'Project'`. A label
+ * that is wrong in four places is a label with no owner, which is why this
+ * stays shared even now the union is down to two members.
  *
- * A vehicle is named with its DEAL as well: "Land Co" alone says nothing on a
- * page that spans fifty deals, and the deal alone loses which structure the
- * money is going into. `vehicle` is null when the vehicle sits on a protected
- * project, which is named as such rather than rendered blank.
+ * ⚠ A MISSING NAME IS SAID IN WORDS, never left as a bare em dash or an empty
+ * string at a value's own weight, which reads as a failed render (§12).
  */
 export function investmentTargetLabel(input: {
   target_kind: string
   project?: { name: string } | null
-  vehicle?: { label: string; dealName: string } | null
 }): string {
   if (input.target_kind === 'company') return INVESTMENT_TARGET_LABELS.company
-  if (input.target_kind === 'spv') {
-    return input.vehicle
-      ? `${input.vehicle.label} — ${input.vehicle.dealName}`
-      : 'A vehicle on a protected deal'
-  }
   return input.project?.name ?? 'An unnamed project'
 }

@@ -893,14 +893,14 @@ isOneToOne: false
                   ]
                 },"investments": {
                   Row: {
-                    "amount_committed": number | null,"amount_funded": number | null,"amount_indicated": number | null,"committed_date": string | null,"created_at": string | null,"equity_pct": number | null,"first_discussed_date": string | null,"funded_date": string | null,"id": string,"instrument": string | null,"investor_id": string,"next_step": string | null,"preferred_return_pct": number | null,"profit_share_pct": number | null,"project_id": string | null,"raise_id": string | null,"spv_id": string | null,"stage": string,"target_close_date": string | null,"target_kind": string,"terms_notes": string | null,"updated_at": string | null
+                    "amount_committed": number | null,"amount_funded": number | null,"amount_indicated": number | null,"committed_date": string | null,"created_at": string | null,"equity_pct": number | null,"first_discussed_date": string | null,"funded_date": string | null,"id": string,"instrument": string | null,"investor_id": string,"next_step": string | null,"preferred_return_pct": number | null,"profit_share_pct": number | null,"project_id": string | null,"raise_id": string | null,"stage": string,"target_close_date": string | null,"target_kind": string,"terms_notes": string | null,"updated_at": string | null
                   }
                   ComputedFields: never
                   Insert: {
-                    "amount_committed"?: number | null,"amount_funded"?: number | null,"amount_indicated"?: number | null,"committed_date"?: string | null,"created_at"?: string | null,"equity_pct"?: number | null,"first_discussed_date"?: string | null,"funded_date"?: string | null,"id"?: string,"instrument"?: string | null,"investor_id": string,"next_step"?: string | null,"preferred_return_pct"?: number | null,"profit_share_pct"?: number | null,"project_id"?: string | null,"raise_id"?: string | null,"spv_id"?: string | null,"stage"?: string,"target_close_date"?: string | null,"target_kind"?: string,"terms_notes"?: string | null,"updated_at"?: string | null
+                    "amount_committed"?: number | null,"amount_funded"?: number | null,"amount_indicated"?: number | null,"committed_date"?: string | null,"created_at"?: string | null,"equity_pct"?: number | null,"first_discussed_date"?: string | null,"funded_date"?: string | null,"id"?: string,"instrument"?: string | null,"investor_id": string,"next_step"?: string | null,"preferred_return_pct"?: number | null,"profit_share_pct"?: number | null,"project_id"?: string | null,"raise_id"?: string | null,"stage"?: string,"target_close_date"?: string | null,"target_kind"?: string,"terms_notes"?: string | null,"updated_at"?: string | null
                   }
                   Update: {
-                    "amount_committed"?: number | null,"amount_funded"?: number | null,"amount_indicated"?: number | null,"committed_date"?: string | null,"created_at"?: string | null,"equity_pct"?: number | null,"first_discussed_date"?: string | null,"funded_date"?: string | null,"id"?: string,"instrument"?: string | null,"investor_id"?: string,"next_step"?: string | null,"preferred_return_pct"?: number | null,"profit_share_pct"?: number | null,"project_id"?: string | null,"raise_id"?: string | null,"spv_id"?: string | null,"stage"?: string,"target_close_date"?: string | null,"target_kind"?: string,"terms_notes"?: string | null,"updated_at"?: string | null
+                    "amount_committed"?: number | null,"amount_funded"?: number | null,"amount_indicated"?: number | null,"committed_date"?: string | null,"created_at"?: string | null,"equity_pct"?: number | null,"first_discussed_date"?: string | null,"funded_date"?: string | null,"id"?: string,"instrument"?: string | null,"investor_id"?: string,"next_step"?: string | null,"preferred_return_pct"?: number | null,"profit_share_pct"?: number | null,"project_id"?: string | null,"raise_id"?: string | null,"stage"?: string,"target_close_date"?: string | null,"target_kind"?: string,"terms_notes"?: string | null,"updated_at"?: string | null
                   }
                   Relationships: [
                     {
@@ -920,12 +920,6 @@ isOneToOne: false
       columns: ["raise_id"]
 isOneToOne: false
       referencedRelation: "raises"
-      referencedColumns: ["id"]
-    },{
-      foreignKeyName: "investments_spv_id_fkey"
-      columns: ["spv_id"]
-isOneToOne: false
-      referencedRelation: "project_spvs"
       referencedColumns: ["id"]
     }
                   ]
@@ -1885,82 +1879,6 @@ isOneToOne: false
 isOneToOne: false
       referencedRelation: "contact_roles"
       referencedColumns: ["key"]
-    }
-                  ]
-                },"project_spv_participants": {
-                  Row: {
-                    "capital_committed": number | null,"capital_funded": number | null,"class": string,"created_at": string,"equity_pct": number | null,"holder_entity_id": string | null,"holder_name": string,"holder_party_id": string | null,"id": string,"investor_id": string | null,"is_ber_wilson": boolean,"note": string | null,"preferred_return_pct": number | null,"profit_share_pct": number | null,"role": string,"sort_order": number,"spv_id": string,"status": string,"updated_at": string | null
-                  }
-                  ComputedFields: never
-                  Insert: {
-                    "capital_committed"?: number | null,"capital_funded"?: number | null,"class"?: string,"created_at"?: string,"equity_pct"?: number | null,"holder_entity_id"?: string | null,"holder_name": string,"holder_party_id"?: string | null,"id"?: string,"investor_id"?: string | null,"is_ber_wilson"?: boolean,"note"?: string | null,"preferred_return_pct"?: number | null,"profit_share_pct"?: number | null,"role"?: string,"sort_order"?: number,"spv_id": string,"status"?: string,"updated_at"?: string | null
-                  }
-                  Update: {
-                    "capital_committed"?: number | null,"capital_funded"?: number | null,"class"?: string,"created_at"?: string,"equity_pct"?: number | null,"holder_entity_id"?: string | null,"holder_name"?: string,"holder_party_id"?: string | null,"id"?: string,"investor_id"?: string | null,"is_ber_wilson"?: boolean,"note"?: string | null,"preferred_return_pct"?: number | null,"profit_share_pct"?: number | null,"role"?: string,"sort_order"?: number,"spv_id"?: string,"status"?: string,"updated_at"?: string | null
-                  }
-                  Relationships: [
-                    {
-      foreignKeyName: "project_spv_participants_holder_entity_id_fkey"
-      columns: ["holder_entity_id"]
-isOneToOne: false
-      referencedRelation: "entities"
-      referencedColumns: ["id"]
-    },{
-      foreignKeyName: "project_spv_participants_holder_party_id_fkey"
-      columns: ["holder_party_id"]
-isOneToOne: false
-      referencedRelation: "parties"
-      referencedColumns: ["id"]
-    },{
-      foreignKeyName: "project_spv_participants_investor_id_fkey"
-      columns: ["investor_id"]
-isOneToOne: false
-      referencedRelation: "investors"
-      referencedColumns: ["id"]
-    },{
-      foreignKeyName: "project_spv_participants_spv_id_fkey"
-      columns: ["spv_id"]
-isOneToOne: false
-      referencedRelation: "project_spvs"
-      referencedColumns: ["id"]
-    }
-                  ]
-                },"project_spvs": {
-                  Row: {
-                    "bw_ownership_pct": number | null,"created_at": string,"entity_id": string | null,"id": string,"jurisdiction": string | null,"label": string,"note": string | null,"opportunity_id": string | null,"org_node_id": string | null,"org_node_name": string | null,"project_id": string | null,"purpose": string,"raise_target": number | null,"sort_order": number,"status": string,"updated_at": string | null
-                  }
-                  ComputedFields: never
-                  Insert: {
-                    "bw_ownership_pct"?: number | null,"created_at"?: string,"entity_id"?: string | null,"id"?: string,"jurisdiction"?: string | null,"label": string,"note"?: string | null,"opportunity_id"?: string | null,"org_node_id"?: string | null,"org_node_name"?: string | null,"project_id"?: string | null,"purpose"?: string,"raise_target"?: number | null,"sort_order"?: number,"status"?: string,"updated_at"?: string | null
-                  }
-                  Update: {
-                    "bw_ownership_pct"?: number | null,"created_at"?: string,"entity_id"?: string | null,"id"?: string,"jurisdiction"?: string | null,"label"?: string,"note"?: string | null,"opportunity_id"?: string | null,"org_node_id"?: string | null,"org_node_name"?: string | null,"project_id"?: string | null,"purpose"?: string,"raise_target"?: number | null,"sort_order"?: number,"status"?: string,"updated_at"?: string | null
-                  }
-                  Relationships: [
-                    {
-      foreignKeyName: "project_spvs_entity_id_fkey"
-      columns: ["entity_id"]
-isOneToOne: false
-      referencedRelation: "entities"
-      referencedColumns: ["id"]
-    },{
-      foreignKeyName: "project_spvs_opportunity_id_fkey"
-      columns: ["opportunity_id"]
-isOneToOne: false
-      referencedRelation: "opportunities"
-      referencedColumns: ["id"]
-    },{
-      foreignKeyName: "project_spvs_org_node_id_fkey"
-      columns: ["org_node_id"]
-isOneToOne: false
-      referencedRelation: "org_nodes"
-      referencedColumns: ["id"]
-    },{
-      foreignKeyName: "project_spvs_project_id_fkey"
-      columns: ["project_id"]
-isOneToOne: false
-      referencedRelation: "projects"
-      referencedColumns: ["id"]
     }
                   ]
                 },"projects": {

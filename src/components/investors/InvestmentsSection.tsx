@@ -3,23 +3,19 @@
 /**
  * An investor's commitments — THE RAISE PIPELINE, and not the cap table.
  *
- * ⚠ THE DISTINCTION IS THE WHOLE POINT OF THIS SCREEN. `investments` carried
- * equity/committed/funded and so did `project_spv_participants`, with nothing
- * naming which was the record: two homes for one quantity, which is how a
- * reader ends up trusting neither (CLAUDE.md §12). They are now named apart —
- * this is the relationship over time, the ledger on the vehicle is who holds
- * what — and the two are never summed. "Add to cap table" is the only crossing,
- * it needs a click, and it fills blanks rather than overwriting.
- *
- * A commitment also targets a VEHICLE now, not an entity. `spv_entity_id`
- * pointed at the legal company, so the same LLC reused across two deals made
- * the pointer ambiguous by construction (migration 20261008000001).
+ * ⚠ THERE IS NO CAP TABLE ANY MORE. `project_spv_participants` was the ledger
+ * this screen was carefully kept apart from, and it went with the Vehicles
+ * module on 2026-10-23 — taking the `spv` target, the vehicle picker and the
+ * "Add to cap table" crossing with it. What is left is unambiguous: this is the
+ * relationship over time, and a commitment names the parent company or a
+ * project. If a ledger of who-holds-what returns, it is a separate table and
+ * this screen still must not sum against it (CLAUDE.md §12).
  */
 
 import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Plus, Pencil, Trash2, Loader2, Building2, Landmark, Boxes, TableProperties } from 'lucide-react'
+import { Plus, Pencil, Trash2, Loader2, Building2, Landmark } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
@@ -41,13 +37,8 @@ import {
   investmentTargetLabel,
 } from '@/lib/utils/investors'
 
-/** The raise stages at which a commitment may be put on a cap table. */
-const LEDGER_STAGES = new Set(['committed', 'docs', 'funded'])
-
 export interface InvestmentRow extends Investment {
   project: { id: string; name: string } | null
-  /** Resolved server-side: `project_spvs` is outside the generated types (§4). */
-  vehicle: { id: string; label: string; dealName: string; dealHref: string } | null
   raise?: { id: string; name: string } | null
 }
 
@@ -56,19 +47,10 @@ interface Option {
   name: string
 }
 
-/** A vehicle a commitment can point at, named with the deal it belongs to. */
-export interface VehicleChoice {
-  id: string
-  label: string
-  dealName: string
-}
-
 interface InvestmentsSectionProps {
   investorId: string
   investments: InvestmentRow[]
   projects: Option[]
-  /** Every vehicle on every deal this viewer may see. */
-  vehicles: VehicleChoice[]
   raises?: Option[]
 }
 
@@ -76,7 +58,6 @@ interface FormValues {
   target_kind: string
   project_id: string
   raise_id: string
-  spv_id: string
   stage: string
   instrument: string
   amount_indicated: string
@@ -97,7 +78,6 @@ const EMPTY: FormValues = {
   target_kind: 'company',
   project_id: '',
   raise_id: '',
-  spv_id: '',
   stage: 'discussing',
   instrument: '',
   amount_indicated: '',
@@ -119,7 +99,6 @@ function toFormValues(inv: InvestmentRow): FormValues {
     target_kind: inv.target_kind,
     project_id: inv.project_id ?? '',
     raise_id: inv.raise_id ?? '',
-    spv_id: inv.spv_id ?? '',
     stage: inv.stage,
     instrument: inv.instrument ?? '',
     amount_indicated: inv.amount_indicated != null ? String(inv.amount_indicated) : '',
@@ -144,14 +123,13 @@ function DollarHint({ value }: { value: string }) {
   return <p className="mt-1 text-[11px] text-muted-foreground tnum">= {formatValue(n)}</p>
 }
 
-export default function InvestmentsSection({ investorId, investments, projects, vehicles, raises = [] }: InvestmentsSectionProps) {
+export default function InvestmentsSection({ investorId, investments, projects, raises = [] }: InvestmentsSectionProps) {
   const router = useRouter()
   const [editingId, setEditingId] = useState<string | null>(null) // 'new' = adding
   const [values, setValues] = useState<FormValues>(EMPTY)
   const [saving, setSaving] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<InvestmentRow | null>(null)
   const [deleting, setDeleting] = useState(false)
-  const [promoting, setPromoting] = useState<string | null>(null)
 
   function set<K extends keyof FormValues>(key: K, value: string) {
     setValues((v) => ({ ...v, [key]: value }))
@@ -170,10 +148,6 @@ export default function InvestmentsSection({ investorId, investments, projects, 
   async function save() {
     if (values.target_kind === 'project' && !values.project_id) {
       toast.error('Pick the project this investment targets.')
-      return
-    }
-    if (values.target_kind === 'spv' && !values.spv_id) {
-      toast.error('Pick the vehicle this commitment goes into.')
       return
     }
     setSaving(true)
@@ -196,46 +170,6 @@ export default function InvestmentsSection({ investorId, investments, projects, 
       toast.error('Save failed')
     } finally {
       setSaving(false)
-    }
-  }
-
-  /**
-   * Put a committed investor on the vehicle's cap table.
-   *
-   * ⚠ A CLICK, NEVER AUTOMATIC. The pipeline holds soft indications; the cap
-   * table holds what was papered. The route fills blanks and never overwrites,
-   * and it deliberately does NOT set an equity split — a dollar commitment is
-   * not a percentage, and that table is where our own share is read from. The
-   * message it returns says so, so it is shown rather than replaced with a
-   * generic "Saved".
-   */
-  async function addToCapTable(inv: InvestmentRow) {
-    if (!inv.vehicle) return
-    setPromoting(inv.id)
-    try {
-      const res = await fetch(`/api/spvs/${inv.vehicle.id}/participants/from-investment`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ investment_id: inv.id }),
-      })
-      const payload = (await res.json().catch(() => ({}))) as {
-        error?: string
-        message?: string
-        created?: boolean
-      }
-      if (!res.ok) {
-        toast.error(payload.error ?? 'Could not reach the cap table')
-        return
-      }
-      // `created: false` is not a failure — the investor was already there and
-      // nothing was changed. Said in the words the route chose.
-      if (payload.created) toast.success(payload.message ?? 'Added to the cap table')
-      else toast.info(payload.message ?? 'Already on the cap table')
-      router.refresh()
-    } catch {
-      toast.error('Could not reach the cap table')
-    } finally {
-      setPromoting(null)
     }
   }
 
@@ -270,8 +204,8 @@ export default function InvestmentsSection({ investorId, investments, projects, 
         <Field id={`target-${editingId}`} label="Target">
           <Select
             id={`target-${editingId}`}
-            // A native select sizes to its widest option, so a long vehicle
-            // name would stretch the column and wrap the rest (§12).
+            // A native select sizes to its widest option, so a long name
+            // would stretch the column and wrap the rest (§12).
             className="max-w-full"
             value={values.target_kind}
             onChange={(e) => set('target_kind', e.target.value)}
@@ -306,7 +240,7 @@ export default function InvestmentsSection({ investorId, investments, projects, 
           <Field
             id={`project-${editingId}`}
             label="Project"
-            hint="the deal as a whole, not a specific vehicle in it"
+            hint="the deal this commitment is into"
           >
             <Select
               id={`project-${editingId}`}
@@ -318,41 +252,6 @@ export default function InvestmentsSection({ investorId, investments, projects, 
               {projects.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.name}
-                </option>
-              ))}
-            </Select>
-          </Field>
-        )}
-        {values.target_kind === 'spv' && (
-          /*
-            ⚠ THE VEHICLE IS THE TARGET, AND THE DEAL IS REACHED THROUGH IT.
-            There is deliberately no second "which project" field: a vehicle
-            already knows its deal, and a second copy of that is a second
-            definition that can drift. It is also the only way a commitment can
-            attach to an OPPORTUNITY at all — `investments` has no
-            `opportunity_id`.
-          */
-          <Field
-            id={`vehicle-${editingId}`}
-            label="Vehicle"
-            hint={
-              vehicles.length === 0
-                ? 'no vehicles exist yet — add one on a deal’s Vehicles tab'
-                : 'the SPV the money goes into'
-            }
-            className="sm:col-span-2"
-          >
-            <Select
-              id={`vehicle-${editingId}`}
-              className="max-w-full"
-              value={values.spv_id}
-              onChange={(e) => set('spv_id', e.target.value)}
-              disabled={vehicles.length === 0}
-            >
-              <option value="">Pick a vehicle…</option>
-              {vehicles.map((v) => (
-                <option key={v.id} value={v.id}>
-                  {v.label} — {v.dealName}
                 </option>
               ))}
             </Select>
@@ -393,7 +292,7 @@ export default function InvestmentsSection({ investorId, investments, projects, 
         </Field>
       </FormGrid>
 
-      {/* Amounts — THE PIPELINE'S VIEW. The cap table is on the vehicle. */}
+      {/* Amounts — THE PIPELINE'S VIEW: indicated, committed, funded. */}
       <div className="space-y-2">
         <FormGrid cols={3}>
           <Field id={`indicated-${editingId}`} label="Indicated ($)">
@@ -427,13 +326,6 @@ export default function InvestmentsSection({ investorId, investments, projects, 
             <DollarHint value={values.amount_funded} />
           </Field>
         </FormGrid>
-        {values.target_kind === 'spv' && (
-          <p className="text-xs text-muted-foreground">
-            These are the raise pipeline’s figures for this relationship. Who actually holds what in
-            the vehicle is its cap table, on the deal’s Vehicles tab — the two are kept apart on
-            purpose and are never added together.
-          </p>
-        )}
       </div>
 
       {/* Terms */}
@@ -441,7 +333,7 @@ export default function InvestmentsSection({ investorId, investments, projects, 
         <Field
           id={`equity-${editingId}`}
           label="Equity (%)"
-          hint={values.target_kind === 'spv' ? 'what was negotiated; the cap table is the record' : undefined}
+          hint="what was negotiated"
         >
           <Input
             id={`equity-${editingId}`}
@@ -534,7 +426,7 @@ export default function InvestmentsSection({ investorId, investments, projects, 
       {investments.length === 0 && editingId !== 'new' ? (
         <p className="text-sm text-muted-foreground py-2">
           No investments recorded yet. Add one to track amounts and terms against the parent
-          company, a project, or a specific vehicle on a deal.
+          company or a project.
         </p>
       ) : (
         <ul className="space-y-3">
@@ -544,20 +436,12 @@ export default function InvestmentsSection({ investorId, investments, projects, 
             }
             const s = investmentStage(inv.stage)
             // ⚠ ONE SHARED LABEL, because four screens had written their own
-            // and all four rendered an SPV commitment as the bare word
-            // "Project" — `project_id` is NULL on an spv-targeted row by
-            // design, so the fallback was the branch that always fired.
+            // and a label that is wrong in four places is a label with no
+            // owner (§12).
             const targetLabel = investmentTargetLabel(inv)
             const targetHref =
-              inv.target_kind === 'spv'
-                ? inv.vehicle
-                  ? `${inv.vehicle.dealHref}/vehicles`
-                  : null
-                : inv.target_kind === 'project' && inv.project
-                  ? `/projects/${inv.project.id}`
-                  : null
-            const TargetIcon =
-              inv.target_kind === 'company' ? Landmark : inv.target_kind === 'spv' ? Boxes : Building2
+              inv.target_kind === 'project' && inv.project ? `/projects/${inv.project.id}` : null
+            const TargetIcon = inv.target_kind === 'company' ? Landmark : Building2
             return (
               <li key={inv.id} className="rounded-lg border border-border bg-card p-4 elev-1">
                 <div className="flex items-start justify-between gap-3">
@@ -613,40 +497,6 @@ export default function InvestmentsSection({ investorId, investments, projects, 
                       <p className="text-[11px] text-muted-foreground/80">
                         {inv.next_step ? `Next: ${inv.next_step}` : `Target close ${formatDate(inv.target_close_date)}`}
                       </p>
-                    )}
-
-                    {/*
-                      ⚠ THE ONE CROSSING BETWEEN THE TWO LEDGERS, AND IT IS A
-                      BUTTON. Offered only once the raise says the money is real
-                      — a soft indication is a conversation, not a holding — and
-                      the route fills blanks rather than overwriting, so pressing
-                      it twice cannot rewrite what a lawyer papered.
-
-                      Gated on `sm:` nowhere: a control that only appears on
-                      hover does not exist on a phone (§12), so it is always
-                      visible.
-                    */}
-                    {inv.target_kind === 'spv' && inv.vehicle && LEDGER_STAGES.has(inv.stage) && (
-                      <div className="pt-1">
-                        <Button
-                          size="xs"
-                          variant="outline"
-                          disabled={promoting === inv.id}
-                          onClick={() => void addToCapTable(inv)}
-                        >
-                          {promoting === inv.id ? (
-                            <Loader2 size={12} className="animate-spin" />
-                          ) : (
-                            <TableProperties size={12} />
-                          )}
-                          Add to cap table
-                        </Button>
-                        <p className="mt-1 text-[11px] text-muted-foreground">
-                          Puts {inv.vehicle.label}’s ledger row in place with this commitment’s
-                          dollars. The equity split stays undetermined — a dollar figure is not a
-                          percentage.
-                        </p>
-                      </div>
                     )}
                   </div>
 

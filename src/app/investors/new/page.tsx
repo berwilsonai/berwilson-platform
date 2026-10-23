@@ -40,7 +40,7 @@ export default async function NewInvestorPage() {
       <div>
         <h1 className="text-lg font-semibold">New Investor</h1>
         <p className="text-sm text-muted-foreground mt-0.5">
-          Track a potential investor in the parent company or a project SPV.
+          Track a potential investor in the parent company or a project.
         </p>
       </div>
 

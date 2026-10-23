@@ -51,7 +51,6 @@ const LABEL_COLUMN: Record<string, string> = {
   opportunities: 'name',
   parties: 'full_name',
   milestones: 'label',
-  project_spv_participants: 'holder_name',
 }
 
 /**

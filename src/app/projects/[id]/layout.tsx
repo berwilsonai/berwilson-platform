@@ -15,7 +15,6 @@ import RecordPager from '@/components/records/RecordPager'
 import { PROJECT_TABS } from '@/components/records/tabs'
 import { getViewer, canAccessProject } from '@/lib/auth/viewer'
 import { parcelDb } from '@/lib/parcels/queries'
-import { countProjectSpvs } from '@/lib/spvs/queries'
 
 interface LayoutProps {
   children: React.ReactNode
@@ -66,19 +65,14 @@ export default async function ProjectLayout({ children, params }: LayoutProps) {
     return n ?? 0
   }
 
-  const [players, updates, meetings, tasks, documents, milestones, financing, diligence, entities, parcels, vehicles] =
+  const [players, updates, meetings, tasks, documents, milestones, financing, diligence, entities, parcels] =
     await Promise.all([
       count('project_players'), count('updates'), count('meetings'), count('tasks'),
       count('documents'), count('milestones'), count('financing_structures'),
       count('dd_items'), count('entity_projects'), countParcels(),
-      // project_spvs counts through its own untyped client too. A vehicle is a
-      // child of the PROJECT, so a deal can carry its structure before anybody
-      // has put a figure on it.
-      countProjectSpvs('project', id),
     ])
   const tabCounts = {
     players, updates, meetings, tasks, documents, milestones, financing, diligence, entities, parcels,
-    vehicles,
   }
 
   const status = project.status ?? 'active'

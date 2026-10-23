@@ -9,16 +9,16 @@ import type { RecordTab } from './RecordTabBar'
  *                                           said, what we owe
  *   Documents · Players · Milestones      — the file: the paper, the people,
  *                                           the dates that bind us
- *   Land · Vehicles · Financing ·         — the structure: what it is made of,
- *   Diligence · Entities                    who owns it, how it is funded,
- *                                           what is unresolved
+ *   Land · Financing · Diligence ·        — the structure: what it is made of,
+ *   Entities                                how it is funded, what is unresolved
  *
  * ⚠ THERE IS NO ECONOMICS TAB AS OF 2026-10-23. The deal-economics calculator
- * was removed to be rebuilt in Excel first (CLAUDE.md §13). A deal's value is
- * now the `estimated_value` a human types on the Overview, and Vehicles carries
- * the structure and the capital. When the model returns, the tab goes back in
- * HERE and in `RecordTab`'s union — those two plus the count map are the three
- * places a kind-keyed structure has to agree, which is why they sit in one file.
+ * was removed to be rebuilt in Excel first (CLAUDE.md §13), and the Vehicles
+ * tab followed it on the same call 2026-10-23. A deal's value is now the
+ * `estimated_value` a human types on the Overview. When either returns, the tab
+ * goes back in HERE and in `RecordTab`'s union — those two plus the count map
+ * are the three places a kind-keyed structure has to agree, which is why they
+ * sit in one file.
  *
  * ⚠ WHICH TABS ARE `always` IS A DISCOVERABILITY DECISION, NOT A FREQUENCY ONE.
  * Gating a tab on having rows is right for reading a populated record and
@@ -40,7 +40,6 @@ export const PROJECT_TABS: RecordTab[] = [
   { label: 'Players', segment: 'players', key: 'players' },
   { label: 'Milestones', segment: 'milestones', key: 'milestones' },
   { label: 'Land', segment: 'parcels', key: 'parcels' },
-  { label: 'Vehicles', segment: 'vehicles', key: 'vehicles' },
   { label: 'Financing', segment: 'financing', key: 'financing' },
   { label: 'Diligence', segment: 'diligence', key: 'diligence' },
   { label: 'Entities & Vendors', segment: 'entities', key: 'entities' },
@@ -61,7 +60,6 @@ export const OPPORTUNITY_TABS: RecordTab[] = [
   { label: 'Documents', segment: 'documents', key: 'documents', always: true },
   { label: 'Players', segment: 'players', key: 'players' },
   { label: 'Milestones', segment: 'milestones', key: 'milestones' },
-  { label: 'Vehicles', segment: 'vehicles', key: 'vehicles' },
   { label: 'Financing', segment: 'financing', key: 'financing' },
   { label: 'Diligence', segment: 'diligence', key: 'diligence' },
   { label: 'Entities & Vendors', segment: 'entities', key: 'entities' },

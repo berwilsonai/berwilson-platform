@@ -101,7 +101,7 @@ export default async function VendorDetailPage({ params }: PageProps) {
       {/* ⚠ This row was folded into the rolodex on 2026-10-21 when the
           Directory's Vendors tab retired. The ROW IS THE TOMBSTONE (§12) — it
           is kept because a chunk and six party_entities rows point at it, and
-          because `entities` is the legal-entity table the SPVs and the
+          because `entities` is the legal-entity table the org chart and the
           governance registers hang off. Saying so beats a page that looks live
           and is nobody's source of truth. */}
       {mergedInto && (

@@ -2,8 +2,6 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { Pencil, MessageSquare, Banknote, UserRound, StickyNote, ListChecks, ClipboardList } from 'lucide-react'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { getViewer } from '@/lib/auth/viewer'
-import { loadVehicleDirectory } from '@/lib/spvs/portfolio'
 import { cn } from '@/lib/utils'
 import { formatValue, formatDate, SECTOR_LABELS } from '@/lib/utils/constants'
 import type { ProjectSector } from '@/lib/supabase/types'
@@ -70,8 +68,6 @@ export default async function InvestorDetailPage({ params }: PageProps) {
     await Promise.all([
       supabase
         .from('investments')
-        // No vehicle embed: `project_spvs` is deliberately outside the
-        // generated types (§4), so vehicles are resolved separately below.
         .select('*, project:projects(id, name), raise:raises(id, name)')
         .eq('investor_id', id)
         .order('created_at', { ascending: true }),
@@ -117,30 +113,7 @@ export default async function InvestorDetailPage({ params }: PageProps) {
   const party = investor.party as { id: string; full_name: string } | null
   const owner = (members ?? []).find((m) => m.id === investor.relationship_owner_id)
 
-  // ⚠ THE VEHICLE PICKER AND THE ROW LABELS BOTH GO THROUGH `loadPortfolioVehicles`,
-  // WHICH APPLIES THE CONFIDENTIAL-PROJECT FILTER ITSELF. A dropdown listing
-  // "Myton Data Center LLC — <protected deal>" would disclose the deal to
-  // anyone who opened the form, which is the whole thing `confidential` exists
-  // to prevent (§12 — the filter belongs at the choke point, not the caller).
-  //
-  // ⚠ ONE READ FOR BOTH. This page needs the picker's full list AND a label for
-  // each existing row, and asking for them separately ran the whole five-query
-  // portfolio read twice to render one page.
-  const viewer = await getViewer()
-  const rawInvestments = (investments ?? []) as unknown as InvestmentRow[]
-  const { options: vehicleOptions, refs: vehicleRefs } = await loadVehicleDirectory(
-    rawInvestments.map((i) => i.spv_id).filter((v): v is string => !!v),
-    viewer?.authUserId ?? null
-  )
-  const invRows: InvestmentRow[] = rawInvestments.map((i) => {
-    const ref = i.spv_id ? vehicleRefs.get(i.spv_id) : undefined
-    return {
-      ...i,
-      // Null when the vehicle is on a protected deal, which the row then names
-      // in words rather than rendering as a blank (§12).
-      vehicle: ref && i.spv_id ? { id: i.spv_id, ...ref } : null,
-    }
-  })
+  const invRows = (investments ?? []) as unknown as InvestmentRow[]
   const sum = (key: 'amount_indicated' | 'amount_committed' | 'amount_funded') =>
     invRows.reduce((acc, i) => acc + (i[key] ?? 0), 0)
   const indicated = sum('amount_indicated')
@@ -367,7 +340,6 @@ export default async function InvestorDetailPage({ params }: PageProps) {
           investorId={id}
           investments={invRows}
           projects={projects ?? []}
-          vehicles={vehicleOptions}
           raises={raises ?? []}
         />
       </section>

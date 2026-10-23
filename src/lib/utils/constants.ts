@@ -245,8 +245,6 @@ export const ACTIVITY_TABLE_LABELS: Record<string, string> = {
   // drifted: governance existed here and not there, dev_notes there and not
   // here. The page now reads this map and the duplicate is gone.
   dev_notes: 'Developer Notes',
-  project_spvs: 'Vehicles (SPVs)',
-  project_spv_participants: 'Vehicle participants',
   // ⚠ THESE THREE TABLES NO LONGER EXIST AND THEIR LABELS MUST STAY. The deal
   // economics calculator was removed on 2026-10-23, but `activity_log` is
   // append-only (§4) and still holds 248 rows naming them — 210

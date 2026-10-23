@@ -15,7 +15,7 @@ const UUID = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'
  * ⚠ It was one inline `/projects/<uuid>` match, so ⌘J on an OPPORTUNITY — the
  * record type carrying most of the live pipeline since it gained the same child
  * tables (2026-09-23) — opened the agent portfolio-wide, and the reader had to
- * name the deal in the question. Adding the next kind (a steel deal, a vehicle)
+ * name the deal in the question. Adding the next kind (a steel deal, a lead)
  * is a row here plus a prop on AgentChat, which `tsc` then demands everywhere.
  */
 const SCOPE_ROUTES: { kind: 'project' | 'opportunity'; pattern: RegExp; noun: string }[] = [

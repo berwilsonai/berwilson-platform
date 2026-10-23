@@ -24,7 +24,7 @@ export const metadata = { title: 'Directory — Ber Wilson Intelligence' }
  * role like everything else.
  *
  * `entities` the TABLE is untouched and still the legal-entity backbone that
- * project_spvs, ownership_interests and the governance registers point at.
+ * ownership_interests, org_nodes and the governance registers point at.
  * What retired is the surface. `/vendors/[id]` and `/vendors/new` still answer.
  */
 export default async function DirectoryPage() {

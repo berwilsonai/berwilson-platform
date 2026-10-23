@@ -151,7 +151,7 @@ export default function RaiseForm({ projects, initial }: RaiseFormProps) {
             <label className={labelClass}>Target</label>
             <select value={targetKind} onChange={(e) => setTargetKind(e.target.value)} className={inputClass}>
               <option value="company">Ber Wilson (parent)</option>
-              <option value="project">Project / SPV</option>
+              <option value="project">Project</option>
             </select>
           </div>
           {targetKind === 'project' && (

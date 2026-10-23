@@ -36,8 +36,8 @@ export const metadata = { title: 'Decide — Ber Wilson Intelligence' }
 /**
  * Where to go to see a proposed field in context.
  *
- * ⚠ ONLY TABLES WITH A PAGE, AND A FALLBACK THAT IS HONEST. A milestone and an
- * SPV participant are children rendered inside a tab, with no route of their
+ * ⚠ ONLY TABLES WITH A PAGE, AND A FALLBACK THAT IS HONEST. A milestone is a
+ * child rendered inside a tab, with no route of its
  * own — sending the reader to a URL assembled from the table name would be a
  * second routing table drifting beside the real one (§12). Those rows point at
  * the queue itself, which is where the question is answerable anyway.

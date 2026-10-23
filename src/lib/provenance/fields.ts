@@ -80,12 +80,11 @@ export const PROJECT_STATUSES = ['active', 'on_hold', 'won', 'lost', 'closed'] a
  *     for the same reason; they were dropped with the calculator on
  *     2026-10-23, which leaves `estimated_value` as the only value column —
  *     so it has to be the one named, or the decision reads as forgotten.
- *   - `equity_pct` / `capital_committed` / `capital_funded` on
- *     `project_spv_participants` — the partner splits Richard named by
- *     example. They are listed as guarded rather than omitted because a BLANK
- *     split is the open item he is being asked about on three Delta vehicles,
- *     and a proposal with the operating agreement's own sentence attached is
- *     exactly the help wanted there.
+ *
+ * ⚠ `project_spv_participants` WAS NAMED HERE — the partner splits, guarded so
+ * a blank one could be PROPOSED off an operating agreement. It went with the
+ * Vehicles module on 2026-10-23. Nothing replaced it: there is no table of
+ * who-holds-what any more, so the curator has nothing to propose a split into.
  */
 export const WRITABLE_FIELDS: Record<string, Record<string, FieldSpec>> = {
   projects: {
@@ -147,12 +146,6 @@ export const WRITABLE_FIELDS: Record<string, Record<string, FieldSpec>> = {
     // 17 Oct → 1 Nov is the live example.
     target_date: { tier: 'guarded', label: 'Target date' },
     completed_at: { tier: 'guarded', label: 'Completed' },
-  },
-  project_spv_participants: {
-    holder_name: { tier: 'open', label: 'Holder' },
-    equity_pct: { tier: 'guarded', label: 'Equity %' },
-    capital_committed: { tier: 'guarded', label: 'Capital committed' },
-    capital_funded: { tier: 'guarded', label: 'Capital funded' },
   },
 }
 
