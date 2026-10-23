@@ -591,32 +591,6 @@ isOneToOne: false
       referencedColumns: ["id"]
     }
                   ]
-                },"deal_economics": {
-                  Row: {
-                    "base_year": number | null,"cap_rate_pct": number | null,"computed_asset_value": number | null,"computed_at": string | null,"computed_bw_gross_annual_recurring": number | null,"computed_bw_gross_contract_value": number | null,"computed_bw_gross_one_time": number | null,"computed_bw_net_annual_recurring": number | null,"computed_bw_net_contract_value": number | null,"computed_bw_net_one_time": number | null,"computed_bw_net_tax_credits": number | null,"computed_capture_pct_of_gross": number | null,"computed_firm_mw": number | null,"computed_gross_annual_recurring": number | null,"computed_gross_contract_value": number | null,"computed_gross_one_time": number | null,"computed_gross_project_value": number | null,"computed_status": string | null,"computed_undetermined_annual_recurring": number | null,"computed_undetermined_one_time": number | null,"computed_utilization_pct": number | null,"computed_valid": boolean | null,"created_at": string,"discount_rate_pct": number | null,"id": string,"notes": string | null,"opportunity_id": string | null,"project_id": string | null,"stated_total_amount": number | null,"stated_total_shape": string | null,"updated_at": string | null
-                  }
-                  ComputedFields: never
-                  Insert: {
-                    "base_year"?: number | null,"cap_rate_pct"?: number | null,"computed_asset_value"?: number | null,"computed_at"?: string | null,"computed_bw_gross_annual_recurring"?: number | null,"computed_bw_gross_contract_value"?: number | null,"computed_bw_gross_one_time"?: number | null,"computed_bw_net_annual_recurring"?: number | null,"computed_bw_net_contract_value"?: number | null,"computed_bw_net_one_time"?: number | null,"computed_bw_net_tax_credits"?: number | null,"computed_capture_pct_of_gross"?: number | null,"computed_firm_mw"?: number | null,"computed_gross_annual_recurring"?: number | null,"computed_gross_contract_value"?: number | null,"computed_gross_one_time"?: number | null,"computed_gross_project_value"?: number | null,"computed_status"?: string | null,"computed_undetermined_annual_recurring"?: number | null,"computed_undetermined_one_time"?: number | null,"computed_utilization_pct"?: number | null,"computed_valid"?: boolean | null,"created_at"?: string,"discount_rate_pct"?: number | null,"id"?: string,"notes"?: string | null,"opportunity_id"?: string | null,"project_id"?: string | null,"stated_total_amount"?: number | null,"stated_total_shape"?: string | null,"updated_at"?: string | null
-                  }
-                  Update: {
-                    "base_year"?: number | null,"cap_rate_pct"?: number | null,"computed_asset_value"?: number | null,"computed_at"?: string | null,"computed_bw_gross_annual_recurring"?: number | null,"computed_bw_gross_contract_value"?: number | null,"computed_bw_gross_one_time"?: number | null,"computed_bw_net_annual_recurring"?: number | null,"computed_bw_net_contract_value"?: number | null,"computed_bw_net_one_time"?: number | null,"computed_bw_net_tax_credits"?: number | null,"computed_capture_pct_of_gross"?: number | null,"computed_firm_mw"?: number | null,"computed_gross_annual_recurring"?: number | null,"computed_gross_contract_value"?: number | null,"computed_gross_one_time"?: number | null,"computed_gross_project_value"?: number | null,"computed_status"?: string | null,"computed_undetermined_annual_recurring"?: number | null,"computed_undetermined_one_time"?: number | null,"computed_utilization_pct"?: number | null,"computed_valid"?: boolean | null,"created_at"?: string,"discount_rate_pct"?: number | null,"id"?: string,"notes"?: string | null,"opportunity_id"?: string | null,"project_id"?: string | null,"stated_total_amount"?: number | null,"stated_total_shape"?: string | null,"updated_at"?: string | null
-                  }
-                  Relationships: [
-                    {
-      foreignKeyName: "deal_economics_opportunity_id_fkey"
-      columns: ["opportunity_id"]
-isOneToOne: false
-      referencedRelation: "opportunities"
-      referencedColumns: ["id"]
-    },{
-      foreignKeyName: "deal_economics_project_id_fkey"
-      columns: ["project_id"]
-isOneToOne: false
-      referencedRelation: "projects"
-      referencedColumns: ["id"]
-    }
-                  ]
                 },"dev_notes": {
                   Row: {
                     "body": string | null,"created_at": string | null,"id": string,"kind": string,"page_path": string | null,"priority": string,"reporter_id": string | null,"reporter_name": string | null,"resolution": string | null,"resolved_at": string | null,"resolved_by": string | null,"status": string,"title": string,"updated_at": string | null,"user_agent": string | null
@@ -738,210 +712,6 @@ isOneToOne: false
       columns: ["steel_deal_id"]
 isOneToOne: false
       referencedRelation: "steel_deals"
-      referencedColumns: ["id"]
-    }
-                  ]
-                },"economics_benchmarks": {
-                  Row: {
-                    "active": boolean,"as_of": string | null,"created_at": string,"geography": string | null,"id": string,"key": string,"label": string,"needs_review": boolean,"notes": string | null,"sort_order": number,"source": string | null,"tone": string,"unit": string,"updated_at": string | null,"value_high": number | null,"value_low": number | null
-                  }
-                  ComputedFields: never
-                  Insert: {
-                    "active"?: boolean,"as_of"?: string | null,"created_at"?: string,"geography"?: string | null,"id"?: string,"key": string,"label": string,"needs_review"?: boolean,"notes"?: string | null,"sort_order"?: number,"source"?: string | null,"tone"?: string,"unit": string,"updated_at"?: string | null,"value_high"?: number | null,"value_low"?: number | null
-                  }
-                  Update: {
-                    "active"?: boolean,"as_of"?: string | null,"created_at"?: string,"geography"?: string | null,"id"?: string,"key"?: string,"label"?: string,"needs_review"?: boolean,"notes"?: string | null,"sort_order"?: number,"source"?: string | null,"tone"?: string,"unit"?: string,"updated_at"?: string | null,"value_high"?: number | null,"value_low"?: number | null
-                  }
-                  Relationships: [
-                    
-                  ]
-                },"economics_buckets": {
-                  Row: {
-                    "created_at": string,"economics_id": string,"id": string,"label": string,"peak_mw": number | null,"priority": number,"updated_at": string | null
-                  }
-                  ComputedFields: never
-                  Insert: {
-                    "created_at"?: string,"economics_id": string,"id"?: string,"label": string,"peak_mw"?: number | null,"priority"?: number,"updated_at"?: string | null
-                  }
-                  Update: {
-                    "created_at"?: string,"economics_id"?: string,"id"?: string,"label"?: string,"peak_mw"?: number | null,"priority"?: number,"updated_at"?: string | null
-                  }
-                  Relationships: [
-                    {
-      foreignKeyName: "economics_buckets_economics_id_fkey"
-      columns: ["economics_id"]
-isOneToOne: false
-      referencedRelation: "deal_economics"
-      referencedColumns: ["id"]
-    }
-                  ]
-                },"economics_capacity_sources": {
-                  Row: {
-                    "availability_pct": number | null,"block_count": number | null,"block_mw": number | null,"created_at": string,"economics_id": string,"id": string,"kind": string,"label": string,"nameplate_mw": number | null,"redundant_blocks": number | null,"sort_order": number,"stated_net_mw": number | null,"status": string,"updated_at": string | null
-                  }
-                  ComputedFields: never
-                  Insert: {
-                    "availability_pct"?: number | null,"block_count"?: number | null,"block_mw"?: number | null,"created_at"?: string,"economics_id": string,"id"?: string,"kind"?: string,"label": string,"nameplate_mw"?: number | null,"redundant_blocks"?: number | null,"sort_order"?: number,"stated_net_mw"?: number | null,"status"?: string,"updated_at"?: string | null
-                  }
-                  Update: {
-                    "availability_pct"?: number | null,"block_count"?: number | null,"block_mw"?: number | null,"created_at"?: string,"economics_id"?: string,"id"?: string,"kind"?: string,"label"?: string,"nameplate_mw"?: number | null,"redundant_blocks"?: number | null,"sort_order"?: number,"stated_net_mw"?: number | null,"status"?: string,"updated_at"?: string | null
-                  }
-                  Relationships: [
-                    {
-      foreignKeyName: "economics_capacity_sources_economics_id_fkey"
-      columns: ["economics_id"]
-isOneToOne: false
-      referencedRelation: "deal_economics"
-      referencedColumns: ["id"]
-    }
-                  ]
-                },"economics_input_proposals": {
-                  Row: {
-                    "confidence": number | null,"created_at": string,"decided_at": string | null,"decided_by": string | null,"economics_id": string,"field_key": string,"id": string,"line_id": string | null,"proposed_label": string | null,"proposed_line_type": string | null,"proposed_unit": string | null,"proposed_value": number | null,"reasoning": string | null,"source_document_id": string | null,"source_quote": string | null,"status": string,"updated_at": string | null
-                  }
-                  ComputedFields: never
-                  Insert: {
-                    "confidence"?: number | null,"created_at"?: string,"decided_at"?: string | null,"decided_by"?: string | null,"economics_id": string,"field_key": string,"id"?: string,"line_id"?: string | null,"proposed_label"?: string | null,"proposed_line_type"?: string | null,"proposed_unit"?: string | null,"proposed_value"?: number | null,"reasoning"?: string | null,"source_document_id"?: string | null,"source_quote"?: string | null,"status"?: string,"updated_at"?: string | null
-                  }
-                  Update: {
-                    "confidence"?: number | null,"created_at"?: string,"decided_at"?: string | null,"decided_by"?: string | null,"economics_id"?: string,"field_key"?: string,"id"?: string,"line_id"?: string | null,"proposed_label"?: string | null,"proposed_line_type"?: string | null,"proposed_unit"?: string | null,"proposed_value"?: number | null,"reasoning"?: string | null,"source_document_id"?: string | null,"source_quote"?: string | null,"status"?: string,"updated_at"?: string | null
-                  }
-                  Relationships: [
-                    {
-      foreignKeyName: "economics_input_proposals_economics_id_fkey"
-      columns: ["economics_id"]
-isOneToOne: false
-      referencedRelation: "deal_economics"
-      referencedColumns: ["id"]
-    },{
-      foreignKeyName: "economics_input_proposals_line_id_fkey"
-      columns: ["line_id"]
-isOneToOne: false
-      referencedRelation: "economics_lines"
-      referencedColumns: ["id"]
-    }
-                  ]
-                },"economics_line_schedule": {
-                  Row: {
-                    "created_at": string,"due_date": string | null,"id": string,"kind": string,"label": string,"line_id": string,"months_from_ntp": number | null,"pct": number | null,"sort_order": number,"updated_at": string | null
-                  }
-                  ComputedFields: never
-                  Insert: {
-                    "created_at"?: string,"due_date"?: string | null,"id"?: string,"kind"?: string,"label"?: string,"line_id": string,"months_from_ntp"?: number | null,"pct"?: number | null,"sort_order"?: number,"updated_at"?: string | null
-                  }
-                  Update: {
-                    "created_at"?: string,"due_date"?: string | null,"id"?: string,"kind"?: string,"label"?: string,"line_id"?: string,"months_from_ntp"?: number | null,"pct"?: number | null,"sort_order"?: number,"updated_at"?: string | null
-                  }
-                  Relationships: [
-                    {
-      foreignKeyName: "economics_line_schedule_line_id_fkey"
-      columns: ["line_id"]
-isOneToOne: false
-      referencedRelation: "economics_lines"
-      referencedColumns: ["id"]
-    }
-                  ]
-                },"economics_lines": {
-                  Row: {
-                    "acres": number | null,"amount": number | null,"annual_rate_pct": number | null,"annual_rent": number | null,"attribute_kind": string | null,"bucket_id": string | null,"capital_base": number | null,"cost": number | null,"cost_per_mw": number | null,"cost_per_unit": number | null,"counterparty": string | null,"counts_toward_project_value": boolean,"created_at": string,"credit_kind": string | null,"disposition": string | null,"economics_id": string,"escalator_pct": number | null,"fee_base": string | null,"fixed_om_per_kw_year": number | null,"gas_price_per_mmbtu": number | null,"heat_rate": number | null,"id": string,"is_ber_wilson_revenue": boolean,"is_carve_out": boolean,"it_mw": number | null,"label": string,"line_type": string,"load_factor": number | null,"minimum_take_pct": number | null,"mode": string | null,"mw": number | null,"notes": string | null,"occupancy": number | null,"opex_annual": number | null,"our_share_pct": number | null,"partner_label": string | null,"pct_of_line": number | null,"power_passed_through": boolean,"power_revenue_retained": boolean,"price": number | null,"price_per_mw": number | null,"price_per_mwh": number | null,"price_per_unit": number | null,"price_per_unit_month": number | null,"price_unit": string | null,"pue": number | null,"quantity": number | null,"ramp": (number)[] | null,"rate_per_kw_month": number | null,"referenced_line_id": string | null,"rides_on_line_id": string | null,"sort_order": number,"spv_id": string | null,"start_year": number | null,"status": string,"term_years": number | null,"transferable": boolean,"unit_label": string | null,"units": number | null,"updated_at": string | null,"variable_om_per_mwh": number | null
-                  }
-                  ComputedFields: never
-                  Insert: {
-                    "acres"?: number | null,"amount"?: number | null,"annual_rate_pct"?: number | null,"annual_rent"?: number | null,"attribute_kind"?: string | null,"bucket_id"?: string | null,"capital_base"?: number | null,"cost"?: number | null,"cost_per_mw"?: number | null,"cost_per_unit"?: number | null,"counterparty"?: string | null,"counts_toward_project_value"?: boolean,"created_at"?: string,"credit_kind"?: string | null,"disposition"?: string | null,"economics_id": string,"escalator_pct"?: number | null,"fee_base"?: string | null,"fixed_om_per_kw_year"?: number | null,"gas_price_per_mmbtu"?: number | null,"heat_rate"?: number | null,"id"?: string,"is_ber_wilson_revenue"?: boolean,"is_carve_out"?: boolean,"it_mw"?: number | null,"label": string,"line_type": string,"load_factor"?: number | null,"minimum_take_pct"?: number | null,"mode"?: string | null,"mw"?: number | null,"notes"?: string | null,"occupancy"?: number | null,"opex_annual"?: number | null,"our_share_pct"?: number | null,"partner_label"?: string | null,"pct_of_line"?: number | null,"power_passed_through"?: boolean,"power_revenue_retained"?: boolean,"price"?: number | null,"price_per_mw"?: number | null,"price_per_mwh"?: number | null,"price_per_unit"?: number | null,"price_per_unit_month"?: number | null,"price_unit"?: string | null,"pue"?: number | null,"quantity"?: number | null,"ramp"?: (number)[] | null,"rate_per_kw_month"?: number | null,"referenced_line_id"?: string | null,"rides_on_line_id"?: string | null,"sort_order"?: number,"spv_id"?: string | null,"start_year"?: number | null,"status"?: string,"term_years"?: number | null,"transferable"?: boolean,"unit_label"?: string | null,"units"?: number | null,"updated_at"?: string | null,"variable_om_per_mwh"?: number | null
-                  }
-                  Update: {
-                    "acres"?: number | null,"amount"?: number | null,"annual_rate_pct"?: number | null,"annual_rent"?: number | null,"attribute_kind"?: string | null,"bucket_id"?: string | null,"capital_base"?: number | null,"cost"?: number | null,"cost_per_mw"?: number | null,"cost_per_unit"?: number | null,"counterparty"?: string | null,"counts_toward_project_value"?: boolean,"created_at"?: string,"credit_kind"?: string | null,"disposition"?: string | null,"economics_id"?: string,"escalator_pct"?: number | null,"fee_base"?: string | null,"fixed_om_per_kw_year"?: number | null,"gas_price_per_mmbtu"?: number | null,"heat_rate"?: number | null,"id"?: string,"is_ber_wilson_revenue"?: boolean,"is_carve_out"?: boolean,"it_mw"?: number | null,"label"?: string,"line_type"?: string,"load_factor"?: number | null,"minimum_take_pct"?: number | null,"mode"?: string | null,"mw"?: number | null,"notes"?: string | null,"occupancy"?: number | null,"opex_annual"?: number | null,"our_share_pct"?: number | null,"partner_label"?: string | null,"pct_of_line"?: number | null,"power_passed_through"?: boolean,"power_revenue_retained"?: boolean,"price"?: number | null,"price_per_mw"?: number | null,"price_per_mwh"?: number | null,"price_per_unit"?: number | null,"price_per_unit_month"?: number | null,"price_unit"?: string | null,"pue"?: number | null,"quantity"?: number | null,"ramp"?: (number)[] | null,"rate_per_kw_month"?: number | null,"referenced_line_id"?: string | null,"rides_on_line_id"?: string | null,"sort_order"?: number,"spv_id"?: string | null,"start_year"?: number | null,"status"?: string,"term_years"?: number | null,"transferable"?: boolean,"unit_label"?: string | null,"units"?: number | null,"updated_at"?: string | null,"variable_om_per_mwh"?: number | null
-                  }
-                  Relationships: [
-                    {
-      foreignKeyName: "economics_lines_bucket_id_fkey"
-      columns: ["bucket_id"]
-isOneToOne: false
-      referencedRelation: "economics_buckets"
-      referencedColumns: ["id"]
-    },{
-      foreignKeyName: "economics_lines_economics_id_fkey"
-      columns: ["economics_id"]
-isOneToOne: false
-      referencedRelation: "deal_economics"
-      referencedColumns: ["id"]
-    },{
-      foreignKeyName: "economics_lines_referenced_line_id_fkey"
-      columns: ["referenced_line_id"]
-isOneToOne: false
-      referencedRelation: "economics_lines"
-      referencedColumns: ["id"]
-    },{
-      foreignKeyName: "economics_lines_rides_on_line_id_fkey"
-      columns: ["rides_on_line_id"]
-isOneToOne: false
-      referencedRelation: "economics_lines"
-      referencedColumns: ["id"]
-    },{
-      foreignKeyName: "economics_lines_spv_id_fkey"
-      columns: ["spv_id"]
-isOneToOne: false
-      referencedRelation: "project_spvs"
-      referencedColumns: ["id"]
-    }
-                  ]
-                },"economics_provenance": {
-                  Row: {
-                    "as_of": string | null,"created_at": string,"economics_id": string,"field_key": string,"id": string,"line_id": string | null,"note": string | null,"source": string | null,"source_ref": string | null,"status": string,"updated_at": string | null
-                  }
-                  ComputedFields: never
-                  Insert: {
-                    "as_of"?: string | null,"created_at"?: string,"economics_id": string,"field_key": string,"id"?: string,"line_id"?: string | null,"note"?: string | null,"source"?: string | null,"source_ref"?: string | null,"status"?: string,"updated_at"?: string | null
-                  }
-                  Update: {
-                    "as_of"?: string | null,"created_at"?: string,"economics_id"?: string,"field_key"?: string,"id"?: string,"line_id"?: string | null,"note"?: string | null,"source"?: string | null,"source_ref"?: string | null,"status"?: string,"updated_at"?: string | null
-                  }
-                  Relationships: [
-                    {
-      foreignKeyName: "economics_provenance_economics_id_fkey"
-      columns: ["economics_id"]
-isOneToOne: false
-      referencedRelation: "deal_economics"
-      referencedColumns: ["id"]
-    },{
-      foreignKeyName: "economics_provenance_line_id_fkey"
-      columns: ["line_id"]
-isOneToOne: false
-      referencedRelation: "economics_lines"
-      referencedColumns: ["id"]
-    }
-                  ]
-                },"economics_templates": {
-                  Row: {
-                    "active": boolean,"created_at": string,"description": string | null,"id": string,"key": string,"label": string,"sort_order": number,"structure": NonNullable<Json>,"system": boolean,"updated_at": string | null
-                  }
-                  ComputedFields: never
-                  Insert: {
-                    "active"?: boolean,"created_at"?: string,"description"?: string | null,"id"?: string,"key": string,"label": string,"sort_order"?: number,"structure"?: NonNullable<Json>,"system"?: boolean,"updated_at"?: string | null
-                  }
-                  Update: {
-                    "active"?: boolean,"created_at"?: string,"description"?: string | null,"id"?: string,"key"?: string,"label"?: string,"sort_order"?: number,"structure"?: NonNullable<Json>,"system"?: boolean,"updated_at"?: string | null
-                  }
-                  Relationships: [
-                    
-                  ]
-                },"economics_versions": {
-                  Row: {
-                    "created_at": string,"created_by": string | null,"economics_id": string,"id": string,"input_snapshot": NonNullable<Json>,"label": string | null,"note": string | null,"result_snapshot": NonNullable<Json>,"version": number
-                  }
-                  ComputedFields: never
-                  Insert: {
-                    "created_at"?: string,"created_by"?: string | null,"economics_id": string,"id"?: string,"input_snapshot": NonNullable<Json>,"label"?: string | null,"note"?: string | null,"result_snapshot": NonNullable<Json>,"version": number
-                  }
-                  Update: {
-                    "created_at"?: string,"created_by"?: string | null,"economics_id"?: string,"id"?: string,"input_snapshot"?: NonNullable<Json>,"label"?: string | null,"note"?: string | null,"result_snapshot"?: NonNullable<Json>,"version"?: number
-                  }
-                  Relationships: [
-                    {
-      foreignKeyName: "economics_versions_economics_id_fkey"
-      columns: ["economics_id"]
-isOneToOne: false
-      referencedRelation: "deal_economics"
       referencedColumns: ["id"]
     }
                   ]
@@ -1485,14 +1255,14 @@ isOneToOne: false
                   ]
                 },"opportunities": {
                   Row: {
-                    "auto_created_from": string | null,"counterparty": string | null,"created_at": string | null,"deal_structure": string | null,"description": string | null,"drive_folder_id": string | null,"drive_folder_url": string | null,"drive_source_folder_id": string | null,"drive_source_folder_url": string | null,"economics_capture_value": number | null,"economics_computed_at": string | null,"economics_status": string | null,"estimated_value": number | null,"id": string,"identified_date": string | null,"lead": string | null,"location": string | null,"match_aliases": (string)[],"name": string,"next_step": string | null,"objective": string | null,"opp_type": string,"ownership_stake": number | null,"priority": string | null,"probability": number | null,"sector": string | null,"source": string | null,"status": string,"target_close_date": string | null,"target_name": string | null,"thesis": string | null,"updated_at": string | null,"website": string | null
+                    "auto_created_from": string | null,"counterparty": string | null,"created_at": string | null,"deal_structure": string | null,"description": string | null,"drive_folder_id": string | null,"drive_folder_url": string | null,"drive_source_folder_id": string | null,"drive_source_folder_url": string | null,"estimated_value": number | null,"id": string,"identified_date": string | null,"lead": string | null,"location": string | null,"match_aliases": (string)[],"name": string,"next_step": string | null,"objective": string | null,"opp_type": string,"ownership_stake": number | null,"priority": string | null,"probability": number | null,"sector": string | null,"source": string | null,"status": string,"target_close_date": string | null,"target_name": string | null,"thesis": string | null,"updated_at": string | null,"website": string | null
                   }
                   ComputedFields: never
                   Insert: {
-                    "auto_created_from"?: string | null,"counterparty"?: string | null,"created_at"?: string | null,"deal_structure"?: string | null,"description"?: string | null,"drive_folder_id"?: string | null,"drive_folder_url"?: string | null,"drive_source_folder_id"?: string | null,"drive_source_folder_url"?: string | null,"economics_capture_value"?: number | null,"economics_computed_at"?: string | null,"economics_status"?: string | null,"estimated_value"?: number | null,"id"?: string,"identified_date"?: string | null,"lead"?: string | null,"location"?: string | null,"match_aliases"?: (string)[],"name": string,"next_step"?: string | null,"objective"?: string | null,"opp_type"?: string,"ownership_stake"?: number | null,"priority"?: string | null,"probability"?: number | null,"sector"?: string | null,"source"?: string | null,"status"?: string,"target_close_date"?: string | null,"target_name"?: string | null,"thesis"?: string | null,"updated_at"?: string | null,"website"?: string | null
+                    "auto_created_from"?: string | null,"counterparty"?: string | null,"created_at"?: string | null,"deal_structure"?: string | null,"description"?: string | null,"drive_folder_id"?: string | null,"drive_folder_url"?: string | null,"drive_source_folder_id"?: string | null,"drive_source_folder_url"?: string | null,"estimated_value"?: number | null,"id"?: string,"identified_date"?: string | null,"lead"?: string | null,"location"?: string | null,"match_aliases"?: (string)[],"name": string,"next_step"?: string | null,"objective"?: string | null,"opp_type"?: string,"ownership_stake"?: number | null,"priority"?: string | null,"probability"?: number | null,"sector"?: string | null,"source"?: string | null,"status"?: string,"target_close_date"?: string | null,"target_name"?: string | null,"thesis"?: string | null,"updated_at"?: string | null,"website"?: string | null
                   }
                   Update: {
-                    "auto_created_from"?: string | null,"counterparty"?: string | null,"created_at"?: string | null,"deal_structure"?: string | null,"description"?: string | null,"drive_folder_id"?: string | null,"drive_folder_url"?: string | null,"drive_source_folder_id"?: string | null,"drive_source_folder_url"?: string | null,"economics_capture_value"?: number | null,"economics_computed_at"?: string | null,"economics_status"?: string | null,"estimated_value"?: number | null,"id"?: string,"identified_date"?: string | null,"lead"?: string | null,"location"?: string | null,"match_aliases"?: (string)[],"name"?: string,"next_step"?: string | null,"objective"?: string | null,"opp_type"?: string,"ownership_stake"?: number | null,"priority"?: string | null,"probability"?: number | null,"sector"?: string | null,"source"?: string | null,"status"?: string,"target_close_date"?: string | null,"target_name"?: string | null,"thesis"?: string | null,"updated_at"?: string | null,"website"?: string | null
+                    "auto_created_from"?: string | null,"counterparty"?: string | null,"created_at"?: string | null,"deal_structure"?: string | null,"description"?: string | null,"drive_folder_id"?: string | null,"drive_folder_url"?: string | null,"drive_source_folder_id"?: string | null,"drive_source_folder_url"?: string | null,"estimated_value"?: number | null,"id"?: string,"identified_date"?: string | null,"lead"?: string | null,"location"?: string | null,"match_aliases"?: (string)[],"name"?: string,"next_step"?: string | null,"objective"?: string | null,"opp_type"?: string,"ownership_stake"?: number | null,"priority"?: string | null,"probability"?: number | null,"sector"?: string | null,"source"?: string | null,"status"?: string,"target_close_date"?: string | null,"target_name"?: string | null,"thesis"?: string | null,"updated_at"?: string | null,"website"?: string | null
                   }
                   Relationships: [
                     
@@ -1709,17 +1479,23 @@ isOneToOne: false
                   ]
                 },"parties": {
                   Row: {
-                    "avatar_url": string | null,"company": string | null,"created_at": string | null,"email": string | null,"enrichment_conflicts": Json | null,"enrichment_notes": Json | null,"full_name": string,"google_contacts": NonNullable<Json>,"google_contacts_hash": string | null,"government_contract_history": string | null,"graph_enriched_at": string | null,"id": string,"is_organization": boolean | null,"linkedin_url": string | null,"perplexity_enriched_at": string | null,"phone": string | null,"relationship_notes": string | null,"status": string,"tags": (string)[],"title": string | null,"updated_at": string | null
+                    "avatar_url": string | null,"company": string | null,"created_at": string | null,"email": string | null,"enrichment_conflicts": Json | null,"enrichment_notes": Json | null,"full_name": string,"google_contacts": NonNullable<Json>,"google_contacts_hash": string | null,"government_contract_history": string | null,"graph_enriched_at": string | null,"id": string,"is_organization": boolean | null,"linkedin_url": string | null,"merged_at": string | null,"merged_into_party_id": string | null,"perplexity_enriched_at": string | null,"phone": string | null,"relationship_notes": string | null,"status": string,"tags": (string)[],"title": string | null,"updated_at": string | null
                   }
                   ComputedFields: never
                   Insert: {
-                    "avatar_url"?: string | null,"company"?: string | null,"created_at"?: string | null,"email"?: string | null,"enrichment_conflicts"?: Json | null,"enrichment_notes"?: Json | null,"full_name": string,"google_contacts"?: NonNullable<Json>,"google_contacts_hash"?: string | null,"government_contract_history"?: string | null,"graph_enriched_at"?: string | null,"id"?: string,"is_organization"?: boolean | null,"linkedin_url"?: string | null,"perplexity_enriched_at"?: string | null,"phone"?: string | null,"relationship_notes"?: string | null,"status"?: string,"tags"?: (string)[],"title"?: string | null,"updated_at"?: string | null
+                    "avatar_url"?: string | null,"company"?: string | null,"created_at"?: string | null,"email"?: string | null,"enrichment_conflicts"?: Json | null,"enrichment_notes"?: Json | null,"full_name": string,"google_contacts"?: NonNullable<Json>,"google_contacts_hash"?: string | null,"government_contract_history"?: string | null,"graph_enriched_at"?: string | null,"id"?: string,"is_organization"?: boolean | null,"linkedin_url"?: string | null,"merged_at"?: string | null,"merged_into_party_id"?: string | null,"perplexity_enriched_at"?: string | null,"phone"?: string | null,"relationship_notes"?: string | null,"status"?: string,"tags"?: (string)[],"title"?: string | null,"updated_at"?: string | null
                   }
                   Update: {
-                    "avatar_url"?: string | null,"company"?: string | null,"created_at"?: string | null,"email"?: string | null,"enrichment_conflicts"?: Json | null,"enrichment_notes"?: Json | null,"full_name"?: string,"google_contacts"?: NonNullable<Json>,"google_contacts_hash"?: string | null,"government_contract_history"?: string | null,"graph_enriched_at"?: string | null,"id"?: string,"is_organization"?: boolean | null,"linkedin_url"?: string | null,"perplexity_enriched_at"?: string | null,"phone"?: string | null,"relationship_notes"?: string | null,"status"?: string,"tags"?: (string)[],"title"?: string | null,"updated_at"?: string | null
+                    "avatar_url"?: string | null,"company"?: string | null,"created_at"?: string | null,"email"?: string | null,"enrichment_conflicts"?: Json | null,"enrichment_notes"?: Json | null,"full_name"?: string,"google_contacts"?: NonNullable<Json>,"google_contacts_hash"?: string | null,"government_contract_history"?: string | null,"graph_enriched_at"?: string | null,"id"?: string,"is_organization"?: boolean | null,"linkedin_url"?: string | null,"merged_at"?: string | null,"merged_into_party_id"?: string | null,"perplexity_enriched_at"?: string | null,"phone"?: string | null,"relationship_notes"?: string | null,"status"?: string,"tags"?: (string)[],"title"?: string | null,"updated_at"?: string | null
                   }
                   Relationships: [
-                    
+                    {
+      foreignKeyName: "parties_merged_into_party_id_fkey"
+      columns: ["merged_into_party_id"]
+isOneToOne: false
+      referencedRelation: "parties"
+      referencedColumns: ["id"]
+    }
                   ]
                 },"party_entities": {
                   Row: {
@@ -2189,14 +1965,14 @@ isOneToOne: false
                   ]
                 },"projects": {
                   Row: {
-                    "applicable_standards": Json | null,"auto_created_from": string | null,"award_date": string | null,"bid_decision": string,"bid_due_date": string | null,"capture_lead": string | null,"client_entity": string | null,"competitors": NonNullable<Json>,"confidential": boolean,"contract_type": string | null,"created_at": string | null,"deal_folder_id": string | null,"delivery_method": string | null,"description": string | null,"drive_folder_id": string | null,"drive_folder_url": string | null,"drive_source_folder_id": string | null,"drive_source_folder_url": string | null,"economics_capture_value": number | null,"economics_computed_at": string | null,"economics_status": string | null,"estimated_value": number | null,"id": string,"incumbent": string | null,"latitude": number | null,"location": string | null,"longitude": number | null,"map_geometry": Json | null,"map_icon": string | null,"match_aliases": (string)[],"name": string,"ntp_date": string | null,"parent_project_id": string | null,"sector": Database["public"]['Enums']["project_sector"],"solicitation_number": string | null,"stage": Database["public"]['Enums']["project_stage"] | null,"status": Database["public"]['Enums']["project_status"] | null,"substantial_completion_date": string | null,"updated_at": string | null,"win_probability": number | null,"win_strategy": string | null
+                    "applicable_standards": Json | null,"auto_created_from": string | null,"award_date": string | null,"bid_decision": string,"bid_due_date": string | null,"capture_lead": string | null,"client_entity": string | null,"competitors": NonNullable<Json>,"confidential": boolean,"contract_type": string | null,"created_at": string | null,"deal_folder_id": string | null,"delivery_method": string | null,"description": string | null,"drive_folder_id": string | null,"drive_folder_url": string | null,"drive_source_folder_id": string | null,"drive_source_folder_url": string | null,"estimated_value": number | null,"id": string,"incumbent": string | null,"latitude": number | null,"location": string | null,"longitude": number | null,"map_geometry": Json | null,"map_icon": string | null,"match_aliases": (string)[],"name": string,"ntp_date": string | null,"parent_project_id": string | null,"sector": Database["public"]['Enums']["project_sector"],"solicitation_number": string | null,"stage": Database["public"]['Enums']["project_stage"] | null,"status": Database["public"]['Enums']["project_status"] | null,"substantial_completion_date": string | null,"updated_at": string | null,"win_probability": number | null,"win_strategy": string | null
                   }
                   ComputedFields: never
                   Insert: {
-                    "applicable_standards"?: Json | null,"auto_created_from"?: string | null,"award_date"?: string | null,"bid_decision"?: string,"bid_due_date"?: string | null,"capture_lead"?: string | null,"client_entity"?: string | null,"competitors"?: NonNullable<Json>,"confidential"?: boolean,"contract_type"?: string | null,"created_at"?: string | null,"deal_folder_id"?: string | null,"delivery_method"?: string | null,"description"?: string | null,"drive_folder_id"?: string | null,"drive_folder_url"?: string | null,"drive_source_folder_id"?: string | null,"drive_source_folder_url"?: string | null,"economics_capture_value"?: number | null,"economics_computed_at"?: string | null,"economics_status"?: string | null,"estimated_value"?: number | null,"id"?: string,"incumbent"?: string | null,"latitude"?: number | null,"location"?: string | null,"longitude"?: number | null,"map_geometry"?: Json | null,"map_icon"?: string | null,"match_aliases"?: (string)[],"name": string,"ntp_date"?: string | null,"parent_project_id"?: string | null,"sector": Database["public"]['Enums']["project_sector"],"solicitation_number"?: string | null,"stage"?: Database["public"]['Enums']["project_stage"] | null,"status"?: Database["public"]['Enums']["project_status"] | null,"substantial_completion_date"?: string | null,"updated_at"?: string | null,"win_probability"?: number | null,"win_strategy"?: string | null
+                    "applicable_standards"?: Json | null,"auto_created_from"?: string | null,"award_date"?: string | null,"bid_decision"?: string,"bid_due_date"?: string | null,"capture_lead"?: string | null,"client_entity"?: string | null,"competitors"?: NonNullable<Json>,"confidential"?: boolean,"contract_type"?: string | null,"created_at"?: string | null,"deal_folder_id"?: string | null,"delivery_method"?: string | null,"description"?: string | null,"drive_folder_id"?: string | null,"drive_folder_url"?: string | null,"drive_source_folder_id"?: string | null,"drive_source_folder_url"?: string | null,"estimated_value"?: number | null,"id"?: string,"incumbent"?: string | null,"latitude"?: number | null,"location"?: string | null,"longitude"?: number | null,"map_geometry"?: Json | null,"map_icon"?: string | null,"match_aliases"?: (string)[],"name": string,"ntp_date"?: string | null,"parent_project_id"?: string | null,"sector": Database["public"]['Enums']["project_sector"],"solicitation_number"?: string | null,"stage"?: Database["public"]['Enums']["project_stage"] | null,"status"?: Database["public"]['Enums']["project_status"] | null,"substantial_completion_date"?: string | null,"updated_at"?: string | null,"win_probability"?: number | null,"win_strategy"?: string | null
                   }
                   Update: {
-                    "applicable_standards"?: Json | null,"auto_created_from"?: string | null,"award_date"?: string | null,"bid_decision"?: string,"bid_due_date"?: string | null,"capture_lead"?: string | null,"client_entity"?: string | null,"competitors"?: NonNullable<Json>,"confidential"?: boolean,"contract_type"?: string | null,"created_at"?: string | null,"deal_folder_id"?: string | null,"delivery_method"?: string | null,"description"?: string | null,"drive_folder_id"?: string | null,"drive_folder_url"?: string | null,"drive_source_folder_id"?: string | null,"drive_source_folder_url"?: string | null,"economics_capture_value"?: number | null,"economics_computed_at"?: string | null,"economics_status"?: string | null,"estimated_value"?: number | null,"id"?: string,"incumbent"?: string | null,"latitude"?: number | null,"location"?: string | null,"longitude"?: number | null,"map_geometry"?: Json | null,"map_icon"?: string | null,"match_aliases"?: (string)[],"name"?: string,"ntp_date"?: string | null,"parent_project_id"?: string | null,"sector"?: Database["public"]['Enums']["project_sector"],"solicitation_number"?: string | null,"stage"?: Database["public"]['Enums']["project_stage"] | null,"status"?: Database["public"]['Enums']["project_status"] | null,"substantial_completion_date"?: string | null,"updated_at"?: string | null,"win_probability"?: number | null,"win_strategy"?: string | null
+                    "applicable_standards"?: Json | null,"auto_created_from"?: string | null,"award_date"?: string | null,"bid_decision"?: string,"bid_due_date"?: string | null,"capture_lead"?: string | null,"client_entity"?: string | null,"competitors"?: NonNullable<Json>,"confidential"?: boolean,"contract_type"?: string | null,"created_at"?: string | null,"deal_folder_id"?: string | null,"delivery_method"?: string | null,"description"?: string | null,"drive_folder_id"?: string | null,"drive_folder_url"?: string | null,"drive_source_folder_id"?: string | null,"drive_source_folder_url"?: string | null,"estimated_value"?: number | null,"id"?: string,"incumbent"?: string | null,"latitude"?: number | null,"location"?: string | null,"longitude"?: number | null,"map_geometry"?: Json | null,"map_icon"?: string | null,"match_aliases"?: (string)[],"name"?: string,"ntp_date"?: string | null,"parent_project_id"?: string | null,"sector"?: Database["public"]['Enums']["project_sector"],"solicitation_number"?: string | null,"stage"?: Database["public"]['Enums']["project_stage"] | null,"status"?: Database["public"]['Enums']["project_status"] | null,"substantial_completion_date"?: string | null,"updated_at"?: string | null,"win_probability"?: number | null,"win_strategy"?: string | null
                   }
                   Relationships: [
                     {
@@ -2830,7 +2606,7 @@ isOneToOne: false
           Views: {
             "email_threads_pending_embed": {
                   Row: {
-                    "attachment_count": number | null,"gmail_thread_id": string | null,"id": string | null,"last_at": string | null,"mailbox": string | null,"pipeline": string | null,"raw_markdown": string | null,"subject": string | null,"summary": Json | null
+                    "attachment_count": number | null,"gmail_thread_id": string,"id": string,"last_at": string | null,"mailbox": string,"pipeline": string,"raw_markdown": string | null,"subject": string | null,"summary": Json | null
                   }
                   ComputedFields: never
                   Insert: {

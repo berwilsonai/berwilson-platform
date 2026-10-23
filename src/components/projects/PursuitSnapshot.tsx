@@ -7,7 +7,7 @@ import {
   pwinBadge, weightedValue,
   bidDecision, BID_DECISION_LABELS, BID_DECISION_BADGE,
 } from '@/lib/utils/constants'
-import { pipelineValue } from '@/lib/economics/pipeline'
+import { pipelineValue } from '@/lib/records/pipeline-value'
 
 type ProjectWithCapture = Project & {
   bid_due_date?: string | null

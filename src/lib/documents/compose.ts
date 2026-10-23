@@ -36,7 +36,7 @@ import { recordDriveFolder } from '@/lib/drive/publish'
 import { notify } from '@/lib/notify'
 import { isConfidentialProject } from '@/lib/security/confidential'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { pipelineValue } from '@/lib/economics/pipeline'
+import { pipelineValue } from '@/lib/records/pipeline-value'
 import type { JsonIn } from '@/lib/supabase/types'
 
 import { COUNSEL_NOTICE, composeKind, composeKindMenu } from './compose-kinds'
@@ -104,7 +104,6 @@ interface RecordRow {
   sector: string | null
   status: string | null
   estimated_value: number | string | null
-  economics_capture_value: number | string | null
   confidential?: boolean | null
   counterparty?: string | null
   stage?: string | null
@@ -122,12 +121,15 @@ function safeFileName(name: string): string {
 /**
  * The figures the model is allowed to use, each carrying its own definition.
  *
- * ⚠ `pipelineValue()` RATHER THAN A COLUMN, because the two value columns mean
- * different things and the reader has to be told which one this is: §12, a
- * money figure must carry its SHAPE. `deal_economics` held 0 rows when this was
- * written, so for most records this list is short or empty — which is honest,
- * and `figureBlock` tells the model to write [TO BE AGREED] rather than
- * estimate when it is.
+ * ⚠ `pipelineValue()` RATHER THAN A COLUMN, because the figure has to reach the
+ * model with its definition attached: §12, a money figure must carry its SHAPE.
+ *
+ * ⚠ AND THIS LIST IS NEARLY ALWAYS EMPTY, WHICH IS THE HONEST STATE. It used to
+ * read `economics_capture_value` as well, and that column was NULL on all 30
+ * records before being dropped with the calculator on 2026-10-23; one project
+ * carries an `estimated_value`. So for 29 of 30 deals the model is handed no
+ * money at all — and `figureBlock` tells it to write [TO BE AGREED] rather than
+ * estimate, which is exactly what the figure guard exists to enforce.
  */
 function platformFigures(record: RecordRow): PlatformFigure[] {
   const figures: PlatformFigure[] = []
@@ -241,8 +243,8 @@ export async function composeDocument(args: {
   // ── 1. The record ─────────────────────────────────────────────────────────
   const columns =
     args.target.kind === 'project'
-      ? 'id, name, description, location, sector, status, stage, estimated_value, economics_capture_value, confidential'
-      : 'id, name, description, location, sector, status, counterparty, estimated_value, economics_capture_value'
+      ? 'id, name, description, location, sector, status, stage, estimated_value, confidential'
+      : 'id, name, description, location, sector, status, counterparty, estimated_value'
 
   const { data: recordData, error: recordErr } = await supabase
     .from(tables.record)

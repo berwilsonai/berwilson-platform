@@ -50,8 +50,6 @@ const full = {
   next_step: 'Counter their fee schedule',
   target_close_date: '2026-12-01',
   estimated_value: 48_000_000,
-  economics_capture_value: null,
-  economics_status: null,
 } as unknown as Opportunity
 
 /** ⚠ EVERY OPTIONAL FIELD ABSENT, WHICH IS THE SHAPE A NEW RECORD HAS. */
@@ -69,8 +67,6 @@ const bare = {
   next_step: null,
   target_close_date: null,
   estimated_value: null,
-  economics_capture_value: null,
-  economics_status: null,
 } as unknown as Opportunity
 
 /** A zero value — distinct from null, and the one a `||` would hide. */

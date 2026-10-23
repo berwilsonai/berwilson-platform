@@ -1,12 +1,12 @@
 /**
  * Database access for the vehicles on a deal and the people in them.
  *
- * ⚠ DELIBERATELY UNTYPED SUPABASE CLIENTS, AND THE INTERFACES BELOW CARRY THE
- * CONTRACT INSTEAD. `npm run gen-types` is a hard-disabled stub, so
- * src/types/database.ts is hand-maintained and neither of these tables appears
- * in it. Same convention as src/lib/economics/db.ts, src/lib/governance/db.ts
- * and src/lib/email-sweep/db.ts; the alternative is `as never` casts scattered
- * through every call site, which CLAUDE.md §4 forbids by name.
+ * ⚠ DELIBERATELY UNTYPED SUPABASE CLIENTS, WITH THE ROW TYPES BELOW TAKEN FROM
+ * THE GENERATED SCHEMA. `createUntypedAdminClient` survives for the embed-heavy
+ * reads the generated client cannot infer; the TYPES do not depend on it. Same
+ * convention as src/lib/governance/db.ts and src/lib/email-sweep/db.ts; the
+ * alternative is `as never` casts scattered through every call site, which
+ * CLAUDE.md §4 forbids by name.
  *
  * ⚠ EVERY MUTATION GOES THROUGH `spvDbAs`, NEVER `spvDb`. App traffic uses the
  * service role, so `auth.uid()` is NULL on the write and `log_activity()` falls
@@ -16,7 +16,7 @@
  *
  * ⚠ THE DERIVATION LIVES IN ownership.ts, NOT HERE. That file is pure and takes
  * no environment, so `npm test` and the verification scripts load it with no
- * database — the same split the economics engine keeps.
+ * database.
  */
 
 import { createUntypedAdminClient } from '@/lib/supabase/admin'
@@ -57,8 +57,23 @@ export type ProjectSpvRow = Tables<'project_spvs'>
 export type SpvParticipantRow = Tables<'project_spv_participants'>
 
 /**
- * PostgREST hands `numeric` back as a STRING. Reused from the economics module
- * rather than re-implemented, because the one rule that matters is shared:
- * absent returns null, NEVER 0.
+ * PostgREST hands `numeric` back as a STRING.
+ *
+ * ⚠ ABSENT RETURNS NULL, NEVER 0. An undecided equity split and a 0% one are
+ * different facts about a deal, and a coercion that folds them together is how
+ * "nobody has said" becomes "they get nothing" three layers later.
+ *
+ * ⚠ IT USED TO BE RE-EXPORTED FROM src/lib/economics/db.ts AND IS DECLARED HERE
+ * AS OF 2026-10-23, when the calculator was removed. One home: if the Excel
+ * model comes back needing the same coercion it imports this.
  */
-export { num } from '@/lib/economics/db'
+export function num(value: unknown): number | null {
+  if (value == null) return null
+  if (typeof value === 'number') return Number.isFinite(value) ? value : null
+  if (typeof value === 'string') {
+    if (value.trim() === '') return null
+    const parsed = Number(value)
+    return Number.isFinite(parsed) ? parsed : null
+  }
+  return null
+}

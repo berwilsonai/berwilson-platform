@@ -1,6 +1,12 @@
 /**
  * The one number the pipeline shows for a deal, and what that number IS.
  *
+ * ⚠ THIS USED TO LIVE IN src/lib/economics/pipeline.ts AND MOVED HERE WHEN THE
+ * CALCULATOR WAS REMOVED (2026-10-23). The module was never the engine — it is
+ * the rule that a figure on screen must say which quantity it is, plus the
+ * hierarchy arithmetic that stops a program and its sub-projects being counted
+ * twice. Both outlive the calculator and neither needs it.
+ *
  * ⚠ IT RETURNS A FIGURE AND A DEFINITION TOGETHER, ON PURPOSE. `estimated_value`
  * was a single unlabelled numeric column holding $57.5B across eight projects:
  * Myton Rail at $48,000,000,000 beside the Alaska JV at $1,500,000, plainly not
@@ -12,17 +18,19 @@
  * One quantity, one definition, or the reader trusts none of them (CLAUDE.md
  * §12, 09-26).
  *
- * THE PREFERENCE ORDER, AND WHY IT IS NOT AN OVERWRITE. A computed capture
- * figure wins when there is one; a hand-entered `estimated_value` is used when
- * there is not. Filling a blank and overwriting a value are different acts and
- * only one of them is safe to automate (CLAUDE.md §12, 09-30), so the
- * calculator never writes over `estimated_value` and a reader can always see
- * which of the two they are looking at.
+ * ⚠ THERE IS NOW ONE SOURCE, AND THAT IS THE POINT OF THE CHANGE. The computed
+ * `economics_capture_value` branch is gone with the engine, so a deal's value
+ * is whatever a human typed into `estimated_value` and nothing else. The
+ * `source` union keeps its 'capture' member OUT rather than retaining a member
+ * nothing can ever set: a taxonomy member that never fires is a second schema
+ * that drifts silently (§12). When the Excel model comes back into the
+ * platform, this is the one file that decides what the pipeline reads, and the
+ * member goes back in here first.
  *
  * Pure. No imports.
  */
 
-export type PipelineValueSource = 'capture' | 'estimated' | 'none'
+export type PipelineValueSource = 'estimated' | 'none'
 
 export interface PipelineValue {
   amount: number | null
@@ -34,34 +42,31 @@ export interface PipelineValue {
 }
 
 export interface PipelineValueInput {
-  economics_capture_value?: number | string | null
   estimated_value?: number | string | null
 }
 
+/**
+ * ⚠ AN EMPTY OR BLANK STRING IS ABSENT, NOT 0. `Number('')` is 0, so the
+ * version of this function that came over with the module would have rendered a
+ * blank `estimated_value` as "$0" — a figure about the deal that nobody typed,
+ * which is the one thing every rule in this file exists to prevent. Caught by
+ * the test below on the port (2026-10-23); the original had no case for it.
+ */
 function num(value: number | string | null | undefined): number | null {
   if (value == null) return null
+  if (typeof value === 'string' && value.trim() === '') return null
   const parsed = typeof value === 'number' ? value : Number(value)
   return Number.isFinite(parsed) ? parsed : null
 }
 
 export function pipelineValue(record: PipelineValueInput): PipelineValue {
-  const capture = num(record.economics_capture_value)
-  if (capture != null) {
-    return {
-      amount: capture,
-      source: 'capture',
-      definition: 'Ber Wilson capture',
-      hint: 'net of SPV ownership: contract value, one-time revenue and credits that reach Ber Wilson',
-    }
-  }
-
   const estimated = num(record.estimated_value)
   if (estimated != null) {
     return {
       amount: estimated,
       source: 'estimated',
-      definition: 'Estimated, unmodelled',
-      hint: 'a figure entered by hand, not computed. Build an economics model to replace it',
+      definition: 'Estimated deal value',
+      hint: 'a figure entered by hand on this record, not computed',
     }
   }
 
@@ -76,27 +81,21 @@ export function pipelineValue(record: PipelineValueInput): PipelineValue {
 /**
  * Sum a set of records for a KPI tile, reporting what the total is made of.
  *
- * ⚠ A MIXED TOTAL ANNOUNCES ITSELF. Adding a computed capture figure to a
- * hand-entered estimate produces a number that is neither, so the result says
- * how many of each went into it and the tile can say "4 modelled, 3 estimated"
- * rather than presenting one authoritative figure. A total that quietly mixes
- * definitions is exactly what this feature exists to end.
+ * ⚠ THE COUNTS SURVIVED THE CALCULATOR AND SHOULD. `estimated` and `unpriced`
+ * still tell a reader how much of the portfolio the total actually covers,
+ * which is the question a bare sum cannot answer: "$1.2B" over 30 deals means
+ * something different when 29 of them are blank.
  */
 export interface PipelineTotal {
   amount: number
-  /** How many records contributed a computed capture figure. */
-  modelled: number
-  /** How many contributed a hand-entered estimate instead. */
+  /** How many records contributed a figure. */
   estimated: number
   /** How many contributed nothing. */
   unpriced: number
-  /** True when the total is made of one kind of figure only. */
-  consistent: boolean
 }
 
 export function pipelineTotal(records: readonly PipelineValueInput[]): PipelineTotal {
   let amount = 0
-  let modelled = 0
   let estimated = 0
   let unpriced = 0
 
@@ -107,23 +106,27 @@ export function pipelineTotal(records: readonly PipelineValueInput[]): PipelineT
       continue
     }
     amount += value.amount
-    if (value.source === 'capture') modelled += 1
-    else estimated += 1
+    estimated += 1
   }
 
-  return {
-    amount,
-    modelled,
-    estimated,
-    unpriced,
-    consistent: modelled === 0 || estimated === 0,
-  }
+  return { amount, estimated, unpriced }
 }
 
-/** A short sentence naming what a mixed total is made of, or null when it is clean. */
-export function mixedTotalNote(total: PipelineTotal): string | null {
-  if (total.consistent) return null
-  return `${total.modelled} modelled, ${total.estimated} estimated by hand`
+/**
+ * A short sentence naming how much of a set the total actually covers, or null
+ * when every record contributed.
+ *
+ * ⚠ IT REPLACES `mixedTotalNote`, WHICH ANSWERED A QUESTION THAT NO LONGER
+ * EXISTS. There is only one kind of figure now, so nothing can be mixed — but
+ * the honest caveat on a portfolio total moved rather than went away, because
+ * a sum over 1 of 30 priced deals is the figure most likely to be misread.
+ */
+export function coverageNote(total: PipelineTotal): string | null {
+  if (total.unpriced === 0) return null
+  const priced = total.estimated
+  const all = priced + total.unpriced
+  if (priced === 0) return `none of ${all} priced`
+  return `${priced} of ${all} priced`
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -136,18 +139,17 @@ export function mixedTotalNote(total: PipelineTotal): string | null {
  * the arithmetic — and the arithmetic was wrong in three places at once:
  * `projects/[id]/page.tsx` totalled `[project, ...children]`, the dashboard
  * summed every project flat, and the pipeline board's stage columns did too. A
- * program carrying its own economics model alongside children carrying theirs
- * is counted TWICE in each, which at fifty deals is a portfolio figure nobody
- * can defend — the exact failure `pipelineValue` was built to end.
+ * program carrying its own figure alongside children carrying theirs is counted
+ * TWICE in each, which at fifty deals is a portfolio figure nobody can defend.
  *
- * THE RULE, and it is the simplest one that holds: ECONOMICS LIVES ON LEAVES. A
- * parent's value is the sum of its leaves and never its own model. A program is
- * a container for work, and its figure is what the work inside it adds up to.
+ * THE RULE, and it is the simplest one that holds: A DEAL'S VALUE LIVES ON
+ * LEAVES. A parent's value is the sum of its leaves and never its own figure. A
+ * program is a container for work, and its figure is what the work inside it
+ * adds up to.
  *
  * ⚠ A PARENT WITH NO CHILDREN IS A LEAF. That is what keeps the rule safe
- * against the normal case: 14 of 14 projects today have no children, so every
- * one of them counts, and the behaviour only changes for a record that actually
- * contains others.
+ * against the normal case, and the behaviour only changes for a record that
+ * actually contains others.
  */
 export interface HierarchyRecord extends PipelineValueInput {
   id: string
@@ -241,9 +243,9 @@ export interface RolledPipelineValue extends PipelineValue {
 /**
  * One record's value, rolled up from its descendants when it has any.
  *
- * ⚠ IT REPORTS THE OVERRULED FIGURE. A program whose own `economics_capture_value`
- * is being ignored in favour of its sub-projects must say so on screen, or the
- * next person to model the program wonders why their number never appeared.
+ * ⚠ IT REPORTS THE OVERRULED FIGURE. A program whose own `estimated_value` is
+ * being ignored in favour of its sub-projects must say so on screen, or the
+ * next person to type a number on the program wonders why it never appeared.
  */
 export function rolledPipelineValue<T extends HierarchyRecord>(
   record: T,
@@ -258,19 +260,13 @@ export function rolledPipelineValue<T extends HierarchyRecord>(
   }
 
   const total = pipelineTotal(leaves)
-  const note = mixedTotalNote(total)
-  const priced = total.modelled + total.estimated
+  const note = coverageNote(total)
   return {
     // ⚠ NULL, NOT 0, WHEN NOTHING INSIDE IS PRICED. A program of four unpriced
     // sub-projects showing "$0" states a fact about the deal that nobody made
     // (§12, 10-05); the caller renders null by naming the absence in words.
-    amount: priced > 0 ? total.amount : null,
-    // The WEAKEST definition present, because a total containing one
-    // hand-entered guess is no better evidenced than that guess. No fourth
-    // 'mixed' member: `mixedTotalNote` already says it in words, and a new
-    // enum member would silently never fire at every existing reader (§12 on
-    // taxonomies as second schemas).
-    source: total.estimated > 0 ? 'estimated' : total.modelled > 0 ? 'capture' : 'none',
+    amount: total.estimated > 0 ? total.amount : null,
+    source: total.estimated > 0 ? 'estimated' : 'none',
     definition: `Rolled up from ${leaves.length} sub-project${leaves.length === 1 ? '' : 's'}`,
     hint: note
       ? `the sum of what the work inside adds up to — ${note}`

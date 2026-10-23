@@ -18,10 +18,10 @@
  * sequence, so the order below is a UI decision, not an alphabetical accident.
  *
  * ⚠ NOT A DATABASE TABLE, AND THAT IS DELIBERATE. Each kind carries a prompt
- * shape and a structural choice in code — the same reason `economics_lines`
- * keeps `line_type` as a CHECK with a formula per type rather than a registry.
- * Adding a kind is necessarily a code change; `composed_documents.document_kind`
- * is plain text so an older row's kind survives this file dropping it.
+ * shape and a structural choice in code, so adding one is necessarily a code
+ * change — the test §12 sets for CHECK-vs-table, answered the opposite way from
+ * `lead_categories`. `composed_documents.document_kind` is plain text so an
+ * older row's kind survives this file dropping it.
  */
 
 /**

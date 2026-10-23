@@ -2,7 +2,6 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { Pencil } from 'lucide-react'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { hasEconomics } from '@/lib/economics/store'
 import { countProjectSpvs } from '@/lib/spvs/queries'
 import { getViewer, canAccessOpportunity } from '@/lib/auth/viewer'
 import { cn } from '@/lib/utils'
@@ -72,20 +71,18 @@ export default async function OpportunityDetailLayout({ children, params }: Layo
       .eq('opportunity_id', id)
     return n ?? 0
   }
-  const [players, notes, meetings, tasks, documents, milestones, financing, diligence, entities, economics, vehicles] =
+  const [players, notes, meetings, tasks, documents, milestones, financing, diligence, entities, vehicles] =
     await Promise.all([
       count('project_players'), count('opportunity_notes'), count('meetings'), count('tasks'),
       count('opportunity_documents'), count('milestones'), count('financing_structures'),
       count('dd_items'), count('entity_projects'),
-      // Absent from the generated types, so it counts through its own client.
-      hasEconomics('opportunity', id),
-      // Likewise. A vehicle hangs off the record, not off the economics model,
-      // which is why a pursuit can carry its structure before it carries a price.
+      // Counts through its own client. A vehicle hangs off the record, which is
+      // why a pursuit can carry its structure before it carries a price.
       countProjectSpvs('opportunity', id),
     ])
   const tabCounts: Partial<Record<TabKey, number>> = {
     players, updates: notes, meetings, tasks, documents, milestones, financing, diligence, entities,
-    economics, vehicles,
+    vehicles,
   }
 
   const t = oppType(opportunity.opp_type)

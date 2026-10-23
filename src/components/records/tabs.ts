@@ -9,27 +9,27 @@ import type { RecordTab } from './RecordTabBar'
  *                                           said, what we owe
  *   Documents · Players · Milestones      — the file: the paper, the people,
  *                                           the dates that bind us
- *   Land · Economics · Vehicles ·         — the structure: what it is made of,
- *   Financing · Diligence · Entities        what it is worth, who owns it,
- *                                           how it is funded, what is unresolved
+ *   Land · Vehicles · Financing ·         — the structure: what it is made of,
+ *   Diligence · Entities                    who owns it, how it is funded,
+ *                                           what is unresolved
  *
- * Vehicles still sits before Economics because the structure is decided first:
- * which SPV holds the land is settled long before anyone prices the deal, and
- * a revenue line cannot name a vehicle that does not exist yet.
+ * ⚠ THERE IS NO ECONOMICS TAB AS OF 2026-10-23. The deal-economics calculator
+ * was removed to be rebuilt in Excel first (CLAUDE.md §13). A deal's value is
+ * now the `estimated_value` a human types on the Overview, and Vehicles carries
+ * the structure and the capital. When the model returns, the tab goes back in
+ * HERE and in `RecordTab`'s union — those two plus the count map are the three
+ * places a kind-keyed structure has to agree, which is why they sit in one file.
  *
  * ⚠ WHICH TABS ARE `always` IS A DISCOVERABILITY DECISION, NOT A FREQUENCY ONE.
  * Gating a tab on having rows is right for reading a populated record and
  * exactly wrong for the first write. Measured 2026-10-18 on live data:
  * Documents 17/19 projects, Updates 14/19, Players 13/19, Tasks 4/19,
- * Milestones 2/19, Meetings 2/19, and Financing / Diligence / Entities /
- * Economics on none. By rows alone Meetings and Tasks belong under More — and
+ * Milestones 2/19, Meetings 2/19, and Financing / Diligence / Entities on
+ * none. By rows alone Meetings and Tasks belong under More — and
  * they are the two tabs a human TYPES into, so on 17 of 19 projects the only
  * door to logging a meeting was behind a menu labelled "More". Both are
  * `always` now, and `RecordLogMenu` in the header is the door that does not
  * depend on a count at all.
- *
- * Economics stays counted rather than `always`: a deal with no model is
- * offered one from the Overview instead.
  */
 export const PROJECT_TABS: RecordTab[] = [
   { label: 'Overview', segment: '', always: true },
@@ -40,7 +40,6 @@ export const PROJECT_TABS: RecordTab[] = [
   { label: 'Players', segment: 'players', key: 'players' },
   { label: 'Milestones', segment: 'milestones', key: 'milestones' },
   { label: 'Land', segment: 'parcels', key: 'parcels' },
-  { label: 'Economics', segment: 'economics', key: 'economics' },
   { label: 'Vehicles', segment: 'vehicles', key: 'vehicles' },
   { label: 'Financing', segment: 'financing', key: 'financing' },
   { label: 'Diligence', segment: 'diligence', key: 'diligence' },
@@ -62,7 +61,6 @@ export const OPPORTUNITY_TABS: RecordTab[] = [
   { label: 'Documents', segment: 'documents', key: 'documents', always: true },
   { label: 'Players', segment: 'players', key: 'players' },
   { label: 'Milestones', segment: 'milestones', key: 'milestones' },
-  { label: 'Economics', segment: 'economics', key: 'economics' },
   { label: 'Vehicles', segment: 'vehicles', key: 'vehicles' },
   { label: 'Financing', segment: 'financing', key: 'financing' },
   { label: 'Diligence', segment: 'diligence', key: 'diligence' },

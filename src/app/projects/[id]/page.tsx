@@ -17,7 +17,7 @@ import {
   type FederalStandard,
 } from '@/lib/utils/constants'
 import PursuitSnapshot from '@/components/projects/PursuitSnapshot'
-import { mixedTotalNote, pipelineTotal, pipelineValue } from '@/lib/economics/pipeline'
+import { coverageNote, pipelineTotal, pipelineValue } from '@/lib/records/pipeline-value'
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params
@@ -95,7 +95,7 @@ export default async function ProjectOverviewPage({ params }: PageProps) {
       .order('created_at', { ascending: true }),
     supabase
       .from('projects')
-      .select('id, name, sector, status, stage, estimated_value, economics_capture_value, location')
+      .select('id, name, sector, status, stage, estimated_value, location')
       .eq('parent_project_id', id)
       .order('name'),
     supabase
@@ -212,8 +212,8 @@ export default async function ProjectOverviewPage({ params }: PageProps) {
           Contract
         </h2>
         <dl className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-4">
-          {/* Named by which quantity it is, so a computed capture figure and a
-              hand-entered guess cannot be mistaken for one another. */}
+          {/* Named by which quantity it is — an unlabelled numeric column
+              once held $57.5B of plainly different quantities (§12). */}
           <Field
             label={pipelineValue(project).definition}
             value={
@@ -283,38 +283,31 @@ export default async function ProjectOverviewPage({ params }: PageProps) {
               </Link>
             ))}
           </div>
-          {/* ⚠ Names what the aggregate is made of. A program total that mixes
-              a computed Ber Wilson capture on one sub-project with a
-              hand-entered estimate on another is neither quantity, and the
-              reader cannot tell from the figure alone. */}
+          {/* ⚠ Names how much of the program the aggregate covers. A total over
+              two of six priced sub-projects is not the program's value, and the
+              reader cannot tell that from the figure alone. */}
           {(() => {
             // ⚠ THE SUB-PROJECTS ONLY — NOT THE PROGRAM ALONGSIDE THEM. This
             // read `[project, ...children]`, so a program carrying its own
-            // economics model was added to the models of the work inside it and
-            // the aggregate came out roughly double. Latent only because
-            // `parent_project_id` was used by 0 of 14 rows. Economics lives on
-            // leaves; a program's value is what the work inside adds up to.
+            // figure was added to the figures of the work inside it and the
+            // aggregate came out roughly double. Latent only because
+            // `parent_project_id` was used by 0 of 14 rows. A deal's value
+            // lives on leaves; a program's is what the work inside adds up to.
             const total = pipelineTotal(childProjects ?? [])
-            const note = mixedTotalNote(total)
+            const note = coverageNote(total)
             const own = pipelineValue(project)
             return (
               <div className="space-y-1 text-xs text-muted-foreground">
                 <div>
                   Aggregated value:{' '}
                   <span className="font-semibold tnum text-foreground">
-                    {total.modelled + total.estimated > 0 ? formatValue(total.amount) : 'Not set'}
+                    {total.estimated > 0 ? formatValue(total.amount) : 'Not set'}
                   </span>
-                  {note ? <span> · {note}</span> : <span> · Ber Wilson capture</span>}
-                  {total.unpriced > 0 ? (
-                    <span>
-                      {' · '}
-                      {total.unpriced} with no value yet
-                    </span>
-                  ) : null}
+                  {note ? <span> · {note}</span> : null}
                 </div>
                 {/* Ignoring a number and saying you ignored it are different
-                    acts (§12). Without this line the next person to model the
-                    program wonders why their figure never appeared. */}
+                    acts (§12). Without this line the next person to put a
+                    figure on the program wonders why it never appeared. */}
                 {own.amount != null ? (
                   <div>
                     The program also carries {formatValue(own.amount)} of its own (

@@ -11,7 +11,6 @@ import { resolveSessionTaskTarget, readExtractionTasks } from '@/lib/email-inges
 import { parseStagedAttachments } from '@/lib/email-ingestion/attachments'
 import { findMisfiledCompanyDocuments } from '@/lib/documents/unfiled'
 import { findMisfiledRecordDocuments } from '@/lib/documents/misfiled'
-import { pendingProposalGroups } from '@/lib/economics/store'
 import { readOpenProposals } from '@/lib/provenance/report'
 import type { EmailIntakeExtraction } from '@/lib/ai/prompts/email-intake'
 import type { PartyMatch } from '@/lib/ai/proposal-matching'
@@ -61,7 +60,6 @@ export default async function DecidePage() {
     { data: reviewRows },
     unfiledDocs,
     misfiledDocs,
-    economicsGroups,
     fieldQuestions,
   ] = await Promise.all([
     supabase
@@ -89,7 +87,6 @@ export default async function DecidePage() {
     // Documents already on a deal, whose own name points at a DIFFERENT deal.
     // The other half of the same question — see the header of misfiled.ts.
     findMisfiledRecordDocuments().catch(() => []),
-    pendingProposalGroups().catch(() => []),
     readOpenProposals(100),
   ])
 
@@ -378,32 +375,6 @@ export default async function DecidePage() {
       fileSource: doc.side === 'opportunity' ? 'opportunity_documents' : 'documents',
       confidence: doc.confidence,
       blocker: null,
-    })
-  }
-
-  // ⚠ ONE ROW PER DEAL, NOT PER FIGURE, matching what the badge counts. Forty
-  // figures read out of one proposal document are one sitting, and a global
-  // queue row saying "accept 145 $/kW-month" has no model beside it, which is
-  // precisely where that decision cannot be made. This points at the tab, the
-  // same way an unfiled document points at /company: the queue aggregates and
-  // the deciding happens where the detail is.
-  for (const group of economicsGroups) {
-    items.push({
-      id: `economics-${group.economicsId}`,
-      kind: 'economics',
-      title: `${group.count} economics figure${group.count === 1 ? '' : 's'} read from ${group.recordName}`,
-      subtitle: group.recordName,
-      href: group.path,
-      verdict: null,
-      score: null,
-      note: 'Each one carries the sentence it came from. Accepting records the figure and its source together; nothing has been written yet.',
-      deadline: null,
-      // Deliberately not acceptable from this list: the quote has to be read
-      // against the model, and a batch accept here would write figures nobody
-      // had looked at.
-      accept: null,
-      blocker: 'Open the deal to read each figure against its quote',
-      confidence: null,
     })
   }
 

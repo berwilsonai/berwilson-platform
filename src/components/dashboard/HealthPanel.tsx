@@ -20,8 +20,8 @@ interface HealthPanelProps {
    * of figure. Null when every contributing project is modelled, or every one
    * is a hand-entered estimate.
    *
-   * ⚠ A TOTAL THAT MIXES A COMPUTED BER WILSON CAPTURE WITH A HAND-ENTERED
-   * ESTIMATE IS NEITHER QUANTITY, and the tile must not present it as one.
+   * ⚠ A TOTAL THAT COVERS PART OF THE PORTFOLIO MUST SAY WHICH PART. "$1.2B"
+   * over 30 deals means something else when 29 of them are blank.
    */
   pipelineNote?: string | null
   /** Active projects nobody has priced, so the tile's denominator is honest. */
@@ -91,7 +91,7 @@ export default function HealthPanel({
             <dd className="mt-0.5 text-xs text-muted-foreground">
               {pipelineNote
                 ? `Across active projects · ${pipelineNote}`
-                : 'Ber Wilson capture across active projects'}
+                : 'Across active projects'}
             </dd>
             {unpricedCount && unpricedCount > 0 ? (
               <dd className="mt-0.5 text-xs text-muted-foreground">

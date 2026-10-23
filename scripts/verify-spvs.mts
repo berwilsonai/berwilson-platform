@@ -7,17 +7,21 @@
  *
  * `npm test` proves the derivation rule with no database. This proves the other
  * half: that the two tables, the untyped client and the row mapping agree with
- * each other; that a split entered as three participants reaches the economics
- * engine as one ownership weight; that the constraints refuse what they are
- * there to refuse; and that the audit trigger records WHICH FIELD moved.
+ * each other; that a split entered as three participants is read back as one
+ * ownership share that says where it came from; that the constraints refuse
+ * what they are there to refuse; and that the audit trigger records WHICH FIELD
+ * moved.
+ *
+ * ⚠ IT USED TO END BY FEEDING THAT SHARE TO THE ECONOMICS ENGINE — a $10M fee
+ * in a 40%-ours vehicle netting $4M, and the per-vehicle rollup agreeing. Those
+ * three checks went with the calculator on 2026-10-23. What they were really
+ * guarding is the derivation, which `resolveBwShare` still answers and which
+ * both `npm test` and the checks below still cover.
  *
  * Creates a throwaway project and removes everything it created in a `finally`
- * block even when an assertion fails. Follows
- * scripts/verify-economics-roundtrip.mts.
+ * block even when an assertion fails.
  */
 
-import { computeDealEconomics } from '@/lib/economics'
-import { createEconomics, lineInsert, loadAndCompute } from '@/lib/economics/store'
 import { spvDb, spvDbAs } from '@/lib/spvs/db'
 import {
   participantTotals,
@@ -315,53 +319,6 @@ try {
     'the second filter is what stops one deal editing another'
   )
 
-  // ── the engine reads the derived share ──────────────────────────────────
-  const economicsId = await createEconomics('project', projectId, actor)
-  const { error: lineError } = await write.from('economics_lines').insert(
-    lineInsert(economicsId, 'one_time_lump', 'Verify development fee', {
-      spv_id: energyId,
-      amount: 10_000_000,
-      is_ber_wilson_revenue: true,
-      status: 'planning_assumption',
-    })
-  )
-  if (lineError) throw new Error(`line: ${lineError.message}`)
-
-  const computed = await loadAndCompute('project', projectId)
-  if (!computed) throw new Error('the model did not load')
-  const engineSpv = computed.loaded.input.spvs.find((s) => s.id === energyId)
-  check(
-    'the engine receives the LEDGER share as the vehicle’s one ownership number',
-    engineSpv?.bwOwnershipPct === 40,
-    `engine saw ${engineSpv?.bwOwnershipPct}%`
-  )
-
-  const tiers = computed.result.tiers
-  check(
-    'a $10M fee in a 40%-ours vehicle nets $4M, not $10M',
-    tiers.berWilsonNet.oneTimeRevenue === 4_000_000,
-    `net one-time: ${tiers.berWilsonNet.oneTimeRevenue}`
-  )
-
-  const byEntity = computed.result.byEntity.find((e) => e.spvId === energyId)
-  check(
-    'and the per-vehicle rollup the Vehicles tab renders agrees with it',
-    byEntity?.gross.oneTimeRevenue === 10_000_000 &&
-      byEntity?.berWilsonNet?.oneTimeRevenue === 4_000_000,
-    `gross ${byEntity?.gross.oneTimeRevenue}, net ${byEntity?.berWilsonNet?.oneTimeRevenue}`
-  )
-
-  // ── deleting a vehicle that earns revenue ───────────────────────────────
-  const { count: lineCount } = await db
-    .from('economics_lines')
-    .select('id', { count: 'exact', head: true })
-    .eq('spv_id', energyId)
-  check(
-    'the delete route can see that revenue is earned here, so it can refuse',
-    (lineCount ?? 0) === 1,
-    `${lineCount} line(s) — on delete set null would have made this revenue wholly ours`
-  )
-
   // ── clearing the ledger hands the typed figure back ─────────────────────
   await write.from('project_spv_participants').delete().eq('spv_id', energyId)
   await write.from('project_spvs').update({ bw_ownership_pct: 51 }).eq('id', energyId)
@@ -379,15 +336,6 @@ try {
     'no target is an unknown, not a gap of the whole commitment'
   )
 
-  // One more compute, to prove nothing throws once a vehicle has no split.
-  const recomputed = computeDealEconomics(
-    (await loadAndCompute('project', projectId))!.loaded.input
-  )
-  check(
-    'the model still computes with the ledger gone',
-    recomputed.valid || recomputed.errors.length > 0,
-    `${recomputed.errors.length} error(s), ${recomputed.warnings.length} warning(s)`
-  )
 } catch (error) {
   // ⚠ SAY WHAT THREW. A `finally` that calls process.exit swallows the throw it
   // is unwinding, so an exception halfway down this file looked exactly like
@@ -395,7 +343,7 @@ try {
   failures += 1
   console.log(`  ${RED}✗${OFF} the script threw: ${RED}${error instanceof Error ? error.message : String(error)}${OFF}`)
 } finally {
-  // Vehicles, participants, lines and the model all cascade from the project.
+  // Vehicles and participants cascade from the project.
   for (const id of [projectId, otherProjectId]) {
     if (id) await write.from('projects').delete().eq('id', id)
   }

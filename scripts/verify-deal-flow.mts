@@ -22,7 +22,7 @@
  * assertion fails. Follows scripts/verify-spvs.mts.
  */
 
-import { leafRecords, portfolioTotal, rolledPipelineValue } from '@/lib/economics/pipeline'
+import { leafRecords, portfolioTotal, rolledPipelineValue } from '@/lib/records/pipeline-value'
 import { spvDb, spvDbAs } from '@/lib/spvs/db'
 import { summarizePipeline } from '@/lib/spvs/ownership'
 import { loadVehicleDocuments } from '@/lib/spvs/documents'
@@ -76,12 +76,17 @@ try {
     return (data as { id: string }).id
   }
 
-  parentId = await project('program', { economics_capture_value: 100_000_000 })
+  // ⚠ `estimated_value`, NOT `economics_capture_value`. These three fixtures
+  // used the computed column until the calculator was removed on 2026-10-23 and
+  // the column was dropped with it — which would have failed the whole insert
+  // with a 42703 rather than one field (§12, a value outside the schema fails
+  // the query and not the row). `pipelineValue` now reads one column.
+  parentId = await project('program', { estimated_value: 100_000_000 })
   childId = await project('phase 1', {
     parent_project_id: parentId,
-    economics_capture_value: 40_000_000,
+    estimated_value: 40_000_000,
   })
-  secretId = await project('protected', { confidential: true, economics_capture_value: 7_000_000 })
+  secretId = await project('protected', { confidential: true, estimated_value: 7_000_000 })
 
   const { data: entityRow, error: entityError } = await write
     .from('entities')
@@ -381,14 +386,13 @@ try {
 
   const { data: liveProjects, error: liveError } = await db
     .from('projects')
-    .select('id,name,parent_project_id,estimated_value,economics_capture_value')
+    .select('id,name,parent_project_id,estimated_value')
     .limit(1000)
   if (liveError) throw new Error(`Could not read projects: ${liveError.message}`)
   const rows = (liveProjects ?? []) as {
     id: string
     parent_project_id: string | null
     estimated_value: number | string | null
-    economics_capture_value: number | string | null
   }[]
 
   const leaves = leafRecords(rows)

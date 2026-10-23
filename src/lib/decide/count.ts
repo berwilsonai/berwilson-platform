@@ -35,7 +35,6 @@ import {
   findMisfiledCompanyDocuments,
 } from '@/lib/documents/unfiled'
 import { countMisfiledRecordDocuments } from '@/lib/documents/misfiled'
-import { pendingProposalGroups } from '@/lib/economics/store'
 
 /**
  * The two document lanes, cached — because this badge renders in the ROOT
@@ -80,7 +79,7 @@ async function documentCounts(): Promise<{ unfiled: number; misfiled: number }> 
 export async function countDecideItems(): Promise<number> {
   const supabase = createAdminClient()
   try {
-    const [intake, review, documents, economics, fieldQuestions] = await Promise.all([
+    const [intake, review, documents, fieldQuestions] = await Promise.all([
       // ⚠ NOT A head:true COUNT, AND THE REASON IS THE BUG THIS BADGE EXISTS TO
       // AVOID. Both the page (decide/page.tsx) and the brief
       // (summarizeDecideQueue below) skip a session whose predecision is
@@ -119,11 +118,6 @@ export async function countDecideItems(): Promise<number> {
       // at — the mirror of the `dismiss` bug above, in the same number. Small
       // today (2 rows) and 38 as recently as 10-14.
       documentCounts(),
-      // Economics figures the AI proposed and nobody has decided. Counted as
-      // one item per DEAL, not per figure: forty figures out of one proposal
-      // document are one sitting, and counting them individually would make
-      // this badge read 40 for what is one decision.
-      pendingProposalGroups().then((g) => g.length).catch(() => 0),
       // Guarded fields Pepper is asking about rather than overwriting. Counted
       // by `summarizeDecideQueue` and rendered by the page; this badge left
       // them out, which is the third definition of one quantity.
@@ -140,7 +134,6 @@ export async function countDecideItems(): Promise<number> {
       (review.count ?? 0) +
       documents.unfiled +
       documents.misfiled +
-      economics +
       (fieldQuestions.count ?? 0)
     )
   } catch {
@@ -175,8 +168,6 @@ export interface DecideSummary {
    * chip; this and `countDecideItems` were the two readers that left them out.
    */
   misfiled: number
-  /** Deals with economics figures proposed and undecided. One per DEAL. */
-  economics: number
   /**
    * Guarded fields Pepper is asking about rather than overwriting.
    *
@@ -209,10 +200,10 @@ export async function summarizeDecideQueue(now = Date.now()): Promise<DecideSumm
   const supabase = createAdminClient()
   const empty: DecideSummary = {
     total: 0, intake: 0, meetings: 0, review: 0, documents: 0, misfiled: 0,
-    economics: 0, fieldQuestions: 0, top: [],
+    fieldQuestions: 0, top: [],
   }
   try {
-    const [intake, review, unfiledDocs, misfiledCount, economicsGroups, fieldQuestions] =
+    const [intake, review, unfiledDocs, misfiledCount, fieldQuestions] =
       await Promise.all([
       supabase
         .from('email_intake_sessions')
@@ -225,7 +216,6 @@ export async function summarizeDecideQueue(now = Date.now()): Promise<DecideSumm
         .is('resolved_at', null),
       findMisfiledCompanyDocuments(),
       countMisfiledRecordDocuments().catch(() => 0),
-      pendingProposalGroups().catch(() => []),
       // Head-only count: the queue's size, not its contents. The page reads the
       // rows themselves.
       supabase
@@ -297,17 +287,6 @@ export async function summarizeDecideQueue(now = Date.now()): Promise<DecideSumm
       })
     }
 
-    // One line per deal, naming the deal rather than the figures: the decision
-    // needs the model beside it, so this points at the tab.
-    for (const group of economicsGroups.slice(0, 5)) {
-      rows.push({
-        line: `Economics figures to confirm: ${group.count} read from ${group.recordName}'s documents`,
-        daysLeft: null,
-        verdict: null,
-        score: null,
-      })
-    }
-
     rows.sort((a, b) => decideWeight(b) - decideWeight(a))
 
     // ⚠ FILTERED THE SAME WAY THE `rows` LOOP ABOVE FILTERS. That loop skips a
@@ -325,7 +304,6 @@ export async function summarizeDecideQueue(now = Date.now()): Promise<DecideSumm
     const reviewCount = review.count ?? 0
     const documentCount = unfiledDocs.length
     const misfiledDocCount = misfiledCount
-    const economicsCount = economicsGroups.length
     const fieldQuestionCount = fieldQuestions.count ?? 0
     return {
       total:
@@ -334,14 +312,12 @@ export async function summarizeDecideQueue(now = Date.now()): Promise<DecideSumm
         reviewCount +
         documentCount +
         misfiledDocCount +
-        economicsCount +
         fieldQuestionCount,
       intake: intakeCount,
       meetings: meetingCount,
       review: reviewCount,
       documents: documentCount,
       misfiled: misfiledDocCount,
-      economics: economicsCount,
       fieldQuestions: fieldQuestionCount,
       top: rows.slice(0, 5).map((r) => r.line),
     }

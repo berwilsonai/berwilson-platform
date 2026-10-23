@@ -52,7 +52,6 @@ what was done, not to be run again.
 | `seed-cliffs-sites.mts` | the five Cleveland-Cliffs sites, 2026-10-08 |
 | `setup-delta-vehicles.mts`, `setup-delta-cap-tables.mts` | Delta's three vehicles and their cap tables, 2026-10-08 |
 | `import-delta-parcels.mts` | Delta's 11 parcels from Utah AGRC (upserts, so safe, but Delta-specific) |
-| `clear-estimated-value.mts` | clearing `estimated_value` ahead of economics, 2026-10-05 |
 | `recount-thread-attachments.mts` | recounting after the inline-classification fix |
 | `fix-values.ts` | a one-off value repair; header is a usage line, nothing more |
 

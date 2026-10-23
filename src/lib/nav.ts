@@ -22,9 +22,6 @@ import {
   Factory,
   Wrench,
   type LucideIcon,
-  Calculator,
-  Percent,
-  Ruler,
   Handshake,
 } from 'lucide-react'
 
@@ -140,13 +137,10 @@ export const NAV_ITEMS: NavItem[] = [
   { href: '/dino', label: 'Dino', title: 'Dino Service Pros', icon: Wrench, group: 'units', hideWhenEmpty: 'dino', keywords: 'dino service pros plumbing hvac mechanical revenue operating company internal trades payments' },
   { href: '/intel', label: 'Intel', icon: Brain, group: 'intelligence', keywords: 'ask query search ai agent calendar meetings', mobilePrimary: true, alsoMatches: ['/calendar'] },
   { href: '/intake', label: 'Intake', icon: Inbox, group: 'intelligence', keywords: 'email inbox ingest gmail sweep research proposal rfp upload document intake meeting notes minutes attendees follow-up transcript recap digest summarize read aloud understand', alsoMatches: ['/email-ingestion', '/proposals/intake', '/intake/meeting', '/intake/document'] },
-  { href: '/mspa', label: 'TensorIQ MSPA', title: 'TensorIQ Partnership Economics', icon: Percent, group: 'intelligence', keywords: 'tensoriq tensor iq mspa master strategic partnership schedule 1 scope a b c d fee cap role protection payment stage secured contracted unearned fees preconstruction utility coordination gpu gb300 pue it load utility load data center powerco epcm fixed price epc what is this worth to us if we get cut out' },
-  { href: '/calc', label: 'Quick Calc', title: 'Quick Calc', icon: Calculator, group: 'intelligence', keywords: 'calculator economics deal size megawatts mw price per kwh kw-month lease rate capture margin fee npv escalator pue load factor scratchpad back of envelope how big is this quick math' },
   { href: '/contacts', label: 'Contacts & Vendors', title: 'Directory', icon: Users, group: 'directory', keywords: 'people parties rolodex directory contacts vendors', alsoMatches: ['/vendors'] },
   { href: '/company', label: 'Ber Wilson', icon: Shield, group: 'directory', keywords: 'company profile capabilities certs', fallback: { href: '/company/structure', label: 'Org Structure' } },
   { href: '/activity', label: 'Activity', icon: Activity, group: 'system', keywords: 'audit log history changes' },
   { href: '/settings/users', label: 'Users & Access', icon: UserCog, group: 'system', keywords: 'roles invite permissions team accounts' },
-  { href: '/settings/economics', label: 'Benchmarks', title: 'Benchmark Library', icon: Ruler, group: 'system', keywords: 'benchmarks market rates lease rate cap rate powered land development cost per mw heat rate o&m comparables economics library sources provenance' },
   { href: '/settings/lead-categories', label: 'Lead Categories', icon: Split, group: 'system', keywords: 'routing lines of business trades lanes flooring plumbing hvac steel construction corporate handoff destinations categories where leads go' },
   { href: '/settings/security', label: 'Security', icon: KeyRound, group: 'system', keywords: 'mfa totp authenticator two factor 2fa protected confidential project password lock unlock step up code military classified' },
   { href: '/settings/health', label: 'System Health', icon: HeartPulse, group: 'system', keywords: 'status probes mailbox backups disk checks' },

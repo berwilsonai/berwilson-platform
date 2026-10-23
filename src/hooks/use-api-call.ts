@@ -68,9 +68,9 @@ export function useApiCall() {
         return false
       }
       if (successMessage) toast.success(successMessage)
-      // The money on each card is server-rendered from the economics engine, so
-      // a save refreshes the route rather than this component keeping its own
-      // idea of the answer. One engine, one number on the screen.
+      // The figures on each card are server-rendered, so a save refreshes the
+      // route rather than this component keeping its own idea of the answer.
+      // One source, one number on the screen.
       router.refresh()
       return true
     } catch {

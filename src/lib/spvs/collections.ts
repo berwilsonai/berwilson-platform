@@ -6,8 +6,7 @@
  * `opportunity_id`, `spv_id`, `created_at` and `updated_at` are deliberately
  * absent, so a crafted body cannot move a vehicle onto another deal or a
  * participant into another vehicle, nor restamp when either was created. Same
- * contract as src/lib/economics/collections.ts and
- * src/lib/governance/registers.ts, for the same reason.
+ * contract as src/lib/governance/registers.ts, for the same reason.
  *
  * ⚠ THE COERCION IS IMPORTED, NOT COPIED. `normalizeCollectionPayload` carries
  * the rules that matter — a money field strips `$ , whitespace` so a reader can
@@ -20,7 +19,7 @@ import {
   normalizeCollectionPayload,
   type CollectionSpec,
   type NormalizeResult,
-} from '@/lib/economics/collections'
+} from './payload'
 import { SPV_CLASSES, SPV_PURPOSES, SPV_ROLES } from './types'
 
 const PROVENANCE_STATUSES = [

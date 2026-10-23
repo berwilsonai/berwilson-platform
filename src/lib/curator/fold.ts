@@ -26,12 +26,14 @@
  *   - `counterparty` → anything. §12: that extractor answered "whose deal is
  *     this" with `Carbon County`, `Bank of Utah` and `Richard White` — the
  *     reader himself. 164 candidate identifiers became 15 once it was dropped.
- *   - `estimated_value`. A human deliberately CLEARED it so the pipeline reads
- *     $0 until the first economics model exists (an open item, "intended, not
- *     a fault"). Re-filling it from prose is precisely the "something we did
- *     manually that isn't obvious she could update" case Richard carved out —
- *     and it is guarded, so it would only ever be proposed; it is excluded
- *     outright so it does not generate twenty cards asking to undo a decision.
+ *   - `estimated_value`. A human deliberately CLEARED it on 2026-10-05 ahead of
+ *     the economics engine, which was itself removed on 2026-10-23 — so this is
+ *     once again the ONLY column a deal's value lives in, and one project in
+ *     thirty carries one. Re-filling it from prose is precisely the "something
+ *     we did manually that isn't obvious she could update" case Richard carved
+ *     out, and a number in an email is usually one party's ask rather than a
+ *     settled price. It stays excluded outright rather than merely guarded, so
+ *     it does not generate thirty cards asking to undo a decision.
  */
 
 import { applyFieldUpdates, type AppliedField } from '@/lib/provenance/write'

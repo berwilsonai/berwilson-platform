@@ -2,7 +2,7 @@
  * THE MODEL COMPOSES PROSE; EVERY FIGURE IN THE OUTPUT MUST ALREADY BE IN THE
  * INPUT.
  *
- * This is the house rule, written down in src/lib/economics/extract.ts — "THE
+ * This is the house rule, which the economics extractor also carried — "THE
  * MODEL FINDS FIGURES; CODE DOES THE ARITHMETIC AND THE COUNTING" — and it is
  * load-bearing here for a measured reason: handed a 69-row claim schedule the
  * local model answered 62. A miscount in a summary is embarrassing. A number it

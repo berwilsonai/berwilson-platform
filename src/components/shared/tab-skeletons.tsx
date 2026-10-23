@@ -48,7 +48,7 @@ export function ListTabSkeleton({ rows = 5, avatar = false }: { rows?: number; a
   )
 }
 
-/** Stacked panels of prose/figures — economics, financing, the overview. */
+/** Stacked panels of prose/figures — financing, vehicles, the overview. */
 export function PanelsTabSkeleton({ panels = 2, lines = 6 }: { panels?: number; lines?: number }) {
   return (
     <div className="space-y-4 animate-pulse">

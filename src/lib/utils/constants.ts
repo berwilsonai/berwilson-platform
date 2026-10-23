@@ -245,23 +245,20 @@ export const ACTIVITY_TABLE_LABELS: Record<string, string> = {
   // drifted: governance existed here and not there, dev_notes there and not
   // here. The page now reads this map and the duplicate is gone.
   dev_notes: 'Developer Notes',
-  // Deal economics, 2026-10-05. Nine tables carry the audit trigger, so all
-  // nine can appear here; without a label enumLabel's humanising fallback
-  // prints "Economics Capacity Sources", which is the schema leaking through
-  // the page (§7).
-  deal_economics: 'Deal economics',
-  economics_capacity_sources: 'Economics — capacity',
-  economics_buckets: 'Economics — allocation',
-  // Vehicles moved off the economics model on 2026-10-06 and hang off the
-  // project instead, so they are labelled as what they are rather than as an
-  // economics input.
   project_spvs: 'Vehicles (SPVs)',
   project_spv_participants: 'Vehicle participants',
-  economics_lines: 'Economics — revenue lines',
-  economics_line_schedule: 'Economics — schedules',
-  economics_provenance: 'Economics — sources',
+  // ⚠ THESE THREE TABLES NO LONGER EXIST AND THEIR LABELS MUST STAY. The deal
+  // economics calculator was removed on 2026-10-23, but `activity_log` is
+  // append-only (§4) and still holds 248 rows naming them — 210
+  // `economics_buckets`, 30 `deal_economics`, 8 `economics_benchmarks`,
+  // counted before the drop. Without a label `enumLabel`'s humanising fallback
+  // prints "Economics Buckets" at a reader, which is the schema leaking
+  // through the page (§7). The set is frozen: nothing can write these again.
+  // The five economics tables with no history are deliberately NOT listed —
+  // a label for a table no row will ever name is decoration.
+  deal_economics: 'Deal economics',
+  economics_buckets: 'Economics — allocation',
   economics_benchmarks: 'Benchmark library',
-  economics_templates: 'Deal templates',
 }
 
 export const ACTIVITY_ACTION_STYLES: Record<string, string> = {

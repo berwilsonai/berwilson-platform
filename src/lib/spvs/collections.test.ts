@@ -1,10 +1,10 @@
 /**
  * The vehicle and participant whitelists.
  *
- * The coercion itself is `normalizeCollectionPayload`, tested in
- * src/lib/economics/collections.test.ts. What is tested here is the part that
- * is specific to these two specs: what they let through, what they refuse, and
- * that clearing a figure means "undetermined" rather than zero.
+ * The coercion itself is `normalizeCollectionPayload`, tested in ./payload.test.ts.
+ * What is tested here is the part that is specific to these two specs: what
+ * they let through, what they refuse, and that clearing a figure means
+ * "undetermined" rather than zero.
  */
 
 import assert from 'node:assert/strict'

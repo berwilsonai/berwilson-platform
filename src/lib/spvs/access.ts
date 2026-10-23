@@ -14,7 +14,7 @@
  */
 
 import { canAccessRecord, forbiddenJson, getViewer, type Viewer } from '@/lib/auth/viewer'
-import { RECORD_SCOPE_COLUMN, type RecordKind } from '@/lib/records/scope'
+import type { RecordKind } from '@/lib/records/scope'
 import { spvDb } from './db'
 
 export interface SpvOwner {
@@ -28,10 +28,10 @@ export type SpvAccessResult =
   | { ok: false; response: Response }
 
 function notFound(): Response {
-  // 404 rather than 403, matching the economics routes and the project layout:
-  // refusing with "forbidden" confirms the vehicle exists, and on a protected
-  // project the fact that Ber Wilson is structuring a deal at all is itself the
-  // sensitive fact.
+  // 404 rather than 403, matching the project layout: refusing with
+  // "forbidden" confirms the vehicle exists, and on a protected project the
+  // fact that Ber Wilson is structuring a deal at all is itself the sensitive
+  // fact.
   return Response.json({ error: 'Not found' }, { status: 404 })
 }
 
@@ -69,52 +69,32 @@ export async function requireSpvAccess(spvId: string): Promise<SpvAccessResult> 
   return { ok: true, viewer, owner }
 }
 
-export { requireRecordAccess, actorFrom } from '@/lib/economics/access'
-
 /**
- * Refuse a `spv_id` that belongs to a different deal.
+ * The same guard for a record that may not have a vehicle yet — the create
+ * path, which carries a record kind and id in the body rather than a vehicle id
+ * in the path.
  *
- * ⚠ A VEHICLE IS NOT A CHILD OF THE ECONOMICS MODEL, SO ITS ID MUST BE CHECKED
- * BY HAND. `spv_id` is a whitelisted uuid on `economics_lines`, and the
- * whitelist can only stop a column being written — not stop it being written
- * with another deal's value. Without this a body could attribute this deal's
- * revenue to another deal's vehicle, and the ownership weight would then come
- * from a split nobody on this deal agreed to.
- *
- * Lives here rather than in either route because BOTH the create and the patch
- * can set the column, and a guard that only half the writers call is the half
- * that gets forgotten (§12 — a security filter belongs at the choke point).
- *
- * Returns a Response on refusal, and null when there is nothing to check: a
- * line with no vehicle is earned by the parent company, which is the normal
- * case and not an error.
+ * ⚠ DECLARED HERE AS OF 2026-10-23. It was re-exported from
+ * src/lib/economics/access.ts until the calculator was removed; nothing about
+ * it was ever arithmetic.
  */
-export async function assertSpvBelongs(
-  spvId: unknown,
-  owner: { kind: RecordKind; recordId: string }
-): Promise<Response | null> {
-  if (typeof spvId !== 'string' || !spvId) return null
+export async function requireRecordAccess(
+  kind: RecordKind,
+  recordId: string
+): Promise<{ ok: true; viewer: Viewer } | { ok: false; response: Response }> {
+  const viewer = await getViewer()
+  if (!viewer) {
+    return { ok: false, response: Response.json({ error: 'Unauthorized' }, { status: 401 }) }
+  }
+  if (!(await canAccessRecord(viewer, kind, recordId))) {
+    return { ok: false, response: forbiddenJson() }
+  }
+  return { ok: true, viewer }
+}
 
-  const { data, error } = await spvDb()
-    .from('project_spvs')
-    .select('id')
-    .eq('id', spvId)
-    .eq(RECORD_SCOPE_COLUMN[owner.kind], owner.recordId)
-    .maybeSingle()
-  if (error) {
-    return Response.json(
-      { error: `Could not check the vehicle: ${error.message}` },
-      { status: 400 }
-    )
-  }
-  if (!data) {
-    return Response.json(
-      {
-        error:
-          'That vehicle does not belong to this deal. Pick one of this deal’s own vehicles, or leave it empty so the line is earned by Ber Wilson Corporation.',
-      },
-      { status: 400 }
-    )
-  }
-  return null
+/** The actor every mutation is attributed to, so the audit row names a person. */
+export function actorFrom(
+  viewer: Viewer
+): { id: string; email?: string | null; name?: string | null } {
+  return { id: viewer.authUserId, email: viewer.email, name: viewer.teamMemberName ?? viewer.email }
 }

@@ -73,10 +73,13 @@ export const PROJECT_STATUSES = ['active', 'on_hold', 'won', 'lost', 'closed'] a
  * their absence is the decision:
  *   - `projects.confidential` — containment. Never machine-written, in either
  *     direction; §12 holds that containment and access must not share a path.
- *   - `projects.economics_capture_value` and the two beside it — computed by
- *     the engine from the economics model, never read out of prose. A figure
- *     in an email is a CLAIM about the deal, which belongs in an
- *     `economics_input_proposals` row where the engine can reconcile it.
+ *   - `projects.estimated_value` / `opportunities.estimated_value` — a deal's
+ *     headline figure. A number in an email is a CLAIM about the deal, often
+ *     one party's ask, and an unattended pass cannot tell that from a settled
+ *     price. ⚠ The three computed `economics_*` columns used to be named here
+ *     for the same reason; they were dropped with the calculator on
+ *     2026-10-23, which leaves `estimated_value` as the only value column —
+ *     so it has to be the one named, or the decision reads as forgotten.
  *   - `equity_pct` / `capital_committed` / `capital_funded` on
  *     `project_spv_participants` — the partner splits Richard named by
  *     example. They are listed as guarded rather than omitted because a BLANK

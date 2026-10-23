@@ -15,7 +15,6 @@ import RecordPager from '@/components/records/RecordPager'
 import { PROJECT_TABS } from '@/components/records/tabs'
 import { getViewer, canAccessProject } from '@/lib/auth/viewer'
 import { parcelDb } from '@/lib/parcels/queries'
-import { hasEconomics } from '@/lib/economics/store'
 import { countProjectSpvs } from '@/lib/spvs/queries'
 
 interface LayoutProps {
@@ -57,9 +56,8 @@ export default async function ProjectLayout({ children, params }: LayoutProps) {
       .eq('project_id', id)
     return n ?? 0
   }
-  // project_parcels is absent from the generated types (gen-types is a disabled
-  // stub, §4), so it counts through its own untyped client rather than the
-  // helper above.
+  // project_parcels counts through its own untyped client rather than the
+  // helper above, because the embed-heavy read the helper does cannot infer it.
   const countParcels = async () => {
     const { count: n } = await parcelDb()
       .from('project_parcels')
@@ -68,22 +66,19 @@ export default async function ProjectLayout({ children, params }: LayoutProps) {
     return n ?? 0
   }
 
-  const [players, updates, meetings, tasks, documents, milestones, financing, diligence, entities, parcels, economics, vehicles] =
+  const [players, updates, meetings, tasks, documents, milestones, financing, diligence, entities, parcels, vehicles] =
     await Promise.all([
       count('project_players'), count('updates'), count('meetings'), count('tasks'),
       count('documents'), count('milestones'), count('financing_structures'),
       count('dd_items'), count('entity_projects'), countParcels(),
-      // deal_economics is also absent from the generated types, so it counts
-      // through its own untyped client, same as project_parcels above.
-      hasEconomics('project', id),
-      // And so are project_spvs. A vehicle is a child of the PROJECT, not of
-      // the economics model, so this count is independent of the one above: a
-      // deal can have its structure settled with nothing priced yet.
+      // project_spvs counts through its own untyped client too. A vehicle is a
+      // child of the PROJECT, so a deal can carry its structure before anybody
+      // has put a figure on it.
       countProjectSpvs('project', id),
     ])
   const tabCounts = {
     players, updates, meetings, tasks, documents, milestones, financing, diligence, entities, parcels,
-    economics, vehicles,
+    vehicles,
   }
 
   const status = project.status ?? 'active'

@@ -18,7 +18,7 @@ import {
   OPPORTUNITY_PRIORITY_BADGE,
   OPPORTUNITY_PRIORITY_LABELS,
 } from '@/lib/utils/opportunities'
-import { pipelineValue } from '@/lib/economics/pipeline'
+import { pipelineValue } from '@/lib/records/pipeline-value'
 import RecordDeleteButton from '@/components/shared/RecordDeleteButton'
 
 export interface OpportunityCardsProps {

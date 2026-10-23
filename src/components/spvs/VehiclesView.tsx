@@ -6,15 +6,20 @@
  * (CLAUDE.md §12, 09-17): two copies drift the moment one is fixed, and the one
  * nobody is looking at is the one that keeps the bug.
  *
- * Server component. Every money figure here comes from the economics engine, so
- * the board below refreshes the route after each save rather than keeping its
- * own idea of the answer — one engine, one number on the screen.
+ * Server component. Every figure here is one somebody typed into the
+ * participant ledger — equity splits, capital committed and funded — so the
+ * board below refreshes the route after each save rather than keeping its own
+ * idea of the answer.
+ *
+ * ⚠ THE PER-VEHICLE REVENUE ROLLUP IS GONE (2026-10-23). It was the one thing
+ * on this tab computed rather than recorded: the engine's `byEntity` figure for
+ * what each vehicle earns gross and net of our share. The calculator was pulled
+ * out to be rebuilt in Excel first, so the cards now show structure and capital
+ * only. The ledger, the splits and `resolveBwShare` are untouched — our share
+ * was always DERIVED FROM THE LEDGER and never from the model.
  */
 
 import { Boxes } from 'lucide-react'
-import { computeDealEconomics } from '@/lib/economics'
-import { loadEconomics } from '@/lib/economics/store'
-import type { EntityRollup } from '@/lib/economics/capture'
 import type { RecordKind } from '@/lib/records/scope'
 import { loadProjectSpvs } from '@/lib/spvs/queries'
 import { loadVehicleDocuments, type VehicleDocument } from '@/lib/spvs/documents'
@@ -37,12 +42,8 @@ export default async function VehiclesView({
   recordName,
   canEdit,
 }: VehiclesViewProps) {
-  const [spvs, loaded, orgNodes, dealIsConfidential] = await Promise.all([
+  const [spvs, orgNodes, dealIsConfidential] = await Promise.all([
     loadProjectSpvs(recordKind, recordId),
-    // The model may not exist — the whole point of moving vehicles off it is
-    // that structure is settled before anything is priced. No model simply
-    // means no money to show per vehicle yet.
-    loadEconomics(recordKind, recordId),
     listOrgNodes(),
     // Only a PROJECT can be protected; an opportunity has no such flag.
     recordKind === 'project' ? isConfidentialProject(recordId) : Promise.resolve(false),
@@ -61,16 +62,6 @@ export default async function VehiclesView({
     loadVehicleDocuments(spvs.map((s) => s.entityId)),
     loadVehiclePipelines(spvs),
   ])
-
-  // ⚠ `byEntity` IS COMPUTED BY THE ENGINE AND, UNTIL NOW, WAS RENDERED BY NO
-  // SCREEN. It is the figure that answers "how much of the Energy SPV is ours
-  // in dollars" — gross in the vehicle, and net of our share of it.
-  const rollups = new Map<string, EntityRollup>()
-  if (loaded) {
-    for (const entry of computeDealEconomics(loaded.input).byEntity) {
-      if (entry.spvId) rollups.set(entry.spvId, entry)
-    }
-  }
 
   return (
     <div className="space-y-6 py-6">
@@ -94,9 +85,7 @@ export default async function VehiclesView({
         recordName={recordName}
         canEdit={canEdit}
         spvs={spvs}
-        rollups={Object.fromEntries(rollups)}
         orgNodes={orgNodes}
-        hasModel={loaded != null}
         documents={Object.fromEntries(documents) as Record<string, VehicleDocument[]>}
         pipelines={pipelines}
         dealIsConfidential={dealIsConfidential}

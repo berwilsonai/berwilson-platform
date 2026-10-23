@@ -26,7 +26,6 @@ import { createAdminClient } from '../src/lib/supabase/admin'
 import { leadsDb } from '../src/lib/leads/db'
 import { findMisfiledCompanyDocuments } from '../src/lib/documents/unfiled'
 import { findMisfiledRecordDocuments } from '../src/lib/documents/misfiled'
-import { pendingProposalGroups } from '../src/lib/economics/store'
 
 let failures = 0
 function check(label: string, ok: boolean, detail = '') {
@@ -38,7 +37,7 @@ async function main() {
   const supabase = createAdminClient()
 
   // ── The page's lanes, rebuilt from the page's own sources ────────────────
-  const [{ data: sessions }, { data: leadRows }, { count: review }, unfiled, misfiled, economics, { count: fields }] =
+  const [{ data: sessions }, { data: leadRows }, { count: review }, unfiled, misfiled, { count: fields }] =
     await Promise.all([
       supabase
         .from('email_intake_sessions')
@@ -54,7 +53,6 @@ async function main() {
       supabase.from('review_queue').select('id', { count: 'exact', head: true }).is('resolved_at', null),
       findMisfiledCompanyDocuments(),
       findMisfiledRecordDocuments().catch(() => []),
-      pendingProposalGroups().catch(() => []),
       supabase
         .from('field_update_proposals')
         .select('id', { count: 'exact', head: true })
@@ -74,7 +72,6 @@ async function main() {
     review: review ?? 0,
     documents: unfiled.length,
     misfiled: misfiled.length,
-    economics: economics.length,
     fieldQuestions: fields ?? 0,
   }
   const pageTotal = Object.values(lanes).reduce((a, b) => a + b, 0)

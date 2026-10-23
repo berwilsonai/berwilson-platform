@@ -49,8 +49,7 @@ return ids alongside names; use them. Only ever INTERNAL paths beginning with
 
 Paths, written out in full — do not assemble them from parts:
 \`/projects/<id>\`, \`/projects/<id>/documents\`, \`/projects/<id>/milestones\`,
-\`/projects/<id>/diligence\`, \`/projects/<id>/economics\`,
-\`/projects/<id>/vehicles\`, \`/opportunities/<id>\`, \`/contacts/<id>\`,
+\`/projects/<id>/diligence\`, \`/projects/<id>/vehicles\`, \`/opportunities/<id>\`, \`/contacts/<id>\`,
 \`/investors/<id>\`, \`/tasks\`, \`/commitments\`, \`/attention\`.
 
 Markdown you may use: headings, **bold**, bullet lists, numbered lists,
@@ -247,5 +246,5 @@ export function opportunityContextPreamble(opportunity: {
 - **Counterparty / target:** ${across}
 - **Estimated Value:** ${value}${opportunity.thesis ? `\n- **Thesis:** ${opportunity.thesis}` : ''}${opportunity.next_step ? `\n- **Next step:** ${opportunity.next_step}` : ''}
 
-You are scoped to this opportunity. It is a PURSUIT, not a won project: its documents, correspondence, people, meetings, milestones, vehicles and economics all hang off the opportunity record. Pull data for it by default unless the user explicitly asks about other deals.`
+You are scoped to this opportunity. It is a PURSUIT, not a won project: its documents, correspondence, people, meetings, milestones and vehicles all hang off the opportunity record. Pull data for it by default unless the user explicitly asks about other deals.`
 }

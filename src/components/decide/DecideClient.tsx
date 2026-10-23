@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { Inbox, ClipboardCheck, FileText, ArrowRight, X, Loader2, Check, CheckCheck, Calculator, HelpCircle, ListChecks, type LucideIcon } from 'lucide-react'
+import { Inbox, ClipboardCheck, FileText, ArrowRight, X, Loader2, Check, CheckCheck, HelpCircle, ListChecks, type LucideIcon } from 'lucide-react'
 import { Panel } from '@/components/ui/card'
 import { Kbd } from '@/components/ui/kbd'
 import EmptyState from '@/components/shared/EmptyState'
@@ -18,7 +18,6 @@ export type DecideKind =
   | 'review'
   | 'document'
   | 'misfiled'
-  | 'economics'
   | 'proposal'
 
 /**
@@ -218,11 +217,6 @@ const KIND_META: Record<DecideKind, { label: string; icon: LucideIcon; tone: str
     icon: FileText,
     tone: 'bg-rose-50 text-rose-700 ring-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:ring-rose-900',
   },
-  economics: {
-    label: 'Deal figures',
-    icon: Calculator,
-    tone: 'bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:ring-emerald-900',
-  },
 }
 
 /**
@@ -284,13 +278,13 @@ const VERDICT_TONE: Record<string, string> = {
  * inferred link that put it there.
  */
 /**
- * ⚠ PARTIAL, AND THE GAP IS DELIBERATE. An economics proposal cannot be set
- * aside from this list: it belongs to a deal, its figures are judged against
- * the model and the quote they came from, and "dismiss these 12 figures"
- * without reading them is not a decision anyone should be able to make from an
- * aggregate. A kind with no entry here renders no Set-aside button rather than
- * one that fails, which is why this is Partial rather than a fifth row that
- * points at nothing.
+ * ⚠ STILL `Partial`, THOUGH EVERY KIND HAS AN ENTRY TODAY. It was Partial for
+ * the economics lane, which could not be set aside from an aggregate — its
+ * figures had to be read against the model and the quote they came from — and
+ * that lane left this page with the calculator on 2026-10-23. The type stays
+ * Partial because the behaviour it buys is the right default: a kind with no
+ * entry renders no Set-aside button rather than one that fails, so the next
+ * lane added here cannot ship a button that points at nothing.
  */
 const DISMISS: Partial<
   Record<
@@ -554,9 +548,9 @@ export default function DecideClient({ items }: { items: DecideItem[] }) {
   const counts = useMemo(() => {
     /*
       ⚠ SEEDED FROM `KIND_META`, NOT FROM A HAND-WRITTEN LIST. The zero map
-      named lead/intake/review while `DecideKind` has five members, so
+      named lead/intake/review while `DecideKind` had more members, so
       `c['document']` was undefined and `undefined++` is NaN: the live queue
-      rendered a chip reading "Unfiled document NaN", and the economics chip
+      rendered a chip reading "Unfiled document NaN", and a kind added later
       showed no count at all. A counter map beside a registry must be built
       from the registry's own keys, or the next kind added repeats it.
     */

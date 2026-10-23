@@ -1,12 +1,18 @@
 /**
- * Provenance for the deal economics engine: where a number came from, and how
- * far an output may be trusted because of it.
+ * Provenance for a vehicle and for a participant in it: where a figure came
+ * from, and how far it may be trusted because of it.
+ *
+ * ⚠ THIS USED TO LIVE IN src/lib/economics/provenance.ts AND MOVED HERE WHEN
+ * THE CALCULATOR WAS REMOVED (2026-10-23). The vocabulary was always about
+ * EVIDENCE rather than arithmetic — an equity split is contracted or it is a
+ * planning assumption whether or not anybody has priced the deal — so it
+ * outlives the engine that first needed it. Vehicles is now its only consumer,
+ * which is why it sits here rather than in a shared module nothing else reads.
  *
  * ⚠ AN OUTPUT INHERITS THE WEAKEST STATUS AMONG THE INPUTS THAT FED IT. A
  * figure derived from one planning assumption is a planning number no matter
- * how many contracted inputs sit beside it, and this is the whole reason the
- * module exists: a planning figure presented as a commitment is how a deal gets
- * priced off a guess. Nothing here averages statuses or scores them.
+ * how many contracted inputs sit beside it. Nothing here averages statuses or
+ * scores them.
  *
  * The vocabulary deliberately mirrors `commitments` (CLAUDE.md, 09-24): a
  * machine may move a value freely between states it owns, and must never
@@ -63,16 +69,6 @@ export const PROVENANCE_TONES: Record<ProvenanceStatus, string> = {
   validated: 'emerald',
 }
 
-/** What it would take to advance each status one step, shown beside an input. */
-export const PROVENANCE_NEXT_STEP: Record<ProvenanceStatus, string | null> = {
-  planning_assumption: 'Find a market benchmark or ask for a quote',
-  benchmark: 'Get a vendor quote for this deal',
-  vendor_quoted: 'Get it into an LOI or term sheet',
-  loi_term_sheet: 'Get it into an executed contract',
-  contracted: 'Verify it against the executed document',
-  validated: null,
-}
-
 export function isProvenanceStatus(value: unknown): value is ProvenanceStatus {
   return typeof value === 'string' && (PROVENANCE_ORDER as readonly string[]).includes(value)
 }
@@ -99,46 +95,4 @@ export function weakestStatus(
     }
   }
   return weakest
-}
-
-/**
- * Where a value came from, carried beside the value itself.
- *
- * `asOf` is a plain `YYYY-MM-DD`. A benchmark older than twelve months raises a
- * warning rather than expiring, because a stale benchmark is still the best
- * number anyone has until someone finds a better one.
- */
-export interface Provenance {
-  status: ProvenanceStatus
-  /** Document, vendor, benchmark name or person. Free text, shown verbatim. */
-  source: string | null
-  /** A document id, a benchmark key, a message id: whatever can be chased. */
-  sourceRef: string | null
-  asOf: string | null
-  /** What is missing to advance this one step, in the author's own words. */
-  note: string | null
-}
-
-export function planningAssumption(note?: string): Provenance {
-  return {
-    status: 'planning_assumption',
-    source: null,
-    sourceRef: null,
-    asOf: null,
-    note: note ?? null,
-  }
-}
-
-/**
- * Age of a dated provenance in whole days, or null when undated.
- *
- * An undated source is not treated as old. A floor on age would be the honest
- * reading for a creation time (CLAUDE.md, 10-05), but there is no clock at all
- * here, so the warning layer says "undated" instead of inventing one.
- */
-export function provenanceAgeDays(p: Provenance, now: Date = new Date()): number | null {
-  if (!p.asOf) return null
-  const asOf = Date.parse(`${p.asOf}T00:00:00Z`)
-  if (!Number.isFinite(asOf)) return null
-  return Math.floor((now.getTime() - asOf) / 86_400_000)
 }

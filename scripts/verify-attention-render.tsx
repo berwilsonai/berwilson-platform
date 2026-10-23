@@ -9,8 +9,9 @@
  *
  * Run: npx tsx scripts/verify-attention-render.tsx
  *
- * ⚠ `.tsx` under tsx, never `.mts` under deploy/register.mjs — see
- * verify-mspa-render.tsx for the two failures that causes.
+ * ⚠ `.tsx` under tsx, never `.mts` under deploy/register.mjs. That loader does
+ * not compile JSX, and `next/server` / `next/headers` do not resolve under it
+ * at all — so a top-level import of either poisons the whole module (§12).
  */
 
 import React from 'react'

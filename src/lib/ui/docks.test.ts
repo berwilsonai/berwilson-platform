@@ -16,9 +16,9 @@ test('every dispatched dock event is in the registry', () => {
   // The dispatch side goes through `openDock()`, which is typed — so what this
   // really guards is that nobody reintroduces a raw dispatchEvent.
   // ⚠ `CustomEvent` TOO. The first version of this check matched only
-  // `new Event(`, and AppHeader's quick-calc button used `new CustomEvent(` —
-  // so the one dispatch site that had its own duplicate copy of the event name
-  // was the one the check could not see.
+  // `new Event(`, and one of AppHeader's dock buttons used `new CustomEvent(`
+  // — so the one dispatch site that had its own duplicate copy of the event
+  // name was the one the check could not see.
   const raw = scan(/dispatchEvent\(new (?:Custom)?Event\(/).filter((h) => !h.file.endsWith('ui/docks.ts'))
   assert.deepEqual(raw.map((h) => `${h.file}:${h.line}`), [], 'use openDock() from @/lib/ui/docks')
 })
@@ -30,9 +30,9 @@ test('every dock in the registry has something listening for it', () => {
    * listener for an event nobody can dispatch is a dock that never opens.
    *
    * ⚠ It matches the event NAME in a file that also calls addEventListener,
-   * rather than the literal inside the call — because `QuickCalcDock` quite
-   * correctly listens through a typed constant, and a stricter pattern reported
-   * its dock as dead.
+   * rather than the literal inside the call — because a dock quite correctly
+   * listens through a typed constant, and a stricter pattern reported its dock
+   * as dead.
    */
   for (const event of DOCK_EVENTS) {
     const found = sourceFiles('src', ['.tsx', '.ts']).some((file) => {
@@ -49,8 +49,14 @@ test('the help lists every global shortcut, including itself', () => {
   // generated from SHORTCUTS, so the only thing left to assert is that the
   // registry is complete — including `?`, which an earlier version of this
   // list omitted, leaving the help itself undiscoverable.
+  // ⚠ `⌘/` WAS IN THIS LIST AND CAME OUT ON 2026-10-23 with the quick calc it
+  // opened. A hardcoded expectation is right here — these are the keys a reader
+  // must be able to discover, which is a claim about the product, not a copy of
+  // the registry (§12) — but it means removing a feature has to come here too,
+  // and this test is what says so rather than leaving a help entry for a dock
+  // that no longer exists.
   const global = SHORTCUTS.filter((s) => s.scope === 'global').map((s) => s.keys.join(''))
-  for (const expected of ['⌘K', '⌘J', '⌘/', '?']) {
+  for (const expected of ['⌘K', '⌘J', '?']) {
     assert.ok(global.includes(expected), `${expected} is not in the shortcuts registry`)
   }
 })

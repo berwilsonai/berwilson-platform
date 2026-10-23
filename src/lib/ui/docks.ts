@@ -1,7 +1,7 @@
 /**
  * The global keyboard shortcuts and the docks they open, in one place.
  *
- * ⚠ THESE WERE FOUR UNTYPED STRING EVENTS. `window.dispatchEvent(new
+ * ⚠ THESE WERE UNTYPED STRING EVENTS. `window.dispatchEvent(new
  * Event('open-ber-ai'))` in seven call sites, matched by
  * `addEventListener('open-dev-note')` in three listeners, with nothing
  * connecting a typo to a failure: a renamed event silently stops opening its
@@ -10,16 +10,15 @@
  * same discipline for the things that are NOT routes.
  *
  * ⚠ AND THE HELP OVERLAY IS GENERATED FROM THIS LIST. There was no shortcuts
- * help at all — ⌘K and ⌘J had a visible hint in the header, ⌘/ was discoverable
- * only through a `title=` attribute that never appears on a phone, and the
- * `/decide` vim keys were documented on `/decide` alone. §12: a hand-written
+ * help at all — ⌘K and ⌘J had a visible hint in the header, and the `/decide`
+ * vim keys were documented on `/decide` alone. §12: a hand-written
  * enumeration beside a registry drifts, so a new shortcut added here cannot be
  * missing from the help.
  *
  * In `src/lib` because both server pages and client components read it.
  */
 
-export const DOCK_EVENTS = ['open-ber-ai', 'open-quick-calc', 'open-dev-note', 'open-quick-upload'] as const
+export const DOCK_EVENTS = ['open-ber-ai', 'open-dev-note', 'open-quick-upload'] as const
 export type DockEvent = (typeof DOCK_EVENTS)[number]
 
 /**
@@ -53,7 +52,6 @@ export interface Shortcut {
 export const SHORTCUTS: Shortcut[] = [
   { keys: ['⌘', 'K'], label: 'Command palette — jump to anything', scope: 'global' },
   { keys: ['⌘', 'J'], label: 'Ask Ber AI', event: 'open-ber-ai', scope: 'global' },
-  { keys: ['⌘', '/'], label: 'Quick calc', event: 'open-quick-calc', scope: 'global' },
   { keys: ['?'], label: 'This list', scope: 'global' },
   { keys: ['⌘', '↵'], label: 'Save a note or submit a form', scope: 'forms' },
   { keys: ['j'], label: 'Move down the list', scope: 'decide' },

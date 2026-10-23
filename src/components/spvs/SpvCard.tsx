@@ -18,8 +18,7 @@ import { Chip } from '@/components/ui/chip'
 import { Button } from '@/components/ui/button'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { Field, FormGrid, Input, Select, Textarea } from '@/components/ui/field'
-import type { EntityRollup } from '@/lib/economics/capture'
-import { PROVENANCE_LABELS, PROVENANCE_ORDER, PROVENANCE_TONES } from '@/lib/economics/provenance'
+import { PROVENANCE_LABELS, PROVENANCE_ORDER, PROVENANCE_TONES } from '@/lib/spvs/provenance'
 import { formatMoney, formatValue } from '@/lib/utils/constants'
 import { TONE_BADGE } from '@/lib/utils/leads'
 import {
@@ -43,10 +42,8 @@ import { outbound, useApiCall, type Draft } from '@/hooks/use-api-call'
 interface SpvCardProps {
   spv: ProjectSpv
   /** The engine's gross and net for this vehicle. Null with no model yet. */
-  rollup: EntityRollup | null
   orgNodes: OrgNodeOption[]
   canEdit: boolean
-  hasModel: boolean
   /** Filed against this vehicle's legal entity, not against the deal. */
   documents: VehicleDocument[]
   /**
@@ -66,10 +63,8 @@ function pct(value: number): string {
 
 export default function SpvCard({
   spv,
-  rollup,
   orgNodes,
   canEdit,
-  hasModel,
   documents,
   pipeline,
   dealIsConfidential,
@@ -161,31 +156,6 @@ export default function SpvCard({
             </p>
           </div>
         </div>
-
-        {/* ── what the engine makes of it ──────────────────────────────── */}
-        {rollup ? (
-          <div className="grid grid-cols-2 gap-3 rounded-md bg-muted/30 p-3 sm:grid-cols-4">
-            <Figure label="Annual in vehicle" value={rollup.gross.annualRecurringRevenue} />
-            <Figure label="Contract value" value={rollup.gross.contractValue} />
-            <Figure label="One-time" value={rollup.gross.oneTimeRevenue} />
-            {/*
-              ⚠ `berWilsonNet` IS NULL WHEN THE SPLIT IS UNSET, and that must
-              read as unfinished rather than as zero. A $0 beside a real gross
-              figure is a statement about the deal that nobody made.
-            */}
-            <Figure
-              label="Net to us"
-              value={rollup.berWilsonNet?.contractValue ?? null}
-              emptyLabel={share.pct == null ? 'Undetermined' : 'Nothing yet'}
-              strong
-            />
-          </div>
-        ) : hasModel ? null : (
-          <p className="rounded-md bg-muted/30 p-3 text-xs text-muted-foreground">
-            Nothing is priced on this deal yet, so there is no revenue to split. The structure can
-            be settled first — that is why it lives here rather than inside the economics model.
-          </p>
-        )}
 
         {/* ── capital ──────────────────────────────────────────────────── */}
         {spv.raiseTarget != null || totals.committed != null || totals.funded != null ? (
@@ -440,36 +410,5 @@ export default function SpvCard({
         }}
       />
     </Panel>
-  )
-}
-
-/**
- * One money figure, or a named absence.
- *
- * ⚠ A BARE EM DASH AT A VALUE'S OWN WEIGHT READS AS A FAILED RENDER (§12), so
- * an absent figure is named in words at the weight of a label instead.
- */
-function Figure({
-  label,
-  value,
-  emptyLabel = 'Not set',
-  strong = false,
-}: {
-  label: string
-  value: number | null
-  emptyLabel?: string
-  strong?: boolean
-}) {
-  return (
-    <div>
-      <p className="label-caps text-muted-foreground">{label}</p>
-      {value == null ? (
-        <p className="mt-0.5 text-xs text-muted-foreground">{emptyLabel}</p>
-      ) : (
-        <p className={`tnum mt-0.5 ${strong ? 'font-semibold' : 'font-medium'}`}>
-          {formatValue(value)}
-        </p>
-      )}
-    </div>
   )
 }

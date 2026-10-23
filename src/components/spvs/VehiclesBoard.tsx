@@ -3,9 +3,9 @@
 /**
  * The vehicle board: one card per SPV, plus the two ways to add one.
  *
- * The money on each card is server-rendered from the economics engine, so every
- * save ends in `router.refresh()` rather than this component keeping its own
- * idea of the answer. One engine, one number on the screen.
+ * The figures on each card are server-rendered from the participant ledger, so
+ * every save ends in `router.refresh()` rather than this component keeping its
+ * own idea of the answer. One source, one number on the screen.
  *
  * Clearing a field sends null, never 0 — see `outbound` in @/hooks/use-api-call.
  */
@@ -15,7 +15,6 @@ import { Loader2, Plus } from 'lucide-react'
 import { Panel } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Field, FormGrid, FormSection, Input, Select } from '@/components/ui/field'
-import type { EntityRollup } from '@/lib/economics/capture'
 import type { VehicleDocument } from '@/lib/spvs/documents'
 import type { VehiclePipeline } from '@/lib/spvs/portfolio'
 import type { RecordKind } from '@/lib/records/scope'
@@ -35,10 +34,7 @@ interface VehiclesBoardProps {
   recordName: string
   canEdit: boolean
   spvs: ProjectSpv[]
-  /** Keyed by spv id. Absent when this deal has no economics model yet. */
-  rollups: Record<string, EntityRollup>
   orgNodes: OrgNodeOption[]
-  hasModel: boolean
   /** Keyed by the vehicle's ENTITY id — the paperwork belongs to the LLC. */
   documents: Record<string, VehicleDocument[]>
   /** Keyed by vehicle id. The raise pipeline, which is NOT the cap table. */
@@ -52,9 +48,7 @@ export default function VehiclesBoard({
   recordName,
   canEdit,
   spvs,
-  rollups,
   orgNodes,
-  hasModel,
   documents,
   pipelines,
   dealIsConfidential,
@@ -117,10 +111,8 @@ export default function VehiclesBoard({
           <SpvCard
             key={spv.id}
             spv={spv}
-            rollup={rollups[spv.id] ?? null}
             orgNodes={orgNodes}
             canEdit={canEdit}
-            hasModel={hasModel}
             documents={(spv.entityId ? documents[spv.entityId] : undefined) ?? []}
             pipeline={pipelines[spv.id] ?? null}
             dealIsConfidential={dealIsConfidential}

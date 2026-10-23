@@ -23,7 +23,7 @@ import { Panel, PanelHeader } from '@/components/ui/card'
 import { Chip } from '@/components/ui/chip'
 import EmptyState from '@/components/shared/EmptyState'
 import { getViewer } from '@/lib/auth/viewer'
-import { PROVENANCE_LABELS, PROVENANCE_TONES } from '@/lib/economics/provenance'
+import { PROVENANCE_LABELS, PROVENANCE_TONES } from '@/lib/spvs/provenance'
 import { formatMoney, formatValue } from '@/lib/utils/constants'
 import { TONE_BADGE } from '@/lib/utils/leads'
 import {

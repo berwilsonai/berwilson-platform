@@ -1,21 +1,40 @@
 /**
  * The vehicles on a deal, and the people in them.
  *
- * `SpvPurpose` and its labels are NOT redeclared here — they live in
- * src/lib/economics/types.ts because the engine's `Spv` carries them, and a
+ * ⚠ `SpvPurpose` IS DECLARED HERE AS OF 2026-10-23, AND THIS IS NOW ITS ONLY
+ * HOME. It used to live in src/lib/economics/types.ts because the engine's
+ * `Spv` carried it; the calculator was removed and the union came with the
+ * vehicles, which are the records that actually have a purpose. The rule that
+ * sent it there still applies in the other direction — one home, because a
  * second copy of a union is how a purpose the model was never told about
- * silently never fires (CLAUDE.md §12 on taxonomies as second schemas).
+ * silently never fires (CLAUDE.md §12 on taxonomies as second schemas) — so
+ * when the Excel model returns it must IMPORT this, never redeclare it. The
+ * members mirror the `purpose` CHECK on `project_spvs`.
  */
 
-import type { ProvenanceStatus } from '@/lib/economics/provenance'
-import type { SpvPurpose } from '@/lib/economics/types'
+import type { ProvenanceStatus } from './provenance'
 
-export type { SpvPurpose }
-export {
-  SPV_PURPOSES,
-  SPV_PURPOSE_LABELS,
-  DEFAULT_SPV_PURPOSES,
-} from '@/lib/economics/types'
+export type SpvPurpose = 'land' | 'energy' | 'data_center' | 'housing' | 'other'
+
+export const SPV_PURPOSES: readonly SpvPurpose[] = [
+  'land',
+  'energy',
+  'data_center',
+  'housing',
+  'other',
+]
+
+/** Sentence case, for a column heading or a chip. */
+export const SPV_PURPOSE_LABELS: Record<SpvPurpose, string> = {
+  land: 'Land',
+  energy: 'Energy',
+  data_center: 'Data center',
+  housing: 'Housing',
+  other: 'Other',
+}
+
+/** The three a project is offered by default. Housing and Other are available. */
+export const DEFAULT_SPV_PURPOSES: readonly SpvPurpose[] = ['land', 'energy', 'data_center']
 
 /**
  * Title case, for use INSIDE THE NAME OF A COMPANY.

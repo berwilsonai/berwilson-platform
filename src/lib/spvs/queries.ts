@@ -7,7 +7,7 @@
  * grouped anyway and the engine's loader calls this too.
  */
 
-import { isProvenanceStatus, type ProvenanceStatus } from '@/lib/economics/provenance'
+import { isProvenanceStatus, type ProvenanceStatus } from './provenance'
 import { RECORD_SCOPE_COLUMN, type RecordKind } from '@/lib/records/scope'
 import { num, spvDb, type ProjectSpvRow, type SpvParticipantRow } from './db'
 import {

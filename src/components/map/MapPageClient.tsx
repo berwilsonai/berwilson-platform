@@ -31,7 +31,7 @@ import PlacementPanel from './PlacementPanel'
 import MapSearch from './MapSearch'
 import MapLegend from './MapLegend'
 import { useStoredState } from '@/hooks/use-stored-state'
-import { pipelineValue } from '@/lib/economics/pipeline'
+import { pipelineValue } from '@/lib/records/pipeline-value'
 
 function MapSkeleton() {
   return <div className="absolute inset-0 animate-pulse bg-muted" />
@@ -126,21 +126,22 @@ export default function MapPageClient({
     let awarded = 0
     let pursuit = 0
     let weighted = 0
-    let modelled = 0
-    let estimated = 0
+    let unpriced = 0
     for (const p of visible) {
-      // The figure each project actually has: a computed Ber Wilson capture
-      // where there is a model, a hand-entered estimate where there is not.
-      // Mixed is better than wrong, and `mixed` says so beside the headline.
       const value = pipelineValue(p)
       const v = value.amount ?? 0
       if (projectPhase(p.stage) === 'awarded') awarded += v
       else pursuit += v
       weighted += weightedValue(value.amount, p.win_probability)
-      if (value.source === 'capture') modelled += 1
-      else if (value.source === 'estimated') estimated += 1
+      // ⚠ COUNTED, NOT IGNORED. `mixed` used to live here, flagging a total
+      // made of both a computed capture figure and a hand-typed estimate; with
+      // the calculator gone there is only one kind of figure and nothing to
+      // mix. What remains worth saying is how much of the map the total covers
+      // — a headline over 2 of 28 priced deals is the misreading this band is
+      // most likely to cause.
+      if (value.amount == null) unpriced += 1
     }
-    return { awarded, pursuit, weighted, mixed: modelled > 0 && estimated > 0 }
+    return { awarded, pursuit, weighted, unpriced, priced: visible.length - unpriced }
   }, [visible])
 
   // Present-mode tour: biggest projects first; arrow keys step through
@@ -516,6 +517,18 @@ export default function MapPageClient({
               <span className="mx-1.5 opacity-40">·</span>
               <span className="tnum font-medium text-foreground">{formatValue(stats.weighted)}</span>{' '}
               weighted
+            </>
+          )}
+          {/* ⚠ SAYS WHAT THE DOLLAR FIGURES COVER, because today they cover
+              almost nothing: the three totals above are built from
+              `estimated_value`, which one project in thirty carries. Presenting
+              "$48B underway" beside "28 projects" with no caveat is the
+              unlabelled-total bug in a new place (§12). It replaces a `mixed`
+              flag that was computed here and rendered by nothing. */}
+          {stats.priced > 0 && stats.unpriced > 0 && (
+            <>
+              <span className="mx-1.5 opacity-40">·</span>
+              <span className="tnum">{stats.priced}</span> priced
             </>
           )}
         </span>

@@ -2,9 +2,8 @@
  * How much of a vehicle is ours, and whether the splits add up.
  *
  * ⚠ PURE. No database, no environment — `npm test` and the verification scripts
- * load this with neither, and src/lib/economics/store.ts calls it while mapping
- * rows. Keep it that way: a shared lib no script can load is one nothing can
- * verify (CLAUDE.md §12).
+ * load this with neither. Keep it that way: a shared lib no script can load is
+ * one nothing can verify (CLAUDE.md §12).
  *
  * THE WHOLE POINT OF THIS FILE is that "our share" had two possible homes once
  * a participant ledger existed — the number someone typed on the vehicle and
@@ -14,9 +13,9 @@
  * answer says WHICH it came from so the screen can tell the reader.
  */
 
-import { weakestStatus, type ProvenanceStatus } from '@/lib/economics/provenance'
+import { weakestStatus, type ProvenanceStatus } from './provenance'
 import { formatMoney } from '@/lib/utils/constants'
-import { SPV_PURPOSE_LABELS } from '@/lib/economics/types'
+import { SPV_PURPOSE_LABELS } from './types'
 import type { ProjectSpv, SpvParticipant } from './types'
 
 /** Where a vehicle's Ber Wilson share came from. */

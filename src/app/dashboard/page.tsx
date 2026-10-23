@@ -18,11 +18,11 @@ import Commitments from '@/components/dashboard/Commitments'
 import { loadOpenCommitments } from '@/lib/commitments/load'
 import { weightedValue } from '@/lib/utils/constants'
 import {
+  coverageNote,
   leafRecords,
-  mixedTotalNote,
   pipelineValue,
   portfolioTotal,
-} from '@/lib/economics/pipeline'
+} from '@/lib/records/pipeline-value'
 import { fetchOpenTasks } from '@/lib/tasks/queries'
 import { getViewer } from '@/lib/auth/viewer'
 import { dropHidden } from '@/lib/security/confidential'
@@ -318,9 +318,8 @@ export default async function DashboardPage({ searchParams }: PageProps) {
   // Sort projects
   const sorted = [...activeProjects].sort((a, b) => {
     if (sort === 'value') {
-      // Sorts on whatever figure each project actually has, so a modelled deal
-      // and an unmodelled one rank by the same call rather than the modelled
-      // one sorting last for having a smaller, truer number.
+      // An unpriced deal sorts last rather than as $0 — `?? -1`, so it falls
+      // below a real zero if anybody ever types one.
       return (pipelineValue(b).amount ?? -1) - (pipelineValue(a).amount ?? -1)
     }
     if (sort === 'actions') {
@@ -332,16 +331,16 @@ export default async function DashboardPage({ searchParams }: PageProps) {
 
   // Stats
   //
-  // ⚠ THE TOTAL NAMES WHAT IT IS MADE OF. `estimated_value` was one unlabelled
-  // column holding $57.5B of plainly different quantities, so a figure that
-  // mixes a computed Ber Wilson capture with a hand-entered estimate must say
-  // so rather than presenting itself as one authoritative number.
+  // ⚠ THE TOTAL NAMES HOW MUCH OF THE PORTFOLIO IT COVERS. `estimated_value`
+  // was one unlabelled column holding $57.5B of plainly different quantities,
+  // and the lesson survived the calculator that replaced it: a sum over 1 of 30
+  // priced deals must say so rather than presenting itself as the portfolio.
   //
   // ⚠ AND IT COUNTS EACH DEAL ONCE. This summed every active project flat, so a
-  // program carrying its own model alongside sub-projects carrying theirs was
+  // program carrying its own figure alongside sub-projects carrying theirs was
   // counted twice — latent only because `parent_project_id` was used by 0 of 14
-  // rows. `portfolioTotal` keeps the leaves: economics lives on leaves, and a
-  // program's value is what the work inside it adds up to.
+  // rows. `portfolioTotal` keeps the leaves: a deal's value lives on leaves,
+  // and a program's value is what the work inside it adds up to.
   const pipeline = portfolioTotal(activeProjects)
   const pipelineValueTotal = pipeline.amount
   // The same leaf set, or the weighted figure disagrees with the one above it.
@@ -455,7 +454,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
         <HealthPanel
           activeProjects={activeProjects.length}
           pipelineValue={pipelineValueTotal}
-          pipelineNote={mixedTotalNote(pipeline)}
+          pipelineNote={coverageNote(pipeline)}
           unpricedCount={pipeline.unpriced}
           rolledUpCount={pipeline.rolledUp}
           weightedPipelineValue={weightedPipelineValue}

@@ -10,12 +10,12 @@ import { DatePicker } from '@/components/ui/date-picker'
 import { cn } from '@/lib/utils'
 import { useStoredState } from '@/hooks/use-stored-state'
 import {
+  coverageNote,
   leafRecords,
-  mixedTotalNote,
   pipelineTotal,
   pipelineValue,
   rolledPipelineValue,
-} from '@/lib/economics/pipeline'
+} from '@/lib/records/pipeline-value'
 import { SECTOR_BADGE, SECTOR_SHORT } from '@/lib/utils/sectors'
 import {
   STATUS_BADGE, STATUS_LABELS, formatValue, weightedValue,
@@ -45,7 +45,7 @@ function ProgramBanner({
   onToggle: () => void
 }) {
   const status = program.status ?? 'active'
-  // ⚠ THE SUM OF THE WORK INSIDE, NOT THE PROGRAM'S OWN MODEL. This showed
+  // ⚠ THE SUM OF THE WORK INSIDE, NOT THE PROGRAM'S OWN FIGURE. This showed
   // `pipelineValue(program)` — a figure that is either blank (the usual case,
   // reading as an unpriced program above priced children) or double-counted
   // against the sub-projects listed directly beneath it.
@@ -389,7 +389,7 @@ export default function ProjectsClient({ projects: initialProjects, stageFilter 
             const colItems = items.filter((p) => leafIds.has(p.id))
             const colTotal = pipelineTotal(colItems)
             const colValue = colTotal.amount
-            const colNote = mixedTotalNote(colTotal)
+            const colNote = coverageNote(colTotal)
             const colWeighted = colItems.reduce(
               (sum, p) =>
                 sum +
@@ -436,11 +436,9 @@ export default function ProjectsClient({ projects: initialProjects, stageFilter 
                       <div className="flex items-center justify-between">
                         <span
                           className="font-semibold tnum text-foreground"
-                          title={colNote ? `Mixed: ${colNote}` : 'Ber Wilson capture'}
+                          title={colNote ? `${colNote} in this stage` : undefined}
                         >
-                          {colTotal.modelled + colTotal.estimated > 0
-                            ? formatValue(colValue)
-                            : 'Not set'}
+                          {colTotal.estimated > 0 ? formatValue(colValue) : 'Not set'}
                         </span>
                         {colWeighted > 0 && (
                           <span className="tnum text-emerald-600 dark:text-emerald-400">{formatValue(colWeighted)} wtd</span>
