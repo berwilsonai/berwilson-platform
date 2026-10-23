@@ -159,6 +159,14 @@ export interface ContactSweepResult {
   skippedOrganizations: number
   /** Numbers belonging to one of ours, refused on a counterparty's row. */
   internalPhonesWithheld: number
+  /**
+   * Lookups that found a row and declined to use it, so nothing was created.
+   *
+   * ⚠ REPORTED BECAUSE A GATE NOBODY CAN SEE IS A BLACK HOLE (§12). Until
+   * 2026-10-22 each of these silently created a contact instead, which is how
+   * one role mailbox became four rows in a day.
+   */
+  refusedLookups: string[]
   errors: string[]
 }
 
@@ -516,6 +524,7 @@ export async function runContactSweep(
     candidates: 0,
     matched: 0,
     created: [],
+    refusedLookups: [],
     outcomes: [],
     phoneCollisions: 0,
     skippedInternal: 0,
@@ -597,6 +606,7 @@ export async function runContactSweep(
     return result
   }
   result.outcomes = applied.outcomes
+  result.refusedLookups = applied.refused
   result.matched = applied.outcomes.filter((o) => !o.created).length
   result.created = applied.outcomes
     .filter((o) => o.created)

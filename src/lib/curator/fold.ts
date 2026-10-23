@@ -299,7 +299,7 @@ export async function applyPeople(args: {
    * duplicating a contact that already exists under another spelling.
    */
   allowCreate?: boolean
-}): Promise<{ outcomes: PersonOutcome[]; unmatched: string[]; error: string | null }> {
+}): Promise<{ outcomes: PersonOutcome[]; unmatched: string[]; refused: string[]; error: string | null }> {
   const { mentions, dryRun, fillOnly = false, allowCreate = false } = args
 
   // ⚠ OUR OWN PEOPLE ARE NEVER CURATED FROM MAIL, AND THE DRY RUN IS WHY. It
@@ -312,7 +312,7 @@ export async function applyPeople(args: {
   // printing a reader's own name back at them: the platform should not tell
   // Richard who Richard is.
   const internal = await loadInternalPartyIds()
-  if (internal.error) return { outcomes: [], unmatched: [], error: internal.error }
+  if (internal.error) return { outcomes: [], unmatched: [], refused: [], error: internal.error }
 
   // Newest first, so the first mention that resolves to a party is the one
   // whose title and company are used.
@@ -325,6 +325,10 @@ export async function applyPeople(args: {
   // about a VALUE, not about a sighting.
   const byParty = new Map<string, { party: PartyLite; fields: Map<string, { value: string; mention: PersonMention }> }>()
   const unmatched = new Set<string>()
+  // Reasons a lookup declined, reported so a gate nobody can see is not a
+  // black hole (§12). Keyed like `matchCache` so one address is asked once.
+  const refused = new Set<string>()
+  const refusalCache = new Map<string, string>()
   const matchCache = new Map<string, PartyLite | null>()
   /** Parties this call brought into existence, for the outcome's `created`. */
   const createdIds = new Map<
@@ -336,11 +340,28 @@ export async function applyPeople(args: {
     const key = (m.person.email?.trim().toLowerCase() || m.person.name?.trim().toLowerCase()) ?? ''
     if (!key) continue
     let party = matchCache.get(key)
-    if (party === undefined) {
+    let refusedReason: string | null = refusalCache.get(key) ?? null
+    if (party === undefined && refusedReason === null) {
       const found = await matchParty(m.person)
-      if (found.error) return { outcomes: [], unmatched: [], error: found.error }
-      party = found.party
-      matchCache.set(key, party)
+      if (found.error) return { outcomes: [], unmatched: [], refused: [], error: found.error }
+      if (found.lookup.kind === 'match') {
+        party = found.lookup.party
+        matchCache.set(key, party)
+      } else if (found.lookup.kind === 'refused') {
+        refusedReason = found.lookup.reason
+        refusalCache.set(key, refusedReason)
+      } else {
+        party = null
+        matchCache.set(key, null)
+      }
+    }
+    // ⚠ A REFUSAL MAY NOT CREATE. The lookup found something it declined to
+    // use — a shared address, an organization row, a contact a human archived
+    // — so adding a row would be the duplicate that guarantees tomorrow's
+    // refusal. Report it and move on.
+    if (refusedReason) {
+      refused.add(refusedReason)
+      continue
     }
     if (!party) {
       const name = m.person.name?.trim()
@@ -354,7 +375,7 @@ export async function applyPeople(args: {
         allowCreate && !isInternalAddress(m.person.email ?? null)
           ? await createContact(m, dryRun)
           : null
-      if (created?.error) return { outcomes: [], unmatched: [], error: created.error }
+      if (created?.error) return { outcomes: [], unmatched: [], refused: [], error: created.error }
       if (created?.party) {
         party = created.party
         matchCache.set(key, party)
@@ -425,7 +446,7 @@ export async function applyPeople(args: {
       updates,
       dryRun,
     })
-    if (result.error) return { outcomes, unmatched: [...unmatched], error: result.error }
+    if (result.error) return { outcomes, unmatched: [...unmatched], refused: [...refused], error: result.error }
     const created = createdIds.get(party.id)
     if (result.written.length > 0 || result.proposed.length > 0 || created) {
       outcomes.push({
@@ -456,7 +477,7 @@ export async function applyPeople(args: {
     })
   }
 
-  return { outcomes, unmatched: [...unmatched].sort(), error: null }
+  return { outcomes, unmatched: [...unmatched].sort(), refused: [...refused].sort(), error: null }
 }
 
 /**
@@ -562,7 +583,7 @@ function isReportableName(name: string): boolean {
   return true
 }
 
-interface PartyLite {
+export interface PartyLite {
   id: string
   full_name: string
   email: string | null
@@ -577,46 +598,114 @@ interface PartyLite {
    * nothing downstream re-checked.
    */
   is_organization: boolean | null
+  /**
+   * Whether a human has archived this contact.
+   *
+   * Read so the archive is a mark the pass respects rather than a state it
+   * re-creates around — see `PartyLookup` below.
+   */
+  status?: string | null
+}
+
+/**
+ * The three ways a lookup can end, which are not one answer.
+ *
+ * ⚠ A REFUSAL IS NOT AN ABSENCE, AND COLLAPSING THEM MANUFACTURES THE
+ * DUPLICATE THAT GUARANTEES THE NEXT REFUSAL. This returned
+ * `{ party: null }` for all three outcomes and the caller creates a contact
+ * whenever it gets null, so every refusal added a row:
+ *
+ *   - two parties already on one address → "a data problem, not a match"
+ *     → created a THIRD, which is still two-or-more next time. Self-amplifying.
+ *   - an organization row on that address → "not a person" → created a person
+ *     row beside it, on the same address, which is case one tomorrow.
+ *
+ * Measured 2026-10-22: `dinoservicepros@gmail.com` — a role mailbox for our
+ * own operating company — was archived by hand on 10-21 under the
+ * `auto-contact` undo. The 10-21 merge had set `is_organization`, so the next
+ * pass read the archived row, declined it for being an organization, and
+ * created a person. Then a second, because by then two rows shared the
+ * address. Four rows for one mailbox, the human's archive overruled twice in
+ * one day — §12: an automatic pass and its undo are a LOOP unless the undo
+ * leaves a mark the pass respects.
+ *
+ * So `refused` means STOP: do not match, do not create, say so. Only `none`
+ * — nothing on this address or name at all — may create.
+ */
+export type PartyLookup =
+  | { kind: 'match'; party: PartyLite }
+  | { kind: 'none' }
+  | { kind: 'refused'; reason: string }
+
+/**
+ * What the rows a lookup returned mean — the half that had the bug.
+ *
+ * Pure and exported so it is testable: the query is trivial and the DECISION
+ * is what turned one archived role mailbox into four rows. `key` is the thing
+ * searched on, quoted back in the reason a human reads.
+ */
+export function decidePartyLookup(
+  rows: PartyLite[],
+  key: string,
+  by: 'address' | 'name'
+): PartyLookup {
+  // Two parties on one key is a data problem, not a match — and not a licence
+  // to add a third. This is the self-amplifying case.
+  if (rows.length > 1) {
+    return {
+      kind: 'refused',
+      reason: by === 'address' ? `${rows.length} contacts share ${key}` : `${rows.length} contacts named ${key}`,
+    }
+  }
+  if (rows.length === 1) {
+    const row = rows[0]
+    // An organization row is not a person, however person-shaped the sighting
+    // was — but the key is taken, so nothing may be created against it.
+    if (row.is_organization) {
+      return {
+        kind: 'refused',
+        reason: by === 'address' ? `${key} belongs to an organization row` : `${key} is an organization row`,
+      }
+    }
+    // A contact a human archived stays archived. Matching it would resurrect
+    // what the undo retired; creating its twin would be worse.
+    if (row.status === 'archived') {
+      return { kind: 'refused', reason: `${row.full_name} was archived by hand` }
+    }
+    return { kind: 'match', party: row }
+  }
+  return { kind: 'none' }
 }
 
 /** Email first; then an exact, unique, multi-word name; otherwise refuse. */
 async function matchParty(
   person: ThreadPerson
-): Promise<{ party: PartyLite | null; error: string | null }> {
+): Promise<{ lookup: PartyLookup; error: string | null }> {
   const email = person.email?.trim().toLowerCase()
   if (email) {
     const { data, error } = await provDb()
       .from('parties')
-      .select('id, full_name, email, is_organization')
+      .select('id, full_name, email, is_organization, status')
       .ilike('email', email)
       .limit(2)
-    if (error) return { party: null, error: `match by email: ${error.message}` }
-    const rows = (data ?? []) as PartyLite[]
-    // Two parties on one address is a data problem, not a match. Refuse.
-    if (rows.length === 1) {
-      return { party: rows[0].is_organization ? null : rows[0], error: null }
-    }
-    if (rows.length > 1) return { party: null, error: null }
+    if (error) return { lookup: { kind: 'none' }, error: `match by email: ${error.message}` }
+    const decided = decidePartyLookup((data ?? []) as PartyLite[], email, 'address')
+    if (decided.kind !== 'none') return { lookup: decided, error: null }
   }
 
   const name = person.name?.trim()
   // ⚠ TWO WORDS MINIMUM. A bare first name is the weak key that resolved
   // "Cliff" to a stranger; and §12's token rule — require the whole name, or
   // one token rare in the corpus — is why this is exact rather than fuzzy.
-  if (!name || name.split(/\s+/).filter(Boolean).length < 2) return { party: null, error: null }
+  if (!name || name.split(/\s+/).filter(Boolean).length < 2) return { lookup: { kind: 'none' }, error: null }
 
   const { data, error } = await provDb()
     .from('parties')
-    .select('id, full_name, email, is_organization')
+    .select('id, full_name, email, is_organization, status')
     .ilike('full_name', name)
     .limit(2)
-  if (error) return { party: null, error: `match by name: ${error.message}` }
-  const rows = (data ?? []) as PartyLite[]
-  // An organization row is not a person, however person-shaped the sighting was.
-  if (rows.length === 1) {
-    return { party: rows[0].is_organization ? null : rows[0], error: null }
-  }
-  return { party: null, error: null }
+  if (error) return { lookup: { kind: 'none' }, error: `match by name: ${error.message}` }
+  return { lookup: decidePartyLookup((data ?? []) as PartyLite[], name, 'name'), error: null }
 }
 
 // ── The cursor ───────────────────────────────────────────────────────────────

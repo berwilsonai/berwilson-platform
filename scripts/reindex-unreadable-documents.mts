@@ -13,7 +13,9 @@
  *     holding nothing (2026-10-21). `--kind doc` / `--kind eml` pick them up;
  *     neither needs a model, so both run under `--text-only`.
  *
- * Only rows with no extracted_text are touched, so re-running is cheap and safe.
+ * Only rows with no extracted_text are touched, so re-running is cheap and safe —
+ * and never an `excluded_at` row, which can never gain text and would be retried
+ * on every run.
  * Progress is written back after EVERY document, so an interrupted run resumes
  * rather than restarts (§12 — a deploy is a `launchctl kickstart`).
  *
@@ -66,6 +68,14 @@ let q = supabase
   .from('documents')
   .select('id, file_name, mime_type, storage_path, project_id, entity_id, is_company, extracted_text, ai_summary')
   .is('superseded_at', null)
+  // ⚠ AND NOT ONE A HUMAN HAS EXCLUDED. `excluded_at` is the tombstone for "this
+  // is not knowledge" (§4 — the ROW is the tombstone), and a pass selecting on
+  // "holds no text" would otherwise retry those rows FOREVER, because an
+  // excluded document is never going to gain any. Measured 2026-10-22: the four
+  // `bwcsi-*.svg` brand badges were excluded that morning and this pass still
+  // attempted all four in the afternoon, failing to decode each one. A cleanup
+  // that does not respect the undo is a cleanup that argues with it.
+  .is('excluded_at', null)
 if (onlyProject) q = q.eq('project_id', onlyProject)
 
 const { data, error } = await q
