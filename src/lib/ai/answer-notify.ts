@@ -9,18 +9,24 @@
  * that says so.
  *
  * ⚠ TWO CHANNELS, ONE PASS, BECAUSE THEY CARRY DIFFERENT THINGS AND A FORK
- * WOULD DRIFT (§12 — never fork a shared pass, add a target). The text is the
- * thing that reaches a pocket, and it carries the BOTTOM LINE plus a link; the
- * email carries the whole answer, because a 3,000-character answer cannot be a
- * text. Measured 2026-10-23: the median assistant message is 3,046 characters
- * and the longest is 17,145, while the longest text this box has ever actually
- * delivered is 357 (a `record_alert`). Sending the full answer over the carrier
- * gateway would be ~20 SMS segments whose ordering and truncation are the
- * carrier's decision, not ours.
+ * WOULD DRIFT (§12 — never fork a shared pass, add a target). The text is a
+ * POINTER: the question, so you know which answer it is, and a link that opens
+ * that conversation in Ber Intelligence. The email carries the whole answer,
+ * because a 3,000-character answer cannot be a text — measured 2026-10-23, the
+ * median assistant message is 3,046 characters and the longest is 17,145, while
+ * the longest text this box has ever actually delivered is 357.
  *
- * Richard chose this shape on 2026-10-23: *"When I ask Ber AI a question, I
- * want it to text the response to me."* — a TLDR plus a link, over 90 seconds,
- * with the email kept for the full text.
+ * ⚠ AND THE TEXT DELIBERATELY DOES NOT SUMMARIZE. The first version of this
+ * had a model write a bottom line for the lock screen. It worked — 186 to 235
+ * characters on real answers, the royalty and the caveat intact — and Richard
+ * replaced it the same day: *"Maybe you just text me a link to the response. I
+ * click the link and it takes me to Ber Intelligence to view the output."*
+ * That is the better design and not only because it is simpler. A summary of
+ * an answer is a SECOND answer: it can be wrong on its own, it is new prose
+ * that has to be guarded on its own, and it cost a model call that queued
+ * behind whatever else held LM Studio — measured at 80s, 121s and 531s against
+ * the ~2s this version takes. A pointer cannot be wrong about the thing it
+ * points at.
  *
  * ⚠ ONLY OVER THE THRESHOLD. A fast answer is one you are still looking at,
  * and buzzing a phone for it is noise — the toast covers that case. The bar has
@@ -38,7 +44,6 @@
  */
 
 import { createAdminClient } from '@/lib/supabase/admin'
-import { callGemini } from '@/lib/ai/gemini'
 import { notify } from '@/lib/notify'
 import { guardOutboundText } from '@/lib/security/egress'
 import { isConfidentialProject } from '@/lib/security/confidential'
@@ -61,15 +66,16 @@ function envInt(name: string, fallback: number): number {
 export const notifyAfterMs = () => envInt('AGENT_NOTIFY_AFTER_MS', 90_000)
 
 /**
- * The most text a TLDR may be, before the link is added.
+ * How much of the question rides along in the text, before the link.
  *
- * ⚠ MEASURED AGAINST WHAT THIS CHANNEL HAS DELIVERED, not against the SMS spec.
- * The longest body `pepper_outbound_texts` records as sent is 357 characters
- * (`record_alert`); 240 plus a ~60-character tailnet link sits inside that with
- * room for a deal name. §12: a threshold is measured against the real corpus,
- * never chosen.
+ * ⚠ MEASURED AGAINST WHAT THIS CHANNEL HAS DELIVERED, not against the SMS
+ * spec. The longest body `pepper_outbound_texts` records as sent is 357
+ * characters; 160 of question plus a ~100-character tailnet link sits well
+ * inside it. §12: a threshold is measured against the real corpus, never
+ * chosen. The question is there so two answers arriving together are told
+ * apart — it is an identifier, not content.
  */
-export const TLDR_MAX_CHARS = envInt('AGENT_TEXT_TLDR_CHARS', 240)
+export const QUESTION_MAX_CHARS = envInt('AGENT_TEXT_QUESTION_CHARS', 160)
 
 export interface AnswerNotifyResult {
   /** True when the full answer went out by email. */
@@ -80,8 +86,6 @@ export interface AnswerNotifyResult {
   reason: string
   /** True when the answer was withheld and only a link went out. */
   linkOnly?: boolean
-  /** Where the texted bottom line came from. Absent when nothing was texted. */
-  tldrSource?: TldrSource
 }
 
 function escapeHtml(s: string): string {
@@ -93,40 +97,6 @@ export function subjectFor(question: string): string {
   const oneLine = question.replace(/\s+/g, ' ').trim()
   const trimmed = oneLine.length > 70 ? `${oneLine.slice(0, 70).trimEnd()}…` : oneLine
   return `Ber AI: ${trimmed}`
-}
-
-export type TldrSource =
-  /** The answer was already short enough to send as it stands. */
-  | 'verbatim'
-  /** A model wrote the bottom line. */
-  | 'model'
-  /** The model call failed or came back unusable; the answer was trimmed. */
-  | 'trimmed'
-
-/**
- * An answer with its markup taken off, so it can be read on a lock screen.
- *
- * The agent answers in markdown — headings, bold, bullets, tables, citations —
- * and a carrier renders none of it. `**17 October**` arrives as asterisks and
- * `## How SBIR Phase III Money Works` arrives with the hashes still on it.
- */
-export function plainText(markdown: string): string {
-  return markdown
-    // Fenced code goes entirely: it is never the bottom line and it is the
-    // one block whose innards must not be unwrapped.
-    .replace(/```[\s\S]*?```/g, ' ')
-    .replace(/^\s{0,3}#{1,6}\s*/gm, '')
-    .replace(/^\s{0,3}>\s?/gm, '')
-    .replace(/^\s*[-*+]\s+/gm, '• ')
-    .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
-    .replace(/(\*\*|__)(.*?)\1/g, '$2')
-    .replace(/(\*|_)(.*?)\1/g, '$2')
-    .replace(/`([^`]*)`/g, '$1')
-    .replace(/^\s*\|.*\|\s*$/gm, '')
-    .replace(/^\s*[-=]{3,}\s*$/gm, '')
-    .replace(/[ \t]+/g, ' ')
-    .replace(/\n{2,}/g, '\n')
-    .trim()
 }
 
 /**
@@ -148,72 +118,36 @@ export function clip(text: string, max: number): string {
   return `${(word > max * 0.5 ? window.slice(0, word) : window).trimEnd()}…`
 }
 
-const TLDR_PROMPT = `You write the one-line bottom line of an answer, for a text message on a phone.
-
-Rules:
-- Lead with the FINDING, never with "the answer is" or "I found that".
-- At most two sentences and ${TLDR_MAX_CHARS} characters. Shorter is better.
-- Plain text only: no markdown, no bullets, no headings, no links, no emoji.
-- Keep the specifics — a date, a figure, a name — and drop the reasoning.
-- If the answer is that something is missing or unknown, say that plainly.
-- Write it as the answer itself, not as a description of the answer.
-
-Reply with the sentence and nothing else.`
-
 /**
- * The bottom line of an answer, for the text.
+ * The text itself: which question, and the link that opens the answer.
  *
- * ⚠ THE MODEL CALL IS THE PREFERRED PATH AND NEVER THE REQUIRED ONE. LM Studio
- * serves one request at a time (§12), so this call queues, and the whole point
- * of this pass is that it runs after the asker has walked away — a stall here
- * must cost a worse sentence, not the message. Every failure falls through to
- * the trimmed answer, which is always available because it is pure string work.
+ * ⚠ PURE, AND EXPORTED, BECAUSE THIS STRING IS THE WHOLE FEATURE. Everything
+ * else in this file is plumbing around it; if it is wrong nobody finds out,
+ * because a text that reads badly still reports `sent`. A pure function is one
+ * a test can read character by character without a database or a phone.
+ *
+ * ⚠ THE WITHHELD FORM NAMES NO QUESTION. When containment fired, the QUESTION
+ * is suspect too — it is the thing most likely to carry the protected
+ * project's name, since that is usually what was asked about. So the withheld
+ * body drops it entirely rather than clipping it and hoping.
+ *
+ * The carrier renders the gateway subject ("Ber AI") as the first line, so
+ * this body never repeats it.
  */
-export async function composeTldr(args: {
+export function composeAnswerText(args: {
   question: string
-  answer: string
-  userId: string
-}): Promise<{ text: string; source: TldrSource }> {
-  const plain = plainText(args.answer)
-
-  // ⚠ NO MODEL CALL WHEN THE ANSWER ALREADY FITS. Richard asked to be texted
-  // "the response"; when the response is 38 characters that is exactly what
-  // this sends, and summarizing it would be a round trip to make it worse.
-  if (plain.length <= TLDR_MAX_CHARS) return { text: plain, source: 'verbatim' }
-
-  try {
-    const { data } = await callGemini<string>({
-      task: 'answer-tldr',
-      systemPrompt: TLDR_PROMPT,
-      userMessage: `QUESTION\n${args.question}\n\nANSWER\n${args.answer}`,
-      userId: args.userId,
-      promptVersion: 'answer-tldr-1.0',
-      jsonMode: false,
-      /*
-        ⚠ BUDGETED FOR THE THINKING, NOT FOR THE SENTENCE. The output here is
-        240 characters — about 60 tokens — but `qwen3.6` reasons first and
-        those tokens come out of the same budget. A cap sized to the answer
-        spends the whole allowance thinking and emits nothing, which this code
-        would read as a failed call and silently downgrade to the trimmed
-        answer forever. Every other prose call in this repo budgets 1500-8000
-        for the same reason; 300 was the outlier.
-      */
-      maxTokens: 2048,
-    })
-    const written = typeof data === 'string' ? plainText(data) : ''
-    // A model asked for one sentence sometimes returns a preamble and a list.
-    // Anything that comes back long is still better trimmed than discarded,
-    // but it is no longer "what the model wrote" and the log should say so.
-    if (written.length >= 10) {
-      return written.length <= TLDR_MAX_CHARS
-        ? { text: written, source: 'model' }
-        : { text: clip(written, TLDR_MAX_CHARS), source: 'trimmed' }
-    }
-  } catch (err) {
-    console.warn('[answer-notify] TLDR call failed:', err instanceof Error ? err.message : err)
+  link: string
+  took: string
+  /** The GENERIC reason, when containment fired. Null on the normal path. */
+  withheld: string | null
+}): string {
+  if (args.withheld) {
+    return [
+      `Your answer is ready (${args.took}), but not in this text because ${args.withheld}.`,
+      args.link,
+    ].join('\n\n')
   }
-
-  return { text: clip(plain, TLDR_MAX_CHARS), source: 'trimmed' }
+  return [`Answered: ${clip(args.question, QUESTION_MAX_CHARS)}`, args.link].join('\n\n')
 }
 
 /** How long it took, in the words a person would use. Exported for its test. */
@@ -273,19 +207,6 @@ export async function notifyAnswer(args: {
   origin: string
   /** Set when the conversation is scoped to a deal. */
   projectId?: string
-  /**
-   * The asker, for the `ai_queries` row the TLDR call writes.
-   *
-   * ⚠ REQUIRED, AND IT MUST BE A REAL `auth.users` UUID. `ai_queries.user_id`
-   * is a NOT NULL uuid and `logAiQuery` is fire-and-forget with no error
-   * branch, so a placeholder like `'system'` fails `22P02` and the call simply
-   * never appears in the log — breaking the §2 contract that EVERY AI call is
-   * logged, with nothing anywhere saying so. Caught on 10-23 by a verification
-   * script that passed `'verify'` and produced a model answer with no row
-   * behind it. Required rather than defaulted so `tsc` names any caller that
-   * cannot supply one.
-   */
-  userId: string
 }): Promise<AnswerNotifyResult> {
   if (args.latencyMs < notifyAfterMs()) {
     return {
@@ -374,38 +295,18 @@ export async function notifyAnswer(args: {
     }
   }
 
-  // ── Text: the bottom line, and a link to the rest ─────────────────────────
+  // ── Text: which question, and the link that opens it ─────────────────────
   let texted = false
-  let tldrSource: TldrSource | undefined
   const textClaim = await claim(admin, args.messageId, 'text')
   if (!textClaim.ok) {
     notes.push(textClaim.reason)
   } else {
-    let body: string
-    if (linkOnly) {
-      body = [`Your Ber AI answer is ready (${took}).`, `Not in this text because ${withheldPublic}.`, link].join('\n')
-    } else {
-      const tldr = await composeTldr({
-        question: args.question,
-        answer: args.answer,
-        userId: args.userId,
-      })
-      tldrSource = tldr.source
-
-      /*
-        ⚠ THE TLDR IS GUARDED IN ITS OWN RIGHT, THOUGH ITS SOURCE ALREADY PASSED.
-        When it came from the model it is NEW prose, not a slice of the answer —
-        it can name a thing the answer only alluded to, and §12's rule is that a
-        security filter belongs at the choke point rather than being inferred
-        from an earlier call on different text. Costs one query; the failure it
-        prevents cannot be undone.
-      */
-      const verdict = await guardOutboundText(tldr.text)
-      body = verdict.ok
-        ? [tldr.text, link].join('\n\n')
-        : [`Your Ber AI answer is ready (${took}).`, `Not in this text because ${withheldPublic}.`, link].join('\n')
-      if (!verdict.ok) notes.push(`the bottom line was withheld: ${verdict.reason}`)
-    }
+    const body = composeAnswerText({
+      question: args.question,
+      link,
+      took,
+      withheld: linkOnly ? withheldPublic : null,
+    })
 
     const result = await notify({
       kind: KIND,
@@ -433,7 +334,6 @@ export async function notifyAnswer(args: {
     emailed,
     texted,
     linkOnly,
-    tldrSource,
     reason: notes.length ? `${headline} (${notes.join('; ')})` : headline,
   }
 }

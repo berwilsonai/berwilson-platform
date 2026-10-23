@@ -161,8 +161,8 @@ export async function POST(request: NextRequest) {
 
   /**
    * Text and mail the answer, if it took long enough that nobody is still
-   * watching. The text carries the bottom line and a link; the email carries
-   * the whole thing.
+   * watching. The text carries the question and a link that opens the
+   * conversation; the email carries the whole answer.
    *
    * Non-fatal by construction: a failed notification must never turn a
    * finished answer into an error. It is already saved and already on screen
@@ -180,7 +180,6 @@ export async function POST(request: NextRequest) {
         latencyMs,
         origin,
         projectId: body.projectId,
-        userId: user.id,
       })
       if (outcome.emailed || outcome.texted) console.log(`[agent] answer sent — ${outcome.reason}`)
     } catch (err) {
@@ -258,12 +257,11 @@ export async function POST(request: NextRequest) {
           /*
             ⚠ AFTER `done`, AND STILL AWAITED INSIDE THE STREAM.
 
-            The notification now writes a bottom line with a model call, which
-            on this box means another 15-40s queued behind LM Studio's
-            one-request-at-a-time server. Sending it BEFORE `done` — which is
-            where it used to sit, when it was two database writes and a Gmail
-            send — would make a reader who STAYED wait out a message composed
-            for the reader who left.
+            Two claim rows and two Gmail sends, ~2s — small, but it is work
+            done for the reader who LEFT and there is no reason to make the
+            reader who STAYED wait for it. (It briefly cost 15-40s, when the
+            text was a model-written summary; that is gone, and the ordering
+            it forced was right anyway.)
 
             It stays inside `start()` rather than being fired and forgotten:
             the stream is not finished until `close()` in the `finally` below,
