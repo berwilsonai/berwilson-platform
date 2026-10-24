@@ -170,7 +170,15 @@ function NoteCard({ partyId, note }: { partyId: string; note: PartyNote }) {
         </div>
       ) : (
         <>
-          {note.summary && note.summary !== note.body && (
+          {/* ⚠ THE SUMMARY ONLY WHEN THE BODY DOES NOT ALREADY CARRY IT.
+              A meeting note's body is "Recorded call — <title>" followed by the
+              recap, and the recap IS the summary — so an inequality check
+              passes (the heading differs) and the card printed the same
+              paragraph twice, once as the lead and once as the text. Caught by
+              rendering it rather than by reading it. Containment, not
+              inequality: a typed note where the human's words and the model's
+              read genuinely differ still shows both. */}
+          {note.summary && !note.body.includes(note.summary) && (
             <div className="px-4 pt-3">
               <p className="text-sm text-foreground leading-relaxed">{note.summary}</p>
             </div>
