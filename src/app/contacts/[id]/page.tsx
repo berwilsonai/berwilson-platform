@@ -19,6 +19,8 @@ import { STAGE_LABELS } from '@/lib/utils/stages'
 import type { ProjectSector, ProjectStage } from '@/lib/supabase/types'
 import ContactTabBar from '@/components/contacts/ContactTabBar'
 import RelationshipNotesEditor from '@/components/contacts/RelationshipNotesEditor'
+import ContactNotesFeed from '@/components/contacts/ContactNotesFeed'
+import { listContactNotes, type PartyNote } from '@/lib/contacts/notes'
 import AvatarUpload from '@/components/contacts/AvatarUpload'
 import LinkedInEditor from '@/components/contacts/LinkedInEditor'
 import EnrichProfileButton from '@/components/contacts/EnrichProfileButton'
@@ -363,15 +365,24 @@ export default async function ContactDetailPage({ params, searchParams }: PagePr
   }
   let activityLog: ActivityLogRow[] = []
 
+  let contactNotes: PartyNote[] = []
+
   if (tab === 'notes') {
-    const { data: log } = await supabase
-      .from('activity_log')
-      .select('id, action, actor_type, created_at, metadata')
-      .eq('record_id', id)
-      .eq('table_name', 'parties')
-      .order('created_at', { ascending: false })
-      .limit(50)
+    // Two reads, one await — the feed and the edit history are independent, and
+    // this page was the highest-await file in the repo before the activity tab
+    // was paired up (see that tab's own note).
+    const [{ data: log }, feed] = await Promise.all([
+      supabase
+        .from('activity_log')
+        .select('id, action, actor_type, created_at, metadata')
+        .eq('record_id', id)
+        .eq('table_name', 'parties')
+        .order('created_at', { ascending: false })
+        .limit(50),
+      listContactNotes(id, 100, supabase),
+    ])
     activityLog = (log as ActivityLogRow[]) ?? []
+    contactNotes = feed
   }
 
   // ─── Render ───────────────────────────────────────────────────────────────
@@ -511,9 +522,16 @@ export default async function ContactDetailPage({ params, searchParams }: PagePr
               </section>
 
               {/* Relationship notes */}
+              {/* ⚠ WHO THEY ARE, THEN WHAT WE SAID — two different questions
+                  and now two different shapes. `relationship_notes` is a
+                  standing description edited in place (98 of 151 contacts have
+                  it filled); the feed below it is the dated sequence, which is
+                  what a networking call needs and what this page had nowhere to
+                  put. Richard, 10-23: "often times they wont be tied to any
+                  particular project or opportunity." */}
               <section>
                 <h2 className="label-caps text-muted-foreground mb-3">
-                  Relationship Notes
+                  Who they are
                 </h2>
                 <div className="rounded-lg border border-border bg-card p-4">
                   <RelationshipNotesEditor
@@ -521,6 +539,20 @@ export default async function ContactDetailPage({ params, searchParams }: PagePr
                     initialNotes={party.relationship_notes}
                   />
                 </div>
+              </section>
+
+              <section>
+                <h2 className="label-caps text-muted-foreground mb-3">
+                  Conversations
+                  <span className="tnum font-medium normal-case tracking-normal ml-1.5">
+                    {contactNotes.length}
+                  </span>
+                </h2>
+                <ContactNotesFeed
+                  partyId={id}
+                  partyName={party.full_name}
+                  notes={contactNotes}
+                />
               </section>
 
               {/* Team / co-workers */}
@@ -786,10 +818,14 @@ export default async function ContactDetailPage({ params, searchParams }: PagePr
                           ? `/opportunities/${meta.opportunity_id}`
                           : scope === 'company'
                             ? '/company/board'
-                            : // 'unfiled' is a real conversation on no record yet — a
-                              // recorded call the platform transcribed. The queue is
-                              // where it gets a deal, so that is where this points.
-                              '/intake?tab=meeting'
+                            : scope === 'contact'
+                              ? // Already decided: the conversation itself is on
+                                // this very page, in the feed below.
+                                `/contacts/${id}?tab=notes`
+                              : // 'unfiled' is a real conversation on no record yet — a
+                                // recorded call the platform transcribed. The queue is
+                                // where it gets a deal, so that is where this points.
+                                '/intake?tab=meeting'
                     const when = meta.meeting_date
                       ? new Date(`${meta.meeting_date}T00:00:00`).toLocaleDateString('en-US', {
                           month: 'short', day: 'numeric', year: 'numeric',
@@ -801,6 +837,14 @@ export default async function ContactDetailPage({ params, searchParams }: PagePr
                     // "Project meeting" for every row — including scope 'unfiled',
                     // which is a call nobody has filed on a deal, and 'call', which
                     // is how a recorded phone call arrives.
+                    // ⚠ 'contact' AND 'unfiled' ARE DIFFERENT SENTENCES.
+                    // Both carry no project and no opportunity, and that is
+                    // where the resemblance ends: 'unfiled' is what a recording
+                    // is WRITTEN as and means nobody has filed it yet, while
+                    // 'contact' is a human having said it belongs to no deal.
+                    // Printing "not filed on a deal yet" for the second would
+                    // put a permanent to-do on a profile for a decision that
+                    // has already been made (§12).
                     const scopeLabel =
                       scope === 'company'
                         ? 'Board meeting'
@@ -808,14 +852,21 @@ export default async function ContactDetailPage({ params, searchParams }: PagePr
                           ? 'Opportunity meeting'
                           : scope === 'project'
                             ? 'Project meeting'
-                            : meta.kind === 'call'
-                              ? 'Recorded call — not filed on a deal yet'
-                              : 'Not filed on a deal yet'
+                            : scope === 'contact'
+                              ? 'Relationship call — not about a deal'
+                              : meta.kind === 'call'
+                                ? 'Recorded call — not filed on a deal yet'
+                                : 'Not filed on a deal yet'
                     const inner = (
                       <div className="px-4 py-3 flex items-center justify-between gap-3">
                         <div className="min-w-0">
                           <p className="text-sm truncate">{meta.title ?? 'Meeting'}</p>
-                          <span className="text-xs text-muted-foreground">{scopeLabel} meeting</span>
+                          {/* ⚠ NO TRAILING " meeting": every branch of
+                              `scopeLabel` already ends in its own noun, so this
+                              rendered "Board meeting meeting" and "Recorded call
+                              — not filed on a deal yet meeting". §12: a label
+                              written inline is a label with no owner. */}
+                          <span className="text-xs text-muted-foreground">{scopeLabel}</span>
                         </div>
                         {when && <span className="text-xs text-muted-foreground shrink-0">{when}</span>}
                       </div>
@@ -946,9 +997,16 @@ export default async function ContactDetailPage({ params, searchParams }: PagePr
         {tab === 'notes' && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-2 space-y-6">
+              {/* ⚠ WHO THEY ARE, THEN WHAT WE SAID — two different questions
+                  and now two different shapes. `relationship_notes` is a
+                  standing description edited in place (98 of 151 contacts have
+                  it filled); the feed below it is the dated sequence, which is
+                  what a networking call needs and what this page had nowhere to
+                  put. Richard, 10-23: "often times they wont be tied to any
+                  particular project or opportunity." */}
               <section>
                 <h2 className="label-caps text-muted-foreground mb-3">
-                  Relationship Notes
+                  Who they are
                 </h2>
                 <div className="rounded-lg border border-border bg-card p-4">
                   <RelationshipNotesEditor
@@ -956,6 +1014,20 @@ export default async function ContactDetailPage({ params, searchParams }: PagePr
                     initialNotes={party.relationship_notes}
                   />
                 </div>
+              </section>
+
+              <section>
+                <h2 className="label-caps text-muted-foreground mb-3">
+                  Conversations
+                  <span className="tnum font-medium normal-case tracking-normal ml-1.5">
+                    {contactNotes.length}
+                  </span>
+                </h2>
+                <ContactNotesFeed
+                  partyId={id}
+                  partyName={party.full_name}
+                  notes={contactNotes}
+                />
               </section>
             </div>
 

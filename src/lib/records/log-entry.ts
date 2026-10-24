@@ -26,10 +26,22 @@ import { embedUpdate, embedOpportunityNote } from '@/lib/ai/embeddings'
 import { createTasksFromActionItems, type ActionItemLike } from '@/lib/tasks/from-action-items'
 import type { Database, TablesInsert, JsonIn } from '@/lib/supabase/types'
 
-/** Which record the entry lands on. Exactly one, never both. */
+/**
+ * Which record the entry lands on. Exactly one.
+ *
+ * ⚠ `contact` ADDED 2026-10-23, and it is the same argument this file was
+ * written to make. Richard: "often times they wont be tied to any particular
+ * project or opportunity." A conversation with somebody at a conference is a
+ * real entry with nowhere to land — §12's "a destination that does not carry
+ * what creating carries reads as losing the work. If two paths differ only in
+ * WHERE the work lands, they are one pass with a target parameter." Writing a
+ * second composer for contacts would have been the fork this module exists to
+ * prevent.
+ */
 export type LogTarget =
   | { kind: 'project'; id: string }
   | { kind: 'opportunity'; id: string }
+  | { kind: 'contact'; id: string }
 
 export interface LogEntryInput {
   /** What the human typed or pasted, verbatim. Required — it is the record. */
@@ -48,13 +60,23 @@ export interface LogEntryInput {
   confidence?: number | null
   /** Who logged it, for an opportunity note's byline. Stamped from the viewer. */
   author?: string | null
+  /**
+   * 'YYYY-MM-DD' — when the conversation happened, for a `contact` target.
+   *
+   * Only `party_notes` carries a date apart from `created_at`, because only a
+   * contact's feed is routinely written about something that happened days ago
+   * (a coffee on Friday, typed up on Monday). Omitted elsewhere, and omitted
+   * rather than nulled when absent — an explicit NULL does not fall back to the
+   * column default (§12).
+   */
+  noteDate?: string | null
 }
 
 export interface LogEntryResult {
   id: string
   tasksCreated: number
   /** Which table it landed in — the caller reports it, never guesses. */
-  table: 'updates' | 'opportunity_notes'
+  table: 'updates' | 'opportunity_notes' | 'party_notes'
 }
 
 const arr = (v: unknown[] | undefined) => (v ?? []) as unknown as JsonIn
@@ -96,6 +118,47 @@ export async function logEntry(
     const tasksCreated = await createTasksFromActionItems(supabase, input.actionItems ?? [], target)
     embedUpdate(data.id, target.id, raw).catch(console.error)
     return { id: data.id, tasksCreated, table: 'updates' }
+  }
+
+  // ── Contact ──────────────────────────────────────────────────────────────
+  //
+  // ⚠ THE ACTION ITEMS BECOME UNATTACHED TASKS, WHICH IS A DELIBERATE CHOICE
+  // AND NOT AN OVERSIGHT. `tasks` carries `project_id` and `opportunity_id` and
+  // no party pointer, so a follow-up from a networking call has no record to
+  // hang on — and "send Chip the capability statement" is a real task whether or
+  // not it belongs to a deal. `{ projectId: null }` is the shape
+  // `createTasksFromActionItems` already accepts for exactly this.
+  //
+  // ⚠ AND §13 ALREADY NAMES THE HAZARD IN THAT: a dated task NOBODY OWNS is
+  // invisible on every per-person surface, which is why the task reminder names
+  // unowned dated tasks once. The composer stamps the author as the assignee
+  // where it can; what it cannot do is invent an owner.
+  if (target.kind === 'contact') {
+    const row: TablesInsert<'party_notes'> = {
+      party_id: target.id,
+      body: raw,
+      author: input.author ?? null,
+      summary,
+      waiting_on: arr(input.waitingOn),
+      risks: arr(input.risks),
+      decisions: arr(input.decisions),
+      confidence,
+      source: 'typed',
+      ...(input.noteDate ? { note_date: input.noteDate } : {}),
+    }
+    const { data, error } = await supabase.from('party_notes').insert(row).select('id').single()
+    if (error) throw new Error(error.message)
+
+    const tasksCreated = await createTasksFromActionItems(supabase, input.actionItems ?? [], {
+      projectId: null,
+    })
+
+    // ⚠ NO EMBED CALL HERE — it is the CALLER's, through embedPartyNote, for the
+    // reason named in that function: a contact note may quote a protected
+    // project and the index is portfolio-wide, so the decision needs the
+    // confidentiality answer that `src/lib` cannot reach from here without
+    // dragging `next/headers` in (§12).
+    return { id: data.id, tasksCreated, table: 'party_notes' }
   }
 
   // ── Opportunity ──────────────────────────────────────────────────────────

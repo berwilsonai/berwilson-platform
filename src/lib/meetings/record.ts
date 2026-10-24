@@ -26,6 +26,8 @@ import type { SeedTarget } from '@/lib/email-ingestion/analyze-meeting'
 import type { PartyMatch } from '@/lib/ai/proposal-matching'
 import type { TablesInsert, JsonIn, TablesUpdate } from '@/lib/supabase/types'
 import { syncAttendeeActivity } from './attendee-activity'
+import { logMeetingOnContacts, removeMeetingNotes } from '@/lib/contacts/notes'
+import { isConfidentialProject } from '@/lib/security/confidential'
 
 type AdminClient = ReturnType<typeof createAdminClient>
 
@@ -273,6 +275,37 @@ export async function upsertMeetingFromImport(
     attendees
   )
 
+  // ⚠ AND THE RECAP REACHES THE PEOPLE, NOT JUST A ROW IN THE ACTIVITY LOG.
+  // `syncAttendeeActivity` puts "attended a call on the 14th" on a profile; it
+  // carries the title, the date and the scope and NOT ONE WORD of what was said.
+  // Measured 2026-10-23: 38 such rows against 11 contacts, and a reader opening
+  // any of those profiles learned that a conversation had happened and nothing
+  // about it. Richard's instruction was the other half — "merge that call
+  // summary with an existing contact" — so the summary lands on the feed of
+  // everybody the call is SURE of, at the same choke point, written as Pepper.
+  //
+  // ⚠ IT IS AN UPDATE AND NOT A CREATION, so §11 is intact: the contact already
+  // exists (an identity match put the `party_id` there), and a child row on an
+  // existing record is the same class of write as the mail sweep's
+  // `opportunity_notes`. Nobody is invented here — the unlinked attendees go to
+  // the findings queue for a human, which is the whole of
+  // `src/lib/contacts/attendee-findings.ts`.
+  //
+  // Non-fatal, like the line above it: the meeting is recorded either way.
+  await logMeetingOnContacts(
+    supabase,
+    {
+      id: data.id,
+      title: row.title ?? input.title,
+      meeting_date: input.meetingDate,
+      summary: input.summary,
+      minutes: input.minutes,
+      scope,
+      kind: row.kind ?? null,
+    },
+    attendees.map((a) => a.party_id).filter((id): id is string => !!id)
+  )
+
   return { id: data.id, created: true, scope }
 }
 
@@ -345,10 +378,45 @@ export async function attachMeetingToRecord(
   // Re-read rather than patched together from `patch`, which is partial.
   const { data: moved } = await supabase
     .from('meetings')
-    .select('id, title, meeting_date, scope, kind, project_id, opportunity_id, attendees')
+    .select('id, title, meeting_date, scope, kind, project_id, opportunity_id, attendees, summary, minutes')
     .eq('id', meetingId)
     .maybeSingle()
-  if (moved) await syncAttendeeActivity(supabase, moved, moved.attendees)
+  if (moved) {
+    await syncAttendeeActivity(supabase, moved, moved.attendees)
+
+    // ⚠ A MOVE ONTO A PROTECTED PROJECT WITHDRAWS THE RECAP FROM THE PROFILES.
+    // A recording is registered `unfiled` and its summary reaches the attendees'
+    // feeds at once; the filing decision comes later, and it may be a project
+    // marked `confidential`. §8 is absolute — a protected project leaves every
+    // cross-portfolio surface and every outbound channel — and a contact profile
+    // is a surface anybody signed in may open. The conversation is not lost: the
+    // register entry keeps the transcript, behind the step-up that gates the
+    // project.
+    //
+    // ⚠ READ WITH `isConfidentialProject` RATHER THAN A VIEWER-AWARE HELPER,
+    // because this runs inside the thread router and the sweeps, which have no
+    // request. Containment is the question here, not access — and §12: those are
+    // different questions, and only one of them can be unlocked.
+    if (moved.project_id && (await isConfidentialProject(moved.project_id))) {
+      const withdrawn = await removeMeetingNotes(supabase, meetingId)
+      if (withdrawn > 0) {
+        console.log(
+          `[meetings] withdrew ${withdrawn} contact note(s) — this call is now filed on a protected project`
+        )
+      }
+    } else {
+      // Otherwise the feeds follow the move, so a note written while the call was
+      // unfiled stops describing it as such (§12: an orphaned projection looks
+      // perfectly live).
+      await logMeetingOnContacts(
+        supabase,
+        moved,
+        parseAttendees(moved.attendees)
+          .map((a) => a.party_id)
+          .filter((id): id is string => !!id)
+      )
+    }
+  }
 
   return { moved: !alreadyFiled }
 }

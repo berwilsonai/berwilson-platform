@@ -1,8 +1,10 @@
 import { Suspense } from 'react'
 import Link from 'next/link'
-import { Plus, Users, UserSearch, SlidersHorizontal } from 'lucide-react'
+import { Plus, Users, UserSearch, SlidersHorizontal, Mic } from 'lucide-react'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { contactRoleViews, partyRoleMap } from '@/lib/contacts/roles'
+import { countActionableAttendees } from '@/lib/contacts/attendee-queue'
+import { viewerHiddenProjectIds } from '@/lib/security/request'
 import ContactsClient from '@/components/contacts/ContactsClient'
 import ScanCardButton from '@/components/contacts/ScanCardButton'
 import type { ContactWithStats } from '@/components/contacts/ContactsClient'
@@ -30,7 +32,7 @@ export const metadata = { title: 'Directory — Ber Wilson Intelligence' }
 export default async function DirectoryPage() {
   const db = createAdminClient()
 
-  const [{ data: parties, error: partiesError }, { count: pendingCount }, roles] = await Promise.all([
+  const [{ data: parties, error: partiesError }, { count: pendingCount }, roles, heardOnCalls] = await Promise.all([
     db
       .from('parties')
       .select(`
@@ -45,6 +47,10 @@ export default async function DirectoryPage() {
       .select('id', { count: 'exact', head: true })
       .eq('status', 'pending_review'),
     contactRoleViews(),
+    // People named on recorded calls that no contact answers to. The same
+    // function the queue's own default lane counts with, so the badge and the
+    // page can never disagree (§12).
+    viewerHiddenProjectIds().then(countActionableAttendees),
   ])
 
   if (partiesError) throw new Error(`Failed to load contacts: ${partiesError.message}`)
@@ -95,6 +101,24 @@ export default async function DirectoryPage() {
           </span>
         </div>
         <div className="flex items-center gap-2 shrink-0">
+          {/* ⚠ THE FOURTH DOOR, AND THE ONLY ONE THAT NEEDS NO TYPING AT ALL.
+              Measured 2026-10-23: 135 of 169 attendee slots across the recorded
+              calls carried no contact, 96 distinct names — people the executives
+              had already met and spoken to, whom the directory had never heard
+              of. Shown with its count even at zero, so the door is learnable
+              before there is work behind it (§12: a surface hidden because it is
+              empty is hidden exactly when somebody needs it). */}
+          <Link
+            href="/contacts/unlinked"
+            className="inline-flex items-center gap-1.5 h-[2.75rem] sm:h-8 px-3 rounded-md border border-input bg-background text-xs font-medium hover:bg-accent transition-colors"
+            title="People named on recorded calls who are not in the directory"
+          >
+            <Mic size={14} />
+            <span className="whitespace-nowrap">From calls</span>
+            {heardOnCalls > 0 && (
+              <span className="tnum font-semibold text-info">{heardOnCalls}</span>
+            )}
+          </Link>
           {/* Photograph a card on a phone and the contact drafts itself. */}
           <ScanCardButton />
           {/* The third door into the directory: an email address in, a whole

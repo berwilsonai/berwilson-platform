@@ -649,13 +649,28 @@ export async function embedPartyEnrichment(
 ): Promise<void> {
   const supabase = createAdminClient()
 
-  // Delete any existing enrichment chunks for this party
+  // ⚠ NARROWED 2026-10-23, AND IT WOULD HAVE EATEN EVERY CONTACT NOTE.
+  // This read "delete any existing enrichment chunks for this party" and
+  // expressed it as `party_id = X and document_id is null and update_id is
+  // null` — a predicate that was exactly right while enrichment was the only
+  // thing with a `party_id` and nothing else, and which silently widened the
+  // moment `party_note` chunks joined the table. §12: a nullable pointer added
+  // to a table filtered by a DIFFERENT pointer breaks an existing filter
+  // without touching it, and here the breakage is a DELETE — pressing "Enrich
+  // Profile" would have removed a contact's whole indexed conversation history
+  // with nothing reporting it.
+  //
+  // So the enrichment chunks now carry `source_type = 'party_enrichment'` and
+  // this deletes its OWN rows. The `is null` arm stays for the chunks written
+  // before this change, which carry no source_type at all — dropping it would
+  // orphan them and every re-enrich would add a duplicate copy.
   await supabase
     .from('chunks')
     .delete()
     .eq('party_id', partyId)
     .is('document_id', null)
     .is('update_id', null)
+    .or('source_type.is.null,source_type.eq.party_enrichment')
 
   // Load enrichment data
   const { data: party } = await supabase
@@ -695,9 +710,78 @@ export async function embedPartyEnrichment(
         embedding: toVectorLiteral(values),
         chunk_index: chunk.chunkIndex,
         token_count: chunk.tokenCount,
+        source_type: 'party_enrichment',
       })
     }
   } catch (err) {
     console.error('[embeddings] embedPartyEnrichment failed:', err)
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Public: embed a note on a contact
+// ---------------------------------------------------------------------------
+
+/**
+ * Index one entry from a contact's feed, so Ber AI can answer "what have we
+ * discussed with this person".
+ *
+ * ⚠ THE WHOLE POINT, AND THE REASON IT IS NOT OPTIONAL. A networking call that
+ * belongs to no deal is otherwise unreachable by every retrieval path the
+ * platform has: it is not on a project, so no record-scoped read sees it, and it
+ * is not company knowledge, so `assessFit` must never see it either (a
+ * conversation is a record of what was said, not a claim about Ber Wilson's
+ * capabilities — the same reasoning that keeps a broker call's transcript off
+ * the company shelf in the meeting-intake confirm route).
+ *
+ * ⚠ `is_company` IS LEFT FALSE FOR THAT REASON, and `source_type` is stamped so
+ * the enrichment pass above can delete its own rows without touching these.
+ *
+ * ⚠ AND THE CALLER DECIDES WHETHER TO CALL IT AT ALL. A contact note can quote
+ * a protected project by name and `chunks` is read portfolio-wide, so the
+ * confidentiality question belongs where the viewer is known. The automatic
+ * writer (`logMeetingOnContacts`) is fed from meetings that have already passed
+ * the hidden-project filter; the typed route checks the viewer. Nothing here
+ * re-derives it, because a security answer derived twice is a security answer
+ * that can disagree with itself.
+ */
+export async function embedPartyNote(
+  noteId: string,
+  partyId: string,
+  text: string,
+): Promise<void> {
+  if (!text || text.trim().length < 20) return
+  const supabase = createAdminClient()
+  try {
+    // Replace this note's own chunks — a note is editable, and a stale copy in
+    // the index answers questions the row no longer makes.
+    await supabase.from('chunks').delete().eq('party_id', partyId).eq('source_type', `party_note:${noteId}`)
+    const chunks = chunkText(text)
+    for (const chunk of chunks) {
+      const values = await generateEmbedding(chunk.content)
+      await supabase.from('chunks').insert({
+        party_id: partyId,
+        content: chunk.content,
+        embedding: toVectorLiteral(values),
+        chunk_index: chunk.chunkIndex,
+        token_count: chunk.tokenCount,
+        source_type: `party_note:${noteId}`,
+      })
+    }
+  } catch (err) {
+    console.error('[embeddings] embedPartyNote failed:', err)
+  }
+}
+
+/** Drop a deleted note's passages from the index. */
+export async function removePartyNoteChunks(noteId: string, partyId: string): Promise<void> {
+  try {
+    await createAdminClient()
+      .from('chunks')
+      .delete()
+      .eq('party_id', partyId)
+      .eq('source_type', `party_note:${noteId}`)
+  } catch (err) {
+    console.error('[embeddings] removePartyNoteChunks failed:', err)
   }
 }

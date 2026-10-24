@@ -19,8 +19,9 @@ import { recordFeedBody, meetingDoc, type MeetingMeta } from '@/lib/meetings/fee
 import { meetingTargetFromTitle } from '@/lib/meetings/meet-import'
 import { parseAttendees } from '@/lib/utils/meetings'
 import { createLeadFromMeeting } from '@/lib/leads/from-meeting'
-import type { TablesInsert, JsonIn } from '@/lib/supabase/types'
+import type { TablesInsert, TablesUpdate, JsonIn } from '@/lib/supabase/types'
 import { categorizePlayerRole } from '@/lib/contacts/roles'
+import { logMeetingOnContacts } from '@/lib/contacts/notes'
 
 export const maxDuration = 300
 
@@ -555,6 +556,61 @@ export async function POST(request: NextRequest) {
       if (home.kind === 'project') {
         const filedNow = await findFiledTranscript(supabase, session.drive_file_id)
         if (filedNow) await linkDocumentToMeeting(supabase, filedNow.documentId, meetingRow.id)
+      }
+    } else if (meetingRow && linkedPeople.length > 0) {
+      // ⚠ A NETWORKING CALL IS FILED ON THE PEOPLE, AND THAT IS TERMINAL.
+      // Richard, 2026-10-23: "often times they wont be tied to any particular
+      // project or opportunity." Before this, confirming such a call left the
+      // `meetings` row at `scope='unfiled'` forever — and `unfiled` is what a
+      // recording is WRITTEN as, so the row was indistinguishable from one
+      // nobody had got to yet. §12: "belongs to no record" must be recordable,
+      // or every pass refuses it forever and that is indistinguishable from a
+      // backlog. `reconcile-unfiled` selects on `scope = 'unfiled'`, so moving
+      // to 'contact' is also what stops it being re-offered every night.
+      //
+      // The people are the record: each of them gets the recap on their own feed
+      // (party_notes), which is the only place a conversation with no deal can
+      // be read back. Both record pointers stay NULL, which the scope_target
+      // CHECK requires.
+      const attendeesForFeed = parseAttendees(
+        linkedPeople.map((p) => ({ name: p.name, role: p.role, party_id: p.id }))
+      )
+      // Built explicitly rather than with conditional spreads: `str()` returns
+      // `string | null` and two calls to it do not narrow each other, so the
+      // spread form hands `title?: string | null` to a column that is
+      // `string | undefined`. A field the caller did not supply is OMITTED, not
+      // nulled (§12) — confirming with a collapsed recap must not erase it.
+      const scopePatch: TablesUpdate<'meetings'> = {
+        scope: 'contact',
+        attendees: attendeesForFeed as unknown as JsonIn,
+      }
+      const confirmedTitle = str(meeting.title)
+      if (confirmedTitle) scopePatch.title = confirmedTitle
+      const confirmedSummary = str(meeting.summary)
+      if (confirmedSummary) scopePatch.summary = confirmedSummary
+      const confirmedMinutes = str(meeting.minutes)
+      if (confirmedMinutes) scopePatch.minutes = confirmedMinutes
+
+      const { error: scopeErr } = await supabase
+        .from('meetings')
+        .update(scopePatch)
+        .eq('id', meetingRow.id)
+      if (scopeErr) {
+        console.error('[meeting-confirm] could not file the call on its people:', scopeErr.message)
+      } else {
+        await logMeetingOnContacts(
+          supabase,
+          {
+            id: meetingRow.id,
+            title: str(meeting.title) || session.label,
+            meeting_date: str(meeting.date),
+            summary: str(meeting.summary),
+            minutes: str(meeting.minutes),
+            scope: 'contact',
+            kind: 'call',
+          },
+          linkedPeople.map((p) => p.id)
+        )
       }
     }
   }

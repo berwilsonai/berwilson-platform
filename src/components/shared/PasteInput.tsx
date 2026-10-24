@@ -16,11 +16,11 @@ const SEVERITY_COLORS: Record<string, string> = {
 /**
  * Which record the entry lands on. Mirrors `LogTarget` in
  * `src/lib/records/log-entry.ts` — a project's commentary is `updates`, an
- * opportunity's is `opportunity_notes`, and the composer is the same because
- * the act is (§12: two paths differing only in WHERE the work lands are one
- * pass with a target parameter).
+ * opportunity's is `opportunity_notes`, a contact's is `party_notes`, and the
+ * composer is the same because the act is (§12: two paths differing only in
+ * WHERE the work lands are one pass with a target parameter).
  */
-export type PasteTarget = { kind: 'project' | 'opportunity'; id: string }
+export type PasteTarget = { kind: 'project' | 'opportunity' | 'contact'; id: string }
 
 interface PasteInputProps {
   target: PasteTarget
@@ -36,10 +36,23 @@ interface PasteInputProps {
 type Phase = 'input' | 'loading' | 'review' | 'saving' | 'done'
 
 export default function PasteInput({ target, onSaved, autoFocus = false }: PasteInputProps) {
-  // The route takes `project_id` XOR `opportunity_id` and refuses both.
-  const recordId = target.kind === 'project'
-    ? { project_id: target.id }
-    : { opportunity_id: target.id }
+  // The route takes exactly one of these three and refuses any other count.
+  const recordId =
+    target.kind === 'project'
+      ? { project_id: target.id }
+      : target.kind === 'opportunity'
+        ? { opportunity_id: target.id }
+        : { party_id: target.id }
+  /**
+   * What this entry is called where it lands.
+   *
+   * ⚠ ONE MAP, NOT FIVE INLINE TERNARIES. There were five `target.kind ===
+   * 'project' ? 'Update' : 'Note'` expressions in this file, each of which would
+   * have called a contact entry a "Note" by accident and been right — and then
+   * been wrong the moment a fourth kind arrived with a different word. §12: a
+   * label written inline on four screens is a label with no owner.
+   */
+  const noun = target.kind === 'project' ? 'Update' : 'Note'
   const [rawText, setRawText] = useState('')
   const [phase, setPhase] = useState<Phase>('input')
   const [extraction, setExtraction] = useState<ExtractionResult | null>(null)
@@ -118,7 +131,7 @@ export default function PasteInput({ target, onSaved, autoFocus = false }: Paste
       setRawText('')
       setSavingRaw(false)
       onSaved?.()
-      toast.success(target.kind === 'project' ? 'Update saved as-is' : 'Note saved as-is')
+      toast.success(`${noun} saved as-is`)
 
       setTimeout(() => setPhase('input'), 2000)
     } catch (err) {
@@ -158,7 +171,7 @@ export default function PasteInput({ target, onSaved, autoFocus = false }: Paste
       setRawText('')
       setExtraction(null)
       onSaved?.()
-      const noun = target.kind === 'project' ? 'Update' : 'Note'
+      // `noun` is resolved once, at the top of the component.
       toast.success(
         data.tasks_created > 0
           ? `${noun} saved — ${data.tasks_created} task${data.tasks_created !== 1 ? 's' : ''} added to the board`
@@ -265,7 +278,7 @@ export default function PasteInput({ target, onSaved, autoFocus = false }: Paste
     return (
       <div className="flex items-center gap-2 py-4 text-sm text-emerald-700 dark:text-emerald-300">
         <Check size={16} />
-        {target.kind === 'project' ? 'Update' : 'Note'} saved successfully.
+        {noun} saved successfully.
       </div>
     )
   }
@@ -302,7 +315,7 @@ export default function PasteInput({ target, onSaved, autoFocus = false }: Paste
             ) : (
               <Check size={12} />
             )}
-            Save {target.kind === 'project' ? 'Update' : 'Note'}
+            Save {noun}
           </button>
         </div>
       </div>

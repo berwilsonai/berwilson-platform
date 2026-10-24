@@ -1143,6 +1143,20 @@ isOneToOne: false
       referencedColumns: ["id"]
     }
                   ]
+                },"meeting_attendee_skips": {
+                  Row: {
+                    "created_at": string,"id": string,"name": string,"name_key": string | null,"note": string | null,"reason": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "created_at"?: string,"id"?: string,"name": string,"name_key"?: never,"note"?: string | null,"reason": string
+                  }
+                  Update: {
+                    "created_at"?: string,"id"?: string,"name"?: string,"name_key"?: never,"note"?: string | null,"reason"?: string
+                  }
+                  Relationships: [
+                    
+                  ]
                 },"meetings": {
                   Row: {
                     "approved_at": string | null,"approved_by": string | null,"attendees": NonNullable<Json>,"chair": string | null,"confidential": boolean,"created_at": string | null,"decisions": NonNullable<Json>,"drive_file_id": string | null,"filing_declined_at": string | null,"filing_declined_reason": string | null,"id": string,"index_ai": boolean,"kind": string,"location": string | null,"meeting_date": string,"meeting_time": string | null,"meeting_type_label": string | null,"minutes": string | null,"minutes_approved_at_meeting_id": string | null,"minutes_document_id": string | null,"opportunity_id": string | null,"project_id": string | null,"scope": string,"secretary": string | null,"source_title": string | null,"status": string,"summary": string | null,"title": string,"transcript": string | null,"transcription_status": string | null,"updated_at": string | null
@@ -1511,6 +1525,32 @@ isOneToOne: false
       referencedColumns: ["id"]
     },{
       foreignKeyName: "party_entities_party_id_fkey"
+      columns: ["party_id"]
+isOneToOne: false
+      referencedRelation: "parties"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"party_notes": {
+                  Row: {
+                    "author": string | null,"body": string,"confidence": number | null,"created_at": string,"decisions": NonNullable<Json>,"id": string,"meeting_id": string | null,"note_date": string,"party_id": string,"risks": NonNullable<Json>,"source": string,"summary": string | null,"updated_at": string,"waiting_on": NonNullable<Json>
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "author"?: string | null,"body": string,"confidence"?: number | null,"created_at"?: string,"decisions"?: NonNullable<Json>,"id"?: string,"meeting_id"?: string | null,"note_date"?: string,"party_id": string,"risks"?: NonNullable<Json>,"source"?: string,"summary"?: string | null,"updated_at"?: string,"waiting_on"?: NonNullable<Json>
+                  }
+                  Update: {
+                    "author"?: string | null,"body"?: string,"confidence"?: number | null,"created_at"?: string,"decisions"?: NonNullable<Json>,"id"?: string,"meeting_id"?: string | null,"note_date"?: string,"party_id"?: string,"risks"?: NonNullable<Json>,"source"?: string,"summary"?: string | null,"updated_at"?: string,"waiting_on"?: NonNullable<Json>
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "party_notes_meeting_id_fkey"
+      columns: ["meeting_id"]
+isOneToOne: false
+      referencedRelation: "meetings"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "party_notes_party_id_fkey"
       columns: ["party_id"]
 isOneToOne: false
       referencedRelation: "parties"

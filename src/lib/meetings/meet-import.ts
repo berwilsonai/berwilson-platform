@@ -36,6 +36,7 @@ import { splitGeminiNotes } from '@/lib/meetings/gemini-notes'
 import { resolveMeetingTarget, fileMeetingDocument, type FileTarget } from '@/lib/meetings/file-notes'
 import { promoteAndAlert, type PromotionReport } from '@/lib/audio/promote'
 import { upsertMeetingFromImport, linkDocumentToMeeting } from '@/lib/meetings/record'
+import { isOwnCompanyName } from '@/lib/utils/own-company'
 
 /**
  * How far back a first run reaches. A Drive with two years of calls would
@@ -50,12 +51,6 @@ const MAX_PER_RUN = 12
 /** Transcripts shorter than this are a call somebody joined and left. */
 const MIN_TRANSCRIPT_CHARS = 400
 
-/**
- * Ber Wilson's own name, as it is actually typed. "Bear Wilson" is a standing
- * misspelling in correspondence (and in these very transcripts), so both forms
- * are dropped from filing candidates — the company is never the deal.
- */
-const OWN_COMPANY = /^(ber|bear)\s+wilson$/i
 
 export interface MeetImportResult {
   mailboxes: number
@@ -149,7 +144,7 @@ export function meetingTargetFromTitle(title: string): string[] {
     .split('/')
     .map((p) => p.trim())
     .filter(Boolean)
-    .filter((p) => !OWN_COMPANY.test(p))
+    .filter((p) => !isOwnCompanyName(p))
 
   const out: string[] = []
   for (const part of [...parts].reverse()) {
