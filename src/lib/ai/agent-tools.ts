@@ -635,7 +635,10 @@ async function executeToolCallInner(
             .in('role_key', matchedKeys)
           byRole = [...new Set((holders ?? []).map(h => h.party_id))]
         }
-        const partyFilter = orIlike(['full_name', 'company', 'title'], query)
+        // `relationship_notes` carries the standing description of who somebody
+        // is — for a contact imported from a biography it is the ONLY
+        // substantive field — so a text search that skips it cannot find them.
+        const partyFilter = orIlike(['full_name', 'company', 'title', 'relationship_notes'], query)
         if (!partyFilter && byRole.length === 0) return { count: 0, parties: [] }
         const clauses = [partyFilter, byRole.length > 0 ? `id.in.(${byRole.join(',')})` : null]
           .filter(Boolean)

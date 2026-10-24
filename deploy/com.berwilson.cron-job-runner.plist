@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.berwilson.cron-job-runner</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/zsh</string>
+    <string>-c</string>
+    <string>curl -sS -m 3500 -H "Authorization: Bearer $(grep '^CRON_SECRET=' /Users/richardwhite/berwilson-platform/.env.local | cut -d= -f2-)" http://localhost:3000/api/cron/job-runner</string>
+  </array>
+  <!--
+    Every minute: take the next queued job from /jobs and run it.
+
+    ⚠ `-m 3500` AND NOT THE USUAL 280. Every other agent here asks a question
+    that answers in seconds; a job is open-ended work and its own wall-clock
+    budget (JOB_TIME_BUDGET_MS, one hour) is what brings it in to land. A curl
+    that gave up at 280s would abort the request mid-job.
+
+    ⚠ StartInterval AND NOT StartCalendarInterval, because launchd will not run
+    a second copy of a job that is still running — so the one-minute tick is
+    self-limiting and needs no lock of its own. `claimNextJob` refuses a second
+    concurrent job anyway, for the harder reason: LM Studio serves ONE request
+    at a time, so two jobs would only interleave in the same queue.
+
+    ⚠ THIS IS THE GUARANTEE, NOT THE TRIGGER. Creating a job kicks the runner
+    directly so the normal wait is seconds. What this agent is for is the case
+    that kick cannot cover: the app restarting mid-job. `npm run build` IS the
+    deploy and a kickstart kills in-flight work (§12), so a job checkpoints
+    after every round and a `working` row whose heartbeat has gone quiet is
+    reclaimed here on the next tick.
+
+    ⚠ IT STANDS ASIDE FOR A LIVE BER AI QUESTION (interactiveRunInFlight) —
+    the clearest case of any pass, since a job is work somebody handed over and
+    /intel is somebody sitting there waiting. `?force=1` overrides.
+  -->
+  <key>StartInterval</key>
+  <integer>60</integer>
+  <key>StandardOutPath</key>
+  <string>/Users/richardwhite/Library/Logs/berwilson/cron-job-runner.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/richardwhite/Library/Logs/berwilson/cron-job-runner.log</string>
+  <key>RunAtLoad</key>
+  <false/>
+</dict>
+</plist>

@@ -1001,6 +1001,40 @@ isOneToOne: false
       referencedColumns: ["id"]
     }
                   ]
+                },"job_events": {
+                  Row: {
+                    "created_at": string | null,"detail": Json | null,"id": string,"job_id": string,"kind": string,"label": string | null,"seq": number
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "created_at"?: string | null,"detail"?: Json | null,"id"?: string,"job_id": string,"kind": string,"label"?: string | null,"seq": number
+                  }
+                  Update: {
+                    "created_at"?: string | null,"detail"?: Json | null,"id"?: string,"job_id"?: string,"kind"?: string,"label"?: string | null,"seq"?: number
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "job_events_job_id_fkey"
+      columns: ["job_id"]
+isOneToOne: false
+      referencedRelation: "jobs"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"jobs": {
+                  Row: {
+                    "applied_at": string | null,"applied_by": string | null,"applied_result": Json | null,"attachments": NonNullable<Json>,"created_at": string | null,"created_by": string,"error": string | null,"finished_at": string | null,"heartbeat_at": string | null,"id": string,"instruction": string,"latency_ms": number | null,"model": string | null,"operations": NonNullable<Json>,"queued_at": string,"report": string | null,"rounds": number,"started_at": string | null,"status": string,"title": string | null,"tokens_in": number | null,"tokens_out": number | null,"updated_at": string | null
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "applied_at"?: string | null,"applied_by"?: string | null,"applied_result"?: Json | null,"attachments"?: NonNullable<Json>,"created_at"?: string | null,"created_by": string,"error"?: string | null,"finished_at"?: string | null,"heartbeat_at"?: string | null,"id"?: string,"instruction": string,"latency_ms"?: number | null,"model"?: string | null,"operations"?: NonNullable<Json>,"queued_at"?: string,"report"?: string | null,"rounds"?: number,"started_at"?: string | null,"status"?: string,"title"?: string | null,"tokens_in"?: number | null,"tokens_out"?: number | null,"updated_at"?: string | null
+                  }
+                  Update: {
+                    "applied_at"?: string | null,"applied_by"?: string | null,"applied_result"?: Json | null,"attachments"?: NonNullable<Json>,"created_at"?: string | null,"created_by"?: string,"error"?: string | null,"finished_at"?: string | null,"heartbeat_at"?: string | null,"id"?: string,"instruction"?: string,"latency_ms"?: number | null,"model"?: string | null,"operations"?: NonNullable<Json>,"queued_at"?: string,"report"?: string | null,"rounds"?: number,"started_at"?: string | null,"status"?: string,"title"?: string | null,"tokens_in"?: number | null,"tokens_out"?: number | null,"updated_at"?: string | null
+                  }
+                  Relationships: [
+                    
+                  ]
                 },"lead_categories": {
                   Row: {
                     "active": boolean,"chat_webhook_key": string | null,"created_at": string | null,"destination": string,"destination_note": string | null,"drive_folder_id": string | null,"handoff_email": string | null,"id": string,"key": string,"label": string,"owner_team_member_id": string | null,"publish_sheet": boolean,"routing_rule": string | null,"share_with": (string)[],"sort_order": number,"system": boolean,"tone": string,"updated_at": string | null

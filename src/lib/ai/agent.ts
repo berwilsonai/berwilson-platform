@@ -9,7 +9,8 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { AGENT_SYSTEM_PROMPT, projectContextPreamble, opportunityContextPreamble } from './prompts/agent'
 import { agentTools, executeToolCall } from './agent-tools'
 import { getCompanyContext } from './company-context'
-import { isLocalAI, localChatModel, localChatStream, type LocalChatMessage } from './local'
+import { isLocalAI, type LocalChatMessage } from './local'
+import { runToolLoop } from './tool-loop'
 import { agentTimeBudgetMs } from './run-state'
 
 const AGENT_MODEL = 'gemini-2.5-pro'
@@ -424,27 +425,19 @@ function historyToLocalMessages(history: Content[]): LocalChatMessage[] {
 // ---------------------------------------------------------------------------
 // Context guard for the local path.
 //
-// Raising the round budget without this would trade one silent failure for a
-// worse one. Measured on this box: the system prompt is ~17.5k characters, the
-// company context ~4.9k and the 43 tool declarations ~32.2k (measured, not
-// estimated: `JSON.stringify(agentTools).length`) — about 13k tokens
-// of fixed overhead on every request, against the model's context window (read
-// it off `lms ps` — 131,072 as configured on 2026-09-26, and it was 65,536 when
-// these figures were first measured).
-// A single get_document_content window is 20k characters (~5k tokens), so ten
-// document reads fill the rest, and a thorough investigation now makes more
-// calls than that by design.
+// Measured on this box: the system prompt is ~17.5k characters, the company
+// context ~4.9k and the tool declarations ~32.2k (measured, not estimated:
+// `JSON.stringify(agentTools).length`) — about 13k tokens of fixed overhead on
+// every request, against the model's context window (read it off `lms ps` —
+// 131,072 as configured on 2026-09-26, and it was 65,536 when these figures
+// were first measured). A single get_document_content window is 20k characters
+// (~5k tokens), so ten document reads fill the rest.
 //
-// So the oldest tool RESULTS are shrunk to a stub as the conversation grows.
-// Results are dropped rather than the question or the recent evidence because
-// the model has already read the old ones and reasoned from them, and the answer
-// is written from what it looked at last. Messages are never removed — only
-// their content replaced: an OpenAI-format `tool` message must keep following
-// the `assistant` message whose tool_calls it answers, and deleting one breaks
-// that pairing.
-//
-// The Gemini path needs none of this: a 1M-token window swallows the whole
-// investigation.
+// ⚠ THE LOOP ITSELF NOW LIVES IN `tool-loop.ts` — ONE COPY, shared with the
+// Jobs runner, which needed the same mechanics with a different tool set and a
+// per-round checkpoint. Everything in it was paid for by a real failure here
+// (the empty turn, the context overflow, the narration shipped as the answer);
+// a second copy would have had to pay for each of them again (§12).
 // ---------------------------------------------------------------------------
 
 /**
@@ -462,44 +455,6 @@ function historyToLocalMessages(history: Content[]): LocalChatMessage[] {
  */
 const contextBudgetChars = () => envInt('AGENT_CONTEXT_BUDGET_CHARS', 120_000)
 
-/** Most recent tool results always kept in full — the evidence being reasoned from. */
-const KEEP_RECENT_TOOL_RESULTS = 6
-
-function messageChars(m: LocalChatMessage): number {
-  const body = typeof m.content === 'string' ? m.content : JSON.stringify(m.content)
-  return body.length + (m.tool_calls ? JSON.stringify(m.tool_calls).length : 0)
-}
-
-/**
- * Shrink the oldest tool results until the conversation fits the budget.
- * Mutates in place and returns how many were shrunk, for the log.
- */
-function trimToolHistory(messages: LocalChatMessage[], budget: number): number {
-  // Index 0 is the system prompt; it is fixed cost, not conversation.
-  let total = messages.reduce((n, m, i) => n + (i === 0 ? 0 : messageChars(m)), 0)
-  if (total <= budget) return 0
-
-  const toolIdx = messages
-    .map((m, i) => ({ m, i }))
-    .filter(({ m }) => m.role === 'tool' && typeof m.content === 'string' && !m.content.startsWith('[dropped'))
-    .map(({ i }) => i)
-
-  let shrunk = 0
-  // Oldest first, stopping before the results the answer will be written from.
-  for (const i of toolIdx.slice(0, Math.max(0, toolIdx.length - KEEP_RECENT_TOOL_RESULTS))) {
-    if (total <= budget) break
-    const before = messageChars(messages[i])
-    if (before < 400) continue // already small — dropping it buys nothing
-    messages[i] = {
-      ...messages[i],
-      content: `[dropped from context to stay within the model's window — this result was already read. Re-request it if you need it again.]`,
-    }
-    total -= before - messageChars(messages[i])
-    shrunk++
-  }
-  return shrunk
-}
-
 async function runAgentLocal(
   userMessage: string,
   systemPrompt: string,
@@ -507,117 +462,26 @@ async function runAgentLocal(
   history: Content[],
   callbacks?: AgentStreamCallbacks
 ): Promise<AgentResponse> {
-  const model = localChatModel()
-
-  const messages: LocalChatMessage[] = [
-    { role: 'system', content: systemPrompt },
-    ...historyToLocalMessages(history),
-    { role: 'user', content: userMessage },
-  ]
-
-  const start = Date.now()
-  const toolCallLog: NonNullable<AgentResponse['toolCalls']> = []
-
-  let finalText = ''
-  let totalTokensIn = 0
-  let totalTokensOut = 0
-  const maxRounds = maxToolRounds()
-  const budgetMs = timeBudgetMs()
-
-  // Agentic loop, matching the Gemini path: tool rounds until the model stops
-  // asking for tools, then a closing round that has none to ask for.
-  for (let round = 0; round < maxRounds; round++) {
-    const closing = round === maxRounds - 1 || Date.now() - start > budgetMs
-    if (closing) {
-      messages.push({ role: 'user', content: CLOSING_INSTRUCTION })
-    }
-
-    const shrunk = trimToolHistory(messages, contextBudgetChars())
-    if (shrunk > 0) {
-      console.log(`[agent] round ${round}: shrank ${shrunk} old tool result(s) to stay inside the context window`)
-    }
-
-    let roundText = ''
-    const result = await localChatStream({
-      model,
-      messages,
-      // No tools on the closing round: the model cannot ask for more evidence,
-      // so the only thing it can emit is the answer.
-      ...(closing ? {} : { tools: localToolDeclarations }),
-      onTextDelta: (delta) => {
-        roundText += delta
-        callbacks?.onTextDelta?.(delta)
-      },
-    })
-
-    totalTokensIn += result.tokensIn
-    totalTokensOut += result.tokensOut
-
-    if (closing || result.toolCalls.length === 0) {
-      finalText = roundText
-      break
-    }
-
-    // Narration before more work — never part of the answer.
-    if (roundText.trim()) callbacks?.onTextReset?.()
-
-    messages.push({
-      role: 'assistant',
-      content: result.text,
-      tool_calls: result.toolCalls,
-    })
-
-    for (const tc of result.toolCalls) {
-      let args: Record<string, unknown> = {}
-      try {
-        args = JSON.parse(tc.function.arguments) as Record<string, unknown>
-      } catch {
-        // malformed args from the model — run the tool with none
-      }
-      callbacks?.onToolCall?.(tc.function.name, args)
-      const toolResult = await runTool(tc.function.name, args, context)
-      toolCallLog.push({ name: tc.function.name, args, result: toolResult })
-
-      messages.push({
-        role: 'tool',
-        tool_call_id: tc.id,
-        content: JSON.stringify(toolResult),
-      })
-    }
-  }
-
-  // A turn must never come back empty. Qwen's thinking variants can spend a
-  // whole generation inside <think> and emit no visible token, which the filter
-  // in local.ts correctly suppresses — leaving nothing to store.
-  if (!finalText.trim()) {
-    callbacks?.onTextReset?.()
-    try {
-      const retry = await localChatStream({
-        model,
-        messages: [...messages, { role: 'user', content: CLOSING_INSTRUCTION }],
-        onTextDelta: (delta) => callbacks?.onTextDelta?.(delta),
-      })
-      totalTokensIn += retry.tokensIn
-      totalTokensOut += retry.tokensOut
-      finalText = retry.text
-    } catch (err) {
-      console.error('[agent] forced close failed:', err)
-    }
-    if (!finalText.trim()) {
-      // Emit it rather than only returning it: the client treats a turn that
-      // streamed nothing as a failed request, so a fallback that is stored but
-      // never sent shows up as an error instead of as the admission it is.
-      finalText = NO_ANSWER_FALLBACK
-      callbacks?.onTextDelta?.(finalText)
-    }
-  }
+  const result = await runToolLoop({
+    systemPrompt,
+    messages: [...historyToLocalMessages(history), { role: 'user', content: userMessage }],
+    tools: localToolDeclarations,
+    runTool: (name, args) => runTool(name, args, context),
+    maxRounds: maxToolRounds(),
+    budgetMs: timeBudgetMs(),
+    contextBudgetChars: contextBudgetChars(),
+    closingInstruction: CLOSING_INSTRUCTION,
+    noAnswerFallback: NO_ANSWER_FALLBACK,
+    callbacks,
+    label: 'agent',
+  })
 
   return {
-    content: finalText,
-    toolCalls: toolCallLog.length > 0 ? toolCallLog : undefined,
-    model,
-    tokensIn: totalTokensIn,
-    tokensOut: totalTokensOut,
-    latencyMs: Date.now() - start,
+    content: result.content,
+    toolCalls: result.toolCalls.length > 0 ? result.toolCalls : undefined,
+    model: result.model,
+    tokensIn: result.tokensIn,
+    tokensOut: result.tokensOut,
+    latencyMs: result.latencyMs,
   }
 }

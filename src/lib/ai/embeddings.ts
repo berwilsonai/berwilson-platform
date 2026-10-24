@@ -675,7 +675,7 @@ export async function embedPartyEnrichment(
   // Load enrichment data
   const { data: party } = await supabase
     .from('parties')
-    .select('full_name, title, company, enrichment_notes, government_contract_history')
+    .select('full_name, title, company, relationship_notes, enrichment_notes, government_contract_history')
     .eq('id', partyId)
     .single()
 
@@ -685,6 +685,15 @@ export async function embedPartyEnrichment(
   const parts: string[] = [`Person: ${party.full_name}`]
   if (party.title) parts.push(`Title: ${party.title}`)
   if (party.company) parts.push(`Company: ${party.company}`)
+  // ⚠ ADDED 2026-10-24. `relationship_notes` is the standing "who is this"
+  // description (§4) and it was the one substantive field on a contact that no
+  // retrieval path could reach — `search_parties` matched name/company/title
+  // only, and this pass never read it. So a person whose whole value is in
+  // their biography was unanswerable: the shape §12 names for a document with a
+  // NULL `ai_summary`, which the agent never opens because nothing presents it.
+  // Found importing 233 delegation participants whose bios are the only thing
+  // the source document carries — no email, no phone, no deal.
+  if (party.relationship_notes) parts.push(`About: ${party.relationship_notes}`)
   if (party.government_contract_history) parts.push(`Government Contract History: ${party.government_contract_history}`)
 
   const en = party.enrichment_notes as Record<string, unknown> | null

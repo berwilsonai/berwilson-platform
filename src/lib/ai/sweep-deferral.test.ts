@@ -2,8 +2,8 @@
  * EVERY CRON THAT USES THE LOCAL MODEL EITHER STANDS ASIDE OR SAYS WHY NOT.
  *
  * LM Studio serves ONE request at a time (§2), so a sweep that starts while
- * somebody is waiting on a Ber AI answer is added straight to their wait. Eight
- * routes now yield; thirteen deliberately do not.
+ * somebody is waiting on a Ber AI answer is added straight to their wait. Nine
+ * routes now yield; fourteen deliberately do not.
  *
  * ⚠ THAT SPLIT IS A HAND-WRITTEN ENUMERATION WITH NO REGISTRY BEHIND IT, which
  * §12 says drifts silently — the same shape as the `log_activity()` triggers
@@ -31,6 +31,9 @@ const DEFERS = [
   'imessage-sweep',
   'drive-sync',
   'curator',
+  // ⚠ The clearest case of all: a job is work somebody handed over, and /intel
+  // is somebody sitting there waiting. Added 2026-10-24.
+  'job-runner',
 ]
 
 /** Does not stand aside, each for a stated reason. */

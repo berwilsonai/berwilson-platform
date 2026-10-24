@@ -68,6 +68,7 @@ export async function middleware(request: NextRequest) {
     pathname === '/api/cron/pepper-reply' ||         // Pepper answers a question emailed to her (self-guards via CRON_SECRET)
     pathname === '/api/cron/drive-audio-sweep' ||    // Drive audio intake sweep: a hardware recorder's export (self-guards via CRON_SECRET)
     pathname === '/api/cron/task-reminder' ||        // The week's dated tasks, and the day-of reminder (self-guards via CRON_SECRET)
+    pathname === '/api/cron/job-runner' ||          // Runs the next queued job (self-guards via CRON_SECRET)
     // ⚠ THE SETTLE LINK FROM PEPPER'S NOTE, AND THE TOKEN IS THE CREDENTIAL.
     // Public because the reader is on a phone at 06:50 and may hold no session;
     // requiring one is what kept the settle controls two navigations from where
