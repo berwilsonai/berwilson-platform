@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { Chip } from '@/components/ui/chip'
+import { BriefMarkdown } from '@/components/briefs/BriefMarkdown'
 import JobLive from '@/components/jobs/JobLive'
 import OperationReview, { type ReviewRow } from '@/components/jobs/OperationReview'
 import { describeOperation, validateOperations } from '@/lib/jobs/operations'
@@ -124,11 +125,17 @@ export default async function JobPage({ params }: PageProps) {
         </section>
       )}
 
+      {/* ⚠ RENDERED THROUGH `BriefMarkdown`, the renderer the agent already uses.
+          The first live job came back with bold runs and a pipe table and the
+          page showed them as literal `**` and `|---|`, which reads as a failed
+          render. §12: grep for a renderer before building one — and then wire
+          every surface that should call it, because a shared renderer wired to
+          one surface is worse than no shared renderer. */}
       {job.report && (
         <section className="space-y-1.5">
           <p className="label-caps text-muted-foreground">Report</p>
-          <div className="whitespace-pre-wrap rounded-lg border border-border bg-card p-4 text-sm leading-relaxed text-foreground">
-            {job.report}
+          <div className="rounded-lg border border-border bg-card p-4 text-sm leading-relaxed text-foreground">
+            <BriefMarkdown text={job.report} />
           </div>
         </section>
       )}

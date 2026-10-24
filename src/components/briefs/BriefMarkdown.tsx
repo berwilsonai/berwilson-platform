@@ -19,7 +19,8 @@ import { SEVERITY_BADGE } from '@/lib/utils/constants'
  * was discussing**: `[Steelton](/projects/abc)` reached the reader as that
  * literal string, a pipe table rendered as a paragraph, and `1.` rendered as a
  * paragraph. Links, ordered lists, inline code and fenced code were added
- * 2026-10-17.
+ * 2026-10-17; the pipe TABLE was still raw until 2026-10-24, found the first
+ * time a job report used one.
  *
  * ⚠ ADDITIVE ON PURPOSE. The brief prompt emits none of the new syntax, so the
  * print views render byte-identically — which matters because this component's
@@ -30,6 +31,20 @@ import { SEVERITY_BADGE } from '@/lib/utils/constants'
  * anything not starting with `/` renders as plain text, so an answer cannot
  * become a route off the box or a phishing target in a brief someone emails.
  */
+/** `|---|:--:|---|` and nothing else — the line that proves a table is a table. */
+function isTableSeparator(line: string | undefined): boolean {
+  if (!line) return false
+  const t = line.trim()
+  if (!t.startsWith('|')) return false
+  return /^\|[\s:|-]+\|?$/.test(t) && t.includes('-')
+}
+
+/** Split a pipe row into cells, dropping the leading and trailing delimiter. */
+function splitRow(line: string): string[] {
+  const t = line.trim().replace(/^\|/, '').replace(/\|$/, '')
+  return t.split('|').map((c) => c.trim())
+}
+
 export function BriefMarkdown({
   text,
   suppressTitle = false,
@@ -106,6 +121,57 @@ export function BriefMarkdown({
         <ol key={`ol-${i}`} start={start} className="list-decimal pl-5 space-y-0.5 my-1.5">
           {items}
         </ol>
+      )
+      continue
+    }
+    // Pipe table.
+    //
+    // ⚠ ADDED 2026-10-24, AND THE DOCBLOCK ABOVE NAMED THIS AS BROKEN SINCE THE
+    // AGENT SHIPPED without it ever being fixed — "a pipe table rendered as a
+    // paragraph" is listed among the faults, and the 2026-10-17 round added
+    // links, ordered lists and code but not this. Found again the first time a
+    // JOB wrote a report: the job prompt asks for "prose and short tables" and
+    // the reader got `|---|---|---|` on screen, which reads as a failed render.
+    //
+    // ⚠ THE GUARD IS THE SEPARATOR LINE, NOT THE PIPES. Prose contains pipes
+    // ("A | B"), so a row alone must not start a table — the test is that the
+    // NEXT line is a separator of dashes, colons and pipes only. §12: narrow a
+    // static pattern until it has no false positives.
+    if (line.trim().startsWith('|') && isTableSeparator(lines[i + 1])) {
+      const header = splitRow(line)
+      i += 2 // the header and its separator
+      const body: string[][] = []
+      while (i < lines.length && lines[i].trim().startsWith('|')) {
+        body.push(splitRow(lines[i]))
+        i++
+      }
+      elements.push(
+        <div key={`table-${i}`} className="my-2 overflow-x-auto">
+          <table className="w-full border-collapse text-sm">
+            <thead>
+              <tr className="border-b border-border">
+                {header.map((cell, c) => (
+                  <th key={c} className="px-2 py-1 text-left font-semibold align-top">
+                    {renderInline(cell)}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {body.map((row, r) => (
+                <tr key={r} className="border-b border-border/50 last:border-0">
+                  {/* Padded to the header's width: a short row must not shift
+                      the columns of the rows under it. */}
+                  {Array.from({ length: header.length }, (_, c) => (
+                    <td key={c} className="px-2 py-1 align-top leading-relaxed">
+                      {renderInline(row[c] ?? '')}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )
       continue
     }
