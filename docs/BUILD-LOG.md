@@ -11,7 +11,55 @@ Split out of `CLAUDE.md` on 2026-09-23, when that file reached 606k characters a
 - A block of **2026-08-23 → 2026-08-31** entries sits *after* the June entries, near the end of the file.
 - One **2026-07-03** entry ("migrations applied + pursuit profile seeded") is last in the file.
 
-209 entries, 2026-06-22 → 2026-10-24. ⚠ Counted with `grep -c "^\*\*Done 2026"`, not incremented by hand: two sessions editing this file on 2026-10-08 each bumped the old figure by one and both landed on 146 against a real 148.
+210 entries, 2026-06-22 → 2026-10-25. ⚠ Counted with `grep -c "^\*\*Done 2026"`, not incremented by hand: two sessions editing this file on 2026-10-08 each bumped the old figure by one and both landed on 146 against a real 148.
+
+**Done 2026-10-25 (ask it and walk away — the notification decided by attention rather than by a stopwatch, and three things the first live answer exposed):**
+
+Richard, having had the limits explained: *"So have we made it as powerful and capable as we can while protecting major code changes (which I would be ok with, but I know claude Opus is a superior model)? Please expand its capabilities if you can think of anything. For Ask AI, I need to be able to close it while it thinks. I don't want to wait while it finds answers. It should send an in app notification when complete and an email. Make sure these are providing the best user experience possible."*
+
+## What was already there, which is most of it
+
+**MEASURING FIRST TURNED THIS FROM A BUILD INTO A ONE-LINE CHANGE AND THREE BUGS.** Before writing anything:
+
+- The run has always survived the asker leaving — `nothing here reads request.signal` is a comment in the route, put there deliberately.
+- `agent_messages.run_state` + `run_started_at` is a reattach point, and `pollForAnswer` is one poller with two callers.
+- A toast already fired when the dock was closed.
+- `notifyAnswer` already texted a pointer and emailed the whole answer, and `notification_log` showed **8 `agent_answer` rows sent** — so it was live, not theoretical (the 10-23 session had found 0 and could not tell whether it worked).
+
+**So the gap was one decision, and it was answering the wrong question.** The email was gated on a 90-second stopwatch, set against a measured 73s median on the stated premise that *"a fast answer is one you are still looking at"*. Richard's instruction makes that premise false: the intent is to walk away from EVERY question. **Measured the same day: 40 of 72 answers — 56% — came back under 90 seconds.** On the majority of questions, closing the dock meant being told nowhere at all.
+
+## Attention is a fact, not a guess
+
+The new question is "was anybody watching", and two independent sources answer it:
+
+- **The connection, in ONE direction only**, which is why the parameter is `false | null` and never `true`. A DROPPED connection is proof nobody is there. An OPEN one proves nothing — ⚠ **`AskBerAIDock` stays mounted while CLOSED** so the conversation survives ⌘J, which is right, and means the stream is still held by a dock the asker walked away from ten minutes ago. Open reports `null` and falls back to the clock, which is exactly the old behaviour and therefore no regression for anybody.
+- **The browser, properly**: dock open AND tab visible. Either alone is not enough. It reports to `/api/ai/agent/answers`, and ⚠ **`notifyAnswer` was already idempotent on `notification_log`'s `unique (kind, dedupe_key)`**, so both paths firing sends once — machinery that already existed and needed nothing.
+
+⚠ **A BADGE, NOT AN INBOX.** An in-app notification inbox was built here and deleted on 2026-09-24: 52 rows in eight days and **zero** ever read or dismissed. The lesson is not "no in-app signal", it is that a second place to go is a place nobody goes. So: one count on the header button already in use, reading `agent_messages.seen_at`, cleared by opening the dock. ⚠ **Never `localStorage`** — §12, browser storage for content that lives in the database is not a cache but the only copy the page can see, and the entire premise here is that the answer arrived where the browser was not. ⚠ **And every existing answer is backfilled as seen**, or the badge would have launched announcing 72 historical answers, and a badge nobody believes on day one is one nobody reads on the day it is right.
+
+**Proven live before anything else was touched:** a question asked with the dock closed came back in **69 seconds** — comfortably under the old bar, so previously silent — and sent both the email and the text, with the header reading **"1 answer ready"**.
+
+## Then the feature's own first answer was wrong, and that found three more things
+
+Asked *"how many contacts are tagged flightech-delegation"* it replied **"Zero contacts are tagged flightech-delegation — the tag doesn't appear to exist in the system"**, against a database holding **232**.
+
+⚠ **THE AGENT COULD NOT SEE TAGS AT ALL.** `search_parties` neither filtered on `tags` nor returned them, so an entire import batch was invisible to the thing meant to answer about it. **The identical shape to `relationship_notes` two days earlier**: a column that exists, is populated, and has no retrieval path reaching it (§12). Adding a `tag` parameter is the fix; keeping the 53 role keys out of the declaration while putting tags in it is deliberate, because a tag is a free string a human typed and a role is a registry.
+
+⚠ **AND FIXING IT NAIVELY MADE IT MUCH WORSE, IN A WAY ONLY MEASURING SHOWS.** Raising the row limit to 200 so a group query could answer "how many" — while still returning the full record — produced a **240,000-character tool result, about 60,000 tokens, nearly half the 131,072-token window, in a single call**, because each of the 232 contacts carried its ~700-character biography. That is what turned a count into a five-minute answer. Measured with `JSON.stringify(result).length` rather than estimated. A count does not need 232 biographies: a GROUP now returns names and the exact total, a NAMED search still returns everything. **240k → 13.9k characters, a 17× cut, with the count still exact.**
+
+⚠ **AND THE COUNT IS COUNTED IN SQL, NEVER `data.length`.** §12 says never make the model count rows, print the count; `count: data.length` is worse than that, because it is confidently wrong the moment the limit bites — a tag holding 232 would have answered "200" and read as a fact. There is now a `head: true` exact count beside the rows, and a `note` telling the model to say the count rather than the length of the list.
+
+⚠ **"ARTHUR FORD" FOUND NOTHING FOR `Arthur James Ford`.** Pre-existing — a phrase ILIKE cannot span a middle name — and the delegation import turned it from an edge case into the common one, 233 contacts filed under full legal names nobody would type. Falls back to requiring EVERY word on the name; any-word would hand back a stranger who merely shares a first name, which is the §12 failure that resolved "Cliff" to an unrelated academic.
+
+## And a deploy was locking the dock for half an hour
+
+⚠ **FOUND BY TRYING TO TYPE INTO IT.** An agent turn runs inside the web process, so a `launchctl kickstart` kills it before either verdict is written and the row stays `running` forever. The staleness horizon has to be the FULL time budget, because a 16-minute answer is real and has happened — so a run killed one minute ago still looks live for another twenty-nine, and the dock disables its input while it believes a run is in flight. Ask Ber AI sat unusable with *"Checking still working…"* against a process that no longer existed.
+
+**A run that began BEFORE this process did cannot be running IN it.** That is a fact rather than a threshold and needs no tuning, which is why it beats shortening the window — a change that would instead abandon the slow answers the window exists to protect. ⚠ **Derived from `process.uptime()`, not `new Date()` at module scope**: the latter is the time of the first import, which under Next's lazy loading can be well after the process began, and every millisecond of that gap is a window where a genuinely live run looks dead and gets abandoned.
+
+⚠ **AND THE DOCK-EVENT CONVENTION TEST REFUSED THE NEW EVENT, CORRECTLY.** The exemption is NAMED and then PROVED — each typed dispatcher must export its event constant, asserted — rather than the check being loosened to accommodate it (§12: a legitimate exemption gets named with its reason, never absorbed by raising the baseline).
+
+676 tests (+3), lint 22 at baseline, 101 types / 100 live tables. Four commits, all deployed and all verified in the browser on the live host.
 
 **Done 2026-10-24 (a roster no door could ingest, and then the door — Jobs, the working assistant):**
 
