@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { usePathname } from 'next/navigation'
 import { Bot, X } from 'lucide-react'
 import { toast } from 'sonner'
+import { markAllAnswersSeen, reportAnswerSeen } from '@/lib/ui/agent-unread'
 import AgentChat from './AgentChat'
 
 const UUID = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'
@@ -71,8 +72,23 @@ export default function AskBerAIDock() {
    * that it is there, for the case the whole feature exists to serve — you
    * asked, you walked off, you are three pages away.
    */
-  const onAnswered = useCallback((answer: string) => {
-    if (openRef.current) return // they are looking straight at it
+  const onAnswered = useCallback((answer: string, messageId: string | null) => {
+    /*
+      ⚠ THIS IS WHERE THE EMAIL IS DECIDED, AND ONLY THE BROWSER CAN DECIDE IT.
+
+      "Watching" means the dock is open AND the tab is in front. Either one
+      alone is not enough: the dock stays mounted while closed (so the
+      conversation survives ⌘J), and a visible tab with the dock shut is a
+      reader looking at something else entirely. The server sees an open SSE
+      connection in both cases and cannot tell them apart, which is why the old
+      rule had to guess from a stopwatch — and guessed wrong on 40 of 72
+      answers, every one of them under the 90-second bar.
+    */
+    const watching = openRef.current && typeof document !== 'undefined' && !document.hidden
+
+    if (messageId) void reportAnswerSeen(messageId, watching)
+
+    if (watching) return // they are looking straight at it
 
     const firstLine = answer.trim().split('\n').find(l => l.trim().length > 0) ?? ''
     // Enough to recognise WHICH question came back, never enough to read the
@@ -85,6 +101,17 @@ export default function AskBerAIDock() {
       action: { label: 'Read it', onClick: () => setOpen(true) },
     })
   }, [])
+
+  /*
+    Opening the dock clears the badge.
+
+    The reader has come to look; leaving a number on the button they cannot
+    clear is how the deleted notification inbox ended up with 52 rows and zero
+    dismissals. The badge's job is to get them here, and it is finished.
+  */
+  useEffect(() => {
+    if (open) void markAllAnswersSeen()
+  }, [open])
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {

@@ -207,12 +207,40 @@ export async function notifyAnswer(args: {
   origin: string
   /** Set when the conversation is scoped to a deal. */
   projectId?: string
+  /**
+   * Was the asker actually looking when the answer landed?
+   *
+   * ⚠ THIS REPLACES THE STOPWATCH AS THE DECIDING QUESTION, and the stopwatch
+   * was answering the wrong one. The 90s bar was set against a measured median
+   * of 73s on the premise that "a fast answer is one you are still looking at".
+   * Richard, 2026-10-25: *"I need to be able to close it while it thinks. I
+   * don't want to wait while it finds answers."* That makes the premise false
+   * by instruction — the intent is to walk away from EVERY question. Measured
+   * the same day: **40 of 72 answers came back under 90 seconds**, so on the
+   * majority of questions the old rule notified nobody the moment he left.
+   *
+   *   false — nobody was there. Send it, however fast it was.
+   *   true  — they watched it arrive. Send nothing; the screen already did it.
+   *   null/undefined — not known. Fall back to the duration, which is the old
+   *                    behaviour and the right default for a caller that
+   *                    cannot see a client at all.
+   */
+  watched?: boolean | null
 }): Promise<AnswerNotifyResult> {
-  if (args.latencyMs < notifyAfterMs()) {
+  const watched = args.watched ?? null
+  if (watched === true) {
     return {
       emailed: false,
       texted: false,
-      reason: `answered in ${Math.round(args.latencyMs / 1000)}s — fast enough that nobody walked away`,
+      reason: 'the asker watched it arrive — the screen already told them',
+    }
+  }
+  // Only a caller that could not tell falls back to the clock.
+  if (watched === null && args.latencyMs < notifyAfterMs()) {
+    return {
+      emailed: false,
+      texted: false,
+      reason: `answered in ${Math.round(args.latencyMs / 1000)}s and nothing reported whether anyone was watching`,
     }
   }
   if (!args.to) return { emailed: false, texted: false, reason: 'no address for the asker' }

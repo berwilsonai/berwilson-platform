@@ -9,6 +9,7 @@ import CommandPalette from './CommandPalette'
 import type { Role } from '@/lib/auth/permissions'
 import { pageTitle } from '@/lib/nav'
 import { openDock } from '@/lib/ui/docks'
+import { AGENT_UNREAD_EVENT, fetchUnreadAnswers } from '@/lib/ui/agent-unread'
 
 export default function AppHeader({
   email,
@@ -20,6 +21,36 @@ export default function AppHeader({
 }) {
   const pathname = usePathname()
   const [paletteOpen, setPaletteOpen] = useState(false)
+
+  /*
+    How many answers are waiting.
+
+    ⚠ POLLED, AND THAT IS THE POINT RATHER THAN A SHORTCUT. The answer this
+    counts arrives in a process the browser cannot see — that is the whole
+    feature — so there is nothing to push it here. A 30-second poll against a
+    tailnet-only app on one machine costs nothing, and it is skipped entirely
+    while the tab is hidden, because a background tab asking every half minute
+    is the kind of thing that is invisible until it is somebody's battery.
+  */
+  const [unread, setUnread] = useState(0)
+  useEffect(() => {
+    let alive = true
+    const read = async () => {
+      if (typeof document !== 'undefined' && document.hidden) return
+      const { unread: n } = await fetchUnreadAnswers()
+      if (alive) setUnread(n)
+    }
+    void read()
+    const timer = setInterval(read, 30_000)
+    window.addEventListener(AGENT_UNREAD_EVENT, read)
+    document.addEventListener('visibilitychange', read)
+    return () => {
+      alive = false
+      clearInterval(timer)
+      window.removeEventListener(AGENT_UNREAD_EVENT, read)
+      document.removeEventListener('visibilitychange', read)
+    }
+  }, [])
   // Cross-portfolio surfaces (search + Ask Ber AI) are admin-only.
   const isAdmin = role === 'admin'
 
@@ -85,17 +116,28 @@ export default function AppHeader({
             aria-label="Ask Ber AI"
           >
             <Sparkles size={14} />
-            <span className="text-xs font-medium">Ask Ber AI</span>
-            <kbd className="ml-1 inline-flex items-center rounded border border-primary/20 bg-background px-1.5 py-0.5 text-[10px] font-medium">
-              ⌘J
-            </kbd>
+            <span className="text-xs font-medium">
+              {unread > 0 ? `${unread} answer${unread === 1 ? '' : 's'} ready` : 'Ask Ber AI'}
+            </span>
+            {unread > 0 ? (
+              <span className="ml-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold text-primary-foreground">
+                {unread}
+              </span>
+            ) : (
+              <kbd className="ml-1 inline-flex items-center rounded border border-primary/20 bg-background px-1.5 py-0.5 text-[10px] font-medium">
+                ⌘J
+              </kbd>
+            )}
           </button>
           <button
             onClick={() => openDock('open-ber-ai')}
-            className="p-2 rounded-md text-primary hover:bg-primary/10 transition-colors md:hidden"
-            aria-label="Ask Ber AI"
+            className="relative p-2 rounded-md text-primary hover:bg-primary/10 transition-colors md:hidden"
+            aria-label={unread > 0 ? `Ask Ber AI — ${unread} answer${unread === 1 ? '' : 's'} ready` : 'Ask Ber AI'}
           >
             <Sparkles size={16} />
+            {unread > 0 && (
+              <span className="absolute right-1 top-1 size-2 rounded-full bg-primary ring-2 ring-background" />
+            )}
           </button>
 
           {/* Desktop search trigger — looks like a search box, opens the palette */}

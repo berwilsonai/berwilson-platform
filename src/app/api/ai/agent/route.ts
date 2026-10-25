@@ -180,6 +180,25 @@ export async function POST(request: NextRequest) {
         latencyMs,
         origin,
         projectId: body.projectId,
+        /*
+          ⚠ THE CONNECTION ANSWERS THIS IN ONE DIRECTION ONLY, WHICH IS WHY IT
+          IS `false | null` AND NEVER `true`.
+
+          A DROPPED connection is proof nobody is there — the tab was closed or
+          the browser was killed — so that one is definitive and the answer is
+          sent however fast it came back. An OPEN connection proves nothing:
+          `AskBerAIDock` stays mounted while CLOSED so the conversation survives
+          ⌘J, which is the right behaviour and means the stream is still held by
+          a dock the asker walked away from ten minutes ago.
+
+          So an open connection reports `null` — not known — and falls back to
+          the duration, which is exactly the old behaviour and therefore not a
+          regression for anyone. The client closes the gap: it knows whether the
+          dock was open and the tab visible, and reports it to
+          `/api/ai/agent/missed`. `notifyAnswer` is idempotent on
+          `notification_log`'s unique key, so both paths firing sends once.
+        */
+        watched: request.signal.aborted ? false : null,
       })
       if (outcome.emailed || outcome.texted) console.log(`[agent] answer sent — ${outcome.reason}`)
     } catch (err) {

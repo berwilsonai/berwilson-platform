@@ -3,7 +3,7 @@
  */
 
 import { createAdminClient } from '@/lib/supabase/admin'
-import { orIlike, orIlikeAnyWord } from '@/lib/utils/postgrest'
+import { filterWords, orIlike, orIlikeAnyWord } from '@/lib/utils/postgrest'
 import { researchQuery } from './research'
 import { matchChunks } from './match-chunks'
 import { embedQuery } from './embeddings'
@@ -126,7 +126,7 @@ export const agentTools = [
   {
     name: 'search_parties',
     description:
-      'Search people and organizations by name, company or role. Pass `role` to list everyone of a kind — "who are our lenders", "which attorneys do we use". Returns contact details, what each one is to the business, and the deals they are on.',
+      'Search people and organizations by name, company, biography, role or tag. Pass `role` to list everyone of a kind — "who are our lenders", "which attorneys do we use". Pass `tag` to list everyone who carries a label, e.g. a delegation or an import batch. Pass `tag` alone with no query to count or list a whole group. Returns contact details, what each one is to the business, and the deals they are on.',
     parameters: {
       type: 'object',
       properties: {
@@ -140,6 +140,20 @@ export const agentTools = [
           type: 'string',
           description:
             'Optional role to filter by, in plain words — "lender", "advisor", "general contractor", "endorser". Resolved against the role registry; if it matches nothing you get the list of roles in use.',
+        },
+        /*
+          ⚠ ADDED 2026-10-25 BECAUSE THE AGENT COULD NOT SEE TAGS AT ALL, and
+          the proof was a live wrong answer: asked "how many contacts are tagged
+          flightech-delegation" it said **zero, the tag doesn't appear to exist**
+          against a database holding 232 of them. `tags` was neither searched nor
+          returned, so an entire import batch was invisible — the same shape as
+          `relationship_notes` earlier the same week: a column that exists, is
+          populated, and has no retrieval path reaching it (§12).
+        */
+        tag: {
+          type: 'string',
+          description:
+            'Optional tag to filter by, e.g. "flightech-delegation", "investor", "auto-contact". Exact match on one of the labels a contact carries. Use it alone to list or count a whole group.',
         },
       },
       required: [],
@@ -581,11 +595,15 @@ async function executeToolCallInner(
     case 'search_parties': {
       const query = args.query as string | undefined
       const roleArg = args.role as string | undefined
-      if (!query && !roleArg) return { error: 'Give a query, a role, or both.' }
+      const tagArg = typeof args.tag === 'string' ? args.tag.trim().toLowerCase() : ''
+      if (!query && !roleArg && !tagArg) return { error: 'Give a query, a role, a tag, or any combination.' }
 
       const registry = await listContactRoles()
+      // Declared out here, not inside the text branch, because the exact-count
+      // query below needs it too.
+      let byRole: string[] = []
       const COLUMNS =
-        'id, full_name, company, title, email, phone, is_organization, relationship_notes, government_contract_history'
+        'id, full_name, company, title, email, phone, is_organization, relationship_notes, government_contract_history, tags'
 
       // ─── Resolve the role, and say so when it cannot be resolved ──────────
       // ⚠ An unresolvable role must not silently become "no filter", which
@@ -627,7 +645,6 @@ async function executeToolCallInner(
         const matchedKeys = registry
           .filter(r => r.label.toLowerCase().includes(query.toLowerCase()))
           .map(r => r.key)
-        let byRole: string[] = []
         if (matchedKeys.length > 0) {
           const { data: holders } = await supabase
             .from('party_roles')
@@ -639,20 +656,71 @@ async function executeToolCallInner(
         // is — for a contact imported from a biography it is the ONLY
         // substantive field — so a text search that skips it cannot find them.
         const partyFilter = orIlike(['full_name', 'company', 'title', 'relationship_notes'], query)
-        if (!partyFilter && byRole.length === 0) return { count: 0, parties: [] }
+        // ⚠ A TAG ALONE IS A COMPLETE QUESTION ("how many are tagged X"), so an
+        // empty text filter must not short-circuit to "no results" when a tag
+        // was given — that is precisely how the live wrong answer happened.
+        if (!partyFilter && byRole.length === 0 && !tagArg) return { count: 0, parties: [] }
         const clauses = [partyFilter, byRole.length > 0 ? `id.in.(${byRole.join(',')})` : null]
           .filter(Boolean)
           .join(',')
-        q = q.or(clauses)
+        if (clauses) q = q.or(clauses)
       }
+
+      /*
+        ⚠ `.contains()` ON A text[] IS THE RIGHT CALL AND `.eq()` IS NOT — and
+        the mirror of this bit a session earlier was a jsonb `.contains()` fed an
+        Array, which PostgREST renders as a POSTGRES ARRAY LITERAL and the caller
+        then reports as an ABSENCE (§12). Here the column IS a text[], so an
+        array is exactly what it wants.
+      */
+      if (tagArg) q = q.contains('tags', [tagArg])
 
       // Applied as a SQL filter rather than in the caller — an exclusion after
       // the LIMIT returns an empty answer when the withheld rows sort first
       // (§12).
       if (ids) q = q.in('id', ids)
 
-      const { data, error } = await q.limit(roleKey ? 50 : 10)
+      /*
+        ⚠ A GROUP QUERY RETURNS MORE ROWS AND LESS OF EACH ONE, and getting that
+        second half wrong is what made the first live tag question take over
+        five minutes. Raising the limit to 200 while still returning the full
+        record produced a **240,000-character tool result — about 60,000 tokens,
+        nearly half the 131,072 window — in a single call**, because each of the
+        232 contacts carried its ~700-character biography in
+        `relationship_notes`. Measured, not guessed: `JSON.stringify(result).length`.
+
+        A count does not need 232 biographies. So a group gets names and the
+        exact total; a NAMED search, which is somebody asking about one person,
+        still gets everything.
+      */
+      const GROUP = Boolean(roleKey || tagArg)
+      const { data: firstPass, error } = await q.limit(GROUP ? 60 : 10)
       if (error) return { error: error.message }
+
+      /*
+        ⚠ A PHRASE SEARCH CANNOT SEE PAST A MIDDLE NAME, and "Arthur Ford"
+        returning nothing for `Arthur James Ford` is how somebody concludes a
+        contact is not on file. §12: a keyword search that only matches the
+        whole phrase answers "nothing" where it means "not adjacent".
+        Pre-existing, and the delegation import made it the common case rather
+        than an edge one — 233 contacts filed under their full legal names,
+        nearly all with a middle name nobody would type.
+
+        Narrow on purpose: EVERY word must appear, and only in the name. Any-word
+        would hand back a stranger who happens to share a first name, which is
+        the §12 failure where one weak signal resolves "Cliff" to an unrelated
+        academic. Chained `.ilike()` calls are ANDed by PostgREST.
+      */
+      let data = firstPass
+      const words = query ? filterWords(query, 4) : []
+      if ((!data || data.length === 0) && words.length > 1 && !tagArg && !roleKey) {
+        let nameQ = supabase.from('parties').select(COLUMNS).eq('status', 'active')
+        for (const w of words) nameQ = nameQ.ilike('full_name', `%${w}%`)
+        if (ids) nameQ = nameQ.in('id', ids)
+        const { data: byName } = await nameQ.limit(10)
+        if (byName?.length) data = byName
+      }
+
       if (!data || data.length === 0) return { count: 0, parties: [] }
 
       const partyIds = data.map(p => p.id)
@@ -665,14 +733,57 @@ async function executeToolCallInner(
       ])
 
       const labels = new Map(registry.map(r => [r.key, r.label]))
+
+      /*
+        ⚠ THE TRUE TOTAL IS COUNTED IN SQL, NOT INFERRED FROM THE ROWS RETURNED.
+        §12: never make the model count rows — print the count; handed a 69-row
+        schedule it answered 62. Returning `count: data.length` is worse than
+        that, because it is confidently wrong the moment the limit bites: a tag
+        holding 232 contacts would answer "200" and read as a fact.
+      */
+      let total = data.length
+      if (tagArg || roleKey) {
+        let countQ = supabase
+          .from('parties')
+          .select('id', { count: 'exact', head: true })
+          .eq('status', 'active')
+        if (tagArg) countQ = countQ.contains('tags', [tagArg])
+        if (ids) countQ = countQ.in('id', ids)
+        if (roleKey && byRole.length > 0) countQ = countQ.in('id', byRole)
+        const { count, error: countErr } = await countQ
+        // A broken count must not quietly replace a real one (§12).
+        if (!countErr && typeof count === 'number') total = count
+      }
+
       return {
-        count: data.length,
-        parties: data.map(p => ({
-          ...p,
-          // What they are to the business — the answer to "who are our X".
-          roles: (roleMap.get(p.id) ?? []).map(k => labels.get(k) ?? k),
-          project_roles: players?.filter(r => r.party_id === p.id) ?? [],
-        })),
+        count: total,
+        showing: data.length,
+        ...(total > data.length
+          ? { note: `${total} match; the ${data.length} below are the first of them. Say the count, not the length of this list.` }
+          : {}),
+        parties: data.map(p => {
+          const common = {
+            id: p.id,
+            full_name: p.full_name,
+            company: p.company,
+            title: p.title,
+            is_organization: p.is_organization,
+            tags: p.tags,
+            // What they are to the business — the answer to "who are our X".
+            roles: (roleMap.get(p.id) ?? []).map(k => labels.get(k) ?? k),
+          }
+          // A group is a list to scan; a named person is a record to read.
+          return GROUP
+            ? common
+            : {
+                ...common,
+                email: p.email,
+                phone: p.phone,
+                relationship_notes: p.relationship_notes,
+                government_contract_history: p.government_contract_history,
+                project_roles: players?.filter(r => r.party_id === p.id) ?? [],
+              }
+        }),
       }
     }
 

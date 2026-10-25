@@ -135,8 +135,13 @@ interface AgentChatProps {
    * An answer arrived. Fired for every completed turn, including one picked up
    * by the reattach — the dock uses it to raise a toast when it is closed, so
    * a question answered while you were on another page announces itself.
+   *
+   * ⚠ IT CARRIES THE MESSAGE ID BECAUSE THE DOCK HAS TO REPORT A VERDICT ON IT.
+   * Whether the asker was watching is a fact only the browser holds — the dock
+   * stays mounted while CLOSED, so an open connection tells the server nothing
+   * — and that verdict is what decides whether the answer is emailed.
    */
-  onAnswered?: (answer: string) => void
+  onAnswered?: (answer: string, messageId: string | null) => void
 }
 
 export default function AgentChat({
@@ -265,7 +270,7 @@ export default function AgentChat({
       setActivity(null)
       if (found) {
         setMessages(prev => [...prev, toMessage(found.answer)])
-        onAnswered?.(found.answer.content)
+        onAnswered?.(found.answer.content, found.answer.id)
       } else {
         setError('That question stopped before it finished — it was probably interrupted by a deploy. Ask it again.')
       }
@@ -344,6 +349,7 @@ export default function AgentChat({
       is how the same answer gets announced twice.
     */
     let answeredText = ''
+    let answeredId: string | null = null
 
     // If the network stream dies mid-run (iPhone Safari kills idle or
     // backgrounded connections — "Load failed"), the server still finishes
@@ -368,6 +374,7 @@ export default function AgentChat({
       if (!conversationId) onConversationCreated?.(found.conversationId)
       setConversationId(found.conversationId)
       answeredText = found.answer.content
+      answeredId = found.answer.id
       return true
     }
 
@@ -477,6 +484,7 @@ export default function AgentChat({
             // appears twice and a notification that sometimes sends twice.
             // `streamedText` is accumulated by `appendDelta` for exactly this.
             if (streamedText) answeredText = streamedText
+            answeredId = event.messageId ?? answeredId
           } else if (event.type === 'error') {
             // The server itself reported failure — nothing to recover.
             throw Object.assign(new Error(event.message ?? 'Agent execution failed'), { noRecover: true })
@@ -503,7 +511,7 @@ export default function AgentChat({
       setLoading(false)
       setActivity(null)
       inputRef.current?.focus()
-      if (answeredText) onAnswered?.(answeredText)
+      if (answeredText) onAnswered?.(answeredText, answeredId)
     }
   }, [input, loading, conversationId, projectId, opportunityId, documentId, scopeQuery, onConversationCreated, onAnswered])
 

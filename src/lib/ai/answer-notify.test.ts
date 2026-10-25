@@ -42,14 +42,49 @@ describe('notifyAfterMs', () => {
 })
 
 describe('notifyAnswer threshold', () => {
-  it('sends nothing for an answer the asker watched arrive', async () => {
+  it('falls back to the clock only when nothing reported whether anyone was watching', async () => {
+    // ⚠ REWRITTEN 2026-10-25. This asserted /fast enough/, which encoded the
+    // premise that a quick answer is one the asker is still looking at.
+    // Richard: "I need to be able to close it while it thinks." The clock is
+    // now the FALLBACK for a caller that cannot see a client, not the rule.
     const r = await notifyAnswer({ ...base, latencyMs: 20_000 })
     assert.equal(r.emailed, false)
     assert.equal(r.texted, false)
-    assert.match(r.reason, /fast enough/)
+    assert.match(r.reason, /nothing reported whether anyone was watching/)
     // The reason must carry the measurement, not just a verdict — a log line
     // saying "skipped" tells a reader nothing about why.
     assert.match(r.reason, /20s/)
+  })
+
+  it('WATCHED: TRUE sends nothing however slow it was — the screen already said so', async () => {
+    const r = await notifyAnswer({ ...base, latencyMs: 10 * 60_000, watched: true })
+    assert.equal(r.emailed, false)
+    assert.equal(r.texted, false)
+    assert.match(r.reason, /watched it arrive/)
+  })
+
+  it('WATCHED: FALSE overrides the clock — this is the 56% the old bar missed', async () => {
+    // Measured 2026-10-25: 40 of 72 answers came back under the 90s bar, so on
+    // the majority of questions the duration rule notified nobody the moment
+    // the asker left the dock. A fast answer nobody saw must still be sent.
+    //
+    // ⚠ PROVED BY WHERE IT FAILS, which is the only honest proof available
+    // without a database. Every suppression path RETURNS a reason before
+    // touching Supabase; this one reaches the client and dies on the missing
+    // env. So "it threw trying to send" IS the assertion that it did not
+    // suppress — and a regression that reinstates the clock would turn this
+    // back into a quiet resolved promise, which this would catch.
+    await assert.rejects(
+      () => notifyAnswer({ ...base, latencyMs: 5_000, watched: false }),
+      /supabaseUrl is required/,
+      'a fast answer nobody watched must proceed to send, not return a skip reason'
+    )
+  })
+
+  it('an explicit null is the same as saying nothing — the fallback, not a verdict', async () => {
+    const a = await notifyAnswer({ ...base, latencyMs: 20_000, watched: null })
+    const b = await notifyAnswer({ ...base, latencyMs: 20_000 })
+    assert.equal(a.reason, b.reason)
   })
 
   it('is exclusive at the boundary, so the threshold means what it says', async () => {

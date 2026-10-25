@@ -167,14 +167,14 @@ isOneToOne: false
                   ]
                 },"agent_messages": {
                   Row: {
-                    "content": string,"conversation_id": string,"created_at": string | null,"id": string,"latency_ms": number | null,"model_used": string | null,"rating": number | null,"role": string,"run_started_at": string | null,"run_state": string | null,"tokens_in": number | null,"tokens_out": number | null,"tool_calls": Json | null,"tool_results": Json | null
+                    "content": string,"conversation_id": string,"created_at": string | null,"id": string,"latency_ms": number | null,"model_used": string | null,"rating": number | null,"role": string,"run_started_at": string | null,"run_state": string | null,"seen_at": string | null,"tokens_in": number | null,"tokens_out": number | null,"tool_calls": Json | null,"tool_results": Json | null
                   }
                   ComputedFields: never
                   Insert: {
-                    "content": string,"conversation_id": string,"created_at"?: string | null,"id"?: string,"latency_ms"?: number | null,"model_used"?: string | null,"rating"?: number | null,"role": string,"run_started_at"?: string | null,"run_state"?: string | null,"tokens_in"?: number | null,"tokens_out"?: number | null,"tool_calls"?: Json | null,"tool_results"?: Json | null
+                    "content": string,"conversation_id": string,"created_at"?: string | null,"id"?: string,"latency_ms"?: number | null,"model_used"?: string | null,"rating"?: number | null,"role": string,"run_started_at"?: string | null,"run_state"?: string | null,"seen_at"?: string | null,"tokens_in"?: number | null,"tokens_out"?: number | null,"tool_calls"?: Json | null,"tool_results"?: Json | null
                   }
                   Update: {
-                    "content"?: string,"conversation_id"?: string,"created_at"?: string | null,"id"?: string,"latency_ms"?: number | null,"model_used"?: string | null,"rating"?: number | null,"role"?: string,"run_started_at"?: string | null,"run_state"?: string | null,"tokens_in"?: number | null,"tokens_out"?: number | null,"tool_calls"?: Json | null,"tool_results"?: Json | null
+                    "content"?: string,"conversation_id"?: string,"created_at"?: string | null,"id"?: string,"latency_ms"?: number | null,"model_used"?: string | null,"rating"?: number | null,"role"?: string,"run_started_at"?: string | null,"run_state"?: string | null,"seen_at"?: string | null,"tokens_in"?: number | null,"tokens_out"?: number | null,"tool_calls"?: Json | null,"tool_results"?: Json | null
                   }
                   Relationships: [
                     {

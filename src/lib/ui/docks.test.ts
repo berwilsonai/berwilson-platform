@@ -19,8 +19,37 @@ test('every dispatched dock event is in the registry', () => {
   // `new Event(`, and one of AppHeader's dock buttons used `new CustomEvent(`
   // — so the one dispatch site that had its own duplicate copy of the event
   // name was the one the check could not see.
-  const raw = scan(/dispatchEvent\(new (?:Custom)?Event\(/).filter((h) => !h.file.endsWith('ui/docks.ts'))
-  assert.deepEqual(raw.map((h) => `${h.file}:${h.line}`), [], 'use openDock() from @/lib/ui/docks')
+  //
+  // ⚠ THE EXEMPTIONS ARE NAMED AND THEN PROVED, never just excluded. §12: a
+  // legitimate exemption gets named with its reason and is never absorbed by
+  // loosening the check. Each file below is a TYPED dispatch helper — its event
+  // name is an exported const and the only `dispatchEvent` in the codebase for
+  // it sits beside that const — which is the discipline this test exists to
+  // enforce, not a second way around it. The assertion under the list is what
+  // stops this becoming a place to park a raw dispatch.
+  const TYPED_DISPATCHERS: { file: string; constName: string; why: string }[] = [
+    { file: 'ui/docks.ts', constName: 'DOCK_EVENTS', why: 'openDock() — the docks registry' },
+    { file: 'ui/agent-unread.ts', constName: 'AGENT_UNREAD_EVENT', why: 'announceUnreadChanged() — the Ask Ber AI badge' },
+  ]
+
+  for (const d of TYPED_DISPATCHERS) {
+    const file = sourceFiles('src', ['.ts']).find((f) => f.endsWith(d.file))
+    assert.ok(file, `${d.file} is exempted but no longer exists`)
+    const src = readFileSync(file, 'utf8')
+    assert.match(
+      src,
+      new RegExp(`export const ${d.constName}\\b`),
+      `${d.file} is exempted as a typed dispatcher but does not export ${d.constName} — the exemption is only earned by the name being typed (${d.why})`
+    )
+  }
+
+  const raw = scan(/dispatchEvent\(new (?:Custom)?Event\(/)
+    .filter((h) => !TYPED_DISPATCHERS.some((d) => h.file.endsWith(d.file)))
+  assert.deepEqual(
+    raw.map((h) => `${h.file}:${h.line}`),
+    [],
+    'use openDock() from @/lib/ui/docks, or a typed dispatch helper named in TYPED_DISPATCHERS'
+  )
 })
 
 test('every dock in the registry has something listening for it', () => {
