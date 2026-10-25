@@ -74,6 +74,37 @@ interface RunRow {
 }
 
 /**
+ * When THIS process started.
+ *
+ * ⚠ THE ONLY EXACT ANSWER TO "DID A DEPLOY KILL THIS RUN", and the clock alone
+ * could not give it. An agent turn runs inside the web process; a
+ * `launchctl kickstart` kills it before either verdict can be written, so the
+ * row stays `running` forever (§12 — an in-progress status is the shape that
+ * cannot settle itself). The staleness horizon then has to be the full time
+ * budget, because a 16-minute answer is real and has happened — which means a
+ * run killed one minute ago still looks live for another twenty-nine.
+ *
+ * The cost of that was not theoretical: the dock disables its input while it
+ * believes a run is in flight, so a question interrupted by a deploy left Ask
+ * Ber AI unusable for half an hour, with "Checking still working…" on a run
+ * whose process no longer existed. Measured live on 2026-10-25, by trying to
+ * type into it.
+ *
+ * A run that began BEFORE this process did cannot be running IN it. That is a
+ * fact rather than a threshold, and it needs no tuning — which is why it is
+ * preferred to shortening the window, a change that would instead abandon the
+ * slow answers the window exists to protect.
+ *
+ * ⚠ DERIVED FROM `process.uptime()`, NOT FROM WHEN THIS MODULE LOADED. `new
+ * Date()` at module scope is the time of the FIRST IMPORT, which under Next's
+ * lazy module loading can be well after the process began — and every
+ * millisecond of that gap is a window in which a genuinely live run looks dead
+ * and gets abandoned. `uptime()` is the process itself, whenever this file
+ * happens to be read.
+ */
+const PROCESS_STARTED_AT = new Date(Date.now() - process.uptime() * 1000)
+
+/**
  * Every live run, newest first.
  *
  * `windowMs` is the staleness horizon and is REQUIRED — there is no safe
@@ -122,6 +153,10 @@ export async function liveRuns(opts: {
 
   return ((data ?? []) as RunRow[])
     .filter((r) => r.run_started_at)
+    // ⚠ A run that predates this process was killed by the restart. See
+    // PROCESS_STARTED_AT: this is exact where the window is a guess, and it is
+    // what stops a deploy locking the dock for the rest of the budget.
+    .filter((r) => new Date(r.run_started_at as string) >= PROCESS_STARTED_AT)
     .map((r) => ({
       messageId: r.id,
       conversationId: r.conversation_id,
