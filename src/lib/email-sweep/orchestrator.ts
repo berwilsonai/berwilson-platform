@@ -20,7 +20,12 @@ import {
   type PredecideProgress,
 } from '@/lib/email-ingestion/predecide'
 import { routeThreads, type RouteProgress } from './route-phase'
-import { applyThreadUpdates, type ApplyProgress } from './apply-phase'
+import {
+  applyThreadUpdates,
+  importUnparentedAttachments,
+  type ApplyProgress,
+  type UnparentedProgress,
+} from './apply-phase'
 import { embedPendingThreads, type EmbedProgress } from '@/lib/ai/thread-embeddings'
 import {
   reconcileUnfiledMeetings,
@@ -43,6 +48,7 @@ export type SweepPhase =
   | 'stage'
   | 'route'
   | 'apply'
+  | 'unparented'
   | 'embed'
   | 'meetings'
   | 'commitments'
@@ -69,6 +75,7 @@ export interface SweepRunResult {
   stage?: StageProgress
   route?: RouteProgress
   apply?: ApplyProgress
+  unparented?: UnparentedProgress
   embed?: EmbedProgress
   reconcile?: ReconcileProgress
   meetings?: ReconcileUnfiledResult
@@ -87,6 +94,7 @@ const ALL_PHASES: SweepPhase[] = [
   'stage',
   'route',
   'apply',
+  'unparented',
   'embed',
   'meetings',
   'commitments',
@@ -113,6 +121,27 @@ const APPLY_BATCH = 100
  * not eat the whole hour and starve it.
  */
 const APPLY_MAX_MS = 10 * 60 * 1000
+
+/**
+ * Ceiling on importing files off deal mail that belongs to no record.
+ *
+ * Sized like `apply` and for the same reason — a document AI pass is ~30s on the
+ * local model, so 25 threads is the worst case of several minutes. Deliberately
+ * SMALLER than the apply batch: the backlog is 422 threads and 809 files, and
+ * draining it over a couple of days of hourly runs costs nothing, where taking
+ * an hour of every run would starve `embed` and `predecide` behind it.
+ *
+ * ⚠ RUNS AFTER `apply` AND BEFORE `embed`, which is load-bearing. The orphan
+ * document is registered with `skipEmbed: true` — its text is meant to be
+ * indexed as `thread_chunks` by the thread's own embed pass, not chunked twice —
+ * so `embed` must come after it in the SAME run, or the file sits with no
+ * searchable text until the next hour. That ordering is also why the noise-gate
+ * widening (20261025000010) is a precondition and not a separate nicety: these
+ * are mostly `relevance='noise'` threads, and before that migration `embed`
+ * would have withheld every one of them and the text would have gone nowhere.
+ */
+const UNPARENTED_BATCH = 25
+const UNPARENTED_MAX_MS = 8 * 60 * 1000
 
 /** Threads indexed per run, and the ceiling on doing it. */
 const EMBED_BATCH = 50
@@ -229,6 +258,22 @@ export async function runSweep(opts: SweepRunOptions = {}): Promise<SweepRunResu
     })
     result.ranPhases.push('apply')
     if (result.apply.outOfTime || result.apply.linksConsidered >= APPLY_BATCH) {
+      result.moreWork = true
+    }
+  }
+
+  // ── Unparented attachments ────────────────────────────────────────────────
+  // Files on deal mail the router could not place. See
+  // `importUnparentedAttachments` for the measurement; the short version is
+  // that attachment import required a `thread_links` row and only 12% of deal
+  // threads have one, so 809 files were in no corpus at all.
+  if (phases.includes('unparented') && remaining() > 0) {
+    result.unparented = await importUnparentedAttachments({
+      limit: UNPARENTED_BATCH,
+      budgetMs: Math.max(0, Math.min(remaining(), UNPARENTED_MAX_MS)),
+    })
+    result.ranPhases.push('unparented')
+    if (result.unparented.outOfTime || result.unparented.threadsPending > UNPARENTED_BATCH) {
       result.moreWork = true
     }
   }

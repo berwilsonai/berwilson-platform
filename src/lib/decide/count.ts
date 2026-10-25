@@ -33,6 +33,7 @@ import { decideWeight, meetingBoost } from '@/lib/decide/rank'
 import {
   countMisfiledCompanyDocuments,
   findMisfiledCompanyDocuments,
+  findUnparentedDocuments,
 } from '@/lib/documents/unfiled'
 import { countMisfiledRecordDocuments } from '@/lib/documents/misfiled'
 
@@ -59,20 +60,34 @@ import { countMisfiledRecordDocuments } from '@/lib/documents/misfiled'
  * the rows a reader acts on are always live; this cache can only make the
  * BADGE up to a minute stale, which is the right thing to be imprecise about.
  */
-let docCache: { unfiled: number; misfiled: number; at: number } | null = null
+let docCache: { unfiled: number; misfiled: number; unparented: number; at: number } | null = null
 const DOC_TTL_MS = 60_000
 
 export function invalidateDecideDocumentCounts(): void {
   docCache = null
 }
 
-async function documentCounts(): Promise<{ unfiled: number; misfiled: number }> {
+async function documentCounts(): Promise<{
+  unfiled: number
+  misfiled: number
+  unparented: number
+}> {
   if (docCache && Date.now() - docCache.at < DOC_TTL_MS) return docCache
-  const [unfiled, misfiled] = await Promise.all([
+  // ⚠ THE THIRD LANE GOES HERE, NOT IN A COUNT OF ITS OWN. All three are
+  // decided by `matchDocument` rather than by a WHERE clause, so all three must
+  // call the same pass the page renders — a head:true count cannot answer
+  // "does this file have a deal home". The `offered` half only: `held` rows are
+  // deliberately not on the page, so counting them would make the badge
+  // over-report its own destination, which is the bug this cache's own comment
+  // describes (§12 — one quantity, one definition).
+  const [unfiled, misfiled, unparented] = await Promise.all([
     countMisfiledCompanyDocuments(),
     countMisfiledRecordDocuments().catch(() => 0),
+    findUnparentedDocuments()
+      .then((r) => r.offered.length)
+      .catch(() => 0),
   ])
-  docCache = { unfiled, misfiled, at: Date.now() }
+  docCache = { unfiled, misfiled, unparented, at: Date.now() }
   return docCache
 }
 
@@ -134,6 +149,7 @@ export async function countDecideItems(): Promise<number> {
       (review.count ?? 0) +
       documents.unfiled +
       documents.misfiled +
+      documents.unparented +
       (fieldQuestions.count ?? 0)
     )
   } catch {
@@ -169,6 +185,17 @@ export interface DecideSummary {
    */
   misfiled: number
   /**
+   * Files off deal mail that are on NO record (2026-10-25).
+   *
+   * ⚠ A THIRD FIELD, and the same rule as `misfiled` above: three quantities,
+   * never summed under one label. A company document answers wrongly; a
+   * misfiled one answers for the wrong deal; one of these answers for nothing,
+   * because attachment import required a `thread_links` row and only 12% of
+   * deal threads carry one. The `offered` half only — held rows are not on the
+   * page, so counting them would make this total exceed its own list.
+   */
+  unparented: number
+  /**
    * Guarded fields Pepper is asking about rather than overwriting.
    *
    * ⚠ COUNTED HERE SO THE QUEUE'S OWN TOTAL INCLUDES THEM. The chip row and
@@ -200,10 +227,10 @@ export async function summarizeDecideQueue(now = Date.now()): Promise<DecideSumm
   const supabase = createAdminClient()
   const empty: DecideSummary = {
     total: 0, intake: 0, meetings: 0, review: 0, documents: 0, misfiled: 0,
-    fieldQuestions: 0, top: [],
+    unparented: 0, fieldQuestions: 0, top: [],
   }
   try {
-    const [intake, review, unfiledDocs, misfiledCount, fieldQuestions] =
+    const [intake, review, unfiledDocs, misfiledCount, unparentedCount, fieldQuestions] =
       await Promise.all([
       supabase
         .from('email_intake_sessions')
@@ -216,6 +243,12 @@ export async function summarizeDecideQueue(now = Date.now()): Promise<DecideSumm
         .is('resolved_at', null),
       findMisfiledCompanyDocuments(),
       countMisfiledRecordDocuments().catch(() => 0),
+      // The `offered` half only — same reasoning as documentCounts() above: a
+      // held row is not on the page, so counting it here would make the brief's
+      // total larger than the list it is the total of.
+      findUnparentedDocuments()
+        .then((r) => r.offered.length)
+        .catch(() => 0),
       // Head-only count: the queue's size, not its contents. The page reads the
       // rows themselves.
       supabase
@@ -304,6 +337,7 @@ export async function summarizeDecideQueue(now = Date.now()): Promise<DecideSumm
     const reviewCount = review.count ?? 0
     const documentCount = unfiledDocs.length
     const misfiledDocCount = misfiledCount
+    const unparentedDocCount = unparentedCount
     const fieldQuestionCount = fieldQuestions.count ?? 0
     return {
       total:
@@ -312,12 +346,14 @@ export async function summarizeDecideQueue(now = Date.now()): Promise<DecideSumm
         reviewCount +
         documentCount +
         misfiledDocCount +
+        unparentedDocCount +
         fieldQuestionCount,
       intake: intakeCount,
       meetings: meetingCount,
       review: reviewCount,
       documents: documentCount,
       misfiled: misfiledDocCount,
+      unparented: unparentedDocCount,
       fieldQuestions: fieldQuestionCount,
       top: rows.slice(0, 5).map((r) => r.line),
     }

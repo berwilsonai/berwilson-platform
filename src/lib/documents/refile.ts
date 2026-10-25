@@ -120,8 +120,26 @@ export async function refileDocument(
     // the confirm step moves it: that is the common path, not an edge case.
     const patch =
       target.kind === 'project'
-        ? { project_id: target.id, steel_deal_id: null, is_company: false, is_reference: false }
-        : { steel_deal_id: target.id, project_id: null, is_company: false, is_reference: false }
+        // ⚠ `awaiting_filing` IS CLEARED HERE OR THE QUEUE CANNOT REACH ZERO.
+        // It is the one positive discriminator /decide's unparented class reads
+        // (20261025000012), so a document filed onto a deal while still
+        // carrying it would sit on the record AND keep offering itself for
+        // filing forever — the same leak `is_reference` had on the line above,
+        // for the same reason, which is why they are cleared together.
+        ? {
+            project_id: target.id,
+            steel_deal_id: null,
+            is_company: false,
+            is_reference: false,
+            awaiting_filing: false,
+          }
+        : {
+            steel_deal_id: target.id,
+            project_id: null,
+            is_company: false,
+            is_reference: false,
+            awaiting_filing: false,
+          }
 
     const { error } = await supabase.from('documents').update(patch).eq('id', documentId)
     if (error) throw new Error(`could not re-file document: ${error.message}`)
@@ -311,7 +329,16 @@ export async function excludeDocument(
   }
 
   const chunks = await deleteDocumentChunks(supabase, documentId)
-  const { error } = await supabase.from('documents').update(patch).eq('id', documentId)
+  // ⚠ `awaiting_filing` IS CLEARED ONLY ON THIS SIDE, AND NOT BECAUSE OF A
+  // POLICY DIFFERENCE — `opportunity_documents` has no such column, and the
+  // typed client's excess-property check refused the shared patch when it was
+  // written there. That refusal was right: a tombstone that still claims to be
+  // awaiting a filing decision is a lie, and the lie only exists on the table
+  // that can hold the flag.
+  const { error } = await supabase
+    .from('documents')
+    .update({ ...patch, awaiting_filing: false })
+    .eq('id', documentId)
   if (error) throw new Error(`could not exclude document: ${error.message}`)
 
   return { chunks }

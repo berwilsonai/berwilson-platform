@@ -124,6 +124,31 @@ export function deltaFor(
   return { text: fresh.join('\n'), newCount: messages.length }
 }
 
+/**
+ * Where an imported attachment lands, and which watermark records the read.
+ *
+ * ⚠ A TARGET, NOT A FORK (§12 — never fork a shared pass, add a target). The
+ * import body is ~250 lines of hard-won behaviour: a per-message cursor that
+ * survives a kickstart, a failed byte fetch that HOLDS the cursor so the file is
+ * retried rather than lost, content-hash dedupe that happens after the fetch
+ * because a name is not evidence of sameness, mail-chrome rejection by name
+ * because `isInline` is not sufficient, and the sibling test that stopped one
+ * thread's attachments fanning out onto three records. Every one of those was a
+ * measured bug. A second copy for unparented mail would inherit none of the
+ * fixes and would be invisible as a fork, because it would not look like one —
+ * it would look like a sibling module for a new source.
+ *
+ * So the three destinations differ ONLY in: which table the row goes in, whether
+ * a record id is on it, which watermark advances, whether siblings exist, and
+ * whether a Drive copy follows. Each of those is a branch of five lines or
+ * fewer, which is the test for whether this should have been a parameter.
+ */
+type ImportDestination =
+  | { kind: 'project'; recordId: string; link: ThreadLinkRow; cursor: number }
+  | { kind: 'opportunity'; recordId: string; link: ThreadLinkRow; cursor: number }
+  /** Deal mail that belongs to no record yet. The thread owns the watermark. */
+  | { kind: 'orphan'; threadId: string; cursor: number }
+
 type LinkWithThread = ThreadLinkRow & {
   thread: Pick<
     EmailThreadRow,
@@ -347,8 +372,17 @@ export async function applyThreadUpdates(
       // was any new text. That independence is the fix: the previous version
       // called this only after posting an update, so a thread filed onto a record
       // — which is caught up on text by definition — never reached it.
-      if (needsAttachments) {
-        progress.attachmentsImported += await importThreadAttachments(link, thread, deadline)
+      if (needsAttachments && (link.record_kind === 'project' || link.record_kind === 'opportunity')) {
+        progress.attachmentsImported += await importThreadAttachments(
+          {
+            kind: link.record_kind,
+            recordId: link.record_id,
+            link,
+            cursor: link.attachments_through ?? 0,
+          },
+          thread,
+          deadline
+        )
       }
     } catch (err) {
       progress.failed++
@@ -400,13 +434,25 @@ async function advance(linkId: string, count: number): Promise<void> {
  * five minutes of imports because the sixth was in flight. Checkpointing per
  * message makes an interrupted run indistinguishable from a slow one.
  */
-async function advanceAttachments(linkId: string, through: number): Promise<void> {
-  const { error } = await sweepDb()
-    .from('thread_links')
-    .update({ attachments_through: through, last_applied_at: new Date().toISOString() })
-    .eq('id', linkId)
+async function advanceAttachments(dest: ImportDestination, through: number): Promise<void> {
+  // ⚠ TWO TABLES, ONE QUESTION, AND THE DESTINATION PICKS WHICH. A record's
+  // watermark lives on its LINK; an unparented read has no link, so its
+  // watermark lives on the THREAD. Writing the wrong one would look like
+  // success and re-import the same files on every run forever.
+  const db = sweepDb()
+  const { error } =
+    dest.kind === 'orphan'
+      ? await db
+          .from('email_threads')
+          .update({ attachments_through: through })
+          .eq('id', dest.threadId)
+      : await db
+          .from('thread_links')
+          .update({ attachments_through: through, last_applied_at: new Date().toISOString() })
+          .eq('id', dest.link.id)
   if (error) {
-    console.error(`[sweep/apply] could not advance attachments on ${linkId}:`, error.message)
+    const what = dest.kind === 'orphan' ? `thread ${dest.threadId}` : `link ${dest.link.id}`
+    console.error(`[sweep/apply] could not advance attachments on ${what}:`, error.message)
   }
 }
 
@@ -904,11 +950,10 @@ async function siblingTargets(link: ThreadLinkRow): Promise<Target[]> {
  * here must never cost the correspondence that came with it.
  */
 async function importThreadAttachments(
-  link: ThreadLinkRow,
+  dest: ImportDestination,
   thread: NonNullable<LinkWithThread['thread']>,
   deadline: number
 ): Promise<number> {
-  if (link.record_kind !== 'project' && link.record_kind !== 'opportunity') return 0
   // A local source has no Gmail thread behind it, so there is nothing to fetch
   // and asking would 404 against a real mailbox with a synthetic thread id.
   //
@@ -920,7 +965,7 @@ async function importThreadAttachments(
 
   try {
     const messages = await fetchThread(thread.mailbox, thread.gmail_thread_id)
-    const from = Math.min(link.attachments_through ?? 0, messages.length)
+    const from = Math.min(dest.cursor, messages.length)
 
     // Dedupe WITHIN the thread on file name — a bid package resends the same
     // drawing on every reply, and inside one conversation a repeated name really
@@ -967,13 +1012,14 @@ async function importThreadAttachments(
       // Nothing to take — every attachment on these messages was inline chrome
       // or oversized. Settle the cursor anyway, or the link is reconsidered on
       // every run forever for a thread that will never yield a file.
-      await advanceAttachments(link.id, messages.length)
+      await advanceAttachments(dest, messages.length)
       return 0
     }
 
     const supabase = createAdminClient()
-    const isProject = link.record_kind === 'project'
-    const folder = isProject ? 'projects' : 'opportunities'
+    const isProject = dest.kind === 'project'
+    const folder =
+      dest.kind === 'project' ? 'projects' : dest.kind === 'opportunity' ? 'opportunities' : 'unfiled'
 
     // ⚠ A THREAD CAN BE ABOUT THREE DEALS; A DOCUMENT USUALLY IS NOT.
     //
@@ -992,7 +1038,12 @@ async function importThreadAttachments(
     // them, still goes to all of them — "Site DD for Steelton, Weirton and
     // Riverdale.xlsx" genuinely belongs on three records, and the safe side of
     // this question is the one that keeps a document reachable (§12).
-    const siblings = await siblingTargets(link)
+    // ⚠ An ORPHAN HAS NO SIBLINGS, and that is a structural fact rather than an
+    // empty case. Siblings are the OTHER links on the same thread, so a thread
+    // with no link has none by definition — asking would be a query that can
+    // only return nothing. The fan-out this guards against cannot happen on a
+    // path with no record to fan out to.
+    const siblings = dest.kind === 'orphan' ? [] : await siblingTargets(dest.link)
     // What the record already holds, so a file that arrived on one thread is not
     // imported again from another. Several threads about the same deal routinely
     // carry the same attachment, and a duplicate is not merely untidy: it doubles
@@ -1000,15 +1051,30 @@ async function importThreadAttachments(
     //
     // Branched rather than parameterised by table name — a union of table names
     // loses the column types the typed client checks against.
-    const { data: existingDocs } = isProject
-      ? await supabase
-          .from('documents')
-          .select('file_name, content_sha256')
-          .eq('project_id', link.record_id)
-      : await supabase
-          .from('opportunity_documents')
-          .select('file_name, content_sha256')
-          .eq('opportunity_id', link.record_id)
+    //
+    // ⚠ FOR AN ORPHAN THE SCOPE IS THE THREAD, NOT A RECORD, because there is no
+    // record to compare against. Deduping an unparented file against the WHOLE
+    // `documents` table would be the wrong question in the dangerous direction:
+    // four counterparties' blank MNDAs are byte-identical and the name carries
+    // the only distinction (§12), so a global hash check would silently discard
+    // three real documents. The thread that delivered it is the honest scope —
+    // it stops a re-run importing the same file twice, which is the only
+    // duplicate this path can actually create.
+    const { data: existingDocs } =
+      dest.kind === 'orphan'
+        ? await supabase
+            .from('documents')
+            .select('file_name, content_sha256')
+            .eq('source_thread_id', thread.id)
+        : isProject
+          ? await supabase
+              .from('documents')
+              .select('file_name, content_sha256')
+              .eq('project_id', dest.recordId)
+          : await supabase
+              .from('opportunity_documents')
+              .select('file_name, content_sha256')
+              .eq('opportunity_id', dest.recordId)
 
     // `content_sha256` has been in the generated types since gen-types was
     // repaired (2026-10-08), so the cast through unknown that stood here is gone.
@@ -1041,17 +1107,21 @@ async function importThreadAttachments(
       // belonging to a sibling costs no Gmail round trip at all. The cursor
       // advances — this link is done with the file, permanently, and the
       // sibling link imports it on its own pass.
-      if (siblings.length > 0) {
+      //
+      // The `kind !== 'orphan'` test is what NARROWS `dest` for the comparison
+      // below, not a second guard: `siblings` is already `[]` on that path, but
+      // only the discriminant tells `tsc` there is a `recordId` to compare.
+      if (dest.kind !== 'orphan' && siblings.length > 0) {
         const owner = matchDocument(
           { file_name: ref.name, doc_type: null, drive_folder_path: null, ai_summary: null, extracted_text: null },
           siblings
         )
-        if (owner && !(owner.target.kind === link.record_kind && owner.target.id === link.record_id)) {
+        if (owner && !(owner.target.kind === dest.kind && owner.target.id === dest.recordId)) {
           console.log(
             `[sweep/apply] ${ref.name} names ${owner.target.name} — leaving it off this record`
           )
           through = capped(Math.max(through, ref.through), blockedAt)
-          await advanceAttachments(link.id, through)
+          await advanceAttachments(dest, through)
           continue
         }
       }
@@ -1086,7 +1156,7 @@ async function importThreadAttachments(
         // The same FILE, whatever it is called or which thread carried it. This is
         // the case the name rule was reaching for, answered exactly.
         through = capped(Math.max(through, ref.through), blockedAt)
-        await advanceAttachments(link.id, through)
+        await advanceAttachments(dest, through)
         continue
       }
       hashes.add(digest)
@@ -1099,7 +1169,10 @@ async function importThreadAttachments(
       already.add(fileName.toLowerCase())
 
       const safe = fileName.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 120)
-      const path = `${folder}/${link.record_id}/${Date.now()}-${safe}`
+      // An orphan is keyed by the THREAD that delivered it, which is also the
+      // only thing that will later say which deal it belongs to.
+      const bucketKey = dest.kind === 'orphan' ? thread.id : dest.recordId
+      const path = `${folder}/${bucketKey}/${Date.now()}-${safe}`
 
       const { error: upErr } = await supabase.storage
         .from('documents')
@@ -1109,11 +1182,25 @@ async function importThreadAttachments(
         continue
       }
 
-      if (isProject) {
+      // ⚠ PROJECT AND ORPHAN SHARE THIS BRANCH ON PURPOSE — they are the same
+      // table, the same pass and the same shape, differing only in whether
+      // `project_id` is filled. An orphan is NOT `is_company`: the column stays
+      // at its `false` default, so these files never widen a project-scoped
+      // question through `filter_include_company`, which is the pollution
+      // `documents/unfiled.ts` exists to fight. They are simply unparented,
+      // which is what `/decide` then asks a human about.
+      if (dest.kind !== 'opportunity') {
         const { data: doc, error } = await supabase
           .from('documents')
           .insert({
-            project_id: link.record_id,
+            project_id: dest.kind === 'project' ? dest.recordId : null,
+            // ⚠ THE SCOPE, WITHOUT WHICH THE INSERT IS REFUSED OUTRIGHT.
+            // `documents_scope_check` demands every row say what it is OF, and
+            // "off deal mail, parent not yet decided" is its newest member
+            // (20261025000012). This is also the one positive discriminator
+            // `/decide` reads, so an orphan that failed to set it would import
+            // successfully and then be invisible — worse than not importing.
+            awaiting_filing: dest.kind === 'orphan',
             file_name: fileName,
             storage_path: path,
             mime_type: ref.mimeType || null,
@@ -1155,7 +1242,7 @@ async function importThreadAttachments(
         await runDocumentAiPass({
           supabase,
           documentId: (doc as { id: string }).id,
-          projectId: link.record_id,
+          projectId: dest.kind === 'project' ? dest.recordId : null,
           fileName,
           mimeType: ref.mimeType || null,
           buffer: buffer.buffer.slice(
@@ -1168,7 +1255,7 @@ async function importThreadAttachments(
         const { data: doc, error } = await supabase
           .from('opportunity_documents')
           .insert({
-            opportunity_id: link.record_id,
+            opportunity_id: dest.recordId,
             file_name: fileName,
             storage_path: path,
             mime_type: ref.mimeType || null,
@@ -1199,7 +1286,7 @@ async function importThreadAttachments(
             buffer.byteOffset,
             buffer.byteOffset + buffer.byteLength
           ) as ArrayBuffer,
-          target: { table: 'opportunity_documents', opportunityId: link.record_id },
+          target: { table: 'opportunity_documents', opportunityId: dest.recordId },
           // Same reasoning as the project branch above, and it matters MORE
           // here: on the opportunity side the attachments are very nearly the
           // whole documents tab (GridEdge 22 of 23, IAN 13 of 13), so this is
@@ -1212,7 +1299,7 @@ async function importThreadAttachments(
       // file is done whatever happens next — and a deploy IS a kickstart (§12),
       // which is exactly what happens next often enough to matter.
       through = capped(Math.max(through, ref.through), blockedAt)
-      await advanceAttachments(link.id, through)
+      await advanceAttachments(dest, through)
     }
 
     // Only when the whole thread was walked AND nothing was left behind. Stopping
@@ -1220,13 +1307,20 @@ async function importThreadAttachments(
     // come leaves the cursor where the last finished file put it, so the next run
     // resumes there instead of skipping what it never got.
     const finished = taken < MAX_NEW_ATTACHMENTS && Date.now() < deadline && blockedAt === null
-    if (finished) await advanceAttachments(link.id, messages.length)
+    if (finished) await advanceAttachments(dest, messages.length)
 
     // Filing runs after the loop so the AI summaries exist to classify on, and
     // once per record rather than once per file. Best-effort by construction: a
     // Drive outage must never fail an attachment import that already succeeded.
     if (imported > 0) {
-      await fileRecordDocumentsQuietly(supabase, isProject ? 'project' : 'opportunity', link.record_id)
+      // ⚠ NOTHING IS FILED TO DRIVE FOR AN ORPHAN, and that is the point rather
+      // than an omission: Drive filing puts the document in the RECORD's folder,
+      // and there is no record. Filing it anywhere would be guessing, which is
+      // exactly the decision `/decide` hands to a human. The copy follows once
+      // the file is parented.
+      if (dest.kind !== 'orphan') {
+        await fileRecordDocumentsQuietly(supabase, dest.kind, dest.recordId)
+      }
     }
 
     return imported
@@ -1237,6 +1331,156 @@ async function importThreadAttachments(
     )
     return 0
   }
+}
+
+export interface UnparentedProgress {
+  /** Threads with files owed a read, before this run's limit. */
+  threadsPending: number
+  threadsConsidered: number
+  imported: number
+  /** Local-source threads retired from the queue — no Gmail behind them. */
+  localSkipped: number
+  failed: number
+  outOfTime: boolean
+}
+
+/**
+ * Import the files on deal mail that belongs to no record — the other 88%.
+ *
+ * ⚠ THIS IS A SELECTOR, NOT A SECOND IMPORT. It calls the same
+ * `importThreadAttachments` with `kind: 'orphan'`, so every fix in that function
+ * applies here on the day it is made. The thing that was missing was never the
+ * copying — it was a destination for a file whose deal is not known yet.
+ *
+ * Measured 2026-10-25: 422 threads carrying 809 files, in NO corpus at all.
+ * Attachment import had always required a `thread_links` row, and only 244 of
+ * 1,984 deal threads (12%) have one — so the gate was never "is this file worth
+ * keeping", it was "did the router happen to match this conversation". Among the
+ * casualties, on threads the summarizer ITSELF called `relevance='deal'`:
+ * `Tensor Agreement`, `Tensor IQ Teaming Agreement 1.6`, `Most recent IDIQ for
+ * 7 jurisdictions` (7 files), `Quit Claim Deed`, `Carbon County` (11 files).
+ *
+ * The row lands with `project_id` NULL and `is_company` false — unparented, NOT
+ * company knowledge, because a company-scoped passage is ORed into every
+ * project-scoped question and 809 deal files in that corpus would widen every
+ * answer. `/decide` then asks a human where each one belongs, with
+ * `matchDocument` proposing the target.
+ *
+ * ⚠ SCOPED TO `pipeline='deal'`. A lead's attachments are a capability deck and
+ * a W-9 from somebody selling us something; they have their own triage and they
+ * are not deal evidence. 1,965 lead threads would have swamped the queue this
+ * exists to make readable.
+ */
+export async function importUnparentedAttachments(
+  opts: { limit?: number; budgetMs?: number } = {}
+): Promise<UnparentedProgress> {
+  const db = sweepDb()
+  const deadline = Date.now() + (opts.budgetMs ?? 10 * 60 * 1000)
+  const limit = opts.limit ?? 25
+  const progress: UnparentedProgress = {
+    threadsPending: 0,
+    threadsConsidered: 0,
+    imported: 0,
+    localSkipped: 0,
+    failed: 0,
+    outOfTime: false,
+  }
+
+  // ⚠ THE "NO LINK" HALF CANNOT BE A `.not('id','in',…)` OF EVERY LINKED THREAD.
+  // That filter rides in the query string and 244 uuids is already ~9KB; the
+  // linked set grows with every filing, so the URL would fail silently-ish as a
+  // Kong 414 the day it crossed the line (§12 — the ROW cap and the URL cap are
+  // two limits one constant cannot serve). An embed of the child table answers
+  // the same question server-side and costs nothing.
+  //
+  // `attachments_through` is NOT NULL default 0, so the cursor comparison needs
+  // no coalesce — but it also cannot be expressed against another COLUMN in
+  // PostgREST, so the delta is computed here from a light select.
+  const candidates: Array<{
+    id: string
+    subject: string | null
+    mailbox: string
+    gmail_thread_id: string
+    message_count: number | null
+    attachment_count: number | null
+    attachments_through: number
+    last_at: string | null
+  }> = []
+
+  for (let from = 0; ; from += PAGE) {
+    const { data: page, error } = await db
+      .from('email_threads')
+      .select(
+        'id, subject, mailbox, gmail_thread_id, message_count, attachment_count, attachments_through, last_at, links:thread_links(id)'
+      )
+      .eq('pipeline', 'deal')
+      .gt('attachment_count', 0)
+      .order('last_at', { ascending: false })
+      .range(from, from + PAGE - 1)
+    if (error) throw new Error(`Could not scan unparented attachments: ${error.message}`)
+
+    const rows = (page ?? []) as unknown as Array<
+      (typeof candidates)[number] & { links: { id: string }[] | null }
+    >
+    for (const r of rows) {
+      if ((r.links ?? []).length > 0) continue
+      if (r.attachments_through >= (r.message_count ?? 0)) continue
+      candidates.push(r)
+    }
+    if (rows.length < PAGE) break
+  }
+
+  progress.threadsPending = candidates.length
+
+  for (const t of candidates.slice(0, limit)) {
+    if (Date.now() >= deadline) {
+      progress.outOfTime = true
+      break
+    }
+    progress.threadsConsidered++
+
+    // ⚠ A LOCAL THREAD IS RETIRED FROM THE QUEUE, NOT JUST SKIPPED. A text, a
+    // note or a voice memo has a synthetic thread id and no Gmail behind it, so
+    // `importThreadAttachments` returns 0 before fetching anything — correctly,
+    // but WITHOUT advancing a cursor. Left at that, every run would reconsider
+    // the same rows forever and the pending count would never fall, which reads
+    // exactly like a pass that is failing (§12 — a count that has stopped
+    // growing is indistinguishable from a quiet inbox). Stamping it says "there
+    // is nothing here to read", which is true and permanent.
+    if (isLocalThread(t.gmail_thread_id)) {
+      progress.localSkipped++
+      await advanceAttachments(
+        { kind: 'orphan', threadId: t.id, cursor: t.attachments_through },
+        t.message_count ?? 0
+      )
+      continue
+    }
+
+    try {
+      progress.imported += await importThreadAttachments(
+        { kind: 'orphan', threadId: t.id, cursor: t.attachments_through },
+        {
+          id: t.id,
+          subject: t.subject,
+          raw_markdown: null,
+          message_count: t.message_count,
+          attachment_count: t.attachment_count,
+          mailbox: t.mailbox,
+          gmail_thread_id: t.gmail_thread_id,
+          last_at: t.last_at,
+        },
+        deadline
+      )
+    } catch (err) {
+      progress.failed++
+      console.error(
+        `[sweep/apply] unparented attachments for ${t.gmail_thread_id} failed:`,
+        err instanceof Error ? err.message : String(err)
+      )
+    }
+  }
+
+  return progress
 }
 
 /**

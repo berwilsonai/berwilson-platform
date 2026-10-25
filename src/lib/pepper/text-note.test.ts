@@ -120,7 +120,7 @@ test('the two ledger quantities are NAMED APART and never summed', () => {
     note: emptyNote({
       owed: [1, 2, 3].map((n) => owed(`c${n}`, 'x')),
       awaited: [1, 2].map((n) => owed(`d${n}`, 'y')),
-      decide: { total: 12, intake: 12, meetings: 0, review: 0, documents: 0, misfiled: 0, fieldQuestions: 0, top: [] },
+      decide: { total: 12, intake: 12, meetings: 0, review: 0, documents: 0, misfiled: 0, unparented: 0, fieldQuestions: 0, top: [] },
     }),
     appUrl: null,
     now: NOW,

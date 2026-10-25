@@ -1313,6 +1313,39 @@ export async function probeMeetImport(): Promise<{
 }
 
 /**
+ * How old a SQLite snapshot's DATA is — across db + -wal + -shm.
+ *
+ * ⚠ NEVER THE `.db` MTIME ALONE, WHICH IS THE LAST CHECKPOINT AND NOT THE DATA.
+ * SQLite leaves the main file untouched for long stretches and writes to the
+ * write-ahead log. §12 already carries this rule — the voice-memo sweep learned
+ * it by crying "the snapshot is 102h old" on every run while correctly
+ * transcribing a 90-minute-old memo — and BOTH probes below had still been
+ * statting one file. Measured 2026-10-25: `CloudRecordings.db` was 10 days old
+ * while its `-wal` was 6, so the health page overstated a real outage by four
+ * days. On the one check whose entire job is to be believed, overstating is as
+ * corrosive as missing it: a check that cries wolf louder than the truth is one
+ * nobody reads on the day it is right.
+ *
+ * ONE helper for both doors rather than the same three lines twice — the two
+ * copies are exactly how this drifted into existence (§12).
+ *
+ * Returns null when nothing in the set exists, which the callers read as
+ * "no snapshot at all" rather than as "age zero".
+ */
+async function snapshotAgeMs(dbPath: string): Promise<number | null> {
+  const { statSync } = await import('node:fs')
+  let newest = 0
+  for (const suffix of ['', '-wal', '-shm']) {
+    try {
+      newest = Math.max(newest, statSync(dbPath + suffix).mtimeMs)
+    } catch {
+      /* a missing -wal/-shm is normal: SQLite removes them on a clean close */
+    }
+  }
+  return newest > 0 ? Date.now() - newest : null
+}
+
+/**
  * Text messages — is the snapshot fresh, and are sessions reaching the corpus?
  *
  * ⚠ WATCH THE CLOCK, NOT THE COUNT. The failure mode here is doing nothing
@@ -1336,8 +1369,8 @@ export async function probeIMessageSweep(): Promise<{
 
   let ageMs: number | null = null
   try {
-    const { statSync } = await import('node:fs')
-    ageMs = Date.now() - statSync(path).mtimeMs
+    ageMs = await snapshotAgeMs(path)
+    if (ageMs === null) throw new Error('no snapshot files')
   } catch {
     return {
       state: 'unconfigured',
@@ -1523,8 +1556,8 @@ export async function probeVoiceMemos(): Promise<{
 
   let ageMs: number | null = null
   try {
-    const { statSync } = await import('node:fs')
-    ageMs = Date.now() - statSync(path).mtimeMs
+    ageMs = await snapshotAgeMs(path)
+    if (ageMs === null) throw new Error('no snapshot files')
   } catch {
     return {
       state: 'unconfigured',

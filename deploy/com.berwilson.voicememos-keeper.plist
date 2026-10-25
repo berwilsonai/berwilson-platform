@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Keep Voice Memos.app running, because iCloud syncs it ONLY while it runs.
+
+  ⚠ THIS IS THE WHOLE IN-PERSON MEETING DOOR, AND IT CLOSED SILENTLY.
+
+  Measured 2026-10-25: `CloudRecordings.db-wal` had not been touched since
+  Oct 19 06:37 and Voice Memos.app was not running on the Studio. Six days of
+  memos recorded on the phone never reached the box. Messages and Notes were
+  both up, so their doors were fine; this one was shut by nothing more than an
+  app having been quit at some point.
+
+  The sweep DOES detect it — it prints "The snapshot is NNNh old ... or Voice
+  Memos.app is closed on the Studio" in its own log notes, and `probeVoiceMemos`
+  reports it on /settings/health. Neither is a channel anybody reads on a given
+  morning, and Pepper's outbound notes are held (CLAUDE.md §13), so the
+  detection was correct and the outcome was still six lost days.
+
+  ⚠ A CHANNEL WHOSE SETUP CANNOT BE AUTOMATED IS A CHANNEL THAT IS OFF (§12 —
+  Pepper's own text transport proved it over seven days of `Couldn't find
+  shortcut`). "Remember to leave Voice Memos open" is exactly that kind of
+  manual step, so it is replaced with a KeepAlive rather than documented.
+
+  KeepAlive + RunAtLoad: launchd reopens the app within seconds of it being
+  quit or crashing, and at login. `-g` keeps it from stealing focus, so the
+  window never jumps in front of whatever is on the Studio's displays.
+
+  ⚠ Notes.app deliberately has NO equivalent agent. It was running at the time
+  of the measurement and its WAL was current, so adding one would be a fix for a
+  problem nobody has observed — and §12's standing instruction is to measure
+  before building. If the notes sweep ever reports a stale snapshot while this
+  one is fresh, that is the evidence, and the agent is a copy of this file.
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.berwilson.voicememos-keeper</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/bin/open</string>
+    <string>-g</string>
+    <string>-W</string>
+    <string>-b</string>
+    <string>com.apple.VoiceMemos</string>
+  </array>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <!--
+    `open -W` waits for the app to exit, so launchd sees a long-running process
+    and KeepAlive restarts it when the app quits. Without -W, open returns
+    immediately, KeepAlive sees a process that exits at once, and launchd
+    throttles the job as a crash loop — which is a keeper that keeps nothing.
+
+    ⚠ `-b <bundle id>` AND NOT `-a "Voice Memos"`. The first version used the
+    display name and failed with `Unable to find application named 'Voice
+    Memos'` — the bundle is `/System/Applications/VoiceMemos.app`, with no space.
+    §12 in miniature: a vendor's NAME is a UI string, not an API contract, and
+    `com.apple.VoiceMemos` is the identifier that survives a rename or a
+    localisation. Found by checking the keeper's own error log rather than by
+    assuming the load had worked, because launchd reported the job LOADED either
+    way — a job that is loaded and failing looks exactly like one that is
+    working.
+  -->
+  <key>ThrottleInterval</key><integer>30</integer>
+  <key>StandardOutPath</key><string>__LOG_DIR__/voicememos-keeper.log</string>
+  <key>StandardErrorPath</key><string>__LOG_DIR__/voicememos-keeper.err.log</string>
+</dict>
+</plist>

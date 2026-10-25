@@ -97,7 +97,7 @@ export function resolveNavItem(item: NavItem, allowed: (href: string) => boolean
 }
 
 export const NAV_ITEMS: NavItem[] = [
-  { href: '/decide', label: 'Decide', title: 'Decide', icon: Gavel, group: 'triage', keywords: 'review queue approve confirm pending inbox decisions bids intake what needs me triage backlog', mobilePrimary: true, badge: 'review', alsoMatches: ['/review'] },
+  { href: '/decide', label: 'Decide', title: 'Decide', icon: Gavel, group: 'triage', keywords: 'review queue approve confirm pending inbox decisions bids intake what needs me triage backlog', mobilePrimary: true, badge: 'review', alsoMatches: ['/review', '/documents/unfiled'] },
   // ⚠ THE ATTENTION BADGE MOVED HERE FROM /dashboard (10-17). It had always
   // counted `countAttention()`, so a reader saw a number next to "Dashboard"
   // and had no way to reach the thing it counted — the dashboard rail showed a

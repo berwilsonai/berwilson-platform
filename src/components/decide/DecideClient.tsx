@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { Inbox, ClipboardCheck, FileText, ArrowRight, X, Loader2, Check, CheckCheck, HelpCircle, ListChecks, type LucideIcon } from 'lucide-react'
+import { Inbox, ClipboardCheck, FileText, FileQuestion, ArrowRight, X, Loader2, Check, CheckCheck, HelpCircle, ListChecks, type LucideIcon } from 'lucide-react'
 import { Panel } from '@/components/ui/card'
 import { Kbd } from '@/components/ui/kbd'
 import EmptyState from '@/components/shared/EmptyState'
@@ -17,6 +17,7 @@ export type DecideKind =
   | 'intake'
   | 'review'
   | 'document'
+  | 'unparented'
   | 'misfiled'
   | 'proposal'
 
@@ -211,6 +212,20 @@ const KIND_META: Record<DecideKind, { label: string; icon: LucideIcon; tone: str
     label: 'Field question',
     icon: HelpCircle,
     tone: 'bg-teal-50 text-teal-700 ring-teal-200 dark:bg-teal-950/40 dark:text-teal-300 dark:ring-teal-900',
+  },
+  /**
+   * A file off deal mail that is on NO record — a third quantity, named apart.
+   *
+   * ⚠ NOT folded into 'document', although both are "unfiled". The costs are
+   * opposites and a reader has to be able to tell them apart: an unfiled
+   * company document is ANSWERING, wrongly, for every project-scoped question;
+   * an unparented one answers NOTHING, for anybody. One label for two
+   * quantities is how a reader stops trusting either (§12).
+   */
+  unparented: {
+    label: 'No deal yet',
+    icon: FileQuestion,
+    tone: 'bg-sky-50 text-sky-700 ring-sky-200 dark:bg-sky-950/40 dark:text-sky-300 dark:ring-sky-900',
   },
   misfiled: {
     label: 'Wrong deal',

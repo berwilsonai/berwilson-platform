@@ -168,11 +168,29 @@ export function readVoiceMemos(opts: { snapshot?: string } = {}): MemoReadResult
     }
   }
 
-  try {
-    base.snapshotAgeMinutes = Math.floor((Date.now() - statSync(dbPath).mtimeMs) / 60_000)
-  } catch {
-    /* age is diagnostic only */
+  // ⚠ THE NEWEST MTIME ACROSS db + -wal + -shm, NEVER THE `.db` ALONE.
+  //
+  // §12 already carries this rule and it had not reached this door. SQLite
+  // leaves the main file untouched for long stretches and writes to the
+  // write-ahead log, so the `.db` mtime is the age of the last CHECKPOINT, not
+  // of the data. Measured 2026-10-25: `CloudRecordings.db` was 10 days old while
+  // `-wal` was 6, and this probe reported "246h old" — overstating a real outage
+  // by four days, on the one check whose whole job is to be believed. A check
+  // that cries wolf louder than the truth is one nobody reads on the day it is
+  // right, which is the failure this rule exists to prevent.
+  //
+  // The same reasoning as the copy below, which already reads all three files
+  // because reading only the `.db` would miss recent rows entirely — the clock
+  // and the data have to come from the same set.
+  let newest = 0
+  for (const suffix of ['', '-wal', '-shm']) {
+    try {
+      newest = Math.max(newest, statSync(dbPath + suffix).mtimeMs)
+    } catch {
+      /* a missing -wal/-shm is normal: SQLite removes them on a clean close */
+    }
   }
+  if (newest > 0) base.snapshotAgeMinutes = Math.floor((Date.now() - newest) / 60_000)
 
   const tmp = mkdtempSync(join(tmpdir(), 'bw-memos-'))
   try {

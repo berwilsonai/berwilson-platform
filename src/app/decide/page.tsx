@@ -9,7 +9,7 @@ import { enumLabel, ACTIVITY_TABLE_LABELS } from '@/lib/utils/constants'
 import { buildConfirmBody } from '@/lib/email-ingestion/defaults'
 import { resolveSessionTaskTarget, readExtractionTasks } from '@/lib/email-ingestion/task-target'
 import { parseStagedAttachments } from '@/lib/email-ingestion/attachments'
-import { findMisfiledCompanyDocuments } from '@/lib/documents/unfiled'
+import { findMisfiledCompanyDocuments, findUnparentedDocuments } from '@/lib/documents/unfiled'
 import { findMisfiledRecordDocuments } from '@/lib/documents/misfiled'
 import { readOpenProposals } from '@/lib/provenance/report'
 import type { EmailIntakeExtraction } from '@/lib/ai/prompts/email-intake'
@@ -59,6 +59,7 @@ export default async function DecidePage() {
     { data: sessions },
     { data: reviewRows },
     unfiledDocs,
+    unparented,
     misfiledDocs,
     fieldQuestions,
   ] = await Promise.all([
@@ -84,6 +85,7 @@ export default async function DecidePage() {
     // The same pass backs the knowledge-base list on /company, so the queue and
     // that page can never disagree about what is waiting (§12).
     findMisfiledCompanyDocuments(),
+    findUnparentedDocuments(),
     // Documents already on a deal, whose own name points at a DIFFERENT deal.
     // The other half of the same question — see the header of misfiled.ts.
     findMisfiledRecordDocuments().catch(() => []),
@@ -336,6 +338,59 @@ export default async function DecidePage() {
     })
   }
 
+  // --- Files off deal mail that are on no record --------------------------
+  //
+  // Why this is a decision and not a script: these arrived as email attachments
+  // on deal correspondence the router could not place, so nothing in the system
+  // knows which deal they belong to — and `matchDocument` proposing one is a
+  // proposal, never a fact. Where a document belongs is a judgement (§12).
+  //
+  // ⚠ WHY THIS CLASS EXISTS AT ALL. Attachment import required a `thread_links`
+  // row, and only 244 of 1,984 deal threads (12%) have one, so a file on
+  // unmatched mail was imported NOWHERE. Measured 2026-10-25: 809 attachments on
+  // 422 threads, in no corpus — not as documents, not as mail chunks, not in any
+  // queue, not on any health card. `Tensor IQ Teaming Agreement 1.6`, a
+  // `Quit Claim Deed`, an `Engagement letter` and 11 files on `Carbon County`
+  // were among them, all on threads the summarizer itself called
+  // `relevance='deal'`. The import now runs without a parent and this is where
+  // the parent gets decided.
+  //
+  // The cost of leaving one is the MIRROR of the company-knowledge class above,
+  // which is why they are two chips and not one: an unfiled company document is
+  // answering, wrongly, for every project-scoped question; one of these answers
+  // nothing, for anybody.
+  for (const doc of unparented.offered) {
+    const isNotADocument = doc.target === null
+    items.push({
+      id: doc.id,
+      kind: 'unparented',
+      title: doc.fileName,
+      // ⚠ THE THREAD'S SUBJECT, WHICH IS USUALLY THE ONLY CONTEXT THERE IS.
+      // `Package.pdf` and `Quit Claim Deed` name no record; the conversation
+      // that delivered them is what makes the row answerable at a glance.
+      subtitle: doc.sourceSubject ? `arrived on "${doc.sourceSubject}"` : 'from email',
+      href: '/intake',
+      verdict: null,
+      score: null,
+      // What it costs to leave it. ⚠ A ZERO HERE IS THE EXPENSIVE CASE, the
+      // opposite of the company queue where zero means "answering nothing yet,
+      // so this is cheap to leave". These rows are filed on no record, so if the
+      // text is not in the mail index either, the file is reachable by nothing.
+      note: isNotADocument
+        ? (doc.reason ?? 'not a document')
+        : doc.mailChunks > 0
+          ? `${doc.mailChunks} passage${doc.mailChunks === 1 ? '' : 's'} searchable with its email thread, but the file is on no record${doc.reason ? ` — ${doc.reason}` : ''}`
+          : `On no record and not indexed — nothing can answer from this file today${doc.reason ? `. ${doc.reason}` : ''}`,
+      deadline: null,
+      accept: isNotADocument ? 'setaside' : 'file',
+      acceptName: isNotADocument ? doc.fileName : (doc.target?.name ?? null),
+      fileTarget: doc.target ? { kind: doc.target.kind, id: doc.target.id } : null,
+      fileSource: 'documents',
+      confidence: doc.confidence ?? (isNotADocument ? 1 : null),
+      blocker: null,
+    })
+  }
+
   // --- Documents on the wrong deal ----------------------------------------
   //
   // Why this is a decision and not a script: these are confident proposals, and
@@ -434,6 +489,32 @@ export default async function DecidePage() {
           </p>
         </div>
       </div>
+
+      {/*
+        ⚠ THE HELD COUNT, BECAUSE A GATE NOBODY CAN SEE IS A BLACK HOLE (§12).
+        `matchDocument` proposes nothing for most unparented files — correctly,
+        since reaching for the closest record is how real evidence lands on the
+        wrong deal — so they are kept OUT of the queue above, which is what lets
+        it reach zero. But these particular rows are filed on no record at all,
+        so "held" means "answering nothing and not on anybody's list". Saying so
+        in one line is the difference between a deliberate hold and a loss.
+      */}
+      {unparented.held > 0 && (
+        <p className="text-sm text-muted-foreground">
+          {unparented.held} further{' '}
+          {unparented.held === 1 ? 'file is' : 'files are'} held back: they came off deal
+          mail and sit on no record, but nothing in their name or text points at a
+          particular deal, so there is no filing to offer — but you will know which
+          deal each one belongs to at a glance.{' '}
+          <Link
+            href="/documents/unfiled"
+            className="underline underline-offset-2 hover:text-foreground"
+          >
+            Pick their deals
+          </Link>
+          .
+        </p>
+      )}
 
       <DecideClient items={items} />
     </div>

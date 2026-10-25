@@ -37,6 +37,15 @@ export interface CompanyKnowledgeDoc {
   aiSummary: string | null
   /** Which nominated Drive folder it came from, once backfilled. */
   folderPath: string | null
+  /**
+   * The SUBJECT of the mail that delivered it, for an unparented row.
+   *
+   * ⚠ Usually the only thing that says which deal the file is about. A
+   * `documents` row called `Package.pdf` or `Quit Claim Deed` names no record;
+   * the thread it arrived on is the context a human needs and the reason this
+   * is carried rather than read per-row at the renderer.
+   */
+  sourceSubject: string | null
   embeddingStatus: string | null
   /** A human has said this belongs where it is — out of the queue, still listed. */
   filingConfirmed: boolean
@@ -81,6 +90,22 @@ const CANDIDATE_COLUMNS = DOCUMENT_MATCH_COLUMNS
 type CandidateRow = DocumentMatchRow
 
 /**
+ * Which population of documents is being asked the filing question.
+ *
+ * `company` — indexed as Ber Wilson company knowledge by the nightly Drive
+ * sync. The cost of leaving one is that `filter_include_company` ORs its
+ * passages into every project-scoped question.
+ *
+ * `unparented` — imported off deal mail that belongs to no record (2026-10-25).
+ * The cost of leaving one is the opposite and larger: it answers for NOTHING.
+ * 809 attachments were in this state on 422 threads, among them
+ * `Tensor IQ Teaming Agreement 1.6`, a `Quit Claim Deed` and 11 files on
+ * `Carbon County`, because attachment import had always required a
+ * `thread_links` row and only 12% of deal threads carry one.
+ */
+export type FilingScope = 'company' | 'unparented'
+
+/**
  * A file that can never be company knowledge, whatever folder it sits in.
  *
  * Site photos and logo SVGs were being imported, listed among the capability
@@ -107,16 +132,36 @@ function isNotKnowledge(row: CandidateRow): string | null {
  *
  * Excluded and retired rows are already decided and never reappear.
  */
-export async function loadCompanyKnowledge(): Promise<CompanyKnowledgeDoc[]> {
+export async function loadCompanyKnowledge(
+  scope: FilingScope = 'company'
+): Promise<CompanyKnowledgeDoc[]> {
   const supabase = createAdminClient()
 
-  const { data, error } = await supabase
+  // ⚠ A SCOPE, NOT A SIBLING MODULE (§12 — a fork is hardest to see as two
+  // sibling modules written days apart, and the tell is a second module
+  // answering the same question for a second source). "Which deal does this
+  // document belong to" is ONE question: same `matchDocument`, same targets,
+  // same chunk-footprint annotation, same confirmed-is-decided rule. Only the
+  // WHERE clause differs, and a WHERE clause is a parameter.
+  const base = supabase
     .from('documents')
     .select(CANDIDATE_COLUMNS)
-    .eq('is_company', true)
     .is('superseded_at', null)
     .is('excluded_at', null)
-    .order('file_name')
+  const scoped =
+    scope === 'company'
+      ? base.eq('is_company', true)
+      : // ⚠ ONE POSITIVE DISCRIMINATOR, NOT AN INFERENCE ACROSS THREE NULLABLE
+        // COLUMNS (§12 — give it a positive discriminator). `project_id is null
+        // and is_company = false` was the first version and it was wrong in
+        // both directions: it swept in the 13 pre-existing parentless rows that
+        // came from elsewhere and were never a filing question, and it would
+        // have kept offering a row after it was filed. `awaiting_filing` is set
+        // by the orphan import and cleared by refileDocument/excludeDocument,
+        // so the queue reaches zero and stays there.
+        base.eq('awaiting_filing', true)
+
+  const { data, error } = await scoped.order('file_name')
   if (error) {
     // A broken query and an empty knowledge base are the same number on screen
     // (§12). Say which this was and return nothing rather than a false all-clear.
@@ -128,7 +173,7 @@ export async function loadCompanyKnowledge(): Promise<CompanyKnowledgeDoc[]> {
 
   // Chunk counts in one grouped read rather than per document — and the mail
   // index's counts beside them, for the rows whose text was never chunked here.
-  const [chunkCounts, mailCounts] = await Promise.all([
+  const [chunkCounts, mailCounts, subjects] = await Promise.all([
     countChunksByDocument(
       supabase,
       rows.map((r) => r.id)
@@ -136,6 +181,10 @@ export async function loadCompanyKnowledge(): Promise<CompanyKnowledgeDoc[]> {
     countMailChunksByDocument(
       supabase,
       rows.map((r) => ({ id: r.id, threadId: r.source_thread_id, fileName: r.file_name }))
+    ),
+    sourceSubjects(
+      supabase,
+      rows.map((r) => r.source_thread_id)
     ),
   ])
 
@@ -158,6 +207,7 @@ export async function loadCompanyKnowledge(): Promise<CompanyKnowledgeDoc[]> {
       aiSummary: row.ai_summary,
       folderPath: row.drive_folder_path,
       embeddingStatus: row.embedding_status,
+      sourceSubject: row.source_thread_id ? subjects.get(row.source_thread_id) ?? null : null,
       chunks: chunkCounts.get(row.id) ?? 0,
       mailChunks: mailCounts.get(row.id) ?? 0,
       fromDrive: row.drive_file_id !== null,
@@ -220,6 +270,29 @@ export function isAwaitingDecision(doc: CompanyKnowledgeDoc): boolean {
 /** Company documents awaiting a filing decision. */
 export async function findMisfiledCompanyDocuments(): Promise<CompanyKnowledgeDoc[]> {
   return (await loadCompanyKnowledge()).filter(isAwaitingDecision)
+}
+
+/**
+ * Unparented mail attachments, split into the ones that can be offered and the
+ * ones that cannot.
+ *
+ * ⚠ THE HELD COUNT IS RETURNED, NOT DISCARDED, and that is the whole reason this
+ * returns a pair instead of an array. `isAwaitingDecision` keeps a document out
+ * of the queue when nothing can be proposed for it — right, because reaching for
+ * the closest record is how real evidence lands on the wrong deal — but a row
+ * held by a gate nobody can see is a black hole (§12: a gated-out row is HELD,
+ * never dismissed; report the held count). For THIS population the stakes are
+ * the other way round from company knowledge: a held company document still
+ * answers questions, while a held unparented document answers nothing at all.
+ * So the number has to be on the screen even though the rows are not.
+ */
+export async function findUnparentedDocuments(): Promise<{
+  offered: CompanyKnowledgeDoc[]
+  held: number
+}> {
+  const all = await loadCompanyKnowledge('unparented')
+  const offered = all.filter(isAwaitingDecision)
+  return { offered, held: all.length - offered.length }
 }
 
 /** How many are waiting. Calls the same pass the queue does, deliberately. */
@@ -330,6 +403,40 @@ export async function countChunksByDocument(
  * Commitment - AS.pdf", so a name on its own would pool four parcels' passages
  * onto whichever document asked first.
  */
+/**
+ * The subject of each thread that delivered one of these documents.
+ *
+ * One grouped read, chunked — a filter rides in the query string and 200 uuids
+ * is already ~7KB (§12: the ROW cap and the URL cap are two different limits).
+ * Nulls are dropped and de-duplicated first: several files arrive on one thread,
+ * so the id list is routinely shorter than the row list.
+ */
+async function sourceSubjects(
+  supabase: ReturnType<typeof createAdminClient>,
+  threadIds: (string | null)[]
+): Promise<Map<string, string | null>> {
+  const out = new Map<string, string | null>()
+  const ids = [...new Set(threadIds.filter((id): id is string => !!id))]
+  if (ids.length === 0) return out
+
+  for (let i = 0; i < ids.length; i += 200) {
+    const { data, error } = await supabase
+      .from('email_threads')
+      .select('id, subject')
+      .in('id', ids.slice(i, i + 200))
+    if (error) {
+      // A missing subject degrades the row to no context, which is worse but
+      // still usable. Never fail the whole queue for it.
+      console.error('[unfiled] could not read source thread subjects:', error.message)
+      continue
+    }
+    for (const r of (data ?? []) as { id: string; subject: string | null }[]) {
+      out.set(r.id, r.subject)
+    }
+  }
+  return out
+}
+
 export async function countMailChunksByDocument(
   supabase: ReturnType<typeof createAdminClient>,
   docs: Array<{ id: string; threadId: string | null; fileName: string | null }>
