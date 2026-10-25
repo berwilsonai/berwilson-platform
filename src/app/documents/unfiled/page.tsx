@@ -41,12 +41,18 @@ export default async function UnfiledDocumentsPage() {
     loadTargets().catch(() => []),
   ])
 
-  // ⚠ A LEAD IS DROPPED, and `flatMap` rather than a filtered predicate because
-  // narrowing `LinkRecordKind` through a type guard does not survive the map.
-  // `loadTargets()` includes leads — the mail router can link a thread to one —
-  // but a lead holds no documents: `refileDocument` has no arm for it and the
-  // refile route's TARGET_TABLES names only these three. Offering one would be a
-  // picker whose button cannot work.
+  // ⚠ NARROWED BECAUSE THE TYPE PERMITS MORE THAN THE QUERY RETURNS, which is a
+  // different reason from the one that first went here. `Target.kind` is
+  // `LinkRecordKind`, so it includes `lead` and `steel_deal` and `tsc` demands
+  // the narrowing; `loadTargets()` itself selects only from `projects` and
+  // `opportunities` (37 rows here), so nothing is actually being dropped today.
+  // The filter is therefore a type obligation AND a real guard for the day
+  // loadTargets widens: a lead holds no documents — `refileDocument` has no arm
+  // for one and the refile route's TARGET_TABLES names only these three — so
+  // offering it would be a picker whose button cannot work.
+  //
+  // `flatMap` rather than `.filter()` with a type predicate, because narrowing
+  // a union member through a guard does not survive into the subsequent `.map`.
   const targets: FilingTarget[] = rawTargets
     .flatMap((t) =>
       t.kind === 'project' || t.kind === 'opportunity' || t.kind === 'steel_deal'
