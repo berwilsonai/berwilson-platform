@@ -24,7 +24,7 @@
 
 import { loadPepperMembers } from '@/lib/pepper/attribution'
 import { notify } from '@/lib/notify'
-import { textTargets } from '@/lib/notify/text'
+import { PEPPER_SIGNATURE, textTargets } from '@/lib/notify/text'
 import { isConfidentialProject } from '@/lib/security/confidential'
 import { createAdminClient } from '@/lib/supabase/admin'
 import type { CreatedRecord } from '@/lib/records/from-recording'
@@ -84,9 +84,13 @@ export function composeRecordAlert(
   }
 
   lines.push('')
-  lines.push('— Pepper')
+  // ⚠ THE CONSTANT, NOT THE STRING. `sendText` signs every text at the choke
+  // point now, and it recognises an already-signed body by matching this exact
+  // line — so a reworded copy here would be signed TWICE, in two places.
+  lines.push(PEPPER_SIGNATURE)
   // One record puts its link under the signature, where a single tap lands; a
-  // list has already carried each link beside its own record.
+  // list has already carried each link beside its own record. Signing at the
+  // choke point is idempotent precisely so this deliberate order survives it.
   if (base && created.length === 1) lines.push(`${base}${recordPath(created[0].kind, created[0].id)}`)
   if (!base) lines.push('(no APP_URL configured, so no link — set it and these become tappable)')
 

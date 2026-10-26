@@ -8,7 +8,16 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 
-import { bodyHash, gatewayAddress, normalizeBody, normalizeHandle, parseTextTargets } from './text'
+import {
+  PEPPER_SIGNATURE,
+  bodyHash,
+  gatewayAddress,
+  gatewaySender,
+  normalizeBody,
+  normalizeHandle,
+  parseTextTargets,
+  signAsPepper,
+} from './text'
 
 test('a 10-digit US number becomes E.164', () => {
   assert.equal(normalizeHandle('8018159150'), '+18018159150')
@@ -140,4 +149,70 @@ test('a handle too short to be a US number gets no gateway address', () => {
     gatewayAddress({ email: 'a@b.com', handle: '+4477', shortcut: 'S', carrierDomain: 'tmomail.net' }),
     null
   )
+})
+
+// ---------------------------------------------------------------------------
+// Who a text comes from, and what it is signed as
+//
+// Richard's instruction, 2026-10-26: a notification texted to him or to Eric
+// comes from info@berwilson.com, signed as Pepper. Pinned here because the
+// three things that carry it are all defaulted env vars, and an unset variable
+// deciding an identity is how one drifts with nobody editing it (§12).
+// ---------------------------------------------------------------------------
+
+test('a text is sent AS info@berwilson.com, named Pepper', () => {
+  const { from, fromName } = gatewaySender()
+  assert.equal(from, 'info@berwilson.com')
+  assert.equal(fromName, 'Pepper')
+})
+
+test('the subject a carrier renders into the text names Pepper, not the platform', () => {
+  // It read 'Ber AI' until 10-26 — the system's name, where the first thing a
+  // text should answer is who is speaking.
+  assert.equal(gatewaySender().subject, 'Pepper')
+})
+
+test('an unsigned body gets signed', () => {
+  const body = signAsPepper('Due today, Eric: 1 task still open.')
+  assert.ok(body.endsWith(PEPPER_SIGNATURE), body)
+  assert.equal(body.split('\n').filter((l) => l.trim() === PEPPER_SIGNATURE).length, 1)
+})
+
+test('a body that already signs itself is NOT signed twice', () => {
+  // `record_alert` composes its own signature and puts the record's link BELOW
+  // it deliberately — "where a single tap lands". A blind append would both
+  // double the signature and move it to the bottom, so this is the assertion
+  // that keeps that shape.
+  const composed = ['New project: Tooele', 'Next: send the MNDA', '', PEPPER_SIGNATURE, 'https://example.test/p/1'].join('\n')
+  const out = signAsPepper(composed)
+  assert.equal(out, composed)
+  assert.equal(out.split('\n').filter((l) => l.trim() === PEPPER_SIGNATURE).length, 1)
+  // The link stays last, under the signature, exactly as composed.
+  assert.ok(out.endsWith('https://example.test/p/1'))
+})
+
+test('prose that merely mentions her is still signed', () => {
+  // ⚠ WHOLE-LINE MATCH, NEVER CONTAINMENT (§12). "— Pepper" inside a sentence
+  // is not a signature, and reading it as one would ship an unsigned text.
+  const out = signAsPepper('Pepper could not reach LM Studio — Pepper will retry at 07:00.')
+  assert.ok(out.endsWith(`\n\n${PEPPER_SIGNATURE}`), out)
+})
+
+test('an empty body stays empty, so the send still refuses it', () => {
+  // sendText() returns 'empty body' on a falsy value; signing must not turn
+  // nothing into a message that is only a signature.
+  assert.equal(signAsPepper(''), '')
+  assert.equal(signAsPepper('   \n  '), '')
+})
+
+test('the signature is inside the hash the self-loop guard stores', () => {
+  // ⚠ sendText hashes the SIGNED body, because ingestion compares what it finds
+  // in chat.db against the ledger. Hashing the unsigned body would put a
+  // message on the wire that the guard cannot recognise — the 10-09 self-loop
+  // rebuilt by a signature.
+  const raw = 'Week ahead, Richard. 1 of yours due this week.'
+  assert.notEqual(bodyHash(signAsPepper(raw)), bodyHash(raw))
+  // And it survives the chat.db round trip the same way an unsigned body does.
+  const signed = signAsPepper(raw)
+  assert.equal(bodyHash(signed.replace(/\n/g, '\r\n') + '  '), bodyHash(signed))
 })

@@ -218,7 +218,29 @@ export interface SendTextResult {
   via?: 'gateway' | 'shortcut'
 }
 
-/** Who a gateway text is sent AS. Pepper's own seat, so the thread is hers. */
+/**
+ * WHO A TEXT TO ERIC OR RICHARD COMES FROM, AND WHAT IT IS SIGNED AS.
+ *
+ * Richard's instruction, 2026-10-26: *"when notifications are texted to Eric
+ * or myself, make sure they come from info@berwilson.com signed as Pepper."*
+ * Three separate things carry that, because a carrier delivers them
+ * independently and any one of them can be the only one that survives:
+ *
+ *   1. **The envelope** — `info@`, Pepper's own seat. Measured against the live
+ *      Sent mail on 10-26: all 11 gateway sends in 30 days already read
+ *      `Pepper <info@berwilson.com>`, so this half was right and is now PINNED
+ *      BY A TEST rather than left to an unset env var to decide.
+ *   2. **The subject**, which a carrier renders into the delivered message —
+ *      so it names her rather than the platform. It read `Ber AI` until 10-26,
+ *      which is the system's name, not the sender's.
+ *   3. **The body's signature**, which is the ONLY one of the three a carrier
+ *      cannot strip. {@link signAsPepper}.
+ *
+ * ⚠ THE ENV VARS STAY AS OVERRIDES BUT THE DEFAULTS ARE THE REQUIREMENT. An
+ * unset variable deciding the sender is how an identity drifts without anybody
+ * editing it, so `gatewaySender()` is the one place that answers the question
+ * and `text.test.ts` asserts what it answers.
+ */
 const GATEWAY_FROM = process.env.PEPPER_TEXT_FROM ?? 'info@berwilson.com'
 const GATEWAY_FROM_NAME = process.env.PEPPER_TEXT_FROM_NAME ?? 'Pepper'
 
@@ -226,9 +248,43 @@ const GATEWAY_FROM_NAME = process.env.PEPPER_TEXT_FROM_NAME ?? 'Pepper'
  * The subject on a gateway message.
  *
  * Carriers render the subject as the first line of the text, so it is one short
- * label and never a summary — the body already says what happened.
+ * label and never a summary — the body already says what happened. It is her
+ * name because the first thing a text should answer is who is speaking.
  */
-const GATEWAY_SUBJECT = process.env.PEPPER_TEXT_SUBJECT ?? 'Ber AI'
+const GATEWAY_SUBJECT = process.env.PEPPER_TEXT_SUBJECT ?? 'Pepper'
+
+/** The sender identity on every text, in one place so a test can pin it. */
+export function gatewaySender(): { from: string; fromName: string; subject: string } {
+  return { from: GATEWAY_FROM, fromName: GATEWAY_FROM_NAME, subject: GATEWAY_SUBJECT }
+}
+
+/** How Pepper signs a text. One home — `record-alert.ts` had the only copy. */
+export const PEPPER_SIGNATURE = '— Pepper'
+
+/**
+ * Sign a text as Pepper, once.
+ *
+ * ⚠ AT THE CHOKE POINT, NOT IN EACH COMPOSER (§12: a convention every caller
+ * has to remember is one that goes missing in the route added next year). Of
+ * the four live text passes, exactly ONE — `record_alert` — signed its own
+ * body; the task reminder, the `document_ready` text and the `agent_answer`
+ * text all went out unsigned, which is what Richard was reading when he asked
+ * for this. Signing here covers those three and every pass added later.
+ *
+ * ⚠ IDEMPOTENT ON PURPOSE, AND THAT IS WHAT PRESERVES `record_alert`'S SHAPE.
+ * It puts its signature ABOVE the record's link deliberately — "where a single
+ * tap lands" — so a blind append would both double the signature and move it.
+ * A body that already carries the line is returned untouched.
+ */
+export function signAsPepper(body: string): string {
+  const clean = normalizeBody(body)
+  if (!clean) return clean
+  // Matched as a WHOLE LINE, never by containment (§12): a text whose prose
+  // happens to mention Pepper is not a signed text, and
+  // `"— Pepper"` appearing mid-sentence must not suppress the signature.
+  const signed = clean.split('\n').some((line) => line.trim() === PEPPER_SIGNATURE)
+  return signed ? clean : `${clean}\n\n${PEPPER_SIGNATURE}`
+}
 
 /**
  * Send one text.
@@ -246,7 +302,13 @@ export async function sendText(args: {
   dryRun?: boolean
 }): Promise<SendTextResult> {
   const { target, body, kind, dryRun = false } = args
-  const clean = normalizeBody(body)
+  // ⚠ SIGN BEFORE HASHING, AND THE ORDER IS LOAD-BEARING. The self-loop guard
+  // works by hashing what we send and having ingestion drop what it finds in
+  // `pepper_outbound_texts`; signing AFTER the hash would put a body on the wire
+  // that hashes to something the ledger does not hold, which is the 2026-10-09
+  // failure (131 of 481 commitments were Pepper reading her own notes) rebuilt
+  // by a signature. One value is hashed, recorded and sent.
+  const clean = signAsPepper(body)
   if (!clean) return { ok: false, handle: target.handle, error: 'empty body' }
 
   const { error: recErr } = await provDbAs(PEPPER_ACTOR)
