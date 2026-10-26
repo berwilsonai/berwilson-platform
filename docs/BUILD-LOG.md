@@ -13,6 +13,114 @@ Split out of `CLAUDE.md` on 2026-09-23, when that file reached 606k characters a
 
 211 entries, 2026-06-22 → 2026-10-25. ⚠ Counted with `grep -c "^\*\*Done 2026"`, not incremented by hand: two sessions editing this file on 2026-10-08 each bumped the old figure by one and both landed on 146 against a real 148.
 
+**Done 2026-10-26 (the letter to T-Mobile — and researching it corrected my own diagnosis):**
+
+Richard: *"Email T-Mobile's postmaster to clear the sender reputation."*
+
+**Sent.** 15:31 PDT from `info@berwilson.com` — deliberately the mailbox the block names, which is also the proof we control it — to **`abuse@t-mobile.com`**, cc `postmaster@t-mobile.com`, accepted by their Proofpoint MX with no bounce from either role address.
+
+⚠ **THE ADDRESS WAS LOOKED UP, NOT GUESSED, AND THAT WAS THE POINT OF NOT FIRING IT OFF IMMEDIATELY.** `abuse@t-mobile.com` is the **ARIN-registered `OrgAbuseEmail` for T-Mobile USA's TMO2 netblock** (`whois -h whois.arin.net "n 208.54.0.0"`), not a plausible-looking role address. A web search offered the same string with no provenance; the registry is the authority. Their own MX is `*.gslb.pphosted.com` — Proofpoint, the same vendor as the `cloudfilter.net` filter that is rejecting us, which is worth knowing because it means one party sees both sides.
+
+⚠ **AND THE RESEARCH OVERTURNED THE DIAGNOSIS I HAD GIVEN RICHARD HOURS EARLIER.** I had told him `AUP#MXRT` was *"an acceptable-use rate/reputation block on our sender"* and offered *"clear the sender reputation with T-Mobile"* as one of three options. **`MXRT` is "Maximum Rate Exceeded" — a rate threshold. The reputation half was my inference and it was wrong**, which means the task as literally specified ("clear the sender reputation") asks for something that may not exist. The letter asks what the code actually signifies instead of asserting a cause, which is the only honest version of the request.
+
+⚠ **THEN THE VOLUME KILLED THE RATE EXPLANATION TOO, AND THAT BECAME THE LETTER'S LEAD.** Measured from the sender's own Sent folder rather than from the bounces: **15 messages to `tmomail.net` and 72 messages in total** from that mailbox in 30 days — under one text every two days, no burst larger than two in a minute. Nothing at that volume reaches a rate threshold. What *is* shared is the egress: Google Workspace sends from a **shared** outbound range (`209.85.220.41` on a live sample), carrying traffic for an enormous number of tenants. **If the `MXRT` counter is keyed on the sending IP rather than the sending domain, we are collateral and nothing we change at our end clears it** — so the letter asks which it is, and offers to be corrected.
+
+⚠ **A DNS READING THAT LOOKED DAMNING WAS CORRECTED BY THE WIRE.** `dig TXT google._domainkey.berwilson.com` returns nothing and no common selector resolves, which reads as *no DKIM at all* — and I nearly reported that. Reading a delivered message's `Authentication-Results` instead: **`dkim=pass`, `spf=pass`, `dmarc=pass`** — but signed `d=berwilson-com.20251104.gappssmtp.com`, Google's **shared fallback** key for tenants that never configured their own. So the mail authenticates while the domain has no DKIM reputation of its own. Real hygiene, filed as optional in [`OPEN-ITEMS.md`](OPEN-ITEMS.md) rather than sold as the fix, because it is not the cause here and email delivery is already proven. **§12's rule earned again: verify a DNS absence against what the receiving server actually said.**
+
+⚠ **AND A VENDOR CLAIM WAS NEARLY REPEATED AS FACT.** Three sites asserted `tmomail.net` *"was shut down in December 2024 — accepted upstream and silently dropped, no text arrives and no bounce is returned"*, which would have made the whole letter pointless. **All three sell email-to-SMS replacements.** Checked instead of believed: `tmomail.net` publishes two live MX records, a real SPF record, and its MX answered us with AUP codes that same day. **Then Richard settled it from the one place it could be settled — his own phone: the texts DO arrive, at least sometimes.** That closes the item standing since 10-19 (*"say whether the texts arrived — your phone is the only test there is"*), confirms the gateway delivers intermittently, and is why the request was worth sending at all.
+
+**On not sending it blind.** The letter is signed in Richard's name and goes to an outside carrier, so it was built as a Gmail **draft** in `info@` first, then sent with `drafts/send` — the one call that transmits the reviewed bytes rather than a rebuilt copy. He was asked two things before it went: whether the texts had ever arrived (which decides whether any of this is worth asking) and whether to send or read first. He said send.
+
+Nothing in the platform changed; no code, no tests. **SENT**
+
+**Done 2026-10-26 (the platform was paying for reasoning it threw away — and the measurement said which passes may stop):**
+
+Richard: *"Is there anything we could do to more fully take advantage of our built in LLM capabilities or our connection to Gsuite?"* An open question, so the first deliverable was a measurement rather than a feature, and it came back lopsided: **Gsuite is already well exploited; the local model discards ~90% of everything it generates.**
+
+⚠ **THE COST WAS INVISIBLE BECAUSE NOTHING COUNTED IT.** `qwen/qwen3.6-35b-a3b` reasons before it answers and LM Studio returns that reasoning in a SEPARATE `reasoning_content` field, which this platform has always dropped on the floor. `tokens_out` counted it; nothing separated it. Dividing the logged answer's character count into the token total over 30 days (3,982 calls, 55.3 GPU-hours) gives the share of each generation that was reasoning:
+
+| prompt | n | completion tokens | answer (est) | **discarded** | sec |
+|---|---|---|---|---|---|
+| thread-summary-1.0 | 954 | 2,486 | ~274 | 89% | 45.3 |
+| doc-summary-1.0 | 612 | 2,002 | ~155 | 92% | 41.3 |
+| lead-triage-3.0 | 608 | 3,076 | ~275 | 91% | 50.9 |
+| fit-assessment-2.1 | 526 | 2,949 | ~390 | 87% | 47.0 |
+| commitments-1.0 | 366 | 3,117 | ~96 | **97%** | 56.8 |
+| intake-predecide-2.0 | 119 | 1,432 | ~77 | 95% | 25.4 |
+| drive-filing-1.1 | 95 | 1,378 | ~43 | **97%** | 22.3 |
+| commitment-chase-1.0 | 94 | 2,803 | ~43 | **98%** | 36.2 |
+
+**28.3 of those 55.3 hours sit in the six mechanical prompts.** LM Studio serves ONE request at a time, so that is not an abstract cost — it is the queue a human waiting on Ber AI sits behind, and it was demonstrated mid-session: a `doc-summary` cron was running back-to-back 40s calls and every probe in this session queued behind it.
+
+⚠ **`createThinkFilter()` WAS A NO-OP ON EVERY CALL AND LOOKED LIKE THE ACCOUNTING.** It strips `<think>` tags from `content`; LM Studio never put one there — zero in 3,982 logged calls. Kept anyway, with the comment corrected to say so: §2 says a chat model is swappable at will, and a model whose template LM Studio does not recognise puts its reasoning in `content` where only that filter catches it. Removing a control because today's configuration does not exercise it is how §12's workaround rule gets earned twice. What it could never do is COUNT, which is now `reasoningChars` on `LocalChatResult` and `ai_queries.reasoning_chars`.
+
+⚠ **THE COLUMN IS NULLABLE WITH NO DEFAULT, AND THAT IS THE POINT.** NULL means "logged before this existed"; `0` means "ran with reasoning off". A `0` default would have retro-dated 3,982 rows as having done no thinking and the before/after this column exists to make would have read as already won.
+
+**Three mechanisms tried, one works, and it is binary.** `chat_template_kwargs: {enable_thinking: false}` does nothing here (80.4s, reasoning still produced — and SLOWER than the default). `/no_think` in the prompt does nothing (35.1s, 1,023 tokens). `reasoning_effort: 'low'` is not a middle setting (39.0s / 859 tokens against ~37s / ~900 for the default). `reasoning_effort: 'none'` works: **0.3s and 6 completion tokens** against 37.3s on the same classification. Hence one value on `PromptReasoning`, not a scale.
+
+Proven through the platform's own code path, not just curl — one real obligation extraction over `COMMITMENT_SYSTEM_PROMPT`: **49.2s / 3,043 tokens / 10,836 chars of reasoning → 2.9s / 157 tokens / 0.** 17x, and the reasoning accounting lines up with the table above (10,836 chars ≈ 2,700 of the 3,043 tokens, 89%).
+
+**So the knob shipped first, defaulting to today's behaviour, and then the measurement said no.** `reasoning?: 'none'` and `jsonSchema?` on `LocalChatOptions`, both ABSENT by default so the request is byte-for-byte what it was; `PromptReasoning` (`'think' | 'none'`) declared beside each prompt's own version constant, because whether an answer survives without thinking is a property of the PROMPT and a per-call answer would drift between the several callers a prompt grows. `wireReasoning('think')` returns `undefined` — ⚠ **deliberately no way to spell "think" as a wire value**, so an unmeasured prompt cannot pin a server default that later changes.
+
+⚠ **THE DOCUMENT PASS NEEDED THE CHOICE TO *TRAVEL*, NOT TO DEFAULT.** `runDocumentAiPass` takes its prompt as a PARAMETER, and one of its fourteen callers overrides it (`/api/opportunities/documents`, `opp-doc-summary-1.0`). Defaulting `reasoning` to the doc-summary declaration would have applied one prompt's measurement to another nobody measured — §12's "every source that can reach it needs an arm". An overriding caller defaults to `'think'`.
+
+**`scripts/measure-reasoning-off.mts` — and ⚠ THREE OF ITS OWN BUGS WERE THE INSTRUCTIVE PART, every one a §12 rule earned again by the thing written to enforce it.**
+
+⚠ **(1) It printed `corpus 1000 calls` for a task holding 1,283.** PostgREST truncates at 1000 silently and `.limit(2000)` does not beat it. A script reading a truncated set is worse than none, because it is believed. Paginated.
+
+⚠ **(2) It scored `doc-summary` on a field that prompt has never produced.** `DocSummary` is `{summary?, confidence?}` and nothing else; `decisionFields: ['doc_type']` compared ∅ against ∅ and would have reported **8/8 agreement having examined nothing.** Now a declared field neither arm returns ABORTS the task and names it, and a prompt with no verdict field prints both answers for a human instead of claiming a rate.
+
+⚠ **(3) THE WORST ONE, BECAUSE IT INVERTED A RESULT.** Commitments scored `matched 0, only-on 0, only-off 0` — both arms finding NO obligations — as AGREE. Five of the eight pairs were empty both ways, so the reported **"agreement 5/8" was 4/5 vacuous**: on the three pairs that held any content at all, reasoning-off agreed **0 of 3**. A pair where neither arm produced anything is now excluded from the denominator and reported separately.
+
+**The design decision worth keeping: BOTH ARMS RUN NOW, never against the logged answer.** The obvious harness replays a stored input and diffs the stored response — and that is wrong here, because the system prompt is not logged (only the user message is), so a disagreement could not be told apart from a prompt rewrite since. The stored corpus supplies only the INPUT. ⚠ And the inputs it can supply are biased SHORT, because `logAiQuery` truncates `query_text` at 2,000 characters and roughly half of every task's corpus is over it — printed on every run beside the corpus's own distribution, because a clean result licenses reasoning-off for the lengths sampled and no further.
+
+⚠ **AND A KILLED CLIENT DOES NOT STOP THE SERVER, WHICH COST THE MIDDLE OF THIS SESSION.** Generation here is deliberately UNBUDGETED — no `max_tokens` is sent (Richard's call 2026-07-11, "the local model is free") — so a trivial prompt at `JUDGEMENT_TEMPERATURE` fell into the repetition loop `gemini.ts` already warns about and generated without bound. Killing the probe freed the client and llama-server **kept going**: `lms ps` read `GENERATING` with nothing attached, every later request queued behind an answer nobody would ever read, and three separate probes timed out looking exactly like a hung script. Cleared with `lms unload` + `lms load -c 131072 --parallel 1`, then `lmstudio-check.sh` to confirm the documented state. **Never kill a client mid-generation on this box; and a `max_tokens` ceiling is the real fix.**
+
+**AND THEN THE MEASUREMENT REFUSED MOST OF WHAT THE PLAN EXPECTED TO SHIP.** Eight real logged inputs per prompt, both arms run in the same session against the same current prompt:
+
+| prompt | agreement | latency | tokens | verdict |
+|---|---|---|---|---|
+| thread-summary | **5/8** | 42.6s → 4.9s (8.7x) | 2,493 → 268 | **keeps reasoning** |
+| commitments | **0/3** (5 empty both ways) | 29.3s → 1.5s (20.0x) | 1,732 → 36 | **keeps reasoning** |
+| drive-filing | 7/8 | 24.5s → 2.3s (10.8x) | 1,570 → 54 | human arm below |
+| intake-predecide | **8/8** | 19.9s → 2.3s (8.6x) | 1,207 → 85 | **flipped** |
+
+⚠ **`thread-summary` FAILED ON THE FIELD THAT MATTERS MOST.** `deal_name` held 8/8, but `relevance` went 7/8 with its one miss in the expensive direction — reasoning-on said `operational`, reasoning-off said **`noise`**, and a noise verdict is a thread never read again (§12 already records 48 threads left unsearchable by exactly that column). One in eight at 954 calls a month is ~119 threads silently dropped. `counterparty` was 5/8, losing *"LiveSafe USA"* and *"Caseut"* to null, and `people`/`key_facts`/`open_items` came back consistently thinner — the fields feeding contact creation and the reduce phase. ⚠ **This also killed the obvious follow-up before it was built:** a cheap reasoning-off TRIAGE pass with full extraction only for the 34% of threads that are not noise would be a 2.2x win on 12.1 GPU-hours a month, and 7/8 on `relevance` is not a gate worth building on.
+
+⚠ **`commitments` WAS THE CLEAREST FAIL, AND THE REPORTED NUMBER HID IT.** On the three pairs holding any content, reasoning-off **invented obligations reasoning-on did not find** — *"Ensure all future communications state that proposal numbers are approximate"*, owner *"Bear Wilson"* (misspelled), at **0.95 confidence** — and on another it **flipped `side` from `them` to `us`**, which is §12's own recorded bug: resolving `side` wrongly says someone owes themselves. 20x faster and unusable.
+
+⚠ **REASONING-OFF IS SYSTEMATICALLY MORE CONFIDENT, WHICH IS THE WRONG DIRECTION FOR A CONFIDENCE GATE.** Seen on every task reporting one (0.7→0.85, 0.9→0.95, 0.75→0.85). Confidence is what holds a doubtful answer back: `FILING_CONFIDENCE` sends an unsure document to `_Unsorted` rather than into a tree the team trusts, and `AUTO_DISMISS_CONFIDENCE = 0.85` is what lets a dismissal act with no human. No sample crossed either bar — but a pass that is wronger AND surer has worse brakes.
+
+⚠ **`doc-summary` HAS NO VERDICT FIELD, AND WITHOUT REASONING IT WROTE A SUMMARY OF A DOCUMENT IT HAD NOT BEEN GIVEN.** Six pairs read by hand. Handed a 31-character input (a file name, no extracted text) reasoning-on correctly refused — *"the submission contains only a patent filename… no actionable intelligence can be extracted"* — and reasoning-off **fabricated the document**, inventing an assignee: *"a US patent for managing construction project data, involving parties such as inventors and assignees like Autodesk, Inc."* On a parcel schedule the two arms counted **26 against 24**. A fabricated summary is the worst available failure for this field, because `list_documents` presents a document BY its summary, so the agent would cite the invention as evidence.
+
+⚠ **AND THE HUMAN-VERDICT ARM IS WHAT CAUGHT `drive-filing`, WHICH AGREEMENT HAD PASSED AT 7/8.** Agreement cannot say which arm was right, so the one task where a human later ruled got scored against the human: a document with `filing_confirmed_at` set is one somebody looked at and said "it is right where it is", and `drive_folder_path` says where. The logged input carries `DOCUMENT FILE NAME:`, so the row joins back with nothing reconstructed — the candidate list in the message is the one the model actually saw. ⚠ A file name matching two documents is SKIPPED, not guessed (8 were), and 3 more were filed outside the candidate list; the honest population is **8 cases**. Result: **reasoning ON correct 6/8, reasoning OFF correct 4/8.**
+
+⚠ **ITS FAILURE MODE IS *TIDYING*, WHICH IS WHY THE PROMPT'S OWN RULE EXISTS.** The real folder is `Dueschesne County Rail Corridor` — misspelled in Drive. Reasoning-off "corrected" it to `Duchesne County Rail Corridor`, which is not a candidate, so `coerce` throws it away and the document lands in `_Unsorted`. The prompt already says *"copied EXACTLY from the candidate list, character for character. Do not reword, re-case, pluralise, or tidy it"* — and §12 has the general form: a prompt can only ASK.
+
+**AND THAT IS WHERE THE `jsonSchema` HALF STOPPED BEING SPECULATIVE.** The plan shipped it on the theory that a schema is "what makes reasoning-off safe", with no caller — which §11 calls complexity without demonstrated need and §12 calls decoration. The human arm supplied the need: tidying is a failure a prompt can only ASK to prevent, and an enum of the candidate folders removes the option at the sampler. A third arm was added and measured:
+
+| arm | correct against the human | answers outside the candidate list |
+|---|---|---|
+| reasoning on | 6/8 | 0 |
+| reasoning off | 4/8, then 5/8 on a re-run | 1 |
+| **reasoning off + candidate enum** | **6/8** | **0** |
+
+So `drive-filing` holds `'none'` **only paired with that schema**, built per call from `decidable` because the candidate list is per record, with `null` as a member because "none of these is clearly right" is an answer the prompt asks for. ⚠ No type can express that pairing, so `reasoning.test.ts` asserts it: if the declaration reads `'none'`, the enum must be at the call site. ⚠ **And n = 8 with a run-to-run spread of ±1, so "6/8 against 6/8" means indistinguishable at this sample size, not equal.** It is held anyway on two grounds that do not depend on the sample — the enum structurally removes the one systematic failure found, and `coerce` already rejects an out-of-list answer, so the worst case is `_Unsorted` rather than the wrong folder of a tree the team trusts.
+
+**WHAT ACTUALLY SHIPPED, AND IT IS A THIRD OF WHAT THE PLAN PROJECTED.** Three of six prompts hold `'none'`: `intake-predecide` (8/8), `commitment-chase` (better prose without it), `drive-filing` (with the enum). Three keep reasoning: `thread-summary`, `doc-summary`, `commitments` — which are the three biggest, 1,932 of the 2,240 calls. **~2.2 of 58.9 GPU-hours a month, about 4%**, against the 28.3 the opening measurement made look available.
+
+⚠ **THE HONEST HEADLINE IS THAT THE MEASUREMENT REFUSED THE WORK, AND THE MEASUREMENT IS THE ASSET.** `reasoning_effort: 'none'` is not a free 9x; on this model it trades accuracy for latency, and it trades it worst exactly where the volume is. But `ai_queries.reasoning_chars` now makes the cost legible instead of inferable, and the harness is re-runnable in one command — which matters because §2 says a chat model is swappable at will and all of this is a property of THIS model. The next `LOCAL_AI_MODEL` gets re-measured, not re-argued.
+
+**ON THE OTHER HALF OF THE QUESTION — GSUITE — THE DELIVERABLE WAS A RETRACTION.** Surveyed every scope and every Google module: 3 mailboxes swept, the Drive knowledge sync, Docs + PDF composition, the two-way task Sheet, the contacts push, the Meet importer, the hourly audio folder. It is well used, and the unexploited pieces are each already decided.
+
+⚠ **I PROPOSED SWITCHING THE KNOWLEDGE SYNC TO DRIVE'S `changes.list`, RICHARD APPROVED IT, AND THEN READING THE CODE SHOWED THE PREMISE WAS FALSE.** The claim was that a file a teammate moves or deletes in the shared Drive goes unnoticed. Both sync phases already reconcile: `syncDriveKnowledge` builds a `seenIds` set from the full walk and retires everything absent (`drive-sync.ts:433-444`, with `superseded_by_hand` and a restore path), and `syncProjectFolders` does the same. It is live rather than merely present — **69 documents retired, 13 of them automatically, most recently 10-22.** A delta feed would be strictly WORSE: it cannot retire what it never sees, and a lost page token stops noticing with nothing reporting it. The full walk over 154 documents IS the reconciliation. Dropped, and said so rather than building the approved thing.
+
+**Also checked and deliberately not touched.** `upsertCalendarEvent` still has zero callers and `calendar.events` is still granted on all three mailboxes — Richard declined calendar publishing on 10-15 (*"he does not want calendar clutter"*), and the volume would have been small anyway: of 55 future-dated leads only **4** are undecided. `email-attachment-1.0` returning non-JSON on 9 of 9 calls is `jsonMode: false` working correctly, not a bug — checked before reporting it.
+
+⚠ **ONE LATENT HOLE FOUND AND LEFT, BECAUSE NOTHING HAS HIT IT.** `confirmDocumentFiling` stamps `filing_confirmed_at` and never flips `embedding_status` off `'skipped'`, so a composed document a human blesses would never be indexed — §2's own description of that flow says confirming is what indexes it. `composed_documents` holds **zero rows**, so it is unreachable today. Recorded in OPEN-ITEMS rather than fixed blind.
+
+**Files.** New `src/lib/ai/reasoning.ts` (+ `reasoning.test.ts`, 12 tests), `scripts/measure-reasoning-off.mts`, `supabase/migrations/20261026000001_ai_queries_reasoning_chars.sql`. Changed `src/lib/ai/{local,gemini,document-pipeline}.ts`, `src/lib/ai/prompts/{thread-summary,drive-filing,intake-predecide}.ts`, `src/lib/commitments/{prompt,chase,extract-phase}.ts`, `src/lib/drive/classify.ts`, `src/lib/email-sweep/summarize-phase.ts`, `src/lib/email-ingestion/predecide.ts`, `src/types/database.ts` (gen-types: 101 table types, 100 live tables). `npx tsc --noEmit` clean; `npm test` **710 pass / 0 fail**; eslint **22 problems (13 errors, 9 warnings)** — identical to the §9 baseline. Every new test was verified by planting a violation and watching it fail.
+
 **Done 2026-10-26 (email becomes the channel that must arrive, and the only delivery check in the system that PROVES rather than infers):**
 
 Richard, after being shown the T-Mobile block found earlier the same day: *"Make email the channel that must arrive."* Option (c) of the three offered.
