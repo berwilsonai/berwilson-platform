@@ -13,9 +13,11 @@
  */
 
 import { callGemini } from '@/lib/ai/gemini'
+import { wireReasoning } from '@/lib/ai/reasoning'
 import {
   THREAD_SUMMARY_SYSTEM_PROMPT,
   THREAD_SUMMARY_PROMPT_VERSION,
+  THREAD_SUMMARY_REASONING,
   type ThreadSummary,
 } from '@/lib/ai/prompts/thread-summary'
 import { SYSTEM_USER_ID } from '@/lib/email-ingestion/analyze'
@@ -185,6 +187,7 @@ export async function summarizePending(
           userMessage: text,
           userId,
           promptVersion: THREAD_SUMMARY_PROMPT_VERSION,
+          reasoning: wireReasoning(THREAD_SUMMARY_REASONING),
           maxTokens: 4096,
         })
 

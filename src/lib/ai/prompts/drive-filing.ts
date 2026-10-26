@@ -16,7 +16,48 @@
  * is discarded rather than fuzzy-matched.
  */
 
+import type { PromptReasoning } from '@/lib/ai/reasoning'
 export const DRIVE_FILING_PROMPT_VERSION = 'drive-filing-1.1'
+/**
+ * Reasoning pass for the Drive filing decision — SKIPPED, but ONLY because the
+ * candidate list is also handed to the model as a JSON Schema enum. The two
+ * decisions are one decision; see the `jsonSchema` block in
+ * `src/lib/drive/classify.ts`.
+ *
+ * 97% of each generation here was reasoning, to deliver ~43 tokens of answer.
+ *
+ * ⚠ AND AGREEMENT PASSED THIS PROMPT WHEN CORRECTNESS WOULD NOT HAVE.
+ * `scripts/measure-reasoning-off.mts` first scored 8 logged inputs on whether
+ * the two arms AGREED: **7/8**, which reads like a pass. Agreement cannot say
+ * which arm was right, so the same script was given a human-verdict arm — a
+ * document whose `filing_confirmed_at` is set is one somebody looked at and
+ * said "it is right where it is", and `drive_folder_path` says where. Scored
+ * against that, over the 8 cases that join to a UNIQUE confirmed document:
+ *
+ * | arm | correct | answers outside the candidate list |
+ * |---|---|---|
+ * | reasoning on | 6/8 | 0 |
+ * | reasoning off | 4/8, then 5/8 on a re-run | 1 |
+ * | reasoning off + candidate enum | **6/8** | **0** |
+ *
+ * ⚠ ITS FAILURE MODE WAS TIDYING, AND THAT IS WHY A SCHEMA FIXES IT RATHER THAN
+ * A BETTER PROMPT. The real folder is `Dueschesne County Rail Corridor`,
+ * misspelled in Drive; reasoning-off corrected the spelling, which is not a
+ * candidate, so `coerce` threw it away and the document went to `_Unsorted`.
+ * The enum removes the option.
+ *
+ * ⚠ **n = 8, AND THE RUN-TO-RUN SPREAD IS ±1,** so "6/8 against 6/8" means
+ * indistinguishable at this sample size, not proven equal. It is held anyway
+ * for two reasons that do not depend on the sample: the enum structurally
+ * removes the one systematic failure found, and `coerce` already rejects any
+ * answer outside the list — so the worst case is a document in `_Unsorted`
+ * rather than in the wrong folder of a tree the team trusts.
+ *
+ * ⚠ Confidence still drifts UP without reasoning (0.87 → 0.91 mean), and
+ * `FILING_CONFIDENCE` is what parks a doubtful document. Re-measure if that
+ * gap widens.
+ */
+export const DRIVE_FILING_REASONING: PromptReasoning = 'none'
 
 export interface DriveFilingDecision {
   /** Verbatim one of the candidate folder names, or null when unsure. */

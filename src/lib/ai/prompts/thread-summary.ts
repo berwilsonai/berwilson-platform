@@ -16,7 +16,35 @@
  * are never clustered and never reach the reduce phase.
  */
 
+import type { PromptReasoning } from '@/lib/ai/reasoning'
 export const THREAD_SUMMARY_PROMPT_VERSION = 'thread-summary-1.0'
+/**
+ * Reasoning pass for the thread summary — KEPT, and measured, not assumed.
+ *
+ * This is the platform's highest-volume model call (954 in 30 days, 12.1 GPU
+ * hours) and 89% of each generation is reasoning that is discarded, so it was
+ * the single biggest prize for `reasoning_effort: 'none'`. It failed.
+ *
+ * `scripts/measure-reasoning-off.mts`, 2026-10-26, 8 real logged inputs, both
+ * arms in one session: **5/8 agreement** on `relevance` + `deal_name` +
+ * `counterparty`, at 42.6s → 4.9s (8.7x).
+ *
+ * ⚠ IT FAILED ON THE FIELD THAT COSTS THE MOST TO GET WRONG. `deal_name` held
+ * 8/8. `relevance` went 7/8 — and the one miss was in the expensive direction:
+ * reasoning-on said `operational`, reasoning-off said **`noise`**, and a noise
+ * verdict means a thread is never read again (§12 already records 48 threads
+ * left unsearchable by exactly this column). One in eight at this volume is
+ * ~119 threads a month dropped silently. `counterparty` was 5/8, losing real
+ * company names to null, and `people` / `key_facts` / `open_items` came back
+ * consistently thinner — those feed Pepper's contact creation and the reduce
+ * phase that builds records.
+ *
+ * ⚠ AND THAT SAME NUMBER KILLS THE OBVIOUS FOLLOW-UP, so it does not need
+ * trying again: a cheap reasoning-off TRIAGE pass with full extraction only for
+ * the 34% of threads that are not noise would be worth ~2.2x on 12.1 GPU hours,
+ * and 7/8 on `relevance` is not a good enough gate to build it on.
+ */
+export const THREAD_SUMMARY_REASONING: PromptReasoning = 'think'
 
 export interface ThreadSummaryPerson {
   name: string

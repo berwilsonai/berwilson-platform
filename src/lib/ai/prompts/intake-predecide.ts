@@ -13,7 +13,33 @@
  * one we already have, or be let go?
  */
 
+import type { PromptReasoning } from '@/lib/ai/reasoning'
 export const INTAKE_PREDECIDE_PROMPT_VERSION = 'intake-predecide-2.0'
+/**
+ * Reasoning pass for the intake pre-decision — SKIPPED, on measurement.
+ *
+ * `scripts/measure-reasoning-off.mts`, 2026-10-26, 8 real logged inputs, both
+ * arms run against this prompt in one session: **8/8 agreement on
+ * `disposition` + `merge_target_name`**, 19.9s → 2.3s (8.6x), completion tokens
+ * 1,207 → 85. The cleanest pass of the six measured.
+ *
+ * ⚠ TWO THINGS TO RE-CHECK IF THIS PROMPT CHANGES.
+ *
+ * **Confidence drifted UP without the reasoning pass** — 0.9 → 0.95 on two of
+ * the eight. That is the wrong direction here, because `AUTO_DISMISS_CONFIDENCE
+ * = 0.85` is what lets a dismissal act with no human, and a dismissed session is
+ * not merely held: §12 records that the attach pass skips dismissed rows, so the
+ * reply that would have made it real starts a fresh row without the first
+ * message. No sample crossed the bar from below — but nothing here guarantees
+ * one never will, so a widened gap between the arms' confidence is a reason to
+ * re-measure, not a curiosity.
+ *
+ * **The sample was biased short.** `logAiQuery` truncates `query_text` at 2,000
+ * characters and 187 of this prompt's 256 logged calls are over it, so the
+ * evidence covers inputs of 244-1,980 characters and says nothing about the
+ * longest sessions.
+ */
+export const INTAKE_PREDECIDE_REASONING: PromptReasoning = 'none'
 
 export type IntakeDisposition = 'create' | 'merge' | 'dismiss'
 

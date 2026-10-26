@@ -61,6 +61,25 @@ export interface GeminiCallOptions {
   maxTokens?: number
   /** Set false for prose/synthesis tasks — default true for structured JSON tasks */
   jsonMode?: boolean
+  /**
+   * Skip the model's reasoning pass. LOCAL PROVIDER ONLY — ignored on the
+   * Gemini branch, which only serves web research.
+   *
+   * ⚠ Declared by the PROMPT, beside its version constant, never chosen at a
+   * call site: the question "is this task's answer safe without thinking?" is a
+   * property of the prompt, and a per-call answer would drift between the
+   * several callers a prompt usually has. See {@link LocalChatOptions.reasoning}
+   * for what it costs and `scripts/measure-reasoning-off.mts` for what decides
+   * it.
+   */
+  reasoning?: 'none'
+  /**
+   * Constrain the answer to a JSON Schema. LOCAL PROVIDER ONLY.
+   *
+   * Supersedes the prose `JSON_MODE_SUFFIX` when present, and is what makes
+   * {@link reasoning} `'none'` safe to hold.
+   */
+  jsonSchema?: { name: string; schema: Record<string, unknown> }
 }
 
 export interface GeminiCallResult<T = unknown> {
@@ -101,6 +120,8 @@ function logAiQuery(input: {
   tokensIn: number
   tokensOut: number
   latencyMs: number
+  /** Omitted on the Gemini path, which reports no such split. */
+  reasoningChars?: number
 }): void {
   const supabase = createAdminClient()
   supabase
@@ -114,6 +135,10 @@ function logAiQuery(input: {
       tokens_in: input.tokensIn,
       tokens_out: input.tokensOut,
       latency_ms: input.latencyMs,
+      // Left NULL rather than 0 when unknown — see the column comment: 0 is a
+      // real measurement now (a task running with reasoning off) and must not
+      // be forgeable by a caller that simply could not tell.
+      reasoning_chars: input.reasoningChars ?? null,
     })
     .then(() => {})
 }
@@ -148,12 +173,22 @@ async function callLocalText<T>(input: {
   maxTokens?: number
   jsonMode: boolean
   temperature?: number
+  reasoning?: 'none'
+  jsonSchema?: { name: string; schema: Record<string, unknown> }
 }): Promise<GeminiCallResult<T>> {
   const model = localChatModel()
   const messages: LocalChatMessage[] = [
     {
       role: 'system',
-      content: input.jsonMode ? input.systemPrompt + JSON_MODE_SUFFIX : input.systemPrompt,
+      // The prose ask is dropped when a schema is enforcing the shape: the
+      // grammar makes it true, so leaving it in spends prompt on an instruction
+      // the sampler already guarantees, and — §12 — a prompt example is training
+      // data, so telling the model to avoid fences it is structurally unable to
+      // emit is a rule illustrated by a limitation that no longer exists.
+      content:
+        input.jsonMode && !input.jsonSchema
+          ? input.systemPrompt + JSON_MODE_SUFFIX
+          : input.systemPrompt,
     },
     { role: 'user', content: input.userMessage },
   ]
@@ -166,6 +201,8 @@ async function callLocalText<T>(input: {
     messages,
     maxTokens: input.maxTokens,
     temperature: input.temperature ?? (input.jsonMode ? JUDGEMENT_TEMPERATURE : undefined),
+    ...(input.reasoning ? { reasoning: input.reasoning } : {}),
+    ...(input.jsonSchema ? { jsonSchema: input.jsonSchema } : {}),
   })
   const latencyMs = Date.now() - start
 
@@ -178,6 +215,7 @@ async function callLocalText<T>(input: {
     tokensIn: result.tokensIn,
     tokensOut: result.tokensOut,
     latencyMs,
+    reasoningChars: result.reasoningChars,
   })
 
   return {
@@ -199,10 +237,21 @@ export async function callGemini<T = unknown>(
     promptVersion,
     maxTokens,
     jsonMode = true,
+    reasoning,
+    jsonSchema,
   } = options
 
   if (isLocalAI()) {
-    return callLocalText<T>({ systemPrompt, userMessage, userId, promptVersion, maxTokens, jsonMode })
+    return callLocalText<T>({
+      systemPrompt,
+      userMessage,
+      userId,
+      promptVersion,
+      maxTokens,
+      jsonMode,
+      reasoning,
+      jsonSchema,
+    })
   }
 
   const client = getClient()

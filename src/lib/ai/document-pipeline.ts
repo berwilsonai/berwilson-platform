@@ -1,4 +1,5 @@
 import { callGemini, callGeminiWithFile, UnreadableDocumentError } from '@/lib/ai/gemini'
+import { wireReasoning, type PromptReasoning } from '@/lib/ai/reasoning'
 import { transcribePdfText, extractDocxText, extractLegacyDocText, extractEmlText, extractXlsxText, extractPptxText, extractImageText, storeExtractedText } from '@/lib/ai/document-text'
 import { isLocalAI } from '@/lib/ai/local'
 import { embedDocument, embedOpportunityDocument } from '@/lib/ai/embeddings'
@@ -19,7 +20,38 @@ export { INDEXED_IN_MAIL }
 type AdminClient = ReturnType<typeof createAdminClient>
 
 
-const DOC_SUMMARY_SYSTEM = `You are a document analyst for a construction executive intelligence platform.
+/**
+ * Reasoning pass for the document summary — KEPT, because without it the model
+ * writes a summary of a document it has not been given.
+ *
+ * 612 calls in 30 days, 92% of each generation discarded to deliver ~155 tokens
+ * of answer, so this was a real prize. `scripts/measure-reasoning-off.mts`,
+ * 2026-10-26, 6 real logged inputs: 25.3s → 2.6s (9.8x).
+ *
+ * ⚠ THERE IS NO VERDICT FIELD TO SCORE — `DocSummary` is `{summary?,
+ * confidence?}` — so the pairs were read by hand, and two of six were wrong in
+ * ways that matter:
+ *
+ * - handed an input of 31 characters (a file name, no extracted text),
+ *   reasoning-on correctly refused — *"the submission contains only a patent
+ *   filename… no actionable intelligence can be extracted"* — while
+ *   reasoning-off **fabricated a whole summary from the file name**, inventing
+ *   an assignee: *"a US patent for managing construction project data, involving
+ *   parties such as inventors and assignees like Autodesk, Inc."*;
+ * - and on a parcel schedule the two arms counted **26 against 24** parcels,
+ *   which is §12's "never make the model count rows" with the reasoning arm the
+ *   likelier of the two to be right.
+ *
+ * ⚠ A fabricated summary is the worst possible failure for this particular
+ * field, because `list_documents` presents a document BY its summary — so the
+ * agent would cite an invented assignee as evidence, and a document it should
+ * have opened it would skip.
+ */
+export const DOC_SUMMARY_REASONING: PromptReasoning = 'think'
+
+/** Exported for `scripts/measure-reasoning-off.mts`, which has to send the real
+ * prompt: a reasoning comparison against a paraphrase measures the paraphrase. */
+export const DOC_SUMMARY_SYSTEM = `You are a document analyst for a construction executive intelligence platform.
 Summarize the key points of this document in 2-3 sentences. Focus on: parties involved, key obligations or dates, dollar amounts, and critical terms relevant to construction executives.
 Return ONLY valid JSON: {"summary": "...", "confidence": 0.0}
 confidence is 0.0–1.0 reflecting how clearly this document presents extractable construction intelligence.
@@ -142,6 +174,22 @@ export async function runDocumentAiPass(input: {
   summaryPrompt?: string
   promptVersion?: string
   /**
+   * Reasoning pass for the summary call.
+   *
+   * ⚠ TRAVELS WITH `summaryPrompt`/`promptVersion` AND MUST. Whether an answer
+   * is safe without the model's reasoning is a property of the PROMPT, and this
+   * pass takes its prompt as a parameter: of its fourteen callers, thirteen use
+   * the default and `/api/opportunities/documents` sends its own
+   * (`OPPORTUNITY_DOC_SUMMARY` / `opp-doc-summary-1.0`), which no replay has
+   * covered. Defaulting this to the doc-summary declaration would silently
+   * apply one prompt's measurement to another — §12's "every source that can
+   * reach it needs an arm".
+   *
+   * So the default is `'think'` — the safe answer — and only a caller that has
+   * been replayed may say otherwise.
+   */
+  reasoning?: PromptReasoning
+  /**
    * Skip the AI summary and only extract + embed the text.
    *
    * For the OCR backfill on this box. Extraction is Apple Vision, which needs no
@@ -177,6 +225,10 @@ export async function runDocumentAiPass(input: {
   const target = input.target ?? DEFAULT_TARGET
   const summarySystem = input.summaryPrompt ?? DOC_SUMMARY_SYSTEM
   const summaryVersion = input.promptVersion ?? 'doc-summary-1.0'
+  // An overriding caller declares its own; the default document path gets the
+  // doc-summary declaration, which is the one this prompt's replay measured.
+  const summaryReasoning: PromptReasoning =
+    input.reasoning ?? (input.promptVersion ? 'think' : DOC_SUMMARY_REASONING)
 
   const kind = documentKind(mimeType, fileName)
   if (kind === 'unsupported') {
@@ -262,6 +314,7 @@ export async function runDocumentAiPass(input: {
           userId: SYSTEM_USER_ID,
           promptVersion: summaryVersion,
           maxTokens: 2048,
+          reasoning: wireReasoning(summaryReasoning),
         })
         parsed = result.data
       }

@@ -187,14 +187,14 @@ isOneToOne: false
                   ]
                 },"ai_queries": {
                   Row: {
-                    "cited_records": Json | null,"created_at": string | null,"id": string,"latency_ms": number | null,"model_used": string,"project_id": string | null,"prompt_version": string | null,"query_text": string,"rating": number | null,"response_text": string,"tokens_in": number | null,"tokens_out": number | null,"user_id": string
+                    "cited_records": Json | null,"created_at": string | null,"id": string,"latency_ms": number | null,"model_used": string,"project_id": string | null,"prompt_version": string | null,"query_text": string,"rating": number | null,"reasoning_chars": number | null,"response_text": string,"tokens_in": number | null,"tokens_out": number | null,"user_id": string
                   }
                   ComputedFields: never
                   Insert: {
-                    "cited_records"?: Json | null,"created_at"?: string | null,"id"?: string,"latency_ms"?: number | null,"model_used": string,"project_id"?: string | null,"prompt_version"?: string | null,"query_text": string,"rating"?: number | null,"response_text": string,"tokens_in"?: number | null,"tokens_out"?: number | null,"user_id": string
+                    "cited_records"?: Json | null,"created_at"?: string | null,"id"?: string,"latency_ms"?: number | null,"model_used": string,"project_id"?: string | null,"prompt_version"?: string | null,"query_text": string,"rating"?: number | null,"reasoning_chars"?: number | null,"response_text": string,"tokens_in"?: number | null,"tokens_out"?: number | null,"user_id": string
                   }
                   Update: {
-                    "cited_records"?: Json | null,"created_at"?: string | null,"id"?: string,"latency_ms"?: number | null,"model_used"?: string,"project_id"?: string | null,"prompt_version"?: string | null,"query_text"?: string,"rating"?: number | null,"response_text"?: string,"tokens_in"?: number | null,"tokens_out"?: number | null,"user_id"?: string
+                    "cited_records"?: Json | null,"created_at"?: string | null,"id"?: string,"latency_ms"?: number | null,"model_used"?: string,"project_id"?: string | null,"prompt_version"?: string | null,"query_text"?: string,"rating"?: number | null,"reasoning_chars"?: number | null,"response_text"?: string,"tokens_in"?: number | null,"tokens_out"?: number | null,"user_id"?: string
                   }
                   Relationships: [
                     {

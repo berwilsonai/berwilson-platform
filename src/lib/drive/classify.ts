@@ -15,8 +15,10 @@
  */
 
 import { callGemini } from '@/lib/ai/gemini'
+import { wireReasoning } from '@/lib/ai/reasoning'
 import {
   DRIVE_FILING_PROMPT_VERSION,
+  DRIVE_FILING_REASONING,
   DRIVE_FILING_SYSTEM_PROMPT,
   buildDriveFilingMessage,
   type DriveFilingDecision,
@@ -420,6 +422,38 @@ export async function chooseFolder(input: {
       userMessage: buildDriveFilingMessage({ ...input, candidates: decidable }),
       userId: input.userId ?? SYSTEM_USER_ID,
       promptVersion: DRIVE_FILING_PROMPT_VERSION,
+      reasoning: wireReasoning(DRIVE_FILING_REASONING),
+      // THE CANDIDATES AS AN ENUM, which is what makes the reasoning-off answer
+      // safe to use — see DRIVE_FILING_REASONING for the measurement.
+      //
+      // This prompt's whole job is to copy one of these strings back verbatim,
+      // and it says so in prose: "copied EXACTLY from the candidate list,
+      // character for character. Do not reword, re-case, pluralise, or tidy
+      // it." ⚠ A PROMPT CAN ONLY ASK. Measured 10-26 against where a human
+      // confirmed the document sits, the reasoning-off arm broke that rule by
+      // being HELPFUL: it "corrected" the real folder `Dueschesne County Rail
+      // Corridor` — misspelled in Drive — to `Duchesne`, which is not a
+      // candidate, so `coerce` discarded it and the document went to
+      // _Unsorted. The enum makes that outcome unreachable at the sampler
+      // rather than discouraged in the prompt: 1 out-of-list answer became 0,
+      // and correctness went 5/8 → 6/8, level with reasoning on.
+      //
+      // Built per call because the candidate list is per record. `null` is a
+      // member because "none of these is clearly right" is a real answer the
+      // prompt asks for.
+      jsonSchema: {
+        name: 'drive_filing_decision',
+        schema: {
+          type: 'object',
+          properties: {
+            folder: { type: ['string', 'null'], enum: [...decidable, null] },
+            confidence: { type: 'number' },
+            reason: { type: 'string' },
+          },
+          required: ['folder', 'confidence', 'reason'],
+          additionalProperties: false,
+        },
+      },
     })
     const choice = coerce(typeof data === 'object' ? data : null, decidable)
     if (choice.folderName && choice.confidence < FILING_CONFIDENCE) {

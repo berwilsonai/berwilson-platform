@@ -17,9 +17,11 @@
  */
 
 import { callGemini } from '@/lib/ai/gemini'
+import { wireReasoning } from '@/lib/ai/reasoning'
 import {
   INTAKE_PREDECIDE_SYSTEM_PROMPT,
   INTAKE_PREDECIDE_PROMPT_VERSION,
+  INTAKE_PREDECIDE_REASONING,
   buildPredecideMessage,
   type IntakePredecision,
   type IntakeDisposition,
@@ -199,6 +201,7 @@ export async function predecidePendingSessions(
           }),
           userId: opts.userId ?? SYSTEM_USER_ID,
           promptVersion: INTAKE_PREDECIDE_PROMPT_VERSION,
+          reasoning: wireReasoning(INTAKE_PREDECIDE_REASONING),
         })
 
         const decision = normalise(typeof raw === 'object' ? raw : null)

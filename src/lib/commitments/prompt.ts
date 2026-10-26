@@ -20,7 +20,30 @@
  * reads the reminders again.
  */
 
+import type { PromptReasoning } from '@/lib/ai/reasoning'
 export const COMMITMENT_PROMPT_VERSION = 'commitments-1.0'
+/**
+ * Reasoning pass for obligation extraction — KEPT, and the clearest failure of
+ * the six prompts measured.
+ *
+ * 97% of each generation is reasoning, and a hand-built spot check looked
+ * promising (62.7s → 9.2s, same three obligations). The real corpus disagreed.
+ *
+ * `scripts/measure-reasoning-off.mts`, 2026-10-26, 8 real logged inputs:
+ * **5 pairs were empty both ways and carry no evidence at all**; on the three
+ * holding any content, reasoning-off agreed **0 of 3**:
+ *
+ * - it INVENTED obligations reasoning-on did not find — *"Ensure all future
+ *   communications and documents clearly state that proposal numbers are
+ *   approximate"*, owner *"Bear Wilson"* (misspelled), at **0.95 confidence**;
+ * - and on another it flipped **`side` from `them` to `us`**, which is §12's own
+ *   recorded bug: resolving `side` wrongly says somebody owes themselves.
+ *
+ * 20x faster (29.3s → 1.5s) and unusable. ⚠ A commitment feeds the chase pass,
+ * the morning note and the one-tap settle link, so an invented one is chased
+ * with a real counterparty.
+ */
+export const COMMITMENT_REASONING: PromptReasoning = 'think'
 
 export interface ExtractedCommitment {
   /** The obligation, in the correspondence's own terms. One line. */

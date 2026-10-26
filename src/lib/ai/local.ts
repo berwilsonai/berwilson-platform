@@ -279,8 +279,22 @@ async function readWithIdleTimeout(
 }
 
 // ---------------------------------------------------------------------------
-// <think> handling — Qwen thinking variants emit <think>…</think> before the
+// <think> handling — a thinking model can emit <think>…</think> inline in the
 // answer. Strip it from complete responses and filter it out of streams.
+//
+// ⚠ A NO-OP FOR THE MODEL CONFIGURED TODAY, AND KEPT ANYWAY. LM Studio parses
+// the reasoning out of `qwen/qwen3.6-35b-a3b` itself and returns it in a
+// SEPARATE `reasoning_content` field, so `content` has never contained a
+// <think> tag on this box — measured 2026-10-26, 3,982 logged calls, zero.
+// That made the token cost of reasoning invisible: the filter looked like the
+// thing accounting for it while nothing counted it at all. `reasoningChars`
+// below is the fix.
+//
+// The filter stays because §2 says a chat model is swappable at will, and a
+// model whose template LM Studio does not recognise puts its reasoning in
+// `content` where only this can catch it. Removing a control because today's
+// configuration does not exercise it is how §12's workaround rule gets earned
+// a second time.
 // ---------------------------------------------------------------------------
 
 export function stripThink(text: string): string {
@@ -360,6 +374,18 @@ export interface LocalChatResult {
   toolCalls: LocalToolCall[]
   tokensIn: number
   tokensOut: number
+  /**
+   * Characters of reasoning the model produced and the platform discarded.
+   *
+   * `tokensOut` has always counted these — 87-98% of it on the mechanical
+   * passes, measured over 30 days — but nothing separated them, so the cost of
+   * thinking was unreadable from the logs and the saving from turning it off
+   * would have been unprovable. Logged to `ai_queries.reasoning_chars`.
+   *
+   * Characters rather than tokens because that is what the stream gives
+   * directly: LM Studio reports no per-field token split.
+   */
+  reasoningChars: number
 }
 
 interface LocalChatOptions {
@@ -389,6 +415,48 @@ interface LocalChatOptions {
   tools?: Array<{ type: 'function'; function: { name: string; description: string; parameters: unknown } }>
   /** Fired with each answer-text delta (think blocks already filtered out). */
   onTextDelta?: (delta: string) => void
+  /**
+   * Suppress the model's reasoning pass.
+   *
+   * ⚠ ABSENT IS THE DEFAULT AND MEANS "THINK", which is byte-for-byte the wire
+   * format this file sent before the option existed. A caller that forgets gets
+   * the slow, careful behaviour — the safe direction, since the cost of
+   * forgetting to opt in is some seconds and the cost of forgetting to opt out
+   * is a worse answer nobody is told about.
+   *
+   * Measured on this box 2026-10-26, one real obligation extraction: 62.7s and
+   * 2,355 completion tokens thinking, 9.2s and 212 without, same three
+   * obligations found. Across 30 days the mechanical passes spend 87-98% of
+   * every generation on reasoning that is then discarded — 28.3 of 55.3 GPU
+   * hours.
+   *
+   * ⚠ BUT IT IS NOT FREE, AND IT IS NOT A BLANKET WIN. On a deliberately hard
+   * classification the reasoning-off answer was wrong where reasoning-on was
+   * right. Only `scripts/measure-reasoning-off.mts` — replayed against the
+   * HUMAN's later verdict, not against the old model answer — says which tasks
+   * may hold this. Judgement and prose keep their reasoning.
+   *
+   * ⚠ It is also effectively BINARY on this server: `'low'` measured 39s/859
+   * tokens against 37s/~900 for the default, and
+   * `chat_template_kwargs.enable_thinking:false` does not work here at all (80s,
+   * reasoning still produced). Hence one value, not a scale.
+   */
+  reasoning?: 'none'
+  /**
+   * Constrain generation to a JSON Schema (`response_format: json_schema`).
+   *
+   * The shape then cannot come back wrong, where today's `JSON_MODE_SUFFIX` only
+   * ASKS in prose and `parseMaybeJson` hands the caller the raw string when the
+   * ask is not honoured — a failure that reads as a different shape rather than
+   * an error.
+   *
+   * ⚠ NOT A BUG FIX: compliance measured 4 non-JSON answers in ~2,900 JSON
+   * tasks (0.14%). Its job is to make {@link reasoning} `'none'` safe, because
+   * the reasoning pass is part of what was keeping the format right. The two
+   * belong together and the measured pairing was also the FASTEST of the three
+   * (6.7s).
+   */
+  jsonSchema?: { name: string; schema: Record<string, unknown> }
 }
 
 /**
@@ -429,6 +497,20 @@ export async function localChatStream(options: LocalChatOptions): Promise<LocalC
         messages: options.messages,
         ...(options.temperature !== undefined ? { temperature: options.temperature } : {}),
         ...(options.tools?.length ? { tools: options.tools } : {}),
+        // Omitted unless asked for, so the default request is unchanged.
+        ...(options.reasoning === 'none' ? { reasoning_effort: 'none' } : {}),
+        ...(options.jsonSchema
+          ? {
+              response_format: {
+                type: 'json_schema',
+                json_schema: {
+                  name: options.jsonSchema.name,
+                  strict: true,
+                  schema: options.jsonSchema.schema,
+                },
+              },
+            }
+          : {}),
         stream: true,
         stream_options: { include_usage: true },
       },
@@ -447,6 +529,7 @@ export async function localChatStream(options: LocalChatOptions): Promise<LocalC
   let text = ''
   let tokensIn = 0
   let tokensOut = 0
+  let reasoningChars = 0
   // tool-call fragments accumulate by index across deltas
   const toolAccum = new Map<number, { id: string; name: string; args: string }>()
 
@@ -463,6 +546,15 @@ export async function localChatStream(options: LocalChatOptions): Promise<LocalC
       choices?: Array<{
         delta?: {
           content?: string | null
+          // Where LM Studio puts the reasoning for a model whose template it
+          // recognises — qwen3.6 included — rather than inline in `content`.
+          // Both spellings are read because this is a server convention and not
+          // part of the OpenAI schema: vLLM and LM Studio emit
+          // `reasoning_content`, some builds `reasoning`. Reading both costs a
+          // line; reading the wrong one reports 0 and looks like a model that
+          // does not think.
+          reasoning_content?: string | null
+          reasoning?: string | null
           tool_calls?: Array<{ index: number; id?: string; function?: { name?: string; arguments?: string } }>
         }
       }>
@@ -481,6 +573,13 @@ export async function localChatStream(options: LocalChatOptions): Promise<LocalC
 
     const delta = parsed.choices?.[0]?.delta
     if (!delta) return
+
+    // Counted, never kept: nothing downstream may read the model's reasoning as
+    // if it were an answer. The count is the whole point — it is what makes the
+    // cost of thinking, and the saving from skipping it, readable from
+    // `ai_queries` instead of having to be re-measured by hand.
+    const reasoningDelta = delta.reasoning_content ?? delta.reasoning
+    if (reasoningDelta) reasoningChars += reasoningDelta.length
 
     if (delta.content) {
       const visible = filter.push(delta.content)
@@ -548,7 +647,7 @@ export async function localChatStream(options: LocalChatOptions): Promise<LocalC
     }))
     .filter((t) => t.function.name)
 
-  return { text, toolCalls, tokensIn, tokensOut }
+  return { text, toolCalls, tokensIn, tokensOut, reasoningChars }
 }
 
 // ---------------------------------------------------------------------------

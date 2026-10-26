@@ -22,14 +22,39 @@
  */
 
 import { callGemini } from '@/lib/ai/gemini'
+import { wireReasoning } from '@/lib/ai/reasoning'
 import { sweepDb } from '@/lib/email-sweep/db'
 import { SYSTEM_USER_ID } from '@/lib/system-user'
 import { GmailScopeError, createDraft } from '@/lib/integrations/gmail-write'
 import { readOpenCommitments } from './read'
 import type { CommitmentRow } from './db'
 import { isLocalThread } from '@/lib/email-sweep/thread-source'
+import type { PromptReasoning } from '@/lib/ai/reasoning'
 
 export const CHASE_PROMPT_VERSION = 'commitment-chase-1.0'
+/**
+ * Reasoning pass for the chase line — SKIPPED, on measurement, and this is the
+ * one case where the reasoning pass was making the output WORSE.
+ *
+ * It had the worst ratio in the corpus: 98% of each generation discarded to
+ * write ~43 tokens of follow-up prose. `scripts/measure-reasoning-off.mts`,
+ * 2026-10-26, 8 real logged inputs: **42.1s → 1.8s (23.4x)**, completion tokens
+ * 2,905 → 43.
+ *
+ * ⚠ AND READING THE PAIRS IS WHY THIS ONE IS NOT A TRADE-OFF AT ALL. There is
+ * no verdict field to score, so the eight pairs were read by hand — and the
+ * reasoning arm twice shipped an **unfilled `[Name]` placeholder** ("Hello
+ * [Name], I'm following up…", "Hi [Name], Following up on the contact for
+ * Melissa at EDA") where the reasoning-off arm used the actual name it had been
+ * given ("Timothy, following up on the contact information for Melissa at
+ * EDA"). A placeholder in a line a human is about to paste to a counterparty is
+ * the worst available failure for this prompt.
+ *
+ * Safe to hold for a second reason: a chase is never sent by the platform. It
+ * is stored on the row for copying and drafted in Gmail where the scope allows,
+ * so a person reads every one.
+ */
+export const CHASE_REASONING: PromptReasoning = 'none'
 
 /**
  * How long something must have been outstanding before it is worth chasing.
@@ -62,7 +87,8 @@ export interface ChaseProgress {
   noScopeMailboxes: string[]
 }
 
-const CHASE_SYSTEM_PROMPT = `You are Pepper, executive assistant to the two executives running Ber Wilson — a vertically integrated construction, development and prefab steel manufacturer.
+/** Exported for `scripts/measure-reasoning-off.mts` — see DOC_SUMMARY_SYSTEM. */
+export const CHASE_SYSTEM_PROMPT = `You are Pepper, executive assistant to the two executives running Ber Wilson — a vertically integrated construction, development and prefab steel manufacturer.
 
 Write ONE short follow-up email chasing something the other side owes us. You are writing it FOR the executive to send from their own mailbox, so write in their voice: direct, courteous, unbothered, the tone of somebody who expects the thing to arrive and is simply asking when.
 
@@ -166,6 +192,7 @@ export async function runChasePass(opts: { dryRun?: boolean; limit?: number } = 
         userMessage: context,
         userId: SYSTEM_USER_ID,
         promptVersion: CHASE_PROMPT_VERSION,
+        reasoning: wireReasoning(CHASE_REASONING),
         jsonMode: false,
       })
       text = typeof data === 'string' ? data.trim() : String(data ?? '').trim()

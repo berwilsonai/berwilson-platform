@@ -16,6 +16,7 @@
  */
 
 import { callGemini } from '@/lib/ai/gemini'
+import { wireReasoning } from '@/lib/ai/reasoning'
 import { sweepDb } from '@/lib/email-sweep/db'
 import { loadPepperMembers } from '@/lib/pepper/attribution'
 import { correctSides } from './side'
@@ -23,6 +24,7 @@ import { SYSTEM_USER_ID } from '@/lib/email-ingestion/analyze'
 import {
   COMMITMENT_SYSTEM_PROMPT,
   COMMITMENT_PROMPT_VERSION,
+  COMMITMENT_REASONING,
   type CommitmentExtraction,
   type ExtractedCommitment,
 } from './prompt'
@@ -219,6 +221,7 @@ export async function extractCommitments(
           userMessage,
           userId,
           promptVersion: COMMITMENT_PROMPT_VERSION,
+          reasoning: wireReasoning(COMMITMENT_REASONING),
           maxTokens: 2048,
         })
 
