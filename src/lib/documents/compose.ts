@@ -33,7 +33,7 @@ import { createDocFromBytes } from '@/lib/integrations/google-drive-write'
 import { exportDocAsPdf } from '@/lib/integrations/google-docs'
 import { PRIMARY_MAILBOX, isGoogleConfigured } from '@/lib/integrations/google-workspace'
 import { recordDriveFolder } from '@/lib/drive/publish'
-import { notify } from '@/lib/notify'
+import { notifyPair } from '@/lib/notify/pair'
 import { isConfidentialProject } from '@/lib/security/confidential'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { pipelineValue } from '@/lib/records/pipeline-value'
@@ -77,6 +77,13 @@ export interface ComposeResult {
   driveFileUrl: string | null
   /** True when the record is protected, so nothing left the box. */
   contained: boolean
+  /**
+   * ⚠ TWO CHANNELS, TWO FIELDS, BECAUSE THEY NO LONGER MEAN THE SAME THING.
+   * `emailed` is the channel that must arrive (Richard, 2026-10-26); `texted`
+   * is best-effort and false is not a failure. A single `notified` boolean
+   * would hide exactly the difference the decision turned on.
+   */
+  emailed: boolean
   texted: boolean
   error: string | null
   /** Evidence items the budget dropped, so a thin document is explicable. */
@@ -324,6 +331,7 @@ export async function composeDocument(args: {
       documentId: null,
       driveFileUrl: null,
       contained,
+      emailed: false,
       texted: false,
       error: message,
       evidenceTruncated: 0,
@@ -514,7 +522,13 @@ export async function composeDocument(args: {
       .eq('id', requestId)
 
     // ── 9. Tell the person who asked ────────────────────────────────────────
+    //
+    // ⚠ BY MAIL AND BY TEXT, EMAIL BEING THE ONE THAT MUST ARRIVE (Richard,
+    // 2026-10-26 — T-Mobile is rejecting the carrier gateway). This waited
+    // minutes for a document somebody pressed a button for; a link that never
+    // arrives is the one outcome that makes the whole feature read as broken.
     let texted = false
+    let emailed = false
     if (!contained && !args.skipText && args.requestedBy.email) {
       const link = driveFileUrl ?? `${process.env.APP_URL ?? ''}/${args.target.kind}s/${args.target.id}/documents`
       const lines = [
@@ -523,16 +537,15 @@ export async function composeDocument(args: {
         link,
       ]
       if (spec.legal === 'needs_counsel') lines.push('Not reviewed by counsel.')
-      const result = await notify({
+      const result = await notifyPair({
         kind: 'document_ready',
-        channel: 'text',
         to: args.requestedBy.email,
-        subject: `${spec.fileNoun} ready`,
-        html: '',
+        subject: `${spec.fileNoun} ready — ${record.name ?? 'your record'}`,
         text: lines.join('\n'),
         textKind: 'document_ready',
       })
-      texted = result.ok
+      emailed = result.emailed
+      texted = result.texted
     }
 
     return {
@@ -543,6 +556,7 @@ export async function composeDocument(args: {
       driveFileUrl,
       contained,
       texted,
+      emailed,
       error: null,
       evidenceTruncated: evidence.truncatedItems,
     }

@@ -12,10 +12,17 @@
  * about a destination that differs only in WHERE the work lands applies to WHEN
  * as well: one pass, one parameter.
  *
- * ⚠ TEXT ONLY, BY INSTRUCTION. Richard, 2026-10-21: Pepper's mail and her Chat
- * posts are held (`src/lib/notify/policy.ts`); this is the channel that is read.
- * So there is no email fallback here, and the link in the message is the only
- * detail view — which is why an empty message is skipped rather than padded.
+ * ⚠ EMAIL MUST ARRIVE; THE TEXT IS BEST-EFFORT. Richard, 2026-10-26: *"Make
+ * email the channel that must arrive."* This was text-only until then, on the
+ * 10-21 instruction that Pepper's mail was held and the text was the channel
+ * being read — and then a read of `info@`'s Sent folder found T-Mobile
+ * rejecting the gateway (`452 … AUP#MXRT`: 6 of 13 delayed, 1 permanently
+ * failed in 30 days). A reminder that arrives a day late is worse than one that
+ * does not arrive, so the obligation now rides mail and the text is the nudge.
+ * The hold on Pepper's OWN morning note is untouched — this kind was never in
+ * it. Both carry the same words, so an empty message is still skipped rather
+ * than padded. `notification_log.status` is the EMAIL's verdict (see
+ * `notifyPair`), or a carrier block would mark a delivered morning `failed`.
  *
  * ⚠ A SKIP IS RECORDED, NOT JUST LOGGED. `notification_log` gets a row with
  * `status = 'skipped'` and the reason whenever there is nothing to say. §12: a
@@ -30,7 +37,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 
-import { notify } from '@/lib/notify'
+import { notifyPair } from '@/lib/notify/pair'
 import { isHeld } from '@/lib/notify/policy'
 import { loadPepperMembers } from '@/lib/pepper/attribution'
 import {
@@ -46,7 +53,17 @@ import { createAdminClient } from '@/lib/supabase/admin'
 /** Two reads and a handful of sends. Nothing long-running. */
 export const maxDuration = 300
 
-const CHANNEL = 'text'
+/**
+ * What the `notification_log` row records as the transport.
+ *
+ * ⚠ ONE ROW PER PERSON PER MORNING, STILL. The idempotency guard reads
+ * `status = 'sent'` for the kind and date, so splitting this into a row per
+ * channel would make a re-run send the half that had failed AND the half that
+ * had not. The row's status is the email's — the channel that must arrive —
+ * and what became of the text goes in `error` beside it, which is where a
+ * best-effort note belongs: visible, never fatal.
+ */
+const CHANNEL = 'email+text'
 
 export async function GET(request: NextRequest) {
   const authHeader = request.headers.get('authorization')
@@ -157,25 +174,38 @@ export async function GET(request: NextRequest) {
       continue
     }
 
-    const result = await notify({
-      channel: 'text',
+    const result = await notifyPair({
       kind,
       to: member.email,
-      // The text channel ignores the subject by design; it is carried only so
-      // the one notify() signature serves every channel.
-      subject: isWeek ? 'Week ahead' : 'Due today',
-      html: '',
+      // The EMAIL's subject. The text channel uses its own ('Pepper'), because
+      // a carrier renders a subject into the body where there is no room for a
+      // header — see `gatewaySender`.
+      // ⚠ NO COUNT IN THE SUBJECT, AND THE FIRST VERSION OF THIS LINE IS WHY.
+      // It read `Your week: ${taskCount} tasks with a date` and landed in Eric's
+      // mailbox saying **7** above a body saying **5 of yours due this week** —
+      // because `taskCount` is `thisWeek + overdue` and the body reports those
+      // two apart, which is right. §12: two different quantities must be named
+      // apart and never summed, and one quantity must have one definition or the
+      // reader trusts neither. The body owns the numbers; the subject just says
+      // which message this is.
+      subject: isWeek ? 'Your week ahead' : 'Due today',
       text: composed.body,
     })
 
-    if (result.ok) sent++
+    // ⚠ THE VERDICT IS THE EMAIL'S. A text the carrier blocked is a note, not
+    // a failure — folding it in would mark a morning that WAS delivered
+    // `failed`, and the next re-run would then send it twice.
+    if (result.emailed) sent++
     else failed++
 
     results.push({
       member: member.name,
-      ok: result.ok,
+      ok: result.emailed,
+      emailed: result.emailed,
+      texted: result.texted,
       named: composed.namedTaskIds.length,
       ...(result.error ? { error: result.error } : {}),
+      ...(result.textNote ? { textNote: result.textNote } : {}),
     })
 
     await recordSend(supabase, {
@@ -183,8 +213,8 @@ export async function GET(request: NextRequest) {
       kind,
       taskCount: composed.taskCount,
       sentDate: today,
-      status: result.ok ? 'sent' : 'failed',
-      error: result.ok ? null : (result.error ?? 'unknown'),
+      status: result.emailed ? 'sent' : 'failed',
+      error: result.emailed ? result.textNote : (result.error ?? 'unknown'),
     })
   }
 

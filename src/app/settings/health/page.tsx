@@ -31,6 +31,7 @@ import {
   probeThreadRouting,
   probeCorrespondenceIndex,
   probeTextDelivery,
+  probeEmailDelivery,
   probeMeetImport,
   probeIMessageSweep,
   probeVoiceMemos,
@@ -108,7 +109,7 @@ async function runChecks(): Promise<HealthCheck[]> {
   const dayAgo = new Date(Date.now() - 86_400_000).toISOString()
   const localAI = process.env.AI_PROVIDER === 'local'
 
-  const [brief, riskScore, lastAi, aiDayCount, failedRuns, mailbox, lmStudio, backups, drive, leadInbox, docIndexing, driveSources, driveFiling, scopes, disk, lastDigest, failedDigests, contacts, taskSheet, drivePublish, meetImport, dealIntake, routing, corpus, dailyDigest, commitmentBacklog, openCommitments, settledRecently, quietedCommitments, imessageSweep, voiceMemos, driveAudio, taskReminder, curator, chase, pepperReply, textDelivery] =
+  const [brief, riskScore, lastAi, aiDayCount, failedRuns, mailbox, lmStudio, backups, drive, leadInbox, docIndexing, driveSources, driveFiling, scopes, disk, lastDigest, failedDigests, contacts, taskSheet, drivePublish, meetImport, dealIntake, routing, corpus, dailyDigest, commitmentBacklog, openCommitments, settledRecently, quietedCommitments, imessageSweep, voiceMemos, driveAudio, taskReminder, curator, chase, pepperReply, textDelivery, emailDelivery] =
     await Promise.all([
       supabase
         .from('stored_briefs')
@@ -209,6 +210,8 @@ async function runChecks(): Promise<HealthCheck[]> {
       probePepperReply(),
       // 8d — is the text actually ARRIVING? (§12: assert delivery, not configuration)
       probeTextDelivery(),
+      // 8e — and is the channel that MUST arrive arriving? (Richard, 10-26)
+      probeEmailDelivery(),
     ])
 
   const checks: HealthCheck[] = []
@@ -571,20 +574,47 @@ async function runChecks(): Promise<HealthCheck[]> {
   //     while every other part of the pass reported success. A carrier bounce
   //     in info@ is proof of failure; its absence across a week of sends is
   //     evidence of delivery and is worded as such, never as proof.
+  //
+  //     ⚠ AND SINCE 2026-10-26 THIS CARD CANNOT GO RED. Richard made email the
+  //     channel that must arrive, so a carrier block is a degraded extra rather
+  //     than an outage, and the obligation moved to 8e below. A permanently red
+  //     card for a known accepted condition is §12's "when every row is red,
+  //     red has stopped signifying".
   {
     checks.push({
-      name: 'Text Delivery',
-      status:
-        textDelivery.state === 'ok' ? 'ok' : textDelivery.state === 'failed' ? 'fail' : 'warn',
+      name: 'Text Delivery (best-effort)',
+      status: textDelivery.state === 'ok' ? 'ok' : 'warn',
       headline:
         textDelivery.state === 'ok'
           ? 'No text has been rejected by the carrier'
           : textDelivery.state === 'failed'
-            ? 'Texts are being rejected'
+            ? 'Texts are being rejected — email still carries them'
             : textDelivery.state === 'empty'
               ? 'No text target is configured'
               : 'Delivery cannot be confirmed',
       detail: textDelivery.detail,
+    })
+  }
+
+  // 8e. THE CHANNEL THAT MUST ARRIVE — added 2026-10-26 with Richard's decision.
+  //     Unlike every other delivery check here, this one PROVES rather than
+  //     infers: it reads the recipient's own mailbox, which the platform holds a
+  //     credential for, so "the message is there" is a fact. That asymmetry is
+  //     why email could take the obligation and the carrier gateway could not.
+  {
+    checks.push({
+      name: 'Email Delivery (must arrive)',
+      status:
+        emailDelivery.state === 'ok' ? 'ok' : emailDelivery.state === 'failed' ? 'fail' : 'warn',
+      headline:
+        emailDelivery.state === 'ok'
+          ? 'Read back from the recipient mailboxes — delivered'
+          : emailDelivery.state === 'failed'
+            ? 'A notification logged as sent is NOT in the mailbox'
+            : emailDelivery.state === 'empty'
+              ? 'No notification recipients on the roster'
+              : 'Not asserted yet',
+      detail: emailDelivery.detail,
     })
   }
 

@@ -2197,6 +2197,61 @@ export async function probePepperReply(): Promise<{
 }
 
 /**
+ * Is the channel that MUST arrive arriving?
+ *
+ * ⚠ THE CARD RICHARD'S 2026-10-26 DECISION CREATED. He chose *"make email the
+ * channel that must arrive"* over keeping a carrier that rejects 1 in 13
+ * messages, and the obligation moved with the choice: this is the probe that
+ * can go red, where the text card above can now only warn.
+ *
+ * It is also the only delivery check in this system that proves rather than
+ * infers — it reads the RECIPIENT'S mailbox, which the platform holds a
+ * credential for, so "it is there" is a fact. See `notify/email-delivery.ts`.
+ */
+export async function probeEmailDelivery(): Promise<{
+  state: 'ok' | 'empty' | 'warn' | 'failed'
+  detail: string
+}> {
+  try {
+    const { reportEmailDelivery } = await import('@/lib/notify/email-delivery')
+    const reports = await reportEmailDelivery()
+    if (reports.length === 0) {
+      return { state: 'empty', detail: 'No notification recipients on the active roster.' }
+    }
+    const missing = reports.filter((r) => r.verdict === 'missing')
+    if (missing.length > 0) {
+      return { state: 'failed', detail: missing.map((r) => r.summary).join(' ') }
+    }
+    const unknown = reports.filter((r) => r.verdict === 'unknown')
+    if (unknown.length > 0) {
+      return { state: 'warn', detail: unknown.map((r) => r.summary).join(' ') }
+    }
+    const delivered = reports.filter((r) => r.verdict === 'delivered')
+    if (delivered.length === 0) {
+      // ⚠ A QUIET WEEK AND A DEAD CHANNEL LOOK IDENTICAL FROM A COUNT (§12),
+      // so this names which question is unanswered instead of reporting ok.
+      return {
+        state: 'warn',
+        detail:
+          reports.map((r) => r.summary).join(' ') +
+          ' Nothing has been asserted yet — the first weekday reminder will settle it.',
+      }
+    }
+    return {
+      state: 'ok',
+      detail:
+        `${delivered.length} of ${reports.length} recipient mailbox(es) hold the notifications sent to ` +
+        `them. ` + delivered.map((r) => r.summary).join(' '),
+    }
+  } catch (err) {
+    return {
+      state: 'failed',
+      detail: `Could not check email delivery: ${err instanceof Error ? err.message : String(err)}`,
+    }
+  }
+}
+
+/**
  * Are Pepper's texts actually being delivered?
  *
  * ⚠ THE RULE §12 WROTE ABOUT THIS CHANNEL IS "ASSERT DELIVERY, NOT
@@ -2223,10 +2278,19 @@ export async function probeTextDelivery(): Promise<{
     const bounced = reports.filter((r) => r.verdict === 'bounced')
     if (bounced.length > 0) {
       return {
-        state: 'failed',
-        detail: `The carrier is REJECTING texts to ${bounced
-          .map((r) => r.handle)
-          .join(', ')} — ${bounced[0].bounce}`,
+        // ⚠ 'warn', NOT 'failed', SINCE 2026-10-26 — AND THE DOWNGRADE IS A
+        // DECISION, NOT A SOFTENING. Richard made email the channel that must
+        // arrive precisely because this one cannot be relied on, so a blocked
+        // carrier is now a degraded extra rather than an outage. Leaving it red
+        // would make the page permanently red over a known, accepted condition,
+        // and §12 is explicit that when every row is red, red has stopped
+        // signifying. The card below it (`probeEmailDelivery`) is the one that
+        // goes red, because that is the channel with an obligation.
+        state: 'warn',
+        detail:
+          `The carrier is REJECTING texts to ${bounced.map((r) => r.handle).join(', ')} — ` +
+          `${bounced[0].bounce} Text is the best-effort channel (10-26); email is the one that ` +
+          `must arrive, and it is checked separately.`,
       }
     }
     const unconfigured = reports.filter((r) => r.verdict === 'not_configured')

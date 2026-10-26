@@ -78,21 +78,36 @@ export type OutboundPass =
  */
 export const OUTBOUND = {
   // ── Live ──────────────────────────────────────────────────────────────────
+  /**
+   * ⚠ EMAIL IS THE CHANNEL THAT MUST ARRIVE, TEXT IS BEST-EFFORT. Richard's
+   * decision, 2026-10-26, after a read of `info@`'s Sent folder found T-Mobile
+   * rejecting the gateway (`452 … AUP#MXRT`, 6 of 13 delayed and 1 permanently
+   * failed in 30 days): *"Make email the channel that must arrive."*
+   *
+   * The two are NOT equals and the order here says which is which — see
+   * `src/lib/notify/pair.ts`, which is the one place that standing is applied.
+   * This was text-only *"by instruction"* until that measurement; the
+   * instruction it cited (10-21, Pepper's mail held) is unchanged, and these
+   * kinds were never part of the hold.
+   */
   task_week: {
     what: "Monday's reminder of the tasks due this week",
-    channel: 'text',
+    channel: ['email', 'text'],
     trigger: 'scheduled',
     live: true,
   },
   task_due_today: {
     what: 'the day-of reminder for a task still not checked off',
-    channel: 'text',
+    channel: ['email', 'text'],
     trigger: 'scheduled',
     live: true,
   },
   record_alert: {
-    what: 'the TLDR text when a recording created a project or opportunity',
-    channel: 'text',
+    what: 'the TLDR when a recording created a project or opportunity',
+    // ⚠ AND THE RECIPIENTS ARE NO LONGER THE TEXT TARGETS. This pass iterated
+    // `textTargets()`, so an empty PEPPER_TEXT_TARGETS meant nobody was told a
+    // deal had been created off a call. The list is the PEOPLE now.
+    channel: ['email', 'text'],
     trigger: 'event',
     live: true,
   },
@@ -121,8 +136,9 @@ export const OUTBOUND = {
    * by the time anyone reconsiders (§8).
    */
   document_ready: {
-    what: 'the text with a link when a document you asked Ber AI to write is ready',
-    channel: 'text',
+    what: 'the link when a document you asked Ber AI to write is ready',
+    // Email must arrive, text is best-effort — 10-26, see pair.ts.
+    channel: ['email', 'text'],
     trigger: 'human',
     live: true,
   },

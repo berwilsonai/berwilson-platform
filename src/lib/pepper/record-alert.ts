@@ -23,14 +23,14 @@
  */
 
 import { loadPepperMembers } from '@/lib/pepper/attribution'
-import { notify } from '@/lib/notify'
+import { notifyPair } from '@/lib/notify/pair'
 import { PEPPER_SIGNATURE, textTargets } from '@/lib/notify/text'
 import { isConfidentialProject } from '@/lib/security/confidential'
 import { createAdminClient } from '@/lib/supabase/admin'
 import type { CreatedRecord } from '@/lib/records/from-recording'
 
 const KIND = 'record_alert'
-const CHANNEL = 'text'
+const CHANNEL = 'email+text'
 const UNIQUE_VIOLATION = '23505'
 
 export interface RecordAlertResult {
@@ -39,7 +39,7 @@ export interface RecordAlertResult {
   failed: number
   /** The exact body, so a dry run and a log can both be read. */
   body: string | null
-  results: { to: string; ok: boolean; via?: string; error?: string }[]
+  results: { to: string; ok: boolean; emailed?: boolean; texted?: boolean; via?: string; error?: string | null }[]
   notes: string[]
 }
 
@@ -105,10 +105,18 @@ function label(r: CreatedRecord): string {
 }
 
 /**
- * Text both executives about what this recording created.
+ * Tell both executives what this recording created — by mail, and by text.
  *
- * Returns rather than throws: a failed text must never cost the record that was
+ * Returns rather than throws: a failed send must never cost the record that was
  * already written, and the sweep reports this result alongside its own.
+ *
+ * ⚠ THE RECIPIENTS ARE THE PEOPLE, NOT THE TEXT TARGETS, SINCE 2026-10-26.
+ * This loop used to iterate `textTargets()`, which inverted the dependency: an
+ * empty `PEPPER_TEXT_TARGETS`, a malformed entry or a person with no handle
+ * meant NOBODY was told that a call had created a deal, and the pass said so in
+ * a note nobody reads. Email is the channel that must arrive now (Richard,
+ * 10-26 — T-Mobile is rejecting the gateway), so the roster decides who is
+ * told and a handle is an optional extra. `notifyPair` applies that standing.
  */
 export async function sendRecordAlert(args: {
   created: CreatedRecord[]
@@ -139,33 +147,34 @@ export async function sendRecordAlert(args: {
   const body = composeRecordAlert(safe, { recordedOn: args.recordedOn, sourceTitle: args.sourceTitle })
   out.body = body
 
-  const { targets, problems } = textTargets()
+  // A malformed text target is still worth saying — it costs somebody their
+  // nudge — but it no longer decides WHO is told.
+  const { problems } = textTargets()
   for (const p of problems) out.notes.push(`text target problem: ${p}`)
-  if (targets.length === 0) {
-    out.notes.push('PEPPER_TEXT_TARGETS is empty, so nobody was texted — the records were still created')
-    return out
-  }
 
   const supabase = createAdminClient()
   const members = await loadPepperMembers(supabase).catch(() => [])
+  if (members.length === 0) {
+    out.notes.push('could not read the team roster, so nobody was told — the records were still created')
+    return out
+  }
   const today = new Date().toISOString().slice(0, 10)
   // The key is the SET of records, so one recording's news is sent once per
   // person however many times the sweep is re-run.
   const recordKey = safe.map((r) => r.id).sort().join(',')
 
-  for (const target of targets) {
-    const member = members.find((m) => m.email === target.email)
-    if (member?.isAssistantSeat) {
+  for (const member of members) {
+    if (member.isAssistantSeat) {
       out.skipped++
-      out.notes.push(`${target.email} is the assistant seat — Pepper does not text herself`)
+      out.notes.push(`${member.email} is the assistant seat — Pepper does not write to herself`)
       continue
     }
 
     // CLAIM FIRST, SEND SECOND — the insert is the lock (meeting-prep precedent).
-    const dedupeKey = `${target.email}:${recordKey}`
+    const dedupeKey = `${member.email}:${recordKey}`
     if (!args.dryRun) {
       const { error: claimErr } = await supabase.from('notification_log').insert({
-        team_member_id: member?.id ?? null,
+        team_member_id: member.id,
         channel: CHANNEL,
         kind: KIND,
         sent_date: today,
@@ -179,33 +188,33 @@ export async function sendRecordAlert(args: {
         }
         out.failed++
         out.notes.push(
-          `could not claim the alert for ${target.email} — the once-per-record guard is not holding: ${claimErr.message}`
+          `could not claim the alert for ${member.email} — the once-per-record guard is not holding: ${claimErr.message}`
         )
         continue
       }
     }
 
-    const res = await notify({
-      channel: 'text',
+    const res = await notifyPair({
       kind: 'record_alert',
-      to: target.email,
-      subject: 'new record',
-      html: body.replace(/\n/g, '<br>'),
+      to: member.email,
+      // Named so the mail is findable later; the text keeps its own subject.
+      subject:
+        safe.length === 1
+          ? `New ${safe[0].kind}: ${safe[0].name}`
+          : `${safe.length} new records off a recording`,
       text: body,
       textKind: 'record_alert',
       dryRun: args.dryRun,
-    }).catch((err) => ({
-      ok: false as const,
-      error: err instanceof Error ? err.message : String(err),
-      via: undefined,
-    }))
+    })
 
-    if (res.ok) {
+    // The email's verdict decides; the text is a note either way (§pair.ts).
+    if (res.textNote) out.notes.push(`${member.email}: ${res.textNote}`)
+    if (res.emailed) {
       out.sent++
-      out.results.push({ to: target.email, ok: true, via: res.via })
+      out.results.push({ to: member.email, ok: true, emailed: true, texted: res.texted, via: res.via })
     } else {
       out.failed++
-      out.results.push({ to: target.email, ok: false, error: res.error })
+      out.results.push({ to: member.email, ok: false, error: res.error })
       if (!args.dryRun) {
         await supabase
           .from('notification_log')

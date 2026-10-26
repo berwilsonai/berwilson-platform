@@ -45,10 +45,17 @@
 
 import { createAdminClient } from '@/lib/supabase/admin'
 import { notify } from '@/lib/notify'
+import { gatewaySender } from '@/lib/notify/text'
 import { guardOutboundText } from '@/lib/security/egress'
 import { isConfidentialProject } from '@/lib/security/confidential'
 
 const KIND = 'agent_answer'
+
+/** The one sender identity for everything Pepper sends — see `notify/pair.ts`. */
+function gatewaySenderFields(): { from: string; fromName: string } {
+  const { from, fromName } = gatewaySender()
+  return { from, fromName }
+}
 const UNIQUE_VIOLATION = '23505'
 
 function envInt(name: string, fallback: number): number {
@@ -314,6 +321,15 @@ export async function notifyAnswer(args: {
       to: args.to,
       subject: subjectFor(args.question),
       html,
+      // ⚠ AS `info@`, SIGNED AS PEPPER — the same seat as the text beside it
+      // (Richard, 2026-10-26). Two reasons, and the second is structural: this
+      // defaulted to `Ber Intelligence <moose@berwilson.com>`, which is
+      // Richard's OWN address, so his answer looked like mail he had sent
+      // himself; and the sweep's own-mail guard then rested on the display
+      // NAME matching `PLATFORM_SENDER_NAME`, which §12 says is not a
+      // contract. `isPlatformMail` keys on the assistant seat's ADDRESS, so
+      // sending from `info@` is the arm no rename can reopen.
+      ...gatewaySenderFields(),
     })
     if (result.ok) {
       emailed = true
