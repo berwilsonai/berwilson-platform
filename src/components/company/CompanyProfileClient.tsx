@@ -1,6 +1,7 @@
 'use client'
 
 import { useActionState, useState, useRef, useEffect } from 'react'
+import ProseBlocks from '@/components/shared/ProseBlocks'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
@@ -611,7 +612,17 @@ export default function CompanyProfileClient({ profile, certifications: initialC
             {profile.about && (
               <div className="space-y-1.5">
                 <h3 className="label-caps text-muted-foreground">About</h3>
-                <p className="text-sm leading-relaxed whitespace-pre-line">{profile.about}</p>
+                {/*
+                  ⚠ WAS ONE `<p className="whitespace-pre-line">` HOLDING A
+                  WHOLE DOCUMENT. Measured 2026-10-27: 14,579 characters over
+                  156 lines — eighty-underscore rules, three presidential
+                  quotes with attributions, bulleted figure lists and eight
+                  section headings, all rendered at 14.5px in a single
+                  undifferentiated run. The structure was in the text the whole
+                  time and nothing read it, which is why this read as unparsed
+                  rather than as unstyled.
+                */}
+                <ProseBlocks text={profile.about} />
               </div>
             )}
 

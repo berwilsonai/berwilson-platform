@@ -26,7 +26,7 @@ import { Check, X, Clock, ArrowUpRight, Copy, Search, Handshake } from 'lucide-r
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { Panel } from '@/components/ui/card'
-import { PageHeader } from '@/components/ui/page-header'
+import { HeaderMetrics, PageHeader } from '@/components/ui/page-header'
 import { Chip } from '@/components/ui/chip'
 import { FIELD_CONTROL_CLASS } from '@/lib/utils/field-classes'
 import type {
@@ -247,15 +247,28 @@ export default function CommitmentsLedger({
         description="Every obligation read out of correspondence. Tick what is done, quiet what is real but not today, and dismiss what was never a commitment of ours."
       />
 
-      {/* ONE QUANTITY, ONE DEFINITION (§12) — these are four different
-          questions about one table, named apart and never summed. */}
-      <div className="flex flex-wrap gap-2 text-xs">
-        <Chip className="tnum">{totals.open} open</Chip>
-        <Chip className="tnum">{totals.undated} with no agreed date</Chip>
-        {totals.quiet > 0 && <Chip className="tnum">{totals.quiet} quieted</Chip>}
-        <Chip className="tnum">{totals.settled} settled</Chip>
-        {totals.retired > 0 && <Chip className="tnum">{totals.retired} retired as stale</Chip>}
-      </div>
+      {/*
+        ONE QUANTITY, ONE DEFINITION (§12) — five different questions about one
+        table, named apart and never summed.
+
+        ⚠ THEY WERE FIVE CHIPS AT 13px, indistinguishable from the filter chips
+        below them and from every other chip on the page: *"210 open"*,
+        *"171 with no agreed date"*, *"221 settled"* read as controls rather
+        than as the state of the ledger. `HeaderMetrics` is the shared strip
+        for exactly this — the figure in ink at body weight, its label muted
+        beside it — and it is deliberately NOT four `StatTile`s, because a
+        30px number at the top of a list page competes with the list for the
+        thing the page exists to show.
+      */}
+      <HeaderMetrics
+        items={[
+          { label: 'open', value: totals.open },
+          { label: 'with no agreed date', value: totals.undated, tone: totals.undated > 0 ? 'caution' : 'default' },
+          ...(totals.quiet > 0 ? [{ label: 'quieted', value: totals.quiet }] : []),
+          { label: 'settled', value: totals.settled, tone: 'positive' as const },
+          ...(totals.retired > 0 ? [{ label: 'retired as stale', value: totals.retired }] : []),
+        ]}
+      />
 
       {loadError && (
         <p role="alert" className="rounded-lg border border-border bg-card p-3 text-sm text-critical">

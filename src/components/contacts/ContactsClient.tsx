@@ -424,7 +424,13 @@ export default function ContactsClient({ contacts: initialContacts, roles }: Con
                       onClick={() => toggleRole(r.key)}
                       aria-pressed={on}
                       className={cn(
-                        'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs ring-1 transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
+                        /* ⚠ A 44px FLOOR ON A PHONE, written absolutely so a
+                           density change cannot take it away (§12). These are
+                           27 of the filter chips on this page and they rendered
+                           22px tall — half the minimum — because a chip's
+                           height comes from its text. On a pointer they stay
+                           compact. */
+                        'inline-flex min-h-[2.75rem] sm:min-h-0 items-center gap-1 rounded-full px-2 py-0.5 text-xs ring-1 transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
                         // ⚠ The selected state is a RING and an offset, never a
                         // second bg-* — `cn()` is tailwind-merge, so two classes
                         // in the same utility group do not compose and the later
@@ -641,7 +647,19 @@ function ContactRow({
           }
         }}
         aria-checked={selecting ? selected : undefined}
-        className="flex min-h-16 min-w-0 flex-1 items-center gap-3 py-2.5 outline-none focus-visible:ring-3 focus-visible:ring-ring/50 rounded-md"
+        /*
+          ⚠ `min-h-[3.25rem]` (52px), DOWN FROM `min-h-16` (64px). Measured
+          2026-10-27: 396 of 397 rows rendered at 65px, so **12.5 contacts fit
+          above the fold** in a 397-row directory — the page a reader scans
+          more than any other, showing 3% of itself. The row holds an avatar
+          and two lines, which need 42px; 64 was a third of it in air.
+          ⚠ NOT the audit's 48px, and not written on the spacing scale. 48
+          crushes a 20px name over an 18px subtitle, and anything derived from
+          `--spacing` moves with a density change — which is how 66 tap
+          targets once silently dropped below the floor. 52px absolute clears
+          the 44px touch minimum with room that a token cannot take away.
+        */
+        className="flex min-h-[3.25rem] min-w-0 flex-1 items-center gap-3 py-2 outline-none focus-visible:ring-3 focus-visible:ring-ring/50 rounded-md"
       >
         <span
           className={cn(

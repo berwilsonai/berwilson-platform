@@ -68,14 +68,30 @@ export function BriefMarkdown({
   while (i < lines.length) {
     const line = lines[i]
 
+    /*
+      ── THE HEADING LADDER ────────────────────────────────────────────────
+      ⚠ ALL THREE LEVELS USED TO LAND WITHIN 1.5px OF THE BODY TEXT: h1 at
+      `text-base` (16px), h2 and h3 both at `text-sm` (14.5px) — the same size
+      as the paragraphs beneath them, separated by weight alone. This is the
+      agent's own output and the brief's, the longest prose the application
+      renders, and it had no visible structure at all: the UI audit called it
+      "headings, numbered lists and bold runs all at near-identical size", and
+      the markdown was being parsed correctly the whole time.
+
+      Three real steps now — 18 / 16 / 14.5-semibold with tracking — using the
+      `title` ROLE token rather than a size, so the ladder moves with the rest
+      of the type scale. ⚠ Deliberately NOT `text-display`: 28px inside a chat
+      bubble competes with the page's own masthead, and §4.1's rule is exactly
+      one display per page.
+    */
     // H1
     if (line.startsWith('# ')) {
-      elements.push(<h1 key={i} className="text-base font-bold mt-4 mb-2 first:mt-0">{renderInline(line.slice(2))}</h1>)
+      elements.push(<h1 key={i} className="text-title mt-5 mb-2 first:mt-0">{renderInline(line.slice(2))}</h1>)
       i++; continue
     }
     // H2
     if (line.startsWith('## ')) {
-      elements.push(<h2 key={i} className="text-sm font-semibold mt-4 mb-1.5">{renderInline(line.slice(3))}</h2>)
+      elements.push(<h2 key={i} className="text-base font-semibold tracking-[-0.01em] mt-4 mb-1.5">{renderInline(line.slice(3))}</h2>)
       i++; continue
     }
     // H3

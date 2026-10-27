@@ -1076,7 +1076,21 @@ export default function DecideClient({ items }: { items: DecideItem[] }) {
               ref={(el) => {
                 rowsRef.current.set(index, el)
               }}
-              className={`flex items-start gap-3 px-4 py-3 transition-colors group ${
+              /*
+                ⚠ `py-2.5`, NOT `py-3`, AND THE NOTE IS ALWAYS ONE LINE.
+                Measured 2026-10-27: 125 of 133 rows rendered at **88px**, so
+                **9.3 of 136 items fit above the fold** on a 815px viewport —
+                a queue whose whole job is to be worked through, showing 7% of
+                itself. The two-line note was the bulk of it.
+                A row with no facts strip used to keep two lines of the
+                model's prose; it now keeps one like every other row, and the
+                full text rides in `title` for a hover and is one click away
+                in the record itself. That is the honest version of the
+                audit's "truncate with hover-expand" — a hover-only expansion
+                does not exist on a phone (§12), so the information has to be
+                reachable another way, and it is.
+              */
+              className={`flex items-start gap-3 px-4 py-2.5 transition-colors group ${
                 index === cursorIdx
                   ? 'bg-accent ring-1 ring-inset ring-primary/40'
                   : 'hover:bg-accent'
@@ -1159,15 +1173,10 @@ export default function DecideClient({ items }: { items: DecideItem[] }) {
                     ))}
                   </p>
                 )}
-                {/* Prose is the FALLBACK, not the row. A row with facts gets one
-                    line of the model's reasoning; a row that has no facts to
-                    show (review_queue carries none) keeps two. */}
+                {/* Prose is the FALLBACK, not the row — one line of the
+                    model's reasoning, with the whole of it in `title`. */}
                 {item.note && (
-                  <p
-                    className={`text-xs text-muted-foreground/90 mt-1 ${
-                      factStrip(item.facts).length > 0 ? 'line-clamp-1' : 'line-clamp-2'
-                    }`}
-                  >
+                  <p className="mt-0.5 line-clamp-1 text-xs text-muted-foreground/90" title={item.note}>
                     {item.note}
                   </p>
                 )}

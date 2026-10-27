@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { Building2 } from 'lucide-react'
 import { createAdminClient } from '@/lib/supabase/admin'
 import MediaGallery from '@/components/shared/MediaGallery'
+import { PageHeader } from '@/components/ui/page-header'
 import CompanyProfileClient from '@/components/company/CompanyProfileClient'
 import CompanyKnowledgeBase from '@/components/company/CompanyKnowledgeBase'
 import CompanySectionTabs from '@/components/company/CompanySectionTabs'
@@ -57,39 +58,37 @@ export default async function CompanyPage() {
   }
 
   return (
-    <div className="space-y-8 max-w-3xl">
-      {/* Header */}
-      <div className="flex items-center gap-3">
-        <div className="w-10 h-10 rounded-lg bg-muted dark:bg-muted/40 flex items-center justify-center shrink-0">
-          <Building2 size={20} className="text-muted-foreground" />
-        </div>
-        <div>
-          <h1 className="text-xl font-semibold">{profile.legal_name}</h1>
-          {profile.dba_name && (
-            <p className="text-sm text-muted-foreground">dba {profile.dba_name}</p>
-          )}
-        </div>
-      </div>
-
-      {/* This route is admin-only, so both tabs always show */}
-      <CompanySectionTabs active="profile" showProfile />
-
-      {/* Photo gallery */}
-      <section className="space-y-2">
-        <h2 className="label-caps text-muted-foreground">
-          Company Photos
-        </h2>
-        <MediaGallery
-          initialPhotos={photos ?? []}
-          scope={{ isCompany: true }}
-        />
-      </section>
+    <div className="max-w-4xl space-y-8">
+      <PageHeader
+        icon={Building2}
+        title={profile.legal_name}
+        description={profile.dba_name ? `dba ${profile.dba_name}` : undefined}
+        className="mb-0"
+      >
+        {/* This route is admin-only, so both tabs always show */}
+        <CompanySectionTabs active="profile" showProfile />
+      </PageHeader>
 
       {/* Profile + Certs (client component) */}
       <CompanyProfileClient
         profile={profile}
         certifications={certifications ?? []}
       />
+
+      {/*
+        ⚠ THE PHOTO DROPZONE USED TO BE THE FIRST THING ON THIS PAGE. An empty
+        80px "Add photos" rectangle opened the company's own profile, above its
+        legal name, its address and everything a reader comes here for — the
+        most prominent element on the screen was an invitation to fill in
+        something nobody had asked for. It belongs below the record it
+        illustrates: a surface hidden because it is empty is hidden exactly
+        when someone needs to fill it (§12), so it still renders, just not
+        first.
+      */}
+      <section className="space-y-2">
+        <h2 className="label-caps text-muted-foreground">Company Photos</h2>
+        <MediaGallery initialPhotos={photos ?? []} scope={{ isCompany: true }} />
+      </section>
 
       {/* Knowledge base — Ber Wilson's own corpus, fed to Ber AI */}
       <CompanyKnowledgeBase
