@@ -6,6 +6,51 @@ This file is **not** auto-loaded into a Claude Code session. It is the archive: 
 
 Split out of `CLAUDE.md` on 2026-09-23, when that file reached 606k characters against a 150k limit above which it is silently truncated — meaning the project's own operating instructions had begun to risk not reaching the sessions that need them. The entries below are **verbatim and unedited**.
 
+**Done 2026-10-27 (the UI audit, Phase 4 — the page that looked unparsed, and the three lists showing 3% of themselves):**
+
+Continued straight on from Phases 1–3 (the entry below). Same method: measure the audit's premise, act on what it found, note what it could not see.
+
+── /company: THE WEAKEST PAGE, AND IT WAS NEVER A STYLING PROBLEM ──────────
+
+The audit: *"The ABOUT field dumps raw text including ──────── ASCII rules, three presidential quotes, and a pitch deck. It is rendering unparsed… the single most unfinished-looking thing in the app."*
+
+Measured: `company_profile.about` holds **14,579 characters over 156 lines** — eighty-underscore horizontal rules, three presidential quotes each with an attribution on the line below, bulleted figure lists (*"• $39.5 billion planned in the Utah and Nevada corridor"*), and eight section headings (*The Platform*, *The Numbers*, *Where We Build*). All of it rendered as ONE `<p className="text-sm leading-relaxed whitespace-pre-line">`.
+
+**The structure was in the text the whole time and nothing read it.** `src/lib/utils/prose.ts` parses it into `rule | heading | quote | list | paragraph`; `ProseBlocks` renders them. Pure and tested, with every fixture a real line from the field.
+
+⚠ **TWO OF THE RULES EXIST ONLY BECAUSE OF LINES THAT MUST NOT MATCH.** A heading is ≤5 words, ≤50 chars, with no `|`, no `:` and no terminal stop — without all four tests, *"Ericson Tua'one | Founder and CEO | South Jordan, Utah"*, *"Document Control: BW-BRG-2026-012"* and *"Three presidents. One mission. Ber Wilson is building it."* all become titles. An attribution attaches only to a quote that is directly above it and not yet attributed — without that, any em-dash sentence in the body becomes somebody's byline. A heading also may not open with a dash, which is what a SECOND attribution under an already-attributed quote otherwise becomes.
+
+⚠ **AND THE FIRST VERSION JOINED WRAPPED LINES, WHICH THIS CORPUS DOES NOT HAVE.** Its paragraphs are single lines of up to 190 characters, and a heading is followed IMMEDIATELY by its paragraph with no blank line between — so joining merged every section's two paragraphs into one. The test that caught it was a fixture I had written myself rather than taken from the corpus, which is §12's own trap experienced from the inside: *a fixture that builds the field directly cannot catch a producer that never fills it.* One line is now one paragraph, and the test says why.
+
+Also on that page: **the empty 80px photo dropzone was the first thing on the company's own profile**, above its legal name, its address and everything a reader comes for — the most prominent element on the screen was an invitation to fill in something nobody asked for. It now sits below the record it illustrates (still rendered: a surface hidden because it is empty is hidden exactly when someone needs to fill it). The page took `PageHeader` and widened from `max-w-3xl`.
+
+── /intel: THE FLAGSHIP AI SURFACE HAD NO HEADING LADDER ───────────────────
+
+⚠ DEVIATION: the audit's *"the response column is unstyled markdown"* was already fixed — `AgentChat` renders through `BriefMarkdown`, and its own comment records the session that did it. What was NOT fixed is the half the audit named next: *"headings, numbered lists and bold runs all render at near-identical size"*, and that was exact. `BriefMarkdown` parsed the markdown correctly and then rendered **h1 at `text-base` (16px) and h2 AND h3 both at `text-sm` (14.5px)** — the same size as the paragraphs beneath them, separated by weight alone, on the longest prose this application produces. Three real steps now: 18 / 16 / 14.5-semibold, using the `title` ROLE token so the ladder moves with the type scale rather than sitting beside it. ⚠ Deliberately NOT `text-display`: a 28px heading inside a chat bubble competes with the page's own masthead, and §4.1's rule is exactly one display per page.
+
+── /commitments: FIVE COUNTS DRESSED AS FIVE CONTROLS ──────────────────────
+
+The ledger's totals rendered as five `<Chip>`s at 13px, visually identical to the filter chips immediately below them — so *"210 open"*, *"171 with no agreed date"* and *"221 settled"* read as things to click rather than as the state of the table. They take `HeaderMetrics` now (the figure in ink at body weight, its label muted beside it), with `caution` on the undated count and `positive` on settled. ⚠ Deliberately NOT four `StatTile`s: a 30px number at the top of a list page competes with the list for the thing the page exists to show, which is what `HeaderMetrics` was written for. ⚠ DEVIATION: the audit asked for tooltips on the ✓/⏱/✕ row buttons; they already carry `title` AND `aria-label`.
+
+── DENSITY: THREE LISTS, MEASURED BEFORE AND AFTER ─────────────────────────
+
+| surface | before | after | above the fold |
+|---|---|---|---|
+| /decide | 88px (125 of 133 rows) | 82px | 9.3 → 9.9 |
+| /contacts | 65px (396 of 397 rows) | 56px | 12.5 → 14.6 |
+
+⚠ **64px IS NOT REACHABLE ON /decide AND SHOULD NOT BE.** The audit asked for 88 → 64. Measured the row from the inside: 10px padding, then 21px title, 18px destination, 18px reasoning, 10px padding. Three lines of content at 13px. The third line is the MODEL'S REASONING — *"The correspondence concerns utility coordination for the Weirton Site, which matches the existing record"* — and it is the thing that makes the banner above it (*"138 of 140 can be accepted without opening them"*) a defensible offer rather than a leap. Dropping it buys 18px and costs the queue its safety. The note is one line now with the whole of it in `title`; removing it entirely is a density toggle's job, which is Phase 5, not a default.
+
+⚠ **AND THE AUDIT'S 48px FOR /contacts CRUSHES THE ROW.** It holds an avatar over two lines — a 20px name and an 18px subtitle — which need 42px plus air. 52px (`min-h-[3.25rem]`, written absolutely so a density change cannot take it below the 44px touch floor) gives 56px rendered and 17% more of a 397-row directory per screen.
+
+⚠ **27 ROLE-FACET CHIPS ON /contacts RENDERED 22px TALL ON A PHONE** — half the minimum, because a chip's height comes from its text and nothing had ever measured them at that width. `min-h-[2.75rem] sm:min-h-0`: 27 below the floor became 9.
+
+── VERIFICATION ────────────────────────────────────────────────────────────
+
+744 tests (7 new, every fixture a real corpus line). Contrast swept across five routes in both themes: **0 invisible elements in 10,822 text-bearing nodes.** ⚠ Lint went 23 → 24 and was put back: a ternary-used-as-a-statement in `measure.mjs`, mine, fixed rather than absorbed into the baseline — which is the whole point of a frozen baseline.
+
+**Still unbuilt and recorded in `OPEN-ITEMS.md`:** §5.2's shared filter bar, §5.3's delta line and the `StatTile` convergence, §5.4's column resize / saved views / bulk bar, the remaining Phase 4 pages (/dashboard's rail, /investors' empty states, /attention's urgency chips, /jobs and /intake's 768px column), and Phase 5's density toggle.
+
 **Done 2026-10-27 (the UI upgrade spec, Phases 1–3 — and the instrument that found what a screenshot passes):**
 
 Richard handed over a written UI audit of the live build — "raise the surface quality to Attio / Domo / Linear tier without diluting the product's density or its voice" — phased, with acceptance criteria, and one standing instruction: *"If an item conflicts with something you find in the codebase that I could not see from the browser, follow the codebase and note the deviation."* That instruction earned its keep eight times.
