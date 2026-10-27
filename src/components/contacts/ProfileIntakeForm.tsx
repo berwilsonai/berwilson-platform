@@ -155,7 +155,7 @@ export default function ProfileIntakeForm() {
         <button
           type="submit"
           disabled={loading}
-          className="inline-flex items-center gap-1.5 h-9 px-4 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-60"
+          className="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg bg-primary elev-1 text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-60"
         >
           {loading ? <Loader2 size={15} className="animate-spin" /> : <UserSearch size={15} />}
           {loading ? 'Profiling…' : 'Profile these people'}

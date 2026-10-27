@@ -90,7 +90,7 @@ export default function UserAccessManager() {
         </div>
         <button
           onClick={() => setInviteOpen(true)}
-          className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors"
+          className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg bg-primary elev-1 text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors"
         >
           <Plus size={14} />
           Add User
@@ -219,7 +219,7 @@ function MemberCard({
             <button
               disabled={saving}
               onClick={() => setPasswordModal('reset')}
-              className="h-8 px-2.5 rounded-md border border-input text-xs font-medium hover:bg-accent transition-colors inline-flex items-center gap-1.5"
+              className="h-9 px-2.5 rounded-lg border border-input text-sm font-medium hover:bg-accent transition-colors inline-flex items-center gap-1.5"
             >
               <KeyRound size={12} />
               Reset password
@@ -229,7 +229,7 @@ function MemberCard({
               <button
                 disabled={saving}
                 onClick={() => setPasswordModal('grant')}
-                className="h-8 px-2.5 rounded-md border border-input text-xs font-medium hover:bg-accent transition-colors inline-flex items-center gap-1.5"
+                className="h-9 px-2.5 rounded-lg border border-input text-sm font-medium hover:bg-accent transition-colors inline-flex items-center gap-1.5"
               >
                 <UserPlus size={12} />
                 Grant access
@@ -266,7 +266,7 @@ function MemberCard({
               disabled={saving}
               onClick={() => setConfirmDelete(true)}
               title="Permanently delete this user"
-              className="h-8 px-2.5 rounded-md border border-input text-xs font-medium text-critical hover:bg-critical-surface dark:hover:bg-critical-surface/40 transition-colors inline-flex items-center gap-1.5"
+              className="h-9 px-2.5 rounded-lg border border-input text-sm font-medium text-critical hover:bg-critical-surface dark:hover:bg-critical-surface/40 transition-colors inline-flex items-center gap-1.5"
             >
               <Trash2 size={12} />
               Delete
@@ -566,7 +566,7 @@ function PasswordModal({
             <div className="flex justify-end gap-2">
               <button
                 onClick={copyPassword}
-                className="h-8 px-3 rounded-md border border-input text-xs font-medium hover:bg-accent transition-colors inline-flex items-center gap-1.5"
+                className="h-9 px-3.5 rounded-lg border border-input text-sm font-medium hover:bg-accent transition-colors inline-flex items-center gap-1.5"
               >
                 <Copy size={12} /> Copy
               </button>
@@ -626,7 +626,7 @@ function PasswordModal({
               <button
                 disabled={saving}
                 onClick={save}
-                className="h-8 px-3 rounded-md bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 inline-flex items-center gap-1.5"
+                className="h-9 px-3.5 rounded-lg bg-primary elev-1 text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 inline-flex items-center gap-1.5"
               >
                 {saving && <Loader2 size={12} className="animate-spin" />}
                 {saving ? (granting ? 'Granting…' : 'Setting…') : granting ? 'Grant Access' : 'Set Password'}
@@ -758,7 +758,7 @@ function AddUserModal({
             <div className="flex justify-end gap-2">
               <button
                 onClick={copyCreds}
-                className="h-8 px-3 rounded-md border border-input text-xs font-medium hover:bg-accent transition-colors inline-flex items-center gap-1.5"
+                className="h-9 px-3.5 rounded-lg border border-input text-sm font-medium hover:bg-accent transition-colors inline-flex items-center gap-1.5"
               >
                 <Copy size={12} /> Copy
               </button>
@@ -887,7 +887,7 @@ function AddUserModal({
               <button
                 disabled={sending}
                 onClick={submit}
-                className="h-8 px-3 rounded-md bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 inline-flex items-center gap-1.5"
+                className="h-9 px-3.5 rounded-lg bg-primary elev-1 text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 inline-flex items-center gap-1.5"
               >
                 {sending && <Loader2 size={12} className="animate-spin" />}
                 {sending ? 'Adding…' : createLogin ? 'Add & Grant Access' : 'Add User'}

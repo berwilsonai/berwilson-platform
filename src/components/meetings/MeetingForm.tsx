@@ -306,7 +306,7 @@ export default function MeetingForm({ scope, projectId, opportunityId, meeting, 
           <div>
             <label className={labelClass}>Recording (audio or video)</label>
             {recording ? (
-              <div className="flex items-center gap-2 rounded-md border border-input bg-muted/30 px-3 h-9 text-sm">
+              <div className="flex items-center gap-2 rounded-lg border border-input bg-muted/30 px-3.5 h-9 text-sm">
                 <Mic size={14} className="text-muted-foreground shrink-0" />
                 <span className="flex-1 truncate">{recording.name}</span>
                 <button
@@ -322,7 +322,7 @@ export default function MeetingForm({ scope, projectId, opportunityId, meeting, 
               <button
                 type="button"
                 onClick={() => recordingInputRef.current?.click()}
-                className="inline-flex items-center gap-1.5 h-9 px-3 rounded-md border border-input bg-background text-sm font-medium hover:bg-accent"
+                className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg border border-input bg-background text-sm font-medium hover:bg-accent"
               >
                 <Mic size={14} /> Choose a recording…
               </button>
@@ -356,7 +356,7 @@ export default function MeetingForm({ scope, projectId, opportunityId, meeting, 
                 type="button"
                 onClick={handleDraft}
                 disabled={drafting}
-                className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md border border-input bg-background text-xs font-medium hover:bg-accent disabled:opacity-50"
+                className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg border border-input bg-background text-sm font-medium hover:bg-accent disabled:opacity-50"
               >
                 {drafting ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
                 Draft summary from transcript
@@ -398,7 +398,7 @@ export default function MeetingForm({ scope, projectId, opportunityId, meeting, 
                 <button
                   type="button"
                   onClick={() => setDecisions((prev) => prev.filter((_, idx) => idx !== i))}
-                  className="shrink-0 h-9 w-9 flex items-center justify-center rounded-md hover:bg-accent text-muted-foreground"
+                  className="shrink-0 h-9 w-9 flex items-center justify-center rounded-lg hover:bg-accent text-muted-foreground"
                   aria-label="Remove"
                 >
                   <Trash2 size={14} />
@@ -408,7 +408,7 @@ export default function MeetingForm({ scope, projectId, opportunityId, meeting, 
             <button
               type="button"
               onClick={() => setDecisions((prev) => [...prev, ''])}
-              className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md border border-input bg-background text-xs font-medium hover:bg-accent"
+              className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg border border-input bg-background text-sm font-medium hover:bg-accent"
             >
               <Plus size={13} /> Add {board ? 'resolution' : 'decision'}
             </button>

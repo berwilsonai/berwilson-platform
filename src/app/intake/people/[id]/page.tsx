@@ -46,7 +46,7 @@ export default async function PeopleReviewPage({ params }: PageProps) {
           </p>
           <Link
             href="/contacts"
-            className="inline-flex items-center h-9 px-4 rounded-md bg-primary text-primary-foreground text-sm font-medium"
+            className="inline-flex items-center h-9 px-4 rounded-lg bg-primary elev-1 text-primary-foreground text-sm font-medium"
           >
             Open the Directory
           </Link>

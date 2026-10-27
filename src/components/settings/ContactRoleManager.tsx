@@ -134,7 +134,7 @@ export default function ContactRoleManager({ initial, counts }: Props) {
         </div>
         <button
           onClick={startCreate}
-          className="inline-flex items-center gap-1.5 h-[2.75rem] sm:h-8 px-3 rounded-md bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors shrink-0"
+          className="inline-flex items-center gap-1.5 h-[2.75rem] sm:h-9 px-3.5 rounded-lg bg-primary elev-1 text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors shrink-0"
         >
           <Plus size={14} /> Add role
         </button>
@@ -273,7 +273,7 @@ export default function ContactRoleManager({ initial, counts }: Props) {
                         onClick={() => setConfirmRow(row)}
                         aria-label={`Delete ${r.label}`}
                         title={`Delete ${r.label}`}
-                        className="h-7 w-7 inline-flex items-center justify-center rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+                        className="h-7 w-7 inline-flex items-center justify-center rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
                       >
                         <Trash2 size={13} />
                       </button>

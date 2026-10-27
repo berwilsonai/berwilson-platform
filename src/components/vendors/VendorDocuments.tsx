@@ -151,7 +151,7 @@ export default function VendorDocuments({ entityId, initialDocuments }: VendorDo
         </h3>
         <button
           onClick={() => setShowUpload(!showUpload)}
-          className="inline-flex items-center gap-1 h-7 px-2 rounded-md border border-input text-xs font-medium hover:bg-accent transition-colors"
+          className="inline-flex items-center gap-1 h-7 px-2 rounded-lg border border-input text-sm font-medium hover:bg-accent transition-colors"
         >
           <Upload size={11} />
           Upload
@@ -239,7 +239,7 @@ export default function VendorDocuments({ entityId, initialDocuments }: VendorDo
               })}
               <button
                 onClick={handleUploadAll}
-                className="inline-flex items-center gap-1 h-7 px-3 rounded-md bg-foreground text-background text-xs font-medium hover:bg-foreground/90 transition-colors"
+                className="inline-flex items-center gap-1 h-7 px-3.5 rounded-lg bg-foreground elev-1 text-background text-sm font-medium hover:bg-foreground/90 transition-colors"
               >
                 <Upload size={11} />
                 Upload all

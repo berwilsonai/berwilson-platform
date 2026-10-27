@@ -40,7 +40,7 @@ export default function SteelDeleteButton({ dealId, name }: SteelDeleteButtonPro
       <button
         onClick={() => setConfirmOpen(true)}
         disabled={deleting}
-        className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md border border-input bg-background text-xs font-medium text-muted-foreground hover:text-destructive hover:border-destructive/40 transition-colors disabled:opacity-60"
+        className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg border border-input bg-background text-sm font-medium text-muted-foreground hover:text-destructive hover:border-destructive/40 transition-colors disabled:opacity-60"
       >
         {deleting ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
         Delete

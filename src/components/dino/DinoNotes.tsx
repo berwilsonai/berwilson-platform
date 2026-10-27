@@ -87,7 +87,7 @@ export default function DinoNotes({ notes }: { notes: DinoNoteRow[] }) {
           <button
             onClick={add}
             disabled={saving || !body.trim()}
-            className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors disabled:opacity-60"
+            className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg bg-primary elev-1 text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-60"
           >
             {saving && <Loader2 size={13} className="animate-spin" />}
             Add note

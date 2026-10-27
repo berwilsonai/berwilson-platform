@@ -29,13 +29,13 @@ export default function GovernanceError({ error, reset }: ErrorProps) {
       <div className="flex items-center gap-3">
         <button
           onClick={reset}
-          className="inline-flex h-9 items-center rounded-md bg-foreground px-4 text-sm font-medium text-background transition-colors hover:bg-foreground/90"
+          className="inline-flex h-9 items-center rounded-lg bg-foreground elev-1 px-4 text-sm font-medium text-background transition-colors hover:bg-foreground/90"
         >
           Try again
         </button>
         <button
           onClick={() => router.push('/company')}
-          className="inline-flex h-9 items-center rounded-md border border-input bg-background px-4 text-sm font-medium transition-colors hover:bg-accent"
+          className="inline-flex h-9 items-center rounded-lg border border-input bg-background px-4 text-sm font-medium transition-colors hover:bg-accent"
         >
           Company
         </button>

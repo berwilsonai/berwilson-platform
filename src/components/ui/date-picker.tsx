@@ -131,7 +131,7 @@ export function DatePicker({
     <div ref={wrapRef} className="relative">
       <div
         className={cn(
-          'h-9 w-full flex items-center gap-2 rounded-md border border-input bg-background px-3 text-sm transition-colors focus-within:ring-2 focus-within:ring-ring',
+          'h-9 w-full flex items-center gap-2 rounded-lg border border-input bg-background px-3.5 text-sm transition-colors focus-within:ring-2 focus-within:ring-ring',
           className,
         )}
       >

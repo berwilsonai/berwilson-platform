@@ -164,7 +164,7 @@ export default function VendorProfileClient({
         <div className="flex flex-col gap-2">
           <button
             onClick={() => setShowEditForm(!showEditForm)}
-            className="inline-flex items-center justify-center gap-1.5 h-8 px-3 rounded-md border border-input text-xs font-medium hover:bg-muted transition-colors w-full"
+            className="inline-flex items-center justify-center gap-1.5 h-9 px-3.5 rounded-lg border border-input text-sm font-medium hover:bg-muted transition-colors w-full"
           >
             <Edit2 size={12} />
             Edit Profile

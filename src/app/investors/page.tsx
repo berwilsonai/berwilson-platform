@@ -195,14 +195,14 @@ export default async function InvestorsPage({ searchParams }: PageProps) {
         <div className="flex items-center gap-2 shrink-0">
           <Link
             href="/investors/raises/new"
-            className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md border border-input bg-background text-xs font-medium hover:bg-accent transition-colors"
+            className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg border border-input bg-background text-sm font-medium hover:bg-accent transition-colors"
           >
             <Plus size={14} />
             New Raise
           </Link>
           <Link
             href="/investors/new"
-            className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors"
+            className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg bg-primary elev-1 text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors"
           >
             <Plus size={14} />
             New Investor
@@ -298,7 +298,7 @@ export default async function InvestorsPage({ searchParams }: PageProps) {
             !hasFilters ? (
               <Link
                 href="/investors/new"
-                className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors"
+                className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg bg-primary elev-1 text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors"
               >
                 <Plus size={14} />
                 New Investor

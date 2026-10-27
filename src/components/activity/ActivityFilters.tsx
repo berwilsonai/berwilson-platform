@@ -123,7 +123,7 @@ export default function ActivityFilters({
       {hasFilters && (
         <button
           onClick={() => router.push(pathname)}
-          className="h-8 flex items-center gap-1 px-2.5 rounded-md text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+          className="h-9 flex items-center gap-1 px-2.5 rounded-lg text-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
         >
           <X size={12} />
           Clear

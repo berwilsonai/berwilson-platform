@@ -115,7 +115,7 @@ export default async function DirectoryPage() {
               empty is hidden exactly when somebody needs it). */}
           <Link
             href="/contacts/unlinked"
-            className="inline-flex items-center gap-1.5 h-[2.75rem] sm:h-8 px-3 rounded-md border border-input bg-background text-xs font-medium hover:bg-accent transition-colors"
+            className="inline-flex items-center gap-1.5 h-[2.75rem] sm:h-9 px-3.5 rounded-lg border border-input bg-background text-sm font-medium hover:bg-accent transition-colors"
             title="People named on recorded calls who are not in the directory"
           >
             <Mic size={14} />
@@ -130,14 +130,14 @@ export default async function DirectoryPage() {
               profile out, read from the correspondence already on file. */}
           <Link
             href="/intake?tab=people"
-            className="inline-flex items-center gap-1.5 h-[2.75rem] sm:h-8 px-3 rounded-md border border-input bg-background text-xs font-medium hover:bg-accent transition-colors"
+            className="inline-flex items-center gap-1.5 h-[2.75rem] sm:h-9 px-3.5 rounded-lg border border-input bg-background text-sm font-medium hover:bg-accent transition-colors"
           >
             <UserSearch size={14} />
             <span className="whitespace-nowrap">Profile from Email</span>
           </Link>
           <Link
             href="/settings/contact-roles"
-            className="inline-flex items-center gap-1.5 h-[2.75rem] sm:h-8 px-3 rounded-md border border-input bg-background text-xs font-medium hover:bg-accent transition-colors"
+            className="inline-flex items-center gap-1.5 h-[2.75rem] sm:h-9 px-3.5 rounded-lg border border-input bg-background text-sm font-medium hover:bg-accent transition-colors"
             title="Add, rename or retire a role"
           >
             <SlidersHorizontal size={14} />
@@ -145,7 +145,7 @@ export default async function DirectoryPage() {
           </Link>
           <Link
             href="/contacts/new"
-            className="inline-flex items-center gap-1.5 h-[2.75rem] sm:h-8 px-3 rounded-md bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors"
+            className="inline-flex items-center gap-1.5 h-[2.75rem] sm:h-9 px-3.5 rounded-lg bg-primary elev-1 text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors"
           >
             <Plus size={14} />
             <span className="whitespace-nowrap">Add Contact</span>
@@ -177,7 +177,7 @@ export default async function DirectoryPage() {
           action={
             <Link
               href="/contacts/new"
-              className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors"
+              className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg bg-primary elev-1 text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors"
             >
               <Plus size={14} />
               Add Contact

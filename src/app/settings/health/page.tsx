@@ -1157,7 +1157,7 @@ export default async function SystemHealthPage() {
                 {c.action && (
                   <a
                     href={c.action.href}
-                    className="mt-2 inline-flex h-8 items-center rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+                    className="mt-2 inline-flex h-9 items-center rounded-lg bg-primary elev-1 px-3.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
                   >
                     {c.action.label}
                   </a>

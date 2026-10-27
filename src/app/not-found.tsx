@@ -32,19 +32,19 @@ export default function NotFound() {
           <div className="flex flex-wrap items-center justify-center gap-2">
             <Link
               href="/dashboard"
-              className="inline-flex items-center h-9 px-4 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors"
+              className="inline-flex items-center h-9 px-4 rounded-lg bg-primary elev-1 text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors"
             >
               Dashboard
             </Link>
             <Link
               href="/projects"
-              className="inline-flex items-center h-9 px-4 rounded-md border border-input bg-background text-sm font-medium hover:bg-accent transition-colors"
+              className="inline-flex items-center h-9 px-4 rounded-lg border border-input bg-background text-sm font-medium hover:bg-accent transition-colors"
             >
               Projects
             </Link>
             <Link
               href="/decide"
-              className="inline-flex items-center h-9 px-4 rounded-md border border-input bg-background text-sm font-medium hover:bg-accent transition-colors"
+              className="inline-flex items-center h-9 px-4 rounded-lg border border-input bg-background text-sm font-medium hover:bg-accent transition-colors"
             >
               Decide queue
             </Link>

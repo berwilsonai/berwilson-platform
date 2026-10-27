@@ -367,7 +367,7 @@ export default function ContactsClient({ contacts: initialContacts, roles }: Con
               <button
                 onClick={() => setConfirmOpen(true)}
                 disabled={selected.size === 0}
-                className="h-8 px-2.5 rounded-md bg-destructive text-destructive-foreground text-xs font-medium hover:bg-destructive/90 transition-colors disabled:opacity-50 inline-flex items-center gap-1.5"
+                className="h-9 px-2.5 rounded-lg bg-destructive text-destructive-foreground text-sm font-medium hover:bg-destructive/90 transition-colors disabled:opacity-50 inline-flex items-center gap-1.5"
               >
                 <Trash2 size={12} />
                 Delete{selected.size > 0 ? ` (${selected.size})` : ''}
@@ -382,7 +382,7 @@ export default function ContactsClient({ contacts: initialContacts, roles }: Con
           ) : (
             <button
               onClick={() => setSelecting(true)}
-              className="h-8 px-2.5 rounded-md border border-input text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors inline-flex items-center gap-1.5"
+              className="h-9 px-2.5 rounded-lg border border-input text-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors inline-flex items-center gap-1.5"
             >
               <CheckSquare size={12} />
               Select

@@ -55,7 +55,7 @@ export default function PortfolioBriefButton() {
       <button
         onClick={generate}
         disabled={loading}
-        className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md border border-input bg-background text-xs font-medium hover:bg-accent transition-colors disabled:opacity-50"
+        className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg border border-input bg-background text-sm font-medium hover:bg-accent transition-colors disabled:opacity-50"
       >
         {loading ? (
           <Loader2 size={12} className="animate-spin" />
@@ -85,7 +85,7 @@ export default function PortfolioBriefButton() {
                 {brief && (
                   <button
                     onClick={handleCopy}
-                    className="inline-flex items-center gap-1 h-7 px-2.5 rounded-md text-xs font-medium border border-input hover:bg-accent transition-colors"
+                    className="inline-flex items-center gap-1 h-7 px-2.5 rounded-lg text-sm font-medium border border-input hover:bg-accent transition-colors"
                   >
                     {copied ? <Check size={11} className="text-positive" /> : <Copy size={11} />}
                     {copied ? 'Copied' : 'Copy'}

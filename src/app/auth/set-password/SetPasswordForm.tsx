@@ -95,7 +95,7 @@ export default function SetPasswordForm() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full h-10 rounded-md bg-foreground text-background text-sm font-medium hover:bg-foreground/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+            className="w-full h-10 rounded-lg bg-foreground elev-1 text-background text-sm font-medium hover:bg-foreground/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
           >
             {loading && <Loader2 size={14} className="animate-spin" />}
             Set Password & Sign In

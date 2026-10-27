@@ -767,20 +767,20 @@ export default function MeetingIntakeReview({
             )}
           </div>
           {!targets.some((t) => t.kind === 'company') && (
-            <button type="button" onClick={addCompany} className="inline-flex items-center gap-1 h-8 px-2.5 rounded-md border border-input bg-background text-xs hover:bg-accent transition-colors" title="Tag the meeting to Ber Wilson — minutes are saved to the company Knowledge Base">
+            <button type="button" onClick={addCompany} className="inline-flex items-center gap-1 h-9 px-2.5 rounded-lg border border-input bg-background text-sm hover:bg-accent transition-colors" title="Tag the meeting to Ber Wilson — minutes are saved to the company Knowledge Base">
               <Building2 size={13} /> Ber Wilson (company)
             </button>
           )}
-          <button type="button" onClick={() => addNew('project')} className="inline-flex items-center gap-1 h-8 px-2.5 rounded-md border border-input bg-background text-xs hover:bg-accent transition-colors">
+          <button type="button" onClick={() => addNew('project')} className="inline-flex items-center gap-1 h-9 px-2.5 rounded-lg border border-input bg-background text-sm hover:bg-accent transition-colors">
             <Plus size={13} /> New project
           </button>
-          <button type="button" onClick={() => addNew('opportunity')} className="inline-flex items-center gap-1 h-8 px-2.5 rounded-md border border-input bg-background text-xs hover:bg-accent transition-colors">
+          <button type="button" onClick={() => addNew('opportunity')} className="inline-flex items-center gap-1 h-9 px-2.5 rounded-lg border border-input bg-background text-sm hover:bg-accent transition-colors">
             <Plus size={13} /> New opportunity
           </button>
           <button
             type="button"
             onClick={() => addLead({ kind: 'project', name: '', note: null })}
-            className="inline-flex items-center gap-1 h-8 px-2.5 rounded-md border border-input bg-background text-xs hover:bg-accent transition-colors"
+            className="inline-flex items-center gap-1 h-9 px-2.5 rounded-lg border border-input bg-background text-sm hover:bg-accent transition-colors"
             title="Stage a candidate deal in the lead queue — scored against the pursuit profile, promoted by hand if it earns it"
           >
             <Radar size={13} /> New lead
@@ -841,7 +841,7 @@ export default function MeetingIntakeReview({
             ))}
           </div>
         )}
-        <button type="button" onClick={addAttendee} className="inline-flex items-center gap-1 h-8 px-2.5 rounded-md border border-input bg-background text-xs hover:bg-accent transition-colors">
+        <button type="button" onClick={addAttendee} className="inline-flex items-center gap-1 h-9 px-2.5 rounded-lg border border-input bg-background text-sm hover:bg-accent transition-colors">
           <Plus size={13} /> Add attendee
         </button>
       </div>
@@ -855,7 +855,7 @@ export default function MeetingIntakeReview({
             type="button"
             onClick={redraft}
             disabled={redrafting}
-            className="ml-auto inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md border border-input bg-background text-xs hover:bg-accent transition-colors disabled:opacity-60"
+            className="ml-auto inline-flex items-center gap-1.5 h-7 px-2.5 rounded-lg border border-input bg-background text-sm hover:bg-accent transition-colors disabled:opacity-60"
             title="Re-run Ber AI over your edited minutes to re-suggest tasks"
           >
             {redrafting ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
@@ -919,7 +919,7 @@ export default function MeetingIntakeReview({
           type="button"
           onClick={() => setDiscardOpen(true)}
           disabled={submitting}
-          className="inline-flex items-center gap-1.5 h-9 px-3 rounded-md border border-input bg-background text-sm font-medium text-muted-foreground hover:text-destructive hover:border-destructive/50 transition-colors disabled:opacity-60"
+          className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg border border-input bg-background text-sm font-medium text-muted-foreground hover:text-destructive hover:border-destructive/50 transition-colors disabled:opacity-60"
         >
           <Trash2 size={14} /> Discard
         </button>
@@ -927,7 +927,7 @@ export default function MeetingIntakeReview({
           type="button"
           onClick={confirm}
           disabled={submitting}
-          className="inline-flex items-center gap-1.5 h-9 px-4 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-60"
+          className="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg bg-primary elev-1 text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-60"
         >
           {submitting ? <Loader2 size={15} className="animate-spin" /> : <CheckCircle2 size={15} />}
           {submitting ? 'Processing…' : 'Process meeting'}

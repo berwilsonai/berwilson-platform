@@ -337,7 +337,7 @@ export default function EnrichProfileButton({
         <button
           onClick={runEnrichment}
           aria-label="Enrich profile from the web"
-          className="w-full inline-flex items-center justify-center gap-1.5 h-9 px-3 rounded-md border border-input text-sm font-medium hover:bg-accent transition-colors"
+          className="w-full inline-flex items-center justify-center gap-1.5 h-9 px-3.5 rounded-lg border border-input text-sm font-medium hover:bg-accent transition-colors"
         >
           <Sparkles size={14} className="text-purple-500 dark:text-purple-400" />
           Enrich Profile
@@ -458,7 +458,7 @@ export default function EnrichProfileButton({
           {hasAnything && (
             <button
               onClick={confirmSave}
-              className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md bg-foreground text-background text-xs font-medium hover:bg-foreground/90 transition-colors"
+              className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg bg-foreground elev-1 text-background text-sm font-medium hover:bg-foreground/90 transition-colors"
             >
               <Check size={13} />
               Confirm &amp; Save
@@ -467,7 +467,7 @@ export default function EnrichProfileButton({
           <button
             onClick={discard}
             aria-label="Discard"
-            className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md border border-input text-xs font-medium hover:bg-accent transition-colors"
+            className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg border border-input text-sm font-medium hover:bg-accent transition-colors"
           >
             Discard
           </button>
@@ -509,7 +509,7 @@ export default function EnrichProfileButton({
       )}
       <button
         onClick={() => { setStage('idle'); setData(null); setSaveConflicts([]) }}
-        className="w-full inline-flex items-center justify-center gap-1.5 h-8 px-3 rounded-md border border-input text-xs font-medium hover:bg-accent transition-colors"
+        className="w-full inline-flex items-center justify-center gap-1.5 h-9 px-3.5 rounded-lg border border-input text-sm font-medium hover:bg-accent transition-colors"
       >
         <Sparkles size={12} className="text-purple-500 dark:text-purple-400" />
         Enrich Again

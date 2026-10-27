@@ -511,7 +511,7 @@ function UploadZone({
                   }
                 })()
               }}
-              className="inline-flex items-center gap-1.5 h-7 px-3 rounded-md bg-foreground text-background text-xs font-medium hover:bg-foreground/90 transition-colors"
+              className="inline-flex items-center gap-1.5 h-7 px-3.5 rounded-lg bg-foreground elev-1 text-background text-sm font-medium hover:bg-foreground/90 transition-colors"
             >
               <Upload size={12} />
               Upload all
@@ -824,7 +824,7 @@ export default function DocumentsTab({
           )}
           <button
             onClick={() => setShowUpload(!showUpload)}
-            className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md border border-input bg-background text-xs font-medium hover:bg-accent transition-colors"
+            className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg border border-input bg-background text-sm font-medium hover:bg-accent transition-colors"
           >
             <Upload size={12} />
             Upload
@@ -846,7 +846,7 @@ export default function DocumentsTab({
           action={
             <button
               onClick={() => setShowUpload(true)}
-              className="inline-flex items-center gap-1.5 h-9 px-4 rounded-md bg-foreground text-background text-sm font-medium hover:bg-foreground/90 transition-colors"
+              className="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg bg-foreground elev-1 text-background text-sm font-medium hover:bg-foreground/90 transition-colors"
             >
               <Upload size={14} />
               Upload First Document
@@ -971,7 +971,7 @@ export default function DocumentsTab({
             <div className="pt-2">
               <button
                 onClick={() => setShowRetired((v) => !v)}
-                className="inline-flex items-center gap-1.5 h-9 px-2 -mx-2 rounded-md text-xs text-muted-foreground hover:text-foreground hover:bg-accent transition-colors outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                className="inline-flex items-center gap-1.5 h-9 px-2 -mx-2 rounded-lg text-sm text-muted-foreground hover:text-foreground hover:bg-accent transition-colors outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
               >
                 <Archive size={12} />
                 {showRetired ? 'Hide' : 'Show'} {retiredDocuments.length} retired

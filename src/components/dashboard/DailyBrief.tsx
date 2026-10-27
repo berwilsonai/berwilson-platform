@@ -146,7 +146,7 @@ export default function DailyBrief({ initial }: { initial?: InitialBrief | null 
               <button
                 type="button"
                 onClick={generateBrief}
-                className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors shrink-0"
+                className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg bg-primary elev-1 text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors shrink-0"
               >
                 <Sparkles size={12} />
                 Generate

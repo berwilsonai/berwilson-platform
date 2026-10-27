@@ -1628,7 +1628,7 @@ function FormActions({
       <button
         onClick={onSave}
         disabled={disabled || busy}
-        className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 disabled:opacity-50 transition-colors"
+        className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg bg-primary elev-1 text-primary-foreground text-sm font-medium hover:bg-primary/90 disabled:opacity-50 transition-colors"
       >
         {busy && <Loader2 size={13} className="animate-spin" />}
         {saveLabel}

@@ -551,7 +551,7 @@ export default function FinancingTab({
         action={
           <button
             onClick={openCreate}
-            className="inline-flex items-center gap-1.5 h-9 px-4 rounded-md bg-foreground text-background text-sm font-medium hover:bg-foreground/90 transition-colors"
+            className="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg bg-foreground elev-1 text-background text-sm font-medium hover:bg-foreground/90 transition-colors"
           >
             <Plus size={14} />
             Add Financing Structure
@@ -707,7 +707,7 @@ export default function FinancingTab({
           <button
             onClick={handleSave}
             disabled={saving}
-            className="inline-flex items-center gap-1.5 h-9 px-4 rounded-md bg-foreground text-background text-sm font-medium hover:bg-foreground/90 disabled:opacity-50 transition-colors"
+            className="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg bg-foreground elev-1 text-background text-sm font-medium hover:bg-foreground/90 disabled:opacity-50 transition-colors"
           >
             {saving ? (
               <Loader2 size={14} className="animate-spin" />
@@ -719,7 +719,7 @@ export default function FinancingTab({
           <button
             onClick={cancelForm}
             disabled={saving}
-            className="inline-flex items-center gap-1.5 h-9 px-3 rounded-md border border-input text-sm font-medium hover:bg-accent disabled:opacity-50 transition-colors"
+            className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg border border-input text-sm font-medium hover:bg-accent disabled:opacity-50 transition-colors"
           >
             <X size={14} />
             Cancel
@@ -751,7 +751,7 @@ export default function FinancingTab({
         </div>
         <button
           onClick={openEdit}
-          className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md border border-input text-xs font-medium hover:bg-accent transition-colors shrink-0"
+          className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg border border-input text-sm font-medium hover:bg-accent transition-colors shrink-0"
         >
           <Pencil size={12} />
           Edit

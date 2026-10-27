@@ -540,7 +540,7 @@ export default function TaskDetailSheet({
             <div className="border-t border-border p-3 flex items-center justify-between">
               <button
                 onClick={() => setConfirmDelete(true)}
-                className="inline-flex items-center gap-1.5 h-8 px-2.5 rounded-md text-xs font-medium text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                className="inline-flex items-center gap-1.5 h-9 px-2.5 rounded-lg text-sm font-medium text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
               >
                 <Trash2 size={13} /> Delete
               </button>

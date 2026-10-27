@@ -69,7 +69,7 @@ export default function PlacementPanel({
                 onClick={onAutoPlaceAll}
                 disabled={autoPlacing}
                 title="Look up each project's location text (offline city/ZIP lookup) and drop pins at the matched centers — reposition any afterwards"
-                className="inline-flex h-7 w-full items-center justify-center gap-1.5 rounded-md border border-border bg-background text-xs font-medium transition-colors hover:bg-accent disabled:opacity-60"
+                className="inline-flex h-7 w-full items-center justify-center gap-1.5 rounded-lg border border-border bg-background text-sm font-medium transition-colors hover:bg-accent disabled:opacity-60"
               >
                 {autoPlacing ? (
                   <Loader2 size={13} className="animate-spin" />

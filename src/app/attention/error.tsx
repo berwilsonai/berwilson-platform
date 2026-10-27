@@ -26,7 +26,7 @@ export default function AttentionError({
       </p>
       <button
         onClick={reset}
-        className="inline-flex items-center h-[2.75rem] sm:h-9 px-4 rounded-md bg-primary text-primary-foreground text-sm font-medium transition-colors hover:bg-primary/90 outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+        className="inline-flex items-center h-[2.75rem] sm:h-9 px-4 rounded-lg bg-primary elev-1 text-primary-foreground text-sm font-medium transition-colors hover:bg-primary/90 outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
       >
         Try again
       </button>

@@ -218,7 +218,7 @@ export default function CardBatchReview({
               type="button"
               onClick={resume}
               disabled={resuming}
-              className="inline-flex items-center gap-1.5 h-9 px-3 rounded-md border border-input text-sm font-medium hover:bg-accent transition-colors shrink-0 disabled:opacity-60"
+              className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg border border-input text-sm font-medium hover:bg-accent transition-colors shrink-0 disabled:opacity-60"
             >
               {resuming ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
               Finish them
@@ -353,7 +353,7 @@ export default function CardBatchReview({
                               type="button"
                               onClick={() => set(row.ref, 'tags', row.tags.filter((x) => x !== t))}
                               title="Remove tag"
-                              className="inline-flex items-center gap-1 h-7 px-2 rounded-md border border-border bg-muted/30 text-xs hover:bg-accent transition-colors"
+                              className="inline-flex items-center gap-1 h-7 px-2 rounded-lg border border-border bg-muted/30 text-sm hover:bg-accent transition-colors"
                             >
                               {t}
                               <X size={10} className="text-muted-foreground" />
@@ -440,7 +440,7 @@ export default function CardBatchReview({
             type="button"
             onClick={save}
             disabled={saving || selected.length === 0}
-            className="inline-flex items-center gap-1.5 h-[2.75rem] sm:h-9 px-4 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-60"
+            className="inline-flex items-center gap-1.5 h-[2.75rem] sm:h-9 px-4 rounded-lg bg-primary elev-1 text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-60"
           >
             {saving ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} />}
             Save {selected.length} contact{selected.length === 1 ? '' : 's'}

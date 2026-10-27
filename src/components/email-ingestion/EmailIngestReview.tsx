@@ -712,7 +712,7 @@ export default function EmailIngestReview({
                       a.mime_type
                     )
                   }
-                  className="inline-flex items-center gap-1 h-8 px-2.5 rounded-md border border-input bg-background text-xs hover:bg-accent transition-colors shrink-0"
+                  className="inline-flex items-center gap-1 h-9 px-2.5 rounded-lg border border-input bg-background text-sm hover:bg-accent transition-colors shrink-0"
                   title="Open (non-viewable types download instead)"
                 >
                   <Eye size={13} /> View
@@ -735,7 +735,7 @@ export default function EmailIngestReview({
           type="button"
           onClick={() => setDiscardOpen(true)}
           disabled={submitting}
-          className="inline-flex items-center gap-1.5 h-9 px-3 rounded-md border border-input bg-background text-sm font-medium text-muted-foreground hover:text-destructive hover:border-destructive/50 transition-colors disabled:opacity-60"
+          className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg border border-input bg-background text-sm font-medium text-muted-foreground hover:text-destructive hover:border-destructive/50 transition-colors disabled:opacity-60"
         >
           <Trash2 size={14} /> Discard
         </button>
@@ -743,7 +743,7 @@ export default function EmailIngestReview({
           type="button"
           onClick={confirm}
           disabled={submitting}
-          className="inline-flex items-center gap-1.5 h-9 px-4 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-60"
+          className="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg bg-primary elev-1 text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-60"
         >
           {submitting ? (
             <Loader2 size={15} className="animate-spin" />

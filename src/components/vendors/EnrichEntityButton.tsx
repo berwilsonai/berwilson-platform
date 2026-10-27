@@ -222,7 +222,7 @@ export default function EnrichEntityButton({
       <button
         onClick={handleEnrich}
         disabled={state === 'loading'}
-        className="inline-flex items-center justify-center gap-1.5 h-8 px-3 rounded-md border border-input text-xs font-medium hover:bg-muted transition-colors w-full disabled:opacity-50"
+        className="inline-flex items-center justify-center gap-1.5 h-9 px-3.5 rounded-lg border border-input text-sm font-medium hover:bg-muted transition-colors w-full disabled:opacity-50"
       >
         {state === 'loading' ? (
           <>

@@ -61,7 +61,7 @@ export default function RecordPlayers({ recordKind, recordId, players, limited, 
               <AddPlayerModal recordKind={recordKind} recordId={recordId} roles={roles} />
               <Link
                 href={`/contacts/new`}
-                className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md border border-input text-xs font-medium hover:bg-accent transition-colors"
+                className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg border border-input text-sm font-medium hover:bg-accent transition-colors"
               >
                 Create New Contact
               </Link>

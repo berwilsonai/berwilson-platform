@@ -231,7 +231,7 @@ export default function MilestonesTab({
           {!advanceConfirm ? (
             <button
               onClick={() => setAdvanceConfirm(true)}
-              className="shrink-0 inline-flex items-center gap-1.5 h-8 px-3 rounded-md bg-positive text-white text-xs font-medium hover:bg-positive transition-colors"
+              className="shrink-0 inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg bg-positive text-white text-sm font-medium hover:bg-positive transition-colors"
             >
               Advance Stage
               <ArrowRight size={12} />
@@ -244,7 +244,7 @@ export default function MilestonesTab({
               <button
                 onClick={advanceStage}
                 disabled={advancingSaving}
-                className="inline-flex items-center gap-1 h-8 px-3 rounded-md bg-positive text-white text-xs font-medium hover:bg-positive disabled:opacity-50 transition-colors"
+                className="inline-flex items-center gap-1 h-9 px-3.5 rounded-lg bg-positive text-white text-sm font-medium hover:bg-positive disabled:opacity-50 transition-colors"
               >
                 {advancingSaving ? (
                   <Loader2 size={12} className="animate-spin" />
@@ -255,7 +255,7 @@ export default function MilestonesTab({
               </button>
               <button
                 onClick={() => setAdvanceConfirm(false)}
-                className="inline-flex items-center gap-1 h-8 px-3 rounded-md border border-input text-xs font-medium hover:bg-accent transition-colors"
+                className="inline-flex items-center gap-1 h-9 px-3.5 rounded-lg border border-input text-sm font-medium hover:bg-accent transition-colors"
               >
                 <X size={12} />
                 Cancel

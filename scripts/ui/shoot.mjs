@@ -1,119 +1,163 @@
 #!/usr/bin/env node
 /**
- * Screenshot the running app, signed in, with headless Chrome.
+ * Screenshot the running app — in BOTH themes — with headless Chrome.
  *
  * ── WHY THIS EXISTS ─────────────────────────────────────────────────────────
- * Three consecutive UI sessions (10-26, 10-26, 10-27) shipped palette and
- * layout work WITHOUT ONCE LOOKING AT THE RESULT, and the 10-27 entry says so
- * in as many words. The cost was not theoretical: the rail stayed navy through
- * a whole brand re-skin, and the login page — the first screen of the product
- * — was a hardcoded hue-260 gradient that two passes "fixed" without touching.
- * Every one of those is obvious in a screenshot and invisible in a diff.
+ * Four consecutive UI sessions shipped palette and layout work that the user
+ * could not see. The first three never rendered the result at all. The fourth
+ * built a harness, took six screenshots, and still shipped something invisible
+ * — because EVERY SHOT WAS TAKEN IN THE THEME BEING REDESIGNED and the user
+ * was in the other one. A harness that can only render the happy path confirms
+ * what you already believe.
  *
- * The blocker was always auth: every route but /login is behind middleware, so
- * `chrome --screenshot` lands on the sign-in card whatever URL you give it.
+ * ⚠ THE FIRST VERSION OF THIS FILE HAD A `BW_SHOOT_DARK` FLAG THAT DID NOTHING.
+ * It "set" the theme by navigating to `/dashboard#set-dark`, which is not a
+ * thing — `chrome --headless --screenshot` runs no script of yours, so there
+ * is no way to reach `localStorage` before the pre-paint script reads it. The
+ * flag existed, read plausibly, and was never once run. A switch that cannot
+ * work is worse than no switch.
  *
- * ── HOW IT GETS IN ──────────────────────────────────────────────────────────
- * It mints a magic link for an existing user through the LOCAL GoTrue admin
- * API — over plain HTTP to Kong on 127.0.0.1:8000, so nothing is sent off-box
- * and no TLS check is weakened — and lets Chrome follow it into a throwaway
- * profile directory. No password is typed, nothing is stored, and the profile
- * is deleted at the end. The link is single-use and expires on its own.
+ * So this drives Chrome over the DevTools Protocol instead: open a tab, seed
+ * `localStorage.theme`, reload so the pre-paint script sees it, screenshot.
+ *
+ * ── HOW IT GETS PAST AUTH ───────────────────────────────────────────────────
+ * It does not need to. §12: `next dev` does not load the root `middleware.ts`,
+ * so a dev server on another port renders every gated page with no session.
+ * Point it at one (the default).
+ *   ⚠ With no middleware there is no viewer, so the role falls back to
+ *   `member` and most nav rows are filtered out. Judge the chrome and the
+ *   content from these; never the nav.
  *
  * Usage:
- *   node scripts/ui/shoot.mjs                      # the default set of pages
- *   node scripts/ui/shoot.mjs /projects /contacts  # specific paths
- *   BW_SHOOT_DARK=1 node scripts/ui/shoot.mjs      # the same set in dark mode
+ *   node scripts/ui/shoot.mjs                     # default pages, both themes
+ *   node scripts/ui/shoot.mjs /projects /tasks    # specific pages
+ *   BW_SHOOT_THEMES=dark node scripts/ui/shoot.mjs
  *
- * Output lands in `.ui-shots/` (git-ignored).
+ * Output: `.ui-shots/<page>.<theme>.png` (git-ignored).
  */
-import { readFileSync, mkdirSync, rmSync, existsSync } from 'node:fs'
-import { execFileSync } from 'node:child_process'
+import { mkdirSync, writeFileSync, rmSync } from 'node:fs'
+import { spawn } from 'node:child_process'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 const CHROME = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
-const APP = process.env.BW_SHOOT_APP ?? 'http://localhost:3000'
-const KONG = process.env.BW_SHOOT_KONG ?? 'http://127.0.0.1:8000'
+const APP = process.env.BW_SHOOT_APP ?? 'http://localhost:3001'
 const OUT = '.ui-shots'
-const SIZE = process.env.BW_SHOOT_SIZE ?? '1512,982'
+const PORT = Number(process.env.BW_SHOOT_CDP_PORT ?? 9333)
+const [W, H] = (process.env.BW_SHOOT_SIZE ?? '1512,950').split(',').map(Number)
+const THEMES = (process.env.BW_SHOOT_THEMES ?? 'light,dark').split(',').filter(Boolean)
 
-const DEFAULT_PAGES = ['/dashboard', '/projects', '/contacts', '/tasks', '/leads', '/intel']
+const DEFAULT_PAGES = ['/dashboard', '/projects', '/contacts', '/tasks']
 const pages = process.argv.slice(2).filter((a) => a.startsWith('/'))
 const paths = pages.length ? pages : DEFAULT_PAGES
 
-function env() {
-  const out = {}
-  for (const line of readFileSync('.env.local', 'utf8').split('\n')) {
-    if (!line.includes('=') || line.trimStart().startsWith('#')) continue
-    out[line.slice(0, line.indexOf('=')).trim()] = line.slice(line.indexOf('=') + 1).trim()
-  }
-  return out
-}
-
-const { SUPABASE_SERVICE_ROLE_KEY: KEY } = env()
-if (!KEY) throw new Error('SUPABASE_SERVICE_ROLE_KEY missing from .env.local')
-const auth = { apikey: KEY, Authorization: `Bearer ${KEY}`, 'Content-Type': 'application/json' }
-
-/** The first user with an admin role, else simply the first — this is a local preview. */
-async function pickUser() {
-  const r = await fetch(`${KONG}/auth/v1/admin/users?per_page=50`, { headers: auth })
-  if (!r.ok) throw new Error(`admin/users ${r.status}: ${await r.text()}`)
-  const { users = [] } = await r.json()
-  if (!users.length) throw new Error('no users in auth.users')
-  const admin = users.find((u) => (u.app_metadata?.role ?? u.user_metadata?.role) === 'admin')
-  return (admin ?? users[0]).email
-}
-
-async function magicLink(email) {
-  const r = await fetch(`${KONG}/auth/v1/admin/generate_link`, {
-    method: 'POST',
-    headers: auth,
-    body: JSON.stringify({ type: 'magiclink', email }),
-  })
-  if (!r.ok) throw new Error(`generate_link ${r.status}: ${await r.text()}`)
-  const { hashed_token } = await r.json()
-  if (!hashed_token) throw new Error('no hashed_token in generate_link response')
-  return hashed_token
-}
-
 const profile = join(tmpdir(), `bw-shoot-${process.pid}`)
-function chrome(url, out) {
-  execFileSync(
-    CHROME,
-    [
-      '--headless',
-      '--disable-gpu',
-      '--hide-scrollbars',
-      `--user-data-dir=${profile}`,
-      `--window-size=${SIZE}`,
-      '--virtual-time-budget=9000',
-      ...(out ? [`--screenshot=${out}`] : ['--dump-dom']),
-      url,
-    ],
-    { stdio: ['ignore', 'ignore', 'ignore'] }
-  )
+const chrome = spawn(
+  CHROME,
+  [
+    '--headless=new',
+    '--disable-gpu',
+    '--hide-scrollbars',
+    `--remote-debugging-port=${PORT}`,
+    `--user-data-dir=${profile}`,
+    `--window-size=${W},${H}`,
+    'about:blank',
+  ],
+  { stdio: 'ignore' }
+)
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
+
+/** The debugger socket takes a moment to bind; poll rather than guess. */
+async function target() {
+  for (let i = 0; i < 60; i++) {
+    try {
+      const r = await fetch(`http://127.0.0.1:${PORT}/json/new?about:blank`, { method: 'PUT' })
+      if (r.ok) return (await r.json()).webSocketDebuggerUrl
+    } catch {
+      /* not up yet */
+    }
+    await sleep(250)
+  }
+  throw new Error('Chrome DevTools endpoint never came up')
 }
 
-const email = await pickUser()
-const token = await magicLink(email)
-console.log(`signing in as ${email}`)
+/** Minimal CDP client: send a command, await the matching id. */
+function connect(url) {
+  const ws = new WebSocket(url)
+  const pending = new Map()
+  let id = 0
+  const ready = new Promise((res, rej) => {
+    ws.onopen = () => res()
+    ws.onerror = (e) => rej(e)
+  })
+  ws.onmessage = (ev) => {
+    const msg = JSON.parse(ev.data)
+    const p = pending.get(msg.id)
+    if (!p) return
+    pending.delete(msg.id)
+    if (msg.error) p.rej(new Error(msg.error.message))
+    else p.res(msg.result)
+  }
+  return {
+    ready,
+    send(method, params = {}) {
+      const n = ++id
+      ws.send(JSON.stringify({ id: n, method, params }))
+      return new Promise((res, rej) => pending.set(n, { res, rej }))
+    },
+    close: () => ws.close(),
+  }
+}
+
+const cdp = connect(await target())
+await cdp.ready
+await cdp.send('Page.enable')
 
 mkdirSync(OUT, { recursive: true })
-// Follow the magic link once; the session cookie then lives in `profile`.
-chrome(`${APP}/auth/confirm?token_hash=${token}&type=magiclink&next=/dashboard`, null)
 
-if (process.env.BW_SHOOT_DARK) {
-  // The theme is a localStorage key the pre-paint script reads (see layout.tsx).
-  chrome(`${APP}/dashboard#set-dark`, null)
+async function goto(url) {
+  await cdp.send('Page.navigate', { url })
+  // Dev builds compile on first hit; give the route room, then settle.
+  await sleep(4500)
 }
 
-for (const p of paths) {
-  const name = (p === '/' ? 'root' : p.replace(/^\//, '').replace(/\//g, '-')) + (process.env.BW_SHOOT_DARK ? '-dark' : '') + '.png'
-  const file = join(OUT, name)
-  chrome(`${APP}${p}`, file)
-  console.log(existsSync(file) ? `  ✓ ${file}` : `  ✗ ${p} produced nothing`)
+let shot = 0
+for (const theme of THEMES) {
+  // Seed the key the pre-paint script reads, on the app's own origin.
+  await goto(`${APP}/login`)
+  await cdp.send('Runtime.evaluate', {
+    expression: `try{localStorage.setItem('theme',${JSON.stringify(theme)})}catch(e){}`,
+  })
+  for (const p of paths) {
+    await goto(`${APP}${p}`)
+    const applied = await cdp.send('Runtime.evaluate', {
+      expression: `document.documentElement.classList.contains('dark')?'dark':'light'`,
+      returnByValue: true,
+    })
+    // ⚠ ASSERT THE THEME ACTUALLY APPLIED. The whole reason this file was
+    // rewritten is a flag that claimed to switch themes and did not.
+    if (applied.result.value !== theme) {
+      console.error(`  ! ${p}: asked for ${theme}, page is ${applied.result.value} — NOT SHOT`)
+      continue
+    }
+    const { data } = await cdp.send('Page.captureScreenshot', { format: 'png' })
+    const name = `${p === '/' ? 'root' : p.replace(/^\//, '').replace(/\//g, '-')}.${theme}.png`
+    writeFileSync(join(OUT, name), Buffer.from(data, 'base64'))
+    console.log(`  ✓ ${OUT}/${name}`)
+    shot++
+  }
 }
 
-rmSync(profile, { recursive: true, force: true })
-console.log(`\n${paths.length} page(s) → ${OUT}/`)
+cdp.close()
+chrome.kill()
+console.log(`\n${shot} screenshot(s) across ${THEMES.length} theme(s)`)
+// ⚠ AFTER the summary, and swallowed. Chrome has not finished unlinking its
+// profile when `kill()` returns, so this races it and throws ENOTEMPTY — which
+// reads as a failed run even though every screenshot is already on disk.
+await sleep(400)
+try {
+  rmSync(profile, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 })
+} catch {
+  /* a temp dir the OS will reap; never fail a successful run over it */
+}

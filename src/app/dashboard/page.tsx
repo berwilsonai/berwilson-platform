@@ -507,7 +507,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
               action={
                 <Link
                   href="/projects/new"
-                  className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors"
+                  className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg bg-primary elev-1 text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors"
                 >
                   New Project
                 </Link>

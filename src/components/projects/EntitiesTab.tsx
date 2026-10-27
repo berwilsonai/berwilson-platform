@@ -640,7 +640,7 @@ export default function EntitiesTab({
           </div>
           <button
             onClick={cancel}
-            className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md border border-input text-xs font-medium hover:bg-accent transition-colors"
+            className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg border border-input text-sm font-medium hover:bg-accent transition-colors"
           >
             <X size={13} />
             Back to Entities
@@ -684,7 +684,7 @@ export default function EntitiesTab({
           <button
             onClick={handleSaveEntity}
             disabled={saving}
-            className="inline-flex items-center gap-1.5 h-9 px-4 rounded-md bg-foreground text-background text-sm font-medium hover:bg-foreground/90 disabled:opacity-50 transition-colors"
+            className="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg bg-foreground elev-1 text-background text-sm font-medium hover:bg-foreground/90 disabled:opacity-50 transition-colors"
           >
             {saving ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
             {isEdit ? 'Save Changes' : 'Create Entity'}
@@ -692,7 +692,7 @@ export default function EntitiesTab({
           <button
             onClick={cancel}
             disabled={saving}
-            className="inline-flex items-center gap-1.5 h-9 px-3 rounded-md border border-input text-sm font-medium hover:bg-accent disabled:opacity-50 transition-colors"
+            className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg border border-input text-sm font-medium hover:bg-accent disabled:opacity-50 transition-colors"
           >
             <X size={14} />
             Cancel
@@ -700,7 +700,7 @@ export default function EntitiesTab({
           {isEdit && editEntity && (
             <button
               onClick={() => setPendingConfirm({ kind: 'delete-entity', entity: editEntity })}
-              className="ml-auto inline-flex items-center gap-1.5 h-9 px-3 rounded-md border border-critical-edge text-critical text-sm font-medium hover:bg-critical-surface dark:hover:bg-critical-surface/40 transition-colors"
+              className="ml-auto inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg border border-critical-edge text-critical text-sm font-medium hover:bg-critical-surface dark:hover:bg-critical-surface/40 transition-colors"
             >
               <Trash2 size={14} />
               Delete
@@ -729,14 +729,14 @@ export default function EntitiesTab({
             <div className="flex items-center gap-2">
               <button
                 onClick={() => openLink()}
-                className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md border border-input text-xs font-medium hover:bg-accent transition-colors"
+                className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-lg border border-input text-sm font-medium hover:bg-accent transition-colors"
               >
                 <Link2 size={12} />
                 Link Entity
               </button>
               <button
                 onClick={openCreate}
-                className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors"
+                className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-lg bg-primary elev-1 text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors"
               >
                 <Plus size={12} />
                 New Entity
@@ -811,7 +811,7 @@ export default function EntitiesTab({
               <button
                 onClick={handleLink}
                 disabled={saving}
-                className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md bg-foreground text-background text-xs font-medium hover:bg-foreground/90 disabled:opacity-50 transition-colors"
+                className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg bg-foreground elev-1 text-background text-sm font-medium hover:bg-foreground/90 disabled:opacity-50 transition-colors"
               >
                 {saving ? <Loader2 size={13} className="animate-spin" /> : <Link2 size={13} />}
                 Link
@@ -819,7 +819,7 @@ export default function EntitiesTab({
               <button
                 onClick={cancel}
                 disabled={saving}
-                className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md border border-input text-xs font-medium hover:bg-accent disabled:opacity-50 transition-colors"
+                className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg border border-input text-sm font-medium hover:bg-accent disabled:opacity-50 transition-colors"
               >
                 <X size={13} />
                 Cancel
@@ -903,14 +903,14 @@ export default function EntitiesTab({
                         <button
                           onClick={() => handleUpdateLink(ep)}
                           disabled={saving}
-                          className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md bg-foreground text-background text-xs font-medium hover:bg-foreground/90 disabled:opacity-50 transition-colors"
+                          className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg bg-foreground elev-1 text-background text-sm font-medium hover:bg-foreground/90 disabled:opacity-50 transition-colors"
                         >
                           {saving ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}
                           Save
                         </button>
                         <button
                           onClick={cancel}
-                          className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md border border-input text-xs font-medium hover:bg-accent transition-colors"
+                          className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg border border-input text-sm font-medium hover:bg-accent transition-colors"
                         >
                           <X size={13} />
                           Cancel
@@ -974,7 +974,7 @@ export default function EntitiesTab({
           </h2>
           <button
             onClick={openCreate}
-            className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md border border-input text-xs font-medium hover:bg-accent transition-colors"
+            className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-lg border border-input text-sm font-medium hover:bg-accent transition-colors"
           >
             <Plus size={12} />
             New Entity

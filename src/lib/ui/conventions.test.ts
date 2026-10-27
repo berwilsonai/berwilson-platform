@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 
-import { count, scan, sourceFiles } from './source-scan'
+import { count, scan, sourceFiles, stripComments } from './source-scan'
 
 /**
  * The house conventions, as assertions over the source tree.
@@ -160,9 +160,36 @@ test(`the card shell is converging on Panel (baseline ${BASELINE_DATE})`, () => 
     [],
     'a card is rounded-lg (= --radius). Use <Panel> from @/components/ui/card.'
   )
-  // The hand-rolled count itself is still attrition: swap the div for <Panel>
-  // when a file is open for another reason.
-  ratchet('hand-rolled card shell', count(/rounded-lg border border-border bg-card/, files), 231,
+  /*
+    The hand-rolled count itself is still attrition: swap the div for <Panel>
+    when a file is open for another reason.
+
+    ⚠ A BORDERED BUTTON IS NOT A CARD, AND THIS SCAN USED TO COUNT IT AS ONE.
+    On 2026-10-27 the 274 hand-rolled buttons were converged on the shape
+    `ui/button.tsx` already defines, which moved them `rounded-md` → the one
+    radius `Panel` uses — and a secondary button is `rounded-lg border
+    border-border bg-card`, byte-for-byte the pattern below. The count jumped
+    231 → 236 with not one new card in the tree.
+
+    Raising the baseline would have been the easy move and would have made the
+    ratchet mean less than it did before. The scan is NARROWED instead: a class
+    string carrying `inline-flex` and a height is a control, not a surface.
+    That is strictly more accurate, so the baseline comes DOWN rather than up:
+    measured against the tree BEFORE the button change and the tree after, the
+    narrowed scan returns 227 both times — proving the convergence added no
+    cards at all, and that the old 231 was four buttons miscounted as surfaces.
+  */
+  const cardShells = files.reduce((n, file) => {
+    const src = stripComments(readFileSync(file, 'utf8'))
+    for (const m of src.matchAll(/"[^"\n]*"|'[^'\n]*'|`[^`\n]*`/g)) {
+      const s = m[0]
+      if (!/rounded-lg border border-border bg-card/.test(s)) continue
+      if (/\binline-flex\b/.test(s) && /\bh-\d|\bh-\[/.test(s)) continue // a button
+      n++
+    }
+    return n
+  }, 0)
+  ratchet('hand-rolled card shell', cardShells, 227,
     'Use <Panel> from @/components/ui/card.')
 })
 

@@ -304,7 +304,7 @@ export default async function ActivityPage({ searchParams }: PageProps) {
             {page > 1 && (
               <Link
                 href={pageUrl(page - 1)}
-                className="h-8 px-3 rounded-md border border-input bg-background hover:bg-accent transition-colors inline-flex items-center text-xs font-medium"
+                className="h-9 px-3.5 rounded-lg border border-input bg-background hover:bg-accent transition-colors inline-flex items-center text-sm font-medium"
               >
                 ← Previous
               </Link>
@@ -315,7 +315,7 @@ export default async function ActivityPage({ searchParams }: PageProps) {
             {page < totalPages && (
               <Link
                 href={pageUrl(page + 1)}
-                className="h-8 px-3 rounded-md border border-input bg-background hover:bg-accent transition-colors inline-flex items-center text-xs font-medium"
+                className="h-9 px-3.5 rounded-lg border border-input bg-background hover:bg-accent transition-colors inline-flex items-center text-sm font-medium"
               >
                 Next →
               </Link>

@@ -121,7 +121,7 @@ export default function RecordingUpload({ target, onDone }: RecordingUploadProps
           type="button"
           onClick={submit}
           disabled={!file || busy}
-          className="inline-flex items-center gap-1.5 h-9 px-4 rounded-md bg-foreground text-background text-sm font-medium hover:bg-foreground/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+          className="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg bg-foreground elev-1 text-background text-sm font-medium hover:bg-foreground/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
         >
           {busy ? <Loader2 size={14} className="animate-spin" /> : <Mic size={14} />}
           {busy ? 'Transcribing…' : 'Transcribe and file'}

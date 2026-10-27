@@ -528,7 +528,7 @@ function Section({
                     <button
                       type="button"
                       onClick={() => copyChase(c.chase_text!)}
-                      className="mt-2 inline-flex min-h-9 items-center gap-1.5 rounded-md border border-border px-3 text-xs font-medium outline-none hover:bg-accent focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                      className="mt-2 inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-border px-3.5 text-sm font-medium outline-none hover:bg-accent focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
                     >
                       <Copy className="size-3.5" aria-hidden />
                       Copy

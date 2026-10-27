@@ -92,14 +92,14 @@ export default async function ProjectsPage({ searchParams }: PageProps) {
             <>
               <Link
                 href="/timeline"
-                className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md border border-border bg-card text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+                className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg border border-border bg-card text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
               >
                 <GanttChart size={14} />
                 Timeline
               </Link>
               <Link
                 href="/projects/new"
-                className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors"
+                className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg bg-primary elev-1 text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors"
               >
                 <Plus size={14} />
                 New Project
@@ -144,7 +144,7 @@ export default async function ProjectsPage({ searchParams }: PageProps) {
             !hasFilters && isAdmin ? (
               <Link
                 href="/projects/new"
-                className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors"
+                className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg bg-primary elev-1 text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors"
               >
                 <Plus size={14} />
                 New Project

@@ -128,7 +128,7 @@ export default function SteelSpendLedger({ spend, channels, canEdit }: Props) {
           <button
             onClick={add}
             disabled={saving}
-            className="inline-flex items-center gap-1.5 h-9 px-3 rounded-md bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
+            className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg bg-primary elev-1 text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
           >
             {saving ? <Loader2 size={13} className="animate-spin" /> : <Plus size={13} />}
             Add

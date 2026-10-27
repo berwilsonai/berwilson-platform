@@ -1008,7 +1008,7 @@ export default function DecideClient({ items }: { items: DecideItem[] }) {
                     onClick={() =>
                       setSelected(new Set(confident.map((i) => `${i.kind}:${i.id}`)))
                     }
-                    className="inline-flex items-center h-[2.75rem] sm:h-7 px-3 sm:px-2.5 rounded-md text-xs font-medium bg-card ring-1 ring-inset ring-border hover:bg-accent transition-colors"
+                    className="inline-flex items-center h-[2.75rem] sm:h-7 px-3.5 sm:px-2.5 rounded-lg text-sm font-medium bg-card ring-1 ring-inset ring-border hover:bg-accent transition-colors"
                   >
                     Select {confident.length} high-confidence
                   </button>
@@ -1026,7 +1026,7 @@ export default function DecideClient({ items }: { items: DecideItem[] }) {
                       return next
                     })
                   }
-                  className="inline-flex items-center h-[2.75rem] sm:h-7 px-3 sm:px-2.5 rounded-md text-xs font-medium bg-card ring-1 ring-inset ring-border hover:bg-accent transition-colors"
+                  className="inline-flex items-center h-[2.75rem] sm:h-7 px-3.5 sm:px-2.5 rounded-lg text-sm font-medium bg-card ring-1 ring-inset ring-border hover:bg-accent transition-colors"
                 >
                   {allShownSelected ? 'Clear shown' : 'Select all shown'}
                 </button>
@@ -1034,7 +1034,7 @@ export default function DecideClient({ items }: { items: DecideItem[] }) {
                   type="button"
                   disabled={selectedItems.length === 0}
                   onClick={() => setAskingBatch(true)}
-                  className="inline-flex items-center gap-1.5 h-[2.75rem] sm:h-7 px-3 sm:px-2.5 rounded-md text-xs font-medium bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-40 transition-colors"
+                  className="inline-flex items-center gap-1.5 h-[2.75rem] sm:h-7 px-3.5 sm:px-2.5 rounded-lg text-sm font-medium bg-primary elev-1 text-primary-foreground hover:bg-primary/90 disabled:opacity-40 transition-colors"
                 >
                   <CheckCheck size={13} />
                   Accept {selectedItems.length > 0 ? selectedItems.length : ''}
@@ -1174,7 +1174,7 @@ export default function DecideClient({ items }: { items: DecideItem[] }) {
                     onClick={() => setAsking({ item, action: item.accept!, name: item.acceptName ?? null })}
                     disabled={pending === `${item.kind}:${item.id}`}
                     title={acceptVerb(item)}
-                    className="inline-flex items-center gap-1 h-[2.75rem] sm:h-7 px-3 sm:px-2 rounded-md text-xs font-medium bg-primary/10 text-primary hover:bg-primary/20 disabled:opacity-40 transition-colors"
+                    className="inline-flex items-center gap-1 h-[2.75rem] sm:h-7 px-3.5 sm:px-2 rounded-lg text-sm font-medium bg-primary elev-1/10 text-primary hover:bg-primary/20 disabled:opacity-40 transition-colors"
                   >
                     {pending === `${item.kind}:${item.id}` ? (
                       <Loader2 size={13} className="animate-spin" />
@@ -1220,7 +1220,7 @@ export default function DecideClient({ items }: { items: DecideItem[] }) {
                     }
                     disabled={pending === `${item.kind}:${item.id}`}
                     title={`${acceptVerb({ accept: item.altAccept.action, acceptName: item.altAccept.name })} — ${item.altAccept.count} follow-up${item.altAccept.count === 1 ? '' : 's'}, and nothing else is created`}
-                    className="inline-flex items-center gap-1 h-[2.75rem] sm:h-7 px-3 sm:px-2 rounded-md text-xs font-medium text-muted-foreground ring-1 ring-inset ring-border hover:bg-accent hover:text-foreground disabled:opacity-40 transition-colors"
+                    className="inline-flex items-center gap-1 h-[2.75rem] sm:h-7 px-3.5 sm:px-2 rounded-lg text-sm font-medium text-muted-foreground ring-1 ring-inset ring-border hover:bg-accent hover:text-foreground disabled:opacity-40 transition-colors"
                   >
                     <ListChecks size={13} />
                     <span className="hidden sm:inline">

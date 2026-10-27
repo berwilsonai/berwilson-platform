@@ -160,7 +160,7 @@ export default function ComposeDocument({ kind, recordId, confidential = false }
             type="button"
             onClick={submit}
             disabled={!ready || busy}
-            className="inline-flex items-center justify-center gap-2 h-[2.75rem] px-4 rounded-md bg-primary text-primary-foreground text-sm font-medium outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 hover:bg-primary/90 disabled:opacity-50 disabled:pointer-events-none transition-all elev-1"
+            className="inline-flex items-center justify-center gap-2 h-[2.75rem] px-4 rounded-lg bg-primary text-primary-foreground text-sm font-medium outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 hover:bg-primary/90 disabled:opacity-50 disabled:pointer-events-none transition-all elev-1"
           >
             {busy ? <Loader2 size={14} className="animate-spin" /> : <FileText size={14} />}
             {busy ? 'Writing…' : 'Write it'}

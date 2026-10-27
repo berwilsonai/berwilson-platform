@@ -245,7 +245,7 @@ export default function ProjectMapSheet({
 
               <Link
                 href={`/projects/${p.id}`}
-                className="inline-flex h-8 items-center gap-1.5 rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+                className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-primary elev-1 px-3.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
               >
                 Open project
                 <ArrowUpRight size={14} />
@@ -258,14 +258,14 @@ export default function ProjectMapSheet({
                   <div className="flex flex-wrap gap-2">
                     <button
                       onClick={() => onReposition(p.id)}
-                      className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-card px-3 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                      className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border bg-card px-3.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
                     >
                       <Crosshair size={14} />
                       Reposition
                     </button>
                     <button
                       onClick={() => onDrawRoute(p.id)}
-                      className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-card px-3 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                      className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border bg-card px-3.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
                     >
                       <Route size={14} />
                       {p.map_geometry ? 'Redraw route' : 'Draw route'}
@@ -273,7 +273,7 @@ export default function ProjectMapSheet({
                     {p.map_geometry && (
                       <button
                         onClick={() => onClearRoute(p.id)}
-                        className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-card px-3 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-critical"
+                        className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border bg-card px-3.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-critical"
                       >
                         <Trash2 size={14} />
                         Remove route

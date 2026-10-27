@@ -47,7 +47,7 @@ export default function SteelWorkspaceTabs({
       </div>
       <Link
         href="/steel/new"
-        className="mb-1.5 shrink-0 inline-flex items-center gap-1.5 h-8 px-3 rounded-md bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors"
+        className="mb-1.5 shrink-0 inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg bg-primary elev-1 text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors"
       >
         <Plus size={14} />
         New Deal

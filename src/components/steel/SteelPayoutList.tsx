@@ -77,7 +77,7 @@ export default function SteelPayoutList({ items }: { items: PayoutItem[] }) {
                 <button
                   disabled={busy !== null}
                   onClick={() => mark(list, true, `group:${person}`)}
-                  className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 shrink-0"
+                  className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-lg bg-primary elev-1 text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 shrink-0"
                 >
                   {busy === `group:${person}` ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />}
                   Pay all
@@ -97,7 +97,7 @@ export default function SteelPayoutList({ items }: { items: PayoutItem[] }) {
                       <button
                         disabled={busy !== null}
                         onClick={() => mark([i], true, i.key)}
-                        className="inline-flex items-center gap-1 h-7 px-2 rounded-md border border-input text-xs font-medium hover:bg-accent transition-colors disabled:opacity-50"
+                        className="inline-flex items-center gap-1 h-7 px-2 rounded-lg border border-input text-sm font-medium hover:bg-accent transition-colors disabled:opacity-50"
                       >
                         {busy === i.key ? <Loader2 size={11} className="animate-spin" /> : <Check size={11} />}
                         Mark paid
@@ -133,7 +133,7 @@ export default function SteelPayoutList({ items }: { items: PayoutItem[] }) {
                   <button
                     disabled={busy !== null}
                     onClick={() => mark([i], false, i.key)}
-                    className="inline-flex items-center gap-1 h-7 px-2 rounded-md border border-input text-xs font-medium hover:bg-accent transition-colors disabled:opacity-50"
+                    className="inline-flex items-center gap-1 h-7 px-2 rounded-lg border border-input text-sm font-medium hover:bg-accent transition-colors disabled:opacity-50"
                   >
                     {busy === i.key ? <Loader2 size={11} className="animate-spin" /> : <Undo2 size={11} />}
                     Undo

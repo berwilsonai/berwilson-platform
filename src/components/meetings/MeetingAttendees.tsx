@@ -134,7 +134,7 @@ export default function MeetingAttendees({ attendees, onChange, teamMembers, con
         <button
           type="button"
           onClick={addManual}
-          className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md border border-input bg-background text-xs font-medium hover:bg-accent shrink-0"
+          className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg border border-input bg-background text-sm font-medium hover:bg-accent shrink-0"
         >
           <Plus size={13} /> Enter manually
         </button>
@@ -158,7 +158,7 @@ export default function MeetingAttendees({ attendees, onChange, teamMembers, con
                   <button
                     type="button"
                     onClick={() => remove(i)}
-                    className="shrink-0 h-8 w-8 flex items-center justify-center rounded-md hover:bg-accent text-muted-foreground"
+                    className="shrink-0 h-9 w-8 flex items-center justify-center rounded-lg hover:bg-accent text-muted-foreground"
                     aria-label="Remove attendee"
                   >
                     <Trash2 size={14} />

@@ -395,7 +395,7 @@ export default function CompanyProfileClient({ profile, certifications: initialC
             <button
               type="button"
               onClick={() => setEditing(true)}
-              className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md border border-input bg-background text-xs font-medium hover:bg-accent transition-colors"
+              className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-lg border border-input bg-background text-sm font-medium hover:bg-accent transition-colors"
             >
               <Pencil size={11} /> Edit Profile
             </button>
@@ -571,14 +571,14 @@ export default function CompanyProfileClient({ profile, certifications: initialC
               <button
                 type="button"
                 onClick={() => setEditing(false)}
-                className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md border border-input bg-background text-xs font-medium hover:bg-accent transition-colors"
+                className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg border border-input bg-background text-sm font-medium hover:bg-accent transition-colors"
               >
                 <X size={12} /> Cancel
               </button>
               <button
                 type="submit"
                 disabled={savePending}
-                className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 disabled:opacity-50 transition-colors"
+                className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg bg-primary elev-1 text-primary-foreground text-sm font-medium hover:bg-primary/90 disabled:opacity-50 transition-colors"
               >
                 {savePending ? <Loader2 size={12} className="animate-spin" /> : <CheckCircle2 size={12} />}
                 {savePending ? 'Saving…' : 'Save Profile'}
@@ -663,7 +663,7 @@ export default function CompanyProfileClient({ profile, certifications: initialC
                 <button
                   type="button"
                   onClick={() => setEditing(true)}
-                  className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md border border-input bg-background text-xs font-medium hover:bg-accent transition-colors"
+                  className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-lg border border-input bg-background text-sm font-medium hover:bg-accent transition-colors"
                 >
                   <Pencil size={11} /> Edit
                 </button>
@@ -731,7 +731,7 @@ export default function CompanyProfileClient({ profile, certifications: initialC
           <button
             type="button"
             onClick={() => setAddingCert(true)}
-            className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md border border-input bg-background text-xs font-medium hover:bg-accent transition-colors"
+            className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-lg border border-input bg-background text-sm font-medium hover:bg-accent transition-colors"
           >
             <Plus size={11} /> Add
           </button>

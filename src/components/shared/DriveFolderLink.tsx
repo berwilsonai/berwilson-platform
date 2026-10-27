@@ -189,7 +189,7 @@ export default function DriveFolderLink({
             href={folderUrl ?? '#'}
             target="_blank"
             rel="noreferrer"
-            className="inline-flex h-8 items-center gap-1.5 rounded-md px-2 text-xs text-primary hover:bg-accent"
+            className="inline-flex h-9 items-center gap-1.5 rounded-lg px-2 text-sm text-primary hover:bg-accent"
           >
             <FolderOpen className="size-3.5" />
             Drive folder

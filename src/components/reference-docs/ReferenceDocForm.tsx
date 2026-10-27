@@ -67,7 +67,7 @@ export default function ReferenceDocForm() {
         <button
           type="button"
           onClick={() => fileRef.current?.click()}
-          className="inline-flex items-center justify-center gap-1.5 h-9 px-3 rounded-md border border-input bg-background text-sm font-medium hover:bg-accent transition-colors shrink-0"
+          className="inline-flex items-center justify-center gap-1.5 h-9 px-3.5 rounded-lg border border-input bg-background text-sm font-medium hover:bg-accent transition-colors shrink-0"
         >
           <FileUp size={14} />
           {file ? 'Change file' : 'Choose file'}
@@ -94,7 +94,7 @@ export default function ReferenceDocForm() {
           type="button"
           onClick={upload}
           disabled={loading}
-          className="inline-flex items-center gap-1.5 h-9 px-4 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-60 shrink-0"
+          className="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg bg-primary elev-1 text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-60 shrink-0"
         >
           {loading ? <Loader2 size={15} className="animate-spin" /> : <Sparkles size={15} />}
           {loading ? 'Reading…' : 'Upload & digest'}

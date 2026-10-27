@@ -161,7 +161,7 @@ export default function UpdatesTab({ projectId, initialUpdates, startNew = false
         </h2>
         <button
           onClick={() => setShowPaste(!showPaste)}
-          className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md border border-input bg-background text-xs font-medium hover:bg-accent transition-colors"
+          className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg border border-input bg-background text-sm font-medium hover:bg-accent transition-colors"
         >
           <Plus size={12} />
           Log an update
@@ -193,7 +193,7 @@ export default function UpdatesTab({ projectId, initialUpdates, startNew = false
           action={
             <button
               onClick={() => setShowPaste(true)}
-              className="inline-flex items-center gap-1.5 h-9 px-4 rounded-md bg-foreground text-background text-sm font-medium hover:bg-foreground/90 transition-colors"
+              className="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg bg-foreground elev-1 text-background text-sm font-medium hover:bg-foreground/90 transition-colors"
             >
               <Plus size={14} />
               Log the first update

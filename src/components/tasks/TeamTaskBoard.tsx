@@ -114,7 +114,7 @@ const filterFieldClass =
 // 44px on touch (Apple HIG / WCAG 2.5.5 target size), the tighter 32px on
 // pointer devices. `whitespace-nowrap` keeps a two-word label off two lines.
 const headerButtonClass =
-  'inline-flex items-center justify-center gap-1.5 whitespace-nowrap h-[2.75rem] sm:h-8 px-3 rounded-md border border-border bg-card text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-accent transition-colors'
+  'inline-flex items-center justify-center gap-1.5 whitespace-nowrap h-[2.75rem] sm:h-9 px-3.5 rounded-lg border border-border bg-card text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-accent transition-colors'
 
 export default function TeamTaskBoard({
   initialTasks,
@@ -618,7 +618,7 @@ export default function TeamTaskBoard({
           )}
           <button
             onClick={() => setShowAdd((s) => !s)}
-            className="inline-flex items-center justify-center gap-1.5 whitespace-nowrap h-[2.75rem] sm:h-8 px-3.5 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 active:scale-[0.98] transition-all elev-1"
+            className="inline-flex items-center justify-center gap-1.5 whitespace-nowrap h-[2.75rem] sm:h-9 px-3.5.5 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 active:scale-[0.98] transition-all elev-1"
           >
             <Plus size={14} /> New task
           </button>
@@ -890,7 +890,7 @@ export default function TeamTaskBoard({
           <button
             onClick={handleAddTask}
             disabled={!title.trim() || adding}
-            className="w-full inline-flex items-center justify-center gap-1.5 h-10 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 disabled:opacity-50 transition-colors active:scale-[0.99]"
+            className="w-full inline-flex items-center justify-center gap-1.5 h-10 rounded-lg bg-primary elev-1 text-primary-foreground text-sm font-medium hover:bg-primary/90 disabled:opacity-50 transition-colors active:scale-[0.99]"
           >
             {adding && <Loader2 size={14} className="animate-spin" />}
             Save task

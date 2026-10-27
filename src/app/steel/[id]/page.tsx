@@ -185,7 +185,7 @@ export default async function SteelDealDetailPage({ params }: PageProps) {
           <SteelStageControl dealId={id} stage={s} />
           <Link
             href={`/steel/${id}/quote`}
-            className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md border border-input bg-background text-xs font-medium hover:bg-accent transition-colors"
+            className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg border border-input bg-background text-sm font-medium hover:bg-accent transition-colors"
             title={
               latestQuote
                 ? `${quoteLabel(latestQuote.quote_number, latestQuote.revision)} — ${QUOTE_STATUS_LABELS[quoteStatus(latestQuote.status)]}`

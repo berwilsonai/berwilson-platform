@@ -112,7 +112,7 @@ export default function RecordCorrespondence({
         <button
           onClick={findUnfiled}
           disabled={searching}
-          className="inline-flex items-center gap-1.5 h-8 px-2.5 rounded-md border border-input text-xs font-medium hover:bg-accent transition-colors disabled:opacity-50"
+          className="inline-flex items-center gap-1.5 h-9 px-2.5 rounded-lg border border-input text-sm font-medium hover:bg-accent transition-colors disabled:opacity-50"
         >
           {searching ? <Loader2 size={12} className="animate-spin" /> : <Search size={12} />}
           {searching ? 'Searching…' : 'Find unfiled mail'}
@@ -136,7 +136,7 @@ export default function RecordCorrespondence({
                   <button
                     onClick={() => unfile(t)}
                     title="Remove from this record"
-                    className="shrink-0 h-7 w-7 inline-flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+                    className="shrink-0 h-7 w-7 inline-flex items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
                   >
                     <X size={13} />
                   </button>
@@ -160,7 +160,7 @@ export default function RecordCorrespondence({
                   action={
                     <button
                       onClick={() => file(t)}
-                      className="shrink-0 inline-flex items-center gap-1 h-7 px-2 rounded-md border border-input text-xs font-medium hover:bg-accent transition-colors"
+                      className="shrink-0 inline-flex items-center gap-1 h-7 px-2 rounded-lg border border-input text-sm font-medium hover:bg-accent transition-colors"
                     >
                       <Plus size={11} /> File
                     </button>

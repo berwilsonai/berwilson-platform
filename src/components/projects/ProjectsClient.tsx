@@ -4,8 +4,9 @@ import { useState, useMemo, useRef, useCallback, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { Trash2, Layers, FolderOpen, Search, X, ChevronDown, GitBranch, Kanban, SlidersHorizontal } from 'lucide-react'
+import { Trash2, Layers, FolderOpen, Search, X, ChevronDown, GitBranch, Kanban, Rows3, SlidersHorizontal } from 'lucide-react'
 import ProjectCard, { type ProjectCardCounts } from '@/components/dashboard/ProjectCard'
+import ProjectsTable from '@/components/projects/ProjectsTable'
 import type { Project, ProjectStage } from '@/lib/supabase/types'
 import { DatePicker } from '@/components/ui/date-picker'
 import { cn } from '@/lib/utils'
@@ -25,7 +26,14 @@ import {
   STAGES, STAGE_LABELS, STAGE_BADGE, STAGE_COLOR,
 } from '@/lib/utils/constants'
 
-type ViewMode = 'program' | 'pipeline'
+/**
+ * ⚠ `table` ADDED 2026-10-27 AND MADE THE DEFAULT. The two existing views are
+ * both CARD layouts — a Kanban of tiles and a grouped card list — and that is
+ * the "layout" half of the overhaul that two previous passes never touched.
+ * See `ProjectsTable` for why a table is the difference between an admin panel
+ * and a BI tool. The board stays: a bid funnel genuinely is a board.
+ */
+type ViewMode = 'program' | 'pipeline' | 'table'
 
 interface ProjectsClientProps {
   projects: Project[]
@@ -61,7 +69,7 @@ function ProgramBanner({
         className="group flex items-center gap-4 px-5 py-4 flex-1 min-w-0 hover:bg-accent/50 transition-colors"
       >
         {/* Icon */}
-        <div className="flex items-center justify-center w-9 h-9 rounded-md bg-muted text-muted-foreground shrink-0">
+        <div className="flex items-center justify-center w-9 h-9 rounded-lg bg-muted text-muted-foreground shrink-0">
           <Layers size={18} />
         </div>
 
@@ -140,9 +148,16 @@ export default function ProjectsClient({ projects: initialProjects, stageFilter 
     [stageFilter]
   )
   const [search, setSearch] = useState('')
-  const [storedView, setView] = useStoredState<ViewMode>('bw.projects.view', 'pipeline')
-  // Normalize any legacy stored values ('stage' / 'board') to the new 'pipeline'.
-  const view: ViewMode = storedView === 'program' ? 'program' : 'pipeline'
+  /*
+    ⚠ THE STORAGE KEY IS NEW ON PURPOSE (`…view.v2`). Everyone who has opened
+    this page has `bw.projects.view: 'pipeline'` written in localStorage, so a
+    changed DEFAULT would reach nobody who has ever used the application —
+    which is precisely how the theme change failed to land this same day. A new
+    key is the one way a default actually applies to existing readers.
+  */
+  const [storedView, setView] = useStoredState<ViewMode>('bw.projects.view.v2', 'table')
+  const view: ViewMode =
+    storedView === 'program' ? 'program' : storedView === 'pipeline' ? 'pipeline' : 'table'
   const [collapsedPrograms, setCollapsedPrograms] = useState<Set<string>>(new Set())
 
   function handleDelete(id: string) {
@@ -363,6 +378,18 @@ export default function ProjectsClient({ projects: initialProjects, stageFilter 
       {/* Track-and-pill, like every other view switcher — see `Segmented`. */}
       <div className="flex items-center gap-0.5 rounded-md bg-muted p-0.5 text-xs">
         <button
+          onClick={() => setView('table')}
+          title="Every project as one scannable, sortable list"
+          aria-pressed={view === 'table'}
+          className={cn(
+            'inline-flex items-center gap-1.5 rounded px-3 py-1.5 transition-colors',
+            view === 'table' ? 'bg-card text-foreground font-medium elev-1' : 'text-muted-foreground hover:text-foreground'
+          )}
+        >
+          <Rows3 size={12} />
+          Table
+        </button>
+        <button
           onClick={() => setView('pipeline')}
           title="See the whole bid funnel, grouped by stage"
           aria-pressed={view === 'pipeline'}
@@ -393,7 +420,9 @@ export default function ProjectsClient({ projects: initialProjects, stageFilter 
   const viewCaption =
     view === 'program'
       ? 'Grouped under each parent program, with standalone projects below.'
-      : 'Your bid funnel, grouped by stage — a board on wide screens, a stacked list on mobile.'
+      : view === 'table'
+        ? 'Every project in one list — click a column to sort.'
+        : 'Your bid funnel, grouped by stage — a board on wide screens, a stacked list on mobile.'
 
   return (
     <div className="space-y-6">
@@ -431,6 +460,11 @@ export default function ProjectsClient({ projects: initialProjects, stageFilter 
         <div className="py-12 text-center text-sm text-muted-foreground">
           No projects match &ldquo;{search}&rdquo;
         </div>
+      )}
+
+      {/* ─── Table: the default, and the only view that is scannable ───────── */}
+      {view === 'table' && filtered.length > 0 && (
+        <ProjectsTable projects={filtered} allProjects={projects} isDimmed={isDimmed} />
       )}
 
       {/* ─── Pipeline (mobile): stage groups stacked top-to-bottom ──────────── */}

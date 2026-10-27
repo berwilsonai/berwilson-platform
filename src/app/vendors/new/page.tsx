@@ -179,7 +179,7 @@ export default function NewVendorPage() {
           </button>
           <Link
             href="/contacts"
-            className="inline-flex items-center h-9 px-4 rounded-md border border-input text-sm font-medium hover:bg-muted transition-colors"
+            className="inline-flex items-center h-9 px-4 rounded-lg border border-input text-sm font-medium hover:bg-muted transition-colors"
           >
             Cancel
           </Link>

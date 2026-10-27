@@ -99,7 +99,7 @@ export default function SteelDealFiles({
               <button
                 onClick={() => fileInputRef.current?.click()}
                 disabled={uploading}
-                className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md border border-input bg-background text-xs font-medium hover:bg-accent disabled:opacity-50"
+                className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg border border-input bg-background text-sm font-medium hover:bg-accent disabled:opacity-50"
               >
                 {uploading ? <Loader2 size={13} className="animate-spin" /> : <Upload size={13} />}
                 Add file

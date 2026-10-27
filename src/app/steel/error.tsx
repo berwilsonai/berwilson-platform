@@ -25,7 +25,7 @@ export default function SteelError({ error, reset }: ErrorProps) {
       </p>
       <button
         onClick={reset}
-        className="inline-flex items-center h-9 px-4 rounded-md bg-foreground text-background text-sm font-medium hover:bg-foreground/90 transition-colors"
+        className="inline-flex items-center h-9 px-4 rounded-lg bg-foreground elev-1 text-background text-sm font-medium hover:bg-foreground/90 transition-colors"
       >
         Try again
       </button>

@@ -35,7 +35,7 @@ export default function ReferenceDocActions({
       <button
         type="button"
         onClick={() => viewDocument(`/api/documents/${documentId}`, mimeType)}
-        className="inline-flex items-center gap-1.5 h-8 px-2.5 rounded-md border border-input bg-background text-xs font-medium hover:bg-accent transition-colors"
+        className="inline-flex items-center gap-1.5 h-9 px-2.5 rounded-lg border border-input bg-background text-sm font-medium hover:bg-accent transition-colors"
       >
         <ExternalLink size={13} />
         Open
@@ -43,7 +43,7 @@ export default function ReferenceDocActions({
       <button
         type="button"
         onClick={() => downloadDocument(`/api/documents/${documentId}`)}
-        className="inline-flex items-center gap-1.5 h-8 px-2.5 rounded-md border border-input bg-background text-xs font-medium hover:bg-accent transition-colors"
+        className="inline-flex items-center gap-1.5 h-9 px-2.5 rounded-lg border border-input bg-background text-sm font-medium hover:bg-accent transition-colors"
       >
         <Download size={13} />
         Download

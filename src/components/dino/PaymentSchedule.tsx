@@ -147,7 +147,7 @@ export default function PaymentSchedule({ payments }: { payments: DinoPaymentRow
         </div>
       </div>
       <div className="flex items-center gap-2">
-        <button onClick={save} disabled={saving} className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors disabled:opacity-60">
+        <button onClick={save} disabled={saving} className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg bg-primary elev-1 text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-60">
           {saving && <Loader2 size={13} className="animate-spin" />}
           {editingId === 'new' ? 'Add' : 'Save'}
         </button>
@@ -164,7 +164,7 @@ export default function PaymentSchedule({ payments }: { payments: DinoPaymentRow
         <CircleDollarSign size={13} className="text-muted-foreground" />
         <h2 className="label-caps text-muted-foreground">Owed to Dino</h2>
         {editingId === null && (
-          <button onClick={startAdd} className="ml-auto inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md border border-input bg-background text-[11px] font-medium hover:bg-accent transition-colors">
+          <button onClick={startAdd} className="ml-auto inline-flex items-center gap-1.5 h-7 px-2.5 rounded-lg border border-input bg-background text-[11px] font-medium hover:bg-accent transition-colors">
             <Plus size={13} />
             Add
           </button>

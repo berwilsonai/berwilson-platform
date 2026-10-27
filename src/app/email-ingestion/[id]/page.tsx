@@ -107,12 +107,12 @@ export default async function EmailIngestReviewPage({ params }: PageProps) {
               : 'This package was already confirmed.'}
           </p>
           {createdIds?.project_id && (
-            <Link href={`/projects/${createdIds.project_id}`} className="inline-flex items-center h-9 px-4 rounded-md bg-primary text-primary-foreground text-sm font-medium">
+            <Link href={`/projects/${createdIds.project_id}`} className="inline-flex items-center h-9 px-4 rounded-lg bg-primary elev-1 text-primary-foreground text-sm font-medium">
               Open project
             </Link>
           )}
           {createdIds?.opportunity_id && (
-            <Link href={`/opportunities/${createdIds.opportunity_id}`} className="inline-flex items-center h-9 px-4 rounded-md bg-primary text-primary-foreground text-sm font-medium">
+            <Link href={`/opportunities/${createdIds.opportunity_id}`} className="inline-flex items-center h-9 px-4 rounded-lg bg-primary elev-1 text-primary-foreground text-sm font-medium">
               Open opportunity
             </Link>
           )}

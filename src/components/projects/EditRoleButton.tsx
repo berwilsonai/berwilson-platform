@@ -146,14 +146,14 @@ export default function EditRoleButton({
             <button
               onClick={() => setOpen(false)}
               disabled={saving}
-              className="inline-flex items-center h-9 px-4 rounded-md border border-input text-sm font-medium hover:bg-accent disabled:opacity-50 transition-colors"
+              className="inline-flex items-center h-9 px-4 rounded-lg border border-input text-sm font-medium hover:bg-accent disabled:opacity-50 transition-colors"
             >
               Cancel
             </button>
             <button
               onClick={handleSave}
               disabled={!canSave}
-              className="inline-flex items-center gap-1.5 h-9 px-4 rounded-md bg-foreground text-background text-sm font-medium hover:bg-foreground/90 disabled:opacity-50 transition-colors"
+              className="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg bg-foreground elev-1 text-background text-sm font-medium hover:bg-foreground/90 disabled:opacity-50 transition-colors"
             >
               {saving ? (
                 <>

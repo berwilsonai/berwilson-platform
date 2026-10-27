@@ -136,7 +136,7 @@ export default function LoginForm() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full h-10 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2 elev-1"
+              className="w-full h-10 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2 elev-1"
             >
               {loading && <Loader2 size={14} className="animate-spin" />}
               Sign In

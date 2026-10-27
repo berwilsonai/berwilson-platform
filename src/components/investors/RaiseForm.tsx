@@ -282,7 +282,7 @@ export default function RaiseForm({ projects, initial }: RaiseFormProps) {
         {tranches.length < MAX_TRANCHES && (
           <button
             onClick={addTranche}
-            className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md border border-input bg-background text-xs font-medium hover:bg-accent transition-colors"
+            className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg border border-input bg-background text-sm font-medium hover:bg-accent transition-colors"
           >
             <Plus size={13} />
             Add Tranche
@@ -295,7 +295,7 @@ export default function RaiseForm({ projects, initial }: RaiseFormProps) {
         <button
           onClick={save}
           disabled={saving}
-          className="inline-flex items-center gap-1.5 h-9 px-4 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-60"
+          className="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg bg-primary elev-1 text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-60"
         >
           {saving && <Loader2 size={14} className="animate-spin" />}
           {initial ? 'Save Changes' : 'Create Raise'}

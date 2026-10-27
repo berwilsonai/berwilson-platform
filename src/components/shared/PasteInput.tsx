@@ -232,7 +232,7 @@ export default function PasteInput({ target, onSaved, autoFocus = false }: Paste
           <button
             onClick={handleExtract}
             disabled={!rawText.trim() || phase === 'loading' || savingRaw}
-            className="inline-flex items-center gap-1.5 h-9 px-4 rounded-md bg-foreground text-background text-sm font-medium hover:bg-foreground/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg bg-foreground elev-1 text-background text-sm font-medium hover:bg-foreground/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {phase === 'loading' ? (
               <>
@@ -249,7 +249,7 @@ export default function PasteInput({ target, onSaved, autoFocus = false }: Paste
           <button
             onClick={handleSaveRaw}
             disabled={!rawText.trim() || phase === 'loading' || savingRaw}
-            className="inline-flex items-center gap-1.5 h-9 px-4 rounded-md border border-input bg-background text-sm font-medium hover:bg-accent disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg border border-input bg-background text-sm font-medium hover:bg-accent disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {savingRaw ? (
               <>
@@ -300,7 +300,7 @@ export default function PasteInput({ target, onSaved, autoFocus = false }: Paste
           <button
             onClick={handleCancel}
             disabled={isSaving}
-            className="inline-flex items-center gap-1 h-8 px-3 rounded-md border border-input text-xs font-medium hover:bg-accent disabled:opacity-50 transition-colors"
+            className="inline-flex items-center gap-1 h-9 px-3.5 rounded-lg border border-input text-sm font-medium hover:bg-accent disabled:opacity-50 transition-colors"
           >
             <X size={12} />
             Cancel
@@ -308,7 +308,7 @@ export default function PasteInput({ target, onSaved, autoFocus = false }: Paste
           <button
             onClick={handleSave}
             disabled={isSaving}
-            className="inline-flex items-center gap-1 h-8 px-3 rounded-md bg-foreground text-background text-xs font-medium hover:bg-foreground/90 disabled:opacity-50 transition-colors"
+            className="inline-flex items-center gap-1 h-9 px-3.5 rounded-lg bg-foreground elev-1 text-background text-sm font-medium hover:bg-foreground/90 disabled:opacity-50 transition-colors"
           >
             {isSaving ? (
               <Loader2 size={12} className="animate-spin" />
