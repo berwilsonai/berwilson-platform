@@ -1048,7 +1048,7 @@ export default function TeamTaskBoard({
                   {/* The circle stays 20px; the tap area grows to 44px. An
                       absolute overlay does that without moving anything in the
                       row (padding on the button itself would shift the text). */}
-                  <span className="absolute -inset-3" aria-hidden="true" />
+                  <span className="tap-target" aria-hidden="true" />
                 </button>
 
                 <div className="min-w-0 flex-1">

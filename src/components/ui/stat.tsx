@@ -64,7 +64,7 @@ function StatTile({
       {value === null ? (
         <dd className="mt-1.5 text-sm text-muted-foreground">{empty}</dd>
       ) : (
-        <dd className={cn('tnum mt-1 text-[1.75rem] font-semibold leading-tight tracking-[-0.02em]', TONE[tone])}>
+        <dd className={cn('tnum mt-1 text-metric', TONE[tone])}>
           {value}
         </dd>
       )}

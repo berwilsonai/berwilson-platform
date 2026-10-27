@@ -446,7 +446,7 @@ export default function LeadCategoryManager({
                       className="relative rounded-md p-1.5 text-muted-foreground transition-colors hover:text-destructive outline-none focus-visible:text-destructive"
                     >
                       <Trash2 className="size-4" />
-                      <span className="absolute -inset-3" aria-hidden />
+                      <span className="tap-target" aria-hidden />
                     </button>
                   )}
                 </div>

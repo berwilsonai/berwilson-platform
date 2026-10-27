@@ -250,11 +250,11 @@ export default function CommitmentsLedger({
       {/* ONE QUANTITY, ONE DEFINITION (§12) — these are four different
           questions about one table, named apart and never summed. */}
       <div className="flex flex-wrap gap-2 text-xs">
-        <Chip>{totals.open} open</Chip>
-        <Chip>{totals.undated} with no agreed date</Chip>
-        {totals.quiet > 0 && <Chip>{totals.quiet} quieted</Chip>}
-        <Chip>{totals.settled} settled</Chip>
-        {totals.retired > 0 && <Chip>{totals.retired} retired as stale</Chip>}
+        <Chip className="tnum">{totals.open} open</Chip>
+        <Chip className="tnum">{totals.undated} with no agreed date</Chip>
+        {totals.quiet > 0 && <Chip className="tnum">{totals.quiet} quieted</Chip>}
+        <Chip className="tnum">{totals.settled} settled</Chip>
+        {totals.retired > 0 && <Chip className="tnum">{totals.retired} retired as stale</Chip>}
       </div>
 
       {loadError && (
@@ -279,7 +279,7 @@ export default function CommitmentsLedger({
               type="button"
               onClick={() => setParam('view', v.key === 'open' ? null : v.key)}
               className={cn(
-                'min-h-9 rounded-md px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50',
+                'min-h-[2.75rem] sm:min-h-9 rounded-md px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50',
                 view === v.key ? 'bg-card text-foreground font-medium elev-1' : 'text-muted-foreground hover:text-foreground'
               )}
             >
@@ -295,7 +295,7 @@ export default function CommitmentsLedger({
               type="button"
               onClick={() => setParam('side', s ?? null)}
               className={cn(
-                'min-h-9 rounded-md px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50',
+                'min-h-[2.75rem] sm:min-h-9 rounded-md px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50',
                 filters.side === s ? 'bg-card text-foreground font-medium elev-1' : 'text-muted-foreground hover:text-foreground'
               )}
             >
@@ -529,7 +529,7 @@ function Section({
                     <button
                       type="button"
                       onClick={() => copyChase(c.chase_text!)}
-                      className="mt-2 inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-border px-3.5 text-sm font-medium outline-none hover:bg-accent focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                      className="mt-2 inline-flex min-h-[2.75rem] sm:min-h-9 items-center gap-1.5 rounded-lg border border-border px-3.5 text-sm font-medium outline-none hover:bg-accent focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
                     >
                       <Copy className="size-3.5" aria-hidden />
                       Copy
@@ -577,7 +577,7 @@ function RowButton({
     >
       {/* Grown with an inset overlay rather than padding, or the row shifts
           under the next tap (§12, 08-27). */}
-      <span className="absolute -inset-3" aria-hidden />
+      <span className="tap-target" aria-hidden />
       {children}
     </button>
   )

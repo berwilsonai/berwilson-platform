@@ -160,7 +160,7 @@ export default function Commitments({ items }: { items: CommitmentItem[] }) {
                     {/* Grows the touch target to 44px without moving the row —
                         padding here would shift every row below it under the
                         next tap, the mobile failure the 08-27 pass fixed. */}
-                    <span className="absolute -inset-3" aria-hidden />
+                    <span className="tap-target" aria-hidden />
                     <Check className="size-4" />
                   </button>
                   <button
@@ -171,7 +171,7 @@ export default function Commitments({ items }: { items: CommitmentItem[] }) {
                     aria-label={`Dismiss: ${c.what}`}
                     className="relative grid size-7 place-items-center rounded-md text-muted-foreground hover:bg-background hover:text-critical disabled:opacity-40"
                   >
-                    <span className="absolute -inset-3" aria-hidden />
+                    <span className="tap-target" aria-hidden />
                     <X className="size-4" />
                   </button>
                 </div>

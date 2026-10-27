@@ -119,7 +119,7 @@ export default function ProfileIntakeForm() {
       </div>
 
       <label className="flex items-start gap-2.5 cursor-pointer select-none relative">
-        <span className="absolute -inset-3" aria-hidden />
+        <span className="tap-target" aria-hidden />
         <input
           type="checkbox"
           checked={skipWeb}

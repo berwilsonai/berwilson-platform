@@ -264,7 +264,7 @@ export default function TaskDetailSheet({
                   ) : (
                     <Circle className="size-5 text-muted-foreground hover:text-positive" />
                   )}
-                  <span className="absolute -inset-3" aria-hidden="true" />
+                  <span className="tap-target" aria-hidden="true" />
                 </button>
                 <SheetTitle className="sr-only">Task detail</SheetTitle>
                 <textarea

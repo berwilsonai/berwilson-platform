@@ -10,9 +10,9 @@
      defaults. text-xs is the most-used size in this app — 12px was too small
      for an executive tool read all day. */
   --text-xs: 0.8125rem;   /* 13px, was 12px */
-  --text-xs--line-height: 1.4;
+  --text-xs--line-height: calc(18 / 13);   /* exactly 18px — the `secondary` role */
   --text-sm: 0.90625rem;  /* 14.5px, was 14px */
-  --text-sm--line-height: 1.45;
+  --text-sm--line-height: calc(21 / 14.5); /* exactly 21px — the `body` role */
   /* ── The rest of the ladder ───────────────────────────────────────────────
      Only xs and sm were tokenised, so the five sizes above them were stock
      Tailwind and lived nowhere — which meant the scale could not be adjusted
@@ -37,6 +37,52 @@
   --text-2xl--line-height: calc(2 / 1.5);
   --text-3xl: 1.875rem;      /* 30px */
   --text-3xl--line-height: calc(2.25 / 1.875);
+
+  /* ── The ROLES, 2026-10-27 ────────────────────────────────────────────────
+     MEASURED FIRST, and the audit's premise held exactly. On /decide, 581 of
+     611 text nodes (95%) render at 13px/400 or 14.5px/500, and exactly ONE
+     node is bigger than 14.5px. /commitments: 1,384 of 1,472 on two sizes.
+     /contacts: 1,572 of 1,736. That is not a scale, it is two sizes and an
+     accident — so hierarchy was being carried entirely by colour, and colour
+     is already doing six jobs (see --primary below).
+
+     The sizes above are a LADDER (xs…3xl, how big). These are ROLES (what
+     for), and each carries its weight and tracking with it, so a caller
+     writes `text-display` rather than re-deciding three properties per page.
+     That is the whole reason 69 `<h1>` elements existed in 25 spellings.
+
+     ⚠ `--text-sm` STAYS AT 14.5px, against the audit's "normalise to 14px".
+     Two reasons, and the second is the deciding one. The comment at the top
+     of this block records the bump to 14.5 as a deliberate readability call
+     for a tool read all day — a recorded reason, not an artifact. And the
+     audit's own goal is HIERARCHY: body and secondary are 1.5px apart today,
+     and moving body to 14 makes that 1px. The gap that was missing is above
+     these two, not between them. If the 14.5 still reads wrong, it is one
+     token on one line.
+
+     ⚠ `caption` IS 12px THOUGH `--text-xs` DELIBERATELY IS NOT. They are
+     different jobs: xs is the workhorse for prose a reader reads, caption is
+     for a timestamp or a count they glance past — and 54 nodes on /dashboard
+     already render at 11px, below both, with no token to name them. */
+  --text-caption: 0.75rem;              /* 12px — timestamps, counts, inline meta */
+  --text-caption--line-height: calc(16 / 12);
+  --text-caption--letter-spacing: 0.01em;
+  --text-caption--font-weight: 450;
+
+  --text-title: 1.125rem;               /* 18px — card and section headers, record names */
+  --text-title--line-height: calc(24 / 18);
+  --text-title--letter-spacing: -0.01em;
+  --text-title--font-weight: 600;
+
+  --text-display: 1.75rem;              /* 28px — the page title, exactly one per page */
+  --text-display--line-height: calc(34 / 28);
+  --text-display--letter-spacing: -0.02em;
+  --text-display--font-weight: 600;
+
+  --text-metric: 1.875rem;              /* 30px — a KPI figure. Pair with `tnum`. */
+  --text-metric--line-height: calc(34 / 30);
+  --text-metric--letter-spacing: -0.02em;
+  --text-metric--font-weight: 600;
 
   /* ── Density ──────────────────────────────────────────────────────────────
      ONE MULTIPLIER BEHIND EVERY PADDING, MARGIN AND GAP. Tailwind emits `.p-4`
@@ -100,6 +146,15 @@
   --color-chart-3: var(--chart-3);
   --color-chart-2: var(--chart-2);
   --color-chart-1: var(--chart-1);
+  /* The ORDINAL ramp — one hue, seven monotone lightness steps. See the
+     declaration below for why it exists and why it is not `--chart-*`. */
+  --color-ordinal-1: var(--ordinal-1);
+  --color-ordinal-2: var(--ordinal-2);
+  --color-ordinal-3: var(--ordinal-3);
+  --color-ordinal-4: var(--ordinal-4);
+  --color-ordinal-5: var(--ordinal-5);
+  --color-ordinal-6: var(--ordinal-6);
+  --color-ordinal-7: var(--ordinal-7);
   --color-ring: var(--ring);
   --color-input: var(--input);
   --color-border: var(--border);
@@ -203,6 +258,50 @@
   --chart-3: oklch(0.64 0.110 81);
   --chart-4: oklch(0.46 0.080 20);
   --chart-5: oklch(0.70 0.055 130);
+
+  /* ── The ORDINAL ramp ─────────────────────────────────────────────────────
+     ⚠ `--chart-1..5` IS A CATEGORICAL SET AND PIPELINE STAGES ARE NOT A
+     CATEGORY. The UI audit asked for "one --chart-N per stage, so Pursuit /
+     Capture / Bid are visually distinct". Two things make that impossible as
+     written: there are SEVEN stages and five chart hues, so the ramp would
+     have to cycle — and a cycled categorical hue is indistinguishable from
+     the slot it repeats — and stages are ORDERED. Swapping Bid and Closeout
+     changes the meaning, which is the test for ordinal rather than nominal:
+     a funnel takes ONE hue in monotone lightness steps, so the reader sees
+     the order in the colour instead of having to learn five arbitrary hues.
+
+     ⚠ AND THE FIVE CHART TOKENS WERE READ BY NOTHING. Measured 2026-10-27:
+     zero `chart-1`…`chart-5` class uses anywhere in src/. A declared palette
+     with no consumer is decoration (§12) — this ramp is declared because one
+     surface needs it, and `StageMix` uses it the same day.
+
+     Hue 190 (teal), chroma 0.05, L 0.72→0.30 in steps of 0.07. Validated
+     against the four ordinal checks in BOTH themes — monotone lightness,
+     every adjacent gap ≥ 0.06 ΔL, light end 2.10:1 on the `--muted` track it
+     is drawn on, hue spread 3°.
+
+     ⚠ IT WAS SAGE (hue 150) FOR ABOUT TEN MINUTES, AND THAT WAS A STATUS
+     COLLISION. `--positive` is hue 152. A desaturated green bar beside a
+     `positive` chip reads as "this stage is GOOD", which is not a claim the
+     chart is making — a status colour is reserved and never doubles as a
+     series. 190 is 38° off `positive` and 62° off `info`, the two nearest
+     reserved hues. Chroma came down from 0.075 with it, because teal below
+     L 0.37 leaves sRGB at that chroma and the bottom two steps clipped to
+     nearly the same colour — which would have silently destroyed the
+     monotonicity the whole ramp exists for, in the one theme nobody checks
+     second. Deliberately NOT terracotta either: freeing the accent from a
+     sixth job is the point of the change.
+     ⚠ THE DARK ARM RUNS THE OTHER WAY (see the dark block). Light→dark
+     against a light surface and dark→light against a dark one both read as
+     "further along = more emphatic"; keeping one direction in both would put
+     the last stage at 1.3:1 on the dark track, invisible. */
+  --ordinal-1: oklch(0.72 0.05 190);
+  --ordinal-2: oklch(0.65 0.05 190);
+  --ordinal-3: oklch(0.58 0.05 190);
+  --ordinal-4: oklch(0.51 0.05 190);
+  --ordinal-5: oklch(0.44 0.05 190);
+  --ordinal-6: oklch(0.37 0.05 190);
+  --ordinal-7: oklch(0.30 0.05 190);
   /* ⚠ 8px AS OF 2026-10-26, DOUBLED FROM 4px. The radius ladder in @theme
      inline derives from this ONE value, so `rounded-lg` (Panel, Button) is 8px
      and `rounded-xl` (Dialog) is 11.2px. Matched to Jobber's Atlantis
@@ -340,6 +439,17 @@
   --chart-3: oklch(0.78 0.105 81);
   --chart-4: oklch(0.62 0.090 20);
   --chart-5: oklch(0.80 0.055 130);
+
+  /* The ordinal ramp, anchored to the DARK surface and therefore running
+     dark→light. Same hue, same 0.07 step, light end 2.30:1 on `--muted`.
+     Validated with the same four checks as the light arm. */
+  --ordinal-1: oklch(0.50 0.05 190);
+  --ordinal-2: oklch(0.57 0.05 190);
+  --ordinal-3: oklch(0.64 0.05 190);
+  --ordinal-4: oklch(0.71 0.05 190);
+  --ordinal-5: oklch(0.78 0.05 190);
+  --ordinal-6: oklch(0.85 0.05 190);
+  --ordinal-7: oklch(0.92 0.05 190);
   /* ⚠ THE RAIL RECEDES IN DARK MODE, AND WCAG CANNOT SEE IT. At L 0.155 the
      rail sat 1.03:1 from the canvas and merged into the page — but dropping it
      to 0.085 only reaches 1.031:1, because at near-black the ratio formula's
@@ -380,6 +490,38 @@
 @layer base {
   * {
     @apply border-border outline-ring/50;
+  }
+
+  /*
+    ── THE HOUSE FOCUS RING, AS A FLOOR ──────────────────────────────────────
+    ⚠ MEASURED 2026-10-27: 298 of 436 focusable controls on /decide, 31 of 41
+    on /projects and 54 of 95 on /tasks had NO focus style of their own. The
+    ones that did were the ones going through `<Button>` and `field.tsx`; every
+    hand-rolled button, link row and tab fell back to whatever Chrome happened
+    to draw, which differs by element and by platform and is not this app's
+    ring. §12 already says `focus-visible:` is the idiom, and 396 call sites
+    honour it — the gap was never the idiom, it was the ~70% of controls
+    nobody had got to.
+
+    Converging those 298 on the primitives is Phase 3 and worth doing. This is
+    the FLOOR underneath it, and it is one rule rather than 298 edits: anything
+    focusable gets the house ring unless it draws its own. It sits in
+    `@layer base`, so every utility — including the `focus-visible:ring-*` on
+    `<Button>` — still wins, and a component that deliberately draws nothing
+    says `outline-none` as it always did.
+
+    ⚠ `:focus-visible`, NEVER `:focus` (§12): the latter fires on a mouse click
+    too, which is how a ring ends up on a button somebody simply pressed.
+  */
+  /* ⚠ ENUMERATED AND WRAPPED IN `:where()`, NOT A BARE `:focus-visible`.
+     The bare form was written first and never reached the bundle at all —
+     present in this file, absent from the compiled CSS, with no error
+     anywhere. Naming the elements also keeps the rule honest about what it
+     covers, and `:where()` holds its specificity at zero so every utility,
+     including `<Button>`'s own ring, still wins without `!important`. */
+  :where(a[href], area, button, input, select, textarea, summary, iframe, [tabindex]:not([tabindex="-1"])):focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
   }
   body {
     @apply bg-background text-foreground;
@@ -489,6 +631,23 @@
   background: var(--card);
   box-shadow: var(--elev-1);
   border: 1px solid var(--sidebar-border);
+  position: relative;
+}
+/* ⚠ THE RAIL IS THE ACCENT'S ENTIRE JOB HERE, ADDED 2026-10-27. The row's
+   LABEL used to be `text-primary`, which made "where I am" one more of the six
+   unrelated things terracotta was saying — brand, primary button, selected
+   nav, chart fill, progress fill and overdue. A 2px rail says it in the one
+   place the eye already scans down, and the label goes back to `foreground`,
+   which is also simply more legible than accent-on-card at 13px. */
+.sidebar-nav-active::before {
+  content: '';
+  position: absolute;
+  left: -1px;
+  top: 6px;
+  bottom: 6px;
+  width: 2px;
+  border-radius: 1px;
+  background: var(--primary);
 }
 
 /* ─── Typography refinements ───────────────────────────────────────────────── */
@@ -502,12 +661,49 @@
 
 /* The canonical section-label idiom: 11px small-caps muted label. Color stays
    in markup (content uses text-muted-foreground, sidebar uses its own tint). */
+/*
+  The `overline` role. It predates the role names and keeps its own name
+  because 100+ call sites use it — ONE home, not a second spelling beside it.
+  ⚠ Tracking went 0.05em → 0.08em on 2026-10-27: at 11px uppercase that is
+  0.55px of separation against 0.88px, and an eyebrow that does not read as
+  deliberately spaced reads as small text instead.
+*/
+/*
+  THE 44px TAP TARGET, AS ONE UTILITY.
+
+  ⚠ IT WAS SEVENTEEN HAND-COMPUTED OVERLAYS AND MOST OF THEM MISSED. The house
+  idiom is right — grow a small control's hit area with an absolutely
+  positioned overlay rather than padding, because padding shifts the row under
+  the next tap (§12, 08-27). What was wrong is that every call site worked out
+  its own inset from the control's size, in its head, and the result is only
+  correct if both numbers are. /decide's checkbox carried a comment reading
+  "44px hit area via an overlay" above `size-3.5` + `-inset-3`: 14px + 12px
+  either side is 38px. The comment named a control that was not there, which
+  §12 calls worse than no comment.
+
+  This derives nothing. `max(100%, 2.75rem)` is at least 44px whatever the
+  control is, and never smaller than the control itself, so one class is
+  correct at all seventeen sites and at the next one. Put it in a `relative`
+  parent — the control or its label — and keep it `aria-hidden`.
+
+  ⚠ 2.75rem ABSOLUTELY, never `h-11`: that is `calc(var(--spacing) * 11)` and
+  a density change silently shrank 66 of these below the floor once already.
+*/
+@utility tap-target {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  translate: -50% -50%;
+  width: max(100%, 2.75rem);
+  height: max(100%, 2.75rem);
+}
+
 @utility label-caps {
   font-size: 11px;
-  line-height: 1.35;
+  line-height: calc(14 / 11);
   font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.08em;
 }
 
 /* ─── Skeleton shimmer (richer loading) ────────────────────────────────────── */

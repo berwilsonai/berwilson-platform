@@ -211,7 +211,7 @@ function ThreadRow({
                 {thread.subject ?? '(no subject)'}
                 {/* 44px is this app's minimum touch target, grown with an inset
                     overlay so the row does not shift under the next tap. */}
-                <span className="absolute -inset-3 md:hidden" aria-hidden />
+                <span className="tap-target md:hidden" aria-hidden />
               </a>
             ) : (
               <span className="text-sm font-medium text-foreground truncate">

@@ -216,7 +216,7 @@ export default function CardBatchUpload() {
                     title="Remove this photo"
                     className="relative shrink-0 text-muted-foreground hover:text-foreground transition-colors"
                   >
-                    <span className="absolute -inset-3" aria-hidden />
+                    <span className="tap-target" aria-hidden />
                     <Trash2 size={14} />
                   </button>
                 )}

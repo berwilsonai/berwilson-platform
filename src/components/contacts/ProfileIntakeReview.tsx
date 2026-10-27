@@ -523,7 +523,7 @@ function PersonCard({
 
           {showLinkToggle && (
             <label className="flex items-center gap-2 cursor-pointer select-none relative text-xs text-muted-foreground">
-              <span className="absolute -inset-3" aria-hidden />
+              <span className="tap-target" aria-hidden />
               <input
                 type="checkbox"
                 checked={row.link_to_record}
@@ -632,7 +632,7 @@ function CastCard({
   return (
     <div className="px-3 py-2.5 space-y-2">
       <label className="flex items-start gap-2.5 cursor-pointer select-none relative">
-        <span className="absolute -inset-2" aria-hidden />
+        <span className="tap-target" aria-hidden />
         <input
           type="checkbox"
           checked={row.include}

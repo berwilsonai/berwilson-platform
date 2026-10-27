@@ -248,7 +248,7 @@ export default function CardBatchReview({
                     className="relative mt-0.5 shrink-0 text-muted-foreground hover:text-foreground transition-colors"
                     aria-label={isOpen ? 'Hide details' : 'Show details'}
                   >
-                    <span className="absolute -inset-3" aria-hidden />
+                    <span className="tap-target" aria-hidden />
                     {isOpen ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
                   </button>
 

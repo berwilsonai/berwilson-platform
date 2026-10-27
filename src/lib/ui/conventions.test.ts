@@ -4,6 +4,7 @@ import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { baseUtility, classStrings, count, scan, sourceFiles, stripComments } from './source-scan'
+import { TYPE_ROLES } from '@/lib/utils'
 
 /**
  * The house conventions, as assertions over the source tree.
@@ -123,6 +124,58 @@ test('ink is never the same lightness as the fill it sits on', () => {
     }
   }
   assert.deepEqual(bad, [], 'a fill and an ink of the same lightness — the text is invisible')
+})
+
+test('a hit area is the tap-target utility, never a hand-computed inset', () => {
+  /*
+    ⚠ SEVENTEEN CALL SITES EACH DID THIS ARITHMETIC AND MOST GOT IT WRONG.
+    Growing a small control's hit area with an absolutely-positioned overlay is
+    the right idiom — padding would shift the row under the next tap (§12,
+    08-27) — but every site worked its own inset out from the control's size,
+    which is only correct if both numbers are. /decide's checkbox carried a
+    comment reading "44px hit area via an overlay" over `size-3.5` with
+    `-inset-3`: 14px plus 12px either side is 38px, and nothing said so.
+
+    `tap-target` derives nothing: `max(100%, 2.75rem)` is at least 44px
+    whatever the control. This keeps the next one from going back to mental
+    arithmetic.
+  */
+  const hits = scan(/absolute -inset-[\d.]+/)
+  assert.deepEqual(
+    hits.map((h) => `${h.file}:${h.line}`),
+    [],
+    'use `tap-target` (globals.css) — it cannot be off by the control size'
+  )
+})
+
+test('every custom font-size role is declared to tailwind-merge', () => {
+  /*
+    ⚠ THIS CAUGHT ITSELF WITHIN THE HOUR, AND NOTHING ELSE COULD HAVE.
+
+    `text-*` is ambiguous — `text-sm` is a size, `text-foreground` is a colour
+    — and tailwind-merge separates them with a BUILT-IN list of size names.
+    A `--text-display` token in `globals.css` is therefore a COLOUR to
+    tailwind-merge, so any `cn()` that also sets an ink deletes it. `StatTile`
+    does exactly that, and the dashboard's four KPI figures silently rendered
+    at the inherited 16px instead of 30px, through a green typecheck, a green
+    build and both classes visibly present in the source.
+
+    `TYPE_ROLES` in `src/lib/utils.ts` is the fix; this is what keeps the two
+    files from drifting, because the failure mode of the drift is invisible.
+  */
+  // Tailwind's own ladder. tailwind-merge already knows these.
+  const BUILT_IN = new Set(['xs', 'sm', 'base', 'lg', 'xl', '2xl', '3xl', '4xl', '5xl', '6xl', '7xl', '8xl', '9xl'])
+  const css = readFileSync('src/app/globals.css', 'utf8')
+  const declared = new Set<string>()
+  for (const m of css.matchAll(/^\s*--text-([a-z0-9]+):/gm)) {
+    if (!BUILT_IN.has(m[1])) declared.add(m[1])
+  }
+  assert.ok(declared.size > 0, 'no custom --text-* roles found — has globals.css moved?')
+  assert.deepEqual(
+    [...declared].sort(),
+    [...TYPE_ROLES].sort(),
+    'a --text-<name> token in globals.css must also be named in TYPE_ROLES (src/lib/utils.ts)'
+  )
 })
 
 test('an opacity modifier only ever rides a colour utility', () => {

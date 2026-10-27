@@ -85,7 +85,7 @@ export default function TagInput({
     <div ref={containerRef} className="relative">
       <div
         className={cn(
-          'flex flex-wrap items-center gap-1.5 min-h-9 w-full rounded-md border border-input bg-background px-2 py-1.5',
+          'flex flex-wrap items-center gap-1.5 min-h-[2.75rem] sm:min-h-9 w-full rounded-md border border-input bg-background px-2 py-1.5',
           'focus-within:ring-2 focus-within:ring-ring',
           disabled && 'opacity-50 pointer-events-none'
         )}

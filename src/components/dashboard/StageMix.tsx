@@ -39,6 +39,28 @@ export interface StageMixRecord {
   estimated_value?: number | string | null
 }
 
+/**
+ * The ordinal ramp, one slot per stage, in `STAGES` order.
+ *
+ * ⚠ INDEXED BY THE STAGE, NEVER BY THE ROW. `rows` is filtered to stages that
+ * hold something, so indexing by row position would repaint every surviving
+ * bar the moment a stage emptied — the "recolor-on-filter" failure, where a
+ * reader who learned "Bid is the dark one" is then misled by their own
+ * data changing. Colour follows the entity.
+ *
+ * ⚠ LITERAL STRINGS, NOT `bg-ordinal-${i}`. A Tailwind class assembled at
+ * runtime is a class Tailwind never generated (§12).
+ */
+const STAGE_FILL: Record<ProjectStage, string> = {
+  pursuit: 'bg-ordinal-1',
+  capture: 'bg-ordinal-2',
+  bid: 'bg-ordinal-3',
+  award: 'bg-ordinal-4',
+  mobilization: 'bg-ordinal-5',
+  execution: 'bg-ordinal-6',
+  closeout: 'bg-ordinal-7',
+}
+
 export default function StageMix({ records }: { records: readonly StageMixRecord[] }) {
   // Leaves only: a program's value lives in the work beneath it.
   // ⚠ No cast — `leafRecords` is generic, and casting to its parameter type
@@ -83,10 +105,18 @@ export default function StageMix({ records }: { records: readonly StageMixRecord
                 The bar is the TRACK plus a fill, so an empty-ish stage still
                 occupies its row and the eye reads the shape down the column
                 rather than hunting for where each bar starts.
+
+                ⚠ THE FILL LEFT `--primary` ON 2026-10-27. It was
+                `bg-primary/70`, which made this chart one of six unrelated
+                jobs terracotta was doing — brand, primary button, selected
+                nav, chart fill, progress fill and overdue — and when one
+                colour means everything it means nothing. It is now the
+                ordinal ramp: one hue, seven monotone steps in `STAGES` order,
+                so the pipeline's shape reads before any label does.
               */}
               <dd className="h-5 min-w-0 flex-1 rounded-sm bg-muted">
                 <div
-                  className="h-full rounded-sm bg-primary/70"
+                  className={`h-full rounded-sm ${STAGE_FILL[r.stage as ProjectStage]}`}
                   style={{ width: `${Math.max((r.count / maxCount) * 100, 3)}%` }}
                 />
               </dd>

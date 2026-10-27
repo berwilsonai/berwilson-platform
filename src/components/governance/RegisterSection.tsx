@@ -323,7 +323,7 @@ export default function RegisterSection({
                     <span className="text-muted-foreground">{f.placeholder ?? 'Yes'}</span>
                     {/* 44px minimum target, grown with an inset overlay rather
                         than padding so the row below does not shift (§12). */}
-                    <span className="absolute -inset-3" aria-hidden />
+                    <span className="tap-target" aria-hidden />
                   </label>
                 ) : f.type === 'tribool' ? (
                   <Select

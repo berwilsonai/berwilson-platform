@@ -216,9 +216,23 @@ export default function ProjectsTable({
                         {value.rolled && <span className="ml-1 text-xs font-normal text-muted-foreground">rolled</span>}
                       </span>
                     ) : (
-                      /* ⚠ NOT AN EM DASH AT THE VALUE'S OWN WEIGHT (§12) — that
-                         reads as a failed render. Name the absence in words. */
-                      <span className="text-xs text-muted-foreground">no value</span>
+                      /*
+                        ⚠ AN EM DASH HERE, AND "no value" ON THE CARDS, AND
+                        BOTH ARE RIGHT. §12 says a bare em dash at a value's
+                        own WEIGHT reads as a failed render, which is why this
+                        column said the words. But in an ALIGNED COLUMN those
+                        words repeat on every unpriced row — 19 of 20 projects
+                        here — so the most repeated element in the table was a
+                        non-answer that read as a broken import.
+                        A table resolves it: the dash is muted rather than at
+                        the value's weight, the column has a named header, and
+                        the CLIENT column beside it already renders absence
+                        exactly this way. Two adjacent columns answering the
+                        same question differently is the worse failure.
+                        The cards keep the words, because a card has no column
+                        to be read down and no neighbour to agree with.
+                      */
+                      <span className="text-muted-foreground" aria-label="no value">—</span>
                     )}
                   </td>
                   <td className="px-3 py-2.5 text-right whitespace-nowrap hidden sm:table-cell">

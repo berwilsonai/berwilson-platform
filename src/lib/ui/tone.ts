@@ -67,14 +67,31 @@ const CHIP: Record<Tone, string> = {
   // Theme-aware by construction. Replaces the slate ramp.
   neutral: 'bg-muted text-muted-foreground ring-border',
 
-  // Categorical — no meaning, only difference.
-  violet: 'bg-violet-50 text-violet-700 ring-violet-200 dark:bg-violet-500/15 dark:text-violet-300 dark:ring-violet-500/30',
-  indigo: 'bg-indigo-50 text-indigo-700 ring-indigo-200 dark:bg-indigo-500/15 dark:text-indigo-300 dark:ring-indigo-500/30',
-  cyan: 'bg-cyan-50 text-cyan-700 ring-cyan-200 dark:bg-cyan-500/15 dark:text-cyan-300 dark:ring-cyan-500/30',
-  sky: 'bg-sky-50 text-sky-700 ring-sky-200 dark:bg-sky-500/15 dark:text-sky-300 dark:ring-sky-500/30',
-  teal: 'bg-teal-50 text-teal-700 ring-teal-200 dark:bg-teal-500/15 dark:text-teal-300 dark:ring-teal-500/30',
-  rose: 'bg-rose-50 text-rose-700 ring-rose-200 dark:bg-rose-500/15 dark:text-rose-300 dark:ring-rose-500/30',
-  orange: 'bg-orange-50 text-orange-700 ring-orange-200 dark:bg-orange-500/15 dark:text-orange-300 dark:ring-orange-500/30',
+  /*
+    Categorical — no meaning, only difference. OUTLINE, NOT FILLED, SINCE
+    2026-10-27, and that one word is the whole §4.2 rule:
+
+        a FILLED chip means STATUS; an OUTLINED chip means CATEGORY.
+
+    Until now both were filled, so a sector chip and a "needs attention" chip
+    were the same object with different hues, and a screen carrying both asked
+    the reader to remember which palette each one came from. Nothing else in
+    the app can say "this is a warning" — colour is the only channel a status
+    chip has — whereas a category chip always carries its own label and is
+    only ever distinguishing one kind from another. So the fill belongs to the
+    one that needs it.
+
+    The ring and the ink stay, which is what keeps them legible: `ring-1
+    ring-inset` is already on the Chip shell, so this is a transparent fill
+    and nothing else moves.
+  */
+  violet: 'bg-transparent text-violet-700 ring-violet-300 dark:text-violet-300 dark:ring-violet-500/40',
+  indigo: 'bg-transparent text-indigo-700 ring-indigo-300 dark:text-indigo-300 dark:ring-indigo-500/40',
+  cyan: 'bg-transparent text-cyan-700 ring-cyan-300 dark:text-cyan-300 dark:ring-cyan-500/40',
+  sky: 'bg-transparent text-sky-700 ring-sky-300 dark:text-sky-300 dark:ring-sky-500/40',
+  teal: 'bg-transparent text-teal-700 ring-teal-300 dark:text-teal-300 dark:ring-teal-500/40',
+  rose: 'bg-transparent text-rose-700 ring-rose-300 dark:text-rose-300 dark:ring-rose-500/40',
+  orange: 'bg-transparent text-orange-700 ring-orange-300 dark:text-orange-300 dark:ring-orange-500/40',
 }
 
 /** Text/icon colour alone, for a figure or a label that is not a chip. */

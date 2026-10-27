@@ -19,10 +19,18 @@ import { cn } from '@/lib/utils'
  * and the slots a real page actually needs (eyebrow, description, actions,
  * a metric strip, a tab row) so there is no reason to hand-roll the next one.
  *
- * ⚠ THE SIZE IS DELIBERATELY SMALL. A 30px serif masthead is a document; a
- * 20px semibold sans line with the actions on the same baseline is what Attio,
- * Linear and Domo put above a data surface, and it buys back the vertical
- * space the density change spent on 2026-10-26.
+ * ⚠ THE SIZE WENT 20px → 28px ON 2026-10-27, OVERRIDING THIS FILE'S OWN
+ * ARGUMENT OF THE DAY BEFORE. That argument ("a 20px semibold line is what
+ * Attio and Linear put above a data surface") was made without having
+ * measured the page underneath it. The measurement: 95% of /decide's 611 text
+ * nodes render at 13px or 14.5px and exactly ONE is larger. A 20px title over
+ * a 14.5px body is a 1.38× step, which is not a masthead, it is the same text
+ * slightly bigger — and with no `title` role beneath it there was nothing in
+ * between either. 28px is `text-display`, the role token; it is a 1.93× step,
+ * and `text-title` at 18px now fills the gap it opens.
+ *
+ * The rule that did survive: EXACTLY ONE display per page. Anything else that
+ * was reaching for 24px is a `title`.
  */
 function PageHeader({
   title,
@@ -53,9 +61,7 @@ function PageHeader({
           {eyebrow ? (
             <p className="label-caps mb-1 text-muted-foreground">{eyebrow}</p>
           ) : null}
-          <h1 className="truncate text-xl font-semibold tracking-[-0.02em] text-foreground">
-            {title}
-          </h1>
+          <h1 className="truncate text-display text-foreground">{title}</h1>
           {description ? (
             <p className="mt-1 max-w-2xl text-sm text-muted-foreground">{description}</p>
           ) : null}

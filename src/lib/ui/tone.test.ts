@@ -51,15 +51,69 @@ test('a status tone carries no dark: variant, because the token does it', () => 
   }
 })
 
-test('a categorical tone always carries BOTH halves', () => {
-  // These use the Tailwind palette, so a missing dark: variant here is exactly
-  // the theme-blindness the status tokens exist to prevent.
+test('a categorical tone is theme-aware in every channel', () => {
+  /*
+    These draw on the Tailwind palette rather than the CSS tokens, so a raw
+    ramp colour with no `dark:` twin is exactly the theme-blindness the status
+    tokens exist to prevent — `violet-700` on `violet-50` stays a light chip
+    on a dark card.
+
+    ⚠ REWRITTEN 2026-10-27, AND REWRITTEN RATHER THAN RELAXED. The original
+    demanded a literal `dark:bg-` on every tone, which was true of the filled
+    chips and became false the moment category chips went OUTLINE (§4.2:
+    filled means status, outlined means category). `bg-transparent` has no
+    theme to respond to — it is not a palette colour at all — so the old rule
+    would have been satisfied only by adding a `dark:bg-transparent` that does
+    nothing, which is a test teaching a lie.
+
+    The rule underneath was never "say dark:", it was "do not pin a raw ramp
+    step without its twin". That is what this asserts now, and it is STRICTER:
+    it also rejects a theme-blind colour the old wording would have accepted
+    as long as some other `dark:bg-` was present in the same string.
+  */
+  // Values that are the same in both themes by construction: a keyword, or a
+  // CSS variable whose own definition is per-theme.
+  const THEME_NEUTRAL = /^(transparent|current|inherit|none|muted|foreground|background|card|border|popover|accent|secondary|primary)/
+
   for (const t of CATEGORY_TONES) {
     const cls = chipTone(t)
-    for (const prop of ['bg-', 'text-', 'ring-']) {
-      assert.ok(cls.includes(prop), `${t} missing ${prop}`)
-      assert.ok(cls.includes(`dark:${prop}`), `${t} missing dark:${prop} — would not respond to the theme`)
+    for (const prop of ['bg-', 'text-', 'ring-'] as const) {
+      const light = cls
+        .split(/\s+/)
+        .filter((c) => c.startsWith(prop))
+        .map((c) => c.slice(prop.length))
+      assert.ok(light.length > 0, `${t} declares no ${prop} at all`)
+      for (const value of light) {
+        if (THEME_NEUTRAL.test(value)) continue
+        assert.ok(
+          cls.includes(`dark:${prop}`),
+          `${t} pins ${prop}${value} with no dark: twin — it would not respond to the theme`
+        )
+      }
     }
+  }
+})
+
+test('a category chip is outlined and a status chip is filled', () => {
+  /*
+    §4.2's one rule, and the reason the test above had to be rewritten: colour
+    is the ONLY channel a status chip has to say "this is a warning", while a
+    category chip always carries its own label and is only distinguishing one
+    kind from another. So the fill belongs to the one that needs it, and a
+    screen carrying both no longer asks the reader which palette each came
+    from.
+  */
+  for (const t of CATEGORY_TONES) {
+    assert.ok(
+      chipTone(t).includes('bg-transparent'),
+      `${t} is a category tone and must be OUTLINED, not filled: ${chipTone(t)}`
+    )
+  }
+  for (const t of STATUS_TONES) {
+    assert.ok(
+      !chipTone(t).includes('bg-transparent'),
+      `${t} is a status tone and must be FILLED — colour is the only thing it has to say with`
+    )
   }
 })
 

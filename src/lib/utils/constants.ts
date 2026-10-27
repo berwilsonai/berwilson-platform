@@ -40,12 +40,29 @@ export const SECTOR_SHORT: Record<ProjectSector, string> = {
   health: 'Health',
 }
 
+/*
+  ⚠ EVERY SECTOR IS A `CategoryTone`, AND FOUR OF THEM WERE NOT.
+  `government` wore `info`, `infrastructure` wore `caution`, `real_estate`
+  wore `positive` and `institutional` wore `neutral` — four STATUS tones, the
+  ones whose entire job elsewhere is to say a thing is wrong, waiting or well.
+  A government project is not "informational" and an infrastructure project is
+  not a warning, so on any screen carrying both a sector chip and a status
+  chip the reader had to know which palette each came from.
+
+  That is also what the audit saw as "Gov't and Tech are both blue": `info`
+  and `sky` are two blues from two different vocabularies, arriving beside each
+  other by accident rather than by assignment.
+
+  Seven sectors, seven category tones, each used exactly once. Identity here is
+  never colour alone — a chip carries its own label — which is what makes a
+  low-chroma outline enough.
+*/
 export const SECTOR_BADGE: Record<ProjectSector, string> = {
-  government: chipTone('info'),
-  infrastructure: chipTone('caution'),
-  real_estate: chipTone('positive'),
+  government: chipTone('indigo'),
+  infrastructure: chipTone('orange'),
+  real_estate: chipTone('teal'),
   prefab: chipTone('violet'),
-  institutional: chipTone('neutral'),
+  institutional: chipTone('cyan'),
   technology: chipTone('sky'),
   health: chipTone('rose'),
 }

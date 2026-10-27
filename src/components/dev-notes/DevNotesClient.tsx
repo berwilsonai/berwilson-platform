@@ -154,7 +154,7 @@ export default function DevNotesClient({ notes, isAdmin, teamMemberId, initialOp
                 : 'border-muted-foreground/40 text-transparent hover:border-primary hover:text-primary/40'
             } ${editable ? '' : 'opacity-40 cursor-not-allowed'}`}
           >
-            <span className="absolute -inset-3" aria-hidden />
+            <span className="tap-target" aria-hidden />
             {busy === note.id ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />}
           </button>
 

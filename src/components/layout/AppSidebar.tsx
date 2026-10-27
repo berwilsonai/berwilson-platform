@@ -192,7 +192,7 @@ export default function AppSidebar({ pendingReviewCount = 0, attentionCount = 0,
                      */
                     className={`flex items-center gap-3 rounded-md px-2.5 py-2 text-sm transition-colors ${
                       active
-                        ? 'sidebar-nav-active font-semibold text-primary'
+                        ? 'sidebar-nav-active font-semibold text-foreground'
                         : 'font-medium text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-foreground'
                     }`}
                   >
@@ -322,7 +322,7 @@ export default function AppSidebar({ pendingReviewCount = 0, attentionCount = 0,
                     title={collapsed ? label : undefined}
                     className={`flex items-center gap-3 rounded-md px-2.5 py-2 text-sm transition-colors ${
                       active
-                        ? 'sidebar-nav-active font-semibold text-primary'
+                        ? 'sidebar-nav-active font-semibold text-foreground'
                         : 'font-medium text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-foreground'
                     }`}
                   >

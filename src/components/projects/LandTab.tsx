@@ -258,7 +258,7 @@ export default function LandTab({ projectId, parcels, canEdit }: LandTabProps) {
                             className="relative inline-flex size-6 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
                           >
                             {/* 44px touch target without shifting the row (§12) */}
-                            <span aria-hidden className="absolute -inset-2.5" />
+                            <span aria-hidden className="tap-target" />
                             <Trash2 size={13} />
                           </button>
                         </td>

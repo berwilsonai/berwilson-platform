@@ -1087,9 +1087,13 @@ export default function DecideClient({ items }: { items: DecideItem[] }) {
                   cannot keep, so a blocked row keeps its icon and its reason. */}
               {item.accept ? (
                 <label className="relative mt-0.5 shrink-0 inline-flex items-center justify-center cursor-pointer">
-                  {/* 44px hit area via an overlay, never padding — padding here
-                      shifts the row under the next tap. */}
-                  <span className="absolute -inset-3" aria-hidden />
+                  {/* The 44px hit area, as an overlay rather than padding —
+                      padding here shifts the row under the next tap.
+                      ⚠ THIS COMMENT USED TO BE FALSE. It said "44px" above a
+                      `size-3.5` input with `-inset-3`: 14px plus 12px either
+                      side is 38px. `tap-target` derives nothing from the
+                      control's size, so the number and the class now agree. */}
+                  <span className="tap-target" aria-hidden />
                   {/* The handler is onClick, not onChange, because only the
                       click event carries `shiftKey` — and a keyboard Space on
                       a checkbox dispatches a click too, so both routes land

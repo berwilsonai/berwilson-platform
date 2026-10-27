@@ -73,7 +73,10 @@ export default function SteelNextStepControl({ dealId, nextStep, nextStepDate, o
         <span
           className={cn(
             'flex items-center gap-1.5 text-[11px] uppercase tracking-wide font-semibold',
-            overdue ? 'text-caution' : 'text-primary'
+            // ⚠ NOT `text-primary` (§4.2). A next step that is not overdue is
+            // not a STATUS at all, and the accent saying so was one of six
+            // unrelated jobs it had. Overdue stays `caution`, which means it.
+            overdue ? 'text-caution' : 'text-foreground'
           )}
         >
           <Flag size={12} />

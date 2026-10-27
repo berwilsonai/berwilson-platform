@@ -160,3 +160,75 @@ test('the neutrals share one hue and stay barely tinted', () => {
     }
   }
 })
+
+test('the ordinal ramp is monotone, stepped, and clear of every reserved hue', () => {
+  /*
+    ⚠ READ FROM globals.css, like everything else here, and asserting the
+    ramp's STRUCTURE rather than its values — the four properties that make it
+    an ordinal ramp at all, each of which has already been got wrong once.
+
+      monotone lightness   — the thing the ramp encodes. Without it the
+                             colour says nothing about where a stage sits.
+      a visible step       — ΔL ≥ 0.06 between neighbours. At 0.045 the
+                             validator rejected it and the bars read as one
+                             colour; the gap is what the reader actually sees.
+      the light end clears — ≥ 2:1 on the `--muted` track it is drawn on, or
+      the track              stage one is a bar you cannot see.
+      off the reserved hues — the first draft sat at hue 150 against
+                             `--positive` at 152, so a pipeline stage would
+                             have read as "good". A status colour is reserved
+                             and never doubles as a series.
+
+    ⚠ AND BOTH ARMS, NOT JUST LIGHT. The dark arm deliberately runs the other
+    way, so a test that assumed one direction would have certified a ramp that
+    is invisible in the theme it was not written in — which is this repo's own
+    recorded failure from 10-27, six screenshots taken in the wrong theme.
+  */
+  const t = readThemeTokens()
+  const RESERVED = ['positive', 'caution', 'critical', 'info', 'primary'] as const
+
+  // THROWS rather than asserts, and for a type reason worth stating: `assert.ok`
+  // does not narrow `string | null` out of a callback, so a soft check here
+  // would leave every measurement below reading a possibly-absent token. A
+  // missing step is the ramp silently losing a rung — there is no graceful
+  // version of that.
+  const token = (mode: 'light' | 'dark', name: string): string => {
+    const v = t[mode][name]
+    if (!v) throw new Error(`--${name} is not declared in the ${mode} block of globals.css`)
+    return v
+  }
+
+  // `parseOklch` returns null for anything it cannot read, so the same rule
+  // applies: a token that is no longer an oklch() literal must stop the test,
+  // not quietly measure zero.
+  const lch = (value: string) => {
+    const p = parseOklch(value)
+    if (!p) throw new Error(`not an oklch() value: ${value}`)
+    return p
+  }
+
+  for (const mode of ['light', 'dark'] as const) {
+    const steps = Array.from({ length: 7 }, (_, i) => token(mode, `ordinal-${i + 1}`))
+
+    const L = steps.map((s) => lch(s).l)
+    // Light runs light→dark; dark runs dark→light. Either is fine; wandering
+    // is not, because then the colour no longer orders anything.
+    const rising = L[1] > L[0]
+    for (let i = 1; i < L.length; i++) {
+      const gap = rising ? L[i] - L[i - 1] : L[i - 1] - L[i]
+      assert.ok(gap >= 0.059, `${mode} ordinal ${i}→${i + 1}: ΔL ${gap.toFixed(3)}, under the 0.06 floor`)
+    }
+
+    // The end nearest the track is the one that can disappear into it.
+    const nearest = rising ? steps[0] : steps[steps.length - 1]
+    const onTrack = contrastOklch(nearest, token(mode, 'muted'))
+    assert.ok(onTrack >= 2.0, `${mode} ordinal end is ${onTrack.toFixed(2)}:1 on --muted, under 2:1`)
+
+    const hue = lch(steps[0]).h
+    for (const name of RESERVED) {
+      const other = lch(token(mode, name)).h
+      const d = Math.min(Math.abs(hue - other), 360 - Math.abs(hue - other))
+      assert.ok(d >= 25, `${mode} ordinal hue ${hue}° is ${d.toFixed(0)}° from --${name} — too close to a reserved meaning`)
+    }
+  }
+})

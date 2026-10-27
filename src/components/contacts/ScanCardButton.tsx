@@ -222,7 +222,7 @@ export default function ScanCardButton() {
 
           {draft.existing_party_id && !draft.ambiguous && (
             <label className="flex items-start gap-2 text-xs bg-muted/40 border border-border rounded px-2 py-1.5 cursor-pointer relative">
-              <span className="absolute -inset-1" aria-hidden />
+              <span className="tap-target" aria-hidden />
               <input
                 type="checkbox"
                 checked={linkExisting}
