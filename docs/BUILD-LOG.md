@@ -6,6 +6,88 @@ This file is **not** auto-loaded into a Claude Code session. It is the archive: 
 
 Split out of `CLAUDE.md` on 2026-09-23, when that file reached 606k characters against a 150k limit above which it is silently truncated — meaning the project's own operating instructions had begun to risk not reaching the sessions that need them. The entries below are **verbatim and unedited**.
 
+**Done 2026-10-27 (the palette was never Ber Wilson's — the brand was in the logo the whole time):**
+
+Richard, after the Jobber-register re-skin shipped: *"I can't see a single
+change. I asked for a radical overhaul of the system. Wanting this to look
+modern and clean like Attio or Jobber. I want the color scheme to match Ber
+Wilson's colors."* And on dark mode: *"Make it look like Ber Wilson. Doesn't
+need to be so dark."*
+
+**He was right twice, and the second one is the finding.**
+
+⚠ **FIRST, "I CAN'T SEE A CHANGE" WAS CHASED AND THE OBVIOUS ANSWER WAS WRONG.**
+The stylesheet is served `immutable, max-age=31536000`, which looked like the
+whole story — until building the PREVIOUS `globals.css` to a throwaway dist dir
+showed the chunk name *does* move with its content (`0u~4z8wyq9u-~.css` →
+`0eo7m8l10pv87.css`). Cache-busting works. The page is `no-store`, points at
+the new chunk, there is one server, there is no service worker, and
+`.rounded-lg{border-radius:var(--radius)}` proves the utilities are wired to
+the tokens rather than merely declared beside them. **Production was correct
+and the change was simply too timid to see.** Measuring the deltas said so
+plainly: dark `--background` went `#070707` → `#080706`, `--card` `#101010` →
+`#11100e`. One value per channel. I had set dark chroma to 0.004 and then told
+him the canvas was "within a hair of Atlantis" — true of the LIGHT canvas, and
+he works in dark. That was an over-claim, and his "not a single change" was a
+fair description of what shipped.
+
+⚠ **SECOND, AND WORSE: THE ACCENT HAD NO BASIS IN THE BRAND.** `globals.css`
+called `oklch(0.42 0.145 262)` *"Ber Wilson's blue"* and the 10-17 entry
+defended keeping it over a near-black. Nobody had checked. Sampling the logo
+PNGs in `public/` — the asset the sidebar renders every single page — gives:
+
+| | hex | oklch | role in the mark |
+|---|---|---|---|
+| terracotta | `#ca6e55` | `0.637 0.123 36` | dominant |
+| sage | `#709a8e` | `0.652 0.049 175` | secondary |
+| ochre | `#c4994a` | `0.708 0.110 81` | tertiary |
+| cream | `#ede6d3` | `0.925 0.026 90` | the field |
+
+**Warm, earthy, southwestern — and the app was cool navy on neutral grey.** Two
+sessions had re-measured that blue against four thresholds without once asking
+where it came from. *A token's name is not evidence; the brand asset is.*
+
+**The palette is derived now, not picked.** `--primary` is the brand hue 38 at
+the lightness a sweep found clears 6:1 as link text AND carries cream at 4.5:1
+— L 0.50 light, 0.72 dark, which compile to `#a14122` and `#e7876a`. The
+neutrals moved to the cream's own hue 88 at real chroma, so the canvas is
+`#f2ecde` rather than grey with a rumour of warmth. Dark lifted off near-black
+per Richard: canvas L 0.13 → 0.205 (`#191711`), cards → `#25231c`, and the dark
+sidebar ΔL *improved* to 0.040 from the 0.035 it had been sitting on against a
+0.03 floor.
+
+⚠ **AND THE RAIL WAS PAINTED BY A HARDCODED GRADIENT, NOT BY ITS OWN TOKENS.**
+`.sidebar-gradient` and `.sidebar-nav-active` carried literal `oklch(… 260)`
+navy, so every `--sidebar-*` token could be re-themed and the rail would not
+move one pixel. That is precisely why the first pass left a navy rail against a
+warm app and read as "nothing changed" on the most prominent chrome on screen.
+Both are `color-mix()` over the tokens now, so the rail cannot drift again.
+**Same class of bug in three more places**, each a surface a re-skin could not
+reach: `::selection` was blue, the skeleton shimmer was neutral grey over warm
+surfaces, and `themeColor` was `#1a1b2e` in BOTH themes — the phone's browser
+chrome. `--chart-1..5` were byte-identical across light and dark, which
+`tone.test.ts` already names as the cautionary tale it cannot catch because
+nothing renders them yet; they are the brand's three plus two derived.
+
+⚠ **ONE BOUND MOVED AND IT IS WORTH BEING HONEST ABOUT.** `MAX_CHROMA` in
+`contrast.test.ts` went 0.015 → 0.032 — a bound I had written myself four hours
+earlier. The justification is not "it was in the way": the bound tracks the
+palette it measures, and the brand's own cream is 0.026, so 0.015 would have
+forbidden the company's actual colour. The principle is untouched — one hue,
+bounded, no accidental tints — and the hue check is what does the real work.
+
+**Measured, both themes:** body 16.97 / 14.04, muted 6.54 / 6.84, accent 6.11 /
+6.06, every status ink ≥ 5.59 on its own surface, every ΔL ≥ 0.040. 729 tests,
+100 render checks, lint unchanged at 22. Verified by fetching the live
+stylesheet over the tailnet after the kickstart: `--background:#f2ecde` /
+`#191711`, `--primary:#a14122` / `#e7876a`, `--sidebar:#231a14`.
+⚠ **No screenshot — the Chrome extension disconnected and then reported zero
+connected browsers**, so three rounds of visual work shipped without eyes on
+it. That is the standing weakness in this whole sequence and it is why a
+too-timid change survived a full deploy.
+
+---
+
 **Done 2026-10-26 (the aesthetic overhaul — and Jobber publishes its design system, so the values were read rather than guessed):**
 
 Richard, after seeing the drag-and-drop land: *"I can see there is some drag and
