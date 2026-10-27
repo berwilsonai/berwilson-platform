@@ -1,0 +1,263 @@
+'use client'
+
+/**
+ * The opportunities pipeline board.
+ *
+ * ⚠ `OPPORTUNITY_PIPELINE` HAS EXISTED ALL ALONG AND HAD NEVER BEEN RENDERED
+ * AS A PIPELINE. Measured 2026-10-26: six ordered stages declared in
+ * `src/lib/utils/opportunities.ts`, read by the detail layout, the milestones
+ * page and `records/live.ts` — and by nothing that draws a board.
+ * `/opportunities` was a flat grid of cards, so the one surface where the order
+ * of those stages is the information did not show it. §12's own note about
+ * this shape is the third bullet under UI: a consumer written for a producer
+ * that never existed, and here it is the mirror — a producer with no consumer.
+ *
+ * Cards come from `OpportunityCard`, the same component the grid uses, with
+ * `compact` as the target parameter (§12: never fork a shared pass).
+ */
+
+import { useMemo } from 'react'
+import { cn } from '@/lib/utils'
+import type { Opportunity } from '@/lib/supabase/types'
+import { formatValue } from '@/lib/utils/constants'
+import {
+  oppStatus,
+  type OpportunityStatus,
+  OPPORTUNITY_STATUSES,
+  OPPORTUNITY_STATUS_LABELS,
+  OPPORTUNITY_STATUS_BADGE,
+} from '@/lib/utils/opportunities'
+import { pipelineTotal, coverageNote, leafRecords } from '@/lib/records/pipeline-value'
+import { useBoardDnd, BoardLiveRegion, BoardHint, type Lane, type BoardDnd } from '@/components/ui/board'
+import { OpportunityCard } from './OpportunityCards'
+
+/**
+ * The terminal states. Shown — a funnel with a missing rung misleads (the same
+ * argument `/projects` makes for keeping an empty stage visible) — but muted,
+ * because they are where deals go to stop rather than somewhere to work.
+ */
+const TERMINAL: ReadonlySet<OpportunityStatus> = new Set<OpportunityStatus>([
+  'on_hold',
+  'closed_won',
+  'closed_passed',
+])
+
+export default function OpportunityBoard({
+  opportunities,
+  canDelete = false,
+  onDeleted,
+  onMoved,
+}: {
+  opportunities: Opportunity[]
+  canDelete?: boolean
+  onDeleted?: (id: string) => void
+  /** Persists a status change. Throwing rolls the card back. */
+  onMoved: (id: string, status: OpportunityStatus) => Promise<void>
+}) {
+  const lanes: Lane[] = useMemo(
+    () =>
+      OPPORTUNITY_STATUSES.map((st) => ({
+        id: st,
+        label: OPPORTUNITY_STATUS_LABELS[st],
+      })),
+    []
+  )
+
+  const dnd = useBoardDnd<Opportunity>({
+    lanes,
+    items: opportunities,
+    laneOf: (o) => oppStatus(o.status),
+    setLane: (o, laneId) => ({ ...o, status: laneId as OpportunityStatus }),
+    titleOf: (o) => o.name,
+    /*
+      ⚠ `opportunities` carries no order column, exactly as `projects` does
+      not, so a within-status reorder could not survive a refresh. The hook
+      refuses the vertical gesture rather than animating a lie.
+    */
+    reorderable: false,
+    onMove: async (move) => {
+      await onMoved(move.itemId, move.toLaneId as OpportunityStatus)
+    },
+  })
+
+  const byStatus = useMemo(() => {
+    const groups = new Map<OpportunityStatus, Opportunity[]>()
+    for (const o of dnd.preview) {
+      const st = oppStatus(o.status)
+      const arr = groups.get(st) ?? []
+      arr.push(o)
+      groups.set(st, arr)
+    }
+    return groups
+  }, [dnd.preview])
+
+  /*
+    Which opportunities carry the pipeline's value: every one with no child
+    present. Built over the whole set once and used by every column total, so
+    the columns cannot sum to more than the pipeline does — the same rule
+    `/projects` applies, and for the same reason (a parent and its children
+    usually sit in different stages).
+  */
+  const leafIds = useMemo(
+    () => new Set(leafRecords(opportunities).map((o) => o.id)),
+    [opportunities]
+  )
+
+  const held = dnd.heldId ? dnd.preview.find((o) => o.id === dnd.heldId) : undefined
+
+  return (
+    <div className="space-y-3">
+      <BoardLiveRegion dnd={dnd} />
+
+      {/* The exit from a tap-grab. Escape only works while the handle has
+          focus, so a thumb needs a visible way out. */}
+      {dnd.keyboard && (
+        <div className="flex items-center gap-3 rounded-lg border border-primary/40 bg-primary/5 px-3 py-2">
+          <span className="text-xs text-foreground">
+            Holding <strong className="font-semibold">{held?.name ?? 'an opportunity'}</strong> — choose a
+            stage to move it to.
+          </span>
+          <button
+            type="button"
+            onClick={() => dnd.cancelHold()}
+            className="ml-auto h-[2.75rem] md:h-7 px-3 rounded-md border border-input text-xs font-medium hover:bg-accent transition-colors outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+          >
+            Cancel
+          </button>
+        </div>
+      )}
+
+      <div className="flex gap-3 overflow-x-auto pb-4 -mx-1 px-1">
+        {OPPORTUNITY_STATUSES.map((st) => {
+          const items = byStatus.get(st) ?? []
+          const empty = items.length === 0
+          const terminal = TERMINAL.has(st)
+          const colItems = items.filter((o) => leafIds.has(o.id))
+          const total = pipelineTotal(colItems)
+          const note = coverageNote(total)
+
+          return (
+            <BoardColumn
+              key={st}
+              status={st}
+              items={items}
+              empty={empty}
+              terminal={terminal}
+              total={total}
+              note={note}
+              dnd={dnd}
+              canDelete={canDelete}
+              onDeleted={onDeleted}
+            />
+          )
+        })}
+      </div>
+
+      <BoardHint dnd={dnd} noun="opportunity" />
+    </div>
+  )
+}
+
+function BoardColumn({
+  status,
+  items,
+  empty,
+  terminal,
+  total,
+  note,
+  dnd,
+  canDelete,
+  onDeleted,
+}: {
+  status: OpportunityStatus
+  items: Opportunity[]
+  empty: boolean
+  terminal: boolean
+  total: ReturnType<typeof pipelineTotal>
+  note: string | null
+  dnd: BoardDnd<Opportunity>
+  canDelete?: boolean
+  onDeleted?: (id: string) => void
+}) {
+  const target = dnd.isDropTarget(status)
+  return (
+    <div
+      {...dnd.laneProps(status)}
+      className={cn(
+        'flex flex-col shrink-0 rounded-lg transition-all',
+        // An empty column collapses so nine stages fit, and opens while a drag
+        // is in flight so it can actually receive a card.
+        empty ? (dnd.dragging ? 'w-[180px]' : 'w-[96px]') : 'w-[272px]',
+        // ⚠ A ring, never a bg — the header and body below own their
+        // backgrounds and `cn()` is tailwind-merge (§12).
+        target && 'ring-2 ring-primary ring-offset-2 ring-offset-background'
+      )}
+    >
+      <div
+        className={cn(
+          'sticky top-0 z-10 rounded-t-lg border border-b-0 border-border px-3 py-2.5 backdrop-blur',
+          terminal ? 'bg-muted/60' : 'bg-muted/40'
+        )}
+      >
+        <div className="flex items-center gap-2 min-w-0">
+          <h2
+            className={cn(
+              'font-semibold min-w-0 truncate',
+              empty ? 'text-xs' : 'text-sm',
+              terminal ? 'text-muted-foreground' : 'text-foreground'
+            )}
+          >
+            {OPPORTUNITY_STATUS_LABELS[status]}
+          </h2>
+          {!empty && (
+            <span
+              className={cn(
+                'ml-auto inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium ring-1 ring-inset',
+                OPPORTUNITY_STATUS_BADGE[status]
+              )}
+            >
+              {items.length}
+            </span>
+          )}
+        </div>
+        {/* An empty column has no total worth stating; "$0" is noise dressed
+            as a figure. */}
+        {!empty && (
+          <div className="mt-1.5 text-xs">
+            <span
+              className="font-semibold tnum text-foreground"
+              title={note ? `${note} in this stage` : undefined}
+            >
+              {total.estimated > 0 ? formatValue(total.amount) : 'Not set'}
+            </span>
+            {note && <p className="mt-0.5 truncate text-[10px] text-muted-foreground">{note}</p>}
+          </div>
+        )}
+      </div>
+
+      <div
+        className={cn(
+          'flex-1 space-y-2 rounded-b-lg border border-t-0 border-border p-2 min-h-[120px]',
+          terminal ? 'bg-muted/20' : 'bg-muted/10'
+        )}
+      >
+        {empty ? (
+          <p className="text-xs text-muted-foreground/50 text-center py-6">—</p>
+        ) : (
+          items.map((opp, i) => (
+            <OpportunityCard
+              key={opp.id}
+              opp={opp}
+              compact
+              canDelete={canDelete}
+              onDeleted={onDeleted}
+              dnd={dnd}
+              laneId={status}
+              index={i}
+            />
+          ))
+        )}
+      </div>
+    </div>
+  )
+}

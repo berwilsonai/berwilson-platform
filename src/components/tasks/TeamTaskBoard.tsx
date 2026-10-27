@@ -29,6 +29,13 @@ import ManageTeamDialog from './ManageTeamDialog'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 import {
+  useBoardDnd,
+  BoardLiveRegion,
+  DragHandle,
+  BoardHint,
+  type Lane,
+} from '@/components/ui/board'
+import {
   type BoardTask,
   type TeamMember,
   type ProjectOption,
@@ -455,6 +462,101 @@ export default function TeamTaskBoard({
     })
   }, [tasks, members, scoped])
 
+  // ─── Drag a task onto a person to reassign it ──────────────────────────────
+  /*
+    ⚠ THE LANES ARE NOT COLUMNS, AND THAT IS THE POINT OF A SHARED PRIMITIVE.
+    This board is a flat list with a row of per-person workload chips above it,
+    so the useful drag here is not "move between columns" — it is REASSIGNMENT,
+    and the chips are already exactly the right drop targets, counts and all.
+    The same hook that drives the two stage boards drives this without knowing
+    that a lane happens to be a teammate.
+
+    `unassigned` is a real lane rather than an absence: §12 notes that a dated
+    task NOBODY owns was invisible to every per-person surface there was, so
+    handing work BACK to the unassigned pile has to be as easy as taking it.
+  */
+  const UNASSIGNED = 'unassigned'
+  const taskLanes: Lane[] = useMemo(
+    () => [
+      ...members.map((m) => ({ id: m.id, label: m.name })),
+      { id: UNASSIGNED, label: 'Unassigned' },
+    ],
+    [members]
+  )
+
+  const dnd = useBoardDnd<BoardTask>({
+    lanes: taskLanes,
+    items: filtered,
+    laneOf: (t) => t.assignee_id ?? UNASSIGNED,
+    setLane: (t, laneId) => {
+      const m = members.find((x) => x.id === laneId)
+      return {
+        ...t,
+        assignee_id: laneId === UNASSIGNED ? null : laneId,
+        assignee: m ? { id: m.id, name: m.name, color: m.color } : null,
+      }
+    },
+    titleOf: (t) => t.title,
+    /*
+      ⚠ `tasks` carries no order column (verified against database.ts), so a
+      within-person reorder could not persist. The hook refuses the vertical
+      gesture rather than animating a lie — and this list is sorted by urgency
+      anyway, which is a better order than a hand-dragged one.
+    */
+    reorderable: false,
+    onMove: async (move) => {
+      const nextAssignee = move.toLaneId === UNASSIGNED ? null : move.toLaneId
+      const member = members.find((x) => x.id === nextAssignee)
+      const previous = tasks.find((t) => t.id === move.itemId)?.assignee_id ?? null
+      const prevMember = members.find((x) => x.id === previous)
+
+      // Optimistic against this component's own `tasks`, which is what every
+      // count, the workload row and the filters all read.
+      setTasks((prev) =>
+        prev.map((t) =>
+          t.id === move.itemId
+            ? {
+                ...t,
+                assignee_id: nextAssignee,
+                assignee: member ? { id: member.id, name: member.name, color: member.color } : null,
+              }
+            : t
+        )
+      )
+
+      const res = await fetch(`/api/tasks/${move.itemId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ assignee_id: nextAssignee }),
+      })
+      if (!res.ok) {
+        setTasks((prev) =>
+          prev.map((t) =>
+            t.id === move.itemId
+              ? {
+                  ...t,
+                  assignee_id: previous,
+                  assignee: prevMember
+                    ? { id: prevMember.id, name: prevMember.name, color: prevMember.color }
+                    : null,
+                }
+              : t
+          )
+        )
+        // A 401 is a redirect to login, not a failed reassignment — saying
+        // "could not reassign" over the top of it is a second, wrong story.
+        if (!handleAuthError(res)) {
+          const { error } = await res.json().catch(() => ({ error: null }))
+          toast.error(error ?? 'Could not reassign that task')
+        }
+        throw new Error('reassign failed')
+      }
+      toast.success(member ? `Reassigned to ${member.name}` : 'Returned to unassigned')
+    },
+  })
+
+  const heldTask = dnd.heldId ? filtered.find((t) => t.id === dnd.heldId) : undefined
+
   return (
     /* No max-width when this IS the page. A list whose rows truncate must not
        also reserve empty space: the cap left ~400px unused at 1440 while every
@@ -531,17 +633,34 @@ export default function TeamTaskBoard({
         <div className="flex gap-2 overflow-x-auto pb-1 -mx-4 px-4 sm:mx-0 sm:px-0 sm:pb-0 sm:overflow-visible sm:flex-wrap">
           {workload.map(({ member, open, overdue }) => {
             const active = assigneeFilter === member.id
+            // While a task is held, this chip stops being a filter and becomes
+            // a destination. Both at once would mean one tap did two things.
+            const target = dnd.isDropTarget(member.id) || (dnd.keyboard && heldTask?.assignee_id !== member.id)
             return (
               <button
                 key={member.id}
-                onClick={() => setAssigneeFilter(active ? 'all' : member.id)}
+                {...dnd.laneProps(member.id)}
+                onClick={() => {
+                  if (dnd.keyboard) return
+                  setAssigneeFilter(active ? 'all' : member.id)
+                }}
                 className={cn(
                   'inline-flex shrink-0 items-center gap-2 h-[2.75rem] sm:h-9 pl-1.5 pr-3 rounded-full border text-sm transition-colors',
                   active
                     ? 'border-primary/50 bg-primary/10 text-foreground'
                     : 'border-border bg-card text-muted-foreground hover:text-foreground hover:bg-accent',
+                  // ⚠ A RING, NOT A BACKGROUND. The active state above already
+                  // owns `bg-primary/10`; `cn()` is tailwind-merge, so a `bg-*`
+                  // here would delete it and the selected teammate would lose
+                  // their highlight exactly while you dragged onto them (§12).
+                  target && 'ring-2 ring-primary',
+                  dnd.isDropTarget(member.id) && 'ring-offset-2 ring-offset-background',
                 )}
-                title={`${member.name}: ${open} open${overdue ? `, ${overdue} overdue` : ''}`}
+                title={
+                  dnd.keyboard
+                    ? `Move "${heldTask?.title ?? 'this task'}" to ${member.name}`
+                    : `${member.name}: ${open} open${overdue ? `, ${overdue} overdue` : ''}`
+                }
               >
                 <span className={cn('flex items-center justify-center size-6 rounded-full text-[10px] font-semibold', avatarClasses(member.color))}>
                   {initials(member.name)}
@@ -556,7 +675,61 @@ export default function TeamTaskBoard({
               </button>
             )
           })}
+
+          {/*
+            Unassigned as a real chip, and only while a task is held.
+
+            ⚠ IT IS NOT A FILTER CHIP, SO IT DOES NOT BELONG HERE AT REST — the
+            row reads "tap a person to filter the board to them" and an
+            Unassigned chip would be a fourth kind of thing in it. But §12
+            records that four of ten dated tasks, three already overdue, were
+            invisible to every per-person surface there was, precisely because
+            nobody owned them. Handing work back has to be as easy as taking
+            it, so the destination appears exactly when it is one.
+          */}
+          {dnd.keyboard && (
+            <button
+              {...dnd.laneProps(UNASSIGNED)}
+              type="button"
+              title={`Return "${heldTask?.title ?? 'this task'}" to unassigned`}
+              className={cn(
+                'inline-flex shrink-0 items-center gap-2 h-[2.75rem] sm:h-9 px-3 rounded-full border border-dashed text-sm transition-colors',
+                'border-border bg-card text-muted-foreground hover:text-foreground hover:bg-accent',
+                heldTask?.assignee_id != null && 'ring-2 ring-primary',
+              )}
+            >
+              <span className="font-medium">Unassigned</span>
+            </button>
+          )}
         </div>
+      )}
+
+      {/* ─── Reassignment drag affordances ──────────────────────────────────── */}
+      {!scoped && (
+        <>
+          <BoardLiveRegion dnd={dnd} />
+          {/*
+            The exit. Escape works only while the handle still holds focus, so
+            a thumb that tapped to grab would otherwise have no way to put the
+            task down.
+          */}
+          {dnd.keyboard && (
+            <div className="flex flex-wrap items-center gap-3 rounded-lg border border-primary/40 bg-primary/5 px-3 py-2">
+              <span className="text-xs text-foreground">
+                Holding <strong className="font-semibold">{heldTask?.title ?? 'a task'}</strong> — choose
+                who it goes to.
+              </span>
+              <button
+                type="button"
+                onClick={() => dnd.cancelHold()}
+                className="ml-auto h-[2.75rem] md:h-7 px-3 rounded-md border border-input text-xs font-medium hover:bg-accent transition-colors outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+              >
+                Cancel
+              </button>
+            </div>
+          )}
+          {workload.length > 0 && <BoardHint dnd={dnd} noun="task" className="-mt-1" />}
+        </>
       )}
 
       {/* Add form */}
@@ -828,16 +1001,27 @@ export default function TeamTaskBoard({
         />
       ) : (
         <div className="space-y-2">
-          {filtered.map((task) => {
+          {dnd.preview.map((task, taskIndex) => {
             const due = task.due_date ? getDueLabel(task.due_date) : null
             const done = task.status === 'done'
             const tier = taskTier(task, live)
+            const laneId = task.assignee_id ?? UNASSIGNED
+            const held = dnd.draggingId === task.id
             return (
               <div
                 key={task.id}
+                {...dnd.cardProps(task.id, laneId, taskIndex)}
                 onClick={() => setOpenTaskId(task.id)}
                 className={cn(
                   'group flex items-center gap-3 rounded-lg border border-border bg-card px-4 py-3 cursor-pointer lift',
+                  /*
+                    ⚠ A RING, AND IT HAS TO BE. This row already sets `bg-card`
+                    and the urgency tint sets `border-l-*`; a held style in
+                    either of those groups would silently delete one of them,
+                    which is how the most urgent row loses its colour at the
+                    moment you grab it (§12, tailwind-merge).
+                  */
+                  held && 'ring-2 ring-primary opacity-60',
                   // ⚠ ONE COLOUR MEANS SOMETHING AND THE REST RECEDE (§12: when
                   // every row is red, red has stopped signifying). Only 'live'
                   // is tinted; 'unattached' is dimmed; 'tagged' is the ordinary
@@ -938,6 +1122,19 @@ export default function TeamTaskBoard({
                     because that utility is `calc(var(--spacing) * 11)` and the
                     10-17 density change took every one of those below the 44px
                     floor. */}
+                {/*
+                  The reassignment handle. Inline rather than positioned, so it
+                  sits with the row's other actions instead of over its text.
+                  Its own click stops propagation, which is what keeps it from
+                  opening the task sheet underneath.
+                */}
+                <DragHandle
+                  dnd={dnd}
+                  id={task.id}
+                  laneId={laneId}
+                  index={taskIndex}
+                  inline
+                />
                 <button
                   onClick={(e) => { e.stopPropagation(); setPendingDelete(task) }}
                   title="Delete this task"

@@ -1,84 +1,69 @@
-import Link from 'next/link'
-import { Target, ArrowUpRight } from 'lucide-react'
-import { cn } from '@/lib/utils'
-import {
-  OBJECTIVE_HEALTH_LABELS,
-  OBJECTIVE_HEALTH_BADGE,
-  objectiveHealth,
-} from '@/lib/utils/objectives'
+'use client'
 
-export interface NowObjectiveItem {
-  id: string
-  title: string
-  target_date: string | null
-  health: string
-  owner: { name: string; color: string | null } | null
-  openTasks: number
-}
+import { useCallback, useRef } from 'react'
+import { useRouter } from 'next/navigation'
+import { toast } from 'sonner'
 
-function initials(name: string): string {
-  const parts = name.trim().split(/\s+/)
-  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase()
-  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
-}
+import { applyMove, type Move } from '@/lib/ui/dnd'
+import NowObjectivesList, { type NowObjectiveItem } from './NowObjectivesList'
 
-function formatTarget(date: string): string {
-  return new Date(date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-}
+export type { NowObjectiveItem } from './NowObjectivesList'
 
 /**
- * The steering board's Now column, surfaced at the top of the Dashboard so the
- * morning read starts with "what we said matters" before "what's on fire".
+ * Owns the router and the reorder write, and nothing a reader sees.
+ *
+ * ⚠ SPLIT OUT FOR THE SAME REASON `AttentionClient` AND `OpportunitiesClient`
+ * ARE: `useRouter` throws outside a Next request, so anything importing it is
+ * unverifiable by `renderToStaticMarkup`. Keeping it here leaves
+ * `NowObjectivesList` — the numbering, the health chip, three optional meta
+ * fields and a handle per row — renderable in a test.
  */
 export default function NowObjectives({ items }: { items: NowObjectiveItem[] }) {
-  if (items.length === 0) return null
+  const router = useRouter()
 
-  return (
-    <div className="rounded-lg border border-border bg-card p-4 elev-1">
-      <div className="flex items-center justify-between gap-2 mb-3">
-        <div className="flex items-center gap-1.5 label-caps text-muted-foreground">
-          <Target size={13} /> Objectives — Now
-        </div>
-        <Link
-          href="/objectives"
-          className="inline-flex items-center gap-0.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
-        >
-          Steering board <ArrowUpRight size={12} />
-        </Link>
-      </div>
-      <ol className="grid gap-x-6 gap-y-2 sm:grid-cols-2 xl:grid-cols-3">
-        {items.map((o, i) => (
-          <li key={o.id} className="flex items-start gap-2.5 min-w-0">
-            <span className="shrink-0 mt-0.5 inline-flex items-center justify-center size-5 rounded-full bg-muted text-[11px] font-semibold tnum text-muted-foreground">
-              {i + 1}
-            </span>
-            <div className="min-w-0">
-              <p className="text-sm font-medium text-foreground truncate">
-                {o.title}
-                {objectiveHealth(o.health) !== 'on_track' && (
-                  <span
-                    className={cn(
-                      'ml-1.5 inline-flex items-center rounded px-1 py-px text-[9px] font-semibold uppercase tracking-wide ring-1 ring-inset align-middle',
-                      OBJECTIVE_HEALTH_BADGE[objectiveHealth(o.health)],
-                    )}
-                  >
-                    {OBJECTIVE_HEALTH_LABELS[objectiveHealth(o.health)]}
-                  </span>
-                )}
-              </p>
-              <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
-                {o.owner && <span>{initials(o.owner.name)}</span>}
-                {o.target_date && <span className="tnum">by {formatTarget(o.target_date)}</span>}
-                {o.openTasks > 0 && (
-                  <span className="tnum">
-                    {o.openTasks} open task{o.openTasks !== 1 ? 's' : ''}
-                  </span>
-                )}
-              </div>
-            </div>
-          </li>
-        ))}
-      </ol>
-    </div>
+  /*
+    ⚠ THE REFRESH IS ON THE TRAILING EDGE. The order is read by a server
+    component, so without it the dashboard keeps rendering the old numbering on
+    the next soft navigation back (§12). Debounced, because nudging an
+    objective up two places is two moves and should cost one round-trip.
+    Cleared on unmount, or it fires against a page already navigated away from.
+  */
+  const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const scheduleRefresh = useCallback(() => {
+    if (refreshTimer.current) clearTimeout(refreshTimer.current)
+    refreshTimer.current = setTimeout(() => router.refresh(), 600)
+  }, [router])
+
+  const onReorder = useCallback(
+    async (move: Move) => {
+      /*
+        The payload is rebuilt from the NEW arrangement via `applyMove`, the
+        same tested function the hook itself uses — so the remove-before-insert
+        off-by-one is not re-derived here.
+
+        ⚠ Sequential 0..n-1 over the whole bucket is correct and complete ONLY
+        because the dashboard query has no LIMIT: it reads every active `now`
+        objective (verified in dashboard/page.tsx, 2026-10-26). If that ever
+        gains a limit, this becomes a partial reorder writing authoritative
+        sort_orders over rows it cannot see.
+      */
+      const ordered = applyMove(items, move, (o) => o, () => 'now')
+      const payload = ordered.map((o, i) => ({ id: o.id, bucket: 'now', sort_order: i }))
+      const res = await fetch('/api/objectives/reorder', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items: payload }),
+      })
+      if (!res.ok) {
+        const { error } = await res.json().catch(() => ({ error: null }))
+        toast.error(error ?? 'Could not save the new order')
+        // Throwing is what rolls the optimistic arrangement back.
+        throw new Error('reorder failed')
+      }
+      scheduleRefresh()
+    },
+    [items, scheduleRefresh]
   )
+
+  return <NowObjectivesList items={items} onReorder={onReorder} />
 }

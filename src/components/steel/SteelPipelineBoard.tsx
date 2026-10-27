@@ -14,7 +14,6 @@ import {
   CircleDashed,
   Clock,
   UserRoundX,
-  GripVertical,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useStoredState } from '@/hooks/use-stored-state'
@@ -35,6 +34,15 @@ import {
   type SteelStage,
 } from '@/lib/utils/steel'
 import SteelDealsClient, { type SteelDealCardData } from '@/components/steel/SteelDealsClient'
+import { Segmented } from '@/components/ui/segmented'
+import {
+  useBoardDnd,
+  BoardLiveRegion,
+  DragHandle,
+  BoardHint,
+  type Lane,
+  type BoardDnd,
+} from '@/components/ui/board'
 import { FIELD_CONTROL_SM_CLASS } from '@/lib/utils/field-classes'
 
 /** Days without any update before an open deal is flagged "stale". */
@@ -85,8 +93,6 @@ export default function SteelPipelineBoard({
   const [attn, setAttn] = useState<Attn>('')
 
   // drag state (column-level targets only — no manual within-column ordering)
-  const [dragId, setDragId] = useState<string | null>(null)
-  const [dropStage, setDropStage] = useState<SteelStage | null>(null)
   const snapshot = useRef<SteelDealCardData[]>(initialItems)
 
   const effScope: Scope = myMemberId ? scope : 'all'
@@ -163,10 +169,56 @@ export default function SteelPipelineBoard({
   }, [scoped])
 
   // Group the filtered deals into stage columns; sort each by soonest action then value.
+  // ─── Drag a deal between stages ───────────────────────────────────────────
+  /*
+    ⚠ THIS BOARD'S DRAG WAS ONE OF THREE HAND-ROLLED COPIES, AND ALL THREE WERE
+    POINTER-ONLY. Its own footer used to say so — *"On a phone, open a deal to
+    change its stage"* — which made the limitation documentation rather than a
+    bug. The shared primitive carries the keyboard and the tap as well, so the
+    sentence is gone along with the copy.
+
+    Lanes run over `SteelDeal` rather than `SteelDealCardData`, because the hook
+    keys on `id` and the card wrapper has none of its own; the salesperson is
+    looked back up when the card renders.
+  */
+  const lanes: Lane[] = useMemo(
+    () => BOARD_STAGES.map((st) => ({ id: st, label: STEEL_STAGE_LABELS[st] })),
+    []
+  )
+
+  const dnd = useBoardDnd<SteelDeal>({
+    lanes,
+    items: useMemo(() => filtered.map((i) => i.deal), [filtered]),
+    laneOf: (d) => steelStage(d.stage),
+    setLane: (d, laneId) => ({ ...d, stage: laneId as SteelStage }),
+    titleOf: (d) => d.name,
+    /*
+      ⚠ reorderable: false, and here it is not even a schema question — the
+      order WITHIN a column is derived (next step date, then value), so a
+      hand-dragged position would be overwritten by the next sort rather than
+      by the next fetch.
+    */
+    reorderable: false,
+    onMove: async (move) => {
+      await commitStage(move.itemId, move.toLaneId as SteelStage)
+    },
+  })
+
   const byStage = useMemo(() => {
     const map = {} as Record<SteelStage, SteelDealCardData[]>
     for (const st of BOARD_STAGES) map[st] = []
-    for (const item of filtered) map[steelStage(item.deal.stage)].push(item)
+    /*
+      ⚠ GROUPS FROM `dnd.preview`, NOT FROM `filtered`. The preview is the
+      TENTATIVE arrangement, so the card visibly moves under the cursor and
+      under the arrow keys instead of waiting for the PATCH to return. The
+      salesperson is looked back up here, because the hook keys on the deal.
+    */
+    const wrapperById = new Map(filtered.map((i) => [i.deal.id, i]))
+    for (const deal of dnd.preview) {
+      const wrapper = wrapperById.get(deal.id)
+      if (!wrapper) continue
+      map[steelStage(deal.stage)].push({ ...wrapper, deal })
+    }
     for (const st of BOARD_STAGES) {
       map[st].sort((a, b) => {
         const ak = a.deal.next_step_date ?? '9999-99-99'
@@ -176,7 +228,7 @@ export default function SteelPipelineBoard({
       })
     }
     return map
-  }, [filtered])
+  }, [filtered, dnd.preview])
 
   // ── Drag → advance stage ──────────────────────────────────────────────────
   async function commitStage(id: string, next: SteelStage) {
@@ -201,14 +253,14 @@ export default function SteelPipelineBoard({
     } catch (e) {
       setItems(snapshot.current)
       toast.error(e instanceof Error ? e.message : 'Failed to move deal')
+      // ⚠ RETHROWN, NOT SWALLOWED. The board primitive rolls its own optimistic
+      // arrangement back on a rejection and announces the failure to a screen
+      // reader; swallowing here would leave it announcing a move that did not
+      // happen, which is worse than the old silent revert because it is spoken.
+      throw e
     }
   }
 
-  function handleDrop(stage: SteelStage) {
-    if (dragId) commitStage(dragId, stage)
-    setDragId(null)
-    setDropStage(null)
-  }
 
   // ── Render ────────────────────────────────────────────────────────────────
   const chip = (key: Attn, label: string, count: number, Icon: typeof CircleAlert, tone: string) =>
@@ -278,6 +330,7 @@ export default function SteelPipelineBoard({
         <div className="flex items-center gap-2 flex-wrap">
           {myMemberId && (
             <Segmented
+              label="Deal scope"
               value={scope}
               onChange={(v) => setScope(v as Scope)}
               options={[
@@ -309,6 +362,7 @@ export default function SteelPipelineBoard({
           </span>
         </div>
         <Segmented
+          label="Pipeline view"
           value={view}
           onChange={(v) => setView(v as View)}
           options={[
@@ -335,22 +389,20 @@ export default function SteelPipelineBoard({
               return (
                 <div
                   key={st}
-                  onDragOver={(e) => {
-                    if (!dragId) return
-                    e.preventDefault()
-                    setDropStage(st)
-                  }}
-                  onDrop={(e) => {
-                    e.preventDefault()
-                    handleDrop(st)
-                  }}
+                  {...dnd.laneProps(st)}
                   className={cn(
                     'w-[15rem] shrink-0 rounded-xl border p-2.5 transition-colors',
-                    dragId && dropStage === st
-                      ? 'border-primary/60 bg-primary/5'
-                      : muted
-                        ? 'border-border bg-muted/20'
-                        : 'border-border bg-card/40'
+                    muted ? 'border-border bg-muted/20' : 'border-border bg-card/40',
+                    /*
+                      ⚠ WAS `border-primary/60 bg-primary/5` IN PLACE OF THE
+                      RESTING `bg-*`, WHICH IS THE TAILWIND-MERGE TRAP §12
+                      DESCRIBES — the drop tint and the muted/normal column
+                      background were in one group, so the branch had to
+                      re-state every resting style to avoid losing it. A ring
+                      is a different group: the column keeps its own background
+                      and gains an edge.
+                    */
+                    dnd.isDropTarget(st) && 'ring-2 ring-primary border-primary/60'
                   )}
                 >
                   {/* Column header */}
@@ -371,17 +423,14 @@ export default function SteelPipelineBoard({
 
                   {/* Cards */}
                   <div className="space-y-2 min-h-[3rem]">
-                    {list.map((item) => (
+                    {list.map((item, i) => (
                       <PipelineCard
                         key={item.deal.id}
                         item={item}
                         showSalesperson={effScope === 'all'}
-                        dragging={dragId === item.deal.id}
-                        onDragStart={() => setDragId(item.deal.id)}
-                        onDragEnd={() => {
-                          setDragId(null)
-                          setDropStage(null)
-                        }}
+                        dnd={dnd}
+                        laneId={st}
+                        index={i}
                       />
                     ))}
                     {list.length === 0 && (
@@ -395,9 +444,14 @@ export default function SteelPipelineBoard({
         </div>
       )}
 
-      <p className="text-[11px] text-muted-foreground">
-        Drag a card to another column to advance its stage. On a phone, open a deal to change its stage.
-      </p>
+      <BoardLiveRegion dnd={dnd} />
+      {/*
+        ⚠ THIS USED TO READ "On a phone, open a deal to change its stage" — a
+        sentence that documented the hand-rolled drag's pointer-only limitation
+        rather than fixing it. The shared primitive carries the tap and the
+        keyboard, so the limitation and the sentence both went.
+      */}
+      <BoardHint dnd={dnd} noun="deal" />
     </div>
   )
 }
@@ -407,41 +461,44 @@ export default function SteelPipelineBoard({
 function PipelineCard({
   item,
   showSalesperson,
-  dragging,
-  onDragStart,
-  onDragEnd,
+  dnd,
+  laneId,
+  index,
 }: {
   item: SteelDealCardData
   showSalesperson: boolean
-  dragging: boolean
-  onDragStart: () => void
-  onDragEnd: () => void
+  dnd: BoardDnd<SteelDeal>
+  laneId: SteelStage
+  index: number
 }) {
   const { deal, salesperson } = item
   const s = steelStage(deal.stage)
   const overdue = isOverdue(deal)
+  const held = dnd.draggingId === deal.id
 
+  /*
+    ⚠ THE CARD IS NOW A WRAPPER AROUND THE LINK, NOT THE LINK ITSELF. The drag
+    handle is a <button>, and a <button> inside an <a> fires BOTH (§12) — the
+    trap that forced /attention's rows from Link to div. Making the anchor a
+    sibling keeps the whole card clickable while the handle stays operable by a
+    keyboard and a thumb.
+  */
   return (
+    <div
+      {...dnd.cardProps(deal.id, laneId, index)}
+      className={cn('relative', held && 'opacity-40')}
+    >
     <Link
       href={`/steel/${deal.id}`}
-      draggable
-      onDragStart={(e) => {
-        e.dataTransfer.effectAllowed = 'move'
-        e.dataTransfer.setData('text/plain', deal.id)
-        onDragStart()
-      }}
-      onDragEnd={onDragEnd}
       className={cn(
         'group block rounded-lg border border-border border-l-[3px] bg-card p-2.5 elev-1 cursor-grab active:cursor-grabbing transition-colors hover:border-primary/40',
-        STEEL_STAGE_BORDER[s],
-        dragging && 'opacity-40'
+        STEEL_STAGE_BORDER[s]
       )}
     >
       <div className="flex items-start gap-1.5">
         <h3 className="min-w-0 flex-1 text-[13px] font-semibold leading-snug text-foreground group-hover:text-primary transition-colors line-clamp-2">
           {deal.name}
         </h3>
-        <GripVertical size={13} className="hidden md:block shrink-0 mt-0.5 text-muted-foreground/30 group-hover:text-muted-foreground/60 transition-colors" />
       </div>
 
       {(deal.customer || deal.building_type) && (
@@ -506,6 +563,16 @@ function PipelineCard({
         </div>
       )}
     </Link>
+
+      {/* A SIBLING of the Link, never a descendant (§12). */}
+      <DragHandle
+        dnd={dnd}
+        id={deal.id}
+        laneId={laneId}
+        index={index}
+        className="top-auto bottom-1 right-1 md:bottom-1.5 md:right-1.5"
+      />
+    </div>
   )
 }
 
@@ -537,30 +604,3 @@ function Stat({
   )
 }
 
-function Segmented<T extends string>({
-  value,
-  onChange,
-  options,
-}: {
-  value: T
-  onChange: (v: T) => void
-  options: { value: T; label: string; icon?: typeof LayoutGrid }[]
-}) {
-  return (
-    <div className="inline-flex items-center rounded-md border border-input bg-background p-0.5">
-      {options.map(({ value: v, label, icon: Icon }) => (
-        <button
-          key={v}
-          onClick={() => onChange(v)}
-          className={cn(
-            'inline-flex items-center gap-1.5 h-7 px-2.5 rounded text-xs font-medium transition-colors',
-            value === v ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'
-          )}
-        >
-          {Icon && <Icon size={13} />}
-          {label}
-        </button>
-      ))}
-    </div>
-  )
-}

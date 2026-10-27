@@ -1,7 +1,8 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef, useCallback, useEffect } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { Trash2, Layers, FolderOpen, Search, X, ChevronDown, GitBranch, Kanban, SlidersHorizontal } from 'lucide-react'
 import ProjectCard, { type ProjectCardCounts } from '@/components/dashboard/ProjectCard'
@@ -17,6 +18,8 @@ import {
   rolledPipelineValue,
 } from '@/lib/records/pipeline-value'
 import { SECTOR_BADGE, SECTOR_SHORT } from '@/lib/utils/sectors'
+import { useBoardDnd, BoardLiveRegion, DragHandle, BoardHint, type Lane } from '@/components/ui/board'
+import type { BoardDnd } from '@/components/ui/board'
 import {
   STATUS_BADGE, STATUS_LABELS, formatValue, weightedValue,
   STAGES, STAGE_LABELS, STAGE_BADGE, STAGE_COLOR,
@@ -122,13 +125,20 @@ function ProgramBanner({
 }
 
 export default function ProjectsClient({ projects: initialProjects, stageFilter }: ProjectsClientProps) {
+  const router = useRouter()
   const [projects, setProjects] = useState(initialProjects)
   // When a stage filter is active in the URL, restrict the pipeline columns to
   // just that stage so the board doesn't keep rendering every (mostly empty)
   // stage. No filter → show the full funnel.
-  const stageColumns = (stageFilter && STAGES.includes(stageFilter as ProjectStage)
-    ? [stageFilter as ProjectStage]
-    : STAGES) as ProjectStage[]
+  // Memoized: `lanes` derives from it, and a fresh array each render would
+  // rebuild every drag handler on the board on every pass.
+  const stageColumns = useMemo(
+    () =>
+      (stageFilter && STAGES.includes(stageFilter as ProjectStage)
+        ? [stageFilter as ProjectStage]
+        : STAGES) as ProjectStage[],
+    [stageFilter]
+  )
   const [search, setSearch] = useState('')
   const [storedView, setView] = useStoredState<ViewMode>('bw.projects.view', 'pipeline')
   // Normalize any legacy stored values ('stage' / 'board') to the new 'pipeline'.
@@ -247,17 +257,103 @@ export default function ProjectsClient({ projects: initialProjects, stageFilter 
     [projects]
   )
 
+  /*
+    ⚠ THE REFRESH IS ON THE TRAILING EDGE, AND IT IS NOT FOR THIS COMPONENT.
+    §12: an optimistic client mutation with no `router.refresh()` leaves every
+    server-rendered count lying until the tab is reloaded — a root-layout badge
+    is reused across soft navigations, which is how one read 248 against a
+    database saying 1. A stage change moves the sidebar's attention badge and
+    the portfolio header, both of which render on the server and neither of
+    which this component can reach.
+
+    ⚠ It cannot update `projects` here, and that is a known limitation rather
+    than an oversight: this state is seeded from props, so a refresh delivers
+    new props to the same mounted component and they are ignored. The
+    optimistic `handleUpdate` is what keeps THIS screen honest; the refresh is
+    what keeps everything outside it honest. (`OpportunitiesClient` avoids the
+    whole problem with an overlay of removed ids rather than a copy of the
+    list — the better shape, and a bigger change than this session should make
+    to a 736-line board.)
+
+    Debounced, because advancing three deals in a row should cost one
+    round-trip. Cleared on unmount, or a refresh fires against a page the
+    reader has already navigated away from.
+  */
+  const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const scheduleRefresh = useCallback(() => {
+    if (refreshTimer.current) clearTimeout(refreshTimer.current)
+    refreshTimer.current = setTimeout(() => router.refresh(), 600)
+  }, [router])
+  useEffect(() => () => {
+    if (refreshTimer.current) clearTimeout(refreshTimer.current)
+  }, [])
+
+  // ─── Drag a deal between stages ───────────────────────────────────────────
+  /*
+    The lanes are the columns actually on screen, not every stage in the enum:
+    a stage filter in the URL narrows the board to one column, and the arrow
+    keys must not be able to walk a card into a lane nobody can see.
+  */
+  const lanes: Lane[] = useMemo(
+    () => stageColumns.map((st) => ({ id: st, label: STAGE_LABELS[st] })),
+    [stageColumns]
+  )
+
+  const dnd = useBoardDnd<Project>({
+    lanes,
+    items: filtered,
+    laneOf: (p) => (p.stage ?? 'pursuit') as ProjectStage,
+    setLane: (p, laneId) => ({ ...p, stage: laneId as ProjectStage }),
+    titleOf: (p) => p.name,
+    /*
+      ⚠ reorderable: false, AND IT IS A SCHEMA FACT. `projects` carries no
+      order column (verified against database.ts, 2026-10-26), so a
+      within-stage reorder could be animated and held optimistically and would
+      snap back on the next server render. The hook refuses the gesture rather
+      than letting the board tell the reader something untrue.
+    */
+    reorderable: false,
+    onMove: async (move) => {
+      // Optimistic first: this component owns `projects`, so writing the stage
+      // here is what makes every column total, the weighted figure and the
+      // portfolio header move together with the card.
+      handleUpdate(move.itemId, { stage: move.toLaneId as ProjectStage })
+      const res = await fetch(`/api/projects/${move.itemId}/stage`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ stage: move.toLaneId }),
+      })
+      if (!res.ok) {
+        // Put it back, then say so. Throwing is what tells the hook to drop its
+        // own optimistic arrangement.
+        handleUpdate(move.itemId, { stage: move.fromLaneId as ProjectStage })
+        const { error } = await res.json().catch(() => ({ error: null }))
+        toast.error(error ?? `Could not move to ${STAGE_LABELS[move.toLaneId as ProjectStage]}`)
+        throw new Error('stage move failed')
+      }
+      toast.success(`Moved to ${STAGE_LABELS[move.toLaneId as ProjectStage]}`)
+      scheduleRefresh()
+    },
+  })
+
   // Stage view: group every matching project (flat) by its stage.
+  /*
+    ⚠ GROUPS FROM `dnd.preview`, NOT FROM `filtered`. The preview is the
+    TENTATIVE arrangement — where the card would land if you dropped it now —
+    so the board shows the move under the cursor and under the arrow keys. Read
+    from `filtered`, the card would not appear to move until the PATCH came
+    back, which on a reasoning model's round-trip reads as the drag failing.
+  */
   const byStage = useMemo(() => {
     const groups = new Map<ProjectStage, Project[]>()
-    for (const p of filtered) {
+    for (const p of dnd.preview) {
       const stage = (p.stage ?? 'pursuit') as ProjectStage
       const arr = groups.get(stage) ?? []
       arr.push(p)
       groups.set(stage, arr)
     }
     return groups
-  }, [filtered])
+  }, [dnd.preview])
 
   const viewToggle = (
     <div className="flex items-center gap-2 shrink-0">
@@ -337,20 +433,46 @@ export default function ProjectsClient({ projects: initialProjects, stageFilter 
       {/* ─── Pipeline (mobile): stage groups stacked top-to-bottom ──────────── */}
       {view === 'pipeline' && filtered.length > 0 && (
         <div className="space-y-6 lg:hidden">
-          {stageColumns.filter(s => (byStage.get(s as ProjectStage)?.length ?? 0) > 0).map(s => {
+          {/*
+            ⚠ AN EMPTY STAGE IS HIDDEN HERE, AND THAT HIDES THE DROP TARGET.
+            A stage with no projects is normally noise on a narrow screen — but
+            while a card is HELD it is a destination, and the stage a deal most
+            often needs to reach is the one that is empty because nothing has
+            got there yet. §12: a surface hidden because it is empty is hidden
+            exactly when someone needs to fill it. So the filter relaxes for
+            the duration of the hold and nothing else changes.
+          */}
+          {stageColumns
+            .filter(s => (byStage.get(s as ProjectStage)?.length ?? 0) > 0 || dnd.keyboard)
+            .map(s => {
             const stage = s as ProjectStage
             const items = byStage.get(stage) ?? []
+            const target = dnd.keyboard && !items.some(p => p.id === dnd.heldId)
             return (
-              <div key={stage} className="space-y-3">
+              <div
+                key={stage}
+                {...dnd.laneProps(stage)}
+                className={cn(
+                  'space-y-3 rounded-lg transition-all',
+                  // A ring and a dashed outline, never a bg — ProjectCard owns
+                  // the backgrounds underneath (§12, tailwind-merge).
+                  target && 'ring-2 ring-primary ring-offset-4 ring-offset-background'
+                )}
+              >
                 <div className="flex items-center gap-2">
                   <span className={cn('inline-block w-2 h-2 rounded-full', STAGE_COLOR[stage])} />
                   <h2 className="text-sm font-semibold text-foreground">{STAGE_LABELS[stage]}</h2>
                   <span className={cn('inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium ring-1 ring-inset', STAGE_BADGE[stage])}>
                     {items.length}
                   </span>
+                  {/* The only instruction a thumb gets, and it appears only
+                      while it is true. */}
+                  {target && (
+                    <span className="label-caps text-primary ml-auto">Tap to move here</span>
+                  )}
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
-                  {items.map(project => (
+                  {items.map((project, i) => (
                     <DeletableCard
                       key={project.id}
                       project={project}
@@ -359,13 +481,47 @@ export default function ProjectsClient({ projects: initialProjects, stageFilter 
                       dimmed={isDimmed(project.id)}
                       onDeleted={() => handleDelete(project.id)}
                       onUpdated={(patch) => handleUpdate(project.id, patch)}
+                      dnd={dnd}
+                      laneId={stage}
+                      index={i}
                     />
                   ))}
+                  {items.length === 0 && (
+                    <p className="text-xs text-muted-foreground/60 py-3">Nothing in this stage.</p>
+                  )}
                 </div>
               </div>
             )
           })}
         </div>
+      )}
+
+      {/* ─── Drag affordances ───────────────────────────────────────────────── */}
+      {view === 'pipeline' && filtered.length > 0 && (
+        <>
+          <BoardLiveRegion dnd={dnd} />
+          {/*
+            A held card needs a way out that does not require a keyboard. Tapping
+            the handle grabs it and tapping a stage drops it — but if neither
+            happens, Escape only works while the handle still has focus, so a
+            thumb could otherwise be stuck holding a card. This bar is the exit.
+          */}
+          {dnd.keyboard && (
+            <div className="flex items-center gap-3 rounded-lg border border-primary/40 bg-primary/5 px-3 py-2">
+              <span className="text-xs text-foreground">
+                Holding <strong className="font-semibold">{dnd.preview.find(p => p.id === dnd.heldId)?.name ?? 'a project'}</strong>
+                {' '}— choose a stage to move it to.
+              </span>
+              <button
+                type="button"
+                onClick={() => dnd.cancelHold()}
+                className="ml-auto h-[2.75rem] md:h-7 px-3 rounded-md border border-input text-xs font-medium hover:bg-accent transition-colors outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+              >
+                Cancel
+              </button>
+            </div>
+          )}
+        </>
       )}
 
       {/* ─── Pipeline (desktop): horizontal Kanban board by stage ───────────── */}
@@ -411,7 +567,24 @@ export default function ProjectsClient({ projects: initialProjects, stageFilter 
               */
               <div
                 key={stage}
-                className={cn('flex flex-col shrink-0', empty ? 'w-[92px]' : 'w-[300px]')}
+                {...dnd.laneProps(stage)}
+                className={cn(
+                  'flex flex-col shrink-0 rounded-lg transition-all',
+                  /*
+                    An empty stage is 92px at rest, which is too narrow to drop
+                    into reliably — so it opens up while a drag is in flight.
+                    The funnel keeps all its rungs either way; it just stops
+                    charging full rent for nothing until you need it.
+                  */
+                  empty ? (dnd.dragging ? 'w-[180px]' : 'w-[92px]') : 'w-[300px]',
+                  /*
+                    ⚠ A RING, NOT A BACKGROUND. The column already carries
+                    `bg-muted/10` on its body and `bg-muted/40` on its header;
+                    `cn()` is tailwind-merge, so a `bg-*` here would silently
+                    delete one of those rather than composing with it (§12).
+                  */
+                  dnd.isDropTarget(stage) && 'ring-2 ring-primary ring-offset-2 ring-offset-background'
+                )}
               >
                 {/* Column header */}
                 <div
@@ -455,7 +628,7 @@ export default function ProjectsClient({ projects: initialProjects, stageFilter 
                   {empty ? (
                     <p className="text-xs text-muted-foreground/50 text-center py-6">—</p>
                   ) : (
-                    items.map((project) => (
+                    items.map((project, i) => (
                       <DeletableCard
                         key={project.id}
                         project={project}
@@ -464,6 +637,9 @@ export default function ProjectsClient({ projects: initialProjects, stageFilter 
                         dimmed={isDimmed(project.id)}
                         onDeleted={() => handleDelete(project.id)}
                         onUpdated={(patch) => handleUpdate(project.id, patch)}
+                        dnd={dnd}
+                        laneId={stage}
+                        index={i}
                       />
                     ))
                   )}
@@ -472,6 +648,10 @@ export default function ProjectsClient({ projects: initialProjects, stageFilter 
             )
           })}
         </div>
+      )}
+
+      {view === 'pipeline' && filtered.length > 0 && (
+        <BoardHint dnd={dnd} noun="project" className="hidden lg:block -mt-2" />
       )}
 
       {/* ─── Program view: grouped by program hierarchy ────────────────────── */}
@@ -545,6 +725,9 @@ function DeletableCard({
   dimmed,
   onDeleted,
   onUpdated,
+  dnd,
+  laneId,
+  index,
 }: {
   project: Project
   counts?: ProjectCardCounts
@@ -553,6 +736,10 @@ function DeletableCard({
   dimmed?: boolean
   onDeleted: () => void
   onUpdated?: (patch: Partial<Project>) => void
+  /** Present only on the pipeline board — the program view has no lanes. */
+  dnd?: BoardDnd<Project>
+  laneId?: string
+  index?: number
 }) {
   const [confirming, setConfirming] = useState(false)
   const [deleting, setDeleting] = useState(false)
@@ -624,11 +811,25 @@ function DeletableCard({
     }
   }
 
+  const draggable = dnd && laneId !== undefined && index !== undefined
+  const held = draggable && dnd.draggingId === project.id
+
   return (
     <div
+      {...(draggable ? dnd.cardProps(project.id, laneId, index) : {})}
       className={cn(
         'relative group/card transition-opacity duration-200',
-        dimmed && 'opacity-40 hover:opacity-100'
+        dimmed && 'opacity-40 hover:opacity-100',
+        /*
+          ⚠ THE HELD STYLE IS A RING, NOT A BACKGROUND, AND THAT IS NOT A
+          PREFERENCE. `cn()` is tailwind-merge, so two classes in the SAME
+          utility group do not compose — the later one silently deletes the
+          earlier (§12). ProjectCard already owns this card's `bg-*` and its
+          urgency tint; a `bg-*` here would win over one of them and the most
+          urgent card would lose its colour at exactly the moment you grabbed
+          it. A ring is a different group, so both signals show at once.
+        */
+        held && 'ring-2 ring-primary rounded-lg opacity-60'
       )}
     >
       {/* Confirmation overlay */}
@@ -731,6 +932,24 @@ function DeletableCard({
       >
         <Trash2 size={13} />
       </button>
+
+      {/*
+        The drag handle. A SIBLING of ProjectCard's own anchor, never a
+        descendant: a <button> inside an <a> fires BOTH (§12), which is what
+        forced /attention's rows from Link to div. Sits below the two action
+        buttons so it does not collide with them, and carries no opacity
+        transition — it is the only route to a stage change and must be
+        reachable without a pointer.
+      */}
+      {draggable && (
+        <DragHandle
+          dnd={dnd}
+          id={project.id}
+          laneId={laneId}
+          index={index}
+          className="top-auto bottom-1 right-1 md:bottom-1.5 md:right-1.5"
+        />
+      )}
     </div>
   )
 }

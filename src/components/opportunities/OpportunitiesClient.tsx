@@ -1,10 +1,21 @@
 'use client'
 
-import { useCallback, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { toast } from 'sonner'
+import { Kanban, LayoutGrid } from 'lucide-react'
 
 import type { Opportunity } from '@/lib/supabase/types'
+import { useStoredState } from '@/hooks/use-stored-state'
+import { Segmented } from '@/components/ui/segmented'
+import {
+  type OpportunityStatus,
+  OPPORTUNITY_STATUS_LABELS,
+} from '@/lib/utils/opportunities'
 import OpportunityCards from './OpportunityCards'
+import OpportunityBoard from './OpportunityBoard'
+
+type View = 'board' | 'grid'
 
 /**
  * Owns the router and the optimistic removal, and nothing a reader sees.
@@ -32,6 +43,7 @@ export default function OpportunitiesClient({
 }) {
   const router = useRouter()
   const [removed, setRemoved] = useState<ReadonlySet<string>>(new Set())
+  const [view, setView] = useStoredState<View>('bw.opportunities.view', 'board')
 
   const onDeleted = useCallback(
     (id: string) => {
@@ -43,11 +55,74 @@ export default function OpportunitiesClient({
     [router]
   )
 
+  /*
+    The status write behind a drag.
+
+    ⚠ IT LIVES HERE, NOT IN THE BOARD, FOR THE REASON THIS FILE ALREADY
+    EXISTS: `useRouter` throws outside a Next request, so anything reading it
+    cannot be exercised by `renderToStaticMarkup`. The board carries the lanes,
+    the totals and nine conditional fields per card — keeping the router out of
+    it is what keeps all of that testable. That is the third time this split has
+    been made (AttentionClient, CommitmentsLedger, here), which §12 records as
+    the house pattern rather than a one-off.
+
+    ⚠ AND THE REFRESH IS ON THE TRAILING EDGE. A drag writes one row, but every
+    column total, the pipeline header and the sidebar badge are server-rendered
+    — §12: an optimistic mutation with no router.refresh() leaves every
+    server-rendered count lying until the tab is reloaded. Debounced, because
+    moving three cards in a row should cost one round-trip, not three.
+  */
+  const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const scheduleRefresh = useCallback(() => {
+    if (refreshTimer.current) clearTimeout(refreshTimer.current)
+    refreshTimer.current = setTimeout(() => router.refresh(), 600)
+  }, [router])
+
+  const onMoved = useCallback(
+    async (id: string, status: OpportunityStatus) => {
+      const res = await fetch(`/api/opportunities/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status }),
+      })
+      if (!res.ok) {
+        const { error } = await res.json().catch(() => ({ error: null }))
+        toast.error(error ?? `Could not move to ${OPPORTUNITY_STATUS_LABELS[status]}`)
+        // Throwing is the signal that rolls the card back to where it was.
+        throw new Error('status move failed')
+      }
+      toast.success(`Moved to ${OPPORTUNITY_STATUS_LABELS[status]}`)
+      scheduleRefresh()
+    },
+    [scheduleRefresh]
+  )
+
+  const shown = opportunities.filter((o) => !removed.has(o.id))
+
   return (
-    <OpportunityCards
-      opportunities={opportunities.filter((o) => !removed.has(o.id))}
-      canDelete={canDelete}
-      onDeleted={onDeleted}
-    />
+    <div className="space-y-3">
+      <div className="flex items-center justify-end">
+        <Segmented
+          label="Opportunity view"
+          value={view}
+          onChange={setView}
+          options={[
+            { value: 'board', label: 'Pipeline', icon: Kanban },
+            { value: 'grid', label: 'Cards', icon: LayoutGrid, count: shown.length },
+          ]}
+        />
+      </div>
+
+      {view === 'board' ? (
+        <OpportunityBoard
+          opportunities={shown}
+          canDelete={canDelete}
+          onDeleted={onDeleted}
+          onMoved={onMoved}
+        />
+      ) : (
+        <OpportunityCards opportunities={shown} canDelete={canDelete} onDeleted={onDeleted} />
+      )}
+    </div>
   )
 }

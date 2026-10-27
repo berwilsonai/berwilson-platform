@@ -20,6 +20,7 @@ import {
 } from '@/lib/utils/opportunities'
 import { pipelineValue } from '@/lib/records/pipeline-value'
 import RecordDeleteButton from '@/components/shared/RecordDeleteButton'
+import { DragHandle, type BoardDnd } from '@/components/ui/board'
 
 export interface OpportunityCardsProps {
   opportunities: Opportunity[]
@@ -57,17 +58,62 @@ export default function OpportunityCards({
 }: OpportunityCardsProps) {
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-      {opportunities.map((opp) => {
-        const t = oppType(opp.opp_type)
-        const s = oppStatus(opp.status)
-        const p = oppPriority(opp.priority)
+      {opportunities.map((opp) => (
+        <OpportunityCard key={opp.id} opp={opp} canDelete={canDelete} onDeleted={onDeleted} />
+      ))}
+    </div>
+  )
+}
 
-        return (
-          <div key={opp.id} className="relative group/card">
+/**
+ * ONE opportunity card, used by the grid above and by the pipeline board.
+ *
+ * ⚠ EXTRACTED RATHER THAN COPIED. §12: never fork a shared pass — add a
+ * target. A board needs the same nine conditional fields in a narrower column,
+ * and a second copy of this markup is a second place for a bare em dash or an
+ * `undefined` to reach a reader. `compact` is the target parameter; the drag
+ * props are the second.
+ */
+export function OpportunityCard({
+  opp,
+  canDelete = false,
+  onDeleted,
+  compact = false,
+  dnd,
+  laneId,
+  index,
+}: {
+  opp: Opportunity
+  canDelete?: boolean
+  onDeleted?: (id: string) => void
+  /** Narrow-column styling for the board: tighter padding, fewer meta rows. */
+  compact?: boolean
+  /** Present only on the board. */
+  dnd?: BoardDnd<Opportunity>
+  laneId?: string
+  index?: number
+}) {
+  const t = oppType(opp.opp_type)
+  const s = oppStatus(opp.status)
+  const p = oppPriority(opp.priority)
+  const draggable = dnd && laneId !== undefined && index !== undefined
+  const held = draggable && dnd.draggingId === opp.id
+
+  return (
+          <div
+            {...(draggable ? dnd.cardProps(opp.id, laneId, index) : {})}
+            className={cn(
+              'relative group/card',
+              // A ring, not a background: the card below owns `bg-card` and
+              // `cn()` is tailwind-merge, so a bg here would delete it (§12).
+              held && 'ring-2 ring-primary rounded-lg opacity-60'
+            )}
+          >
             <Link
               href={`/opportunities/${opp.id}`}
               className={cn(
-                'group block rounded-lg border border-border border-l-[3px] bg-card p-4 elev-1 lift transition-colors',
+                'group block rounded-lg border border-border border-l-[3px] bg-card elev-1 lift transition-colors',
+                compact ? 'p-2.5' : 'p-4',
                 OPPORTUNITY_TYPE_BORDER[t]
               )}
             >
@@ -81,14 +127,18 @@ export default function OpportunityCards({
                 >
                   {OPPORTUNITY_TYPE_LABELS[t]}
                 </span>
-                <span
-                  className={cn(
-                    'inline-flex items-center rounded px-1.5 py-0.5 text-[11px] font-medium ring-1 ring-inset',
-                    OPPORTUNITY_STATUS_BADGE[s]
-                  )}
-                >
-                  {OPPORTUNITY_STATUS_LABELS[s]}
-                </span>
+                {/* A column that IS the status does not need the chip too —
+                    §12: never print the same quantity twice on one screen. */}
+                {!compact && (
+                  <span
+                    className={cn(
+                      'inline-flex items-center rounded px-1.5 py-0.5 text-[11px] font-medium ring-1 ring-inset',
+                      OPPORTUNITY_STATUS_BADGE[s]
+                    )}
+                  >
+                    {OPPORTUNITY_STATUS_LABELS[s]}
+                  </span>
+                )}
                 {p === 'high' && (
                   <span
                     className={cn(
@@ -107,7 +157,7 @@ export default function OpportunityCards({
               </h3>
 
               {/* Objective preview */}
-              {opp.objective && (
+              {!compact && opp.objective && (
                 <p className="mt-1.5 text-xs text-muted-foreground line-clamp-2 flex gap-1.5">
                   <Target size={13} className="shrink-0 mt-0.5 text-muted-foreground/70" />
                   <span>{opp.objective}</span>
@@ -115,7 +165,7 @@ export default function OpportunityCards({
               )}
 
               {/* Meta row */}
-              <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+              <div className={cn('flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground', compact ? 'mt-1.5' : 'mt-3')}>
                 {opp.target_name && (
                   <span className="inline-flex items-center gap-1 truncate max-w-[160px]">
                     <Building2 size={12} className="shrink-0" />
@@ -131,7 +181,7 @@ export default function OpportunityCards({
               </div>
 
               {/* Footer: value + sector + probability */}
-              <div className="mt-3 pt-3 border-t border-border flex items-center justify-between gap-2">
+              <div className={cn('border-t border-border flex items-center justify-between gap-2', compact ? 'mt-2 pt-2' : 'mt-3 pt-3')}>
                 <span
                   className="text-sm font-semibold tnum text-foreground"
                   title={pipelineValue(opp).hint}
@@ -149,7 +199,7 @@ export default function OpportunityCards({
               </div>
 
               {/* Next step / target date */}
-              {(opp.next_step || opp.target_close_date) && (
+              {!compact && (opp.next_step || opp.target_close_date) && (
                 <div className="mt-2 text-[11px] text-muted-foreground/80 truncate">
                   {opp.next_step
                     ? `Next: ${opp.next_step}`
@@ -170,9 +220,17 @@ export default function OpportunityCards({
                 onDeleted={() => onDeleted(opp.id)}
               />
             )}
+
+            {/* A SIBLING of the Link, never a descendant (§12). */}
+            {draggable && (
+              <DragHandle
+                dnd={dnd}
+                id={opp.id}
+                laneId={laneId}
+                index={index}
+                className="top-auto bottom-1 right-1 md:bottom-1.5 md:right-1.5"
+              />
+            )}
           </div>
-        )
-      })}
-    </div>
   )
 }

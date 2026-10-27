@@ -6,6 +6,182 @@ This file is **not** auto-loaded into a Claude Code session. It is the archive: 
 
 Split out of `CLAUDE.md` on 2026-09-23, when that file reached 606k characters against a 150k limit above which it is silently truncated — meaning the project's own operating instructions had begun to risk not reaching the sessions that need them. The entries below are **verbatim and unedited**.
 
+**Done 2026-10-26 (the CRM research Richard asked for, and the finding that his two asks pull opposite ways):**
+
+Richard: *"I want you to research the most modern CRM's like Jobber or other
+emerging leaders to help completely redesign the UI. Our UI can have colors,
+drag and drop features and really anything to make it more intuitive and user
+friendly. Do an analysis and perform a complete overhaul that makes us look
+like the a modern tech company."*
+
+⚠ **MEASURING FIRST TURNED A PALETTE JOB INTO AN AFFORDANCE JOB, AND THE
+RESEARCH IS WHY.** The UI had been deliberately redrawn **nine days earlier**
+(10-17, five phases), from the same question — *"How can I enhance the user
+interface and the user experience to make it truly impressive?"* — with three
+measured directions put to Richard and **C** chosen: zero-chroma neutrals, one
+chromatic role, hairline borders, no resting shadow, 12% tighter density. That
+entry closed by naming exactly what was left over: *"whether the accent stays
+scarce enough to mean 'this is the action' … That is Richard's to say."* This
+session is him saying it.
+
+But the research contradicted the instinct rather than confirming it. **The two
+references that read most as "a modern tech company" are the monochrome ones:**
+Vercel is *"extreme restraint — a monochrome system where color equals
+meaning"*, Linear is *"dark-first, quiet chrome, famous for what it leaves
+out"*, and even **Jobber** — the one Richard named — is described as *"modern
+and clean with a **neutral** colour palette, uncluttered"*, winning on being
+learnable in 1–2 days. Attio is the colour-forward one, and what every Attio
+review actually praises is **interaction**: *"switching a list from table to
+kanban or calendar feels instantaneous"*, *"drag-and-drop updates were instant,
+even with large deal volumes"*. So adding colour would have moved the platform
+AWAY from the register Richard was asking for. Put to him as three options with
+the measurement attached; he chose **interaction-first, monochrome stays**, and
+all four scope items.
+
+**And the affordance gap was real, measured, and embarrassing in a specific
+way.** Five board surfaces: **three hand-rolled copies of native HTML5 drag**
+(`SteelPipelineBoard`, `ObjectivesBoard`, `OrgStructureBoard`) and **two with
+no drag at all — `/projects`'s pipeline board and `TeamTaskBoard`, the two
+highest-traffic boards in the application**, both scoring a literal `0` for
+`draggable`. The pattern existed and had never been applied where it mattered
+most, which is §12's "a shared renderer wired to one surface is worse than no
+shared renderer" in both directions at once. `Segmented` — the table⇄board
+switch that is Attio's single most-praised feature — was defined **locally
+inside `SteelPipelineBoard`**, reachable by one of the five.
+
+⚠ **ALL THREE EXISTING COPIES WERE POINTER-ONLY, AND THE STEEL BOARD SAID SO IN
+ITS OWN FOOTER:** *"On a phone, open a deal to change its stage."* The
+limitation had become documentation instead of a bug — absent on the device
+Richard carries, absent for a keyboard entirely. So the new primitive is built
+**keyboard-first with the pointer as a second caller of the same reducer**; built
+the other way round, the keyboard path has to reconstruct "where am I" from
+mouse coordinates. A tap is the third caller: tap the handle to HOLD a card,
+tap a lane to drop it, which is the only reason this works on a touch screen at
+all.
+
+**What shipped.** `src/lib/ui/dnd.ts` — pure, server-safe, 32 tests. The React
+skin in `src/components/ui/board.tsx` (`useBoardDnd`, `BoardLiveRegion`,
+`DragHandle`, `BoardHint`), `Segmented` lifted into `src/components/ui/`. Then:
+**drag a deal between stages on `/projects`** (desktop board and the mobile
+stacked list); **an opportunities pipeline board** behind a Pipeline⇄Cards
+switch; **drag a task onto a person to reassign it** on `/tasks`; **reorder the
+Now objectives in place on the dashboard**; and the steel board migrated off its
+own copy.
+
+⚠ **`OPPORTUNITY_PIPELINE` HAD EXISTED ALL ALONG AND HAD NEVER BEEN RENDERED AS
+A PIPELINE.** Six ordered stages in `src/lib/utils/opportunities.ts`, read by the
+detail layout, the milestones page and `records/live.ts` — and by nothing that
+draws a board. `/opportunities` was a flat grid, so the one surface where the
+order of those stages IS the information did not show it. A producer with no
+consumer, the exact mirror of the §12 line about a consumer written for a
+producer that never existed.
+
+⚠ **THE SAME SHAPE ON THE DASHBOARD, AND EVERY PIECE WAS ALREADY BUILT.**
+`NowObjectives` is a **numbered** list, so its order is a claim — and the only
+way to change that claim was to navigate to `/objectives` and drag it there. The
+numbers come from `sort_order`, the dashboard reads the FULL `now` bucket with
+no LIMIT, and `/api/objectives/reorder` already took exactly the payload a
+reorder produces. Three surfaces' worth of machinery, never joined up.
+
+⚠ **THE GESTURE HAD TO REFUSE WHAT THE SCHEMA CANNOT SAVE.** `objectives`
+carries `sort_order`; **`projects`, `opportunities` and `tasks` carry no order
+column** (verified against `database.ts`). So a within-lane reorder on those
+three would animate, hold optimistically, and snap back on the next server
+render. `reorderable` therefore defaults to **false** — the safe answer, since a
+board that forgets to opt in loses a nicety where one that forgets to opt out
+tells the reader something untrue — and the vertical arrows are refused outright
+rather than faked. The steel board gets `false` for a second reason: its
+within-column order is DERIVED (next-step date, then value), so a hand-dragged
+position would be overwritten by the next sort, not the next fetch.
+
+⚠ **AND THE HINT HAD TO COME FROM THE SAME PLACE AS THE KEYS.** `BoardHint`
+first took its own `reorderable` prop, to be kept in sync with the hook by hand
+— a hand-written enumeration beside a registry, which §12 says drifts, and
+whose drift here is a sentence naming a key that does nothing. Only the hook
+knows both the flag AND the lane count, and a **one-lane** reorder list has no
+horizontal move at all: the dashboard says *"the up and down arrow keys"*, the
+stage boards say *"the left and right arrow keys"*, and a render check asserts
+the dashboard does **not** say "left and right".
+
+⚠ **THE §12 TAILWIND-MERGE TRAP IS EVERYWHERE IN A DRAG, AND THE OLD CODE HAD
+ALREADY PAID FOR IT.** A held card and a drop target both want a signal, and
+every card already owns a `bg-*` and most own a `border-l-*` urgency tint — so
+every new signal is a **ring**. The steel board's old drop state was
+`border-primary/60 bg-primary/5` *in place of* the resting background, which is
+why its branch had to re-state the muted and normal cases to avoid deleting
+them; a ring needs no such branch.
+
+⚠ **AND THE HANDLE COULD NOT GO WHERE IT LOOKED LIKE IT SHOULD.** A `<button>`
+inside an `<a>` fires BOTH — the trap that forced `/attention`'s rows from Link
+to div — so on every card the handle is a **sibling** of the anchor, and
+`PipelineCard` was restructured from "the card IS the Link" to a wrapper holding
+both. The first draft also hung the handle's reveal on `group-hover:`, which is
+wrong twice: hover-reveal is the bug, and the five boards spell their group
+names differently (`group/card` vs bare `group`) while `group-hover/${name}:`
+cannot be built by interpolation. It now depends on no group at all.
+
+**Three findings that are not code.** (a) `/api/projects/[id]/stage` **did not
+validate the stage against the enum** — fine while its only caller was a
+`<select>` rendered from `STAGES`, and not fine now that a drag, a key press and
+a tap write that column, with lanes built from a URL parameter. §12: a value
+outside an enum fails the WHOLE query (`22P02`), which would have surfaced as a
+500 reading "invalid input value for enum". (b) `/api/objectives/reorder` has
+**no viewer check at all** and uses the service-role client — middleware is the
+boundary per §8, so not a hole, but it is the only one of these routes shaped
+that way. (c) The 10-17 density change's tap-target lesson had a survivor: the
+`Segmented` control was `h-7`, which is `calc(var(--spacing) * 7)` = **24.6px**,
+well under the 44px floor.
+
+**Verification. ⚠ AND THE REPO HAD NO WAY TO DO IT.** CLAUDE.md's own runbook
+records that `npm run build` **IS** the deploy here — the launchd job is
+`KeepAlive: true`, so replacing `.next` kills `next start` and launchd boots the
+new build within the minute — which makes "does this compile" indistinguishable
+from "ship it". `next build` has no `--distDir` flag (checked against
+`--help`), so `next.config.ts` now reads an optional `BW_DIST_DIR`; unset, the
+spread contributes no keys and the config is identical, so the runbook is
+unchanged. Two sharp edges, both found the hard way: **the path is resolved
+against the project root even when absolute** (`/tmp/x` wrote **151MB to
+`<repo>/tmp/x`**, inside the working tree, while reporting a clean build), and
+**`next build` rewrites `tsconfig.json`**, appending the dist dir's generated-
+types glob and reformatting the file — a real diff two sessions sharing this
+repo could stage by accident. Both are now in the config's own comment, the
+verify dirs are gitignored, and `git checkout -- tsconfig.json` is part of the
+documented command rather than an afterthought. ⚠ A third: writing that glob
+INTO the comment truncated the block comment — it contains the two characters
+that end one — and `tsc` reported an unterminated template literal 16 lines
+further down, naming neither the cause nor the line.
+
+⚠ **AND ONE CHECK I WROTE COULD NOT FAIL UNTIL A PLANTED VIOLATION PROVED IT.**
+The new render script asserts no bare `focus:` reaches the markup; the first
+version carried `(?<!group-)(?<!-)` lookbehinds, written to let
+`group-focus-visible:` through — which it never needed to, because `\bfocus:`
+requires the colon immediately after "focus" and so cannot match
+`focus-visible:` at all. What the lookbehinds DID do was **excuse
+`group-focus:` and `peer-focus:`**, which are bare-focus variants with exactly
+the same defect. Found by planting fifteen violations against the three
+structural checks, not by re-reading the regex.
+
+**729 tests** (697 + 32 new, all named and confirmed to run) and **90 render
+checks** over every column shape, every optional field absent, the empty board,
+and the three structural promises `tsc` cannot see: no `<button>` inside an
+`<a>`, no spacing-derived tap target, nothing rendering as `NaN`/`undefined`.
+Lint unchanged at **22** (13 errors, 9 warnings) throughout. Production build
+compiles, exit 0, 283 routes — against a throwaway dist dir, with the live
+`.next` verified untouched at its pre-session mtime and the app still
+answering. **NOT DEPLOYED — awaiting Richard's look**, because the half no
+measurement reaches is whether the gesture feels right on his hardware, and the
+build is the deploy.
+
+**What is deliberately NOT done.** `OrgStructureBoard` (1,668 lines) still has
+its own copy: it is a **tree**, where a drag means re-parenting a node in a
+hierarchy, and forcing that into a lane model would be the wrong shape rather
+than a shared one. `ObjectivesBoard` keeps its copy too — its reorder
+persistence is correct, complete and already handles the same off-by-one, so
+rewriting working drag logic ranked below giving it to the boards that had
+none.
+
+---
+
 **On ordering.** Mostly newest-first, with two pre-existing breaks that were deliberately *not* "fixed": re-sorting 118 entries would risk detaching the eleven `DB push status`, `Incident` and `LM STUDIO DRIFTED` annotations from the entries they belong to, for cosmetic gain. Read by date, not by position:
 
 - A block of **2026-08-23 → 2026-08-31** entries sits *after* the June entries, near the end of the file.
