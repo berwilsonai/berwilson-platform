@@ -6,6 +6,47 @@ This file is **not** auto-loaded into a Claude Code session. It is the archive: 
 
 Split out of `CLAUDE.md` on 2026-09-23, when that file reached 606k characters against a 150k limit above which it is silently truncated — meaning the project's own operating instructions had begun to risk not reaching the sessions that need them. The entries below are **verbatim and unedited**.
 
+**Done 2026-10-27 (the third attempt: dark mode back, 274 buttons, and the layout he was actually asking about):**
+
+Richard: *"I still want Dark Mode. I am not seeing different button shapes, layouts, etc that make this look more modern and polished. Legit can't see what you did other than put it in light mode by default."*
+
+Both halves fair, and the second one is the important one.
+
+⚠ **REMOVING DARK MODE WAS AN OVER-READING.** *"It doesn't need to be dark themed"* is permission, not a request, and it was taken as licence to delete a feature. The real bug was the stored preference silently overriding a changed default, and that was already fixed. Dark is back, the toggle is back, light stays the default. **The lesson is narrow and worth keeping: when a sentence licenses a removal, the removal still needs its own reason.**
+
+### ⚠ THE BUTTONS WERE THE COLOUR BUG AGAIN, EXACTLY
+
+Measured: **34 files import `<Button>`. 274 button class strings are hand-rolled.** So when 10-26 raised the primitive's sizes and padding — explicitly *"to stop buttons looking visibly timid next to the chunky primary actions that make Jobber and Attio feel like products"* — that change reached 34 files and missed 274 buttons. The same shape as the 2,214 raw colour classes that made two palette re-skins invisible, one layer up: **A PRIMITIVE ONLY STYLES WHAT USES IT.**
+
+The divergence from the primitive's own declared shape:
+
+| | hand-rolled | `ui/button.tsx` |
+|---|---|---|
+| radius | `rounded-md` ×264 | `rounded-lg` |
+| height | `h-8` ×98 | `h-9` |
+| type | `text-xs` ×120 | `text-sm` |
+| lift | `elev-1` on 2 filled | on all |
+
+Two button radii on every screen, and neither matched `Panel`. Converged by codemod (`scripts/codemod/button-shape.mjs`): 307 radii, 117 heights, 142 type sizes, 130 lifts. ⚠ Scoped to strings that are unambiguously a control — `inline-flex` + a height + a surface — because `inline-flex … rounded-md` alone also describes chips, avatars and icon wells, which must not grow. `h-7` (the primitive's own `xs`) and absolute touch targets are left alone.
+
+### The layout, which is what he actually asked about
+
+⚠ **TWO PASSES HAD MOVED COLOUR TOKENS AND CONTROL STYLING AND NEVER TOUCHED HOW A LIST IS SHAPED.** `/projects` offered a Kanban board and a grouped card list — **both of them card layouts**: one record per tile, four or five facts each, most of the screen spent on padding, four records visible at 1512×950. Every reference app in the brief leads with a **table**: one row per record, every column comparable down the page. Measured on the real portfolio: **12 records visible instead of 4.** That is the difference between an admin panel and a BI tool, and no amount of radius or shadow substitutes for it.
+
+`ProjectsTable` is the new default view — sortable columns, a sticky header, a stage dot carrying the funnel's one real signal into every row, and `rolledPipelineValue` so a program's figure is still its leaves'. The board stays: a bid funnel genuinely is a board, and the 10-26 drag primitive lives there.
+
+⚠ **THE STORAGE KEY IS NEW ON PURPOSE (`bw.projects.view.v2`).** Everyone who has ever opened that page has `'pipeline'` written in localStorage, so changing the DEFAULT would have reached nobody who uses the application — **which is precisely how the theme change failed to land four hours earlier.** A new key is the only way a default applies to existing readers. Same bug, same day, caught the second time.
+
+### The harness lied, and now it does not
+
+`BW_SHOOT_DARK` set the theme by navigating to `/dashboard#set-dark`, which is not a thing: `chrome --headless --screenshot` runs none of your script, so it can never reach `localStorage` before the pre-paint script reads it. **The flag existed, read plausibly, and was never once run** — which is how six screenshots were taken in the one theme the user was not in. Rewritten over the DevTools Protocol: open a tab, seed the key, reload, capture. ⚠ **And it now ASSERTS the theme applied before saving a frame**, because the failure being fixed is a switch that claimed to work.
+
+### ⚠ The ratchet earned its keep twice in one session
+
+`conventions.test.ts` failed the build for `StatTile` and again for `ProjectsTable`, both hand-rolling `rounded-lg border border-border bg-card elev-1` — a new shared primitive is exactly where the 228th copy of the card starts. Both use `<Panel>`.
+
+It also, correctly, went up to 236 when the buttons converged: a secondary button is `rounded-lg border border-border bg-card`, byte-identical to the card-shell pattern. **Raising the baseline was the easy move and would have made the ratchet mean less than it did before.** The scan was NARROWED instead — a class string carrying `inline-flex` and a height is a control, not a surface — and measured against the tree before and after, it returns **227 both times**, proving the convergence added no cards and that the old 231 was four buttons miscounted. The baseline came DOWN.
+
 **Done 2026-10-27 (the overhaul was invisible, and the half-measure is why):**
 
 Richard, an hour after the overhaul shipped: *"literally nothing look any different. I asked for a complete overhaul..."* — the second time in two days.
