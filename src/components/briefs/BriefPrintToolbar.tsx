@@ -25,11 +25,11 @@ export function BriefPrintToolbar({
   const href = backHref ?? (projectId ? `/projects/${projectId}` : '/')
   const label = backLabel ?? 'Project'
   return (
-    <div className="print:hidden sticky top-0 z-10 border-b border-slate-200 bg-white">
+    <div className="print:hidden sticky top-0 z-10 border-b border-border bg-white">
       <div className="mx-auto max-w-3xl px-8 py-3 flex items-center gap-3 flex-wrap">
         <Link
           href={href}
-          className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-900 transition-colors"
+          className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
         >
           <ArrowLeft size={14} /> {label}
         </Link>
@@ -38,11 +38,11 @@ export function BriefPrintToolbar({
           <ReadAloudButton
             text={text}
             iconSize={14}
-            className="h-9 px-3 rounded-lg border border-slate-200 text-sm text-slate-600 hover:text-slate-900 hover:bg-slate-50"
+            className="h-9 px-3 rounded-lg border border-border text-sm text-muted-foreground hover:text-foreground hover:bg-muted"
           />
           <button
             onClick={() => window.print()}
-            className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg bg-slate-900 text-white text-sm font-medium hover:bg-slate-700 transition-colors"
+            className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg bg-foreground text-background text-sm font-medium hover:bg-foreground/90 transition-colors"
           >
             <Printer size={15} /> Print / Save PDF
           </button>

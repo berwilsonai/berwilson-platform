@@ -226,8 +226,8 @@ export default async function InvestorDetailPage({ params }: PageProps) {
         <div className={cn(
           'rounded-md px-3 py-2 text-sm font-medium ring-1 ring-inset',
           s === 'passed'
-            ? 'bg-red-50 text-red-600 ring-red-200 dark:bg-red-500/15 dark:text-red-300 dark:ring-red-500/30'
-            : 'bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-500/15 dark:text-amber-300 dark:ring-amber-500/30'
+            ? 'bg-critical-surface text-critical ring-critical-edge'
+            : 'bg-caution-surface text-caution ring-caution-edge'
         )}>
           {INVESTOR_STAGE_LABELS[s]}
         </div>
@@ -282,7 +282,7 @@ export default async function InvestorDetailPage({ params }: PageProps) {
             label="Next Step By"
             value={
               investor.next_step_date ? (
-                <span className={cn(nextOverdue && 'text-amber-600 dark:text-amber-400 font-medium')}>
+                <span className={cn(nextOverdue && 'text-caution font-medium')}>
                   {formatDate(investor.next_step_date)}
                   {nextOverdue && ' · overdue'}
                 </span>
@@ -298,14 +298,14 @@ export default async function InvestorDetailPage({ params }: PageProps) {
           className={cn(
             'rounded-lg border px-4 py-3',
             nextOverdue
-              ? 'border-amber-300 bg-amber-50 dark:border-amber-500/40 dark:bg-amber-500/10'
+              ? 'border-caution-edge bg-caution-surface'
               : 'border-primary/30 bg-primary/5'
           )}
         >
           <span
             className={cn(
               'text-[11px] uppercase tracking-wide font-semibold',
-              nextOverdue ? 'text-amber-700 dark:text-amber-400' : 'text-primary'
+              nextOverdue ? 'text-caution' : 'text-primary'
             )}
           >
             Next Step{nextOverdue && ' — Overdue'}
@@ -313,7 +313,7 @@ export default async function InvestorDetailPage({ params }: PageProps) {
           <p className="text-sm text-foreground mt-0.5">
             {investor.next_step}
             {investor.next_step_date && (
-              <span className={cn(nextOverdue ? 'text-amber-700 dark:text-amber-400' : 'text-muted-foreground')}>
+              <span className={cn(nextOverdue ? 'text-caution' : 'text-muted-foreground')}>
                 {' '}— by {formatDate(investor.next_step_date)}
               </span>
             )}

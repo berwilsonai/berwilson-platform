@@ -121,7 +121,7 @@ function Stat({
   sub?: string
   tone?: 'indigo' | 'emerald'
 }) {
-  const dot = tone === 'indigo' ? 'bg-indigo-500' : tone === 'emerald' ? 'bg-emerald-500' : null
+  const dot = tone === 'indigo' ? 'bg-indigo-500' : tone === 'emerald' ? 'bg-positive' : null
   return (
     <div className="rounded-lg border border-border bg-card px-4 py-3 elev-1">
       <p className="flex items-center gap-1.5 text-[11px] uppercase tracking-wide text-muted-foreground">

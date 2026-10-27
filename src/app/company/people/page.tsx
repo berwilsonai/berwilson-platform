@@ -28,8 +28,8 @@ export default async function PersonnelPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-3">
-        <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-slate-100 dark:bg-slate-900/40">
-          <Users size={20} className="text-slate-500 dark:text-slate-400" />
+        <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-muted dark:bg-muted/40">
+          <Users size={20} className="text-muted-foreground" />
         </div>
         <div>
           <h1 className="text-xl font-semibold">Personnel register</h1>

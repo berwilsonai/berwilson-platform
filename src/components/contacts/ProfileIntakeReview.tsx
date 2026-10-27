@@ -56,10 +56,10 @@ const ACTION_LABEL: Record<Action, string> = {
 }
 
 const EVIDENCE_TONE: Record<PersonProfileDraft['evidence'], string> = {
-  mail: 'bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:ring-emerald-900',
+  mail: 'bg-positive-surface text-positive ring-positive-edge',
   directory: 'bg-indigo-50 text-indigo-700 ring-indigo-200 dark:bg-indigo-950/40 dark:text-indigo-300 dark:ring-indigo-900',
-  web: 'bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:ring-amber-900',
-  none: 'bg-slate-100 text-slate-600 ring-slate-200 dark:bg-slate-800/60 dark:text-slate-400 dark:ring-slate-700',
+  web: 'bg-caution-surface text-caution ring-caution-edge',
+  none: 'bg-muted text-muted-foreground ring-border dark:bg-muted/60',
 }
 
 const EVIDENCE_LABEL: Record<PersonProfileDraft['evidence'], string> = {
@@ -275,7 +275,7 @@ export default function ProfileIntakeReview({ sessionId, draft, projects, opport
           <p className="text-xs text-muted-foreground">Mailboxes read: {stats.mailboxes.join(', ')}</p>
         )}
         {(draft.notes ?? []).map((n, i) => (
-          <p key={i} className="text-xs text-amber-700 dark:text-amber-400">{n}</p>
+          <p key={i} className="text-xs text-caution">{n}</p>
         ))}
       </div>
 
@@ -439,9 +439,9 @@ function PersonCard({
 
       {/* Why this row found nothing, or found something uncertain */}
       {source.note && (
-        <div className="flex items-start gap-2 rounded-md border border-amber-300/60 dark:border-amber-800/60 bg-amber-50/70 dark:bg-amber-950/30 px-3 py-2">
-          <AlertTriangle size={14} className="mt-0.5 shrink-0 text-amber-700 dark:text-amber-400" />
-          <p className="text-xs text-amber-800 dark:text-amber-300">{source.note}</p>
+        <div className="flex items-start gap-2 rounded-md border border-caution-edge/60 bg-caution-surface/70 px-3 py-2">
+          <AlertTriangle size={14} className="mt-0.5 shrink-0 text-caution" />
+          <p className="text-xs text-caution">{source.note}</p>
         </div>
       )}
 
@@ -589,7 +589,7 @@ function PersonCard({
               )}
 
               {source.research_error && (
-                <p className="text-xs text-amber-700 dark:text-amber-400">
+                <p className="text-xs text-caution">
                   Web research did not run: {source.research_error}
                 </p>
               )}

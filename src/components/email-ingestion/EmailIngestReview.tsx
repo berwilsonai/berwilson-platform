@@ -600,7 +600,7 @@ export default function EmailIngestReview({
                   <p className="text-xs text-muted-foreground truncate">
                     {[p.role, p.company, p.email].filter(Boolean).join(' · ') || '—'}
                     {p.action === 'link' && p.existing_name && (
-                      <span className="text-emerald-600 dark:text-emerald-400"> · matches {p.existing_name}</span>
+                      <span className="text-positive"> · matches {p.existing_name}</span>
                     )}
                   </p>
                 </div>
@@ -701,7 +701,7 @@ export default function EmailIngestReview({
                   <p className="text-sm font-medium truncate">{a.name}</p>
                   <p className="text-xs text-muted-foreground truncate">
                     {formatBytes(a.size_bytes)} · from “{a.thread_subject}”
-                    {a.analyzed && <span className="text-emerald-600 dark:text-emerald-400"> · content in report</span>}
+                    {a.analyzed && <span className="text-positive"> · content in report</span>}
                   </p>
                 </div>
                 <button

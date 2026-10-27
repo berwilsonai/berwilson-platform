@@ -4,12 +4,12 @@ import { cn } from '@/lib/utils'
 
 /** Text color to match each stage's identity — used for labels */
 const STAGE_TEXT: Record<ProjectStage, string> = {
-  pursuit: 'text-slate-500 dark:text-slate-400',
+  pursuit: 'text-muted-foreground',
   capture: 'text-violet-600 dark:text-violet-400',
-  bid: 'text-amber-600 dark:text-amber-400',
-  award: 'text-blue-600 dark:text-blue-400',
+  bid: 'text-caution',
+  award: 'text-info',
   mobilization: 'text-cyan-600 dark:text-cyan-400',
-  execution: 'text-emerald-600 dark:text-emerald-400',
+  execution: 'text-positive',
   closeout: 'text-indigo-600 dark:text-indigo-400',
 }
 
@@ -37,7 +37,7 @@ export default function StageIndicator({
                 'h-1.5 rounded-full transition-all',
                 i <= currentIndex
                   ? cn('w-3', STAGE_COLOR[s])
-                  : 'w-3 bg-slate-200 dark:bg-slate-900/60',
+                  : 'w-3 bg-muted dark:bg-muted/60',
                 i === currentIndex && 'w-4'
               )}
             />
@@ -61,7 +61,7 @@ export default function StageIndicator({
               'h-2 flex-1 rounded-sm',
               i <= currentIndex
                 ? STAGE_COLOR[s]
-                : 'bg-slate-200 dark:bg-slate-900/60'
+                : 'bg-muted dark:bg-muted/60'
             )}
           />
         ))}

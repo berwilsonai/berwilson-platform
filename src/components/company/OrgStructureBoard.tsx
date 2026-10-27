@@ -48,7 +48,7 @@ const fieldClass =
   'h-8 rounded-md border border-input bg-background px-2.5 text-sm outline-none focus-visible:ring-3 focus-visible:ring-ring/50'
 
 const OPEN_BADGE =
-  'bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-500/15 dark:text-amber-300 dark:ring-amber-500/30'
+  'bg-caution-surface text-caution ring-caution-edge'
 
 type DeleteTarget =
   | { type: 'node'; id: string; title: string; description: string }
@@ -1421,7 +1421,7 @@ function StaffSection({
                   </button>
                   <button
                     onClick={() => onDeletePerson(person)}
-                    className="inline-flex items-center justify-center size-6 rounded-md text-muted-foreground/60 hover:bg-muted hover:text-red-600 dark:hover:text-red-400 transition-colors"
+                    className="inline-flex items-center justify-center size-6 rounded-md text-muted-foreground/60 hover:bg-muted hover:text-critical dark:hover:text-critical transition-colors"
                     aria-label={`Remove ${person.name ?? person.role}`}
                   >
                     <X size={13} />
@@ -1657,7 +1657,7 @@ function MenuItem({
       className={cn(
         'w-full flex items-center gap-2 px-3 py-1.5 text-sm text-left transition-colors disabled:opacity-40',
         destructive
-          ? 'text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10'
+          ? 'text-critical hover:bg-critical-surface dark:hover:bg-critical/10'
           : 'text-foreground hover:bg-accent',
       )}
     >

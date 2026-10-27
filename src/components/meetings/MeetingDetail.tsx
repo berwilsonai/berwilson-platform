@@ -183,7 +183,7 @@ export default function MeetingDetail({ meeting, files, onFilesChange, canEdit, 
                 <Chip tone={MEETING_KIND_BADGE[kind]}>{MEETING_KIND_LABELS[kind]}</Chip>
                 <Chip tone={MEETING_STATUS_BADGE[status]}>{MEETING_STATUS_LABELS[status]}</Chip>
                 {meeting.confidential && (
-                  <Chip tone="bg-red-50 text-red-700 ring-red-200 dark:bg-red-950/40 dark:text-red-300 dark:ring-red-800/60">
+                  <Chip tone="bg-critical-surface text-critical ring-critical-edge">
                     <Lock size={11} /> Confidential
                   </Chip>
                 )}
@@ -277,12 +277,12 @@ export default function MeetingDetail({ meeting, files, onFilesChange, canEdit, 
                 </>
               ) : transStatus === 'error' ? (
                 <>
-                  <span className="flex-1 text-red-600 dark:text-red-400">Transcription failed.</span>
+                  <span className="flex-1 text-critical">Transcription failed.</span>
                   <Button variant="outline" onClick={() => transcribe(true)} className="h-7">Try again</Button>
                 </>
               ) : hasTranscript ? (
                 <>
-                  <CheckCircle2 size={15} className="text-emerald-600 dark:text-emerald-400 shrink-0" />
+                  <CheckCircle2 size={15} className="text-positive shrink-0" />
                   <span className="flex-1">Transcript ready (Whisper).</span>
                   <Button variant="outline" onClick={() => transcribe(true)} className="h-7">Re-transcribe</Button>
                 </>

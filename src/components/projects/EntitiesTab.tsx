@@ -55,13 +55,13 @@ const ENTITY_TYPE_LABELS: Record<EntityType, string> = {
 }
 
 const ENTITY_TYPE_STYLES: Record<EntityType, string> = {
-  llc: 'bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 ring-blue-200 dark:ring-blue-800/60',
+  llc: 'bg-info-surface text-info ring-info-edge',
   corp: 'bg-violet-50 dark:bg-violet-950/40 text-violet-700 dark:text-violet-300 ring-violet-200 dark:ring-violet-800/60',
-  jv: 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 ring-emerald-200 dark:ring-emerald-800/60',
-  subsidiary: 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 ring-amber-200 dark:ring-amber-800/60',
+  jv: 'bg-positive-surface text-positive ring-positive-edge',
+  subsidiary: 'bg-caution-surface text-caution ring-caution-edge',
   trust: 'bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 ring-rose-200 dark:ring-rose-800/60',
   fund: 'bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 ring-indigo-200 dark:ring-indigo-800/60',
-  other: 'bg-slate-50 dark:bg-slate-950/40 text-slate-600 dark:text-slate-400 ring-slate-200 dark:ring-slate-800/60',
+  other: 'bg-muted dark:bg-muted/40 text-muted-foreground ring-border dark:ring-border/60',
 }
 
 const RELATIONSHIPS = ['owner', 'jv_partner', 'sub_entity', 'guarantor', 'vendor', 'subcontractor', 'consultant', 'partner'] as const
@@ -338,7 +338,7 @@ function EntityTreeNode({
         )}
 
         {isLinked && (
-          <span className="shrink-0 inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium ring-1 ring-inset bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 ring-emerald-200 dark:ring-emerald-800/60">
+          <span className="shrink-0 inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium ring-1 ring-inset bg-positive-surface text-positive ring-positive-edge">
             On project
           </span>
         )}
@@ -678,7 +678,7 @@ export default function EntitiesTab({
           excludeId={editEntity?.id}
         />
 
-        {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+        {error && <p className="text-sm text-critical">{error}</p>}
 
         <div className="flex items-center gap-2 border-t border-border pt-5">
           <button
@@ -700,7 +700,7 @@ export default function EntitiesTab({
           {isEdit && editEntity && (
             <button
               onClick={() => setPendingConfirm({ kind: 'delete-entity', entity: editEntity })}
-              className="ml-auto inline-flex items-center gap-1.5 h-9 px-3 rounded-md border border-red-200 dark:border-red-800/60 text-red-600 dark:text-red-400 text-sm font-medium hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors"
+              className="ml-auto inline-flex items-center gap-1.5 h-9 px-3 rounded-md border border-critical-edge text-critical text-sm font-medium hover:bg-critical-surface dark:hover:bg-critical-surface/40 transition-colors"
             >
               <Trash2 size={14} />
               Delete
@@ -806,7 +806,7 @@ export default function EntitiesTab({
                 />
               </FormField>
             </div>
-            {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+            {error && <p className="text-sm text-critical">{error}</p>}
             <div className="flex items-center gap-2">
               <button
                 onClick={handleLink}
@@ -898,7 +898,7 @@ export default function EntitiesTab({
                           </FormField>
                         </div>
                       </div>
-                      {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+                      {error && <p className="text-sm text-critical">{error}</p>}
                       <div className="flex items-center gap-2">
                         <button
                           onClick={() => handleUpdateLink(ep)}
@@ -952,7 +952,7 @@ export default function EntitiesTab({
                         <button
                           onClick={() => setPendingConfirm({ kind: 'unlink', ep })}
                           title="Remove from project"
-                          className="h-7 w-7 flex items-center justify-center rounded text-muted-foreground hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors"
+                          className="h-7 w-7 flex items-center justify-center rounded text-muted-foreground hover:text-critical dark:hover:text-critical hover:bg-critical-surface dark:hover:bg-critical-surface/40 transition-colors"
                         >
                           <Link2Off size={12} />
                         </button>

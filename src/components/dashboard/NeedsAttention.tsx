@@ -204,7 +204,7 @@ export default function NeedsAttention({ reviewItems, overdueItems, ddItems, rev
             <div className="rounded-md bg-muted/30 p-3">
               <div className="flex items-center gap-1.5 mb-2">
                 <span className="size-1.5 rounded-full bg-critical shrink-0" />
-                <ListChecks size={12} className="text-red-500 dark:text-red-400 shrink-0" />
+                <ListChecks size={12} className="text-critical shrink-0" />
                 <span className="label-caps text-muted-foreground">
                   Overdue Tasks
                 </span>
@@ -224,7 +224,7 @@ export default function NeedsAttention({ reviewItems, overdueItems, ddItems, rev
                       </p>
                     </div>
                     {t.due_date && (
-                      <span className="shrink-0 text-xs font-medium text-red-600 dark:text-red-400 tnum">
+                      <span className="shrink-0 text-xs font-medium text-critical tnum">
                         {daysOverdue(t.due_date)}d
                       </span>
                     )}
@@ -247,7 +247,7 @@ export default function NeedsAttention({ reviewItems, overdueItems, ddItems, rev
             <div className="rounded-md bg-muted/30 p-3">
               <div className="flex items-center gap-1.5 mb-2">
                 <span className="size-1.5 rounded-full bg-critical shrink-0" />
-                <HandCoins size={12} className="text-red-500 dark:text-red-400 shrink-0" />
+                <HandCoins size={12} className="text-critical shrink-0" />
                 <span className="label-caps text-muted-foreground">
                   Investor Follow-ups
                 </span>
@@ -267,7 +267,7 @@ export default function NeedsAttention({ reviewItems, overdueItems, ddItems, rev
                       </p>
                     </div>
                     {inv.next_step_date && (
-                      <span className="shrink-0 text-xs font-medium text-red-600 dark:text-red-400 tnum">
+                      <span className="shrink-0 text-xs font-medium text-critical tnum">
                         {daysOverdue(inv.next_step_date)}d
                       </span>
                     )}
@@ -287,7 +287,7 @@ export default function NeedsAttention({ reviewItems, overdueItems, ddItems, rev
             <div className="rounded-md bg-muted/30 p-3">
               <div className="flex items-center gap-1.5 mb-2">
                 <span className="size-1.5 rounded-full bg-caution shrink-0" />
-                <Wrench size={12} className="text-amber-500 dark:text-amber-400 shrink-0" />
+                <Wrench size={12} className="text-caution shrink-0" />
                 <span className="label-caps text-muted-foreground">
                   Dino Payments
                 </span>
@@ -311,7 +311,7 @@ export default function NeedsAttention({ reviewItems, overdueItems, ddItems, rev
                         </p>
                       </div>
                       {p.due_date && (
-                        <span className={cn('shrink-0 text-xs font-medium tnum', overdue ? 'text-red-600 dark:text-red-400' : 'text-amber-600 dark:text-amber-400')}>
+                        <span className={cn('shrink-0 text-xs font-medium tnum', overdue ? 'text-critical' : 'text-caution')}>
                           {overdue ? `${daysOverdue(p.due_date)}d` : ''}
                         </span>
                       )}
@@ -332,7 +332,7 @@ export default function NeedsAttention({ reviewItems, overdueItems, ddItems, rev
             <div className="rounded-md bg-muted/30 p-3">
               <div className="flex items-center gap-1.5 mb-2">
                 <span className="size-1.5 rounded-full bg-caution shrink-0" />
-                <Radar size={12} className="text-amber-500 dark:text-amber-400 shrink-0" />
+                <Radar size={12} className="text-caution shrink-0" />
                 <span className="label-caps text-muted-foreground">
                   Inbound Leads
                 </span>
@@ -361,8 +361,8 @@ export default function NeedsAttention({ reviewItems, overdueItems, ddItems, rev
                           className={cn(
                             'shrink-0 text-xs font-medium tnum',
                             overdue
-                              ? 'text-red-600 dark:text-red-400'
-                              : 'text-amber-600 dark:text-amber-400'
+                              ? 'text-critical'
+                              : 'text-caution'
                           )}
                         >
                           {overdue ? `${daysOverdue(l.bid_due_date)}d` : ''}
@@ -405,7 +405,7 @@ export default function NeedsAttention({ reviewItems, overdueItems, ddItems, rev
                       <p className="text-xs text-muted-foreground mt-0.5">
                         {reviewReasonLabel(item.reason)}
                         {item.confidence != null && (
-                          <span className="ml-1 text-amber-600 dark:text-amber-400">
+                          <span className="ml-1 text-caution">
                             {Math.round(item.confidence * 100)}%
                           </span>
                         )}
@@ -438,7 +438,7 @@ export default function NeedsAttention({ reviewItems, overdueItems, ddItems, rev
             <div className="rounded-md bg-muted/30 p-3">
               <div className="flex items-center gap-1.5 mb-2">
                 <span className="size-1.5 rounded-full bg-critical shrink-0" />
-                <CalendarClock size={12} className="text-red-500 dark:text-red-400 shrink-0" />
+                <CalendarClock size={12} className="text-critical shrink-0" />
                 <span className="label-caps text-muted-foreground">
                   Overdue Milestones
                 </span>
@@ -458,7 +458,7 @@ export default function NeedsAttention({ reviewItems, overdueItems, ddItems, rev
                       </p>
                     </div>
                     {m.target_date && (
-                      <span className="shrink-0 text-xs font-medium text-red-600 dark:text-red-400 tnum">
+                      <span className="shrink-0 text-xs font-medium text-critical tnum">
                         {daysOverdue(m.target_date)}d
                       </span>
                     )}
@@ -481,7 +481,7 @@ export default function NeedsAttention({ reviewItems, overdueItems, ddItems, rev
             <div className="rounded-md bg-muted/30 p-3">
               <div className="flex items-center gap-1.5 mb-2">
                 <span className="size-1.5 rounded-full bg-caution shrink-0" />
-                <TrendingUp size={12} className="text-red-500 dark:text-red-400 shrink-0" />
+                <TrendingUp size={12} className="text-critical shrink-0" />
                 <span className="label-caps text-muted-foreground">
                   Due Diligence
                 </span>

@@ -39,10 +39,10 @@ type PayoutState = 'unset' | 'projected' | 'owed' | 'paid'
 
 function StatusPill({ state }: { state: PayoutState }) {
   const tone: Record<PayoutState, string> = {
-    unset: 'bg-slate-50 text-slate-500 ring-slate-200 dark:bg-slate-400/10 dark:text-slate-400 dark:ring-slate-400/20',
-    projected: 'bg-slate-100 text-slate-600 ring-slate-200 dark:bg-slate-400/15 dark:text-slate-300 dark:ring-slate-400/25',
-    owed: 'bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-500/15 dark:text-amber-300 dark:ring-amber-500/30',
-    paid: 'bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-500/15 dark:text-emerald-300 dark:ring-emerald-500/30',
+    unset: 'bg-muted text-muted-foreground ring-border dark:bg-muted-foreground/10 dark:ring-border/20',
+    projected: 'bg-muted text-muted-foreground ring-border dark:bg-muted-foreground/15 dark:ring-border/25',
+    owed: 'bg-caution-surface text-caution ring-caution-edge',
+    paid: 'bg-positive-surface text-positive ring-positive-edge',
   }
   const label: Record<PayoutState, string> = {
     unset: 'Not set',

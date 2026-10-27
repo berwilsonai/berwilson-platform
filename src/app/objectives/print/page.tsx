@@ -70,18 +70,18 @@ export default async function ObjectivesPrintPage({ searchParams }: PageProps) {
   }))
 
   return (
-    <div className="min-h-full bg-white text-slate-900">
+    <div className="min-h-full bg-white text-foreground">
       <PrintToolbar bucket={selected ?? 'all'} />
 
       <div className="mx-auto max-w-3xl px-8 py-10 print:max-w-none print:px-0 print:py-0">
         {/* Letterhead */}
-        <header className="flex items-start justify-between gap-4 pb-6 border-b-2 border-slate-900">
+        <header className="flex items-start justify-between gap-4 pb-6 border-b-2 border-border">
           <div>
             <h1 className="text-2xl font-semibold tracking-tight">
               Strategic Objectives
-              {selected && <span className="text-slate-500"> — {OBJECTIVE_BUCKET_LABELS[selected]}</span>}
+              {selected && <span className="text-muted-foreground"> — {OBJECTIVE_BUCKET_LABELS[selected]}</span>}
             </h1>
-            <p className="text-sm text-slate-500 mt-1">
+            <p className="text-sm text-muted-foreground mt-1">
               Ber Wilson · Prepared <PreparedDate />
             </p>
           </div>
@@ -91,7 +91,7 @@ export default async function ObjectivesPrintPage({ searchParams }: PageProps) {
         {/* Sections */}
         {sections.map(({ bucket, items }) => (
           <section key={bucket} className="mt-8 break-inside-avoid-page">
-            <h2 className="text-xs font-semibold uppercase tracking-[0.15em] text-slate-500 pb-2 border-b border-slate-200">
+            <h2 className="text-xs font-semibold uppercase tracking-[0.15em] text-muted-foreground pb-2 border-b border-border">
               {OBJECTIVE_BUCKET_LABELS[bucket]}
               <span className="ml-2 font-normal normal-case tracking-normal">
                 {items.length} objective{items.length === 1 ? '' : 's'}
@@ -99,28 +99,28 @@ export default async function ObjectivesPrintPage({ searchParams }: PageProps) {
             </h2>
 
             {items.length === 0 ? (
-              <p className="mt-3 text-sm text-slate-400">None.</p>
+              <p className="mt-3 text-sm text-muted-foreground">None.</p>
             ) : (
               <ol className="mt-1 divide-y divide-slate-100">
                 {items.map((obj, idx) => (
                   <li key={obj.id} className="flex items-start gap-4 py-4 break-inside-avoid">
-                    <span className="shrink-0 mt-0.5 inline-flex items-center justify-center size-7 rounded-full bg-slate-900 text-white text-sm font-semibold tnum">
+                    <span className="shrink-0 mt-0.5 inline-flex items-center justify-center size-7 rounded-full bg-foreground text-background text-sm font-semibold tnum">
                       {idx + 1}
                     </span>
                     <div className="min-w-0 flex-1">
                       <p className="text-base font-medium leading-snug">
                         {obj.title}
                         {objectiveHealth(obj.health) !== 'on_track' && (
-                          <span className="ml-2 inline-flex items-center rounded border border-slate-300 px-1.5 py-0.5 label-caps text-slate-600 align-middle">
+                          <span className="ml-2 inline-flex items-center rounded border border-border px-1.5 py-0.5 label-caps text-muted-foreground align-middle">
                             {OBJECTIVE_HEALTH_LABELS[objectiveHealth(obj.health)]}
                           </span>
                         )}
                       </p>
                       {obj.note && (
-                        <p className="text-sm text-slate-600 mt-1 whitespace-pre-line">{obj.note}</p>
+                        <p className="text-sm text-muted-foreground mt-1 whitespace-pre-line">{obj.note}</p>
                       )}
                       {(obj.owner || obj.target_date) && (
-                        <p className="text-xs text-slate-500 mt-1.5">
+                        <p className="text-xs text-muted-foreground mt-1.5">
                           {obj.owner && <>Owner: {obj.owner.name}</>}
                           {obj.owner && obj.target_date && ' · '}
                           {obj.target_date && <>Target: {formatTargetDate(obj.target_date)}</>}
@@ -134,7 +134,7 @@ export default async function ObjectivesPrintPage({ searchParams }: PageProps) {
           </section>
         ))}
 
-        <footer className="mt-12 pt-4 border-t border-slate-200 text-xs text-slate-400">
+        <footer className="mt-12 pt-4 border-t border-border text-xs text-muted-foreground">
           Ber Wilson — internal working document
         </footer>
       </div>

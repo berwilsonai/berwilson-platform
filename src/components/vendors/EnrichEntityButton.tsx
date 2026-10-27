@@ -101,7 +101,7 @@ export default function EnrichEntityButton({
 
   if (state === 'done') {
     return (
-      <div className="flex items-center gap-2 h-8 px-3 rounded-md bg-green-50 dark:bg-green-950/40 border border-green-200 dark:border-green-800/60 text-green-700 dark:text-green-300 text-xs w-full justify-center">
+      <div className="flex items-center gap-2 h-8 px-3 rounded-md bg-positive-surface border border-positive-edge text-positive text-xs w-full justify-center">
         <CheckCircle2 size={12} />
         Enriched! Reloading…
       </div>
@@ -150,7 +150,7 @@ export default function EnrichEntityButton({
             <p className="text-xs text-muted-foreground font-medium">Specialties</p>
             <div className="flex flex-wrap gap-1 mt-0.5">
               {preview.specialties.map(s => (
-                <span key={s} className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-blue-50 dark:bg-blue-950/40 text-xs text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800/60">
+                <span key={s} className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-info-surface text-xs text-info border border-info-edge">
                   <Tag size={8} />
                   {s}
                 </span>
@@ -167,10 +167,10 @@ export default function EnrichEntityButton({
         )}
 
         {conflicts.length > 0 && (
-          <div className="rounded bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 p-2">
-            <p className="text-xs font-medium text-amber-800 dark:text-amber-300 mb-1">Conflicts (won&apos;t overwrite):</p>
+          <div className="rounded bg-caution-surface border border-caution-edge p-2">
+            <p className="text-xs font-medium text-caution mb-1">Conflicts (won&apos;t overwrite):</p>
             {conflicts.map(c => (
-              <p key={c.field} className="text-xs text-amber-700 dark:text-amber-300">
+              <p key={c.field} className="text-xs text-caution">
                 {c.field}: &quot;{c.current}&quot; → &quot;{c.enriched}&quot;
               </p>
             ))}

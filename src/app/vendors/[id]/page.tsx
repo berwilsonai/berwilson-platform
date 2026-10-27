@@ -105,7 +105,7 @@ export default async function VendorDetailPage({ params }: PageProps) {
           governance registers hang off. Saying so beats a page that looks live
           and is nobody's source of truth. */}
       {mergedInto && (
-        <div className="flex items-center gap-2.5 px-4 py-3 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 text-amber-800 dark:text-amber-300 text-sm">
+        <div className="flex items-center gap-2.5 px-4 py-3 rounded-lg bg-caution-surface border border-caution-edge text-caution text-sm">
           <span>
             This vendor now lives in the Directory as{' '}
             <Link href={`/contacts/${mergedInto.id}`} className="font-semibold underline underline-offset-2">
@@ -167,7 +167,7 @@ export default async function VendorDetailPage({ params }: PageProps) {
           {entity.quality_score && (
             <div className="text-center">
               <div className="flex items-center gap-1">
-                <Star size={14} className="text-amber-500 dark:text-amber-400 fill-amber-500" />
+                <Star size={14} className="text-caution fill-amber-500" />
                 <span className="text-lg font-semibold">{Number(entity.quality_score).toFixed(1)}</span>
               </div>
               <span className="text-xs text-muted-foreground">Your Rating</span>
@@ -176,7 +176,7 @@ export default async function VendorDetailPage({ params }: PageProps) {
           {entity.confidence_score && (
             <div className="text-center">
               <div className="flex items-center gap-1">
-                <CheckCircle2 size={14} className="text-green-500 dark:text-green-400" />
+                <CheckCircle2 size={14} className="text-positive" />
                 <span className="text-lg font-semibold">{Number(entity.confidence_score).toFixed(1)}</span>
               </div>
               <span className="text-xs text-muted-foreground">Confidence</span>

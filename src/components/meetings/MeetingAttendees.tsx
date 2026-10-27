@@ -165,7 +165,7 @@ export default function MeetingAttendees({ attendees, onChange, teamMembers, con
                   </button>
                 </div>
                 {linked && (
-                  <span className="inline-flex items-center gap-1.5 h-6 px-2 rounded border border-emerald-300 dark:border-emerald-700/60 bg-emerald-50/60 dark:bg-emerald-950/40 text-[11px] text-emerald-700 dark:text-emerald-300">
+                  <span className="inline-flex items-center gap-1.5 h-6 px-2 rounded border border-positive-edge bg-positive-surface/60 text-[11px] text-positive">
                     <CheckCircle2 size={11} />
                     {linked === 'team' ? 'Ber Wilson team member' : 'Linked contact'}
                     <button

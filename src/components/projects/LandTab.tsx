@@ -137,8 +137,8 @@ export default function LandTab({ projectId, parcels, canEdit }: LandTabProps) {
       )}
 
       {totals.disputed.length > 0 && (
-        <Panel className="border-amber-300 px-4 py-3 dark:border-amber-800">
-          <div className="label-caps text-amber-700 dark:text-amber-400">
+        <Panel className="border-caution-edge px-4 py-3">
+          <div className="label-caps text-caution">
             Acreage disagreement
           </div>
           <p className="mt-1.5 text-sm text-muted-foreground">
@@ -229,7 +229,7 @@ export default function LandTab({ projectId, parcels, canEdit }: LandTabProps) {
                       <td
                         className={
                           'tnum px-3 py-2 text-right ' +
-                          (disputed ? 'text-amber-700 dark:text-amber-400' : '')
+                          (disputed ? 'text-caution' : '')
                         }
                       >
                         {p.assessor_acres != null ? acresLabel(p.assessor_acres) : (

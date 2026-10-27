@@ -123,7 +123,7 @@ export function SteelQuoteList({ dealId, quotes, blockers, warnings, canApprove,
         </div>
 
         {templateMissing && (
-          <p className="mt-3 rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
+          <p className="mt-3 rounded-md bg-caution-surface px-3 py-2 text-xs text-caution">
             The quote template has not been created yet. An admin needs to seed it before any quote
             can be generated.
           </p>
@@ -147,7 +147,7 @@ export function SteelQuoteList({ dealId, quotes, blockers, warnings, canApprove,
 
         {warnings.length > 0 && (
           <div className="mt-3 rounded-md bg-muted/30 p-3">
-            <p className="label-caps flex items-center gap-1.5 text-amber-700 dark:text-amber-300">
+            <p className="label-caps flex items-center gap-1.5 text-caution">
               <AlertTriangle className="size-3.5" /> Worth checking
             </p>
             <ul className="mt-2 space-y-1.5">
@@ -181,7 +181,7 @@ export function SteelQuoteList({ dealId, quotes, blockers, warnings, canApprove,
                       </span>
                       <Chip tone={QUOTE_STATUS_BADGE[status]}>{QUOTE_STATUS_LABELS[status]}</Chip>
                       {q.below_floor && (
-                        <Chip tone="bg-amber-100 text-amber-800 ring-amber-200 dark:bg-amber-900/40 dark:text-amber-200 dark:ring-amber-900">
+                        <Chip tone="bg-caution-surface text-caution ring-caution-edge">
                           Below floor
                         </Chip>
                       )}

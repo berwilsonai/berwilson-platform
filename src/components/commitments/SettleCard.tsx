@@ -83,7 +83,7 @@ export default function SettleCard({
     return (
       <div className="rounded-lg border border-border bg-card p-6 elev-1">
         <div className="flex items-center gap-2">
-          <Check className="size-5 text-emerald-600 dark:text-emerald-400" aria-hidden />
+          <Check className="size-5 text-positive" aria-hidden />
           <h1 className="text-base font-semibold">{COPY[settled].label}</h1>
         </div>
         <p className="mt-2 text-sm text-muted-foreground">{COPY[settled].done}</p>
@@ -157,7 +157,7 @@ export default function SettleCard({
       </div>
 
       {error && (
-        <p role="alert" className="mt-3 text-sm text-red-600 dark:text-red-400">
+        <p role="alert" className="mt-3 text-sm text-critical">
           {error}
         </p>
       )}

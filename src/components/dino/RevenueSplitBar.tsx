@@ -39,7 +39,7 @@ export default function RevenueSplitBar({ buckets }: { buckets: PeriodBucket[] }
                 </span>
               )}
               <div
-                className={cn('bg-slate-300 dark:bg-slate-600', b.external > 0 && 'rounded-t-sm', b.internal === 0 && 'rounded-b-sm')}
+                className={cn('bg-muted dark:bg-muted-foreground', b.external > 0 && 'rounded-t-sm', b.internal === 0 && 'rounded-b-sm')}
                 style={{ height: `${externalPct}%` }}
               />
               <div
@@ -68,7 +68,7 @@ function SplitBarHeader() {
       <h2 className="label-caps text-muted-foreground">Revenue by source</h2>
       <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
         <span className="inline-flex items-center gap-1"><span className={cn(dot, 'bg-primary')} /> Ber Wilson</span>
-        <span className="inline-flex items-center gap-1"><span className={cn(dot, 'bg-slate-300 dark:bg-slate-600')} /> External</span>
+        <span className="inline-flex items-center gap-1"><span className={cn(dot, 'bg-muted dark:bg-muted-foreground')} /> External</span>
       </div>
     </div>
   )

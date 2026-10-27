@@ -90,7 +90,7 @@ export default async function SteelMarketingPage() {
                 <span className="w-16 shrink-0 text-muted-foreground">{m.label}</span>
                 <div className="flex-1 h-3 rounded-full bg-muted overflow-hidden relative">
                   <div
-                    className={over ? 'h-full bg-red-500' : 'h-full bg-primary'}
+                    className={over ? 'h-full bg-critical' : 'h-full bg-primary'}
                     style={{ width: `${Math.min(100, (m.spend / maxBar) * 100)}%` }}
                   />
                   {/* budget marker */}
@@ -100,7 +100,7 @@ export default async function SteelMarketingPage() {
                     title={`Budget ${formatValue(m.budget)}`}
                   />
                 </div>
-                <span className={`w-20 shrink-0 text-right tnum ${over ? 'text-red-600 dark:text-red-400' : ''}`}>
+                <span className={`w-20 shrink-0 text-right tnum ${over ? 'text-critical' : ''}`}>
                   {formatValue(m.spend)}
                 </span>
               </div>

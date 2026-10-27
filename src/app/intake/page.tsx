@@ -108,9 +108,9 @@ const DISPOSITION_LABEL: Record<string, string> = {
 }
 
 const DISPOSITION_BADGE: Record<string, string> = {
-  create: 'bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:ring-emerald-900',
+  create: 'bg-positive-surface text-positive ring-positive-edge',
   merge: 'bg-indigo-50 text-indigo-700 ring-indigo-200 dark:bg-indigo-950/40 dark:text-indigo-300 dark:ring-indigo-900',
-  dismiss: 'bg-slate-100 text-slate-600 ring-slate-200 dark:bg-slate-800/60 dark:text-slate-400 dark:ring-slate-700',
+  dismiss: 'bg-muted text-muted-foreground ring-border dark:bg-muted/60',
 }
 
 /** Tolerant read — predecision is jsonb and predates the generated types. */

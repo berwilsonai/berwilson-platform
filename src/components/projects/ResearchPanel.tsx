@@ -302,7 +302,7 @@ export default function ResearchPanel({
             autoFocus
           />
 
-          {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+          {error && <p className="text-sm text-critical">{error}</p>}
 
           <div className="flex items-center gap-2">
             <button
@@ -333,7 +333,7 @@ export default function ResearchPanel({
                   Result
                 </p>
                 {savedId ? (
-                  <span className="inline-flex items-center gap-1 text-xs text-emerald-600 dark:text-emerald-400 font-medium">
+                  <span className="inline-flex items-center gap-1 text-xs text-positive font-medium">
                     <Save size={11} />
                     Saved to Research
                   </span>

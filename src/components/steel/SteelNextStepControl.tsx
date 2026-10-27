@@ -65,7 +65,7 @@ export default function SteelNextStepControl({ dealId, nextStep, nextStepDate, o
       className={cn(
         'rounded-lg border px-4 py-3',
         overdue
-          ? 'border-amber-300 bg-amber-50 dark:border-amber-500/40 dark:bg-amber-500/10'
+          ? 'border-caution-edge bg-caution-surface'
           : 'border-primary/30 bg-primary/5'
       )}
     >
@@ -73,7 +73,7 @@ export default function SteelNextStepControl({ dealId, nextStep, nextStepDate, o
         <span
           className={cn(
             'flex items-center gap-1.5 text-[11px] uppercase tracking-wide font-semibold',
-            overdue ? 'text-amber-700 dark:text-amber-400' : 'text-primary'
+            overdue ? 'text-caution' : 'text-primary'
           )}
         >
           <Flag size={12} />
@@ -81,7 +81,7 @@ export default function SteelNextStepControl({ dealId, nextStep, nextStepDate, o
         </span>
         {status === 'saving' && <Loader2 size={13} className="animate-spin text-muted-foreground" />}
         {status === 'saved' && (
-          <span className="flex items-center gap-1 text-[11px] text-emerald-600 dark:text-emerald-400">
+          <span className="flex items-center gap-1 text-[11px] text-positive">
             <Check size={12} /> Saved
           </span>
         )}

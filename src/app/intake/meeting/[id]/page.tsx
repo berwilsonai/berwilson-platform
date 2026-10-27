@@ -36,8 +36,8 @@ export default async function MeetingReviewPage({ params }: PageProps) {
     return (
       <div className="space-y-5 max-w-3xl">
         {back}
-        <div className="rounded-lg border border-emerald-300 dark:border-emerald-700/60 bg-emerald-50/60 dark:bg-emerald-950/40 p-5 text-center space-y-3">
-          <CheckCircle2 className="size-8 text-emerald-600 dark:text-emerald-400 mx-auto" />
+        <div className="rounded-lg border border-positive-edge bg-positive-surface/60 p-5 text-center space-y-3">
+          <CheckCircle2 className="size-8 text-positive mx-auto" />
           <p className="text-sm font-medium">This meeting was already processed.</p>
           <Link href="/intake?tab=meeting" className="inline-flex items-center h-9 px-4 rounded-md bg-primary text-primary-foreground text-sm font-medium">
             Back to Meeting Intake

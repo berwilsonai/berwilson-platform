@@ -192,8 +192,8 @@ export default function MilestonesTab({
                 <div
                   className={cn(
                     'flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap',
-                    isPast && 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300',
-                    isCurrent && 'bg-emerald-600 text-white',
+                    isPast && 'bg-positive-surface text-positive',
+                    isCurrent && 'bg-positive text-white',
                     !isPast && !isCurrent && 'bg-muted text-muted-foreground'
                   )}
                 >
@@ -207,7 +207,7 @@ export default function MilestonesTab({
                   <div
                     className={cn(
                       'w-6 h-px shrink-0',
-                      STAGE_INDEX[stage] < currentIndex ? 'bg-emerald-300' : 'bg-border'
+                      STAGE_INDEX[stage] < currentIndex ? 'bg-positive-surface' : 'bg-border'
                     )}
                   />
                 )}
@@ -219,9 +219,9 @@ export default function MilestonesTab({
 
       {/* ── Advance stage suggestion ── */}
       {canEdit && allCurrentComplete && nextStage && (
-        <div className="rounded-lg border border-emerald-200 dark:border-emerald-800/60 bg-emerald-50 dark:bg-emerald-950/40 px-4 py-3 flex items-center justify-between gap-4 flex-wrap">
-          <div className="flex items-center gap-2 text-sm text-emerald-800 dark:text-emerald-300 min-w-0">
-            <Check size={15} className="text-emerald-600 dark:text-emerald-400 shrink-0" />
+        <div className="rounded-lg border border-positive-edge bg-positive-surface px-4 py-3 flex items-center justify-between gap-4 flex-wrap">
+          <div className="flex items-center gap-2 text-sm text-positive min-w-0">
+            <Check size={15} className="text-positive shrink-0" />
             <span>
               All milestones in <strong>{STAGE_LABELS[currentStage]}</strong> are
               complete. Ready to advance to{' '}
@@ -231,20 +231,20 @@ export default function MilestonesTab({
           {!advanceConfirm ? (
             <button
               onClick={() => setAdvanceConfirm(true)}
-              className="shrink-0 inline-flex items-center gap-1.5 h-8 px-3 rounded-md bg-emerald-600 text-white text-xs font-medium hover:bg-emerald-700 transition-colors"
+              className="shrink-0 inline-flex items-center gap-1.5 h-8 px-3 rounded-md bg-positive text-white text-xs font-medium hover:bg-positive transition-colors"
             >
               Advance Stage
               <ArrowRight size={12} />
             </button>
           ) : (
             <div className="flex items-center gap-2 shrink-0 flex-wrap">
-              <span className="text-xs text-emerald-700 dark:text-emerald-300 font-medium">
+              <span className="text-xs text-positive font-medium">
                 Confirm advance to {STAGE_LABELS[nextStage]}?
               </span>
               <button
                 onClick={advanceStage}
                 disabled={advancingSaving}
-                className="inline-flex items-center gap-1 h-8 px-3 rounded-md bg-emerald-600 text-white text-xs font-medium hover:bg-emerald-700 disabled:opacity-50 transition-colors"
+                className="inline-flex items-center gap-1 h-8 px-3 rounded-md bg-positive text-white text-xs font-medium hover:bg-positive disabled:opacity-50 transition-colors"
               >
                 {advancingSaving ? (
                   <Loader2 size={12} className="animate-spin" />
@@ -265,7 +265,7 @@ export default function MilestonesTab({
         </div>
       )}
 
-      {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+      {error && <p className="text-sm text-critical">{error}</p>}
 
       {/* ── Stage columns ── */}
       <div className="overflow-x-auto -mx-1 px-1 pb-3">
@@ -284,7 +284,7 @@ export default function MilestonesTab({
                 key={stage}
                 className={cn(
                   'w-56 rounded-lg border flex flex-col',
-                  isCurrent && 'border-emerald-300 dark:border-emerald-700/60 ring-1 ring-emerald-200 dark:ring-emerald-800/60 elev-1',
+                  isCurrent && 'border-positive-edge ring-1 ring-positive-edge elev-1',
                   (isPast || isFuture) && 'border-border'
                 )}
               >
@@ -292,8 +292,8 @@ export default function MilestonesTab({
                 <div
                   className={cn(
                     'flex items-center justify-between px-3 py-2 rounded-t-lg border-b',
-                    isCurrent && 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800/60',
-                    isPast && 'bg-slate-50 dark:bg-slate-950/40 border-border',
+                    isCurrent && 'bg-positive-surface border-positive-edge',
+                    isPast && 'bg-muted dark:bg-muted/40 border-border',
                     isFuture && 'bg-muted border-border'
                   )}
                 >
@@ -301,8 +301,8 @@ export default function MilestonesTab({
                     <span
                       className={cn(
                         'inline-flex items-center justify-center w-5 h-5 rounded-full text-xs font-bold shrink-0',
-                        isCurrent && 'bg-emerald-600 text-white',
-                        isPast && 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300',
+                        isCurrent && 'bg-positive text-white',
+                        isPast && 'bg-positive-surface text-positive',
                         isFuture && 'bg-muted-foreground/20 text-muted-foreground'
                       )}
                     >
@@ -311,8 +311,8 @@ export default function MilestonesTab({
                     <span
                       className={cn(
                         'text-xs font-semibold truncate',
-                        isCurrent && 'text-emerald-800 dark:text-emerald-300',
-                        isPast && 'text-slate-600 dark:text-slate-400',
+                        isCurrent && 'text-positive',
+                        isPast && 'text-muted-foreground',
                         isFuture && 'text-muted-foreground'
                       )}
                     >
@@ -324,7 +324,7 @@ export default function MilestonesTab({
                       className={cn(
                         'text-xs shrink-0 tnum',
                         completed === total
-                          ? 'text-emerald-600 dark:text-emerald-400 font-semibold'
+                          ? 'text-positive font-semibold'
                           : 'text-muted-foreground'
                       )}
                     >
@@ -353,8 +353,8 @@ export default function MilestonesTab({
                         className={cn(
                           'shrink-0 mt-0.5 w-3.5 h-3.5 rounded border flex items-center justify-center transition-colors',
                           m.completed_at
-                            ? 'bg-emerald-600 border-emerald-600'
-                            : 'border-input group-hover:border-emerald-400'
+                            ? 'bg-positive border-positive-edge'
+                            : 'border-input group-hover:border-positive-edge'
                         )}
                       >
                         {togglingId === m.id ? (

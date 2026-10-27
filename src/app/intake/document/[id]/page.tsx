@@ -74,7 +74,7 @@ export default async function DocumentReaderPage({ params }: PageProps) {
           <p className="text-sm text-foreground leading-relaxed">{doc.ai_summary}</p>
         ) : notReadable ? (
           <p className="text-sm text-muted-foreground flex items-center gap-2">
-            <AlertCircle size={15} className="text-amber-500 shrink-0" />
+            <AlertCircle size={15} className="text-caution shrink-0" />
             This file type couldn&apos;t be read for a summary, but you can still open it above.
           </p>
         ) : failed ? (

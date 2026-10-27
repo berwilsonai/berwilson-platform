@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next"
-import { Geist, Geist_Mono, Newsreader } from "next/font/google"
+import { Geist, Geist_Mono } from "next/font/google"
 import "./globals.css"
 import { headers } from "next/headers"
 import { createAdminClient } from "@/lib/supabase/admin"
@@ -27,14 +27,6 @@ const geistSans = Geist({
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
-})
-
-// Display serif for h1s / dialog titles (see --font-heading in globals.css).
-// Self-hosted by next/font at build time — no runtime request leaves the box.
-const newsreader = Newsreader({
-  variable: "--font-newsreader",
-  subsets: ["latin"],
-  style: ["normal"],
 })
 
 export const metadata: Metadata = {
@@ -76,8 +68,12 @@ export const viewport: Viewport = {
     (hand-converted because a manifest cannot resolve a CSS variable).
   */
   themeColor: [
-    { media: '(prefers-color-scheme: light)', color: '#3a3027' },
-    { media: '(prefers-color-scheme: dark)', color: '#2a231c' },
+    // The rail's own colour per theme, hand-converted from `--sidebar`
+    // (a manifest cannot resolve a CSS variable). Light moved with the rail
+    // on 2026-10-27 — it was the dark slab's `#3a3027`, which on a phone put
+    // a brown bar above a cream app.
+    { media: '(prefers-color-scheme: light)', color: '#e6e1d6' },
+    { media: '(prefers-color-scheme: dark)', color: '#211c17' },
   ],
 }
 
@@ -161,13 +157,24 @@ export default async function RootLayout({
     <html
       lang="en"
       suppressHydrationWarning
-      className={`${geistSans.variable} ${geistMono.variable} ${newsreader.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="h-full bg-background text-foreground">
-        {/* Apply saved/system theme before paint to avoid a flash of the wrong color scheme. */}
+        {/*
+          ⚠ LIGHT IS THE DEFAULT AND THE SYSTEM PREFERENCE NO LONGER DECIDES
+          (2026-10-27, Richard: *"It doesn't need to be dark themed"*).
+
+          This used to fall back to `prefers-color-scheme`, so on a Mac set to
+          dark — which both of these are — the app opened dark however it had
+          been designed, and the light palette that the whole re-skin was
+          measured in was the theme nobody ever saw. Dark mode still exists and
+          is still tested; it is now something you CHOOSE in the user menu,
+          which is what writes the key this reads. Only an explicit stored
+          'dark' turns it on.
+        */}
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){try{var t=localStorage.getItem('theme');var d=t==='dark'||(!t&&window.matchMedia('(prefers-color-scheme: dark)').matches);document.documentElement.classList.toggle('dark',d);}catch(e){}})();`,
+            __html: `(function(){try{document.documentElement.classList.toggle('dark',localStorage.getItem('theme')==='dark');}catch(e){}})();`,
           }}
         />
         {showShell ? (

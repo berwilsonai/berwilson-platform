@@ -237,7 +237,10 @@ function railPopupHtml(props: RailFeatureProps): string {
   const badge = props.strac ? STRACNET_LABELS[props.strac] : null
   return [
     badge
-      ? `<div class="mb-1 inline-flex rounded bg-slate-800 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white dark:bg-slate-200 dark:text-slate-900">${esc(badge)}</div>`
+      /* `bg-foreground text-background` inverts with the theme by construction,
+         so the `dark:` half the old slate pair needed is not only redundant
+         here — it was light-ink-on-light-fill. */
+      ? `<div class="mb-1 inline-flex rounded bg-foreground px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-background">${esc(badge)}</div>`
       : '',
     `<div class="text-[13px] font-medium text-foreground">${esc(owner)}</div>`,
     rows.length

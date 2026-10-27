@@ -467,7 +467,7 @@ export default function ObjectivesBoard({ initialObjectives, teamMembers }: Obje
                   </button>
                   <button
                     onClick={() => setDeleteId(obj.id)}
-                    className="shrink-0 inline-flex items-center justify-center size-7 rounded-md text-muted-foreground hover:text-red-600 dark:hover:text-red-400 hover:bg-muted transition-colors"
+                    className="shrink-0 inline-flex items-center justify-center size-7 rounded-md text-muted-foreground hover:text-critical dark:hover:text-critical hover:bg-muted transition-colors"
                     aria-label="Delete"
                   >
                     <Trash2 size={13} />
@@ -739,7 +739,7 @@ function MenuItem({
       className={cn(
         'w-full flex items-center gap-2 px-3 py-1.5 text-sm text-left transition-colors disabled:opacity-40',
         destructive
-          ? 'text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10'
+          ? 'text-critical hover:bg-critical-surface dark:hover:bg-critical/10'
           : 'text-foreground hover:bg-accent',
       )}
     >

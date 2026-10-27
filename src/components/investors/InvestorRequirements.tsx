@@ -19,12 +19,12 @@ import {
 // ComplianceSection idiom from projects/DiligenceTab.
 
 const STATUS_SELECT_CLS: Record<RequirementStatus, string> = {
-  needed: 'bg-slate-100 dark:bg-slate-900/40 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800/60',
-  in_progress: 'bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800/60',
-  have: 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800/60',
+  needed: 'bg-muted dark:bg-muted/40 text-muted-foreground border-border dark:border-border/60',
+  in_progress: 'bg-info-surface text-info border-info-edge',
+  have: 'bg-positive-surface text-positive border-positive-edge',
   submitted: 'bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800/60',
   waived: 'bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-800/60',
-  n_a: 'bg-slate-100 dark:bg-slate-900/40 text-slate-500 dark:text-slate-500 border-slate-200 dark:border-slate-800/60',
+  n_a: 'bg-muted dark:bg-muted/40 text-muted-foreground border-border dark:border-border/60',
 }
 
 const inputCls =
@@ -387,7 +387,7 @@ export default function InvestorRequirements({
             />
           </FormField>
 
-          {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+          {error && <p className="text-sm text-critical">{error}</p>}
 
           <div className="flex items-center gap-2">
             <button
@@ -410,7 +410,7 @@ export default function InvestorRequirements({
               <button
                 onClick={handleDelete}
                 disabled={saving}
-                className="ml-auto inline-flex items-center gap-1.5 h-9 px-3 rounded-md border border-red-200 dark:border-red-800/60 text-red-600 dark:text-red-400 text-sm font-medium hover:bg-red-50 dark:hover:bg-red-950/40 disabled:opacity-50 transition-colors"
+                className="ml-auto inline-flex items-center gap-1.5 h-9 px-3 rounded-md border border-critical-edge text-critical text-sm font-medium hover:bg-critical-surface dark:hover:bg-critical-surface/40 disabled:opacity-50 transition-colors"
               >
                 <Trash2 size={14} />
                 Delete
@@ -494,7 +494,7 @@ export default function InvestorRequirements({
                     </td>
                     <td className="px-3 py-3 border-r border-border">
                       {evidenceDoc ? (
-                        <span className="inline-flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 font-medium">
+                        <span className="inline-flex items-center gap-1 text-xs text-info font-medium">
                           <FileText size={12} className="shrink-0" />
                           <span className="truncate max-w-[120px]">{evidenceDoc.file_name}</span>
                         </span>

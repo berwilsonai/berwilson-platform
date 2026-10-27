@@ -135,7 +135,7 @@ export default async function SteelEarningsPage() {
         <div className="flex items-center justify-between gap-2">
           <h2 className="label-caps text-muted-foreground">Volume Accelerator ({year})</h2>
           {card?.accelerated && (
-            <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[11px] font-medium ring-1 ring-inset bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-500/15 dark:text-emerald-300 dark:ring-emerald-500/30">
+            <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[11px] font-medium ring-1 ring-inset bg-positive-surface text-positive ring-positive-edge">
               +1 point active
             </span>
           )}
@@ -147,7 +147,7 @@ export default async function SteelEarningsPage() {
         <div className="mt-3 flex items-center gap-3">
           <div className="flex-1 h-2 rounded-full bg-muted overflow-hidden">
             <div
-              className={card?.accelerated ? 'h-full bg-emerald-500' : 'h-full bg-primary'}
+              className={card?.accelerated ? 'h-full bg-positive' : 'h-full bg-primary'}
               style={{ width: `${accelPct}%` }}
             />
           </div>
@@ -211,9 +211,9 @@ export default async function SteelEarningsPage() {
 function Stat({ label, value, sub, tone }: { label: string; value: string; sub?: string; tone?: 'amber' | 'emerald' }) {
   const cls =
     tone === 'amber'
-      ? 'text-amber-600 dark:text-amber-400'
+      ? 'text-caution'
       : tone === 'emerald'
-        ? 'text-emerald-600 dark:text-emerald-400'
+        ? 'text-positive'
         : ''
   return (
     <div className="rounded-lg border border-border bg-card px-4 py-3 elev-1">
@@ -235,8 +235,8 @@ function RoleCard({ label, bucket }: { label: string; bucket: RepBucket }) {
         <p className="mt-2 text-sm text-muted-foreground">—</p>
       ) : (
         <dl className="mt-2 space-y-1 text-sm tnum">
-          <Row k="Owed" v={bucket.owed} cls="text-amber-600 dark:text-amber-400" />
-          <Row k="Paid" v={bucket.paid} cls="text-emerald-600 dark:text-emerald-400" />
+          <Row k="Owed" v={bucket.owed} cls="text-caution" />
+          <Row k="Paid" v={bucket.paid} cls="text-positive" />
           <Row k="Projected" v={bucket.projected} cls="text-muted-foreground" />
         </dl>
       )}

@@ -53,9 +53,9 @@ function dueLabel(date: string | null): { text: string; tone: string } | null {
   // the eight that are a backlog. Past a month it is history: still listed,
   // still settleable, no longer shouting.
   if (d < -30) return { text: `${Math.abs(d)}d overdue`, tone: 'text-muted-foreground' }
-  if (d < 0) return { text: `${Math.abs(d)}d overdue`, tone: 'text-red-600 dark:text-red-400' }
-  if (d === 0) return { text: 'due today', tone: 'text-amber-600 dark:text-amber-400' }
-  if (d <= 3) return { text: `in ${d}d`, tone: 'text-amber-600 dark:text-amber-400' }
+  if (d < 0) return { text: `${Math.abs(d)}d overdue`, tone: 'text-critical' }
+  if (d === 0) return { text: 'due today', tone: 'text-caution' }
+  if (d <= 3) return { text: `in ${d}d`, tone: 'text-caution' }
   return { text: `in ${d}d`, tone: 'text-muted-foreground' }
 }
 
@@ -155,7 +155,7 @@ export default function Commitments({ items }: { items: CommitmentItem[] }) {
                     onClick={() => settle(c.id, 'done')}
                     title="Mark done"
                     aria-label={`Mark done: ${c.what}`}
-                    className="relative grid size-7 place-items-center rounded-md text-muted-foreground hover:bg-background hover:text-emerald-600 disabled:opacity-40"
+                    className="relative grid size-7 place-items-center rounded-md text-muted-foreground hover:bg-background hover:text-positive disabled:opacity-40"
                   >
                     {/* Grows the touch target to 44px without moving the row —
                         padding here would shift every row below it under the
@@ -169,7 +169,7 @@ export default function Commitments({ items }: { items: CommitmentItem[] }) {
                     onClick={() => settle(c.id, 'dismissed')}
                     title="Not a real commitment"
                     aria-label={`Dismiss: ${c.what}`}
-                    className="relative grid size-7 place-items-center rounded-md text-muted-foreground hover:bg-background hover:text-red-600 disabled:opacity-40"
+                    className="relative grid size-7 place-items-center rounded-md text-muted-foreground hover:bg-background hover:text-critical disabled:opacity-40"
                   >
                     <span className="absolute -inset-3" aria-hidden />
                     <X className="size-4" />

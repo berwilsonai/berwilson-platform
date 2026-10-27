@@ -186,13 +186,13 @@ export default async function RaiseDetailPage({ params }: PageProps) {
                       <td className="py-2 px-3 text-right tnum">{formatValue(t.amount)}</td>
                       <td className="py-2 px-3 text-right tnum">{t.committed > 0 ? formatValue(t.committed) : '—'}</td>
                       <td className="py-2 px-3 text-right tnum">{t.funded > 0 ? formatValue(t.funded) : '—'}</td>
-                      <td className={cn('py-2 px-3 text-right tnum', remaining <= 0 && 'text-emerald-600 dark:text-emerald-400 font-medium')}>
+                      <td className={cn('py-2 px-3 text-right tnum', remaining <= 0 && 'text-positive font-medium')}>
                         {remaining <= 0 ? 'Full' : formatValue(remaining)}
                       </td>
                       <td
                         className={cn(
                           'py-2 pl-3 text-right whitespace-nowrap',
-                          slipped ? 'text-amber-600 dark:text-amber-400 font-medium' : 'text-muted-foreground'
+                          slipped ? 'text-caution font-medium' : 'text-muted-foreground'
                         )}
                       >
                         {t.target_date ? formatDate(t.target_date) : '—'}

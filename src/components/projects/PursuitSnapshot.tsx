@@ -46,9 +46,9 @@ export default function PursuitSnapshot({ project }: { project: ProjectWithCaptu
           className={cn(
             'rounded-lg border p-4 text-center',
             bidDueDays != null && bidDueDays <= 7
-              ? 'border-red-200 dark:border-red-800/60 bg-red-50 dark:bg-red-950/40'
+              ? 'border-critical-edge bg-critical-surface'
               : bidDueDays != null && bidDueDays <= 21
-                ? 'border-amber-200 dark:border-amber-800/60 bg-amber-50 dark:bg-amber-950/40'
+                ? 'border-caution-edge bg-caution-surface'
                 : 'border-border bg-card'
           )}
         >
@@ -96,7 +96,7 @@ export default function PursuitSnapshot({ project }: { project: ProjectWithCaptu
                 <div
                   className={cn(
                     'h-full rounded-full transition-all',
-                    winProb >= 60 ? 'bg-emerald-500' : winProb >= 35 ? 'bg-amber-500' : 'bg-red-500'
+                    winProb >= 60 ? 'bg-positive' : winProb >= 35 ? 'bg-caution' : 'bg-critical'
                   )}
                   style={{ width: `${winProb}%` }}
                 />
@@ -114,7 +114,7 @@ export default function PursuitSnapshot({ project }: { project: ProjectWithCaptu
           {weighted > 0 && (
             <div className="flex items-center justify-between px-4 py-2.5">
               <span className="text-xs text-muted-foreground">Weighted (P-win)</span>
-              <span className="text-sm font-semibold tnum text-emerald-600 dark:text-emerald-400">{formatValue(weighted)}</span>
+              <span className="text-sm font-semibold tnum text-positive">{formatValue(weighted)}</span>
             </div>
           )}
 

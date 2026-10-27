@@ -119,9 +119,9 @@ function dueLabel(date: string | null): { text: string; tone: string } {
   const d = daysUntil(date)
   if (d === null) return { text: date, tone: 'text-muted-foreground' }
   if (d < -30) return { text: `${Math.abs(d)}d overdue`, tone: 'text-muted-foreground' }
-  if (d < 0) return { text: `${Math.abs(d)}d overdue`, tone: 'text-red-600 dark:text-red-400' }
-  if (d === 0) return { text: 'due today', tone: 'text-amber-600 dark:text-amber-400' }
-  if (d <= 3) return { text: `in ${d}d`, tone: 'text-amber-600 dark:text-amber-400' }
+  if (d < 0) return { text: `${Math.abs(d)}d overdue`, tone: 'text-critical' }
+  if (d === 0) return { text: 'due today', tone: 'text-caution' }
+  if (d <= 3) return { text: `in ${d}d`, tone: 'text-caution' }
   return { text: `in ${d}d`, tone: 'text-muted-foreground' }
 }
 
@@ -147,7 +147,7 @@ function silenceLabel(lastAt: string | null): { text: string; tone: string } | n
   if (!isFinite(days) || days < 14) return null
   return {
     text: `thread quiet ${days}d`,
-    tone: days >= 21 ? 'text-amber-600 dark:text-amber-400' : 'text-muted-foreground/70',
+    tone: days >= 21 ? 'text-caution' : 'text-muted-foreground/70',
   }
 }
 
@@ -257,7 +257,7 @@ export default function CommitmentsLedger({
       </div>
 
       {loadError && (
-        <p role="alert" className="rounded-lg border border-border bg-card p-3 text-sm text-red-600 dark:text-red-400">
+        <p role="alert" className="rounded-lg border border-border bg-card p-3 text-sm text-critical">
           The ledger could not be read in full: {loadError}
         </p>
       )}
@@ -279,7 +279,7 @@ export default function CommitmentsLedger({
               onClick={() => setParam('view', v.key === 'open' ? null : v.key)}
               className={cn(
                 'min-h-9 rounded-md px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50',
-                view === v.key ? 'bg-primary text-primary-foreground' : 'hover:bg-accent'
+                view === v.key ? 'bg-card text-foreground font-medium elev-1' : 'text-muted-foreground hover:text-foreground'
               )}
             >
               {v.label}
@@ -295,7 +295,7 @@ export default function CommitmentsLedger({
               onClick={() => setParam('side', s ?? null)}
               className={cn(
                 'min-h-9 rounded-md px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50',
-                filters.side === s ? 'bg-primary text-primary-foreground' : 'hover:bg-accent'
+                filters.side === s ? 'bg-card text-foreground font-medium elev-1' : 'text-muted-foreground hover:text-foreground'
               )}
             >
               {s === 'us' ? 'We owe' : s === 'them' ? 'Waiting on' : 'Both'}
@@ -477,7 +477,7 @@ function Section({
                       disabled={busy === c.id}
                       label={`Mark done: ${c.what}`}
                       title="Done"
-                      hover="hover:text-emerald-600"
+                      hover="hover:text-positive"
                     >
                       <Check className="size-4" />
                     </RowButton>
@@ -486,7 +486,7 @@ function Section({
                       disabled={busy === c.id}
                       label={`Quiet for a week: ${c.what}`}
                       title="Real, but not today — quiet it for a week"
-                      hover="hover:text-amber-600"
+                      hover="hover:text-caution"
                     >
                       <Clock className="size-4" />
                     </RowButton>
@@ -495,7 +495,7 @@ function Section({
                       disabled={busy === c.id}
                       label={`Dismiss: ${c.what}`}
                       title="Never a real commitment"
-                      hover="hover:text-red-600"
+                      hover="hover:text-critical"
                     >
                       <X className="size-4" />
                     </RowButton>

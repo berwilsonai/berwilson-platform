@@ -9,7 +9,7 @@ const SOURCE_CONFIG: Record<
   email: {
     label: 'Email',
     icon: Mail,
-    style: 'bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 ring-blue-200 dark:ring-blue-800/60',
+    style: 'bg-info-surface text-info ring-info-edge',
   },
   manual_paste: {
     label: 'Paste',
@@ -19,17 +19,17 @@ const SOURCE_CONFIG: Record<
   document: {
     label: 'Document',
     icon: FileText,
-    style: 'bg-slate-50 dark:bg-slate-950/40 text-slate-600 dark:text-slate-400 ring-slate-200 dark:ring-slate-800/60',
+    style: 'bg-muted dark:bg-muted/40 text-muted-foreground ring-border dark:ring-border/60',
   },
   agent: {
     label: 'Agent',
     icon: Bot,
-    style: 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 ring-amber-200 dark:ring-amber-800/60',
+    style: 'bg-caution-surface text-caution ring-caution-edge',
   },
   manual_task: {
     label: 'Task',
     icon: ListChecks,
-    style: 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 ring-emerald-200 dark:ring-emerald-800/60',
+    style: 'bg-positive-surface text-positive ring-positive-edge',
   },
   // ⚠ THE THREE LOCAL SOURCES, WHICH FELL THROUGH TO "Document". The fallback
   // below is `SOURCE_CONFIG.document`, so a text message on a project read as a
@@ -40,7 +40,7 @@ const SOURCE_CONFIG: Record<
   imessage: {
     label: 'Text',
     icon: MessageSquare,
-    style: 'bg-green-50 dark:bg-green-950/40 text-green-700 dark:text-green-300 ring-green-200 dark:ring-green-800/60',
+    style: 'bg-positive-surface text-positive ring-positive-edge',
   },
   call: {
     label: 'Call',
@@ -50,7 +50,7 @@ const SOURCE_CONFIG: Record<
   note: {
     label: 'Note',
     icon: NotebookPen,
-    style: 'bg-yellow-50 dark:bg-yellow-950/40 text-yellow-800 dark:text-yellow-300 ring-yellow-200 dark:ring-yellow-800/60',
+    style: 'bg-caution-surface text-caution ring-caution-edge',
   },
 }
 

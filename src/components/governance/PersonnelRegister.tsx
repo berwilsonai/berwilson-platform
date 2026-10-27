@@ -1141,11 +1141,11 @@ function OffboardingChecklist({
                     className="group relative flex min-h-[2.75rem] w-full items-start gap-2 rounded-md px-1 py-1.5 text-left outline-none transition-colors hover:bg-muted/50 focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-default disabled:hover:bg-transparent sm:min-h-0"
                   >
                     {s.completed_at ? (
-                      <CheckCircle2 size={15} className="mt-0.5 shrink-0 text-emerald-500" />
+                      <CheckCircle2 size={15} className="mt-0.5 shrink-0 text-positive" />
                     ) : (
                       <Circle
                         size={15}
-                        className={['mt-0.5 shrink-0', s.required ? 'text-amber-500' : 'text-muted-foreground/40'].join(' ')}
+                        className={['mt-0.5 shrink-0', s.required ? 'text-caution' : 'text-muted-foreground/40'].join(' ')}
                       />
                     )}
                     <span className="min-w-0 flex-1 text-xs">
@@ -1186,7 +1186,7 @@ const agreementColumns: ColumnDef[] = [
       ) : (
         // Version is the load-bearing column: an acknowledgement of "the
         // handbook" with no version is worth nothing.
-        <span className="text-amber-600 dark:text-amber-400">no version</span>
+        <span className="text-caution">no version</span>
       ),
   },
   { name: 'signed_on', label: 'Signed', kind: 'date' },

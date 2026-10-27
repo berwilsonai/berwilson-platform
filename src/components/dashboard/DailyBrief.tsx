@@ -91,7 +91,7 @@ export default function DailyBrief({ initial }: { initial?: InitialBrief | null 
         </button>
         {aging && !loading && (
           <Tooltip>
-            <TooltipTrigger className="text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 px-1.5 py-0.5 rounded cursor-help">
+            <TooltipTrigger className="text-xs text-caution bg-caution-surface px-1.5 py-0.5 rounded cursor-help">
               {ageDays}d old
             </TooltipTrigger>
             <TooltipContent>
@@ -135,7 +135,7 @@ export default function DailyBrief({ initial }: { initial?: InitialBrief | null 
             </div>
           )}
 
-          {error && <p className="text-xs text-red-600 dark:text-red-400 pt-3">{error}</p>}
+          {error && <p className="text-xs text-critical pt-3">{error}</p>}
 
           {!brief && !loading && !error && (
             <div className="pt-3 flex items-center gap-3">

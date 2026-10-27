@@ -49,14 +49,14 @@ export default function ReferralSourceTable({ sources }: { sources: ReferralSour
                 <td className="py-2 pr-3">
                   <span className="font-medium">{s.name}</span>
                   {s.unpricedDealCount > 0 && (
-                    <span className="ml-1.5 inline-flex items-center rounded px-1.5 py-0.5 text-[11px] font-medium ring-1 ring-inset bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-500/15 dark:text-amber-300 dark:ring-amber-500/30">
+                    <span className="ml-1.5 inline-flex items-center rounded px-1.5 py-0.5 text-[11px] font-medium ring-1 ring-inset bg-caution-surface text-caution ring-caution-edge">
                       {`${s.unpricedDealCount} ${s.unpricedDealCount === 1 ? 'needs' : 'need'} a fee`}
                     </span>
                   )}
                 </td>
                 <td className="py-2 px-3 text-right text-muted-foreground">{s.dealCount}</td>
-                <td className="py-2 px-3 text-right text-amber-600 dark:text-amber-400">{formatValue(s.owed)}</td>
-                <td className="py-2 px-3 text-right text-emerald-600 dark:text-emerald-400">{formatValue(s.paid)}</td>
+                <td className="py-2 px-3 text-right text-caution">{formatValue(s.owed)}</td>
+                <td className="py-2 px-3 text-right text-positive">{formatValue(s.paid)}</td>
                 <td className="py-2 px-3 text-right text-muted-foreground">{formatValue(s.projected)}</td>
                 <td className="py-2 pl-3 text-right font-medium">{formatValue(s.total)}</td>
               </tr>

@@ -11,6 +11,7 @@ import SortControls from '@/components/dashboard/SortControls'
 import PortfolioBriefButton from '@/components/dashboard/PortfolioBriefButton'
 import DailyBrief from '@/components/dashboard/DailyBrief'
 import HealthPanel from '@/components/dashboard/HealthPanel'
+import StageMix from '@/components/dashboard/StageMix'
 import NeedsAttention, { type LeadDue } from '@/components/dashboard/NeedsAttention'
 import NowObjectives, { type NowObjectiveItem } from '@/components/dashboard/NowObjectives'
 import JustIn from '@/components/dashboard/JustIn'
@@ -32,6 +33,7 @@ import { sweepDb } from '@/lib/email-sweep/db'
 import { countDecideItems } from '@/lib/decide/count'
 import { readJustIn } from '@/lib/records/just-in'
 import EmptyState from '@/components/shared/EmptyState'
+import { PageHeader } from '@/components/ui/page-header'
 import type { WaitingOnItem, RiskItem } from '@/types/domain'
 import type { DdSeverity } from '@/lib/supabase/types'
 
@@ -414,12 +416,11 @@ export default async function DashboardPage({ searchParams }: PageProps) {
     <div className="space-y-6">
 
       {/* ── Greeting: the morning read opens like one ─────────────────────── */}
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight heading-tight">
-          {greeting}{firstName ? `, ${firstName}` : ''}
-        </h1>
-        <p className="mt-1 text-sm text-muted-foreground">{dateLine}</p>
-      </div>
+      <PageHeader
+        eyebrow={dateLine}
+        title={`${greeting}${firstName ? `, ${firstName}` : ''}`}
+        className="mb-0"
+      />
 
       {/*
         Say what is missing. Every figure below is a sum, and a sum quietly
@@ -438,6 +439,35 @@ export default async function DashboardPage({ searchParams }: PageProps) {
       )}
 
       {/*
+        ── The numbers first ─────────────────────────────────────────────────
+        ⚠ THE KPI BAND MOVED ABOVE "JUST IN" AND THE OBJECTIVES ON 2026-10-27.
+        It used to sit third, below two tall panels, so on a 1512×950 screen the
+        state of the portfolio was BELOW THE FOLD on the page whose whole job is
+        to show it. Every dashboard in the brief — Domo most explicitly — opens
+        on its measures and puts the narrative under them.
+
+        This does NOT overturn the 09-24 argument for Just-In-above-Objectives;
+        that was about which of those two comes first, and they are still in
+        that order directly beneath.
+      */}
+      <HealthPanel
+        activeProjects={activeProjects.length}
+        pipelineValue={pipelineValueTotal}
+        pipelineNote={coverageNote(pipeline)}
+        unpricedCount={pipeline.unpriced}
+        rolledUpCount={pipeline.rolledUp}
+        weightedPipelineValue={weightedPipelineValue}
+        pendingReview={pendingReview}
+        overdueCount={overdueCount}
+        overdueTaskCount={overdueTasks.length}
+        criticalDdCount={visibleDd.length}
+        expiringCertsCount={expiringCerts?.length ?? 0}
+      />
+
+      {/* ── Where the pipeline actually sits ─────────────────────────────── */}
+      <StageMix records={activeProjects} />
+
+      {/*
         ── Just in ───────────────────────────────────────────────────────────
         Above the objectives deliberately. The objectives are what we SAID
         matters, which does not change between mornings; this is what changed
@@ -448,23 +478,6 @@ export default async function DashboardPage({ searchParams }: PageProps) {
 
       {/* ── Steering board: Now objectives lead the morning read ─────────── */}
       {nowObjectives.length > 0 && <NowObjectives items={nowObjectives} />}
-
-      {/* ── Portfolio health overview ─────────────────────────────────────── */}
-      <div>
-        <HealthPanel
-          activeProjects={activeProjects.length}
-          pipelineValue={pipelineValueTotal}
-          pipelineNote={coverageNote(pipeline)}
-          unpricedCount={pipeline.unpriced}
-          rolledUpCount={pipeline.rolledUp}
-          weightedPipelineValue={weightedPipelineValue}
-          pendingReview={pendingReview}
-          overdueCount={overdueCount}
-          overdueTaskCount={overdueTasks.length}
-          criticalDdCount={visibleDd.length}
-          expiringCertsCount={expiringCerts?.length ?? 0}
-        />
-      </div>
 
       {/* ── Intelligence brief (latest stored portfolio brief) ──────────── */}
       {activeProjects.length > 0 && (

@@ -360,13 +360,15 @@ export default function ProjectsClient({ projects: initialProjects, stageFilter 
       <span className="hidden sm:inline label-caps text-muted-foreground">
         View
       </span>
-      <div className="flex items-center rounded-md border border-border overflow-hidden text-xs">
+      {/* Track-and-pill, like every other view switcher — see `Segmented`. */}
+      <div className="flex items-center gap-0.5 rounded-md bg-muted p-0.5 text-xs">
         <button
           onClick={() => setView('pipeline')}
           title="See the whole bid funnel, grouped by stage"
+          aria-pressed={view === 'pipeline'}
           className={cn(
-            'inline-flex items-center gap-1.5 px-3 py-1.5 transition-colors',
-            view === 'pipeline' ? 'bg-foreground text-background' : 'bg-background text-muted-foreground hover:text-foreground hover:bg-accent'
+            'inline-flex items-center gap-1.5 rounded px-3 py-1.5 transition-colors',
+            view === 'pipeline' ? 'bg-card text-foreground font-medium elev-1' : 'text-muted-foreground hover:text-foreground'
           )}
         >
           <Kanban size={12} />
@@ -375,9 +377,10 @@ export default function ProjectsClient({ projects: initialProjects, stageFilter 
         <button
           onClick={() => setView('program')}
           title="Group projects under their parent program"
+          aria-pressed={view === 'program'}
           className={cn(
-            'inline-flex items-center gap-1.5 px-3 py-1.5 transition-colors border-l border-border',
-            view === 'program' ? 'bg-foreground text-background' : 'bg-background text-muted-foreground hover:text-foreground hover:bg-accent'
+            'inline-flex items-center gap-1.5 rounded px-3 py-1.5 transition-colors',
+            view === 'program' ? 'bg-card text-foreground font-medium elev-1' : 'text-muted-foreground hover:text-foreground'
           )}
         >
           <GitBranch size={12} />
@@ -614,7 +617,7 @@ export default function ProjectsClient({ projects: initialProjects, stageFilter 
                           {colTotal.estimated > 0 ? formatValue(colValue) : 'Not set'}
                         </span>
                         {colWeighted > 0 && (
-                          <span className="tnum text-emerald-600 dark:text-emerald-400">{formatValue(colWeighted)} wtd</span>
+                          <span className="tnum text-positive">{formatValue(colWeighted)} wtd</span>
                         )}
                       </div>
                       {colNote && (

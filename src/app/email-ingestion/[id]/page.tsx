@@ -49,8 +49,8 @@ export default async function EmailIngestReviewPage({ params }: PageProps) {
             </p>
           </div>
         ) : (
-          <div className="rounded-lg border border-red-300 dark:border-red-800/60 bg-red-50/60 dark:bg-red-950/30 p-5 text-center space-y-3">
-            <AlertTriangle className="size-7 text-red-600 dark:text-red-400 mx-auto" />
+          <div className="rounded-lg border border-critical-edge bg-critical-surface/60 p-5 text-center space-y-3">
+            <AlertTriangle className="size-7 text-critical mx-auto" />
             <p className="text-sm font-medium">This research run failed.</p>
             <p className="text-sm text-muted-foreground">
               {err || 'The run never finished — it likely hit the 5-minute limit. Try a narrower search.'}
@@ -99,8 +99,8 @@ export default async function EmailIngestReviewPage({ params }: PageProps) {
       </Link>
 
       {session.status === 'confirmed' ? (
-        <div className="rounded-lg border border-emerald-300 dark:border-emerald-700/60 bg-emerald-50/60 dark:bg-emerald-950/40 p-5 text-center space-y-3">
-          <CheckCircle2 className="size-8 text-emerald-600 dark:text-emerald-400 mx-auto" />
+        <div className="rounded-lg border border-positive-edge bg-positive-surface/60 p-5 text-center space-y-3">
+          <CheckCircle2 className="size-8 text-positive mx-auto" />
           <p className="text-sm font-medium">
             {createdIds?.attached_to_existing
               ? `This package was added to ${createdIds.record_name ?? 'an existing record'}.`

@@ -96,26 +96,35 @@ export default function DashboardProjects({ projects, counts, sortControl }: Das
       {/* One toolbar, one alignment, read left to right: which projects →
           how they are grouped → how they are ordered. */}
       <div className="flex items-center gap-2 flex-wrap">
-        <div className="flex items-center rounded-md border border-border overflow-hidden text-xs">
+        {/*
+          ⚠ THESE WERE `bg-foreground text-background` — a NEAR-BLACK SLAB on
+          the active segment, and two of them sat side by side above the
+          project list with a third (terracotta) sort control beside them. Three
+          filled blocks in one row, none of which was the page's actual button.
+          Same track-and-pill idiom as `Segmented` now; see the note there.
+        */}
+        <div className="flex items-center gap-0.5 rounded-md bg-muted p-0.5 text-xs">
           {(['all', 'sales', 'ops'] as Preset[]).map(p => (
             <button
               key={p}
               onClick={() => setPreset(p)}
+              aria-pressed={preset === p}
               className={cn(
-                'px-2.5 py-1.5 transition-colors border-r border-border last:border-r-0',
-                preset === p ? 'bg-foreground text-background' : 'bg-background text-muted-foreground hover:text-foreground hover:bg-accent'
+                'rounded px-2.5 py-1.5 transition-colors',
+                preset === p ? 'bg-card text-foreground font-medium elev-1' : 'text-muted-foreground hover:text-foreground'
               )}
             >
               {PRESET_LABELS[p]}
             </button>
           ))}
         </div>
-        <div className="flex items-center rounded-md border border-border overflow-hidden text-xs">
+        <div className="flex items-center gap-0.5 rounded-md bg-muted p-0.5 text-xs">
           <button
             onClick={() => setView('program')}
+            aria-pressed={view === 'program'}
             className={cn(
-              'inline-flex items-center gap-1.5 px-2.5 py-1.5 transition-colors',
-              view === 'program' ? 'bg-foreground text-background' : 'bg-background text-muted-foreground hover:text-foreground hover:bg-accent'
+              'inline-flex items-center gap-1.5 rounded px-2.5 py-1.5 transition-colors',
+              view === 'program' ? 'bg-card text-foreground font-medium elev-1' : 'text-muted-foreground hover:text-foreground'
             )}
           >
             <GitBranch size={12} />
@@ -123,9 +132,10 @@ export default function DashboardProjects({ projects, counts, sortControl }: Das
           </button>
           <button
             onClick={() => setView('stage')}
+            aria-pressed={view === 'stage'}
             className={cn(
-              'inline-flex items-center gap-1.5 px-2.5 py-1.5 transition-colors border-l border-border',
-              view === 'stage' ? 'bg-foreground text-background' : 'bg-background text-muted-foreground hover:text-foreground hover:bg-accent'
+              'inline-flex items-center gap-1.5 rounded px-2.5 py-1.5 transition-colors',
+              view === 'stage' ? 'bg-card text-foreground font-medium elev-1' : 'text-muted-foreground hover:text-foreground'
             )}
           >
             <LayoutGrid size={12} />

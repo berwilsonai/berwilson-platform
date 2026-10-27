@@ -239,7 +239,7 @@ export default async function SteelDealDetailPage({ params }: PageProps) {
         </div>
       )}
       {lost && (
-        <div className="rounded-md px-3 py-2 text-sm font-medium ring-1 ring-inset bg-red-50 text-red-600 ring-red-200 dark:bg-red-500/15 dark:text-red-300 dark:ring-red-500/30">
+        <div className="rounded-md px-3 py-2 text-sm font-medium ring-1 ring-inset bg-critical-surface text-critical ring-critical-edge">
           Lost
         </div>
       )}
@@ -254,13 +254,13 @@ export default async function SteelDealDetailPage({ params }: PageProps) {
 
       {/* Below-floor pricing — needs management approval */}
       {deal.pricing_below_floor && (
-        <div className="flex items-start gap-2.5 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 dark:border-amber-500/40 dark:bg-amber-500/10">
-          <TriangleAlert size={16} className="mt-0.5 shrink-0 text-amber-600 dark:text-amber-400" />
+        <div className="flex items-start gap-2.5 rounded-lg border border-caution-edge bg-caution-surface px-4 py-3">
+          <TriangleAlert size={16} className="mt-0.5 shrink-0 text-caution" />
           <div>
-            <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">
+            <p className="text-sm font-semibold text-caution">
               Below floor — needs management approval
             </p>
-            <p className="text-xs text-amber-700 dark:text-amber-300/90 mt-0.5">
+            <p className="text-xs text-caution mt-0.5">
               Steel is priced at{' '}
               {effectivePpsf != null ? (
                 <strong className="tnum">${effectivePpsf.toFixed(2)}/SF</strong>

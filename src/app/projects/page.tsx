@@ -13,6 +13,9 @@ import ProjectsClient from '@/components/projects/ProjectsClient'
 import ProtectedProjectList from '@/components/security/ProtectedProjectList'
 import { dropHidden } from '@/lib/security/confidential'
 import { viewerHiddenProjectIds } from '@/lib/security/request'
+import { PageHeader, HeaderMetrics } from '@/components/ui/page-header'
+import { coverageNote, portfolioTotal } from '@/lib/records/pipeline-value'
+import { formatValue } from '@/lib/utils/constants'
 
 interface PageProps {
   searchParams: Promise<{ sector?: string; status?: string; stage?: string }>
@@ -69,40 +72,63 @@ export default async function ProjectsPage({ searchParams }: PageProps) {
   const count = projects?.length ?? 0
   const hasFilters = sector || status || stage
 
+  /*
+    The masthead's own figures.
+
+    ⚠ `portfolioTotal`, NEVER `pipelineTotal` — this set is read straight from
+    `projects`, so it holds programs AND their sub-projects at once and a bare
+    sum would count the same money twice. That is the module's own documented
+    rule, and the metric strip is a new reader of it.
+  */
+  const total = portfolioTotal(projects)
+
   return (
     <div className="space-y-5">
-      {/* Page toolbar */}
-      <div className="flex items-center justify-between gap-4 flex-wrap">
-        <div className="flex items-center gap-3">
-          <Suspense>
-            <ProjectFilters sector={sector} status={status} stage={stage} />
-          </Suspense>
-          {count > 0 && (
-            <span className="text-xs text-muted-foreground">
-              {count} project{count !== 1 ? 's' : ''}
-              {hasFilters ? ' matching' : ''}
-            </span>
-          )}
-        </div>
-        {isAdmin && (
-          <div className="flex items-center gap-2 shrink-0">
-            <Link
-              href="/timeline"
-              className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md border border-border bg-card text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-            >
-              <GanttChart size={14} />
-              Timeline
-            </Link>
-            <Link
-              href="/projects/new"
-              className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors"
-            >
-              <Plus size={14} />
-              New Project
-            </Link>
-          </div>
-        )}
-      </div>
+      <PageHeader
+        title="Projects"
+        description={hasFilters ? 'Filtered view — clear the filters to see the whole portfolio.' : undefined}
+        actions={
+          isAdmin ? (
+            <>
+              <Link
+                href="/timeline"
+                className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md border border-border bg-card text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+              >
+                <GanttChart size={14} />
+                Timeline
+              </Link>
+              <Link
+                href="/projects/new"
+                className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors"
+              >
+                <Plus size={14} />
+                New Project
+              </Link>
+            </>
+          ) : undefined
+        }
+        metrics={
+          count > 0 ? (
+            <HeaderMetrics
+              items={[
+                { label: hasFilters ? 'matching' : 'projects', value: count },
+                ...(total.amount > 0
+                  ? [
+                      {
+                        label: coverageNote(total) ?? 'pipeline',
+                        value: formatValue(total.amount),
+                      },
+                    ]
+                  : []),
+              ]}
+            />
+          ) : undefined
+        }
+      >
+        <Suspense>
+          <ProjectFilters sector={sector} status={status} stage={stage} />
+        </Suspense>
+      </PageHeader>
 
       {/* Cards grid or empty state */}
       {count === 0 ? (

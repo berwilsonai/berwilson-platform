@@ -144,7 +144,7 @@ export default function LeadCard({
             </span>
           )}
           {due && (
-            <span className={`font-medium ${overdue ? 'text-red-600' : bidDueColor(lead.bid_due_date)}`}>
+            <span className={`font-medium ${overdue ? 'text-critical' : bidDueColor(lead.bid_due_date)}`}>
               {due}
             </span>
           )}

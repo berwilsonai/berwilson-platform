@@ -38,20 +38,25 @@ export default function LoginForm() {
   }
 
   return (
-    <div
-      className="relative flex min-h-screen items-center justify-center px-4"
-      style={{
-        background:
-          'radial-gradient(80rem 40rem at 50% -10%, oklch(0.30 0.05 260) 0%, oklch(0.18 0.025 260) 45%, oklch(0.13 0.02 260) 100%)',
-      }}
-    >
-      {/* Faint dot grid — same canvas language as the entity chart. */}
+    <div className="relative flex min-h-screen items-center justify-center bg-background px-4">
+      {/*
+        ⚠ THIS PAGE WAS A HARDCODED NAVY GRADIENT UNTIL 2026-10-27 — hue 260,
+        inline, reading no token at all. It is the FIRST screen of the product
+        and it was the one surface two consecutive re-skins could not reach,
+        which is most of why the palette work "could not be seen": whatever the
+        app was themed, sign-in was navy.
+
+        It is the canvas now, with a single wash of the brand terracotta at the
+        top. Built from `--primary` through `color-mix`, so it follows the
+        palette by construction and cannot drift from it again (the same fix
+        the rail gradient needed on 10-26).
+      */}
       <div
         aria-hidden
-        className="absolute inset-0 pointer-events-none"
+        className="pointer-events-none absolute inset-x-0 top-0 h-[55vh]"
         style={{
-          backgroundImage: 'radial-gradient(oklch(1 0 0 / 0.07) 1px, transparent 1px)',
-          backgroundSize: '22px 22px',
+          background:
+            'radial-gradient(60rem 28rem at 50% -8%, color-mix(in oklab, var(--primary) 16%, transparent) 0%, transparent 70%)',
         }}
       />
 
@@ -59,9 +64,8 @@ export default function LoginForm() {
         <div className="rounded-2xl bg-card elev-3 border border-border/60 px-7 py-8 space-y-6">
           {/* Brand */}
           <div className="flex flex-col items-center text-center gap-3">
-            {/* The card is `bg-card`, which flips with the theme even though
-                the page behind it is always navy — so the lockup follows the
-                card, not the page. */}
+            {/* The card is `bg-card` and the page behind it is the canvas, so
+                both flip with the theme together; the lockup follows the card. */}
             <Image
               src="/logo-light.png"
               alt="Ber Wilson"
@@ -85,7 +89,7 @@ export default function LoginForm() {
           </div>
 
           {linkError && (
-            <p className="text-sm text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 rounded-md px-3 py-2 text-center">
+            <p className="text-sm text-caution bg-caution-surface border border-caution-edge rounded-md px-3 py-2 text-center">
               That link has expired or is invalid. Please sign in below.
             </p>
           )}
@@ -103,7 +107,7 @@ export default function LoginForm() {
                 onChange={(e) => setEmail(e.target.value)}
                 required
                 autoComplete="email"
-                className="w-full h-10 rounded-md border border-input bg-background dark:bg-slate-900 px-3 text-sm text-foreground placeholder:text-muted-foreground/60 outline-none focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:border-transparent"
+                className="w-full h-10 rounded-md border border-input bg-background dark:bg-muted px-3 text-sm text-foreground placeholder:text-muted-foreground/60 outline-none focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:border-transparent"
                 placeholder="you@berwilson.com"
               />
             </div>
@@ -119,12 +123,12 @@ export default function LoginForm() {
                 onChange={(e) => setPassword(e.target.value)}
                 required
                 autoComplete="current-password"
-                className="w-full h-10 rounded-md border border-input bg-background dark:bg-slate-900 px-3 text-sm text-foreground outline-none focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:border-transparent"
+                className="w-full h-10 rounded-md border border-input bg-background dark:bg-muted px-3 text-sm text-foreground outline-none focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:border-transparent"
               />
             </div>
 
             {error && (
-              <p className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/40 rounded-md px-3 py-2">
+              <p className="text-sm text-critical bg-critical-surface rounded-md px-3 py-2">
                 {error}
               </p>
             )}
@@ -140,7 +144,10 @@ export default function LoginForm() {
           </form>
         </div>
 
-        <p className="mt-5 text-center text-xs text-white/40">
+        {/* ⚠ WAS `text-white/40` — white at 40% on what used to be a navy page,
+            which on the cream canvas is invisible. The kind of thing that is
+            obvious in a screenshot and silent in a diff. */}
+        <p className="mt-5 text-center text-xs text-muted-foreground">
           Internal use only · Private network access
         </p>
       </div>

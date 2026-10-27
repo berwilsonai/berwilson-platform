@@ -127,7 +127,7 @@ export default function ProjectNarrativeBrief({ projectId, initialBrief = null }
           {/* When there is a stored brief, a failed refresh is a footnote, not
               the content — the brief below is still the last good one. */}
           {error && (
-            <p className={`text-xs pt-3 ${brief ? 'text-muted-foreground' : 'text-red-600 dark:text-red-400'}`}>
+            <p className={`text-xs pt-3 ${brief ? 'text-muted-foreground' : 'text-critical'}`}>
               {brief ? `Could not refresh — showing the last brief. ${error}` : error}
             </p>
           )}

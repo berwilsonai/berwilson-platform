@@ -187,7 +187,7 @@ export default function ScanCardButton() {
       </button>
 
       {error && stage === 'idle' && (
-        <p className="w-full text-xs text-red-600 dark:text-red-400">{error}</p>
+        <p className="w-full text-xs text-critical">{error}</p>
       )}
 
       {/* A dialog rather than an inline panel: the review is the whole task once
@@ -212,7 +212,7 @@ export default function ScanCardButton() {
           </div>
 
           {!draft.researched && (
-            <p className="flex items-start gap-1.5 text-xs text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 rounded px-2 py-1.5">
+            <p className="flex items-start gap-1.5 text-xs text-caution bg-caution-surface border border-caution-edge rounded px-2 py-1.5">
               <AlertTriangle size={12} className="shrink-0 mt-0.5" />
               <span>
                 Built from the card alone — no web research{draft.research_error ? `: ${draft.research_error}` : '.'}
@@ -242,7 +242,7 @@ export default function ScanCardButton() {
           )}
 
           {draft.ambiguous && draft.candidates.length > 0 && (
-            <p className="flex items-start gap-1.5 text-xs text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 rounded px-2 py-1.5">
+            <p className="flex items-start gap-1.5 text-xs text-caution bg-caution-surface border border-caution-edge rounded px-2 py-1.5">
               <AlertTriangle size={12} className="shrink-0 mt-0.5" />
               <span>
                 {draft.candidates.length} contacts fit this card equally well, so none was chosen.
@@ -337,7 +337,7 @@ export default function ScanCardButton() {
             </pre>
           </details>
 
-          {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+          {error && <p className="text-sm text-critical">{error}</p>}
 
           <div className="flex items-center gap-2 pt-1">
             <button

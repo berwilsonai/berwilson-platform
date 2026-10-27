@@ -313,9 +313,9 @@ export default function SteelPipelineBoard({
         unowned.size > 0) && (
         <div className="flex items-center gap-2 flex-wrap">
           <span className="label-caps text-muted-foreground mr-0.5">Needs attention</span>
-          {chip('overdue', 'overdue', attnStats.overdue.size, CircleAlert, 'bg-red-50 text-red-700 ring-red-200 dark:bg-red-500/15 dark:text-red-300 dark:ring-red-500/30')}
-          {chip('no_next', 'no next step', attnStats.noNext.size, CircleDashed, 'bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-500/15 dark:text-amber-300 dark:ring-amber-500/30')}
-          {chip('stale', `stale (>${STALE_DAYS}d)`, attnStats.stale.size, Clock, 'bg-slate-100 text-slate-700 ring-slate-200 dark:bg-slate-400/15 dark:text-slate-300 dark:ring-slate-400/25')}
+          {chip('overdue', 'overdue', attnStats.overdue.size, CircleAlert, 'bg-critical-surface text-critical ring-critical-edge')}
+          {chip('no_next', 'no next step', attnStats.noNext.size, CircleDashed, 'bg-caution-surface text-caution ring-caution-edge')}
+          {chip('stale', `stale (>${STALE_DAYS}d)`, attnStats.stale.size, Clock, 'bg-muted text-foreground ring-border dark:bg-muted-foreground/15 dark:text-muted-foreground dark:ring-border/25')}
           {chip('unowned', 'unassigned', unowned.size, UserRoundX, 'bg-violet-50 text-violet-700 ring-violet-200 dark:bg-violet-500/15 dark:text-violet-300 dark:ring-violet-500/30')}
           {attn && (
             <button onClick={() => setAttn('')} className="text-xs text-muted-foreground hover:text-foreground transition-colors">
@@ -532,7 +532,7 @@ function PipelineCard({
           {leadSourceLabel(deal.lead_source)}
         </span>
         {deal.pricing_below_floor && (
-          <span className="inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[10px] font-medium ring-1 ring-inset bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-500/15 dark:text-amber-300 dark:ring-amber-500/30">
+          <span className="inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[10px] font-medium ring-1 ring-inset bg-caution-surface text-caution ring-caution-edge">
             <TriangleAlert size={10} className="shrink-0" />
             Below floor
           </span>
@@ -552,7 +552,7 @@ function PipelineCard({
         <div
           className={cn(
             'mt-2 flex items-center gap-1 text-[11px] truncate',
-            overdue ? 'text-amber-600 dark:text-amber-400 font-medium' : 'text-muted-foreground/80'
+            overdue ? 'text-caution font-medium' : 'text-muted-foreground/80'
           )}
         >
           <CalendarClock size={11} className="shrink-0" />
@@ -591,9 +591,9 @@ function Stat({
 }) {
   const cls =
     tone === 'amber'
-      ? 'text-amber-600 dark:text-amber-400'
+      ? 'text-caution'
       : tone === 'emerald'
-        ? 'text-emerald-600 dark:text-emerald-400'
+        ? 'text-positive'
         : ''
   return (
     <div className="rounded-lg border border-border bg-card px-4 py-3 elev-1">

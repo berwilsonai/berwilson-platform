@@ -80,6 +80,51 @@ test('a Tailwind class is never assembled from a variable', () => {
   assert.deepEqual(hits.map((h) => `${h.file}:${h.line}`), [])
 })
 
+test('ink is never the same lightness as the fill it sits on', () => {
+  /*
+    ⚠ THIS TEST EXISTS BECAUSE A CODEMOD SHIPPED THE BUG IT CATCHES.
+
+    The 10-27 colour tokenisation mapped `bg-slate-900 text-white` — a DARK
+    FILL in light mode, a print button, a numbered bullet — to `bg-muted
+    text-white`, on the assumption that the 800–950 end of the neutral ramp
+    only ever appeared as a `dark:` variant. It did not, and 13 controls
+    rendered white-on-near-white: present in the DOM, invisible on screen,
+    passing typecheck, build and every other test.
+
+    Nothing could have caught it except looking, and looking does not scale to
+    97 pages. What DOES scale is the structural rule underneath: the app has
+    exactly two inks and two fills, and they pair one way round.
+      `bg-foreground` takes `text-background`
+      `bg-card` / `bg-background` / `bg-muted` take `text-foreground`
+    Any class string pairing a light fill with a light ink, or a dark fill with
+    a dark ink, is a rendering bug whatever it looks like in the source.
+
+    `text-white` is included as a light ink deliberately: it is theme-blind, so
+    on `bg-muted` it is wrong in BOTH themes rather than only one.
+  */
+  const LIGHT_FILL = /\bbg-(?:card|background|muted|secondary|accent|popover)(?:\/\d+)?(?![\w-])/
+  const LIGHT_INK = /\btext-(?:background|white)(?:\/\d+)?(?![\w-])/
+  const DARK_FILL = /\bbg-foreground(?:\/\d+)?(?![\w-])/
+  const DARK_INK = /\btext-(?:foreground|muted-foreground|black)(?:\/\d+)?(?![\w-])/
+
+  const bad: string[] = []
+  for (const file of sourceFiles()) {
+    const src = readFileSync(file, 'utf8')
+    // Quoted runs only — a class string never spans a quote.
+    for (const m of src.matchAll(/"[^"\n]*"|'[^'\n]*'|`[^`\n]*`/g)) {
+      const s = m[0]
+      if (!s.includes('bg-')) continue
+      // `bg-muted-foreground` is a dark fill despite starting `bg-muted`.
+      const light = LIGHT_FILL.test(s) && !/\bbg-muted-foreground/.test(s)
+      if ((light && LIGHT_INK.test(s)) || (DARK_FILL.test(s) && DARK_INK.test(s))) {
+        const line = src.slice(0, m.index).split('\n').length
+        bad.push(`${file}:${line}  ${s.slice(0, 90)}`)
+      }
+    }
+  }
+  assert.deepEqual(bad, [], 'a fill and an ink of the same lightness — the text is invisible')
+})
+
 // ─── ratchets: these must shrink, never grow ─────────────────────────────────
 
 /** Assert a count is at or below its baseline, and say so usefully when not. */

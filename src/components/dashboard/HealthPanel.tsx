@@ -1,6 +1,6 @@
 import Link from 'next/link'
-import { CheckCircle2, Landmark, TrendingUp, FolderKanban, BellRing } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { CheckCircle2 } from 'lucide-react'
+import { StatTile, StatGrid } from '@/components/ui/stat'
 import { formatValue } from '@/lib/utils/constants'
 
 interface HealthPanelProps {
@@ -33,7 +33,16 @@ interface HealthPanelProps {
 /**
  * Executive KPI band: the state of the portfolio in four calm numbers.
  * Real figures only — no synthetic score. Detail and navigation live in the
- * alerts banner and Needs Attention rail below.
+ * Needs Attention rail below.
+ *
+ * ⚠ THE FOUR PASTEL ICON CHIPS ARE GONE (2026-10-27). Each tile carried a 36px
+ * rounded square in its own hue — primary, violet, emerald, amber — and between
+ * them they put four decorative colours across the top of the morning read.
+ * §12: when every row is red, red has stopped signifying; four tiles in four
+ * colours is the same failure wearing pastel, and it meant the ONE tile that
+ * was genuinely warning could not be picked out from the three that were fine.
+ * The tiles are plain now, and `tone` colours the FIGURE only when the figure
+ * itself is the problem — so colour in this band means exactly one thing.
  */
 export default function HealthPanel({
   activeProjects,
@@ -62,146 +71,93 @@ export default function HealthPanel({
   // The same four things countAttention() counts for the sidebar badge.
   const totalAlerts = criticalDdCount + overdueCount + overdueTaskCount + expiringCertsCount
 
+  /*
+    ⚠ `overdue` WAS `text-orange-600 dark:text-orange-400`, THE ONE PLACE A
+    CategoryTone WAS DOING A STATUS JOB. tone.ts declares orange as a category
+    — "this kind differs from that kind" — so it carries no token, no measured
+    contrast and no theme guarantee, and it was being asked here to mean
+    "late". Late is caution. Critical is critical. Two meanings, two measured
+    tones, and no third colour in between that means neither.
+  */
   const breakdown = [
-    { count: criticalDdCount, label: 'critical', plural: 'critical', className: 'text-red-600 dark:text-red-400' },
-    { count: overdueCount, label: 'overdue milestone', plural: 'overdue milestones', className: 'text-orange-600 dark:text-orange-400' },
-    { count: overdueTaskCount, label: 'overdue task', plural: 'overdue tasks', className: 'text-orange-600 dark:text-orange-400' },
-    { count: expiringCertsCount, label: 'cert expiry', plural: 'cert expiries', className: 'text-yellow-600 dark:text-yellow-500' },
+    { count: criticalDdCount, label: 'critical', plural: 'critical', className: 'text-critical' },
+    { count: overdueCount, label: 'overdue milestone', plural: 'overdue milestones', className: 'text-caution' },
+    { count: overdueTaskCount, label: 'overdue task', plural: 'overdue tasks', className: 'text-caution' },
+    { count: expiringCertsCount, label: 'cert expiry', plural: 'cert expiries', className: 'text-caution' },
   ].filter((b) => b.count > 0)
 
   // A KPI tile with no value is not a KPI tile. Weighted pipeline is unset
   // until someone puts a win probability on a project; until then it is an
-  // instruction, and an instruction does not belong at 3xl beside real money.
+  // instruction, and an instruction does not belong beside real money.
   const showWeighted = weightedPipelineValue > 0
 
   return (
-    <div className="rounded-lg border border-border bg-card elev-1 px-5 py-4 sm:px-6">
-      <dl className={cn('grid grid-cols-2 gap-x-8 gap-y-5', showWeighted ? 'lg:grid-cols-4' : 'lg:grid-cols-3')}>
-        <div className="min-w-0 flex items-start gap-3">
-          <span className="mt-0.5 size-9 shrink-0 rounded-lg bg-primary/10 text-primary dark:bg-primary/20 flex items-center justify-center">
-            <Landmark size={17} />
-          </span>
-          <div className="min-w-0">
-            <dt className="label-caps text-muted-foreground">
-              Pipeline Value
-            </dt>
-            <dd className="mt-1 text-3xl font-semibold text-foreground tnum heading-tight">
-              {pipelineValue > 0 ? formatValue(pipelineValue) : 'Not set'}
-            </dd>
-            <dd className="mt-0.5 text-xs text-muted-foreground">
-              {pipelineNote
-                ? `Across active projects · ${pipelineNote}`
-                : 'Across active projects'}
-            </dd>
+    <StatGrid className={showWeighted ? undefined : 'lg:grid-cols-3'}>
+      <StatTile
+        label="Pipeline Value"
+        value={pipelineValue > 0 ? formatValue(pipelineValue) : null}
+        empty="No active project carries a value yet"
+        hint={pipelineNote ? `Across active projects · ${pipelineNote}` : 'Across active projects'}
+        footer={
+          <span className="block space-y-0.5 text-muted-foreground">
             {unpricedCount && unpricedCount > 0 ? (
-              <dd className="mt-0.5 text-xs text-muted-foreground">
-                {unpricedCount} active {unpricedCount === 1 ? 'project has' : 'projects have'} no
-                value yet
-              </dd>
+              <span className="block">
+                {unpricedCount} active {unpricedCount === 1 ? 'project has' : 'projects have'} no value yet
+              </span>
             ) : null}
             {/* A total over 50 deals that silently covers 44 is the kind of
                 unexplained figure this tile exists to stop. */}
             {rolledUpCount && rolledUpCount > 0 ? (
-              <dd className="mt-0.5 text-xs text-muted-foreground">
-                {rolledUpCount} {rolledUpCount === 1 ? 'program counts' : 'programs count'} through
-                its sub-projects, not twice
-              </dd>
+              <span className="block">
+                {rolledUpCount} {rolledUpCount === 1 ? 'program counts' : 'programs count'} through its
+                sub-projects, not twice
+              </span>
             ) : null}
-          </div>
-        </div>
+          </span>
+        }
+      />
 
-        {showWeighted && (
-          <div className="min-w-0 flex items-start gap-3">
-            <span className="mt-0.5 size-9 shrink-0 rounded-lg bg-violet-100 text-violet-700 dark:bg-violet-500/20 dark:text-violet-300 flex items-center justify-center">
-              <TrendingUp size={17} />
+      {showWeighted && (
+        <StatTile
+          label="Weighted Pipeline"
+          value={formatValue(weightedPipelineValue)}
+          hint="Adjusted for win probability"
+        />
+      )}
+
+      <StatTile label="Active Projects" value={activeProjects} href="/projects" hint="View pipeline" />
+
+      <StatTile
+        label="Needs Attention"
+        value={totalAlerts}
+        tone={totalAlerts > 0 ? 'caution' : 'default'}
+        hint={
+          totalAlerts === 0 ? (
+            <span className="inline-flex items-center gap-1 font-medium text-positive">
+              <CheckCircle2 size={12} /> All clear
             </span>
-            <div className="min-w-0">
-              <dt className="label-caps text-muted-foreground">
-                Weighted Pipeline
-              </dt>
-              <dd className="mt-1 text-3xl font-semibold text-foreground tnum heading-tight">
-                {formatValue(weightedPipelineValue)}
-              </dd>
-              <dd className="mt-0.5 text-xs text-muted-foreground">Adjusted for win probability</dd>
-            </div>
-          </div>
-        )}
-
-        <div className="min-w-0 flex items-start gap-3">
-          <span className="mt-0.5 size-9 shrink-0 rounded-lg bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300 flex items-center justify-center">
-            <FolderKanban size={17} />
-          </span>
-          <div className="min-w-0">
-            <dt className="label-caps text-muted-foreground">
-              Active Projects
-            </dt>
-            <dd className="mt-1 text-3xl font-semibold text-foreground tnum heading-tight">
-              {activeProjects}
-            </dd>
-            <dd className="mt-0.5 text-xs text-muted-foreground">
-              <Link href="/projects" className="hover:text-foreground transition-colors">
-                View pipeline →
-              </Link>
-            </dd>
-          </div>
-        </div>
-
-        <div className="min-w-0 flex items-start gap-3">
-          <span
-            className={cn(
-              'mt-0.5 size-9 shrink-0 rounded-lg flex items-center justify-center',
-              totalAlerts > 0
-                ? 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300'
-                : 'bg-muted text-muted-foreground'
-            )}
-          >
-            <BellRing size={17} />
-          </span>
-          <div className="min-w-0">
-            <dt className="label-caps text-muted-foreground">
-              Needs Attention
-            </dt>
-            <dd
-              className={cn(
-                'mt-1 text-3xl font-semibold tnum heading-tight',
-                totalAlerts > 0 ? 'text-foreground' : 'text-muted-foreground'
-              )}
-            >
-              {totalAlerts}
-            </dd>
-            <dd className="mt-0.5 text-xs">
-              {totalAlerts === 0 ? (
-                <span className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-medium">
-                  <CheckCircle2 size={12} /> All clear
+          ) : (
+            <span>
+              {breakdown.map((b, i) => (
+                <span key={b.label}>
+                  {i > 0 ? ' · ' : null}
+                  <span className={`tnum font-medium ${b.className}`}>{b.count}</span>{' '}
+                  {b.count === 1 ? b.label : b.plural}
                 </span>
-              ) : (
-                <span className="text-muted-foreground">
-                  {breakdown.map((b, i) => (
-                    <span key={b.label}>
-                      {i > 0 && ' · '}
-                      <span className={cn('font-medium tnum', b.className)}>{b.count}</span>{' '}
-                      {b.count === 1 ? b.label : b.plural}
-                    </span>
-                  ))}
-                </span>
-              )}
-            </dd>
-            {/* The Decide backlog, stated as itself and linked to its own page —
-                never added into the number above. */}
-            {pendingReview > 0 && (
-              <dd className="mt-0.5 text-xs">
-                <Link
-                  href="/decide"
-                  className="text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  <span className="font-medium tnum text-amber-600 dark:text-amber-400">{pendingReview}</span>
-                  {' '}waiting to decide →
-                </Link>
-              </dd>
-            )}
-          </div>
-        </div>
-      </dl>
-    </div>
+              ))}
+            </span>
+          )
+        }
+        footer={
+          /* The Decide backlog, stated as itself and linked to its own page —
+             never added into the number above. */
+          pendingReview > 0 ? (
+            <Link href="/decide" className="text-muted-foreground transition-colors hover:text-foreground">
+              <span className="tnum font-medium text-caution">{pendingReview}</span> waiting to decide →
+            </Link>
+          ) : null
+        }
+      />
+    </StatGrid>
   )
 }

@@ -13,7 +13,7 @@ interface Props {
 }
 
 function Tile({ label, value, sub, tone }: { label: string; value: string; sub?: string; tone?: 'primary' | 'slate' | 'accent' }) {
-  const dot = tone === 'primary' ? 'bg-primary' : tone === 'slate' ? 'bg-slate-400' : null
+  const dot = tone === 'primary' ? 'bg-primary' : tone === 'slate' ? 'bg-muted-foreground' : null
   return (
     <div className={cn('rounded-lg border border-border bg-card px-4 py-3 elev-1', tone === 'accent' && 'ring-1 ring-inset ring-primary/25')}>
       <p className="flex items-center gap-1.5 label-caps text-muted-foreground">

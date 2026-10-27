@@ -78,9 +78,15 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-geist-mono);
-  /* Display serif for page titles / dialog titles — the editorial voice that
-     separates headings from the Geist body. Loaded in layout.tsx (Newsreader). */
-  --font-heading: var(--font-newsreader), Georgia, 'Times New Roman', serif;
+  /* ⚠ THE DISPLAY SERIF IS GONE AS OF 2026-10-27. Every h1 in the app was set
+     in Newsreader — an editorial voice, and the wrong one for the brief
+     Richard gave: Attio, Linear, Domo and every other modern analytics product
+     sets its headings in the SAME face as its body and separates them by
+     weight and tracking instead. A serif masthead over a data table is the
+     tell of a document, not a dashboard. The token stays (print letterheads
+     need one owner) and now resolves to the sans stack; Newsreader is no
+     longer loaded in layout.tsx. */
+  --font-heading: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -164,39 +170,34 @@
      delta stays, because a card must still read as a card with shadows
      suppressed (`prefers-reduced-transparency`, print, a forced-colours mode). Measured as a lightness delta rather than a
      contrast ratio, for the reason given in `contrast.ts`. */
-  --background: oklch(0.945 0.020 88);
-  --foreground: oklch(0.21 0.014 88);
-  --card: oklch(0.985 0.010 88);
-  --card-foreground: oklch(0.21 0.014 88);
-  --popover: oklch(0.985 0.010 88);
-  --popover-foreground: oklch(0.21 0.014 88);
-  /* THE ONE ACCENT. Ber Wilson's blue, at real chroma so it reads as a
-     deliberate accent rather than a dark neutral — 8.7:1 as link text on a
-     card, 8.4:1 for a white label on the button. ⚠ Keep it scarce: it means
-     "this is the action". A near-black primary was tried and rejected, because
-     a black button beside black text is not findable. */
+  --background: oklch(0.963 0.005 88);
+  --foreground: oklch(0.22 0.012 88);
+  --card: oklch(0.995 0.002 88);
+  --card-foreground: oklch(0.22 0.012 88);
+  --popover: oklch(0.995 0.002 88);
+  --popover-foreground: oklch(0.22 0.012 88);
+  /* THE ONE ACCENT — the logo's terracotta. ⚠ IT GAINED A THIRD BACKGROUND ON
+     2026-10-27: the rail is light now, so primary-as-text — the active nav row
+     — has to clear on the rail as well as on a card. L 0.52 was tried and
+     REVERTED: it reads brighter but lands at 5.77:1 on the card, under the 6.0
+     bar `contrast.test.ts` holds this token to. The bar was not lowered to fit
+     the colour; the colour went back, and the TEST grew the rail as a fourth
+     measured surface. 0.50 → 6.29:1 white-on-fill, 6.29:1 as link text on a
+     card, 5.07:1 as text on the rail. */
   --primary: oklch(0.50 0.135 38);
-  --primary-foreground: oklch(0.985 0.012 88);
-  --secondary: oklch(0.925 0.022 88);
-  --secondary-foreground: oklch(0.26 0.014 88);
-  --muted: oklch(0.925 0.022 88);
-  /* 8.5:1 on a card — well past the 4.5 floor, because this is the colour of
-     most of the small text in the app and it is read all day. */
-  --muted-foreground: oklch(0.47 0.016 88);
-  /* Hover/selected surface. NEUTRAL, not the old warm cream: a tinted hover
-     state is decorative colour, and this palette spends its colour budget on
-     the accent and the status tones. */
-  --accent: oklch(0.905 0.026 88);
-  --accent-foreground: oklch(0.26 0.014 88);
+  --primary-foreground: oklch(0.995 0.002 88);
+  --secondary: oklch(0.945 0.008 88);
+  --secondary-foreground: oklch(0.26 0.012 88);
+  --muted: oklch(0.950 0.007 88);
+  /* 5.91:1 on a card AND 4.76:1 on the rail — the second number is new, and is
+     why this is 0.50 rather than the 0.55 that would read lighter. */
+  --muted-foreground: oklch(0.50 0.014 88);
+  --accent: oklch(0.935 0.010 88);
+  --accent-foreground: oklch(0.26 0.012 88);
   --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.865 0.022 88);
-  --input: oklch(0.865 0.022 88);
+  --border: oklch(0.885 0.008 88);
+  --input: oklch(0.885 0.008 88);
   --ring: oklch(0.58 0.12 38);
-  /* ⚠ THE BRAND'S OWN THREE, THEN TWO DERIVED FROM THEM — and they are now
-     genuinely different between the themes, which the identical old set was
-     not (tone.test.ts cites that as the cautionary tale it cannot catch,
-     because nothing renders these yet). Terracotta, sage and ochre are read
-     from the logo; the last two extend the same warm family. */
   --chart-1: oklch(0.56 0.135 38);
   --chart-2: oklch(0.58 0.060 175);
   --chart-3: oklch(0.64 0.110 81);
@@ -232,13 +233,33 @@
   --elev-1: 0 1px 2px 0 oklch(0 0 0 / 0.04), 0 1px 3px 0 oklch(0 0 0 / 0.05);
   --elev-2: 0 2px 4px -1px oklch(0 0 0 / 0.06), 0 4px 12px -2px oklch(0 0 0 / 0.07);
   --elev-3: 0 8px 24px -8px oklch(0 0 0 / 0.22);
-  --sidebar: oklch(0.225 0.018 55);
-  --sidebar-foreground: oklch(0.93 0.012 88);
-  --sidebar-primary: oklch(0.70 0.13 38);
-  --sidebar-primary-foreground: oklch(0.18 0.012 55);
-  --sidebar-accent: oklch(0.285 0.020 55);
-  --sidebar-accent-foreground: oklch(0.95 0.010 88);
-  --sidebar-border: oklch(0.32 0.018 55);
+  /* ── THE RAIL IS LIGHT AS OF 2026-10-27, AND THIS IS THE OVERHAUL'S LARGEST
+     SINGLE MOVE ─────────────────────────────────────────────────────────────
+     It was a dark slab (L 0.225) beside a light app, which is the one thing
+     every reference Richard named does NOT do: Attio, Linear, Notion and Domo
+     all run a light rail one step below the canvas and let the CONTENT be the
+     brightest plane. A dark rail is the signature of an admin panel, and it was
+     also carrying the app's only large area of colour, which is why the eye
+     went to the furniture instead of the data.
+
+     THREE PLANES, DARKEST-TO-LIGHTEST, chrome → canvas → content:
+       rail   0.922  ← furniture
+       canvas 0.963  ← the page
+       card   0.995  ← the data
+     ΔL 0.041 and 0.032, both clearing the 0.03 floor `tone.test.ts` asserts.
+     The ladder is what makes a card read as a card without a heavy shadow.
+
+     ⚠ FLIPPING THIS INVERTS THE RAIL'S INK AND ITS WORDMARK. The foreground
+     tokens below go dark, and `AppSidebar` must switch to `/logo-light.png` —
+     the cream lockup is invisible on a light rail. Same for `themeColor` in
+     layout.tsx, which is hand-converted from this value. */
+  --sidebar: oklch(0.922 0.008 88);
+  --sidebar-foreground: oklch(0.26 0.012 88);
+  --sidebar-primary: oklch(0.50 0.135 38);
+  --sidebar-primary-foreground: oklch(0.995 0.002 88);
+  --sidebar-accent: oklch(0.875 0.012 88);
+  --sidebar-accent-foreground: oklch(0.22 0.012 88);
+  --sidebar-border: oklch(0.868 0.010 88);
   --sidebar-ring: oklch(0.58 0.12 38);
 
   /* ── Status tones ──────────────────────────────────────────────────────────
@@ -278,7 +299,7 @@
   /* The dropdown chevron, as a background image, tinted to match
      --muted-foreground in this theme. A data URI cannot use `currentColor`, so
      the colour is baked per theme and lives next to the palette it tracks. */
-  --select-chevron: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%236b6659' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m4 6 4 4 4-4'/%3E%3C/svg%3E");
+  --select-chevron: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23716b5e' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m4 6 4 4 4-4'/%3E%3C/svg%3E");
 
   /* ── Motion ───────────────────────────────────────────────────────────────
      There were no duration tokens, so dialog animated at 100ms, sheet at 200ms
@@ -416,7 +437,7 @@
   }
   /* Even highlighting text feels on-brand. */
   ::selection {
-    background: oklch(0.50 0.135 38 / 0.20);
+    background: oklch(0.52 0.135 38 / 0.18);
   }
   .dark ::selection {
     background: oklch(0.72 0.125 38 / 0.32);
@@ -453,18 +474,21 @@
    cream app on its first pass. They are built from the tokens now, so the rail
    follows the palette by construction and cannot drift from it again. */
 .sidebar-gradient {
-  background: linear-gradient(
-    180deg,
-    color-mix(in oklab, var(--sidebar) 100%, white 6%) 0%,
-    var(--sidebar) 100%
-  );
+  /* ⚠ FLAT, NOT A GRADIENT, AS OF 2026-10-27. A vertical wash down the rail is
+     a 2015 admin-panel idiom and it fought the three-plane ladder: the top of
+     the rail sat level with the canvas, so the chrome/page boundary dissolved
+     exactly where the wordmark is. A single flat value is what every reference
+     app uses and it makes the rail read as one surface. */
+  background: var(--sidebar);
 }
 .sidebar-nav-active {
-  background: linear-gradient(
-    90deg,
-    var(--sidebar-accent) 0%,
-    color-mix(in oklab, var(--sidebar-accent) 100%, var(--primary) 14%) 100%
-  );
+  /* THE ACTIVE ROW IS A RAISED WHITE PILL, which is the Attio/Linear idiom and
+     the one that works on a light rail: the current page LIFTS toward the
+     content plane rather than being stamped darker into the chrome. Card
+     colour + hairline + the quietest shadow on the ladder. */
+  background: var(--card);
+  box-shadow: var(--elev-1);
+  border: 1px solid var(--sidebar-border);
 }
 
 /* ─── Typography refinements ───────────────────────────────────────────────── */
@@ -492,7 +516,7 @@
   100% { background-position: 200% 0; }
 }
 .skeleton-shimmer {
-  background: linear-gradient(90deg, oklch(0.935 0.018 88) 25%, oklch(0.890 0.024 88) 50%, oklch(0.935 0.018 88) 75%);
+  background: linear-gradient(90deg, oklch(0.950 0.007 88) 25%, oklch(0.908 0.010 88) 50%, oklch(0.950 0.007 88) 75%);
   background-size: 200% 100%;
   animation: shimmer 1.5s ease-in-out infinite;
 }

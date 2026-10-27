@@ -20,26 +20,26 @@ const DEPTH_OPTIONS: { value: PrintDepth; label: string }[] = [
  */
 export function StructurePrintToolbar({ depth }: { depth: PrintDepth }) {
   return (
-    <div className="print:hidden sticky top-0 z-10 border-b border-slate-200 bg-white/95 backdrop-blur-sm">
+    <div className="print:hidden sticky top-0 z-10 border-b border-border bg-white/95 backdrop-blur-sm">
       <div className="mx-auto max-w-5xl px-8 py-3 flex items-center gap-3 flex-wrap">
         <Link
           href="/company/structure"
-          className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-900 transition-colors"
+          className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
         >
           <ArrowLeft size={14} /> Structure
         </Link>
 
-        <div className="inline-flex rounded-lg border border-slate-200 overflow-hidden text-sm ml-auto">
+        <div className="inline-flex rounded-lg border border-border overflow-hidden text-sm ml-auto">
           {DEPTH_OPTIONS.map((opt, i) => (
             <Link
               key={opt.value}
               href={`/company/structure/print?depth=${opt.value}`}
               className={cn(
                 'px-3 py-1.5 transition-colors',
-                i > 0 && 'border-l border-slate-200',
+                i > 0 && 'border-l border-border',
                 depth === opt.value
-                  ? 'bg-slate-900 text-white'
-                  : 'bg-white text-slate-500 hover:text-slate-900 hover:bg-slate-50',
+                  ? 'bg-foreground text-background'
+                  : 'bg-card text-muted-foreground hover:text-foreground hover:bg-muted',
               )}
             >
               {opt.label}
@@ -49,7 +49,7 @@ export function StructurePrintToolbar({ depth }: { depth: PrintDepth }) {
 
         <button
           onClick={() => window.print()}
-          className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg bg-slate-900 text-white text-sm font-medium hover:bg-slate-700 transition-colors"
+          className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg bg-foreground text-background text-sm font-medium hover:bg-foreground/90 transition-colors"
         >
           <Printer size={15} /> Print / Save PDF
         </button>

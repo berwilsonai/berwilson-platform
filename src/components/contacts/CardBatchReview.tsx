@@ -265,7 +265,7 @@ export default function CardBatchReview({
                     )}
 
                     {row.ambiguous && (
-                      <p className="flex items-start gap-1.5 text-xs text-amber-700 dark:text-amber-300">
+                      <p className="flex items-start gap-1.5 text-xs text-caution">
                         <AlertTriangle size={12} className="shrink-0 mt-0.5" />
                         <span>
                           {row.candidates.length} contacts fit this card equally well. Pick one to
@@ -292,7 +292,7 @@ export default function CardBatchReview({
                     )}
 
                     {!row.researched && (
-                      <p className="text-xs text-amber-700 dark:text-amber-300">
+                      <p className="text-xs text-caution">
                         Built from the card alone — no web research
                         {row.research_error ? `: ${row.research_error}` : '.'}
                       </p>
@@ -428,7 +428,7 @@ export default function CardBatchReview({
       {error && <p className="text-sm text-destructive bg-destructive/10 rounded px-3 py-2">{error}</p>}
 
       {failures.length > 0 && (
-        <p className="text-sm text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 rounded px-3 py-2">
+        <p className="text-sm text-caution bg-caution-surface rounded px-3 py-2">
           {failures.length} card{failures.length === 1 ? '' : 's'} could not be saved and {failures.length === 1 ? 'is' : 'are'} marked
           above. Everything else landed — fix {failures.length === 1 ? 'it' : 'them'} and save again.
         </p>

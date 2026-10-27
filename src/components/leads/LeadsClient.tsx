@@ -299,7 +299,7 @@ export default function LeadsClient({
                 syncRouteToUrl(r)
               }}
               className={`h-8 rounded-md px-2.5 text-sm ${
-                route === r ? 'bg-primary text-primary-foreground' : 'hover:bg-accent'
+                route === r ? 'bg-card text-foreground font-medium elev-1' : 'text-muted-foreground hover:text-foreground'
               }`}
             >
               {r === 'all' ? 'All' : cat.label(r)}
@@ -343,8 +343,8 @@ export default function LeadsClient({
               }
               className={`inline-flex items-center gap-1.5 rounded px-2.5 text-sm min-h-[2.75rem] sm:min-h-0 sm:h-7 transition-colors ${
                 view === v.key
-                  ? 'bg-primary text-primary-foreground'
-                  : 'text-muted-foreground hover:bg-accent'
+                  ? 'bg-card text-foreground font-medium elev-1'
+                  : 'text-muted-foreground hover:text-foreground'
               }`}
             >
               {v.key === 'filtered' &&

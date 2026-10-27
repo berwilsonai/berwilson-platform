@@ -35,11 +35,11 @@ interface PageProps {
 function Stat({ label, value, sub, tone }: { label: string; value: string; sub?: string; tone?: 'amber' | 'indigo' | 'emerald' }) {
   const dot =
     tone === 'amber'
-      ? 'bg-amber-400'
+      ? 'bg-caution'
       : tone === 'indigo'
         ? 'bg-indigo-500'
         : tone === 'emerald'
-          ? 'bg-emerald-500'
+          ? 'bg-positive'
           : null
   return (
     <div className="rounded-lg border border-border bg-card px-4 py-3 elev-1">

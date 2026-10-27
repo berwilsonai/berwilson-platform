@@ -92,10 +92,10 @@ function DiffRow({
       className={cn(
         'rounded-md border px-3 py-2.5 space-y-1',
         isConflict
-          ? 'border-amber-200 dark:border-amber-800/60 bg-amber-50 dark:bg-amber-950/40'
+          ? 'border-caution-edge bg-caution-surface'
           : current
           ? 'border-border bg-muted/30'
-          : 'border-emerald-200 dark:border-emerald-800/60 bg-emerald-50/40 dark:bg-emerald-950/40'
+          : 'border-positive-edge bg-positive-surface/40'
       )}
     >
       <div className="flex items-center gap-1.5">
@@ -103,20 +103,20 @@ function DiffRow({
           {FIELD_LABELS[field] ?? field}
         </span>
         {isConflict && (
-          <span className="inline-flex items-center gap-1 text-xs text-amber-700 dark:text-amber-300 font-medium">
+          <span className="inline-flex items-center gap-1 text-xs text-caution font-medium">
             <AlertTriangle size={10} />
             Conflict — will not overwrite
           </span>
         )}
         {!isConflict && !current && (
-          <span className="text-xs text-emerald-700 dark:text-emerald-300 font-medium">New</span>
+          <span className="text-xs text-positive font-medium">New</span>
         )}
       </div>
 
       {isConflict && (
         <p className="text-xs text-muted-foreground line-through">{current}</p>
       )}
-      <p className={cn('text-sm', isConflict ? 'text-amber-800 dark:text-amber-300' : 'text-foreground')}>
+      <p className={cn('text-sm', isConflict ? 'text-caution' : 'text-foreground')}>
         {field === 'linkedin_url' ? (
           <a
             href={enriched}
@@ -150,10 +150,10 @@ function NotesPreview({ notes }: { notes: EnrichmentNotes }) {
   ]
 
   return (
-    <div className="rounded-md border border-blue-200 dark:border-blue-800/60 bg-blue-50/40 dark:bg-blue-950/40 px-3 py-2.5 space-y-2">
+    <div className="rounded-md border border-info-edge bg-info-surface/40 px-3 py-2.5 space-y-2">
       <span className="label-caps text-muted-foreground">
         Enrichment Notes
-        <span className="ml-1.5 text-blue-700 dark:text-blue-300 font-medium normal-case">Will be saved to profile</span>
+        <span className="ml-1.5 text-info font-medium normal-case">Will be saved to profile</span>
       </span>
 
       {notes.years_of_experience && (
@@ -208,7 +208,7 @@ function PhotoPreview({ photo, hasExisting }: { photo: PhotoCandidate; hasExisti
           ? 'border-border bg-muted/30'
           : isLogo
           ? 'border-border bg-muted/30'
-          : 'border-emerald-200 dark:border-emerald-800/60 bg-emerald-50/40 dark:bg-emerald-950/40'
+          : 'border-positive-edge bg-positive-surface/40'
       )}
     >
       <div className="flex items-center gap-1.5">
@@ -226,7 +226,7 @@ function PhotoPreview({ photo, hasExisting }: { photo: PhotoCandidate; hasExisti
             No headshot found — logo instead
           </span>
         ) : (
-          <span className="text-xs text-emerald-700 dark:text-emerald-300 font-medium">New</span>
+          <span className="text-xs text-positive font-medium">New</span>
         )}
       </div>
 
@@ -352,7 +352,7 @@ export default function EnrichProfileButton({
             })}
           </p>
         )}
-        {error && <p className="text-xs text-red-600 dark:text-red-400">{error}</p>}
+        {error && <p className="text-xs text-critical">{error}</p>}
       </div>
     )
   }
@@ -401,7 +401,7 @@ export default function EnrichProfileButton({
         </div>
 
         {preview.directory_done && (
-          <p className="text-xs text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 rounded px-2 py-1">
+          <p className="text-xs text-positive bg-positive-surface border border-positive-edge rounded px-2 py-1">
             Google Contacts: contact found
           </p>
         )}
@@ -452,7 +452,7 @@ export default function EnrichProfileButton({
           </div>
         )}
 
-        {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+        {error && <p className="text-sm text-critical">{error}</p>}
 
         <div className="flex items-center gap-2">
           {hasAnything && (
@@ -491,17 +491,17 @@ export default function EnrichProfileButton({
   // ── done ──────────────────────────────────────────────────────────────────
   return (
     <div className="space-y-2">
-      <div className="rounded-md border border-emerald-200 dark:border-emerald-800/60 bg-emerald-50 dark:bg-emerald-950/40 px-3 py-2.5 flex items-center gap-2">
-        <Check size={14} className="text-emerald-600 dark:text-emerald-400 shrink-0" />
-        <span className="text-sm text-emerald-800 dark:text-emerald-300">Profile enriched successfully</span>
+      <div className="rounded-md border border-positive-edge bg-positive-surface px-3 py-2.5 flex items-center gap-2">
+        <Check size={14} className="text-positive shrink-0" />
+        <span className="text-sm text-positive">Profile enriched successfully</span>
       </div>
       {conflicts.length > 0 && (
-        <div className="rounded-md border border-amber-200 dark:border-amber-800/60 bg-amber-50 dark:bg-amber-950/40 px-3 py-2 space-y-1">
-          <p className="text-xs font-semibold text-amber-800 dark:text-amber-300">
+        <div className="rounded-md border border-caution-edge bg-caution-surface px-3 py-2 space-y-1">
+          <p className="text-xs font-semibold text-caution">
             {conflicts.length} conflict{conflicts.length !== 1 ? 's' : ''} logged — existing values preserved
           </p>
           {conflicts.map((c) => (
-            <p key={c.field} className="text-xs text-amber-700 dark:text-amber-300">
+            <p key={c.field} className="text-xs text-caution">
               {FIELD_LABELS[c.field] ?? c.field}: kept &ldquo;{c.current}&rdquo;
             </p>
           ))}

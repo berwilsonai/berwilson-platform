@@ -32,10 +32,10 @@ export default function RaiseTrancheBar({ tranches, size = 'sm', labels = true }
               style={{ flexGrow: t.amount, flexBasis: 0 }}
               title={`${t.label}: ${formatValue(t.amount)} — ${formatValue(t.funded)} funded, ${formatValue(t.committed)} committed, ${formatValue(t.potential)} potential`}
             >
-              <div className="absolute inset-y-0 left-0 bg-amber-300/50 dark:bg-amber-500/25" style={{ width: pct(t.potential) }} />
+              <div className="absolute inset-y-0 left-0 bg-caution-surface/50" style={{ width: pct(t.potential) }} />
               <div className="absolute inset-y-0 left-0 bg-indigo-400/80 dark:bg-indigo-500/70" style={{ width: pct(t.committed) }} />
               <div
-                className={cn('absolute inset-y-0 left-0 bg-emerald-500', full && 'rounded-full')}
+                className={cn('absolute inset-y-0 left-0 bg-positive', full && 'rounded-full')}
                 style={{ width: pct(t.funded) }}
               />
             </div>
@@ -62,9 +62,9 @@ export function TrancheBarLegend({ className }: { className?: string }) {
   const dot = 'inline-block size-2 rounded-full'
   return (
     <div className={cn('flex items-center gap-3 text-[10px] text-muted-foreground', className)}>
-      <span className="inline-flex items-center gap-1"><span className={cn(dot, 'bg-emerald-500')} /> Funded</span>
+      <span className="inline-flex items-center gap-1"><span className={cn(dot, 'bg-positive')} /> Funded</span>
       <span className="inline-flex items-center gap-1"><span className={cn(dot, 'bg-indigo-400/80 dark:bg-indigo-500/70')} /> Committed</span>
-      <span className="inline-flex items-center gap-1"><span className={cn(dot, 'bg-amber-300/70 dark:bg-amber-500/40')} /> Indicated</span>
+      <span className="inline-flex items-center gap-1"><span className={cn(dot, 'bg-caution-surface/70')} /> Indicated</span>
     </div>
   )
 }

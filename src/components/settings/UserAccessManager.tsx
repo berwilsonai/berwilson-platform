@@ -63,7 +63,7 @@ export default function UserAccessManager() {
 
   if (loadError) {
     return (
-      <div className="rounded-lg border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/40 p-5 text-sm text-amber-900 dark:text-amber-200">
+      <div className="rounded-lg border border-caution-edge bg-caution-surface p-5 text-sm text-caution">
         {loadError}
       </div>
     )
@@ -192,7 +192,7 @@ function MemberCard({
             </p>
           </div>
           {member.auth_user_id ? (
-            <span className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300">
+            <span className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium bg-positive-surface text-positive">
               <UserCheck size={11} /> Can sign in
             </span>
           ) : (
@@ -266,7 +266,7 @@ function MemberCard({
               disabled={saving}
               onClick={() => setConfirmDelete(true)}
               title="Permanently delete this user"
-              className="h-8 px-2.5 rounded-md border border-input text-xs font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors inline-flex items-center gap-1.5"
+              className="h-8 px-2.5 rounded-md border border-input text-xs font-medium text-critical hover:bg-critical-surface dark:hover:bg-critical-surface/40 transition-colors inline-flex items-center gap-1.5"
             >
               <Trash2 size={12} />
               Delete
@@ -280,7 +280,7 @@ function MemberCard({
           <div className="flex items-center gap-2 flex-wrap">
             <ShieldCheck size={13} className="text-muted-foreground shrink-0" />
             {member.grants.length === 0 ? (
-              <span className="text-xs text-amber-600 dark:text-amber-400">
+              <span className="text-xs text-caution">
                 No grants — this user can&apos;t see any projects yet.
               </span>
             ) : (
@@ -550,14 +550,14 @@ function PasswordModal({
 
         {done ? (
           <>
-            <div className="rounded-md border border-emerald-300 dark:border-emerald-800/60 bg-emerald-50 dark:bg-emerald-950/40 px-3 py-2.5 space-y-1">
-              <p className="text-xs font-medium text-emerald-800 dark:text-emerald-300 flex items-center gap-1">
+            <div className="rounded-md border border-positive-edge bg-positive-surface px-3 py-2.5 space-y-1">
+              <p className="text-xs font-medium text-positive flex items-center gap-1">
                 <Check size={12} /> {granting ? 'Sign-in access granted' : 'New password is active'}
               </p>
-              <p className="text-xs text-emerald-800/80 dark:text-emerald-300/80">
+              <p className="text-xs text-positive/80">
                 {granting ? email : member.email}
               </p>
-              <p className="font-mono text-sm text-emerald-900 dark:text-emerald-200 select-all">{password}</p>
+              <p className="font-mono text-sm text-positive select-all">{password}</p>
             </div>
             <p className="text-xs text-muted-foreground">
               Share the email and password with {member.name} directly — no email is sent, and the
@@ -742,12 +742,12 @@ function AddUserModal({
 
         {created ? (
           <>
-            <div className="rounded-md border border-emerald-300 dark:border-emerald-800/60 bg-emerald-50 dark:bg-emerald-950/40 px-3 py-2.5 space-y-1">
-              <p className="text-xs font-medium text-emerald-800 dark:text-emerald-300 flex items-center gap-1">
+            <div className="rounded-md border border-positive-edge bg-positive-surface px-3 py-2.5 space-y-1">
+              <p className="text-xs font-medium text-positive flex items-center gap-1">
                 <Check size={12} /> User added — they can sign in now
               </p>
-              <p className="text-xs text-emerald-800/80 dark:text-emerald-300/80">{created.email}</p>
-              <p className="font-mono text-sm text-emerald-900 dark:text-emerald-200 select-all">
+              <p className="text-xs text-positive/80">{created.email}</p>
+              <p className="font-mono text-sm text-positive select-all">
                 {created.password}
               </p>
             </div>

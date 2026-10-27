@@ -410,7 +410,7 @@ export default function LeadCategoryManager({
         ].map((s) => (
           <Panel key={s.label} className="p-3">
             <p className="label-caps text-muted-foreground">{s.label}</p>
-            <p className={`tnum mt-0.5 text-xl font-semibold ${s.warn ? 'text-amber-600' : ''}`}>
+            <p className={`tnum mt-0.5 text-xl font-semibold ${s.warn ? 'text-caution' : ''}`}>
               {s.value}
             </p>
           </Panel>
@@ -458,7 +458,7 @@ export default function LeadCategoryManager({
                   (row.handoff_email ? (
                     <span className="text-muted-foreground"> → {row.handoff_email}</span>
                   ) : (
-                    <span className="text-amber-600"> — no address set, so handing off fails</span>
+                    <span className="text-caution"> — no address set, so handing off fails</span>
                   ))}
               </p>
 
@@ -467,7 +467,7 @@ export default function LeadCategoryManager({
                   {row.routing_rule}
                 </p>
               ) : (
-                <p className="mt-1 text-xs text-amber-600">
+                <p className="mt-1 text-xs text-caution">
                   No routing rule — the AI is told this lane exists but not how to recognise it, so
                   it will rarely choose it.
                 </p>

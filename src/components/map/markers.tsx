@@ -37,22 +37,22 @@ const ICON_PATHS: Record<MapIconType, string> = {
 // map speaks the same color language as the rest of the app. Literal class
 // strings so the Tailwind scanner picks them up.
 const SECTOR_PUCK: Record<ProjectSector, string> = {
-  government: 'bg-blue-600',
-  infrastructure: 'bg-amber-500',
-  real_estate: 'bg-emerald-600',
+  government: 'bg-info',
+  infrastructure: 'bg-caution',
+  real_estate: 'bg-positive',
   prefab: 'bg-violet-600',
-  institutional: 'bg-slate-500',
+  institutional: 'bg-muted-foreground',
   technology: 'bg-sky-600',
   health: 'bg-rose-600',
 }
 
 // Outlined (pipeline) variant: card-colored puck, sector-colored ring + glyph
 const SECTOR_OUTLINE: Record<ProjectSector, string> = {
-  government: 'text-blue-600 ring-blue-600 dark:text-blue-400 dark:ring-blue-400',
-  infrastructure: 'text-amber-500 ring-amber-500 dark:text-amber-400 dark:ring-amber-400',
-  real_estate: 'text-emerald-600 ring-emerald-600 dark:text-emerald-400 dark:ring-emerald-400',
+  government: 'text-info ring-info-edge',
+  infrastructure: 'text-caution ring-caution-edge',
+  real_estate: 'text-positive ring-positive-edge',
   prefab: 'text-violet-600 ring-violet-600 dark:text-violet-400 dark:ring-violet-400',
-  institutional: 'text-slate-500 ring-slate-500 dark:text-slate-400 dark:ring-slate-400',
+  institutional: 'text-muted-foreground ring-border',
   technology: 'text-sky-600 ring-sky-600 dark:text-sky-400 dark:ring-sky-400',
   health: 'text-rose-600 ring-rose-600 dark:text-rose-400 dark:ring-rose-400',
 }
@@ -131,14 +131,14 @@ function escapeHtml(s: string): string {
  */
 export function buildMarkerElement(project: MapProject): HTMLDivElement {
   const icon = iconForProject(project)
-  const solid = SECTOR_PUCK[project.sector] ?? 'bg-slate-500'
+  const solid = SECTOR_PUCK[project.sector] ?? 'bg-muted-foreground'
   const tierKey = markerTier(project.estimated_value)
   const tier = TIER_STYLE[tierKey]
   // Awarded work = solid sector puck; pipeline = outlined (card bg, sector ring)
   const awarded = projectPhase(project.stage) === 'awarded'
   const puckStyle = awarded
-    ? `${solid} text-white ring-white dark:ring-slate-900`
-    : `bg-card ${SECTOR_OUTLINE[project.sector] ?? 'text-slate-500 ring-slate-500'}`
+    ? `${solid} text-white ring-white dark:ring-border`
+    : `bg-card ${SECTOR_OUTLINE[project.sector] ?? 'text-muted-foreground ring-border'}`
 
   const el = document.createElement('div')
   // z-10 while hovered/selected so the label isn't buried under sibling markers
@@ -186,7 +186,7 @@ export function buildClusterElement(members: MapProject[]): HTMLDivElement {
   const total = members.reduce((s, m) => s + (m.estimated_value ?? 0), 0)
   const sectors = new Set(members.map((m) => m.sector))
   const puck =
-    sectors.size === 1 ? SECTOR_PUCK[members[0].sector] ?? 'bg-slate-700' : 'bg-slate-700'
+    sectors.size === 1 ? SECTOR_PUCK[members[0].sector] ?? 'bg-muted-foreground' : 'bg-muted-foreground'
   const size =
     total >= 10_000_000_000
       ? 'size-12 text-sm'
@@ -205,7 +205,7 @@ export function buildClusterElement(members: MapProject[]): HTMLDivElement {
   el.title = members.map((m) => m.name).join('\n')
   el.innerHTML = `
     <div class="flex flex-col items-center transition-transform duration-150 hover:scale-110">
-      <div class="flex ${size} items-center justify-center rounded-full ${puck} font-semibold text-white ring-2 ring-white shadow-md dark:ring-slate-900">
+      <div class="flex ${size} items-center justify-center rounded-full ${puck} font-semibold text-white ring-2 ring-white shadow-md dark:ring-border">
         ${count}
       </div>
       ${valueLabel}
@@ -230,7 +230,7 @@ export function MarkerGlyph({
   size?: number
   className?: string
 }) {
-  const puck = SECTOR_PUCK[sector] ?? 'bg-slate-500'
+  const puck = SECTOR_PUCK[sector] ?? 'bg-muted-foreground'
   const box = Math.round(size * 1.9)
   return (
     <span

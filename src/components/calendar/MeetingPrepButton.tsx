@@ -77,7 +77,7 @@ export default function MeetingPrepButton({ subject, date, attendees }: MeetingP
       )}
 
       {error && (
-        <span className="text-xs text-red-500 dark:text-red-400 ml-1">{error}</span>
+        <span className="text-xs text-critical ml-1">{error}</span>
       )}
     </>
   )

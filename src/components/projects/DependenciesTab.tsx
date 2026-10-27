@@ -29,10 +29,10 @@ interface DependenciesTabProps {
 }
 
 const SEVERITY_COLORS: Record<string, string> = {
-  info: 'text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-950/40 ring-slate-200 dark:ring-slate-800/60',
-  watch: 'text-yellow-600 dark:text-yellow-400 bg-yellow-50 dark:bg-yellow-950/40 ring-yellow-200 dark:ring-yellow-800/60',
-  critical: 'text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/40 ring-red-200 dark:ring-red-800/60',
-  blocker: 'text-red-700 dark:text-red-300 bg-red-100 dark:bg-red-900/40 ring-red-300',
+  info: 'text-muted-foreground bg-muted dark:bg-muted/40 ring-border dark:ring-border/60',
+  watch: 'text-caution bg-caution-surface ring-caution-edge',
+  critical: 'text-critical bg-critical-surface ring-critical-edge',
+  blocker: 'text-critical bg-critical-surface ring-critical-edge',
 }
 
 export default function DependenciesTab({ projectId, projectName, allProjects }: DependenciesTabProps) {
@@ -221,14 +221,14 @@ export default function DependenciesTab({ projectId, projectName, allProjects }:
                 <button
                   onClick={() => resolve(dep.id)}
                   title="Mark resolved"
-                  className="p-1 text-emerald-500 dark:text-emerald-400 hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 rounded transition-colors"
+                  className="p-1 text-positive hover:text-positive dark:hover:text-positive hover:bg-positive-surface dark:hover:bg-positive-surface/40 rounded transition-colors"
                 >
                   <Check size={13} />
                 </button>
                 <button
                   onClick={() => remove(dep.id)}
                   title="Remove"
-                  className="p-1 text-muted-foreground hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 rounded transition-colors"
+                  className="p-1 text-muted-foreground hover:text-critical dark:hover:text-critical hover:bg-critical-surface dark:hover:bg-critical-surface/40 rounded transition-colors"
                 >
                   <X size={13} />
                 </button>

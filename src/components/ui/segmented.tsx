@@ -46,8 +46,12 @@ export function Segmented<T extends string>({
     <div
       role="group"
       aria-label={label}
+      /*
+        ⚠ A GREY TRACK, NOT A BORDERED BOX ON THE CANVAS — paired with the
+        raised white pill below. See the note on the active state.
+      */
       className={cn(
-        'inline-flex items-center rounded-md border border-input bg-background p-0.5',
+        'inline-flex items-center rounded-md bg-muted p-0.5',
         className
       )}
     >
@@ -65,8 +69,22 @@ export function Segmented<T extends string>({
               'inline-flex items-center gap-1.5 rounded px-2.5 text-xs font-medium transition-colors',
               'h-[2.75rem] md:h-7',
               'outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50',
+              /*
+                ⚠ THE ACTIVE SEGMENT IS A RAISED WHITE PILL, NOT A BRAND FILL
+                (2026-10-27). It was `bg-primary text-primary-foreground`, so
+                every view switcher on every page wore a solid terracotta
+                block. §12 on this exact token: *"Keep it scarce: it means
+                'this is the action'."* A sort order is not an action, it is a
+                view state — and on the dashboard three of these sat in one row
+                beside a real primary button, so nothing in the row read as the
+                thing to press.
+
+                A white pill lifting off a grey track is the idiom every
+                reference app in the brief uses, and it reads as "selected"
+                without spending the one colour the palette has.
+              */
               active
-                ? 'bg-primary text-primary-foreground'
+                ? 'bg-card text-foreground elev-1'
                 : 'text-muted-foreground hover:text-foreground'
             )}
           >

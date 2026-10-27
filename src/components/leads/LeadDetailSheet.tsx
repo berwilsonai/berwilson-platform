@@ -139,11 +139,11 @@ function IntakeChecklist({ answers }: { answers: Record<string, IntakeAnswer> })
           <div key={spec.key} className="rounded-md bg-muted/30 px-2 py-1.5 text-sm">
             <div className="flex items-start gap-2">
               {answer ? (
-                <Check className="mt-0.5 size-3.5 shrink-0 text-emerald-600" />
+                <Check className="mt-0.5 size-3.5 shrink-0 text-positive" />
               ) : (
                 <Minus
                   className={`mt-0.5 size-3.5 shrink-0 ${
-                    spec.required ? 'text-amber-600' : 'text-muted-foreground'
+                    spec.required ? 'text-caution' : 'text-muted-foreground'
                   }`}
                 />
               )}
@@ -155,7 +155,7 @@ function IntakeChecklist({ answers }: { answers: Record<string, IntakeAnswer> })
                   </p>
                 ) : (
                   spec.required && (
-                    <p className="mt-0.5 text-xs text-amber-700 dark:text-amber-400">
+                    <p className="mt-0.5 text-xs text-caution">
                       Required — not provided
                     </p>
                   )
@@ -618,7 +618,7 @@ export default function LeadDetailSheet({
             )}
 
             {lead.score_error && (
-              <p className="text-xs text-amber-600">{lead.score_error}</p>
+              <p className="text-xs text-caution">{lead.score_error}</p>
             )}
 
             {/* ── Actions ───────────────────────────────────────────────── */}
@@ -680,14 +680,14 @@ export default function LeadDetailSheet({
                         // Named rather than disabled-and-silent: this is exactly
                         // the failure DINO_LEAD_EMAIL produced for a year — a
                         // button that looked live and 400'd on press.
-                        <div className="space-y-1.5 rounded-md border border-amber-300 bg-amber-50/60 p-2.5 dark:border-amber-700/60 dark:bg-amber-950/30">
-                          <p className="text-xs text-amber-800 dark:text-amber-200">
+                        <div className="space-y-1.5 rounded-md border border-caution-edge bg-caution-surface/60 p-2.5">
+                          <p className="text-xs text-caution">
                             {category?.label ?? 'This category'} has no handoff address yet, so
                             there is nobody to send it to.
                           </p>
                           <Link
                             href="/settings/lead-categories"
-                            className="inline-flex items-center gap-1 text-xs font-medium text-amber-900 underline dark:text-amber-100"
+                            className="inline-flex items-center gap-1 text-xs font-medium text-caution underline"
                           >
                             Add one in Lead categories
                             <ExternalLink className="size-3" />
@@ -804,7 +804,7 @@ export default function LeadDetailSheet({
                             </button>
                           </div>
                           {attachTo ? (
-                            <div className="flex items-center gap-2 rounded-md border border-emerald-300 bg-emerald-50/60 px-2 py-1.5 text-xs text-emerald-700 dark:border-emerald-700/60 dark:bg-emerald-950/40 dark:text-emerald-300">
+                            <div className="flex items-center gap-2 rounded-md border border-positive-edge bg-positive-surface/60 px-2 py-1.5 text-xs text-positive">
                               <Check className="size-3.5 shrink-0" />
                               <span className="flex-1 truncate">{attachTo.name}</span>
                               <button

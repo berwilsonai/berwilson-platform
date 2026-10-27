@@ -71,7 +71,21 @@ export default function AppHeader({
 
   return (
     <>
-      <header className="print:hidden h-14 flex items-center justify-between px-4 sm:px-6 border-b border-border bg-background/80 backdrop-blur-sm shrink-0 sticky top-0 z-10">
+      {/*
+        ⚠ A UTILITY BAR, NOT A MASTHEAD, AS OF 2026-10-27.
+
+        This was 56px tall and set the page title at `text-lg font-semibold` —
+        the same weight and nearly the same size as the `<h1>` that every page
+        ALSO renders just below it. Two titles, stacked, saying the same word.
+        The masthead moved into `PageHeader` (one idiom, where it belongs with
+        the page's own actions and metrics), so what is left here is a locator
+        and a set of global controls: 48px, small type, quiet.
+
+        The title is kept rather than dropped because the rail is `md:hidden`
+        on a phone — without this line there is nothing on a narrow screen
+        saying where you are.
+      */}
+      <header className="print:hidden h-12 flex items-center justify-between gap-3 px-4 sm:px-5 border-b border-border bg-background/85 backdrop-blur-sm shrink-0 sticky top-0 z-10">
         {/* Logo + page title */}
         <div className="flex items-center gap-2.5 min-w-0">
           {/* The wordmark is cream on the supplied artwork, which disappears
@@ -103,7 +117,21 @@ export default function AppHeader({
               `text-wrap: balance`, which resets the wrap half of `white-space`
               and so silently defeated `truncate` — the title wrapped to two
               lines in the band between the mobile and sidebar layouts. */}
-          <h1 className="text-lg font-semibold text-foreground truncate tracking-[-0.02em]">{pageTitle(pathname)}</h1>
+          {/*
+            ⚠ STILL AN `<h1>`, THOUGH IT NO LONGER LOOKS LIKE ONE — and that is
+            a deliberate stop, not an oversight. Measured 2026-10-27: 48 of the
+            97 `page.tsx` files render a heading of their own, so for the other
+            49 THIS IS THE DOCUMENT'S ONLY `<h1>`. Demoting it to a span is a
+            one-line change that silently removes the heading from half the
+            application, which no test here can see.
+
+            So the weight came down and the element stayed. The visible masthead
+            is `PageHeader`; this is the locator, and it is the heading only
+            until the page beneath it grows its own.
+          */}
+          <h1 className="truncate text-sm font-medium tracking-[-0.01em] text-muted-foreground">
+            {pageTitle(pathname)}
+          </h1>
         </div>
 
         <div className="flex items-center gap-1.5 shrink-0">
@@ -140,15 +168,18 @@ export default function AppHeader({
             )}
           </button>
 
-          {/* Desktop search trigger — looks like a search box, opens the palette */}
+          {/* Desktop search trigger — looks like a search box, opens the palette.
+              Given real width (it was a 90px token button): search is the
+              primary way around a CRM, and every reference app in the brief
+              puts a full-width field here rather than an icon. */}
           <button
             onClick={() => setPaletteOpen(true)}
-            className="hidden md:flex items-center gap-2 h-8 pl-2.5 pr-2 rounded-lg border border-border bg-muted/40 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+            className="hidden md:flex w-56 lg:w-72 items-center gap-2 h-8 pl-2.5 pr-2 rounded-lg border border-border bg-card text-muted-foreground hover:border-primary/40 hover:text-foreground transition-colors"
             aria-label="Search"
           >
-            <Search size={14} />
-            <span className="text-xs">Search…</span>
-            <kbd className="ml-2 inline-flex items-center rounded border border-border bg-background px-1.5 py-0.5 text-[10px] font-medium">
+            <Search size={14} className="shrink-0" />
+            <span className="text-xs">Search projects, people, documents…</span>
+            <kbd className="ml-auto inline-flex shrink-0 items-center rounded border border-border bg-background px-1.5 py-0.5 text-[10px] font-medium">
               ⌘K
             </kbd>
           </button>

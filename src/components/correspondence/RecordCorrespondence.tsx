@@ -219,7 +219,7 @@ function ThreadRow({
               </span>
             )}
             {thread.certainty === 'inferred' && (
-              <Chip tone="bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300">
+              <Chip tone="bg-caution-surface text-caution">
                 matched
               </Chip>
             )}

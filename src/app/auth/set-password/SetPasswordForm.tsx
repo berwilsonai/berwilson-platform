@@ -40,21 +40,21 @@ export default function SetPasswordForm() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-950/40 px-4">
+    <div className="flex min-h-screen items-center justify-center bg-muted dark:bg-muted/40 px-4">
       <div className="w-full max-w-sm space-y-8">
         {/* Brand */}
         <div className="text-center">
-          <h1 className="text-lg font-semibold tracking-widest uppercase text-slate-900 dark:text-slate-200">
+          <h1 className="text-lg font-semibold tracking-widest uppercase text-foreground dark:text-muted-foreground">
             Ber Wilson
           </h1>
-          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+          <p className="mt-1 text-sm text-muted-foreground">
             Create your password
           </p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-1.5">
-            <label htmlFor="password" className="text-xs font-medium text-slate-700 dark:text-slate-300">
+            <label htmlFor="password" className="text-xs font-medium text-foreground dark:text-muted-foreground">
               New password
             </label>
             <input
@@ -65,13 +65,13 @@ export default function SetPasswordForm() {
               required
               minLength={8}
               autoComplete="new-password"
-              className="w-full h-10 rounded-md border border-slate-300 dark:border-slate-700/60 bg-white dark:bg-slate-900 px-3 text-sm text-slate-900 dark:text-slate-200 placeholder:text-slate-400 outline-none focus-visible:ring-2 focus-visible:ring-slate-900 focus-visible:border-transparent"
+              className="w-full h-10 rounded-md border border-border dark:border-border/60 bg-white dark:bg-muted px-3 text-sm text-foreground dark:text-muted-foreground placeholder:text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-border focus-visible:border-transparent"
               placeholder="At least 8 characters"
             />
           </div>
 
           <div className="space-y-1.5">
-            <label htmlFor="confirm" className="text-xs font-medium text-slate-700 dark:text-slate-300">
+            <label htmlFor="confirm" className="text-xs font-medium text-foreground dark:text-muted-foreground">
               Confirm password
             </label>
             <input
@@ -81,13 +81,13 @@ export default function SetPasswordForm() {
               onChange={(e) => setConfirm(e.target.value)}
               required
               autoComplete="new-password"
-              className="w-full h-10 rounded-md border border-slate-300 dark:border-slate-700/60 bg-white dark:bg-slate-900 px-3 text-sm text-slate-900 dark:text-slate-200 placeholder:text-slate-400 outline-none focus-visible:ring-2 focus-visible:ring-slate-900 focus-visible:border-transparent"
+              className="w-full h-10 rounded-md border border-border dark:border-border/60 bg-white dark:bg-muted px-3 text-sm text-foreground dark:text-muted-foreground placeholder:text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-border focus-visible:border-transparent"
               placeholder="Repeat password"
             />
           </div>
 
           {error && (
-            <p className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/40 rounded-md px-3 py-2">
+            <p className="text-sm text-critical bg-critical-surface rounded-md px-3 py-2">
               {error}
             </p>
           )}
@@ -95,14 +95,14 @@ export default function SetPasswordForm() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full h-10 rounded-md bg-slate-900 text-white text-sm font-medium hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+            className="w-full h-10 rounded-md bg-foreground text-background text-sm font-medium hover:bg-foreground/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
           >
             {loading && <Loader2 size={14} className="animate-spin" />}
             Set Password & Sign In
           </button>
         </form>
 
-        <p className="text-center text-xs text-slate-400">
+        <p className="text-center text-xs text-muted-foreground">
           Internal use only
         </p>
       </div>

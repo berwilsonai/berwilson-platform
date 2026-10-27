@@ -1,6 +1,7 @@
 import { Suspense } from 'react'
 import Link from 'next/link'
 import { Plus, Users, UserSearch, SlidersHorizontal, Mic } from 'lucide-react'
+import { PageHeader, HeaderMetrics } from '@/components/ui/page-header'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { contactRoleViews, partyRoleMap } from '@/lib/contacts/roles'
 import { countActionableAttendees } from '@/lib/contacts/attendee-queue'
@@ -91,16 +92,20 @@ export default async function DirectoryPage() {
 
   return (
     <div className="space-y-5">
-      {/* Header */}
-      <div className="flex items-center justify-between gap-4 flex-wrap">
-        <div className="flex items-center gap-3 flex-wrap">
-          <h1 className="text-lg font-semibold">Directory</h1>
-          <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
-            <Users size={14} />
-            <span className="tnum">{contacts.length}</span>
-          </span>
-        </div>
-        <div className="flex items-center gap-2 shrink-0">
+      <PageHeader
+        title="Directory"
+        metrics={
+          <HeaderMetrics
+            items={[
+              { label: 'contacts', value: contacts.length },
+              ...(heardOnCalls > 0
+                ? [{ label: 'heard on calls, not on file', value: heardOnCalls, tone: 'caution' as const }]
+                : []),
+            ]}
+          />
+        }
+        actions={
+          <>
           {/* ⚠ THE FOURTH DOOR, AND THE ONLY ONE THAT NEEDS NO TYPING AT ALL.
               Measured 2026-10-23: 135 of 169 attendee slots across the recorded
               calls carried no contact, 96 distinct names — people the executives
@@ -145,14 +150,15 @@ export default async function DirectoryPage() {
             <Plus size={14} />
             <span className="whitespace-nowrap">Add Contact</span>
           </Link>
-        </div>
-      </div>
+          </>
+        }
+      />
 
       {/* Pending contacts banner */}
       {(pendingCount ?? 0) > 0 && (
         <Link
           href="/review?reason=new_contact"
-          className="flex items-center gap-2.5 px-4 py-3 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 text-amber-800 dark:text-amber-300 text-sm hover:bg-amber-100 dark:hover:bg-amber-900/40 transition-colors"
+          className="flex items-center gap-2.5 px-4 py-3 rounded-lg bg-caution-surface border border-caution-edge text-caution text-sm hover:bg-caution-surface dark:hover:bg-caution-surface/40 transition-colors"
         >
           <Clock size={15} className="shrink-0" />
           <span>

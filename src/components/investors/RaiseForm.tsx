@@ -224,7 +224,7 @@ export default function RaiseForm({ projects, initial }: RaiseFormProps) {
             <span className="text-xs text-muted-foreground tnum">
               {formatValue(trancheSum)} scheduled
               {sumDelta != null && sumDelta !== 0 && (
-                <span className={sumDelta > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-muted-foreground'}>
+                <span className={sumDelta > 0 ? 'text-caution' : 'text-muted-foreground'}>
                   {' '}({sumDelta > 0 ? '+' : '−'}{formatValue(Math.abs(sumDelta))} vs target)
                 </span>
               )}

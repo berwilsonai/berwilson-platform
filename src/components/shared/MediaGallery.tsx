@@ -157,7 +157,7 @@ export default function MediaGallery({ initialPhotos, scope }: Props) {
           />
           {/* Primary badge */}
           <div className="absolute top-2 left-2 flex items-center gap-1 bg-black/60 text-white rounded-full px-2 py-0.5 text-xs font-medium">
-            <Star size={9} className="fill-amber-400 text-amber-400" />
+            <Star size={9} className="fill-amber-400 text-caution" />
             Cover
           </div>
           {/* Delete button */}

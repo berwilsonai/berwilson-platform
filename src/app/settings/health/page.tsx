@@ -62,9 +62,9 @@ interface HealthCheck {
 }
 
 const STATUS_STYLES: Record<Status, { dot: string; text: string }> = {
-  ok: { dot: 'bg-emerald-500', text: 'text-emerald-700 dark:text-emerald-400' },
-  warn: { dot: 'bg-amber-500', text: 'text-amber-700 dark:text-amber-400' },
-  fail: { dot: 'bg-red-500', text: 'text-red-700 dark:text-red-400' },
+  ok: { dot: 'bg-positive', text: 'text-positive' },
+  warn: { dot: 'bg-caution', text: 'text-caution' },
+  fail: { dot: 'bg-critical', text: 'text-critical' },
 }
 
 function hoursAgo(iso: string | null | undefined): number | null {

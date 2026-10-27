@@ -176,11 +176,11 @@ export default function PaymentSchedule({ payments }: { payments: DinoPaymentRow
         {payments.length > 0 && (
           <div className="grid grid-cols-3 gap-2 text-center">
             <div className="rounded-md bg-muted/30 py-2">
-              <p className="text-sm font-semibold tnum text-amber-600 dark:text-amber-400">{money(owed)}</p>
+              <p className="text-sm font-semibold tnum text-caution">{money(owed)}</p>
               <p className="text-[10px] text-muted-foreground">Outstanding</p>
             </div>
             <div className="rounded-md bg-muted/30 py-2">
-              <p className="text-sm font-semibold tnum text-emerald-600 dark:text-emerald-400">{money(paid)}</p>
+              <p className="text-sm font-semibold tnum text-positive">{money(paid)}</p>
               <p className="text-[10px] text-muted-foreground">Paid</p>
             </div>
             <div className="rounded-md bg-muted/30 py-2">
@@ -211,8 +211,8 @@ export default function PaymentSchedule({ payments }: { payments: DinoPaymentRow
                     className={cn(
                       'shrink-0 size-5 rounded-full border flex items-center justify-center transition-colors',
                       row.paid
-                        ? 'bg-emerald-500 border-emerald-500 text-white'
-                        : 'border-input text-transparent hover:border-emerald-400'
+                        ? 'bg-positive border-positive-edge text-white'
+                        : 'border-input text-transparent hover:border-positive-edge'
                     )}
                   >
                     {togglingId === row.id ? <Loader2 size={11} className="animate-spin text-muted-foreground" /> : <Check size={12} />}
@@ -226,7 +226,7 @@ export default function PaymentSchedule({ payments }: { payments: DinoPaymentRow
                         ? `Paid ${formatDate(row.paid_date)}`
                         : row.due_date
                           ? (
-                            <span className={cn(overdue && 'text-amber-600 dark:text-amber-400 font-medium')}>
+                            <span className={cn(overdue && 'text-caution font-medium')}>
                               Due {formatDate(row.due_date)}
                               {days !== null && (overdue ? ` · ${Math.abs(days)}d overdue` : days <= 30 ? ` · in ${days}d` : '')}
                             </span>

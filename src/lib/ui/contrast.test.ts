@@ -75,6 +75,19 @@ test("the palette's own documented claims hold", () => {
   const labelOnPrimaryDark = contrastOklch(t.dark['primary-foreground'], t.dark['primary'])
   assert.ok(labelOnPrimaryDark >= 4.5, `dark button label is ${labelOnPrimaryDark.toFixed(2)}:1`)
 
+  // ⚠ THE RAIL IS A FOURTH SURFACE AS OF 2026-10-27, AND NOTHING MEASURED IT.
+  // While the sidebar was a dark slab, `--primary` only ever had to read on a
+  // card; the light rail made the ACTIVE NAV ROW primary-coloured text on
+  // `--sidebar`, a pairing no assertion here covered. This is why L 0.52 was
+  // reverted rather than the 6.0 bar above being dropped to fit it (§12: when
+  // a reason moves, the assertion gets STRONGER, it does not get deleted).
+  const primaryOnRail = contrastOklch(t.light['primary'], t.light['sidebar'])
+  assert.ok(primaryOnRail >= 4.5, `--primary on the rail is ${primaryOnRail.toFixed(2)}:1`)
+  const mutedOnRail = contrastOklch(t.light['muted-foreground'], t.light['sidebar'])
+  assert.ok(mutedOnRail >= 4.5, `--muted-foreground on the rail is ${mutedOnRail.toFixed(2)}:1`)
+  const railInk = contrastOklch(t.light['sidebar-foreground'], t.light['sidebar'])
+  assert.ok(railInk >= 7, `rail body ink is only ${railInk.toFixed(2)}:1`)
+
   // And the body text, which is most of what anyone actually reads.
   for (const theme of ['light', 'dark'] as const) {
     const body = contrastOklch(t[theme]['foreground'], t[theme]['card'])

@@ -50,7 +50,7 @@ export default function SteelDealsClient({ items }: { items: SteelDealCardData[]
                 {leadSourceLabel(deal.lead_source)}
               </span>
               {deal.pricing_below_floor && (
-                <span className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-medium ring-1 ring-inset bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-500/15 dark:text-amber-300 dark:ring-amber-500/30">
+                <span className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-medium ring-1 ring-inset bg-caution-surface text-caution ring-caution-edge">
                   <TriangleAlert size={11} className="shrink-0" />
                   Below floor · needs approval
                 </span>
@@ -108,7 +108,7 @@ export default function SteelDealsClient({ items }: { items: SteelDealCardData[]
               <div
                 className={cn(
                   'mt-2 flex items-center gap-1 text-[11px] truncate',
-                  nextOverdue ? 'text-amber-600 dark:text-amber-400 font-medium' : 'text-muted-foreground/80'
+                  nextOverdue ? 'text-caution font-medium' : 'text-muted-foreground/80'
                 )}
               >
                 <CalendarClock size={11} className="shrink-0" />

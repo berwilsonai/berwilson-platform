@@ -40,8 +40,8 @@ export default async function CompanyStructurePage() {
     // full canvas on wide screens. The edit board constrains itself.
     <div className="space-y-6">
       <div className="flex items-center gap-3">
-        <div className="w-10 h-10 rounded-lg bg-slate-100 dark:bg-slate-900/40 flex items-center justify-center shrink-0">
-          <Network size={20} className="text-slate-500 dark:text-slate-400" />
+        <div className="w-10 h-10 rounded-lg bg-muted dark:bg-muted/40 flex items-center justify-center shrink-0">
+          <Network size={20} className="text-muted-foreground" />
         </div>
         <div>
           <h1 className="text-xl font-semibold">Entity Architecture</h1>

@@ -171,7 +171,7 @@ export default function MeetingsView({ scope, projectId, opportunityId, initialM
                     <div className="min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <h3 className="text-sm font-semibold truncate">{m.title}</h3>
-                        {m.confidential && <Lock size={13} className="text-red-500 shrink-0" />}
+                        {m.confidential && <Lock size={13} className="text-critical shrink-0" />}
                       </div>
                       <div className="flex items-center gap-1.5 flex-wrap mt-1.5">
                         <Chip tone={MEETING_KIND_BADGE[kind]}>{MEETING_KIND_LABELS[kind]}</Chip>

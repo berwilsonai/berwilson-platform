@@ -190,9 +190,9 @@ export default function CardBatchUpload() {
                   {item.state === 'reading' ? (
                     <Loader2 size={14} className="animate-spin text-muted-foreground" />
                   ) : item.state === 'read' ? (
-                    <Check size={14} className="text-emerald-600 dark:text-emerald-400" />
+                    <Check size={14} className="text-positive" />
                   ) : item.state === 'failed' ? (
-                    <TriangleAlert size={14} className="text-amber-600 dark:text-amber-400" />
+                    <TriangleAlert size={14} className="text-caution" />
                   ) : (
                     <ScanLine size={14} className="text-muted-foreground" />
                   )}

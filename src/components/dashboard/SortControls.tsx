@@ -23,22 +23,32 @@ export default function SortControls({ current }: { current: string }) {
   }
 
   return (
+    /*
+      Same track-and-pill idiom as `Segmented` — see the note there on why the
+      active state stopped being a terracotta fill. Not literally `Segmented`
+      only because this one carries a visible "Sort:" label and drives the URL
+      rather than local state; if a third of these appears, merge them.
+    */
     <div className="flex items-center gap-1.5">
       <span className="text-xs text-muted-foreground">Sort:</span>
-      {OPTIONS.map((opt) => (
-        <button
-          key={opt.value}
-          onClick={() => setSort(opt.value)}
-          className={cn(
-            'h-7 px-2.5 rounded text-xs font-medium transition-colors',
-            current === opt.value
-              ? 'bg-primary text-primary-foreground'
-              : 'bg-muted text-muted-foreground hover:bg-accent'
-          )}
-        >
-          {opt.label}
-        </button>
-      ))}
+      <div role="group" aria-label="Sort order" className="inline-flex items-center rounded-md bg-muted p-0.5">
+        {OPTIONS.map((opt) => (
+          <button
+            key={opt.value}
+            onClick={() => setSort(opt.value)}
+            aria-pressed={current === opt.value}
+            className={cn(
+              'h-7 px-2.5 rounded text-xs font-medium transition-colors',
+              'outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
+              current === opt.value
+                ? 'bg-card text-foreground elev-1'
+                : 'text-muted-foreground hover:text-foreground'
+            )}
+          >
+            {opt.label}
+          </button>
+        ))}
+      </div>
     </div>
   )
 }

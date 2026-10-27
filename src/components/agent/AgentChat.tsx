@@ -696,14 +696,14 @@ export default function AgentChat({
                   <button
                     onClick={() => rateMessage(msg.id, 1)}
                     title="Helpful"
-                    className={`p-1 rounded transition-colors ${msg.rating === 1 ? 'text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40' : 'text-muted-foreground hover:text-foreground hover:bg-muted/60'}`}
+                    className={`p-1 rounded transition-colors ${msg.rating === 1 ? 'text-positive bg-positive-surface' : 'text-muted-foreground hover:text-foreground hover:bg-muted/60'}`}
                   >
                     <ThumbsUp size={11} />
                   </button>
                   <button
                     onClick={() => rateMessage(msg.id, -1)}
                     title="Not helpful"
-                    className={`p-1 rounded transition-colors ${msg.rating === -1 ? 'text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/40' : 'text-muted-foreground hover:text-foreground hover:bg-muted/60'}`}
+                    className={`p-1 rounded transition-colors ${msg.rating === -1 ? 'text-critical bg-critical-surface' : 'text-muted-foreground hover:text-foreground hover:bg-muted/60'}`}
                   >
                     <ThumbsDown size={11} />
                   </button>
@@ -711,8 +711,8 @@ export default function AgentChat({
               )}
             </div>
             {msg.role === 'user' && (
-              <div className="w-6 h-6 rounded-full bg-slate-200 dark:bg-slate-900/60 flex items-center justify-center shrink-0 mt-0.5">
-                <User size={12} className="text-slate-600 dark:text-slate-400" />
+              <div className="w-6 h-6 rounded-full bg-muted dark:bg-muted/60 flex items-center justify-center shrink-0 mt-0.5">
+                <User size={12} className="text-muted-foreground" />
               </div>
             )}
           </div>
@@ -733,7 +733,7 @@ export default function AgentChat({
         )}
 
         {error && (
-          <div className="flex items-center gap-2 text-xs text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/40 rounded-lg px-3 py-2">
+          <div className="flex items-center gap-2 text-xs text-critical bg-critical-surface rounded-lg px-3 py-2">
             <AlertCircle size={12} />
             {error}
           </div>

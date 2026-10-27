@@ -537,7 +537,7 @@ export default function MapPageClient({
       {/* Placement / drawing banner */}
       {activeTarget && (
         <div className="absolute inset-x-0 top-4 z-10 flex justify-center px-16">
-          <div className="flex items-center gap-3 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 elev-2 dark:border-amber-500/40 dark:bg-amber-950 dark:text-amber-200">
+          <div className="flex items-center gap-3 rounded-lg border border-caution-edge bg-caution-surface px-3 py-2 text-sm text-caution elev-2">
             <span>
               {placingId
                 ? `Click the map to place “${activeTargetName}”`
@@ -545,7 +545,7 @@ export default function MapPageClient({
             </span>
             <button
               onClick={cancelModes}
-              className="rounded-md border border-amber-300 px-2 py-0.5 text-xs font-medium transition-colors hover:bg-amber-100 dark:border-amber-500/40 dark:hover:bg-amber-900"
+              className="rounded-md border border-caution-edge px-2 py-0.5 text-xs font-medium transition-colors hover:bg-caution-surface dark:hover:bg-caution-surface"
             >
               Cancel (Esc)
             </button>

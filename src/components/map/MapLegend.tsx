@@ -9,11 +9,11 @@ export default function MapLegend({ railMode }: { railMode: RailMode }) {
   return (
     <div className="flex items-center gap-3 rounded-lg border border-border bg-card px-3 py-1.5 text-[11px] text-muted-foreground elev-1">
       <span className="flex items-center gap-1.5">
-        <span className="size-3 shrink-0 rounded-full bg-slate-600 ring-1 ring-white dark:bg-slate-400 dark:ring-slate-900" />
+        <span className="size-3 shrink-0 rounded-full bg-muted-foreground ring-1 ring-white dark:ring-border" />
         Awarded / underway
       </span>
       <span className="flex items-center gap-1.5">
-        <span className="size-3 shrink-0 rounded-full bg-card ring-1 ring-slate-600 dark:ring-slate-400" />
+        <span className="size-3 shrink-0 rounded-full bg-card ring-1 ring-border" />
         Pipeline / bidding
       </span>
       <span className="h-3.5 w-px bg-border" />
@@ -22,9 +22,9 @@ export default function MapLegend({ railMode }: { railMode: RailMode }) {
         title="<$100M · $100M–$1B · $1B–$10B · $10B+"
       >
         <span className="flex items-end gap-1">
-          <span className="size-1.5 rounded-full bg-slate-400" />
-          <span className="size-2.5 rounded-full bg-slate-400" />
-          <span className="size-3.5 rounded-full bg-slate-400" />
+          <span className="size-1.5 rounded-full bg-muted-foreground" />
+          <span className="size-2.5 rounded-full bg-muted-foreground" />
+          <span className="size-3.5 rounded-full bg-muted-foreground" />
         </span>
         Sized by value
       </span>
@@ -32,12 +32,12 @@ export default function MapLegend({ railMode }: { railMode: RailMode }) {
         <>
           <span className="h-3.5 w-px bg-border" />
           <span className="flex items-center gap-1.5" title="Strategic Rail Corridor Network">
-            <span className="h-0.5 w-4 shrink-0 rounded-full bg-slate-700 dark:bg-slate-200" />
+            <span className="h-0.5 w-4 shrink-0 rounded-full bg-muted-foreground dark:bg-muted" />
             STRACNET
           </span>
           {railMode === 'all' && (
             <span className="flex items-center gap-1.5">
-              <span className="h-px w-4 shrink-0 bg-slate-400 dark:bg-slate-500" />
+              <span className="h-px w-4 shrink-0 bg-muted-foreground" />
               Other rail
             </span>
           )}

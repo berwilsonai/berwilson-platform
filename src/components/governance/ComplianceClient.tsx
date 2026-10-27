@@ -237,7 +237,7 @@ export default function ComplianceClient({
         ) : (
           // This is the question the auditor is actually asking, so its absence
           // is named rather than dashed.
-          <span className="text-amber-600 dark:text-amber-400">not stated</span>
+          <span className="text-caution">not stated</span>
         ),
     },
     { name: 'status', label: 'Status', kind: 'chip', labels: RPT_STATUS_LABELS, tones: RPT_STATUS_TONE },
@@ -382,7 +382,7 @@ export default function ComplianceClient({
             )}
             {dueSoon.length > 0 && (
               <div className="flex items-start gap-2 text-xs">
-                <CalendarClock size={13} className="mt-0.5 shrink-0 text-amber-500" />
+                <CalendarClock size={13} className="mt-0.5 shrink-0 text-caution" />
                 <p>
                   <span className="font-medium text-foreground">
                     {dueSoon.length} due inside 30 days
@@ -395,7 +395,7 @@ export default function ComplianceClient({
             )}
             {certsExpiring.length > 0 && (
               <div className="flex items-start gap-2 text-xs">
-                <CalendarClock size={13} className="mt-0.5 shrink-0 text-amber-500" />
+                <CalendarClock size={13} className="mt-0.5 shrink-0 text-caution" />
                 <p>
                   <span className="font-medium text-foreground">
                     {certsExpiring.length} certification{certsExpiring.length === 1 ? '' : 's'} expiring inside 90
@@ -427,7 +427,7 @@ export default function ComplianceClient({
         {outstanding.length > 0 && (
           <div className="border-b border-border px-4 py-3">
             <div className="flex items-start gap-2 text-xs">
-              <AlertTriangle size={13} className="mt-0.5 shrink-0 text-amber-500" />
+              <AlertTriangle size={13} className="mt-0.5 shrink-0 text-caution" />
               <p>
                 <span className="font-medium text-foreground">
                   {outstanding.length} {outstanding.length === 1 ? 'person has' : 'people have'} not returned a{' '}

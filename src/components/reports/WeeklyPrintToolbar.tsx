@@ -21,19 +21,19 @@ export function WeeklyPrintToolbar({ people, selected }: WeeklyPrintToolbarProps
     // Opaque, not bg-white/95: a sticky bar keeps the report scrolling beneath
     // it, and at 95% the text underneath ghosted through and read as a
     // rendering overlap rather than a deliberate bar.
-    <div className="print:hidden sticky top-0 z-10 border-b border-slate-200 bg-white">
+    <div className="print:hidden sticky top-0 z-10 border-b border-border bg-white">
       {/* One row even at 390px: the scope label and the long print verb are the
           two things that pushed this bar to three stacked rows on a phone. */}
       <div className="mx-auto max-w-3xl px-4 sm:px-8 py-2.5 flex items-center gap-2 sm:gap-3 flex-wrap">
         <Link
           href="/tasks"
-          className="inline-flex items-center gap-1.5 h-[2.75rem] sm:h-9 text-sm text-slate-500 hover:text-slate-900 transition-colors"
+          className="inline-flex items-center gap-1.5 h-[2.75rem] sm:h-9 text-sm text-muted-foreground hover:text-foreground transition-colors"
         >
           <ArrowLeft size={14} /> Tasks
         </Link>
 
         <div className="ml-auto flex items-center gap-2 min-w-0">
-          <label htmlFor="scope" className="hidden sm:inline text-sm text-slate-500">
+          <label htmlFor="scope" className="hidden sm:inline text-sm text-muted-foreground">
             Scope
           </label>
           {/* A plain link-list would overflow with a real team — a select stays compact. */}
@@ -46,8 +46,8 @@ export function WeeklyPrintToolbar({ people, selected }: WeeklyPrintToolbarProps
                 v === 'all' ? '/reports/weekly/print' : `/reports/weekly/print?person=${v}`
             }}
             className={cn(
-              'h-[2.75rem] sm:h-9 min-w-0 rounded-lg border border-slate-200 bg-white px-2 text-sm text-slate-900',
-              'outline-none focus-visible:ring-2 focus-visible:ring-slate-900/20',
+              'h-[2.75rem] sm:h-9 min-w-0 rounded-lg border border-border bg-white px-2 text-sm text-foreground',
+              'outline-none focus-visible:ring-2 focus-visible:ring-border/20',
             )}
           >
             <option value="all">Everyone</option>
@@ -61,7 +61,7 @@ export function WeeklyPrintToolbar({ people, selected }: WeeklyPrintToolbarProps
 
         <button
           onClick={() => window.print()}
-          className="inline-flex items-center gap-1.5 whitespace-nowrap h-[2.75rem] sm:h-9 px-3.5 rounded-lg bg-slate-900 text-white text-sm font-medium hover:bg-slate-700 transition-colors"
+          className="inline-flex items-center gap-1.5 whitespace-nowrap h-[2.75rem] sm:h-9 px-3.5 rounded-lg bg-foreground text-background text-sm font-medium hover:bg-foreground/90 transition-colors"
         >
           <Printer size={15} />
           <span className="sm:hidden">Print</span>

@@ -193,7 +193,7 @@ export default function CorporateRecordClient({
               {r.end_reason ? ` · ${enumLabel(String(r.end_reason), ROLE_END_REASON_LABELS)}` : ''}
             </span>
           ) : (
-            <span className="block text-emerald-600 dark:text-emerald-400">current</span>
+            <span className="block text-positive">current</span>
           )}
         </span>
       ),
@@ -239,7 +239,7 @@ export default function CorporateRecordClient({
           {r.effective_to ? (
             <span className="block text-muted-foreground/70">to {formatDate(String(r.effective_to))}</span>
           ) : (
-            <span className="block text-emerald-600 dark:text-emerald-400">current</span>
+            <span className="block text-positive">current</span>
           )}
         </span>
       ),

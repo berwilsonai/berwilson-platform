@@ -195,7 +195,7 @@ export default function MeetingFiles({ meetingId, files, canEdit, onChange, onAu
                 {canEdit && (
                   <button
                     onClick={() => remove(doc)}
-                    className="shrink-0 h-7 w-7 flex items-center justify-center rounded hover:bg-red-50 dark:hover:bg-red-950/40 text-muted-foreground hover:text-red-600"
+                    className="shrink-0 h-7 w-7 flex items-center justify-center rounded hover:bg-critical-surface dark:hover:bg-critical-surface/40 text-muted-foreground hover:text-critical"
                     title="Delete"
                   >
                     <Trash2 size={13} />

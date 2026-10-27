@@ -34,7 +34,7 @@ import type { OrgNode, OrgPerson } from '@/lib/supabase/types'
  */
 
 const OPEN_BADGE =
-  'bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-500/15 dark:text-amber-300 dark:ring-amber-500/30'
+  'bg-caution-surface text-caution ring-caution-edge'
 
 // ─── Division accents ─────────────────────────────────────────────────────────
 
@@ -51,28 +51,28 @@ interface DivisionAccent {
 
 const ACCENTS = {
   amber: {
-    bar: 'bg-amber-500',
-    edge: 'bg-amber-300 dark:bg-amber-500/50',
-    label: 'text-amber-600 dark:text-amber-400',
-    rail: 'bg-amber-300 dark:bg-amber-500/40',
+    bar: 'bg-caution',
+    edge: 'bg-caution-surface',
+    label: 'text-caution',
+    rail: 'bg-caution-surface',
   },
   yellow: {
-    bar: 'bg-yellow-400',
-    edge: 'bg-yellow-300 dark:bg-yellow-500/50',
-    label: 'text-yellow-600 dark:text-yellow-400',
-    rail: 'bg-yellow-300 dark:bg-yellow-500/40',
+    bar: 'bg-caution',
+    edge: 'bg-caution-surface',
+    label: 'text-caution',
+    rail: 'bg-caution-surface',
   },
   red: {
-    bar: 'bg-red-500',
-    edge: 'bg-red-300 dark:bg-red-500/50',
-    label: 'text-red-600 dark:text-red-400',
-    rail: 'bg-red-300 dark:bg-red-500/40',
+    bar: 'bg-critical',
+    edge: 'bg-critical-surface',
+    label: 'text-critical',
+    rail: 'bg-critical-surface',
   },
   blue: {
-    bar: 'bg-blue-500',
-    edge: 'bg-blue-300 dark:bg-blue-500/50',
-    label: 'text-blue-600 dark:text-blue-400',
-    rail: 'bg-blue-300 dark:bg-blue-500/40',
+    bar: 'bg-info',
+    edge: 'bg-info-surface',
+    label: 'text-info',
+    rail: 'bg-info-surface',
   },
   rose: {
     bar: 'bg-rose-500',
@@ -81,10 +81,10 @@ const ACCENTS = {
     rail: 'bg-rose-300 dark:bg-rose-500/40',
   },
   emerald: {
-    bar: 'bg-emerald-500',
-    edge: 'bg-emerald-300 dark:bg-emerald-500/50',
-    label: 'text-emerald-600 dark:text-emerald-400',
-    rail: 'bg-emerald-300 dark:bg-emerald-500/40',
+    bar: 'bg-positive',
+    edge: 'bg-positive-surface',
+    label: 'text-positive',
+    rail: 'bg-positive-surface',
   },
   sky: {
     bar: 'bg-sky-500',
@@ -137,8 +137,8 @@ function divisionAccent(division: OrgNode, index: number): DivisionAccent {
 // free text, so there's no stored color to reuse).
 const PERSON_TONES = [
   'bg-indigo-100 text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-300',
-  'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300',
-  'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300',
+  'bg-positive-surface text-positive',
+  'bg-caution-surface text-caution',
   'bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-300',
   'bg-sky-100 text-sky-700 dark:bg-sky-500/20 dark:text-sky-300',
   'bg-violet-100 text-violet-700 dark:bg-violet-500/20 dark:text-violet-300',
@@ -449,7 +449,7 @@ function StaffLine({ person }: { person: OrgPerson }) {
   if (person.status === 'open') {
     return (
       <p className="flex items-center gap-1.5 text-xs flex-wrap">
-        <span className="flex items-center justify-center size-5 rounded-full border border-dashed border-amber-400/70 text-amber-600 dark:text-amber-400 shrink-0">
+        <span className="flex items-center justify-center size-5 rounded-full border border-dashed border-caution-edge/70 text-caution shrink-0">
           <UserPlus size={9} />
         </span>
         <span className="font-medium">{person.role}</span>
@@ -480,7 +480,7 @@ function RosterPerson({ person }: { person: OrgPerson }) {
   if (person.status === 'open') {
     return (
       <div className="flex items-start gap-2.5">
-        <span className="mt-0.5 flex items-center justify-center size-7 rounded-full border border-dashed border-amber-400/70 text-amber-600 dark:text-amber-400 shrink-0">
+        <span className="mt-0.5 flex items-center justify-center size-7 rounded-full border border-dashed border-caution-edge/70 text-caution shrink-0">
           <UserPlus size={12} />
         </span>
         <div className="min-w-0">

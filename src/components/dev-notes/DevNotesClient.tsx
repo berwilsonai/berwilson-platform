@@ -150,7 +150,7 @@ export default function DevNotesClient({ notes, isAdmin, teamMemberId, initialOp
             title={editable ? (settled ? 'Reopen' : 'Mark as done') : 'Only the reporter or an admin can change this'}
             className={`relative mt-0.5 size-5 shrink-0 rounded-full border flex items-center justify-center transition-colors ${
               settled
-                ? 'bg-emerald-500 border-emerald-500 text-white'
+                ? 'bg-positive border-positive-edge text-white'
                 : 'border-muted-foreground/40 text-transparent hover:border-primary hover:text-primary/40'
             } ${editable ? '' : 'opacity-40 cursor-not-allowed'}`}
           >

@@ -308,15 +308,15 @@ export default function ContactsClient({ contacts: initialContacts, roles }: Con
         </select>
 
         {/* View toggle */}
-        <div className="flex rounded-md border border-input overflow-hidden text-xs">
+        <div className="flex gap-0.5 rounded-md bg-muted p-0.5 text-xs">
           {(['all', 'individuals', 'organizations'] as const).map(v => (
             <button
               key={v}
               onClick={() => setView(v)}
               className={cn(
-                'px-2.5 h-8 transition-colors',
+                'rounded px-2.5 h-8 transition-colors',
                 view === v
-                  ? 'bg-foreground text-background'
+                  ? 'bg-card text-foreground font-medium elev-1'
                   : 'text-muted-foreground hover:text-foreground hover:bg-muted'
               )}
             >
@@ -327,7 +327,7 @@ export default function ContactsClient({ contacts: initialContacts, roles }: Con
 
         {/* Density. Icon-only, labelled for a screen reader — the two shapes
             are self-evident and the toolbar already wraps on a laptop. */}
-        <div className="flex rounded-md border border-input overflow-hidden">
+        <div className="flex gap-0.5 rounded-md bg-muted p-0.5">
           {([
             { value: 'list' as const, icon: List, label: 'Compact list' },
             { value: 'cards' as const, icon: LayoutGrid, label: 'Cards with photos' },
@@ -339,9 +339,9 @@ export default function ContactsClient({ contacts: initialContacts, roles }: Con
               aria-pressed={density === value}
               title={label}
               className={cn(
-                'px-2.5 h-8 transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
+                'rounded px-2.5 h-8 transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
                 density === value
-                  ? 'bg-foreground text-background'
+                  ? 'bg-card text-foreground font-medium elev-1'
                   : 'text-muted-foreground hover:text-foreground hover:bg-muted'
               )}
             >

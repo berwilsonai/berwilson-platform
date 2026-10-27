@@ -460,7 +460,7 @@ export default function ProposalIntakeWizard({ availableParents: initialParents 
         {/* AI Intake Summary Banner */}
         <div className="p-4 rounded-lg border border-border bg-muted/30">
           <div className="flex items-start gap-3">
-            <CheckCircle2 size={18} className="text-green-600 dark:text-green-400 shrink-0 mt-0.5" />
+            <CheckCircle2 size={18} className="text-positive shrink-0 mt-0.5" />
             <div>
               <div className="flex items-center gap-2 mb-1">
                 <span className="text-xs font-mono bg-primary/10 text-primary px-2 py-0.5 rounded">
@@ -493,10 +493,10 @@ export default function ProposalIntakeWizard({ availableParents: initialParents 
 
         {/* Developer Company Card */}
         {extraction.developer_company && (
-          <div className="p-4 rounded-lg border border-blue-200 bg-blue-50/50 dark:border-blue-900 dark:bg-blue-950/20">
+          <div className="p-4 rounded-lg border border-info-edge bg-info-surface/50">
             <div className="flex items-start justify-between">
               <div className="flex items-start gap-3">
-                <Building2 size={18} className="text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
+                <Building2 size={18} className="text-info shrink-0 mt-0.5" />
                 <div>
                   <p className="text-sm font-semibold text-foreground">{extraction.developer_company.name}</p>
                   {extraction.developer_company.location && <p className="text-xs text-muted-foreground">{extraction.developer_company.location}</p>}
@@ -621,8 +621,8 @@ export default function ProposalIntakeWizard({ availableParents: initialParents 
                         if (!matches.length) return null
                         const attached = projectAttachments[i]
                         return (
-                          <div className="col-span-2 p-2.5 rounded-md border border-amber-200 bg-amber-50/50 dark:border-amber-900 dark:bg-amber-950/20">
-                            <p className="text-xs font-medium text-amber-800 dark:text-amber-300 mb-1.5">Possible existing match</p>
+                          <div className="col-span-2 p-2.5 rounded-md border border-caution-edge bg-caution-surface/50">
+                            <p className="text-xs font-medium text-caution mb-1.5">Possible existing match</p>
                             {matches.map(mc => (
                               <div key={mc.project_id} className="flex items-center gap-2 text-sm">
                                 <input
@@ -664,7 +664,7 @@ export default function ProposalIntakeWizard({ availableParents: initialParents 
             <div className="space-y-1">
               {extraction.risks.map((r, i) => (
                 <div key={i} className="flex items-start gap-2 text-sm">
-                  <span className={`text-xs font-mono px-1.5 py-0.5 rounded shrink-0 ${r.severity === 'critical' || r.severity === 'blocker' ? 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-400' : r.severity === 'watch' ? 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300' : 'bg-gray-100 dark:bg-gray-900/40 text-gray-600 dark:text-gray-400'}`}>{r.severity}</span>
+                  <span className={`text-xs font-mono px-1.5 py-0.5 rounded shrink-0 ${r.severity === 'critical' || r.severity === 'blocker' ? 'bg-critical-surface text-critical' : r.severity === 'watch' ? 'bg-caution-surface text-caution' : 'bg-muted dark:bg-muted/40 text-muted-foreground'}`}>{r.severity}</span>
                   <span className="text-xs">{r.text}</span>
                 </div>
               ))}
@@ -701,10 +701,10 @@ export default function ProposalIntakeWizard({ availableParents: initialParents 
             <p className="label-caps text-muted-foreground mb-2">Companies → Vendors & Partners</p>
             <div className="space-y-1.5">
               {orgParties.map((org, i) => (
-                <div key={`org-${i}`} className="p-2.5 rounded-md border border-blue-200 bg-blue-50/30 dark:border-blue-900 dark:bg-blue-950/20 flex items-center gap-2">
-                  <Building2 size={14} className="text-blue-600 dark:text-blue-400 shrink-0" />
+                <div key={`org-${i}`} className="p-2.5 rounded-md border border-info-edge bg-info-surface/30 flex items-center gap-2">
+                  <Building2 size={14} className="text-info shrink-0" />
                   <span className="text-sm font-medium flex-1">{org.name}</span>
-                  <span className="text-xs bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300 px-2 py-0.5 rounded">{org.role}</span>
+                  <span className="text-xs bg-info-surface text-info px-2 py-0.5 rounded">{org.role}</span>
                 </div>
               ))}
             </div>
@@ -734,8 +734,8 @@ export default function ProposalIntakeWizard({ availableParents: initialParents 
                     </div>
                     {pm.match_type !== 'none' ? (
                       <div className="flex items-center gap-2 shrink-0">
-                        <CheckCircle2 size={14} className="text-green-600 dark:text-green-400" />
-                        <span className="text-xs text-green-700 dark:text-green-300">{pm.match_type === 'fuzzy_name' ? '~' : ''}{pm.matched_party_name}</span>
+                        <CheckCircle2 size={14} className="text-positive" />
+                        <span className="text-xs text-positive">{pm.match_type === 'fuzzy_name' ? '~' : ''}{pm.matched_party_name}</span>
                         <button onClick={() => setPartyActions((prev) => prev.map((a) => a.extracted_index === pm.extracted_index
                           ? { ...a, action: a.action === 'link_existing' ? 'create_new' : 'link_existing', existing_party_id: pm.matched_party_id || undefined }
                           : a))} className="text-xs underline text-muted-foreground">
@@ -743,7 +743,7 @@ export default function ProposalIntakeWizard({ availableParents: initialParents 
                         </button>
                       </div>
                     ) : (
-                      <span className="text-xs bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded shrink-0">New contact</span>
+                      <span className="text-xs bg-info-surface text-info px-2 py-0.5 rounded shrink-0">New contact</span>
                     )}
                   </div>
                 )
@@ -798,7 +798,7 @@ export default function ProposalIntakeWizard({ availableParents: initialParents 
             const matchName = attachId ? matchCandidates.find(mc => mc.project_id === attachId)?.project_name : null
             return (
               <div key={i} className="flex items-center gap-2">
-                <CheckCircle2 size={14} className={attachId ? 'text-amber-600 dark:text-amber-400 shrink-0' : 'text-green-600 dark:text-green-400 shrink-0'} />
+                <CheckCircle2 size={14} className={attachId ? 'text-caution shrink-0' : 'text-positive shrink-0'} />
                 <span className="text-sm">
                   {attachId
                     ? <>Attach docs to existing: <strong>{matchName}</strong></>
@@ -811,7 +811,7 @@ export default function ProposalIntakeWizard({ availableParents: initialParents 
 
           {createDeveloperVendor && extraction.developer_company && (
             <div className="flex items-center gap-2">
-              <Building2 size={14} className="text-blue-600 dark:text-blue-400 shrink-0" />
+              <Building2 size={14} className="text-info shrink-0" />
               <span className="text-sm">Add to vendors: <strong>{extraction.developer_company.name}</strong></span>
             </div>
           )}
@@ -838,7 +838,7 @@ export default function ProposalIntakeWizard({ availableParents: initialParents 
         <div className="flex gap-3 pt-4 border-t border-border">
           <button onClick={() => setStep('parties')} className="px-4 py-2 rounded-md border border-input text-sm hover:bg-muted">Back</button>
           <button onClick={handleConfirm} disabled={loading}
-            className="flex-1 py-3 rounded-md bg-green-600 text-white font-medium hover:bg-green-700 disabled:opacity-50 flex items-center justify-center gap-2">
+            className="flex-1 py-3 rounded-md bg-positive text-white font-medium hover:bg-positive disabled:opacity-50 flex items-center justify-center gap-2">
             {loading ? <><Loader2 size={16} className="animate-spin" /> Ingesting...</> : 'Ingest into CRM'}
           </button>
         </div>
@@ -851,8 +851,8 @@ export default function ProposalIntakeWizard({ availableParents: initialParents 
     return (
       <div className="space-y-6">
         <div className="flex items-center gap-3">
-          <div className="h-10 w-10 rounded-full bg-green-100 dark:bg-green-950 flex items-center justify-center shrink-0">
-            <CheckCircle2 size={20} className="text-green-600 dark:text-green-400" />
+          <div className="h-10 w-10 rounded-full bg-positive-surface flex items-center justify-center shrink-0">
+            <CheckCircle2 size={20} className="text-positive" />
           </div>
           <div>
             <h2 className="text-base font-semibold">Ingestion Complete</h2>
@@ -865,7 +865,7 @@ export default function ProposalIntakeWizard({ availableParents: initialParents 
           {doneResult.created_projects.map((proj) => (
             <div key={proj.id} className="flex items-center justify-between p-3">
               <div className="flex items-center gap-2">
-                <CheckCircle2 size={14} className="text-green-600 dark:text-green-400" />
+                <CheckCircle2 size={14} className="text-positive" />
                 <span className="text-sm font-medium">Created: {proj.name}</span>
               </div>
               <button onClick={() => router.push(`/projects/${proj.id}`)}
@@ -878,7 +878,7 @@ export default function ProposalIntakeWizard({ availableParents: initialParents 
           {(doneResult.attached_projects || []).map((proj) => (
             <div key={proj.id} className="flex items-center justify-between p-3">
               <div className="flex items-center gap-2">
-                <CheckCircle2 size={14} className="text-amber-600 dark:text-amber-400" />
+                <CheckCircle2 size={14} className="text-caution" />
                 <span className="text-sm font-medium">Updated: {proj.name}</span>
               </div>
               <button onClick={() => router.push(`/projects/${proj.id}`)}
@@ -890,7 +890,7 @@ export default function ProposalIntakeWizard({ availableParents: initialParents 
 
           {doneResult.developer_entity_id && (
             <div className="flex items-center gap-2 p-3">
-              <Building2 size={14} className="text-blue-600 dark:text-blue-400" />
+              <Building2 size={14} className="text-info" />
               <span className="text-sm">{extraction.developer_company?.name} added to vendors</span>
             </div>
           )}

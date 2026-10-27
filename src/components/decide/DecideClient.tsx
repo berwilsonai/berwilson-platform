@@ -187,12 +187,12 @@ const KIND_META: Record<DecideKind, { label: string; icon: LucideIcon; tone: str
   review: {
     label: 'Needs a check',
     icon: ClipboardCheck,
-    tone: 'bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:ring-amber-900',
+    tone: 'bg-caution-surface text-caution ring-caution-edge',
   },
   document: {
     label: 'Unfiled document',
     icon: FileText,
-    tone: 'bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:ring-amber-900',
+    tone: 'bg-caution-surface text-caution ring-caution-edge',
   },
   // Deliberately NOT the same chip as 'document'. An unfiled document has no
   // deal; a misfiled one has the wrong deal, and the two are read differently —
@@ -277,9 +277,9 @@ const VERDICT_LABEL: Record<string, string> = {
 }
 
 const VERDICT_TONE: Record<string, string> = {
-  pursue: 'bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:ring-emerald-900',
-  create: 'bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:ring-emerald-900',
-  consider: 'bg-slate-100 text-slate-700 ring-slate-200 dark:bg-slate-800/60 dark:text-slate-300 dark:ring-slate-700',
+  pursue: 'bg-positive-surface text-positive ring-positive-edge',
+  create: 'bg-positive-surface text-positive ring-positive-edge',
+  consider: 'bg-muted text-foreground ring-border dark:bg-muted/60 dark:text-muted-foreground',
   merge: 'bg-indigo-50 text-indigo-700 ring-indigo-200 dark:bg-indigo-950/40 dark:text-indigo-300 dark:ring-indigo-900',
 }
 
@@ -966,7 +966,7 @@ export default function DecideClient({ items }: { items: DecideItem[] }) {
           </button>
         ))}
         {urgent > 0 && (
-          <span className="ml-auto text-xs text-red-600 dark:text-red-400 font-medium">
+          <span className="ml-auto text-xs text-critical font-medium">
             {urgent} closing within a week
           </span>
         )}
@@ -989,7 +989,7 @@ export default function DecideClient({ items }: { items: DecideItem[] }) {
                 <span className="text-muted-foreground"> — {bulk.label}</span>
               </span>
               {bulk.failed > 0 && (
-                <span className="text-xs text-amber-700 dark:text-amber-400 tnum">
+                <span className="text-xs text-caution tnum">
                   {bulk.failed} failed, continuing
                 </span>
               )}
@@ -1129,7 +1129,7 @@ export default function DecideClient({ items }: { items: DecideItem[] }) {
                     <span
                       className={`text-[11px] font-medium tnum ${
                         overdue || soon
-                          ? 'text-red-600 dark:text-red-400'
+                          ? 'text-critical'
                           : 'text-muted-foreground'
                       }`}
                     >
@@ -1191,7 +1191,7 @@ export default function DecideClient({ items }: { items: DecideItem[] }) {
                     // button and no reason — an inert row with nothing to say
                     // for itself. The reason is the whole point of the row.
                     <span
-                      className="block max-w-[10rem] sm:max-w-[14rem] text-[11px] text-amber-700 dark:text-amber-400 text-right leading-tight"
+                      className="block max-w-[10rem] sm:max-w-[14rem] text-[11px] text-caution text-right leading-tight"
                       title={item.blocker}
                     >
                       {item.blocker}

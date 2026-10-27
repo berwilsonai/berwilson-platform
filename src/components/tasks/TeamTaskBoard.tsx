@@ -668,7 +668,7 @@ export default function TeamTaskBoard({
                 <span className="font-medium">{member.name}</span>
                 <span className="tnum text-xs text-muted-foreground">{open}</span>
                 {overdue > 0 && (
-                  <span className="tnum text-[11px] font-semibold text-red-600 dark:text-red-400">
+                  <span className="tnum text-[11px] font-semibold text-critical">
                     {overdue} late
                   </span>
                 )}
@@ -905,14 +905,14 @@ export default function TeamTaskBoard({
           <button
             onClick={() => setStatus('open')}
             className={cn('px-3 h-[2.75rem] sm:h-auto sm:py-1.5 inline-flex items-center gap-1.5 transition-colors',
-              status === 'open' ? 'bg-primary text-primary-foreground' : 'bg-background text-muted-foreground hover:text-foreground hover:bg-muted')}
+              status === 'open' ? 'bg-card text-foreground font-medium' : 'bg-muted/40 text-muted-foreground hover:text-foreground')}
           >
             <ListChecks size={14} /> Open
           </button>
           <button
             onClick={() => setStatus('done')}
             className={cn('px-3 h-[2.75rem] sm:h-auto sm:py-1.5 inline-flex items-center gap-1.5 transition-colors border-l border-border',
-              status === 'done' ? 'bg-primary text-primary-foreground' : 'bg-background text-muted-foreground hover:text-foreground hover:bg-muted')}
+              status === 'done' ? 'bg-card text-foreground font-medium' : 'bg-muted/40 text-muted-foreground hover:text-foreground')}
           >
             <Archive size={14} /> Archive
           </button>
@@ -987,7 +987,7 @@ export default function TeamTaskBoard({
           would otherwise show a board on which nothing is live, which is a
           claim about the business rather than about the query. */}
       {liveError && (
-        <p className="text-xs text-amber-600 dark:text-amber-400">
+        <p className="text-xs text-caution">
           Ranking unavailable — could not read which conversations are active ({liveError}). Rows
           are ordered by date only.
         </p>
@@ -1041,9 +1041,9 @@ export default function TeamTaskBoard({
                   aria-label={done ? 'Reopen' : 'Complete'}
                 >
                   {done ? (
-                    <CheckCircle2 className="size-5 text-emerald-600 dark:text-emerald-400" />
+                    <CheckCircle2 className="size-5 text-positive" />
                   ) : (
-                    <Circle className="size-5 text-muted-foreground group-hover:text-emerald-500 transition-colors" />
+                    <Circle className="size-5 text-muted-foreground group-hover:text-positive transition-colors" />
                   )}
                   {/* The circle stays 20px; the tap area grows to 44px. An
                       absolute overlay does that without moving anything in the
@@ -1092,7 +1092,7 @@ export default function TeamTaskBoard({
                     )}
                     {due && (
                       <span className={cn('text-xs font-medium tnum',
-                        due.overdue ? 'text-red-500 dark:text-red-400' : due.urgent ? 'text-amber-600 dark:text-amber-400' : 'text-muted-foreground')}>
+                        due.overdue ? 'text-critical' : due.urgent ? 'text-caution' : 'text-muted-foreground')}>
                         {due.label}
                       </span>
                     )}

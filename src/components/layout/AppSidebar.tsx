@@ -115,8 +115,11 @@ export default function AppSidebar({ pendingReviewCount = 0, attentionCount = 0,
           collapsed ? 'justify-center' : 'justify-between'
         }`}
       >
-        {/* The rail is navy in both themes, so it always takes the cream
-            wordmark.
+        {/* ⚠ THE RAIL IS LIGHT IN LIGHT MODE AS OF 2026-10-27, SO THE WORDMARK
+            IS NO LONGER ONE FILE. It was always `/logo-dark.png` — the cream
+            lockup — because the rail was a navy slab in both themes. On the
+            new light rail that is cream-on-cream, i.e. nothing. Two tags, one
+            per theme, exactly as AppHeader already does it.
 
             Collapsed, the chevron BECOMES the expand control rather than
             sitting next to one. The rail is 56px, 32px of it inside the
@@ -126,7 +129,10 @@ export default function AppSidebar({ pendingReviewCount = 0, attentionCount = 0,
             chevron-right icon is two chevrons arguing in one 56px row. */}
         {!collapsed ? (
           <>
-            <Image src="/logo-dark.png" alt="Ber Wilson" width={640} height={343} className="object-contain h-8 w-auto" priority />
+            <>
+              <Image src="/logo-light.png" alt="Ber Wilson" width={640} height={339} className="object-contain h-8 w-auto dark:hidden" priority />
+              <Image src="/logo-dark.png" alt="" aria-hidden width={640} height={343} className="object-contain h-8 w-auto hidden dark:block" priority />
+            </>
             <button
               onClick={() => setCollapsed(true)}
               className="p-1.5 rounded text-sidebar-foreground/50 hover:text-sidebar-foreground hover:bg-sidebar-accent transition-colors"
@@ -177,10 +183,17 @@ export default function AppSidebar({ pendingReviewCount = 0, attentionCount = 0,
                      * background colour and nothing else.
                      */
                     aria-current={active ? 'page' : undefined}
-                    className={`flex items-center gap-3 px-2.5 py-2 rounded text-sm font-medium transition-colors ${
+                    /*
+                     * The active row LIFTS to the content plane (a white pill,
+                     * see `.sidebar-nav-active`) and takes the brand ink, which
+                     * is the pair that makes a light rail legible: on a dark
+                     * rail "current" could be a lighter block, but on a light
+                     * one a darker block reads as disabled.
+                     */
+                    className={`flex items-center gap-3 rounded-md px-2.5 py-2 text-sm transition-colors ${
                       active
-                        ? 'sidebar-nav-active text-sidebar-foreground'
-                        : 'text-sidebar-foreground/75 hover:text-sidebar-foreground hover:bg-sidebar-accent'
+                        ? 'sidebar-nav-active font-semibold text-primary'
+                        : 'font-medium text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-foreground'
                     }`}
                   >
                     <span className="relative shrink-0">
@@ -194,7 +207,7 @@ export default function AppSidebar({ pendingReviewCount = 0, attentionCount = 0,
                         <span className="truncate flex-1">{label}</span>
                         {showBadge && (
                           <span className={`ml-auto text-xs font-mono font-semibold px-1.5 py-0.5 rounded-full leading-none ${
-                            badge && badgeUrgent[badge] ? 'bg-destructive text-white' : 'bg-amber-400 text-sidebar'
+                            badge && badgeUrgent[badge] ? 'bg-critical text-primary-foreground' : 'bg-caution-surface text-caution ring-1 ring-inset ring-caution-edge'
                           }`}>
                             {badgeCount > 999 ? '999+' : badgeCount}
                           </span>
@@ -241,10 +254,10 @@ export default function AppSidebar({ pendingReviewCount = 0, attentionCount = 0,
                             <Link
                               key={lane.key}
                               href={`/leads?route=${lane.key}`}
-                              className={`flex items-center gap-1 rounded py-1.5 pl-1 pr-2.5 text-[13px] transition-colors ${
+                              className={`flex items-center gap-1 rounded-md py-1.5 pl-1 pr-2.5 text-[13px] transition-colors ${
                                 laneActive
-                                  ? 'sidebar-nav-active text-sidebar-foreground'
-                                  : 'text-sidebar-foreground/65 hover:bg-sidebar-accent hover:text-sidebar-foreground'
+                                  ? 'sidebar-nav-active font-medium text-primary'
+                                  : 'text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground'
                               }`}
                             >
                               <Dot size={14} className="shrink-0 opacity-70" />
@@ -307,10 +320,10 @@ export default function AppSidebar({ pendingReviewCount = 0, attentionCount = 0,
                     key={href}
                     href={href}
                     title={collapsed ? label : undefined}
-                    className={`flex items-center gap-3 px-2.5 py-2 rounded text-sm font-medium transition-colors ${
+                    className={`flex items-center gap-3 rounded-md px-2.5 py-2 text-sm transition-colors ${
                       active
-                        ? 'sidebar-nav-active text-sidebar-foreground'
-                        : 'text-sidebar-foreground/75 hover:text-sidebar-foreground hover:bg-sidebar-accent'
+                        ? 'sidebar-nav-active font-semibold text-primary'
+                        : 'font-medium text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-foreground'
                     }`}
                   >
                     <Icon size={16} className="shrink-0" />
@@ -318,7 +331,7 @@ export default function AppSidebar({ pendingReviewCount = 0, attentionCount = 0,
                       <>
                         <span className="truncate flex-1">{label}</span>
                         {badgeCount > 0 && (
-                          <span className="ml-auto text-xs font-mono font-semibold px-1.5 py-0.5 rounded-full leading-none bg-amber-400 text-sidebar">
+                          <span className="ml-auto text-xs font-mono font-semibold px-1.5 py-0.5 rounded-full leading-none bg-caution-surface text-caution ring-1 ring-inset ring-caution-edge">
                             {badgeCount > 999 ? '999+' : badgeCount}
                           </span>
                         )}

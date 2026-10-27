@@ -260,9 +260,9 @@ export default function TaskDetailSheet({
                   aria-label={done ? 'Reopen task' : 'Mark complete'}
                 >
                   {done ? (
-                    <CheckCircle2 className="size-5 text-emerald-600 dark:text-emerald-400" />
+                    <CheckCircle2 className="size-5 text-positive" />
                   ) : (
-                    <Circle className="size-5 text-muted-foreground hover:text-emerald-500" />
+                    <Circle className="size-5 text-muted-foreground hover:text-positive" />
                   )}
                   <span className="absolute -inset-3" aria-hidden="true" />
                 </button>

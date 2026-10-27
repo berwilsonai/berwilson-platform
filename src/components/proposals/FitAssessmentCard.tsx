@@ -15,9 +15,9 @@ const REC_STYLE: Record<FitAssessment['recommendation'], {
   bar: string
   Icon: typeof ThumbsUp
 }> = {
-  pursue: { label: 'Pursue', ring: 'border-green-300 dark:border-green-700/60', bg: 'bg-green-50/60 dark:bg-green-950/40', text: 'text-green-700 dark:text-green-300', bar: 'bg-green-500', Icon: ThumbsUp },
-  consider: { label: 'Consider', ring: 'border-amber-300 dark:border-amber-700/60', bg: 'bg-amber-50/60 dark:bg-amber-950/40', text: 'text-amber-700 dark:text-amber-300', bar: 'bg-amber-500', Icon: HelpCircle },
-  pass: { label: 'Pass', ring: 'border-red-300 dark:border-red-700/60', bg: 'bg-red-50/60 dark:bg-red-950/40', text: 'text-red-700 dark:text-red-300', bar: 'bg-red-500', Icon: ThumbsDown },
+  pursue: { label: 'Pursue', ring: 'border-positive-edge', bg: 'bg-positive-surface/60', text: 'text-positive', bar: 'bg-positive', Icon: ThumbsUp },
+  consider: { label: 'Consider', ring: 'border-caution-edge', bg: 'bg-caution-surface/60', text: 'text-caution', bar: 'bg-caution', Icon: HelpCircle },
+  pass: { label: 'Pass', ring: 'border-critical-edge', bg: 'bg-critical-surface/60', text: 'text-critical', bar: 'bg-critical', Icon: ThumbsDown },
 }
 
 function FitList({ title, items, tone }: { title: string; items: string[]; tone: string }) {
@@ -65,7 +65,7 @@ export default function FitAssessmentCard({ fit }: { fit: FitAssessment }) {
       </div>
 
       {fit.profile_incomplete && (
-        <p className="text-xs text-amber-700 dark:text-amber-300 bg-amber-100/70 dark:bg-amber-900/40 rounded px-2.5 py-1.5 flex items-center gap-1.5">
+        <p className="text-xs text-caution bg-caution-surface/70 rounded px-2.5 py-1.5 flex items-center gap-1.5">
           <AlertTriangle size={12} className="shrink-0" />
           This assessment is low-confidence — flesh out the pursuit profile on the <a href="/company" className="underline font-medium">Company page</a> for sharper judgments.
         </p>
@@ -73,10 +73,10 @@ export default function FitAssessmentCard({ fit }: { fit: FitAssessment }) {
 
       {/* Detail columns */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3">
-        <FitList title="Why it fits" items={fit.strengths} tone="text-green-700 dark:text-green-300" />
-        <FitList title="Concerns" items={fit.concerns} tone="text-amber-700 dark:text-amber-300" />
-        <FitList title="Gaps to close" items={fit.gaps} tone="text-red-700 dark:text-red-300" />
-        <FitList title="Key questions" items={fit.key_questions} tone="text-blue-700 dark:text-blue-300" />
+        <FitList title="Why it fits" items={fit.strengths} tone="text-positive" />
+        <FitList title="Concerns" items={fit.concerns} tone="text-caution" />
+        <FitList title="Gaps to close" items={fit.gaps} tone="text-critical" />
+        <FitList title="Key questions" items={fit.key_questions} tone="text-info" />
       </div>
     </div>
   )

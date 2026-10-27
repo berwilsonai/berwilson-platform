@@ -162,7 +162,7 @@ export default function SteelSpendLedger({ spend, channels, canEdit }: Props) {
                       <button
                         onClick={() => remove(r.id)}
                         disabled={deleting === r.id}
-                        className="h-7 w-7 inline-flex items-center justify-center rounded hover:bg-red-50 dark:hover:bg-red-950/40 text-muted-foreground hover:text-red-600"
+                        className="h-7 w-7 inline-flex items-center justify-center rounded hover:bg-critical-surface dark:hover:bg-critical-surface/40 text-muted-foreground hover:text-critical"
                         title="Delete"
                       >
                         {deleting === r.id ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}

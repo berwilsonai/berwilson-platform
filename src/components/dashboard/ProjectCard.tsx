@@ -55,7 +55,7 @@ function highlightText(text: string, query?: string): React.ReactNode {
   while (at !== -1) {
     if (at > from) out.push(text.slice(from, at))
     out.push(
-      <mark key={key++} className="rounded bg-yellow-200/70 dark:bg-yellow-400/25 text-foreground px-0.5">
+      <mark key={key++} className="rounded bg-caution-surface/70 text-foreground px-0.5">
         {text.slice(at, at + needle.length)}
       </mark>
     )
@@ -131,9 +131,9 @@ export default function ProjectCard({ project, counts, isProgram, parentName, hi
               className={cn(
                 'ml-auto inline-flex items-center gap-1 text-xs shrink-0',
                 bidUrgent
-                  ? 'font-semibold text-red-600 dark:text-red-400'
+                  ? 'font-semibold text-critical'
                   : bidNear
-                    ? 'font-semibold text-amber-600 dark:text-amber-400'
+                    ? 'font-semibold text-caution'
                     : 'text-muted-foreground'
               )}
             >
@@ -189,7 +189,7 @@ export default function ProjectCard({ project, counts, isProgram, parentName, hi
               </span>
             )}
             {counts.waitingCount > 0 && (
-              <span className="flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400">
+              <span className="flex items-center gap-1 text-xs text-caution">
                 <Clock size={11} className="shrink-0" />
                 {counts.waitingCount} waiting
               </span>
@@ -197,28 +197,28 @@ export default function ProjectCard({ project, counts, isProgram, parentName, hi
             {counts.riskCount > 0 && (
               <span className={cn(
                 'flex items-center gap-1 text-xs font-medium',
-                counts.hasCriticalRisk ? 'text-red-600 dark:text-red-400' : 'text-amber-600 dark:text-amber-400'
+                counts.hasCriticalRisk ? 'text-critical' : 'text-caution'
               )}>
                 <AlertTriangle size={11} className="shrink-0" />
                 {counts.riskCount} risk{counts.riskCount !== 1 ? 's' : ''}
               </span>
             )}
             {(counts.overdueCount ?? 0) > 0 ? (
-              <span className="flex items-center gap-1 text-xs font-medium text-red-600 dark:text-red-400">
+              <span className="flex items-center gap-1 text-xs font-medium text-critical">
                 <CalendarClock size={11} className="shrink-0" />
                 {counts.overdueCount} overdue
               </span>
             ) : counts.nextDeadline ? (
               <span className={cn(
                 'flex items-center gap-1 text-xs',
-                counts.nextDeadline.daysUntil <= 7 ? 'font-medium text-amber-600 dark:text-amber-400' : 'text-muted-foreground'
+                counts.nextDeadline.daysUntil <= 7 ? 'font-medium text-caution' : 'text-muted-foreground'
               )}>
                 <CalendarClock size={11} className="shrink-0" />
                 {deadlineLabel(counts.nextDeadline)}: {counts.nextDeadline.label}
               </span>
             ) : null}
             {(counts.blockingCount ?? 0) > 0 && (
-              <span className="flex items-center gap-1 text-xs font-medium text-red-600 dark:text-red-400">
+              <span className="flex items-center gap-1 text-xs font-medium text-critical">
                 <Ban size={11} className="shrink-0" />
                 {counts.blockingCount} blocking
               </span>

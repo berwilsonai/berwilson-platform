@@ -151,7 +151,7 @@ export default function InvestorCards({
                 <div
                   className={cn(
                     'mt-2 flex items-center gap-1 text-[11px] truncate',
-                    nextOverdue ? 'text-amber-600 dark:text-amber-400 font-medium' : 'text-muted-foreground/80'
+                    nextOverdue ? 'text-caution font-medium' : 'text-muted-foreground/80'
                   )}
                 >
                   <CalendarClock size={11} className="shrink-0" />

@@ -128,13 +128,13 @@ export default function UpdateEditModal({ updateId, onSaved }: UpdateEditModalPr
 
         {phase === 'error' && !summary && (
           <div className="py-8 text-center">
-            <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+            <p className="text-sm text-critical">{error}</p>
           </div>
         )}
 
         {(phase === 'editing' || phase === 'saving') && (
           <div className="space-y-5">
-            {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+            {error && <p className="text-sm text-critical">{error}</p>}
 
             {/* Summary */}
             <div className="space-y-1.5">
@@ -185,7 +185,7 @@ export default function UpdateEditModal({ updateId, onSaved }: UpdateEditModalPr
                   <button
                     onClick={() => setWaitingOn((prev) => prev.filter((_, i) => i !== idx))}
                     disabled={phase === 'saving'}
-                    className="shrink-0 mt-1.5 p-1 text-muted-foreground hover:text-red-600 dark:hover:text-red-400 transition-colors"
+                    className="shrink-0 mt-1.5 p-1 text-muted-foreground hover:text-critical dark:hover:text-critical transition-colors"
                   >
                     <Trash2 size={13} />
                   </button>
@@ -240,7 +240,7 @@ export default function UpdateEditModal({ updateId, onSaved }: UpdateEditModalPr
                   <button
                     onClick={() => setRisks((prev) => prev.filter((_, i) => i !== idx))}
                     disabled={phase === 'saving'}
-                    className="shrink-0 mt-1.5 p-1 text-muted-foreground hover:text-red-600 dark:hover:text-red-400 transition-colors"
+                    className="shrink-0 mt-1.5 p-1 text-muted-foreground hover:text-critical dark:hover:text-critical transition-colors"
                   >
                     <Trash2 size={13} />
                   </button>
@@ -292,7 +292,7 @@ export default function UpdateEditModal({ updateId, onSaved }: UpdateEditModalPr
                   <button
                     onClick={() => setDecisions((prev) => prev.filter((_, i) => i !== idx))}
                     disabled={phase === 'saving'}
-                    className="shrink-0 mt-1.5 p-1 text-muted-foreground hover:text-red-600 dark:hover:text-red-400 transition-colors"
+                    className="shrink-0 mt-1.5 p-1 text-muted-foreground hover:text-critical dark:hover:text-critical transition-colors"
                   >
                     <Trash2 size={13} />
                   </button>

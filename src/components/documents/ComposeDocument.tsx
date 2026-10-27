@@ -145,7 +145,7 @@ export default function ComposeDocument({ kind, recordId, confidential = false }
         </p>
 
         {spec?.legal === 'needs_counsel' && (
-          <p className="text-xs text-amber-700 dark:text-amber-400">{COUNSEL_NOTICE}</p>
+          <p className="text-xs text-caution">{COUNSEL_NOTICE}</p>
         )}
 
         {confidential && (
@@ -179,7 +179,7 @@ export default function ComposeDocument({ kind, recordId, confidential = false }
         )}
 
         {result?.status === 'failed' && result.error && (
-          <div className="rounded-md bg-amber-50 dark:bg-amber-950/30 p-3 text-xs text-amber-800 dark:text-amber-300">
+          <div className="rounded-md bg-caution-surface p-3 text-xs text-caution">
             {result.error}
           </div>
         )}

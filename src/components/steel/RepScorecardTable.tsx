@@ -17,7 +17,7 @@ function AccelBar({ collected, accelerated }: { collected: number; accelerated: 
       <div className="flex items-center justify-between gap-2 text-[11px]">
         <span className="tnum text-muted-foreground">{formatValue(collected)}</span>
         {accelerated ? (
-          <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium ring-1 ring-inset bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-500/15 dark:text-emerald-300 dark:ring-emerald-500/30">
+          <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium ring-1 ring-inset bg-positive-surface text-positive ring-positive-edge">
             +1pt active
           </span>
         ) : (
@@ -26,7 +26,7 @@ function AccelBar({ collected, accelerated }: { collected: number; accelerated: 
       </div>
       <div className="mt-1 h-1.5 rounded-full bg-muted overflow-hidden">
         <div
-          className={accelerated ? 'h-full bg-emerald-500' : 'h-full bg-primary'}
+          className={accelerated ? 'h-full bg-positive' : 'h-full bg-primary'}
           style={{ width: `${pct}%` }}
         />
       </div>
@@ -62,10 +62,10 @@ export default function RepScorecardTable({ scorecards, year, title = 'Rep Score
                 <td className="py-2 pr-3 font-medium align-middle">{c.name}</td>
                 <td className="py-2 px-3 text-right align-middle">{formatValue(c.totalSales)}</td>
                 <td className="py-2 px-3 text-right align-middle">{formatValue(c.totalProfit)}</td>
-                <td className="py-2 px-3 text-right align-middle text-amber-600 dark:text-amber-400">
+                <td className="py-2 px-3 text-right align-middle text-caution">
                   {formatValue(c.totalOwed)}
                 </td>
-                <td className="py-2 px-3 text-right align-middle text-emerald-600 dark:text-emerald-400">
+                <td className="py-2 px-3 text-right align-middle text-positive">
                   {formatValue(c.totalPaid)}
                 </td>
                 <td className="py-2 px-3 text-right align-middle text-muted-foreground">

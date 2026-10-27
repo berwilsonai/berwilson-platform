@@ -366,7 +366,7 @@ export default function CompanyKnowledgeBase({ documents, setAside, targets }: C
                   <button
                     onClick={() => handleDelete(doc.id)}
                     disabled={deletingId === doc.id}
-                    className="shrink-0 p-1.5 rounded-md text-muted-foreground hover:bg-muted hover:text-red-500 transition-colors disabled:opacity-50"
+                    className="shrink-0 p-1.5 rounded-md text-muted-foreground hover:bg-muted hover:text-critical transition-colors disabled:opacity-50"
                     aria-label="Delete document permanently"
                     title="Delete the file permanently. To take it out of the corpus but keep it, use Set aside."
                   >
@@ -478,13 +478,13 @@ export default function CompanyKnowledgeBase({ documents, setAside, targets }: C
 function EmbedStatus({ status }: { status: string | null }) {
   if (status === 'complete')
     return (
-      <span className="inline-flex items-center gap-1 text-[11px] text-emerald-600 dark:text-emerald-400">
+      <span className="inline-flex items-center gap-1 text-[11px] text-positive">
         <CheckCircle2 size={11} /> Indexed
       </span>
     )
   if (status === 'error')
     return (
-      <span className="inline-flex items-center gap-1 text-[11px] text-red-500">
+      <span className="inline-flex items-center gap-1 text-[11px] text-critical">
         <AlertCircle size={11} /> Index failed
       </span>
     )
@@ -498,7 +498,7 @@ function EmbedStatus({ status }: { status: string | null }) {
       </span>
     )
   return (
-    <span className="inline-flex items-center gap-1 text-[11px] text-amber-600 dark:text-amber-400">
+    <span className="inline-flex items-center gap-1 text-[11px] text-caution">
       <Clock size={11} /> Indexing…
     </span>
   )

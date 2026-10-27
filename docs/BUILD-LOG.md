@@ -6,6 +6,57 @@ This file is **not** auto-loaded into a Claude Code session. It is the archive: 
 
 Split out of `CLAUDE.md` on 2026-09-23, when that file reached 606k characters against a 150k limit above which it is silently truncated — meaning the project's own operating instructions had begun to risk not reaching the sessions that need them. The entries below are **verbatim and unedited**.
 
+**Done 2026-10-27 (the complete UI overhaul — and the measurement that explains why two re-skins could not be seen):**
+
+Richard: *"I want a complete overhaul of the UI. It doesn't need to be dark themed. I want it to look modern like Attio, Domo or some other leading business intelligence dashboard. The colors can look like Ber Wilson, but I would like the layout, and look to be modernized. Do a complete overhaul."*
+
+⚠ **THE FIRST THING THIS SESSION DID WAS BUILD A WAY TO LOOK AT THE APP, AND IT PAID FOR ITSELF IN FOUR MINUTES.** Three consecutive sessions (10-26, 10-26, 10-27) shipped palette and layout work without once rendering the result; the 10-27 entry says so in its own words — *"Three rounds shipped with NO screenshot."* The blocker was always auth: every route but `/login` sits behind `middleware.ts`, so headless Chrome lands on the sign-in card whatever URL you give it. **§12 already held the key and nobody had connected it: `next dev` does not load the root `middleware.ts`.** So a dev server on :3001 renders every page with no session at all — `curl /dashboard` returns 200 — and `chrome --headless --screenshot` can walk the whole app. That is now `scripts/ui/shoot.mjs`. The very first screenshot, of `/login`, showed a **navy radial gradient** on the first screen of the product.
+
+### What the measurement found, before anything was changed
+
+⚠ **2,214 RAW TAILWIND COLOUR CLASSES ACROSS 135 FILES — AND THAT IS WHY THE BRAND PALETTE "COULDN'T BE SEEN".** 10-26 re-derived the whole palette from Jobber's Atlantis tokens; 10-27 re-derived it again from the Ber Wilson logo. Both were real, both were correct, and both were nearly invisible, because **most of the application's colour never consulted a token**. `text-red-600 dark:text-red-400`, `bg-amber-50 dark:bg-amber-950`, `text-slate-500` — six parallel palettes with their own hues, their own contrast and their own hand-maintained dark mode, running beside the measured one. 950 of the 2,214 were `dark:` variants that exist only because a raw colour cannot carry a theme. This is §12's *"a token themes only what READS it"* at a scale nobody had counted.
+
+⚠ **`<h1>` IN 20+ DISTINCT SPELLINGS, AND NO PAGE-HEADER COMPONENT.** `text-lg font-semibold`, `text-xl font-semibold leading-tight`, `text-2xl`, `text-base font-semibold`, one in `tracking-widest uppercase text-slate-900`. Nothing wrong with any of them individually — that is the point. No owner, so no two pages opened the same way.
+
+⚠ **AND THE APP CONTAINED ZERO DATA VISUALISATIONS.** 97 pages of lists, cards and counts. Richard named Domo; the honest reading of that is that a BI dashboard shows a SHAPE, and this one could only show totals.
+
+### The overhaul
+
+**Light is the default, and the system preference no longer decides.** The pre-paint script fell back to `prefers-color-scheme`, so on a Mac set to dark — which both of these are — the app opened dark however it had been designed, and **the light palette every re-skin was measured in was the theme nobody ever saw.** Now only an explicit stored `'dark'` turns it on. Dark mode still exists and is still tested; it is a choice in the user menu.
+
+**THE RAIL IS LIGHT, and this is the single largest move.** It was a dark slab at L 0.225 beside a light app — the one thing every reference Richard named does *not* do. Attio, Linear, Notion and Domo all run a light rail one step below the canvas and let the CONTENT be the brightest plane. A dark rail is the signature of an admin panel, and it was also carrying the app's only large area of colour, so the eye went to the furniture instead of the data. Three planes now, chrome → canvas → content: **rail 0.922, canvas 0.963, card 0.995**, ΔL 0.041 and 0.032, both clearing the 0.03 floor `tone.test.ts` asserts. Flipping it inverts the rail's ink and its wordmark (`/logo-dark.png` is a cream lockup — invisible on a light rail), and `themeColor` with it.
+
+⚠ **`--primary` GAINED A FOURTH SURFACE AND THE TEST DID NOT KNOW.** The active nav row is now primary-coloured text *on the rail*, a pairing no assertion covered while the sidebar was dark. L 0.52 was tried — it reads brighter — and landed at 5.77:1 on a card, under the 6.0 bar `contrast.test.ts` holds this token to. **The bar was not lowered to fit the colour; the colour went back to 0.50 and the test grew the rail as a measured surface** (§12: when a reason moves, the assertion gets stronger, not deleted). 0.50 → 6.29:1 on fill and card, 5.07:1 on the rail.
+
+**The serif is gone.** Every `<h1>` was set in Newsreader. A serif masthead over a data table is the tell of a document, not a dashboard; Attio, Linear and Domo all set headings in the body face and separate them by weight and tracking. `--font-heading` now resolves to the sans stack and Newsreader is no longer loaded.
+
+**The login page is the canvas.** Hue 260, inline, reading no token — the first screen of the product and the one surface two consecutive re-skins could not reach. Rebuilt as `bg-background` with a single wash of `--primary` through `color-mix`, so it follows the palette by construction.
+
+**The codemod: 1,844 classes mapped, 675 redundant `dark:` variants dropped, 0 raw status-family classes left.** `scripts/codemod/tokenise-colours.mjs`. It converts only the families `tone.ts` declares as STATUS (red→critical, amber/yellow→caution, emerald/green→positive, blue→info, the neutral ramp→foreground/muted/border) and leaves every CategoryTone — violet, indigo, cyan, sky, teal, rose, orange — exactly as it is, which is tone.ts's own documented decision. The second half is the real win: once mapped, a `dark:` twin of a status token is redundant *and worse than redundant* where it was written as an arbitrary alpha (`bg-caution-surface … dark:bg-caution/15`), overriding in one theme a token whose whole job is to carry both.
+
+**New primitives.** `PageHeader` + `HeaderMetrics` (one masthead idiom, deliberately 20px and not 30px — it buys back the vertical space 10-26's density change spent). `StatTile` + `StatGrid` + `Sparkline` — inline SVG, no charting dependency, because the demonstrated need is a 100×24 polyline and Recharts is ~90KB plus a client boundary. `StageMix`, the app's first chart: pipeline count and value by stage, proportional bars from CSS widths, server-rendered.
+
+**The KPI band lost its four pastel icon chips.** Each tile carried a 36px rounded square in its own hue — primary, violet, emerald, amber. §12: when every row is red, red has stopped signifying; four tiles in four colours is the same failure wearing pastel, and it meant the one tile genuinely warning could not be picked out from the three that were fine. The tiles are plain, and `tone` colours the FIGURE only when the figure is the problem.
+
+⚠ **AND THE BAND MOVED ABOVE THE FOLD.** It sat third, below two tall panels, so on a 1512×950 screen **the state of the portfolio was below the fold on the page whose job is to show it.**
+
+**Every view switcher stopped shouting.** Screenshots, not grep, found this: three filled blocks in one row on the dashboard — two near-black tab groups and a terracotta sort control — none of which was the page's actual button. On `/contacts`, two more beside the real "Add Contact". Nine switchers across six files now use the track-and-pill idiom: a grey track with the selected segment lifted to the content plane. §12 on this exact token: *"Keep it scarce: it means 'this is the action'."*
+
+⚠ **THE CODEMOD FOR THAT WAS TOO BROAD AND NINE OF ELEVEN HITS WERE REVERTED BY HAND.** Syntax told it which strings were selected-states; it could not tell which sat in a TRACK. The others were loose filter chips on the canvas, where a pill has nothing to lift off — `--card` is ΔL 0.045 from `--muted`, not enough to say "selected" when the chips are a hand's width apart. A near-black chip is legible and legitimate there, and was never what broke the hierarchy. **The rule is narrower than the regex: a pill belongs to a segmented track.** Written into the script for whoever re-runs it.
+
+### ⚠ The bug the codemod shipped, and the test that now catches it
+
+**`bg-slate-900 text-white` became `bg-muted text-white` — white on near-white, in 13 controls.** The neutral mapping read shade 900 as "the dark end of the ramp, therefore the `dark:` half of a tinted surface". It is not: in light mode that pair is a **dark fill** — a print button, a numbered bullet. Thirteen controls rendered invisible. **Typecheck green, build green, 729 tests green.** Found on a screenshot of `/login`, where the footer was still `text-white/40` from the navy page.
+
+Nothing could have caught it except looking, and looking does not scale to 97 pages. What scales is the structural rule underneath, now `conventions.test.ts`: **the app has two inks and two fills and they pair one way round** — `bg-foreground` takes `text-background`; `bg-card`/`bg-background`/`bg-muted` take `text-foreground`. Any class string pairing a light fill with a light ink, or a dark fill with a dark ink, is a rendering bug whatever it looks like in source. `text-white` counts as a light ink deliberately: it is theme-blind, so on `bg-muted` it is wrong in *both* themes. The test also caught `MapView`'s `bg-foreground … text-background dark:text-foreground` — light ink on a light fill in dark mode.
+
+**`StatTile`'s first draft was failed by the Panel ratchet**, correctly: it hand-rolled `rounded-lg border border-border bg-card elev-1` inline, which is exactly where the 232nd such shell would have started. It uses `<Panel>`.
+
+### Verified
+
+730 tests (one new), typecheck clean, lint at the frozen 22-problem baseline (§9), and — for the first time in four sessions — **screenshots of `/dashboard`, `/projects`, `/contacts`, `/tasks`, `/leads` and `/login`, looked at**. ⚠ A dev-mode screenshot under-represents the rail: with no middleware there is no session, so `getViewer()` returns null, the role falls back to `member` and most nav rows are filtered out. The chrome and the content are faithful; the nav row count is not.
+
+
 **Done 2026-10-27 (the palette was never Ber Wilson's — the brand was in the logo the whole time):**
 
 Richard, after the Jobber-register re-skin shipped: *"I can't see a single

@@ -606,7 +606,7 @@ export default function MeetingIntakeReview({
                     type="button"
                     disabled={added}
                     onClick={() => addObjective(d)}
-                    className={`inline-flex items-center gap-1 h-6 px-2 rounded-full border text-[11px] transition-colors ${added ? 'border-emerald-300 dark:border-emerald-700/60 text-emerald-700 dark:text-emerald-300' : 'border-dashed border-input hover:bg-accent'}`}
+                    className={`inline-flex items-center gap-1 h-6 px-2 rounded-full border text-[11px] transition-colors ${added ? 'border-positive-edge text-positive' : 'border-dashed border-input hover:bg-accent'}`}
                     title={added ? 'Added as a Soon objective' : `Add "${d}" to the steering board as a Soon objective`}
                   >
                     {added ? <CheckCircle2 size={11} /> : <Target size={11} />}
@@ -808,7 +808,7 @@ export default function MeetingIntakeReview({
                 <div className="flex flex-wrap items-center gap-2">
                   <div className="flex-1 min-w-[12rem]">
                     {p.existing_party_id ? (
-                      <span className="inline-flex items-center gap-1.5 h-7 px-2 rounded border border-emerald-300 dark:border-emerald-700/60 bg-emerald-50/60 dark:bg-emerald-950/40 text-xs text-emerald-700 dark:text-emerald-300">
+                      <span className="inline-flex items-center gap-1.5 h-7 px-2 rounded border border-positive-edge bg-positive-surface/60 text-xs text-positive">
                         <CheckCircle2 size={12} /> Linked: {p.existing_name}
                         <button type="button" onClick={() => unlinkPerson(i)} className="ml-0.5 hover:text-destructive" title="Unlink"><X size={12} /></button>
                       </span>
@@ -893,7 +893,7 @@ export default function MeetingIntakeReview({
                     </p>
                   )}
                   {!effectiveAssignee(t) && t.assignee && (
-                    <p className="text-[11px] text-amber-600 dark:text-amber-400">
+                    <p className="text-[11px] text-caution">
                       AI suggested “{t.assignee}” — not a team owner. Pick one, or tick “Can own tasks” on that attendee.
                     </p>
                   )}

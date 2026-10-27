@@ -66,15 +66,15 @@ const DOC_TYPES = [
 type DocType = (typeof DOC_TYPES)[number]
 
 const DOC_TYPE_COLORS: Record<DocType, string> = {
-  proposal: 'bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 ring-blue-200 dark:ring-blue-800/60',
+  proposal: 'bg-info-surface text-info ring-info-edge',
   contract: 'bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 ring-purple-200 dark:ring-purple-800/60',
   drawing: 'bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 ring-indigo-200 dark:ring-indigo-800/60',
   email: 'bg-sky-50 dark:bg-sky-950/40 text-sky-700 dark:text-sky-300 ring-sky-200 dark:ring-sky-800/60',
   report: 'bg-teal-50 dark:bg-teal-950/40 text-teal-700 dark:text-teal-300 ring-teal-200 dark:ring-teal-800/60',
   correspondence: 'bg-orange-50 dark:bg-orange-950/40 text-orange-700 dark:text-orange-300 ring-orange-200 dark:ring-orange-800/60',
-  solicitation: 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 ring-amber-200 dark:ring-amber-800/60',
-  diligence: 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 ring-emerald-200 dark:ring-emerald-800/60',
-  other: 'bg-slate-100 dark:bg-slate-900/40 text-slate-600 dark:text-slate-400 ring-slate-200 dark:ring-slate-800/60',
+  solicitation: 'bg-caution-surface text-caution ring-caution-edge',
+  diligence: 'bg-positive-surface text-positive ring-positive-edge',
+  other: 'bg-muted dark:bg-muted/40 text-muted-foreground ring-border dark:ring-border/60',
 }
 
 // MIME types that support AI extraction
@@ -229,7 +229,7 @@ function DocumentRow({
           <div className="flex flex-wrap items-center gap-2 mt-1">
             {superseded && (
               <span
-                className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs font-medium ring-1 ring-inset bg-slate-100 dark:bg-slate-900/40 text-slate-600 dark:text-slate-400 ring-slate-200 dark:ring-slate-800/60"
+                className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs font-medium ring-1 ring-inset bg-muted dark:bg-muted/40 text-muted-foreground ring-border dark:ring-border/60"
                 title={doc.superseded_reason ?? 'Retired — not used to answer questions.'}
               >
                 <Archive size={10} />
@@ -252,8 +252,8 @@ function DocumentRow({
               <span
                 className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs font-medium ring-1 ring-inset ${
                   doc.drive_folder_path === '_Unsorted'
-                    ? 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 ring-amber-200 dark:ring-amber-800/60'
-                    : 'bg-slate-100 dark:bg-slate-900/40 text-slate-600 dark:text-slate-400 ring-slate-200 dark:ring-slate-800/60'
+                    ? 'bg-caution-surface text-caution ring-caution-edge'
+                    : 'bg-muted dark:bg-muted/40 text-muted-foreground ring-border dark:ring-border/60'
                 }`}
                 title={
                   doc.drive_folder_path === '_Unsorted'
@@ -334,18 +334,18 @@ function DocumentRow({
           {!confirmDelete ? (
             <button
               onClick={() => setConfirmDelete(true)}
-              className="inline-flex items-center justify-center h-7 w-7 rounded hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors"
+              className="inline-flex items-center justify-center h-7 w-7 rounded hover:bg-critical-surface dark:hover:bg-critical-surface/40 transition-colors"
               title="Delete"
             >
-              <Trash2 size={14} className="text-muted-foreground hover:text-red-600 dark:hover:text-red-400" />
+              <Trash2 size={14} className="text-muted-foreground hover:text-critical dark:hover:text-critical" />
             </button>
           ) : (
             <div className="flex items-center gap-1">
-              <span className="text-xs text-red-600 dark:text-red-400 font-medium">Delete?</span>
+              <span className="text-xs text-critical font-medium">Delete?</span>
               <button
                 onClick={handleDelete}
                 disabled={deleting}
-                className="h-6 px-2 rounded text-xs font-medium bg-red-600 text-white hover:bg-red-700 transition-colors disabled:opacity-50"
+                className="h-6 px-2 rounded text-xs font-medium bg-critical text-white hover:bg-critical transition-colors disabled:opacity-50"
               >
                 {deleting ? '…' : 'Yes'}
               </button>
@@ -599,17 +599,17 @@ function UploadZone({
                     <p className="text-xs text-muted-foreground">Generating AI summary…</p>
                   )}
                   {upload.status === 'done' && (
-                    <p className="text-xs text-emerald-600 dark:text-emerald-400">Uploaded</p>
+                    <p className="text-xs text-positive">Uploaded</p>
                   )}
                   {upload.status === 'error' && (
-                    <p className="text-xs text-red-600 dark:text-red-400">{upload.error}</p>
+                    <p className="text-xs text-critical">{upload.error}</p>
                   )}
                 </div>
                 {(upload.status === 'uploading' || upload.status === 'processing') && (
                   <Loader2 size={14} className="animate-spin text-muted-foreground" />
                 )}
                 {upload.status === 'error' && (
-                  <AlertCircle size={14} className="text-red-500 dark:text-red-400" />
+                  <AlertCircle size={14} className="text-critical" />
                 )}
                 <button
                   onClick={() => removeUpload(i)}
@@ -960,7 +960,7 @@ export default function DocumentsTab({
               ))}
 
           {truncated && (
-            <p className="text-xs text-amber-700 dark:text-amber-300 flex items-start gap-1.5">
+            <p className="text-xs text-caution flex items-start gap-1.5">
               <AlertCircle size={13} className="shrink-0 mt-0.5" />
               This record holds more documents than this list shows. Open the Drive
               folder for the complete set.
