@@ -82,17 +82,61 @@ test("the palette's own documented claims hold", () => {
   }
 })
 
-test('the neutrals are neutral — zero chroma, by assertion', () => {
-  // The palette's stated rule is "neutrals at zero chroma, and exactly one
-  // chromatic role". That is only true if nobody tints a grey later, and a
-  // slightly blue grey is invisible in isolation and obvious in aggregate.
+/**
+ * ⚠ THIS ASSERTION WAS `parsed.c === 0` UNTIL 2026-10-26, AND THE REWRITE IS
+ * DELIBERATE RATHER THAN A RELAXATION.
+ *
+ * The old rule — "neutrals at zero chroma, and exactly one chromatic role" —
+ * was protecting a real property: *a slightly blue grey is invisible in
+ * isolation and obvious in aggregate*. That is a rule against ACCIDENT, and
+ * exact-zero is the cheapest way to state it, not the truest one.
+ *
+ * Richard asked for the Jobber register, and Jobber's canvas is a warm taupe
+ * (`hsl(43, 18%, 92%)` in their published Atlantis tokens) — warmth is a large
+ * part of why that product reads friendly rather than clinical. So the neutrals
+ * now carry a deliberate warm cast, and exact-zero would forbid the decision
+ * while still not catching the bug it was written for: two greys at chroma 0.01
+ * on DIFFERENT hues would pass an "is it small" test and look broken together.
+ *
+ * So the rewrite asserts what was actually meant, and is strictly stronger
+ * against the original failure: every tinted neutral must sit on ONE hue, and
+ * the tint must stay under a bound. A stray blue-grey beside a warm grey now
+ * fails on the hue, where before it had to be exactly zero to pass at all.
+ *
+ * §12: a workaround's recorded reason must be re-tested before it is inherited.
+ * This one was re-tested, and the reason survived in a better form.
+ */
+test('the neutrals share one hue and stay barely tinted', () => {
   const t = readThemeTokens()
   const NEUTRAL = ['background', 'foreground', 'card', 'muted', 'muted-foreground', 'secondary', 'accent']
+  // Above this and it stops being a neutral and starts being a colour. Measured
+  // against the palette as drawn: the most tinted neutral is --accent at 0.011.
+  const MAX_CHROMA = 0.015
+  // Hues are only comparable where there is enough chroma to HAVE a hue; below
+  // this the value is grey and its hue channel is noise.
+  const HUE_FLOOR = 0.002
+
   for (const theme of ['light', 'dark'] as const) {
+    const hues: { name: string; h: number }[] = []
     for (const name of NEUTRAL) {
       const parsed = parseOklch(t[theme][name])
       assert.ok(parsed, `${theme}/${name} is not an oklch() value`)
-      assert.ok(parsed.c === 0, `${theme} --${name} has chroma ${parsed.c}; the neutrals are zero-chroma`)
+      assert.ok(
+        parsed.c <= MAX_CHROMA,
+        `${theme} --${name} has chroma ${parsed.c}; a neutral stays under ${MAX_CHROMA}`
+      )
+      if (parsed.c >= HUE_FLOOR) hues.push({ name, h: parsed.h })
+    }
+    // The real guard: one family, not seven.
+    if (hues.length > 1) {
+      const first = hues[0]
+      for (const other of hues.slice(1)) {
+        assert.ok(
+          Math.abs(other.h - first.h) <= 1,
+          `${theme} --${other.name} is hue ${other.h} but --${first.name} is hue ${first.h}; ` +
+            `the neutrals must share one hue or they read as a mismatched set`
+        )
+      }
     }
   }
 })

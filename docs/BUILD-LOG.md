@@ -6,6 +6,134 @@ This file is **not** auto-loaded into a Claude Code session. It is the archive: 
 
 Split out of `CLAUDE.md` on 2026-09-23, when that file reached 606k characters against a 150k limit above which it is silently truncated — meaning the project's own operating instructions had begun to risk not reaching the sessions that need them. The entries below are **verbatim and unedited**.
 
+**Done 2026-10-26 (the aesthetic overhaul — and Jobber publishes its design system, so the values were read rather than guessed):**
+
+Richard, after seeing the drag-and-drop land: *"I can see there is some drag and
+drop capability now, but what about the UI aesthetics? I want this to look like
+jobber or a leading edge modern CRM. That can entail a complete button, color
+overhaul etc... if you haven't already been planning that, tell me and I will
+start a fresh chat to get the aesthetics right."*
+
+**The honest answer was no — I had steered him AWAY from this four hours
+earlier**, arguing the monochrome palette already *was* the modern register and
+getting agreement on "interaction-first, direction C stays". That was right for
+the drag work and it explicitly deferred the look. He is now asking for the
+look, which is the half 10-17 said was his to judge.
+
+⚠ **JOBBER PUBLISHES ATLANTIS, SO THIS DID NOT HAVE TO BE A MOOD BOARD.**
+`atlantis.getjobber.com` 403s a fetch, but `@jobber/design` is on npm and its
+`dist/color.css`, `foundation.css` and `semantic.css` are served by jsDelivr.
+Reading them reframed the whole job:
+
+- `--radius-base: 8px`, `--radius-large: 16px` — **twice ours** (`--radius: 4px`).
+- `--space-base: 16px` on a 4px step — against our `--spacing: 0.22rem`.
+- `--shadow-low` / `--shadow-base` / `--shadow-high`: **real, layered, present** —
+  against our `--elev-1/-2: 0 0 0 0 transparent`.
+- `--color-taupe: hsl(43, 18%, 92%)` — a **warm** canvas, not a neutral grey.
+- `--color-grey*`: **0% saturation**, exactly like ours.
+- `--color-interactive` is one saturated green; `critical`/`warning`/`success`/
+  `informative` each carry `surface` and `onSurface` siblings.
+
+⚠ **THE SEMANTIC LAYER IS ALREADY WHAT WE HAVE.** Their `interactive` /
+`critical` / `warning` / `success` / `informative` / `inactive` maps one-to-one
+onto our `primary` / `critical` / `caution` / `positive` / `info` / `neutral`,
+down to the surface+ink pairing. **The architecture needed nothing.** What
+differed was four values and a missing component — which is a very different
+project from "a colour overhaul", and is why measuring first mattered again.
+
+**So the gap was never colour.** Jobber's palette is *less* chromatic than
+ours; it reads friendly because of radius, air, lift and warmth. Put to Richard
+as three options with the trade named — polish costs rows per screen — he took
+the full direction and told me to choose and ship rather than build a gallery.
+
+**What changed, all of it in tokens.** `--radius` 0.25rem → **0.5rem** (one
+line re-rounds every card, button, input and dialog, because the whole ladder
+derives from it). `--spacing` 0.22rem → **0.25rem**, reversing 10-17 and costing
+~13% of the rows on a screen, accepted deliberately. `--elev-1/-2` from
+`transparent` to two-layer shadows modelled on `--shadow-low`/`--shadow-base`.
+And the neutrals took a deliberate warm cast on one hue — the light canvas
+compiles to **`#f4f1ec`**, within a hair of Atlantis's own `#f0ece3`.
+
+⚠ **TWO ASSERTIONS HAD TO BE OVERTURNED, AND OVERTURNING THEM WELL WAS THE REAL
+WORK.** They were not obstacles; they were 10-17's decisions written down, and
+§12 says a workaround's recorded reason must be re-tested before it is
+inherited. Both were re-tested:
+
+1. `contrast.test.ts` asserted `parsed.c === 0` on seven neutrals in both
+   themes. Its stated reason — *"a slightly blue grey is invisible in isolation
+   and obvious in aggregate"* — is a rule against ACCIDENT, and exact-zero is
+   the cheapest statement of it, not the truest. It now asserts the neutrals
+   **share one hue** and stay under a chroma bound, which is **strictly stronger
+   against the original bug**: two greys at chroma 0.01 on different hues used
+   to be unrepresentable, and now fail loudly on the hue.
+2. `tone.test.ts` asserted `--elev-1`/`--elev-2` were literally
+   `0 0 0 0 transparent`. That reason — a shadow on every card turning a
+   181-document list to mush — **depended on the density, which moved in the
+   same change**. It now asserts the ladder is ORDERED and caps the resting
+   rung, because the failure mode was never "a shadow", it was "a shadow loud
+   enough to repeat two hundred times".
+
+⚠ **AND THE REWRITTEN LADDER TEST FAILED ON ITS FIRST RUN, CORRECTLY, WITH THE
+WRONG REASONING.** Its first metric summed every alpha in a shadow, which
+reported the dark `--elev-2` (two tight layers, 0.35 + 0.28) as heavier than
+`--elev-3` (one wide-blur layer at 0.6) — the opposite of what the eye sees,
+because summing ignores blur and spread. The failure was real and the metric
+was wrong; max-alpha orders them honestly with no blur maths. Then **fifteen
+planted violations** proved both rewrites still catch what the originals caught
+— including the case that showed my own expectation was wrong rather than the
+check (the "just a little lift" bug trips the ORDERING rule before the cap, so
+a separate heavy-but-ordered case was added to exercise the cap at all).
+
+**The button overhaul Richard asked for by name.** Sizes up a step — the
+default was `h-8` = **28.2px** at the old spacing, visibly timid; it is 36px
+now, with padding to match (`px-2.5` on a primary action was the tightest thing
+on screen). The primary carries `elev-1`. ⚠ **A SIXTH VARIANT WAS NAMED BECAUSE
+IT ALREADY EXISTED:** `bg-foreground text-background` appears in **65 files**,
+including a byte-identical retry button in **42 of the 55 `error.tsx` files** —
+an unnamed variant in 65 places is a button style nobody can restyle once.
+⚠ And the per-size `rounded-[min(var(--radius-md),10px)]` caps were deleted
+from four places: at a 4px radius `--radius-md` was 3.2px, so the `min()` had
+never once bound anything.
+
+⚠ **THE MOST VISIBLE WRINKLE WAS A BLOCKER SOMEBODY WROTE DOWN AND LEFT.**
+**140 raw `<select>` elements** render OS chrome on a themed page — the thing
+that looks most unfinished in every screenshot — and `field.tsx` explained
+exactly why: *"`appearance-none` would take the native arrow with it and this
+app has no popover Select to replace it"*. True, and the fix was never a
+popover: it was to BRING a chevron. One base rule in `globals.css` now themes
+all 140 at once, with no component churn, no behaviour change, and the OS
+picker still opening on a phone, where it is the better picker.
+⚠ **Specificity is doing two jobs there**: `select:not([multiple]):not([size])`
+is (0,1,1), which beats the `.px-3` utility at (0,1,0) — without the `:not()`
+each control's own padding would win and the option text would run underneath
+the chevron.
+
+⚠ **AND THE BOARDS WERE SHOWING A PLACEHOLDER AS THEIR MAIN FIGURE.** Measured:
+**1 of 20 projects and 0 of 10 opportunities carry an `estimated_value`**, and
+`formatValue(null)` returns `'—'`. §12 calls a bare em dash at a value's own
+weight a failed render, and it was on essentially every card on the
+opportunities board. `ProjectCard` had already solved this in words ("No value
+set"); `OpportunityCard` had not, so the two flagship boards disagreed about
+what "no value" looks like. A render check now guards it, with the empty-column
+spacer deliberately exempt, and five planted cases prove it catches a bare dash
+without tripping on a dash inside prose.
+
+**Verification.** 729 tests, **100 render checks** (up from 90), lint unchanged
+at 22, typecheck clean. Every contrast and ΔL threshold re-measured through the
+same reader `/settings/ui` uses: body 20.17 / 17.91, muted 8.41 / 7.10, accent
+8.63 / 7.02, every status ink ≥ 5.59 on its own surface, ΔL card/canvas 0.038 /
+0.045. ⚠ **The dark sidebar sits at ΔL 0.035 against a 0.03 floor** — five
+thousandths of headroom — so the dark canvas lightness was deliberately left
+untouched while warmth was added around it. ⚠ **And the artifact was checked,
+not just the source:** the new build was served on port 3100 against production
+on 3000, and its compiled stylesheet fetched and grepped — `--radius:.5rem`,
+`--spacing:.25rem`, `--background:#f4f1ec`, real `--elev-1`, the chevron rule
+present, and every old value absent. A planned screenshot comparison was
+abandoned when the Chrome extension disconnected twice; the compiled-CSS check
+is the stronger evidence anyway, since it reads what the browser will receive.
+
+---
+
 **Done 2026-10-26 (the CRM research Richard asked for, and the finding that his two asks pull opposite ways):**
 
 Richard: *"I want you to research the most modern CRM's like Jobber or other

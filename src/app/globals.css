@@ -41,20 +41,28 @@
   /* ── Density ──────────────────────────────────────────────────────────────
      ONE MULTIPLIER BEHIND EVERY PADDING, MARGIN AND GAP. Tailwind emits `.p-4`
      as `calc(var(--spacing) * 4)`, so this single value is the density knob for
-     the whole application. Tailwind's default is 0.25rem; this is 12% tighter,
-     which is most of why more fits on a screen without anything reading cramped.
+     the whole application.
      ⚠ A change here moves EVERY spacing class at once, so measure it on a DENSE
      screen (a project's Documents tab, /decide) and not a sparse one.
 
+     ⚠ BACK AT TAILWIND'S DEFAULT AS OF 2026-10-26, REVERSING 10-17's 0.22rem.
+     The tighter value fitted more on a screen and was most of why this read as a
+     dense internal tool rather than a product; Jobber's own scale is built on a
+     16px base step. Breathing room is one of the four things — with radius,
+     resting elevation and warmth — that separate a consumer-grade CRM from an
+     admin panel. The cost is real and was accepted deliberately: about 13%
+     fewer rows per screen.
+
      ⚠⚠ AND IT MOVES HEIGHTS, NOT JUST GAPS. `h-11` is `calc(var(--spacing) * 11)`
-     — which at 0.25rem is exactly the 44px minimum touch target, and at 0.22rem
-     is 38.7px. So tightening density silently shrank 66 tap targets below the
-     floor on the one device where it matters. Every one of them is now an
-     absolute `h-[2.75rem]` / `min-h-[2.75rem]` / `size-[2.75rem]`, because a
-     touch target is a PHYSICAL constraint and was never a spacing step; the
-     conventions test keeps them that way. Decorative `size-12` circles were
-     left alone deliberately — they may shrink. */
-  --spacing: 0.22rem;
+     — which at this value is exactly the 44px minimum touch target, and at
+     0.22rem was 38.7px. That is how tightening density once silently shrank 66
+     tap targets below the floor on the one device where it matters. They are all
+     absolute `h-[2.75rem]` / `min-h-[2.75rem]` / `size-[2.75rem]` now, and the
+     conventions test still BANS the `h-11` form even though it would be correct
+     today: a tap target is a PHYSICAL constraint and must not ride on a knob
+     that has already moved twice. Decorative `size-12` circles were left alone
+     deliberately — they may scale. */
+  --spacing: 0.25rem;
 
   /* ── The sticky record bar ────────────────────────────────────────────────
      The height of the tab bar on a project or opportunity, which is `sticky
@@ -135,22 +143,33 @@
      colour left to mistake for a signal.
 
      Chosen 2026-10-17 over two alternatives, both measured and both viable.
-     The deciding argument was density, not taste: at this spacing a shadow on
-     every card turns a list of 181 documents into mush, so the borders do the
-     dividing and the shadows are gone (see the elevation note below).
+     The deciding argument then was density, not taste: at 0.22rem spacing a
+     shadow on every card turned a list of 181 documents into mush, so the
+     borders did the dividing and the shadows were removed.
+
+     ⚠ BOTH HALVES OF THAT WERE REVERSED ON 2026-10-26, AND THE REVERSAL IS WHY
+     THE SHADOWS COULD COME BACK. Richard asked for the Jobber register; Jobber
+     does not avoid elevation, it affords elevation by not being that dense. So
+     the density went back to Tailwind's default FIRST, and the resting shadow
+     follows from it — the two were always one decision wearing two hats. The
+     neutrals also gained a deliberate warmth (see below), which is the one part
+     of the original rule that is genuinely gone rather than re-derived.
 
      ⚠ THE CANVAS IS A REAL STEP BELOW THE CARDS (ΔL 0.038), and it has to be.
      The first draft had it at 0.985 against white cards — ΔL 0.015 — which left
-     the border as the ONLY thing separating a card from the page, since this
-     palette has no shadow at rest. A hairline alone can carry a card; it cannot
-     carry a screen full of them. Measured as a lightness delta rather than a
+     the border as the ONLY thing separating a card from the page, which at the
+     time had no shadow at rest either. A hairline alone can carry a card; it
+     cannot carry a screen full of them. ⚠ The resting shadow came back on
+     10-26, so the border is no longer carrying that weight alone — but the
+     delta stays, because a card must still read as a card with shadows
+     suppressed (`prefers-reduced-transparency`, print, a forced-colours mode). Measured as a lightness delta rather than a
      contrast ratio, for the reason given in `contrast.ts`. */
-  --background: oklch(0.962 0 0);
-  --foreground: oklch(0.12 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.12 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.12 0 0);
+  --background: oklch(0.960 0.008 85);
+  --foreground: oklch(0.12 0.006 85);
+  --card: oklch(0.998 0.003 85);
+  --card-foreground: oklch(0.12 0.006 85);
+  --popover: oklch(0.998 0.003 85);
+  --popover-foreground: oklch(0.12 0.006 85);
   /* THE ONE ACCENT. Ber Wilson's blue, at real chroma so it reads as a
      deliberate accent rather than a dark neutral — 8.7:1 as link text on a
      card, 8.4:1 for a white label on the button. ⚠ Keep it scarce: it means
@@ -158,39 +177,55 @@
      a black button beside black text is not findable. */
   --primary: oklch(0.42 0.145 262);
   --primary-foreground: oklch(0.99 0 0);
-  --secondary: oklch(0.952 0 0);
-  --secondary-foreground: oklch(0.18 0 0);
-  --muted: oklch(0.952 0 0);
+  --secondary: oklch(0.950 0.009 85);
+  --secondary-foreground: oklch(0.18 0.006 85);
+  --muted: oklch(0.950 0.009 85);
   /* 8.5:1 on a card — well past the 4.5 floor, because this is the colour of
      most of the small text in the app and it is read all day. */
-  --muted-foreground: oklch(0.42 0 0);
+  --muted-foreground: oklch(0.42 0.008 85);
   /* Hover/selected surface. NEUTRAL, not the old warm cream: a tinted hover
      state is decorative colour, and this palette spends its colour budget on
      the accent and the status tones. */
-  --accent: oklch(0.944 0 0);
-  --accent-foreground: oklch(0.18 0 0);
+  --accent: oklch(0.940 0.011 85);
+  --accent-foreground: oklch(0.18 0.006 85);
   --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.885 0 0);
-  --input: oklch(0.885 0 0);
+  --border: oklch(0.880 0.010 85);
+  --input: oklch(0.880 0.010 85);
   --ring: oklch(0.55 0.16 262);
   --chart-1: oklch(0.55 0.15 260);
   --chart-2: oklch(0.65 0.15 145);
   --chart-3: oklch(0.70 0.12 45);
   --chart-4: oklch(0.60 0.12 310);
   --chart-5: oklch(0.50 0.10 25);
-  /* Tight. The radius ladder in @theme inline derives from this one value, so
-     `rounded-lg` is 4px and `rounded-xl` (what Panel uses) is 5.6px. */
-  --radius: 0.25rem;
-  /* ⚠ NO SHADOW ON A RESTING SURFACE, IN EITHER THEME. A border separates a
-     card from the canvas; at this density a shadow on every card is noise, and
-     `elev-1` was on 120 elements. `elev-3` survives for what genuinely floats
-     above the page — dialog, sheet, popover — where the shadow tells the reader
-     what is on top. `--shadow-color` below is unused and kept only because
-     shadcn's own CSS references it. ⚠ The dark values live in the SECOND
-     `.dark` block further down, which wins by being last. */
+  /* ⚠ 8px AS OF 2026-10-26, DOUBLED FROM 4px. The radius ladder in @theme
+     inline derives from this ONE value, so `rounded-lg` (Panel, Button) is 8px
+     and `rounded-xl` (Dialog) is 11.2px. Matched to Jobber's Atlantis
+     `--radius-base: 8px` / `--radius-large: 16px`, read from their published
+     tokens rather than guessed. This is the single highest-leverage line in the
+     file: one declaration re-rounds every card, button, input and dialog in the
+     application, because Tailwind resolves the whole ladder through it. */
+  --radius: 0.5rem;
+  /* ── Elevation ────────────────────────────────────────────────────────────
+     A THREE-RUNG LADDER, AND THE FIRST RUNG IS BACK AS OF 2026-10-26. These
+     were `0 0 0 0 transparent` from 10-17: at `--spacing: 0.22rem` a shadow on
+     every card turned a list of 181 documents into mush, so the borders did all
+     the dividing. That reason was re-tested rather than inherited (§12) and it
+     had expired — it depended on the density, and the density moved back to
+     Tailwind's default in the same change. Jobber does not avoid elevation; it
+     affords elevation by not being that dense.
+
+     Modelled on Atlantis's own `--shadow-low` / `--shadow-base`: two layers, a
+     tight one for the edge and a wider one for the lift, at very low alpha.
+     `tone.test.ts` asserts the ladder is ORDERED (elev-1 quieter than elev-2
+     quieter than elev-3) and caps elev-1, because the failure mode here is not
+     "a shadow" but "a shadow loud enough to repeat 200 times".
+
+     `--shadow-color` below is unused and kept only because shadcn's own CSS
+     references it. ⚠ The dark values live in the SECOND `.dark` block further
+     down, which wins by being last. */
   --shadow-color: 260 30% 30%;
-  --elev-1: 0 0 0 0 transparent;
-  --elev-2: 0 0 0 0 transparent;
+  --elev-1: 0 1px 2px 0 oklch(0 0 0 / 0.04), 0 1px 3px 0 oklch(0 0 0 / 0.05);
+  --elev-2: 0 2px 4px -1px oklch(0 0 0 / 0.06), 0 4px 12px -2px oklch(0 0 0 / 0.07);
   --elev-3: 0 8px 24px -8px oklch(0 0 0 / 0.22);
   --sidebar: oklch(0.165 0.012 262);
   --sidebar-foreground: oklch(0.93 0.004 262);
@@ -235,6 +270,11 @@
   --info-surface: oklch(0.954 0.032 252);
   --info-edge: oklch(0.83 0.07 252);
 
+  /* The dropdown chevron, as a background image, tinted to match
+     --muted-foreground in this theme. A data URI cannot use `currentColor`, so
+     the colour is baked per theme and lives next to the palette it tracks. */
+  --select-chevron: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%236b6659' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m4 6 4 4 4-4'/%3E%3C/svg%3E");
+
   /* ── Motion ───────────────────────────────────────────────────────────────
      There were no duration tokens, so dialog animated at 100ms, sheet at 200ms
      and `.lift` at a hardcoded 0.2s — three answers to one question. The
@@ -249,22 +289,22 @@
   /* Dark neutrals, also at zero chroma — the same rule as light mode, so the
      accent and the status tones are again the only colour on screen. Body text
      reads 17.9:1 on a card here and 19.0:1 on the canvas. */
-  --background: oklch(0.13 0 0);
-  --foreground: oklch(0.98 0 0);
-  --card: oklch(0.175 0 0);
-  --card-foreground: oklch(0.98 0 0);
-  --popover: oklch(0.175 0 0);
-  --popover-foreground: oklch(0.98 0 0);
+  --background: oklch(0.13 0.004 85);
+  --foreground: oklch(0.98 0.004 85);
+  --card: oklch(0.175 0.005 85);
+  --card-foreground: oklch(0.98 0.004 85);
+  --popover: oklch(0.175 0.005 85);
+  --popover-foreground: oklch(0.98 0.004 85);
   /* The same one accent, lifted for the dark canvas: 7.0:1 as link text,
      7.4:1 for the dark label on a filled button. */
   --primary: oklch(0.70 0.145 262);
   --primary-foreground: oklch(0.14 0.01 262);
-  --secondary: oklch(0.24 0 0);
-  --secondary-foreground: oklch(0.98 0 0);
-  --muted: oklch(0.24 0 0);
-  --muted-foreground: oklch(0.70 0 0);
-  --accent: oklch(0.25 0 0);
-  --accent-foreground: oklch(0.98 0 0);
+  --secondary: oklch(0.24 0.005 85);
+  --secondary-foreground: oklch(0.98 0.004 85);
+  --muted: oklch(0.24 0.005 85);
+  --muted-foreground: oklch(0.70 0.007 85);
+  --accent: oklch(0.25 0.006 85);
+  --accent-foreground: oklch(0.98 0.004 85);
   --destructive: oklch(0.704 0.191 22.216);
   --border: oklch(1 0 0 / 13%);
   --input: oklch(1 0 0 / 17%);
@@ -333,6 +373,35 @@
   select, option {
     font-size: inherit;
     font-family: inherit;
+  }
+  /*
+    ── THE DROPDOWN CHEVRON ──────────────────────────────────────────────────
+    ⚠ THIS IS ONE RULE THAT RE-SKINS 140 CONTROLS, AND IT CLOSES A BLOCKER THAT
+    WAS WRITTEN DOWN IN `field.tsx` AND THEN LEFT. That file said: *"appearance-none
+    would take the native arrow with it and this app has no popover Select to
+    replace it — the chevron is the affordance"*. True, and the fix was never the
+    popover: it was to BRING a chevron. The native control keeps every behaviour
+    it had — including the OS picker on a phone, which is the right picker on a
+    phone — and only the resting appearance changes, which is the 99% case and
+    the thing that made every filter bar look foreign on a dark theme.
+
+    ⚠ SPECIFICITY IS LOAD-BEARING HERE. `select:not([multiple])` is (0,1,1),
+    which beats a `.px-3` utility at (0,1,0) — without the `:not()` the padding
+    utility on each control would win and the option text would run underneath
+    the chevron. The `:not()` is doing two jobs at once, and the second one is
+    the reason this works at all.
+
+    A multi-select and a sized listbox are excluded: they have no collapsed
+    state, so a chevron on them would point at nothing.
+  */
+  select:not([multiple]):not([size]) {
+    appearance: none;
+    -webkit-appearance: none;
+    background-image: var(--select-chevron);
+    background-repeat: no-repeat;
+    background-position: right 0.625rem center;
+    background-size: 0.875rem 0.875rem;
+    padding-right: 1.875rem;
   }
   /* Page titles carry the display serif (Newsreader) — one editorial voice for
      every h1 (screen + print letterheads). Section h2s/h3s stay Geist. */
@@ -422,15 +491,15 @@
  * discarded — caught during the 10-17 redraw, when the new values sat at line
  * 264 doing nothing while these old ones kept rendering.
  *
- * Resting surfaces carry NO shadow in either theme: a border separates a card
- * from the canvas, and at this density a shadow on every card turns a list of
- * 181 documents into mush. `elev-3` survives for things that genuinely float
- * above the page — a dialog, a sheet, a popover — where the shadow is doing
- * real work telling the reader what is on top.
+ * ⚠ AND SINCE 2026-10-26 THESE ARE REAL SHADOWS, NOT `transparent`. The dark
+ * ladder needs far more alpha than the light one to read as the same amount of
+ * lift — 0.30 against 0.04 at the first rung — which is why the two themes are
+ * genuinely different values here rather than one set shared, and why the test
+ * that guards them caps elev-1 per theme instead of with one number.
  */
 .dark {
-  --elev-1: 0 0 0 0 transparent;
-  --elev-2: 0 0 0 0 transparent;
+  --elev-1: 0 1px 2px 0 oklch(0 0 0 / 0.30), 0 1px 3px 0 oklch(0 0 0 / 0.22);
+  --elev-2: 0 2px 6px -1px oklch(0 0 0 / 0.35), 0 8px 20px -4px oklch(0 0 0 / 0.28);
   --elev-3: 0 8px 24px -8px oklch(0 0 0 / 0.6);
 }
 .elev-1 { box-shadow: var(--elev-1); }

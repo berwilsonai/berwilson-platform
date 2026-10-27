@@ -134,6 +134,18 @@ function structuralChecks(label: string, markup: string) {
     violation rather than by reading the regex (§12: when a check fails,
     suspect the check — and prove it can fail at all).
   */
+  /*
+    ⚠ A BARE EM DASH AT A VALUE'S OWN WEIGHT READS AS A FAILED RENDER (§12),
+    and `formatValue(null)` returns one. With 0 of 10 opportunities carrying an
+    estimated_value, this was on every card on the board until 2026-10-26.
+    Matches a dash that is the WHOLE text of an element — a dash inside prose,
+    or the spacer in a collapsed empty column, is fine and must not trip this.
+  */
+  check(
+    `${label}: no bare em dash as an element's entire content`,
+    !/>\s*\u2014\s*</.test(markup.replace(/<p[^>]*text-muted-foreground\/50[^>]*>\s*\u2014\s*<\/p>/g, '')),
+    'name the absence in words, or omit the row'
+  )
   check(
     `${label}: focus styling is focus-visible, never bare focus:`,
     !/\bfocus:/.test(markup),

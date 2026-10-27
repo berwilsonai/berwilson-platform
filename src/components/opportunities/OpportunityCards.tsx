@@ -182,12 +182,28 @@ export function OpportunityCard({
 
               {/* Footer: value + sector + probability */}
               <div className={cn('border-t border-border flex items-center justify-between gap-2', compact ? 'mt-2 pt-2' : 'mt-3 pt-3')}>
-                <span
-                  className="text-sm font-semibold tnum text-foreground"
-                  title={pipelineValue(opp).hint}
-                >
-                  {formatValue(pipelineValue(opp).amount)}
-                </span>
+                {/*
+                  ⚠ A BARE EM DASH AT A VALUE'S OWN WEIGHT READS AS A FAILED
+                  RENDER (§12) — and `formatValue(null)` returns exactly that.
+                  Measured 2026-10-26: 0 of 10 opportunities and 1 of 20
+                  projects carry an `estimated_value`, so this slot was showing
+                  "—" on essentially every card on the board. The most repeated
+                  element on the flagship surface was a placeholder.
+
+                  `ProjectCard` already names the absence in words; this is the
+                  same treatment, so the two boards stop disagreeing about what
+                  "no value" looks like.
+                */}
+                {pipelineValue(opp).amount != null ? (
+                  <span
+                    className="text-sm font-semibold tnum text-foreground"
+                    title={pipelineValue(opp).hint}
+                  >
+                    {formatValue(pipelineValue(opp).amount)}
+                  </span>
+                ) : (
+                  <span className="text-[11px] text-muted-foreground/70">No value set</span>
+                )}
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
                   {opp.sector && SECTOR_LABELS[opp.sector as ProjectSector] && (
                     <span>{SECTOR_LABELS[opp.sector as ProjectSector]}</span>

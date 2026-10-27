@@ -177,9 +177,20 @@ function Select({
   const wired = useControlProps(props, true)
   return (
     <select
-      // `appearance-none` would take the native arrow with it and this app has
-      // no popover Select to replace it — the chevron is the affordance.
-      className={cn(controlVariants({ size }), 'cursor-pointer pr-2', className)}
+      /*
+        ⚠ THIS COMMENT USED TO SAY `appearance-none` WAS IMPOSSIBLE HERE —
+        *"this app has no popover Select to replace [the native arrow]"*. That
+        was true and it was treated as the end of the matter for months, which
+        is how 140 native dropdowns kept rendering OS chrome on a themed page.
+        The answer was never a popover: `globals.css` now draws a themed chevron
+        on every collapsed `select`, so `appearance-none` is applied there, once,
+        and this control inherits it along with the other 139. The native picker
+        still opens — correctly, since on a phone the OS picker is the better one.
+
+        `pr-2` is gone: the chevron rule owns the right padding now, and leaving
+        a utility here would fight it.
+      */
+      className={cn(controlVariants({ size }), 'cursor-pointer', className)}
       {...wired}
     >
       {children}

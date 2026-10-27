@@ -204,16 +204,68 @@ test('every surface is perceptibly separated from the one behind it', () => {
   }
 })
 
-test('a resting surface carries no shadow, in either theme', () => {
-  // The palette's stated rule, and the one most likely to be undone by someone
-  // adding "just a little lift". elev-3 survives for things that genuinely
-  // float — dialog, sheet, popover.
+/**
+ * ⚠ THIS ASSERTED `--elev-1` AND `--elev-2` WERE LITERALLY `0 0 0 0 transparent`
+ * UNTIL 2026-10-26. The rewrite is deliberate and is tied to the density change.
+ *
+ * The shadows were removed on 10-17 for a MEASURED reason, not a taste one: at
+ * `--spacing: 0.22rem`, a shadow on every card turned a list of 181 documents
+ * into mush. That reason was re-tested rather than inherited (§12) — and it has
+ * gone away, because the thing it depended on moved. Jobber does not avoid
+ * elevation; it affords elevation by not being that dense. The density went
+ * back to Tailwind's default first, and the resting shadow follows from it.
+ *
+ * So the rule the file is actually trying to protect is not "no shadow" — it is
+ * "a resting card must not SHOUT, and the ladder must mean something". That is
+ * what is asserted now: elev-1 is quieter than elev-2 is quieter than elev-3,
+ * every slot is declared in both themes, and elev-1's opacity stays under a
+ * bound so nobody re-adds "just a little lift" and ends up at a drop shadow.
+ */
+test('the elevation ladder is ordered, and a resting surface stays quiet', () => {
   const css = readFileSync('src/app/globals.css', 'utf8')
-  for (const slot of ['elev-1', 'elev-2']) {
-    const hits = [...css.matchAll(new RegExp(`--${slot}:\\s*([^;]+);`, 'g'))].map((m) => m[1].trim())
+
+  /**
+   * How dark a shadow gets at its darkest layer.
+   *
+   * ⚠ THE FIRST VERSION SUMMED THE ALPHAS AND WAS WRONG — it reported the dark
+   * `--elev-2` (two tight layers, 0.35 + 0.28) as heavier than `--elev-3` (one
+   * wide-blur layer at 0.6), which is the opposite of what the eye sees,
+   * because summing ignores blur and spread entirely. The test failing was
+   * right; its reasoning was not. Max alpha is a fair proxy for "how much does
+   * this shout" and needs no blur maths to be honest about ordering.
+   */
+  const weight = (v: string): number =>
+    Math.max(0, ...[...v.matchAll(/\/\s*([\d.]+)\s*\)/g)].map((m) => Number(m[1])))
+
+  const read = (slot: string) =>
+    [...css.matchAll(new RegExp(`--${slot}:\\s*([^;]+);`, 'g'))].map((m) => m[1].trim())
+
+  for (const slot of ['elev-1', 'elev-2', 'elev-3']) {
+    const hits = read(slot)
     assert.ok(hits.length >= 2, `expected --${slot} in both themes, found ${hits.length}`)
-    for (const v of hits) {
-      assert.equal(v, '0 0 0 0 transparent', `--${slot} is "${v}" — a resting surface should use a border`)
-    }
+  }
+
+  // Both themes declare all three in the same order, so index 0 is light and
+  // index 1 is the dark override that wins by being last in the file.
+  const [one, two, three] = [read('elev-1'), read('elev-2'), read('elev-3')]
+  for (let i = 0; i < Math.min(one.length, two.length, three.length); i++) {
+    const w1 = weight(one[i])
+    const w2 = weight(two[i])
+    const w3 = weight(three[i])
+    assert.ok(w1 > 0, `--elev-1 "${one[i]}" has no shadow at all — the ladder starts at rest, not at nothing`)
+    assert.ok(w1 < w2, `--elev-1 (${w1}) must be quieter than --elev-2 (${w2})`)
+    assert.ok(w2 < w3, `--elev-2 (${w2}) must be quieter than --elev-3 (${w3})`)
+    /*
+      A resting card is on screen hundreds of times at once; past this it is
+      noise rather than separation, which is exactly the 10-17 failure. The
+      bound is per-theme because a dark canvas needs far more alpha to read as
+      the same amount of shadow — index 0 is the `:root` occurrence and index 1
+      the `.dark` override, by their order in the file.
+    */
+    const restingCap = i === 0 ? 0.08 : 0.35
+    assert.ok(
+      w1 <= restingCap,
+      `--elev-1 (${w1}) is too heavy for a surface that appears on every card (cap ${restingCap})`
+    )
   }
 })
