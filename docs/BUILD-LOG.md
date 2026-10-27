@@ -166,11 +166,37 @@ checks** over every column shape, every optional field absent, the empty board,
 and the three structural promises `tsc` cannot see: no `<button>` inside an
 `<a>`, no spacing-derived tap target, nothing rendering as `NaN`/`undefined`.
 Lint unchanged at **22** (13 errors, 9 warnings) throughout. Production build
-compiles, exit 0, 283 routes — against a throwaway dist dir, with the live
-`.next` verified untouched at its pre-session mtime and the app still
-answering. **NOT DEPLOYED — awaiting Richard's look**, because the half no
-measurement reaches is whether the gesture feels right on his hardware, and the
-build is the deploy.
+compiles, exit 0, 283 routes — first against a throwaway dist dir, with the
+live `.next` verified untouched at its pre-session mtime and the app still
+answering, and then **DEPLOYED** on Richard's word: commit `7cb440a`, pushed,
+built (13.5s, 283 routes, exit code captured from an UNPIPED build),
+`launchctl kickstart -k` explicitly rather than trusting the KeepAlive cycle,
+and both assertions green — `tailnet-setup.sh` (all three endpoints, env
+matches the live hostname, no platform port off loopback) and
+`lmstudio-check.sh`. Verified by serving: the page over the tailnet references
+the new `BUILD_ID` (`jXMhFXu_ibDFTsxrfvxIA`), and the listener on `:3000` is
+the new child.
+
+⚠ **AND THE KICKSTART LEFT AN ORPHANED `next-server` THAT I NEARLY KILLED.**
+`ps` showed two servers: the new job (19:57:38) and a `next-server` from
+**16:42:21 reparented to `ppid 1`** — the shape §12 teaches as the LM Studio
+orphan, and `launchctl list` showed the job's last exit as `-9`, so the
+SIGKILL had taken the npm parent and left the child. It looked like a leak
+worth reaping, and the case for reaping got stronger on inspection: it held
+**two ESTABLISHED connections to LM Studio**, and `lms ps` read
+**PROCESSINGPROMPT with the orphan as the only client** — which is exactly
+§12's *"killing the client does not stop the generation … everything queues
+behind it. Reload to clear."*
+
+**It was the wrong read, and one more hop settled it.** Resolving the orphan's
+INBOUND sockets named two live callers: `curl` **82407** (`cron-job-runner`,
+47 minutes in) and **87725** (`cron-email-sweep`, 24 minutes in), both on a
+3500s timeout and both still waiting. Next had kept the old server up to
+**drain in-flight requests** — a graceful drain, not a leak, and the LM Studio
+work was the email sweep's own, not a dead client's. Killing it would have
+aborted two real cron runs to tidy 5MB of RSS. **An orphan is defined by
+having no one waiting on it, so resolve the sockets to PIDs before reaping
+one; `ppid 1` says the parent died, not that the work did.**
 
 **What is deliberately NOT done.** `OrgStructureBoard` (1,668 lines) still has
 its own copy: it is a **tree**, where a drag means re-parenting a node in a
