@@ -169,6 +169,20 @@ export const TITLE_EXTRAS: { href: string; title: string }[] = [
   { href: '/calendar', title: 'Calendar' },
   { href: '/email-ingestion', title: 'Intake' },
   { href: '/company/structure', title: 'Ber Wilson — Structure' },
+  /*
+    ⚠ THESE FOUR READ "Ber Wilson" UNTIL 2026-10-27, which is the /company nav
+    LABEL — so the locator named the company profile while you stood on a
+    governance register. They are real destinations (§13) reached from the
+    tabs on /company, not from the nav list, so nothing gave them a title.
+    Each matches the `<h1>` the page itself renders.
+  */
+  { href: '/company/board', title: 'Board & Governance' },
+  { href: '/company/people', title: 'Personnel register' },
+  { href: '/company/governance', title: 'Corporate record' },
+  { href: '/company/compliance', title: 'Compliance register' },
+  // Reached from the Directory's role chips; a PALETTE_EXTRAS row already
+  // names it, and that list is not read for titles.
+  { href: '/settings/contact-roles', title: 'Contact Roles' },
   // The style guide. URL-only and in no nav group on purpose: it is the
   // instrument for checking the interface, not one of the company's working
   // surfaces. Admin-only by the /settings prefix.
@@ -205,17 +219,39 @@ export function navItemActive(item: NavItem, pathname: string): boolean {
   return (item.alsoMatches ?? []).some((p) => pathname === p || pathname.startsWith(p + '/'))
 }
 
-/** Header title for a pathname (most specific href wins). */
+/**
+ * Header title for a pathname (most specific href wins).
+ *
+ * ⚠ IT READS `alsoMatches`, AND IT DID NOT UNTIL 2026-10-27. `navItemActive`
+ * has always read it, so standing on /review lit the Decide row in the sidebar
+ * while the header said "Ber Wilson" — the same path, two modules, two
+ * answers. /review, /documents/unfiled and /proposals/intake all landed on the
+ * fallback for that reason.
+ *
+ * ⚠ AND THE FALLBACK IS NO LONGER A REAL DESTINATION'S NAME. It was
+ * 'Ber Wilson', which is the /company nav label, so an unknown path — a 404,
+ * since this renders inside the app shell — produced a locator pointing at a
+ * page the reader was not on. `TITLE_EXTRAS` plus the assertion in
+ * `nav.test.ts` mean a route that reaches this string is a route somebody
+ * forgot to title, and 'Not found' says so loudly rather than quietly.
+ */
 export function pageTitle(pathname: string): string {
-  const all: { href: string; title: string }[] = [
+  const matches = (href: string) => pathname === href || pathname.startsWith(href + '/')
+  // An item's own href beats one of its `alsoMatches` at equal length, so the
+  // claimed path's real owner wins where both exist.
+  const all: { href: string; title: string; claimed?: true }[] = [
     ...NAV_ITEMS.map((i) => ({ href: i.href, title: i.title ?? i.label })),
+    ...NAV_ITEMS.flatMap((i) =>
+      (i.alsoMatches ?? []).map((href) => ({ href, title: i.title ?? i.label, claimed: true as const }))
+    ),
     ...TITLE_EXTRAS,
   ]
-  let best: { href: string; title: string } | null = null
+  let best: { href: string; title: string; claimed?: true } | null = null
   for (const entry of all) {
-    if (pathname === entry.href || pathname.startsWith(entry.href + '/')) {
-      if (!best || entry.href.length > best.href.length) best = entry
-    }
+    if (!matches(entry.href)) continue
+    if (!best) { best = entry; continue }
+    if (entry.href.length > best.href.length) best = entry
+    else if (entry.href.length === best.href.length && best.claimed && !entry.claimed) best = entry
   }
-  return best?.title ?? 'Ber Wilson'
+  return best?.title ?? 'Not found'
 }

@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { Inbox, ClipboardCheck, FileText, FileQuestion, ArrowRight, X, Loader2, Check, CheckCheck, HelpCircle, ListChecks, type LucideIcon } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import { Panel } from '@/components/ui/card'
 import { Kbd } from '@/components/ui/kbd'
 import EmptyState from '@/components/shared/EmptyState'
@@ -1169,12 +1170,23 @@ export default function DecideClient({ items }: { items: DecideItem[] }) {
               </Link>
               <div className="flex items-center gap-1 mt-0.5 shrink-0">
                 {item.accept ? (
-                  <button
+                  /*
+                    ⚠ WAS `bg-primary elev-1/10 text-primary` AND THEREFORE
+                    INVISIBLE. The `/10` belonged to `bg-primary` and landed on
+                    `elev-1`, which Tailwind does not generate — so the fill
+                    stayed at FULL accent under accent-coloured ink. Rust on
+                    rust, on the Accept button of all 136 rows, in both themes,
+                    through a green typecheck and a green suite. Now
+                    `variant="soft"`, which is what the string was spelling.
+                  */
+                  <Button
+                    variant="soft"
+                    size="xs"
                     type="button"
                     onClick={() => setAsking({ item, action: item.accept!, name: item.acceptName ?? null })}
                     disabled={pending === `${item.kind}:${item.id}`}
                     title={acceptVerb(item)}
-                    className="inline-flex items-center gap-1 h-[2.75rem] sm:h-7 px-3.5 sm:px-2 rounded-lg text-sm font-medium bg-primary elev-1/10 text-primary hover:bg-primary/20 disabled:opacity-40 transition-colors"
+                    className="h-[2.75rem] sm:h-7 px-3.5 sm:px-2 text-sm"
                   >
                     {pending === `${item.kind}:${item.id}` ? (
                       <Loader2 size={13} className="animate-spin" />
@@ -1182,7 +1194,7 @@ export default function DecideClient({ items }: { items: DecideItem[] }) {
                       <Check size={13} />
                     )}
                     <span className="hidden sm:inline">{acceptVerb(item)}</span>
-                  </button>
+                  </Button>
                 ) : (
                   item.blocker && (
                     // Never an Accept that would 400. The row says what it

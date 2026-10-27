@@ -31,6 +31,24 @@ const buttonVariants = cva(
         */
         inverse:
           "bg-foreground text-background elev-1 hover:bg-foreground/90 active:bg-foreground/80",
+        /*
+          ⚠ NAMED ON 2026-10-27 BECAUSE ITS ABSENCE SHIPPED AN INVISIBLE
+          BUTTON. The accent-tinted action — a primary-weight verb that is not
+          the page's one primary action — had no variant, so `/decide` wrote it
+          by hand and wrote it wrong: `bg-primary elev-1/10 text-primary`. The
+          `/10` was meant for `bg-primary` and landed on `elev-1`, producing a
+          utility Tailwind does not generate and leaving the fill at FULL
+          opacity under ink of the same token. Rust on rust, zero contrast, on
+          every Accept button in a 136-row queue, in both themes — and green
+          through typecheck, build and the whole suite.
+          `destructive` above is the same shape in the critical token; this is
+          it in the accent, which is what the hand-written string was reaching
+          for. Two assertions in `conventions.test.ts` now hold both halves:
+          an opacity modifier may only ride a colour utility, and a token may
+          not be fill and ink at once.
+        */
+        soft:
+          "border-primary/20 bg-primary/10 text-primary hover:bg-primary/20 active:bg-primary/25",
         link: "text-primary underline-offset-4 hover:underline",
       },
       /*

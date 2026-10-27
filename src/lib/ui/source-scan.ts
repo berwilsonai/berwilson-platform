@@ -78,3 +78,47 @@ export function scan(pattern: RegExp, files = sourceFiles()): Occurrence[] {
 export function count(pattern: RegExp, files?: string[]): number {
   return scan(pattern, files).length
 }
+
+export interface ClassString {
+  file: string
+  line: number
+  /** The quoted run, quotes included. */
+  text: string
+}
+
+/**
+ * Every quoted run in the tree that could be a Tailwind class string.
+ *
+ * A class string never spans a quote, so a quoted run is the right unit: two
+ * classes in the SAME run are on the same element and can fight each other,
+ * which is what the fill/ink and opacity-modifier assertions need to see.
+ * Comments are stripped first, for the reason at the top of this file.
+ */
+export function classStrings(files = sourceFiles()): ClassString[] {
+  const out: ClassString[] = []
+  for (const file of files) {
+    const src = stripComments(readFileSync(file, 'utf8'))
+    for (const m of src.matchAll(/"[^"\n]*"|'[^'\n]*'|`[^`\n]*`/g)) {
+      if (!/-/.test(m[0])) continue
+      out.push({ file, line: src.slice(0, m.index).split('\n').length, text: m[0] })
+    }
+  }
+  return out
+}
+
+/**
+ * Strip Tailwind variant prefixes from one class token: `sm:hover:bg-primary`
+ * → `bg-primary`. Arbitrary variants (`data-[open]:`, `[&_svg]:`) carry their
+ * own colons inside brackets, so the split has to respect bracket depth.
+ */
+export function baseUtility(token: string): string {
+  let depth = 0
+  let last = 0
+  for (let i = 0; i < token.length; i++) {
+    const c = token[i]
+    if (c === '[' || c === '(') depth++
+    else if (c === ']' || c === ')') depth--
+    else if (c === ':' && depth === 0) last = i + 1
+  }
+  return token.slice(last).replace(/^!/, '')
+}

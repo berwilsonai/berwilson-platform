@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 
-import { count, scan, sourceFiles, stripComments } from './source-scan'
+import { baseUtility, classStrings, count, scan, sourceFiles, stripComments } from './source-scan'
 
 /**
  * The house conventions, as assertions over the source tree.
@@ -125,6 +125,105 @@ test('ink is never the same lightness as the fill it sits on', () => {
   assert.deepEqual(bad, [], 'a fill and an ink of the same lightness — the text is invisible')
 })
 
+test('an opacity modifier only ever rides a colour utility', () => {
+  /*
+    ⚠ THIS TEST EXISTS BECAUSE ONE MISPLACED CHARACTER MADE 136 BUTTONS
+    INVISIBLE.
+
+    `/decide` wrote `bg-primary elev-1/10 text-primary`. The `/10` was meant for
+    `bg-primary`; it landed one token to the right, on `elev-1`. Tailwind
+    generates no `elev-1/10`, so the modifier simply evaporated — and the fill
+    it was supposed to soften stayed at FULL accent, under ink of the same
+    token. Rust on rust, every Accept button in the queue, both themes, green
+    through typecheck, build and every other assertion in this file.
+
+    The structural rule underneath: `/` means opacity on a colour utility and
+    a fraction on a handful of sizing ones. On anything else it is a typo, and
+    a typo that fails SILENTLY — the class is dropped rather than rejected.
+
+    Both allowlists are deliberately broad. A false positive here would be
+    noise in a file two sessions share; a false negative costs one more
+    character-level bug, which the fill/ink test below also has to miss before
+    it ships.
+  */
+  const COLOUR =
+    /^(?:bg|text|border(?:-[xytrbles]{1,2})?|ring|ring-offset|inset-ring|outline|divide(?:-[xy])?|from|via|to|fill|stroke|shadow|inset-shadow|drop-shadow|text-shadow|placeholder|caret|accent|decoration)-/
+  const FRACTION =
+    /^(?:w|h|size|min-w|max-w|min-h|max-h|basis|flex|grow|shrink|aspect|inset(?:-[xy])?|top|right|bottom|left|start|end|translate(?:-[xyz])?|scale(?:-[xyz])?)-\d+\/\d+$/
+
+  /*
+    ⚠ THE SHAPE TEST IS WHAT MAKES THIS USABLE. The first version scanned every
+    quoted run for a `/` and returned 1,243 hits, all of them import paths and
+    doc references — `@/lib/contacts/card-save`, `deploy/google-workspace-setup
+    .md`. That is §12's broadening trap: a check with false positives is a check
+    nobody reads on the day it is right.
+    A Tailwind modifier is one `/`, at the END, followed by a number or an
+    arbitrary value. A path has its slashes in the middle, followed by letters.
+  */
+  const isModifier = (token: string): boolean => {
+    const parts = token.split('/')
+    if (parts.length !== 2) return false
+    if (!/^(?:\d{1,3}|\[[^\]]*\])$/.test(parts[1])) return false
+    return parts[0].includes('-') && /^[a-z][a-z0-9.%[\]-]*$/.test(parts[0])
+  }
+
+  const bad: string[] = []
+  for (const { file, line, text } of classStrings()) {
+    for (const raw of text.slice(1, -1).split(/\s+/)) {
+      const token = baseUtility(raw)
+      // A `/` inside an arbitrary value — `bg-[rgb(0_0_0/.4)]`, `w-[calc(1/2)]`
+      // — is the author writing CSS, not a Tailwind modifier.
+      if (/\[[^\]]*\/[^\]]*\]/.test(token)) continue
+      if (!isModifier(token)) continue
+      if (COLOUR.test(token) || FRACTION.test(token)) continue
+      bad.push(`${file}:${line}  ${token}`)
+    }
+  }
+  assert.deepEqual(bad, [], 'a / here is a typo: Tailwind drops the class silently')
+})
+
+test('no token is both the fill and the ink', () => {
+  /*
+    The companion to the lightness test above, and the half that would have
+    caught the `/decide` bug on its own: that one knows the neutral ramp pairs
+    one way round, this one knows that NO token is legible on itself.
+
+    `bg-primary/10 text-primary` is the house idiom and must pass — a tinted
+    fill under full-strength ink is the whole point of the `soft` button
+    variant. What can never work is the same token at full strength on both
+    sides. So the fill is only a violation when it carries no opacity modifier,
+    or one high enough that the tint is not doing any work.
+
+    Variant prefixes are stripped before comparing, because `hover:bg-primary`
+    beside `text-primary` is invisible exactly on hover — which is worse than
+    invisible always, being the state a reader reaches for.
+  */
+  const TOKENS = [
+    'primary', 'secondary', 'destructive', 'foreground', 'background',
+    'card', 'popover', 'muted', 'accent', 'border', 'input', 'ring',
+    'positive', 'caution', 'critical', 'info',
+  ]
+  /** A fill is "strong" with no modifier at all, or one at/above this. */
+  const TINT_CEILING = 50
+
+  const bad: string[] = []
+  for (const { file, line, text } of classStrings()) {
+    const body = text.slice(1, -1)
+    if (!body.includes('bg-')) continue
+    const tokens = body.split(/\s+/).map(baseUtility)
+    for (const tok of TOKENS) {
+      const fill = tokens.find((t) => t === `bg-${tok}` || t.startsWith(`bg-${tok}/`))
+      if (!fill) continue
+      const slash = fill.indexOf('/')
+      const opacity = slash === -1 ? 100 : Number(fill.slice(slash + 1))
+      if (Number.isFinite(opacity) && opacity < TINT_CEILING) continue
+      const ink = tokens.find((t) => t === `text-${tok}` || t.startsWith(`text-${tok}/`))
+      if (ink) bad.push(`${file}:${line}  ${fill} + ${ink}`)
+    }
+  }
+  assert.deepEqual(bad, [], 'a token is never legible on itself — tint the fill, or invert the ink')
+})
+
 // ─── ratchets: these must shrink, never grow ─────────────────────────────────
 
 /** Assert a count is at or below its baseline, and say so usefully when not. */
@@ -189,7 +288,9 @@ test(`the card shell is converging on Panel (baseline ${BASELINE_DATE})`, () => 
     }
     return n
   }, 0)
-  ratchet('hand-rolled card shell', cardShells, 227,
+  // 227 → 226 on 2026-10-27: the commitment ledger's Section took <Panel>,
+  // so its new skeleton could mirror it without hand-rolling the shell twice.
+  ratchet('hand-rolled card shell', cardShells, 226,
     'Use <Panel> from @/components/ui/card.')
 })
 

@@ -25,6 +25,7 @@ import Link from 'next/link'
 import { Check, X, Clock, ArrowUpRight, Copy, Search } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
+import { Panel } from '@/components/ui/card'
 import { Chip } from '@/components/ui/chip'
 import { FIELD_CONTROL_CLASS } from '@/lib/utils/field-classes'
 import type {
@@ -413,7 +414,7 @@ function Section({
   if (list.length === 0) return null
 
   return (
-    <div className="rounded-lg border border-border bg-card elev-1">
+    <Panel>
       <div className="flex items-baseline justify-between border-b border-border px-4 py-3">
         <div>
           <span className="label-caps text-muted-foreground">{title}</span>
@@ -540,7 +541,7 @@ function Section({
           )
         })}
       </ul>
-    </div>
+    </Panel>
   )
 }
 
