@@ -161,20 +161,31 @@ export default async function RootLayout({
     >
       <body className="h-full bg-background text-foreground">
         {/*
-          ⚠ LIGHT IS THE DEFAULT AND THE SYSTEM PREFERENCE NO LONGER DECIDES
-          (2026-10-27, Richard: *"It doesn't need to be dark themed"*).
+          ⚠ THE APP IS LIGHT. FULL STOP. (2026-10-27, Richard: *"It doesn't need
+          to be dark themed"*, then — after a whole overhaul shipped — *"literally
+          nothing look any different"*.)
 
-          This used to fall back to `prefers-color-scheme`, so on a Mac set to
-          dark — which both of these are — the app opened dark however it had
-          been designed, and the light palette that the whole re-skin was
-          measured in was the theme nobody ever saw. Dark mode still exists and
-          is still tested; it is now something you CHOOSE in the user menu,
-          which is what writes the key this reads. Only an explicit stored
-          'dark' turns it on.
+          THE HALF-MEASURE IS WHAT CAUSED THAT. The first pass removed only the
+          `prefers-color-scheme` fallback, so the app stopped FOLLOWING the OS
+          but still honoured a stored `theme: 'dark'`. Anyone who had ever
+          touched the toggle stayed in dark — and the entire overhaul was done
+          on the LIGHT palette, so in dark mode the rail, the canvas and the
+          cards were all exactly as before. A redesign nobody could see, for the
+          second day running.
+
+          The stored key is no longer read at all, and the toggle is gone from
+          the user menu. The `.dark` block in globals.css stays — `tone.test.ts`
+          measures it, and deleting a whole palette to turn a feature off is not
+          reversible — but nothing in the application can reach it any more.
+          Bringing dark back means designing it, not re-enabling it.
+
+          It still clears the class explicitly rather than doing nothing: a
+          stale `dark` can arrive from a bfcache restore or a soft navigation
+          out of a page that set it.
         */}
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){try{document.documentElement.classList.toggle('dark',localStorage.getItem('theme')==='dark');}catch(e){}})();`,
+            __html: `(function(){try{document.documentElement.classList.remove('dark');localStorage.removeItem('theme');}catch(e){}})();`,
           }}
         />
         {showShell ? (

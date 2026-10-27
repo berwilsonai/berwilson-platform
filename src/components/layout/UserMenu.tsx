@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { ChevronDown, LogOut, Moon, Sun } from 'lucide-react'
+import { ChevronDown, LogOut } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 
 function initials(email: string): string {
@@ -12,17 +12,16 @@ function initials(email: string): string {
 }
 
 /**
- * Avatar dropdown in the header: shows the signed-in user and consolidates the
- * theme toggle + sign-out into one menu. Theme state mirrors the pre-paint script
- * in layout.tsx (reads/writes the `dark` class + localStorage); dark mode stays
- * opt-in (it does not follow the OS).
+ * Avatar dropdown in the header: who is signed in, and the way out.
+ *
+ * ⚠ THE THEME TOGGLE WAS REMOVED 2026-10-27. The app is light; see the note on
+ * the pre-paint script in layout.tsx. Leaving the toggle while the pre-paint
+ * script ignores the key it writes would be a control that appears to work and
+ * does not survive a reload — worse than no control.
  */
 export default function UserMenu({ email }: { email: string }) {
   const router = useRouter()
   const [open, setOpen] = useState(false)
-  const [isDark, setIsDark] = useState(
-    () => typeof document !== 'undefined' && document.documentElement.classList.contains('dark')
-  )
   const rootRef = useRef<HTMLDivElement>(null)
 
   // Close on outside click or Escape while open.
@@ -41,19 +40,6 @@ export default function UserMenu({ email }: { email: string }) {
       document.removeEventListener('keydown', onKeyDown)
     }
   }, [open])
-
-  const toggleTheme = useCallback(() => {
-    setIsDark((prev) => {
-      const next = !prev
-      document.documentElement.classList.toggle('dark', next)
-      try {
-        localStorage.setItem('theme', next ? 'dark' : 'light')
-      } catch {
-        /* ignore */
-      }
-      return next
-    })
-  }, [])
 
   async function handleSignOut() {
     const supabase = createClient()
@@ -92,15 +78,6 @@ export default function UserMenu({ email }: { email: string }) {
             <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Signed in as</p>
             <p className="text-xs font-medium text-foreground truncate">{email}</p>
           </div>
-
-          <button
-            role="menuitem"
-            onClick={toggleTheme}
-            className="w-full flex items-center gap-2.5 px-3 py-2 rounded-md text-sm text-foreground hover:bg-muted transition-colors"
-          >
-            {isDark ? <Sun size={15} /> : <Moon size={15} />}
-            <span>{isDark ? 'Light mode' : 'Dark mode'}</span>
-          </button>
 
           <button
             role="menuitem"
