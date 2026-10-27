@@ -6,6 +6,20 @@ This file is **not** auto-loaded into a Claude Code session. It is the archive: 
 
 Split out of `CLAUDE.md` on 2026-09-23, when that file reached 606k characters against a 150k limit above which it is silently truncated — meaning the project's own operating instructions had begun to risk not reaching the sessions that need them. The entries below are **verbatim and unedited**.
 
+**Done 2026-10-27 (the overhaul was invisible, and the half-measure is why):**
+
+Richard, an hour after the overhaul shipped: *"literally nothing look any different. I asked for a complete overhaul..."* — the second time in two days.
+
+⚠ **HE WAS IN DARK MODE, AND THE ENTIRE OVERHAUL WAS DONE ON THE LIGHT PALETTE.** Proven by diff, not inferred: between `7bbdb08` and the overhaul commit, the `.dark` block's `--sidebar` (`oklch(0.165 0.016 55)`), `--background` (`0.205 0.012 88`) and `--card` (`0.255 0.012 88`) are **byte-identical**. Every colour that moved was in `:root`. So the rail, the canvas and the cards — the three surfaces that are 90% of the screen — did not change at all for him.
+
+⚠ **AND THE HALF-MEASURE IS WHAT PUT HIM THERE.** His instruction was *"It doesn't need to be dark themed."* The overhaul read that as *default to light* and removed only the `prefers-color-scheme` fallback, leaving the pre-paint script still honouring a stored `theme: 'dark'`. Anyone who had ever touched the toggle — once, months ago — stayed in dark for ever, and now had no signal that anything had been done. **A theme default is not a theme decision.** Changing what a new visitor gets does nothing for the only two people who use the application.
+
+The alternatives were ruled out before changing anything, because "nothing is different" has four plausible causes and only one of them is worth acting on: no service worker exists, the HTML is `Cache-Control: no-store`, the CSS chunks are content-hashed (so a stale stylesheet is impossible), and the new pre-paint script was confirmed byte-present in the live response. That left exactly one explanation, and the diff above confirmed it.
+
+**The fix is not a better default.** The stored key is no longer read and is cleared on load; the toggle is gone from the user menu, because a control that appears to work and does not survive a reload is worse than no control. The `.dark` block stays in `globals.css` — `tone.test.ts` measures it, and deleting a whole palette to turn a feature off is not reversible — but nothing in the application can reach it. **Bringing dark back means designing it, not re-enabling it.**
+
+⚠ **THE GENERAL LESSON, AND IT IS ABOUT VERIFICATION, NOT CSS.** The session built a screenshot harness specifically so the work would be looked at, took six screenshots, and still shipped something the user could not see — because **every screenshot was taken in the theme being redesigned, and the user was in the other one**. A harness that can only render the happy path is a harness that confirms what you already believe. `BW_SHOOT_DARK` existed in `shoot.mjs` from the first commit and was never once run.
+
 **Done 2026-10-27 (the complete UI overhaul — and the measurement that explains why two re-skins could not be seen):**
 
 Richard: *"I want a complete overhaul of the UI. It doesn't need to be dark themed. I want it to look modern like Attio, Domo or some other leading business intelligence dashboard. The colors can look like Ber Wilson, but I would like the layout, and look to be modernized. Do a complete overhaul."*
