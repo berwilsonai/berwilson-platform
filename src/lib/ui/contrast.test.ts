@@ -109,9 +109,16 @@ test("the palette's own documented claims hold", () => {
 test('the neutrals share one hue and stay barely tinted', () => {
   const t = readThemeTokens()
   const NEUTRAL = ['background', 'foreground', 'card', 'muted', 'muted-foreground', 'secondary', 'accent']
-  // Above this and it stops being a neutral and starts being a colour. Measured
-  // against the palette as drawn: the most tinted neutral is --accent at 0.011.
-  const MAX_CHROMA = 0.015
+  /*
+    Above this a neutral stops being a neutral and starts being a colour.
+    ⚠ RAISED 0.015 → 0.032 LATER THE SAME DAY, and the reason is not "the test
+    was in the way". The bound tracks the palette it measures, and the palette
+    was re-derived from the Ber Wilson logo itself: the mark's own cream field
+    is `#ede6d3` = `oklch(0.925 0.026 90)`, so 0.015 would have forbidden the
+    brand's actual colour. The PRINCIPLE is untouched — one hue, bounded, no
+    accidental tints — and the hue check below is what does the real work.
+  */
+  const MAX_CHROMA = 0.032
   // Hues are only comparable where there is enough chroma to HAVE a hue; below
   // this the value is grey and its hue channel is noise.
   const HUE_FLOOR = 0.002

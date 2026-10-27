@@ -4,8 +4,8 @@
   "description": "Executive Intelligence Platform",
   "start_url": "/dashboard",
   "display": "standalone",
-  "background_color": "#0a0a0a",
-  "theme_color": "#1a2744",
+  "background_color": "#2a231c",
+  "theme_color": "#3a3027",
   "icons": [
     {
       "src": "/icon-192x192.png",

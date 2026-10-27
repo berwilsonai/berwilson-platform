@@ -68,9 +68,16 @@ export const viewport: Viewport = {
   // iOS still allows manual pinch-zoom regardless of this cap.
   maximumScale: 1,
   viewportFit: 'cover',
+  /*
+    ⚠ BOTH ENTRIES WERE `#1a1b2e` — a navy that appears nowhere in the Ber
+    Wilson mark and nowhere in the palette, and that both themes shared, so the
+    phone's browser chrome was the one surface the re-skin could not reach.
+    These are the rail's own colour per theme now, read off `--sidebar`
+    (hand-converted because a manifest cannot resolve a CSS variable).
+  */
   themeColor: [
-    { media: '(prefers-color-scheme: light)', color: '#1a1b2e' },
-    { media: '(prefers-color-scheme: dark)', color: '#1a1b2e' },
+    { media: '(prefers-color-scheme: light)', color: '#3a3027' },
+    { media: '(prefers-color-scheme: dark)', color: '#2a231c' },
   ],
 }
 

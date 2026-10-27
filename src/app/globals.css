@@ -164,39 +164,44 @@
      delta stays, because a card must still read as a card with shadows
      suppressed (`prefers-reduced-transparency`, print, a forced-colours mode). Measured as a lightness delta rather than a
      contrast ratio, for the reason given in `contrast.ts`. */
-  --background: oklch(0.960 0.008 85);
-  --foreground: oklch(0.12 0.006 85);
-  --card: oklch(0.998 0.003 85);
-  --card-foreground: oklch(0.12 0.006 85);
-  --popover: oklch(0.998 0.003 85);
-  --popover-foreground: oklch(0.12 0.006 85);
+  --background: oklch(0.945 0.020 88);
+  --foreground: oklch(0.21 0.014 88);
+  --card: oklch(0.985 0.010 88);
+  --card-foreground: oklch(0.21 0.014 88);
+  --popover: oklch(0.985 0.010 88);
+  --popover-foreground: oklch(0.21 0.014 88);
   /* THE ONE ACCENT. Ber Wilson's blue, at real chroma so it reads as a
      deliberate accent rather than a dark neutral — 8.7:1 as link text on a
      card, 8.4:1 for a white label on the button. ⚠ Keep it scarce: it means
      "this is the action". A near-black primary was tried and rejected, because
      a black button beside black text is not findable. */
-  --primary: oklch(0.42 0.145 262);
-  --primary-foreground: oklch(0.99 0 0);
-  --secondary: oklch(0.950 0.009 85);
-  --secondary-foreground: oklch(0.18 0.006 85);
-  --muted: oklch(0.950 0.009 85);
+  --primary: oklch(0.50 0.135 38);
+  --primary-foreground: oklch(0.985 0.012 88);
+  --secondary: oklch(0.925 0.022 88);
+  --secondary-foreground: oklch(0.26 0.014 88);
+  --muted: oklch(0.925 0.022 88);
   /* 8.5:1 on a card — well past the 4.5 floor, because this is the colour of
      most of the small text in the app and it is read all day. */
-  --muted-foreground: oklch(0.42 0.008 85);
+  --muted-foreground: oklch(0.47 0.016 88);
   /* Hover/selected surface. NEUTRAL, not the old warm cream: a tinted hover
      state is decorative colour, and this palette spends its colour budget on
      the accent and the status tones. */
-  --accent: oklch(0.940 0.011 85);
-  --accent-foreground: oklch(0.18 0.006 85);
+  --accent: oklch(0.905 0.026 88);
+  --accent-foreground: oklch(0.26 0.014 88);
   --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.880 0.010 85);
-  --input: oklch(0.880 0.010 85);
-  --ring: oklch(0.55 0.16 262);
-  --chart-1: oklch(0.55 0.15 260);
-  --chart-2: oklch(0.65 0.15 145);
-  --chart-3: oklch(0.70 0.12 45);
-  --chart-4: oklch(0.60 0.12 310);
-  --chart-5: oklch(0.50 0.10 25);
+  --border: oklch(0.865 0.022 88);
+  --input: oklch(0.865 0.022 88);
+  --ring: oklch(0.58 0.12 38);
+  /* ⚠ THE BRAND'S OWN THREE, THEN TWO DERIVED FROM THEM — and they are now
+     genuinely different between the themes, which the identical old set was
+     not (tone.test.ts cites that as the cautionary tale it cannot catch,
+     because nothing renders these yet). Terracotta, sage and ochre are read
+     from the logo; the last two extend the same warm family. */
+  --chart-1: oklch(0.56 0.135 38);
+  --chart-2: oklch(0.58 0.060 175);
+  --chart-3: oklch(0.64 0.110 81);
+  --chart-4: oklch(0.46 0.080 20);
+  --chart-5: oklch(0.70 0.055 130);
   /* ⚠ 8px AS OF 2026-10-26, DOUBLED FROM 4px. The radius ladder in @theme
      inline derives from this ONE value, so `rounded-lg` (Panel, Button) is 8px
      and `rounded-xl` (Dialog) is 11.2px. Matched to Jobber's Atlantis
@@ -227,14 +232,14 @@
   --elev-1: 0 1px 2px 0 oklch(0 0 0 / 0.04), 0 1px 3px 0 oklch(0 0 0 / 0.05);
   --elev-2: 0 2px 4px -1px oklch(0 0 0 / 0.06), 0 4px 12px -2px oklch(0 0 0 / 0.07);
   --elev-3: 0 8px 24px -8px oklch(0 0 0 / 0.22);
-  --sidebar: oklch(0.165 0.012 262);
-  --sidebar-foreground: oklch(0.93 0.004 262);
-  --sidebar-primary: oklch(0.62 0.15 262);
-  --sidebar-primary-foreground: oklch(0.12 0 0);
-  --sidebar-accent: oklch(0.23 0.008 262);
-  --sidebar-accent-foreground: oklch(0.93 0.004 262);
-  --sidebar-border: oklch(0.27 0.008 262);
-  --sidebar-ring: oklch(0.55 0.12 262);
+  --sidebar: oklch(0.225 0.018 55);
+  --sidebar-foreground: oklch(0.93 0.012 88);
+  --sidebar-primary: oklch(0.70 0.13 38);
+  --sidebar-primary-foreground: oklch(0.18 0.012 55);
+  --sidebar-accent: oklch(0.285 0.020 55);
+  --sidebar-accent-foreground: oklch(0.95 0.010 88);
+  --sidebar-border: oklch(0.32 0.018 55);
+  --sidebar-ring: oklch(0.58 0.12 38);
 
   /* ── Status tones ──────────────────────────────────────────────────────────
      Four meanings, three slots each: `ink` for text and icons, `surface` for a
@@ -289,31 +294,31 @@
   /* Dark neutrals, also at zero chroma — the same rule as light mode, so the
      accent and the status tones are again the only colour on screen. Body text
      reads 17.9:1 on a card here and 19.0:1 on the canvas. */
-  --background: oklch(0.13 0.004 85);
-  --foreground: oklch(0.98 0.004 85);
-  --card: oklch(0.175 0.005 85);
-  --card-foreground: oklch(0.98 0.004 85);
-  --popover: oklch(0.175 0.005 85);
-  --popover-foreground: oklch(0.98 0.004 85);
+  --background: oklch(0.205 0.012 88);
+  --foreground: oklch(0.96 0.008 88);
+  --card: oklch(0.255 0.012 88);
+  --card-foreground: oklch(0.96 0.008 88);
+  --popover: oklch(0.255 0.012 88);
+  --popover-foreground: oklch(0.96 0.008 88);
   /* The same one accent, lifted for the dark canvas: 7.0:1 as link text,
      7.4:1 for the dark label on a filled button. */
-  --primary: oklch(0.70 0.145 262);
-  --primary-foreground: oklch(0.14 0.01 262);
-  --secondary: oklch(0.24 0.005 85);
-  --secondary-foreground: oklch(0.98 0.004 85);
-  --muted: oklch(0.24 0.005 85);
-  --muted-foreground: oklch(0.70 0.007 85);
-  --accent: oklch(0.25 0.006 85);
-  --accent-foreground: oklch(0.98 0.004 85);
+  --primary: oklch(0.72 0.125 38);
+  --primary-foreground: oklch(0.20 0.020 38);
+  --secondary: oklch(0.305 0.012 88);
+  --secondary-foreground: oklch(0.96 0.008 88);
+  --muted: oklch(0.305 0.012 88);
+  --muted-foreground: oklch(0.74 0.012 88);
+  --accent: oklch(0.325 0.014 88);
+  --accent-foreground: oklch(0.96 0.008 88);
   --destructive: oklch(0.704 0.191 22.216);
   --border: oklch(1 0 0 / 13%);
   --input: oklch(1 0 0 / 17%);
-  --ring: oklch(0.62 0.15 262);
-  --chart-1: oklch(0.55 0.15 260);
-  --chart-2: oklch(0.65 0.15 145);
-  --chart-3: oklch(0.70 0.12 45);
-  --chart-4: oklch(0.60 0.12 310);
-  --chart-5: oklch(0.50 0.10 25);
+  --ring: oklch(0.65 0.12 38);
+  --chart-1: oklch(0.72 0.125 38);
+  --chart-2: oklch(0.72 0.060 175);
+  --chart-3: oklch(0.78 0.105 81);
+  --chart-4: oklch(0.62 0.090 20);
+  --chart-5: oklch(0.80 0.055 130);
   /* ⚠ THE RAIL RECEDES IN DARK MODE, AND WCAG CANNOT SEE IT. At L 0.155 the
      rail sat 1.03:1 from the canvas and merged into the page — but dropping it
      to 0.085 only reaches 1.031:1, because at near-black the ratio formula's
@@ -321,14 +326,14 @@
      instrument for SURFACE-vs-SURFACE separation; OKLCH lightness delta is
      perceptually uniform and is what `tone.test.ts` asserts instead. ΔL 0.035
      below the canvas reads clearly as recessed chrome. */
-  --sidebar: oklch(0.095 0.012 262);
-  --sidebar-foreground: oklch(0.93 0.004 262);
-  --sidebar-primary: oklch(0.70 0.145 262);
-  --sidebar-primary-foreground: oklch(0.14 0.01 262);
-  --sidebar-accent: oklch(0.16 0.008 262);
-  --sidebar-accent-foreground: oklch(0.93 0.004 262);
-  --sidebar-border: oklch(0.205 0.008 262);
-  --sidebar-ring: oklch(0.55 0.12 262);
+  --sidebar: oklch(0.165 0.016 55);
+  --sidebar-foreground: oklch(0.93 0.012 88);
+  --sidebar-primary: oklch(0.72 0.125 38);
+  --sidebar-primary-foreground: oklch(0.20 0.020 38);
+  --sidebar-accent: oklch(0.225 0.018 55);
+  --sidebar-accent-foreground: oklch(0.95 0.010 88);
+  --sidebar-border: oklch(0.27 0.016 55);
+  --sidebar-ring: oklch(0.58 0.12 38);
 
   /* Status tones, dark. REAL second values, not the same numbers — see
      `--chart-*` directly above, which is identical in both themes and only
@@ -411,10 +416,10 @@
   }
   /* Even highlighting text feels on-brand. */
   ::selection {
-    background: oklch(0.40 0.105 262 / 0.18);
+    background: oklch(0.50 0.135 38 / 0.20);
   }
   .dark ::selection {
-    background: oklch(0.72 0.10 262 / 0.32);
+    background: oklch(0.72 0.125 38 / 0.32);
   }
 }
 
@@ -440,12 +445,26 @@
   animation: fade-in-up 0.35s ease-out both;
 }
 
-/* ─── Gradient sidebar ─────────────────────────────────────────────────────── */
+/* ─── Gradient sidebar ───────────────────────────────────────────────────────
+   ⚠ THESE WERE HARDCODED NAVY (hue 260) AND SO IGNORED THE PALETTE ENTIRELY.
+   Every `--sidebar-*` token could be re-themed and the rail would not move a
+   pixel, because the rail is painted by these two gradients and not by the
+   tokens. That is why the 10-26 brand re-skin left a navy rail against a warm
+   cream app on its first pass. They are built from the tokens now, so the rail
+   follows the palette by construction and cannot drift from it again. */
 .sidebar-gradient {
-  background: linear-gradient(180deg, oklch(0.20 0.03 260) 0%, oklch(0.14 0.02 260) 100%);
+  background: linear-gradient(
+    180deg,
+    color-mix(in oklab, var(--sidebar) 100%, white 6%) 0%,
+    var(--sidebar) 100%
+  );
 }
 .sidebar-nav-active {
-  background: linear-gradient(90deg, oklch(0.30 0.04 260) 0%, oklch(0.25 0.03 265) 100%);
+  background: linear-gradient(
+    90deg,
+    var(--sidebar-accent) 0%,
+    color-mix(in oklab, var(--sidebar-accent) 100%, var(--primary) 14%) 100%
+  );
 }
 
 /* ─── Typography refinements ───────────────────────────────────────────────── */
@@ -473,12 +492,12 @@
   100% { background-position: 200% 0; }
 }
 .skeleton-shimmer {
-  background: linear-gradient(90deg, oklch(0.95 0 0) 25%, oklch(0.90 0 0) 50%, oklch(0.95 0 0) 75%);
+  background: linear-gradient(90deg, oklch(0.935 0.018 88) 25%, oklch(0.890 0.024 88) 50%, oklch(0.935 0.018 88) 75%);
   background-size: 200% 100%;
   animation: shimmer 1.5s ease-in-out infinite;
 }
 .dark .skeleton-shimmer {
-  background: linear-gradient(90deg, oklch(0.22 0 0) 25%, oklch(0.28 0 0) 50%, oklch(0.22 0 0) 75%);
+  background: linear-gradient(90deg, oklch(0.265 0.012 88) 25%, oklch(0.320 0.014 88) 50%, oklch(0.265 0.012 88) 75%);
   background-size: 200% 100%;
 }
 
