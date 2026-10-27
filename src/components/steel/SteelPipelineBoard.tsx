@@ -386,12 +386,25 @@ export default function SteelPipelineBoard({
               const list = byStage[st]
               const colValue = list.reduce((a, i) => a + (i.deal.value ?? 0), 0)
               const muted = st === 'paid' || st === 'lost'
+              /*
+                ⚠ AN EMPTY COLUMN COLLAPSES, same idiom as `OpportunityBoard`.
+                Measured 2026-10-27: five of the six stages here hold nothing,
+                so at a fixed 15rem each the board spent 1,200 of its 1,451px
+                on columns with no cards in them — a board that is 80% the
+                absence of deals. It reopens while a drag is in flight, because
+                a collapsed column still has to be able to RECEIVE one; that is
+                the whole reason the width is a transition rather than a
+                conditional render.
+              */
+              const empty = list.length === 0
               return (
                 <div
                   key={st}
                   {...dnd.laneProps(st)}
                   className={cn(
-                    'w-[15rem] shrink-0 rounded-xl border p-2.5 transition-colors',
+                    'shrink-0 rounded-xl border transition-all',
+                    empty && !dnd.dragging ? 'w-[3rem] p-1.5' : 'p-2.5',
+                    empty ? (dnd.dragging ? 'w-[11rem]' : 'w-[3rem]') : 'w-[15rem]',
                     muted ? 'border-border bg-muted/20' : 'border-border bg-card/40',
                     /*
                       ⚠ WAS `border-primary/60 bg-primary/5` IN PLACE OF THE
@@ -405,24 +418,66 @@ export default function SteelPipelineBoard({
                     dnd.isDropTarget(st) && 'ring-2 ring-primary border-primary/60'
                   )}
                 >
-                  {/* Column header */}
-                  <div className="flex items-center gap-2 px-1 pb-2 mb-1 border-b border-border/60">
+                  {/*
+                    ⚠ A COLLAPSED COLUMN TURNS ITS LABEL, it does not shrink
+                    it. The first attempt kept the horizontal chip at 6rem and
+                    produced "Order Place" and "Frame Asse" — a column whose
+                    only remaining content was an unreadable word, which is
+                    worse than the empty column it replaced. Rotated, the whole
+                    stage name fits in a 3rem rail and the board gets 12rem
+                    back per empty stage.
+                  */}
+                  {empty && !dnd.dragging ? (
+                    /*
+                      ⚠ THE WRAPPER IS HORIZONTAL AND THE SPAN IS VERTICAL, and
+                      that split is the point. `items-center` centres along the
+                      INLINE axis, so putting `writing-mode: vertical-rl` on the
+                      same element that does the centring flips the axis and
+                      drops the label to the foot of a full-height rail. The
+                      wrapper keeps normal writing mode and centres; only the
+                      text turns. It also keeps the chip's fill around the
+                      WORD rather than down the whole column, which at seven
+                      stages would be seven full-height bands of colour.
+                    */
+                    <div className="flex h-full justify-center pt-1">
+                      <span
+                        className={cn(
+                          'whitespace-nowrap rounded px-1 py-2 text-[11px] font-medium ring-1 ring-inset [writing-mode:vertical-rl]',
+                          STEEL_STAGE_BADGE[st]
+                        )}
+                      >
+                        {STEEL_STAGE_LABELS[st]}
+                      </span>
+                    </div>
+                  ) : (
+                  <>
+                  {/* Column header — name, count, and the aggregate, which is
+                      the main reason to look at a board at all. */}
+                  <div className="mb-1 flex min-w-0 items-center gap-2 border-b border-border/60 px-1 pb-2">
                     <span
                       className={cn(
-                        'inline-flex items-center rounded px-1.5 py-0.5 text-[11px] font-medium ring-1 ring-inset',
+                        'inline-flex min-w-0 items-center truncate rounded px-1.5 py-0.5 text-[11px] font-medium ring-1 ring-inset',
                         STEEL_STAGE_BADGE[st]
                       )}
                     >
                       {STEEL_STAGE_LABELS[st]}
                     </span>
-                    <span className="text-xs text-muted-foreground tnum ml-auto">{list.length}</span>
+                    {!empty && (
+                      <span className="tnum ml-auto text-xs text-muted-foreground">{list.length}</span>
+                    )}
                   </div>
-                  <p className="px-1 pb-2 text-[11px] text-muted-foreground tnum">
-                    {colValue > 0 ? formatValue(colValue) : '—'}
-                  </p>
+                  {/* ⚠ OMITTED WHEN THERE IS NOTHING TO TOTAL, not rendered as
+                      a dash. A collapsed column is already saying "nothing
+                      here"; an em dash under it is a second, quieter way of
+                      saying the same thing and reads as a failed render (§12). */}
+                  {colValue > 0 && (
+                    <p className="tnum px-1 pb-2 text-[11px] text-muted-foreground">
+                      {formatValue(colValue)}
+                    </p>
+                  )}
 
                   {/* Cards */}
-                  <div className="space-y-2 min-h-[3rem]">
+                  <div className={cn('space-y-2', !empty && 'min-h-[3rem]')}>
                     {list.map((item, i) => (
                       <PipelineCard
                         key={item.deal.id}
@@ -433,10 +488,9 @@ export default function SteelPipelineBoard({
                         index={i}
                       />
                     ))}
-                    {list.length === 0 && (
-                      <p className="px-1 py-3 text-[11px] text-muted-foreground/70">—</p>
-                    )}
                   </div>
+                  </>
+                  )}
                 </div>
               )
             })}

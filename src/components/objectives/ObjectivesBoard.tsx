@@ -1,5 +1,6 @@
 'use client'
 
+import { PageHeader } from '@/components/ui/page-header'
 import { useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import {
@@ -279,22 +280,21 @@ export default function ObjectivesBoard({ initialObjectives, teamMembers }: Obje
 
   return (
     <div className="space-y-5">
-      {/* Header */}
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-semibold text-foreground">Objectives</h1>
-          <p className="text-sm text-muted-foreground">
-            {activeCount} active — drag to prioritize
-          </p>
-        </div>
-        <Link
-          href="/objectives/print"
-          target="_blank"
-          className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg border border-border bg-card text-sm font-medium text-foreground hover:bg-accent transition-colors elev-1"
-        >
-          <FileDown size={15} /> Export PDF
-        </Link>
-      </div>
+      <PageHeader
+        icon={Target}
+        title="Objectives"
+        description={`${activeCount} active — drag to prioritize`}
+        className="mb-0"
+        actions={
+          <Link
+            href="/objectives/print"
+            target="_blank"
+            className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg border border-border bg-card elev-1 text-sm font-medium text-foreground transition-colors hover:bg-accent"
+          >
+            <FileDown size={15} /> Export PDF
+          </Link>
+        }
+      />
 
       {/* Board */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-start">

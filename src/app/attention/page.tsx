@@ -1,3 +1,4 @@
+import { PageHeader } from '@/components/ui/page-header'
 import { TriangleAlert } from 'lucide-react'
 
 import { computeAttention, countAttention } from '@/lib/attention'
@@ -78,30 +79,35 @@ export default async function AttentionPage() {
 
   return (
     <div className="space-y-5">
-      <header>
-        <div className="flex items-center gap-2">
-          <TriangleAlert size={16} className={summary.total > 0 ? 'text-caution' : 'text-muted-foreground'} />
-          <h1 className="text-xl font-semibold">Attention</h1>
-        </div>
-        <p className="mt-1 max-w-prose text-sm text-muted-foreground">
+      <PageHeader
+        icon={TriangleAlert}
+        title="Attention"
+        className="mb-0"
+        description={
+          <>
           Everything that is slipping, ranked by urgency rather than by when it arrived —{' '}
           <span className="text-foreground font-medium tnum">{summary.total}</span>{' '}
           {summary.total === 1 ? 'item' : 'items'} across {ATTENTION_KINDS.length} kinds. Dismiss a
           row to quiet it for two weeks, or delete the record behind it where that is what you mean.
-        </p>
+          </>
+        }
+      >
         {/* The sidebar's number, named as its own quantity. It is NOT a subset
             of the list: it counts overdue milestones where this scores
             approaching ones, and certifications where this reads compliance
             items. Printing one total and letting a reader find the mismatch is
-            how three contradictory "needs attention" numbers happened before. */}
-        <p className="mt-1 max-w-prose text-xs text-muted-foreground">
+            how three contradictory "needs attention" numbers happened before.
+            ⚠ In `children`, not a second `description`: the header has exactly
+            one description slot on purpose, and a page that wants two
+            paragraphs is telling you the second one is a different thing. */}
+        <p className="max-w-2xl text-xs text-muted-foreground">
           The sidebar badge is a narrower count —{' '}
           <span className="text-foreground font-medium tnum">{badgeCount}</span> past a hard date —
           and is measured separately so it can run on every page. Inbound things awaiting a
           decision are counted on <span className="font-medium text-foreground">Decide</span>, and
           none of these three are ever summed.
         </p>
-      </header>
+      </PageHeader>
 
       <AttentionClient items={rows} dismissed={quiet} />
     </div>

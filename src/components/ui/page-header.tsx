@@ -34,6 +34,7 @@ import { cn } from '@/lib/utils'
  */
 function PageHeader({
   title,
+  icon: Icon,
   eyebrow,
   description,
   actions,
@@ -43,6 +44,16 @@ function PageHeader({
   ...props
 }: Omit<React.ComponentProps<'div'>, 'title'> & {
   title: React.ReactNode
+  /**
+   * A lucide icon for the masthead's chip.
+   *
+   * ⚠ A SLOT, NOT A FREE `ReactNode`, because the chip is the part a page
+   * would otherwise re-invent: /decide had `size-9 rounded-lg bg-primary/10`
+   * with a `size-5 text-primary` glyph, /attention had a bare `size={16}`
+   * inline with the title, and nothing else had one at all. One shape here
+   * means they stop disagreeing, and a page cannot put a 40px icon on it.
+   */
+  icon?: React.ComponentType<{ className?: string }>
   /** Small muted line above the title — a section, a parent record, a count. */
   eyebrow?: React.ReactNode
   /** One sentence under the title. Omitted entirely when absent — never an em dash (§12). */
@@ -57,14 +68,29 @@ function PageHeader({
   return (
     <div className={cn('mb-5', className)} {...props}>
       <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
-        <div className="min-w-0">
-          {eyebrow ? (
-            <p className="label-caps mb-1 text-muted-foreground">{eyebrow}</p>
+        <div className="flex min-w-0 items-start gap-3">
+          {Icon ? (
+            <span className="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+              <Icon className="size-5 text-primary" />
+            </span>
           ) : null}
-          <h1 className="truncate text-display text-foreground">{title}</h1>
-          {description ? (
-            <p className="mt-1 max-w-2xl text-sm text-muted-foreground">{description}</p>
-          ) : null}
+          <div className="min-w-0">
+            {eyebrow ? (
+              <p className="label-caps mb-1 text-muted-foreground">{eyebrow}</p>
+            ) : null}
+            <h1 className="truncate text-display text-foreground">{title}</h1>
+            {/*
+              ⚠ `max-w-2xl` IS LOAD-BEARING, NOT A DEFAULT. Measured
+              2026-10-27: /decide and /leads each ran their intro paragraph the
+              full 1,451px of the content column — around 190 characters a
+              line, roughly three times the width prose stays readable at. The
+              writing on these pages is unusually good and was being wasted on
+              a measure nobody finishes a line of.
+            */}
+            {description ? (
+              <p className="mt-1 max-w-2xl text-sm text-muted-foreground">{description}</p>
+            ) : null}
+          </div>
         </div>
         {actions ? <div className="flex shrink-0 items-center gap-2">{actions}</div> : null}
       </div>

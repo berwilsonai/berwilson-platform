@@ -1,3 +1,4 @@
+import { PageHeader } from '@/components/ui/page-header'
 import { Suspense } from 'react'
 import Link from 'next/link'
 import { Plus, HandCoins } from 'lucide-react'
@@ -179,36 +180,44 @@ export default async function InvestorsPage({ searchParams }: PageProps) {
 
   return (
     <div className="space-y-5">
-      {/* Page toolbar */}
-      <div className="flex items-center justify-between gap-4 flex-wrap">
-        <div className="flex items-center gap-3">
+      {/* This page opened on a filter row with nothing naming it — see the
+          note on /opportunities, which had the same gap. */}
+      <PageHeader
+        icon={HandCoins}
+        title="Investors"
+        description="The capital-raise pipeline: relationships by stage, and what each one has committed against the parent company or a single project."
+        className="mb-0"
+        actions={
+          <>
+            <Link
+              href="/investors/raises/new"
+              className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg border border-input bg-background text-sm font-medium transition-colors hover:bg-accent"
+            >
+              <Plus size={14} />
+              New Raise
+            </Link>
+            <Link
+              href="/investors/new"
+              className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg bg-primary elev-1 text-primary-foreground text-sm font-medium transition-colors hover:bg-primary/90"
+            >
+              <Plus size={14} />
+              New Investor
+            </Link>
+          </>
+        }
+      >
+        <div className="flex flex-wrap items-center gap-3">
           <Suspense>
             <InvestorFilters stage={stage} type={type} interest={interest} target={target} />
           </Suspense>
           {count > 0 && (
-            <span className="text-xs text-muted-foreground">
+            <span className="tnum text-xs text-muted-foreground">
               {count} investor{count !== 1 ? 's' : ''}
               {hasFilters ? ' matching' : ''}
             </span>
           )}
         </div>
-        <div className="flex items-center gap-2 shrink-0">
-          <Link
-            href="/investors/raises/new"
-            className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg border border-input bg-background text-sm font-medium hover:bg-accent transition-colors"
-          >
-            <Plus size={14} />
-            New Raise
-          </Link>
-          <Link
-            href="/investors/new"
-            className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg bg-primary elev-1 text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors"
-          >
-            <Plus size={14} />
-            New Investor
-          </Link>
-        </div>
-      </div>
+      </PageHeader>
 
       {/* Raises — potential vs actual per raise */}
       {raises.length > 0 && (

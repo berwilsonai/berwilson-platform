@@ -22,10 +22,11 @@
 
 import { useMemo, useState } from 'react'
 import Link from 'next/link'
-import { Check, X, Clock, ArrowUpRight, Copy, Search } from 'lucide-react'
+import { Check, X, Clock, ArrowUpRight, Copy, Search, Handshake } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { Panel } from '@/components/ui/card'
+import { PageHeader } from '@/components/ui/page-header'
 import { Chip } from '@/components/ui/chip'
 import { FIELD_CONTROL_CLASS } from '@/lib/utils/field-classes'
 import type {
@@ -239,13 +240,12 @@ export default function CommitmentsLedger({
 
   return (
     <div className="space-y-4 p-4 sm:p-6">
-      <header>
-        <h1 className="text-xl font-semibold">Commitments</h1>
-        <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-          Every obligation read out of correspondence. Tick what is done, quiet what is real but
-          not today, and dismiss what was never a commitment of ours.
-        </p>
-      </header>
+      <PageHeader
+        icon={Handshake}
+        title="Commitments"
+        className="mb-0"
+        description="Every obligation read out of correspondence. Tick what is done, quiet what is real but not today, and dismiss what was never a commitment of ours."
+      />
 
       {/* ONE QUANTITY, ONE DEFINITION (§12) — these are four different
           questions about one table, named apart and never summed. */}

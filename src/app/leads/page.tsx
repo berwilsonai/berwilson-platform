@@ -1,3 +1,4 @@
+import { PageHeader } from '@/components/ui/page-header'
 import { Radar } from 'lucide-react'
 import { redirect } from 'next/navigation'
 import { getViewer } from '@/lib/auth/viewer'
@@ -135,21 +136,12 @@ export default async function LeadsPage({
 
   return (
     <div className="space-y-5">
-      <div className="flex items-start gap-3">
-        <div className="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10">
-          <Radar className="size-5 text-primary" />
-        </div>
-        <div>
-          <h1 className="text-2xl">Leads</h1>
-          <p className="text-sm text-muted-foreground">
-            Bid invitations arriving at info@ and deals submitted through the website form, read
-            and scored against what Ber Wilson actually pursues. Each lead is sorted into a line
-            of business, which decides where it goes: a project, an opportunity, a steel deal, a
-            handoff to the trade that does the work — or attached to the record it already
-            belongs to.
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        icon={Radar}
+        title="Leads"
+        className="mb-0"
+        description="Bid invitations arriving at info@ and deals submitted through the website form, read and scored against what Ber Wilson actually pursues. Each lead is sorted into a line of business, which decides where it goes: a project, an opportunity, a steel deal, a handoff to the trade that does the work — or attached to the record it already belongs to."
+      />
 
       <LeadsClient
         initialOpenLeadId={initialOpenLeadId ?? null}

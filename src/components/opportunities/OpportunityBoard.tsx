@@ -187,12 +187,34 @@ function BoardColumn({
         'flex flex-col shrink-0 rounded-lg transition-all',
         // An empty column collapses so nine stages fit, and opens while a drag
         // is in flight so it can actually receive a card.
-        empty ? (dnd.dragging ? 'w-[180px]' : 'w-[96px]') : 'w-[272px]',
+        empty ? (dnd.dragging ? 'w-[180px]' : 'w-[3rem]') : 'w-[272px]',
         // ⚠ A ring, never a bg — the header and body below own their
         // backgrounds and `cn()` is tailwind-merge (§12).
         target && 'ring-2 ring-primary ring-offset-2 ring-offset-background'
       )}
     >
+      {/*
+        ⚠ A COLLAPSED COLUMN TURNS ITS LABEL RATHER THAN SHRINKING IT. At 96px
+        with `text-xs truncate` the four empty stages read "Due Dilig…" and
+        "Evaluat…" — a column whose only content was a cut-off word, which is
+        worse than the wide empty column it replaced. Rotated it fits whole in
+        3rem and the board gets 45px back per empty stage on top of that.
+        Top-aligned deliberately: the column is as tall as the fullest one, so
+        a centred label sits below the fold. Same shape as the steel board.
+      */}
+      {empty && !dnd.dragging ? (
+        <div className="flex h-full justify-center rounded-lg border border-border bg-muted/30 pt-2.5">
+          <h2
+            className={cn(
+              'whitespace-nowrap text-xs font-semibold [writing-mode:vertical-rl]',
+              terminal ? 'text-muted-foreground' : 'text-foreground'
+            )}
+          >
+            {OPPORTUNITY_STATUS_LABELS[status]}
+          </h2>
+        </div>
+      ) : (
+      <>
       <div
         className={cn(
           'sticky top-0 z-10 rounded-t-lg border border-b-0 border-border px-3 py-2.5 backdrop-blur',
@@ -222,13 +244,23 @@ function BoardColumn({
         </div>
         {/* An empty column has no total worth stating; "$0" is noise dressed
             as a figure. */}
-        {!empty && (
+        {/*
+          ⚠ THE LINE IS OMITTED WHEN THERE IS NO TOTAL, rather than printing
+          "Not set" with "none of 4 priced" under it. One deal in thirty
+          carries an `estimated_value`, so on this board that pair was the
+          most repeated element on the screen — two lines of chrome, on every
+          column, saying nothing twice. The aggregate is the main reason to
+          look at a board; a column that cannot state one should say nothing
+          and let the cards have the room (§12: omit the row, or name the
+          absence in words — never both, and never on every row).
+        */}
+        {!empty && total.estimated > 0 && (
           <div className="mt-1.5 text-xs">
             <span
               className="font-semibold tnum text-foreground"
               title={note ? `${note} in this stage` : undefined}
             >
-              {total.estimated > 0 ? formatValue(total.amount) : 'Not set'}
+              {formatValue(total.amount)}
             </span>
             {note && <p className="mt-0.5 truncate text-[10px] text-muted-foreground">{note}</p>}
           </div>
@@ -241,23 +273,21 @@ function BoardColumn({
           terminal ? 'bg-muted/20' : 'bg-muted/10'
         )}
       >
-        {empty ? (
-          <p className="text-xs text-muted-foreground/50 text-center py-6">—</p>
-        ) : (
-          items.map((opp, i) => (
-            <OpportunityCard
-              key={opp.id}
-              opp={opp}
-              compact
-              canDelete={canDelete}
-              onDeleted={onDeleted}
-              dnd={dnd}
-              laneId={status}
-              index={i}
-            />
-          ))
-        )}
+        {items.map((opp, i) => (
+          <OpportunityCard
+            key={opp.id}
+            opp={opp}
+            compact
+            canDelete={canDelete}
+            onDeleted={onDeleted}
+            dnd={dnd}
+            laneId={status}
+            index={i}
+          />
+        ))}
       </div>
+      </>
+      )}
     </div>
   )
 }

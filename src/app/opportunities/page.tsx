@@ -1,3 +1,4 @@
+import { PageHeader } from '@/components/ui/page-header'
 import { Suspense } from 'react'
 import Link from 'next/link'
 import { Plus, Lightbulb } from 'lucide-react'
@@ -56,29 +57,41 @@ export default async function OpportunitiesPage({ searchParams }: PageProps) {
 
   return (
     <div className="space-y-5">
-      {/* Page toolbar */}
-      <div className="flex items-center justify-between gap-4 flex-wrap">
-        <div className="flex items-center gap-3">
+      {/*
+        ⚠ THIS PAGE HAD NO MASTHEAD AT ALL until 2026-10-27 — it opened on a
+        filter row, and the only thing naming it was the 14.5px locator in the
+        app header. /investors was the same. A page with no title is the
+        clearest case there is for one owner (§5.1).
+      */}
+      <PageHeader
+        icon={Lightbulb}
+        title="Opportunities"
+        description="Acquisitions, partnerships, JVs and other strategic positions — tracked before they are projects, with the same child records a project carries."
+        className="mb-0"
+        actions={
+          isAdmin ? (
+            <Link
+              href="/opportunities/new"
+              className="inline-flex shrink-0 items-center gap-1.5 h-9 px-3.5 rounded-lg bg-primary elev-1 text-primary-foreground text-sm font-medium transition-colors hover:bg-primary/90"
+            >
+              <Plus size={14} />
+              New Opportunity
+            </Link>
+          ) : null
+        }
+      >
+        <div className="flex flex-wrap items-center gap-3">
           <Suspense>
             <OpportunityFilters type={type} status={status} />
           </Suspense>
           {count > 0 && (
-            <span className="text-xs text-muted-foreground">
+            <span className="tnum text-xs text-muted-foreground">
               {count} {count !== 1 ? 'opportunities' : 'opportunity'}
               {hasFilters ? ' matching' : ''}
             </span>
           )}
         </div>
-        {isAdmin && (
-          <Link
-            href="/opportunities/new"
-            className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg bg-primary elev-1 text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors shrink-0"
-          >
-            <Plus size={14} />
-            New Opportunity
-          </Link>
-        )}
-      </div>
+      </PageHeader>
 
       {/* Cards grid or empty state */}
       {count === 0 ? (

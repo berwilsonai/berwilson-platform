@@ -1,4 +1,5 @@
-import { Gavel } from 'lucide-react'
+import { PageHeader } from '@/components/ui/page-header'
+import { Gavel, Info } from 'lucide-react'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { getViewer } from '@/lib/auth/viewer'
@@ -471,13 +472,11 @@ export default async function DecidePage() {
 
   return (
     <div className="space-y-5">
-      <div className="flex items-start gap-3">
-        <div className="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10">
-          <Gavel className="size-5 text-primary" />
-        </div>
-        <div>
-          <h1 className="text-2xl">Decide</h1>
-          <p className="text-sm text-muted-foreground">
+      <PageHeader
+        icon={Gavel}
+        title="Decide"
+        description={
+          <>
             Current business waiting on a call from you — staged correspondence and
             calls, documents filed on the wrong deal, and anything Ber AI wasn&apos;t sure
             about. Ranked so the most consequential is first, and nothing here has been
@@ -486,9 +485,10 @@ export default async function DecidePage() {
               Leads
             </Link>
             .
-          </p>
-        </div>
-      </div>
+          </>
+        }
+        className="mb-0"
+      />
 
       {/*
         ⚠ THE HELD COUNT, BECAUSE A GATE NOBODY CAN SEE IS A BLACK HOLE (§12).
@@ -500,20 +500,31 @@ export default async function DecidePage() {
         in one line is the difference between a deliberate hold and a loss.
       */}
       {unparented.held > 0 && (
-        <p className="text-sm text-muted-foreground">
-          {unparented.held} further{' '}
-          {unparented.held === 1 ? 'file is' : 'files are'} held back: they came off deal
-          mail and sit on no record, but nothing in their name or text points at a
-          particular deal, so there is no filing to offer — but you will know which
-          deal each one belongs to at a glance.{' '}
-          <Link
-            href="/documents/unfiled"
-            className="underline underline-offset-2 hover:text-foreground"
-          >
-            Pick their deals
-          </Link>
-          .
-        </p>
+        /*
+          ⚠ A CALLOUT, NOT A SECOND PARAGRAPH. It rendered as plain muted prose
+          directly under the page description, in the same size and colour, at
+          the full 1,451px of the column — so the one actionable FACT on the
+          page outside the queue was visually indistinguishable from the page's
+          own blurb, and read as more preamble. It is a different kind of thing
+          from a description: a count, with somewhere to go.
+        */
+        <div className="flex max-w-3xl items-start gap-2.5 rounded-lg border border-info-edge bg-info-surface px-3.5 py-3">
+          <Info className="mt-0.5 size-4 shrink-0 text-info" aria-hidden />
+          <p className="text-sm text-foreground">
+            <span className="tnum font-medium">{unparented.held}</span> further{' '}
+            {unparented.held === 1 ? 'file is' : 'files are'} held back: they came off deal
+            mail and sit on no record, but nothing in their name or text points at a
+            particular deal, so there is no filing to offer — but you will know which
+            deal each one belongs to at a glance.{' '}
+            <Link
+              href="/documents/unfiled"
+              className="font-medium text-info underline underline-offset-2"
+            >
+              Pick their deals
+            </Link>
+            .
+          </p>
+        </div>
       )}
 
       <DecideClient items={items} />
