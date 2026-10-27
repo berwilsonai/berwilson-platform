@@ -58,13 +58,27 @@ function StatTile({
     critical: 'text-critical',
   } as const
 
+  /*
+    ⚠ A ZERO IS A REAL MEASUREMENT AND STILL SHOULD NOT SHOUT (§4.7). Three of
+    the four tiles on /investors read "$0" at the full 30px ink weight, which
+    gives a figure that means "nothing has happened yet" the same emphasis as
+    one that means "$12B" — and when every tile is loud, none of them is. A
+    genuine zero stays at the metric's size, so the band keeps its rhythm, and
+    drops to muted so the first real number pops the day it arrives.
+    This is NOT the `value === null` case below: that is a tile with nothing
+    to show at all, and it says so in words.
+  */
+  const isZero =
+    tone === 'default' &&
+    (value === 0 || (typeof value === 'string' && /^[^\d]*0([^\d]|$)/.test(value.trim())))
+
   const body = (
     <>
       <dt className="label-caps text-muted-foreground">{label}</dt>
       {value === null ? (
         <dd className="mt-1.5 text-sm text-muted-foreground">{empty}</dd>
       ) : (
-        <dd className={cn('tnum mt-1 text-metric', TONE[tone])}>
+        <dd className={cn('tnum mt-1 text-metric', isZero ? 'text-muted-foreground' : TONE[tone])}>
           {value}
         </dd>
       )}

@@ -706,20 +706,16 @@
   letter-spacing: 0.08em;
 }
 
-/* ─── Skeleton shimmer (richer loading) ────────────────────────────────────── */
-@keyframes shimmer {
-  0% { background-position: -200% 0; }
-  100% { background-position: 200% 0; }
-}
-.skeleton-shimmer {
-  background: linear-gradient(90deg, oklch(0.950 0.007 88) 25%, oklch(0.908 0.010 88) 50%, oklch(0.950 0.007 88) 75%);
-  background-size: 200% 100%;
-  animation: shimmer 1.5s ease-in-out infinite;
-}
-.dark .skeleton-shimmer {
-  background: linear-gradient(90deg, oklch(0.265 0.012 88) 25%, oklch(0.320 0.014 88) 50%, oklch(0.265 0.012 88) 75%);
-  background-size: 200% 100%;
-}
+/*
+  ⚠ `.skeleton-shimmer` WAS REMOVED 2026-10-27, AFTER COUNTING ITS USERS: 0.
+  It declared a two-theme gradient animation and nothing in `src/` ever
+  referenced it — a primitive that styles nothing (§12), and one that pinned
+  four oklch values literally rather than reading the palette, so a re-skin
+  would have left it behind in the old neutrals. The skeletons that exist use
+  `animate-pulse`, which is already 2s in Tailwind v4 and reads the tokens.
+  If a shimmer is wanted later it belongs on `LoadingSkeleton` with the
+  surfaces as variables, and with a caller on the same day.
+*/
 
 /* ─── Elevation utilities ──────────────────────────────────────────────────── */
 /*

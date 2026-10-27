@@ -115,8 +115,33 @@ export default function ProjectsTable({
     // `Panel`, not a hand-rolled shell — `conventions.test.ts` caught this on
     // the first run, which is the second time in one session that ratchet has
     // stopped a NEW primitive starting the 228th copy of the card.
-    <Panel className="overflow-hidden">
-      <div className="overflow-x-auto">
+    //
+    // ⚠ NOT `overflow-hidden`, THOUGH THAT IS WHAT A ROUNDED PANEL WANTS.
+    // `overflow: hidden` makes an element a scroll container for
+    // `position: sticky` exactly as `auto` does, so the Panel was the SECOND
+    // thing swallowing this table's sticky header — the first being the
+    // `overflow-x-auto` wrapper below. Both were invisible: every sticky class
+    // was present, the header simply had nothing to stick to.
+    // `isolate` keeps the stacking context without creating a scroll
+    // container; the rounded top is carried by the header's own background.
+    <Panel className="isolate">
+      {/*
+        ⚠ `overflow-x-auto` ONLY BELOW lg, AND THAT IS WHAT MAKES THE STICKY
+        HEADER WORK. CSS has no way to scroll one axis and leave the other
+        visible: setting `overflow-x: auto` computes `overflow-y` to `auto`
+        too, which makes this div a scroll container — and a `position:
+        sticky` thead resolves against its nearest scroll container, not the
+        page. This one never scrolls vertically (measured: scrollHeight ===
+        clientHeight === 917), so the header carried `sticky top-0 z-10
+        bg-muted/60 backdrop-blur-sm` and stuck to nothing at all, while the
+        real scroller — `<main class="flex-1 overflow-y-auto">`, 1,182 over
+        815 — carried the rows past it.
+        Above lg there is no scroll container here, so the header sticks to
+        the top of `<main>` as intended. Below it the table is wider than the
+        viewport and genuinely needs to scroll sideways; a sticky header is
+        the thing worth giving up for that, not the other way round.
+      */}
+      <div className="max-lg:overflow-x-auto">
         <table className="w-full table-fixed text-sm min-w-[52rem]">
           {/*
             ⚠ THE HEADER STICKS TO THE SCROLL CONTAINER, NOT THE PAGE. The app
