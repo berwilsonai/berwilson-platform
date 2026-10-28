@@ -1,8 +1,6 @@
 'use client'
 
-import { useRouter, useSearchParams, usePathname } from 'next/navigation'
-import { useCallback } from 'react'
-import { X } from 'lucide-react'
+import UrlFacets from '@/components/ui/url-facets'
 import {
   OPPORTUNITY_TYPES,
   OPPORTUNITY_TYPE_LABELS,
@@ -10,65 +8,33 @@ import {
   OPPORTUNITY_STATUS_LABELS,
 } from '@/lib/utils/opportunities'
 
-interface OpportunityFiltersProps {
-  type: string
-  status: string
-}
-
-export default function OpportunityFilters({ type, status }: OpportunityFiltersProps) {
-  const router = useRouter()
-  const pathname = usePathname()
-  const searchParams = useSearchParams()
-
-  const setParam = useCallback(
-    (key: string, value: string) => {
-      const params = new URLSearchParams(searchParams.toString())
-      if (value) params.set(key, value)
-      else params.delete(key)
-      router.push(`${pathname}?${params.toString()}`)
-    },
-    [router, pathname, searchParams]
-  )
-
-  const hasFilters = type || status
-
+/**
+ * The opportunity board's facets. The row itself — the shell, `setParam`, the
+ * select styling and the clear affordance — lives in `UrlFacets`, which is
+ * also what /projects and /investors render. This file is the list of facets
+ * and nothing else.
+ *
+ * ⚠ IT USED TO BE ITS OWN 74-LINE COPY, hand-rolling the select class rather
+ * than reading `FIELD_CONTROL_SM_CLASS`, so its controls were a different
+ * height from the identical row two pages over.
+ */
+export default function OpportunityFilters({ type, status }: { type: string; status: string }) {
   return (
-    <div className="flex items-center gap-2 flex-wrap">
-      <select
-        value={type}
-        onChange={(e) => setParam('type', e.target.value)}
-        className="h-8 rounded-md border border-input bg-background px-2.5 text-xs text-foreground outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
-      >
-        <option value="">All Types</option>
-        {OPPORTUNITY_TYPES.map((t) => (
-          <option key={t} value={t}>
-            {OPPORTUNITY_TYPE_LABELS[t]}
-          </option>
-        ))}
-      </select>
-
-      <select
-        value={status}
-        onChange={(e) => setParam('status', e.target.value)}
-        className="h-8 rounded-md border border-input bg-background px-2.5 text-xs text-foreground outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
-      >
-        <option value="">All Statuses</option>
-        {OPPORTUNITY_STATUSES.map((s) => (
-          <option key={s} value={s}>
-            {OPPORTUNITY_STATUS_LABELS[s]}
-          </option>
-        ))}
-      </select>
-
-      {hasFilters && (
-        <button
-          onClick={() => router.push(pathname)}
-          className="h-9 flex items-center gap-1 px-2.5 rounded-lg text-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-        >
-          <X size={12} />
-          Clear
-        </button>
-      )}
-    </div>
+    <UrlFacets
+      facets={[
+        {
+          param: 'type',
+          allLabel: 'All Types',
+          value: type,
+          options: OPPORTUNITY_TYPES.map((t) => [t, OPPORTUNITY_TYPE_LABELS[t]] as const),
+        },
+        {
+          param: 'status',
+          allLabel: 'All Statuses',
+          value: status,
+          options: OPPORTUNITY_STATUSES.map((s) => [s, OPPORTUNITY_STATUS_LABELS[s]] as const),
+        },
+      ]}
+    />
   )
 }

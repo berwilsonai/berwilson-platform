@@ -55,7 +55,17 @@ export default async function IntakePage({ searchParams }: PageProps) {
   const supabase = createAdminClient()
 
   return (
-    <div className={cn('space-y-6', tab === 'proposal' ? 'max-w-6xl' : 'max-w-3xl')}>
+    /*
+      ⚠ `max-w-5xl`, UP FROM `max-w-3xl`. Five of the six tabs here are queues
+      and staged lists — recent runs, staged packages, scanned cards — and
+      they were pinned to a 768px column inside a 1,451px frame, so a row's
+      title, its destination and its status all competed for a third of the
+      screen while the other two thirds were empty. The proposal tab already
+      knew this and opted out to `max-w-6xl`; the rest were never revisited.
+      ⚠ Still CAPPED, not full-bleed: the forms on these tabs are prose and
+      single fields, and a 1,451px text input is not an improvement.
+    */
+    <div className={cn('space-y-6', tab === 'proposal' ? 'max-w-6xl' : 'max-w-5xl')}>
       {/* Tab switcher — the Directory `?tab=` idiom */}
       <div className="flex items-center gap-1 border-b border-border">
         {TABS.map(({ key, label, icon: Icon }) => (

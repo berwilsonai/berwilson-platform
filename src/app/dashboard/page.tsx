@@ -487,7 +487,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
       )}
 
       {/* ── Main content ──────────────────────────────────────────────────── */}
-      <div className="flex flex-col lg:flex-row gap-6">
+      <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
 
         {/* Cards grid — left on desktop, first on mobile */}
         <div className="flex-1 min-w-0 space-y-3">
@@ -527,7 +527,19 @@ export default async function DashboardPage({ searchParams }: PageProps) {
         </div>
 
         {/* Needs Attention — right on desktop, below cards on mobile */}
-        <div className="w-full lg:w-72 xl:w-80 shrink-0 space-y-3">
+        {/*
+          ── THE RAIL ─────────────────────────────────────────────────────
+          ⚠ STICKY, AND WITH ITS OWN SCROLL. Measured by the UI audit and
+          confirmed: the rail began ~460px down the page — a void beside the
+          KPI tiles and the pipeline chart — and then ran roughly 1,500px PAST
+          the bottom of the main column, so the two halves of the morning read
+          shared almost no vertical space. Pinned to the top of the content
+          area it sits beside the thing it comments on, and capping its height
+          with its own overflow keeps it from setting the page's length.
+          ⚠ `lg:` only: on a phone the rail is just the next section down, and
+          a sticky element inside a single column pins over the content.
+        */}
+        <div className="w-full shrink-0 space-y-3 lg:sticky lg:top-4 lg:max-h-[calc(100vh-7rem)] lg:w-72 lg:self-start lg:overflow-y-auto lg:pr-1 xl:w-80">
           {/* ⚠ THREE PANELS WERE REMOVED FROM THIS RAIL 2026-09-24, each for a
               measured reason rather than for tidiness:
 

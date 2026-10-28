@@ -1,4 +1,5 @@
 import { PageHeader } from '@/components/ui/page-header'
+import { StatGrid, StatTile } from '@/components/ui/stat'
 import { Suspense } from 'react'
 import Link from 'next/link'
 import { Plus, HandCoins } from 'lucide-react'
@@ -33,27 +34,6 @@ interface PageProps {
 
 // Accent dot echoes the tranche-bar legend: amber=indicated, indigo=committed,
 // emerald=funded. Literal classes only.
-function Stat({ label, value, sub, tone }: { label: string; value: string; sub?: string; tone?: 'amber' | 'indigo' | 'emerald' }) {
-  const dot =
-    tone === 'amber'
-      ? 'bg-caution'
-      : tone === 'indigo'
-        ? 'bg-indigo-500'
-        : tone === 'emerald'
-          ? 'bg-positive'
-          : null
-  return (
-    <div className="rounded-lg border border-border bg-card px-4 py-3 elev-1">
-      <p className="flex items-center gap-1.5 text-[11px] uppercase tracking-wide text-muted-foreground">
-        {dot && <span className={`size-1.5 rounded-full ${dot}`} />}
-        {label}
-      </p>
-      <p className="text-lg font-semibold tnum mt-0.5">{value}</p>
-      {sub && <p className="text-[11px] text-muted-foreground mt-0.5">{sub}</p>}
-    </div>
-  )
-}
-
 export default async function InvestorsPage({ searchParams }: PageProps) {
   const params = await searchParams
   const stage = INVESTOR_STAGES.includes(params.stage as InvestorStage) ? (params.stage as InvestorStage) : ''
@@ -278,19 +258,36 @@ export default async function InvestorsPage({ searchParams }: PageProps) {
         </section>
       )}
 
-      {/* Raise rollup */}
+      {/*
+        ── THE RAISE ROLLUP ──────────────────────────────────────────────────
+        ⚠ THIS PAGE HAD ITS OWN `Stat`, WHICH IS WHY NOTHING DONE TO `StatTile`
+        EVER REACHED IT. A local component with its own card shell, its own
+        label style, an 18px figure where the shared tile uses 30, and a
+        coloured dot on three of the four — so when `StatTile` learned on
+        10-27 that a genuine zero should render muted, this page carried on
+        showing **three tiles reading "$0" at full ink weight**, giving
+        "nothing has happened yet" the same emphasis as "$12B". That is §5.3's
+        whole point: the same unit on four pages, four slightly different
+        ways.
+
+        ⚠ THE DOTS ARE GONE AND NOTHING IS LOST. They tied the tiles to the
+        tranche bar's segments, and the bar already carries that legend
+        explicitly a few lines above. Three of four tiles coloured is the
+        failure `StatTile`'s own comment names — when every tile is coloured,
+        colour has stopped signifying — and it leaves nothing for the one
+        figure that genuinely means something is wrong.
+      */}
       {(investorRows?.length ?? 0) > 0 && (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-          <Stat label="Indicated" value={formatValue(total('amount_indicated'))} sub="Soft-circled interest" tone="amber" />
-          <Stat
+        <StatGrid>
+          <StatTile label="Indicated" value={formatValue(total('amount_indicated'))} hint="Soft-circled interest" />
+          <StatTile
             label="Committed"
             value={formatValue(total('amount_committed'))}
-            sub={`${formatValue(committedCompany)} parent · ${formatValue(committedProject)} deals`}
-            tone="indigo"
+            hint={`${formatValue(committedCompany)} parent · ${formatValue(committedProject)} deals`}
           />
-          <Stat label="Funded" value={formatValue(total('amount_funded'))} sub="Wired to date" tone="emerald" />
-          <Stat label="Investors" value={String(count)} sub={hasFilters ? 'Matching filters' : 'In the pipeline'} />
-        </div>
+          <StatTile label="Funded" value={formatValue(total('amount_funded'))} hint="Wired to date" />
+          <StatTile label="Investors" value={count} hint={hasFilters ? 'Matching filters' : 'In the pipeline'} />
+        </StatGrid>
       )}
 
       {/* Cards grid or empty state */}

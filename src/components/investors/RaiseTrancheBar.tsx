@@ -25,10 +25,25 @@ export default function RaiseTrancheBar({ tranches, size = 'sm', labels = true }
         {tranches.map((t, idx) => {
           const pct = (v: number) => `${Math.min((v / t.amount) * 100, 100)}%`
           const full = t.funded >= t.amount
+          /*
+            ⚠ AN EMPTY TRANCHE IS DRAWN AS A SHAPE WAITING TO BE FILLED, NOT
+            AS A GREY SLAB. With nothing committed — which is every tranche on
+            every raise here today — all four segments rendered as identical
+            flat `bg-muted` bars, and the UI audit read the whole control as
+            broken rather than as empty: *"a dark track with no visible fill"*.
+            A dashed outline on an untouched tranche says the structure is
+            real and the money has not arrived; a solid track says the widget
+            did not load. Same information, and the difference is whether a
+            reader trusts the page.
+          */
+          const untouched = t.funded + t.committed + t.potential === 0
           return (
             <div
               key={idx}
-              className="relative min-w-0 overflow-hidden rounded-full bg-muted"
+              className={cn(
+                'relative min-w-0 overflow-hidden rounded-full',
+                untouched ? 'border border-dashed border-border bg-transparent' : 'bg-muted'
+              )}
               style={{ flexGrow: t.amount, flexBasis: 0 }}
               title={`${t.label}: ${formatValue(t.amount)} — ${formatValue(t.funded)} funded, ${formatValue(t.committed)} committed, ${formatValue(t.potential)} potential`}
             >

@@ -134,17 +134,28 @@ export default function InvestorCards({
                 </div>
               )}
 
-              {/* Footer: money */}
-              <div className="mt-3 pt-3 border-t border-border flex items-center justify-between gap-2">
-                {money ? (
-                  <span className="text-sm font-semibold tnum text-foreground">
+              {/*
+                Footer: money, and ONLY when there is money.
+
+                ⚠ IT USED TO READ "No commitments yet" ON EVERY CARD — seven of
+                seven here — each with its own divider above it. That made the
+                most repeated element on the page a sentence saying nothing
+                had happened, which is the state the page's own KPI tiles
+                already report in full, and which the stage chip on each card
+                ("Identified", "In Conversation") says more precisely anyway.
+                A card with nothing to total now says nothing and gives the
+                room to the next step below, which is the thing a reader can
+                act on (§12: omit the row, or name the absence in words —
+                never on every row).
+              */}
+              {money && (
+                <div className="mt-3 flex items-center justify-between gap-2 border-t border-border pt-3">
+                  <span className="tnum text-sm font-semibold text-foreground">
                     {formatValue(money.value)}
                     <span className="ml-1.5 text-[11px] font-normal text-muted-foreground">{money.label}</span>
                   </span>
-                ) : (
-                  <span className="text-xs text-muted-foreground">No commitments yet</span>
-                )}
-              </div>
+                </div>
+              )}
 
               {/* Next step */}
               {(investor.next_step || investor.next_step_date) && (

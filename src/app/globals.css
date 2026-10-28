@@ -572,24 +572,25 @@
     phone — and only the resting appearance changes, which is the 99% case and
     the thing that made every filter bar look foreign on a dark theme.
 
-    ⚠ SPECIFICITY IS LOAD-BEARING HERE. `select:not([multiple])` is (0,1,1),
-    which beats a `.px-3` utility at (0,1,0) — without the `:not()` the padding
-    utility on each control would win and the option text would run underneath
-    the chevron. The `:not()` is doing two jobs at once, and the second one is
-    the reason this works at all.
+    ⚠ THIS COMMENT USED TO ARGUE FROM SPECIFICITY AND THE ARGUMENT WAS WRONG.
+    It said `select:not([multiple])` at (0,2,1) beats a `.px-3` utility at
+    (0,1,0), so the option text could not run under the chevron. **Specificity
+    does not decide this.** Tailwind v4 puts utilities in a real `@layer
+    utilities`, this block was in `@layer base`, and LAYER ORDER BEATS
+    SPECIFICITY unconditionally — so `px-2.5` won and the reserved
+    `padding-right: 1.875rem` never applied. Measured 2026-10-27 on /projects:
+    every filter select computed **`padding-right: 10px`**, and the chevron
+    sat on the last letter of "All Statuses" and "All Stages". App-wide, on
+    140 selects, under a comment explaining why it could not happen.
 
-    A multi-select and a sized listbox are excluded: they have no collapsed
-    state, so a chevron on them would point at nothing.
+    The rule is UNLAYERED now, which is the one mechanism that actually wins:
+    unlayered styles beat every layered style whatever the layer. The `:not()`
+    pair stays, for its real job — a multi-select and a sized listbox have no
+    collapsed state, so a chevron on them would point at nothing.
+    ⚠ Keep this block OUTSIDE `@layer base`. Moving it back in restores the
+    bug silently; nothing renders an error and the chevron simply overlaps.
   */
-  select:not([multiple]):not([size]) {
-    appearance: none;
-    -webkit-appearance: none;
-    background-image: var(--select-chevron);
-    background-repeat: no-repeat;
-    background-position: right 0.625rem center;
-    background-size: 0.875rem 0.875rem;
-    padding-right: 1.875rem;
-  }
+  /* (moved below, outside the layer) */
   /* Page titles carry the display serif (Newsreader) — one editorial voice for
      every h1 (screen + print letterheads). Section h2s/h3s stay Geist. */
   h1 {
@@ -735,6 +736,21 @@
   If a shimmer is wanted later it belongs on `LoadingSkeleton` with the
   surfaces as variables, and with a caller on the same day.
 */
+
+/*
+  The themed select chevron — UNLAYERED, and that is the whole point.
+  See the long note in `@layer base` above for what this replaced and why
+  specificity could not do the job.
+*/
+select:not([multiple]):not([size]) {
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: var(--select-chevron);
+  background-repeat: no-repeat;
+  background-position: right 0.625rem center;
+  background-size: 0.875rem 0.875rem;
+  padding-right: 1.875rem;
+}
 
 /* ─── Elevation utilities ──────────────────────────────────────────────────── */
 /*

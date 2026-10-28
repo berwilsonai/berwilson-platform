@@ -31,6 +31,19 @@ export default function DailyBrief({ initial }: { initial?: InitialBrief | null 
   const [error, setError] = useState<string | null>(null)
   const [expanded, setExpanded] = useStoredState('bw.brief.expanded', false)
 
+  /*
+    The brief's first real sentence, for the collapsed preview. ⚠ Markdown
+    furniture is skipped rather than rendered: the brief opens with its own
+    `# Heading`, and a preview reading "# Portfolio brief" tells a reader
+    nothing they did not already know from the panel's own title.
+  */
+  const firstLine =
+    brief
+      ?.split('\n')
+      .map((l) => l.trim())
+      .find((l) => l && !l.startsWith('#') && !/^[*_\-=]{3,}$/.test(l))
+      ?.replace(/[*_`]/g, '') ?? null
+
   const generateBrief = useCallback(async () => {
     setLoading(true)
     setError(null)
@@ -122,6 +135,26 @@ export default function DailyBrief({ initial }: { initial?: InitialBrief | null 
           {expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
         </button>
       </div>
+
+      {/*
+        ⚠ A ONE-LINE PREVIEW WHEN COLLAPSED, BECAUSE A FLAGSHIP FEATURE SHOULD
+        NOT LOOK LIKE A DISCLOSURE WIDGET. Collapsed, this was a title, a
+        refresh icon and a chevron — the portfolio brief, the most expensive
+        thing the platform produces, presenting as a row with nothing in it.
+        The reader had to open it to find out whether it was worth opening.
+        One line of its own first sentence answers that, and `line-clamp-1`
+        means it can never push the rest of the morning read down the page.
+      */}
+      {!expanded && firstLine && (
+        <button
+          type="button"
+          onClick={() => setExpanded(true)}
+          className="block w-full px-4 pb-3 text-left"
+          aria-label="Expand brief"
+        >
+          <span className="line-clamp-1 text-sm text-muted-foreground">{firstLine}</span>
+        </button>
+      )}
 
       {/* Content */}
       {expanded && (

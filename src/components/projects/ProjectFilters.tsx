@@ -1,12 +1,9 @@
 'use client'
 
-import { useRouter, useSearchParams, usePathname } from 'next/navigation'
-import { useCallback } from 'react'
-import { X } from 'lucide-react'
-
+import UrlFacets from '@/components/ui/url-facets'
 import { SECTOR_LABELS } from '@/lib/utils/sectors'
 import { STAGE_LABELS, STAGES } from '@/lib/utils/stages'
-import type { ProjectSector, ProjectStatus, ProjectStage } from '@/lib/supabase/types'
+import type { ProjectSector, ProjectStatus } from '@/lib/supabase/types'
 
 const STATUSES: ProjectStatus[] = ['active', 'on_hold', 'won', 'lost', 'closed']
 const STATUS_LABELS: Record<ProjectStatus, string> = {
@@ -18,110 +15,51 @@ const STATUS_LABELS: Record<ProjectStatus, string> = {
 }
 const SECTORS: ProjectSector[] = ['government', 'infrastructure', 'real_estate', 'prefab', 'institutional']
 
-interface ProjectFiltersProps {
+/**
+ * The project list's facets. The row itself — the shell, `setParam`, the
+ * select styling and the clear affordance — lives in `UrlFacets`.
+ *
+ * ⚠ THE `localStorage` REPLAY IS GONE AND MUST NOT COME BACK, and the reason
+ * is carried on `UrlFacets` now so it covers all three pages rather than only
+ * this one. In short: it mirrored these filters into storage and replayed
+ * them on arrival, so a bare `/projects` rendered DIFFERENTLY for each
+ * executive with no way for the sender of a link to tell, and the list
+ * re-rendered under the reader after hydration. The URL is the view; a bare
+ * link must mean a bare view. Anyone wanting their own default bookmarks the
+ * filtered URL, which has the property a saved view in storage would not:
+ * it is shareable.
+ */
+export default function ProjectFilters({
+  sector,
+  status,
+  stage,
+}: {
   sector: string
   status: string
   stage: string
-}
-
-export default function ProjectFilters({ sector, status, stage }: ProjectFiltersProps) {
-  const router = useRouter()
-  const pathname = usePathname()
-  const searchParams = useSearchParams()
-
-  /*
-   * ⚠ THE localStorage REPLAY IS GONE, AND IT WAS A BUG, NOT A CONVENIENCE.
-   *
-   * This used to mirror the URL filters into localStorage and then, on mount,
-   * replay them into the URL whenever someone arrived with none. Two
-   * consequences, both bad for a two-person company that sends each other
-   * links: a bare `/projects` rendered DIFFERENTLY for each executive, and the
-   * sender could not tell — and because the replay ran after hydration, the
-   * list visibly re-rendered under the reader on every arrival.
-   *
-   * §12 is explicit on both halves: a filter kept outside the URL is not a
-   * view, and a localStorage copy of something that lives in the database is
-   * not a cache — it is the only copy that page can see. The URL *is* the view,
-   * so a bare link must mean a bare view. Anyone who wants their own default
-   * can bookmark the filtered URL, which is also shareable.
-   *
-   * Removing it also drops one of the 11 `set-state-in-effect` lint warnings
-   * recorded in §9.
-   */
-
-  const setParam = useCallback(
-    (key: string, value: string) => {
-      const params = new URLSearchParams(searchParams.toString())
-      if (value) {
-        params.set(key, value)
-      } else {
-        params.delete(key)
-      }
-      router.push(`${pathname}?${params.toString()}`)
-    },
-    [router, pathname, searchParams]
-  )
-
-  const hasFilters = sector || status || stage
-
-  function clearAll() {
-    router.push(pathname)
-  }
-
+}) {
   return (
-    <div className="flex items-center gap-2 flex-wrap">
-      {/* Sector */}
-      <select
-        value={sector}
-        onChange={(e) => setParam('sector', e.target.value)}
-        className="h-8 rounded-md border border-input bg-background px-2.5 text-xs text-foreground outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
-      >
-        <option value="">All Sectors</option>
-        {SECTORS.map((s) => (
-          <option key={s} value={s}>
-            {SECTOR_LABELS[s]}
-          </option>
-        ))}
-      </select>
-
-      {/* Status */}
-      <select
-        value={status}
-        onChange={(e) => setParam('status', e.target.value)}
-        className="h-8 rounded-md border border-input bg-background px-2.5 text-xs text-foreground outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
-      >
-        <option value="">All Statuses</option>
-        {STATUSES.map((s) => (
-          <option key={s} value={s}>
-            {STATUS_LABELS[s]}
-          </option>
-        ))}
-      </select>
-
-      {/* Stage */}
-      <select
-        value={stage}
-        onChange={(e) => setParam('stage', e.target.value)}
-        className="h-8 rounded-md border border-input bg-background px-2.5 text-xs text-foreground outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
-      >
-        <option value="">All Stages</option>
-        {STAGES.map((s) => (
-          <option key={s} value={s}>
-            {STAGE_LABELS[s as ProjectStage]}
-          </option>
-        ))}
-      </select>
-
-      {/* Clear filters */}
-      {hasFilters && (
-        <button
-          onClick={clearAll}
-          className="h-9 flex items-center gap-1 px-2.5 rounded-lg text-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-        >
-          <X size={12} />
-          Clear
-        </button>
-      )}
-    </div>
+    <UrlFacets
+      facets={[
+        {
+          param: 'sector',
+          allLabel: 'All Sectors',
+          value: sector,
+          options: SECTORS.map((s) => [s, SECTOR_LABELS[s]] as const),
+        },
+        {
+          param: 'status',
+          allLabel: 'All Statuses',
+          value: status,
+          options: STATUSES.map((s) => [s, STATUS_LABELS[s]] as const),
+        },
+        {
+          param: 'stage',
+          allLabel: 'All Stages',
+          value: stage,
+          options: STAGES.map((s) => [s, STAGE_LABELS[s]] as const),
+        },
+      ]}
+    />
   )
 }

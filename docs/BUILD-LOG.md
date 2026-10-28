@@ -6,6 +6,54 @@ This file is **not** auto-loaded into a Claude Code session. It is the archive: 
 
 Split out of `CLAUDE.md` on 2026-09-23, when that file reached 606k characters against a 150k limit above which it is silently truncated — meaning the project's own operating instructions had begun to risk not reaching the sessions that need them. The entries below are **verbatim and unedited**.
 
+**Done 2026-10-27 (the UI audit, the remainder — and two items whose deliverable was NOT building them):**
+
+── /investors: THE PAGE READ AS BROKEN BECAUSE IT WAS EMPTY ────────────────
+
+⚠ **IT HAD ITS OWN `Stat` COMPONENT, WHICH IS WHY NOTHING DONE TO `StatTile` EVER REACHED IT.** A local copy with its own card shell, its own label style, an 18px figure where the shared tile uses 30, and a coloured dot on three of its four tiles. So when `StatTile` learned earlier the same day that a genuine zero should render muted, this page carried on showing **three tiles reading "$0" at full ink weight** — giving "nothing has happened yet" the same emphasis as "$12B". That is §5.3's whole point: the same unit on four pages, four slightly different ways. ⚠ The dots went with it and nothing was lost: the tranche bar carries that legend explicitly a few lines above, and three of four tiles coloured is the failure `StatTile`'s own comment names — when every tile is coloured, colour has stopped signifying.
+
+⚠ **AN UNTOUCHED TRANCHE IS NOW DRAWN AS A SHAPE WAITING TO BE FILLED.** With nothing committed — every tranche of every raise today — all four segments rendered as identical flat `bg-muted` bars, and the audit read the control as broken rather than as empty: *"a dark track with no visible fill"*. A dashed outline says the structure is real and the money has not arrived; a solid track says the widget did not load. Same information; the difference is whether a reader trusts the page.
+
+And *"No commitments yet"* stopped repeating on all seven investor cards, each with its own divider above it. That made the most repeated element on the page a sentence saying nothing had happened — which the page's own KPI tiles already report in full and the stage chip on each card says more precisely.
+
+── /dashboard ─────────────────────────────────────────────────────────────
+
+**The rail is sticky and capped.** It began ~460px down the page — a void beside the KPI tiles and the pipeline chart — and then ran roughly 1,500px PAST the bottom of the main column, so the two halves of the morning read shared almost no vertical space. Verified by scrolling `<main>` 1,200px and watching the rail travel 944 and then stop at 88, with its own `overflow-y` capping it at 751px so it no longer sets the page's length. ⚠ `lg:` only — on a phone the rail is the next section down, and a sticky element in a single column pins over the content it belongs under.
+
+**The objectives grid picks a column count that leaves no orphan.** At a fixed `xl:grid-cols-3`, four objectives render 3 + 1 — a lone card on its own row under a full one, which reads as a layout accident. The rule: of the two candidate widths, take the one whose last row is FULLEST (4 → 2 columns, 5 → 3, 6 → 3), preferring 3 on a tie. ⚠ Two LITERAL class strings, never `grid-cols-${n}`.
+
+**The Intelligence Brief shows its first line when collapsed.** It was a title, a refresh icon and a chevron — the most expensive thing the platform produces, presenting as a disclosure widget, with the reader having to open it to learn whether it was worth opening. ⚠ Markdown furniture is skipped when picking that line: the brief opens with its own `# Heading`, and a preview reading "# Portfolio brief" tells a reader nothing the panel's title did not.
+
+── /jobs, /intake, /attention ──────────────────────────────────────────────
+
+/jobs was `max-w-3xl` left-aligned in a 1,451px frame with the composer and the run list stacked; two columns now. ⚠ **Its three example prompts were ALREADY clickable and never looked it** — no border, no resting affordance — and they are the page's entire onboarding. Cards now, on `bg-muted/40` NOT `bg-card`, because the composer is itself a Panel on `bg-card` and a card-coloured child would have shown nothing but its border; the card-shell ratchet failed the build at 227 and was right to.
+
+/intake went `max-w-3xl` → `max-w-5xl`: five of its six tabs are queues and staged lists, and the proposal tab had already opted out to `max-w-6xl` while the rest were never revisited.
+
+/attention's urgency score was a bare **"100"** at 13px in the far-right corner with its only explanation in a `title` nobody hovers — on a page whose entire job is to rank. A labelled chip now, banded by the same thresholds as the rows.
+
+── §5.2: ONE OWNER FOR THREE IDENTICAL FILTER ROWS ─────────────────────────
+
+`ProjectFilters`, `InvestorFilters` and `OpportunityFilters` were three copies of one component — same shell, same `setParam` over `URLSearchParams`, same `w-auto` select, same clear affordance — differing only in which facets they listed, and `OpportunityFilters` hand-rolled its select class so its controls were a different height from the identical row two pages over. 301 lines became `UrlFacets` plus three facet lists.
+
+⚠ **THE AUDIT ASKED FOR ONE BAR ACROSS SIX PAGES AND THAT WOULD HAVE MADE TWO OF THEM WORSE.** /contacts and /leads filter with multi-select chips carrying counts, which is strictly better for those pages than a row of selects. The convergence that was real is the three that were already the same thing written three times.
+
+── THE SELECT CHEVRON: 140 CONTROLS, UNDER A COMMENT PROVING IT COULD NOT HAPPEN ──
+
+⚠ **IN TAILWIND v4, LAYER ORDER BEATS SPECIFICITY.** `globals.css` drew a themed chevron on every collapsed `<select>` and reserved `padding-right: 1.875rem` for it inside `@layer base`, beside a long ⚠ note arguing the rule was safe because `select:not([multiple]):not([size])` is (0,2,1) and beats a `.px-3` utility at (0,1,0). **The arithmetic is right and the conclusion is wrong**: Tailwind v4 emits utilities into a real `@layer utilities` declared after `base`, and the cascade resolves LAYER before it looks at specificity at all. Measured on /projects: every filter select computed **`padding-right: 10px`**, not 30, with the chevron sitting on the last letter of "All Statuses" and "All Stages". App-wide, for months. The rule is UNLAYERED now — the one mechanism that actually wins — and the computed value is 30px. ⚠ The general lesson is about WHICH ARGUMENT a load-bearing comment makes: a specificity calculation written before the codebase had cascade layers stays arithmetically correct and stops being true, so it reads as verified long after it is.
+
+── TWO THINGS DELIBERATELY NOT BUILT ───────────────────────────────────────
+
+⚠ **§5.4's SAVED VIEWS.** The audit calls them "the Attio-defining feature" and notes the data model supports them. It does. But `ProjectFilters` carries a long note on the `localStorage` filter replay that was REMOVED from this page: it made a bare `/projects` render DIFFERENTLY for each executive **with no way for the sender of a link to tell**, and re-rendered the list under the reader after hydration. A named view in per-reader storage reintroduces exactly that property, and the remedy already recorded in that comment — *bookmark the filtered URL* — is SHAREABLE, which a saved view would not be. Not building it is the deliverable, and the reason is recorded in `OPEN-ITEMS.md` rather than left as a silent gap.
+
+⚠ **§5.3's DELTA LINE.** *"↑ 4.2% vs last month"* needs a comparison the platform does not store — there are no historical portfolio snapshots. The audit's own instruction is to omit the line rather than ship a placeholder, so this is a schema question before it is a UI one: a `portfolio_snapshots` table taking one row a week would make it half a day of interface.
+
+── VERIFICATION ────────────────────────────────────────────────────────────
+
+745 tests. Lint 23, unchanged. Contrast swept across five routes in both themes: 0 invisible elements. Two rules into `HARD-WON-RULES.md` (242 → 244) with the claim and the fix into §12.
+
+**All five phases of the audit are now shipped.**
+
 **Done 2026-10-27 (the UI audit, Phase 5 — the toggle that settles two arguments with the audit):**
 
 ── THE DENSITY TOGGLE ──────────────────────────────────────────────────────

@@ -87,6 +87,10 @@ export default function NowObjectivesList({
   })
 
   const shown = dnd.preview
+
+  const lastRow = (n: number, cols: number) => (n % cols === 0 ? cols : n % cols)
+
+  const wideColumns = lastRow(shown.length, 3) >= lastRow(shown.length, 2)
   const held = dnd.heldId ? shown.find((o) => o.id === dnd.heldId) : undefined
 
   if (items.length === 0) return null
@@ -123,6 +127,8 @@ export default function NowObjectivesList({
         </div>
       )}
 
+      {/* Of the two widths, the one whose last row is fullest. A remainder of
+          0 means the row is complete, so it beats any non-zero remainder. */}
       {/*
         ⚠ ONE COLUMN WHILE IT IS DRAGGABLE, NOT THREE. The resting layout is a
         3-up grid, which reads well — but a grid gives a vertical arrow press
@@ -132,11 +138,22 @@ export default function NowObjectivesList({
         a card is held it collapses to one column so the gesture matches what
         the eye sees.
       */}
+      {/*
+        ⚠ THE COLUMN COUNT IS CHOSEN SO THE LAST ROW IS NEVER AN ORPHAN. At a
+        fixed `xl:grid-cols-3` four objectives render 3 + 1 — a lone card on
+        its own row under a full one, which reads as a layout accident rather
+        than as a list. Four is the live case and will stay common, since this
+        panel is capped at a handful by design.
+        The rule: of the two candidate widths, take the one that leaves the
+        FULLEST last row (4 → 2 columns, 5 → 3, 6 → 3), preferring 3 on a tie.
+        ⚠ Two LITERAL class strings, never `grid-cols-${n}` — a Tailwind class
+        assembled at runtime is a class Tailwind never generated (§12).
+      */}
       <ol
         {...dnd.laneProps('now')}
         className={cn(
           'grid gap-x-6 gap-y-2',
-          dnd.dragging ? 'grid-cols-1' : 'sm:grid-cols-2 xl:grid-cols-3',
+          dnd.dragging ? 'grid-cols-1' : wideColumns ? 'sm:grid-cols-2 xl:grid-cols-3' : 'sm:grid-cols-2',
           dnd.isDropTarget('now') && dnd.keyboard && 'rounded-md ring-2 ring-primary ring-offset-4 ring-offset-card'
         )}
       >

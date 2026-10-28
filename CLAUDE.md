@@ -15,7 +15,7 @@ Canonical reference for every Claude Code session working on the Ber Wilson plat
 | File | Holds | Split out |
 |---|---|---|
 | [`docs/BUILD-LOG.md`](docs/BUILD-LOG.md) | the session-by-session history, with the reasoning and measurements behind every decision | 2026-09-23, at 606k characters |
-| [`docs/HARD-WON-RULES.md`](docs/HARD-WON-RULES.md) | every rule in full, with its evidence; §12 keeps the claim and the fix. ⚠ Count it, never trust a number here: `grep -c "^- \*\*" docs/HARD-WON-RULES.md` (242 on 10-27) | 2026-10-12, at 150k |
+| [`docs/HARD-WON-RULES.md`](docs/HARD-WON-RULES.md) | every rule in full, with its evidence; §12 keeps the claim and the fix. ⚠ Count it, never trust a number here: `grep -c "^- \*\*" docs/HARD-WON-RULES.md` (244 on 10-27) | 2026-10-12, at 150k |
 | [`docs/OPEN-ITEMS.md`](docs/OPEN-ITEMS.md) | the full open-items table; §13 keeps only the rows wanting a decision from Richard | 2026-10-01, at 143k |
 
 **Builder:** Richard (EVP, Ber Wilson) — builds in Claude Code terminal. Not a developer.
@@ -409,7 +409,7 @@ As of 2026-10-21 there is one destination and one table for contacts: the Vendor
 
 Each line is a bug that cost real hours, several of them twice. **The full
 version of every rule — the story, the measurement, the date — is in
-[`docs/HARD-WON-RULES.md`](docs/HARD-WON-RULES.md)** (242 rules on 10-27, counted not incremented; not
+[`docs/HARD-WON-RULES.md`](docs/HARD-WON-RULES.md)** (244 rules on 10-27, counted not incremented; not
 auto-loaded, grep it). What follows is the claim and the fix.
 
 ⚠ **BEFORE ADDING A RULE, read THE BAR FOR A NEW RULE at the end of this file**
@@ -570,6 +570,7 @@ and grep both files first — if an existing line covers it, extend that line.
 - **A PRIMITIVE ONLY STYLES WHAT USES IT; COUNT THE BYPASSES BEFORE RESTYLING ONE.** 2,214 colour classes bypassed the palette and 274 buttons bypassed `<Button>` (34 files used it), so two sessions' restyling reached almost nothing. ⚠ **A changed DEFAULT also reaches nobody who has used the app: ship a new storage key.**
 - **A FILL AND AN INK OF THE SAME LIGHTNESS IS INVISIBLE TEXT, AND NO TYPECHECK SEES IT** — 13 controls shipped white-on-near-white, all green. `bg-foreground` takes `text-background`; `bg-card`/`bg-muted` take `text-foreground`. A shade-based codemod cannot tell a tinted surface from a solid fill — its COMPANION INK can. Asserted in `conventions.test.ts`.
 - **AN OPACITY MODIFIER ONLY EVER RIDES A COLOUR UTILITY — elsewhere a `/` is a typo Tailwind drops silently, leaving the fill at full strength.** `bg-primary elev-1/10 text-primary` = 138 invisible buttons, all green. Assert the SHAPE of a modifier, not a slash.
+- **IN TAILWIND v4 LAYER ORDER BEATS SPECIFICITY: a `@layer base` rule loses to ANY utility.** A chevron's reserved `padding-right` lost to `px-2.5` on 140 selects, under a comment proving by specificity it could not. Unlayer it; measure the computed value.
 - **`overflow-x: auto` AND `overflow: hidden` BOTH MAKE A SCROLL CONTAINER, so a `sticky` child sticks to nothing** — every class correct, inert. Scope the overflow, use `isolate` for a stacking context, and verify by SCROLLING.
 - **A Tailwind class string stored in the database is never generated.** Store a tone NAME against a palette declared literally in source, and reject an unknown tone.
 - **A nav item's `alsoMatches` may only name paths with no nav item of their own**, and a filter kept only in component state is not a view — put it in the URL.
@@ -681,7 +682,7 @@ Ordered against the two jobs in **WHAT THIS FILE IS** — query the corpus, and 
 Newest first, and the window is measured in ENTRIES rather than days — six sessions landed on 10-19 alone. ⚠ **Each session pays for its own entry by folding an older one.** **Consolidate rather than drop another session's history**, and VERIFY the fold target is in [`docs/BUILD-LOG.md`](docs/BUILD-LOG.md) by its own `**Done <date>` heading, not by this file's wording — which is a condensation. The log is the only place an entry ever goes.
 
 - **10-26 + 10-27 (the re-skin saga, five sessions; in the log)** — *"modern like Attio, Domo"* → *"literally nothing look any different"* → *"I still want Dark Mode."* ⚠ **ONE BUG, THREE LAYERS: A PRIMITIVE ONLY STYLES WHAT USES IT.** 2,214 raw colour classes in 135 files bypassed the palette; **274 hand-rolled buttons bypassed `<Button>`** while 34 files used it; and a stored `theme:'dark'` meant **a changed default reached nobody who had used the app**. ⚠ **THE ACCENT HAD NO BASIS IN THE BRAND** — nobody had opened the logo (**terracotta `#ca6e55`, sage, ochre**). ⚠ **LAYOUTS WERE NEVER TOUCHED** until `/projects` got a **table**. Also `BW_DIST_DIR` and the CDP shot harness. **DEPLOYED**
-- **10-27 (Richard's UI audit, Phases 1–5; in the log)** — ⚠ **ONE MISPLACED CHARACTER MADE 138 BUTTONS INVISIBLE**, green through typecheck, build and 730 tests. ⚠ **NEW INSTRUMENT `scripts/ui/measure.mjs` + `probes.mjs`** for what a screenshot passes — building it found **five ways to measure nothing**, each caught by the EXAMINED count, not the hits. ⚠ **TEN OF THE AUDIT'S ITEMS WERE ALREADY DONE OR UNEXECUTABLE AS WRITTEN** while its three biggest claims were all understated — verify an audit's premises before acting on them, both ways. **DEPLOYED**
+- **10-27 (Richard's UI audit, Phases 1–5; in the log)** — ⚠ **ONE MISPLACED CHARACTER MADE 138 BUTTONS INVISIBLE**, green through typecheck, build and 730 tests. ⚠ **NEW INSTRUMENT `scripts/ui/measure.mjs` + `probes.mjs`** for what a screenshot passes — building it found **five ways to measure nothing**, each caught by the EXAMINED count. ⚠ **TWELVE AUDIT ITEMS WERE ALREADY DONE OR UNEXECUTABLE** while its three biggest claims were understated — verify a premise both ways. **DEPLOYED**
 Older sessions are not listed here.
 
 ## AT THE END OF EVERY SESSION
