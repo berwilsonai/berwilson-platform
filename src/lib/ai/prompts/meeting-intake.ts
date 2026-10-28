@@ -18,7 +18,7 @@
 
 import type { EmailIntakePerson } from './email-intake'
 
-export const MEETING_INTAKE_PROMPT_VERSION = 'meeting-intake-1.2'
+export const MEETING_INTAKE_PROMPT_VERSION = 'meeting-intake-1.3'
 
 export interface MeetingIntakeTask {
   title: string
@@ -97,7 +97,27 @@ export interface MeetingIntakeExtraction {
    * document saved to each target and the update/note added to each record.
    */
   minutes: string | null
+  /**
+   * The people who were actually IN the conversation.
+   *
+   * ⚠ NARROWED 2026-10-28, AND THE OLD WORDING WAS THE BUG. The prompt used to
+   * ask for everyone "present or referenced", which made this field a mix of
+   * the room and the market — measured on a two-person meeting that came back
+   * with twelve attendees including J.P. Morgan, New York Life, Maverick, Exos
+   * and Tenzer, none of whom was there, while neither person who WAS there was
+   * named correctly. The list feeds `meetings.attendees`, each attendee's
+   * profile feed and the `/contacts` → From calls queue, all three of which ask
+   * "who did we speak to" and none of which asks "who came up".
+   */
   attendees: EmailIntakePerson[]
+  /**
+   * People and organizations the conversation TALKED ABOUT but who were not in
+   * it — the half that used to be folded into `attendees`.
+   *
+   * Absent on sessions staged before 2026-10-28 (prompt version 1.3 and
+   * earlier), which is why it is optional: a reader must not assume it exists.
+   */
+  mentioned?: EmailIntakePerson[]
   /** Key decisions reached, one per string. Folded into the minutes/doc, not separate records. */
   decisions: string[]
   /** The existing projects/opportunities the meeting was about (advisory — human confirms). */
@@ -114,7 +134,8 @@ Produce:
 - "title": a short meeting subject. "meeting_date": the date it happened (YYYY-MM-DD) if stated, else null.
 - "summary": 2-3 sentences an executive can skim.
 - "minutes": a clean multi-paragraph narrative of what was discussed, in logical order — the situation, what each topic covered, positions taken, dollar figures and terms, and open questions. Write it to stand alone for someone who wasn't in the room.
-- "attendees": every distinguishable person (and organization) present or referenced. Set is_organization=true for companies. Give each a short role (e.g. "Ber Wilson EVP", "GC principal", "lender", "owner's rep").
+- "attendees": ONLY the people who were actually in this conversation — the ones who speak, are spoken to, or are introduced as being present. Give each a short role (e.g. "Ber Wilson EVP", "GC principal", "lender", "owner's rep"). A company is not an attendee: put the company in that person's "company" field. If the notes do not make clear who was in the room, return a short list or an empty one — a name you are unsure about belongs in "mentioned".
+- "mentioned": the people and organizations the conversation talked ABOUT but who were not in it — the bank being approached, the counterparty on another deal, a competitor, a person whose name came up. Set is_organization=true for companies here.
 - "decisions": the concrete decisions the group reached, one clear statement each. Omit if none were made.
 - "referenced_records": the specific projects and opportunities the meeting was about. Use "project" for built work Ber Wilson would build/bid/develop/deliver; use "opportunity" ONLY for a corporate transaction (acquiring a company, merger, divestiture, equity investment in a business). Give the record's name as spoken and a short note on how the meeting touched it. Include a record even if you're only fairly sure it exists — the human will match it. Also fill "location", "sector" and "estimated_value" from what the meeting actually said about that deal, and null for any the meeting did not state. A broker or site-selection call names many properties in one hour: list every one as its own referenced record rather than folding them into a single entry, because each is a separate decision.
   Each referenced record also gets "discussion": everything this meeting said about THAT DEAL AND NOTHING ELSE, as one or two paragraphs written to be read on that deal's own page by someone who was not in the room and does not care about the other deals. Include its figures, dates, terms, positions taken and open questions. Do NOT summarize the meeting as a whole here, do not mention the other records except where the meeting genuinely connected them (e.g. "priced against the Riverdale offer"), and do not repeat "minutes". If the meeting only named the deal in passing with nothing said about it, set "discussion" to null — a record that was merely mentioned must not be given a paragraph that implies it was discussed.
@@ -131,6 +152,7 @@ Return ONLY valid JSON matching exactly this shape (no markdown, no commentary):
   "summary": string,
   "minutes": string,
   "attendees": [{ "name": string, "email": string|null, "company": string|null, "title": string|null, "role": string|null, "is_organization": boolean }],
+  "mentioned": [{ "name": string, "email": string|null, "company": string|null, "title": string|null, "role": string|null, "is_organization": boolean }],
   "decisions": [string],
   "referenced_records": [{ "kind": "project" | "opportunity", "name": string, "note": string|null, "discussion": string|null, "location": string|null, "sector": string|null, "estimated_value": number|null }],
   "tasks": [{ "title": string, "what": string|null, "why": string|null, "how": string|null, "assignee": string|null, "due_date": string|null, "record_hint": string|null }],

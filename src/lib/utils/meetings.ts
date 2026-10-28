@@ -98,6 +98,17 @@ export interface MeetingAttendee {
   name: string
   role: string | null
   org: string | null
+  /**
+   * The address this person was invited at, when a calendar invitation named
+   * them (`src/lib/meetings/calendar-match.ts`).
+   *
+   * ⚠ KEPT BECAUSE IT IS THE ONLY KEY ON THE ROW THAT CANNOT BE TWO PEOPLE
+   * (§12: a mailbox is a better key than a name). The attendee list is jsonb,
+   * so this costs no migration; what it buys is that a slot nobody has linked
+   * yet can still be resolved exactly later, and that a second recording of the
+   * same series unions onto the same person rather than beside them.
+   */
+  email: string | null
   /** Linked directory contact (parties.id) — set when picked from Contacts or a
    *  team member with a linked contact. Drives the contact-profile activity log. */
   party_id: string | null
@@ -122,6 +133,7 @@ export function parseAttendees(value: unknown): MeetingAttendee[] {
       // accept `title` as an alias for role (the meeting-intake shape uses title)
       role: optStr(o.role) ?? optStr(o.title),
       org: optStr(o.org) ?? optStr(o.company),
+      email: optStr(o.email)?.toLowerCase() ?? null,
       party_id: optStr(o.party_id),
       team_member_id: optStr(o.team_member_id),
     })

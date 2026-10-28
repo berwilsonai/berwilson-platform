@@ -89,7 +89,13 @@ export default function MeetingForm({ scope, projectId, opportunityId, meeting, 
         summary?: string
         minutes?: string | null
         decisions?: string[]
-        attendees?: { name: string; role?: string | null; title?: string | null; company?: string | null }[]
+        attendees?: {
+          name: string
+          role?: string | null
+          title?: string | null
+          company?: string | null
+          email?: string | null
+        }[]
       }
       if (!title && ex.title) setTitle(ex.title)
       if (ex.summary) setSummary(ex.summary)
@@ -101,6 +107,7 @@ export default function MeetingForm({ scope, projectId, opportunityId, meeting, 
             name: a.name,
             role: a.role ?? a.title ?? null,
             org: a.company ?? null,
+            email: a.email?.toLowerCase() ?? null,
             party_id: null,
             team_member_id: null,
           })),

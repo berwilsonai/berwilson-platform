@@ -49,6 +49,13 @@ import { analyzeMeetingNotes, type SeedAttendee } from '@/lib/email-ingestion/an
 import type { MeetingIntakeExtraction } from '@/lib/ai/prompts/meeting-intake'
 import { SYSTEM_USER_ID } from '@/lib/email-ingestion/analyze'
 import { upsertMeetingFromImport } from '@/lib/meetings/record'
+import {
+  findRecordingCalendarEvent,
+  inviteeAttendees,
+  type CalendarMatchVia,
+  type RecordingClock,
+} from '@/lib/meetings/calendar-match'
+import type { MeetingAttendee } from '@/lib/utils/meetings'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { PRIMARY_MAILBOX } from '@/lib/integrations/google-workspace'
 
@@ -89,6 +96,19 @@ export interface LocalRecordingInput {
   partyOverrides?: { name: string; partyId: string }[]
   /** Whose recording this is. Defaults to the primary mailbox's owner. */
   mailbox?: string
+  /**
+   * When the recording was made, so the calendar invitation it was made in can
+   * be found — see `calendar-match.ts` for why this is worth an API call.
+   *
+   * ⚠ `exact` IS LOAD-BEARING AND EVERY CALLER MUST MEAN IT. A voice memo's
+   * creation time is the recording's; a Drive file's `modifiedTime` is the day
+   * somebody dragged it in, which here was four days late. Only an exact clock
+   * may match an event by TIME, and an inexact one searches ten days backward
+   * instead of one either side. Omit the block entirely and no calendar is
+   * read — which is the right answer for a source with neither a usable title
+   * nor a trustworthy clock, and the wrong answer for every source we have.
+   */
+  calendar?: RecordingClock
 }
 
 export interface LocalRecordingResult {
@@ -108,6 +128,11 @@ export interface LocalRecordingResult {
    * summary of a summary. Null whenever nothing was staged.
    */
   extraction: MeetingIntakeExtraction | null
+  /**
+   * The calendar invitation this recording was matched to, when one was — so a
+   * sweep can say so in its notes rather than leaving the join invisible.
+   */
+  calendar: { subject: string; date: string; via: CalendarMatchVia; attendees: number } | null
 }
 
 /**
@@ -116,16 +141,91 @@ export interface LocalRecordingResult {
 export async function recordLocalRecording(
   input: LocalRecordingInput
 ): Promise<LocalRecordingResult> {
-  if (!input.transcript.trim()) return { meetingId: null, sessionId: null, skipped: 'no transcript', extraction: null }
+  if (!input.transcript.trim()) {
+    return { meetingId: null, sessionId: null, skipped: 'no transcript', extraction: null, calendar: null }
+  }
+
+  // ── The invitation this recording was made in, found before anything else ──
+  //
+  // ⚠ MATCHED ON THE OUTSIDE WORLD'S TITLE, NEVER THE MODEL'S. §12: a model's
+  // title names a topic and a human's title names a record, and only the second
+  // may file. `input.title` is the file name or the memo name — the string a
+  // person typed — and `extraction.title` does not exist yet, which is the
+  // cheapest possible way to keep that rule.
+  //
+  // Non-fatal in every direction: a calendar that cannot be read, a recording
+  // that matches nothing, and a source that passed no clock all land here as
+  // `null` and cost exactly the attendee list.
+  const matched = input.calendar
+    ? await findRecordingCalendarEvent({ title: input.title, clock: input.calendar }).catch((err) => {
+        console.error('[meetings/record-local] calendar lookup failed:', err)
+        return null
+      })
+    : null
+
+  let asserted: MeetingAttendee[] = matched
+    ? await inviteeAttendees(matched.event).catch((err) => {
+        console.error('[meetings/record-local] invitee resolution failed:', err)
+        return [] as MeetingAttendee[]
+      })
+    : []
+
+  // ⚠ A CLOCK-ONLY MATCH MUST AGREE WITH WHAT THE CALLER ALREADY KNOWS, OR IT
+  // IS REFUSED. The clock join says "this recording started inside that event",
+  // which is conclusive for a voice memo of a meeting and merely plausible for
+  // a phone call — an unscheduled call is most often taken during blocked time,
+  // and attaching the room of a meeting somebody stepped out of would put four
+  // strangers on a two-person call. So where a source hands in a person it is
+  // SURE of (iOS's `Call with <name>`), the invitation has to contain them.
+  // §12: ambiguity must mean no match, and a title match needs no such
+  // corroboration because it is already a second signal.
+  const knownNames = [
+    ...(input.seedAttendees ?? []).map((a) => a.name),
+    ...(input.partyOverrides ?? []).map((o) => o.name),
+  ]
+    .map((n) => n.trim().toLowerCase())
+    .filter(Boolean)
+  const knownPartyIds = new Set((input.partyOverrides ?? []).map((o) => o.partyId))
+  const contradicted =
+    matched?.via === 'clock' &&
+    knownNames.length > 0 &&
+    !asserted.some(
+      (a) =>
+        (a.party_id && knownPartyIds.has(a.party_id)) ||
+        knownNames.includes(a.name.trim().toLowerCase())
+    )
+  if (contradicted) {
+    console.log(
+      `[meetings/record-local] "${input.title}" overlaps "${matched!.event.subject}" in time, but the ` +
+        `invitation does not name ${knownNames.join(' / ')} — treated as a coincidence, not a join`
+    )
+    asserted = []
+  }
+  const event = contradicted ? null : matched
+
+  // ⚠ THE INVITATION'S DATE BEATS BOTH THE FILE'S AND THE MODEL'S. The file's
+  // clock may be its upload time (10-27 for a conversation held on the 23rd,
+  // measured) and the model's `meeting_date` is a reading of prose that usually
+  // never states one. An event on the calendar is neither: somebody put it
+  // there, and it is the only hard date in the chain.
+  const invitedOn = event ? localDateString(event.event.start) : null
+  const meetingDate = invitedOn ?? input.meetingDate
 
   let staged
   try {
     staged = await analyzeMeetingNotes({
       rawText: input.transcript,
       title: input.title,
-      meetingDate: input.meetingDate,
+      meetingDate,
       userId: SYSTEM_USER_ID,
-      seedAttendees: input.seedAttendees ?? [],
+      // The invitees are handed to the model as well as asserted onto the row:
+      // knowing who was in the room makes the minutes and the task assignees
+      // better, and the assertion below is what makes them survive if it
+      // ignores them.
+      seedAttendees: [
+        ...(input.seedAttendees ?? []),
+        ...asserted.map((a) => ({ name: a.name, email: a.email })),
+      ],
       driveFileId: input.sourceRef,
       sourceTitle: input.title,
       retainText: input.transcript,
@@ -135,18 +235,27 @@ export async function recordLocalRecording(
     // The unique index on `drive_file_id` is the real guard against two runs
     // staging one recording. Losing that race is a no-op, not a failure.
     if (msg.includes('23505') || msg.includes('drive_file_id')) {
-      return { meetingId: null, sessionId: null, skipped: 'already staged by an earlier run', extraction: null }
+      return { meetingId: null, sessionId: null, skipped: 'already staged by an earlier run', extraction: null, calendar: null }
     }
-    return { meetingId: null, sessionId: null, skipped: `recap failed: ${msg}`, extraction: null }
+    return { meetingId: null, sessionId: null, skipped: `recap failed: ${msg}`, extraction: null, calendar: null }
   }
 
   const extraction = staged.extraction
+  const calendar = event
+    ? {
+        subject: event.event.subject,
+        date: invitedOn ?? meetingDate,
+        via: event.via,
+        attendees: asserted.length,
+      }
+    : null
 
   const meeting = await upsertMeetingFromImport({
     // The model's rewrite is what a reader scans in a list; the outside world's
     // title is kept on the session as `source_title`.
     title: extraction.title ?? input.title,
-    meetingDate: extraction.meeting_date ?? input.meetingDate,
+    // An invitation's date is a fact and the model's is a reading — see above.
+    meetingDate: invitedOn ?? extraction.meeting_date ?? input.meetingDate,
     summary: extraction.summary || null,
     minutes: extraction.minutes,
     decisions: extraction.decisions,
@@ -159,7 +268,8 @@ export async function recordLocalRecording(
     // answer.
     target: null,
     partyMatches: staged.party_matches,
-    partyOverrides: await withOwner(input.partyOverrides ?? [], input.mailbox),
+    partyOverrides: await withOwner(input.partyOverrides ?? [], input.mailbox, asserted),
+    assertedAttendees: asserted,
   }).catch((err) => {
     console.error('[meetings/record-local] meeting record failed:', err)
     return null
@@ -171,9 +281,10 @@ export async function recordLocalRecording(
       sessionId: staged.session_id,
       skipped: 'the meeting record could not be written',
       extraction,
+      calendar,
     }
   }
-  return { meetingId: meeting.id, sessionId: staged.session_id, skipped: null, extraction }
+  return { meetingId: meeting.id, sessionId: staged.session_id, skipped: null, extraction, calendar }
 }
 
 /**
@@ -185,7 +296,8 @@ export async function recordLocalRecording(
  */
 async function withOwner(
   overrides: { name: string; partyId: string }[],
-  mailbox: string = PRIMARY_MAILBOX
+  mailbox: string = PRIMARY_MAILBOX,
+  asserted: MeetingAttendee[] = []
 ): Promise<{ name: string; partyId: string }[]> {
   const out = [...overrides]
   try {
@@ -194,7 +306,16 @@ async function withOwner(
       .select('name, party_id')
       .eq('email', mailbox)
       .maybeSingle()
-    if (data?.party_id && data.name) out.push({ name: data.name, partyId: data.party_id })
+    if (!data?.party_id || !data.name) return out
+    // ⚠ NOT TWICE, AND THE TWO ROWS WOULD NOT HAVE LOOKED LIKE DUPLICATES. An
+    // override is matched by NAME, and `team_members.name` is the login's short
+    // form ("Richard") while the invitation resolves the directory's full one
+    // ("Richard White") — so adding both would put the same person on the row
+    // under two names with the same `party_id`, and `syncAttendeeActivity`
+    // would log the meeting on their profile twice. Keyed on the id, which is
+    // the thing that is actually the same.
+    if (asserted.some((a) => a.party_id === data.party_id)) return out
+    out.push({ name: data.name, partyId: data.party_id })
   } catch {
     /* one attendee link, never the record */
   }

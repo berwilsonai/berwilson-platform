@@ -433,12 +433,23 @@ export async function runDriveAudioSweep(
       meetingDate: localDateString(file.recordedAt),
       transcript,
       sourceRef: driveAudioThreadId(file.fileId),
-      // ⚠ NO SEEDED ATTENDEES, AND THAT IS THE HONEST ANSWER. An iPhone call
-      // recording hands this iOS's `Call with <name>`, which is structural
-      // evidence about both ends. A hardware recorder names nobody: who was
-      // there is whatever the transcript says, which the recap stages for a
-      // human rather than asserting. (Saying the names aloud in the first ten
-      // seconds is the cheapest fix there is, and it is a habit, not code.)
+      // ⚠ THE CALENDAR NAMES THE ROOM WHERE THE TRANSCRIPT ONLY GUESSES AT IT.
+      // This comment used to say a hardware recorder names nobody, which was
+      // true of the FILE and false of the day: measured 2026-10-28, a Plaude
+      // export called `10-23_Ber_Wilson_meeting_w_Brent_Bennett` sat four days
+      // from an invitation of almost exactly that name carrying both people's
+      // addresses, and the twelve attendees the transcript produced included
+      // neither of them. See `calendar-match.ts`.
+      //
+      // ⚠ `exact: false` BECAUSE `recordedAtSource` SAYS SO, AND THIS IS THE
+      // ONE SOURCE WHERE IT USUALLY DOES. A name carrying a full date gives the
+      // recorder's own clock; everything else falls back to Drive's
+      // `modifiedTime`, which is when somebody dragged the file in. An inexact
+      // clock may not match an event by TIME and searches ten days backward.
+      calendar: {
+        recordedAt: file.recordedAt,
+        exact: file.recordedAtSource === 'file-name',
+      },
     }).catch((err) => {
       console.error('[driveaudio] meeting record failed:', err)
       return null

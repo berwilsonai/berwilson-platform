@@ -429,12 +429,15 @@ export async function runVoiceMemoSweep(
       meetingDate: localDateString(memo.createdAt),
       transcript,
       sourceRef: memoThreadId(memo.identifier),
-      // ⚠ NO SEEDED ATTENDEES, AND THAT IS THE HONEST ANSWER. A phone call
-      // hands this `Call with <name>` from iOS, which is structural evidence
-      // about both ends. An in-person recording names nobody: who was in the
-      // room is whatever the transcript says, which the recap stages for a
-      // human rather than asserting. (Saying the names aloud in the first ten
-      // seconds is the cheapest fix there is, and it is a habit, not code.)
+      // ⚠ THE WORST TITLES AND THE BEST CLOCK, WHICH IS WHY THIS SOURCE GAINS
+      // THE MOST. Every memo on the phone is still named with an ISO timestamp
+      // (§13), so the title join can never fire here — but `createdAt` is the
+      // recorder's OWN time, so a memo that starts inside a calendar event's
+      // span IS that meeting, and its invitees are the room. That is the
+      // `clock` join in `calendar-match.ts`, and it needs no habit from
+      // anybody: an in-person meeting that was on the calendar now arrives with
+      // its attendees whatever the audio did or did not catch.
+      calendar: { recordedAt: memo.createdAt, exact: true },
     }).catch((err) => {
       console.error('[voicememos] meeting record failed:', err)
       return null

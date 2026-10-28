@@ -223,9 +223,12 @@ export async function ingestUploadedRecording(
     meetingDate: occurredOn,
     transcript,
     sourceRef: fingerprint,
-    // No seeded attendees: an uploaded recording names nobody structurally, so
-    // who was in the room is whatever the transcript says and the recap stages
-    // it for a human rather than asserting it.
+    // ⚠ THE RECORD IS ASSERTED HERE, THE ROOM STILL IS NOT — so the calendar is
+    // asked, on the same terms as every other door (`calendar-match.ts`). The
+    // title is whatever the person called the file, which is often the meeting;
+    // the clock is `occurredOn`, which a human may have typed and otherwise
+    // defaults to today, so it is NOT the recorder's and may not join on time.
+    calendar: { recordedAt: new Date(`${occurredOn}T12:00:00`).toISOString(), exact: false },
   }).catch((err) => {
     console.error('[audio/upload] meeting record failed:', err)
     return null

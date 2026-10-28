@@ -36,6 +36,8 @@ import { splitGeminiNotes } from '@/lib/meetings/gemini-notes'
 import { resolveMeetingTarget, fileMeetingDocument, type FileTarget } from '@/lib/meetings/file-notes'
 import { promoteAndAlert, type PromotionReport } from '@/lib/audio/promote'
 import { upsertMeetingFromImport, linkDocumentToMeeting } from '@/lib/meetings/record'
+import { inviteeAttendees } from '@/lib/meetings/calendar-match'
+import type { MeetingAttendee } from '@/lib/utils/meetings'
 import { isOwnCompanyName } from '@/lib/utils/own-company'
 
 /**
@@ -416,10 +418,21 @@ async function importOne(
   const event = matchCalendarEvent(title, events)
 
   const meetingDate = localDateString(event?.start || file.modifiedTime)
-  const seedAttendees: SeedAttendee[] = (event?.attendees ?? []).map((a) => ({
-    name: a.name,
-    email: a.email,
-  }))
+  // ⚠ SEEDING THE PROMPT IS NOT THE SAME AS RECORDING THE ROOM, and until
+  // 2026-10-28 this path did only the first. A seed is handed to the model and
+  // survives onto the row only if the model repeats it; `assertedAttendees`
+  // below is written whatever the recap said, resolved to directory contacts by
+  // ADDRESS, which is the one key that cannot be two people (§12). Same
+  // resolver as every other recording door — see `calendar-match.ts`.
+  const asserted: MeetingAttendee[] = event
+    ? await inviteeAttendees(event).catch((err) => {
+        console.error('[meet-import] invitee resolution failed:', err)
+        return [] as MeetingAttendee[]
+      })
+    : []
+  const seedAttendees: SeedAttendee[] = asserted.length
+    ? asserted.map((a) => ({ name: a.name, email: a.email }))
+    : (event?.attendees ?? []).map((a) => ({ name: a.name, email: a.email }))
 
   // Resolve the filing target from the title BEFORE staging, so the review
   // screen opens with it selected rather than making the reviewer find it.
@@ -482,6 +495,7 @@ async function importOne(
     transcript: whole,
     driveFileId: file.id,
     target,
+    assertedAttendees: asserted,
   }).catch((err) => {
     console.error('[meet-import] meeting record failed:', err)
     return null

@@ -148,6 +148,21 @@ function normalize(
             is_organization: p.is_organization === true,
           }))
       : [],
+    // Who was talked ABOUT. Parsed exactly like `attendees` so one shape serves
+    // both, and deliberately left off the meeting row: a company that came up
+    // on a call is not somebody we met (prompt 1.3).
+    mentioned: Array.isArray(r.mentioned)
+      ? r.mentioned
+          .filter((p) => p && nullableStr(p.name))
+          .map((p) => ({
+            name: (p.name as string).trim(),
+            email: nullableStr(p.email),
+            company: nullableStr(p.company),
+            title: nullableStr(p.title),
+            role: nullableStr(p.role),
+            is_organization: p.is_organization === true,
+          }))
+      : [],
     decisions: Array.isArray(r.decisions)
       ? r.decisions.map((d) => nullableStr(d)).filter((d): d is string => !!d)
       : [],

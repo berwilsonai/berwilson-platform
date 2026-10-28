@@ -58,6 +58,18 @@ export interface MeetingRecordInput {
    * anything in the transcript — see `src/lib/notes/call-party.ts`.
    */
   partyOverrides?: { name: string; partyId: string }[] | null
+  /**
+   * People a STRUCTURAL source says were there — today, the invitees on the
+   * calendar event this recording was made in (`calendar-match.ts`).
+   *
+   * ⚠ ASSERTED, NOT SUGGESTED, WHICH IS THE WHOLE DIFFERENCE FROM
+   * `seedAttendees`. A seed is handed to the model and survives only if the
+   * model repeats it; measured 2026-10-28, a recording whose invitation named
+   * two people by address came back with twelve attendees and neither of them.
+   * These are unioned onto the row after the extraction, on the address first
+   * and the name second, and are never dropped for not being heard.
+   */
+  assertedAttendees?: MeetingAttendee[] | null
 }
 
 /**
@@ -128,10 +140,54 @@ export async function linkAttendees(
       // been given, which is the only case where two answers can disagree.
       at.party_id = o.partyId
     } else {
-      out.push({ name: o.name.trim(), role: null, org: null, party_id: o.partyId, team_member_id: null })
+      out.push({ name: o.name.trim(), role: null, org: null, email: null, party_id: o.partyId, team_member_id: null })
     }
   }
 
+  return out
+}
+
+/**
+ * Union the people a structural source NAMED onto the people a model HEARD.
+ *
+ * ⚠ ON THE ADDRESS FIRST AND THE NAME SECOND, AND THE TWO ARE NOT THE SAME
+ * STRENGTH. An email is the one key here that cannot be two people (§12); a
+ * name off a transcript is "Eric" or "Ber Wilson Executive". So an invitee
+ * folds into an existing slot when the addresses agree, or when the names do,
+ * and otherwise joins the list — because the failure being fixed is an attendee
+ * who is simply absent, and a duplicate row is one click to delete where a
+ * missing person is invisible forever.
+ *
+ * ⚠ THE ASSERTION WINS ON EVERY FIELD IT CARRIES. Where a slot already exists,
+ * its `party_id`, `email`, `team_member_id` and name are taken from the
+ * invitation, because the invitation is a fact and the slot is a reading — this
+ * is exactly the case that put the "Ber Wilson" ORGANIZATION's id on a slot
+ * named "Richard White". The model's `role` and `org` are kept where the
+ * invitation has none: "GC principal" is real information the calendar does not
+ * carry.
+ */
+export function unionAssertedAttendees(
+  heard: MeetingAttendee[],
+  asserted: MeetingAttendee[] | null | undefined
+): MeetingAttendee[] {
+  const out = heard.map((a) => ({ ...a }))
+  for (const person of asserted ?? []) {
+    const email = person.email?.trim().toLowerCase() || null
+    const name = person.name.trim().toLowerCase()
+    const slot =
+      (email ? out.find((a) => (a.email ?? '').toLowerCase() === email) : undefined) ??
+      out.find((a) => a.name.trim().toLowerCase() === name)
+    if (!slot) {
+      out.push({ ...person, name: person.name.trim(), email })
+      continue
+    }
+    slot.name = person.name.trim()
+    slot.email = email ?? slot.email
+    slot.party_id = person.party_id ?? slot.party_id
+    slot.team_member_id = person.team_member_id ?? slot.team_member_id
+    slot.role = slot.role ?? person.role
+    slot.org = person.org ?? slot.org
+  }
   return out
 }
 
@@ -207,8 +263,11 @@ export async function upsertMeetingFromImport(
   }
 
   const scope = scopeFor(input.target)
+  // The invitation is folded in BEFORE the identity matcher runs, so an invitee
+  // who is already a contact arrives linked and one who is not still reaches the
+  // findings queue as a named slot.
   const attendees = await linkAttendees(
-    parseAttendees(input.attendees),
+    unionAssertedAttendees(parseAttendees(input.attendees), input.assertedAttendees),
     input.partyMatches,
     input.partyOverrides
   )

@@ -6,6 +6,71 @@ This file is **not** auto-loaded into a Claude Code session. It is the archive: 
 
 Split out of `CLAUDE.md` on 2026-09-23, when that file reached 606k characters against a 150k limit above which it is silently truncated — meaning the project's own operating instructions had begun to risk not reaching the sessions that need them. The entries below are **verbatim and unedited**.
 
+**Done 2026-10-28 (a recording is joined to its calendar invitation, and the attendees stop being a guess):**
+
+Richard, on a recording that had been transcribed, filed and registered the day before: *"Somehow you didn't pull in the meeting attendee in the calendar invite. Will you make sure that when you correlate a recording to a meeting in the calendar that it adds those people as attendees?"*
+
+── THE MEASUREMENT, BEFORE ANY CODE ───────────────────────────────────────
+
+A Plaude export named `10-23_Ber_Wilson_meeting_w_Brent_Bennett.mp3`, read out of the Drive intake folder. Its `meetings` row, on the live database:
+
+| | |
+|---|---|
+| attendees recorded | **5** — Richard White, Damon, Reef Capital, Casey Evans, Brent |
+| attendees the model originally extracted | **12** — including J.P. Morgan, New York Life, Maverick, Exos, Taurus, Tenzer, Fly & Jay |
+| people actually in the room | **2** |
+| `party_id` on the "Richard White" slot | `c46979df…` — which is **Ber Wilson, `is_organization = true`**. Our own company, wearing a person's name |
+| meeting date | **2026-10-27**. The conversation was on the **23rd** |
+
+And sitting on both executives' calendars, four days earlier, an API call away: **`Ber Wilson meeting w Brent Bennett`, 2026-10-23 12:30, attendees `moose@berwilson.com`, `brent@getbennett.com`, `tuaone@berwilson.com`** — all three accepted, all three with addresses.
+
+⚠ **ONLY ONE OF FIVE RECORDING DOORS HAD EVER LOOKED AT THE CALENDAR, AND EVEN IT DID NOT WRITE WHAT IT FOUND.** The Meet importer matched an event and handed the invitees to the model as `seedAttendees`. A seed is a hint: it survives onto the row only if the recap repeats it. The other four doors — Drive audio, voice memos, an iPhone call note, an uploaded mp3 — each carried a comment saying, in almost the same words, that nobody could be known structurally. Three of those comments were written on different days by different passes, which is §12's hardest fork to see. For any recording made during a meeting that was on the calendar, all four were simply wrong.
+
+⚠ **AND THE DATE DRIFTED FOR A REASON THAT WAS CORRECT BEHAVIOUR.** `recordedAtFromName` requires `20\d{2}`, so `10-23_…` has no year and the parser rightly refused it rather than reading two digits as a date — exactly what its docblock argues for. Drive's `modifiedTime` then stood in, which is the day somebody dragged the file in. No parser fix would have helped; the invitation is the only hard date in the chain.
+
+── WHAT WAS BUILT: `src/lib/meetings/calendar-match.ts`, ONE JOIN FOR FIVE DOORS ──
+
+**Two joins, both facts, neither a similarity score.**
+
+- **title** — exact once normalized, or containment either way, and containment only where the shorter string carries **three significant words**. Measured first: of **203 events** on the two executive calendars in 2026, **43 carry three tokens or fewer and 33 of those are one recurring personal event** ("KAVA Talks"); "Vultr Pregame", "Partnership Discussion" and "Meeting w/ Hannah" are the same shape. A two-word subject inside a long filename is a coincidence. The stopword list is deliberately tiny and holds no place names (§12) — `Meeting w/ Hannah` reduces to one significant word and is refused.
+- **clock** — a recording that starts inside an event's own span IS that meeting. This is the join for **voice memos**, the source with the worst titles and the best times: every memo on the phone is still named with an ISO timestamp, so the title join can never fire there, and `createdAt` is the recorder's own.
+
+⚠ **A SYMMETRIC CLOCK SLACK BROKE ON THE FIRST REAL CALENDAR IT MET.** 23 October holds `Prep for Ber Wilson meeting w Brent Bennett`, 12:15–12:30, ending exactly as the meeting starts. With ±20 minutes of slack a 12:35 recording was "contained" by both, the ambiguity rule refused the pair, and the clock join returned nothing for the very meeting it was written for. Back-to-back blocks are the normal shape of a worked calendar. Two fixes, each independently right: the span is **half-open `[start, end)`** with slack only *before* the start (a recording STARTS once, so the only honest allowance is for pressing record early), and the clock join **skips an event with no invitee but its organizer** — prep blocks, focus time, travel, lunch. A solo block has no room to report, so letting it compete could only ever cost a real match.
+
+⚠ **A CLOCK-ONLY MATCH MUST AGREE WITH WHAT THE CALLER ALREADY KNOWS.** Conclusive for a voice memo of a meeting; merely plausible for a phone call, which is most often taken *during* blocked time. So where a source hands in somebody it is sure of — iOS's `Call with <name>` — the invitation must contain them, or the overlap is logged as a coincidence and discarded. A title match needs no such corroboration; it is already a second signal.
+
+**The invitees are ASSERTED, not suggested.** New `assertedAttendees` on `MeetingRecordInput`, unioned at the one choke point every door already goes through (`unionAssertedAttendees` in `record.ts`) — **on the address first and the name second**, because an email is the one key on a meeting row that cannot be two people (§12) while a name off a transcript is "Eric" or "Ber Wilson Executive". Where a slot already exists the invitation wins on `party_id`, `email`, `team_member_id` and name, and the model keeps `role` — *"GC principal"* is real information the calendar does not carry. That rule is exactly what corrects the Ber Wilson-the-company id off Richard's slot.
+
+`MeetingAttendee` gained **`email`** (jsonb, no migration), and `tsc` named all four literal sites that had to learn it — which is the point of a required field.
+
+── THE SIZE BOUND, AND WHY IT IS A BOUND AND NOT A CLASSIFIER ─────────────
+
+The first dry run put **14 strangers** on a voice memo recorded during KAVA Talks, and an Apple iMIP proxy address on another. Invitee counts across the 203 events:
+
+`0:96  1:2  2:13  3:18  4:22  5:6  6:1  7:2  11:2  12:4  14:28  17:1  34:1  76:6  78:1`
+
+⚠ **THERE IS NO CLEAN GAP.** Twelve is `Ber Wilson/TensorIQ/Elite Solutions`, the prefab factory tour and both Vultr calls — real meetings whose attendee lists are worth having. Fourteen is twenty-eight occurrences of one community event. §12 warns that two identically shaped things fall either side of any number you pick, and 12 against 14 is precisely that. So the rule is deliberately **not** "refuse the event": above `SMALL_MEETING_INVITEES` the invitees who **already resolve to a contact or a colleague** are still asserted and only the strangers are dropped. A big deal call keeps its people; a webinar adds nobody to the directory queue. KAVA Talks went from 14 asserted to 2.
+
+⚠ **AN OPAQUE ADDRESS DROPS THE ADDRESS, NOT THE PERSON.** Three `…@imip.me.com` addresses are live on this calendar and **one of them is the organizer of a real meeting, who is our own Eric** — so filtering the invitee out lost a colleague from a meeting he called. Instead the address is discarded (asserting it as an email would be worse than having none, because everything downstream trusts an address exactly) and the display name is resolved against the directory under the same exact-name-plus-uniqueness rule `linkAttendees` uses. Eric now links. And one person gets one row whether they are on the invitation twice or not at all — keyed on the contact where there is one and the name where there is not, or `syncAttendeeActivity` logs the meeting on their profile twice.
+
+── THE SECOND HALF OF "MAKE IT MORE ACCURATE": THE PROMPT ─────────────────
+
+⚠ **THE TWELVE-ATTENDEE LIST WAS THE PROMPT DOING WHAT IT WAS TOLD.** `meeting-intake` asked for *"every distinguishable person (and organization) present **or referenced**"*. That one phrase makes the field a mix of the room and the market — and the field feeds `meetings.attendees`, every attendee's profile feed, and the `/contacts` → From calls queue, all three of which ask "who did we speak to" and none of which asks "who came up". Split at **prompt 1.3**: `attendees` is now the people actually in the conversation, with companies pushed into each person's `company`; a new `mentioned` list carries everybody talked *about*.
+
+⚠ **AND FIXING THE PRODUCER DID NOT FIX THE CONSUMER** (§12). `counterpartyName` in `from-recording.ts` — the gate on §11's 10-19 amendment, the one that decides whether a recording may create a deal — hunts the first organization in `attendees`. After 1.3 those live in `mentioned`. It now reads both, because every session staged before today has them in the old place and every session after has them in the new one.
+
+── THE BACKFILL, AND WHAT PROVING IT IDEMPOTENT FOUND ─────────────────────
+
+Every door is idempotent on `drive_file_id`, so the **eleven** recordings already registered would never be read again — the fix would have applied only to the twelfth. `scripts/backfill-meeting-calendar-attendees.mts` matches each against the calendar and unions through the *same* function the live path uses. It adds and corrects; it never deletes, because a human confirmed some of these lists and somebody can be in a room uninvited.
+
+The clock came free: a voice memo's `source_title` **is** its ISO instant, because the phone names every memo that way. A Drive export's name gives one where the exporter wrote it. A Notes call keeps neither, so it may only join on its title — and `Call with Eric Tuaone` matches nothing, correctly.
+
+**4 of 11 matched. The target recording: date 10-27 → 10-23, Richard's slot re-pointed from the company to the man, Brent carrying his address, Eric added.** The three remaining names on it — Damon, Reef Capital, Casey Evans — are prompt-1.2 artifacts a human confirmed, left in place and reported.
+
+⚠ **AND THE SECOND RUN REPORTED 1 CHANGED, WHICH IS THE ONLY REASON A REAL BUG WAS FOUND.** A live invitee on this calendar is named **`"Huge "`** with a trailing space. `parseAttendees` trims on the way out of jsonb, so the untrimmed asserted name could never equal what had just been stored, and the pass rewrote that row on every run — forever, quietly. §12 asks for exactly this test and this is what it caught. Trimmed at the source; second run now reports **0 changed**.
+
+**Verified end to end against the live calendar and directory**, not only in tests: the title join resolves the real file name to the real event and all three invitees to real contacts; the clock join resolves a timestamp-named memo to the same event past the prep block; a recording named `New Recording 7` matches nothing. 771 tests pass (+41), lint holds at the frozen 23, build green. **DEPLOYED**
+
 **Done 2026-10-27 (the UI audit, the remainder — and two items whose deliverable was NOT building them):**
 
 ── /investors: THE PAGE READ AS BROKEN BECAUSE IT WAS EMPTY ────────────────

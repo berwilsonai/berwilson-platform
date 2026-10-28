@@ -596,7 +596,16 @@ async function insertRecord(args: {
  * extraction — our own company attended four of its own calls.
  */
 function counterpartyName(extraction: MeetingIntakeExtraction): string | null {
-  for (const person of extraction.attendees ?? []) {
+  // ⚠ BOTH LISTS, BECAUSE THE PROMPT MOVED THE COMPANIES (1.3, 2026-10-28).
+  // `attendees` used to mean "present or referenced" and so carried the
+  // organizations this reads for; it now means the room, and a counterparty
+  // organization lands in `mentioned`. Reading only the new field would have
+  // lost every session staged before the change, and reading only the old one
+  // loses every session after it — §12: a verdict computed before a fact
+  // existed must be re-asked once the fact arrives, and fixing the producer
+  // does not fix the consumer.
+  const people = [...(extraction.attendees ?? []), ...(extraction.mentioned ?? [])]
+  for (const person of people) {
     if (!person.is_organization) continue
     const name = (person.name ?? '').trim()
     if (!name) continue
@@ -604,7 +613,7 @@ function counterpartyName(extraction: MeetingIntakeExtraction): string | null {
     return name
   }
   // Failing that, the company written beside an external person.
-  for (const person of extraction.attendees ?? []) {
+  for (const person of people) {
     const company = (person.company ?? '').trim()
     if (!company) continue
     if (/ber\s*wilson/i.test(company)) continue

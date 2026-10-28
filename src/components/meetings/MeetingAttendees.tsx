@@ -89,17 +89,17 @@ export default function MeetingAttendees({ attendees, onChange, teamMembers, con
   function addTeamMember(m: TeamMemberOption) {
     onChange([
       ...attendees,
-      { name: m.name, role: null, org: 'Ber Wilson', party_id: m.party_id, team_member_id: m.id },
+      { name: m.name, role: null, org: 'Ber Wilson', email: null, party_id: m.party_id, team_member_id: m.id },
     ])
   }
   function addContact(c: ContactOption) {
     onChange([
       ...attendees,
-      { name: c.full_name, role: null, org: c.company, party_id: c.id, team_member_id: null },
+      { name: c.full_name, role: null, org: c.company, email: c.email, party_id: c.id, team_member_id: null },
     ])
   }
   function addManual() {
-    onChange([...attendees, { name: '', role: null, org: null, party_id: null, team_member_id: null }])
+    onChange([...attendees, { name: '', role: null, org: null, email: null, party_id: null, team_member_id: null }])
   }
 
   // Team members already added (by link) so we don't offer them twice.

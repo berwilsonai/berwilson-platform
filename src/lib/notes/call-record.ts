@@ -133,6 +133,12 @@ export async function recordCallNote(
       base.contact && base.counterparty
         ? [{ name: base.counterparty, partyId: base.contact.id }]
         : [],
+    // ⚠ A SCHEDULED CALL IS STILL A CALENDAR EVENT, and iOS's title names only
+    // ONE end of it. `Call with Brent Bennett` resolves Brent; the invitation
+    // behind the same call names everybody else who dialled in, which is the
+    // half this source has always lost. The note's creation time is the call's
+    // own clock, so both joins are available here.
+    calendar: { recordedAt: note.createdAt, exact: true },
   })
 
   if (recorded.skipped) return { ...base, sessionId: recorded.sessionId, skipped: recorded.skipped }
