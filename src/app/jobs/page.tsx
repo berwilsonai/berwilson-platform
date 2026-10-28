@@ -1,3 +1,5 @@
+import { ListChecks } from 'lucide-react'
+import { PageHeader } from '@/components/ui/page-header'
 import Link from 'next/link'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { Chip } from '@/components/ui/chip'
@@ -40,17 +42,25 @@ export default async function JobsPage() {
   )
 
   return (
-    <div className="max-w-3xl space-y-6">
+    /*
+      ⚠ TWO COLUMNS, NOT A 768px STRIP IN A 1,451px FRAME. The page was
+      `max-w-3xl` left-aligned, so two-thirds of the screen was empty while
+      the composer and the run list queued up vertically beneath each other.
+      The composer is the page's job and keeps the reading width; the runs are
+      a glanceable list and belong beside it, which is also where a reader
+      looks to check whether the thing they just started is working.
+    */
+    <div className="space-y-6">
       {anyLive && <JobLive />}
 
-      <div className="space-y-1">
-        <h1 className="text-xl font-semibold text-foreground">Jobs</h1>
-        <p className="text-sm text-muted-foreground">
-          Hand over a piece of work. It reads the platform&apos;s own records and writes you a report;
-          if the job calls for changes it proposes them and you decide.
-        </p>
-      </div>
+      <PageHeader
+        icon={ListChecks}
+        title="Jobs"
+        description="Hand over a piece of work. It reads the platform's own records and writes you a report; if the job calls for changes it proposes them and you decide."
+        className="mb-0"
+      />
 
+      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,34rem)_minmax(0,1fr)]">
       <JobComposer />
 
       {/* ⚠ The error is stated rather than rendered as an empty list: a failed
@@ -94,6 +104,7 @@ export default async function JobsPage() {
           </ul>
         </div>
       )}
+      </div>
     </div>
   )
 }

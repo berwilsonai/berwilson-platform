@@ -447,7 +447,7 @@ function Section({
               ? `/opportunities/${c.opportunity_id}`
               : null
           return (
-            <li key={c.id} className="px-4 py-3 hover:bg-accent">
+            <li key={c.id} className="px-4 py-3 compact:py-2 hover:bg-accent">
               <div className="flex items-start gap-3">
                 <div className="min-w-0 flex-1">
                   <p className="text-sm">{c.what}</p>

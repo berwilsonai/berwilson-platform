@@ -659,7 +659,7 @@ function ContactRow({
           targets once silently dropped below the floor. 52px absolute clears
           the 44px touch minimum with room that a token cannot take away.
         */
-        className="flex min-h-[3.25rem] min-w-0 flex-1 items-center gap-3 py-2 outline-none focus-visible:ring-3 focus-visible:ring-ring/50 rounded-md"
+        className="flex min-h-[3.25rem] compact:min-h-[2.75rem] min-w-0 flex-1 items-center gap-3 py-2 compact:py-1 outline-none focus-visible:ring-3 focus-visible:ring-ring/50 rounded-md"
       >
         <span
           className={cn(

@@ -372,16 +372,33 @@ export default function AttentionList({
                       every press navigates instead of acting — the control
                       would look present and do the wrong thing. */}
                   <div className="relative z-10 flex shrink-0 items-center gap-1">
-                    {/* The 0-100 score the engine has always produced and
-                        nothing has ever shown. */}
+                    {/*
+                      The 0-100 score the engine has always produced.
+
+                      ⚠ IT RENDERED AS A BARE NUMBER AT 13px IN THE FAR-RIGHT
+                      CORNER — "100", "92" — with its only explanation in a
+                      `title` nobody hovers. This page exists to rank, so the
+                      rank is the one thing on the row that has to be readable
+                      without being told what it is. It is a labelled chip
+                      now, banded by the same thresholds the rows are banded
+                      by, so the colour and the number say the same thing.
+                      ⚠ `label-caps` on the word and `tnum` on the figure, or
+                      a 92 and a 100 sit at different widths down the column
+                      and the eye cannot compare them, which is the entire job.
+                    */}
                     <span
                       className={cn(
-                        'text-xs tnum mr-1',
-                        band === 'now' ? 'text-critical font-semibold' : 'text-muted-foreground'
+                        'mr-1 inline-flex items-baseline gap-1 rounded px-1.5 py-0.5 ring-1 ring-inset',
+                        band === 'now'
+                          ? 'bg-critical-surface text-critical ring-critical-edge'
+                          : band === 'soon'
+                            ? 'bg-caution-surface text-caution ring-caution-edge'
+                            : 'bg-muted text-muted-foreground ring-border'
                       )}
                       title="Urgency, 0–100"
                     >
-                      {row.urgency}
+                      <span className="label-caps opacity-70">Urgency</span>
+                      <span className="tnum text-xs font-semibold">{row.urgency}</span>
                     </span>
 
                     {/* ⚠ VISIBLE ON HOVER *AND* ON FOCUS, AND ALWAYS BELOW `sm`.

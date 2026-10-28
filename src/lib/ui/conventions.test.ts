@@ -126,6 +126,45 @@ test('ink is never the same lightness as the fill it sits on', () => {
   assert.deepEqual(bad, [], 'a fill and an ink of the same lightness — the text is invisible')
 })
 
+test('every reader and writer of a stored preference agrees on its key', () => {
+  /*
+    ⚠ A PREFERENCE KEY HAS ONE HOME PER READER, AND THEY DRIFT SILENTLY (§12).
+    `theme` and `density` are each written by a toggle, read by the pre-paint
+    script in `layout.tsx`, and seeded by BOTH screenshot harnesses — four
+    files per key, none of which import from the others, because the pre-paint
+    script is a string in a `<script>` tag and the harnesses run outside the
+    bundle. A typo in any one of them is invisible: the toggle keeps working
+    for the rest of the session and the choice is simply gone on reload, or a
+    "compact" screenshot comes back comfortable.
+
+    That second one already happened within the hour: `shoot.mjs` gained
+    `BW_SHOOT_DENSITY` and `measure.mjs` did not, so a compact contrast sweep
+    returned the comfortable numbers — 591 text nodes on /decide in both,
+    when compact hides a line per row and cannot produce the same count.
+  */
+  const files = {
+    toggle: readFileSync('src/components/layout/UserMenu.tsx', 'utf8'),
+    prePaint: readFileSync('src/app/layout.tsx', 'utf8'),
+    shoot: readFileSync('scripts/ui/shoot.mjs', 'utf8'),
+    measure: readFileSync('scripts/ui/measure.mjs', 'utf8'),
+  }
+  for (const key of ['theme', 'density']) {
+    for (const [where, src] of Object.entries(files)) {
+      assert.ok(
+        src.includes(`'${key}'`),
+        `${where} never names the '${key}' preference key — it will silently use the default`
+      )
+    }
+  }
+  // And the variant the density key switches on must exist, or every
+  // `compact:` class in the tree is a class Tailwind never generated.
+  const css = readFileSync('src/app/globals.css', 'utf8')
+  assert.ok(
+    /@custom-variant\s+compact\s*\(/.test(css),
+    'globals.css declares no `compact` variant, so every compact: utility is inert'
+  )
+})
+
 test('a hit area is the tap-target utility, never a hand-computed inset', () => {
   /*
     ⚠ SEVENTEEN CALL SITES EACH DID THIS ARITHMETIC AND MOST GOT IT WRONG.

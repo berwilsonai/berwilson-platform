@@ -4,6 +4,25 @@
 @import "maplibre-gl/dist/maplibre-gl.css"; /* /map — must be global: CSS inside the ssr:false dynamic chunk never gets linked */
 
 @custom-variant dark (&:is(.dark *));
+/*
+  ── THE DENSITY VARIANT ───────────────────────────────────────────────────
+  `compact:` is to row height what `dark:` is to colour: one attribute on
+  `<html>`, read by every row that opts in.
+
+  ⚠ IT EXISTS BECAUSE TWO OF THE UI AUDIT'S TARGETS WERE UNREACHABLE AS
+  DEFAULTS. /decide cannot be 64px without dropping the model's reasoning
+  line, which is the thing that makes "138 of 140 can be accepted without
+  opening them" a defensible offer; /contacts at 48px crushes a 20px name
+  over an 18px subtitle. Both are perfectly reasonable as a CHOICE, and
+  unreasonable as a decision taken on the reader's behalf — so the reader
+  takes it. Measured at the default: 9.9 rows of /decide and 14.6 of a
+  397-row directory fit a 815px viewport.
+
+  ⚠ `:where()` KEEPS SPECIFICITY AT ZERO, matching `dark:`. Without it every
+  compact rule would outrank the base utility it is meant to sit beside, and
+  a one-off override on a single row would stop working.
+*/
+@custom-variant compact (&:where([data-density="compact"] *));
 
 @theme {
   /* Readability: the two workhorse sizes run one notch larger than Tailwind's

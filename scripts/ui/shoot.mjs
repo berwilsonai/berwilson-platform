@@ -46,6 +46,7 @@ const OUT = '.ui-shots'
 const PORT = Number(process.env.BW_SHOOT_CDP_PORT ?? 9333)
 const [W, H] = (process.env.BW_SHOOT_SIZE ?? '1512,950').split(',').map(Number)
 const THEMES = (process.env.BW_SHOOT_THEMES ?? 'light,dark').split(',').filter(Boolean)
+const DENSITY = process.env.BW_SHOOT_DENSITY ?? 'comfortable'
 
 const DEFAULT_PAGES = ['/dashboard', '/projects', '/contacts', '/tasks']
 const pages = process.argv.slice(2).filter((a) => a.startsWith('/'))
@@ -126,8 +127,17 @@ let shot = 0
 for (const theme of THEMES) {
   // Seed the key the pre-paint script reads, on the app's own origin.
   await goto(`${APP}/login`)
+  /*
+    Seed the two preferences the pre-paint script reads. ⚠ DENSITY HAS TO BE
+    SEEDED HERE TOO, for the same reason the theme does: Chrome runs on a
+    fresh profile every time, so anything set in a previous run is gone, and
+    a compact screenshot taken without it is just another comfortable one.
+    `BW_SHOOT_DENSITY=compact node scripts/ui/shoot.mjs /decide`
+  */
   await cdp.send('Runtime.evaluate', {
-    expression: `try{localStorage.setItem('theme',${JSON.stringify(theme)})}catch(e){}`,
+    expression:
+      `try{localStorage.setItem('theme',${JSON.stringify(theme)});` +
+      `localStorage.setItem('density',${JSON.stringify(DENSITY)})}catch(e){}`,
   })
   for (const p of paths) {
     await goto(`${APP}${p}`)
@@ -142,7 +152,8 @@ for (const theme of THEMES) {
       continue
     }
     const { data } = await cdp.send('Page.captureScreenshot', { format: 'png' })
-    const name = `${p === '/' ? 'root' : p.replace(/^\//, '').replace(/\//g, '-')}.${theme}.png`
+    const suffix = DENSITY === 'comfortable' ? '' : `.${DENSITY}`
+    const name = `${p === '/' ? 'root' : p.replace(/^\//, '').replace(/\//g, '-')}${suffix}.${theme}.png`
     writeFileSync(join(OUT, name), Buffer.from(data, 'base64'))
     console.log(`  ✓ ${OUT}/${name}`)
     shot++

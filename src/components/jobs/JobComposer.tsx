@@ -62,6 +62,7 @@ export default function JobComposer() {
           value={instruction}
           onChange={(e) => setInstruction(e.target.value)}
           rows={5}
+          className="min-h-32"
           placeholder="Go through…"
           disabled={busy}
           autoFocus
@@ -70,14 +71,31 @@ export default function JobComposer() {
 
       <div className="space-y-1.5">
         <p className="label-caps text-muted-foreground">Or start from one of these</p>
-        <div className="space-y-1">
+        {/*
+          ⚠ THEY WERE ALWAYS CLICKABLE AND NEVER LOOKED IT. `text-xs
+          text-muted-foreground` with no border and no resting affordance
+          reads as fine print, which is what the UI audit called them — and
+          these three are the page's entire onboarding: they are the three
+          SHAPES a job can take (a question, an audit that proposes fixes, a
+          bulk change). A control whose only affordance appears on hover does
+          not exist on a phone (§12), and that is the case here even though
+          the handler was wired the whole time.
+        */}
+        <div className="grid gap-1.5">
           {EXAMPLES.map((ex) => (
             <button
               key={ex}
               type="button"
               onClick={() => setInstruction(ex)}
               disabled={busy}
-              className="block w-full text-left text-xs text-muted-foreground hover:text-foreground rounded px-2 py-1.5 hover:bg-muted transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+              /* ⚠ `bg-muted/40`, NOT `bg-card`. The composer is itself a
+                 `<Panel>` on `bg-card`, so a card-coloured child is invisible
+                 against it — only its border would have shown. A recessed
+                 surface is both the honest treatment for a thing you pick
+                 FROM and the reason `conventions.test.ts` is right to count
+                 the card shell: the 227th copy was about to be one that
+                 could not be seen. */
+              className="block w-full rounded-lg border border-border bg-muted/40 px-3 py-2.5 text-left text-xs leading-relaxed text-foreground outline-none transition-colors hover:border-primary/40 hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-50"
             >
               {ex}
             </button>

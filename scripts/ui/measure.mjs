@@ -37,6 +37,7 @@ const PORT = Number(process.env.BW_SHOOT_CDP_PORT ?? 9334)
 const [W, H] = (process.env.BW_SHOOT_SIZE ?? '1512,950').split(',').map(Number)
 const THEMES = (process.env.BW_SHOOT_THEMES ?? 'light,dark').split(',').filter(Boolean)
 const SETTLE = Number(process.env.BW_MEASURE_SETTLE ?? 4500)
+const DENSITY = process.env.BW_SHOOT_DENSITY ?? 'comfortable'
 
 const args = process.argv.slice(2)
 const probeName = args.find((a) => a.startsWith('--probe='))?.slice('--probe='.length)
@@ -107,8 +108,18 @@ const out = {}
 for (const theme of THEMES) {
   await cdp.send('Page.navigate', { url: `${APP}/login` })
   await sleep(SETTLE)
+  /*
+    ⚠ SEED DENSITY AS WELL AS THEME, OR `BW_SHOOT_DENSITY` SILENTLY MEASURES
+    THE DEFAULT TWICE. `shoot.mjs` gained the flag first and this file did
+    not, so a "compact" contrast sweep returned the comfortable numbers —
+    591 text nodes on /decide in both, when compact hides a line per row and
+    cannot produce the same count. The tell was the two runs agreeing exactly;
+    a flag that changes nothing reads just like a page that is already fine.
+  */
   await cdp.send('Runtime.evaluate', {
-    expression: `try{localStorage.setItem('theme',${JSON.stringify(theme)})}catch(e){}`,
+    expression:
+      `try{localStorage.setItem('theme',${JSON.stringify(theme)});` +
+      `localStorage.setItem('density',${JSON.stringify(DENSITY)})}catch(e){}`,
   })
   for (const p of paths) {
     await cdp.send('Page.navigate', { url: `${APP}${p}` })
@@ -133,7 +144,7 @@ for (const theme of THEMES) {
       console.error(`  ! ${p} [${theme}]: ${r.exceptionDetails.text} ${r.exceptionDetails.exception?.description ?? ''}`)
       continue
     }
-    out[`${p} [${theme}]`] = r.result.value
+    out[`${p} [${theme}${DENSITY === 'comfortable' ? '' : `, ${DENSITY}`}]`] = r.result.value
   }
 }
 

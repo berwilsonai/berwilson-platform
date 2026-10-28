@@ -1090,7 +1090,7 @@ export default function DecideClient({ items }: { items: DecideItem[] }) {
                 does not exist on a phone (§12), so the information has to be
                 reachable another way, and it is.
               */
-              className={`flex items-start gap-3 px-4 py-2.5 transition-colors group ${
+              className={`flex items-start gap-3 px-4 py-2.5 compact:py-1.5 transition-colors group ${
                 index === cursorIdx
                   ? 'bg-accent ring-1 ring-inset ring-primary/40'
                   : 'hover:bg-accent'
@@ -1175,8 +1175,18 @@ export default function DecideClient({ items }: { items: DecideItem[] }) {
                 )}
                 {/* Prose is the FALLBACK, not the row — one line of the
                     model's reasoning, with the whole of it in `title`. */}
+                {/*
+                  ⚠ `compact:hidden` IS WHAT MAKES 64px REACHABLE, and why it
+                  is a CHOICE. This line is the model's reasoning, and it is
+                  what makes the banner above the list ("138 of 140 can be
+                  accepted without opening them") a defensible offer rather
+                  than a leap. Hiding it by default would quietly trade the
+                  queue's safety for nine more rows; hiding it on request is
+                  a reader who has decided they already trust it. The whole
+                  text stays in `title` either way.
+                */}
                 {item.note && (
-                  <p className="mt-0.5 line-clamp-1 text-xs text-muted-foreground/90" title={item.note}>
+                  <p className="mt-0.5 line-clamp-1 compact:hidden text-xs text-muted-foreground/90" title={item.note}>
                     {item.note}
                   </p>
                 )}

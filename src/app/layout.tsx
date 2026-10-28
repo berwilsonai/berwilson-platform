@@ -174,7 +174,16 @@ export default async function RootLayout({
         */}
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){try{document.documentElement.classList.toggle('dark',localStorage.getItem('theme')==='dark');}catch(e){}})();`,
+            /*
+              ⚠ DENSITY IS SET HERE WITH THE THEME, AND FOR THE SAME REASON.
+              Both are stored per-reader and both decide layout before the
+              first paint; reading either in an effect means the page renders
+              once at the default and once again correctly, which is a visible
+              jump on a 397-row list. One script, one try/catch — a blocked or
+              cleared `localStorage` leaves both at their defaults rather than
+              throwing before anything renders.
+            */
+            __html: `(function(){try{var d=document.documentElement;d.classList.toggle('dark',localStorage.getItem('theme')==='dark');var n=localStorage.getItem('density');if(n==='compact')d.dataset.density='compact';}catch(e){}})();`,
           }}
         />
         {showShell ? (

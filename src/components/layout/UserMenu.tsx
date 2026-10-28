@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { ChevronDown, LogOut, Moon, Sun } from 'lucide-react'
+import { ChevronDown, LogOut, Moon, Rows2, Rows3, Sun } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 
 function initials(email: string): string {
@@ -22,6 +22,11 @@ export default function UserMenu({ email }: { email: string }) {
   const [open, setOpen] = useState(false)
   const [isDark, setIsDark] = useState(
     () => typeof document !== 'undefined' && document.documentElement.classList.contains('dark')
+  )
+  // Read from the DOM the pre-paint script already set, never from storage —
+  // one reader, so the menu and the page cannot disagree about which it is.
+  const [compact, setCompact] = useState(
+    () => typeof document !== 'undefined' && document.documentElement.dataset.density === 'compact'
   )
   const rootRef = useRef<HTMLDivElement>(null)
 
@@ -48,6 +53,27 @@ export default function UserMenu({ email }: { email: string }) {
       document.documentElement.classList.toggle('dark', next)
       try {
         localStorage.setItem('theme', next ? 'dark' : 'light')
+      } catch {
+        /* ignore */
+      }
+      return next
+    })
+  }, [])
+
+  /*
+    ⚠ MIRRORS THE PRE-PAINT SCRIPT IN `layout.tsx`, exactly as the theme
+    toggle does. Both write the same key the script reads, so the choice
+    survives a reload without the page rendering once at the default first.
+    A blocked `localStorage` costs the preference, never the toggle.
+  */
+  const toggleDensity = useCallback(() => {
+    setCompact((prev) => {
+      const next = !prev
+      const d = document.documentElement
+      if (next) d.dataset.density = 'compact'
+      else delete d.dataset.density
+      try {
+        localStorage.setItem('density', next ? 'compact' : 'comfortable')
       } catch {
         /* ignore */
       }
@@ -100,6 +126,15 @@ export default function UserMenu({ email }: { email: string }) {
           >
             {isDark ? <Sun size={15} /> : <Moon size={15} />}
             <span>{isDark ? 'Light mode' : 'Dark mode'}</span>
+          </button>
+
+          <button
+            role="menuitem"
+            onClick={toggleDensity}
+            className="w-full flex items-center gap-2.5 px-3 py-2 rounded-md text-sm text-foreground hover:bg-muted transition-colors"
+          >
+            {compact ? <Rows3 size={15} /> : <Rows2 size={15} />}
+            <span>{compact ? 'Comfortable rows' : 'Compact rows'}</span>
           </button>
 
           <button
