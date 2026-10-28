@@ -5,7 +5,8 @@ import AddPlayerModal from '@/components/projects/AddPlayerModal'
 import RemovePlayerButton from '@/components/projects/RemovePlayerButton'
 import EditRoleButton from '@/components/projects/EditRoleButton'
 import type { RecordKind } from '@/lib/records/scope'
-import type { ContactRoleView } from '@/lib/utils/contact-roles'
+import { roleLabel, type ContactRoleView } from '@/lib/utils/contact-roles'
+import { Chip } from '@/components/ui/chip'
 
 /**
  * The people on a record — the same table for a project and an opportunity,
@@ -142,8 +143,27 @@ export default function RecordPlayers({ recordKind, recordId, players, limited, 
                     )}
                   </td>
                   <td className="px-4 py-3">
-                    <div className="flex items-center gap-1.5">
-                      <span className="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium bg-muted text-muted-foreground">
+                    {/*
+                      ⚠ A CHIP IS FOR A TOKEN; THIS FIELD HOLDS A SENTENCE.
+                      `role` is deliberately prose (§4 — "the prose carries
+                      facts no category can"), so Steelton's players tab was
+                      wrapping "Counterparty; provided attachments for the
+                      Steelton Power Story pursuit" onto two lines INSIDE a
+                      pill, which reads as a broken chip rather than a role.
+
+                      So the registry key — the thing that IS a token, and the
+                      reason `contact_roles` exists — becomes the chip, and the
+                      prose sits beside it as what it is. A player with no
+                      categorised role still shows the prose; nothing is lost
+                      where the key is absent, which is most of the corpus.
+                    */}
+                    <div className="flex min-w-0 items-start gap-1.5">
+                      {player.role_key && (
+                        <Chip className="mt-px shrink-0">
+                          {roleLabel(player.role_key, roles)}
+                        </Chip>
+                      )}
+                      <span className="min-w-0 text-sm text-muted-foreground">
                         {player.role}
                       </span>
                       {player.is_primary && (

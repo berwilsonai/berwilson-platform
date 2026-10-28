@@ -19,6 +19,7 @@ import { cn } from '@/lib/utils'
 import { DatePicker } from '@/components/ui/date-picker'
 import type { DdItem, ComplianceItem, Party, Document, DdSeverity, ComplianceStatus, ResearchArtifact } from '@/lib/supabase/types'
 import ResearchPanel from './ResearchPanel'
+import EmptyState from '@/components/shared/EmptyState'
 import {
   DD_STATUS_LABELS,
   DD_STATUSES,
@@ -325,7 +326,17 @@ function DdSection({ recordKind, recordId, initialItems, parties }: DdSectionPro
         )}
       </div>
 
-      {/* Category filter pills */}
+      {/*
+        ⚠ TEN FILTER CHIPS OVER AN EMPTY LIST IS NOT A FILTER ROW. On a record
+        with no diligence items, this rendered "All (0)" plus nine category
+        chips that could only ever return nothing — 140px of controls above the
+        sentence saying there is nothing to control. §12's rule is the inverse
+        one (a surface hidden because it is empty is hidden exactly when
+        somebody needs to fill it) and it does not apply here: these chips
+        READ a populated list, they do not create anything. The "Add Item"
+        button is the create affordance and it stays.
+      */}
+      {items.length > 0 && (
       <div className="flex flex-wrap gap-1.5">
         <button
           onClick={() => setCategoryFilter('all')}
@@ -357,6 +368,7 @@ function DdSection({ recordKind, recordId, initialItems, parties }: DdSectionPro
           )
         })}
       </div>
+      )}
 
       {/* Add / Edit form */}
       {(mode === 'add' || mode === 'edit') && (
@@ -492,9 +504,35 @@ function DdSection({ recordKind, recordId, initialItems, parties }: DdSectionPro
 
       {/* List */}
       {filtered.length === 0 ? (
-        <p className="text-sm text-muted-foreground italic">
-          {items.length === 0 ? 'No due diligence items yet.' : 'No items in this category.'}
-        </p>
+        /*
+          ⚠ `EmptyState`, NOT A BARE ITALIC SENTENCE. There were 54 of those
+          across 41 files against 26 uses of the shared component, and this one
+          sat on the demo path with 400px of blank tab under it while the only
+          way to act — "Add Item" — was pinned top-right, far from where the
+          eye lands. The two cases say different things on purpose: a record
+          with no diligence at all is a prompt, a category with none is a
+          filter that found nothing.
+        */
+        <EmptyState
+          icon={ShieldCheck}
+          title={items.length === 0 ? 'No diligence items yet' : 'Nothing in this category'}
+          description={
+            items.length === 0
+              ? 'Track what has to be checked before this deal can close — title, environmental, bonding, the rest.'
+              : 'Every item on this record sits under another category.'
+          }
+          action={
+            items.length === 0 ? null : (
+              <button
+                type="button"
+                onClick={() => setCategoryFilter('all')}
+                className="inline-flex min-h-[2.75rem] items-center rounded-lg border border-border px-3.5 text-sm font-medium outline-none transition-colors hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50 sm:min-h-9"
+              >
+                Show every category
+              </button>
+            )
+          }
+        />
       ) : (
         <div className="rounded-lg border border-border overflow-hidden">
           {/* Header row */}
