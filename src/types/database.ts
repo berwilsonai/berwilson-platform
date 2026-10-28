@@ -2223,6 +2223,20 @@ isOneToOne: false
       referencedColumns: ["id"]
     }
                   ]
+                },"saved_views": {
+                  Row: {
+                    "created_at": string,"created_by": string | null,"id": string,"name": string,"path": string,"query": string,"slug": string,"updated_at": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "created_at"?: string,"created_by"?: string | null,"id"?: string,"name": string,"path": string,"query": string,"slug": string,"updated_at"?: string
+                  }
+                  Update: {
+                    "created_at"?: string,"created_by"?: string | null,"id"?: string,"name"?: string,"path"?: string,"query"?: string,"slug"?: string,"updated_at"?: string
+                  }
+                  Relationships: [
+                    
+                  ]
                 },"steel_deal_notes": {
                   Row: {
                     "author": string | null,"body": string,"created_at": string | null,"deal_id": string,"id": string

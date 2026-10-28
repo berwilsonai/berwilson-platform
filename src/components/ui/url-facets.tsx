@@ -28,6 +28,11 @@ import { FIELD_CONTROL_SM_CLASS } from '@/lib/utils/field-classes'
  * not a view, and a link that means different things to two people is worse
  * than no link.
  *
+ * ⚠ `SavedViews` SITS BESIDE THIS AND IS NOT AN EXCEPTION TO IT (2026-10-28).
+ * Its rows are shared, and selecting one pushes a URL carrying every filter —
+ * so the invariant above is exactly what makes it work: the chip is a shortcut
+ * to a link, never a stored preference that changes what a link means.
+ *
  * ⚠ NOT STICKY, deliberately. The UI audit asks for a filter bar that pins
  * under the page header, and on most of these pages that would be right — but
  * `/projects` already has a `sticky top-0` table header, and two sticky

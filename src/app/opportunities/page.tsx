@@ -12,6 +12,8 @@ import {
 } from '@/lib/utils/opportunities'
 import EmptyState from '@/components/shared/EmptyState'
 import OpportunityFilters from '@/components/opportunities/OpportunityFilters'
+import SavedViews from '@/components/ui/saved-views'
+import { listSavedViews } from '@/lib/views/saved'
 import OpportunitiesClient from '@/components/opportunities/OpportunitiesClient'
 
 export const metadata = { title: 'Opportunities — Ber Wilson Intelligence' }
@@ -55,6 +57,10 @@ export default async function OpportunitiesPage({ searchParams }: PageProps) {
   const count = opportunities?.length ?? 0
   const hasFilters = type || status
 
+  // Named filter sets for this page — shared rows, and the chip navigates
+  // to a URL carrying the whole query (see `saved-views.tsx`).
+  const savedViews = await listSavedViews('/opportunities')
+
   return (
     <div className="space-y-5">
       {/*
@@ -91,6 +97,9 @@ export default async function OpportunitiesPage({ searchParams }: PageProps) {
             </span>
           )}
         </div>
+        <Suspense>
+          <SavedViews views={savedViews} className="mt-2" />
+        </Suspense>
       </PageHeader>
 
       {/* Cards grid or empty state */}

@@ -9,6 +9,8 @@ import { getViewer, accessibleProjectIds } from '@/lib/auth/viewer'
 export const metadata = { title: 'Projects — Ber Wilson Intelligence' }
 import EmptyState from '@/components/shared/EmptyState'
 import ProjectFilters from '@/components/projects/ProjectFilters'
+import SavedViews from '@/components/ui/saved-views'
+import { listSavedViews } from '@/lib/views/saved'
 import ProjectsClient from '@/components/projects/ProjectsClient'
 import ProtectedProjectList from '@/components/security/ProtectedProjectList'
 import { dropHidden } from '@/lib/security/confidential'
@@ -82,6 +84,12 @@ export default async function ProjectsPage({ searchParams }: PageProps) {
   */
   const total = portfolioTotal(projects)
 
+  // Named filter sets for this page. A read failure here is a missing
+  // convenience, never a broken list — `listSavedViews` returns [] and says so
+  // in the log, because the filters themselves live in the URL and do not
+  // depend on this at all.
+  const savedViews = await listSavedViews('/projects')
+
   return (
     <div className="space-y-5">
       <PageHeader
@@ -127,6 +135,16 @@ export default async function ProjectsPage({ searchParams }: PageProps) {
       >
         <Suspense>
           <ProjectFilters sector={sector} status={status} stage={stage} />
+        </Suspense>
+        {/*
+          Named filter sets. Shared rows, and choosing one navigates to a URL
+          carrying the whole query — so the address bar still describes what is
+          on screen and a pasted link means one thing to everybody. The
+          `localStorage` replay this page used to have is still forbidden; see
+          `url-facets.tsx`.
+        */}
+        <Suspense>
+          <SavedViews views={savedViews} className="mt-2" />
         </Suspense>
       </PageHeader>
 

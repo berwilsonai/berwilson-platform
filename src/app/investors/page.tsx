@@ -23,6 +23,8 @@ import { parseTranches, raiseLevels, fillTranches } from '@/lib/investors/raises
 import { getViewer } from '@/lib/auth/viewer'
 import EmptyState from '@/components/shared/EmptyState'
 import InvestorFilters from '@/components/investors/InvestorFilters'
+import SavedViews from '@/components/ui/saved-views'
+import { listSavedViews } from '@/lib/views/saved'
 import InvestorsClient, { type InvestorCardData } from '@/components/investors/InvestorsClient'
 import RaiseTrancheBar, { TrancheBarLegend } from '@/components/investors/RaiseTrancheBar'
 
@@ -158,6 +160,10 @@ export default async function InvestorsPage({ searchParams }: PageProps) {
       return { raise, levels, fills: fillTranches(tranches, levels), investorCount: new Set(scoped.map((i) => i.investor_id)).size }
     })
 
+  // Named filter sets for this page — shared rows, and the chip navigates
+  // to a URL carrying the whole query (see `saved-views.tsx`).
+  const savedViews = await listSavedViews('/investors')
+
   return (
     <div className="space-y-5">
       {/* This page opened on a filter row with nothing naming it — see the
@@ -197,6 +203,9 @@ export default async function InvestorsPage({ searchParams }: PageProps) {
             </span>
           )}
         </div>
+        <Suspense>
+          <SavedViews views={savedViews} className="mt-2" />
+        </Suspense>
       </PageHeader>
 
       {/* Raises — potential vs actual per raise */}

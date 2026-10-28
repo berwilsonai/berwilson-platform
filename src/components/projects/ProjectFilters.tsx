@@ -25,9 +25,15 @@ const SECTORS: ProjectSector[] = ['government', 'infrastructure', 'real_estate',
  * them on arrival, so a bare `/projects` rendered DIFFERENTLY for each
  * executive with no way for the sender of a link to tell, and the list
  * re-rendered under the reader after hydration. The URL is the view; a bare
- * link must mean a bare view. Anyone wanting their own default bookmarks the
- * filtered URL, which has the property a saved view in storage would not:
- * it is shareable.
+ * link must mean a bare view.
+ *
+ * ⚠ SAVED VIEWS EXIST NOW (2026-10-28) AND DO NOT REOPEN THAT DECISION. The
+ * refusal was about STORAGE, not about naming a filter set: `saved_views` is a
+ * shared table, and choosing a view NAVIGATES to a URL carrying the whole
+ * query. So the address bar still describes the screen, a pasted link still
+ * means one thing to everybody, and a bare `/projects` is still the unfiltered
+ * list. What remains forbidden is the thing that was removed — per-reader
+ * filter state replayed on arrival.
  */
 export default function ProjectFilters({
   sector,
