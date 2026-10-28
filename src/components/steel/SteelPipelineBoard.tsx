@@ -35,6 +35,7 @@ import {
 } from '@/lib/utils/steel'
 import SteelDealsClient, { type SteelDealCardData } from '@/components/steel/SteelDealsClient'
 import { Segmented } from '@/components/ui/segmented'
+import { StatTile, StatGrid } from '@/components/ui/stat'
 import {
   useBoardDnd,
   BoardLiveRegion,
@@ -285,26 +286,40 @@ export default function SteelPipelineBoard({
 
   return (
     <div className="space-y-4">
-      {/* Stat band */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <Stat label={effScope === 'mine' ? 'My open pipeline' : 'Open pipeline'} value={formatValue(stats.openValue)} sub={`${scoped.filter((i) => isOpenStage(i.deal.stage)).length} open deals`} />
-        <Stat
+      {/*
+        ⚠ `StatTile`, NOT A LOCAL COPY. This band was its own `Stat` component
+        printing the figure at `text-lg` where the shared tile prints 30px, so
+        /steel and /dashboard disagreed about what a KPI looks like — and its
+        `tone` took raw ramp NAMES (`amber`/`emerald`) rather than the status
+        tokens. Worse, "Win rate" passed the string '—' as a VALUE, which is
+        exactly the failure `stat.tsx`'s own docblock cites §12 for: a bare em
+        dash at a value's own weight reads as a failed render. `value={null}`
+        makes the tile say the absence in words instead.
+      */}
+      <StatGrid>
+        <StatTile
+          label={effScope === 'mine' ? 'My open pipeline' : 'Open pipeline'}
+          value={formatValue(stats.openValue)}
+          hint={`${scoped.filter((i) => isOpenStage(i.deal.stage)).length} open deals`}
+        />
+        <StatTile
           label="Win rate"
-          value={stats.winRate == null ? '—' : `${Math.round(stats.winRate * 100)}%`}
-          sub="Paid ÷ decided"
+          value={stats.winRate == null ? null : `${Math.round(stats.winRate * 100)}%`}
+          empty="No deal has been decided yet"
+          hint="Paid ÷ decided"
         />
         {myMemberId ? (
           <>
-            <Stat label="Commission owed" value={formatValue(myOwed)} tone="amber" sub="Collected, awaiting payout" />
-            <Stat label="Projected" value={formatValue(myProjected)} tone="emerald" sub="If open deals close" />
+            <StatTile label="Commission owed" value={formatValue(myOwed)} tone="caution" hint="Collected, awaiting payout" />
+            <StatTile label="Projected" value={formatValue(myProjected)} tone="positive" hint="If open deals close" />
           </>
         ) : (
           <>
-            <Stat label="Deals" value={String(scoped.length)} sub="In this view" />
-            <Stat label="Need action" value={String(attnStats.actionCount)} tone={attnStats.actionCount ? 'amber' : undefined} sub="Overdue / stale / no next step" />
+            <StatTile label="Deals" value={String(scoped.length)} hint="In this view" />
+            <StatTile label="Need action" value={String(attnStats.actionCount)} tone={attnStats.actionCount ? 'caution' : 'default'} hint="Overdue / stale / no next step" />
           </>
         )}
-      </div>
+      </StatGrid>
 
       {/* Needs-attention chips */}
       {(attnStats.overdue.size > 0 ||
@@ -632,29 +647,4 @@ function PipelineCard({
 
 // ─── Small UI bits ──────────────────────────────────────────────────────────
 
-function Stat({
-  label,
-  value,
-  sub,
-  tone,
-}: {
-  label: string
-  value: string
-  sub?: string
-  tone?: 'amber' | 'emerald'
-}) {
-  const cls =
-    tone === 'amber'
-      ? 'text-caution'
-      : tone === 'emerald'
-        ? 'text-positive'
-        : ''
-  return (
-    <div className="rounded-lg border border-border bg-card px-4 py-3 elev-1">
-      <p className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</p>
-      <p className={`text-lg font-semibold tnum mt-0.5 ${cls}`}>{value}</p>
-      {sub && <p className="text-[11px] text-muted-foreground mt-0.5">{sub}</p>}
-    </div>
-  )
-}
 

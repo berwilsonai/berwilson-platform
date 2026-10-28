@@ -63,7 +63,7 @@ export default function MeetingPrepButton({ subject, date, attendees }: MeetingP
             <div className="flex items-center gap-2 px-4 py-3 border-b border-border">
               <Sparkles size={14} className="text-indigo-600 dark:text-indigo-400" />
               <h3 className="text-sm font-semibold text-foreground flex-1">Meeting Prep: {subject}</h3>
-              <button onClick={() => setOpen(false)} className="p-1 text-muted-foreground hover:text-foreground">
+              <button onClick={() => setOpen(false)} aria-label="Close meeting prep" className="p-1 text-muted-foreground hover:text-foreground">
                 <X size={14} />
               </button>
             </div>

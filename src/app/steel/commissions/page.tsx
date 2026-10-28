@@ -15,6 +15,7 @@ import SteelPayoutList from '@/components/steel/SteelPayoutList'
 import RepScorecardTable from '@/components/steel/RepScorecardTable'
 import ReferralSourceTable from '@/components/steel/ReferralSourceTable'
 import SteelWorkspaceTabs from '@/components/steel/SteelWorkspaceTabs'
+import { StatTile, StatGrid } from '@/components/ui/stat'
 
 export const metadata = { title: 'Steel Commissions — Ber Wilson Intelligence' }
 
@@ -72,7 +73,6 @@ export default async function SteelCommissionsPage() {
     <div className="space-y-6">
       <SteelWorkspaceTabs active="commissions" showFinancials />
 
-
       <div>
         <h1 className="text-lg font-semibold">Commissions &amp; Margin</h1>
         <p className="text-sm text-muted-foreground mt-0.5">
@@ -84,18 +84,18 @@ export default async function SteelCommissionsPage() {
       </div>
 
       {/* Headline band */}
-      <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
-        <Stat label="Revenue" value={formatValue(revenue)} sub="Sum of line prices" />
-        <Stat label="Cost" value={formatValue(cost)} sub="Our cost / payouts" />
-        <Stat label="Margin" value={formatValue(margin)} sub="Revenue − cost" tone="indigo" />
-        <Stat label="Sales commissions" value={formatValue(salesPayout)} sub="To reps, incl. install fees" />
-        <Stat
+      <StatGrid className="lg:grid-cols-3">
+        <StatTile label="Revenue" value={formatValue(revenue)} hint="Sum of line prices" />
+        <StatTile label="Cost" value={formatValue(cost)} hint="Our cost / payouts" />
+        <StatTile label="Margin" value={formatValue(margin)} hint="Revenue − cost" tone="default" />
+        <StatTile label="Sales commissions" value={formatValue(salesPayout)} hint="To reps, incl. install fees" />
+        <StatTile
           label="Marketing / referral"
           value={formatValue(referralPayout)}
-          sub={`To ${referralSources.length || 'no'} source${referralSources.length === 1 ? '' : 's'}`}
+          hint={`To ${referralSources.length || 'no'} source${referralSources.length === 1 ? '' : 's'}`}
         />
-        <Stat label="Net after comm." value={formatValue(net)} sub="Margin − all payouts" tone="emerald" />
-      </div>
+        <StatTile label="Net after comm." value={formatValue(net)} hint="Margin − all payouts" tone="positive" />
+      </StatGrid>
 
       {/* Payout worklist — mark commissions/fees paid */}
       <SteelPayoutList items={payouts} />
@@ -110,26 +110,3 @@ export default async function SteelCommissionsPage() {
   )
 }
 
-function Stat({
-  label,
-  value,
-  sub,
-  tone,
-}: {
-  label: string
-  value: string
-  sub?: string
-  tone?: 'indigo' | 'emerald'
-}) {
-  const dot = tone === 'indigo' ? 'bg-indigo-500' : tone === 'emerald' ? 'bg-positive' : null
-  return (
-    <div className="rounded-lg border border-border bg-card px-4 py-3 elev-1">
-      <p className="flex items-center gap-1.5 text-[11px] uppercase tracking-wide text-muted-foreground">
-        {dot && <span className={`size-1.5 rounded-full ${dot}`} />}
-        {label}
-      </p>
-      <p className="text-lg font-semibold tnum mt-0.5">{value}</p>
-      {sub && <p className="text-[11px] text-muted-foreground mt-0.5">{sub}</p>}
-    </div>
-  )
-}

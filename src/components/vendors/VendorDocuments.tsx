@@ -231,7 +231,7 @@ export default function VendorDocuments({ entityId, initialDocuments }: VendorDo
                         AI
                       </label>
                     )}
-                    <button onClick={() => removeUpload(i)}>
+                    <button onClick={() => removeUpload(i)} aria-label="Remove this file from the upload">
                       <X size={10} className="text-muted-foreground" />
                     </button>
                   </div>
@@ -300,12 +300,14 @@ export default function VendorDocuments({ entityId, initialDocuments }: VendorDo
                 <div className="flex items-center gap-0.5 shrink-0">
                   <button
                     onClick={() => handleDownload(doc)}
+                    aria-label={`Download ${doc.name}`}
                     className="h-6 w-6 rounded flex items-center justify-center hover:bg-accent transition-colors"
                   >
                     <Download size={11} className="text-muted-foreground" />
                   </button>
                   <button
                     onClick={() => setPendingDeleteId(doc.id)}
+                    aria-label={`Delete ${doc.name}`}
                     className="h-6 w-6 rounded flex items-center justify-center hover:bg-critical-surface dark:hover:bg-critical-surface/40 transition-colors"
                   >
                     <Trash2 size={11} className="text-muted-foreground hover:text-critical dark:hover:text-critical" />

@@ -351,6 +351,7 @@ function DocumentRow({
               </button>
               <button
                 onClick={() => setConfirmDelete(false)}
+                aria-label="Keep the document"
                 className="h-6 w-6 rounded flex items-center justify-center hover:bg-accent transition-colors"
               >
                 <X size={12} />
@@ -569,6 +570,7 @@ function UploadZone({
                 {/* Remove */}
                 <button
                   onClick={() => removeUpload(i)}
+                  aria-label="Remove this file from the upload"
                   className="inline-flex items-center justify-center h-6 w-6 rounded hover:bg-accent transition-colors"
                 >
                   <X size={12} className="text-muted-foreground" />
@@ -613,6 +615,7 @@ function UploadZone({
                 )}
                 <button
                   onClick={() => removeUpload(i)}
+                  aria-label="Remove this file from the upload"
                   className="inline-flex items-center justify-center h-6 w-6 rounded hover:bg-accent transition-colors"
                 >
                   <X size={12} className="text-muted-foreground" />

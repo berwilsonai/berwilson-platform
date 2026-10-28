@@ -242,6 +242,7 @@ export default function ReviewEditModal({
                   </div>
                   <button
                     onClick={() => setWaitingOn((prev) => prev.filter((_, i) => i !== idx))}
+                    aria-label="Remove this waiting-on item"
                     disabled={phase === 'saving'}
                     className="shrink-0 mt-1.5 p-1 text-muted-foreground hover:text-critical dark:hover:text-critical transition-colors disabled:opacity-50"
                   >
@@ -297,6 +298,7 @@ export default function ReviewEditModal({
                   </div>
                   <button
                     onClick={() => setRisks((prev) => prev.filter((_, i) => i !== idx))}
+                    aria-label="Remove this risk"
                     disabled={phase === 'saving'}
                     className="shrink-0 mt-1.5 p-1 text-muted-foreground hover:text-critical dark:hover:text-critical transition-colors disabled:opacity-50"
                   >
@@ -349,6 +351,7 @@ export default function ReviewEditModal({
                   </div>
                   <button
                     onClick={() => setDecisions((prev) => prev.filter((_, i) => i !== idx))}
+                    aria-label="Remove this decision"
                     disabled={phase === 'saving'}
                     className="shrink-0 mt-1.5 p-1 text-muted-foreground hover:text-critical dark:hover:text-critical transition-colors disabled:opacity-50"
                   >

@@ -354,6 +354,7 @@ export default function PasteInput({ target, onSaved, autoFocus = false }: Paste
                 </div>
                 <button
                   onClick={() => removeActionItem(idx)}
+                  aria-label="Remove this action item"
                   className="shrink-0 p-0.5 text-muted-foreground hover:text-critical dark:hover:text-critical transition-colors"
                 >
                   <X size={14} />
@@ -382,6 +383,7 @@ export default function PasteInput({ target, onSaved, autoFocus = false }: Paste
                 </div>
                 <button
                   onClick={() => removeWaitingOn(idx)}
+                  aria-label="Remove this waiting-on item"
                   className="shrink-0 p-0.5 text-muted-foreground hover:text-critical dark:hover:text-critical transition-colors"
                 >
                   <X size={14} />
@@ -416,6 +418,7 @@ export default function PasteInput({ target, onSaved, autoFocus = false }: Paste
                 </div>
                 <button
                   onClick={() => removeRisk(idx)}
+                  aria-label="Remove this risk"
                   className="shrink-0 p-0.5 text-muted-foreground hover:text-critical dark:hover:text-critical transition-colors"
                 >
                   <X size={14} />
@@ -444,6 +447,7 @@ export default function PasteInput({ target, onSaved, autoFocus = false }: Paste
                 </div>
                 <button
                   onClick={() => removeDecision(idx)}
+                  aria-label="Remove this decision"
                   className="shrink-0 p-0.5 text-muted-foreground hover:text-critical dark:hover:text-critical transition-colors"
                 >
                   <X size={14} />

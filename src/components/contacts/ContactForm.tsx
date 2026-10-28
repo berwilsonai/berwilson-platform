@@ -44,8 +44,11 @@ export default function ContactForm() {
       )}
 
       {/* Contact type */}
-      <div>
-        <label className={labelClass}>Contact Type</label>
+      {/* ⚠ A <span>, NOT A <label>: this names the radio GROUP, and a label
+          pointing at no single control announces an unlabelled control and
+          focuses nothing when clicked. The two radios carry their own labels. */}
+      <div role="radiogroup" aria-labelledby="contact-type-label">
+        <span id="contact-type-label" className={labelClass}>Contact Type</span>
         <div className="flex gap-4 mt-1">
           <label className="flex items-center gap-2 text-sm cursor-pointer">
             <input
@@ -84,8 +87,10 @@ export default function ContactForm() {
           />
         </div>
         <div>
-          <label className={labelClass}>Company / Firm</label>
-          <CompanyAutocomplete inputClass={inputClass} />
+          <span className={labelClass} id="company-label">Company / Firm</span>
+          <div role="group" aria-labelledby="company-label">
+            <CompanyAutocomplete inputClass={inputClass} />
+          </div>
         </div>
         <div>
           <label htmlFor="title" className={labelClass}>Title / Role</label>
@@ -120,9 +125,11 @@ export default function ContactForm() {
       </div>
 
       <div>
-        <label className={labelClass}>Tags</label>
+        <span className={labelClass} id="tags-label">Tags</span>
         <input type="hidden" name="tags" value={JSON.stringify(tags)} />
-        <TagInput value={tags} onChange={setTags} suggestions={tagSuggestions} />
+        <div role="group" aria-labelledby="tags-label">
+          <TagInput value={tags} onChange={setTags} suggestions={tagSuggestions} />
+        </div>
         <p className="mt-1 text-xs text-muted-foreground">
           Trade or role labels — Auditor, Plumber, Roofer… Reuse an existing tag or create a new one.
         </p>

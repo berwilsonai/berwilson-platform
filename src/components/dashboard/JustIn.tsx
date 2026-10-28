@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { Mic, Sparkles, ArrowUpRight, CircleDashed } from 'lucide-react'
 import { Chip } from '@/components/ui/chip'
+import { formatDate } from '@/lib/utils/constants'
 import type { JustInItem } from '@/lib/records/just-in'
 
 /**
@@ -53,7 +54,20 @@ export default function JustIn({ items }: { items: JustInItem[] }) {
                 >
                   {item.title}
                 </Link>
-                {item.on && <span className="text-xs text-muted-foreground tnum">{item.on}</span>}
+                {/*
+                    ⚠ FORMATTED AT THE READER, NOT AT THE THREE PRODUCERS.
+                    `on` arrives as a bare `YYYY-MM-DD` from all three of
+                    them (a project's `created_at`, an opportunity's, and a
+                    meeting's `meeting_date`), so this band — the most
+                    prominent thing on the dashboard — printed "2026-10-27"
+                    at a reader. Formatting here means the fourth producer
+                    is right for free. The year is dropped because the whole
+                    band is `JUST_IN_WINDOW_DAYS` old at most. */}
+                {item.on && (
+                  <span className="text-xs text-muted-foreground tnum">
+                    {formatDate(item.on, { year: false })}
+                  </span>
+                )}
                 {item.kind === 'record' ? (
                   /*
                    * ⚠ THE CHIP SAYS WHO MADE IT. A record created with no human

@@ -436,7 +436,7 @@ export default function ProposalIntakeWizard({ availableParents: initialParents 
                     {i === primaryIndex ? 'Primary' : 'Set Primary'}
                   </button>
                 )}
-                <button onClick={() => removeFile(i)} className="text-muted-foreground hover:text-destructive"><X size={14} /></button>
+                <button onClick={() => removeFile(i)} aria-label="Remove this file" className="text-muted-foreground hover:text-destructive"><X size={14} /></button>
               </div>
             ))}
           </div>

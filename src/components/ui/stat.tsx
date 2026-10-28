@@ -103,14 +103,24 @@ function StatTile({
     A `<div>` is a legal child of `<dl>`, so Panel's element works unchanged
     inside `StatGrid` while `dt`/`dd` keep the semantics.
   */
+  /*
+    ⚠ `h-full` IS LOAD-BEARING ON BOTH ELEMENTS, NOT DECORATION. A grid item
+    stretches by default, so a bare `<Panel>` fills the band's row height and
+    every tile ends level. Wrapping one in a `<Link>` moves that stretch to the
+    LINK — the Panel inside becomes an ordinary block at content height — so the
+    single tile with an `href` rendered short while its siblings ran on, and
+    /dashboard's KPI band had a ragged bottom edge for as long as it has existed.
+    Nothing reports this: every class is correct, the build is green, and the
+    only evidence is a screenshot.
+  */
   const tile = (
-    <Panel interactive={!!href} className={cn('min-w-0 px-4 py-3.5', href && 'hover:border-primary/40', className)} {...props}>
+    <Panel interactive={!!href} className={cn('h-full min-w-0 px-4 py-3.5', href && 'hover:border-primary/40', className)} {...props}>
       {body}
     </Panel>
   )
 
   return href ? (
-    <Link href={href} className="block min-w-0">
+    <Link href={href} className="block h-full min-w-0">
       {tile}
     </Link>
   ) : (

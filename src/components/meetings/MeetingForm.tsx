@@ -6,7 +6,7 @@ import { toast } from 'sonner'
 import { createClient } from '@/lib/supabase/client'
 import { Panel, PanelHeader } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { DatePicker } from '@/components/ui/date-picker'
+import { Field, FieldDate, Input, Select, Textarea } from '@/components/ui/field'
 import MeetingAttendees, { type TeamMemberOption, type ContactOption } from './MeetingAttendees'
 import {
   BOARD_KINDS,
@@ -21,10 +21,14 @@ import {
   type MeetingScope,
 } from '@/lib/utils/meetings'
 import type { Meeting } from '@/lib/supabase/types'
-import { FIELD_CONTROL_CLASS, FIELD_LABEL_CLASS, FIELD_TEXTAREA_CLASS } from '@/lib/utils/field-classes'
+import { FIELD_CONTROL_CLASS, FIELD_LABEL_CLASS } from '@/lib/utils/field-classes'
 
+/* Two left, and both name a COMPOSITE widget rather than one control — the
+   decisions list and the attendee picker. Every single-control field in this
+   form now goes through `<Field>`, which generates the id and the association
+   from `useId`: before this, 17 labels sat beside their boxes with zero
+   `htmlFor` between them. */
 const inputClass = FIELD_CONTROL_CLASS
-const areaClass = FIELD_TEXTAREA_CLASS
 const labelClass = FIELD_LABEL_CLASS
 
 interface Props {
@@ -247,71 +251,68 @@ export default function MeetingForm({ scope, projectId, opportunityId, meeting, 
       <div className="p-4 space-y-4 max-w-3xl">
         {/* Title + kind */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <div className="sm:col-span-2">
-            <label className={labelClass}>Title *</label>
-            <input
-              className={inputClass}
+          <Field className="sm:col-span-2" label="Title" required>
+            <Input
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder={board ? 'e.g. Special Board Meeting — executive decision' : 'e.g. Owner review — schedule + change orders'}
             />
-          </div>
-          <div>
-            <label className={labelClass}>Type</label>
-            <select className={inputClass} value={kind} onChange={(e) => setKind(e.target.value as MeetingKind)}>
+          </Field>
+          <Field label="Type">
+            <Select value={kind} onChange={(e) => setKind(e.target.value as MeetingKind)}>
               {kinds.map((k) => (
                 <option key={k} value={k}>
                   {MEETING_KIND_LABELS[k]}
                 </option>
               ))}
-            </select>
-          </div>
+            </Select>
+          </Field>
         </div>
 
         {/* Date / time / location */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <div>
-            <label className={labelClass}>Date *</label>
-            <DatePicker value={meetingDate} onChange={setMeetingDate} />
-          </div>
-          <div>
-            <label className={labelClass}>Time</label>
-            <input className={inputClass} value={meetingTime} onChange={(e) => setMeetingTime(e.target.value)} placeholder="e.g. 10 AM MST" />
-          </div>
-          <div>
-            <label className={labelClass}>Location</label>
-            <input className={inputClass} value={location} onChange={(e) => setLocation(e.target.value)} placeholder="e.g. Little America, SLC / Call" />
-          </div>
+          <Field label="Date" required>
+            <FieldDate value={meetingDate} onChange={setMeetingDate} />
+          </Field>
+          <Field label="Time">
+            <Input value={meetingTime} onChange={(e) => setMeetingTime(e.target.value)} placeholder="e.g. 10 AM MST" />
+          </Field>
+          <Field label="Location">
+            <Input value={location} onChange={(e) => setLocation(e.target.value)} placeholder="e.g. Little America, SLC / Call" />
+          </Field>
         </div>
 
         {/* Board-only governance fields */}
         {board && (
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div>
-              <label className={labelClass}>Meeting type label</label>
-              <input className={inputClass} value={typeLabel} onChange={(e) => setTypeLabel(e.target.value)} placeholder="e.g. Special Board Meeting" />
-            </div>
-            <div>
-              <label className={labelClass}>Chair</label>
-              <input className={inputClass} value={chair} onChange={(e) => setChair(e.target.value)} placeholder="e.g. Ericson Tua'one" />
-            </div>
-            <div>
-              <label className={labelClass}>Secretary</label>
-              <input className={inputClass} value={secretary} onChange={(e) => setSecretary(e.target.value)} placeholder="e.g. Ericson Tua'one" />
-            </div>
+            <Field label="Meeting type label">
+              <Input value={typeLabel} onChange={(e) => setTypeLabel(e.target.value)} placeholder="e.g. Special Board Meeting" />
+            </Field>
+            <Field label="Chair">
+              <Input value={chair} onChange={(e) => setChair(e.target.value)} placeholder="e.g. Ericson Tua'one" />
+            </Field>
+            <Field label="Secretary">
+              <Input value={secretary} onChange={(e) => setSecretary(e.target.value)} placeholder="e.g. Ericson Tua'one" />
+            </Field>
           </div>
         )}
 
         {/* Attendees */}
         <div>
-          <label className={labelClass}>Attendees</label>
-          <MeetingAttendees attendees={attendees} onChange={setAttendees} teamMembers={teamMembers} contacts={contacts} />
+          {/* ⚠ A <span>, NOT A <label>. This names a composite widget, not one
+              control, and a <label> with nothing to point at is exactly the
+              defect being fixed here — it announces an unlabelled control and
+              clicking the word focuses nothing. */}
+          <span className={labelClass} id="meeting-attendees-label">Attendees</span>
+          <div role="group" aria-labelledby="meeting-attendees-label">
+            <MeetingAttendees attendees={attendees} onChange={setAttendees} teamMembers={teamMembers} contacts={contacts} />
+          </div>
         </div>
 
         {/* Recording (create only) — one-shot upload + Whisper transcription */}
         {!meeting && (
           <div>
-            <label className={labelClass}>Recording (audio or video)</label>
+            <span className={labelClass}>Recording (audio or video)</span>
             {recording ? (
               <div className="flex items-center gap-2 rounded-lg border border-input bg-muted/30 px-3.5 h-9 text-sm">
                 <Mic size={14} className="text-muted-foreground shrink-0" />
@@ -349,14 +350,14 @@ export default function MeetingForm({ scope, projectId, opportunityId, meeting, 
 
         {/* Transcript */}
         <div>
-          <label className={labelClass}>Transcript / script</label>
-          <textarea
-            className={areaClass}
-            rows={5}
-            value={transcript}
-            onChange={(e) => setTranscript(e.target.value)}
-            placeholder="Optional — paste a transcript here, or upload a recording above and Whisper writes it for you. You can also add the recording from the record after saving."
-          />
+          <Field label="Transcript / script">
+            <Textarea
+              rows={5}
+              value={transcript}
+              onChange={(e) => setTranscript(e.target.value)}
+              placeholder="Optional — paste a transcript here, or upload a recording above and Whisper writes it for you. You can also add the recording from the record after saving."
+            />
+          </Field>
           {!board && (
             <div className="mt-2">
               <button
@@ -374,25 +375,26 @@ export default function MeetingForm({ scope, projectId, opportunityId, meeting, 
 
         {/* Summary */}
         <div>
-          <label className={labelClass}>Summary</label>
-          <textarea className={areaClass} rows={2} value={summary} onChange={(e) => setSummary(e.target.value)} placeholder="A short executive skim of the meeting." />
+          <Field label="Summary">
+            <Textarea rows={2} value={summary} onChange={(e) => setSummary(e.target.value)} placeholder="A short executive skim of the meeting." />
+          </Field>
         </div>
 
         {/* Minutes / notes */}
         <div>
-          <label className={labelClass}>{board ? 'Minutes (authoritative)' : 'Notes'}</label>
-          <textarea
-            className={areaClass}
-            rows={board ? 10 : 5}
-            value={minutes}
-            onChange={(e) => setMinutes(e.target.value)}
-            placeholder={board ? 'The authoritative minutes — paste or write the exact record.' : 'What was discussed, positions, open items.'}
-          />
+          <Field label={board ? 'Minutes (authoritative)' : 'Notes'}>
+            <Textarea
+              rows={board ? 10 : 5}
+              value={minutes}
+              onChange={(e) => setMinutes(e.target.value)}
+              placeholder={board ? 'The authoritative minutes — paste or write the exact record.' : 'What was discussed, positions, open items.'}
+            />
+          </Field>
         </div>
 
         {/* Decisions / resolutions */}
         <div>
-          <label className={labelClass}>{board ? 'Resolutions' : 'Decisions'}</label>
+          <span className={labelClass}>{board ? 'Resolutions' : 'Decisions'}</span>
           <div className="space-y-2">
             {decisions.map((d, i) => (
               <div key={i} className="flex items-center gap-2">
@@ -424,13 +426,12 @@ export default function MeetingForm({ scope, projectId, opportunityId, meeting, 
 
         {/* Status + flags */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
-          <div>
-            <label className={labelClass}>Status</label>
-            <select className={inputClass} value={status} onChange={(e) => setStatus(e.target.value)}>
+          <Field label="Status">
+            <Select value={status} onChange={(e) => setStatus(e.target.value)}>
               <option value="draft">Draft</option>
               <option value="approved">Approved</option>
-            </select>
-          </div>
+            </Select>
+          </Field>
           <label className="flex items-center gap-2 text-sm h-9">
             <input type="checkbox" className="rounded" checked={confidential} onChange={(e) => setConfidential(e.target.checked)} />
             Confidential

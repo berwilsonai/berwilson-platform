@@ -13,6 +13,7 @@ import {
   type RepBucket,
 } from '@/lib/steel/rollups'
 import SteelWorkspaceTabs from '@/components/steel/SteelWorkspaceTabs'
+import { StatTile, StatGrid } from '@/components/ui/stat'
 
 export const metadata = { title: 'My Earnings — Ber Wilson Intelligence' }
 
@@ -119,16 +120,16 @@ export default async function SteelEarningsPage() {
       </div>
 
       {/* Totals band */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <Stat label="Total sales" value={formatValue(card?.totalSales ?? 0)} sub="Revenue on my deals" />
-        <Stat label="Owed to me" value={formatValue((card?.totalOwed ?? 0) + referralBucket.owed)} tone="amber" />
-        <Stat label="Paid to me" value={formatValue((card?.totalPaid ?? 0) + referralBucket.paid)} tone="emerald" />
-        <Stat
+      <StatGrid>
+        <StatTile label="Total sales" value={formatValue(card?.totalSales ?? 0)} hint="Revenue on my deals" />
+        <StatTile label="Owed to me" value={formatValue((card?.totalOwed ?? 0) + referralBucket.owed)} tone="caution" />
+        <StatTile label="Paid to me" value={formatValue((card?.totalPaid ?? 0) + referralBucket.paid)} tone="positive" />
+        <StatTile
           label="Projected"
           value={formatValue((card?.totalProjected ?? 0) + referralBucket.projected)}
-          sub="If open deals close"
+          hint="If open deals close"
         />
-      </div>
+      </StatGrid>
 
       {/* Accelerator */}
       <section className="rounded-lg border border-border bg-card p-4 elev-1">
@@ -204,22 +205,6 @@ export default async function SteelEarningsPage() {
           </table>
         </div>
       </section>
-    </div>
-  )
-}
-
-function Stat({ label, value, sub, tone }: { label: string; value: string; sub?: string; tone?: 'amber' | 'emerald' }) {
-  const cls =
-    tone === 'amber'
-      ? 'text-caution'
-      : tone === 'emerald'
-        ? 'text-positive'
-        : ''
-  return (
-    <div className="rounded-lg border border-border bg-card px-4 py-3 elev-1">
-      <p className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</p>
-      <p className={`text-lg font-semibold tnum mt-0.5 ${cls}`}>{value}</p>
-      {sub && <p className="text-[11px] text-muted-foreground mt-0.5">{sub}</p>}
     </div>
   )
 }

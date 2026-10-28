@@ -392,8 +392,8 @@
      the worst case is `positive` on its own surface at 4.74:1, and `caution`
      had to come down from L 0.55 to L 0.52 to clear it at all — yellow always
      does. ⚠ AND THE `edge` IS LOAD-BEARING IN LIGHT MODE: the canvas is
-     oklch(0.976) and these surfaces are 0.964–0.968, so a tinted block on the
-     bare background reads at just 1.02–1.06:1. On a white card it is 1.10:1 and
+     oklch(0.963) and these surfaces are 0.954–0.958, so a tinted block on the
+     bare background reads at barely more than 1:1. On a white card it is 1.10:1 and
      fine. Off a card, the ring is the only thing that gives the block an edge —
      do not drop it to "simplify".
 
@@ -591,8 +591,11 @@
     bug silently; nothing renders an error and the chevron simply overlaps.
   */
   /* (moved below, outside the layer) */
-  /* Page titles carry the display serif (Newsreader) — one editorial voice for
-     every h1 (screen + print letterheads). Section h2s/h3s stay Geist. */
+  /* ⚠ THERE IS NO SERIF. This said "Page titles carry the display serif
+     (Newsreader)" long after Newsreader stopped being loaded — `--font-heading`
+     resolves to the Geist sans stack, and `Newsreader` appears nowhere in src/.
+     The rule stays, because the token is the seam a display face would arrive
+     through; the claim that one is already here did not. */
   h1 {
     font-family: var(--font-heading);
     letter-spacing: -0.01em;

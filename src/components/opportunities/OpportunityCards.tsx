@@ -196,20 +196,36 @@ export function OpportunityCard({
                 */}
                 {pipelineValue(opp).amount != null ? (
                   <span
-                    className="text-sm font-semibold tnum text-foreground"
+                    className="shrink-0 text-sm font-semibold tnum text-foreground"
                     title={pipelineValue(opp).hint}
                   >
                     {formatValue(pipelineValue(opp).amount)}
                   </span>
                 ) : (
-                  <span className="text-[11px] text-muted-foreground/70">No value set</span>
+                  <span className="shrink-0 text-[11px] text-muted-foreground/70">No value set</span>
                 )}
-                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                {/*
+                  ⚠ `min-w-0` + `truncate` + ROOM FOR THE HANDLE. `DragHandle`
+                  is an absolutely-positioned SIBLING pinned to this card's
+                  bottom-right (§12 requires the sibling, so the anchor still
+                  covers the body), which means it floats OVER this row and
+                  takes no space in it. A long sector — "Infrastructure" is the
+                  commonest value on the board — ran straight under it on most
+                  cards. `justify-between` on a flex row also refuses to shrink
+                  a child without `min-w-0`, so truncation alone would not have
+                  fired.
+                */}
+                <div
+                  className={cn(
+                    'flex min-w-0 items-center gap-2 text-xs text-muted-foreground',
+                    draggable && 'pr-6'
+                  )}
+                >
                   {opp.sector && SECTOR_LABELS[opp.sector as ProjectSector] && (
-                    <span>{SECTOR_LABELS[opp.sector as ProjectSector]}</span>
+                    <span className="truncate">{SECTOR_LABELS[opp.sector as ProjectSector]}</span>
                   )}
                   {opp.probability != null && (
-                    <span className="tnum font-medium">{opp.probability}%</span>
+                    <span className="tnum shrink-0 font-medium">{opp.probability}%</span>
                   )}
                 </div>
               </div>

@@ -10,11 +10,17 @@ import { cn } from "@/lib/utils"
  *
  * ⚠ `rounded-lg` IS `--radius` EXACTLY, AND THAT IS THE POINT. This was
  * `rounded-xl` (calc(--radius * 1.4)) while 145 hand-rolled shells used
- * `rounded-lg`, so two card radii showed on one screen. Under the chosen
- * palette --radius is 0.25rem, which makes this 4px — the radius the direction
- * specifies — and xl 5.6px. 85 outliers were converged by
- * scripts/codemod/card-radius.mjs; `elev-1` is transparent at rest, so the
- * border is what separates a card from the canvas.
+ * `rounded-lg`, so two card radii showed on one screen. 85 outliers were
+ * converged by scripts/codemod/card-radius.mjs.
+ *
+ * ⚠ THE TWO FIGURES THIS COMMENT USED TO QUOTE WERE BOTH STALE, which is the
+ * §12 failure where a comment outlives what it describes and is believed
+ * anyway. It said "--radius is 0.25rem, which makes this 4px": `--radius`
+ * became 0.5rem on 10-26, so it is 8px, and `rounded-xl` is 11.2px. It also
+ * said "`elev-1` is transparent at rest, so the border is what separates a
+ * card from the canvas" — elev-1 became a real two-layer shadow in BOTH
+ * themes on 10-26. The border and the shadow now share that job. Read the
+ * tokens in globals.css; do not trust a number written here.
  */
 function Panel({
   className,

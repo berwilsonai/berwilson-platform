@@ -124,7 +124,7 @@ export default function MeetingIntakeForm() {
             <div className="absolute right-0 z-30 mt-1 w-80 max-h-80 overflow-auto rounded-md border border-border bg-card shadow-lg">
               <div className="flex items-center justify-between px-3 py-2 border-b border-border">
                 <span className="label-caps text-muted-foreground">Recent meetings</span>
-                <button type="button" onClick={() => setCalOpen(false)} className="text-muted-foreground hover:text-foreground"><X size={14} /></button>
+                <button type="button" onClick={() => setCalOpen(false)} aria-label="Close the meeting list" className="text-muted-foreground hover:text-foreground"><X size={14} /></button>
               </div>
               {calLoading ? (
                 <div className="px-3 py-4 text-sm text-muted-foreground flex items-center gap-2"><Loader2 size={14} className="animate-spin" /> Loading…</div>
@@ -171,7 +171,7 @@ export default function MeetingIntakeForm() {
           {seedAttendees.map((a, i) => (
             <span key={i} className="inline-flex items-center gap-1 h-6 px-2 rounded-full bg-accent text-xs">
               {a.name}
-              <button type="button" onClick={() => setSeedAttendees((prev) => prev.filter((_, idx) => idx !== i))} className="text-muted-foreground hover:text-destructive"><X size={11} /></button>
+              <button type="button" onClick={() => setSeedAttendees((prev) => prev.filter((_, idx) => idx !== i))} aria-label={`Remove ${a.name}`} className="text-muted-foreground hover:text-destructive"><X size={11} /></button>
             </span>
           ))}
           <span className="text-[11px] text-muted-foreground">— added to the extracted attendees for review</span>

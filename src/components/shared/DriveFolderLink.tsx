@@ -259,7 +259,7 @@ export default function DriveFolderLink({
                           </span>
                           <span className="block text-xs text-muted-foreground tnum">
                             {c.files} file{c.files === 1 ? '' : 's'}
-                            {c.newest ? ` · newest ${c.newest.slice(0, 10)}` : ''}
+                            {c.newest ? ` · newest ${formatDate(c.newest)}` : ''}
                           </span>
                         </button>
                       </li>

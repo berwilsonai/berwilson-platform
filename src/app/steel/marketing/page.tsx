@@ -11,6 +11,7 @@ import { leadSourcesInUse } from '@/lib/steel/lead-sources'
 import { channelAnalytics, icpBreakdown, spendByMonth, type ChannelStat } from '@/lib/steel/marketing'
 import SteelSpendLedger from '@/components/steel/SteelSpendLedger'
 import SteelWorkspaceTabs from '@/components/steel/SteelWorkspaceTabs'
+import { StatTile, StatGrid } from '@/components/ui/stat'
 
 export const metadata = { title: 'Steel Marketing — Ber Wilson Intelligence' }
 
@@ -71,16 +72,16 @@ export default async function SteelMarketingPage() {
             Budget {formatValue(STEEL_MARKETING_MONTHLY_BUDGET)}/mo
           </span>
         </div>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
-          <Stat label="This month" value={formatValue(thisMonth?.spend ?? 0)} sub={thisMonth?.label} />
-          <Stat
+        <StatGrid className="sm:grid-cols-4 mb-4">
+          <StatTile label="This month" value={formatValue(thisMonth?.spend ?? 0)} hint={thisMonth?.label} />
+          <StatTile
             label="Remaining"
             value={formatValue(Math.max(0, STEEL_MARKETING_MONTHLY_BUDGET - (thisMonth?.spend ?? 0)))}
-            sub="Of this month's budget"
+            hint="Of this month's budget"
           />
-          <Stat label="Leads (all time)" value={String(totals.leads)} sub={`${totals.won} won`} />
-          <Stat label="Blended CAC" value={money(totals.cac)} sub="Spend ÷ won deals" />
-        </div>
+          <StatTile label="Leads (all time)" value={String(totals.leads)} hint={`${totals.won} won`} />
+          <StatTile label="Blended CAC" value={money(totals.cac)} hint="Spend ÷ won deals" />
+        </StatGrid>
         {/* Month bars */}
         <div className="space-y-1.5">
           {months.map((m) => {
@@ -239,12 +240,3 @@ function IcpTable({
   )
 }
 
-function Stat({ label, value, sub }: { label: string; value: string; sub?: string }) {
-  return (
-    <div className="rounded-lg border border-border bg-card px-4 py-3 elev-1">
-      <p className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</p>
-      <p className="text-lg font-semibold tnum mt-0.5">{value}</p>
-      {sub && <p className="text-[11px] text-muted-foreground mt-0.5">{sub}</p>}
-    </div>
-  )
-}

@@ -197,6 +197,7 @@ export default function MobileQuickUpload() {
                       </div>
                       <button
                         onClick={() => setSelectedFile(null)}
+                        aria-label="Remove the selected file"
                         className="p-1.5 rounded-full hover:bg-muted transition-colors"
                       >
                         <X size={14} className="text-muted-foreground" />

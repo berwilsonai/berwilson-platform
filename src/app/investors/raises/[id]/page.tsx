@@ -19,6 +19,7 @@ import {
 import { parseTranches, raiseLevels, fillTranches } from '@/lib/investors/raises'
 import RaiseTrancheBar, { TrancheBarLegend } from '@/components/investors/RaiseTrancheBar'
 import RaiseDeleteButton from '@/components/investors/RaiseDeleteButton'
+import { StatTile, StatGrid } from '@/components/ui/stat'
 
 interface PageProps {
   params: Promise<{ id: string }>
@@ -28,16 +29,6 @@ export async function generateMetadata({ params }: PageProps) {
   const { id } = await params
   const { data } = await createAdminClient().from('raises').select('name').eq('id', id).single()
   return { title: `${data?.name ?? 'Raise'} — Ber Wilson Intelligence` }
-}
-
-function Stat({ label, value, sub }: { label: string; value: string; sub?: string }) {
-  return (
-    <div className="rounded-lg border border-border bg-card px-4 py-3 elev-1">
-      <p className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</p>
-      <p className="text-lg font-semibold tnum mt-0.5">{value}</p>
-      {sub && <p className="text-[11px] text-muted-foreground mt-0.5">{sub}</p>}
-    </div>
-  )
 }
 
 export default async function RaiseDetailPage({ params }: PageProps) {
@@ -135,14 +126,14 @@ export default async function RaiseDetailPage({ params }: PageProps) {
       </div>
 
       {/* Money band */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <Stat label="Target" value={formatValue(target)} sub={explicitTranches.length > 0 ? `${explicitTranches.length} tranches` : undefined} />
-        <Stat label="Committed" value={formatValue(levels.committed)} sub={`Signed${pctOf(levels.committed)}`} />
-        <Stat label="Funded" value={formatValue(levels.funded)} sub={`Wired${pctOf(levels.funded)}`} />
-        <Stat
+      <StatGrid>
+        <StatTile label="Target" value={formatValue(target)} hint={explicitTranches.length > 0 ? `${explicitTranches.length} tranches` : undefined} />
+        <StatTile label="Committed" value={formatValue(levels.committed)} hint={`Signed${pctOf(levels.committed)}`} />
+        <StatTile label="Funded" value={formatValue(levels.funded)} hint={`Wired${pctOf(levels.funded)}`} />
+        <StatTile
           label="Potential"
           value={formatValue(levels.potential)}
-          sub={
+          hint={
             gap != null
               ? gap > 0
                 ? `${formatValue(gap)} uncovered even if all indications convert`
@@ -150,7 +141,7 @@ export default async function RaiseDetailPage({ params }: PageProps) {
               : 'If all indications convert'
           }
         />
-      </div>
+      </StatGrid>
 
       {/* Tranche waterfall */}
       {fills.length > 0 && (
