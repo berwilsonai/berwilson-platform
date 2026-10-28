@@ -6,6 +6,40 @@ This file is **not** auto-loaded into a Claude Code session. It is the archive: 
 
 Split out of `CLAUDE.md` on 2026-09-23, when that file reached 606k characters against a 150k limit above which it is silently truncated — meaning the project's own operating instructions had begun to risk not reaching the sessions that need them. The entries below are **verbatim and unedited**.
 
+**Done 2026-10-27 (the UI audit, Phase 5 — the toggle that settles two arguments with the audit):**
+
+── THE DENSITY TOGGLE ──────────────────────────────────────────────────────
+
+Phase 4 landed two row heights one step short of what the audit asked for, and said so rather than quietly missing them. This is the resolution, and it is not a compromise: **both targets are reachable, as a CHOICE rather than as a decision taken on the reader's behalf.**
+
+| surface | comfortable | compact | above the fold |
+|---|---|---|---|
+| /decide | 82px | **54px** (audit asked 64) | 9.9 → 15.1, +53% |
+| /contacts | 56px | **48px** (the audit's number exactly) | 14.6 → 17.0 |
+| /commitments | `py-3` | `py-2` | |
+
+The argument each way, stated once: /decide's third line is the MODEL'S REASONING, and it is what makes the banner above the list — *"138 of 140 can be accepted without opening them"* — a defensible offer rather than a leap. Hiding it by default trades the queue's safety for nine rows without asking. Hiding it on request is a reader who has decided they already trust it. /contacts at 48px crushes a 20px name over an 18px subtitle; at 56px it does not. Neither of those is a layout problem — they are preferences, and preferences belong to the person reading.
+
+`compact:` is to row height what `dark:` is to colour: one `@custom-variant` reading one attribute on `<html>`, set by the same pre-paint script that sets the theme. ⚠ **It is set there and not in an effect for the same reason the theme is** — reading it after mount renders the page once at the default and again correctly, which on a 397-row list is a visible jump. ⚠ **And `:where()` keeps specificity at zero**, matching `dark:`: without it every compact rule would outrank the base utility it is meant to sit beside, and a one-off override on a single row would stop working.
+
+⚠ **FOUR FILES NAME THE STORAGE KEY AND NONE OF THEM IMPORTS FROM THE OTHERS** — the toggle writes it, the pre-paint script is a string inside a `<script>` tag, and both screenshot harnesses seed it because Chrome runs on a fresh profile every time. That drifted within the hour of being written: `shoot.mjs` gained `BW_SHOOT_DENSITY` and `measure.mjs` did not, so a "compact" contrast sweep came back with the COMFORTABLE numbers — **591 text nodes on /decide in both runs, when compact hides a line per row and cannot produce the same count.** A flag that changes nothing reads exactly like a page that is already fine; the tell was the two runs agreeing to the node, which is the same shape as §12's "a probe that is broken and a page that is broken produce the same number". `conventions.test.ts` now holds all four files to the same key for both `theme` and `density`, and asserts the variant exists at all — proved by deleting it, since every `compact:` class in the tree is inert without it.
+
+── /jobs: 683px OF DEAD SPACE, AND THREE BUTTONS THAT DID NOT LOOK LIKE BUTTONS ──
+
+The page was `max-w-3xl` left-aligned in a 1,451px frame, with the composer and the run list stacked vertically. Two columns now: the composer keeps the reading width, the runs sit beside it — which is also where a reader looks to see whether the thing they just started is working.
+
+⚠ **THE THREE EXAMPLE PROMPTS WERE ALREADY CLICKABLE AND NEVER LOOKED IT.** `text-xs text-muted-foreground`, no border, no resting affordance — the audit read them as "plain grey paragraphs", and the handler had been wired the whole time. They are the page's entire onboarding (a question, an audit that proposes fixes, a bulk change), so they are cards now. ⚠ **On `bg-muted/40`, NOT `bg-card`:** the composer is itself a `<Panel>` on `bg-card`, so a card-coloured child would have shown nothing but its border. The card-shell ratchet failed the build at 227 and was right to — the copy it stopped was one that could not have been seen.
+
+── /attention: THE RANK WAS THE ONE THING ON THE ROW YOU COULD NOT READ ────
+
+A bare **"100"** at 13px in the far-right corner, with its only explanation in a `title` nobody hovers, on a page whose entire job is to rank. It is a labelled chip now, banded by the same thresholds the rows are banded by so the colour and the number say the same thing. ⚠ `tnum` on the figure is load-bearing: without tabular figures a 92 and a 100 sit at different widths down the column and cannot be compared by eye, which is the whole job.
+
+── VERIFICATION ────────────────────────────────────────────────────────────
+
+745 tests. Lint 23, unchanged. Contrast swept in **both densities and both themes** — 0 invisible elements, and /decide's 591 → 457 node count between them is the proof the compact flag now does something.
+
+**Where the audit stands.** Phases 1, 2, 3 and 5 are done; Phase 4 is most of the way through. What is left is in `OPEN-ITEMS.md` and is all BUILD rather than convergence: §5.2's shared filter bar, §5.3's delta line (which needs comparison data the platform does not store) and the `StatTile` convergence, §5.4's saved views and column controls, and the remaining Phase 4 pages — /dashboard's commitments rail, /investors' empty states, /intake's narrow column.
+
 **Done 2026-10-27 (the UI audit, Phase 4 — the page that looked unparsed, and the three lists showing 3% of themselves):**
 
 Continued straight on from Phases 1–3 (the entry below). Same method: measure the audit's premise, act on what it found, note what it could not see.
