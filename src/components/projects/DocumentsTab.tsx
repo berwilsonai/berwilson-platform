@@ -803,8 +803,15 @@ export default function DocumentsTab({
     <div className="space-y-6 max-w-4xl">
       {/* Header */}
       <div className="flex items-center justify-between">
+        {/*
+          ⚠ `liveDocuments`, NOT `documents`. This heading counted the
+          superseded ones and every other number on the tab did not, so the
+          page printed 191 here and "All 188" in the filter chip directly
+          below — §12's one-quantity-one-definition failure, visible without
+          scrolling.
+        */}
         <h2 className="text-sm font-semibold text-foreground">
-          Documents ({documents.length})
+          Documents ({liveDocuments.length})
         </h2>
         <div className="flex items-center gap-2">
           {canPublish && (

@@ -22,6 +22,7 @@ import {
   Trash2,
 } from 'lucide-react'
 import EmptyState from '@/components/shared/EmptyState'
+import { PageHeader, HeaderMetrics } from '@/components/ui/page-header'
 import { DatePicker } from '@/components/ui/date-picker'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import TaskDetailSheet from './TaskDetailSheet'
@@ -219,6 +220,12 @@ export default function TeamTaskBoard({
   ].filter(Boolean).length
 
   const openCount = tasks.filter((t) => t.status !== 'done').length
+  // The same "past its date" test the per-person chips use, totalled — so the
+  // masthead and the chips below it can never disagree about what is late.
+  const overdueCount = useMemo(() => {
+    const today = new Date().toISOString().split('T')[0]
+    return tasks.filter((t) => t.status !== 'done' && t.due_date && t.due_date < today).length
+  }, [tasks])
 
   async function handleAddTask() {
     if (!title.trim()) return
@@ -557,28 +564,14 @@ export default function TeamTaskBoard({
 
   const heldTask = dnd.heldId ? filtered.find((t) => t.id === dnd.heldId) : undefined
 
-  return (
-    /* No max-width when this IS the page. A list whose rows truncate must not
-       also reserve empty space: the cap left ~400px unused at 1440 while every
-       task's `why` line was being clipped mid-sentence. Scoped/embedded boards
-       still sit inside someone else's column and keep their own bounds. */
-    <div className={cn('space-y-5', !scoped && !embedded && 'max-w-6xl')}>
-      {/* Header */}
-      <div className={cn('flex flex-wrap items-center gap-3', embedded ? 'justify-end' : 'justify-between')}>
-        {!embedded && (
-          <div>
-            {/* Only a SCOPED board titles itself. Unscoped, this is the whole
-                page and AppHeader already renders "Team Tasks" from nav.ts —
-                the two sat one line apart saying the same words twice. */}
-            {scoped && (
-              <h1 className="text-base font-semibold text-foreground whitespace-nowrap">Tasks</h1>
-            )}
-            <p className="text-sm text-muted-foreground">
-              {openCount} open{scoped ? '' : ' across the team'}
-            </p>
-          </div>
-        )}
-        <div className="flex items-center gap-2">
+  /*
+    One set of action buttons, named once. They used to live inside the header
+    row, which meant the masthead could not have them without duplicating the
+    markup — and a duplicated button row is how two headers start disagreeing.
+  */
+  const headerActions = (
+    <>
+
           {!scoped && (
             <button
               onClick={() => setManageOpen(true)}
@@ -618,12 +611,51 @@ export default function TeamTaskBoard({
           )}
           <button
             onClick={() => setShowAdd((s) => !s)}
-            className="inline-flex items-center justify-center gap-1.5 whitespace-nowrap h-[2.75rem] sm:h-9 px-3.5.5 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 active:scale-[0.98] transition-all elev-1"
+            className="inline-flex items-center justify-center gap-1.5 whitespace-nowrap h-[2.75rem] sm:h-9 px-3.5 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 active:scale-[0.98] transition-all elev-1"
           >
             <Plus size={14} /> New task
           </button>
-        </div>
-      </div>
+    </>
+  )
+
+  return (
+    /* No max-width when this IS the page. A list whose rows truncate must not
+       also reserve empty space: the cap left ~400px unused at 1440 while every
+       task's `why` line was being clipped mid-sentence. Scoped/embedded boards
+       still sit inside someone else's column and keep their own bounds. */
+    <div className={cn('space-y-5', !scoped && !embedded && 'max-w-6xl')}>
+      {/*
+        ⚠ THIS IS THE APP'S LANDING SCREEN — `/` redirects to `/tasks` — AND IT
+        WAS THE ONLY ONE WITH NO MASTHEAD AT ALL. It opened on "45 open across
+        the team" in 14px grey while every list page opens on a 28px title, so
+        the first thing anyone sees was the least-dressed thing in the app.
+
+        The reason it had none was sound as far as it went: `AppHeader` already
+        prints "Team Tasks" from nav.ts, and the two said the same words a line
+        apart. But that is true of every other page too, and all of them carry
+        both — the 14px locator and the masthead do different jobs. So the page
+        gets the masthead, and the duplication argument is settled the way the
+        other dozen pages settled it.
+      */}
+      {!embedded && (
+        <PageHeader
+          title="Tasks"
+          icon={ListChecks}
+          className="mb-0"
+          metrics={
+            <HeaderMetrics
+              items={[
+                { label: scoped ? 'open' : 'open across the team', value: openCount },
+                ...(overdueCount > 0
+                  ? [{ label: 'past their date', value: overdueCount, tone: 'critical' as const }]
+                  : []),
+              ]}
+            />
+          }
+          actions={headerActions}
+        />
+      )}
+      {embedded && <div className="flex flex-wrap items-center justify-end gap-2">{headerActions}</div>}
 
       {/* Team workload — tap a person to filter the board to them */}
       {!scoped && workload.length > 0 && (

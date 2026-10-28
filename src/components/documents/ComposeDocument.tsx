@@ -2,9 +2,9 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { ExternalLink, FileText, Loader2, Sparkles } from 'lucide-react'
+import { ChevronDown, ExternalLink, FileText, Loader2, Sparkles } from 'lucide-react'
 
-import { Panel, PanelHeader } from '@/components/ui/card'
+import { Panel } from '@/components/ui/card'
 import { Field, FormActions, Select, Textarea } from '@/components/ui/field'
 import { COUNSEL_NOTICE, composeKind, composeKindList } from '@/lib/documents/compose-kinds'
 import type { RecordKind } from '@/lib/records/log-menu'
@@ -51,6 +51,15 @@ export default function ComposeDocument({ kind, recordId, confidential = false }
   const [busy, setBusy] = useState(false)
   const [result, setResult] = useState<ComposeResponse | null>(null)
   const [error, setError] = useState<string | null>(null)
+  /*
+    The disclosure. It is NOT purely user-controlled: `busy` and `result` force
+    it open, because a collapsed panel that is quietly writing a document — or
+    that has just finished one — is a report delivered to nobody.
+  */
+  const [openedByHand, setOpenedByHand] = useState(false)
+  const open = openedByHand || busy || !!result || !!error
+  const setOpen = (next: boolean | ((o: boolean) => boolean)) =>
+    setOpenedByHand((o) => (typeof next === 'function' ? next(o) : next))
 
   const spec = composeKind(documentKind)
   const ready = instructions.trim().length >= 10 && !!spec
@@ -101,9 +110,39 @@ export default function ComposeDocument({ kind, recordId, confidential = false }
 
   return (
     <Panel>
-      <PanelHeader label={<><Sparkles size={12} className="inline mr-1" />Have Ber AI write one</>} />
+      {/*
+        ⚠ CLOSED BY DEFAULT, BECAUSE A CREATE FORM MUST NOT DISPLACE THE THING
+        IT CREATES. Measured on Steelton (188 live documents): this form stood
+        450px tall above the list, so the Documents tab opened with the kind
+        picker, the instruction box, the sourcing note and the counsel notice
+        on screen and NOT ONE DOCUMENT — on the record with the most documents
+        in the portfolio.
 
-      <div className="p-4 space-y-3">
+        §12 has the inverse rule — a surface hidden because it is empty is
+        hidden exactly when someone needs to fill it — and that is why this
+        collapses to a row rather than moving below the list or behind a menu:
+        it is still the first thing on the tab, it still says what it does, and
+        it is one click from open. It opens itself whenever there is something
+        to report, so a run in progress or a finished document is never hidden.
+      */}
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        className="flex w-full items-center justify-between gap-2 px-4 py-2.5 text-left outline-none transition-colors hover:bg-accent focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+      >
+        <span className="label-caps flex items-center gap-1.5 text-muted-foreground">
+          <Sparkles size={12} />
+          Have Ber AI write one
+        </span>
+        <ChevronDown
+          size={14}
+          aria-hidden="true"
+          className={`shrink-0 text-muted-foreground transition-transform ${open ? 'rotate-180' : ''}`}
+        />
+      </button>
+
+      <div className={`space-y-3 border-t border-border p-4 ${open ? '' : 'hidden'}`}>
         <Field label="What kind" id="compose-kind">
           <Select
             id="compose-kind"

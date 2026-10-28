@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
-import { Send, Bot, User, Loader2, AlertCircle, ThumbsUp, ThumbsDown, Trash2, ArrowUpRight } from 'lucide-react'
+import { Send, Bot, User, Loader2, AlertCircle, ThumbsUp, ThumbsDown, Trash2, ArrowUpRight, ArrowRight } from 'lucide-react'
 
 import { BriefMarkdown } from '@/components/briefs/BriefMarkdown'
 import ReadAloudButton from '@/components/shared/ReadAloudButton'
@@ -570,7 +570,16 @@ export default function AgentChat({
                 ? 'Ask anything about this document — it will answer from the text, quote passages, and explain dense sections.'
                 : 'Your executive intelligence agent — it reads the portfolio, documents, tasks, and the raise before answering.'}
             </p>
-            <div className="flex flex-wrap justify-center gap-1.5 mt-4 max-w-[420px]">
+            {/*
+              ⚠ A CENTRED `flex-wrap` CANNOT PRODUCE A TIDY BLOCK. Four prompts
+              of different lengths wrapped into three ragged centred lines —
+              2 + 1 + 1 — which reads as a layout that failed rather than one
+              that was chosen. They are a LIST of equal offers, so they are
+              laid out as one: a single column, full width of the block, each
+              the same shape. It also works in the dock, which is half this
+              wide and where the wrap was worse.
+            */}
+            <div className="mt-4 flex w-full max-w-[22rem] flex-col gap-1.5">
               {(documentId
                 ? [
                     'Give me a plain-language outline of this document',
@@ -605,9 +614,14 @@ export default function AgentChat({
                     setInput(q)
                     inputRef.current?.focus()
                   }}
-                  className="rounded-full border border-border bg-card px-3 py-1.5 text-xs text-foreground/80 hover:border-primary/40 hover:text-primary hover:bg-primary/5 transition-colors"
+                  className="group flex w-full items-center justify-between gap-2 rounded-lg border border-border bg-card px-3 py-2 text-left text-xs text-foreground/80 transition-colors hover:border-primary/40 hover:bg-primary/5 hover:text-primary"
                 >
-                  {q}
+                  <span className="min-w-0 truncate">{q}</span>
+                  <ArrowRight
+                    size={12}
+                    aria-hidden="true"
+                    className="shrink-0 text-muted-foreground/50 transition-colors group-hover:text-primary"
+                  />
                 </button>
               ))}
             </div>

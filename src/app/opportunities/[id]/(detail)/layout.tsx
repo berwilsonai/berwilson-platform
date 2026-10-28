@@ -64,10 +64,15 @@ export default async function OpportunityDetailLayout({ children, params }: Layo
     table: 'project_players' | 'opportunity_notes' | 'meetings' | 'tasks'
       | 'opportunity_documents' | 'milestones' | 'financing_structures' | 'dd_items' | 'entity_projects'
   ) => {
-    const { count: n } = await supabase
-      .from(table)
-      .select('id', { count: 'exact', head: true })
-      .eq('opportunity_id', id)
+    /*
+      ⚠ SAME EXCLUSION AS THE PROJECT TWIN — `opportunity_documents` carries
+      `superseded_at` too, and a badge that counts the graveyard disagrees with
+      the list under it (§12). These two layouts are the same screen twice and
+      must not drift; this is the pair that already had 12 error.tsx on one
+      side and 0 on the other.
+    */
+    const q = supabase.from(table).select('id', { count: 'exact', head: true }).eq('opportunity_id', id)
+    const { count: n } = await (table === 'opportunity_documents' ? q.is('superseded_at', null) : q)
     return n ?? 0
   }
   const [players, notes, meetings, tasks, documents, milestones, financing, diligence, entities] =

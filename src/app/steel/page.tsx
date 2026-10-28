@@ -4,6 +4,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { getViewer, canSeeSteelFinancials } from '@/lib/auth/viewer'
 import { groupServices, repScorecards } from '@/lib/steel/rollups'
 import EmptyState from '@/components/shared/EmptyState'
+import { PageHeader } from '@/components/ui/page-header'
 import SteelWorkspaceTabs from '@/components/steel/SteelWorkspaceTabs'
 import SteelPipelineBoard from '@/components/steel/SteelPipelineBoard'
 import { type SteelDealCardData } from '@/components/steel/SteelDealsClient'
@@ -58,7 +59,19 @@ export default async function SteelPage() {
 
   return (
     <div className="space-y-5">
-      <SteelWorkspaceTabs active="pipeline" showFinancials={showFinancials} />
+      {/*
+        ⚠ NO TITLE OF ITS OWN UNTIL NOW — one of three pages that opened
+        straight onto a tab row, so a whole division of the business was
+        named only by the 14px locator in the top bar. The tab row keeps its
+        pinned "New Deal" action and moves into the masthead's own tab slot.
+      */}
+      <PageHeader
+        title="Steel"
+        icon={Factory}
+        description="The prefab steel pipeline — quote through engineering, order, delivery and payment."
+      >
+        <SteelWorkspaceTabs active="pipeline" showFinancials={showFinancials} />
+      </PageHeader>
 
       {items.length === 0 ? (
         <EmptyState

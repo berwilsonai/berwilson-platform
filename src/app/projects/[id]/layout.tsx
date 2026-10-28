@@ -49,10 +49,16 @@ export default async function ProjectLayout({ children, params }: LayoutProps) {
   const count = async (
     table: 'project_players' | 'updates' | 'meetings' | 'tasks' | 'documents' | 'milestones' | 'financing_structures' | 'dd_items' | 'entity_projects'
   ) => {
-    const { count: n } = await supabase
-      .from(table)
-      .select('id', { count: 'exact', head: true })
-      .eq('project_id', id)
+    /*
+      ⚠ `documents` MUST EXCLUDE THE GRAVEYARD (§12: read it with
+      `superseded_at is null` or the graveyard reads as a gap). Steelton's tab
+      badge said 191 while the tab's own heading said 191 and its filter chip
+      said "All 188" — three numbers for one quantity, two of them counting
+      rows the list below cannot show. Superseded documents are reachable from
+      the document they replaced; they are not part of the count.
+    */
+    const q = supabase.from(table).select('id', { count: 'exact', head: true }).eq('project_id', id)
+    const { count: n } = await (table === 'documents' ? q.is('superseded_at', null) : q)
     return n ?? 0
   }
   // project_parcels counts through its own untyped client rather than the
