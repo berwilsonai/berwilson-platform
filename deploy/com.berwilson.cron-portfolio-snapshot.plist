@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.berwilson.cron-portfolio-snapshot</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/zsh</string>
+    <string>-c</string>
+    <string>curl -sS -m 280 -H "Authorization: Bearer $(grep '^CRON_SECRET=' __APP_DIR__/.env.local | cut -d= -f2-)" http://localhost:3000/api/cron/portfolio-snapshot</string>
+  </array>
+  <!--
+    Mondays at 05:30 — one row of the dashboard's own KPI figures, so a tile
+    can say which way the number is going.
+
+    ⚠ BEFORE THE CROWDED HOUR, DELIBERATELY. The week's figures should be the
+    ones a human is about to be shown, so this lands an hour ahead of the
+    06:20 curator and the 06:45 reminder rather than queueing behind them.
+
+      05:30  THIS             (five aggregate reads, one upsert, no model)
+      06:20  curator
+      06:45  task reminder
+      07:00  daily digest
+
+    ⚠ NO MODEL CALL. LM Studio serves one request at a time and eight sweeps
+    already contend for it (§12); this is arithmetic over rows that are already
+    facts, and it must stay that way.
+
+    ⚠ SAFE TO RUN TWICE. The row upserts on `captured_on`, so a deploy, a
+    manual curl or a launchd catch-up after the box slept cannot double a
+    week's delta. Run it by hand any time:
+      curl -H "Authorization: Bearer $CRON_SECRET" localhost:3000/api/cron/portfolio-snapshot
+
+    ⚠ WEEKLY IS THE SCHEDULE, NOT THE ASSUMPTION. The tile derives "vs last
+    week" from the real gap between the two dates, so a missed Monday reads as
+    "vs 14 days ago" rather than quietly claiming a week.
+  -->
+  <key>StartCalendarInterval</key>
+  <array>
+    <dict><key>Weekday</key><integer>1</integer><key>Hour</key><integer>5</integer><key>Minute</key><integer>30</integer></dict>
+  </array>
+  <key>StandardOutPath</key>
+  <string>__LOG_DIR__/cron-portfolio-snapshot.log</string>
+  <key>StandardErrorPath</key>
+  <string>__LOG_DIR__/cron-portfolio-snapshot.log</string>
+  <key>RunAtLoad</key>
+  <false/>
+</dict>
+</plist>

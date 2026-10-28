@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { CheckCircle2 } from 'lucide-react'
 import { StatTile, StatGrid } from '@/components/ui/stat'
 import { formatValue } from '@/lib/utils/constants'
+import type { Delta } from '@/lib/records/snapshot'
 
 interface HealthPanelProps {
   activeProjects: number
@@ -28,6 +29,19 @@ interface HealthPanelProps {
   unpricedCount?: number
   /** Programs held out of the total because their sub-projects carry it. */
   rolledUpCount?: number
+  /**
+   * Movement against the last weekly snapshot, per figure.
+   *
+   * ⚠ EVERY ONE IS OPTIONAL AND NULL MEANS "SAY NOTHING". `portfolio_snapshots`
+   * starts empty, so for the first weeks after this ships there is no prior to
+   * compare against and the tiles render exactly as they did before. That is
+   * the correct behaviour and must not be papered over with a 0% (§12).
+   */
+  deltas?: {
+    pipelineValue?: Delta | null
+    weightedPipelineValue?: Delta | null
+    activeProjects?: Delta | null
+  }
 }
 
 /**
@@ -56,6 +70,7 @@ export default function HealthPanel({
   pipelineNote,
   unpricedCount,
   rolledUpCount,
+  deltas,
 }: HealthPanelProps) {
   /*
     TWO QUANTITIES, NEVER ONE NUMBER.
@@ -97,6 +112,7 @@ export default function HealthPanel({
         label="Pipeline Value"
         value={pipelineValue > 0 ? formatValue(pipelineValue) : null}
         empty="No active project carries a value yet"
+        delta={deltas?.pipelineValue}
         hint={pipelineNote ? `Across active projects · ${pipelineNote}` : 'Across active projects'}
         footer={
           <span className="block space-y-0.5 text-muted-foreground">
@@ -121,11 +137,18 @@ export default function HealthPanel({
         <StatTile
           label="Weighted Pipeline"
           value={formatValue(weightedPipelineValue)}
+          delta={deltas?.weightedPipelineValue}
           hint="Adjusted for win probability"
         />
       )}
 
-      <StatTile label="Active Projects" value={activeProjects} href="/projects" hint="View pipeline" />
+      <StatTile
+        label="Active Projects"
+        value={activeProjects}
+        delta={deltas?.activeProjects}
+        href="/projects"
+        hint="View pipeline"
+      />
 
       <StatTile
         label="Needs Attention"

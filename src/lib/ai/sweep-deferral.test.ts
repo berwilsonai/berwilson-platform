@@ -52,6 +52,7 @@ const EXEMPT: Record<string, string> = {
   'contacts-sync': 'no model call — a directory projection over existing rows',
   'meet-import': 'event-driven; a recorded call arriving is not something to postpone',
   'task-reminder': 'no model call — it reads tasks with a due date and sends a text (added 2026-10-21)',
+  'portfolio-snapshot': 'no model call — five aggregate reads and one upsert, Mondays at 05:30 (added 2026-10-28)',
 }
 
 function cronRoutes(): string[] {

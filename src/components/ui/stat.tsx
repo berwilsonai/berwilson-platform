@@ -31,6 +31,8 @@ function StatTile({
   empty = 'Not set',
   hint,
   tone = 'default',
+  delta,
+  deltaGood = 'up',
   href,
   trend,
   footer,
@@ -45,6 +47,23 @@ function StatTile({
   hint?: React.ReactNode
   /** Colour the FIGURE. Only when the number itself is the warning. */
   tone?: 'default' | 'positive' | 'caution' | 'critical'
+  /**
+   * Movement since an earlier snapshot — `{ change: 0.042, sinceDays: 7 }`
+   * renders "↑ 4.2% vs last week".
+   *
+   * ⚠ OMITTED ENTIRELY WHEN THERE IS NO HISTORY, never rendered as "—" or
+   * "0%". §12: a placeholder at a value's own weight reads as a failed render,
+   * and for the first weeks after `portfolio_snapshots` starts filling there
+   * is genuinely nothing to say. `deltaFrom` returns null for that case; pass
+   * it straight through.
+   */
+  delta?: { change: number; sinceDays: number } | null
+  /**
+   * Which direction is GOOD. Default `up`. Overdue tasks and open commitments
+   * are the inverse: a rise is bad, and colouring it green because the number
+   * went up would be the tile lying about its own subject.
+   */
+  deltaGood?: 'up' | 'down'
   href?: string
   /** A sparkline's series. Drawn at the tile's foot; see `Sparkline`. */
   trend?: number[]
@@ -82,6 +101,7 @@ function StatTile({
           {value}
         </dd>
       )}
+      {delta ? <dd className="mt-1"><DeltaLine delta={delta} good={deltaGood} /></dd> : null}
       {hint ? <dd className="mt-1 text-xs text-muted-foreground">{hint}</dd> : null}
       {footer ? <dd className="mt-1 text-xs">{footer}</dd> : null}
       {trend && trend.length > 1 ? (
@@ -126,6 +146,56 @@ function StatTile({
   ) : (
     tile
   )
+}
+
+/**
+ * The movement line under a figure.
+ *
+ * ⚠ FLAT IS A RESULT AND SAYS SO IN WORDS. A change that rounds to 0.0% gets
+ * "no change", not "↑ 0.0%" — an arrow pointing up beside a zero is the kind
+ * of unlabelled figure §12 keeps catching, and "no change" is information a
+ * reader can act on.
+ *
+ * ⚠ THE COLOUR FOLLOWS THE SUBJECT, NOT THE SIGN. `good` exists because
+ * `overdue_tasks` rising is bad; without it the tile would paint a growing
+ * backlog green.
+ */
+function DeltaLine({
+  delta,
+  good,
+}: {
+  delta: { change: number; sinceDays: number }
+  good: 'up' | 'down'
+}) {
+  const pct = delta.change * 100
+  const flat = Math.abs(pct) < 0.05
+  const up = pct > 0
+  const helpful = up === (good === 'up')
+  const tone = flat ? 'text-muted-foreground' : helpful ? 'text-positive' : 'text-critical'
+
+  return (
+    <span className={cn('inline-flex items-baseline gap-1 text-xs', tone)}>
+      {flat ? null : <span aria-hidden="true">{up ? '↑' : '↓'}</span>}
+      <span className="tnum">{flat ? 'No change' : `${Math.abs(pct).toFixed(1)}%`}</span>
+      <span className="text-muted-foreground">{sincePhrase(delta.sinceDays)}</span>
+    </span>
+  )
+}
+
+/**
+ * "vs last week" / "vs 11 days ago".
+ *
+ * ⚠ THE SNAPSHOT IS WEEKLY BUT ITS AGE IS NOT GUARANTEED — a missed cron, a
+ * box that slept, a week where the job was added mid-week. Saying "vs last
+ * week" over a 19-day-old figure would be a quiet lie, so the phrase is
+ * derived from the real gap and only claims a week when it is one.
+ */
+function sincePhrase(days: number): string {
+  if (days <= 0) return 'today'
+  if (days === 1) return 'vs yesterday'
+  if (days >= 6 && days <= 8) return 'vs last week'
+  if (days >= 28 && days <= 31) return 'vs last month'
+  return `vs ${days} days ago`
 }
 
 /**

@@ -1865,6 +1865,20 @@ isOneToOne: false
       referencedColumns: ["id"]
     }
                   ]
+                },"portfolio_snapshots": {
+                  Row: {
+                    "active_projects": number | null,"captured_on": string,"created_at": string,"id": string,"open_commitments": number | null,"overdue_tasks": number | null,"pipeline_value": number | null,"weighted_pipeline_value": number | null
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "active_projects"?: number | null,"captured_on": string,"created_at"?: string,"id"?: string,"open_commitments"?: number | null,"overdue_tasks"?: number | null,"pipeline_value"?: number | null,"weighted_pipeline_value"?: number | null
+                  }
+                  Update: {
+                    "active_projects"?: number | null,"captured_on"?: string,"created_at"?: string,"id"?: string,"open_commitments"?: number | null,"overdue_tasks"?: number | null,"pipeline_value"?: number | null,"weighted_pipeline_value"?: number | null
+                  }
+                  Relationships: [
+                    
+                  ]
                 },"project_dependencies": {
                   Row: {
                     "created_at": string,"dependency_type": string,"description": string | null,"downstream_project_id": string,"id": string,"resolved_at": string | null,"severity": string,"status": string,"updated_at": string,"upstream_project_id": string

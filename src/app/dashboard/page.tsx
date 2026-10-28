@@ -11,6 +11,7 @@ import SortControls from '@/components/dashboard/SortControls'
 import PortfolioBriefButton from '@/components/dashboard/PortfolioBriefButton'
 import DailyBrief from '@/components/dashboard/DailyBrief'
 import HealthPanel from '@/components/dashboard/HealthPanel'
+import { daysBetween, deltaFrom, priorSnapshot } from '@/lib/records/snapshot'
 import StageMix from '@/components/dashboard/StageMix'
 import NeedsAttention, { type LeadDue } from '@/components/dashboard/NeedsAttention'
 import NowObjectives, { type NowObjectiveItem } from '@/components/dashboard/NowObjectives'
@@ -359,6 +360,34 @@ export default async function DashboardPage({ searchParams }: PageProps) {
   // The KPI counts what the Decide queue holds, not the review table alone —
   // the same source the sidebar badge uses, so the two agree. The full
   // review_queue rows above still feed the Needs Attention panel below.
+  /*
+    ⚠ THE DELTA IS COMPUTED HERE, FROM THE SAME VARIABLES THE TILES PRINT, and
+    not inside the tile. The prior figure comes out of `portfolio_snapshots`;
+    the current one is the number already on screen — so the two sides of the
+    comparison can never be derived differently, which is the whole failure
+    mode §12 names for a number checked against itself.
+
+    ⚠ AND IT FAILS QUIET. No snapshot yet (the table starts empty, and for the
+    first week after this ships that is the normal state), a missed cron, or a
+    read that errors all give `null`, and every tile then renders exactly as it
+    did before. A delta nobody can compute must never become a 0%.
+  */
+  const prior = await priorSnapshot().catch(() => null)
+  const snapshotDeltas = prior
+    ? (() => {
+        const age = daysBetween(prior.captured_on, today)
+        return {
+          pipelineValue: deltaFrom(pipelineValueTotal, prior.pipeline_value, age),
+          weightedPipelineValue: deltaFrom(
+            weightedPipelineValue,
+            prior.weighted_pipeline_value,
+            age
+          ),
+          activeProjects: deltaFrom(activeProjects.length, prior.active_projects, age),
+        }
+      })()
+    : undefined
+
   const pendingReview = await countDecideItems()
   const overdueMilestones = (overdueRaw ?? []).filter(visibleProject)
   const overdueCount = overdueMilestones.length
@@ -457,6 +486,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
         unpricedCount={pipeline.unpriced}
         rolledUpCount={pipeline.rolledUp}
         weightedPipelineValue={weightedPipelineValue}
+        deltas={snapshotDeltas}
         pendingReview={pendingReview}
         overdueCount={overdueCount}
         overdueTaskCount={overdueTasks.length}
