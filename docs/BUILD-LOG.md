@@ -6,6 +6,120 @@ This file is **not** auto-loaded into a Claude Code session. It is the archive: 
 
 Split out of `CLAUDE.md` on 2026-09-23, when that file reached 606k characters against a 150k limit above which it is silently truncated — meaning the project's own operating instructions had begun to risk not reaching the sessions that need them. The entries below are **verbatim and unedited**.
 
+**Done 2026-10-28 (the 84 screens nobody had ever rendered — and the check that reported 0 against a real 21):**
+
+Richard: *"Is there anything else you would do to the UI to make this platform look more impressive. Go through each screen and make any recommendations (if any)."*
+
+── THE PREMISE, MEASURED FIRST ────────────────────────────────────────────
+
+Seven sessions on 10-26/10-27 shipped all five phases of Richard's own UI audit, and most of the obvious recommendations are already settled WITH EVIDENCE — row heights refused as a default and offered as `compact`, `--text-sm` held at 14.5px, the ordinal pipeline ramp, the filter-bar convergence narrowed deliberately, `/commitments` totals refused as StatTiles. Re-proposing any of them would re-open a measured decision. So the question is only what the audit did not reach.
+
+Three sweeps, run independently, landed on the same answer from different directions:
+
+| | |
+|---|---|
+| `page.tsx` files outside `api` | **97** |
+| screens ever rendered, in any theme | **13** |
+| screens with a `loading.tsx` / `error.tsx` | 74 / 55 |
+| surfaces using the shared `PageHeader` | **12** |
+| surfaces rendering their own `<h1>` | **53, in 27 distinct className spellings** |
+| `TYPE_ROLES` uses (`display`/`title`/`metric`/`caption`) | **5, across 4 files** |
+| raw ladder uses (`text-xs` … `text-3xl`) | **2,591** — a ratio of **518:1** |
+| `<table>` implementations | **25 in 21 files, 20+ `<th>` spellings, 0 primitive** |
+| files that hand-roll a `<button>` | **131 of 164 (80%)** |
+| raw colour classes remaining | **457 in 47 files** |
+| `dark:` variants remaining | **334 in 66 files** |
+| bare `"No X…"` strings vs `EmptyState` | **54 in 41 files** vs 26 |
+| `ui/tooltip.tsx` consumers vs `title=` | **2** vs **289 across 115 files** |
+
+⚠ **THE AUDIT ONLY EVER LOOKED AT LIST AND BOARD PAGES, AND THE BYPASS COUNTS POINT STRAIGHT AT WHAT IT MISSED.** The worst remaining colour files are `DocumentsTab` 30, `DiligenceTab` 18, `EntitiesTab` 18, `VendorDocuments` 18, `InvestorRequirements` 12 — the record *detail tabs*. The `dark:` map tracks the same files almost 1:1, and so does the hand-rolled-button map. The codemods of 10-26/10-27 drained `slate-*` from 365 to **0** and took `<Panel>` to 39 files, because they reached what was on screen. Whatever nobody rendered kept its old classes. `/projects/[id]` and its twelve tabs, `/opportunities/[id]` and its nine, all twelve `new`/`edit` forms, `/contacts/[id]`, `/investors/[id]`, `/steel/[id]`, `/company/structure` and every settings page had **never been looked at, in either theme**.
+
+So: 76 new screenshots, both themes where it mattered, at 1512×950 and at 390×844. Richard chose "shoot the unseen screens first" over going straight to the primitives, which was right — four of the fixes below are things no amount of reading the source would have surfaced, and two of the things that *looked* wrong turned out to be recorded decisions.
+
+── THE CHECK THAT SAW NOTHING ─────────────────────────────────────────────
+
+⚠ **`conventions.test.ts` REPORTED 0 NAMELESS ICON-ONLY BUTTONS AGAINST A REAL 21, IN NINE FILES, FOR AS LONG AS IT HAS EXISTED.** The regex was `/<button\b([^>]*?)>([\s\S]*?)<\/button>/g`. `[^>]` cannot cross a `>` — and `onClick={() => setOpen(false)}` contains one. So on virtually every real button in the app the "attribute span" ended inside the arrow function and the "children" began mid-attribute; the children then failed the icon-only shape test and the button was silently skipped. Its own docblock argued at length that the pattern was *"deliberately narrow… with no false positives"*, and that was true. It was also blind.
+
+This is §12's rule inverted, and the inversion is why it cost so much: *when a check fails, suspect the check* — but a check that PASSES is never suspected at all.
+
+Rewritten as a brace-aware walk (`buttonTags`), tracking quote and brace depth and closing the open tag on the first `>` at depth zero. Then proved, which is the part that matters:
+
+- planted a violation of exactly the shape that defeated the old regex → **new scan: 1 hit, at the right line. Old regex, run against the same file: 0.**
+- that proof is now a permanent test, so the next rewrite cannot repeat the silent failure
+- widened from `src/components` to all of `src` — **0 violations either way**, so it was free
+- the one real false positive, `DragHandle`'s `{...handleProps(…)}` spread (which supplies a per-card `aria-label`), is **named with its reason** rather than absorbed
+
+⚠ **AND THE FIRST ATTEMPT AT THE FIX REPORTED `board.tsx:392`, WHICH IS THE MIDDLE OF A KEYDOWN HANDLER.** `stripComments` deletes a block comment newlines and all, so any line number derived from its output is wrong by however much documentation sits above. Every other assertion in that file is a COUNT and never cared; this is the only one reporting a LOCATION. Added `blankComments`, which preserves lines. ⚠ **Then the one-shot replace hit the WRONG one of two identical call sites** — there were two `const src = stripComments(…)` lines and `replace(…, 1)` took the first, which belongs to a different test. The symptom was identical to the first bug, which is exactly how it wasted a second cycle.
+
+⚠ **THE RATCHET BASELINES HAD NOT BEEN RE-MEASURED SINCE 10-17, WHICH IS THAT BLOCK'S OWN STATED RULE.** `slate-*` baseline **365** against a real **0**; raw colour pairs **149** against **48**; `text-[11px]` **256** against **192**; `shadow-*` **15** against **13**. A ratchet carrying 300 of headroom is not a ratchet, it is a comment. All lowered. The card shell was **raised** 226 → 231 and said so out loud: 226 was measured with a narrowed scan that no longer matches what the script reports, and writing a number the tree disagrees with is how a test gets muted on the next unrelated touch.
+
+── DEFECTS NO SCREENSHOT WAS NEEDED FOR (but nobody had read the source either) ──
+
+⚠ **A GRID ITEM STRETCHES; A `<Link>` WRAPPED AROUND ONE MOVES THE STRETCH TO THE LINK.** `StatTile`'s `href` branch renders `<Link className="block">` around a `<Panel>` with no `h-full`, so **any tile with a link rendered shorter than its siblings** — and `/dashboard`'s KPI band has had a ragged bottom edge for as long as it has existed. Every class correct, typecheck green, build green, visible only in a screenshot.
+
+⚠ **FIVE LOCAL `Stat` COPIES SURVIVED THE AUDIT'S `/investors` CONVERSION** — steel's board, earnings, commissions and marketing, plus `investors/raises/[id]`. All printed the figure at `text-lg` where the shared tile prints 30px, so `/steel` and `/dashboard` disagreed about what a KPI looks like. Two took raw ramp NAMES (`tone="amber"`, `tone="emerald"`) instead of the status tokens. And `/steel` passed the string `'—'` as a **value**, which is precisely the failure `stat.tsx`'s own docblock cites §12 for: a bare em dash at a value's own weight reads as a failed render. It now says *"No deal has been decided yet"* at body weight. Each grid became `StatGrid`, because `StatTile` renders `dt`/`dd` and those are only valid inside a `dl`.
+
+⚠ **"Just in" PRINTED `2026-10-27` AT A READER** — on the dashboard's most prominent band. All three producers write a bare `YYYY-MM-DD`, so it is formatted at the single READER and the fourth producer is right for free. `formatDate` already existed and already handles the UTC-midnight trap. Its sibling two lines away in `DriveFolderLink` was already doing it correctly at line 347 and wrong at line 262.
+
+⚠ **`px-3.5.5` IS NOT A TAILWIND CLASS.** `/tasks`' "New task" button — the primary action on the app's landing screen — has had no horizontal padding at all.
+
+── WHAT THE SCREENSHOTS FOUND ─────────────────────────────────────────────
+
+⚠ **`/` REDIRECTS TO `/tasks`, AND `/tasks` WAS THE ONLY PAGE IN THE APP WITH NO MASTHEAD.** It opened on "45 open across the team" in 14px grey while every list page opens on a 28px title. The first thing anyone sees was the least-dressed thing here. The recorded reason was real — `AppHeader` already prints "Team Tasks" a line above — but it is equally true of the dozen pages that carry both, and the 14px locator and the masthead do different jobs. `/intel` and `/steel` had the same hole, opening straight onto a tab row, so a whole division of the business was named only by a locator. All three now use `PageHeader`, the only `text-display` in the repo.
+
+⚠ **A CREATE FORM MUST NOT DISPLACE THE THING IT CREATES.** `ComposeDocument` stood **450px** tall above the document list, so Steelton — 188 live documents, the most in the portfolio — opened its Documents tab showing the kind picker, the instruction box and the counsel notice, and **not one document**. It collapses to a row now, and forces itself open whenever `busy`, a result or an error means there is something to report. §12's inverse rule is why it collapses rather than moving below the list: it is still the first thing on the tab.
+
+⚠ **THREE NUMBERS FOR ONE QUANTITY, VISIBLE WITHOUT SCROLLING.** The tab badge said "Documents 191", the heading said "Documents (191)", and the filter chip directly under it said "All 188". The badge and heading counted the graveyard; everything that can actually be shown excludes it. §12 names this exactly — read `documents` with `superseded_at is null` or the graveyard reads as a gap. Fixed on **both** record types, because `projects/[id]` and `opportunities/[id]` are the same screen twice and that pair has drifted before (12 `error.tsx` on one side, **0** on the other).
+
+⚠ **A CHIP IS FOR A TOKEN AND `project_players.role` HOLDS A SENTENCE.** §4 keeps that column as prose on purpose, so the Players tab wrapped *"Counterparty; provided attachments for the Steelton Power Story pursuit"* onto two lines inside a pill. The registry key — the thing that IS a token, and the reason `contact_roles` exists — is now the chip, with the prose beside it. Which also puts the 53-role registry built on 10-21 on screen on that tab for the first time.
+
+⚠ **TEN FILTER CHIPS OVER AN EMPTY LIST.** A record with no diligence rendered "All (0)" plus nine category chips that could only ever return nothing, above the sentence saying there was nothing to control. Gated on `items.length`, and the bare italic string became an `EmptyState` so the way to act is where the eye lands.
+
+Also: the agent's four suggested prompts wrapped into three ragged centred lines (2+1+1), which reads as a layout that failed rather than one that was chosen — they are a list of equal offers and are laid out as one, which fixes the dock too, where the wrap was worse.
+
+── THE TWO FEATURES, BOTH OF WHICH HAD BEEN REFUSED ───────────────────────
+
+Richard asked for both.
+
+**Saved views.** Refused once with a reason that still stands: `ProjectFilters` used to mirror its filters into `localStorage` and replay them on arrival, so a bare `/projects` rendered differently for each executive **with no way for the sender of a link to tell**, and the list re-rendered under the reader after hydration. `url-facets.tsx` still carries the prohibition.
+
+⚠ **THAT OBJECTION IS ABOUT THE STORAGE, NOT THE FEATURE.** `saved_views` is a shared table, and choosing a view NAVIGATES to a URL carrying the whole query. The address bar still describes the screen; a pasted link still means one thing to everybody; a bare `/projects` is still the unfiltered list; nothing is ever replayed. That is strictly better than the remedy the refusal left behind — *bookmark the filtered URL* — because the name is shared too. `?view=` is a LABEL and nothing resolves it into filters, so a link works for a reader who cannot see the view and a deleted view degrades to a working link rather than a broken page. The highlight therefore compares the FILTERS, not the label.
+
+Verified against the real database: create → ok; duplicate name → **refused with its own sentence** (§12: a refusal reported as an absence is how the caller creates the duplicate that guarantees the next refusal); no filters → refused; no name → refused; delete → true; delete again → false. ⚠ **An empty slug would have read as a duplicate name** — a name of pure punctuation or a non-Latin script reduces to nothing, collides on `(path, slug)`, and the route would report "already exists", naming a cause that is not the cause. Random fallback, with a test.
+
+**Trend deltas.** `StatTile` has shipped a `trend` prop and an inline `Sparkline` since 10-27 and has never drawn one, because nothing here remembers what a figure was last week — every number on `/dashboard` is computed live. The audit recorded it as "not built" for exactly that reason: it is a schema question. So `portfolio_snapshots`, one row a week from a new launchd agent at Monday 05:30, no model call.
+
+⚠ **COMPUTED THROUGH THE DASHBOARD'S OWN HELPERS** — `portfolioTotal`, `leafRecords`, `pipelineValue`, `weightedValue`, `readOpenCommitments`. A second derivation would be a fork, and a delta between a figure and a DIFFERENTLY-derived figure is noise that argues with the number printed above it. Proved by seeding today's row and reading it back: **$12B pipeline, $11.9B weighted, 19 active projects, 2 overdue tasks** — the four figures on the dashboard at that moment.
+
+⚠ **CONFIDENTIAL PROJECTS ARE EXCLUDED AT WRITE TIME, ABSOLUTELY, and the comment says why: a stored total cannot be filtered afterwards.** Once a protected project's value is inside `pipeline_value` there is no taking it back out. `hiddenProjectIds()` with no user returns every confidential project and fails closed — the shape §8 and §12 both ask for.
+
+⚠ **NO HISTORY MEANS NO LINE, NEVER A ZERO.** `deltaFrom` returns null for a missing prior, a prior of 0 (Infinity), and any non-finite input. Eight tests cover the cases that would otherwise put `NaN` or `Infinity` into the markup, **none of which is reachable from the UI until next Monday** — a fixture that builds the field directly cannot catch a producer that never fills it. The colour follows the SUBJECT, not the sign (`deltaGood`), because overdue tasks rising is bad and would otherwise paint a growing backlog green. And *"vs last week"* is derived from the real gap, so a missed Monday reads "vs 14 days ago" rather than quietly claiming a week.
+
+── THINGS THAT LOOKED WRONG AND WERE NOT ──────────────────────────────────
+
+⚠ The plan said to demote `AppHeader`'s `<h1>` to a `<p>`, because 53 pages ship two `<h1>` elements. **Re-tested the recorded reason and it still holds:** 49 of 97 pages have no heading of their own, so for them that locator is the document's ONLY `<h1>`, and demoting it would silently strip a heading from half the application. §12 says a workaround's recorded reason must be re-tested before it is inherited — this one survives. The right order is to give those pages mastheads first, which is what three of them just got.
+
+⚠ The collapsed board columns with vertical labels on `/steel` and `/opportunities` look unfinished and are a **measured 10-27 decision** (steel went from 1,200 of 1,451px wasted on empty columns to 2 populated lanes plus 5 legible rails). Not touched.
+
+── VERIFICATION ───────────────────────────────────────────────────────────
+
+**787 tests pass** (745 → 787: 8 delta, 7 saved-view, 1 planted-violation, plus the day's others), **lint frozen at 23** throughout, typecheck clean at every step, and every change above re-shot in the theme it was made in. Two migrations applied by piping to `docker exec supabase-db psql` as `postgres`; `gen-types` run twice (101 → 103 table types).
+
+⚠ **A TYPE ERROR SHIPPED IN THE FIRST COMMIT.** After the 21 `aria-label` additions the suite and lint were re-run and `tsc` was not; two of them referenced `doc.name`, which does not exist on that row type. Caught on the next unrelated typecheck and fixed in the following commit. The lesson is the obvious one and it is already in §12 in another form: the three checks answer different questions and passing two of them is not passing.
+
+⚠ **`pkill -f "next-server"` WOULD HAVE KILLED PRODUCTION.** The dev server for screenshots runs on :3001; the launchd job runs `next start` on :3000 and its command line matches that pattern. The guard refused it. Killing by `lsof -ti:3001` is the correct form, and production was confirmed still answering afterwards.
+
+⚠ **AND THE DEV SERVER WAS KILLED MID-SESSION BY MEMORY PRESSURE.** `vm_stat` showed ~95MB free with swap at **23.8 of 24.5GB**, LM Studio holding 22.07GB plus a 639MB embedder. That is this box's steady state (§2 says as much); `next dev` plus headless Chrome is simply what tips it. Screenshot work on the Studio has to be done in short bursts, and the memory is the reason — not a harness fault.
+
+── NOT DONE, AND WHY ──────────────────────────────────────────────────────
+
+Two phases of the approved plan were not built, and both are named here rather than quietly dropped:
+
+- **A shared `<Table>` primitive.** 25 tables in 21 files, 20+ `<th>` spellings, exactly one sticky header and one `table-fixed` (both `ProjectsTable`, the one the audit touched), plus 6 CSS-grid pseudo-tables. It is the biggest single lever left for how this app reads. It is also the biggest diff, and §12 is explicit that a shared renderer wired to one surface is worse than none — so it needs the conversions done in one go, with screenshots, on a box that can hold a dev server.
+- **Tooltips.** `ui/tooltip.tsx` has 2 consumers against **289 `title=` attributes in 115 files**. This app explains itself constantly and delivers all of it through a ~1s browser tooltip that never appears on touch and cannot be styled. Converting the high-traffic ones is a direct visible upgrade; every conversion must leave an `aria-label` behind or the icon-button assertion regresses.
+
+---
+
 **Done 2026-10-28 (a recording is joined to its calendar invitation, and the attendees stop being a guess):**
 
 Richard, on a recording that had been transcribed, filed and registered the day before: *"Somehow you didn't pull in the meeting attendee in the calendar invite. Will you make sure that when you correlate a recording to a meeting in the calendar that it adds those people as attendees?"*
