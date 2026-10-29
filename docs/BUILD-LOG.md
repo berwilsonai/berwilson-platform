@@ -6,6 +6,121 @@ This file is **not** auto-loaded into a Claude Code session. It is the archive: 
 
 Split out of `CLAUDE.md` on 2026-09-23, when that file reached 606k characters against a 150k limit above which it is silently truncated — meaning the project's own operating instructions had begun to risk not reaching the sessions that need them. The entries below are **verbatim and unedited**.
 
+**Done 2026-10-29 (the board could not show you a task with no date — and the measurement that said it could not be true):**
+
+Workstream 4 of the four planned on 10-29. Richard: *"keep going with 4."*
+
+## What it turned out NOT to be
+
+The plan was to port `PepperNote.liveTasks` into the live task reminder, on the
+grounds that 89 of 146 open tasks were undated and therefore invisible to the
+only outbound channel Pepper still has.
+
+Both halves of that were wrong, and in opposite directions.
+
+**1. The reminder is correct as specified, and its specification is Richard's
+own.** `task-reminder.ts` opens with his 10-21 instruction verbatim: *"The only
+messaging I want to go out are reminder of important tasks that have a due date
+that week."* The header then records the decision explicitly — *a due date IS
+the importance signal, and that is a decision, not a shortcut* — because `tasks`
+has no priority column and inventing a second notion of importance would be a
+field nobody maintains. Widening the message to undated work would have
+overridden a recorded instruction, exactly as Workstream 1 would have earlier
+the same day. It was not done.
+
+Checked rather than assumed: the Monday message already names unowned DATED
+tasks, and of the 13 open tasks with no assignee **exactly one carries a date** —
+and that one is already in the message. The reminder covers its whole scope.
+
+**2. ⚠ THE BACKLOG FIGURES WERE WRONG, AND THE WAY THEY WERE CAUGHT IS THE
+POINT.** The measurement used `status <> 'completed'` and reported **146 open,
+89 undated, 45 overdue, 22 unassigned**. The column holds **`open` and `done`**;
+there is no `completed`, so the predicate was true for every row in the table and
+swept in all 105 finished tasks.
+
+The truth is **41 open, of which 37 carry no due date — 90% — 13 unassigned and
+2 overdue.**
+
+It surfaced because the rendered board disagreed with the query: the page's own
+header says *41 open across the team, 2 past their date* while the query claimed
+146 and 45. §12 twice over — check what a column's values ARE before filtering
+on one, and when a check disagrees with the screen, suspect the check. The
+alarming half evaporated (2 overdue, not 45) and the half that mattered got
+worse: 90% undated rather than 61%. Both figures are corrected in the earlier
+entry for this date, which had already shipped with the wrong ones.
+
+## What it is
+
+**A due-date slice, in the URL.** `all | overdue | week | undated`. The board
+had an `unassigned` option on its assignee filter and no date filter at all, so
+nine rows in ten were reachable only by scrolling past the handful that were
+dated. A backlog you cannot select is one nobody drains. Live counts match the
+database exactly: 41 / 2 / 1 / 37.
+
+**Bulk editing.** Checkbox per row, a sticky bar offering Set due date, Assign
+and Mark done over the selection. Every action loops the existing
+`PATCH /api/tasks/[id]` rather than gaining a bulk route of its own — a bulk
+route would have to re-implement `guardTask`, the non-executive retag check,
+`settleCommitmentForTask` (ticking a promoted task settles its obligation on the
+counterparty's thread) and `queueTaskSheetRefresh`. §12: never fork a shared
+pass. One request per row is the price of not owning a second copy of all four,
+and the rows number tens.
+
+⚠ **COMPLETE, NEVER DELETE, IN BULK.** The single-row control pair is
+deliberate and documented: ticking stamps `completed_at`, writes to
+`activity_log` and settles a commitment; deleting destroys the row and its notes
+with only `to_jsonb(old)` to recover it. One of those is safe to do fifty at a
+time and one is not, so only one is in the bar.
+
+⚠ **ONE `router.refresh()`, ON THE TRAILING EDGE** — §12: an optimistic client
+mutation with no refresh leaves every server-rendered count lying until the tab
+is reloaded.
+
+## ⚠ The React Compiler refused three versions of the filter, and the lint
+baseline is why that mattered
+
+Adding the due slice INSIDE the `filtered` memo makes the React Compiler abandon
+that memo — *"existing memoization could not be preserved"* — which is a lint
+**error**, and §9 freezes the baseline at 22 problems deliberately. §12: a
+legitimate exemption gets NAMED with its reason, never absorbed by raising the
+baseline. So it was fixed rather than accepted, across four attempts:
+
+1. Inline in the memo, with `Date.now()` → also tripped `react-hooks/purity`.
+2. The clock hoisted to a mount-captured `useState`, predicate still inline → the
+   compiler still bailed on `filtered`.
+3. Predicate lifted to a module-scope `matchesDue` → still bailed.
+4. Its own `useMemo` over `filtered` → the error simply moved onto the new memo,
+   including after removing the `dueFilter === 'all' ? filtered : …` branch
+   (returning a dependency unchanged from one arm is its own refusal case).
+
+What works is a plain derived value with no hand-memoization for the compiler to
+fail to preserve — which is what the compiler wants anyway. `filter` preserves
+relative order, so the tier-then-date sort `filtered` ends on still holds, and
+everything downstream reads `visible`: the bar's count, "select all shown", the
+drag list and the empty state. Baseline back to exactly 22.
+
+`matchesDue`, `DUE_FILTERS` and `dueWindowFrom` live in
+`src/lib/tasks/due-filter.ts`, not in the board — §12: a helper shared between
+server and client code must not be exported from a `'use client'` file, and it
+is also the only way the predicate is testable at all.
+
+## Verification
+
+- `tsc` clean; lint **22 problems, identical to the frozen baseline**; **850
+  tests green**, 6 new.
+- The tests pin the case the filter exists for: a null date is in `undated` and
+  in NEITHER `overdue` nor `week`. A null leaking into `overdue` would have told
+  the reader 37 things were late.
+- `/tasks` rendered in BOTH themes against live data, and each `?due=` fetched —
+  41 / 37 / 2 / 1, matching the database row for row.
+- ⚠ **One verification attempt proved nothing and nearly reported success.**
+  PATCHing a real task against the dev server returned `{"error":"Not
+  authorized"}` — `next dev` loads no middleware, so `getViewer()` is null and
+  the route refuses — while the JSON parser printed `None` for every field and
+  read like a pass. Nothing was mutated. The three patch shapes are instead
+  grounded on `TaskDetailSheet`, which already sends `{status}`,
+  `{assignee_id: … || null}` and `{due_date: … || null}` on every edit.
+
 **Done 2026-10-29 (four ways to read the queue, a document that files itself, and the alias that silently became the counterparty's name):**
 
 Richard asked for two things on `/decide` — options for sorting the queue, and
@@ -43,7 +158,19 @@ What IS true, and was not on anybody's list:
 | Rows ever written to `field_update_proposals` | **0** |
 | `record_field_provenance` writes, by field | company 67, title 53, phone 33, email 8, location 5, sector 4 |
 | `composed_documents` rows, ever | **0** |
-| Open tasks | 146 — 45 overdue, **89 undated**, 22 unassigned, 97 on Richard |
+| Open tasks | **41 — 37 undated (90%)**, 13 unassigned, 2 overdue, 22 on Richard |
+
+⚠ **THE TASK ROW ABOVE WAS WRONG WHEN FIRST WRITTEN AND IS CORRECTED HERE.** It
+read *146 open, 89 undated, 45 overdue, 22 unassigned*, measured with
+`status <> 'completed'`. The column holds **`open` and `done`** — there is no
+`completed` — so the predicate was true for every row in the table and counted
+all 105 finished tasks as open. Caught on 2026-10-29 only because the rendered
+board disagreed with the query: the page's own header said *41 open across the
+team, 2 past their date* while the query claimed 146 and 45. §12: check what a
+column's values ARE before filtering on one, and when a check disagrees with the
+screen, suspect the check. The alarming half evaporated — 2 overdue, not 45 —
+and the half that mattered got worse: **90% of the board carries no due date**,
+not 61%.
 
 161 of the curator's 170 field writes are CONTACT fields. `field_update_proposals`
 has never held a row, so `/decide`'s `proposal` branch — a whole rendering arm

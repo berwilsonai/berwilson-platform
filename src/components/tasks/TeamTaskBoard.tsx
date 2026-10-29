@@ -1,7 +1,15 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { useUrlState } from '@/hooks/use-url-state'
+import {
+  DUE_FILTERS,
+  DUE_FILTER_LABELS,
+  dueWindowFrom,
+  matchesDue,
+  type DueFilter,
+} from '@/lib/tasks/due-filter'
 import Link from 'next/link'
 import {
   Plus,
@@ -102,6 +110,7 @@ interface TeamTaskBoardProps {
 const STATUS_FILTERS = ['open', 'done'] as const
 type StatusFilter = (typeof STATUS_FILTERS)[number]
 
+
 const fieldClass =
   'h-8 rounded-md border border-input bg-background px-3 text-sm outline-none focus-visible:ring-3 focus-visible:ring-ring/50'
 
@@ -162,6 +171,7 @@ export default function TeamTaskBoard({
     id ? investors.find((o) => o.id === id)?.name ?? null : null
   const objectiveTitle = (id: string | null) =>
     id ? objectives.find((o) => o.id === id)?.title ?? null : null
+  const router = useRouter()
   const [tasks, setTasks] = useState<BoardTask[]>(initialTasks)
   const [members, setMembers] = useState<TeamMember[]>(teamMembers)
 
@@ -180,6 +190,22 @@ export default function TeamTaskBoard({
   const [opportunityFilter, setOpportunityFilter] = useUrlState<string>('opportunity', 'all')
   const [investorFilter, setInvestorFilter] = useUrlState<string>('investor', 'all')
   const [objectiveFilter, setObjectiveFilter] = useUrlState<string>('objective', 'all')
+  const [dueFilter, setDueFilter] = useUrlState<DueFilter>('due', 'all', DUE_FILTERS)
+  /*
+    The clock the due filter reads, captured ONCE at mount.
+
+    ⚠ NOT READ DURING RENDER. A `new Date()` inside the `filtered` memo makes
+    the React Compiler give up preserving it ("existing memoization could not be
+    preserved") and `Date.now()` trips `react-hooks/purity` outright — both are
+    lint ERRORS, and §9's baseline is deliberately frozen at 22 problems, so
+    adding one is a regression that makes the frozen number meaningless.
+    `/decide` captures its clock the same way and for the same reason.
+
+    The cost is that a board left open past midnight slices against yesterday
+    until it is reloaded. That is the accepted trade everywhere else in this
+    app, and the list re-sorts on the same stale `today` already.
+  */
+  const [dueWindow] = useState(() => dueWindowFrom(new Date()))
   // Record filters are collapsed on phones; `sm:flex` re-reveals them regardless.
   const [filtersOpen, setFiltersOpen] = useState(false)
 
@@ -209,6 +235,29 @@ export default function TeamTaskBoard({
   const [newMemberName, setNewMemberName] = useState('')
   // manage-team dialog (add / remove people)
   const [manageOpen, setManageOpen] = useState(false)
+
+  /*
+    ── Bulk editing ──────────────────────────────────────────────────────────
+
+    ⚠ WHY A BOARD OF 41 NEEDED THIS. 37 of those carry no due date and 13 no
+    owner, and every one of the three fixes — date it, own it, close it — cost
+    opening the detail sheet, changing one field and closing it again. At that
+    price a backlog is never drained; it is scrolled past. The /decide queue hit
+    the same wall and the same measurement (5 intake sessions confirmed ever
+    against 136 decided), and its answer is the one copied here.
+
+    ⚠ EVERY BULK ACTION LOOPS THE EXISTING `PATCH /api/tasks/[id]`, DELIBERATELY.
+    A bulk route would have to re-implement `guardTask`, the non-executive
+    retag check, `settleCommitmentForTask` (ticking a promoted task settles its
+    obligation) and `queueTaskSheetRefresh` — §12: never fork a shared pass. One
+    request per row is the cost of not owning a second copy of all four, and the
+    rows here number tens, not thousands.
+  */
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  /** Progress through a running batch; null when none is. */
+  const [bulk, setBulk] = useState<{ total: number; done: number; failed: number } | null>(null)
+  /** Which bulk field is being chosen, so one bar can carry three actions. */
+  const [bulkMode, setBulkMode] = useState<'assign' | 'date' | null>(null)
 
   const hasRecordFilters =
     showProjectControls || showOpportunityControls || showInvestorControls || showObjectiveControls
@@ -380,6 +429,65 @@ export default function TeamTaskBoard({
     }
   }
 
+  /**
+   * Apply one patch to every selected task.
+   *
+   * ⚠ OPTIMISTIC, THEN RECONCILED FROM THE RESPONSE. The row is updated from
+   * what the server actually returned rather than from what was sent, because
+   * `status` is not the only thing a PATCH changes — setting it to `done`
+   * stamps `completed_at` server-side, and a row that disagreed with the
+   * database about that would re-sort itself on the next render.
+   *
+   * ⚠ AND THE FAILURES ARE NAMED, NOT COUNTED AWAY. A batch that silently
+   * half-applied is worse than one that refused: §12, a refusal reported as an
+   * absence is how the caller carries on as though the work was done.
+   */
+  async function applyToSelected(
+    patch: Record<string, unknown>,
+    describe: (n: number) => string
+  ) {
+    const ids = visible.filter((t) => selected.has(t.id)).map((t) => t.id)
+    if (ids.length === 0) return
+    setBulk({ total: ids.length, done: 0, failed: 0 })
+    let done = 0
+    let failed = 0
+
+    for (const id of ids) {
+      try {
+        const res = await fetch(`/api/tasks/${id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(patch),
+        })
+        if (handleAuthError(res)) {
+          setBulk(null)
+          return
+        }
+        if (!res.ok) throw new Error()
+        const { task: updated } = (await res.json()) as { task: BoardTask }
+        setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, ...updated } : t)))
+        done++
+      } catch {
+        failed++
+      }
+      setBulk({ total: ids.length, done, failed })
+    }
+
+    setBulk(null)
+    setSelected(new Set())
+    setBulkMode(null)
+    if (failed > 0) toast.error(`${describe(done)} — ${failed} failed`)
+    else toast.success(describe(done))
+
+    /*
+      ⚠ ONE REFRESH, ON THE TRAILING EDGE. §12: an optimistic client mutation
+      with no `router.refresh()` leaves every server-rendered count lying until
+      the tab is reloaded — the sidebar badge read 248 against a database saying
+      1. Once after the batch, never once per row.
+    */
+    router.refresh()
+  }
+
   async function handleComplete(task: BoardTask, e: React.MouseEvent) {
     e.stopPropagation()
     const next = task.status === 'done' ? 'open' : 'done'
@@ -454,6 +562,30 @@ export default function TeamTaskBoard({
     })
   }, [tasks, status, assigneeFilter, projectFilter, opportunityFilter, investorFilter, objectiveFilter, showProjectControls, showOpportunityControls, showInvestorControls, showObjectiveControls, live])
 
+  /**
+   * The due-date slice, taken over `filtered` and NOT inside it.
+   *
+   * ⚠ A MEASURED CONSTRAINT, NOT A PREFERENCE, AND IT COST THREE ATTEMPTS.
+   * Adding one more conditional branch INSIDE the `filtered` memo makes the
+   * React Compiler abandon that memo entirely ("existing memoization could not
+   * be preserved") — in every form tried: inline, as a lifted module-scope
+   * predicate, and with the clock hoisted out. Moving it to its own `useMemo`
+   * simply moved the same error onto the new one. So it is a plain derived
+   * value with no hand-memoization for the compiler to fail to preserve, which
+   * is what the compiler wants anyway. Both halves matter: the error is a lint
+   * ERROR against the baseline §9 deliberately freezes at 22, and §12 says an
+   * exemption gets named with its reason rather than absorbed by raising it.
+   *
+   * Filtering afterwards is free — `filter` preserves relative order, so the
+   * tier-then-date sort `filtered` ends on still holds — and the list is tens
+   * of rows, not thousands.
+   *
+   * Everything downstream reads THIS, not `filtered`: the bulk bar's count,
+   * "select all shown", the drag list and the empty state. Two names for two
+   * populations would be §12's one-quantity-two-definitions on one screen.
+   */
+  const visible = filtered.filter((t) => matchesDue(t.due_date, dueFilter, dueWindow))
+
   // Per-person workload (the old Capacity view, folded in) — open + overdue.
   const workload = useMemo(() => {
     if (scoped) return []
@@ -493,7 +625,7 @@ export default function TeamTaskBoard({
 
   const dnd = useBoardDnd<BoardTask>({
     lanes: taskLanes,
-    items: filtered,
+    items: visible,
     laneOf: (t) => t.assignee_id ?? UNASSIGNED,
     setLane: (t, laneId) => {
       const m = members.find((x) => x.id === laneId)
@@ -562,7 +694,7 @@ export default function TeamTaskBoard({
     },
   })
 
-  const heldTask = dnd.heldId ? filtered.find((t) => t.id === dnd.heldId) : undefined
+  const heldTask = dnd.heldId ? visible.find((t) => t.id === dnd.heldId) : undefined
 
   /*
     One set of action buttons, named once. They used to live inside the header
@@ -950,6 +1082,22 @@ export default function TeamTaskBoard({
           </button>
         </div>
 
+        {/*
+          The due-date slice. Sits beside the assignee filter rather than behind
+          the phone "Filters" button with the record pickers, because it is the
+          one filter that answers "what have I let slide" — see DUE_FILTERS.
+        */}
+        <select
+          value={dueFilter}
+          onChange={(e) => setDueFilter(e.target.value as DueFilter)}
+          aria-label="Filter by due date"
+          className={filterFieldClass}
+        >
+          {DUE_FILTERS.map((f) => (
+            <option key={f} value={f}>{DUE_FILTER_LABELS[f]}</option>
+          ))}
+        </select>
+
         <select value={assigneeFilter} onChange={(e) => setAssigneeFilter(e.target.value)} className={filterFieldClass}>
           <option value="all">Everyone</option>
           {members.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
@@ -1025,7 +1173,145 @@ export default function TeamTaskBoard({
         </p>
       )}
 
-      {filtered.length === 0 ? (
+      {/*
+        The bulk bar.
+
+        Present whenever there is anything to select, not once selecting has
+        begun — §12: a control that only appears after you have started is one
+        nobody discovers, and the point is to offer the shortcut BEFORE the
+        reader resigns themselves to opening fifty sheets. Sticky, for the same
+        reason /decide's is: the reader ticks on the way down the list.
+      */}
+      {status !== 'done' && visible.length > 0 && (
+        <div className="sticky top-0 z-10 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border border-border bg-card px-4 py-2.5 elev-1">
+          {bulk ? (
+            <>
+              <Loader2 size={14} className="animate-spin text-primary shrink-0" />
+              <span className="text-sm tnum">
+                Updating {bulk.done + bulk.failed + 1} of {bulk.total}
+                {bulk.failed > 0 && <span className="text-critical"> · {bulk.failed} failed</span>}
+              </span>
+            </>
+          ) : selected.size === 0 ? (
+            <>
+              <span className="text-sm text-muted-foreground">
+                <span className="tnum font-medium text-foreground">{visible.length}</span> shown
+                {dueFilter !== 'all' && ` · ${DUE_FILTER_LABELS[dueFilter].toLowerCase()}`}
+              </span>
+              <button
+                type="button"
+                onClick={() => setSelected(new Set(visible.map((t) => t.id)))}
+                className="ml-auto h-[2.75rem] sm:h-8 px-3 rounded-md border border-input text-xs font-medium hover:bg-accent transition-colors outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+              >
+                Select all shown
+              </button>
+            </>
+          ) : (
+            <>
+              <span className="text-sm">
+                <span className="tnum font-medium">{selected.size}</span> selected
+              </span>
+
+              {bulkMode === 'assign' ? (
+                <select
+                  autoFocus
+                  defaultValue=""
+                  aria-label="Assign the selected tasks to"
+                  onChange={(e) => {
+                    const v = e.target.value
+                    if (!v) return
+                    void applyToSelected(
+                      { assignee_id: v === UNASSIGNED ? null : v },
+                      (n) => `${n} task${n === 1 ? '' : 's'} reassigned`
+                    )
+                  }}
+                  className={filterFieldClass}
+                >
+                  <option value="" disabled>Assign to…</option>
+                  {members.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+                  <option value={UNASSIGNED}>Nobody</option>
+                </select>
+              ) : bulkMode === 'date' ? (
+                <>
+                  <DatePicker
+                    value=""
+                    onChange={(v) =>
+                      void applyToSelected(
+                        { due_date: v || null },
+                        (n) => `${n} task${n === 1 ? '' : 's'} dated`
+                      )
+                    }
+                    placeholder="Due date for the selected…"
+                  />
+                  {/* Clearing a date is a real answer, and the picker cannot
+                      express it: a task that turned out not to have a deadline
+                      should lose the one somebody guessed. */}
+                  <button
+                    type="button"
+                    onClick={() =>
+                      void applyToSelected(
+                        { due_date: null },
+                        (n) => `${n} due date${n === 1 ? '' : 's'} cleared`
+                      )
+                    }
+                    className="h-[2.75rem] sm:h-8 px-3 rounded-md border border-input text-xs font-medium hover:bg-accent transition-colors outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                  >
+                    Clear date
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setBulkMode('date')}
+                    className="h-[2.75rem] sm:h-8 px-3 rounded-md border border-input text-xs font-medium hover:bg-accent transition-colors outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                  >
+                    Set due date
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setBulkMode('assign')}
+                    className="h-[2.75rem] sm:h-8 px-3 rounded-md border border-input text-xs font-medium hover:bg-accent transition-colors outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                  >
+                    Assign
+                  </button>
+                  {/*
+                    ⚠ COMPLETE, NEVER DELETE. The single-row control pair is
+                    deliberate — ticking stamps `completed_at`, writes to
+                    `activity_log` and SETTLES a promoted commitment on the
+                    counterparty's thread, while deleting destroys the row and
+                    its notes with only `to_jsonb(old)` to recover it. One of
+                    those is safe to do fifty at a time and one is not, so only
+                    one is here.
+                  */}
+                  <button
+                    type="button"
+                    onClick={() =>
+                      void applyToSelected(
+                        { status: 'done' },
+                        (n) => `${n} task${n === 1 ? '' : 's'} completed`
+                      )
+                    }
+                    className="h-[2.75rem] sm:h-8 px-3 rounded-md bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+                  >
+                    Mark done
+                  </button>
+                </>
+              )}
+
+              <button
+                type="button"
+                onClick={() => { setSelected(new Set()); setBulkMode(null) }}
+                className="ml-auto h-[2.75rem] sm:h-8 px-2 rounded-md text-xs text-muted-foreground hover:text-foreground transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+              >
+                {bulkMode ? 'Back' : 'Clear'}
+              </button>
+            </>
+          )}
+        </div>
+      )}
+
+      {visible.length === 0 ? (
         <EmptyState
           icon={status === 'done' ? Archive : ListChecks}
           title={status === 'done' ? 'Nothing archived yet' : 'No open tasks'}
@@ -1067,6 +1353,36 @@ export default function TeamTaskBoard({
                   done && 'opacity-60',
                 )}
               >
+                {/*
+                  The batch tick.
+
+                  ⚠ `stopPropagation`, BECAUSE THE WHOLE ROW OPENS THE SHEET.
+                  Without it, selecting a task to bulk-edit would also open the
+                  very form the bulk bar exists to avoid.
+
+                  ⚠ AND IT IS A REAL `<input type="checkbox">`. A styled div
+                  with an onClick is not reachable by keyboard and announces
+                  nothing; this row is the one surface worked in batches of
+                  fifty.
+                */}
+                {status !== 'done' && (
+                  <input
+                    type="checkbox"
+                    checked={selected.has(task.id)}
+                    onClick={(e) => e.stopPropagation()}
+                    onChange={(e) => {
+                      e.stopPropagation()
+                      setSelected((prev) => {
+                        const next = new Set(prev)
+                        if (next.has(task.id)) next.delete(task.id)
+                        else next.add(task.id)
+                        return next
+                      })
+                    }}
+                    aria-label={`Select ${task.title}`}
+                    className="size-4 shrink-0 cursor-pointer accent-primary outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+                  />
+                )}
                 <button
                   onClick={(e) => handleComplete(task, e)}
                   className="relative shrink-0 inline-flex items-center justify-center size-5 transition-transform hover:scale-110 active:scale-95"
