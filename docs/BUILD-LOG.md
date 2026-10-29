@@ -6,6 +6,304 @@ This file is **not** auto-loaded into a Claude Code session. It is the archive: 
 
 Split out of `CLAUDE.md` on 2026-09-23, when that file reached 606k characters against a 150k limit above which it is silently truncated — meaning the project's own operating instructions had begun to risk not reaching the sessions that need them. The entries below are **verbatim and unedited**.
 
+**Done 2026-10-29 (a uniform data closet per deal — and an audit that found 157 documents nobody could see, two of those rooms shared with Palantir):**
+
+Richard wrote out a three-section, nineteen-subfolder diligence standard —
+`00 — Start Here`, `01 — Power & Property`, `02 — Capacity Commitment` — and
+asked for it on every project in the `02 Projects` Drive folder, for the
+existing projects to be restructured into it, for 25 blank rooms so a new deal
+is a rename rather than a build, and then: *"Can you further tell me how we can
+echo that structure in Ber Intelligence? Or at least have the most recent of any
+particular document to sync between the two? How would you handle this?? The
+idea is that we present our partners with a uniform data closet on each project
+so that we can speed through due diligence."*
+
+Four decisions were his, taken before any code: the template goes on the
+**power/data-center deals only** (section 02 is compute offtake and means
+nothing on a plumbing acquisition — two schemes live at once, flagged and
+accepted); **apply the confident moves straight away** and park the uncertain;
+**fold the team's bespoke folders into the nineteen**; and **both** the 25
+pre-built blanks and the one-press clone.
+
+### The answer to the sync question was that it already works, in the only safe direction
+
+Worth recording because it was the premise of the ask. Drive owns custody, the
+platform owns the index: `importDriveFolder` compares `drive_modified_at` as an
+INSTANT and a revised file **overwrites its own row** — text, summary and chunks
+rebuilt — so the platform is never more than an hour stale in business hours
+(03:15 nightly plus hourly 08:20–18:20). There is no version chain and does not
+need to be one; `superseded_at` is a tombstone. Two-way sync is the thing to
+avoid and `publish.ts` has said so since it was written. What was missing was
+not sync. It was that the section a document sits in was **a string nobody read
+as a value**, and that nothing anywhere said what a room was still missing.
+
+### ⚠ MEASURED FIRST, AND THE PREMISE OF "ONE UNIFORM ROOM PER DEAL" WAS WRONG
+
+A uniform room per deal assumes one folder per deal. `scripts/audit-project-rooms.mts`
+(read-only) walked `02 Projects` and found **44 candidate rooms across two
+depths, 21 linked to a record**, because one child — `Data Center & Power
+Developments` — holds a further 18 project folders of its own and seven records
+point at the deeper one.
+
+⚠ **157 DOCUMENTS IN 8 ROOMS NO RECORD POINTS AT — no document row, so invisible
+to Ber AI.** `Data Center & Power Developments/Steelton - Pennsylvania` holds
+**53** of them while the record points at a different Steelton folder holding
+194. `Cleveland Cliffs - Whisky - Dallas TX` holds **63**, `… - New Richmond
+Ohio` **30**, then HAFB Falcon Hill 4, Vallejo 3, North Carolina 2, San
+Bernadino 1, Development Partners 1.
+
+⚠ **AND TWO OF THOSE UNCLAIMED ROOMS CARRY OUTSIDE WRITE ACCESS.** The 63-file
+room is shared with `sterling@tensoriq.io` (writer), `lmgimbel@palantir.com`
+(fileOrganizer), `ahousenbold@palantir.com` (fileOrganizer),
+`michael.miller@nebius.com` (writer), `jonathan@tensoriq.io` (writer) and
+`brad@agilit-advisors.com` (writer); the 30-file room with four of the same.
+`fileOrganizer` on a shared drive can move and delete. Richard's own filing
+instruction is to *"restrict external access until we approve the room and its
+permissions"* — which was not a checkable statement, because nothing in the
+platform could print a folder's permissions. `listGrants` / `externalGrants`
+now read them and the audit is the first thing that has ever looked.
+
+⚠ **PROJECT FOLDERS LIVE IN AT LEAST THREE PLACES, NOT ONE.** Five records point
+outside `02 Projects` entirely, and only printing the parent chain made it
+visible: Alaska Strategic Materials under `Ber Wilson Proper (HQ) / Ber Earth`;
+Myton Development and Case Garage under `General Contracting / Build Projects /
+USA | Canada / Utah`; Tonga under `… / Build Projects / APAC`; West Wendover at
+`Trump City (WW NV)`, a CHILD of the Trump City folder. `folderAncestry` exists
+for that question now.
+
+**The audit reports and merges nothing, and that is the design.** The platform
+refuses to match a folder to a record by name on purpose (`project-folder-sync.ts`:
+"Myton - Utah" has two candidate projects, so does "Stockton, Utah"), so a
+suspected duplicate is printed with its score and BOTH file counts for a human
+to rule on. Published as a Sheet into `02 Projects` so it can be worked from a
+phone.
+
+### ⚠ THE AUDIT CORRECTED ITSELF TWICE, AND BOTH CORRECTIONS ARE THE LESSON
+
+**A room that CONTAINS a linked folder is a shelf, not an orphan.** `West
+Wendover - Trump City Initiative` was reported an orphan holding 28 files **of
+which the platform already held 27** — which cannot be true of a folder nothing
+points at. The record points at its child. §12: a verdict that argues with the
+number printed beside it is the verdict that is wrong.
+
+**A shared counterparty word produced two confident, wrong suggestions.**
+`Cleveland Cliffs - Whisky - Dallas TX` and `… - New Richmond Ohio` were both
+offered as *"possibly Weirton — Cleveland-Cliffs (WV)"* at **0.67**, because
+`cleveland` and `cliffs` are a counterparty shared by five records and they
+outvoted the one word that identifies the deal. Scoring now drops any token
+appearing in more than two record names, and both correctly get **no
+suggestion** — `Whisky` is not `Whiskey`, and no score should paper over a
+spelling nobody has reconciled. `Steelton - Pennsylvania` meanwhile went to
+**1.0** against the right record, because `steelton` is df 1. Same measurement
+as 10-29's matcher work, arrived at from the other end.
+
+**And the totals were wrong in the safe direction, which is still wrong.**
+Summing every file in every unclaimed room read **185**; the real figure is
+**157**, because it was counting the 28 under the West Wendover shelf that the
+platform already holds. "Invisible to Ber AI" has one definition — no document
+row — and the number has to be computed from that definition, not from a
+near-enough proxy. ⚠ One more: the report PADDED the folder path to a column
+width, so both rooms shared with outside writers read as
+`02 Projects/Data Center & Power Developments/…` — it named a problem and
+withheld which deal it was about. The path is never truncated now.
+
+### The template, declared once
+
+`src/lib/drive/data-room.ts` is the single home: 3 parents, 19 leaves, each
+leaf's `Drafts/` and `Superseded/`, `00.0 — _Unsorted` sorting first on purpose,
+and three un-numbered working folders. Six things derive from it — the Drive
+build, the fold, the classifier's candidates, the Documents tab's shelves, the
+Data room tab and the published 00.2.
+
+⚠ **THE CANDIDATE IS THE KEY (`01.5`), NEVER THE LABEL.** Under these labels the
+old substring-hint scheme is unworkable: `title` is inside both `01.1 Site
+Control & Title` and `01.2 Zoning & Entitlements`, `permits` inside `01.2` and
+`01.4`, `insurance` inside `01.1` (title insurance) and `01.8`, `power` inside
+`01.5` and `01.6`. Every such rule would resolve to two candidates, be refused
+as ambiguous and fall through silently — which is exactly what happened to every
+land and title rule for the eighteen days after the Diligence lanes shipped.
+Keying on `NN.N` makes the whole class unreachable.
+
+⚠ **Richard's `Superseded/` convention already worked end to end.**
+`isArchiveFolder()` has listed `superseded` all along, so `listFolder` skips the
+subtree and `reconcileVanished` turns the disappearance into a supersession —
+dragging a file there retires the document that night, with no platform login.
+`Drafts/` needed the opposite: imported, and never read as the operative
+instrument, which is his *"do not label site control, power, or compute capacity
+as secured solely because an LOI or preliminary letter exists"* turned into a
+retrieval rule rather than a filing one.
+
+⚠ **Three things the template has no slot for**, and inventing one would misfile
+them: general correspondence (the mail sweep's largest automatic feed), meetings
+(transcripts and recaps) and proposals & bids (43 documents; an inbound
+solicitation is a live line of business). They keep un-numbered sibling folders
+BELOW the numbered sections, because digits sort before letters — so the room
+reads as the data closet first and the working files after. Asserted in a test,
+because an un-numbered folder sorting between `01` and `02` would put the mail
+shelf inside the diligence closet.
+
+**Applied per record.** `data_room_template` on `projects` and `opportunities`,
+text with a default rather than a CHECK (the member set grows with the business;
+housing and steel are the obvious next two), with the vocabulary enforced where
+the build can see it: `Record<RoomTemplateKey, …>` in the module that owns it.
+15 projects + GridEdge marked, all 16 names matched exactly — the SQL reported
+the misses first, because a name typed wrong would silently leave that deal on
+the old scheme.
+
+### ⚠ THE ROOM IS BUILT INSIDE THE FOLDER THE RECORD ALREADY POINTS AT
+
+This was the other way round and would have been actively wrong. Given the five
+records pointing outside `02 Projects`, creating `02 Projects/<name>` for them
+raises nineteen folders in a room nobody opens while every document stays in the
+real one — manufacturing the exact duplication the audit had just finished
+measuring. It is also the precedence `recordDriveFolder` already applies for
+filing: the team's own folder wins.
+
+`--linked-only` then takes the remaining hazard off the table. Seven records have
+no folder at all, and for at least three of them a real unclaimed room exists —
+`Cleveland Cliffs Industrial Sites Evaluation & Development` has no link while a
+30-document room sits orphaned, and Eagle Mountain already has an empty folder of
+its own. Linking a record to a NEW empty folder cements the wrong room and
+orphans the right one for good: the fix for the problem, committing the problem.
+Those seven are skipped by name with the reason. **979 folders created, 133
+already present, 0 records linked, exit 0.**
+
+### The fold, and the three bugs reading its manifest found
+
+`scripts/refile-to-data-room.mts` moves, never copies or deletes, only inside the
+record's own room, dry-run by default, manifest written either way as the undo.
+
+**Deterministic, no model call** — a measured decision, not laziness: ~600
+documents at 30–60s per `chooseFolder` on a box that serves one request at a time
+is eight hours of contention, for cases Richard has already said to park.
+
+⚠ **EVERY ONE OF THE THREE BUGS WAS FOUND BY READING THE MANIFEST, NOT THE
+SUMMARY LINE.** The first full dry run reported **29% of 702 parked** and looked
+like the cost of being careful.
+
+1. ⚠ **FILE NAMES SEPARATE WORDS WITH UNDERSCORES.** The rules matched substrings
+   of a space-separated name, so every short token had to be padded (`' psa '`,
+   `' nda '`) — and `Steelton_PSA_Buyer_Redline.docx` therefore never matched
+   `psa`, nor `Steelton_Purchase_Agreement_Draft_v1.docx` `purchase agreement`.
+   **Fifty-nine files in `Contracts & Legal` parked, with the two most important
+   documents on the largest deal among them.** Matching WHOLE WORDS — split on
+   every non-alphanumeric run, compare contiguous sequences — fixes it and
+   retires the padding entirely, which is §12's own remedy. `Gypsa` is no longer
+   `psa` and `Agenda` no longer `nda` by construction rather than by remembering.
+2. ⚠ **A FOLDER RULE KEYED ON THE WHOLE PATH MISSES EVERY NESTED SHELF**, and
+   nesting is the normal case here: `West Wendover` holds an inner folder named
+   after itself with the standard scheme inside it, and Helper's documents sit
+   under `PQC Giovanni Campus /Land Legal/Settlement Agreements`. 39 files fell
+   through on paths whose PARENT folder had a perfectly good rule. Whole path
+   first, then each segment deepest-first — which is also the inheritance a human
+   means by putting `Settlement Agreements` inside `Land Legal`.
+3. ⚠ **THE FOLDER NAME ITSELF WAS NEVER READ.** `Stockton LOI` holds eleven files,
+   none of which say "LOI" in their own names; the folder says it once, for all
+   of them. The hints now run over the folder segments BEFORE the file name —
+   the precedence `classifyBySourceFolder` is already built on, because a folder
+   a human named is stronger evidence than a name a counterparty chose, and it
+   classifies a whole subtree at once.
+
+Plus the vocabulary §12 had already warned was missing and which was missing
+here too — `assignment`, `ground lease`, `facility lease`, `escrow`, `deposit
+receipt`, `quit claim` — recorded there as *"`lease` and `assignment` were
+ABSENT, and both are the central document class on a land/power acquisition"*.
+The Riverdale dry run proved it by parking `Assignment Agreement .doc`.
+
+⚠ **AND THE WORDS THAT GENUINELY DO NOT SAY WHICH SECTION STAY OUT.** `amendment`
+is Richard's 01.1 ("Amendments, extensions, deposit receipts") and equally his
+02.3 ("Amendments, side letters, exhibits"); a bare `lease` is equally 02.6's
+equipment lease. Those park with a reason, and the test plants them to prove it.
+`Contracts & Legal` gets **no folder rule** for the same reason: reading its 55
+remaining files shows it spanning 01.1, 01.5, 00.3, 02.3 and some with no home
+at all (there is no litigation section), so one rule would be confidently wrong
+on most of them. A landlord estoppel is site control and a customer estoppel is
+a lender right, which is ordering rather than duplication — the collision test
+compares exact tokens and cannot see it, so the longer phrase is listed first.
+
+**29% → 17%**, of which **38 were ALREADY `_Unsorted`** under the old scheme. Net
+new parked: 75 of 638, each with its reason in the manifest.
+
+⚠ **AND IT REWRITES `drive_folder_path` IN THE SAME PASS.** A Drive move keeps the
+file id, so `drive_file_id` survives and the importer will not re-import — but
+that column is the ONLY thing `sectionOf` reads, and leaving it to the nightly
+sync would have the Documents tab and the published tracker reporting
+yesterday's structure. §12's orphaned projection, which looks perfectly live.
+
+### 00.2 generates itself, and never guesses
+
+`readRoomStatus` is the one computation; the Data room tab and the published
+sheet both read it, so they cannot disagree — §12's one quantity, one
+definition, broken three times on exactly this kind of surface.
+
+⚠ **IT NEVER GUESSES WHICH FILE SATISFIES WHICH REQUIREMENT.** Matching
+*"ALTA/NSPS survey and parcel/legal descriptions"* to a file name is the fuzzy
+problem that has cost this codebase more hours than anything else, and a tracker
+claiming a requirement is met when it is not is worse than an empty one, because
+a lender reads it as an assertion. So a requirement row links to its SECTION
+folder — always right — and says whether its status was **read from the folder**
+or **recorded by a person**, because "Missing" because nobody looked is a
+different claim from "Missing" because somebody checked.
+
+⚠ **`Effective` IS DELIBERATELY NEVER DERIVED FROM A FILE BEING PRESENT.** That is
+Richard's LOI rule again, on the section where it matters most.
+
+The sheet is **rebuilt whole** and says READ ONLY in its first row. The task
+board earns the right to be typed into because it reads one cell back and
+settles the task; this reads nothing back, so the only safe thing is to be
+unmistakable — §12: a destination that does not carry what creating carries
+reads as losing the work. Published as **phase 3 of the existing
+`/api/cron/drive-sync`**, after the import that writes the paths it reads, and
+on that endpoint rather than a new one because a new cron route typechecks,
+builds, registers, then 401s at its scheduled hour until middleware names it.
+
+`dd_items` gains the six columns Richard's tracker specifies — `section_key`,
+`counterparty`, `document_date`, `expires_on`, `outstanding_action`, `due_date`,
+plus a `document_id`/`document_table` pair — rather than a parallel table,
+because the Diligence tab, the dashboard, the daily brief and meeting prep all
+read `dd_items` and a second home would show each of them half the answer.
+`outstanding_action` is kept APART from `notes` so the tracker can sort by what
+is outstanding, which is the column a lender reads first — and it is how *"track
+unresolved conditions in signed agreements, not just whether we have a signed
+copy"* becomes a queryable thing rather than a sentence.
+
+### The echo, mostly for free
+
+⚠ **`shelveByFolder` needed no change at all.** The Documents tab has grouped by
+the WHOLE `drive_folder_path`, alphabetically, since 10-26 — so numbered section
+names sort into reading order on their own, and the platform mirrors the data
+room with no UI work. A **Data room** tab was added for the thing that did not
+exist: the completeness view. It shows only for records on the template, via the
+tab bar's existing show-if-non-zero rule rather than a second mechanism for
+hiding a tab.
+
+**Drafts carry their status into retrieval on BOTH paths** — `list_documents` and
+`get_document_content` — because the model follows an id from a search hit
+without listing first, and §12 is explicit that fixing the producer does not fix
+the consumer.
+
+### Housekeeping that was cheap and belonged
+
+Three helpers extracted at the one moment it was free, each caught before it
+became a second home: `overlapCoefficient` out of `/api/drive/suggest` into
+`src/lib/utils/similarity.ts` (whose own docblock records that `jaccard` existed
+twice before it existed once), the CSV quoting out of `leads/sheet.ts`, and
+`HQ_FOLDER_ID`/`PROJECTS_SHELF` out of two scripts that had each declared them —
+the drift where one script creates `02 Projects/<name>` and the other looks it
+up by that name.
+
+⚠ **One self-inflicted lesson worth the line:** `npx tsc --noEmit` passes over a
+broken `scripts/*.mts`, because scripts are not in the tsconfig. A python patch
+left a stray brace in the audit and typecheck was green; only running it found
+it. Running the script IS the typecheck for a script.
+
+**Verification.** 887 tests (+30 over the template's vocabulary, including the
+hostile cases — the section parser checks membership of the template rather than
+the shape of a number, because a folder called `10.5 MW study` parsed as a
+section key until its own test said so). Lint unchanged at 24 problems, all
+pre-existing (⚠ CLAUDE.md records 23; the true count on this tree is 24, and 13
+of them report as errors rather than warnings).
+
 **Done 2026-10-29 (one attention engine, and the front door opens on the thing you actually use):**
 
 Richard asked an open question — *"Is there anything you would do to simplify
