@@ -13,6 +13,7 @@ import { parseStagedAttachments } from '@/lib/email-ingestion/attachments'
 import { findMisfiledCompanyDocuments, findUnparentedDocuments } from '@/lib/documents/unfiled'
 import { findMisfiledRecordDocuments } from '@/lib/documents/misfiled'
 import { readOpenProposals } from '@/lib/provenance/report'
+import { asDecideSort } from '@/lib/decide/rank'
 import { loadTargets } from '@/lib/email-sweep/route-phase'
 import { viewerHiddenProjectIds } from '@/lib/security/request'
 import type { PickableRecord } from '@/components/shared/RecordPicker'
@@ -53,9 +54,36 @@ function recordHref(table: string, recordId: string): string {
   return '/decide'
 }
 
-export default async function DecidePage() {
+/**
+ * The queue.
+ *
+ * ⚠ THE VIEW IS SEEDED FROM THE URL AND SYNCED BACK WITHOUT A ROUND TRIP. The
+ * sort, the kind chip and the search all live in the address bar so a view can
+ * be linked — §12: a filter kept only in component state is not a view. But
+ * this page is expensive (three corpus-wide document passes plus a portfolio
+ * match per staged session), so `DecideClient` writes the URL with
+ * `history.replaceState` rather than `router.replace`, exactly as `LeadsClient`
+ * does and for the documented reason: the latter re-runs this whole server
+ * component on every chip press.
+ */
+export default async function DecidePage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>
+}) {
   const viewer = await getViewer()
   if (viewer && !viewer.isAdmin) redirect('/tasks')
+
+  const params = await searchParams
+  const one = (k: string): string | null => {
+    const v = params[k]
+    return typeof v === 'string' ? v : null
+  }
+  // Narrowed here rather than in the browser: an unknown ?sort= must fall back
+  // to the default on the FIRST paint, or the list reorders after hydration.
+  const initialSort = asDecideSort(one('sort'))
+  const initialKind = one('kind')
+  const initialQuery = one('q') ?? ''
 
   const supabase = createAdminClient()
 
@@ -252,6 +280,9 @@ export default async function DecidePage() {
         // clock reading at mount, and reading Date.now() in a server component
         // is the react-hooks/purity misfire §9 records. See meetingBoost.
         occurredAt: when,
+        // The STAGING, not the call — see DecideItem.arrivedAt. A call from
+        // last Tuesday staged this morning is new to the reader this morning.
+        arrivedAt: s.updated_at,
         // Never accepted from the list. Filing a meeting is choosing which deal
         // it belongs to, which is a judgement with a screen of its own.
         accept: null,
@@ -311,6 +342,7 @@ export default async function DecidePage() {
       href: `/email-ingestion/${s.id}`,
       verdict: pre?.disposition ?? null,
       score: Number.isFinite(score) ? score : null,
+      arrivedAt: s.updated_at,
       note: pre?.headline ?? pre?.reason ?? null,
       confidence: pre?.confidence ?? null,
       deadline: null,
@@ -358,6 +390,7 @@ export default async function DecidePage() {
         ? reviewReasonLabel(r.reason)
         : `from ${enumLabel(r.source_table, ACTIVITY_TABLE_LABELS).toLowerCase()}`,
       href: '/review',
+      arrivedAt: r.created_at,
       verdict: null,
       score: r.confidence !== null ? Math.round(Number(r.confidence) * 100) : null,
       note: r.ai_explanation,
@@ -382,6 +415,7 @@ export default async function DecidePage() {
     items.push({
       id: doc.id,
       kind: 'document',
+      arrivedAt: doc.arrivedAt,
       title: doc.fileName,
       // The Drive shelf it came off. Often the only thing that says which deal
       // it is about — "Business Plan.docx" in "Corporate /M & A/GridEdge
@@ -440,6 +474,7 @@ export default async function DecidePage() {
     items.push({
       id: doc.id,
       kind: 'unparented',
+      arrivedAt: doc.arrivedAt,
       title: doc.fileName,
       // ⚠ THE THREAD'S SUBJECT, WHICH IS USUALLY THE ONLY CONTEXT THERE IS.
       // `Package.pdf` and `Quit Claim Deed` name no record; the conversation
@@ -480,6 +515,7 @@ export default async function DecidePage() {
     items.push({
       id: doc.id,
       kind: 'misfiled',
+      arrivedAt: doc.arrivedAt,
       title: doc.fileName,
       // Where it sits TODAY. The accept button names where it would go, so the
       // two together read as the move without the row having to spell it out.
@@ -526,6 +562,7 @@ export default async function DecidePage() {
     items.push({
       id: q.id,
       kind: 'proposal',
+      arrivedAt: q.at,
       title: `${q.recordLabel} — ${q.fieldLabel}`,
       subtitle: q.recordLabel,
       href: recordHref(q.table, q.recordId),
@@ -604,7 +641,13 @@ export default async function DecidePage() {
         </div>
       )}
 
-      <DecideClient items={items} records={records} />
+      <DecideClient
+        items={items}
+        records={records}
+        initialSort={initialSort}
+        initialKind={initialKind}
+        initialQuery={initialQuery}
+      />
     </div>
   )
 }

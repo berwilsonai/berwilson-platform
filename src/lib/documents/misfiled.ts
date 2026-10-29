@@ -65,6 +65,8 @@ export interface MisfiledDoc {
   /** The thread that delivered the file, where one did. Keys `mailChunks`. */
   threadId: string | null
   folderPath: string | null
+  /** When the file landed here, for the queue's "Most recent" order. */
+  arrivedAt: string | null
 }
 
 /** Shared by both reads, so one definition decides what "live" means. */
@@ -156,6 +158,7 @@ export async function findMisfiledRecordDocuments(): Promise<MisfiledDoc[]> {
       mailChunks: 0,
       threadId: row.source_thread_id,
       folderPath: row.drive_folder_path,
+      arrivedAt: row.uploaded_at,
     })
   }
 

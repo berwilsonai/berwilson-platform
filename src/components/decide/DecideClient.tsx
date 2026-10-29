@@ -9,7 +9,15 @@ import { Button } from '@/components/ui/button'
 import { Panel } from '@/components/ui/card'
 import { Kbd } from '@/components/ui/kbd'
 import EmptyState from '@/components/shared/EmptyState'
-import { decideWeight, daysUntil, meetingBoost } from '@/lib/decide/rank'
+import {
+  daysUntil,
+  meetingBoost,
+  decideComparator,
+  asDecideSort,
+  DECIDE_SORTS,
+  type DecideSort,
+} from '@/lib/decide/rank'
+import { Segmented } from '@/components/ui/segmented'
 import { planAccept } from '@/lib/decide/accept-request'
 import type { DecideKind, AcceptAction } from '@/lib/decide/types'
 import { filterByWords } from '@/lib/utils/search'
@@ -74,6 +82,17 @@ export interface DecideItem {
    * component captures. See meetingBoost.
    */
   occurredAt?: string | null
+  /**
+   * When this row ARRIVED in the queue, which is a different question from
+   * `occurredAt` above and from `deadline`.
+   *
+   * ⚠ EVERY PRODUCER FILLS THIS; `decide-sort.test.ts` asserts it. A meeting
+   * `occurredAt` last Tuesday may have been staged this morning, and the reader
+   * asking "what is new since I last looked" means the staging, not the call.
+   * Nulling it for one kind would sink that kind to the bottom of the recent
+   * view, where it reads as dealt with — see SortableDecideItem.arrivedAt.
+   */
+  arrivedAt?: string | null
   /**
    * The facts the decision actually turns on.
    *
@@ -507,11 +526,48 @@ function acceptVerb(item: { accept: AcceptAction | null; acceptName?: string | n
   return typeof verb === 'function' ? verb(item.acceptName ?? null) : verb
 }
 
+/**
+ * Put the view in the address bar, so it can be linked and bookmarked.
+ *
+ * ⚠ `history.replaceState`, NOT `router.replace`. `/decide` runs three
+ * corpus-wide document passes and a portfolio match per staged session on every
+ * render, so a Next navigation per keystroke would make the search unusable and
+ * every chip press cost a second. `LeadsClient` took the same decision for the
+ * same reason and wrote down why; this is that helper's sibling, not a new idea.
+ *
+ * Module scope rather than the component body: it needs nothing but its
+ * arguments, and a helper defined in the body destabilises what it is passed to
+ * (§12).
+ */
+function syncViewToUrl(sort: DecideSort, kind: DecideKind | 'all', query: string): void {
+  const url = new URL(window.location.href)
+  const set = (key: string, value: string, isDefault: boolean) => {
+    if (isDefault) url.searchParams.delete(key)
+    else url.searchParams.set(key, value)
+  }
+  // A default is ABSENT, never spelled out: `/decide` and
+  // `/decide?sort=consequence&kind=all` must not be two different-looking links
+  // to the same view.
+  set('sort', sort, sort === 'consequence')
+  set('kind', kind, kind === 'all')
+  set('q', query, query.trim() === '')
+  window.history.replaceState(null, '', url)
+}
+
 export default function DecideClient({
   items,
   records,
+  initialSort = 'consequence',
+  initialKind = null,
+  initialQuery = '',
 }: {
   items: DecideItem[]
+  /** From ?sort= — already narrowed on the server, so the first paint is right. */
+  initialSort?: DecideSort
+  /** From ?kind= — an unknown value falls back to "Everything". */
+  initialKind?: string | null
+  /** From ?q= — a linked search. */
+  initialQuery?: string
   /**
    * Every project and opportunity a row can be filed onto by hand.
    *
@@ -523,7 +579,18 @@ export default function DecideClient({
   records: PickableRecord[]
 }) {
   const router = useRouter()
-  const [kind, setKind] = useState<DecideKind | 'all'>('all')
+  /*
+    The kind chip, seeded from the URL.
+
+    ⚠ VALIDATED AGAINST `KIND_META`, NOT CAST. `?kind=` is user input, and a
+    typo'd value would filter the list to nothing while every chip rendered
+    unselected — a page that looks empty for no visible reason.
+  */
+  const [kind, setKind] = useState<DecideKind | 'all'>(() =>
+    initialKind && initialKind in KIND_META ? (initialKind as DecideKind) : 'all'
+  )
+  /** Which of the four orders the list is in. See DECIDE_SORTS. */
+  const [sort, setSort] = useState<DecideSort>(() => asDecideSort(initialSort))
   /*
     The free-text filter.
 
@@ -538,7 +605,7 @@ export default function DecideClient({
     matches the whole phrase answers "nothing" where it means "not adjacent").
     `cleveland steelton` must find "Steelton — Cleveland-Cliffs (PA)".
   */
-  const [query, setQuery] = useState('')
+  const [query, setQuery] = useState(initialQuery)
   /**
    * The row whose record is being chosen by hand, and which verb will run.
    *
@@ -623,9 +690,19 @@ export default function DecideClient({
           // A staged meeting has no deadline; its lift comes from how recent it
           // is, so the call from yesterday leads the ones from last week.
           boost: i.occurredAt ? meetingBoost(i.occurredAt, now) : undefined,
+          /*
+            Whether this row can be settled without opening it — the key the
+            `quick` order reads.
+
+            ⚠ DERIVED HERE, FROM THE SAME TWO FIELDS THE BUTTON READS. A second
+            definition of "clearable" beside the one the row renders from is
+            §12's one-quantity-two-definitions: the order would promise a button
+            that the row then declines to draw.
+          */
+          clearable: Boolean(i.accept) && !i.blocker,
         }))
-        .sort((a, b) => decideWeight(b) - decideWeight(a)),
-    [items, now]
+        .sort(decideComparator(sort)),
+    [items, now, sort]
   )
   const live = useMemo(
     () => ranked.filter((i) => !dismissed.has(`${i.kind}:${i.id}`)),
@@ -1085,6 +1162,19 @@ export default function DecideClient({
     rowsRef.current.get(cursorIdx)?.scrollIntoView({ block: 'nearest' })
   }, [cursorIdx])
 
+  /*
+    Mirror the view into the address bar.
+
+    In an effect rather than inside each setter, so the three controls cannot
+    drift into three slightly different serialisations of the same view — and so
+    a change made any other way (the "Clear" affordance, a future saved view)
+    is carried without being remembered about. See syncViewToUrl for why this is
+    `replaceState` and not a navigation.
+  */
+  useEffect(() => {
+    syncViewToUrl(sort, kind, query)
+  }, [sort, kind, query])
+
   const urgent = live.filter((i) => i.daysLeft !== null && i.daysLeft <= 7).length
 
   if (live.length === 0) {
@@ -1180,6 +1270,27 @@ export default function DecideClient({
             {urgent} closing within a week
           </span>
         )}
+      </div>
+
+      {/*
+        The order. Four views of ONE population — the chip counts above are
+        deliberately unaffected by which is chosen, because a sort that changed
+        the numbers would be a filter wearing a sort's clothes.
+
+        ⚠ `Segmented`, NOT A FOURTH HAND-ROLLED PILL ROW. `SortControls` on the
+        dashboard carries the note *"if a third of these appears, merge them"*;
+        this is the third, so it uses the primitive and `SortControls` was moved
+        onto it in the same change (§12 — a shared renderer wired to one surface
+        is worse than no shared renderer).
+      */}
+      <div className="flex flex-wrap items-center gap-1.5">
+        <span className="text-xs text-muted-foreground">Sort</span>
+        <Segmented
+          value={sort}
+          onChange={setSort}
+          label="Sort the queue"
+          options={DECIDE_SORTS}
+        />
       </div>
 
       {/* The batch bar. Present whenever there is anything to batch, because a

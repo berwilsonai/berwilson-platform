@@ -35,7 +35,7 @@ const IDENTIFIER_TEXT_CHARS = 4000
 
 /** Columns every surface that matches a document reads. ONE definition. */
 export const DOCUMENT_MATCH_COLUMNS =
-  'id, file_name, doc_type, mime_type, ai_summary, extracted_text, drive_folder_path, embedding_status, drive_file_id, filing_confirmed_at, source_thread_id'
+  'id, file_name, doc_type, mime_type, ai_summary, extracted_text, drive_folder_path, embedding_status, drive_file_id, filing_confirmed_at, source_thread_id, uploaded_at'
 
 export interface DocumentMatchRow {
   id: string
@@ -56,6 +56,16 @@ export interface DocumentMatchRow {
    * which is the one answer that makes a misfiled document look harmless.
    */
   source_thread_id: string | null
+  /**
+   * When the row arrived here — the sort key for the queue's "Most recent".
+   *
+   * ⚠ `uploaded_at`, BECAUSE THESE TABLES HAVE NO `created_at`. Both
+   * `documents` and `opportunity_documents` depart from §4's convention and
+   * carry `uploaded_at` instead, so a reader reaching for the conventional name
+   * gets `42703` — which fails the WHOLE query, not the column (§12), and on a
+   * queue page would read as "no documents are waiting".
+   */
+  uploaded_at: string | null
 }
 
 /**

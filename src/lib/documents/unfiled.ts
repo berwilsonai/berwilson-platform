@@ -82,6 +82,8 @@ export interface CompanyKnowledgeDoc {
    * numbers are not printed at a reader here (§12).
    */
   confidence: number | null
+  /** When the file landed here, for the queue's "Most recent" order. */
+  arrivedAt: string | null
 }
 
 /** Columns, the composed name and the matcher all live in `match.ts` now —
@@ -212,6 +214,7 @@ export async function loadCompanyKnowledge(
       mailChunks: mailCounts.get(row.id) ?? 0,
       fromDrive: row.drive_file_id !== null,
       filingConfirmed: row.filing_confirmed_at !== null,
+      arrivedAt: row.uploaded_at,
     }
 
     const notKnowledge = isNotKnowledge(row)

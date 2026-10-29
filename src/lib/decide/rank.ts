@@ -90,3 +90,112 @@ export function daysUntil(deadline: string | null, now: number): number | null {
   if (!deadline) return null
   return Math.ceil((new Date(deadline + 'T00:00:00').getTime() - now) / 86_400_000)
 }
+
+/* ───────────────────────────── Sort orders ─────────────────────────────── */
+
+/**
+ * The orders the queue can be read in.
+ *
+ * ⚠ ONE FIXED ORDER WAS THE WHOLE PROBLEM. `decideWeight` answers "what is
+ * most consequential", which is the right default and the wrong question for
+ * somebody sifting: a queue of ~130 rows spanning six kinds needs "what landed
+ * since I last looked" and "what can I clear without reading" as well, and
+ * neither is derivable from consequence. These are VIEWS of one population, not
+ * four populations — the counts above the list are unaffected by which is
+ * chosen.
+ *
+ * ⚠ `score` IS DELIBERATELY NOT AN ORDER. §12: `fit_score` carries ±20 points
+ * of sampling noise, and `decideWeight`'s own note records removing it as a
+ * tiebreaker for exactly that reason. Offering "sort by score" would put the
+ * noise back as the PRIMARY key, which is worse than the bug that was fixed.
+ * `confident` sorts on the intake pre-decision's own confidence, which is a
+ * different quantity (measured 0.93 average) and is already what draws the
+ * batch.
+ */
+export type DecideSort = 'consequence' | 'recent' | 'confident' | 'quick'
+
+/** Declaration order is reading order — this is the list the control renders. */
+export const DECIDE_SORTS: readonly { value: DecideSort; label: string }[] = [
+  { value: 'consequence', label: 'Most consequential' },
+  { value: 'recent', label: 'Most recent' },
+  { value: 'confident', label: 'Most confident' },
+  { value: 'quick', label: 'Quickest to clear' },
+]
+
+/** Narrow an untrusted string — a URL — to a sort, falling back to the default. */
+export function asDecideSort(raw: string | null | undefined): DecideSort {
+  return DECIDE_SORTS.some((s) => s.value === raw) ? (raw as DecideSort) : 'consequence'
+}
+
+/** What a sort needs beyond what `decideWeight` reads. */
+export interface SortableDecideItem extends RankableDecideItem {
+  /**
+   * When this row ARRIVED — not when its subject happened.
+   *
+   * ⚠ EVERY PRODUCER MUST FILL THIS, and `decide-sort.test.ts` asserts it does.
+   * A null here cannot be distinguished by the reader from "oldest", so a kind
+   * that could not supply one would silently sink to the bottom of the recent
+   * view and look dealt with. §12: a bare em dash at a value's own weight reads
+   * as a failed render — the same applies to a missing sort key, which has no
+   * weight at all to read.
+   */
+  arrivedAt?: string | null
+  /** 0-1, where a pre-decision was made. Null for the kinds that have none. */
+  confidence?: number | null
+  /** True when the row can be settled from the list, with nothing blocking it. */
+  clearable?: boolean
+  /**
+   * The row's own id, as the FINAL tiebreak.
+   *
+   * ⚠ `decideWeight` IS NOT A TOTAL ORDER AND CANNOT BE THE LAST WORD. Most
+   * rows in this queue carry no deadline, no verdict and no value, so their
+   * weight is exactly 0 — on the live data that is every document row, the
+   * largest kind present. Without a unique final key, "sort" is left to
+   * whatever order the map-then-filter above happened to produce, which is the
+   * flat-boost bug from MEETING_BOOST one level up: all five staged meetings
+   * tied and the order was arbitrary.
+   */
+  id?: string
+}
+
+/** Newest first, nulls last. */
+function byArrived(a: SortableDecideItem, b: SortableDecideItem): number {
+  const x = a.arrivedAt ?? ''
+  const y = b.arrivedAt ?? ''
+  if (x === y) return 0
+  if (!x) return 1
+  if (!y) return -1
+  return y.localeCompare(x)
+}
+
+/**
+ * The comparator for one order.
+ *
+ * ⚠ EVERY ORDER ENDS ON THE ID, WHICH IS WHAT MAKES IT TOTAL. Falling back to
+ * `decideWeight` alone is not enough — see `id` above: the weight is 0 for
+ * every row with no deadline, verdict or value, which on the live queue is the
+ * document rows, the biggest kind there is. A comparator that returns 0 for two
+ * distinct rows lets them swap places between renders of identical data, and a
+ * list that reorders itself under the reader is one they stop trusting.
+ */
+export function decideComparator(
+  sort: DecideSort
+): (a: SortableDecideItem, b: SortableDecideItem) => number {
+  const tail = (a: SortableDecideItem, b: SortableDecideItem) =>
+    decideWeight(b) - decideWeight(a) || (a.id ?? '').localeCompare(b.id ?? '')
+
+  if (sort === 'recent') return (a, b) => byArrived(a, b) || tail(a, b)
+
+  if (sort === 'confident') {
+    return (a, b) => (b.confidence ?? -1) - (a.confidence ?? -1) || tail(a, b)
+  }
+
+  if (sort === 'quick') {
+    // Cheapest first: a row with a button and no blocker can be settled without
+    // opening it, which is the entire basis of this order. Within each group the
+    // consequential one still leads.
+    return (a, b) => Number(Boolean(b.clearable)) - Number(Boolean(a.clearable)) || tail(a, b)
+  }
+
+  return tail
+}
