@@ -516,3 +516,255 @@ export function roomFolderPaths(template = DATA_CENTER_ROOM): string[] {
   out.push(...WORKING_FOLDERS)
   return out
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// FOLDING THE OLD SCHEME INTO THE NEW ONE
+//
+// ⚠ DETERMINISTIC ONLY, NO MODEL CALL, AND THAT IS A MEASURED DECISION. There
+// are ~600 documents on the records that take this template; `chooseFolder`
+// costs one local-model call each at 30–60s, LM Studio serves one request at a
+// time, and every other sweep queues behind it — so a model pass here is eight
+// to ten hours of contention for a job whose uncertain cases Richard has
+// already said to park. Anything no rule places goes to `00.0 — _Unsorted`
+// with its reason recorded, which is a count somebody can work through rather
+// than a guess nobody can audit.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Where a folder in the OLD scheme maps, by its whole relative path.
+ *
+ * Keyed on the whole path and compared case-insensitively after collapsing
+ * whitespace, because 16 of the 233 folders on this drive carry a trailing
+ * space and several carry a space before the slash
+ * (`PQC Giovanni Campus /Utah Land Records `).
+ *
+ * ⚠ THE VALUES ARE SECTION KEYS OR WORKING-FOLDER NAMES, never labels. A
+ * `null` means "leave it where it is" — used for the three working folders,
+ * which already have their place in the new room.
+ *
+ * Measured against the live corpus 2026-10-29: these are the folder paths that
+ * actually hold documents, with their counts, so nothing here is speculative.
+ */
+export const FOLDER_TO_SECTION: Record<string, string | null> = {
+  // ── The old standard set and its Diligence lanes ──────────────────────────
+  'diligence/environmental': '01.3', // 75
+  'diligence/power & utilities': '01.5', // 53
+  'diligence/rail & transportation': '01.4', // 109 — the template has no rail
+  // slot; site-specific studies is the closest honest home, and Richard's 01.4
+  // says "other site-specific studies as applicable" in as many words.
+  'diligence/geotech & site reports': '01.4', // 41
+  'diligence/permits & entitlements': '01.2', // 25
+  'diligence/water & wastewater': '01.4', // 5
+  'diligence/fiber & telecom': '01.7', // 4 — fiber route agreements are 01.7
+  'land & title': '01.1', // 28
+  financials: '00.4', // 20
+  'reports & studies': '01.4', // 15
+  'drawings & plans': '01.7', // 4
+  'insurance & bonding': '01.8', // 2
+  '_unsorted': UNSORTED_SECTION, // 57
+
+  // ── The three working folders keep their place ────────────────────────────
+  correspondence: null,
+  meetings: null,
+  'proposals & bids': null,
+
+  // ── Folders the team made by hand (Richard: fold them in) ─────────────────
+  'land legal': '01.1',
+  'previous land offers': '02.2',
+  'pre construction': '01.7',
+  mida: '01.2', // Military Installation Development Authority — an entitlement
+  'business plan myton 1': '00.4',
+  'stockton infographics': '01.7',
+  'dueschesne county rail corridor': '01.4', // the drive's own spelling
+  'cp3 - site map layout': '01.7',
+  'master proposal - land development': 'Proposals & Bids',
+  'corporate /nda nc': '00.3',
+  'pqc giovanni campus /utah land records /land tenure documents': '01.1',
+  'pqc giovanni campus /utah land records /cadastral survey plats & field notes (after 1995)':
+    '01.1',
+  'pqc giovanni campus /land legal': '01.1',
+  'pqc giovanni campus /pre construction': '01.7',
+  'pqc giovanni campus /reports & studies': '01.4',
+  'pqc giovanni campus /independent re brokers market analysis': '00.4',
+  'pqc giovanni campus /_unsorted': UNSORTED_SECTION,
+}
+
+/**
+ * Filename tokens that place a document beyond reasonable doubt.
+ *
+ * ⚠ KEYED ON THE SECTION, WHICH IS THE WHOLE POINT. `classify.ts`'s rules name
+ * their destination by a SUBSTRING OF THE FOLDER LABEL, and under these labels
+ * that is unworkable: `title` is inside both `Site Control & Title` and
+ * `Entitlements`, `permits` inside both `Zoning & Entitlements` and `Physical
+ * Site Studies & Permits`, `insurance` inside `Site Control & Title` (title
+ * insurance) and `Facility Operations & Insurance`, `power` inside `Utility
+ * Power Commitment` and `On-Site / Behind-the-Meter Generation`. Every such
+ * rule would resolve to two candidates, be refused as ambiguous, and fall
+ * silently through — which is precisely what happened to every land and title
+ * rule for the eighteen days after the Diligence lanes shipped.
+ *
+ * ⚠ ORDER IS LOAD-BEARING: first match wins, so the specific phrase comes
+ * before the general one. `sectionHintCollisions()` asserts no token appears
+ * under two sections.
+ *
+ * ⚠ SHORT TOKENS ARE PADDED. The haystack is the file name wrapped in spaces,
+ * so a bare `psa` matches "Gypsa.pdf" and a bare `mou` matches "Amount.pdf".
+ * Every token under five characters here needs that check run on it.
+ */
+export const SECTION_HINTS: Array<{ section: string; tokens: string[] }> = [
+  // ── 02 first: a compute agreement is also a "contract" and a "report" ─────
+  {
+    section: '02.6',
+    tokens: ['gpu', 'h100', 'h200', 'gb200', 'blackwell', 'server purchase', 'asset register'],
+  },
+  {
+    section: '02.3',
+    tokens: ['compute services agreement', ' csa ', 'master services agreement', ' msa ', 'order form'],
+  },
+  { section: '02.5', tokens: ['service level', ' sla ', 'service credit', 'invoice', 'billing schedule'] },
+  { section: '02.4', tokens: ['acceptance certificate', 'commissioning result', 'service commencement'] },
+  { section: '02.1', tokens: ['credit report', 'guarantor', 'letter of credit', 'financial statement'] },
+  { section: '02.7', tokens: ['direct agreement', 'consent to assignment', 'estoppel', 'step-in'] },
+  { section: '02.2', tokens: ['letter of intent', ' loi ', 'loi ', 'term sheet', 'capacity reservation', 'exclusivity'] },
+
+  // ── 01.5 before the broader report rules, as in classify.ts ──────────────
+  {
+    section: '01.5',
+    tokens: ['will serve', 'will-serve', 'load study', 'one-line', 'one line diagram', 'single line',
+             'interconnection', 'nameplate', 'substation', 'switchyard', 'electric service agreement',
+             'system impact', 'facilities study', 'tariff', 'energization'],
+  },
+  {
+    section: '01.6',
+    tokens: ['behind the meter', 'behind-the-meter', 'power purchase', ' ppa ', 'tolling',
+             'fuel supply', 'turbine', 'genset', 'grid-parallel'],
+  },
+  {
+    section: '01.3',
+    tokens: ['phase i ', 'phase 1', 'phase ii', 'phase 2', 'wetland', 'npdes', 'rcra',
+             'remediation', 'environmental', 'consent order', 'consent decree', 'no further action'],
+  },
+  {
+    section: '01.2',
+    tokens: ['zoning', 'rezone', 'subdivision', 'conditional use', 'special use', 'entitlement',
+             'variance', 'development agreement', 'site plan approval'],
+  },
+  {
+    section: '01.4',
+    tokens: ['geotech', 'soils report', 'boring log', 'topographic', 'floodplain', 'stormwater',
+             'drainage', 'cultural resource', 'noise study', 'permit register', 'grading permit'],
+  },
+  {
+    section: '01.1',
+    tokens: ['alta', 'parcel schedule', 'legal description', 'easement', 'boundary survey',
+             'quitclaim', 'warranty deed', 'grant deed', ' deed', 'title commitment', 'title report',
+             'title policy', 'purchase agreement', 'psa ', ' psa', 'ground lease', 'purchase option',
+             'firpta', 'closing statement'],
+  },
+  {
+    section: '01.7',
+    tokens: ['basis of design', 'drawing', 'plan set', 'site plan', 'floor plan', 'elevation',
+             'blueprint', '.dwg', 'epc ', 'change order', 'switchgear', 'transformer',
+             'fiber', 'carrier letter', 'dark fiber', 'pue', 'cooling', 'construction schedule'],
+  },
+  {
+    section: '01.8',
+    tokens: ['certificate of insurance', 'certificate of liability', ' coi ', 'bonding', 'surety',
+             'performance bond', 'bond summary', 'wc claims', 'workers comp', 'loss run',
+             'operations and maintenance', ' o&m '],
+  },
+
+  // ── 00 last: the broadest vocabulary, so a specific rule above wins ──────
+  {
+    section: '00.3',
+    tokens: ['organization chart', 'org chart', 'operating agreement', 'articles of',
+             'certificate of good standing', 'good standing', 'cap table', 'formation',
+             'mnda', ' nda', 'resolution', 'signature authority'],
+  },
+  {
+    section: '00.4',
+    tokens: ['pro forma', 'proforma', 'financial model', 'sources and uses', 'budget',
+             'balance sheet', 'income statement', 'cash flow', 'debt service', 'equity commitment',
+             'market analysis', 'feasibility', 'appraisal'],
+  },
+]
+
+/** Lower-cased, whitespace-collapsed, for comparing a Drive name to a rule. */
+function normalise(text: string): string {
+  return text.replace(/\s+/g, ' ').trim().toLowerCase()
+}
+
+/**
+ * ⚠ ASSERT NO TOKEN PLACES A DOCUMENT IN TWO SECTIONS.
+ *
+ * The mirror of `ambiguousHintRules()` in classify.ts, which exists because a
+ * collision there is SILENT: the rule resolves to two candidates, is refused,
+ * and the document falls through to whatever comes next with nothing reporting
+ * it. Returns the offending tokens so a test can name them.
+ */
+export function sectionHintCollisions(): Array<{ token: string; sections: string[] }> {
+  const where = new Map<string, Set<string>>()
+  for (const rule of SECTION_HINTS) {
+    for (const token of rule.tokens) {
+      const key = normalise(token)
+      if (!where.has(key)) where.set(key, new Set())
+      where.get(key)!.add(rule.section)
+    }
+  }
+  return [...where.entries()]
+    .filter(([, sections]) => sections.size > 1)
+    .map(([token, sections]) => ({ token, sections: [...sections].sort() }))
+}
+
+/** What the fold decided for one file, and why — the manifest's own columns. */
+export interface FoldDecision {
+  /** A section key, a working-folder name, or null to leave the file alone. */
+  target: string | null
+  reason: string
+}
+
+/**
+ * WHERE ONE FILE GOES WHEN THE OLD ROOM IS FOLDED INTO THE NEW ONE.
+ *
+ * `sourcePath` is the file's folder path relative to the record's room, exactly
+ * as `listFolder` reports it — `''` for a file loose in the room root.
+ *
+ * Order of evidence, strongest first:
+ *   1. ALREADY FILED. The path already names a section, so there is nothing to
+ *      do — which is what makes a second run report no work (§12: pair a
+ *      fill-not-overwrite pass with a script that calls it twice).
+ *   2. THE FOLDER IT IS IN. A whole-path match in {@link FOLDER_TO_SECTION}.
+ *      ⚠ A folder a human curated is stronger evidence than a file name and it
+ *      classifies a whole subtree at once — measured 2026-10-08, when an
+ *      exact-name folder map scored 24% on Steelton and 0–6% on Weirton, whose
+ *      folders say the same things in different words. These keys are this
+ *      drive's real folder names, so they are a map of THIS drive's habits and
+ *      nothing more; a path not in the map falls through to the file name.
+ *   3. THE FILE NAME. {@link SECTION_HINTS}, first match wins.
+ *   4. `00.0 — _Unsorted`, with the reason recorded.
+ */
+export function foldDecision(fileName: string, sourcePath: string): FoldDecision {
+  if (sectionOf(sourcePath)) {
+    return { target: null, reason: 'already in a data-room section' }
+  }
+
+  const path = normalise(sourcePath)
+  if (path in FOLDER_TO_SECTION) {
+    const target = FOLDER_TO_SECTION[path]
+    return target === null
+      ? { target: null, reason: `working folder "${sourcePath}" — stays` }
+      : { target, reason: `folder rule "${sourcePath}"` }
+  }
+
+  // Padded on both sides so a short token cannot match inside a longer word.
+  const haystack = ` ${normalise(fileName)} `
+  for (const rule of SECTION_HINTS) {
+    const hit = rule.tokens.find((t) => haystack.includes(normalise(t).length < 5 ? ` ${normalise(t)} ` : normalise(t)))
+    if (hit) return { target: rule.section, reason: `file name "${hit.trim()}"` }
+  }
+
+  return {
+    target: UNSORTED_SECTION,
+    reason: path ? `no rule for folder "${sourcePath}"` : 'loose in the room root',
+  }
+}

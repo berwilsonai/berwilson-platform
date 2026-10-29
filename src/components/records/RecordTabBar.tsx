@@ -22,6 +22,12 @@ import { cn } from '@/lib/utils'
 export type TabKey =
   | 'players' | 'updates' | 'meetings' | 'tasks' | 'documents'
   | 'milestones' | 'financing' | 'diligence' | 'entities' | 'parcels'
+  // ⚠ `dataRoom` is not a row count — it is 1 when the record is on the
+  // data-room template and 0 otherwise, which reuses this bar's existing
+  // show-if-non-zero rule rather than adding a second way to hide a tab. A
+  // room of nineteen "Missing" rows on a plumbing acquisition is noise that
+  // teaches people to ignore the surface.
+  | 'dataRoom'
 
 export interface RecordTab {
   label: string

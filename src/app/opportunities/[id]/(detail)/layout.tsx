@@ -47,7 +47,7 @@ export default async function OpportunityDetailLayout({ children, params }: Layo
 
   const { data: opportunity } = await supabase
     .from('opportunities')
-    .select('id, name, target_name, opp_type, status, priority')
+    .select('id, name, target_name, opp_type, status, priority, data_room_template')
     .eq('id', id)
     .single()
 
@@ -83,6 +83,8 @@ export default async function OpportunityDetailLayout({ children, params }: Layo
     ])
   const tabCounts: Partial<Record<TabKey, number>> = {
     players, updates: notes, meetings, tasks, documents, milestones, financing, diligence, entities,
+    // Not a row count — see the note in the project layout.
+    dataRoom: opportunity.data_room_template === 'data_center' ? 1 : 0,
   }
 
   const t = oppType(opportunity.opp_type)

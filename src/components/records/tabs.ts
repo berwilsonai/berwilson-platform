@@ -7,8 +7,9 @@ import type { RecordTab } from './RecordTabBar'
  *   Overview                              — what is this deal
  *   Updates · Meetings · Tasks            — the pulse: what happened, what was
  *                                           said, what we owe
- *   Documents · Players · Milestones      — the file: the paper, the people,
- *                                           the dates that bind us
+ *   Data room · Documents · Players ·     — the file: the index a partner
+ *   Milestones                              reads, the paper, the people, the
+ *                                           dates that bind us
  *   Land · Financing · Diligence ·        — the structure: what it is made of,
  *   Entities                                how it is funded, what is unresolved
  *
@@ -36,6 +37,7 @@ export const PROJECT_TABS: RecordTab[] = [
   { label: 'Updates', segment: 'updates', key: 'updates', always: true },
   { label: 'Meetings', segment: 'meetings', key: 'meetings', always: true },
   { label: 'Tasks', segment: 'tasks', key: 'tasks', always: true },
+  { label: 'Data room', segment: 'data-room', key: 'dataRoom' },
   { label: 'Documents', segment: 'documents', key: 'documents', always: true },
   { label: 'Players', segment: 'players', key: 'players' },
   { label: 'Milestones', segment: 'milestones', key: 'milestones' },
@@ -57,6 +59,7 @@ export const OPPORTUNITY_TABS: RecordTab[] = [
   { label: 'Notes', segment: 'notes', key: 'updates', always: true },
   { label: 'Meetings', segment: 'meetings', key: 'meetings', always: true },
   { label: 'Tasks', segment: 'tasks', key: 'tasks', always: true },
+  { label: 'Data room', segment: 'data-room', key: 'dataRoom' },
   { label: 'Documents', segment: 'documents', key: 'documents', always: true },
   { label: 'Players', segment: 'players', key: 'players' },
   { label: 'Milestones', segment: 'milestones', key: 'milestones' },

@@ -36,6 +36,14 @@ import { ensureFolder } from '@/lib/integrations/google-drive-write'
 import { listSubfolders } from '@/lib/integrations/google-drive'
 import { isGoogleConfigured } from '@/lib/integrations/google-workspace'
 import { STANDARD_FOLDERS, DILIGENCE_FOLDER, driveFolderName } from '@/lib/drive/classify'
+import {
+  DEFAULT_ROOM_TEMPLATE,
+  HQ_FOLDER_ID,
+  PROJECTS_SHELF,
+  isRoomTemplateKey,
+  roomFolderPaths,
+  type RoomTemplateKey,
+} from '@/lib/drive/data-room'
 
 const G = '\x1b[32m', Y = '\x1b[33m', D = '\x1b[2m', B = '\x1b[1m', O = '\x1b[0m'
 
@@ -43,14 +51,51 @@ const APPLY = process.argv.includes('--apply')
 const RELINK = process.argv.includes('--relink')
 
 /**
- * `Ber Wilson Proper (HQ)` on the `Ber Wilson Proper` shared drive.
+ * ⚠ BUILD ROOMS ONLY INSIDE FOLDERS THAT ALREADY EXIST — create and link nothing.
  *
- * Hard-coded rather than searched by name: a vendor's folder name is a UI
- * string, not an API contract (§12, 09-28 — matching "Meet Recordings" by name
- * had the importer report success against a Drive that had one for 192 runs).
- * An id cannot drift under a rename.
+ * Without this the pass would also create a folder for each of the 7 records
+ * that have none and link them to it, and for at least three of them that is
+ * actively wrong: `Cleveland Cliffs Industrial Sites Evaluation & Development`
+ * has no link while `02 Projects/Data Center & Power Developments/Cleveland
+ * Cliffs - New Richmond Ohio` holds 30 unclaimed documents, and Eagle Mountain
+ * has an empty folder of its own already. Linking a record to a NEW empty
+ * folder cements the wrong room and leaves the real one orphaned for good —
+ * the same failure the room audit exists to surface, committed by the fix for
+ * it. Which room is the real one is a judgement only a person has
+ * (`project-folder-sync.ts`), so this flag takes that decision off the table.
  */
-const HQ_FOLDER_ID = '1RmNqygvuzKeEAMvX_3tAQ0FNszXet0K9'
+const LINKED_ONLY = process.argv.includes('--linked-only')
+
+/**
+ * `--blanks <n>` — pre-build n empty data rooms, plus the master template.
+ *
+ * Richard asked for 25 ready-made rooms so a new deal is a rename rather than a
+ * build, and for the one-press clone as well (both, 10-29). This is the first
+ * half: `_TEMPLATE — do not use` is the reference room, and `_NEW 01…n` are
+ * claimable. The clone button in the platform renames the lowest unused `_NEW`
+ * slot — one API call and the room exists instantly — and falls back to
+ * building a fresh room when none is left.
+ *
+ * Named with a leading underscore and a trailing marker so neither can be
+ * mistaken for a deal in a folder list a partner might see, and so an unclaimed
+ * slot is obvious at a glance.
+ */
+const BLANKS = (() => {
+  const i = process.argv.indexOf('--blanks')
+  if (i < 0) return 0
+  const n = Number(process.argv[i + 1])
+  return Number.isInteger(n) && n > 0 && n <= 100 ? n : 0
+})()
+
+const TEMPLATE_ROOM_NAME = '_TEMPLATE — do not use'
+const blankRoomName = (n: number) => `_NEW ${String(n).padStart(2, '0')} — (rename me)`
+
+// `HQ_FOLDER_ID` and `PROJECTS_SHELF` now come from src/lib/drive/data-room.ts.
+// They were declared here and AGAIN in migrate-drive-structure.mts, which is the
+// drift §12 warns about: one script creates `02 Projects/<name>` and the other
+// looks it up by that name, so a difference creates a second folder rather than
+// finding the first — and a second folder per deal is the exact failure the room
+// audit then found 157 orphaned documents inside.
 
 /** The shelves. Numbered so Drive's own name sort IS the intended order. */
 const SHELVES = [
@@ -62,8 +107,6 @@ const SHELVES = [
   '09 Divisions',
   '99 Archive',
 ] as const
-
-const PROJECTS_SHELF = '02 Projects'
 
 /** Stands in for a folder id a dry run has not created yet. */
 const PENDING = '<would be created>'
@@ -90,6 +133,8 @@ interface Record_ {
   name: string
   kind: 'project' | 'opportunity'
   linked: string | null
+  /** Which folder scheme this record's room is built from. */
+  template: RoomTemplateKey
 }
 
 async function loadRecords(): Promise<Record_[]> {
@@ -99,30 +144,59 @@ async function loadRecords(): Promise<Record_[]> {
   // `confidential` is read for the reason in the header, not for display.
   const { data: projects, error: pErr } = await supabase
     .from('projects')
-    .select('id, name, drive_source_folder_id, confidential')
+    .select('id, name, drive_source_folder_id, confidential, data_room_template')
     .order('name')
   if (pErr) throw new Error(`projects: ${pErr.message}`)
 
   for (const p of projects ?? []) {
-    const row = p as { id: string; name: string | null; drive_source_folder_id: string | null; confidential: boolean | null }
+    const row = p as {
+      id: string
+      name: string | null
+      drive_source_folder_id: string | null
+      confidential: boolean | null
+      data_room_template: string | null
+    }
     if (row.confidential === true) {
       console.log(`  ${Y}skip${O}  ${row.name} ${D}(confidential — Drive is an outbound channel)${O}`)
       continue
     }
     if (!row.name?.trim()) continue
-    out.push({ id: row.id, name: row.name, kind: 'project', linked: row.drive_source_folder_id })
+    out.push({
+      id: row.id,
+      name: row.name,
+      kind: 'project',
+      linked: row.drive_source_folder_id,
+      // An unrecognised value reads as 'standard' — the safe direction, since
+      // that is how every record behaved before the column existed.
+      template: isRoomTemplateKey(row.data_room_template)
+        ? row.data_room_template
+        : DEFAULT_ROOM_TEMPLATE,
+    })
   }
 
   const { data: opps, error: oErr } = await supabase
     .from('opportunities')
-    .select('id, name, drive_source_folder_id')
+    .select('id, name, drive_source_folder_id, data_room_template')
     .order('name')
   if (oErr) throw new Error(`opportunities: ${oErr.message}`)
 
   for (const o of opps ?? []) {
-    const row = o as { id: string; name: string | null; drive_source_folder_id: string | null }
+    const row = o as {
+      id: string
+      name: string | null
+      drive_source_folder_id: string | null
+      data_room_template: string | null
+    }
     if (!row.name?.trim()) continue
-    out.push({ id: row.id, name: row.name, kind: 'opportunity', linked: row.drive_source_folder_id })
+    out.push({
+      id: row.id,
+      name: row.name,
+      kind: 'opportunity',
+      linked: row.drive_source_folder_id,
+      template: isRoomTemplateKey(row.data_room_template)
+        ? row.data_room_template
+        : DEFAULT_ROOM_TEMPLATE,
+    })
   }
 
   return out
@@ -146,6 +220,54 @@ async function ensure(
   return made.id
 }
 
+/**
+ * Find-or-create a whole PATH — `01 — Power & Property/01.5 — …/Drafts`.
+ *
+ * The existing `ensureFolderPath` in file-document.ts cannot serve: it walks
+ * `folderSegments`, which knows about exactly one nesting special case (the
+ * Diligence lanes) and treats everything else as a single folder however many
+ * slashes it contains. That guard exists because a real Drive folder is named
+ * `Fort Polk / Johnson - Design Build Matocc` and must never be split.
+ *
+ * Splitting is safe HERE because the paths come from `roomFolderPaths()`, whose
+ * own test asserts no section label contains a slash — the structure is ours,
+ * not a name read back off Drive.
+ *
+ * Memoised, because the template shares parents: 19 leaves under 3 parents plus
+ * two status folders each is 60 paths per record, and re-listing `01 — Power &
+ * Property` sixteen times is sixteen round trips for one answer.
+ */
+async function ensurePath(
+  path: string,
+  rootId: string,
+  tally: { created: number; existed: number },
+  memo: Map<string, string | null>
+): Promise<string | null> {
+  const key = `${rootId}::${path}`
+  if (memo.has(key)) return memo.get(key)!
+
+  const segments = path.split('/')
+  let parent: string | null = rootId
+  let walked = ''
+  for (const segment of segments) {
+    walked = walked ? `${walked}/${segment}` : segment
+    const sub = `${rootId}::${walked}`
+    if (memo.has(sub)) {
+      parent = memo.get(sub)!
+      continue
+    }
+    // A dry run cannot descend past the first folder it would have created, so
+    // the rest of the path is counted and not listed. Under-counting here is
+    // what makes a dry run read as reassurance (see the link-plan note below).
+    const id: string | null = parent ? await ensure(segment, parent, tally) : null
+    if (!parent) tally.created++
+    memo.set(sub, id)
+    parent = id
+  }
+  memo.set(key, parent)
+  return parent
+}
+
 async function main(): Promise<void> {
   if (!isGoogleConfigured()) {
     console.error('Google Workspace is not configured — nothing to do.')
@@ -153,7 +275,12 @@ async function main(): Promise<void> {
   }
 
   console.log(`\n${B}=== Drive structure ===${O}`)
-  console.log(APPLY ? `${G}APPLY${O} — folders will be created\n` : `${Y}DRY RUN${O} — nothing will be written (pass --apply)\n`)
+  console.log(APPLY ? `${G}APPLY${O} — folders will be created` : `${Y}DRY RUN${O} — nothing will be written (pass --apply)`)
+  console.log(
+    LINKED_ONLY
+      ? `${D}--linked-only — building inside existing folders; creating and linking nothing${O}\n`
+      : `${D}full pass — unlinked records will get a new folder and a link${O}\n`
+  )
 
   const tally = { created: 0, existed: 0 }
 
@@ -192,53 +319,99 @@ async function main(): Promise<void> {
 
   for (const record of records) {
     const folderName = driveFolderName(record.name)
+    const paths = record.template === 'data_center' ? roomFolderPaths() : [...STANDARD_FOLDERS]
+    const memo = new Map<string, string | null>()
 
-    if (!projectsShelfId) {
-      // Dry run before the shelf exists: we can describe, not descend. The link
-      // is still planned here — this branch swallowing it is what made the first
-      // dry run print "nothing to link" over 21 records that all needed one.
-      console.log(`  ${G}make${O}  ${PROJECTS_SHELF}/${folderName} ${D}+ ${STANDARD_FOLDERS.length} subfolders${O}`)
-      tally.created += 1 + STANDARD_FOLDERS.length
-      if (record.linked === null || RELINK) linkPlan.push({ record, folderId: PENDING })
+    /**
+     * ⚠ THE ROOM IS BUILT INSIDE THE FOLDER THE RECORD ALREADY POINTS AT, and
+     * only created under `02 Projects` when there is no link at all.
+     *
+     * This was the other way round and it was wrong. Five records point outside
+     * `02 Projects` entirely — Myton Development at `General Contracting / Build
+     * Projects / USA | Canada / Utah / Myton Compute Campus`, West Wendover at a
+     * child of the Trump City folder, Alaska under `Ber Earth` — so building
+     * `02 Projects/<name>` for them would have raised nineteen folders in a room
+     * nobody opens while every document stayed in the real one. That is the
+     * exact duplication `audit-project-rooms.mts` had just finished measuring:
+     * 157 documents in rooms no record points at.
+     *
+     * It is also the precedence `recordDriveFolder` already applies for filing —
+     * the team's own folder wins, because a document belongs beside what the
+     * team put there by hand (§12: a shared answer wired to one surface is worse
+     * than no shared answer).
+     */
+    const existingRoom = record.linked
+    let roomId: string | null = existingRoom
+
+    if (!existingRoom && LINKED_ONLY) {
+      console.log(
+        `  ${Y}skip${O}  ${folderName}  ${D}no folder linked — resolve it against` +
+          ` audit-project-rooms.mts rather than creating a second room${O}`
+      )
       continue
     }
 
-    const folderId = await ensure(folderName, projectsShelfId, tally)
-    const made: string[] = []
-    if (folderId) {
-      for (const sub of STANDARD_FOLDERS) {
-        const before = tally.created
-        await ensure(sub, folderId, tally)
-        if (tally.created > before) made.push(sub)
+    if (!existingRoom) {
+      if (!projectsShelfId) {
+        console.log(
+          `  ${G}make${O}  ${PROJECTS_SHELF}/${folderName}` +
+            ` ${D}+ ${paths.length} subfolders (${record.template})${O}`
+        )
+        tally.created += 1 + paths.length
+        linkPlan.push({ record, folderId: PENDING })
+        continue
       }
+      roomId = await ensure(folderName, projectsShelfId, tally)
+      if (record.linked === null || RELINK) {
+        linkPlan.push({ record, folderId: roomId ?? PENDING })
+      }
+    } else if (RELINK) {
+      linkPlan.push({ record, folderId: existingRoom })
+    }
+
+    const before = tally.created
+    if (roomId) {
+      for (const path of paths) await ensurePath(path, roomId, tally, memo)
     } else {
-      tally.created += STANDARD_FOLDERS.length
+      tally.created += paths.length
     }
+    const made = tally.created - before
 
-    // ⚠ Planned OUTSIDE the `if (folderId)` above, which is where it sat and was
-    // wrong: on a dry run every folder is yet to be created, so folderId is null
-    // for all of them and the plan came back empty — "nothing to link" printed
-    // over 21 records that all needed linking. A dry run that under-reports the
-    // work is worse than no dry run, because it is read as reassurance.
-    if (record.linked === null || RELINK) {
-      linkPlan.push({ record, folderId: folderId ?? PENDING })
-    }
-
-    const linkNote =
-      record.linked === null
-        ? `${Y}unlinked${O}`
-        : RELINK
-          ? `${Y}relink${O}`
-          : `${D}linked${O}`
+    const where = existingRoom ? `${D}(its own folder)${O}` : `${PROJECTS_SHELF}/${folderName}`
+    const scheme = record.template === 'data_center' ? `${B}data room${O}` : `${D}standard${O}`
     console.log(
-      `  ${folderId ? `${D}have${O}` : `${G}make${O}`}  ${folderName}  ${linkNote}` +
-        (made.length ? ` ${D}+${made.length} subfolders${O}` : '')
+      `  ${made ? `${G}make${O}` : `${D}have${O}`}  ${folderName}  ${scheme} ${where}` +
+        (made ? ` ${G}+${made} folders${O}` : '')
     )
   }
 
   console.log(
     `\n  ${D}${DILIGENCE_FOLDER} lanes are offered to the classifier and created on first use, not here.${O}`
   )
+
+  // --- 2b. The master template and the claimable blanks ------------------
+  if (BLANKS && projectsShelfId) {
+    console.log(`\n${B}Blank rooms${O}`)
+    const names = [TEMPLATE_ROOM_NAME, ...Array.from({ length: BLANKS }, (_, i) => blankRoomName(i + 1))]
+    for (const name of names) {
+      const memo = new Map<string, string | null>()
+      const before = tally.created
+      const roomId = await ensure(name, projectsShelfId, tally)
+      if (roomId) {
+        for (const path of roomFolderPaths()) await ensurePath(path, roomId, tally, memo)
+      } else {
+        tally.created += roomFolderPaths().length
+      }
+      const made = tally.created - before
+      console.log(`  ${made ? `${G}make${O}` : `${D}have${O}`}  ${name}${made ? ` ${G}+${made}${O}` : ''}`)
+    }
+    console.log(
+      `  ${D}Claim one by renaming it to "[Project] — [Location]" and linking it on the record,` +
+        ` or let the platform claim the lowest unused slot for you.${O}`
+    )
+  } else if (BLANKS) {
+    console.log(`\n${Y}--blanks needs ${PROJECTS_SHELF} to exist; run without --blanks first.${O}`)
+  }
 
   // --- 3. Link ------------------------------------------------------------
   console.log(`\n${B}Links${O}`)

@@ -5,16 +5,27 @@ import { isDriveConfigured } from '@/lib/integrations/google-drive'
 import { isGoogleConfigured } from '@/lib/integrations/google-workspace'
 import { notifyArrivals } from '@/lib/notifications/documents'
 import { deferredResponse, interactiveRunInFlight } from '@/lib/ai/run-state'
+import { publishAllTrackers } from '@/lib/dataroom/tracker'
 
 /**
  * GET /api/cron/drive-sync
  *
- * Two phases, both reading Drive:
+ * Three phases, all reading Drive:
  *   1. Index the nominated knowledge folder into the company knowledge base,
  *      which is what the fit assessor cites as evidence.
  *   2. Re-import every project's linked Drive folder, so documents the team
  *      files in Drive reach the project instead of only living there — and post
  *      one update per project saying what arrived and what it is about.
+ *   3. Re-publish `00.2 — Master Document Index & Outstanding Items` into every
+ *      data-room deal's own folder, so the index a partner reads is never older
+ *      than the documents it indexes.
+ *
+ * ⚠ PHASE 3 IS LAST AND IT IS WHY IT IS HERE RATHER THAN ON A CRON OF ITS OWN.
+ * It has to run AFTER the import, because the tracker reads `drive_folder_path`
+ * and the import is what writes it — a tracker published before the import
+ * reports yesterday's structure. Sharing the endpoint also avoids §12's
+ * "a new cron route is unreachable until middleware.ts names it", which
+ * typechecks, builds, registers, then 401s at its scheduled hour.
  *
  * Nightly, via com.berwilson.cron-drive-sync. Phase 2 runs even when no
  * knowledge folder is configured — a promoted project's folder is not optional
@@ -102,7 +113,26 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  const result = { knowledge, projectFolders }
+  /**
+   * Phase 3 — the published index.
+   *
+   * No model call and no Drive reads beyond resolving folder ids, so it is
+   * cheap; its own budget is small and it yields rather than overrunning. A
+   * failure here must not colour the two phases that moved real documents, so
+   * it is caught and reported, never thrown.
+   */
+  let trackers
+  try {
+    trackers = await publishAllTrackers({
+      budgetMs: Math.max(30_000, deadline - Date.now()),
+    })
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err)
+    console.error('[cron/drive-sync] tracker phase failed:', message)
+    trackers = { published: [], skipped: [], outOfTime: false, error: message.slice(0, 200) }
+  }
+
+  const result = { knowledge, projectFolders, trackers }
   console.log('[cron/drive-sync]', JSON.stringify(result))
   return NextResponse.json(result)
 }

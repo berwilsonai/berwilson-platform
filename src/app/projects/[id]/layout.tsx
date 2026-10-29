@@ -27,7 +27,7 @@ export default async function ProjectLayout({ children, params }: LayoutProps) {
 
   const { data: project } = await supabase
     .from('projects')
-    .select('id, name, sector, status, stage, client_entity, location, latitude, longitude, map_geometry, confidential')
+    .select('id, name, sector, status, stage, client_entity, location, latitude, longitude, map_geometry, confidential, data_room_template')
     .eq('id', id)
     .single()
 
@@ -79,6 +79,11 @@ export default async function ProjectLayout({ children, params }: LayoutProps) {
     ])
   const tabCounts = {
     players, updates, meetings, tasks, documents, milestones, financing, diligence, entities, parcels,
+    // ⚠ NOT A ROW COUNT. The Data room tab shows when this record is on the
+    // data-room template, and the bar's existing show-if-non-zero rule is how
+    // that is expressed — a second mechanism for hiding a tab is a second
+    // thing to keep in step with `tabs.ts`.
+    dataRoom: project.data_room_template === 'data_center' ? 1 : 0,
   }
 
   const status = project.status ?? 'active'

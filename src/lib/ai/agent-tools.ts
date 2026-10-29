@@ -17,6 +17,7 @@ import { moduleTools, executeModuleTool, MODULE_TOOL_NAMES } from './agent-tools
 import { correspondenceRecency } from '@/lib/email-sweep/filed-threads'
 import { INVESTMENT_TARGET_KINDS, investmentTargetLabel } from '@/lib/utils/investors'
 import { categorizePlayerRole, listContactRoles, partyRoleMap } from '@/lib/contacts/roles'
+import { isDraftPath, sectionOf } from '@/lib/drive/data-room'
 import type { AgentContext } from './agent'
 import type { Database } from '@/types/database'
 
@@ -1785,7 +1786,7 @@ async function executeToolCallInner(
 
       let q = supabase
         .from('documents')
-        .select('id, file_name, doc_type, classification, ai_summary, uploaded_at, project_id, mime_type')
+        .select('id, file_name, doc_type, classification, ai_summary, uploaded_at, project_id, mime_type, drive_folder_path')
         // Retired documents are deliberately absent. Their chunks are already
         // deleted, so search cannot surface them; listing them here would let
         // the agent fetch a superseded revision by name and answer from it —
@@ -1850,12 +1851,28 @@ async function executeToolCallInner(
           // miss. An image-only scan and an unsupported file type are both
           // permanent, and saying which one is the useful answer.
           ...(hasText.has(d.id) ? {} : { unreadable_because: unreadableReason(d.mime_type, d.file_name) }),
+          /*
+            ⚠ A DRAFT MUST NEVER READ AS THE OPERATIVE INSTRUMENT. Richard's
+            own filing instruction is the rule here: "do not label site
+            control, power, or compute capacity as 'secured' solely because an
+            LOI or preliminary letter exists". The folder a human filed it in
+            carries that fact — a `Drafts/` subfolder inside the section — and
+            it is structural, not a guess, so it travels with the document
+            rather than being left for the model to infer from a file name.
+            Named in words, because a boolean the model has to remember to read
+            is a hint and §12 is explicit that a hint survives only if the
+            model repeats it.
+          */
+          ...(isDraftPath(d.drive_folder_path)
+            ? { status: 'DRAFT — filed as a draft, not an executed document' }
+            : {}),
+          section: sectionOf(d.drive_folder_path),
           uploaded_at: d.uploaded_at,
           ...(projectIds.length > 1 && d.project_id
             ? { project: projName.get(d.project_id) ?? null }
             : {}),
         })),
-        hint: 'Call get_document_content with a document id to read its stored text; long documents return one window at a time, so follow next_offset (or pass find:"<phrase>") until you have what you need. Documents carrying unreadable_because hold NO text — never fetch those twice; report them as gaps naming the file and why.',
+        hint: 'Call get_document_content with a document id to read its stored text; long documents return one window at a time, so follow next_offset (or pass find:"<phrase>") until you have what you need. Documents carrying unreadable_because hold NO text — never fetch those twice; report them as gaps naming the file and why. A document whose status says DRAFT is NOT executed — never describe site control, power or capacity as secured on the strength of one, and say which it is.',
       }
     }
 
@@ -1869,12 +1886,13 @@ async function executeToolCallInner(
         file_name: string
         doc_type: string | null
         ai_summary: string | null
+        drive_folder_path?: string | null
         extracted_text?: string | null
       }
       let doc: DocContent | null = null
       const full = await supabase
         .from(table)
-        .select('file_name, doc_type, ai_summary, extracted_text')
+        .select('file_name, doc_type, ai_summary, drive_folder_path, extracted_text')
         .eq('id', docId)
         .maybeSingle()
       if (!full.error) {
@@ -1882,7 +1900,7 @@ async function executeToolCallInner(
       } else if (full.error.code === '42703' || /extracted_text/i.test(full.error.message)) {
         const partial = await supabase
           .from(table)
-          .select('file_name, doc_type, ai_summary')
+          .select('file_name, doc_type, ai_summary, drive_folder_path')
           .eq('id', docId)
           .maybeSingle()
         if (partial.error) return { error: `Document lookup failed: ${partial.error.message}` }
@@ -1926,6 +1944,20 @@ async function executeToolCallInner(
         file_name: doc.file_name,
         doc_type: doc.doc_type,
         ai_summary: doc.ai_summary,
+        /*
+          ⚠ THE SAME LABEL AS `list_documents`, AND BOTH ARE NEEDED. A document
+          can be read without being listed first — the model follows an id from
+          a search hit — so a warning only on the list is a warning the reading
+          path never sees. §12: fixing the producer does not fix the consumer,
+          and a predicate transcribed into its readers has a home per reader.
+        */
+        ...(isDraftPath(doc.drive_folder_path)
+          ? {
+              status:
+                'DRAFT — filed as a draft, not an executed document. Do not describe site control, power or capacity as secured on the strength of this.',
+            }
+          : {}),
+        section: sectionOf(doc.drive_folder_path),
         extracted_text: text || null,
         ...(total > 0
           ? {

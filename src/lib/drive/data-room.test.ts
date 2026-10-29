@@ -27,6 +27,10 @@ import {
   leafSections,
   roomFolderPaths,
   sectionByKey,
+  FOLDER_TO_SECTION,
+  SECTION_HINTS,
+  foldDecision,
+  sectionHintCollisions,
   sectionOf,
   sectionPath,
   type RoomTemplateKey,
@@ -172,5 +176,127 @@ describe('isDraftPath', () => {
     // A record folder a human named "Drafts something" is not the convention.
     assert.equal(isDraftPath('Draft Agreements'), false)
     assert.equal(isDraftPath(null), false)
+  })
+})
+
+describe('folding the old scheme in', () => {
+  test('no filename token places a document in two sections', () => {
+    // ⚠ The mirror of classify.ts's `ambiguousHintRules()`, which exists
+    // because a collision there is SILENT — the rule resolves to two
+    // candidates, is refused, and the document falls through with nothing
+    // reporting it. That cost every land and title rule for eighteen days.
+    const collisions = sectionHintCollisions()
+    assert.deepEqual(
+      collisions,
+      [],
+      `tokens claimed by two sections: ${collisions
+        .map((c) => `${c.token} → ${c.sections.join(' + ')}`)
+        .join('; ')}`
+    )
+  })
+
+  test('every mapping target is a section this template declares', () => {
+    const keys = new Set(DATA_CENTER_ROOM.map((s) => s.key))
+    const working = new Set<string>(WORKING_FOLDERS)
+    for (const [from, to] of Object.entries(FOLDER_TO_SECTION)) {
+      if (to === null) continue
+      assert.ok(keys.has(to) || working.has(to), `${from} → ${to} is neither a section nor a working folder`)
+    }
+    for (const rule of SECTION_HINTS) {
+      assert.ok(keys.has(rule.section), `hint rule targets unknown section ${rule.section}`)
+    }
+  })
+
+  test('a file already in a section is left alone, so a second run is a no-op', () => {
+    // §12: pair a fill-not-overwrite pass with a script that calls it TWICE and
+    // asserts the second run reports nothing.
+    const d = foldDecision('ALTA Survey.pdf', '01 — Power & Property/01.1 — Site Control & Title')
+    assert.equal(d.target, null)
+    assert.match(d.reason, /already/)
+    // Including through a status subfolder.
+    assert.equal(
+      foldDecision('Draft PSA.pdf', '01 — Power & Property/01.1 — Site Control & Title/Drafts')
+        .target,
+      null
+    )
+  })
+
+  test('the folder it is in outranks the file name', () => {
+    // A human curated the folder; the file name is whatever the counterparty
+    // called it. Measured 10-08: an exact-name folder map scored 24% on
+    // Steelton and 0–6% on Weirton, so the folder is strong evidence HERE and
+    // a weak generalisation — which is why an unmapped folder falls through.
+    const d = foldDecision('Phase I ESA.pdf', 'Land & Title')
+    assert.equal(d.target, '01.1', 'the folder rule should win over the "phase i" token')
+    assert.match(d.reason, /folder rule/)
+  })
+
+  test('the working folders keep their place', () => {
+    for (const name of WORKING_FOLDERS) {
+      const d = foldDecision('anything.pdf', name)
+      assert.equal(d.target, null, name)
+      assert.match(d.reason, /stays/)
+    }
+  })
+
+  test('maps the real folders measured on this drive', () => {
+    const cases: Array<[string, string]> = [
+      ['Diligence/Environmental', '01.3'],
+      ['Diligence/Power & Utilities', '01.5'],
+      ['Diligence/Rail & Transportation', '01.4'],
+      ['Financials', '00.4'],
+      ['Insurance & Bonding', '01.8'],
+      ['_Unsorted', UNSORTED_SECTION],
+      ['Land Legal', '01.1'],
+      ['Previous Land Offers', '02.2'],
+      ['PQC Giovanni Campus /Utah Land Records /Land Tenure Documents', '01.1'],
+      ['Corporate /NDA NC', '00.3'],
+    ]
+    for (const [from, to] of cases) {
+      assert.equal(foldDecision('x.pdf', from).target, to, from)
+    }
+  })
+
+  test('tolerates the trailing spaces this drive really has', () => {
+    // 16 of 233 folders carry one, and `coerce()`-style verbatim comparison is
+    // why an invisible character reads as the classifier being wrong.
+    assert.equal(foldDecision('x.pdf', '  Land & Title ').target, '01.1')
+    assert.equal(foldDecision('x.pdf', 'LAND & TITLE').target, '01.1')
+  })
+
+  test('places by file name when the folder is unknown', () => {
+    assert.equal(foldDecision('Will-Serve Letter.pdf', 'Some Folder Nobody Mapped').target, '01.5')
+    assert.equal(foldDecision('ALTA Survey 2026.pdf', '').target, '01.1')
+    assert.equal(foldDecision('Phase I ESA.pdf', '').target, '01.3')
+    assert.equal(foldDecision('Term Sheet - Nebius.pdf', '').target, '02.2')
+    assert.equal(foldDecision('Certificate of Insurance.pdf', '').target, '01.8')
+  })
+
+  test('a short token cannot match inside a longer word', () => {
+    // ⚠ The haystack is the file name wrapped in spaces. A bare `psa` would
+    // match "Gypsa", a bare `nda` would match "Agenda", a bare `coi` would
+    // match "Coil", and a bare `loi` would match "Exploit".
+    assert.notEqual(foldDecision('Gypsa Supply.pdf', '').target, '01.1')
+    assert.notEqual(foldDecision('Board Agenda.pdf', '').target, '00.3')
+    assert.notEqual(foldDecision('Coil Spec.pdf', '').target, '01.8')
+  })
+
+  test('parks what no rule places, and says why', () => {
+    const loose = foldDecision('Scan_0042.pdf', '')
+    assert.equal(loose.target, UNSORTED_SECTION)
+    assert.match(loose.reason, /loose in the room root/)
+
+    const unknown = foldDecision('Scan_0042.pdf', 'Stockton Infographics 2')
+    assert.equal(unknown.target, UNSORTED_SECTION)
+    assert.match(unknown.reason, /no rule for folder/)
+  })
+
+  test('02 rules win over the broader 01 and 00 vocabularies', () => {
+    // A compute services agreement is also "an agreement"; a GPU purchase
+    // order is also a purchase. Order is load-bearing and this is the assertion
+    // that keeps it so.
+    assert.equal(foldDecision('Compute Services Agreement - TensorIQ.pdf', '').target, '02.3')
+    assert.equal(foldDecision('H100 Server Purchase Order.pdf', '').target, '02.6')
+    assert.equal(foldDecision('Credit Report - Nebius.pdf', '').target, '02.1')
   })
 })
