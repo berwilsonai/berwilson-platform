@@ -39,6 +39,7 @@ import {
   upsertSheetFromCsv,
 } from '@/lib/integrations/google-drive-write'
 import { PRIMARY_MAILBOX, isGoogleConfigured } from '@/lib/integrations/google-workspace'
+import { csvCell, csvRow } from '@/lib/utils/csv'
 
 /** Shelf the route sheets live on, under the Ber Intelligence root. */
 const SECTION = 'Lead Lists'
@@ -152,18 +153,6 @@ export interface PublishSheetsResult {
   sheets: LeadSheetResult[]
   folderUrl: string | null
   errors: string[]
-}
-
-/** RFC 4180 quoting. A bid title with a comma in it must not shift every column. */
-function csvCell(value: unknown): string {
-  if (value === null || value === undefined) return ''
-  const text = String(value).replace(/\r?\n/g, ' ').trim()
-  if (!text) return ''
-  return /[",]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text
-}
-
-function csvRow(cells: unknown[]): string {
-  return cells.map(csvCell).join(',')
 }
 
 function isoDate(value: string | null): string {

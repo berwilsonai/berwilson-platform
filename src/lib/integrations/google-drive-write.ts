@@ -774,3 +774,82 @@ export async function listSheetsInFolder(
 export function folderUrl(folderId: string): string {
   return `https://drive.google.com/drive/folders/${folderId}`
 }
+
+/** One grant on a folder, as a reader of an audit needs to see it. */
+export interface DriveGrant {
+  /** `user` | `group` | `domain` | `anyone`. */
+  type: string
+  role: string
+  /** The address for a user or group, the domain for a domain grant. */
+  who: string | null
+  /** False for a grant the shared drive confers on everyone in it. */
+  direct: boolean
+}
+
+/**
+ * WHO CAN SEE THIS FOLDER FROM OUTSIDE, READ ONLY.
+ *
+ * A data room is shown to partners, and Richard's filing instruction is to
+ * restrict external access until the room and its permissions have been
+ * approved. That is not checkable without being able to PRINT the permissions,
+ * and until now the only reader of them was buried inside
+ * {@link shareWithAddresses}, which reads them to avoid a duplicate grant and
+ * throws the answer away.
+ *
+ * ⚠ `permissionDetails` is what distinguishes a grant somebody made on THIS
+ * folder from one the shared drive confers on its whole membership. Without it
+ * every room on `Ber Wilson Proper` reads as shared with everyone who can reach
+ * the drive, which is true and useless — the question is what was granted HERE.
+ *
+ * Returns an empty list rather than throwing: a folder whose permissions cannot
+ * be read must cost one blank column in a report, never the report.
+ */
+export async function listGrants(
+  fileId: string,
+  mailbox: string = PRIMARY_MAILBOX
+): Promise<DriveGrant[]> {
+  try {
+    const data = await googleFetch<{
+      permissions?: {
+        type?: string
+        role?: string
+        emailAddress?: string
+        domain?: string
+        permissionDetails?: { inherited?: boolean }[]
+      }[]
+    }>(
+      `${DRIVE_BASE}/files/${fileId}/permissions` +
+        '?fields=permissions(type,role,emailAddress,domain,permissionDetails(inherited))' +
+        '&supportsAllDrives=true&pageSize=100',
+      mailbox
+    )
+    return (data.permissions ?? []).map((p) => ({
+      type: p.type ?? 'unknown',
+      role: p.role ?? 'unknown',
+      who: p.emailAddress ?? p.domain ?? null,
+      direct: !(p.permissionDetails ?? []).some((d) => d.inherited === true),
+    }))
+  } catch {
+    return []
+  }
+}
+
+/**
+ * The grants that would let somebody outside the company open this folder.
+ *
+ * `anyone` is a public link. A `user`/`group` address outside the company is a
+ * named outsider. A `domain` grant for our own domain is the normal internal
+ * case and is NOT external — which is the distinction that makes the audit
+ * column worth reading rather than uniformly alarming.
+ */
+export function externalGrants(grants: DriveGrant[], ourDomain = 'berwilson.com'): DriveGrant[] {
+  const ours = ourDomain.toLowerCase()
+  return grants.filter((g) => {
+    if (g.type === 'anyone') return true
+    if (g.type === 'domain') return (g.who ?? '').toLowerCase() !== ours
+    if (g.type === 'user' || g.type === 'group') {
+      return !!g.who && !g.who.toLowerCase().endsWith(`@${ours}`)
+    }
+    return false
+  })
+}

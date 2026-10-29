@@ -691,3 +691,50 @@ function meetArtifactKey(name: string): string {
     .trim()
     .toLowerCase()
 }
+
+/**
+ * A folder's ancestry, outermost first — `['Ber Wilson Proper (HQ)', '02 Projects']`.
+ *
+ * "Where is this folder" turns out to be the question an audit of the project
+ * rooms kept needing and could not answer. Measured 2026-10-29: five records
+ * point at folders outside `02 Projects` altogether, and until the chain was
+ * printed it was impossible to see that the team also files projects under
+ * `Ber Earth` and under `General Contracting / Build Projects / <region>` —
+ * three parallel homes, where the whole data-room plan had assumed one.
+ *
+ * Bounded at eight hops so a cycle or a mis-pointed id cannot walk forever, and
+ * it stops at the shared drive rather than naming it (`Drive` is what the API
+ * calls the root and it tells a reader nothing).
+ *
+ * Returns what it managed to read: a chain that breaks halfway is still the
+ * useful half, and an unreadable folder is a blank column, never an exception.
+ */
+export async function folderAncestry(
+  folderId: string,
+  opts: { mailbox?: string; maxHops?: number } = {}
+): Promise<string[]> {
+  const mailbox = opts.mailbox ?? PRIMARY_MAILBOX
+  const maxHops = opts.maxHops ?? 8
+  const chain: string[] = []
+  const seen = new Set<string>([folderId])
+  let current: string | undefined = folderId
+
+  for (let hop = 0; hop < maxHops && current; hop++) {
+    let data: { name?: string; parents?: string[] }
+    try {
+      data = await googleFetch<{ name?: string; parents?: string[] }>(
+        `${DRIVE_BASE}/files/${current}?fields=name,parents&supportsAllDrives=true`,
+        mailbox
+      )
+    } catch {
+      break
+    }
+    if (hop > 0 && data.name && data.name !== 'Drive') chain.push(data.name)
+    const parent: string | undefined = data.parents?.[0]
+    if (!parent || seen.has(parent)) break
+    seen.add(parent)
+    current = parent
+  }
+
+  return chain.reverse()
+}

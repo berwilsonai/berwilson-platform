@@ -48,3 +48,26 @@ export function phraseTokens(text: string): Set<string> {
       .filter((t) => t.length > 1)
   )
 }
+
+/**
+ * The overlap coefficient — shared / the SMALLER set, 0..1.
+ *
+ * ⚠ READ {@link jaccard}'S WARNING FIRST. This scores a short name a perfect
+ * 1.0 against every longer name that contains it, which is why it must never
+ * decide anything on its own. It is here because there is one job it is right
+ * for: RANKING candidates that a person is about to choose between, where
+ * "Myton" fitting "Myton - Utah" perfectly is the useful answer and the human
+ * supplies the judgement a score cannot.
+ *
+ * Two callers, both of that shape: the Drive folder picker
+ * (`/api/drive/suggest`, which suggests and never links) and the project-room
+ * audit, which prints a suspected duplicate for a human to rule on. ⚠ Anything
+ * that FILES on the answer wants `jaccard`, or more likely the whole-name bar
+ * in `src/lib/records/resolve.ts`.
+ */
+export function overlapCoefficient(a: Set<string>, b: Set<string>): number {
+  if (a.size === 0 || b.size === 0) return 0
+  let shared = 0
+  for (const t of a) if (b.has(t)) shared++
+  return shared / Math.min(a.size, b.size)
+}

@@ -4,6 +4,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { findFoldersByName, summarizeFolder } from '@/lib/integrations/google-drive'
 import { isGoogleConfigured } from '@/lib/integrations/google-workspace'
 import { tokenize } from '@/lib/email-sweep/cluster-phase'
+import { overlapCoefficient } from '@/lib/utils/similarity'
 
 /**
  * GET /api/drive/suggest?project_id=<uuid>
@@ -32,14 +33,6 @@ interface Candidate {
   score: number
   /** Which of the record's names produced this hit. */
   matchedOn: string
-}
-
-/** How much of the shorter name the two share — the same asymmetric measure the mail router uses. */
-function overlap(a: Set<string>, b: Set<string>): number {
-  if (a.size === 0 || b.size === 0) return 0
-  let shared = 0
-  for (const t of a) if (b.has(t)) shared++
-  return shared / Math.min(a.size, b.size)
 }
 
 export async function GET(request: NextRequest) {
@@ -93,7 +86,7 @@ export async function GET(request: NextRequest) {
       // Score against the record's best-matching name, not the search term, so
       // a folder found by a common word still ranks on how well it fits.
       const folderTokens = tokenize(`${h.parentName ?? ''} ${h.name}`)
-      const score = Math.max(...names.map((n) => overlap(tokenize(n), folderTokens)), 0)
+      const score = Math.max(...names.map((n) => overlapCoefficient(tokenize(n), folderTokens)), 0)
       seen.set(h.id, {
         id: h.id,
         name: h.name.trim(),
