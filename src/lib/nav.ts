@@ -97,6 +97,15 @@ export function resolveNavItem(item: NavItem, allowed: (href: string) => boolean
 }
 
 export const NAV_ITEMS: NavItem[] = [
+  /*
+    ⚠ FIRST, AND CALLED "Home", SINCE 2026-10-29 — BECAUSE IT IS NOW WHERE `/`
+    LANDS. It sat fifth in this group as "Dashboard" while the app opened on
+    /tasks, so the row a reader reaches for to get back to the top of the
+    morning read was below four queues, under a name that says "a page of
+    charts" rather than "where I started". `DEFAULT_LANDING` in
+    lib/auth/permissions.ts is the other half of this change.
+  */
+  { href: '/dashboard', label: 'Home', title: 'Dashboard', icon: LayoutDashboard, group: 'triage', keywords: 'home dashboard overview alerts urgent overdue portfolio pipeline morning read start ask ber ai', mobilePrimary: true },
   { href: '/decide', label: 'Decide', title: 'Decide', icon: Gavel, group: 'triage', keywords: 'review queue approve confirm pending inbox decisions bids intake what needs me triage backlog', mobilePrimary: true, badge: 'review', alsoMatches: ['/review', '/documents/unfiled'] },
   // ⚠ THE ATTENTION BADGE MOVED HERE FROM /dashboard (10-17). It had always
   // counted `countAttention()`, so a reader saw a number next to "Dashboard"
@@ -110,7 +119,6 @@ export const NAV_ITEMS: NavItem[] = [
   // Pepper's note, it is deliberately outside the app chrome, and claiming it
   // here would light this row for a page that has no sidebar at all.
   { href: '/commitments', label: 'Commitments', title: 'Commitment Ledger', icon: Handshake, group: 'triage', keywords: 'commitments obligations promises owed waiting on follow up chase ledger settle done snooze correspondence who owes what undated' },
-  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, group: 'triage', keywords: 'home overview alerts urgent overdue', mobilePrimary: true },
   { href: '/projects', label: 'Projects', icon: FolderKanban, group: 'records', keywords: 'pipeline deals', mobilePrimary: true },
   { href: '/opportunities', label: 'Opportunities', icon: Lightbulb, group: 'records', keywords: 'acquisitions partnerships jv mergers investments deals' },
   // ⚠ THE BADGE IS NOT DECORATION — IT IS WHAT MAKES /leads A DESTINATION.

@@ -43,11 +43,18 @@ export interface AttentionSource {
  * ⚠ THERE IS DELIBERATELY NO `counted` FLAG HERE. What the sidebar badge sums
  * is a separate and narrower question, and `COUNTED_ATTENTION_KINDS` below
  * already answers it — in the badge's own vocabulary, which is NOT this one:
- * the badge head-counts `certifications` (a company record) while this
- * registry's `expiring_compliance` reads `compliance_items` (a project child).
- * Two near-identical names over two different tables. Putting a second answer
- * in this row would be the drift this registry exists to prevent, so the two
- * vocabularies stay apart and each says so.
+ * the badge's `overdue_milestone` is this registry's `approaching_milestone`
+ * read at a tighter threshold, and `expiring_compliance` here reads
+ * `compliance_items` (a project child) while `expiring_certification` reads
+ * `certifications` (a company record). Two near-identical names over two
+ * different tables, kept apart on purpose and never summed.
+ *
+ * ⚠ WHAT CHANGED ON 10-29: every quantity the badge counts now HAS a kind here.
+ * It did not before — `certifications` was counted and unrepresented — and the
+ * consequence was not theoretical. The dashboard grew its own eight-query
+ * attention list partly to show the certs this engine could not produce, and
+ * that second list then drifted far enough to re-admit inbound leads three days
+ * after the note below removed them.
  *
  * `label` is what a reader sees. `tone` comes from src/lib/ui/tone.ts, so the
  * chips cannot invent a colour.
@@ -76,6 +83,26 @@ export const ATTENTION_KINDS = [
     category: 'expiring_compliance',   summaryKey: 'expiring_compliance',    label: 'Compliance',           tone: 'caution',
     idPrefixes: ['comp-'],             rowTable: 'compliance_items',
     deletable: { endpoint: (id: string) => `/api/records/compliance-items/${id}`, noun: 'compliance item' },
+  },
+  {
+    /*
+      ⚠ ADDED 2026-10-29, AND IT CLOSES A GAP THE DOCBLOCK BELOW USED TO
+      DESCRIBE AS DELIBERATE. `countAttention()` has always head-counted
+      `certifications` as one of its four quantities, while this registry had
+      no kind reading that table — so the badge counted a quantity the engine
+      could not produce an item for, and the only surface that ever SHOWED an
+      expiring cert was the dashboard's own parallel rail. The rail is gone
+      (10-29) and the engine is the one producer, so the kind has to exist here
+      or the number in the chrome names rows no list can render.
+
+      ⚠ STILL NOT THE SAME THING AS `expiring_compliance`, AND NEVER SUMMED
+      WITH IT. That kind reads `compliance_items`, a project child. This one
+      reads `certifications`, a COMPANY record with no project at all — which
+      is also why nothing dismisses or withholds it: there is no project_id to
+      contain it by.
+    */
+    category: 'expiring_certification', summaryKey: 'expiring_certifications', label: 'Certifications', tone: 'critical',
+    idPrefixes: ['cert-'],             rowTable: 'certifications', deletable: null,
   },
   {
     category: 'stale_waiting',         summaryKey: 'stale_waiting',          label: 'Waiting on someone',   tone: 'caution',
@@ -177,6 +204,10 @@ export function attentionHref(category: AttentionCategory, projectId: string | n
     // which is the only screen that lists them with their due dates.
     case 'expiring_compliance':
       return '/company/compliance'
+    // A certification is on the company profile, which is the only screen that
+    // shows its issuing body and expiry together.
+    case 'expiring_certification':
+      return '/company'
     case 'investor_followup':
       return '/investors'
     case 'dino_payment':

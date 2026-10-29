@@ -9,7 +9,7 @@
  * - Active cross-project dependency risks
  * - Investor follow-ups (overdue next steps; hot/committed-stage investors going cold)
  * - Dino payments coming due (installments we owe Dino Service Pros)
- * - Inbound leads with a bid date approaching and no decision made
+ * - Company certifications expiring within 90 days, or already lapsed
  *
  * Consumed by GET /api/attention and the agent's get_attention_items tool
  * (which calls computeAttention() directly — no HTTP self-fetch).
@@ -59,9 +59,9 @@ export interface AttentionItem {
  * third number on one page and could not trust any of them.
  *
  * Four cheap head counts, deliberately NOT `computeAttention()`: that engine
- * runs a dozen queries and includes `lead_reviews`, which would fold the
- * Decide backlog back into a number that exists precisely to be separate from
- * it — and this runs in the root layout on every page.
+ * runs a dozen queries and this runs in the root layout on every page. (It no
+ * longer includes `lead_reviews` — those left the registry on 2026-10-21 — but
+ * the cost argument is unchanged and is the reason this stays separate.)
  *
  * "Attention" is work falling through the cracks. The Decide queue is inbound
  * work awaiting a call, it is counted by `countDecideItems()`, and the two are
@@ -220,6 +220,7 @@ export async function computeAttention(): Promise<{
   const supabase = createAdminClient()
   const now = new Date()
   const today = now.toISOString().split('T')[0]
+  const in90DaysFromNow = new Date(now.getTime() + 90 * 86_400_000).toISOString().split('T')[0]
   const items: AttentionItem[] = []
 
   // Parallel data fetch — tasks come from the real task system (tasks table)
@@ -233,6 +234,7 @@ export async function computeAttention(): Promise<{
     { data: dependencies },
     { data: investors },
     { data: dinoPayments },
+    { data: expiringCertifications },
   ] = await Promise.all([
     fetchOpenTasks(supabase, { dueBefore: today }),
     supabase.from('projects').select('id, name').eq('status', 'active'),
@@ -278,6 +280,22 @@ export async function computeAttention(): Promise<{
       .not('due_date', 'is', null)
       .lte('due_date', new Date(now.getTime() + 30 * 86_400_000).toISOString().split('T')[0])
       .order('due_date'),
+    // Company certifications expiring inside 90 days, or already lapsed.
+    //
+    // ⚠ THE BADGE COUNTED THESE AND THIS ENGINE DID NOT PRODUCE THEM. Four
+    // quantities feed `countAttention()` and only three had a kind here, so the
+    // sidebar's number named rows no list could render — which is how the
+    // dashboard came to run its OWN attention query set to show them.
+    //
+    // No project filter and no dismissal filter, deliberately: a certification
+    // is a company record with no project_id to contain it by, exactly as
+    // `countAttention()` says of the same table.
+    supabase
+      .from('certifications')
+      .select('id, name, expiration_date, issuing_body')
+      .eq('is_active', true)
+      .lte('expiration_date', in90DaysFromNow)
+      .order('expiration_date'),
   ])
 
   const projectName = (u: { projects: unknown }) =>
@@ -523,6 +541,37 @@ export async function computeAttention(): Promise<{
     })
   }
 
+  // 10. Company certifications expiring or lapsed
+  //
+  // Urgency is written so a LAPSED cert outranks every other kind on the board:
+  // a bid submitted against an expired certification is not a slipped date, it
+  // is a disqualification. An upcoming one rises as the date closes.
+  for (const c of expiringCertifications ?? []) {
+    if (!c.expiration_date) continue
+    const daysUntil = Math.floor(
+      (new Date(c.expiration_date).getTime() - now.getTime()) / 86_400_000
+    )
+    const lapsed = c.expiration_date < today
+    items.push({
+      id: `cert-${c.id}`,
+      category: 'expiring_certification',
+      urgency: lapsed ? 100 : Math.max(45, 95 - daysUntil),
+      title: lapsed ? `${c.name} has expired` : `${c.name} expires in ${daysUntil}d`,
+      detail: c.issuing_body
+        ? `${c.issuing_body} · ${lapsed ? 'renew before the next submission' : 'renewal window open'}`
+        : lapsed
+          ? 'Renew before the next submission'
+          : 'Renewal window open',
+      // A company record. Never withheld, because it belongs to no project that
+      // could be protected — see the containment note below.
+      project_id: null,
+      project_name: 'Ber Wilson',
+      age_days: lapsed ? Math.abs(daysUntil) : 0,
+      due_date: c.expiration_date,
+      source_date: c.expiration_date,
+    })
+  }
+
   // ⚠ INBOUND LEADS USED TO BE ITEM 10 HERE AND WERE REMOVED ON 2026-10-21.
   // /decide owns them: it ranks every lead by its bid deadline, prints the
   // date on the row and carries Accept and Delete. Listing them here as well
@@ -533,14 +582,14 @@ export async function computeAttention(): Promise<{
 
   // ── Protected projects, removed once at the end ─────────────────────────────
   //
-  // Here rather than in each of the ten fetches above, because every item
+  // Here rather than in each of the fetches above, because every item
   // already carries project_id and every one of this function's three callers
   // wants the same answer: the /attention API, Ber AI's get_attention_items, and
   // Pepper's morning EMAIL. The email is why there is no option to opt out — a
   // note that has been sent cannot be locked afterwards.
   //
-  // An item with no project (a lead, a Dino payment) is never withheld; it
-  // belongs to nothing that can be protected.
+  // An item with no project (a Dino payment, a certification, an investor) is
+  // never withheld; it belongs to nothing that can be protected.
   const hidden = await hiddenProjectIds(null)
   const withheld = dropHidden(items, (i) => i.project_id, hidden)
 

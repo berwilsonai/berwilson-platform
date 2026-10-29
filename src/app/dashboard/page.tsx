@@ -2,7 +2,7 @@ import { Suspense } from 'react'
 import Link from 'next/link'
 import { FolderKanban } from 'lucide-react'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { leadsDb } from '@/lib/leads/db'
+import { computeAttention } from '@/lib/attention'
 
 export const metadata = { title: 'Dashboard — Ber Wilson Intelligence' }
 import { type ProjectCardCounts } from '@/components/dashboard/ProjectCard'
@@ -13,7 +13,8 @@ import DailyBrief from '@/components/dashboard/DailyBrief'
 import HealthPanel from '@/components/dashboard/HealthPanel'
 import { daysBetween, deltaFrom, priorSnapshot } from '@/lib/records/snapshot'
 import StageMix from '@/components/dashboard/StageMix'
-import NeedsAttention, { type LeadDue } from '@/components/dashboard/NeedsAttention'
+import AttentionRail, { type AttentionRailItem } from '@/components/dashboard/AttentionRail'
+import AskBar from '@/components/dashboard/AskBar'
 import NowObjectives, { type NowObjectiveItem } from '@/components/dashboard/NowObjectives'
 import JustIn from '@/components/dashboard/JustIn'
 import Commitments from '@/components/dashboard/Commitments'
@@ -36,37 +37,16 @@ import { readJustIn } from '@/lib/records/just-in'
 import EmptyState from '@/components/shared/EmptyState'
 import { PageHeader } from '@/components/ui/page-header'
 import type { WaitingOnItem, RiskItem } from '@/types/domain'
-import type { DdSeverity } from '@/lib/supabase/types'
 
 // ─── types for joined queries ────────────────────────────────────────────────
 
-type ReviewWithProject = {
-  id: string
-  reason: string
-  source_table: string
-  confidence: number | null
-  created_at: string | null
-  project_id: string | null
-  project: { id: string; name: string; sector: string } | null
-}
-
-type MilestoneWithProject = {
-  id: string
-  label: string
-  target_date: string | null
-  stage: string
-  project_id: string
-  project: { id: string; name: string } | null
-}
-
-type DdWithProject = {
-  id: string
-  item: string
-  severity: DdSeverity
-  category: string
-  project_id: string
-  project: { id: string; name: string } | null
-}
+/*
+  ⚠ THREE JOINED ROW TYPES WERE DELETED HERE ON 2026-10-29, with the queries
+  that filled them. `ReviewWithProject`, `MilestoneWithProject` and
+  `DdWithProject` existed to feed `NeedsAttention` — this page's own second
+  attention engine — and the only numbers still wanted from those tables are
+  counts, which need no shape. See AttentionRail for why there is one engine.
+*/
 
 // ─── page ────────────────────────────────────────────────────────────────────
 
@@ -101,49 +81,42 @@ export default async function DashboardPage({ searchParams }: PageProps) {
 
   // Parallel: projects + attention items
   const in90Days = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
-  const in14Days = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
 
   const [
     { data: projectsRaw },
     overdueTasksAll,
-    { data: reviewRaw },
     { data: overdueRaw },
     { data: ddRaw },
     { data: expiringCerts },
     { data: nowObjectivesRaw },
     { data: objectiveTaskRows },
-    { data: investorFollowUpsRaw },
-    { data: dinoPaymentsRaw },
-    { data: leadsDueRaw },
     { data: mailboxSyncRow },
+    attention,
   ] = await Promise.all([
     supabase.from('projects').select('*').eq('status', 'active'),
     fetchOpenTasks(supabase, { dueBefore: today }),
-    supabase
-      .from('review_queue')
-      // No `count: 'exact'` any more: the exact count counted rows on protected
-      // projects too, and the only consumer now reads the filtered list's length.
-      .select('id, reason, source_table, confidence, created_at, project_id, project:projects(id, name, sector)')
-      .is('resolved_at', null)
-      .order('created_at', { ascending: false }),
+    // ⚠ A COUNT AND A PER-PROJECT TALLY, NOT A LIST ANY MORE. The KPI band
+    // prints "overdue milestones" and ProjectCard prints each deal's own
+    // figure; the rail reads the engine. `project_id` is all either needs.
     supabase
       .from('milestones')
-      .select('id, label, target_date, stage, project_id, project:projects(id, name)')
+      .select('id, project_id')
       .lt('target_date', today)
-      .is('completed_at', null)
-      .order('target_date', { ascending: true }),
+      .is('completed_at', null),
+    // Same: the KPI tile's count and ProjectCard's `blockingCount`.
     supabase
       .from('dd_items')
-      .select('id, item, severity, category, project_id, project:projects(id, name)')
+      .select('id, project_id')
       .in('severity', ['critical', 'blocker'])
-      .in('status', ['open', 'in_progress'])
-      .order('severity', { ascending: false }),
+      .in('status', ['open', 'in_progress']),
+    // The KPI tile's count only. The expiring certs THEMSELVES are now an
+    // attention kind (`expiring_certification`, 10-29), so the rail renders
+    // them from the engine like everything else.
     supabase
       .from('certifications')
-      .select('id, name, expiration_date, issuing_body')
+      .select('id')
       .eq('is_active', true)
-      .lte('expiration_date', in90Days)
-      .order('expiration_date', { ascending: true }),
+      .lte('expiration_date', in90Days),
     // Steering board's Now column. Both selects fail quietly pre-migration
     // (objectives table / tasks.objective_id may not exist yet) → strip hidden.
     supabase
@@ -157,32 +130,20 @@ export default async function DashboardPage({ searchParams }: PageProps) {
       .select('objective_id')
       .eq('status', 'open')
       .not('objective_id', 'is', null),
-    // Capital raise: investors whose next step is overdue (fails quietly pre-migration)
-    supabase
-      .from('investors')
-      .select('id, name, stage, next_step, next_step_date')
-      .not('stage', 'in', '(passed,dormant)')
-      .lt('next_step_date', today)
-      .order('next_step_date', { ascending: true }),
-    // Dino: unpaid installments due within 30 days or overdue (fails quietly pre-migration)
-    supabase
-      .from('dino_payments')
-      .select('id, label, amount, due_date')
-      .eq('paid', false)
-      .not('due_date', 'is', null)
-      .lte('due_date', new Date(now.getTime() + 30 * 86_400_000).toISOString().split('T')[0])
-      .order('due_date', { ascending: true }),
-    // Inbound leads whose bid date is closing with no decision made. Uses the
-    // untyped leads client — `leads` is not in the generated Database type
-    // (gen-types is disabled on this stack). Fails quietly pre-migration.
-    leadsDb()
-      .from('leads')
-      .select('id, title, sender_company, bid_due_date, fit_recommendation')
-      .in('status', ['new', 'reviewing'])
-      .in('fit_recommendation', ['pursue', 'consider'])
-      .not('bid_due_date', 'is', null)
-      .lte('bid_due_date', in14Days)
-      .order('bid_due_date', { ascending: true }),
+    /*
+      ⚠ THREE FETCHES WERE DELETED HERE ON 2026-10-29 — investor follow-ups,
+      Dino payments and INBOUND LEADS. All three were read only by
+      `NeedsAttention`, and `computeAttention()` already scores all three as
+      kinds of its own.
+
+      The leads one was a live bug, not a duplicate. On 10-21 leads were taken
+      out of `ATTENTION_KINDS` with a note saying the middle option — keeping
+      only the bids closing inside N days — is WORSE than either extreme,
+      because it puts a third threshold on rows /leads and /decide already
+      rank. Three days later this block was still selecting
+      `bid_due_date <= today + 14` with a `fit_recommendation` filter. A ⚠
+      comment in one file does not stop the sibling drifting (§12).
+    */
     // Mailbox health: a failed sweep means mail is no longer reaching the CRM.
     // Goes through sweepDb because mailbox_sync postdates the generated types.
     sweepDb()
@@ -191,6 +152,26 @@ export default async function DashboardPage({ searchParams }: PageProps) {
       .eq('state', 'failed')
       .limit(1)
       .maybeSingle(),
+    /*
+      ── THE ONE ATTENTION ENGINE ──────────────────────────────────────────
+      Nine queries, scored 0-100, confidential projects and human dismissals
+      both applied inside it at the choke point — so this page cannot forget
+      either, which is exactly what the hand-rolled rail did forget.
+
+      It is a function call rather than a query because that is the point: the
+      rail, /attention, the sidebar badge, Ber AI's `get_attention_items` and
+      Pepper's morning note now all read ONE producer.
+
+      Fails quiet. `computeAttention()` throwing used to cost nothing because
+      nothing on this page called it; now it would cost the whole morning read,
+      so it degrades to an empty rail the same way `loadOpenCommitments` and
+      `readJustIn` already do.
+    */
+    computeAttention().catch(() => ({
+      items: [] as AttentionRailItem[],
+      summary: { total: 0 },
+      dismissed: [],
+    })),
   ])
 
   // ── Protected projects ──────────────────────────────────────────────────────
@@ -392,16 +373,32 @@ export default async function DashboardPage({ searchParams }: PageProps) {
   const overdueMilestones = (overdueRaw ?? []).filter(visibleProject)
   const overdueCount = overdueMilestones.length
 
-  // Needs Attention data (cap display at 6 each). Critical system/compliance
-  // items (mailbox, certs) render at the top of the same rail card.
   const overdueTasks = overdueTasksAll
     .filter(visibleProject)
     .filter((t) => t.due_date && t.due_date < today)
-  const visibleReview = (reviewRaw ?? []).filter(visibleProject)
-  const reviewItems = visibleReview.slice(0, 6) as ReviewWithProject[]
-  const overdueItems = overdueMilestones.slice(0, 6) as MilestoneWithProject[]
   const visibleDd = (ddRaw ?? []).filter(visibleProject)
-  const ddItems = visibleDd.slice(0, 6) as DdWithProject[]
+
+  /*
+    ── The rail's rows ──────────────────────────────────────────────────────
+    Sliced HERE and counted from the engine's own summary, which are two
+    different numbers arriving separately on purpose: the old card summed the
+    lengths of three already-sliced lists, so its badge capped its own
+    contributions at six and under-reported itself by construction (§12 — a
+    badge cap inventing a third quantity).
+
+    Six rows, because the rail is a sticky column beside the project cards and
+    a seventh pushes the "see all" link out of sight — which is the failure the
+    old card had, where there was no way in the product to reach item seven.
+  */
+  const attentionItems: AttentionRailItem[] = attention.items.slice(0, 6).map((i) => ({
+    id: i.id,
+    category: i.category,
+    urgency: i.urgency,
+    title: i.title,
+    detail: i.detail,
+    project_id: i.project_id,
+    project_name: i.project_name,
+  }))
   const syncRow = mailboxSyncRow as { mailbox: string; state: string; last_error: string | null } | null
   // Carry the recorded reason onto the card. During an outage "why" is the
   // whole question, and making the reader open another page to find it is how
@@ -450,6 +447,17 @@ export default async function DashboardPage({ searchParams }: PageProps) {
         title={`${greeting}${firstName ? `, ${firstName}` : ''}`}
         className="mb-0"
       />
+
+      {/*
+        ── ASK BER AI, FIRST ────────────────────────────────────────────────
+        Measured 10-29: `agent_conversations` holds 25 rows from the last 30
+        days and nearly every one is "what do we know about X" or "write me a
+        document about X" — about one a day, and the single most-used thing in
+        the platform. It was reachable by ⌘J and by a sidebar row in the FOURTH
+        group, under two operating companies, with five triage destinations
+        above it. This is the same dock, in the reader's path.
+      */}
+      <AskBar />
 
       {/*
         Say what is missing. Every figure below is a sum, and a sum quietly
@@ -588,24 +596,17 @@ export default async function DashboardPage({ searchParams }: PageProps) {
               landing on projects, the deadline belongs on the Projects list and
               in the weekly brief, which already read that column. */}
 
-          {/* Obligations read out of correspondence. Above NeedsAttention
+          {/* Obligations read out of correspondence. Above the attention rail
               because a promise with a date on it outranks a queue count, and
               these exist nowhere else in the platform. */}
-          {commitments.length > 0 && <Commitments items={commitments} />}
+          {commitments.items.length > 0 && (
+            <Commitments items={commitments.items} counts={commitments.counts} />
+          )}
 
-          <NeedsAttention
-            reviewItems={reviewItems}
-            overdueItems={overdueItems}
-            ddItems={ddItems}
-            reviewCount={visibleReview.length}
-            overdueCount={overdueCount}
-            ddCount={visibleDd.length}
-            overdueTasks={overdueTasks}
-            investorFollowUps={investorFollowUpsRaw ?? []}
+          <AttentionRail
+            items={attentionItems}
+            total={attention.summary.total}
             mailboxAlert={mailboxAlert}
-            expiringCerts={expiringCerts ?? []}
-            dinoPayments={dinoPaymentsRaw ?? []}
-            leads={(leadsDueRaw ?? []) as unknown as LeadDue[]}
           />
         </div>
 

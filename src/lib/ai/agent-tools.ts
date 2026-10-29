@@ -9,6 +9,7 @@ import { matchChunks } from './match-chunks'
 import { embedQuery } from './embeddings'
 import { fetchOpenTasks } from '@/lib/tasks/queries'
 import { computeAttention } from '@/lib/attention'
+import { ATTENTION_KINDS } from '@/lib/attention-kinds'
 import { hiddenProjectIds, scrubHiddenProjects } from '@/lib/security/confidential'
 import { generateDraft } from './draft'
 import { parseTranches, raiseLevels, fillTranches } from '@/lib/investors/raises'
@@ -259,7 +260,14 @@ export const agentTools = [
       properties: {
         category: {
           type: 'string',
-          enum: ['all', 'overdue_action', 'stale_waiting', 'approaching_milestone', 'critical_dd', 'expiring_compliance', 'stale_decision', 'dependency_risk', 'investor_followup', 'dino_payment'],
+          // ⚠ DERIVED FROM THE REGISTRY, NOT TYPED OUT. §12 is explicit that a
+          // taxonomy written into a prompt is a second schema that drifts
+          // silently — "keep it out of tool declarations especially" — and this
+          // line was the example: it listed nine categories by hand, so a kind
+          // added to ATTENTION_KINDS was simply invisible to the agent, which
+          // never fires a filter it was not told about. `expiring_certification`
+          // (10-29) would have been the tenth nobody noticed.
+          enum: ['all', ...ATTENTION_KINDS.map((k) => k.category)],
           description: 'Filter by category (default: all)',
         },
       },

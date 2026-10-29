@@ -78,16 +78,22 @@ test('the urgency bands partition the whole 0-100 range', () => {
   assert.equal(urgencyBand(0), 'watch')
 })
 
-test('the four past-a-date kinds lead the registry, because the list is ranked', () => {
+test('the five past-a-date kinds lead the registry, because the list is ranked', () => {
   // The chip row renders in declaration order (§12: make the declaration order
   // the reading order), so the kinds a reader is most likely to act on must not
   // sit behind the softer signals.
-  const first4 = ATTENTION_KINDS.slice(0, 4).map((k) => k.category)
-  assert.deepEqual(first4, [
+  //
+  // ⚠ WAS FOUR UNTIL 2026-10-29. `expiring_certification` joined the registry
+  // and it is a past-a-date kind like the four above it, so it belongs in this
+  // block rather than behind `stale_waiting` — extending the rule this test
+  // already states rather than working around its number.
+  const first5 = ATTENTION_KINDS.slice(0, 5).map((k) => k.category)
+  assert.deepEqual(first5, [
     'overdue_action',
     'critical_dd',
     'approaching_milestone',
     'expiring_compliance',
+    'expiring_certification',
   ])
 })
 
@@ -137,6 +143,8 @@ const EMITTED: { key: string; category: string; rowId: string | null; table: str
   { key: `investor-cold-${UUID}`, category: 'investor_followup', rowId: UUID, table: 'investors' },
   // `id: \`dino-payment-${p.id}\``
   { key: `dino-payment-${UUID}`, category: 'dino_payment', rowId: UUID, table: 'dino_payments' },
+  // `id: \`cert-${c.id}\`` — a company record, so no project and no dismissal
+  { key: `cert-${UUID}`, category: 'expiring_certification', rowId: UUID, table: 'certifications' },
   // ⚠ NO `lead-` ENTRY: inbound leads left this registry on 2026-10-21, because
   // a bid invitation is inbound work awaiting a call and /decide owns that.
   // `attention.ts` no longer emits the prefix either — see the note at the foot

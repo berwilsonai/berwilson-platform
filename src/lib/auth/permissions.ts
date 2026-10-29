@@ -112,11 +112,42 @@ export function canAccessApi(role: Role, pathname: string): boolean {
   return matchesPrefix(pathname, ROLE_API_PREFIXES[role])
 }
 
-// Where an unauthorized page hit gets sent. /tasks is reachable by every role
-// EXCEPT steel_sales, whose whole world is /steel — landingFor keeps the
-// redirect inside the role's allowlist so it can never loop.
-export const DEFAULT_LANDING = '/tasks'
+/**
+ * Where a reader lands — on `/`, after login, and after an unauthorized page
+ * hit.
+ *
+ * ⚠ IT MUST BE INSIDE THE ROLE'S OWN ALLOWLIST OR IT REDIRECT-LOOPS, which is
+ * why this is a per-role registry rather than one string. `/dashboard` is
+ * admin-only (it is absent from every `ROLE_PAGE_PREFIXES` list, which is
+ * default-deny), so handing it to a `member` would bounce them straight back
+ * here forever. `landing.test.ts` asserts every role's landing against its own
+ * allowlist, so a role added to `Role` without a reachable landing fails the
+ * suite rather than the login.
+ *
+ * ⚠ ADMIN MOVED TO `/dashboard` ON 2026-10-29, AND IT HAD BEEN `/tasks` SINCE
+ * 06-25. That was right when the task model shipped and the dashboard was a
+ * thin stats page; five months later the dashboard carries the KPI band, the
+ * stage mix, Just-In, the objectives, the brief, the attention rail and the Ask
+ * bar — and on 10-27 its KPI band was moved above the fold "on the page whose
+ * whole job is to show it", for a fold nobody's path reached.
+ *
+ * ⚠ AND IT IS ONE DECISION IN ONE PLACE NOW. The string was written out three
+ * times — here, in `src/app/page.tsx`, and inline in `middleware.ts`'s
+ * away-from-login redirect — which is §12's "a predicate transcribed into its
+ * readers has a home per reader". Both of those now route through `/`, which
+ * routes through this.
+ */
+const ROLE_LANDING: Record<Exclude<Role, 'admin'>, string> = {
+  executive: '/tasks',
+  project_manager: '/tasks',
+  member: '/tasks',
+  // steel_sales' whole world is /steel.
+  steel_sales: '/steel',
+}
+
+/** The admin landing, exported because `/` redirects to it directly. */
+export const DEFAULT_LANDING = '/dashboard'
 
 export function landingFor(role: Role): string {
-  return role === 'steel_sales' ? '/steel' : DEFAULT_LANDING
+  return role === 'admin' ? DEFAULT_LANDING : ROLE_LANDING[role]
 }

@@ -65,7 +65,21 @@ function ageLabel(created: string | null): string | null {
   return days >= 1 ? `${days}d` : null
 }
 
-export default function Commitments({ items }: { items: CommitmentItem[] }) {
+/**
+ * ⚠ `counts` IS NOT `items.length`, AND THAT IS THE WHOLE POINT OF THE PROP.
+ * The rows are a SLICE (six, so the rail does not bury the attention card
+ * beneath it); the counts are head counts in SQL. Printing the slice's length
+ * as the section total read "WE OWE 5" against 71 open and "WAITING ON 19"
+ * against 127 — §12: a badge cap inventing a third quantity, and a display cap
+ * is not a count.
+ */
+export default function Commitments({
+  items,
+  counts,
+}: {
+  items: CommitmentItem[]
+  counts: { us: number; them: number }
+}) {
   const [rows, setRows] = useState(items)
   const [busy, setBusy] = useState<string | null>(null)
 
@@ -96,13 +110,17 @@ export default function Commitments({ items }: { items: CommitmentItem[] }) {
   const owed = rows.filter((r) => r.side === 'us')
   const awaited = rows.filter((r) => r.side === 'them')
 
-  const section = (title: string, hint: string, list: CommitmentItem[]) => {
+  const section = (title: string, hint: string, list: CommitmentItem[], total: number) => {
     if (list.length === 0) return null
     return (
       <div>
         <div className="flex items-baseline justify-between px-4 pt-3 pb-1">
           <span className="label-caps text-muted-foreground">{title}</span>
-          <span className="text-xs text-muted-foreground tnum">{list.length}</span>
+          {/* The true open total. When the slice is shorter, say so in the
+              same breath rather than letting the cap pass for the count. */}
+          <span className="text-xs text-muted-foreground tnum">
+            {list.length < total ? `${list.length} of ${total}` : total}
+          </span>
         </div>
         <p className="px-4 pb-2 text-xs text-muted-foreground">{hint}</p>
         <ul className="divide-y divide-border">
@@ -191,8 +209,19 @@ export default function Commitments({ items }: { items: CommitmentItem[] }) {
           Read out of correspondence. Tick to settle, ✕ if it was never a real commitment.
         </p>
       </div>
-      {section('We owe', 'Outstanding on our side.', owed)}
-      {section('Waiting on', 'Others owe us these — follow-up candidates.', awaited)}
+      {section('We owe', 'Outstanding on our side.', owed, counts.us)}
+      {section('Waiting on', 'Others owe us these — follow-up candidates.', awaited, counts.them)}
+      {/* The way out. This panel is the top of a 198-row ledger, and until
+          10-29 there was nothing on it that said so — the cap passed for the
+          whole, which is the same hole the attention card had. */}
+      {rows.length < counts.us + counts.them && (
+        <Link
+          href="/commitments"
+          className="block border-t border-border px-4 py-2.5 text-xs text-muted-foreground outline-none transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-3 focus-visible:ring-inset focus-visible:ring-ring/50"
+        >
+          Showing the soonest few of {counts.us + counts.them} open — open the ledger →
+        </Link>
+      )}
     </div>
   )
 }

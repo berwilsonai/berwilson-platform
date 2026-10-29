@@ -94,9 +94,16 @@ export async function middleware(request: NextRequest) {
   }
 
   // Redirect authenticated users away from /login
+  //
+  // ⚠ TO `/`, NOT TO A NAMED PAGE. The role is not resolved until the block
+  // below, so naming a destination here means transcribing the landing
+  // decision a second time — and it was `/tasks` while `landingFor()` said
+  // otherwise. `/` redirects to the admin landing, and a non-admin who cannot
+  // see that page is bounced by the role gate below to `landingFor(role)`,
+  // which is inside their own allowlist by construction.
   if (user && pathname === '/login') {
     const url = request.nextUrl.clone()
-    url.pathname = '/tasks'
+    url.pathname = '/'
     return NextResponse.redirect(url)
   }
 
