@@ -15,10 +15,18 @@
 
 # next.js
 /.next/
-# Verification builds (BW_DIST_DIR — see next.config.ts). Ignored because a
-# build dir that git can see is thousands of files in `git status`, and two
-# sessions share this repo and stage by name.
-/.next-verify*/
+# Any build dir BW_DIST_DIR points at (see next.config.ts), not just the
+# documented `.next-verify`. Two reasons, and the second is the expensive one:
+#   1. A build dir git can see is thousands of files in `git status`, and two
+#      sessions share this repo and stage by name.
+#   2. ⚠ TAILWIND v4 SCANS THE REPO FOR CLASS NAMES AND SKIPS WHAT GIT IGNORES,
+#      so an un-ignored build dir becomes SOURCE. On 2026-10-28 a dev server on
+#      `.next-dev` made Tailwind read its own compiled output back and emit
+#      `.h-\[2\.7\!\3 R\] { height: 2.7!R }` into globals.css — every page
+#      500ing with "Parsing CSS source code failed / Unexpected token
+#      Delim('!')", pointing at a line in a file nobody had edited. The glob is
+#      wide so the next person's suffix is covered too.
+/.next-*/
 /out/
 
 # production

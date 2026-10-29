@@ -56,6 +56,7 @@ export default function RecordPicker<T extends PickableRecord>({
   placeholder = 'Find the project or opportunity…',
   limit = 8,
   autoFocus = false,
+  layout = 'overlay',
 }: {
   options: T[]
   onPick: (option: T) => void
@@ -63,9 +64,27 @@ export default function RecordPicker<T extends PickableRecord>({
   /** How many to show at once. The filter is what finds the rest. */
   limit?: number
   autoFocus?: boolean
+  /**
+   * Where the matches are drawn.
+   *
+   * ⚠ `inline` EXISTS BECAUSE AN ABSOLUTE DROPDOWN IS INVISIBLE INSIDE A
+   * DIALOG. `DialogContent` carries `max-h-[calc(100dvh-2rem)] overflow-y-auto`
+   * — correctly, so a long dialog scrolls — and §12 records that an overflow
+   * container is a clipping container: the list rendered, in the right place,
+   * and was cut off at the dialog's edge with every class correct. Caught on
+   * the first driven screenshot of the /decide picker; nothing in a typecheck
+   * or a build could see it.
+   *
+   * `overlay` stays the default because it is right where the picker sits
+   * among other content and must not push it around — the lead sheet. In a
+   * dialog whose whole purpose is this one choice, a list that grows the
+   * dialog is both visible and better on a phone.
+   */
+  layout?: 'overlay' | 'inline'
 }) {
   const [q, setQ] = useState('')
   const [open, setOpen] = useState(autoFocus)
+  const inline = layout === 'inline'
 
   const matches = useMemo(
     () => filterByWords(options, q, (o) => o.name).slice(0, limit),
@@ -73,24 +92,45 @@ export default function RecordPicker<T extends PickableRecord>({
   )
 
   return (
-    <div className="relative">
-      <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
-      <input
-        className="h-9 w-full rounded-md border border-input bg-background pl-8 pr-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-        placeholder={placeholder}
-        value={q}
-        autoFocus={autoFocus}
-        onFocus={() => setOpen(true)}
-        onChange={(e) => {
-          setQ(e.target.value)
-          setOpen(true)
-        }}
-        /* A click on an option fires `mousedown` before this blur, which is why
-           the options use `onMouseDown`; the delay covers the keyboard path. */
-        onBlur={() => setTimeout(() => setOpen(false), 150)}
-      />
-      {open && (
-        <div className="absolute z-30 mt-1 max-h-60 w-full overflow-auto rounded-md border border-border bg-card shadow-lg">
+    /* ⚠ `min-w-0` ON THE ROOT, not only on the list inside it. `DialogContent`
+       is a grid, and a grid item's default `min-width:auto` is its own
+       min-content — so the longest record name made THIS div wider than the
+       dialog, which then overflowed its own padding and clipped the heading
+       above it. Every class on the list was already correct. */
+    <div className="relative min-w-0">
+      {/* ⚠ THE ICON IS ANCHORED TO THE INPUT, NOT TO THE WHOLE PICKER. It was
+          `absolute … top-1/2` against the root, which is correct only while
+          the root contains nothing but the input: with the list rendered
+          INLINE below it, "half way down" became half way down input + list,
+          and the magnifier drew itself under the field. A wrapper per
+          positioning context, rather than a second set of offsets to keep in
+          step with whatever the list does next. */}
+      <div className="relative">
+        <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+        <input
+          className="h-9 w-full rounded-md border border-input bg-background pl-8 pr-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+          placeholder={placeholder}
+          value={q}
+          autoFocus={autoFocus}
+          onFocus={() => setOpen(true)}
+          onChange={(e) => {
+            setQ(e.target.value)
+            setOpen(true)
+          }}
+          /* A click on an option fires `mousedown` before this blur, which is
+             why the options use `onMouseDown`; the delay covers the keyboard
+             path. An inline list is always shown, so it never closes on blur. */
+          onBlur={inline ? undefined : () => setTimeout(() => setOpen(false), 150)}
+        />
+      </div>
+      {(inline || open) && (
+        <div
+          className={
+            inline
+              ? 'mt-2 max-h-72 min-w-0 overflow-y-auto rounded-md border border-border bg-card'
+              : 'absolute z-30 mt-1 max-h-60 w-full overflow-auto rounded-md border border-border bg-card shadow-lg'
+          }
+        >
           {matches.length === 0 ? (
             <p className="px-3 py-2 text-sm text-muted-foreground">No record matches that.</p>
           ) : (
@@ -107,8 +147,16 @@ export default function RecordPicker<T extends PickableRecord>({
                   className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm outline-none transition-colors hover:bg-accent focus-visible:bg-accent"
                 >
                   <Icon className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
-                  <span className="flex-1 truncate">{o.name}</span>
-                  <span className="text-[11px] text-muted-foreground">{KIND_LABEL[o.kind]}</span>
+                  {/* ⚠ `min-w-0` OR `truncate` DOES NOTHING HERE. A flex child's
+                      default `min-width:auto` is its content, so the longest
+                      record name — "Alaska Golden Summit / True North Gold &
+                      Geologic Hydrogen JV" — pushed the list wider than the
+                      dialog containing it and took the dialog's own heading off
+                      the right edge with it. */}
+                  <span className="min-w-0 flex-1 truncate">{o.name}</span>
+                  <span className="shrink-0 text-[11px] text-muted-foreground">
+                    {KIND_LABEL[o.kind]}
+                  </span>
                 </button>
               )
             })

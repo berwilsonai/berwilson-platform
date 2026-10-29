@@ -1321,7 +1321,20 @@ export default function DecideClient({
                 does not exist on a phone (§12), so the information has to be
                 reachable another way, and it is.
               */
-              className={`flex items-start gap-3 px-4 py-2.5 compact:py-1.5 transition-colors group ${
+              /*
+                ⚠ `flex-wrap`, BECAUSE THE BUTTONS NAME DEALS AND DEAL NAMES ARE
+                LONG. Measured at 820px on 2026-10-28: a row offering
+                "File onto Deseret / Bonanza Power Generation",
+                "Task on Deseret / Bonanza Power Generation" and "Choose a
+                deal" ran straight out of the panel and printed ON TOP of its
+                own title — the action group was `shrink-0`, so there was
+                nothing in the row that could give. Wrapping lets it drop to a
+                second line instead; `basis-[18rem]` on the content is what
+                decides when. The labels are capped as well (see the spans), so
+                one very long name cannot widen the group past the panel on its
+                own.
+              */
+              className={`flex flex-wrap items-start gap-x-3 gap-y-1.5 px-4 py-2.5 compact:py-1.5 transition-colors group ${
                 index === cursorIdx
                   ? 'bg-accent ring-1 ring-inset ring-primary/40'
                   : 'hover:bg-accent'
@@ -1363,7 +1376,7 @@ export default function DecideClient({
               {/* The row's own link. The dismiss control is a SIBLING, never
                   nested — a button inside an anchor is invalid markup and
                   hydrates badly. */}
-              <Link href={item.href} className="min-w-0 flex-1">
+              <Link href={item.href} className="min-w-0 flex-1 basis-[18rem]">
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="text-sm font-medium">{item.title}</span>
                   {item.verdict && (
@@ -1422,7 +1435,7 @@ export default function DecideClient({
                   </p>
                 )}
               </Link>
-              <div className="flex items-center gap-1 mt-0.5 shrink-0">
+              <div className="flex items-center gap-1 mt-0.5 ml-auto shrink-0">
                 {item.accept ? (
                   /*
                     ⚠ WAS `bg-primary elev-1/10 text-primary` AND THEREFORE
@@ -1447,7 +1460,7 @@ export default function DecideClient({
                     ) : (
                       <Check size={13} />
                     )}
-                    <span className="hidden sm:inline">{acceptVerb(item)}</span>
+                    <span className="hidden sm:inline max-w-[15rem] truncate">{acceptVerb(item)}</span>
                   </Button>
                 ) : (
                   item.blocker && (
@@ -1489,7 +1502,7 @@ export default function DecideClient({
                     className="inline-flex items-center gap-1 h-[2.75rem] sm:h-7 px-3.5 sm:px-2 rounded-lg text-sm font-medium text-muted-foreground ring-1 ring-inset ring-border hover:bg-accent hover:text-foreground disabled:opacity-40 transition-colors"
                   >
                     <ListChecks size={13} />
-                    <span className="hidden sm:inline">
+                    <span className="hidden sm:inline max-w-[15rem] truncate">
                       {acceptVerb({ accept: item.altAccept.action, acceptName: item.altAccept.name })}
                       <span className="ml-1 tnum opacity-70">{item.altAccept.count}</span>
                     </span>
@@ -1580,7 +1593,10 @@ export default function DecideClient({
       */}
       {picking && (
         <Dialog open onOpenChange={(o) => !o && setPicking(null)}>
-          <DialogContent showCloseButton={false}>
+          {/* Wider than the default `sm:max-w-sm`: the content IS a list of
+              record names, several of which run past forty characters, and a
+              dialog that truncates every option is one you cannot choose from. */}
+          <DialogContent showCloseButton={false} className="sm:max-w-lg">
             <DialogHeader>
               <DialogTitle>
                 {picking.record ? `What should happen on ${picking.record.name}?` : 'Which deal is this?'}
@@ -1596,6 +1612,10 @@ export default function DecideClient({
               <RecordPicker
                 options={records}
                 autoFocus
+                // Inline, or the list is clipped by the dialog's own
+                // `overflow-y-auto` — see the prop's note.
+                layout="inline"
+                limit={12}
                 onPick={(record) => setPicking((p) => (p ? { ...p, record } : p))}
               />
             ) : (
