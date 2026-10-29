@@ -6,6 +6,120 @@ This file is **not** auto-loaded into a Claude Code session. It is the archive: 
 
 Split out of `CLAUDE.md` on 2026-09-23, when that file reached 606k characters against a 150k limit above which it is silently truncated — meaning the project's own operating instructions had begun to risk not reaching the sessions that need them. The entries below are **verbatim and unedited**.
 
+**Done 2026-10-28 (the queue could only ever offer the matcher's answer — and 120 rows whose Accept button 404'd):**
+
+Richard: *"The decide button is only giving me 'create project' when I should be able to associate it to current project or opportunity. Make sure I have all the appropriate actions. I should also have a search button at the top to filter through all the decides… Perhaps also in the job to be done I can ask the AI to rescrub the Decide items and see if it can direct them where they need to go. Most seem so obvious where they belong."*
+
+── THE PREMISE, MEASURED FIRST ────────────────────────────────────────────
+
+He was right, and the queue of four said why in one line each. `email_intake_sessions` where `status='pending'`, with their stored candidate lists:
+
+| Session | Disposition | Its candidates | What it obviously is |
+|---|---|---|---|
+| **GridEdgeDC** | `create` | Heber Development 0.38, Myton Development 0.38 | the opportunity **GridEdge** |
+| **Firm Power IPP Partnership** | `create` | *none* | Deseret / Bonanza Power Generation |
+| **Fairbanks Antimony Mine** | `create` | Gold mine 0.55, Myton Development 0.38 | an Alaska record |
+| True North Carabank Steel JV | *(meeting)* | 1 | — |
+
+Not one of the four had the right answer in its own list. The cause is structural and has two halves:
+
+1. **`match_candidates` is frozen at staging time.** It is written once by `findMatchingRecords` when the correspondence is first read, and never recomputed. Every record created afterwards is invisible to it.
+2. **The pre-decide model may only choose from that list.** `resolveMergeTarget` resolves `merge_target_name` against `match_candidates` and nothing else — deliberately, because the model chose from a closed list and anything else it returns was invented. So a stale or weak list guarantees `create`.
+
+And the matcher was not wrong to produce it. `resolveRecordByName(['GridEdgeDC'])` needs the whole name or one rare shared token; `gridedgedc` is a single token that is neither. Trigram over `projects` cannot reach an opportunity at all. §12 is explicit that ambiguity must mean no match — the matcher behaved correctly and the QUEUE was wrong to have no other answer.
+
+── WHAT WAS BUILT ─────────────────────────────────────────────────────────
+
+**1. Choose a deal — a person's pick, which outranks the resolver.**
+
+A third control on every row that can be filed, opening a two-step dialog: pick the record, then say what to do with it. Two steps rather than two dialogs because on a staged conversation those are genuinely different decisions over the same record — *file the whole conversation onto Steelton* and *put its three follow-ups on Steelton's board* — and a row with five controls at 64px had stopped being readable.
+
+The verbs available are computed **server-side**, like `accept` already was: the browser is never handed enough of the portfolio or of the session to know which writes are legal. An email package offers `merge` and `task`; a document offers `file`; **a recorded meeting offers `task` and never `merge`**, and that omission is the point — a meeting's confirm route wants the meeting's metadata, a target per deal it covered, a decision per attendee and per follow-up, all built by the review screen. A thinner second version assembled from a list row would be a sibling-module fork (§12) that silently created no attendees and no minutes.
+
+Routes: `/api/email-ingestion/merge` and `/api/email-ingestion/tasks` now take an optional `target: {kind, id}` which is **read back before anything moves**, exactly as the refile route already did. `/api/documents/[id]/refile` needed no change — it has always taken an arbitrary target; only the UI never offered one.
+
+**2. A search box.** Any word, any order, over the title, subtitle, the model's note and **the deal each button would file onto** — so "steelton" finds the conversation whose only mention of Steelton is the name on its Accept button, which is exactly the row somebody searching for Steelton wants. §12: a keyword search matching only the whole phrase answers "nothing" where it means "not adjacent"; `cleveland steelton` must find *Steelton — Cleveland-Cliffs (PA)*. Applied BEFORE the kind chips, so their counts are the list rather than a second quantity above it.
+
+⚠ It is an AND where §12's retrieval rule is an OR, and that is deliberate: the retrieval rule governs a corpus search, where the alternative to a loose match is claiming nothing exists. Here the reader can SEE the list and is narrowing it — a filter that widens as you type more never converges. One shared helper (`src/lib/utils/search.ts`) now serves this and the record picker.
+
+**3. Re-check where these belong** — `/api/decide/rescrub`, human-pressed.
+
+Shows the model the session and **all 33 record names at once**, which is the one thing neither the trigram nor the name ladder can do. That is recognition over a closed list small enough to read, not search. The reply is resolved back against the register, WHOLE and case-folded — the single safety property of handing a model a list — and on a hit the record is written into `match_candidates` AND the predecision, because `resolveMergeTarget` reads only the first and a recommendation with no id behind it is the "label with nothing behind it" the merge route's own header records.
+
+It changes a recommendation and nothing else: no record created, nothing filed, no session confirmed or dismissed. §11 untouched.
+
+Live, twice:
+
+```
+run 1: examined 3, placed 2, unplaced 1   (GridEdgeDC refused — see below)
+run 2: examined 3, placed 1, unchanged 2
+run 3: examined 3, placed 0, unchanged 3   ← idempotent
+```
+
+⚠ **THE FIRST RUN LOST THE HEADLINE MATCH TO THE PROMPT'S OWN DECORATION.** Shown `GridEdge (opportunity)`, the model answered `"GridEdge (opportunity)"` at **0.95**, over a thread whose body executes a mutual NDA with GridEdgeDC. The resolver refused it correctly — no record answers to that name — and the right match was thrown away by the formatting of the list, not by the judgement. Fixed at both ends: the type tag now LEADS in square brackets (`[opportunity] GridEdge`, which matters because several record names END in parentheses — *Whiskey (TX)*, *Steelton — Cleveland-Cliffs (PA)* — so a trailing tag reads as part of the name), and the resolver strips the tag in either position and looks the remainder up as a WHOLE key again. Not a fuzzy match and it must not become one: `Alaska` still does not resolve to *Alaska Strategic Materials JV*, which matters because the two Alaska records already have their documents split across each other (§13).
+
+⚠ **A PLACEMENT HAD TO BE MADE TO SURVIVE THE MORNING.** `predecidePendingSessions` selects on `predecision is null OR prompt_version != current`. Writing this pass's version into that column would make the session permanently eligible and the nightly run would undo every placement; leaving it ABSENT does the same for a session the pre-decide phase had not reached yet. So the rescrub keeps the version the row had and stamps the current one when it had none — the row genuinely IS judged now, by a later pass against a bigger list, and the selector's own words are "undecided, or decided by a prompt that no longer exists", of which neither is true. Proven by deleting the key from a live row and re-running.
+
+── ⚠ 120 ROWS HAD A BROKEN ACCEPT BUTTON ──────────────────────────────────
+
+`performAccept` was an `if/else if` chain inside the client component:
+
+```ts
+if (action === 'task') { … }
+else if (item.kind === 'intake' && action === 'merge') { … }
+else if (item.kind === 'intake') { … }
+else if (item.kind === 'document' || item.kind === 'misfiled') { … }
+else { await patch(`/api/review/${item.id}`, …) }     // ← the trailing arm
+```
+
+`unparented` — the "No deal yet" class, a THIRD document-shaped kind added on 10-25 — matches none of those tests and fell into the final `else`, which PATCHes the review route with a **document's** uuid. Measured: `findUnparentedDocuments()` returns **120 offered rows** (55 with a proposed target, 65 set-aside), and every one of their Accept buttons answered `404 Review item not found`. Typecheck, build and 802 tests all green, because every arm of that chain takes a string.
+
+§12 names the shape — when a function branches on where something came from, every source that can reach it needs an arm — and names the remedy: assert the members against each other rather than fixing them one failure at a time. So the routing became `planAccept()`, a pure function returning the request as data, and `accept-request.test.ts` walks every kind × every action and asserts the URL belongs to a table that kind's rows live in.
+
+⚠ **IT FOUND A SECOND INSTANCE ON ITS FIRST RUN.** `task` was tested BEFORE any kind, so a `review` row pressed with `task` would have posted a `review_queue` uuid as a `session_id`. Nothing offers that combination today — which is exactly what let the first instance survive to 120 live rows.
+
+Also: `unparented` had no entry in the `DISMISS` map and therefore no Set-aside button at all — the one row in the queue with no way to say "nothing to do here". It now records `filing_confirmed_at`, which is a real answer ("it belongs to no deal, leave it") and not merely a hiding, so the queue can still reach zero.
+
+── ⚠ THREE LAYOUT BUGS, ALL FOUND BY DRIVING THE DIALOG ───────────────────
+
+None was visible in a typecheck, a build, or a static screenshot of the page. All three came out of a CDP script that clicks "Choose a deal", types, and picks.
+
+1. **The options list was clipped by the dialog.** `DialogContent` carries `max-h-[calc(100dvh-2rem)] overflow-y-auto` — correctly, so a long dialog scrolls — and §12 records that an overflow container is a clipping container. The absolute dropdown rendered in exactly the right place and was cut off at the dialog's edge. `RecordPicker` gained `layout="inline"`; `overlay` stays the default for the lead sheet, where the picker sits among other content and must not push it around.
+2. **The longest record name made the dialog overflow its own padding** and took the dialog's heading off the right edge with it. A grid item's default `min-width: auto` is its content, so `truncate` on the option did nothing until the ROOT had `min-w-0`.
+3. **The search icon drew itself under the field.** `absolute … top-1/2` was anchored to the root, which is correct only while the root holds nothing but the input; with the list inline, "half way down" became half way down input + list. A wrapper per positioning context, rather than a second set of offsets to keep in step with whatever the list does next.
+
+And at **820px** a row offering *File onto Deseret / Bonanza Power Generation*, *Task on Deseret / Bonanza Power Generation* and *Choose a deal* ran straight out of the panel and printed **on top of its own title** — the action group was `shrink-0`, so nothing in the row could give. The row wraps now (`basis-[18rem]` on the content decides when) and the labels cap at 15rem.
+
+── ⚠ TAILWIND READ ITS OWN BUILD OUTPUT AS SOURCE ─────────────────────────
+
+Running a dev server on `BW_DIST_DIR=.next-dev` to take the screenshots made **every page 500**:
+
+```
+Parsing CSS source code failed — Unexpected token Delim('!')
+./src/app/globals.css:1210:16
+  .h-\[2\.7\!\3 R\] { height: 2.7!R; }
+```
+
+Pointing at a line in a file nobody had edited. Tailwind v4 scans the repo for class-name candidates and skips what **git ignores** — `.gitignore` covered `/.next/` and `/.next-verify*/` but not an arbitrary `BW_DIST_DIR`, so the dev build's own compiled output became source and a mangled string became a class. The glob is now `/.next-*/`, wide enough for the next person's suffix. Worth knowing because `BW_DIST_DIR=.next-verify npm run build` is CLAUDE.md's own sanctioned way to compile without shipping.
+
+── ALSO ───────────────────────────────────────────────────────────────────
+
+- **One `RecordPicker`, where there were two and a third was about to be written.** `LeadDetailSheet` carried a local copy whose own docblock said it was "the same shape as the meeting review's record picker" — two components answering one question, already drifting (one filtered on focus, the other only once you typed). §12: grep for a renderer before building one, and wire every surface that should call it afterwards. The lead sheet now imports the shared one; the meeting review's inline version is a different shape (it filters out what is already added) and was left alone deliberately.
+- **`DecideKind` and `AcceptAction` moved to `src/lib/decide/types.ts`.** `planAccept` has to name every member to assert it covers them, and §12 forbids a shared helper exported from a `'use client'` file — the verification loader cannot resolve a `.tsx` at all. The component re-exports them so existing importers are unaffected.
+- **The picker is filtered for the reader's confidential projects** (`viewerHiddenProjectIds`). Zero are confidential today, which is exactly when the filter is cheap to add and impossible to remember later: a picker is a cross-portfolio surface and offering the name leaks the project's existence before access is even asked about (§8).
+
+── VERIFICATION ───────────────────────────────────────────────────────────
+
+817 tests (up from 802), lint at the frozen 23, typecheck clean, build 0. `/decide` screenshotted in **both themes** at 1512px and at 820px; the picker driven end to end over CDP and shot at each step. Rescrub run three times against live data, idempotent on the third. All three pending email sessions now resolve a merge target where none did before:
+
+```
+Fairbanks Antimony Mine     → Alaska Strategic Materials JV
+Firm Power IPP Partnership  → Deseret / Bonanza Power Generation
+GridEdgeDC                  → GridEdge
+```
+
+⚠ **FAIRBANKS IS THE AMBIGUITY §13 ALREADY FLAGS.** The model distinguished antimony/strategic-materials from the gold project and said so in its reason, which is defensible — but `Englert`/`Fairbanks` being ambiguous between the two Alaska records is an open item only Richard can settle, and this is a recommendation he presses, not a filing. **Deployed.**
+
 **Done 2026-10-28 (the 84 screens nobody had ever rendered — and the check that reported 0 against a real 21):**
 
 Richard: *"Is there anything else you would do to the UI to make this platform look more impressive. Go through each screen and make any recommendations (if any)."*
