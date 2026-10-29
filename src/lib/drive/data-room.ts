@@ -587,6 +587,15 @@ export const FOLDER_TO_SECTION: Record<string, string | null> = {
   'pqc giovanni campus /reports & studies': '01.4',
   'pqc giovanni campus /independent re brokers market analysis': '00.4',
   'pqc giovanni campus /_unsorted': UNSORTED_SECTION,
+
+  // ── Found by the first full dry run, by reading the manifest ─────────────
+  // Each of these held files that fell through to `_Unsorted` on a path whose
+  // meaning is plain. They are leaf SEGMENT names now that the walk tries each
+  // segment, so they serve wherever they appear rather than only at one depth.
+  deeds: '01.1',
+  'settlement agreements': '01.1',
+  'parcel numbers': '01.1',
+  'k1 form & taxes': '00.4',
 }
 
 /**
@@ -612,7 +621,15 @@ export const FOLDER_TO_SECTION: Record<string, string | null> = {
  * Every token under five characters here needs that check run on it.
  */
 export const SECTION_HINTS: Array<{ section: string; tokens: string[] }> = [
-  // ── 02 first: a compute agreement is also a "contract" and a "report" ─────
+  // ── Specific-first, for the phrases two sections both have a claim on ─────
+  // A LANDLORD estoppel is site control; a CUSTOMER estoppel is a lender right
+  // (02.7). Both are "estoppel", so the longer phrase has to be reachable
+  // BEFORE the shorter one, which first-match-wins only gives if it is listed
+  // first. The collision test compares exact tokens and so cannot see this
+  // kind of overlap — it is ordering, not duplication.
+  { section: '01.1', tokens: ['landlord estoppel', 'tenant estoppel'] },
+
+  // ── 02 next: a compute agreement is also a "contract" and a "report" ──────
   {
     section: '02.6',
     tokens: ['gpu', 'h100', 'h200', 'gb200', 'blackwell', 'server purchase', 'asset register'],
@@ -656,10 +673,39 @@ export const SECTION_HINTS: Array<{ section: string; tokens: string[] }> = [
   },
   {
     section: '01.1',
+    // ⚠ `assignment`, `ground lease` AND `facility lease` ARE NOT OPTIONAL HERE.
+    // §12 records this exact gap in classify.ts: "`lease` and `assignment` were
+    // ABSENT, and both are the central document class on a land/power
+    // acquisition — Steelton arrives by ASSIGNMENT of an executed PSA". It was
+    // missing here too, and the Riverdale dry run proved it by parking
+    // `Assignment Agreement .doc` in `_Unsorted` — which is the argument for
+    // reading a manifest rather than its summary line.
+    //
+    // ⚠ `amendment` and a BARE `lease` are deliberately absent and must stay
+    // absent. Richard's 01.1 expects "Amendments, extensions, deposit receipts"
+    // and his 02.3 expects "Amendments, side letters, exhibits" — the word
+    // genuinely does not say which, and a bare `lease` is equally 02.6's
+    // "Equipment financing or lease agreements". Those park in `00.0` with a
+    // reason, which is the honest answer; guessing would put a compute
+    // amendment on the land shelf.
+    //
+    // ⚠ `landlord estoppel` is here and plain `estoppel` is in 02.7, which is
+    // why the specific-first block above exists: 02.7 is evaluated first, so
+    // without it every landlord estoppel would file as a lender consent.
     tokens: ['alta', 'parcel schedule', 'legal description', 'easement', 'boundary survey',
-             'quitclaim', 'warranty deed', 'grant deed', ' deed', 'title commitment', 'title report',
-             'title policy', 'purchase agreement', 'psa ', ' psa', 'ground lease', 'purchase option',
-             'firpta', 'closing statement'],
+             'quitclaim', 'quit claim', 'quick claim', 'warranty deed', 'grant deed', 'deed',
+             'deeds', 'title commitment',
+             'title report', 'title policy', 'purchase agreement', 'psa ', ' psa', 'ground lease',
+             'facility lease', 'lease agreement', 'purchase option', 'option agreement',
+             'assignment', 'escrow', 'deposit receipt', 'firpta', 'closing statement',
+             'nondisturbance', 'non-disturbance',
+             // ⚠ `transaction agreement` and `lease of` come from reading the
+             // Steelton room, where the site arrives by transaction agreement
+             // and the operative leases are named "Lease of Lot 4a". They are
+             // document-TYPE phrases, not counterparty names, which is the
+             // test for whether a rule generalises — §12: an exact-name map is
+             // a map of one counterparty's habits.
+             'transaction agreement', 'lease of'],
   },
   {
     section: '01.7',
@@ -679,7 +725,12 @@ export const SECTION_HINTS: Array<{ section: string; tokens: string[] }> = [
     section: '00.3',
     tokens: ['organization chart', 'org chart', 'operating agreement', 'articles of',
              'certificate of good standing', 'good standing', 'cap table', 'formation',
-             'mnda', ' nda', 'resolution', 'signature authority'],
+             'mnda', 'nda', 'resolution', 'signature authority',
+             // Corporate housekeeping found in the Steelton room: a conversion
+             // certificate and an amended-and-restated LLC agreement are the
+             // entity record, not the deal.
+             'certificate of conversion', 'cert of conversion', 'amended and restated',
+             'amended & restated', 'certificate of formation', 'certificate of incorporation'],
   },
   {
     section: '00.4',
@@ -689,9 +740,48 @@ export const SECTION_HINTS: Array<{ section: string; tokens: string[] }> = [
   },
 ]
 
-/** Lower-cased, whitespace-collapsed, for comparing a Drive name to a rule. */
+/** Lower-cased, whitespace-collapsed, for comparing a FOLDER PATH to a rule. */
 function normalise(text: string): string {
   return text.replace(/\s+/g, ' ').trim().toLowerCase()
+}
+
+/**
+ * A name as its WORDS, with every separator treated alike.
+ *
+ * ⚠ THIS IS THE FIX FOR THE BUG THAT MATTERED MOST, and only reading a manifest
+ * found it. The rules matched substrings of a space-separated name, so every
+ * token had to be padded (`' psa '`, `' nda '`) to stop it matching inside a
+ * longer word — and real file names separate words with UNDERSCORES:
+ * `Steelton_PSA_Buyer_Redline.docx` never matched `psa`, and
+ * `Steelton_Purchase_Agreement_Draft_v1.docx` never matched `purchase
+ * agreement`. Fifty-nine files in `Contracts & Legal` parked in `_Unsorted`
+ * with the two most important documents on the biggest deal among them.
+ *
+ * Splitting on every non-alphanumeric run and comparing WHOLE WORDS fixes it
+ * and retires the padding entirely — which is §12's own remedy: test whole
+ * tokens rather than substrings. `Gypsa` is no longer `psa`, `Agenda` is no
+ * longer `nda`, and `Coil` is no longer `coi`, for free and by construction
+ * rather than by remembering to pad.
+ */
+function words(text: string): string[] {
+  return text
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+    .split(' ')
+    .filter(Boolean)
+}
+
+/** Does `needle`'s word sequence appear contiguously in `haystack`? */
+function containsWords(haystack: string[], needle: string[]): boolean {
+  if (!needle.length || needle.length > haystack.length) return false
+  outer: for (let i = 0; i + needle.length <= haystack.length; i++) {
+    for (let j = 0; j < needle.length; j++) {
+      if (haystack[i + j] !== needle[j]) continue outer
+    }
+    return true
+  }
+  return false
 }
 
 /**
@@ -706,7 +796,7 @@ export function sectionHintCollisions(): Array<{ token: string; sections: string
   const where = new Map<string, Set<string>>()
   for (const rule of SECTION_HINTS) {
     for (const token of rule.tokens) {
-      const key = normalise(token)
+      const key = words(token).join(' ')
       if (!where.has(key)) where.set(key, new Set())
       where.get(key)!.add(rule.section)
     }
@@ -748,23 +838,55 @@ export function foldDecision(fileName: string, sourcePath: string): FoldDecision
     return { target: null, reason: 'already in a data-room section' }
   }
 
-  const path = normalise(sourcePath)
-  if (path in FOLDER_TO_SECTION) {
-    const target = FOLDER_TO_SECTION[path]
+  /**
+   * ⚠ THE WHOLE PATH, THEN EACH SEGMENT FROM THE DEEPEST UP.
+   *
+   * Keying only on the whole path missed every nested shelf, and nesting is the
+   * normal case on this drive rather than the exception: `West Wendover` holds
+   * an inner folder named after itself with the standard scheme inside it, and
+   * Helper's documents sit under `PQC Giovanni Campus /Land Legal/Settlement
+   * Agreements`. Thirty-nine files fell through to `_Unsorted` on paths whose
+   * parent folder had a perfectly good rule.
+   *
+   * Deepest-first is the right order because a subfolder is more specific than
+   * its parent; falling back UP the path is the inheritance a human means when
+   * they put `Settlement Agreements` inside `Land Legal`.
+   */
+  const segments = sourcePath.split('/').map((s) => s.trim()).filter(Boolean)
+  const candidates = [normalise(sourcePath), ...segments.map(normalise).reverse()]
+  for (const candidate of candidates) {
+    if (!(candidate in FOLDER_TO_SECTION)) continue
+    const target = FOLDER_TO_SECTION[candidate]
     return target === null
-      ? { target: null, reason: `working folder "${sourcePath}" — stays` }
-      : { target, reason: `folder rule "${sourcePath}"` }
+      ? { target: null, reason: `working folder "${candidate}" — stays` }
+      : { target, reason: `folder rule "${candidate}"` }
   }
 
-  // Padded on both sides so a short token cannot match inside a longer word.
-  const haystack = ` ${normalise(fileName)} `
+  /**
+   * ⚠ THE HINTS RUN OVER THE FOLDER NAME BEFORE THE FILE NAME.
+   *
+   * A folder a human named is stronger evidence than a file name a counterparty
+   * chose — the same reasoning `classifyBySourceFolder` is built on, and it
+   * classifies a whole subtree at once. `Stockton LOI` holds eleven files none
+   * of which say "LOI" in their own names; the folder says it once, for all of
+   * them.
+   */
+  for (const segment of [...segments].reverse()) {
+    const hay = words(segment)
+    for (const rule of SECTION_HINTS) {
+      const hit = rule.tokens.find((t) => containsWords(hay, words(t)))
+      if (hit) return { target: rule.section, reason: `folder name "${segment}" (${hit.trim()})` }
+    }
+  }
+
+  const hay = words(fileName)
   for (const rule of SECTION_HINTS) {
-    const hit = rule.tokens.find((t) => haystack.includes(normalise(t).length < 5 ? ` ${normalise(t)} ` : normalise(t)))
+    const hit = rule.tokens.find((t) => containsWords(hay, words(t)))
     if (hit) return { target: rule.section, reason: `file name "${hit.trim()}"` }
   }
 
   return {
     target: UNSORTED_SECTION,
-    reason: path ? `no rule for folder "${sourcePath}"` : 'loose in the room root',
+    reason: sourcePath ? `no rule for folder "${sourcePath}"` : 'loose in the room root',
   }
 }

@@ -300,3 +300,42 @@ describe('folding the old scheme in', () => {
     assert.equal(foldDecision('Credit Report - Nebius.pdf', '').target, '02.1')
   })
 })
+
+describe('the land and acquisition vocabulary', () => {
+  test('places the document class these deals actually arrive by', () => {
+    // ⚠ §12 records this gap in classify.ts and it was repeated here: "`lease`
+    // and `assignment` were ABSENT, and both are the central document class on
+    // a land/power acquisition — Steelton arrives by ASSIGNMENT of an executed
+    // PSA". The Riverdale dry run parked `Assignment Agreement .doc`, which is
+    // what caught it.
+    for (const name of [
+      'Assignment Agreement .doc',
+      'Ground Lease - Riverdale.pdf',
+      'Facility Lease Executed.pdf',
+      'Escrow Instructions.pdf',
+      'Deposit Receipt 2026-03-01.pdf',
+      'Option Agreement - Daves Farms.pdf',
+      'Quit Claim Deed.pdf',
+      'Nondisturbance Agreement.pdf',
+    ]) {
+      assert.equal(foldDecision(name, '').target, '01.1', name)
+    }
+  })
+
+  test('a landlord estoppel is site control, a customer estoppel is a lender right', () => {
+    // Ordering, not duplication: 02.7 holds plain `estoppel` and is evaluated
+    // first, so the longer phrase has to be listed ahead of it.
+    assert.equal(foldDecision('Landlord Estoppel Certificate.pdf', '').target, '01.1')
+    assert.equal(foldDecision('Estoppel - TensorIQ.pdf', '').target, '02.7')
+  })
+
+  test('refuses the words that genuinely do not say which section', () => {
+    // ⚠ Richard's 01.1 expects "Amendments, extensions, deposit receipts" and
+    // his 02.3 expects "Amendments, side letters, exhibits". A bare `lease` is
+    // equally 02.6's "Equipment financing or lease agreements". Parking these
+    // with a reason is the honest answer; guessing would put a compute
+    // amendment on the land shelf.
+    assert.equal(foldDecision('Amendment No. 2.pdf', '').target, UNSORTED_SECTION)
+    assert.equal(foldDecision('Lease.pdf', '').target, UNSORTED_SECTION)
+  })
+})
