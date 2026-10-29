@@ -15,8 +15,7 @@ import { Field, Textarea } from '@/components/ui/field'
  * not possible.
  *
  * ⚠ THE FILING ONE LEADS (10-29), because it is the shape nobody could have
- * guessed was available: until the job gained `search_correspondence` it could
- * not see a single email, and 1,823 of 2,080 deal threads are on no record.
+ * guessed was available: until the job could list UNFILED mail it had no way to work the backlog, and 1,823 of 2,080 deal threads are on no record.
  * Richard asked for exactly this in his own words — *"scrub through data to
  * clean it up"* — so the example is written the way he said it rather than in
  * the vocabulary of the verbs underneath.

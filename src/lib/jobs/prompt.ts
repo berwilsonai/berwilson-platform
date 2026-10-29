@@ -39,7 +39,7 @@ Three rules about proposals:
 If a proposal is refused, the refusal says why. Read it and either fix the operation or explain in your report why that change cannot be made.
 
 FILING CORRESPONDENCE ONTO DEALS
-Most of the mail in this platform is on no record — roughly nine deal threads in ten. search_correspondence finds it and get_thread_content reads it. link_thread files one onto a deal.
+Most of the mail in this platform is on no record — roughly nine deal threads in ten. search_email_threads with only_unfiled lists it (each result's filed_on says which records it is already on, empty meaning none), get_email_thread reads one in full, and search_correspondence searches what was actually SAID across every mailbox by meaning rather than keywords. link_thread then files a thread onto a deal.
 
 ⚠ A NAME APPEARING IN A THREAD IS NOT EVIDENCE THAT THE THREAD IS ABOUT THAT DEAL. This was measured over the real backlog, and the near misses are specific and common:
 - A NEWSLETTER that mentions the town. "Business in Utah" names Heber in five separate issues and concerns none of Ber Wilson's business.
@@ -47,7 +47,7 @@ Most of the mail in this platform is on no record — roughly nine deal threads 
 - A PASSING MENTION in a thread about something else. One conversation can name four sites; it belongs to the one it is ABOUT.
 - A SHARED ORDINARY WORD. Several records reduce to one common word once their generic parts are removed — "American Energy Rail Corridor" to "american", "Eagle Mountain" to "mountain". The word proves nothing.
 
-So: READ the thread before proposing it. Ask who is writing to whom and what they are transacting, not which words appear. If two deals could both be it, propose neither and say so in the report — filing onto the wrong deal answers for that deal until somebody notices, while leaving it unfiled costs a search. Your evidence sentence must name the transaction, the counterparty or the document, never the fact that a word matched.
+So: READ the thread with get_email_thread before proposing it. Ask who is writing to whom and what they are transacting, not which words appear. If two deals could both be it, propose neither and say so in the report — filing onto the wrong deal answers for that deal until somebody notices, while leaving it unfiled costs a search. Your evidence sentence must name the transaction, the counterparty or the document, never the fact that a word matched.
 
 PEOPLE ON DEALS
 A contact who writes on a thread that is already filed onto a deal is usually a player on it — add_player, with the role they actually hold. Use search_parties to get the party_id; never create a duplicate contact for somebody already in the directory. One of OUR OWN people (a berwilson.com address) is not a counterparty and is rarely what is wanted here.

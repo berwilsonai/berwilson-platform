@@ -18,6 +18,7 @@
  */
 
 import { createAdminClient } from '@/lib/supabase/admin'
+import { hiddenProjectIds } from '@/lib/security/confidential'
 import { textWindow } from '@/lib/ai/text-window'
 import { orIlike, orIlikeAnyWord, filterWords } from '@/lib/utils/postgrest'
 import { searchCorrespondence, extractPortalLinks } from './thread-embeddings'
@@ -232,7 +233,7 @@ export const moduleTools = [
   {
     name: 'search_email_threads',
     description:
-      'Search the swept Gmail correspondence — every thread read from the connected mailboxes, with its AI summary, counterparty, people, key facts, and open items. This is the raw conversation history BEHIND the CRM records. Use to answer "what did we discuss with X", "what did they say about Y", or to find correspondence that has not become a project yet.',
+      'Search the swept Gmail correspondence — every thread read from the connected mailboxes, with its AI summary, counterparty, people, key facts, open items, and WHICH records it is filed on (empty means it is on no record). This is the raw conversation history BEHIND the CRM records. Use to answer "what did we discuss with X", "what did they say about Y", or — with only_unfiled — to work the backlog of mail that belongs to a deal and has never been filed onto it.',
     parameters: {
       type: 'object',
       properties: {
@@ -242,6 +243,11 @@ export const moduleTools = [
           type: 'string',
           enum: ['deal', 'operational', 'noise'],
           description: 'Optional triage filter. "deal" = business pursuits, "operational" = running the business, "noise" = newsletters/personal.',
+        },
+        only_unfiled: {
+          type: 'boolean',
+          description:
+            'True returns only threads filed on NO project or opportunity — the backlog, which is roughly nine deal threads in ten. Use it when the job is to work out where unfiled mail belongs.',
         },
         limit: { type: 'number', description: 'Max threads to return (default 15).' },
       },
@@ -1198,6 +1204,67 @@ export async function executeModuleTool(
 
       if (error) return { error: `Email search failed: ${error.message}` }
 
+      /*
+        WHERE EACH THREAD IS ALREADY FILED — and the `only_unfiled` view onto
+        the backlog.
+
+        ⚠ ADDED HERE RATHER THAN AS A NEW TOOL, and the first attempt did build
+        a new one. `agent-tools.ts` gained a second `search_correspondence` on
+        2026-10-29 — a name THIS file already uses for the semantic search —
+        so the model was handed two declarations under one name and the new
+        keyword case, sitting earlier in the dispatch, silently replaced the
+        semantic search the agent prompt explicitly directs it to for *"what was
+        actually said, agreed, quoted or scheduled"*. §12 exactly: a fork is
+        hardest to see as two SIBLING MODULES, and the tell is a second module
+        answering the same question. Grep the TOOL NAMES, not just the table.
+
+        ⚠ CONTAINMENT IS APPLIED HERE, not left to the generic scrub, which
+        walks results for a `project_id` column — a thread names its record only
+        through `thread_links`, so a conversation on a protected project would
+        come back whole with nothing downstream able to see it. The withheld
+        count travels with the answer (§12).
+      */
+      const ids = (data ?? []).map((t) => t.id)
+      const filedOn = new Map<string, Array<{ kind: string; id: string; name: string | null }>>()
+      if (ids.length > 0) {
+        // Chunked: a filter rides in the query string, so a large `.in()` is a
+        // GET Kong refuses outright (§12).
+        const links: Array<{ thread_id: string; record_kind: string; record_id: string }> = []
+        for (let i = 0; i < ids.length; i += 200) {
+          const { data: rows } = await sweepDb()
+            .from('thread_links')
+            .select('thread_id, record_kind, record_id')
+            .in('thread_id', ids.slice(i, i + 200))
+          links.push(...((rows ?? []) as typeof links))
+        }
+        const [{ data: projects }, { data: opportunities }] = await Promise.all([
+          sweepDb().from('projects').select('id, name'),
+          sweepDb().from('opportunities').select('id, name'),
+        ])
+        const names = new Map<string, string>()
+        for (const r of [...(projects ?? []), ...(opportunities ?? [])]) {
+          const row = r as { id: string; name: string | null }
+          if (row.name) names.set(row.id, row.name)
+        }
+        for (const l of links) {
+          if (l.record_kind !== 'project' && l.record_kind !== 'opportunity') continue
+          filedOn.set(l.thread_id, [
+            ...(filedOn.get(l.thread_id) ?? []),
+            { kind: l.record_kind, id: l.record_id, name: names.get(l.record_id) ?? null },
+          ])
+        }
+      }
+      const hidden = await hiddenProjectIds(null)
+      let withheld = 0
+      const visible = (data ?? []).filter((t) => {
+        const on = filedOn.get(t.id) ?? []
+        if (on.some((l) => l.kind === 'project' && hidden.has(l.id))) {
+          withheld++
+          return false
+        }
+        return args.only_unfiled === true ? on.length === 0 : true
+      })
+
       type Summary = {
         relevance?: string
         deal_name?: string | null
@@ -1211,8 +1278,9 @@ export async function executeModuleTool(
       }
 
       return {
-        count: data?.length ?? 0,
-        threads: (data ?? []).map((t) => {
+        count: visible.length,
+        ...(withheld > 0 ? { withheld_protected: withheld } : {}),
+        threads: visible.map((t) => {
           const s = (t.summary ?? {}) as Summary
           return {
             id: t.id,
@@ -1233,9 +1301,11 @@ export async function executeModuleTool(
             open_items: s.open_items ?? [],
             people: s.people ?? [],
             grouped_into_deal: !!t.cluster_id,
+            // Empty means this conversation is filed on no record at all.
+            filed_on: filedOn.get(t.id) ?? [],
           }
         }),
-        note: 'Use get_email_thread with an id to read the original message text.',
+        note: 'Use get_email_thread with an id to read the original message text. `filed_on` empty means the thread is on no record.',
       }
     }
 
