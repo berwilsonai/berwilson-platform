@@ -26,6 +26,7 @@ import {
   type ApplyProgress,
   type UnparentedProgress,
 } from './apply-phase'
+import { autoFileDocuments, type AutoFileProgress } from '@/lib/documents/autofile'
 import { embedPendingThreads, type EmbedProgress } from '@/lib/ai/thread-embeddings'
 import {
   reconcileUnfiledMeetings,
@@ -49,6 +50,7 @@ export type SweepPhase =
   | 'route'
   | 'apply'
   | 'unparented'
+  | 'autofile'
   | 'embed'
   | 'meetings'
   | 'commitments'
@@ -76,6 +78,7 @@ export interface SweepRunResult {
   route?: RouteProgress
   apply?: ApplyProgress
   unparented?: UnparentedProgress
+  autofile?: AutoFileProgress
   embed?: EmbedProgress
   reconcile?: ReconcileProgress
   meetings?: ReconcileUnfiledResult
@@ -95,6 +98,7 @@ const ALL_PHASES: SweepPhase[] = [
   'route',
   'apply',
   'unparented',
+  'autofile',
   'embed',
   'meetings',
   'commitments',
@@ -275,6 +279,27 @@ export async function runSweep(opts: SweepRunOptions = {}): Promise<SweepRunResu
     result.ranPhases.push('unparented')
     if (result.unparented.outOfTime || result.unparented.threadsPending > UNPARENTED_BATCH) {
       result.moreWork = true
+    }
+  }
+
+  // ── Documents that name their own deal ────────────────────────────────────
+  // Immediately after `unparented`, which is what just created most of them: a
+  // file that arrived this run and says "GridEdge" in its own name should be on
+  // GridEdge before anybody opens the queue, not waiting in it.
+  //
+  // ⚠ NOT A SECOND MATCHER. It reads the same two queues /decide reads and acts
+  // only on the subset whose name carries the record's WHOLE name — see the
+  // header of autofile.ts for the bar, and for the measured reason an asserted
+  // alias is deliberately not enough.
+  if (phases.includes('autofile') && remaining() > 0) {
+    try {
+      result.autofile = await autoFileDocuments()
+      result.ranPhases.push('autofile')
+    } catch (err) {
+      // Never fails the run. This is a convenience over a queue that still
+      // works by hand, so a throw here must not cost the phases after it —
+      // embed and commitments are the ones nobody can do manually.
+      console.error('[sweep] autofile failed:', err instanceof Error ? err.message : err)
     }
   }
 

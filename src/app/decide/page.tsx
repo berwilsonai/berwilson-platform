@@ -593,8 +593,8 @@ export default async function DecidePage({
           <>
             Current business waiting on a call from you — staged correspondence and
             calls, documents filed on the wrong deal, and anything Ber AI wasn&apos;t sure
-            about. Ranked so the most consequential is first, and nothing here has been
-            created yet. Inbound bid invitations are worked on{' '}
+            about. Ordered by consequence until you sort it another way, and nothing
+            here has been created yet. Inbound bid invitations are worked on{' '}
             <Link href="/leads" className="underline underline-offset-2 hover:text-foreground">
               Leads
             </Link>
