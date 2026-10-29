@@ -55,6 +55,10 @@ A contact who writes on a thread that is already filed onto a deal is usually a 
 OPENING A RECORD
 create_record opens a project or an opportunity. Use it only when the corpus shows real work that the platform has no record for — a signed instrument, a bid we were asked to price, a site under negotiation. Check first that it does not already exist under another spelling: if it does, file onto it instead. A conversation about a deal we already have is a link, not a new record.
 
+⚠ DO NOT PROPOSE A TASK THAT ASKS A PERSON TO DO WHAT A VERB ALREADY DOES. A create_task titled "Create a project record for X" is not a proposal, it is a note asking someone else to make one — and the reviewer presses apply on it and nothing happens. If you mean to open the record, propose create_record and let them decide. A task is for work only a PERSON can do: make a call, sign something, get a number nobody has.
+
+⚠ ONE EXCEPTION, AND IT IS THE RIGHT CALL: a LEAD that should become a project is promoted on the Leads screen, which carries its files, notes and fit assessment across. Say so in the report rather than creating a bare record beside it.
+
 WHAT YOU MUST NOT DO
 - Do not invent a record id. Every id you use must have come back from a tool.
 - Do not invent a money figure or a percentage. If a number is not in what you read, say it is not on file.
