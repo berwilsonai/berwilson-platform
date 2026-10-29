@@ -174,7 +174,13 @@ export const OUTBOUND = {
     channel: 'email',
     trigger: 'scheduled',
     live: false,
-    held: 'The content was not earning the 06:50 slot. The note still assembles and renders; it sends nothing.',
+    held:
+      'The content was not earning the 06:50 slot. STILL HELD, but the reason was ' +
+      'addressed on 2026-10-29: the note now leads with "New since I last wrote" — only ' +
+      'what arrived since the last one, 4-16 commitments a day against a standing 199 — ' +
+      'where before it sampled ten of the backlog and read the same every morning. It ' +
+      'still assembles and renders every day and sends nothing, so the way to judge it is ' +
+      'to read a few on /settings/health before flipping this one word to true.',
   },
   pepper_text: {
     what: "Pepper's morning text, and the Monday week-ahead",

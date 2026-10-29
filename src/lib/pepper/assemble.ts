@@ -39,7 +39,7 @@ import {
   loadPepperMembers,
   type PepperMember,
 } from './attribution'
-import { ESCALATE_AFTER, loadMentions, type Mention } from './memory'
+import { ESCALATE_AFTER, arrivedSince, loadMentions, type Mention } from './memory'
 
 /** How many portfolio-level cracks to name. More than this is a report. */
 const MAX_CRACKS = 5
@@ -54,6 +54,54 @@ const MAX_CRACKS = 5
  * difference between a short list and a dishonest one.
  */
 const MAX_PER_SECTION = 12
+/**
+ * How many ARRIVALS a section may carry beyond its cap.
+ *
+ * ⚠ WITHOUT THIS, "NEW SINCE THE LAST NOTE" IS A HEADING THAT IS USUALLY EMPTY.
+ * Measured 2026-10-29: 13 commitments arrived in 24 hours and exactly **2**
+ * survived into the rendered note. `rank()` orders by `commitmentWeight` — due
+ * date and overdue days — so a brand-new UNDATED obligation sorts near the
+ * bottom and is cut by `MAX_PER_SECTION` before the reader ever sees it. The
+ * one genuinely new thing in a daily note was the thing most likely to be
+ * dropped from it.
+ *
+ * So arrivals are admitted ON TOP of the ranked twelve rather than competing
+ * with them: the existing order is untouched (a deadline is a real fact and
+ * must not be shuffled for variety — see memory.ts), and the overflow count
+ * still reports whatever neither pass showed. Bounded, because a day on which
+ * forty obligations land must not produce a fifty-line prompt asking for 300
+ * words.
+ */
+const MAX_ARRIVALS_PER_SECTION = 6
+
+/**
+ * The ranked top of a section, plus any arrival the cap would have cut.
+ *
+ * ⚠ ORDER IS PRESERVED, NOT RECOMPUTED. The admitted arrivals keep their
+ * relative rank and follow the ranked twelve; the renderer marks them and the
+ * prompt lifts them into their own section, so the reader sees them at the top
+ * of the note whatever position they hold in this array.
+ */
+function withArrivals<T>(
+  ranked: T[],
+  sinceIso: string,
+  // ⚠ AN ACCESSOR, BECAUSE THE FOUR SECTIONS ARE TWO SHAPES. The per-person
+  // sections carry `NoteCommitment` wrappers (they need `via` and `mention`)
+  // and the shared ones carry bare `CommitmentRow`s. One helper with a getter
+  // rather than two near-identical copies — §12: never fork a shared pass.
+  getRow: (item: T) => CommitmentRow
+): { shown: T[]; omitted: number } {
+  const head = ranked.slice(0, MAX_PER_SECTION)
+  const extra = ranked
+    .slice(MAX_PER_SECTION)
+    .filter((c) => arrivedSince(getRow(c).created_at, sinceIso))
+    .slice(0, MAX_ARRIVALS_PER_SECTION)
+  const shown = [...head, ...extra]
+  // ⚠ DERIVED FROM WHAT WAS ACTUALLY SHOWN, never `length - MAX_PER_SECTION`.
+  // §12: withholding from a reader means handing them the count, and a count
+  // that ignores the arrivals admitted above would overstate by up to six.
+  return { shown, omitted: Math.max(0, ranked.length - shown.length) }
+}
 /** A meeting attendee we have not spoken to in this long is worth flagging. */
 const STALE_CONTACT_DAYS = 21
 /** How many of today's meetings carry counterparty context. One day's worth. */
@@ -624,19 +672,25 @@ export async function assembleForMember(
   const sharedOwed = rankRows(shared.filter((c) => c.side === 'us' && near(c)), mentions)
   const sharedAwaited = rankRows(shared.filter((c) => c.side === 'them' && near(c)), mentions)
 
+  // Each section: the ranked twelve, plus any arrival the cap would have cut.
+  const owedShown = withArrivals(owed, sinceIso, (c) => c.row)
+  const awaitedShown = withArrivals(awaited, sinceIso, (c) => c.row)
+  const sharedOwedShown = withArrivals(sharedOwed, sinceIso, (c) => c)
+  const sharedAwaitedShown = withArrivals(sharedAwaited, sinceIso, (c) => c)
+
   return {
     member,
     sinceIso,
     sinceLabel,
-    owed: owed.slice(0, MAX_PER_SECTION),
-    awaited: awaited.slice(0, MAX_PER_SECTION),
-    sharedOwed: sharedOwed.slice(0, MAX_PER_SECTION),
-    sharedAwaited: sharedAwaited.slice(0, MAX_PER_SECTION),
+    owed: owedShown.shown,
+    awaited: awaitedShown.shown,
+    sharedOwed: sharedOwedShown.shown,
+    sharedAwaited: sharedAwaitedShown.shown,
     omitted: {
-      owed: Math.max(0, owed.length - MAX_PER_SECTION),
-      awaited: Math.max(0, awaited.length - MAX_PER_SECTION),
-      sharedOwed: Math.max(0, sharedOwed.length - MAX_PER_SECTION),
-      sharedAwaited: Math.max(0, sharedAwaited.length - MAX_PER_SECTION),
+      owed: owedShown.omitted,
+      awaited: awaitedShown.omitted,
+      sharedOwed: sharedOwedShown.omitted,
+      sharedAwaited: sharedAwaitedShown.omitted,
     },
     overdueTasks: myTasks.filter((t) => t.due_date && t.due_date < today),
     dueSoonTasks: myTasks.filter((t) => t.due_date && t.due_date >= today && t.due_date <= in7),

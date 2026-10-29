@@ -206,3 +206,44 @@ export function mentionClause(m: Mention | undefined): string | null {
   if (!m || m.previousMornings < ESCALATE_AFTER) return null
   return `, RAISED ON ${m.previousMornings} PREVIOUS MORNINGS and still open — first on ${m.firstNamedOn}`
 }
+
+/**
+ * Did this arrive since the last note?
+ *
+ * ⚠ THE ONE THING THE NOTE COULD NOT SAY, AND THE REASON IT STOPPED EARNING ITS
+ * SLOT. Held 2026-10-21 because *"the content isn't really helpful at this
+ * point"*; read back, the last note sent is almost entirely the standing
+ * ledger — three of its fourteen bullets say *"this is the fifth morning I've
+ * raised them"*, two more say third or fourth, and two sections end *"Another
+ * 30 behind these."* Against 199 open commitments it samples ten and counts the
+ * rest, so a reader cannot tell yesterday's note from today's.
+ *
+ * Measured 2026-10-29: **4 to 16 commitments arrive per day**, median ~9,
+ * against that standing 199. So "what came in since I last wrote" is a real,
+ * bounded, genuinely-new section every morning — which is what a DAILY message
+ * needs to be worth opening, and exactly what this note had no way to express.
+ *
+ * ⚠ THIS IS ADDITIVE AND HIDES NOTHING, WHICH IS THE CONSTRAINT THIS MODULE'S
+ * OWN HEADER SETS. The mention count may annotate and may reorder within a
+ * band, and "can never hide anything" — the reader's way to say *not today* is
+ * the snooze tap, not the platform deciding for them. Marking what is new takes
+ * nothing off the list; it only tells the reader which end is which.
+ *
+ * ⚠ PARSED, NOT STRING-COMPARED. `sinceIso` comes from `Date.toISOString()`
+ * (`…T09:00:00.000Z`) and `created_at` from PostgREST (`…T09:00:00.123+00:00`).
+ * Lexicographically `+` sorts BEFORE `Z`, so two identical instants in the two
+ * formats compare the wrong way round — the kind of edge that is invisible
+ * until the one morning it matters.
+ */
+export function arrivedSince(createdAt: string | null, sinceIso: string): boolean {
+  if (!createdAt) return false
+  const made = Date.parse(createdAt)
+  const since = Date.parse(sinceIso)
+  if (!isFinite(made) || !isFinite(since)) return false
+  return made >= since
+}
+
+/** The marker the prompt reads. Empty when the item is not new. */
+export function arrivedClause(createdAt: string | null, sinceIso: string): string {
+  return arrivedSince(createdAt, sinceIso) ? ', NEW SINCE THE LAST NOTE' : ''
+}

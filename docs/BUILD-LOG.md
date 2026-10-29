@@ -6,6 +6,141 @@ This file is **not** auto-loaded into a Claude Code session. It is the archive: 
 
 Split out of `CLAUDE.md` on 2026-09-23, when that file reached 606k characters against a 150k limit above which it is silently truncated — meaning the project's own operating instructions had begun to risk not reaching the sessions that need them. The entries below are **verbatim and unedited**.
 
+**Done 2026-10-29 (the morning note leads with what changed — and a prompt example the model had been printing as fact):**
+
+Workstream 3, the last of the four planned on 10-29. Richard: *"ok finish that
+last thing then push."*
+
+`notify/policy.ts` held `pepper_note` on 2026-10-21 with the reason *"The
+content was not earning the 06:50 slot"* — Richard's words were *"the content
+isn't really helpful at this point."* The hold is well built: the note still
+assembles and renders every morning and simply sends nothing, so the evidence
+for WHY was sitting in `ai_queries` the whole time.
+
+## Reading the last note she actually sent
+
+Three of its fourteen bullets said *"this is the fifth morning I've raised
+them"*, two more said third or fourth, and two sections ended *"Another 30
+behind these."* Against **199 open commitments** the note samples about ten and
+counts the rest. Nothing in it marked what had changed, so one morning read
+exactly like the last — §12's rule that a line identical for every reader
+cannot justify sending them the message, in its other form: identical every DAY
+fails the same test.
+
+## ⚠ What the plan said to do, and why half of it was wrong
+
+The plan was to lead with what changed AND to use `pepper_note_items.times_named`
+to DROP an item after N mornings. `memory.ts`'s own header refuses the second
+half, with a reason:
+
+> The mention count … ANNOTATES … and it applies a small, expiring,
+> within-band penalty … **Demoting at all would be the platform silently
+> overruling a reader IF they had no way to say "not today"**; `snoozed_until`
+> is that way, it is one tap in the note, and the penalty is bounded at 125
+> against 5,000 between bands — so it can reorder a morning and **can never
+> hide anything**.
+
+That is the third module header in one day to overrule the plan on its own
+recorded evidence (after `fold.ts` on `estimated_value` and `task-reminder.ts`
+on dated tasks). Dropping was not built. What was built is purely ADDITIVE and
+hides nothing.
+
+## What it is
+
+`arrivedSince()` / `arrivedClause()` in `memory.ts` mark a commitment that
+arrived since the last note, and the prompt (now **1.4**) gains a
+`## New since I last wrote` section placed directly after the summary, with the
+rule that an item named there appears NOWHERE else.
+
+Measured before building: **4 to 16 commitments arrive per day, median ~9**,
+against the standing 199. So the section has real, bounded content every
+morning rather than being a heading that is usually empty.
+
+⚠ **PARSED, NOT STRING-COMPARED.** `sinceIso` is `Date.toISOString()` (`…Z`)
+and `created_at` comes from PostgREST with `+00:00`. Lexicographically `+`
+sorts BEFORE `Z`, so two representations of the SAME instant compare the wrong
+way round under `>=`. A test asserts the naive comparison really does disagree,
+so nobody "simplifies" it back.
+
+⚠ **MARKING WAS NOT ENOUGH — THE CAP WAS EATING THE NEW ONES.** First run: 13
+commitments arrived in 24 hours and exactly **2** reached the rendered note.
+`rank()` orders by `commitmentWeight` (due date, overdue days), so a brand-new
+UNDATED obligation sorts near the bottom and `MAX_PER_SECTION = 12` cuts it —
+the one genuinely new thing in a daily note was the thing most likely to be
+dropped from it. `withArrivals()` now admits arrivals ON TOP of the ranked
+twelve (bounded at 6) rather than making them compete: the existing order is
+untouched, and the overflow count is derived from what was actually shown
+rather than `length - MAX_PER_SECTION`, which would have overstated by up to
+six. 13 of 13 now reach the note.
+
+## ⚠ THE PROMPT WAS PUTTING AN INVENTED SENTENCE IN FRONT OF THE READER
+
+Generating a note to check the new section surfaced something worse than the
+thing being fixed. The records-line rule read:
+
+> "WHAT I CHANGED IN THE RECORDS MYSELF" is yours to own in one short line near
+> the end — **"I filled in three contact titles and set Weirton's location from
+> Tuesday's thread."**
+
+The model printed that sentence **verbatim, as a statement of what it had
+done** — naming a real project and a real weekday. The actual changes were
+three company names, two email addresses and one phone number across six
+different people. §12 has this exactly: *a prompt example is training data, and
+a stale one is a lie the model repeats with confidence.* What makes it
+expensive here rather than merely untidy is WHICH line it is: §11's 10-12 trade
+is that Pepper may write to records unattended **because every change is
+reported each morning**, so a fabricated report is the safeguard failing
+silently. Looking back at the last note actually sent, *"I corrected one
+company name on Seth Lloyd's record from Tuesday's thread"* is the same shape.
+
+Every illustrative example in the prompt is now a placeholder shape
+(`"<record>'s <field>: the record says <A>, the mail says <B>. Which?"`), with
+a general rule that every example is a shape and never a fact. A test asserts
+the prompt names none of six live records and that the general rule is still
+there; planting a violation confirmed it fails.
+
+Two more defects found the same way and fixed in 1.4:
+- **The input's internal markers were being pasted into the reader's note** —
+  `[sitting in mailbox]` appeared verbatim, which reads as a leaked debug line.
+- **Items were duplicated** between the new section and "You owe".
+
+## ⚠ And the model was counting rows it had been handed
+
+With the example removed, the line came back as *"2 phone numbers, 2 email
+addresses, and 3 company names"* against a real 1 / 2 / 3. Right kinds, wrong
+number, in the line that reports unattended writes. §12: **never make the model
+count rows — print the count.** The section heading now carries the tally,
+computed over ALL changes rather than the capped display list:
+`WHAT I CHANGED IN THE RECORDS MYSELF (6 in total — 3 × Company, 2 × Email,
+1 × Phone; USE THESE NUMBERS, do not count the rows below)`. The regenerated
+note reads *"I updated 3 company fields, 2 email fields, and 1 phone field"* —
+exact.
+
+## It is STILL HELD, deliberately
+
+The approved plan said to flip `pepper_note` to live only after a week of
+reading the unsent output, and it has not been flipped. Sending a daily 06:50
+email to both executives on the strength of one afternoon's reading is not a
+call to make unilaterally, and the hold costs nothing: the note assembles and
+renders every morning either way. The `held:` string now says what changed and
+what to read before flipping the one word.
+
+## Verification
+
+- `tsc` clean; lint **22 problems, the frozen baseline**; **856 tests green**,
+  6 new.
+- The note was GENERATED against live data four times through the real prompt
+  and read each time — which is the only way any of the three defects above
+  were visible. None would have shown in a test.
+- ⚠ **A `git checkout -- src/lib/pepper/prompt.ts`, used to undo a deliberately
+  planted test violation, silently reverted the whole afternoon's prompt work**
+  — the file held uncommitted changes and the planted line was only the last of
+  them. Caught immediately because the restore check printed `False`, and
+  reapplied. The earlier edit in this session that did the same thing safely
+  used `cp` to a backup first; §12's rule about not editing a running shell
+  script has a sibling here, and the tell is the same: a destructive undo whose
+  blast radius is the FILE, not the change.
+
 **Done 2026-10-29 (the board could not show you a task with no date — and the measurement that said it could not be true):**
 
 Workstream 4 of the four planned on 10-29. Richard: *"keep going with 4."*

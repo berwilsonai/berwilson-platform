@@ -21,7 +21,7 @@ import {
   type NoteCommitment,
   type PepperNote,
 } from './assemble'
-import { mentionClause, type Mention } from './memory'
+import { mentionClause, arrivedClause, type Mention } from './memory'
 
 function ageInDays(iso: string | null): number | null {
   if (!iso) return null
@@ -72,13 +72,14 @@ function commitmentLine(c: CommitmentRow): string {
  * Rachel Smith, in Richard's mailbox. Printed like a row he took on, it becomes
  * a sentence telling him he owes something somebody else promised.
  */
-function attributedLine(c: NoteCommitment, reader: string): string {
+function attributedLine(c: NoteCommitment, reader: string, sinceIso: string): string {
+  const fresh = arrivedClause(c.row.created_at, sinceIso)
   // On a waiting-on row the named person is the counterparty by definition and
   // the mailbox is the only key there is, so any caveat would be true of every
   // line and inform nothing. The mention count still applies: "you have been
   // waiting on this through six of my notes" is the sentence that turns a
   // waiting-on list into a chase list.
-  if (c.row.side === 'them') return `${commitmentLine(c.row)}${mentionClause(c.mention) ?? ''}`
+  if (c.row.side === 'them') return `${commitmentLine(c.row)}${mentionClause(c.mention) ?? ''}${fresh}`
 
   const age = ageInDays(c.row.created_at)
   const outstanding = age !== null && age > 0 ? `, outstanding ${age}d` : ''
@@ -94,11 +95,11 @@ function attributedLine(c: NoteCommitment, reader: string): string {
   // waiting", which invents a third party out of the reader. The name is not
   // information here; "this one is yours" is.
   if (c.via === 'name') {
-    return `- ${c.row.what} — THIS IS ${reader.toUpperCase()}'S OWN, they took it on${dueClause(c.row.due_date)}${outstanding}${raised}`
+    return `- ${c.row.what} — THIS IS ${reader.toUpperCase()}'S OWN, they took it on${dueClause(c.row.due_date)}${outstanding}${raised}${fresh}`
   }
   return `- ${c.row.what}${ownerClause(c.row.owner_name)}${dueClause(
     c.row.due_date
-  )}${outstanding}${raised} [sitting in their mailbox; nobody has confirmed they own it]`
+  )}${outstanding}${raised}${fresh} [sitting in their mailbox; nobody has confirmed they own it]`
 }
 
 /** "(and 12 more not listed)" — never silent truncation. */
@@ -138,6 +139,14 @@ function taskLine(t: DigestTask, mentions?: Map<string, Mention>): string {
   const tag = t.project_name ?? t.opportunity_name
   const why = t.why ? ` — ${t.why}` : ''
   const raised = mentionClause(mentions?.get(t.id)) ?? ''
+  /*
+    ⚠ NO `NEW SINCE` MARKER HERE, DELIBERATELY. `DigestTask` carries no
+    `created_at`, and the daily arrival this note needs to surface is in the
+    COMMITMENTS — measured 2026-10-29 at 4-16 a day against 22 tasks a WEEK.
+    Widening the task type and its select to mark a handful of rows would be
+    surface for almost no signal, and most of these tasks were promoted from a
+    commitment that already carries the marker.
+  */
   return `- ${t.title}${why}${dueClause(t.due_date)}${tag ? ` [${tag}]` : ''}${raised}`
 }
 
@@ -194,13 +203,13 @@ export function renderNoteInput(n: PepperNote): string {
   parts.push(
     ...section(
       `WHAT ${n.member.firstName.toUpperCase()} OWES (outstanding commitments made in correspondence):`,
-      [...n.owed.map((c) => attributedLine(c, n.member.firstName)), ...overflow(n.omitted.owed)]
+      [...n.owed.map((c) => attributedLine(c, n.member.firstName, n.sinceIso)), ...overflow(n.omitted.owed)]
     )
   )
   parts.push(
     ...section(
       `WHAT OTHERS OWE ${n.member.firstName.toUpperCase()} (follow-up candidates — the named person is the one being waited on):`,
-      [...n.awaited.map((c) => attributedLine(c, n.member.firstName)), ...overflow(n.omitted.awaited)]
+      [...n.awaited.map((c) => attributedLine(c, n.member.firstName, n.sinceIso)), ...overflow(n.omitted.awaited)]
     )
   )
   parts.push(
@@ -271,11 +280,35 @@ export function renderNoteInput(n: PepperNote): string {
           `- ${c.recordLabel} — ${c.fieldLabel}: ${c.from ? `was "${c.from}", now` : 'was blank, now'} "${c.to ?? '(blank)'}"` +
           (c.evidence ? ` (${firstLine(c.evidence)})` : '')
       )
+    /*
+      ⚠ THE TALLY IS COMPUTED HERE, NOT LEFT TO THE MODEL. §12: never make the
+      model count rows — print the count. Handed six changes (one phone, two
+      emails, three company names) it wrote "2 phone numbers, 2 email addresses
+      and 3 company names" — the right kinds, one wrong number, in the one line
+      of the note that reports what Pepper altered unattended. §11's trade is
+      that every such change is REPORTED, so a miscount there is the reporting
+      half failing quietly.
+
+      Counted over ALL changes, not the ones shown: the cap is a display limit
+      and the sentence is about everything she did.
+    */
+    const byKind = new Map<string, number>()
+    for (const c of n.curation.changes) {
+      byKind.set(c.fieldLabel, (byKind.get(c.fieldLabel) ?? 0) + 1)
+    }
+    const tally = [...byKind.entries()]
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+      .map(([field, count]) => `${count} × ${field}`)
+      .join(', ')
+
     parts.push(
-      ...section('WHAT I CHANGED IN THE RECORDS MYSELF:', [
-        ...lines,
-        ...overflow(Math.max(0, n.curation.changes.length - MAX_CURATION_IN_PROMPT)),
-      ])
+      ...section(
+        `WHAT I CHANGED IN THE RECORDS MYSELF (${n.curation.changes.length} in total — ${tally}; USE THESE NUMBERS, do not count the rows below):`,
+        [
+          ...lines,
+          ...overflow(Math.max(0, n.curation.changes.length - MAX_CURATION_IN_PROMPT)),
+        ]
+      )
     )
   }
 
