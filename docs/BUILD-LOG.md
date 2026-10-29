@@ -6,6 +6,130 @@ This file is **not** auto-loaded into a Claude Code session. It is the archive: 
 
 Split out of `CLAUDE.md` on 2026-09-23, when that file reached 606k characters against a 150k limit above which it is silently truncated — meaning the project's own operating instructions had begun to risk not reaching the sessions that need them. The entries below are **verbatim and unedited**.
 
+**Done 2026-10-29 (one attention engine, and the front door opens on the thing you actually use):**
+
+Richard asked an open question — *"Is there anything you would do to simplify
+and elevate the user experience in terms of UI and UX"* — then, on the answer:
+*"Do what you think is bet on all of them and then push to production."*
+
+⚠ **MEASURED BEFORE ANSWERING, AND THE USAGE IS NOT WHAT THE NAV IS BUILT
+AROUND.** `agent_conversations` holds 55 rows, **25 of them in the last 30 days**
+— about one a day — and nearly every one is either *"what do we know about X"*
+or *"write me a document about X"*: *what are all the metals mentioned around
+our alaska mine*, *How many megawatts are in our pipeline*, *create an offer to
+purchase GridEdge based on the discussions*. That is the platform's stated job
+in its own two sentences, and it was reachable by ⌘J and by a sidebar row in the
+**fourth** group, below two operating companies, with five triage destinations
+above it. 24 nav destinations and 97 pages serve **two** auth users.
+
+⚠ **THE APP DID NOT OPEN ON THE DASHBOARD AND HAD NOT SINCE 06-25.**
+`src/app/page.tsx` was a hardcoded `redirect('/tasks')`, set deliberately the
+day the task model shipped — correct then, when the dashboard was a thin stats
+page. Five months later the dashboard carries the KPI band, the stage mix,
+Just-In, the objectives, the brief and the attention rail, and on **10-27** its
+KPI band was moved above the fold *"on the page whose whole job is to show
+it"* — an optimisation for a fold that was in nobody's path.
+
+⚠ **THE DASHBOARD WAS RUNNING A SECOND ATTENTION ENGINE.** `NeedsAttention` ran
+**eight of its own queries** — review queue, overdue milestones, critical
+diligence, overdue tasks, investor follow-ups, expiring certs, Dino payments and
+inbound leads — with no scoring, no dismissals, and a six-row cap per section,
+beside `computeAttention()`'s nine scored and dismissable kinds on /attention.
+Two surfaces, two definitions, one name. **§9 claims this debt was resolved on
+07-03; it was moved, not resolved.**
+
+⚠ **AND IT HAD DRIFTED INTO A LIVE BUG, THREE DAYS OLD.** On **10-21** inbound
+leads were removed from `ATTENTION_KINDS` with a 25-line note whose closing
+paragraph says the *middle* option — keeping only the bids closing inside N days
+— **is worse than either extreme and was deliberately not taken**, because it
+puts a third threshold on rows /leads and /decide already rank. On **10-24**
+`dashboard/page.tsx` was still selecting `bid_due_date <= today + 14` with a
+`fit_recommendation in (pursue, consider)` filter. The ⚠ comment was written in
+one file and the drift was in the sibling — which is itself a §12 rule, now on
+its fourth recorded instance.
+
+⚠ **THE SAME CAP-READ-AS-A-COUNT BUG WAS SITTING IN THE COMMITMENTS PANEL,
+UNDER-REPORTING BY 11×.** Its section headers print `list.length` over a slice
+`loadOpenCommitments` caps at 24, so they read **"WE OWE 5"** and **"WAITING ON
+19"** against a table holding **71** and **127** open. Counts are two `head:
+true` reads now and travel beside the rows — §12: a count is an aggregate and
+cannot be derived from a limited list. ⚠ **AND ONE `.limit()` ACROSS BOTH SIDES
+DROPPED A WHOLE HALF**: ordered by due date, the first cut was six `them` rows
+and the "We owe" section **did not render at all** on a ledger with 71 open on
+our own side. One query per side, four each.
+
+⚠ **THE BADGE COUNTED A QUANTITY THE ENGINE COULD NOT PRODUCE.**
+`countAttention()` head-counts four things and `certifications` was one of them,
+while no kind in `ATTENTION_KINDS` read that table — so the chrome named rows no
+list could render, which is part of *why* the dashboard grew its own queries.
+`expiring_certification` joins the registry (a lapsed cert scores 100: a bid
+submitted against one is a disqualification, not a slipped date), and the
+registry's own docblock, which described the gap as deliberate, is amended.
+
+⚠ **NAMED APART RATHER THAN MERGED, AND THIS IS THE CAREFUL BIT.** The rail
+cannot simply inherit the word "Needs Attention": the KPI tile and the sidebar
+badge print `countAttention()` (four cheap head counts — the badge renders in
+the root layout on *every* page and cannot afford a dozen queries), while the
+rail prints `computeAttention().summary.total` (ten scored kinds, dismissals
+applied). **They read 3 and 3 today and will not always** — the engine also
+scores a thread waiting on someone, a decision with no follow-through, a
+dependency at risk. Two different quantities on one screen under one name is the
+original **1 / 99+ / 197** failure, so the chrome keeps "Needs Attention" and the
+rail is **"What's slipping"**.
+
+⚠ **A TAXONOMY TRANSCRIBED INTO A TOOL DECLARATION, FOUND IN PASSING.**
+`get_attention_items` listed its nine categories as a hand-written `enum`, so a
+kind added to the registry is simply invisible to the agent — it never fires a
+filter it was not told about, and `expiring_certification` would have been the
+tenth nobody noticed. Derived from `ATTENTION_KINDS` now. §12 names tool
+declarations as the worst place for this *especially*.
+
+⚠ **ONE LANDING DECISION IN THREE FILES, AND MOVING IT EXPOSED A LOOP.** The
+string was written out in `src/app/page.tsx`, in `landingFor()`, and inline in
+`middleware.ts`'s away-from-login redirect — and the middleware's copy said
+`/tasks` while `landingFor()` was the supposed owner. `/dashboard` is
+**admin-only** (absent from every `ROLE_PAGE_PREFIXES` list, which is
+default-deny), so pointing the shared default at it would have sent a `member`
+to a page the role gate bounces — an infinite redirect `tsc` cannot see, for a
+role the two admins never sign in as. It is a per-role registry now, middleware
+redirects to `/`, and `src/lib/auth/landing.test.ts` asserts **every role lands
+inside its own allowlist**.
+
+⚠ **THE SCREENSHOT WORKFLOW WRITES INTO PRODUCTION'S DIST, AND NOTHING SAID
+SO.** `scripts/ui/shoot.mjs` documents pointing itself at `next dev -p 3001`;
+this folder **is** production, a bare `next dev` writes `.next/dev/` into the
+very `.next` the live `next start` serves, and the launchd job is
+`KeepAlive: true` — so a restart in that window boots the platform off a dist a
+dev server is mutating. Caught it live (prod stayed 200; the subsequent full
+build regenerated the dist cleanly). **Verified the remedy rather than asserting
+it:** `BW_DIST_DIR=.next-dev npx next dev -p 3001` answers 200 and leaves
+`.next` untouched. Documented in `shoot.mjs` itself, where the trap is. Note
+`/.next-*/` was already gitignored on **10-28** with a comment recording the
+*other* half of this trap — an un-ignored build dir becomes a Tailwind source
+and feeds its own compiled output back into `globals.css`. The remedy existed;
+the workflow that needed it never pointed at it.
+
+⚠ **ONE FINDING WITHDRAWN ON ITS OWN EVIDENCE.** The first answer listed
+`dev_notes` holding **0 rows** as a dead feedback channel and proposed removing
+it. The table shipped 09-23 but **the page shipped 10-27** — two days. Zero rows
+after two days is not evidence of anything, and the channel was left alone.
+
+**What did NOT change, and why:** the "Today" group still holds five rows. The
+count was never the problem — the duplication was, and each row is now one
+quantity with one definition. Shuffling rows to hit a smaller number would have
+been motion. `dd_items`, `financing_structures` and `entity_projects` hold **0**
+rows across all 33 records and their tabs are already count-gated, so they never
+render: correct as built.
+
+**Verified:** 860 tests (4 new), typecheck clean, lint **22** against a baseline
+of 23, `BW_DIST_DIR=.next-verify` compile exit 0 *before* committing, then the
+page **rendered and read back in both themes** — a listed route is not an
+answering one. Deployed: build exit 0, kickstart, `tailnet-setup.sh` green on
+all three endpoints, `lmstudio-check.sh` matching the documented config.
+**DEPLOYED**
+
+---
+
 **Done 2026-10-29 (the morning note leads with what changed — and a prompt example the model had been printing as fact):**
 
 Workstream 3, the last of the four planned on 10-29. Richard: *"ok finish that

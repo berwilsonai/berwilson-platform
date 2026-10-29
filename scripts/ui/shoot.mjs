@@ -24,6 +24,20 @@
  * It does not need to. §12: `next dev` does not load the root `middleware.ts`,
  * so a dev server on another port renders every gated page with no session.
  * Point it at one (the default).
+ *
+ * ⚠ START THAT DEV SERVER ON ITS OWN DIST, OR IT WRITES INTO PRODUCTION'S:
+ *
+ *     BW_DIST_DIR=.next-dev npx next dev -p 3001
+ *
+ * THIS FOLDER IS PRODUCTION (CLAUDE.md, top). A bare `next dev` writes
+ * `.next/dev/` into the very `.next` the live `next start` is serving, and the
+ * launchd job is `KeepAlive: true` — so a restart during that window boots the
+ * platform off a dist a dev server is mutating. Verified 2026-10-29: a bare
+ * run put `dev/` inside the production dist; with `BW_DIST_DIR` set, `.next`
+ * was untouched. `/.next-*/` is already gitignored, and that entry's own
+ * comment records the OTHER half of this trap — an un-ignored build dir
+ * becomes a Tailwind source and feeds its compiled output back into
+ * globals.css.
  *   ⚠ With no middleware there is no viewer, so the role falls back to
  *   `member` and most nav rows are filtered out. Judge the chrome and the
  *   content from these; never the nav.
