@@ -177,10 +177,19 @@ export default function DataRoomView({ status }: { status: RoomStatus }) {
           value={status.emptySections}
           hint="Out of 19. An optional section does not count."
         />
+        {/*
+          ⚠ TWO QUANTITIES, NAMED APART, NEVER SUMMED. One number tried to carry
+          both and read 112 on every room in the portfolio — Riverdale with 39
+          documents, Steelton with 159 and GridEdge with none — because every
+          requirement with no recorded decision derives as outstanding. What a
+          person has actually judged outstanding is the number worth a tile; the
+          derived gap is `emptySections` beside it.
+        */}
         <StatTile
-          label="Requested documents outstanding"
+          label="Outstanding items you have recorded"
           value={status.openItems}
-          hint="Including conditions unresolved inside agreements we have already signed."
+          empty="None recorded yet"
+          hint="Including a condition still unresolved inside an agreement already signed — which is the thing a lender reads first. Set these on the Diligence tab."
         />
       </div>
 

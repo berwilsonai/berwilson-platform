@@ -148,8 +148,28 @@ export interface RoomStatus {
   notInDrive: number
   /** In a Drive folder that is neither a section nor a working folder. */
   outsideTemplate: number
-  /** Checklist lines still outstanding, excluding Not Applicable. */
+  /**
+   * Requirements a PERSON has recorded as outstanding.
+   *
+   * ⚠ HUMAN-RECORDED ONLY, AND THAT IS THE WHOLE POINT. Counting derived
+   * statuses too gave **112 on every single room** — Riverdale with 39
+   * documents, Steelton with 159 and GridEdge with none all read 112 — because
+   * every requirement without a `dd_items` row derives to `Missing` or
+   * `In Progress`, and both are "open". 119 requirements minus the 7 under the
+   * one optional section is 112, for everybody, forever. §12: a line that is
+   * identical for every reader carries no information, and when every row is
+   * red, red has stopped signifying. So this counts the judgements somebody
+   * actually made, which is 0 until the tracker is used — honest, and it moves.
+   */
   openItems: number
+  /**
+   * Requirements whose section holds nothing at all.
+   *
+   * The quantity the other one was being asked to carry, and it VARIES:
+   * Riverdale 13 sections empty, Steelton 8, GridEdge 18. Named apart from
+   * `openItems` and never summed with it — two different questions.
+   */
+  missingRequirements: number
   /** Sections with nothing on file and no decision recorded. */
   emptySections: number
 }
@@ -346,7 +366,11 @@ export async function readRoomStatus(
     notInDrive,
     outsideTemplate: docs.length - filed - unsorted - notInDrive - working,
     openItems: sections.reduce(
-      (n, s) => n + s.rows.filter((r) => isOpenStatus(String(r.status))).length,
+      (n, s) => n + s.rows.filter((r) => !r.derived && isOpenStatus(String(r.status))).length,
+      0
+    ),
+    missingRequirements: sections.reduce(
+      (n, s) => n + s.rows.filter((r) => r.derived && r.status === 'Missing').length,
       0
     ),
     emptySections: sections.filter((s) => s.missing).length,

@@ -35,13 +35,15 @@
 
 import { writeFileSync } from 'node:fs'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { listFolder, type DriveFile } from '@/lib/integrations/google-drive'
+import { listFolder, listSubfolders, type DriveFile } from '@/lib/integrations/google-drive'
 import { ensureFolder, moveFile } from '@/lib/integrations/google-drive-write'
 import { isGoogleConfigured } from '@/lib/integrations/google-workspace'
 import { isPlatformArtifact } from '@/lib/drive/file-document'
 import {
   DEFAULT_ROOM_TEMPLATE,
   UNSORTED_SECTION,
+  WORKING_FOLDERS,
+  sectionOf,
   foldDecision,
   isRoomTemplateKey,
   sectionByKey,
@@ -56,6 +58,27 @@ const arg = (flag: string): string | null => {
   return i >= 0 ? (process.argv[i + 1] ?? null) : null
 }
 const ONLY = arg('--record')
+
+/**
+ * `--tidy` — report the EMPTY folders the fold leaves behind.
+ *
+ * The fold moves and never deletes, so a room ends up holding its nineteen
+ * sections AND the eleven now-empty folders of the old scheme. On Riverdale
+ * that is `Contracts & Legal`, `Land & Title`, `Diligence`, `_Unsorted` and
+ * seven more, all empty, sitting beside `01.1 — Site Control & Title`. For a
+ * room whose whole purpose is to read as uniform to a partner, that is clutter
+ * that undermines the thing the restructure was for.
+ *
+ * ⚠ IT REPORTS AND TRASHES NOTHING, EVEN WITH `--apply`. These are folders
+ * PEOPLE created on the team's own shared drive. Moving files inside a room is
+ * what Richard authorised; removing someone else's folder is a different act
+ * and a different conversation, and `canDelete` is false on a shared drive
+ * anyway so the most that is possible is a trash. The 10-08 restructure's own
+ * answer was to KEEP an emptied folder and rename it `… (moved — see …)`, which
+ * `isArchiveFolder` already treats as retired — that is the precedent if a
+ * gesture is wanted, and it is one command once somebody has read this list.
+ */
+const TIDY = process.argv.includes('--tidy')
 const MANIFEST = arg('--manifest') ?? '/tmp/data-room-manifest.tsv'
 
 interface Target {
@@ -286,6 +309,31 @@ async function main(): Promise<void> {
     for (const r of failedRows.slice(0, 10)) {
       console.log(`    ${R}${r.fileName}${O} ${D}${r.error}${O}`)
     }
+  }
+
+  if (TIDY) {
+    console.log(`\n${B}Empty folders left behind${O}`)
+    let empties = 0
+    for (const target of targets) {
+      const stale: string[] = []
+      for (const folder of await listSubfolders(target.room)) {
+        const name = folder.name.trim()
+        // A section, a status folder or a working folder is ours and stays.
+        if (sectionOf(name) || WORKING_FOLDERS.includes(name as never)) continue
+        if (/^0[012] — /.test(name)) continue
+        const inside = await listFolder(folder.id, { maxDepth: 4, includeArchived: true })
+        if (inside.length === 0) stale.push(name)
+      }
+      if (!stale.length) continue
+      empties += stale.length
+      console.log(`  ${B}${target.name}${O} ${D}— ${stale.length} empty: ${stale.join(', ')}${O}`)
+    }
+    console.log(
+      `\n  ${Y}${empties} empty folders across ${targets.length} rooms.${O}` +
+        ` ${D}Nothing was trashed — these are folders people created, and removing one${O}\n` +
+        `  ${D}is a decision for Richard. The established gesture is to RENAME an emptied${O}\n` +
+        `  ${D}folder "<name> (moved — see 01.x)", which isArchiveFolder already skips.${O}`
+    )
   }
 
   /**

@@ -105,7 +105,10 @@ async function sectionFolderLinks(status: RoomStatus): Promise<Map<string, strin
 export interface TrackerCsv {
   csv: string
   requirements: number
+  /** Recorded by a person as outstanding. See `RoomStatus.openItems`. */
   open: number
+  /** Derived: the section holds nothing. A different question, never summed. */
+  missing: number
   documents: number
 }
 
@@ -130,10 +133,14 @@ export function buildTrackerCsv(status: RoomStatus, links: Map<string, string>):
   lines.push(csvRow([...REQUIREMENT_COLUMNS]))
   let requirements = 0
   let open = 0
+  let missing = 0
   for (const section of status.sections) {
     for (const row of section.rows) {
       requirements++
-      if (isOpenStatus(String(row.status))) open++
+      // ⚠ Two counts, never one. See `RoomStatus.openItems`: counting a derived
+      // status as outstanding read 112 on every room in the portfolio.
+      if (!row.derived && isOpenStatus(String(row.status))) open++
+      if (row.derived && row.status === 'Missing') missing++
       lines.push(
         csvRow([
           `${row.sectionKey} ${row.sectionLabel}`,
@@ -185,9 +192,10 @@ export function buildTrackerCsv(status: RoomStatus, links: Map<string, string>):
   lines.push(csvRow(['On the record but not in Drive', status.notInDrive]))
   lines.push(csvRow(['In a folder outside the template', status.outsideTemplate]))
   lines.push(csvRow(['Sections with nothing on file', status.emptySections]))
-  lines.push(csvRow(['Requested documents still outstanding', open]))
+  lines.push(csvRow(['Requested documents with nothing on file in their section', missing]))
+  lines.push(csvRow(['Outstanding items a person has recorded', open]))
 
-  return { csv: lines.join('\n'), requirements, open, documents }
+  return { csv: lines.join('\n'), requirements, open, missing, documents }
 }
 
 /**
