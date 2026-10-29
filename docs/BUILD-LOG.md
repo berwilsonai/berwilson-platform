@@ -104,6 +104,18 @@ The first version of this work added `search_correspondence` and `get_thread_con
 
 Verified after the fix: **43 tools, no duplicate names**; `search_correspondence` returns `passages` and `referenced_documents_not_held` again; `search_email_threads` with `only_unfiled` returns the backlog in 155ms; and `"whiskey"` comes back with `filed_on` showing *Whiskey - Zorro* correctly on **both** records.
 
+── ⚠ THE MODEL ROUTED AROUND ITS OWN VOCABULARY, AND THE PROMPT FIX WORKED ──
+
+The first create-oriented run found two real candidates and proposed them as **`create_task`**: *"Create project record for The Door Church Murray construction"* and *"Promote WinCo #182 lead to project record"* — a note asking somebody else to do what the verb it had just been given does. A reviewer presses apply on that and nothing happens.
+
+⚠ **THE SECOND ONE WAS ACTUALLY THE RIGHT CALL**, which is why the prompt now says so rather than banning the shape: a LEAD that should become a project is promoted on `/leads`, and that flow carries its files, notes and fit assessment across — a bare `create_record` beside it loses all three. The prompt gained both halves: *if you mean to open the record, propose create_record; a task is for work only a PERSON can do*, with the lead-promotion exception named.
+
+**Re-run after the fix, through the REAL queue** (`status='queued'`, claimed by `/api/cron/job-runner` within the minute, run in the app rather than in a script): 206s, **two `link_thread` proposals and zero `create_record`** — correctly, because it found no work the platform has no record for.
+
+⚠ **AND THE STRONGEST CASE FOR THIS WHOLE APPROACH IS IN THAT OUTPUT.** One of the two threads is subject-lined **`HGH edits`** — a typo, naming nothing, carrying no record name a matcher could ever reach. Its 2,918-character body discusses the HTH Master Partner Agreement and names both Zenthium and Harvest Time Holdings, and the job placed it on *Zenthium Partnership* with that as its stated evidence. Verified: both threads exist, both had **0 existing links**, and the body of that one does carry both names. The second thread (`Master Partner Agreement w/ HTH Tim Seibert`, 306 chars) names HTH but NOT Zenthium, and the model said so — justifying it as the forwarding of the same agreement, which is a chain-of-reasoning link rather than a name match, and exactly the kind of judgement the review row exists to let a human check.
+
+⚠ **A HARNESS NOTE WORTH MORE THAN IT LOOKS.** Two of my own test runs went wrong in ways the feature was not responsible for, both the same mistake in different clothes. (1) Inserting a row with `status='working'` and no heartbeat makes it **indistinguishable from a job a deploy abandoned** — `claimNextJob` matches `heartbeat_at.is.null` — so the real runner reclaimed it, ran it in parallel with my script against a single-threaded model, and a kickstart then killed it to `failed`. The reclaim was correct; the harness was lying to it. (2) My watcher polled for `done|failed` and the terminal state for a job WITH proposals is **`review`** ("Needs you") — so a successful run read as a hang. Enumerate every terminal state, not the happy path; and to test a queue, use the queue.
+
 ⚠ **WHAT WAS DELIBERATELY NOT BUILT: a re-route pass for the 20 threads.** It is real and free, but it is a change to the SWEEP rather than to /jobs, and the measurement says it is 20 threads against a backlog of 1,823 — the job is the lever. Recorded in `OPEN-ITEMS.md` rather than half-built.
 
 **Done 2026-10-28 (the queue could only ever offer the matcher's answer — and 120 rows whose Accept button 404'd):**
