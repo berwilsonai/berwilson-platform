@@ -6,6 +6,92 @@ This file is **not** auto-loaded into a Claude Code session. It is the archive: 
 
 Split out of `CLAUDE.md` on 2026-09-23, when that file reached 606k characters against a 150k limit above which it is silently truncated — meaning the project's own operating instructions had begun to risk not reaching the sessions that need them. The entries below are **verbatim and unedited**.
 
+**Done 2026-10-29 (a job can read the mail — and the premise behind the ask was mostly wrong):**
+
+Richard: *"The idea is that I can cut down on having to decide where things go. Can the jobs section do a job of scrubbing back through that data? For example, once a project called Whiskey is created, it should definitely be able to match any mention of the word Whiskey and know to append those items to the project. Not to mention the contacts on the email also being on the project. So I would like it to have the ability to scrub through data to clean it up and also scrub through data to create a project."*
+
+── THE PREMISE, MEASURED BEFORE ANYTHING WAS BUILT ────────────────────────
+
+§12 says measure the data's SHAPE rather than its size, and that the premise has repeatedly turned out to be wrong. It did again, in four steps, each of which changed the design.
+
+**1. The backlog is real.** 1,823 of 2,080 deal threads (88%) are linked to no record at all.
+
+**2. Re-running the existing matcher over them places 20.** `bestMatch` against today's 41 targets: 1.1%. The hits are exactly the records created AFTER routing last ran — Eagle Mountain (8), Tensor Site CM (8), Synetra, Dino, Elite Solutions. `routed_at` spans 09-18 → 10-29 while records were created 10-08, 10-21 and 10-28, and a routed thread is never revisited. So the "stale router" theory is true and worth 20 threads.
+
+**3. The Whiskey example already works.** `whiskey` appears as a whole word in **4** threads and **3 are already filed** on the project. It works because `whiskey` is genuinely rare — document frequency 4 of 2,080, 0.2%.
+
+**4. And that is exactly why the rule cannot be generalised.** Measuring every record's distinguishing tokens against the corpus:
+
+| record | reduces to | df | share |
+|---|---|---|---|
+| Eagle Mountain Data Center & Land Acquisition | `mountain` | 281 | 13.5% |
+| American Energy Rail Corridor - Community Development | **`american`** | 99 | 4.8% |
+| Tensor Site Construction Management | `management` | 87 | 4.2% |
+| Elite Solutions | **`elite`** | 65 | 3.1% |
+| Myton Development / Myton Rail | **`myton`** — both | 34 | 1.6% |
+| Whiskey (TX) | `whiskey` | 4 | 0.2% |
+
+§12 already says it: *"Every word must match" is the same test as "one shared word" once the stopwords are gone.* Three records reduce to ONE ordinary word, and two different records reduce to the SAME word, which makes both unmatchable rather than mis-matched.
+
+**So I swept the rule §12 actually prescribes** — the whole name, with at least one token rare in the corpus and owned by one record — across maxDf 1 → 50 and read the output:
+
+```
+maxDf   placed  ambiguous
+    8        7          2
+   20       28         11
+   50       68         23
+```
+
+At maxDf=20, reading the 28: `[heber] Business in Utah — June 25, 2026` (a **newsletter**, five issues of it), `[geologic] 49 commitments outstanding` and `[weirton] 84 commitments outstanding` (**Pepper's own morning notes**, read back as evidence about a deal), `[garage] 11 new leads — 1 closing soon` (a digest this platform sent itself), `[wendover] California Housing Plan For Remesh`. Perhaps 3 of 28 are right. This is the 10-19 precedent exactly, where any-word matching created 9 records and all nine were wrong.
+
+**The conclusion that decided the build: the matcher must not get looser. The JOB gets the verbs.** What separates a newsletter from a PSA is READING the thread — which a model can do and a similarity score cannot — and the human press is what makes acting on that reading safe. That is what /jobs is for.
+
+**5. The second half of the ask was the cheapest real win.** Contacts already in the directory, writing on a thread already linked to a record, and not a player on it: **62 person-record pairs across 20 records**. The link is a fact and the contact is a fact, so this is a join rather than a guess. (⚠ The first version of that script reported **0** — `.in()` with 900 uuids is a 33KB GET and Kong answers `URI too long`. §12, read that same morning, and still walked into. A refusal read as an absence.)
+
+── WHAT WAS BUILT ─────────────────────────────────────────────────────────
+
+**Two read tools, because the job could not see a single email.** `search_correspondence` (subject, date, participants, summary, and WHICH records each thread is already on — empty meaning filed nowhere; `only_unfiled` for the backlog) and `get_thread_content` (windowed, with a continuation offset). The agent's 22 existing tools reached `email_threads` not once.
+
+⚠ **CONTAINMENT IS APPLIED IN THE TOOL, NOT LEFT TO THE GENERIC SCRUB.** `executeToolCall` scrubs results by walking them for `project_id`; a thread names its record only through `thread_links`, so a conversation on a protected project would have come back whole — subject, participants, summary — with nothing downstream able to see it needed removing. That is §12's *a nullable pointer added to a table filtered by a DIFFERENT pointer breaks an existing security filter without touching it*, arriving from the other side. The withheld COUNT goes back with the answer.
+
+**Three verbs**, each reading its target back before writing, each idempotent, none able to delete:
+
+| verb | what it does | refusals proven live |
+|---|---|---|
+| `link_thread` | files a conversation onto a deal, `certainty='linked'`, `applied_message_count=0` so the record receives the whole of it | re-filing the same thread → `skipped`; a dangling record id → `failed` |
+| `add_player` | puts a directory contact on a deal | already in that role → `skipped`; a merged contact → `skipped` |
+| `create_record` | opens a project or an opportunity | a name the register already answers to → `skipped`, naming the record to file onto instead |
+
+`evidence` is REQUIRED on `link_thread` and `create_record` where it is optional on `update_field`: the reviewer presses on one line, and a conversation on the wrong deal answers for it until somebody notices.
+
+⚠ **`create_record` IS LEGAL UNDER §11 AND THE REASON IS THE SAME ONE /decide's ACCEPT RESTS ON.** The invariant is that mail must not become a record WITHOUT human review; a job proposes and a person presses apply, which IS the review. Deliberately not given to the curator or to any cron.
+
+**`src/lib/records/players.ts`.** The player insert carries three non-obvious obligations — role prose on `role` with the category from the registry, the exactly-one shared-children check, and a unique constraint whose opportunity half is a PARTIAL index so it can be neither a naive insert nor an upsert — and all three lived inside `applySession` where a second caller was about to copy them. One path now, with the roll read once and passed down.
+
+── LIVE, AND IT REFUSED THE RIGHT THING ───────────────────────────────────
+
+Richard's own job, verbatim, against the real corpus: *"Find every piece of correspondence about the Whiskey (TX) project that is not yet filed onto it…"* — 10 rounds, 220s.
+
+It read the five threads the matcher flagged, rejected all five by name (*"PA Brown Field Data Center, Steelton/Weirton/Riverdale, asset-based commercial loans, generic cold outreach, an Army Reserve Center in Texas"*), and — the test that matters — **declined the Zorro teaser**, which mentions Whiskey in passing: *"It is about Zorro. Filing it on Whiskey would violate the rule against filing threads about one deal just because they mention another."* That is the §12 rule being applied to a case it was not shown.
+
+Its two proposals verified against the database: Merlin Corbin on the *Whiskey - Texas Site* thread, Timothy Seibert on *Whiskey - Zorro*, both filed on Whiskey, neither already a player, neither merged. ⚠ **And it picked the right Merlin** — `merlin@zenthium.ai` rather than `Merlin Corbin (via Google Drive)` / `drive-shares-dm-noreply@google.com`, the junk contact Pepper's old refusal-reads-as-absence loop created (§13).
+
+── ⚠ THREE THINGS CAUGHT BEFORE SHIPPING ──────────────────────────────────
+
+**1. The review UI had two hand-written kind maps.** `KIND_TONE` and `KIND_LABEL` in `OperationReview.tsx`, keyed by a loose `string`, each falling back to the raw token — so a new verb got a count and a chip reading `link_thread`, which is §12's *never print a stored enum at a reader*, and nothing failed. This is the same drift §12 records being fixed in /decide's count map and then repeated one component over in its chip row, and again in the Documents tab. Now one `Record<JobOperationKind, {label, tone}>` in `operations.ts`; the build names a missing entry.
+
+**2. The tone I first gave it does not exist.** `amber` is not one of the thirteen declared tones, and `Chip` passes an unknown string through as CLASS NAMES — its documented bridge for the legacy `*_BADGE` triples. So the chip would have rendered unstyled, green through typecheck and build: §12's *a Tailwind class string stored in the database is never generated*, arriving through the one escape hatch left open on purpose. The field is typed `Tone`; a planted `amber` now fails the build, proven.
+
+**3. One query, two haystacks.** `search_correspondence` narrowed in SQL on `words[0]` against the BODY and then required the remaining words in the subject and summary only — a far smaller text. `steelton cleveland` returned **1** thread out of the ~84 whose bodies carry both, and the caller would read that as "there is nothing". The SQL narrow now picks the LONGEST word and, when there is more than one, the body comes back with the rows and every word is tested against the same text: **1 → 10**. Routed through `matchesWords`/`searchWords` from yesterday's shared helper rather than a third copy.
+
+⚠ **AND THE `OPERATION_KINDS.length === 5` CANARY WAS TESTING THE COPY.** It could only ever say "the number changed", and the way to make it pass was to edit the number — so adding a verb with no describe branch and no fixture was one keystroke from green. It now derives from the fixture list and fails by NAME; a planted `planted_violation` kind proved it.
+
+── VERIFICATION ───────────────────────────────────────────────────────────
+
+824 tests (up from 817), lint at the frozen 23, typecheck clean, build 0. All three executors exercised end to end against the live database on a throwaway record — created, linked, playered, each repeat skipped, a dangling id failed — then deleted, leaving 0 rows. `search_correspondence` timed at 120–370ms. **Deployed.**
+
+⚠ **WHAT WAS DELIBERATELY NOT BUILT: a re-route pass for the 20 threads.** It is real and free, but it is a change to the SWEEP rather than to /jobs, and the measurement says it is 20 threads against a backlog of 1,823 — the job is the lever. Recorded in `OPEN-ITEMS.md` rather than half-built.
+
 **Done 2026-10-28 (the queue could only ever offer the matcher's answer — and 120 rows whose Accept button 404'd):**
 
 Richard: *"The decide button is only giving me 'create project' when I should be able to associate it to current project or opportunity. Make sure I have all the appropriate actions. I should also have a search button at the top to filter through all the decides… Perhaps also in the job to be done I can ask the AI to rescrub the Decide items and see if it can direct them where they need to go. Most seem so obvious where they belong."*
