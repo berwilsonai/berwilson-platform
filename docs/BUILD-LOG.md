@@ -6,6 +6,215 @@ This file is **not** auto-loaded into a Claude Code session. It is the archive: 
 
 Split out of `CLAUDE.md` on 2026-09-23, when that file reached 606k characters against a 150k limit above which it is silently truncated — meaning the project's own operating instructions had begun to risk not reaching the sessions that need them. The entries below are **verbatim and unedited**.
 
+**Done 2026-10-29 (four ways to read the queue, a document that files itself, and the alias that silently became the counterparty's name):**
+
+Richard asked for two things on `/decide` — options for sorting the queue, and
+an explanation of why it does not auto-file rows that "clearly have the project
+or opportunity name written right there" — then widened it to "what else would
+you improve?"
+
+## What was measured before anything was built
+
+§12's standing instruction (*measure before building, and measure the data's
+SHAPE rather than its size*) paid for itself twice before a line was written.
+Two plausible-sounding problems do not exist, and both are recorded here so the
+next session does not re-derive them:
+
+- **"Retrieval has a backlog."** 940 of 2,082 `pipeline='deal'` threads are
+  summarized with `embedded_at` NULL — 45%, which looks alarming. The embed
+  queue is EMPTY: `email_threads_pending_embed` returns **0 rows**. Every
+  withheld thread is `relevance='noise'`, single-message, attachment-free and
+  unlinked. A sample reads *Small Business Digest*, *DCNN Newsletter*, *Welcome
+  to Dropbox*, *Folder shared with you*. The gate is working exactly as its
+  header says. Documents are healthier still: of 460 with text and no chunks of
+  their own, 451 are indexed with their thread by design, 9 are orphans, and
+  only 2 of 1,318 lack an `ai_summary`.
+- **"The human queues behind the sweeps."** 4,400 model calls in 30 days at ~50s
+  each is ~61 hours against 720 — an 8.5% duty cycle. Interactive agent latency
+  is p50 **26s**, p90 89s, max 160s. Contention happens; it is not structural,
+  and `AGENT_DEFER_WINDOW_MS` already covers the rest.
+
+What IS true, and was not on anybody's list:
+
+| | |
+|---|---|
+| Projects with `estimated_value` | **1 of 22** |
+| Opportunities with `estimated_value` | **0 of 11** |
+| Rows ever written to `field_update_proposals` | **0** |
+| `record_field_provenance` writes, by field | company 67, title 53, phone 33, email 8, location 5, sector 4 |
+| `composed_documents` rows, ever | **0** |
+| Open tasks | 146 — 45 overdue, **89 undated**, 22 unassigned, 97 on Richard |
+
+161 of the curator's 170 field writes are CONTACT fields. `field_update_proposals`
+has never held a row, so `/decide`'s `proposal` branch — a whole rendering arm
+with its own accept verb — has never once appeared on screen.
+
+## Workstream 1 was planned, then WITHDRAWN after re-testing its recorded reason
+
+The plan was to widen `foldDealFields` to the `estimated_value` the thread
+summary already carries. It was approved and then abandoned, because the module
+header at `src/lib/curator/fold.ts:22-37` lists `estimated_value` and
+`stage_signal` under *"WHAT IS DELIBERATELY NOT FOLDED, each for a recorded
+reason"* — which I had not read when planning. §12 says a workaround's recorded
+reason must be re-tested before it is inherited. It was. It holds, three ways:
+
+1. **The clearing was deliberate and is in the audit log.** On 2026-10-05 an
+   actor named `estimated-value-cutover@berwilson.com` nulled `estimated_value`
+   on 8 projects. The figures removed were **$48,000,000,000**, $3B, $2B, $1.8B,
+   $1B, $1B, $750M and $1.5M. A $48B contract value for a two-person firm was
+   not a contract value.
+2. **The corpus cannot answer the question the column asks.** Reading the
+   evidence behind the 6 candidate deals: **GridEdge carries five figures across
+   five threads** — $8.5M (acquisition proposal), $1.5M (counter-proposal
+   floor), $5M (a SAFE Ber Wilson *rejected*), $500k (a pitch), $8.5M. Those are
+   the positions in a live negotiation, and `pick()`'s newest-wins would stamp
+   whichever landed last as *the* value. **IAN carries $3.6M and $350M on the
+   same record** — 36 acres at $100k/acre of land, versus an LOI to acquire the
+   company. §12: a money figure must carry its SHAPE; one column cannot hold
+   both, and nothing in the thread says which one it wants.
+3. **Richard has already ruled on where deal economics live** — the calculator
+   was removed 10-23 with *build it in Excel first, then bring it back*.
+
+So the fold was not built. The downstream consequences are real and stay as a
+finding: `pipelineValue()` has no figure, the composer's gate has no platform
+figures to authorise, and the pursuit profile has no size bounds. If it is ever
+automated, the honest source is an **executed** document, never a thread summary.
+
+## The queue reads four ways
+
+One fixed order — `decideWeight` descending — answers "what is most
+consequential" and nothing else. Sifting ~130 rows across six kinds also needs
+"what landed since I last looked" and "what can I clear without reading".
+
+Four orders now (`consequence`, `recent`, `confident`, `quick`), as views of ONE
+population: the chip counts above the list are deliberately unaffected by which
+is chosen, because a sort that changed the numbers would be a filter wearing a
+sort's clothes.
+
+⚠ **THE SORT KEY DID NOT EXIST.** `DecideItem` carried `occurredAt` (filled only
+by a staged meeting) and `deadline` (filled by nothing at all since leads left
+on 10-22) and no arrival time. "Most recent" needed one honest `arrivedAt` on
+all six producers — seven fill sites, since the meeting branch is separate, and
+there it is the STAGING and not the call: a conversation from last Tuesday
+staged this morning is new to the reader this morning.
+
+⚠ **AND THE DOCUMENT TABLES HAVE NO `created_at`.** Both `documents` and
+`opportunity_documents` depart from §4's convention and carry `uploaded_at`.
+Reaching for the conventional name would have been `42703` — which fails the
+WHOLE query, not the column, and on this page would have rendered as "no
+documents are waiting".
+
+⚠ **`decideWeight` IS NOT A TOTAL ORDER AND COULD NOT BE THE TIEBREAK.** Its
+value is exactly 0 for every row with no deadline, verdict or value — on the
+live queue that is every document row, the largest kind present. A comparator
+returning 0 for two distinct rows lets them swap places between renders of
+identical data: the flat-`MEETING_BOOST` bug one level up, which made all five
+staged meetings tie. Every order now ends on the row id, and a test sorts three
+weightless rows from both input orders to prove it.
+
+`score` is deliberately NOT offered as an order. §12: `fit_score` carries ±20
+points of sampling noise, and `decideWeight`'s own note records removing it as a
+TIEBREAKER — offering it as the PRIMARY key would be strictly worse than the bug
+that was fixed. A test asserts no order names a score.
+
+The view is in the URL (§12 — a filter kept only in component state is not a
+view), seeded server-side so the first paint is right, and synced back with
+`history.replaceState` rather than `router.replace`. `LeadsClient` took that
+decision first and wrote down why: this page runs three corpus-wide document
+passes and a portfolio match per staged session, so a Next navigation per
+keystroke would make the search unusable.
+
+`SortControls` on the dashboard carried *"Same track-and-pill idiom as
+`Segmented` … if a third of these appears, merge them."* This was the third, so
+it moved onto `Segmented` rather than being copied again. What stays different
+is deliberate: the dashboard sorts on the SERVER and keeps `router.push`.
+
+Also corrected the page description, which still promised *"Ranked so the most
+consequential is first"* after the order became choosable — §12's rule about a
+comment claiming a control that is not there, applied to reader-facing copy.
+
+## Why the queue was not auto-filing the obvious — and now does
+
+The answer to Richard's second question is that `matchDocument` **does** find
+them. `bestMatch` accepts a record's whole name, two distinctive shared words,
+or a human-asserted alias. `/decide` simply never acted on the result: it
+offered the filing and waited for a click. The rows that genuinely do not match
+are the ambiguous ones (`Englert` names two Alaska records and was withdrawn for
+exactly that reason) and one-word names, which need a shared contact.
+
+Richard's direction: a whole-name match should file itself. It now does, as a
+sweep phase straight after `unparented` — which is what creates most of these, so
+a file that arrived this run and says "GridEdge" in its own name is on GridEdge
+before anybody opens the queue.
+
+⚠ **§11 IS UNTOUCHED.** Nothing is created; every row already exists as a
+`documents` row and only its parent changes. That is the 10-12 amendment's
+"Pepper UPDATES records" case, so the write goes through
+`createAdminClient(PEPPER_ACTOR)` after `assertPepper()`. `documents` carries
+`log_documents`, and verified live: all 13 filings are credited to
+`info@berwilson.com` (9 DELETE where the row crossed into
+`opportunity_documents`, 4 UPDATE where it stayed), not to "system".
+
+The bar is `identifiesRecord` — the record's whole name, contiguously, once
+punctuation is flattened. Threshold-free, already measured on this corpus, and
+already the bar for the one other unattended write that turns on a name. NOT the
+matcher's bar: two distinctive shared words was measured at 9 wrong records out
+of 9.
+
+Measured before building: 60 documents carry a proposal, 13 name their record
+outright. Every one of the 13 was read by hand before writes were enabled —
+GridEdge ×5, Alaska Strategic Materials JV ×2, West Wendover ×2, Dino Plumbing
+×2, Elite Solutions, Synetra. All 13 filed; the second run filed 0, as §12's
+pairing rule requires. The queue went 139 → 126.
+
+### ⚠ THE ALIAS THAT SILENTLY BECAME THE COUNTERPARTY'S NAME
+
+36 of the 48 candidates were alias-grade, and the plan was to file those too. The
+live register will not bear it.
+
+`tokenize()` drops any token of two characters or fewer. So the alias
+**`"Tensor CM"`** — written by a human to NARROW to the construction-management
+engagement — is stored as the single token **`tensor`**, the counterparty's own
+name. It then matches `Tensor MNDA (with Non-Circumvention).docx`, `Tensor IQ
+LLC - Bio Jonathan Houk.pdf` and every other Tensor IQ document, and files them
+onto that one engagement with `certainty: 'linked'` — a FACT outranking every
+similarity score.
+
+This is §12's recorded Tensor failure — *one `Tensor MNDA` "proving" four
+unrelated sites on the counterparty word alone* — arriving through the alias
+door, which is the door §12 recommends as the REMEDY for weak matching.
+
+Measured across the whole register: **13 of 86 aliases lose at least one word,
+and 8 collapse to a single token.** Most are harmless, because the dropped word
+is a deliberate stopword — `"Project Riverdale"` → `riverdale` is correct. Two
+are not: `"Tensor CM"` → `tensor`, and `"Forge 42"` → `forge`. Also
+`"3 Mag"` → `mag` and `"HD-5534-A-1"` → `5534`.
+
+A second alias case found the same way: `Doc2_Myton_Quantum_Campus_MOU_Updated.docx`
+is proposed for **Box Elder** Quantum Campus on its alias `"Quantum Campus"`,
+while the document's own name says **Myton**. This is the cause of the open item
+raised 10-18, where a *Helper, Utah* recording landed on Box Elder the same way.
+
+The collapse is NOT fixed here, deliberately: alias tokens also drive THREAD
+routing across the whole corpus, so changing what one alias means has a far
+larger blast radius than this pass. It is an open item for Richard, because
+which record should own the bare word `tensor` is his call, not a code decision.
+
+Both refusals are now tests, with the real file names in them.
+
+## Verification
+
+- `tsc` and lint clean; **844 tests green**, 16 new.
+- The producer test reads the real `/decide` page source with comments stripped
+  — §12: a fixture cannot catch a producer that never fills a field, and an
+  unstripped grep would be satisfied by the docblock saying the field is
+  required. Planted a violation and confirmed it fails, naming the kind.
+- `/decide` rendered in BOTH themes against live data (§12), and each `?sort=`
+  fetched to confirm the orders genuinely differ and that the URL is honoured on
+  first paint.
+- The auto-file pass dry-run, read by hand, applied, then re-run to 0.
+- Deployed: build, kickstart, both halves live.
+
 **Done 2026-10-29 (a job can read the mail — and the premise behind the ask was mostly wrong):**
 
 Richard: *"The idea is that I can cut down on having to decide where things go. Can the jobs section do a job of scrubbing back through that data? For example, once a project called Whiskey is created, it should definitely be able to match any mention of the word Whiskey and know to append those items to the project. Not to mention the contacts on the email also being on the project. So I would like it to have the ability to scrub through data to clean it up and also scrub through data to create a project."*
