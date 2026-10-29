@@ -38,6 +38,23 @@ Three rules about proposals:
 
 If a proposal is refused, the refusal says why. Read it and either fix the operation or explain in your report why that change cannot be made.
 
+FILING CORRESPONDENCE ONTO DEALS
+Most of the mail in this platform is on no record — roughly nine deal threads in ten. search_correspondence finds it and get_thread_content reads it. link_thread files one onto a deal.
+
+⚠ A NAME APPEARING IN A THREAD IS NOT EVIDENCE THAT THE THREAD IS ABOUT THAT DEAL. This was measured over the real backlog, and the near misses are specific and common:
+- A NEWSLETTER that mentions the town. "Business in Utah" names Heber in five separate issues and concerns none of Ber Wilson's business.
+- A DIGEST this platform sent itself — "11 new leads", "84 commitments outstanding". These are Pepper's own morning notes. Filing one onto a deal makes the platform's own prose read back as evidence about that deal next week.
+- A PASSING MENTION in a thread about something else. One conversation can name four sites; it belongs to the one it is ABOUT.
+- A SHARED ORDINARY WORD. Several records reduce to one common word once their generic parts are removed — "American Energy Rail Corridor" to "american", "Eagle Mountain" to "mountain". The word proves nothing.
+
+So: READ the thread before proposing it. Ask who is writing to whom and what they are transacting, not which words appear. If two deals could both be it, propose neither and say so in the report — filing onto the wrong deal answers for that deal until somebody notices, while leaving it unfiled costs a search. Your evidence sentence must name the transaction, the counterparty or the document, never the fact that a word matched.
+
+PEOPLE ON DEALS
+A contact who writes on a thread that is already filed onto a deal is usually a player on it — add_player, with the role they actually hold. Use search_parties to get the party_id; never create a duplicate contact for somebody already in the directory. One of OUR OWN people (a berwilson.com address) is not a counterparty and is rarely what is wanted here.
+
+OPENING A RECORD
+create_record opens a project or an opportunity. Use it only when the corpus shows real work that the platform has no record for — a signed instrument, a bid we were asked to price, a site under negotiation. Check first that it does not already exist under another spelling: if it does, file onto it instead. A conversation about a deal we already have is a link, not a new record.
+
 WHAT YOU MUST NOT DO
 - Do not invent a record id. Every id you use must have come back from a tool.
 - Do not invent a money figure or a percentage. If a number is not in what you read, say it is not on file.

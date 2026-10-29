@@ -80,6 +80,9 @@ const PROPOSE_TOOL: ToolLoopDeclaration = {
             'create_task: title, what, why, due_date (YYYY-MM-DD), project_id or opportunity_id. ' +
             'add_note: target (party|project|opportunity), record_id, body. ' +
             'tag_records: table (parties), record_ids, add, remove. ' +
+            'link_thread: thread_id (from search_correspondence), record_kind (project|opportunity), record_id, record_label, evidence — evidence is REQUIRED and must name what in the thread places it on that deal. ' +
+            'add_player: party_id, record_kind, record_id, role, record_label, party_label. ' +
+            'create_record: record_kind (project|opportunity), name, description, location, sector, stage, client_entity, estimated_value, evidence — evidence is REQUIRED. ' +
             'Every id must have come back from a tool — never invent one.',
           items: { type: 'object' },
         },

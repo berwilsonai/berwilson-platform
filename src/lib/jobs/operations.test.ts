@@ -216,14 +216,20 @@ test('a non-array batch is empty rather than a throw', () => {
 
 // ── the review line ─────────────────────────────────────────────────────────
 
-test('every kind describes itself without NaN, undefined or [object Object]', () => {
-  const samples: unknown[] = [
+/** One fixture per operation kind. The coverage test below reads this too. */
+const DESCRIBE_SAMPLES: unknown[] = [
     { kind: 'update_field', table: 'projects', record_id: UUID_A, field: 'location', value: 'Tooele, UT', record_label: 'Tooele' },
     { kind: 'create_contact', full_name: 'A B', title: 'CRO', company: 'Acme' },
     { kind: 'create_task', title: 'Call the recorder', due_date: '2026-11-04' },
     { kind: 'add_note', target: 'party', record_id: UUID_A, body: 'Met at the delegation dinner.' },
     { kind: 'tag_records', table: 'parties', record_ids: [UUID_A, UUID_B], add: ['reviewed'], remove: ['stale'] },
-  ]
+    { kind: 'link_thread', thread_id: UUID_A, record_kind: 'project', record_id: UUID_B, record_label: 'Whiskey (TX)', evidence: 'Executed PSA from the seller’s counsel.' },
+    { kind: 'add_player', party_id: UUID_A, record_kind: 'project', record_id: UUID_B, record_label: 'Whiskey (TX)', party_label: 'Taylor Englert', role: 'Seller' },
+    { kind: 'create_record', record_kind: 'opportunity', name: 'Zorro (TX)', location: 'Texas', evidence: 'Signed LOI and a dated site visit.' },
+]
+
+test('every kind describes itself without NaN, undefined or [object Object]', () => {
+  const samples = DESCRIBE_SAMPLES
   const seen = new Set<string>()
   for (const raw of samples) {
     const line = describeOperation(ok(raw))
@@ -237,7 +243,132 @@ test('every kind describes itself without NaN, undefined or [object Object]', ()
   assert.equal(seen.size, samples.length)
 })
 
-test('every kind in the vocabulary has a describe branch', () => {
-  // Guards the §12 drift: a new kind added to the union and not to the renderer.
-  assert.equal(OPERATION_KINDS.length, 5)
+test('every kind in the vocabulary has a sample, a validator and a describe line', () => {
+  /*
+    ⚠ THIS ASSERTED `OPERATION_KINDS.length === 5` AND THAT IS THE WRONG SHAPE.
+    §12: a test that hardcodes the value it verifies is testing the COPY. It
+    could only ever say "the number changed", which the author already knows,
+    and the way to make it pass was to edit the number — so adding a kind with
+    no describe branch and no sample would have been one keystroke from green.
+
+    Derived instead: the sample set above must COVER the vocabulary, so a verb
+    added to `OPERATION_KINDS` with no fixture fails here by name, and
+    `describeOperation`'s exhaustive switch fails at compile time. Together they
+    are the ratchet the magic number was pretending to be.
+  */
+  const covered = new Set(DESCRIBE_SAMPLES.map((raw) => (raw as { kind: string }).kind))
+  const missing = OPERATION_KINDS.filter((k) => !covered.has(k))
+  assert.deepEqual(missing, [], `no describe fixture for: ${missing.join(', ')}`)
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// The three filing verbs (2026-10-29).
+//
+// ⚠ THESE EXIST BECAUSE THE VERBS WERE ADDED TO LET A JOB WORK A BACKLOG OF
+// 1,823 UNFILED THREADS, and the failure mode of that work is not a crash — it
+// is a plausible edit that lands on sixty rows and is noticed six weeks later,
+// which is the exact hazard `operations.ts` opens by naming. So the assertions
+// below are mostly about what the validator REFUSES.
+// ─────────────────────────────────────────────────────────────────────────────
+
+test('link_thread needs both uuids and a record kind the schema can take', () => {
+  const ok = validateOperation({
+    kind: 'link_thread', thread_id: UUID_A, record_kind: 'project',
+    record_id: UUID_B, evidence: 'Executed PSA for the site, from the seller’s counsel.',
+  })
+  assert.equal(typeof ok === 'string' ? ok : ok.kind, 'link_thread')
+
+  // A steel deal is a destination two of the three verbs cannot reach.
+  assert.equal(typeof validateOperation({
+    kind: 'link_thread', thread_id: UUID_A, record_kind: 'steel_deal',
+    record_id: UUID_B, evidence: 'x',
+  }), 'string')
+  // A name where an id belongs — the commonest model slip.
+  assert.equal(typeof validateOperation({
+    kind: 'link_thread', thread_id: 'Whiskey', record_kind: 'project',
+    record_id: UUID_B, evidence: 'x',
+  }), 'string')
+})
+
+test('link_thread REFUSES a proposal with no evidence', () => {
+  // ⚠ Evidence is required here where it is optional on update_field. The
+  // reviewer presses on one line, and filing onto the wrong deal answers for
+  // that deal until somebody notices — so a proposal that cannot say why is
+  // not a proposal.
+  const r = validateOperation({
+    kind: 'link_thread', thread_id: UUID_A, record_kind: 'project', record_id: UUID_B,
+  })
+  assert.equal(typeof r, 'string')
+  assert.match(r as string, /evidence/)
+  assert.equal(typeof validateOperation({
+    kind: 'link_thread', thread_id: UUID_A, record_kind: 'project', record_id: UUID_B, evidence: '   ',
+  }), 'string')
+})
+
+test('add_player carries the prose role through and tolerates its absence', () => {
+  const r = validateOperation({
+    kind: 'add_player', party_id: UUID_A, record_kind: 'opportunity',
+    record_id: UUID_B, role: 'Seller’s counsel',
+  })
+  assert.notEqual(typeof r, 'string')
+  assert.equal((r as { role: string | null }).role, 'Seller’s counsel')
+  const bare = validateOperation({
+    kind: 'add_player', party_id: UUID_A, record_kind: 'project', record_id: UUID_B,
+  })
+  // No role is legal — the write defaults it. A guess would be worse.
+  assert.notEqual(typeof bare, 'string')
+  assert.equal((bare as { role: string | null }).role, null)
+})
+
+test('create_record refuses an abbreviation, a missing name and missing evidence', () => {
+  assert.equal(typeof validateOperation({ kind: 'create_record', record_kind: 'project', name: 'XY', evidence: 'x' }), 'string')
+  assert.equal(typeof validateOperation({ kind: 'create_record', record_kind: 'project', evidence: 'x' }), 'string')
+  assert.equal(typeof validateOperation({ kind: 'create_record', record_kind: 'project', name: 'Whiskey (TX)' }), 'string')
+  const ok = validateOperation({
+    kind: 'create_record', record_kind: 'project', name: 'Whiskey (TX)',
+    evidence: 'Signed LOI and a dated site visit in correspondence.',
+  })
+  assert.equal(typeof ok === 'string' ? ok : ok.kind, 'create_record')
+})
+
+test('create_record never carries a negative or non-numeric value', () => {
+  // §12: a money figure must carry its shape, and a rolled-up sum with nothing
+  // in it is NULL rather than 0.
+  const neg = validateOperation({
+    kind: 'create_record', record_kind: 'project', name: 'Something Real', evidence: 'e', estimated_value: -5,
+  })
+  assert.equal((neg as { estimated_value: number | null }).estimated_value, null)
+  const txt = validateOperation({
+    kind: 'create_record', record_kind: 'project', name: 'Something Real', evidence: 'e', estimated_value: '12m',
+  })
+  assert.equal((txt as { estimated_value: number | null }).estimated_value, null)
+})
+
+test('every new verb is in OPERATION_KINDS, or the model is never told it exists', () => {
+  // ⚠ The declaration the model reads is built from this list (run.ts), and the
+  // validator refuses any kind not on it. A verb implemented but left off the
+  // list is a verb that can never fire — the §12 shape where a curated
+  // vocabulary only one caller reads is decoration.
+  for (const k of ['link_thread', 'add_player', 'create_record']) {
+    assert.ok(OPERATION_KINDS.includes(k as never), `${k} missing from OPERATION_KINDS`)
+  }
+})
+
+test('describeOperation gives every kind a line a reviewer can read', () => {
+  // A row with no sentence is a row nobody can press — and the switch is
+  // exhaustive, so a kind added without a description fails to compile. This
+  // asserts the SENTENCE is useful, which tsc cannot.
+  const lines = [
+    describeOperation({ kind: 'link_thread', thread_id: UUID_A, record_kind: 'project', record_id: UUID_B, record_label: 'Whiskey (TX)', evidence: 'Executed PSA' }),
+    describeOperation({ kind: 'add_player', party_id: UUID_A, record_kind: 'project', record_id: UUID_B, record_label: 'Whiskey (TX)', party_label: 'Taylor Englert', role: 'Seller' }),
+    describeOperation({ kind: 'create_record', record_kind: 'opportunity', name: 'Zorro (TX)', evidence: 'Signed LOI', location: 'Texas' }),
+  ]
+  for (const l of lines) {
+    assert.ok(l.length > 10, `too short: ${l}`)
+    assert.ok(!l.includes('undefined'), `leaks undefined: ${l}`)
+    assert.ok(!/\[object/.test(l), `leaks an object: ${l}`)
+  }
+  assert.match(lines[0], /Whiskey \(TX\)/)
+  assert.match(lines[1], /Taylor Englert/)
+  assert.match(lines[2], /Zorro/)
 })

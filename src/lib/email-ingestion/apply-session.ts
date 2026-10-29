@@ -46,7 +46,7 @@ import {
 import type { createAdminClient } from '@/lib/supabase/admin'
 import type { Tables, TablesInsert, JsonIn, TablesUpdate } from '@/lib/supabase/types'
 import type { ConfirmBody } from '@/lib/email-ingestion/defaults'
-import { categorizePlayerRole } from '@/lib/contacts/roles'
+import { addPlayerToRecord, loadPlayerRoll } from '@/lib/records/players'
 
 type AdminClient = ReturnType<typeof createAdminClient>
 type SessionRow = Tables<'email_intake_sessions'>
@@ -253,22 +253,13 @@ export async function applySession(
   // ── 2. People → parties (match/create) + players on the record ─────────────
   //
   // On an EXISTING record the same person may already hold the same role, and
-  // (project_id, party_id, role) is a unique constraint — so the insert would
-  // fail rather than no-op. It cannot be an upsert either: the opportunity side
-  // of that constraint is a PARTIAL unique index, which PostgREST has no way to
-  // name as a conflict target (§12). So read the roll first and skip what is
-  // already there, and count the skips rather than swallowing them.
-  const existingRoles = new Set<string>()
-  if (attached) {
-    const col = projectId ? 'project_id' : 'opportunity_id'
-    const { data: currentPlayers } = await supabase
-      .from('project_players')
-      .select('party_id, role')
-      .eq(col, recordId)
-    for (const p of currentPlayers ?? []) {
-      existingRoles.add(`${p.party_id}:${(p.role ?? '').toLowerCase()}`)
-    }
-  }
+  // the constraint behind that is awkward enough to have its own module —
+  // `src/lib/records/players.ts`, which is now the ONE write path (§12: never
+  // fork a shared pass, add a caller). The roll is read ONCE here and handed
+  // down, so a session with twenty people costs one query rather than twenty.
+  const existingRoles = attached
+    ? await loadPlayerRoll(supabase, projectId ? 'project' : 'opportunity', recordId)
+    : new Set<string>()
 
   let playersAlreadyLinked = 0
   const linkedPeople: { id: string; name: string; role: string | null }[] = []
@@ -298,26 +289,15 @@ export async function applySession(
     ids.party_ids.push(partyId)
     linkedPeople.push({ id: partyId, name: p.name, role: str(p.role) })
 
-    const role = str(p.role) ?? 'Contact'
-    if (existingRoles.has(`${partyId}:${role.toLowerCase()}`)) {
-      playersAlreadyLinked++
-      continue
-    }
-
-    // project_players hangs off EITHER a project or an opportunity since
-    // 20260923000002 (nullable project_id + nullable opportunity_id,
-    // exactly-one check).
-    const { error: playerErr } = await supabase.from('project_players').insert({
-      project_id: projectId,
-      opportunity_id: opportunityId,
-      party_id: partyId,
-      role,
-      // The prose goes on `role`; the category comes from the ONE registry
-      // (§4, 2026-10-21). Null when nothing is certain — never a guess.
-      role_key: await categorizePlayerRole(role),
+    const outcome = await addPlayerToRecord(supabase, {
+      kind: projectId ? 'project' : 'opportunity',
+      recordId,
+      partyId,
+      role: str(p.role),
+      roll: existingRoles,
     })
-    if (playerErr) console.error('Link player failed:', playerErr.message)
-    else existingRoles.add(`${partyId}:${role.toLowerCase()}`)
+    if (outcome.alreadyThere) playersAlreadyLinked++
+    else if (outcome.error) console.error('Link player failed:', outcome.error)
   }
 
   // A readable roll-call on the opportunity's feed, alongside the real links.

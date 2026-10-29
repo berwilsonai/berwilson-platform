@@ -29,6 +29,10 @@ import { applyFieldUpdates } from '@/lib/provenance/write'
 import { logEntry } from '@/lib/records/log-entry'
 import { hiddenProjectIds } from '@/lib/security/confidential'
 import { matchDirectory } from '@/lib/contacts/directory-match'
+import { upsertLink } from '@/lib/email-sweep/route-phase'
+import { addPlayerToRecord } from '@/lib/records/players'
+import { createRecordFromFields } from '@/lib/email-ingestion/confirm-helpers'
+import { resolveRecordByName } from '@/lib/records/resolve'
 import { describeOperation, toFieldUpdate, type JobOperation } from './operations'
 
 export interface OperationOutcome {
@@ -265,5 +269,143 @@ async function applyOne(
       ].filter(Boolean).join('; ')
       return { status: changed > 0 ? 'applied' : 'skipped', detail }
     }
+
+    // ── File a conversation onto a deal ────────────────────────────────────
+    case 'link_thread': {
+      if (op.record_kind === 'project' && ctx.hidden.has(op.record_id)) {
+        return { status: 'skipped', detail: 'that record is protected — a bulk pass does not write to it' }
+      }
+      // Both ends are read back before anything is written, for the reason the
+      // refile route reads its destination: a dangling id files the
+      // conversation nowhere while the queue reports it done (§12).
+      const { data: thread } = await db
+        .from('email_threads').select('id, subject').eq('id', op.thread_id).maybeSingle()
+      if (!thread) return { status: 'failed', detail: 'that conversation no longer exists' }
+      const dest = await readRecord(db, op.record_kind, op.record_id)
+      if (!dest) return { status: 'failed', detail: `that ${op.record_kind} no longer exists` }
+
+      const { data: already } = await db
+        .from('thread_links').select('id, certainty')
+        .eq('thread_id', op.thread_id)
+        .eq('record_kind', op.record_kind)
+        .eq('record_id', op.record_id)
+        .maybeSingle()
+      const prior = already as { certainty: string } | null
+      if (prior?.certainty === 'linked') {
+        return { status: 'skipped', detail: `already filed on ${dest.name}`, recordId: op.record_id }
+      }
+
+      /*
+        `certainty: 'linked'` and `appliedMessageCount: 0`.
+
+        A person pressed apply, which is an assertion and not a guess — the same
+        standing a human filing decision has everywhere else (§12). Zero is what
+        makes the link WORTH something: the apply phase then delivers the whole
+        conversation to the record, exactly as it does for an inferred link that
+        a human confirmed. Seeding it at the current message count would file a
+        thread that the record never hears a word of.
+      */
+      await upsertLink(
+        op.thread_id,
+        op.record_kind,
+        op.record_id,
+        'linked',
+        null,
+        `filed by ${ctx.actorLabel}: ${op.evidence}`,
+        0
+      )
+      return { status: 'applied', detail: `filed onto ${dest.name}`, recordId: op.record_id }
+    }
+
+    // ── Put a known contact on a deal ──────────────────────────────────────
+    case 'add_player': {
+      if (op.record_kind === 'project' && ctx.hidden.has(op.record_id)) {
+        return { status: 'skipped', detail: 'that record is protected — a bulk pass does not write to it' }
+      }
+      const dest = await readRecord(db, op.record_kind, op.record_id)
+      if (!dest) return { status: 'failed', detail: `that ${op.record_kind} no longer exists` }
+      const { data: party } = await db
+        .from('parties').select('id, full_name, merged_into_party_id').eq('id', op.party_id).maybeSingle()
+      const row = party as { id: string; full_name: string | null; merged_into_party_id: string | null } | null
+      if (!row) return { status: 'failed', detail: 'that contact no longer exists' }
+      // ⚠ A MERGED CONTACT IS A TOMBSTONE, not a person (§4). Putting one on a
+      // deal would resurrect a duplicate the directory has already retired.
+      if (row.merged_into_party_id) {
+        return { status: 'skipped', detail: `${row.full_name ?? 'that contact'} was merged into another contact` }
+      }
+      const outcome = await addPlayerToRecord(db, {
+        kind: op.record_kind,
+        recordId: op.record_id,
+        partyId: op.party_id,
+        role: op.role,
+      })
+      if (outcome.error) return { status: 'failed', detail: outcome.error }
+      if (outcome.alreadyThere) {
+        return { status: 'skipped', detail: `already on ${dest.name} in that role`, recordId: op.record_id }
+      }
+      return {
+        status: 'applied',
+        detail: `${row.full_name ?? 'contact'} added to ${dest.name}`,
+        recordId: op.record_id,
+      }
+    }
+
+    // ── Open a project or an opportunity ───────────────────────────────────
+    case 'create_record': {
+      /*
+        ⚠ THE DUPLICATE CHECK IS HERE AND NOT IN THE VALIDATOR, because the
+        validator is pure and this needs the register. A name the platform
+        already answers to is not a new deal — it is a filing the model should
+        have proposed instead, and creating it would split one deal's
+        correspondence across two records, which is the open item §13 already
+        carries about the two Alaska records.
+      */
+      const existing = await resolveRecordByName([op.name]).catch(() => null)
+      const hit = existing?.target ?? null
+      if (hit) {
+        return {
+          status: 'skipped',
+          detail: `"${op.name}" already exists as the ${hit.kind} ${hit.name} — file onto it instead`,
+          recordId: hit.id,
+        }
+      }
+      const result = await createRecordFromFields(
+        db as unknown as Parameters<typeof createRecordFromFields>[0],
+        op.record_kind,
+        {
+          name: op.name,
+          description: op.description,
+          location: op.location,
+          sector: op.sector,
+          stage: op.stage,
+          client_entity: op.client_entity,
+          estimated_value: op.estimated_value,
+        },
+        { source: `job ${ctx.jobId}` }
+      )
+      if (result.error || !result.id) {
+        return { status: 'failed', detail: result.error ?? 'could not create the record' }
+      }
+      return {
+        status: 'applied',
+        detail: `${op.record_kind} "${op.name}" created`,
+        recordId: result.id,
+      }
+    }
   }
+}
+
+/** A linkable record, read back by id before anything is written against it. */
+async function readRecord(
+  db: SupabaseClient<Database>,
+  kind: 'project' | 'opportunity',
+  id: string
+): Promise<{ id: string; name: string } | null> {
+  const { data } = await db
+    .from(kind === 'project' ? 'projects' : 'opportunities')
+    .select('id, name')
+    .eq('id', id)
+    .maybeSingle()
+  const row = data as { id: string; name: string | null } | null
+  return row ? { id: row.id, name: row.name ?? kind } : null
 }

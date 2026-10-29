@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import { OPERATION_PRESENTATION } from '@/lib/jobs/operations'
 import { useRouter } from 'next/navigation'
 import { Check, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -14,21 +15,22 @@ export interface ReviewRow {
   evidence: string | null
 }
 
-const KIND_TONE: Record<string, string> = {
-  update_field: 'info',
-  create_contact: 'teal',
-  create_task: 'indigo',
-  add_note: 'violet',
-  tag_records: 'neutral',
-}
+/*
+  ⚠ DERIVED FROM THE VOCABULARY, NOT WRITTEN OUT. These were two hand-written
+  maps keyed by `string`, each falling back to the raw token — so a verb added
+  to `operations.ts` got a count and a chip reading `link_thread`, and nothing
+  failed. §12 records this exact drift being fixed in /decide's count map and
+  then repeated in its chip row, and again in the Documents tab. The registry
+  is typed `Record<JobOperationKind, …>`, so the next verb fails the build
+  until it has a label.
+*/
+const KIND_TONE = Object.fromEntries(
+  Object.entries(OPERATION_PRESENTATION).map(([k, v]) => [k, v.tone])
+) as Record<string, string>
 
-const KIND_LABEL: Record<string, string> = {
-  update_field: 'Field',
-  create_contact: 'Contact',
-  create_task: 'Task',
-  add_note: 'Note',
-  tag_records: 'Tags',
-}
+const KIND_LABEL = Object.fromEntries(
+  Object.entries(OPERATION_PRESENTATION).map(([k, v]) => [k, v.label])
+) as Record<string, string>
 
 /**
  * Tick what actually happens.

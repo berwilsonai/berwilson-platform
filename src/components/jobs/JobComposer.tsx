@@ -9,15 +9,23 @@ import { Field, Textarea } from '@/components/ui/field'
 /**
  * Give the working assistant a task.
  *
- * The examples are deliberately the three SHAPES rather than three pretty
- * sentences: a question over the corpus, an audit that proposes fixes, and a
- * bulk change. A reader who sees only one shape assumes the other two are not
- * possible.
+ * The examples are deliberately the SHAPES rather than pretty sentences: a
+ * backlog to work, an audit that proposes fixes, a question over the corpus,
+ * and a bulk change. A reader who sees only one shape assumes the others are
+ * not possible.
+ *
+ * ⚠ THE FILING ONE LEADS (10-29), because it is the shape nobody could have
+ * guessed was available: until the job gained `search_correspondence` it could
+ * not see a single email, and 1,823 of 2,080 deal threads are on no record.
+ * Richard asked for exactly this in his own words — *"scrub through data to
+ * clean it up"* — so the example is written the way he said it rather than in
+ * the vocabulary of the verbs underneath.
  */
 const EXAMPLES = [
+  'Find the correspondence about Whiskey (TX) that is not filed onto the project yet. Read each thread before you decide — a newsletter that mentions the town is not about the deal. Propose filing the ones that really are about it, and propose adding the counterparty contacts on those threads as players on the project.',
   'Go through every contact with no company and work out where they are from — their email domain, the threads they appear in, any document that names them. Propose filling the blank ones you are confident about and list the ones you are not.',
   'Which of our projects have a milestone that is past due and not marked complete? Name the project, the milestone and how many days over.',
-  'Read the Flightech delegation contacts and tell me which of them are worth a follow-up given what we build. Group them by why.',
+  'Read the unfiled deal mail from the last sixty days and tell me whether any of it is work we have no record for. Propose opening a project or an opportunity only where something was actually signed, bid or negotiated.',
 ]
 
 export default function JobComposer() {

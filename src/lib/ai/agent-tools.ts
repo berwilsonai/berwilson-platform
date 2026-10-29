@@ -14,6 +14,8 @@ import { generateDraft } from './draft'
 import { parseTranches, raiseLevels, fillTranches } from '@/lib/investors/raises'
 import { moduleTools, executeModuleTool, MODULE_TOOL_NAMES } from './agent-tools-modules'
 import { correspondenceRecency } from '@/lib/email-sweep/filed-threads'
+import { escapeLike } from '@/lib/records/resolve'
+import { searchWords, matchesWords } from '@/lib/utils/search'
 import { INVESTMENT_TARGET_KINDS, investmentTargetLabel } from '@/lib/utils/investors'
 import { categorizePlayerRole, listContactRoles, partyRoleMap } from '@/lib/contacts/roles'
 import type { AgentContext } from './agent'
@@ -393,6 +395,51 @@ export const agentTools = [
     },
   },
   {
+    /**
+     * ⚠ NOTHING COULD SEE CORRESPONDENCE UNTIL NOW, which is why a job asked to
+     * "file the mail about Whiskey onto the Whiskey project" could only answer
+     * from projects it already knew about. Measured 2026-10-29: **1,823 of
+     * 2,080 deal threads (88%) are linked to no record at all**, and the
+     * agent's 22 tools reached none of them.
+     */
+    name: 'search_correspondence',
+    description:
+      'Search the swept email, text and recording threads — the raw correspondence, as opposed to what has already been filed onto a record. ' +
+      'Returns the subject, date, participants, the summary, and WHICH records each thread is already linked to (empty means it is filed nowhere). ' +
+      'Pass only_unfiled to see just the ones on no record, which is where almost all of the backlog is. ' +
+      'Use this to find the mail about a deal, then get_thread_content to read one before deciding anything about it.',
+    parameters: {
+      type: 'object',
+      properties: {
+        query: {
+          type: 'string',
+          description:
+            'Words to look for in the subject, the summary and the body. Every word must appear somewhere in the thread. Omit to list by date.',
+        },
+        only_unfiled: {
+          type: 'boolean',
+          description: 'True returns only threads linked to no project or opportunity.',
+        },
+        record_id: { type: 'string', description: 'Optional: only threads already linked to this project or opportunity.' },
+        limit: { type: 'number', description: 'Up to 100, default 25.' },
+      },
+    },
+  },
+  {
+    name: 'get_thread_content',
+    description:
+      'Read one correspondence thread in full — every message, in order, with senders and dates. Use it before proposing that a thread belongs to a deal: the subject alone is not evidence. ' +
+      'Long threads come back one window at a time; call again with the offset it gives you.',
+    parameters: {
+      type: 'object',
+      properties: {
+        thread_id: { type: 'string', description: 'UUID from search_correspondence.' },
+        offset: { type: 'number', description: 'Character offset to resume from. Omit for the start.' },
+      },
+      required: ['thread_id'],
+    },
+  },
+  {
     name: 'get_document_content',
     description: 'Fetch the stored full text of an uploaded document so you can quote or analyze its actual contents (proposals, contracts, RFPs, CIMs). Use after search_knowledge_base or query_opportunity surfaces a relevant document. Returns the file name, AI summary, and a window of extracted text. Long documents come back one window at a time: when the result says truncated, call this again with the offset it gives you and keep going until you reach the end or have found what you need — a legal description, an acreage schedule or a payment table is often far past the first window.',
     parameters: {
@@ -508,12 +555,41 @@ export async function executeToolCall(
   return value
 }
 
+/**
+ * Project and opportunity names by id, for printing a link as something a
+ * reader recognises.
+ *
+ * ⚠ The model must never be made to look an id up by hand — §12: never make the
+ * model count rows, print the count. The same applies to naming one.
+ */
+async function recordNames(
+  supabase: ReturnType<typeof createAdminClient>
+): Promise<Map<string, string>> {
+  const [{ data: projects }, { data: opportunities }] = await Promise.all([
+    supabase.from('projects').select('id, name'),
+    supabase.from('opportunities').select('id, name'),
+  ])
+  const out = new Map<string, string>()
+  for (const r of [...(projects ?? []), ...(opportunities ?? [])]) {
+    const row = r as { id: string; name: string | null }
+    if (row.name) out.set(row.id, row.name)
+  }
+  return out
+}
+
 async function executeToolCallInner(
   toolName: string,
   args: Record<string, unknown>,
   context: AgentContext
 ): Promise<unknown> {
   const supabase = createAdminClient()
+  /*
+    The protected set, for the two tools that must filter on something OTHER
+    than a `project_id` column. `executeToolCall` applies the generic scrub to
+    whatever comes back; a correspondence thread names its record through
+    `thread_links`, which that scrub cannot see.
+  */
+  const hiddenIds = await hiddenProjectIds(null)
 
   switch (toolName) {
     case 'query_project_data': {
@@ -1848,6 +1924,180 @@ async function executeToolCallInner(
             : {}),
         })),
         hint: 'Call get_document_content with a document id to read its stored text; long documents return one window at a time, so follow next_offset (or pass find:"<phrase>") until you have what you need. Documents carrying unreadable_because hold NO text — never fetch those twice; report them as gaps naming the file and why.',
+      }
+    }
+
+    /*
+      The raw correspondence backlog.
+
+      ⚠ CONTAINMENT IS APPLIED HERE, NOT LEFT TO `scrubHiddenProjects`. That
+      scrubber walks a result for `project_id` fields; a thread carries its
+      record only through `thread_links`, so a conversation on a protected
+      project would have come back whole with its subject, its participants and
+      its summary, and nothing downstream could see that it needed removing
+      (§12 — a nullable pointer added to a table filtered by a DIFFERENT pointer
+      breaks an existing security filter without touching it). The count of what
+      was withheld goes back with the answer, because withholding from a model
+      means handing it the COUNT of what was withheld.
+    */
+    case 'search_correspondence': {
+      const limit = Math.min(Math.max(Number(args.limit) || 25, 1), 100)
+      const onlyUnfiled = args.only_unfiled === true
+      const recordId = typeof args.record_id === 'string' ? args.record_id : null
+
+      // Every link, once — the table is small (≈1k rows) and a per-thread
+      // lookup would be one round trip per result.
+      const links = new Map<string, Array<{ kind: string; id: string }>>()
+      for (let from = 0; ; from += 1000) {
+        const { data } = await supabase
+          .from('thread_links')
+          .select('thread_id, record_kind, record_id')
+          .range(from, from + 999)
+        for (const l of data ?? []) {
+          const row = l as { thread_id: string; record_kind: string; record_id: string }
+          links.set(row.thread_id, [
+            ...(links.get(row.thread_id) ?? []),
+            { kind: row.record_kind, id: row.record_id },
+          ])
+        }
+        if (!data || data.length < 1000) break
+      }
+
+      // The same splitter and the same test /decide's queue filter uses — one
+      // definition of "every word, any order", covered by `search.test.ts`
+      // (§12: grep for a renderer before building one).
+      const words = searchWords(typeof args.query === 'string' ? args.query : '')
+      /*
+        ⚠ EVERY WORD IS TESTED AGAINST THE SAME HAYSTACK, which the first
+        version of this did not do. It narrowed in SQL on `words[0]` against the
+        BODY and then required the remaining words in the subject and summary
+        only — a much smaller text — so `steelton cleveland` returned 1 thread
+        out of the ~84 whose bodies carry both. Two different tests wearing one
+        query is the shape §12 warns about in a keyword search: the caller reads
+        the shortfall as "there is nothing", which is the one wrong answer.
+
+        So the SQL narrow picks the LONGEST word (longer runs rarer in this
+        corpus, and it only has to reduce the set), and when there is more than
+        one word the body comes back with the rows and every word is required in
+        subject + summary + body alike. Pulling bodies is only affordable
+        BECAUSE of the narrow — unfiltered this would be tens of megabytes.
+      */
+      const needsBody = words.length > 1
+      /*
+        ⚠ THE TWO SELECTS ARE WRITTEN OUT, NOT BUILT. The generated client infers
+        a row type from the select string as a LITERAL, so a computed column list
+        degrades to `GenericStringError[]` and every read of it needs a cast — and
+        §12 names `as unknown as` as the cast that defeats the excess-property
+        check and hid a dropped column all the way to production. Two literals
+        cost a few lines and keep `tsc` able to see the columns.
+      */
+      const narrow = words.length > 0
+        ? words.reduce((a, b) => (b.length > a.length ? b : a))
+        : null
+      // The SQL narrow uses the LONGEST word: it only has to reduce the set, and
+      // longer runs rarer in this corpus. Pulling bodies below is affordable
+      // only because of it.
+      const withBody = () => {
+        const q = supabase
+          .from('email_threads')
+          .select('id, subject, mailbox, participants, first_at, last_at, message_count, attachment_count, summary, raw_markdown')
+          .eq('pipeline', 'deal')
+          .order('last_at', { ascending: false })
+        return narrow ? q.ilike('raw_markdown', `%${escapeLike(narrow)}%`) : q
+      }
+      const withoutBody = () => {
+        const q = supabase
+          .from('email_threads')
+          .select('id, subject, mailbox, participants, first_at, last_at, message_count, attachment_count, summary')
+          .eq('pipeline', 'deal')
+          .order('last_at', { ascending: false })
+        return narrow ? q.ilike('raw_markdown', `%${escapeLike(narrow)}%`) : q
+      }
+      const { data: rows, error } = needsBody
+        ? await withBody().limit(400)
+        : await withoutBody().limit(400)
+      if (error) return { error: error.message }
+
+      const names = await recordNames(supabase)
+      const out: unknown[] = []
+      let withheld = 0
+      for (const r of (rows ?? []) as Array<Record<string, unknown>>) {
+        const id = r.id as string
+        const on = links.get(id) ?? []
+        if (on.some((l) => l.kind === 'project' && hiddenIds.has(l.id))) { withheld++; continue }
+        const filed = on.filter((l) => l.kind === 'project' || l.kind === 'opportunity')
+        if (onlyUnfiled && filed.length > 0) continue
+        if (recordId && !filed.some((l) => l.id === recordId)) continue
+        const summary = (r.summary ?? null) as { summary?: string; deal_name?: string } | null
+        const hay = [r.subject, summary?.summary, summary?.deal_name, needsBody ? r.raw_markdown : null]
+          .filter(Boolean).join(' ').toLowerCase()
+        if (needsBody && !matchesWords(hay, words)) continue
+        out.push({
+          thread_id: id,
+          subject: r.subject,
+          mailbox: r.mailbox,
+          last_at: r.last_at,
+          messages: r.message_count,
+          attachments: r.attachment_count,
+          participants: (r.participants as string[] | null) ?? [],
+          summary: summary?.summary ?? null,
+          deal_name_from_summary: summary?.deal_name ?? null,
+          filed_on: filed.map((l) => ({ kind: l.kind, id: l.id, name: names.get(l.id) ?? null })),
+        })
+        if (out.length >= limit) break
+      }
+      return {
+        threads: out,
+        returned: out.length,
+        ...(withheld > 0 ? { withheld_protected: withheld } : {}),
+        note: out.length === 0
+          ? 'No thread matched. Every word of the query must appear in the thread.'
+          : 'filed_on empty means this conversation is on no record.',
+      }
+    }
+
+    case 'get_thread_content': {
+      const threadId = args.thread_id as string
+      if (!threadId) return { error: 'thread_id is required.' }
+      const { data: onRows } = await supabase
+        .from('thread_links')
+        .select('record_kind, record_id')
+        .eq('thread_id', threadId)
+      for (const l of (onRows ?? []) as Array<{ record_kind: string; record_id: string }>) {
+        if (l.record_kind === 'project' && hiddenIds.has(l.record_id)) {
+          return { error: 'That conversation belongs to a protected project and is not available to Ber AI.' }
+        }
+      }
+      const { data, error } = await supabase
+        .from('email_threads')
+        .select('id, subject, mailbox, participants, first_at, last_at, message_count, raw_markdown, summary')
+        .eq('id', threadId)
+        .maybeSingle()
+      if (error) return { error: error.message }
+      if (!data) return { error: 'No such thread.' }
+      const row = data as Record<string, unknown>
+      const text = (row.raw_markdown as string | null) ?? ''
+      const WINDOW = Number(process.env.AGENT_DOC_WINDOW_CHARS) || 20_000
+      const offset = Math.max(0, Number(args.offset) || 0)
+      const slice = text.slice(offset, offset + WINDOW)
+      return {
+        thread_id: row.id,
+        subject: row.subject,
+        mailbox: row.mailbox,
+        participants: (row.participants as string[] | null) ?? [],
+        first_at: row.first_at,
+        last_at: row.last_at,
+        messages: row.message_count,
+        summary: ((row.summary ?? null) as { summary?: string } | null)?.summary ?? null,
+        content: slice,
+        // ⚠ "no text" must say WHY — permanent reads differently from transient
+        // (§12). A thread with no body was swept before bodies were stored.
+        ...(text.length === 0
+          ? { note: 'This thread has no stored body text — only its summary and participants.' }
+          : {}),
+        ...(offset + WINDOW < text.length
+          ? { truncated: true, next_offset: offset + WINDOW, total_chars: text.length }
+          : {}),
       }
     }
 
