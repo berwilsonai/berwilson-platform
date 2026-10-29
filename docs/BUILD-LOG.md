@@ -50,7 +50,9 @@ At maxDf=20, reading the 28: `[heber] Business in Utah — June 25, 2026` (a **n
 
 ── WHAT WAS BUILT ─────────────────────────────────────────────────────────
 
-**Two read tools, because the job could not see a single email.** `search_correspondence` (subject, date, participants, summary, and WHICH records each thread is already on — empty meaning filed nowhere; `only_unfiled` for the backlog) and `get_thread_content` (windowed, with a continuation offset). The agent's 22 existing tools reached `email_threads` not once.
+**One capability added to the tool that already existed** — `search_email_threads` gains `only_unfiled` and returns `filed_on` for every result (which records the thread is already on; empty meaning none). That is the one thing neither existing correspondence tool did.
+
+⚠ **AND THE FIRST VERSION OF THIS BUILT TWO NEW TOOLS INSTEAD, WHICH SHIPPED A REGRESSION. See the section at the end.**
 
 ⚠ **CONTAINMENT IS APPLIED IN THE TOOL, NOT LEFT TO THE GENERIC SCRUB.** `executeToolCall` scrubs results by walking them for `project_id`; a thread names its record only through `thread_links`, so a conversation on a protected project would have come back whole — subject, participants, summary — with nothing downstream able to see it needed removing. That is §12's *a nullable pointer added to a table filtered by a DIFFERENT pointer breaks an existing security filter without touching it*, arriving from the other side. The withheld COUNT goes back with the answer.
 
@@ -82,13 +84,25 @@ Its two proposals verified against the database: Merlin Corbin on the *Whiskey -
 
 **2. The tone I first gave it does not exist.** `amber` is not one of the thirteen declared tones, and `Chip` passes an unknown string through as CLASS NAMES — its documented bridge for the legacy `*_BADGE` triples. So the chip would have rendered unstyled, green through typecheck and build: §12's *a Tailwind class string stored in the database is never generated*, arriving through the one escape hatch left open on purpose. The field is typed `Tone`; a planted `amber` now fails the build, proven.
 
-**3. One query, two haystacks.** `search_correspondence` narrowed in SQL on `words[0]` against the BODY and then required the remaining words in the subject and summary only — a far smaller text. `steelton cleveland` returned **1** thread out of the ~84 whose bodies carry both, and the caller would read that as "there is nothing". The SQL narrow now picks the LONGEST word and, when there is more than one, the body comes back with the rows and every word is tested against the same text: **1 → 10**. Routed through `matchesWords`/`searchWords` from yesterday's shared helper rather than a third copy.
+**3. One query, two haystacks.** The keyword search I wrote narrowed in SQL on `words[0]` against the BODY and then required the remaining words in the subject and summary only — a far smaller text. `steelton cleveland` returned **1** thread out of the ~84 whose bodies carry both, and the caller would read that as "there is nothing". Fixed to test every word against the same text (1 → 10), and then the whole tool was deleted as a duplicate — but the trap is general and is why the rule is recorded.
 
 ⚠ **AND THE `OPERATION_KINDS.length === 5` CANARY WAS TESTING THE COPY.** It could only ever say "the number changed", and the way to make it pass was to edit the number — so adding a verb with no describe branch and no fixture was one keystroke from green. It now derives from the fixture list and fails by NAME; a planted `planted_violation` kind proved it.
 
 ── VERIFICATION ───────────────────────────────────────────────────────────
 
-824 tests (up from 817), lint at the frozen 23, typecheck clean, build 0. All three executors exercised end to end against the live database on a throwaway record — created, linked, playered, each repeat skipped, a dangling id failed — then deleted, leaving 0 rows. `search_correspondence` timed at 120–370ms. **Deployed.**
+828 tests (up from 817), lint at the frozen 23, typecheck clean, build 0. All three executors exercised end to end against the live database on a throwaway record — created, linked, playered, each repeat skipped, a dangling id failed — then deleted, leaving 0 rows. **Deployed.**
+
+── ⚠ AND THEN I SHIPPED A DUPLICATE TOOL NAME AND HAD TO UNDO IT ──────────
+
+The first version of this work added `search_correspondence` and `get_thread_content` to `agent-tools.ts`. **`agent-tools-modules.ts` has had a `search_correspondence` since it was written** — a SEMANTIC search over message bodies AND attachment text, which the agent prompt explicitly directs the model to for *"what was actually said, agreed, quoted, required, or scheduled in email"*, and which `get_record_brief` is built around. `get_thread_content` was the same mistake against `get_email_thread`.
+
+`agentTools` spreads both files, so the model was handed **two function declarations under one name**, and my `case` sat earlier in the dispatch than the `MODULE_TOOL_NAMES.has(toolName)` check — so a keyword search silently replaced the semantic one on **every agent turn, every Ask Ber AI question and every job**, for the ~3 hours it was deployed. Typecheck, build and 824 tests were green throughout: nothing in TypeScript objects to two entries in an array sharing a `name`.
+
+**How I missed it:** I grepped `from('email_threads')` across `src/lib` and read every thread helper I found, and concluded nothing existed. I never grepped the TOOL NAMES. §12 says it exactly — *a fork is hardest to see as two SIBLING MODULES written days apart, because neither looks like a copy; the tell is a second module answering the same question.* `agent-tools-modules.ts` is described in its own import comment as "same shape, kept separate only to stop this file from doubling in length", which is precisely the sibling the rule names.
+
+**The fix:** both duplicates deleted — 250 lines, `agent-tools.ts` byte-identical to its state before this session — and the one genuinely new capability (`only_unfiled` + `filed_on`) added to `search_email_threads`, which is the §12-correct move: add a parameter to the shared tool rather than fork it. **`agent-tools.test.ts`** now asserts no two tools share a name, that every module tool is actually in the roster, and that every tool has a usable description and a snake_case name; a planted duplicate fails it by name, proven and reverted.
+
+Verified after the fix: **43 tools, no duplicate names**; `search_correspondence` returns `passages` and `referenced_documents_not_held` again; `search_email_threads` with `only_unfiled` returns the backlog in 155ms; and `"whiskey"` comes back with `filed_on` showing *Whiskey - Zorro* correctly on **both** records.
 
 ⚠ **WHAT WAS DELIBERATELY NOT BUILT: a re-route pass for the 20 threads.** It is real and free, but it is a change to the SWEEP rather than to /jobs, and the measurement says it is 20 threads against a backlog of 1,823 — the job is the lever. Recorded in `OPEN-ITEMS.md` rather than half-built.
 
