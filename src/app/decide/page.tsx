@@ -13,6 +13,9 @@ import { parseStagedAttachments } from '@/lib/email-ingestion/attachments'
 import { findMisfiledCompanyDocuments, findUnparentedDocuments } from '@/lib/documents/unfiled'
 import { findMisfiledRecordDocuments } from '@/lib/documents/misfiled'
 import { readOpenProposals } from '@/lib/provenance/report'
+import { loadTargets } from '@/lib/email-sweep/route-phase'
+import { viewerHiddenProjectIds } from '@/lib/security/request'
+import type { PickableRecord } from '@/components/shared/RecordPicker'
 import type { EmailIntakeExtraction } from '@/lib/ai/prompts/email-intake'
 import type { PartyMatch } from '@/lib/ai/proposal-matching'
 
@@ -93,6 +96,39 @@ export default async function DecidePage() {
     readOpenProposals(100),
   ])
 
+  /*
+    Every record a row can be filed onto BY HAND.
+
+    ⚠ `loadTargets()`, NOT A QUERY OF ITS OWN. It is the list the mail router,
+    `matchDocument` and /documents/unfiled all match against, so a deal that can
+    be proposed can also be chosen — two lists would be two answers to "what
+    records are there", and then the picker lacks the one the matcher names
+    (§12).
+
+    ⚠ AND IT IS FILTERED FOR THE READER. A confidential project leaves every
+    cross-portfolio surface (§8), and a picker is one: offering its name here
+    would leak the project's existence to anybody who can open this page, which
+    is containment failing before access is even asked about. Zero projects are
+    confidential today — which is exactly when a filter is cheap to add and
+    impossible to remember later.
+  */
+  const [rawTargets, hiddenProjects] = await Promise.all([
+    loadTargets().catch(() => []),
+    viewerHiddenProjectIds(),
+  ])
+  const records: PickableRecord[] = rawTargets
+    .flatMap((t) =>
+      // `flatMap` rather than `.filter()` with a predicate: narrowing a union
+      // through a guard does not survive into a subsequent `.map`.
+      // A lead is excluded because nothing here can file onto one — `refileDocument`
+      // has no arm for it and the merge route's tables name only these two.
+      (t.kind === 'project' || t.kind === 'opportunity') &&
+      !(t.kind === 'project' && hiddenProjects.has(t.id))
+        ? [{ kind: t.kind, id: t.id, name: t.name }]
+        : []
+    )
+    .sort((a, b) => a.name.localeCompare(b.name))
+
   const items: DecideItem[] = []
 
   /**
@@ -109,10 +145,23 @@ export default async function DecidePage() {
    * decision that guessed would be indistinguishable from one that knew.
    */
   const taskOffers = new Map<string, { name: string; count: number }>()
+  /*
+    How many follow-ups each session holds, WHETHER OR NOT a deal resolves.
+
+    ⚠ THE COUNT AND THE OFFER ARE TWO FACTS AND THEY WERE ONE. `taskOffers` is
+    only filled where `resolveSessionTaskTarget` names a record, which is right
+    for a button that files by itself — and it meant a session with four
+    follow-ups and an unresolvable title had no way to say so. A human choosing
+    the deal needs the count to know the choice is worth making, so the count is
+    kept separately and the offer stays as strict as it was.
+  */
+  const taskCounts = new Map<string, number>()
   await Promise.all(
     (sessions ?? []).map(async (s) => {
       if (readPredecision(s.predecision)?.disposition === 'dismiss') return
-      if (readExtractionTasks(s.extraction_result).length === 0) return
+      const count = readExtractionTasks(s.extraction_result).length
+      if (count === 0) return
+      taskCounts.set(s.id, count)
       const target = await resolveSessionTaskTarget(s).catch(() => null)
       if (!target?.ok) return
       taskOffers.set(s.id, { name: target.name, count: target.tasks.length })
@@ -216,6 +265,23 @@ export default async function DecidePage() {
         altAccept: taskOffers.has(s.id)
           ? { action: 'task' as const, name: taskOffers.get(s.id)!.name, count: taskOffers.get(s.id)!.count }
           : null,
+        // What the picker can offer when the title resolves nothing — which is
+        // the NORMAL case for a call, since `Call with <person>` names nobody's
+        // deal by design. Filing the call itself still needs its own screen.
+        taskCount: taskCounts.get(s.id) ?? 0,
+        /*
+          What the picker may do once a person names the deal.
+
+          ⚠ FILING THE CALL ITSELF IS NOT HERE, and the omission is the point.
+          A meeting's confirm route wants a whole body — the meeting's own
+          metadata, a target per deal it covered, a decision per attendee and
+          per follow-up — built by the review screen. Assembling a second,
+          thinner version of it from this list would be a sibling-module fork
+          of the one thing that screen does (§12), and the difference is not
+          cosmetic: the thin version would silently create no attendees and no
+          minutes. Its follow-ups, though, need none of that.
+        */
+        pickActions: (taskCounts.get(s.id) ?? 0) > 0 ? ['task'] : [],
       })
       continue
     }
@@ -261,6 +327,14 @@ export default async function DecidePage() {
       altAccept: taskOffers.has(s.id)
         ? { action: 'task' as const, name: taskOffers.get(s.id)!.name, count: taskOffers.get(s.id)!.count }
         : null,
+      taskCount: taskCounts.get(s.id) ?? 0,
+      // Filing the conversation onto a chosen deal runs the SAME pass merging
+      // already runs (`applySession` with an existing target) — the only thing
+      // the pick changes is which record it is handed. See the merge route.
+      pickActions:
+        (taskCounts.get(s.id) ?? 0) > 0
+          ? ['merge', 'task']
+          : ['merge'],
       blocker: draft && !draft.ready ? draft.blocker : null,
     })
   }
@@ -335,6 +409,7 @@ export default async function DecidePage() {
       fileTarget: doc.target ? { kind: doc.target.kind, id: doc.target.id } : null,
       // Never thresholded as a number at the reader; it only draws the batch.
       confidence: doc.confidence ?? (isNotADocument ? 1 : null),
+      pickActions: ['file'],
       blocker: null,
     })
   }
@@ -388,6 +463,7 @@ export default async function DecidePage() {
       fileTarget: doc.target ? { kind: doc.target.kind, id: doc.target.id } : null,
       fileSource: 'documents',
       confidence: doc.confidence ?? (isNotADocument ? 1 : null),
+      pickActions: ['file'],
       blocker: null,
     })
   }
@@ -430,6 +506,7 @@ export default async function DecidePage() {
       fileTarget: { kind: doc.target.kind, id: doc.target.id },
       fileSource: doc.side === 'opportunity' ? 'opportunity_documents' : 'documents',
       confidence: doc.confidence,
+      pickActions: ['file'],
       blocker: null,
     })
   }
@@ -527,7 +604,7 @@ export default async function DecidePage() {
         </div>
       )}
 
-      <DecideClient items={items} />
+      <DecideClient items={items} records={records} />
     </div>
   )
 }

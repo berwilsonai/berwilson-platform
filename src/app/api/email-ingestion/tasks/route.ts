@@ -18,23 +18,72 @@
  *
  * §11 is untouched: the invariant is that mail must not become a record WITHOUT
  * human review, and the press IS the review. Nothing here runs unattended.
+ *
+ * ⚠ AND A HUMAN MAY NAME THE DEAL (10-28). `resolveSessionTaskTarget` refuses
+ * whenever the title resolves to nothing or to two records, which is correct for
+ * a MATCHER and left the commonest case with no button at all: a recorded call
+ * titled `Call with Taylor` names nobody's deal by design, and a thread labelled
+ * `GridEdgeDC` does not resolve to the opportunity called `GridEdge`. A person
+ * knows both in a second. The pick is an assertion and outranks the resolver;
+ * everything else about the write is identical.
  */
 
 import { NextRequest } from 'next/server'
 import { getViewer, actorAdminClient } from '@/lib/auth/viewer'
 import { createTasksForRecord } from '@/lib/tasks/from-extraction'
-import { resolveSessionTaskTarget } from '@/lib/email-ingestion/task-target'
+import {
+  resolveSessionTaskTarget,
+  readExtractionTasks,
+  type SessionTaskTarget,
+} from '@/lib/email-ingestion/task-target'
 import type { JsonIn } from '@/lib/supabase/types'
 
 export const maxDuration = 120
+
+const TARGET_TABLES = {
+  project: 'projects',
+  opportunity: 'opportunities',
+} as const
+
+/**
+ * The deal a person chose, checked to exist, with the session's own follow-ups.
+ *
+ * Returns the SAME shape the resolver does so the caller has one branch and one
+ * refusal path — a second return type here would be a fork of the one thing
+ * this route does (§12).
+ */
+async function pickedTarget(
+  supabase: Awaited<ReturnType<typeof actorAdminClient>>,
+  picked: { kind?: unknown; id?: unknown },
+  session: { extraction_result: unknown }
+): Promise<SessionTaskTarget> {
+  const kind = picked.kind
+  const id = picked.id
+  if ((kind !== 'project' && kind !== 'opportunity') || typeof id !== 'string' || !id) {
+    return { ok: false, reason: 'target must be { kind: "project" | "opportunity", id }.' }
+  }
+  const { data: dest } = await supabase
+    .from(TARGET_TABLES[kind])
+    .select('id, name')
+    .eq('id', id)
+    .maybeSingle()
+  if (!dest) return { ok: false, reason: `That ${kind} no longer exists.` }
+  return {
+    ok: true,
+    kind,
+    id,
+    name: (dest as { name: string | null }).name ?? kind,
+    tasks: readExtractionTasks(session.extraction_result),
+  }
+}
 
 export async function POST(request: NextRequest) {
   const viewer = await getViewer()
   if (!viewer?.isAdmin) return Response.json({ error: 'Forbidden' }, { status: 403 })
 
-  let body: { session_id?: string }
+  let body: { session_id?: string; target?: { kind?: unknown; id?: unknown } }
   try {
-    body = (await request.json()) as { session_id?: string }
+    body = (await request.json()) as { session_id?: string; target?: { kind?: unknown; id?: unknown } }
   } catch {
     return Response.json({ error: 'Invalid JSON body' }, { status: 400 })
   }
@@ -57,7 +106,9 @@ export async function POST(request: NextRequest) {
     return Response.json({ error: `Session is already ${session.status}.` }, { status: 409 })
   }
 
-  const target = await resolveSessionTaskTarget(session)
+  const target = body.target
+    ? await pickedTarget(supabase, body.target, session)
+    : await resolveSessionTaskTarget(session)
   if (!target.ok) return Response.json({ error: target.reason }, { status: 400 })
   if (target.tasks.length === 0) {
     return Response.json(

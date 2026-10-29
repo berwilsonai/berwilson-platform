@@ -1,19 +1,20 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { toast } from 'sonner'
 import {
   Paperclip, Download, Mail, Phone, Building2, MapPin, Calendar,
   FolderKanban, Lightbulb, Factory, Send, Archive, Undo2, ExternalLink,
-  FolderOpen, Check, Minus, Link2, Search, X,
+  FolderOpen, Check, Minus, Link2, X,
 } from 'lucide-react'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Button } from '@/components/ui/button'
 import { Chip } from '@/components/ui/chip'
 import FitAssessmentCard from '@/components/proposals/FitAssessmentCard'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
+import RecordPicker from '@/components/shared/RecordPicker'
 import { viewDocument, downloadDocument } from '@/lib/utils/document-links'
 import { formatValue, formatDate, bidDueLabel, bidDueColor } from '@/lib/utils/constants'
 import {
@@ -30,61 +31,6 @@ export interface AttachOption {
   id: string
   name: string
   kind: 'project' | 'opportunity'
-}
-
-/**
- * Type-ahead over the records a lead could already belong to.
- *
- * The same shape as the meeting review's record picker, and deliberately a
- * filter over a list already in memory rather than a search endpoint — fifteen
- * projects is not a query, and a picker that has to round-trip is one nobody
- * waits for.
- */
-function RecordPicker({
-  options, onPick,
-}: {
-  options: AttachOption[]
-  onPick: (o: AttachOption) => void
-}) {
-  const [q, setQ] = useState('')
-  const [open, setOpen] = useState(false)
-  const matches = useMemo(() => {
-    const needle = q.trim().toLowerCase()
-    if (!needle) return options.slice(0, 8)
-    return options.filter((o) => o.name.toLowerCase().includes(needle)).slice(0, 8)
-  }, [q, options])
-
-  return (
-    <div className="relative">
-      <Search className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
-      <input
-        className="h-9 w-full rounded-md border border-input bg-background pl-8 pr-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-        placeholder="Find the project or opportunity…"
-        value={q}
-        onFocus={() => setOpen(true)}
-        onChange={(e) => { setQ(e.target.value); setOpen(true) }}
-        onBlur={() => setTimeout(() => setOpen(false), 150)}
-      />
-      {open && matches.length > 0 && (
-        <div className="absolute z-30 mt-1 max-h-60 w-full overflow-auto rounded-md border border-border bg-card shadow-lg">
-          {matches.map((o) => (
-            <button
-              key={`${o.kind}-${o.id}`}
-              type="button"
-              onMouseDown={(e) => { e.preventDefault(); onPick(o) }}
-              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-accent outline-none focus-visible:bg-accent"
-            >
-              {o.kind === 'project'
-                ? <FolderKanban className="size-3.5 shrink-0 text-muted-foreground" />
-                : <Lightbulb className="size-3.5 shrink-0 text-muted-foreground" />}
-              <span className="flex-1 truncate">{o.name}</span>
-              <span className="text-[11px] text-muted-foreground">{o.kind}</span>
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  )
 }
 
 function Fact({ icon: Icon, label, children }: {

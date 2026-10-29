@@ -20,6 +20,17 @@
  * No record is created here. That is still the point of merging: blank columns
  * on the target are filled from the mail, nothing already set is overwritten,
  * and the record is never renamed.
+ *
+ * ⚠ A HUMAN'S `target` OUTRANKS THE RESOLVER, AND THAT IS WHY IT EXISTS (10-28,
+ * Richard's direction). Without it the only merge this route would perform was
+ * the one the pre-decide phase had already named, so a session the matcher
+ * could not place offered "Create project" and nothing else — measured on the
+ * live queue the same day, a thread labelled `GridEdgeDC` against an
+ * opportunity literally called **GridEdge**, whose candidate list held Heber
+ * Development and Myton Development at 0.38 trigram and no GridEdge at all.
+ * The resolver was not wrong to refuse; the queue was wrong to have no other
+ * answer. §12 — ambiguity must mean no match, and an ASSERTION by a person is
+ * a fact, not a better guess.
  */
 
 import { NextRequest } from 'next/server'
@@ -36,7 +47,19 @@ export const maxDuration = 300
 
 interface MergeBody {
   session_id?: string
+  /**
+   * The record a HUMAN chose, in place of the one the pre-decide named.
+   *
+   * Omitted is the original behaviour and still the common path: resolve the
+   * pre-decision's own `merge_target_name` out of the session's candidates.
+   */
+  target?: { kind?: unknown; id?: unknown }
 }
+
+const TARGET_TABLES = {
+  project: 'projects',
+  opportunity: 'opportunities',
+} as const
 
 export async function POST(request: NextRequest) {
   const viewer = await getViewer()
@@ -70,13 +93,50 @@ export async function POST(request: NextRequest) {
     return Response.json({ error: `Session is already ${session.status}.` }, { status: 409 })
   }
 
-  const target = resolveMergeTarget(session.predecision, session.match_candidates)
-  if (!target.ok) {
-    // Ambiguity means no match — the same refusal the thread router makes when
-    // two records answer to one name. Guessing here would file a conversation
-    // onto the wrong deal, which is the expensive half of the trade. The review
-    // screen's "Add to existing" picker is where a human resolves it.
-    return Response.json({ error: target.reason }, { status: 400 })
+  /*
+    Where it lands: the person's pick if they made one, otherwise the resolver.
+
+    ⚠ THE CHOSEN RECORD IS READ BACK BEFORE ANYTHING MOVES, exactly as the
+    refile route does. A dangling id would otherwise retire the session against
+    a record that does not exist, and the conversation would be filed nowhere
+    with the queue reporting it done.
+  */
+  let kind: 'project' | 'opportunity'
+  let id: string
+
+  const picked = body.target
+  if (picked) {
+    const pickedKind = picked.kind
+    const pickedId = picked.id
+    if ((pickedKind !== 'project' && pickedKind !== 'opportunity') || typeof pickedId !== 'string' || !pickedId) {
+      return Response.json(
+        { error: 'target must be { kind: "project" | "opportunity", id }.' },
+        { status: 400 }
+      )
+    }
+    const { data: dest, error: destErr } = await supabase
+      .from(TARGET_TABLES[pickedKind])
+      .select('id')
+      .eq('id', pickedId)
+      .maybeSingle()
+    if (destErr) return Response.json({ error: destErr.message }, { status: 500 })
+    if (!dest) {
+      return Response.json({ error: `That ${pickedKind} no longer exists.` }, { status: 404 })
+    }
+    kind = pickedKind
+    id = pickedId
+  } else {
+    const target = resolveMergeTarget(session.predecision, session.match_candidates)
+    if (!target.ok) {
+      // Ambiguity means no match — the same refusal the thread router makes when
+      // two records answer to one name. Guessing here would file a conversation
+      // onto the wrong deal, which is the expensive half of the trade. The
+      // picker on /decide, and the review screen's "Add to existing", are where
+      // a human resolves it.
+      return Response.json({ error: target.reason }, { status: 400 })
+    }
+    kind = target.projectId ? 'project' : 'opportunity'
+    id = target.projectId ?? target.opportunityId!
   }
 
   // The default actions — every person, task and attachment the run staged.
@@ -88,9 +148,6 @@ export async function POST(request: NextRequest) {
     partyMatches: (session.party_matches ?? []) as unknown as PartyMatch[],
     stagedAttachments: parseStagedAttachments(session.staged_attachments),
   })
-
-  const kind = target.projectId ? 'project' : 'opportunity'
-  const id = target.projectId ?? target.opportunityId!
 
   const result = await applySession(supabase, session, draft.body, {
     mode: 'existing',

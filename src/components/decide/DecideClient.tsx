@@ -4,23 +4,26 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { Inbox, ClipboardCheck, FileText, FileQuestion, ArrowRight, X, Loader2, Check, CheckCheck, HelpCircle, ListChecks, type LucideIcon } from 'lucide-react'
+import { Inbox, ClipboardCheck, FileText, FileQuestion, ArrowRight, X, Loader2, Check, CheckCheck, HelpCircle, ListChecks, Link2, Search, Sparkles, type LucideIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Panel } from '@/components/ui/card'
 import { Kbd } from '@/components/ui/kbd'
 import EmptyState from '@/components/shared/EmptyState'
 import { decideWeight, daysUntil, meetingBoost } from '@/lib/decide/rank'
+import { planAccept } from '@/lib/decide/accept-request'
+import type { DecideKind, AcceptAction } from '@/lib/decide/types'
+import { filterByWords } from '@/lib/utils/search'
 import { enumLabel, formatValue, formatDate } from '@/lib/utils/constants'
 import { SECTOR_LABELS } from '@/lib/utils/sectors'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
-
-export type DecideKind =
-  | 'intake'
-  | 'review'
-  | 'document'
-  | 'unparented'
-  | 'misfiled'
-  | 'proposal'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import RecordPicker, { type PickableRecord } from '@/components/shared/RecordPicker'
 
 /**
  * ⚠ NO KIND CURRENTLY FILLS THIS, AND THAT IS WHY IT IS DOCUMENTED RATHER THAN
@@ -35,6 +38,12 @@ export type DecideKind =
  * something fills these again. §12: a comment claiming a control that is not
  * there is worse than no comment, and this is the mirror of it.
  */
+/**
+ * Re-exported so a surface importing `DecideItem` from here still gets the
+ * vocabulary that describes it. The declarations live in `@/lib/decide/types`.
+ */
+export type { DecideKind, AcceptAction }
+
 export interface DecideFacts {
   /** Estimated contract value in dollars. */
   value?: number | null
@@ -109,6 +118,29 @@ export interface DecideItem {
    */
   altAccept?: { action: AcceptAction; name: string; count: number } | null
   /**
+   * How many follow-ups this staged conversation holds.
+   *
+   * Separate from `altAccept`, which only exists where the title RESOLVES a
+   * deal. The count is what makes "choose the deal yourself" worth offering on
+   * a row whose title resolves nothing — which is every recorded call, since
+   * `Call with <person>` names nobody's deal by design.
+   */
+  taskCount?: number
+  /**
+   * What this row can be made to do once a person NAMES the record.
+   *
+   * ⚠ COMPUTED SERVER-SIDE LIKE `accept`, and for the same reason: the browser
+   * is never handed enough of the portfolio or of the session to know which
+   * writes are available. It also keeps the one real asymmetry honest — a
+   * recorded call can have its follow-ups taken onto any deal, but filing the
+   * CALL needs its own screen (see the page's comment), so a meeting offers
+   * `task` and never `merge`.
+   *
+   * Empty or absent means no picker — a flagged extraction and a field question
+   * are both about a record that is already chosen.
+   */
+  pickActions?: AcceptAction[]
+  /**
    * Where a `file` accept sends the document.
    *
    * Carried on the row rather than re-derived in the client, for the same
@@ -138,43 +170,6 @@ export interface DecideItem {
    */
   confidence?: number | null
 }
-
-/**
- * ⚠ Until now this queue could only DISMISS. Every "yes" meant leaving the
- * page, opening a form on another route — which dropped the recommendation on
- * the way in — and re-forming a judgement the model had already made. Measured
- * on 2026-09-23: 5 intake sessions confirmed ever against 136 decided, and
- * 0 leads promoted out of 1,268. The recommendations were good; agreeing with
- * one was just more expensive than ignoring it.
- *
- * ⚠ This does NOT create anything on its own — CLAUDE.md §11 is untouched.
- * The click IS the human review the invariant requires; what changed is where
- * the click lives. The review screens remain for when you want to edit first.
- */
-export type AcceptAction =
-  | 'project'
-  | 'opportunity'
-  | 'merge'
-  /**
-   * Make it a task on a deal we already have, and create nothing else.
-   *
-   * ⚠ THE MISSING MIDDLE OF THIS QUEUE (10-22). A staged call or thread offered
-   * three answers — create a whole record, merge the conversation onto one, or
-   * dismiss it — and the commonest real answer was none of them: *"that is not
-   * a project, that is a task on Steelton."* Reaching it meant leaving the page
-   * for /tasks and retyping what the extraction already held, which is the same
-   * cost that got 5 sessions confirmed out of 136 before Accept existed at all.
-   *
-   * Legal under §11: the invariant is that mail must not become a record
-   * WITHOUT human review, and the press IS the review. Nothing is created
-   * unattended — the automatic path stays the one narrow `side='us'`
-   * all-internal commitment exception, which is latched elsewhere.
-   */
-  | 'task'
-  | 'approve'
-  | 'file'
-  | 'setaside'
-  | 'confirmfield'
 
 /** An item with its days-to-deadline resolved against a fixed clock. */
 type Dated = DecideItem & { daysLeft: number | null }
@@ -333,6 +328,27 @@ const DISMISS: Partial<
     verb: 'Kept as company knowledge',
   },
   /**
+   * Dismissing a NO-DEAL row means "it belongs to no deal, leave it".
+   *
+   * ⚠ THIS KIND HAD NO ENTRY AND THEREFORE NO SET-ASIDE BUTTON AT ALL, which
+   * made it the one row in the queue with no way to say "nothing to do here".
+   * The `Partial` on this map is what kept that honest rather than shipping a
+   * button that wrote nothing — but honest and absent is still absent, and a
+   * queue that cannot reach zero teaches people to accept rows to clear them.
+   *
+   * It is a real answer and not an absence of one: a blank MNDA template, a
+   * generic W-9, an insurance certificate — these arrived on deal mail and
+   * belong to no deal, and `filing_confirmed_at` is what stops the pass
+   * offering them again tomorrow. The file is kept and stays searchable; only
+   * the question goes away. Distinct from the `setaside` ACCEPT on the same
+   * row, which means "this is not a document" and drops its passages.
+   */
+  unparented: {
+    url: (id) => `/api/documents/${id}/refile`,
+    body: (item) => ({ confirm: true, source: item.fileSource ?? 'documents' }),
+    verb: 'Left on no deal, on purpose',
+  },
+  /**
    * Dismissing a WRONG-DEAL row means "it is on the right deal after all".
    *
    * Same write, different sentence — and the sentence matters, because the two
@@ -444,7 +460,14 @@ const ACCEPT_COPY: Record<
     done: 'Match approved',
   },
   file: {
-    verb: 'File on record',
+    /*
+      ⚠ IT NAMES THE DEAL, like `merge` and `task` beside it. "File on record"
+      described a mechanism on a row whose whole question is WHICH record —
+      and once the picker could supply one, three buttons in the same dialog
+      would all have read the same four words. Degrades to the old wording
+      with no name rather than rendering "File onto undefined".
+    */
+    verb: (n: string | null) => (n ? `File onto ${n}` : 'File on record'),
     ask: (n) =>
       `File this document on “${n}”? Its indexed passages move with it, so it stops widening every other project's answers and starts answering for this one. Nothing is re-read and nothing is deleted.`,
     done: 'Filed on the record',
@@ -484,9 +507,52 @@ function acceptVerb(item: { accept: AcceptAction | null; acceptName?: string | n
   return typeof verb === 'function' ? verb(item.acceptName ?? null) : verb
 }
 
-export default function DecideClient({ items }: { items: DecideItem[] }) {
+export default function DecideClient({
+  items,
+  records,
+}: {
+  items: DecideItem[]
+  /**
+   * Every project and opportunity a row can be filed onto by hand.
+   *
+   * Passed down rather than fetched: it is the same list the matcher proposes
+   * from, already filtered for this reader's confidential projects on the
+   * server (§8). A picker that queried for itself would be a second definition
+   * of "what records are there", and the one that leaks is always the second.
+   */
+  records: PickableRecord[]
+}) {
   const router = useRouter()
   const [kind, setKind] = useState<DecideKind | 'all'>('all')
+  /*
+    The free-text filter.
+
+    ⚠ WHY A QUEUE OF A HUNDRED NEEDS ONE AT ALL: the rows are ranked by
+    consequence, not grouped by deal, so the four things waiting on Steelton
+    are scattered through the list by design — and the reader arriving with a
+    deal in mind had no way to gather them. The kind chips answer "what sort of
+    decision"; this answers "which deal", which is the question somebody
+    actually walks up with.
+
+    ⚠ ANY WORD, IN ANY ORDER, NOT THE PHRASE (§12 — a keyword search that only
+    matches the whole phrase answers "nothing" where it means "not adjacent").
+    `cleveland steelton` must find "Steelton — Cleveland-Cliffs (PA)".
+  */
+  const [query, setQuery] = useState('')
+  /**
+   * The row whose record is being chosen by hand, and which verb will run.
+   *
+   * Two steps rather than one dialog per verb: the reader picks the deal, then
+   * says what to do with it, because on a staged conversation those are
+   * genuinely different decisions over the same record ("file the whole
+   * conversation onto Steelton" vs "put its three follow-ups on Steelton's
+   * board") and a row with four buttons had already stopped being readable.
+   */
+  const [picking, setPicking] = useState<{ item: Dated; record: PickableRecord | null } | null>(
+    null
+  )
+  /** A rescrub in flight, and what the last one found. */
+  const [rescrubbing, setRescrubbing] = useState(false)
   // Set aside in this session. Optimistic: the row goes immediately and comes
   // back if the write fails, because a queue that pauses on every dismissal is
   // one nobody clears.
@@ -505,6 +571,15 @@ export default function DecideClient({ items }: { items: DecideItem[] }) {
     item: Dated
     action: AcceptAction
     name: string | null
+    /**
+     * The record a person CHOSE, where they chose one.
+     *
+     * Absent means the row's own computed destination, which is every
+     * pre-existing path. Carried through the dialog rather than stashed on the
+     * row, so the confirmation sentence and the write can never name different
+     * deals — the bug the `asking` shape was widened for in the first place.
+     */
+    target?: PickableRecord
   } | null>(null)
   // Rows ticked for a batch accept, keyed `kind:id` like everything else here.
   const [selected, setSelected] = useState<Set<string>>(new Set())
@@ -556,9 +631,31 @@ export default function DecideClient({ items }: { items: DecideItem[] }) {
     () => ranked.filter((i) => !dismissed.has(`${i.kind}:${i.id}`)),
     [ranked, dismissed]
   )
+  /*
+    The search, applied BEFORE the kind chips — which is what makes their counts
+    true.
+
+    ⚠ ORDER IS THE WHOLE POINT. Counting the chips over `live` and then
+    filtering the rows would put "Correspondence 4" above a list showing one,
+    which is §12's three-numbers-for-one-quantity on a single screen. One
+    population, counted and shown.
+  */
+  const found = useMemo(
+    () =>
+      filterByWords(live, query, (i) =>
+        /*
+          What a row is searchable BY. The deal each button would file onto is
+          in here on purpose: "steelton" must find the conversation whose only
+          mention of Steelton is the name on its Accept button, which is
+          precisely the row somebody searching for Steelton wants.
+        */
+        [i.title, i.subtitle, i.note, i.acceptName, i.altAccept?.name].filter(Boolean).join(' ')
+      ),
+    [live, query]
+  )
   const visible = useMemo(
-    () => (kind === 'all' ? live : live.filter((i) => i.kind === kind)),
-    [live, kind]
+    () => (kind === 'all' ? found : found.filter((i) => i.kind === kind)),
+    [found, kind]
   )
 
   const counts = useMemo(() => {
@@ -570,11 +667,11 @@ export default function DecideClient({ items }: { items: DecideItem[] }) {
       showed no count at all. A counter map beside a registry must be built
       from the registry's own keys, or the next kind added repeats it.
     */
-    const c: Record<string, number> = { all: live.length }
+    const c: Record<string, number> = { all: found.length }
     for (const k of Object.keys(KIND_META)) c[k] = 0
-    for (const i of live) c[i.kind]++
+    for (const i of found) c[i.kind]++
     return c
-  }, [live])
+  }, [found])
 
   /** Only a row that can actually be accepted from the list can be ticked. */
   const selectable = useMemo(() => visible.filter((i) => i.accept), [visible])
@@ -720,46 +817,45 @@ export default function DecideClient({ items }: { items: DecideItem[] }) {
    * The write behind an accept. Throws on failure so both the single-row path
    * and the batch can decide for themselves what to say about it.
    */
-  async function performAccept(item: Dated, action: AcceptAction | null = item.accept) {
+  /**
+   * Carry out the write a row's press means.
+   *
+   * ⚠ THE CHOICE OF WRITE IS NOT MADE HERE ANY MORE — `planAccept` makes it, in
+   * `src/lib/decide/accept-request.ts`, where it is a pure function a test can
+   * walk every kind of. It lived here as an `if/else if` chain whose final arm
+   * was the review route, and `unparented` fell into it: 120 rows whose Accept
+   * button PATCHed `/api/review/<a document's uuid>` and answered
+   * `404 Review item not found`, green through typecheck, build and the suite.
+   *
+   * Throws on failure so both the single-row path and the batch can decide for
+   * themselves what to say about it.
+   */
+  async function performAccept(
+    item: Dated,
+    action: AcceptAction | null = item.accept,
+    /**
+     * The record a person chose, overriding whatever the row would resolve.
+     *
+     * ⚠ PASSED TO THE ROUTE, NEVER APPLIED HERE. Each route re-reads the record
+     * before writing to it, so a deal deleted between the page render and the
+     * press is a refusal rather than a conversation filed at a dangling id —
+     * which is the one outcome that looks exactly like success.
+     */
+    target?: PickableRecord
+  ) {
     if (!action) return
-    // ⚠ THE TASK BRANCH COMES FIRST AND IS NOT KIND-SPECIFIC. Both an email
-    // package and a recorded meeting reach it, and the route resolves the deal
-    // from the session the same way the row's primary action did — see
-    // task-target.ts. Branching on `item.kind` here would have needed two
-    // arms for one write (§12: every source that can reach a switch needs an
-    // arm, not just the one being added today).
-    if (action === 'task') {
-      await post('/api/email-ingestion/tasks', { session_id: item.id })
-    } else if (item.kind === 'intake' && action === 'merge') {
-      await post('/api/email-ingestion/merge', { session_id: item.id })
-    } else if (item.kind === 'intake') {
+    const plan = planAccept(item, action, target)
+    if (plan.kind === 'refused') throw new Error(plan.reason)
+    if (plan.kind === 'draft-then-confirm') {
       // Fetched rather than reconstructed here: the draft is built from the
-      // full extraction by the same function the review form uses, so the
-      // two paths cannot produce different records.
-      const draft = await getJson(`/api/email-ingestion/sessions/${item.id}`)
-      await post('/api/email-ingestion/confirm', (draft as { body: unknown }).body)
-    } else if (item.kind === 'document' || item.kind === 'misfiled') {
-      if (action === 'setaside') {
-        await post(`/api/documents/${item.id}/refile`, {
-          exclude: true,
-          reason: item.note,
-          source: item.fileSource ?? 'documents',
-        })
-      } else if (item.fileTarget) {
-        await post(`/api/documents/${item.id}/refile`, {
-          target: item.fileTarget,
-          source: item.fileSource ?? 'documents',
-        })
-      } else {
-        // No target and not a set-aside is not a row that should have been
-        // acceptable. Refuse loudly rather than silently doing nothing.
-        throw new Error('This document has no record to file it on.')
-      }
-    } else if (item.kind === 'proposal') {
-      await patch(`/api/provenance/proposals/${item.id}`, { verdict: 'accept' })
-    } else {
-      await patch(`/api/review/${item.id}`, { resolution: 'approved' })
+      // full extraction by the same function the review form uses, so the two
+      // paths cannot produce different records.
+      const draft = await getJson(plan.draftUrl)
+      await post(plan.confirmUrl, (draft as { body: unknown }).body)
+      return
     }
+    if (plan.method === 'PATCH') await patch(plan.url, plan.body)
+    else await post(plan.url, plan.body)
   }
 
   /**
@@ -767,13 +863,18 @@ export default function DecideClient({ items }: { items: DecideItem[] }) {
    * but the toast names what was created, because a row that simply disappears
    * gives no evidence that a record now exists somewhere.
    */
-  async function accept(item: Dated, action: AcceptAction | null = item.accept, name: string | null = null) {
+  async function accept(
+    item: Dated,
+    action: AcceptAction | null = item.accept,
+    name: string | null = null,
+    target?: PickableRecord
+  ) {
     if (!action) return
     const key = `${item.kind}:${item.id}`
     const copy = ACCEPT_COPY[action]
     setPending(key)
     try {
-      await performAccept(item, action)
+      await performAccept(item, action, target)
       setDismissed((prev) => new Set(prev).add(key))
       toast.success(copy.done, { description: name ?? item.acceptName ?? item.title })
       scheduleRefresh()
@@ -782,6 +883,65 @@ export default function DecideClient({ items }: { items: DecideItem[] }) {
     } finally {
       setPending(null)
       setAsking(null)
+    }
+  }
+
+  /**
+   * Ask Ber AI to look again at where every staged conversation belongs.
+   *
+   * ⚠ IT CHANGES A RECOMMENDATION, NOT A RECORD. The pass behind this re-reads
+   * each pending session against the WHOLE portfolio as it stands today —
+   * which is what the matcher that produced these rows could not do, because
+   * its candidate list was frozen when the correspondence was staged and every
+   * record created since is invisible to it. Measured on the live queue
+   * 2026-10-28: a thread labelled `GridEdgeDC` carried Heber Development and
+   * Myton Development at 0.38, against an opportunity named **GridEdge**.
+   *
+   * Nothing is created, filed, confirmed or dismissed — the rows come back
+   * with better buttons on them and the press is still yours. See
+   * src/lib/decide/rescrub.ts.
+   */
+  async function rescrub() {
+    setRescrubbing(true)
+    try {
+      const res = await fetch('/api/decide/rescrub', { method: 'POST' })
+      if (!res.ok) await readError(res)
+      const p = (await res.json()) as {
+        examined: number
+        placed: number
+        unplaced: number
+        unchanged: number
+        changes: Array<{ label: string; record: string }>
+      }
+      if (p.placed > 0) {
+        toast.success(
+          `${p.placed} now ${p.placed === 1 ? 'points' : 'point'} at a deal you already have`,
+          {
+            description: p.changes
+              .slice(0, 3)
+              .map((c) => `${c.label} → ${c.record}`)
+              .join(' · '),
+          }
+        )
+        // Immediate, not debounced: the whole point of the press is to see the
+        // buttons change, and there is exactly one write to wait for.
+        router.refresh()
+      } else if (p.examined === 0) {
+        toast.info('Nothing staged to re-check', {
+          description: 'Only staged correspondence is re-asked — documents are matched fresh on every load.',
+        })
+      } else {
+        toast.info(`Re-read ${p.examined}, nothing moved`, {
+          description:
+            p.unchanged > 0
+              ? `${p.unchanged} already named the right deal; ${p.unplaced} match no record we have.`
+              : `None of them matches a record we already have.`,
+        })
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Could not re-check the queue')
+    } finally {
+      setRescrubbing(false)
     }
   }
 
@@ -859,7 +1019,7 @@ export default function DecideClient({ items }: { items: DecideItem[] }) {
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
       if (e.metaKey || e.ctrlKey || e.altKey) return
-      if (bulk || asking || askingBatch) return
+      if (bulk || asking || askingBatch || picking) return
       const el = e.target as HTMLElement | null
       if (
         el &&
@@ -916,7 +1076,7 @@ export default function DecideClient({ items }: { items: DecideItem[] }) {
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [visible, cursorIdx, cursorItem, bulk, asking, askingBatch, pick, router])
+  }, [visible, cursorIdx, cursorItem, bulk, asking, askingBatch, picking, pick, router])
 
   // Keep the cursor row on screen. `block: 'nearest'` scrolls the minimum —
   // the row the reader is already looking at must not jump to the middle.
@@ -941,6 +1101,55 @@ export default function DecideClient({ items }: { items: DecideItem[] }) {
 
   return (
     <div className="space-y-3">
+      {/*
+        Find a deal in the queue, and ask Ber AI to look again.
+
+        ⚠ THE SEARCH IS NOT A CONVENIENCE ON A QUEUE THAT IS RANKED. The rows
+        are ordered by consequence, so everything waiting on one deal is
+        scattered through the list on purpose — and the reader who arrives
+        thinking "what is outstanding on Steelton" had to scroll 130 rows
+        reading titles. The kind chips answer "what sort of decision"; this
+        answers "which deal".
+      */}
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="relative min-w-[14rem] flex-1">
+          <Search
+            className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground"
+            aria-hidden
+          />
+          <input
+            type="search"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Find a deal, a document, a person…"
+            aria-label="Filter the queue"
+            className="h-[2.75rem] w-full rounded-lg border border-input bg-card pl-8 pr-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 sm:h-9"
+          />
+        </div>
+        {/*
+          ⚠ NOT A BATCH ACCEPT WEARING A DIFFERENT ICON. This writes no record
+          and files nothing — it re-reads the staged conversations against the
+          portfolio as it stands today and changes what their buttons SAY. The
+          label has to carry that, or it reads as the one button on this page
+          nobody should press without looking.
+        */}
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => void rescrub()}
+          disabled={rescrubbing || Boolean(bulk)}
+          title="Re-read every staged conversation against the portfolio as it stands today. Nothing is created or filed — only the suggested deal changes."
+          className="h-[2.75rem] sm:h-9"
+        >
+          {rescrubbing ? (
+            <Loader2 size={14} className="animate-spin" />
+          ) : (
+            <Sparkles size={14} />
+          )}
+          {rescrubbing ? 'Re-checking…' : 'Re-check where these belong'}
+        </Button>
+      </div>
+
       <div className="flex flex-wrap items-center gap-1.5">
         {/*
           ⚠ DERIVED FROM `KIND_META`, NOT WRITTEN OUT. The note on `counts`
@@ -1065,6 +1274,28 @@ export default function DecideClient({ items }: { items: DecideItem[] }) {
       )}
 
       <Panel className="divide-y divide-border">
+        {/*
+          ⚠ AN EMPTY RESULT MUST SAY WHY AND OFFER THE WAY BACK. A filtered
+          list rendering as an empty panel is indistinguishable from a cleared
+          queue, and on this page those two readings are opposites.
+        */}
+        {visible.length === 0 && (
+          <div className="px-4 py-8 text-center">
+            <p className="text-sm text-muted-foreground">
+              Nothing here matches{query.trim() ? ` “${query.trim()}”` : ' that filter'}.
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                setQuery('')
+                setKind('all')
+              }}
+              className="mt-2 text-sm font-medium text-primary underline underline-offset-2 outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+            >
+              Show all {live.length}
+            </button>
+          </div>
+        )}
         {visible.map((item, index) => {
           const meta = KIND_META[item.kind]
           const Icon = meta.icon
@@ -1264,6 +1495,39 @@ export default function DecideClient({ items }: { items: DecideItem[] }) {
                     </span>
                   </button>
                 )}
+                {/*
+                  The row's THIRD answer: name the deal yourself.
+
+                  ⚠ THE ONE ANSWER THIS QUEUE COULD NOT GIVE (10-28, Richard's
+                  direction: *"only giving me 'create project' when I should be
+                  able to associate it to current project or opportunity"*).
+                  Every destination on this page came from a matcher, so a row
+                  the matcher could not place offered exactly one verb —
+                  "Create project" — for a conversation that plainly belonged
+                  to a deal two rows above it. A person's pick is an ASSERTION
+                  and outranks the resolver (§12); it is not a looser bar, it
+                  is a different kind of evidence.
+
+                  ⚠ ONE BUTTON, NOT ONE PER VERB. A staged conversation can be
+                  filed onto the chosen deal or have its follow-ups taken onto
+                  it, which with the primary and the set-aside would have been
+                  five controls on a 64px row. The verbs live in the dialog,
+                  after the deal is chosen, which is also the order the
+                  decision is actually made in.
+                */}
+                {(item.pickActions?.length ?? 0) > 0 && records.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setPicking({ item, record: null })}
+                    disabled={pending === `${item.kind}:${item.id}` || Boolean(bulk)}
+                    title="Choose the project or opportunity this belongs to"
+                    aria-label={`Choose the deal for: ${item.title}`}
+                    className="inline-flex items-center gap-1 h-[2.75rem] sm:h-7 px-3.5 sm:px-2 rounded-lg text-sm font-medium text-muted-foreground ring-1 ring-inset ring-border hover:bg-accent hover:text-foreground disabled:opacity-40 transition-colors"
+                  >
+                    <Link2 size={13} />
+                    <span className="hidden sm:inline">Choose a deal</span>
+                  </button>
+                )}
                 <ArrowRight
                   size={13}
                   className="hidden sm:block text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity"
@@ -1305,6 +1569,75 @@ export default function DecideClient({ items }: { items: DecideItem[] }) {
         />
       )}
 
+      {/*
+        Choose the deal, then say what to do with it.
+
+        Two steps in one dialog rather than two dialogs: the record is the
+        decision, and the verb only becomes answerable once it is named. A row
+        with one available verb still shows the second step — it names the deal
+        back at the reader before anything is written, which is the whole
+        reason a pick is safe to act on.
+      */}
+      {picking && (
+        <Dialog open onOpenChange={(o) => !o && setPicking(null)}>
+          <DialogContent showCloseButton={false}>
+            <DialogHeader>
+              <DialogTitle>
+                {picking.record ? `What should happen on ${picking.record.name}?` : 'Which deal is this?'}
+              </DialogTitle>
+              <DialogDescription>
+                {picking.record
+                  ? picking.item.title
+                  : `Pick the project or opportunity “${picking.item.title}” belongs to. Nothing is created — it joins a record you already have.`}
+              </DialogDescription>
+            </DialogHeader>
+
+            {picking.record === null ? (
+              <RecordPicker
+                options={records}
+                autoFocus
+                onPick={(record) => setPicking((p) => (p ? { ...p, record } : p))}
+              />
+            ) : (
+              <div className="space-y-2">
+                {(picking.item.pickActions ?? []).map((action) => {
+                  const name = picking.record!.name
+                  return (
+                    <button
+                      key={action}
+                      type="button"
+                      onClick={() => {
+                        const record = picking.record!
+                        setPicking(null)
+                        setAsking({ item: picking.item, action, name, target: record })
+                      }}
+                      className="w-full rounded-lg border border-border bg-card px-3.5 py-2.5 text-left outline-none transition-colors hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50"
+                    >
+                      <span className="block text-sm font-medium">
+                        {acceptVerb({ accept: action, acceptName: name })}
+                        {action === 'task' && picking.item.taskCount
+                          ? ` (${picking.item.taskCount})`
+                          : ''}
+                      </span>
+                      <span className="mt-0.5 block text-xs text-muted-foreground">
+                        {ACCEPT_COPY[action].ask(name)}
+                      </span>
+                    </button>
+                  )
+                })}
+                <button
+                  type="button"
+                  onClick={() => setPicking((p) => (p ? { ...p, record: null } : p))}
+                  className="text-xs text-muted-foreground underline underline-offset-2 outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
+                >
+                  Choose a different deal
+                </button>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
+      )}
+
       {asking && (
         <ConfirmDialog
           open
@@ -1312,7 +1645,7 @@ export default function DecideClient({ items }: { items: DecideItem[] }) {
           title={acceptVerb({ accept: asking.action, acceptName: asking.name })}
           description={ACCEPT_COPY[asking.action].ask(asking.name ?? asking.item.title)}
           confirmLabel={acceptVerb({ accept: asking.action, acceptName: asking.name })}
-          onConfirm={() => accept(asking.item, asking.action, asking.name)}
+          onConfirm={() => accept(asking.item, asking.action, asking.name, asking.target)}
         />
       )}
     </div>
