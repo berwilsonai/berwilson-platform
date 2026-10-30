@@ -43,7 +43,17 @@ export interface TrackerResult {
   url: string | null
   created: boolean
   requirements: number
+  /** Recorded by a person as outstanding. */
   open: number
+  /**
+   * Derived: requirements whose section holds nothing.
+   *
+   * ⚠ Carried here as well as in the CSV because this result is what the cron
+   * LOGS, and a nightly line reporting `open: 0` with no `missing` beside it
+   * reads as a room with nothing outstanding — the opposite of the truth on a
+   * room where 112 of 119 requirements have no document.
+   */
+  missing: number
   documents: number
   skipped?: string
 }
@@ -215,6 +225,7 @@ export async function publishTracker(
     created: false,
     requirements: 0,
     open: status.openItems,
+    missing: status.missingRequirements,
     documents: status.filed,
   }
 
@@ -251,6 +262,7 @@ export async function publishTracker(
     created,
     requirements: built.requirements,
     open: built.open,
+    missing: built.missing,
     documents: built.documents,
   }
 }
@@ -301,6 +313,7 @@ export async function publishAllTrackers(opts: { budgetMs?: number } = {}): Prom
           created: false,
           requirements: 0,
           open: 0,
+          missing: 0,
           documents: 0,
           skipped: err instanceof Error ? err.message : String(err),
         })

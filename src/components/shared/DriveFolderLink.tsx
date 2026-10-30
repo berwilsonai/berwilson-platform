@@ -82,6 +82,7 @@ export default function DriveFolderLink({
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [unlinking, setUnlinking] = useState(false)
+  const [claiming, setClaiming] = useState(false)
   const [crumbs, setCrumbs] = useState<Crumb[]>([])
   const [roots, setRoots] = useState<Root[]>([])
   const [rows, setRows] = useState<Row[]>([])
@@ -179,6 +180,43 @@ export default function DriveFolderLink({
     }
   }
 
+  /**
+   * Claim a pre-built blank room and link it, in one press.
+   *
+   * ⚠ A 409 here is the route REFUSING to re-point a record that already has a
+   * folder, which is the one gesture that can lose work — so it is surfaced as
+   * the message rather than swallowed into "something went wrong".
+   */
+  const claimRoom = useCallback(async () => {
+    setClaiming(true)
+    try {
+      const res = await fetch('/api/drive/source-folder', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ project_id: projectId }),
+      })
+      const data = (await res.json().catch(() => ({}))) as {
+        error?: string
+        claimed_slot?: string | null
+        built_fresh?: boolean
+      }
+      if (!res.ok) {
+        toast.error(data.error ?? 'Drive refused the request.')
+        return
+      }
+      toast.success(
+        data.built_fresh
+          ? 'Data room built — no blank slots were left, so it was made from the template.'
+          : `Data room ready (claimed ${data.claimed_slot ?? 'a blank slot'}).`
+      )
+      router.refresh()
+    } catch {
+      toast.error('Could not reach Drive.')
+    } finally {
+      setClaiming(false)
+    }
+  }, [projectId, router])
+
   const here = crumbs[crumbs.length - 1]
 
   return (
@@ -208,10 +246,26 @@ export default function DriveFolderLink({
           </Button>
         </div>
       ) : (
-        <Button variant="outline" size="sm" onClick={openPicker}>
-          <Link2 className="mr-1.5 size-3.5" />
-          Link Drive folder
-        </Button>
+        <div className="flex items-center gap-1.5">
+          <Button variant="outline" size="sm" onClick={openPicker}>
+            <Link2 className="mr-1.5 size-3.5" />
+            Link Drive folder
+          </Button>
+          {/*
+            The other half of the same question. Linking points at a folder the
+            team already made; this makes the one that does not exist yet, from
+            the data-room template, and claims a pre-built `_NEW` slot so it is
+            one Drive call rather than sixty-five.
+          */}
+          <Button variant="outline" size="sm" onClick={claimRoom} disabled={claiming}>
+            {claiming ? (
+              <Loader2 className="mr-1.5 size-3.5 animate-spin" />
+            ) : (
+              <Folder className="mr-1.5 size-3.5" />
+            )}
+            Build its data room
+          </Button>
+        </div>
       )}
 
       <ConfirmDialog
