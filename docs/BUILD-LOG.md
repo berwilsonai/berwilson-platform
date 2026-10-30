@@ -6,6 +6,141 @@ This file is **not** auto-loaded into a Claude Code session. It is the archive: 
 
 Split out of `CLAUDE.md` on 2026-09-23, when that file reached 606k characters against a 150k limit above which it is silently truncated — meaning the project's own operating instructions had begun to risk not reaching the sessions that need them. The entries below are **verbatim and unedited**.
 
+**Done 2026-10-30 (Drive is the source of truth — Outliers, and the seven opportunities the importer had never reached):**
+
+Richard, after the sign-off shipped: *"As long as the drive will resync as it
+becomes better organized with Ber Intelligence then fine. Even if we need a
+manual sync button. I just want to make sure that the drive and ber intelligence
+mirror each other. Perhaps any documents that aren't mirrored in the drive remain
+on ber intelligence under Outliers or soething like that. That way I can go in
+and get rid of old versions of a document more easily."* Then, on being asked
+what "mirror" should mean: *"The drive will really be the source of truth, so I
+guess it's probably better for one directional sync where Drive syncs to the
+exact folders mimic'd in Ber Intelligence. Any folders that dont match the drive
+are pushed out into an area where they can be deleted or kept separately. This
+will allow for better data hygiene."*
+
+That settles a question the codebase had only ever half-answered. The sync has
+always been one-directional and `publish.ts` has said so since it was written —
+*"Drive is a READING surface: nothing is ever read back from it into the
+record"* — but nothing stated which side WINS when the two differ, so a row the
+platform held and Drive did not simply sat there looking live.
+
+### ⚠ MEASURING IT FIRST FOUND THE HOLE, AND IT WAS A FIFTH OF THE RECORDS
+
+`importDriveFolder` had only ever been called with a `projectId`. **Seven
+opportunities carry a linked `drive_source_folder_id` and nothing had ever read
+one.** GridEdge is among them — on the data-room template, with 49 files in its
+room — and its documents arrived from the mail sweep instead, so its room and
+its record would drift the moment anybody added a file in Drive, with nothing
+reporting it. "Drive is the source of truth" was simply false for 7 of 33
+records, and would have stayed false behind a feature built to assert it.
+
+Fixed as a TARGET, never a fork (§12): `importDriveFolder({ target: {kind, id} })`,
+with the document table, the parent column, the storage prefix and the dedupe
+scope all derived from it. The nightly sweep covers opportunities now, and the
+manual route and button take either kind. **Verified live on GridEdge's room:
+54 seen, 3 updated, 30 unchanged, 0 failed** — the first time that folder has
+ever been read by the platform.
+
+⚠ **THREE ARMS HAD TO BE ADDED, NOT ONE**, and each would have failed silently
+or wrongly:
+
+- `postArrivalUpdate` inserts into `updates` with `project_id`, so calling it
+  for an opportunity would either violate the FK or write the notice onto a feed
+  it does not belong to. An opportunity's commentary is `opportunity_notes`, a
+  different table with a different shape, so the honest thing is to import the
+  documents and skip the notice rather than invent a provenance.
+- `notifyArrivals` takes a `projectId` for its containment filter, and an
+  opportunity has none — passing its id would ask the filter a question about
+  the wrong table.
+- The document DELETE route read `documents` only, so a delete aimed at an
+  opportunity document answered *"Document not found"* and the row stayed. That
+  would have made **21 of GridEdge's 22 outliers undeletable** in the very panel
+  built for deleting them.
+
+§12: when a function branches on where something came from, every source that
+can reach it needs an arm, and a trailing `else` is how a missing one becomes a
+write against another table's route.
+
+### Outliers: one area, as asked, but the reason travels with every row
+
+A sign-off and a mirror are the same lesson twice. The reasons are not
+interchangeable and one of them is dangerous:
+
+- a **duplicate**'s bytes live in the copy that was kept, so deleting it costs
+  nothing — and this is the group with real clearing-out behind it;
+- a document that was **never in Drive** may be the only copy there is: a mail
+  attachment the platform extracted, or a note Ber AI wrote. Deleting that is
+  destruction dressed as hygiene.
+
+So the only-copy rows do not get the same button. They carry a warning and their
+delete asks twice, with the second press reading a different sentence. §12: a
+queue whose every row gets the same buttons has not classified anything — let
+the class decide which actions exist.
+
+⚠ **AND THE CLASSIFIER WAS WRONG FIRST, IN THE DANGEROUS DIRECTION.**
+`drive_file_id` means the platform read a file IN from Drive;
+`drive_published_id` means it pushed one OUT. Either way Drive holds it — and
+**20 rows carry the second with the first null**, so the first draft of
+`classifyOutlier` called them *"Not in Drive"* and flagged them as the only copy.
+That is a one-press delete offered on documents Drive has, under a warning
+saying nothing else does: the exact false assurance the panel exists to prevent,
+inverted. Caught by running it against the real corpus, not by reading it.
+
+**Measured across all 33 records afterwards: 785 mirrored, 128 outliers, 23 of
+them the only copy.** By reason: 78 duplicates, 44 excluded by hand, 5 retired
+by hand, 1 removed from Drive. The duplicates are what Richard meant by old
+versions — `Copy of LOI for Purchase…pdf` sitting beside `LOI for Purchase…pdf`,
+fifteen of them on Helper alone.
+
+### Two findings worth more than the feature
+
+⚠ **THE DEDUPER SOMETIMES KEPT THE WORSE-FILED COPY.**
+`Stockton_Nexus_OnePage_Briefing` is retired in `02.2 — LOIs & Capacity
+Reservations` while the copy it kept sits in `00.0 — _Unsorted`; `Letters of
+Support - Helper Carbon County` is retired in `Proposals & Bids` while the keeper
+is in `Correspondence`. It picks a winner by the order it happened to see them,
+not by where they are filed — so a partner browsing the correct folder sees a
+file Ber AI will not cite, and the live row points at one in the holding pen.
+Reported rather than changed: re-deciding 78 existing rows is a data change and
+it is Richard's call.
+
+⚠ **AND ONE OF THOSE "DUPLICATES" HAS TWO DIFFERENT NAMES.** Steelton retired
+`PPL_Will_Serve Cleveland Cliffs Sept 2026.pdf` as byte-identical to
+`PPL_Power Confirmation Steelton Sept 2026.pdf`. §12 already warns that
+identical bytes are not the same document when the name carries the only
+distinction — four blank MNDAs for four counterparties. Either one of those
+names is wrong, or a will-serve letter was saved twice under two
+descriptions, and only a person can say which.
+
+⚠ **LEGACY `.xls` HAS NO BRANCH — THE THIRD TIME THIS RULE HAS BITTEN** (pptx,
+then `.doc` and `.eml`, now this). Two files in the rooms are invisible rather
+than unreadable: `documentKind` matches `XLSX_MIME_TYPE` and `/\.(xlsx|xlsm)$/`
+but not `application/vnd.ms-excel`, so they return `unsupported` and the importer
+skips them with no row at all. ⚠ Deliberately NOT "fixed" by routing them at
+`extractXlsxText`, which reads OOXML through `fflate` — legacy `.xls` is BIFF, a
+different binary format, so that would turn an invisible file into a visibly
+broken one. The honest shape is §12's own: split the skip into kinds still
+unreadable, NAMED, and kinds readable now. Reported.
+
+### The small things
+
+`refiled` now reaches the Sync button, because a file dragged into the right
+folder changes nothing but its path — `added` and `updated` are both 0, so the
+list would keep showing the old shelf until a reload, which is the whole gesture
+the button exists to confirm. A Sync-now button is on the Data room tab, for
+wanting it before the 03:15 nightly or the hourly 08:20–18:20 watch.
+
+⚠ **AND LINT CAUGHT SOMETHING NO TEST COULD:** `OutlierPanel` was imported into
+the opportunity documents page and never rendered, because that page's markup
+differs from the project one and the patch that wired the first silently missed
+the second. Typecheck was green — an unused import is not a type error. The
+unused-variable warning was the only thing that knew.
+
+Lint 23, one BELOW the 24 baseline: an unused `csvCell` import this session had
+itself introduced. 917 tests (+5).
+
 **Done 2026-10-30 (a checkbox that records who verified a shelf — and the Drive move that had never once reached the platform):**
 
 Richard, after the data rooms shipped: *"next to each folder, there is a check
