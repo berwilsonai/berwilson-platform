@@ -152,21 +152,41 @@ async function loadTargets(): Promise<Target[]> {
   return ONLY ? out.filter((t) => t.name === ONLY) : out
 }
 
-/** Folder id for a section inside one room, created if the build missed it. */
-async function sectionFolderId(
-  sectionKey: string,
+/**
+ * The relative PATH a fold target names — a section, or a working folder.
+ *
+ * ⚠ A TARGET THAT IS NOT A SECTION IS STILL A DESTINATION, and missing that arm
+ * cost five documents silently. `FOLDER_TO_SECTION` maps
+ * `Master Proposal - Land Development` → `Proposals & Bids`, which is a WORKING
+ * folder rather than a section key; the script resolved targets through
+ * `sectionByKey` alone, got null, and counted the file as "already placed". It
+ * reported success and moved nothing, on a record whose other 99 files moved
+ * correctly — the exact §12 shape where a missing arm becomes a silent no-op
+ * rather than an error. Returns null only for a target this template does not
+ * know at all, which is then a loud failure.
+ */
+function targetPath(target: string): string | null {
+  const section = sectionByKey(target)
+  if (section) return sectionPath(section)
+  if ((WORKING_FOLDERS as readonly string[]).includes(target)) return target
+  return null
+}
+
+/** Folder id for a fold target inside one room, created if the build missed it. */
+async function targetFolderId(
+  target: string,
   roomId: string,
   memo: Map<string, string>
 ): Promise<string> {
-  const key = `${roomId}::${sectionKey}`
+  const key = `${roomId}::${target}`
   const hit = memo.get(key)
   if (hit) return hit
 
-  const section = sectionByKey(sectionKey)
-  if (!section) throw new Error(`no such section: ${sectionKey}`)
+  const path = targetPath(target)
+  if (!path) throw new Error(`no such fold target: ${target}`)
 
   let parent = roomId
-  for (const segment of sectionPath(section).split('/')) {
+  for (const segment of path.split('/')) {
     const made = await ensureFolder(segment, parent)
     parent = made.id
   }
@@ -224,16 +244,14 @@ async function main(): Promise<void> {
         continue
       }
 
-      // A working-folder name is a destination too, but only `00.0` and the
-      // numbered sections are reachable through `sectionByKey`; a decision
-      // naming a working folder means "stays", which is already null above.
-      const section = sectionByKey(decision.target)
-      if (!section) {
-        left++
+      // ⚠ A working folder is a destination, not a skip — see `targetPath`.
+      // An unknown target is a loud failure rather than a silent no-op.
+      const to = targetPath(decision.target)
+      if (!to) {
+        console.error(`  ${R}unknown target${O} ${decision.target} for ${file.name}`)
+        failed++
         continue
       }
-
-      const to = sectionPath(section)
       const row: Row = {
         record: target.name,
         fileId: file.id,
@@ -249,7 +267,7 @@ async function main(): Promise<void> {
 
       if (APPLY) {
         try {
-          const destId = await sectionFolderId(decision.target, target.room, memo)
+          const destId = await targetFolderId(decision.target, target.room, memo)
           if (!file.parentId) throw new Error('no current parent reported')
           await moveFile(file.id, file.parentId, destId)
 

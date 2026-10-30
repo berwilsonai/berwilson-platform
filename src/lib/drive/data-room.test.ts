@@ -339,3 +339,40 @@ describe('the land and acquisition vocabulary', () => {
     assert.equal(foldDecision('Lease.pdf', '').target, UNSORTED_SECTION)
   })
 })
+
+describe('a fold target is a section OR a working folder', () => {
+  test('every FOLDER_TO_SECTION value is one of the two, or null', () => {
+    // ⚠ THE TEST THAT PASSED WHILE THE SCRIPT WAS WRONG. This assertion already
+    // allowed a working-folder name as a target — correctly — but the script
+    // resolved targets through `sectionByKey` alone, so the five documents
+    // mapped `Master Proposal - Land Development` → `Proposals & Bids` were
+    // counted "already placed" and never moved. A vocabulary assertion cannot
+    // see a missing arm in its CONSUMER; §12: grep every reader of a value set,
+    // and walk every member × every action in a test.
+    const keys = new Set(DATA_CENTER_ROOM.map((s) => s.key))
+    const working = new Set<string>(WORKING_FOLDERS)
+    const targets = new Set(
+      Object.values(FOLDER_TO_SECTION).filter((v): v is string => v !== null)
+    )
+    for (const rule of SECTION_HINTS) targets.add(rule.section)
+
+    for (const t of targets) {
+      assert.ok(keys.has(t) || working.has(t), `${t} is neither a section nor a working folder`)
+    }
+    // And at least one target really is a working folder, so the arm the script
+    // was missing is exercised rather than merely permitted.
+    assert.ok(
+      [...targets].some((t) => working.has(t)),
+      'no mapping targets a working folder — the second arm is untested'
+    )
+  })
+
+  test('the working-folder targets are reachable by name, not by section lookup', () => {
+    assert.equal(sectionByKey('Proposals & Bids'), null)
+    assert.ok((WORKING_FOLDERS as readonly string[]).includes('Proposals & Bids'))
+    assert.equal(
+      foldDecision('Giovanni_Master_Proposal.docx', 'Master Proposal - Land Development').target,
+      'Proposals & Bids'
+    )
+  })
+})
