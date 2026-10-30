@@ -304,6 +304,90 @@ hiding a tab.
 without listing first, and §12 is explicit that fixing the producer does not fix
 the consumer.
 
+### ⚠ AND THEN RICHARD'S OWN SECTION NAME BROKE THE BUILDER, IN 41 ROOMS
+
+**01.6 is named `On-Site / Behind-the-Meter Generation`. It contains a slash.**
+`roomFolderPaths()` returned slash-joined strings and `ensurePath` split them, so
+every room this session built got **`01.6 — On-Site ` containing
+` Behind-the-Meter Generation`** instead of one folder with the real name. 15
+deals and 26 blanks.
+
+⚠ **TWO CODE PATHS DISAGREED ABOUT THE SAME FOLDER.** `tracker.ts` resolves it
+through `folderName()` directly when it writes the section links, and so created
+the CORRECT folder — Steelton ended up holding both: a right folder with nothing
+in it, beside a wrong folder with a wrong child. One home, asked twice, answered
+differently, which is the §12 failure in its purest form.
+
+⚠ **AND THE COMMENT ON `ensurePath` SAID SPLITTING WAS SAFE** "because the paths
+come from `roomFolderPaths()`, whose own test asserts no section label contains a
+slash". No such assertion existed. §12 already says a comment claiming a control
+that is not there is worse than no comment, and `classify.ts` has carried a
+warning about this exact hazard since `Fort Polk / Johnson - Design Build Matocc`
+was found on this drive — the warning was read, quoted in spirit, and then the
+thing it warns about was done anyway.
+
+⚠ **THE COUNT TEST PASSED THROUGHOUT, BECAUSE 64 IS 64 EITHER WAY.** The slash
+moved one folder a level deeper without changing the total, and the assertions
+checked the count and the parent-before-child ordering — both true of the broken
+shape. §12: a worked example whose figures coincide cannot distinguish two
+readings of the rule, and reproducing it proves only that you matched the
+coincidence. It was caught by counting folders in Drive against the template and
+finding 63 where the template declares 64 — then discovering the expectation in
+the verifier was ALSO wrong (65), so neither number was trustworthy and only
+enumerating one room answered it.
+
+**The fix is structural: a path that must be split is a path that can be split
+wrong.** `roomFolderSegments()` returns `string[][]`, `sectionSegments()` is the
+form for creating folders, and `sectionPath()` survives only for the database and
+for display — where joining is exactly right, because that is how `listFolder`
+reports a file's path, and where `sectionOf` reads it back by matching a
+segment's `NN.N` PREFIX rather than counting segments. The fold's
+`targetSegments()` mirrors the same split. The new test asserts the opposite of
+the old comment: that a section name DOES contain a slash, that the segment form
+survives it, that `sectionOf` still reads the joined form, and that no segment
+anywhere is untrimmed — which is what a bad split leaves behind
+(` Behind-the-Meter Generation` kept its leading space).
+
+`scripts/one-shot/repair-split-section-folder.mts` cleaned up the 41 rooms:
+trashing only a folder this build created, only when it is EMPTY at any depth
+(checked, not assumed — a sync or a person could have filed into one between the
+build and the repair), and trashing rather than deleting. ⚠ Its first version
+walked the shelf and found 39 of 41: the rooms that are NOT on the shelf only
+appear in the database, so it reads both and merges by folder id — the same
+lesson the audit had already taught about project folders living in three places.
+
+### The blank rooms, and two things the Studio taught about finishing a long job
+
+26 rooms × 64 folders. ⚠ **THE FIRST ATTEMPT WAS OOM-KILLED AFTER SEVEN ROOMS**
+at 94 MB free with swap 24.1 GB of 25.6 — with BOTH LM Studio models merely
+`IDLE` and holding 22.7 GB. Nothing was running but a job making HTTP calls;
+idle weights are enough. §12's answer to a backfill is `lms unload`, and it was
+deliberately NOT taken: that frees 19.7 GB and takes Ber AI down for the half
+hour the job needs, and Ber AI is the platform's most-used surface.
+
+Two cheaper fixes instead, both of which belong in the script rather than in the
+operator's head:
+
+⚠ **`--blanks-only`, because the EXPENSIVE phase ran before the phase that kept
+dying.** Every phase was already idempotent, so resuming was always just
+re-running — but the record phase re-walks sixty paths for each of sixteen
+data-room records first, which is most of the runtime and all of it wasted on a
+resume. Making a retry cheap is what turns "re-run it" from a penalty into the
+normal way to finish.
+
+⚠ **`ensure()` LISTED A PARENT ONCE PER PATH, NOT ONCE PER PARENT.** A room has
+64 paths under 24 distinct parents, so verifying an already-complete room spent
+64 Drive listings to learn 24 things. Children are now listed once per parent and
+cached — and a folder created in the same run is written back into that cache, or
+the next sibling lookup reads as absent and creates it twice, which on a shared
+drive succeeds and leaves a duplicate: the exact thing this session has spent its
+length cleaning up.
+
+**1,158 folders created, 565 already present, exit 0.** Verified independently in
+Drive afterwards: 26 of 26 blank rooms at 64 folders with all seven top-level
+folders present, and 01.6 correct with its Drafts and Superseded in both a real
+room and a blank.
+
 ### Housekeeping that was cheap and belonged
 
 Three helpers extracted at the one moment it was free, each caught before it
@@ -319,7 +403,7 @@ broken `scripts/*.mts`, because scripts are not in the tsconfig. A python patch
 left a stray brace in the audit and typecheck was green; only running it found
 it. Running the script IS the typecheck for a script.
 
-**Verification.** 892 tests (+32 over the template's vocabulary, including the
+**Verification.** 893 tests (+33 over the template's vocabulary, including the
 hostile cases — the section parser checks membership of the template rather than
 the shape of a number, because a folder called `10.5 MW study` parsed as a
 section key until its own test said so). Lint unchanged at 24 problems, all
