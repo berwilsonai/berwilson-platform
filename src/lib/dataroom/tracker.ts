@@ -33,6 +33,7 @@ import { isGoogleConfigured, PRIMARY_MAILBOX } from '@/lib/integrations/google-w
 import { ensureFolder, folderUrl, upsertSheetFromCsv } from '@/lib/integrations/google-drive-write'
 import { csvRow } from '@/lib/utils/csv'
 import { folderName, sectionByKey } from '@/lib/drive/data-room'
+import { driftLabel } from './signoff'
 import { isOpenStatus, readRoomStatus, type RoomStatus } from './status'
 
 /** The file name in Drive. Stable, because it is also the lookup key. */
@@ -81,6 +82,25 @@ const DOCUMENT_COLUMNS = [
   'Filed',
   'Drive path',
   'Summary',
+] as const
+
+/**
+ * The sign-off block — who has adjudicated each shelf.
+ *
+ * ⚠ THE ONE THING A PARTNER OR A LENDER ACTUALLY WANTS FROM AN INDEX: not just
+ * what is on file, but whether a named person has confirmed it is the right,
+ * current set. And `Verified on` is useless without `Still current?` beside it —
+ * a date alone invites the reader to treat a sign-off from before three new
+ * documents landed as though it covered them.
+ */
+const SIGNOFF_COLUMNS = [
+  'Section',
+  'Verified by',
+  'Verified on',
+  'Documents then',
+  'Documents now',
+  'Still current?',
+  'Note',
 ] as const
 
 /** The Drive link for a section inside one room, or the room itself. */
@@ -201,6 +221,26 @@ export function buildTrackerCsv(status: RoomStatus, links: Map<string, string>):
   }
 
   lines.push('')
+  lines.push(csvRow(['HUMAN SIGN-OFF']))
+  lines.push(csvRow([...SIGNOFF_COLUMNS]))
+  for (const section of status.sections) {
+    const s = section.signoff
+    lines.push(
+      csvRow([
+        `${section.section.key} ${section.section.label}`,
+        s?.by ?? '',
+        s?.at?.slice(0, 10) ?? '',
+        s ? s.documentCount : '',
+        section.documents.length,
+        // Three states, never two: nobody has looked, somebody has and it still
+        // holds, or somebody has and the shelf has changed since.
+        !s ? 'Not yet verified' : s.stale ? `No — ${driftLabel(s)}` : 'Yes',
+        s?.note ?? '',
+      ])
+    )
+  }
+
+  lines.push('')
   lines.push(csvRow(['WHERE EVERYTHING IS']))
   lines.push(csvRow(['Filed into a numbered section', status.filed]))
   lines.push(csvRow(['In a working folder (correspondence, meetings, bids)', status.working]))
@@ -208,6 +248,10 @@ export function buildTrackerCsv(status: RoomStatus, links: Map<string, string>):
   lines.push(csvRow(['On the record but not in Drive', status.notInDrive]))
   lines.push(csvRow(['In a folder outside the template', status.outsideTemplate]))
   lines.push(csvRow(['Sections with nothing on file', status.emptySections]))
+  lines.push(csvRow(['Sections verified by a person and still current', status.signedOff]))
+  lines.push(
+    csvRow(['Sections verified but changed since — need a re-check', status.staleSignoffs])
+  )
   lines.push(csvRow(['Requested documents with nothing on file in their section', missing]))
   lines.push(csvRow(['Outstanding items a person has recorded', open]))
 

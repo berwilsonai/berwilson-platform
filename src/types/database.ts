@@ -559,16 +559,42 @@ isOneToOne: false
                   Relationships: [
                     
                   ]
-                },"dd_items": {
+                },"data_room_signoffs": {
                   Row: {
-                    "assigned_to": string | null,"category": string,"created_at": string | null,"id": string,"item": string,"notes": string | null,"opportunity_id": string | null,"project_id": string | null,"resolved_at": string | null,"severity": Database["public"]['Enums']["dd_severity"] | null,"status": string
+                    "created_at": string | null,"document_count": number,"document_fingerprint": string | null,"id": string,"note": string | null,"opportunity_id": string | null,"project_id": string | null,"section_key": string,"signed_off_at": string,"signed_off_by": string,"signed_off_by_name": string | null,"updated_at": string | null
                   }
                   ComputedFields: never
                   Insert: {
-                    "assigned_to"?: string | null,"category": string,"created_at"?: string | null,"id"?: string,"item": string,"notes"?: string | null,"opportunity_id"?: string | null,"project_id"?: string | null,"resolved_at"?: string | null,"severity"?: Database["public"]['Enums']["dd_severity"] | null,"status"?: string
+                    "created_at"?: string | null,"document_count"?: number,"document_fingerprint"?: string | null,"id"?: string,"note"?: string | null,"opportunity_id"?: string | null,"project_id"?: string | null,"section_key": string,"signed_off_at"?: string,"signed_off_by": string,"signed_off_by_name"?: string | null,"updated_at"?: string | null
                   }
                   Update: {
-                    "assigned_to"?: string | null,"category"?: string,"created_at"?: string | null,"id"?: string,"item"?: string,"notes"?: string | null,"opportunity_id"?: string | null,"project_id"?: string | null,"resolved_at"?: string | null,"severity"?: Database["public"]['Enums']["dd_severity"] | null,"status"?: string
+                    "created_at"?: string | null,"document_count"?: number,"document_fingerprint"?: string | null,"id"?: string,"note"?: string | null,"opportunity_id"?: string | null,"project_id"?: string | null,"section_key"?: string,"signed_off_at"?: string,"signed_off_by"?: string,"signed_off_by_name"?: string | null,"updated_at"?: string | null
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "data_room_signoffs_opportunity_id_fkey"
+      columns: ["opportunity_id"]
+isOneToOne: false
+      referencedRelation: "opportunities"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "data_room_signoffs_project_id_fkey"
+      columns: ["project_id"]
+isOneToOne: false
+      referencedRelation: "projects"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"dd_items": {
+                  Row: {
+                    "assigned_to": string | null,"category": string,"counterparty": string | null,"created_at": string | null,"document_date": string | null,"document_id": string | null,"document_table": string | null,"due_date": string | null,"expires_on": string | null,"id": string,"item": string,"notes": string | null,"opportunity_id": string | null,"outstanding_action": string | null,"project_id": string | null,"resolved_at": string | null,"section_key": string | null,"severity": Database["public"]['Enums']["dd_severity"] | null,"status": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "assigned_to"?: string | null,"category": string,"counterparty"?: string | null,"created_at"?: string | null,"document_date"?: string | null,"document_id"?: string | null,"document_table"?: string | null,"due_date"?: string | null,"expires_on"?: string | null,"id"?: string,"item": string,"notes"?: string | null,"opportunity_id"?: string | null,"outstanding_action"?: string | null,"project_id"?: string | null,"resolved_at"?: string | null,"section_key"?: string | null,"severity"?: Database["public"]['Enums']["dd_severity"] | null,"status"?: string
+                  }
+                  Update: {
+                    "assigned_to"?: string | null,"category"?: string,"counterparty"?: string | null,"created_at"?: string | null,"document_date"?: string | null,"document_id"?: string | null,"document_table"?: string | null,"due_date"?: string | null,"expires_on"?: string | null,"id"?: string,"item"?: string,"notes"?: string | null,"opportunity_id"?: string | null,"outstanding_action"?: string | null,"project_id"?: string | null,"resolved_at"?: string | null,"section_key"?: string | null,"severity"?: Database["public"]['Enums']["dd_severity"] | null,"status"?: string
                   }
                   Relationships: [
                     {

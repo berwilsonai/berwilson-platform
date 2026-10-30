@@ -6,6 +6,7 @@ import { Panel, PanelHeader } from '@/components/ui/card'
 import { StatTile } from '@/components/ui/stat'
 import { folderUrl } from '@/lib/integrations/google-drive-write'
 import { isOpenStatus, type RoomStatus, type SectionStatus } from '@/lib/dataroom/status'
+import SectionSignoff from './SectionSignoff'
 import type { Tone } from '@/lib/ui/tone'
 
 /**
@@ -44,14 +45,30 @@ function statusTone(status: string): Tone {
   return STATUS_TONE[status] ?? 'neutral'
 }
 
-function SectionBlock({ section }: { section: SectionStatus }) {
+function SectionBlock({
+  section,
+  recordKind,
+  recordId,
+}: {
+  section: SectionStatus
+  recordKind: 'project' | 'opportunity'
+  recordId: string
+}) {
   const { section: meta, documents, drafts, rows } = section
   const open = rows.filter((r) => isOpenStatus(String(r.status))).length
 
   return (
     <Panel className="p-0 overflow-hidden">
-      <div className="flex items-start justify-between gap-3 px-4 py-3 border-b border-border">
-        <div className="min-w-0">
+      <div className="flex items-start gap-3 px-4 py-3 border-b border-border">
+        <SectionSignoff
+          recordKind={recordKind}
+          recordId={recordId}
+          sectionKey={meta.key}
+          sectionLabel={`${meta.key} ${meta.label}`}
+          signoff={section.signoff}
+          canSign
+        />
+        <div className="min-w-0 flex-1">
           <h3 className="text-sm font-medium flex items-center gap-2">
             <span className="text-muted-foreground tabular-nums">{meta.key}</span>
             <span className="truncate">{meta.label}</span>
@@ -159,6 +176,55 @@ export default function DataRoomView({ status }: { status: RoomStatus }) {
       </div>
 
       {/*
+        THE COMPLETION INDICATOR — the answer to "where are we and what is
+        outstanding".
+
+        ⚠ SIGNED-OFF AND STALE ARE DRAWN APART AND NEVER SUMMED. A stale tick is
+        not progress: somebody verified a set of documents that has since
+        changed. Summing them would overstate completeness in exactly the
+        direction a diligence index must not, and §12 is explicit that two
+        different quantities must be named apart and never added.
+      */}
+      <Panel>
+        <div className="flex items-baseline justify-between gap-3 flex-wrap">
+          <PanelHeader label="Sections verified" />
+          <p className="text-metric tabular-nums">
+            {status.signedOff}
+            <span className="text-muted-foreground text-base"> / {status.sectionCount}</span>
+          </p>
+        </div>
+        <div
+          className="mt-2 flex h-2 w-full overflow-hidden rounded-full bg-muted"
+          role="img"
+          aria-label={`${status.signedOff} of ${status.sectionCount} sections verified${
+            status.staleSignoffs ? `, ${status.staleSignoffs} needing a re-check` : ''
+          }`}
+        >
+          <div
+            className="bg-foreground"
+            style={{ width: `${(status.signedOff / Math.max(status.sectionCount, 1)) * 100}%` }}
+          />
+          <div
+            className="bg-caution"
+            style={{ width: `${(status.staleSignoffs / Math.max(status.sectionCount, 1)) * 100}%` }}
+          />
+        </div>
+        <p className="mt-2 text-sm text-muted-foreground">
+          {status.signedOff === 0 && status.staleSignoffs === 0
+            ? 'Nothing verified yet. Tick a section once you have checked that what is in it is the right, current set.'
+            : [
+                `${status.signedOff} verified`,
+                status.staleSignoffs
+                  ? `${status.staleSignoffs} needing a re-check since documents changed`
+                  : null,
+                `${status.sectionCount - status.signedOff - status.staleSignoffs} outstanding`,
+              ]
+                .filter(Boolean)
+                .join(' · ')}
+        </p>
+      </Panel>
+
+      {/*
         ⚠ EVERY TILE IS A DIFFERENT QUANTITY AND IS NAMED APART. §12: three
         "needs attention" numbers on one screen read 1, 99+ and 197. These four
         never sum to anything and must not look as though they do — which is
@@ -226,7 +292,12 @@ export default function DataRoomView({ status }: { status: RoomStatus }) {
             </h3>
             <div className="grid gap-3">
               {sections.map((s) => (
-                <SectionBlock key={s.section.key} section={s} />
+                <SectionBlock
+                  key={s.section.key}
+                  section={s}
+                  recordKind={status.kind}
+                  recordId={status.recordId}
+                />
               ))}
             </div>
           </section>

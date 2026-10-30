@@ -31,6 +31,7 @@
  */
 
 import { createAdminClient, createUntypedAdminClient } from '@/lib/supabase/admin'
+import { attachSignoffs, type SectionSignoff } from './signoff'
 import {
   DATA_CENTER_ROOM,
   UNSORTED_SECTION,
@@ -130,6 +131,8 @@ export interface SectionStatus {
   rows: TrackerRow[]
   /** Nothing on file and nobody has said it is not needed. */
   missing: boolean
+  /** A human's sign-off on this shelf, with whether it has gone stale. */
+  signoff: SectionSignoff | null
 }
 
 export interface RoomStatus {
@@ -172,6 +175,19 @@ export interface RoomStatus {
   missingRequirements: number
   /** Sections with nothing on file and no decision recorded. */
   emptySections: number
+  /**
+   * Sections a human has signed off and whose document set has NOT changed
+   * since. This is the completion figure — `11 of 19`.
+   */
+  signedOff: number
+  /**
+   * Signed off, but the documents have changed since. Counted APART and never
+   * summed with `signedOff`: a stale tick is not progress, and §12 is explicit
+   * that two different quantities must be named apart.
+   */
+  staleSignoffs: number
+  /** Leaf sections on this template — the denominator. 19. */
+  sectionCount: number
 }
 
 interface DocRow {
@@ -280,6 +296,14 @@ export async function readRoomStatus(
   const docs = ((docRows ?? []) as DocRow[]).map(asDocument)
   const byId = new Map(docs.map((d) => [d.id, d]))
 
+  const { data: signoffRows, error: signErr } = await supabase
+    .from('data_room_signoffs')
+    .select(
+      'id, section_key, signed_off_by, signed_off_by_name, signed_off_at, document_count, document_fingerprint, note'
+    )
+    .eq(parentCol, recordId)
+  if (signErr) throw new Error(`data_room_signoffs: ${signErr.message}`)
+
   const { data: itemRows, error: itemErr } = await supabase
     .from('dd_items')
     .select(
@@ -310,10 +334,22 @@ export async function readRoomStatus(
     if (i.section_key) itemByLine.set(`${i.section_key} ${i.item}`, i)
   }
 
+  // Grouped once, so the sign-off staleness check and the section rows read the
+  // same set — two passes filtering independently is how one quantity becomes
+  // two answers.
+  const bySection = new Map<string, RoomDocument[]>()
+  for (const d of docs) {
+    if (!d.section) continue
+    const list = bySection.get(d.section)
+    if (list) list.push(d)
+    else bySection.set(d.section, [d])
+  }
+  const signoffs = attachSignoffs(signoffRows ?? [], bySection)
+
   const sections: SectionStatus[] = []
   for (const section of leafSections(DATA_CENTER_ROOM)) {
     if (section.key === UNSORTED_SECTION) continue
-    const mine = docs.filter((d) => d.section === section.key)
+    const mine = bySection.get(section.key) ?? []
     const rows: TrackerRow[] = section.expects.map((expected) => {
       const item = itemByLine.get(`${section.key} ${expected}`) ?? null
       const derived = !item
@@ -343,6 +379,7 @@ export async function readRoomStatus(
       drafts: mine.filter((d) => d.draft).length,
       rows,
       missing: mine.length === 0 && !section.optional,
+      signoff: signoffs.get(section.key) ?? null,
     })
   }
 
@@ -373,6 +410,9 @@ export async function readRoomStatus(
       (n, s) => n + s.rows.filter((r) => r.derived && r.status === 'Missing').length,
       0
     ),
+    signedOff: sections.filter((s) => s.signoff && !s.signoff.stale).length,
+    staleSignoffs: sections.filter((s) => s.signoff?.stale).length,
+    sectionCount: sections.length,
     emptySections: sections.filter((s) => s.missing).length,
   }
 }

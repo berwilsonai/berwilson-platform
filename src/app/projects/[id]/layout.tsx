@@ -15,6 +15,7 @@ import RecordPager from '@/components/records/RecordPager'
 import { PROJECT_TABS } from '@/components/records/tabs'
 import { getViewer, canAccessProject } from '@/lib/auth/viewer'
 import { parcelDb } from '@/lib/parcels/queries'
+import { readRoomStatus } from '@/lib/dataroom/status'
 
 interface LayoutProps {
   children: React.ReactNode
@@ -89,6 +90,22 @@ export default async function ProjectLayout({ children, params }: LayoutProps) {
   const status = project.status ?? 'active'
   const stage = project.stage ?? 'pursuit'
 
+  /**
+   * Diligence completeness, BESIDE the stage and not instead of it.
+   *
+   * Richard asked whether a due-diligence STAGE would help (10-30). It would
+   * not: a deal is in diligence *while* it is in capture or bid, so an eighth
+   * pipeline stage would force a choice between two true things and the board
+   * would start lying. Completeness is a PROPERTY of a deal, so it reads as one
+   * — `Data room 11/19` next to `Capture`, both true at once.
+   *
+   * Only for records on the template; everything else gets nothing rather than
+   * a 0/19 that means "this scheme does not apply here".
+   */
+  const room = project.data_room_template === 'data_center'
+    ? await readRoomStatus('project', id).catch(() => null)
+    : null
+
   return (
     <div className="space-y-0">
       {/* Breadcrumb + project header */}
@@ -149,6 +166,29 @@ export default async function ProjectLayout({ children, params }: LayoutProps) {
         <div className="flex items-center gap-2 flex-wrap">
           <Chip tone={STAGE_BADGE[stage]}>{STAGE_LABELS[stage]}</Chip>
           <Chip tone={SECTOR_BADGE[project.sector]}>{SECTOR_LABELS[project.sector]}</Chip>
+          {room ? (
+            <Link href={`/projects/${id}/data-room`}>
+              {/*
+                ⚠ The tone is earned, not decorative. Complete reads positive,
+                anything stale reads caution because a stale tick is the one
+                state that needs somebody to go and look — and a plain count
+                otherwise, because §12 is explicit that when every chip is
+                coloured, colour has stopped signifying.
+              */}
+              <Chip
+                tone={
+                  room.staleSignoffs
+                    ? 'caution'
+                    : room.signedOff === room.sectionCount
+                      ? 'positive'
+                      : 'neutral'
+                }
+              >
+                Data room {room.signedOff}/{room.sectionCount}
+                {room.staleSignoffs ? ` · ${room.staleSignoffs} to re-check` : ''}
+              </Chip>
+            </Link>
+          ) : null}
           {status !== 'active' && (
             <Chip tone={STATUS_BADGE[status]}>{STATUS_LABELS[status]}</Chip>
           )}
