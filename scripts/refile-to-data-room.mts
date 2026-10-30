@@ -308,9 +308,12 @@ async function main(): Promise<void> {
   // ── Where everything landed ────────────────────────────────────────────────
   console.log(`\n${B}By section${O}`)
   for (const [key, n] of [...bySection.entries()].sort()) {
-    const section = sectionByKey(key)
+    // A working-folder target has no section to take a label from, and printing
+    // a blank beside the count read as a failed render (§12: a bare value at its
+    // own weight). Its key IS its name.
+    const label = sectionByKey(key)?.label ?? key
     const flag = key === UNSORTED_SECTION ? Y : D
-    console.log(`  ${flag}${key}${O} ${String(n).padStart(4)}  ${section?.label ?? ''}`)
+    console.log(`  ${flag}${key.padEnd(6)}${O}${String(n).padStart(4)}  ${label}`)
   }
 
   const unsorted = bySection.get(UNSORTED_SECTION) ?? 0

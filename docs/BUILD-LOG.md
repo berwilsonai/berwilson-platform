@@ -222,7 +222,29 @@ a lender right, which is ordering rather than duplication — the collision test
 compares exact tokens and cannot see it, so the longer phrase is listed first.
 
 **29% → 17%**, of which **38 were ALREADY `_Unsorted`** under the old scheme. Net
-new parked: 75 of 638, each with its reason in the manifest.
+new parked: 75 of 638, each with its reason in the manifest. **676 files moved,
+zero failures** — then **12 more** on a second pass, see below.
+
+⚠ **AND A FOURTH BUG, FOUND BY MEASURING THE END STATE RATHER THAN THE PASS'S
+OWN SUMMARY.** Twelve documents on data-room records were still on old
+`drive_folder_path` values after a run reporting 676 moved and 0 failures. Seven
+are correct — `Email research — *.md`, which `isPlatformArtifact` deliberately
+holds out of any folder a human curated. The other five were a bug:
+`FOLDER_TO_SECTION` maps `Master Proposal - Land Development` → `Proposals &
+Bids`, a WORKING folder rather than a section key, and the script resolved every
+target through `sectionByKey` alone — null, `left++`, counted as "already
+placed". It reported success and moved nothing, on a record whose other
+ninety-nine files moved correctly. ⚠ **AND THE VOCABULARY TEST PASSED
+THROUGHOUT**, because it asserted a target is "a section or a working folder" —
+correct, and permissive of exactly the value the consumer could not handle. A
+vocabulary assertion cannot see a missing arm in its reader. `targetPath()` now
+answers for both kinds and an unknown target is a loud failure; 12 files moved
+on the re-run, **688 in total**.
+
+⚠ **THAT RE-RUN IS ALSO THE IDEMPOTENCY PROOF** §12 asks for: every other room
+reported `0 moved · N already placed`. The file counts each rose by one, which
+is the `00.2` sheet now sitting in `00 — Start Here` and correctly read as
+already filed.
 
 ⚠ **AND IT REWRITES `drive_folder_path` IN THE SAME PASS.** A Drive move keeps the
 file id, so `drive_file_id` survives and the importer will not re-import — but
