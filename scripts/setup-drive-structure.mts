@@ -87,6 +87,23 @@ const BLANKS = (() => {
   return Number.isInteger(n) && n > 0 && n <= 100 ? n : 0
 })()
 
+/**
+ * `--blanks-only` — skip the shelves and the records, do just the blank rooms.
+ *
+ * ⚠ BECAUSE THE BLANK PHASE GETS KILLED AND HAS TO BE RESUMED. 26 rooms × 66
+ * folders is ~1,700 Drive calls over roughly an hour, and this Mac Studio runs
+ * at ~78MB free with 24GB of swap in use whenever LM Studio holds its 22GB of
+ * weights — so a long-running process is collateral for the next memory
+ * squeeze, and this one was killed after three rooms.
+ *
+ * Every phase here is idempotent, so resuming is just re-running — but the
+ * record phase re-walks sixty paths for each of sixteen data-room records
+ * before reaching the blanks, which is most of the cost and all of it wasted on
+ * a resume. This flag makes a retry cheap enough to be the normal way to finish
+ * the job.
+ */
+const BLANKS_ONLY = process.argv.includes('--blanks-only')
+
 const TEMPLATE_ROOM_NAME = '_TEMPLATE — do not use'
 const blankRoomName = (n: number) => `_NEW ${String(n).padStart(2, '0')} — (rename me)`
 
@@ -293,7 +310,7 @@ async function main(): Promise<void> {
     console.log(`  ${id ? `${D}have${O}` : `${G}make${O}`}  ${shelf}`)
   }
 
-  const knowledgeId = shelfIds.get('00 Company Knowledge')
+  const knowledgeId = BLANKS_ONLY ? null : shelfIds.get('00 Company Knowledge')
   if (knowledgeId) {
     for (const sub of KNOWLEDGE_SUBFOLDERS) {
       const id = await ensure(sub, knowledgeId, tally)
@@ -301,7 +318,7 @@ async function main(): Promise<void> {
     }
   }
 
-  const corporateId = shelfIds.get('01 Corporate')
+  const corporateId = BLANKS_ONLY ? null : shelfIds.get('01 Corporate')
   if (corporateId) {
     for (const sub of CORPORATE_SUBFOLDERS) {
       const id = await ensure(sub, corporateId, tally)
@@ -313,9 +330,9 @@ async function main(): Promise<void> {
   const projectsShelfId = shelfIds.get(PROJECTS_SHELF)
   if (!projectsShelfId && APPLY) throw new Error(`${PROJECTS_SHELF} could not be created`)
 
-  console.log(`\n${B}Project folders${O}`)
-  const records = await loadRecords()
   const linkPlan: Array<{ record: Record_; folderId: string }> = []
+  const records = BLANKS_ONLY ? [] : await loadRecords()
+  if (!BLANKS_ONLY) console.log(`\n${B}Project folders${O}`)
 
   for (const record of records) {
     const folderName = driveFolderName(record.name)
