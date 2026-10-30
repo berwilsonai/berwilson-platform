@@ -297,7 +297,7 @@ broken `scripts/*.mts`, because scripts are not in the tsconfig. A python patch
 left a stray brace in the audit and typecheck was green; only running it found
 it. Running the script IS the typecheck for a script.
 
-**Verification.** 887 tests (+30 over the template's vocabulary, including the
+**Verification.** 892 tests (+32 over the template's vocabulary, including the
 hostile cases — the section parser checks membership of the template rather than
 the shape of a number, because a folder called `10.5 MW study` parsed as a
 section key until its own test said so). Lint unchanged at 24 problems, all
