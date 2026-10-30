@@ -219,21 +219,48 @@ async function loadRecords(): Promise<Record_[]> {
   return out
 }
 
+/**
+ * A parent's children, listed ONCE per parent for the life of the process.
+ *
+ * ⚠ THE LIST CALL WAS PER PATH, NOT PER PARENT, and that is what made resuming
+ * this job cost almost as much as running it. A data room has 66 paths under 24
+ * distinct parents, so verifying an already-complete room spent 66 Drive
+ * listings to learn 24 things — and on a box that keeps killing the process,
+ * the cheapness of a resume is the whole difference between a job that finishes
+ * and one that does not. Measured: 66 listings per room becomes 24.
+ *
+ * Safe to cache because this script is the only writer in its own run: a child
+ * it creates is added to the cached list, so a later lookup sees it.
+ */
+const childCache = new Map<string, Map<string, string>>()
+
+async function childrenOf(parentId: string): Promise<Map<string, string>> {
+  const hit = childCache.get(parentId)
+  if (hit) return hit
+  const listed = await listSubfolders(parentId, { orderBy: 'name' })
+  const byName = new Map(listed.map((f) => [f.name, f.id]))
+  childCache.set(parentId, byName)
+  return byName
+}
+
 /** Find-or-create, honouring the dry run. Returns null when it would create. */
 async function ensure(
   name: string,
   parentId: string,
   tally: { created: number; existed: number }
 ): Promise<string | null> {
-  const existing = await listSubfolders(parentId, { orderBy: 'name' })
-  const hit = existing.find((f) => f.name === name)
+  const children = await childrenOf(parentId)
+  const hit = children.get(name)
   if (hit) {
     tally.existed++
-    return hit.id
+    return hit
   }
   tally.created++
   if (!APPLY) return null
   const made = await ensureFolder(name, parentId)
+  // ⚠ Written back, or a sibling created in the same run lists as absent and is
+  // created twice — which on a shared drive succeeds and leaves a duplicate.
+  children.set(name, made.id)
   return made.id
 }
 
