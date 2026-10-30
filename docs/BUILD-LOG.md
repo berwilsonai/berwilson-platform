@@ -6,6 +6,167 @@ This file is **not** auto-loaded into a Claude Code session. It is the archive: 
 
 Split out of `CLAUDE.md` on 2026-09-23, when that file reached 606k characters against a 150k limit above which it is silently truncated — meaning the project's own operating instructions had begun to risk not reaching the sessions that need them. The entries below are **verbatim and unedited**.
 
+**Done 2026-10-30 (a checkbox that records who verified a shelf — and the Drive move that had never once reached the platform):**
+
+Richard, after the data rooms shipped: *"next to each folder, there is a check
+box. When checked it will log which user checked it off. This will be used to
+help as we do new projects to make sure we have everything on our checklist
+completed and know whats outstanding… Checking it off will mean a human
+adjudicated it and verified that is the most accurate and up to date doc."* Plus:
+*"Any files that you can't figure out which folder they go in should still sync to
+the project, we will just need to drag them where they need to go. This
+syncronization between google drive and Ber Intelligence will be really
+important."*
+
+Three decisions were his, taken before any code: **one checkbox per folder**
+(19 per deal, not one per expected document — 119 of those and almost all would
+never be touched); **completeness as a property, not a pipeline stage**; and a
+sign-off that **keeps its tick, flags it stale and says what changed** rather
+than clearing silently or standing silently.
+
+### ⚠ THE WORKFLOW HE DESCRIBED WAS ALREADY BROKEN, AND PROVING IT CAME FIRST
+
+*"We will just need to drag them where they need to go."* That did not work, and
+it had never worked.
+
+**A DRIVE MOVE DOES NOT CHANGE `modifiedTime`.** Measured rather than reasoned:
+three Riverdale documents re-parented by the fold hours earlier still reported a
+`modifiedTime` of **8 October**, because a move changes a file's PARENTS and
+`modifiedTime` is the content clock. Both importers short-circuit on
+`driveFileUnchanged` alone:
+
+```
+if (prior && !returning && !stranded && driveFileUnchanged(prior.drive_modified_at, file)) {
+  result.unchanged++; continue      // ← drive_folder_path never re-read
+}
+```
+
+So re-filing a document by dragging it in Drive was silently inert.
+`drive_folder_path` stayed stale forever — and that column is the ONLY thing
+`sectionOf` reads to decide which section a document is in. The gesture is also
+the only one available to anyone without a platform login, which is most of the
+company. `scripts/backfill-company-folder-paths.mts` exists because these paths
+went stale; this is why they did.
+
+⚠ **AND IT HAD TO BE FIXED FIRST, NOT ALONGSIDE.** A checkbox reading "verified"
+over a folder whose contents the platform has wrong is worse than no checkbox: it
+converts a gap into a false assurance, on the surface a partner reads. The
+sign-off rests on it entirely — until `driveFolderMoved` existed, a document
+dragged between two sections changed NEITHER section's fingerprint, so a
+sign-off would have looked current while the shelf it described was rearranged
+underneath it.
+
+`driveFolderMoved()` is now checked beside the byte comparison in BOTH importers
+(§12: a rule about how to read a KIND of thing means reaching every reader of it,
+into one helper). A move costs ONE UPDATE — the bytes are identical, so nothing
+is downloaded, re-extracted or re-embedded. Compared on TRIMMED strings, because
+16 of 233 folders here carry a trailing space and a path differing only by
+whitespace is the same shelf; otherwise the row would rewrite itself every night
+and never converge, which is §12's `"Huge "` invitee in another costume.
+
+Verified live against Riverdale: one path staled by hand, then `refiled: 1,
+unchanged: 40, failed: 0`, and the path corrected to its real Drive location —
+the move seen, nothing else touched.
+
+### A sign-off is a statement about a SET, not a boolean about a folder
+
+That distinction is the whole design of `data_room_signoffs`. The moment a
+document is added, removed or replaced, the statement stops describing what is
+there — the tick has not become false, it has become **stale**, and a reader
+needs those told apart:
+
+- clearing it silently would lose WHO looked, which is the one fact the feature
+  exists to record;
+- keeping it silently would let a room read fully verified while documents
+  landed in it unexamined — §12's orphaned projection, which looks perfectly
+  live.
+
+So the set is fingerprinted at sign-off and compared on every read.
+
+⚠ **A FINGERPRINT RATHER THAN A COUNT, BECAUSE OF THE ONE CASE THAT MATTERS
+MOST.** A count misses a one-for-one swap, and on a data room that swap is a
+draft replaced by an executed copy: the count is identical and every statement
+about the folder is now wrong in the direction that counts. sha256 over the
+sorted `drive_file_id`s (falling back to the row id, because a document uploaded
+in the platform has no Drive file and is still part of what somebody signed off).
+The drift message names that case in words — *"a document was replaced since —
+re-check"* — rather than reporting zero change, which would read as nothing
+having happened.
+
+**Completion is two quantities, never one.** `11 of 19 verified` and `2 needing a
+re-check` are drawn apart and never summed. A stale tick is not progress, and
+summing them would overstate completeness in precisely the direction a diligence
+index must not — the same rule that had three "needs attention" numbers on one
+screen reading 1, 99+ and 197, and that caught `openItems` reading 112 on every
+room in the portfolio yesterday.
+
+### ⚠ THE RE-SIGN WOULD HAVE ERASED THE PREVIOUS SIGNER
+
+One row per section, updated in place — so "Eric signed this off, then Richard
+re-signed it an hour later" would have kept only Richard, on a feature whose
+entire point is attributability. `data_room_signoffs` joins `_audited_in_full`
+inside `log_activity()`, so the append-only log now carries
+`signed_off_by_name: {old: "Richard", new: "Eric"}` alongside
+`document_count: {old: 12, new: 14}`. It qualifies on the same test `parties` and
+the governance registers passed: narrow and scalar — a section key, a uuid, a
+name, a timestamp, a count and a sha256, nothing like the hundreds of kilobytes
+that keep `documents` and `updates` out.
+
+The function was **derived from `pg_get_functiondef` and edited
+programmatically**, never retyped (§12 — it is ~200 lines of per-table branches
+and retyping it is how a branch gets silently dropped), with the edit asserted
+to have changed exactly one thing, the result diffed before against after, and
+`pg_proc` checked afterwards for an overload (`create or replace` on an unchanged
+signature is the only safe case). Recorded as a migration carrying the derived
+body, matching how `20261020000003_audit_the_directory.sql` did the same job.
+
+### No due-diligence stage, and the reason is that the board would start lying
+
+Richard asked whether one would help. A deal is in diligence **while** it is in
+capture or bid, so an eighth `project_stage` member would force a choice between
+two true things — and it would ripple through `STAGE_LABELS`, `STAGE_BADGE`, both
+boards, the pipeline-value roll-up and `milestones.stage`, which is plain text
+carrying two pipelines. Completeness is a PROPERTY, so it reads as one: a
+`Data room 11/19` chip beside `Capture` in the project header, both true at once.
+Its tone is earned rather than decorative — caution only when something is
+stale, positive only at 19 of 19, plain otherwise, because §12 is explicit that
+when every chip is coloured, colour has stopped signifying.
+
+### The small things §12 made non-optional
+
+- `unique nulls not distinct (project_id, opportunity_id, section_key)` — the
+  always-NULL parent column would otherwise make every re-sign look like a new
+  row, ON CONFLICT would never fire, and the constraint would look present while
+  enforcing nothing. Asserted live: a re-sign leaves exactly one row.
+- The record READ before the write in the route, because of the 22-of-61
+  measurement: a body carrying only an id is why that step gets skipped.
+- `actorAdminClient()`, or the trail reads "system" and answers nothing — the
+  only question the table was added to answer.
+- The checked FILL and the stale RING in different tailwind-merge utility
+  groups, or one silently deletes the other.
+- A `router.refresh()` on the toggle, or the server-rendered completion count
+  keeps the old figure until the tab is reloaded.
+- The tap target written absolutely (`size-[1.375rem]`) rather than derived from
+  a density token that took 66 targets below the 44px floor once already.
+- A computed key (`[target.column]: target.id`) collapses an insert object to a
+  string index signature and the generated client refuses it — which is the
+  typed client doing its job, since it cannot verify a column chosen at run
+  time. Both parent columns are written explicitly, as `composed_documents`
+  does against the same exactly-one CHECK.
+
+The published `00.2` gains a **HUMAN SIGN-OFF** block: verified by, verified on,
+documents then, documents now, still current, note. `Verified on` alone would
+invite a reader to treat a sign-off from before three new documents as covering
+them — which is the failure the whole stale mechanism exists to prevent, and it
+would have been reintroduced in the one artifact a lender actually reads.
+
+**Verified end to end against Riverdale:** a sign-off records Richard and reads
+fresh; a re-sign leaves exactly one row; a document landing in the section flips
+it to *"1 document added since — re-check"*; completion moves 1/19 → 0 verified
+with 1 stale; the tracker row reads `No — 1 document added since`; and everything
+was put back. 912 tests, lint 24 unchanged, deployed and the route confirmed
+closed to an unauthenticated write.
+
 **Done 2026-10-29 (a uniform data closet per deal — and an audit that found 157 documents nobody could see, two of those rooms shared with Palantir):**
 
 Richard wrote out a three-section, nineteen-subfolder diligence standard —
