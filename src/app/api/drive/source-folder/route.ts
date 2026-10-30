@@ -10,7 +10,7 @@ import {
   HQ_FOLDER_ID,
   PROJECTS_SHELF,
   SHARED_DRIVE_ID,
-  roomFolderPaths,
+  roomFolderSegments,
 } from '@/lib/drive/data-room'
 
 /**
@@ -174,9 +174,10 @@ export async function POST(request: NextRequest) {
       claimed = true
     } else {
       const made = await ensureFolder(name, shelf.id)
-      for (const path of roomFolderPaths()) {
+      // ⚠ Segments, never a split string — 01.6's own name contains a slash.
+      for (const segments of roomFolderSegments()) {
         let parent = made.id
-        for (const segment of path.split('/')) parent = (await ensureFolder(segment, parent)).id
+        for (const segment of segments) parent = (await ensureFolder(segment, parent)).id
       }
       folderId = made.id
       claimed = false

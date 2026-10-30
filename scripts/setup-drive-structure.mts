@@ -41,7 +41,7 @@ import {
   HQ_FOLDER_ID,
   PROJECTS_SHELF,
   isRoomTemplateKey,
-  roomFolderPaths,
+  roomFolderSegments,
   type RoomTemplateKey,
 } from '@/lib/drive/data-room'
 
@@ -265,37 +265,38 @@ async function ensure(
 }
 
 /**
- * Find-or-create a whole PATH — `01 — Power & Property/01.5 — …/Drafts`.
+ * Find-or-create a folder by its SEGMENTS — `['01 — …', '01.5 — …', 'Drafts']`.
  *
- * The existing `ensureFolderPath` in file-document.ts cannot serve: it walks
- * `folderSegments`, which knows about exactly one nesting special case (the
- * Diligence lanes) and treats everything else as a single folder however many
- * slashes it contains. That guard exists because a real Drive folder is named
- * `Fort Polk / Johnson - Design Build Matocc` and must never be split.
+ * ⚠ IT TOOK A SLASH-JOINED STRING AND SPLIT IT, AND THAT WAS WRONG IN 42 ROOMS.
+ * Richard's section 01.6 is named `On-Site / Behind-the-Meter Generation`, so
+ * the joined path split into three and this function created
+ * `01.6 — On-Site ` holding ` Behind-the-Meter Generation`. The comment that
+ * used to sit here claimed splitting was safe "because the paths come from
+ * `roomFolderPaths()`, whose own test asserts no section label contains a
+ * slash" — the test asserted no such thing, and §12 is explicit that a comment
+ * claiming a control that is not there is worse than no comment.
  *
- * Splitting is safe HERE because the paths come from `roomFolderPaths()`, whose
- * own test asserts no section label contains a slash — the structure is ours,
- * not a name read back off Drive.
+ * `roomFolderSegments()` hands over the structure already separated, so nothing
+ * here parses a name. The `ensureFolderPath` in file-document.ts still cannot
+ * serve: it walks `folderSegments`, which knows one nesting special case (the
+ * Diligence lanes) and treats everything else as a single folder.
  *
- * Memoised, because the template shares parents: 19 leaves under 3 parents plus
- * two status folders each is 60 paths per record, and re-listing `01 — Power &
- * Property` sixteen times is sixteen round trips for one answer.
+ * Memoised per prefix, because the template shares parents.
  */
 async function ensurePath(
-  path: string,
+  segments: string[],
   rootId: string,
   tally: { created: number; existed: number },
   memo: Map<string, string | null>
 ): Promise<string | null> {
-  const key = `${rootId}::${path}`
+  const key = `${rootId}::${segments.join('\u0000')}`
   if (memo.has(key)) return memo.get(key)!
 
-  const segments = path.split('/')
   let parent: string | null = rootId
-  let walked = ''
+  const walked: string[] = []
   for (const segment of segments) {
-    walked = walked ? `${walked}/${segment}` : segment
-    const sub = `${rootId}::${walked}`
+    walked.push(segment)
+    const sub = `${rootId}::${walked.join('\u0000')}`
     if (memo.has(sub)) {
       parent = memo.get(sub)!
       continue
@@ -363,7 +364,10 @@ async function main(): Promise<void> {
 
   for (const record of records) {
     const folderName = driveFolderName(record.name)
-    const paths = record.template === 'data_center' ? roomFolderPaths() : [...STANDARD_FOLDERS]
+    const paths: string[][] =
+      record.template === 'data_center'
+        ? roomFolderSegments()
+        : STANDARD_FOLDERS.map((n) => [n])
     const memo = new Map<string, string | null>()
 
     /**
@@ -442,9 +446,9 @@ async function main(): Promise<void> {
       const before = tally.created
       const roomId = await ensure(name, projectsShelfId, tally)
       if (roomId) {
-        for (const path of roomFolderPaths()) await ensurePath(path, roomId, tally, memo)
+        for (const segments of roomFolderSegments()) await ensurePath(segments, roomId, tally, memo)
       } else {
-        tally.created += roomFolderPaths().length
+        tally.created += roomFolderSegments().length
       }
       const made = tally.created - before
       console.log(`  ${made ? `${G}make${O}` : `${D}have${O}`}  ${name}${made ? ` ${G}+${made}${O}` : ''}`)

@@ -48,6 +48,7 @@ import {
   isRoomTemplateKey,
   sectionByKey,
   sectionPath,
+  sectionSegments,
 } from '@/lib/drive/data-room'
 
 const G = '\x1b[32m', Y = '\x1b[33m', R = '\x1b[31m', D = '\x1b[2m', B = '\x1b[1m', O = '\x1b[0m'
@@ -172,6 +173,23 @@ function targetPath(target: string): string | null {
   return null
 }
 
+/**
+ * The same destination as SEGMENTS, for creating folders.
+ *
+ * ⚠ `targetPath()` IS FOR THE DATABASE AND THIS IS FOR DRIVE, and conflating
+ * them put `01.6 — On-Site ` / ` Behind-the-Meter Generation` into 42 rooms:
+ * Richard's 01.6 is named `On-Site / Behind-the-Meter Generation` and the
+ * joined path was split on its own slash. The joined form is right for
+ * `drive_folder_path`, because that is exactly how `listFolder` reports a
+ * file's path; the segment form is the only safe one for `ensureFolder`.
+ */
+function targetSegments(target: string): string[] | null {
+  const section = sectionByKey(target)
+  if (section) return sectionSegments(section)
+  if ((WORKING_FOLDERS as readonly string[]).includes(target)) return [target]
+  return null
+}
+
 /** Folder id for a fold target inside one room, created if the build missed it. */
 async function targetFolderId(
   target: string,
@@ -182,11 +200,11 @@ async function targetFolderId(
   const hit = memo.get(key)
   if (hit) return hit
 
-  const path = targetPath(target)
-  if (!path) throw new Error(`no such fold target: ${target}`)
+  const segments = targetSegments(target)
+  if (!segments) throw new Error(`no such fold target: ${target}`)
 
   let parent = roomId
-  for (const segment of path.split('/')) {
+  for (const segment of segments) {
     const made = await ensureFolder(segment, parent)
     parent = made.id
   }

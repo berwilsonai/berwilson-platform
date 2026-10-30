@@ -25,7 +25,8 @@ import {
   isDraftPath,
   isRoomTemplateKey,
   leafSections,
-  roomFolderPaths,
+  roomFolderSegments,
+  sectionSegments,
   sectionByKey,
   FOLDER_TO_SECTION,
   SECTION_HINTS,
@@ -99,16 +100,55 @@ describe('folder names', () => {
   })
 
   test('builds every folder the room needs, parents before children', () => {
-    const paths = roomFolderPaths()
-    assert.equal(new Set(paths).size, paths.length)
-    for (const p of paths) {
-      const parent = p.split('/').slice(0, -1).join('/')
-      if (parent) assert.ok(paths.indexOf(parent) < paths.indexOf(p), p)
+    const rooms = roomFolderSegments()
+    const keys = rooms.map((r) => r.join('\u0000'))
+    assert.equal(new Set(keys).size, keys.length)
+    for (const segments of rooms) {
+      if (segments.length < 2) continue
+      const parent = segments.slice(0, -1).join('\u0000')
+      assert.ok(keys.indexOf(parent) < keys.indexOf(segments.join('\u0000')), segments.join(' / '))
     }
     // 3 parents + 20 leaves + 19×2 status folders + 3 working folders.
-    assert.equal(paths.length, 3 + 20 + 38 + WORKING_FOLDERS.length)
-    assert.ok(paths.includes('01 — Power & Property/01.5 — Utility Power Commitment/Drafts'))
-    assert.ok(paths.includes('Correspondence'))
+    assert.equal(rooms.length, 3 + 20 + 38 + WORKING_FOLDERS.length)
+    assert.ok(
+      keys.includes(
+        ['01 — Power & Property', '01.5 — Utility Power Commitment', 'Drafts'].join('\u0000')
+      )
+    )
+    assert.ok(keys.includes('Correspondence'))
+  })
+
+  test('⚠ a section name MAY contain a slash, so nothing may split a path', () => {
+    /*
+      Richard's 01.6 is named `On-Site / Behind-the-Meter Generation`. The
+      builder used to take a slash-joined path and split it, on a comment
+      claiming "no section label contains a slash — asserted by its own test".
+      No such assertion existed, and 42 Drive rooms were built with
+      `01.6 — On-Site ` holding ` Behind-the-Meter Generation`.
+
+      So this asserts the opposite of that comment — a slash IS present — and
+      that the segment form survives it. §12: a comment claiming a control that
+      is not there is worse than no comment.
+    */
+    const generation = sectionByKey('01.6')!
+    assert.ok(generation.label.includes('/'), 'the premise of this test has changed')
+
+    assert.deepEqual(sectionSegments(generation), [
+      '01 — Power & Property',
+      '01.6 — On-Site / Behind-the-Meter Generation',
+    ])
+    // The joined form is still right for `drive_folder_path`, and `sectionOf`
+    // reads it back correctly despite the extra slash.
+    assert.equal(sectionOf(sectionPath(generation)), '01.6')
+
+    // And no segment anywhere is empty or whitespace, which is what a bad split
+    // produces (` Behind-the-Meter Generation` kept its leading space).
+    for (const segments of roomFolderSegments()) {
+      for (const seg of segments) {
+        assert.equal(seg, seg.trim(), `"${seg}" is not trimmed`)
+        assert.ok(seg.length > 0, 'empty segment')
+      }
+    }
   })
 
   test('sorts the data room above the working folders, as Drive will', () => {
@@ -116,7 +156,7 @@ describe('folder names', () => {
     // sort order IS the reading order a partner gets. Asserted rather than
     // asserted-in-a-comment, because an un-numbered working folder sorting
     // between 01 and 02 would put the mail shelf inside the diligence closet.
-    const top = [...new Set(roomFolderPaths().map((p) => p.split('/')[0]))]
+    const top = [...new Set(roomFolderSegments().map((r) => r[0]))]
     const sorted = [...top].sort((a, b) => a.localeCompare(b))
     const firstWorking = sorted.findIndex((n) => (WORKING_FOLDERS as readonly string[]).includes(n))
     const lastNumbered = sorted.reduce((last, n, i) => (/^\d/.test(n) ? i : last), -1)

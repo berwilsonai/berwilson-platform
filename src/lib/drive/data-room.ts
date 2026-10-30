@@ -422,11 +422,46 @@ export function folderName(section: DataRoomSection): string {
   return `${section.key} — ${section.label}`
 }
 
-/** A leaf's path below the record folder — `01 — …/01.5 — …`, or just `00.0 — …`. */
-export function sectionPath(section: DataRoomSection, template = DATA_CENTER_ROOM): string {
-  if (!section.parent) return folderName(section)
+/**
+ * A leaf's folder names below the record folder, OUTERMOST FIRST.
+ *
+ * ⚠ SEGMENTS, NOT A SLASH-JOINED STRING, AND THAT DISTINCTION WAS A LIVE BUG IN
+ * 42 DRIVE ROOMS. Richard's own section 01.6 is named `On-Site /
+ * Behind-the-Meter Generation` — it contains a slash — so the joined path
+ * `01 — Power & Property/01.6 — On-Site / Behind-the-Meter Generation` split
+ * into THREE segments and the builder created `01.6 — On-Site ` holding
+ * ` Behind-the-Meter Generation`. Meanwhile `tracker.ts` resolved the same
+ * folder through `folderName()` directly and created the correct one, so
+ * Steelton ended up with BOTH. Two code paths disagreeing about one folder is
+ * the §12 failure in its purest form, and `classify.ts` has carried a warning
+ * about precisely this since a folder called `Fort Polk / Johnson - Design
+ * Build Matocc` was found on this drive.
+ *
+ * A path that must be split is a path that can be split wrong. Nothing splits
+ * any more: callers walk the array.
+ */
+export function sectionSegments(
+  section: DataRoomSection,
+  template = DATA_CENTER_ROOM
+): string[] {
+  if (!section.parent) return [folderName(section)]
   const parent = template.find((s) => s.key === section.parent)
-  return parent ? `${folderName(parent)}/${folderName(section)}` : folderName(section)
+  return parent ? [folderName(parent), folderName(section)] : [folderName(section)]
+}
+
+/**
+ * The same thing joined, for DISPLAY and for comparing against a stored
+ * `drive_folder_path`.
+ *
+ * ⚠ LEGITIMATE HERE AND ONLY HERE. `listFolder` builds a file's path by joining
+ * folder names with `/`, so this is the exact string the importer stores and
+ * `sectionOf` is built to read back — including the slash inside 01.6's own
+ * name, which `sectionOf` survives because it matches the `NN.N` PREFIX of a
+ * segment rather than counting segments. ⚠ NEVER split the result to create
+ * folders; use {@link sectionSegments}.
+ */
+export function sectionPath(section: DataRoomSection, template = DATA_CENTER_ROOM): string {
+  return sectionSegments(section, template).join('/')
 }
 
 /** The nineteen leaves plus `00.0`, in order. Parents hold no documents. */
@@ -491,29 +526,32 @@ export function isDraftPath(drivePath: string | null | undefined): boolean {
 }
 
 /**
- * EVERY FOLDER PATH A DATA-CENTER ROOM CONTAINS, in creation order.
+ * EVERY FOLDER A DATA-CENTER ROOM CONTAINS, as SEGMENT LISTS, in creation order.
  *
- * Parents first so `ensureFolder` never has to create one implicitly, then each
- * leaf, then its two status subfolders, then the working folders. 19 leaves × 3
- * = 57 plus 3 parents plus `00.0` and its two, plus 3 working folders.
+ * Parents first so no folder is created implicitly, then each leaf, then its two
+ * status subfolders, then the working folders.
+ *
+ * ⚠ RETURNS `string[][]`, NOT `string[]`. See {@link sectionSegments}: the
+ * joined form was split by the builder and 01.6's own slash became a folder
+ * boundary in 42 rooms. A caller walks the inner array and never splits.
  */
-export function roomFolderPaths(template = DATA_CENTER_ROOM): string[] {
-  const out: string[] = []
+export function roomFolderSegments(template = DATA_CENTER_ROOM): string[][] {
+  const out: string[][] = []
   for (const section of template) {
     if (!section.parent && section.key !== UNSORTED_SECTION) {
-      out.push(folderName(section))
+      out.push([folderName(section)])
     }
   }
   for (const section of leafSections(template)) {
-    const path = sectionPath(section, template)
-    out.push(path)
+    const segments = sectionSegments(section, template)
+    out.push(segments)
     // `00.0 — _Unsorted` holds what nothing could place; a draft or a
     // superseded copy of an unplaced document is not a distinction worth three
     // folders nobody opens.
     if (section.key === UNSORTED_SECTION) continue
-    out.push(`${path}/${DRAFTS_FOLDER}`, `${path}/${SUPERSEDED_FOLDER}`)
+    out.push([...segments, DRAFTS_FOLDER], [...segments, SUPERSEDED_FOLDER])
   }
-  out.push(...WORKING_FOLDERS)
+  for (const working of WORKING_FOLDERS) out.push([working])
   return out
 }
 
