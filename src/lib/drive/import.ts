@@ -17,7 +17,7 @@
  * team added during diligence, and on demand behind a button.
  */
 
-import { createAdminClient } from '@/lib/supabase/admin'
+import { createAdminClient, createUntypedAdminClient } from '@/lib/supabase/admin'
 import { runDocumentAiPass, documentKind, needsAnotherPass } from '@/lib/ai/document-pipeline'
 import {
   listFolder,
@@ -89,19 +89,61 @@ function exportable(file: DriveFile): boolean {
   return file.mimeType === 'application/vnd.google-apps.document'
 }
 
+/**
+ * Which record a folder is imported ONTO.
+ *
+ * ⚠ A TARGET, NOT A FORK — §12: never fork a shared pass, add a target. And it
+ * had to be added, because this pass took a bare `projectId` and so could only
+ * ever import onto half the corpus: **seven opportunities carry a linked
+ * `drive_source_folder_id` and nothing had ever read one.** Measured 2026-10-30
+ * while answering "does Drive mirror Ber Intelligence" — it did not, for
+ * GridEdge among them, which is on the data-room template with 49 files in its
+ * room. Its documents arrived from the mail sweep instead, so the room and the
+ * record would drift the moment anybody added a file in Drive, with nothing
+ * reporting it.
+ */
+export type DriveImportTarget =
+  | { kind: 'project'; id: string }
+  | { kind: 'opportunity'; id: string }
+
+interface TargetShape {
+  docTable: 'documents' | 'opportunity_documents'
+  parentCol: 'project_id' | 'opportunity_id'
+  storagePrefix: string
+}
+
+const SHAPES: Record<DriveImportTarget['kind'], TargetShape> = {
+  project: { docTable: 'documents', parentCol: 'project_id', storagePrefix: 'projects' },
+  opportunity: {
+    docTable: 'opportunity_documents',
+    parentCol: 'opportunity_id',
+    storagePrefix: 'opportunities',
+  },
+}
+
 export async function importDriveFolder(opts: {
   folderId: string
-  projectId: string
+  target: DriveImportTarget
   budgetMs?: number
   /** doc_type for newly imported rows. Diligence packages are the default. */
   docType?: string
   /** Subfolder depth to walk. */
   maxDepth?: number
 }): Promise<DriveImportResult> {
-  const { folderId, projectId } = opts
+  const { folderId, target } = opts
+  const shape = SHAPES[target.kind]
+  const recordId = target.id
   const deadline = Date.now() + (opts.budgetMs ?? 10 * 60 * 1000)
   const docType = opts.docType ?? 'diligence'
   const supabase = createAdminClient()
+  /**
+   * ⚠ THE UNTYPED CLIENT FOR THE DYNAMIC-TABLE READS AND WRITES, and only
+   * those. The table and the parent column are chosen at run time, which the
+   * generated client cannot verify — §4 keeps `createUntypedAdminClient()` for
+   * exactly this. Everything whose table is known at compile time stays on the
+   * typed client, so it keeps catching a wrong column name.
+   */
+  const dyn = createUntypedAdminClient()
 
   const result: DriveImportResult = {
     seen: 0,
@@ -129,12 +171,12 @@ export async function importDriveFolder(opts: {
   // Scoped to this project. `documents.drive_file_id` is uniquely indexed, so a
   // file can only belong to one record anyway; scoping keeps a file owned by
   // another project from being silently rewritten to point at this one.
-  const { data: existingRows } = await supabase
-    .from('documents')
+  const { data: existingRows } = await dyn
+    .from(shape.docTable)
     .select(
       'id, drive_file_id, drive_modified_at, superseded_at, embedding_status, superseded_by_hand, drive_folder_path'
     )
-    .eq('project_id', projectId)
+    .eq(shape.parentCol, recordId)
     .not('drive_file_id', 'is', null)
 
   const known = new Map<string, KnownDoc>()
@@ -158,11 +200,16 @@ export async function importDriveFolder(opts: {
   // than discovered by failing: the same document genuinely does appear in two
   // teams' folders, and letting the insert violate the constraint turns a
   // routine overlap into a hard failure logged every single night.
-  const { data: elsewhereRows } = await supabase
-    .from('documents')
+  // ⚠ ASKED OF THIS TARGET'S OWN TABLE. The unique index on `drive_file_id` is
+  // PER TABLE — `documents` has one and `opportunity_documents` has its own —
+  // so the collision this guards against is only ever within the same table.
+  // Reading the other one here would withhold a file that can legitimately be
+  // imported, which is the mirror failure of letting the insert blow up.
+  const { data: elsewhereRows } = await dyn
+    .from(shape.docTable)
     .select('drive_file_id')
     .not('drive_file_id', 'is', null)
-    .or(`project_id.neq.${projectId},project_id.is.null`)
+    .or(`${shape.parentCol}.neq.${recordId},${shape.parentCol}.is.null`)
   const ownedElsewhere = new Set(
     ((elsewhereRows ?? []) as { drive_file_id: string }[]).map((r) => r.drive_file_id)
   )
@@ -177,10 +224,10 @@ export async function importDriveFolder(opts: {
   // own Drive id, so without it every file already imported was skipped as
   // "something we published", which defeated change detection and then made the
   // whole folder look like it had vanished.
-  const { data: publishedRows } = await supabase
-    .from('documents')
+  const { data: publishedRows } = await dyn
+    .from(shape.docTable)
     .select('drive_published_id')
-    .eq('project_id', projectId)
+    .eq(shape.parentCol, recordId)
     .not('drive_published_id', 'is', null)
     .is('drive_file_id', null)
   const published = new Set(
@@ -192,7 +239,12 @@ export async function importDriveFolder(opts: {
   // ⚠ Scoped to THIS project on purpose: the Cleveland-Cliffs due-diligence
   // package is byte-identical on Weirton, Steelton and Riverdale and all three
   // are correct.
-  const hashes = await loadScopeHashes(supabase, { kind: 'project', projectId })
+  const hashes = await loadScopeHashes(
+    supabase,
+    target.kind === 'project'
+      ? { kind: 'project', projectId: recordId }
+      : { kind: 'opportunity', opportunityId: recordId }
+  )
 
   const seenIds = new Set<string>()
 
@@ -259,8 +311,8 @@ export async function importDriveFolder(opts: {
         result.unchanged++
         continue
       }
-      const { error: moveErr } = await supabase
-        .from('documents')
+      const { error: moveErr } = await dyn
+        .from(shape.docTable)
         .update({ drive_folder_path: file.path || null })
         .eq('id', prior.id)
       if (moveErr) {
@@ -293,7 +345,7 @@ export async function importDriveFolder(opts: {
       const duplicate = findDuplicate(hashes, digest, prior?.id)
 
       const safeName = content.fileName.replace(/[^a-zA-Z0-9._-]/g, '_')
-      const path = `projects/${projectId}/drive/${file.id}-${safeName}`
+      const path = `${shape.storagePrefix}/${recordId}/drive/${file.id}-${safeName}`
       const { error: upErr } = await supabase.storage
         .from('documents')
         .upload(path, content.buffer, { contentType: content.mimeType, upsert: true })
@@ -323,10 +375,10 @@ export async function importDriveFolder(opts: {
         documentId = prior.id
         result.updated++
       } else {
-        const { data, error } = await supabase
-          .from('documents')
+        const { data, error } = await dyn
+          .from(shape.docTable)
           .insert({
-            project_id: projectId,
+            [shape.parentCol]: recordId,
             storage_path: path,
             file_name: content.fileName,
             mime_type: content.mimeType,
@@ -384,7 +436,19 @@ export async function importDriveFolder(opts: {
       const pass = await runDocumentAiPass({
         supabase,
         documentId,
-        projectId,
+        // ⚠ The AI pass is keyed on the PROJECT for its framing and takes a
+        // table override; an opportunity has no project, so null is correct and
+        // the override is what points it at the right table.
+        projectId: target.kind === 'project' ? recordId : null,
+        // ⚠ The pass's own `target` discriminator, which is a different shape
+        // from this importer's — it carries the opportunity id because the
+        // summarizer's framing differs: an opportunity's attachments are CIMs,
+        // teasers and term sheets, where the useful summary leads with
+        // valuation rather than scope.
+        target:
+          target.kind === 'opportunity'
+            ? { table: 'opportunity_documents' as const, opportunityId: recordId }
+            : { table: 'documents' as const },
         fileName: content.fileName,
         mimeType: content.mimeType,
         buffer: content.buffer,

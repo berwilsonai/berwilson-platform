@@ -39,7 +39,7 @@ import {
   upsertSheetFromCsv,
 } from '@/lib/integrations/google-drive-write'
 import { PRIMARY_MAILBOX, isGoogleConfigured } from '@/lib/integrations/google-workspace'
-import { csvCell, csvRow } from '@/lib/utils/csv'
+import { csvRow } from '@/lib/utils/csv'
 
 /** Shelf the route sheets live on, under the Ber Intelligence root. */
 const SECTION = 'Lead Lists'

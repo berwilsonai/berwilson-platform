@@ -17,7 +17,20 @@ import { Button } from '@/components/ui/button'
  *
  * Idempotent: unchanged files cost a list entry and nothing else.
  */
-export default function DriveImportButton({ projectId }: { projectId: string }) {
+export default function DriveImportButton({
+  projectId,
+  recordKind = 'project',
+}: {
+  /** The record's id. Named `projectId` for the existing call sites. */
+  projectId: string
+  /**
+   * ⚠ Defaulted to `project` so every existing caller keeps working untouched —
+   * the same reason `DocumentSource` in refile.ts defaults the way it does. An
+   * opportunity's room was unreachable from here until 2026-10-30, and seven of
+   * them have one.
+   */
+  recordKind?: 'project' | 'opportunity'
+}) {
   const [busy, setBusy] = useState(false)
   const router = useRouter()
 
@@ -27,7 +40,9 @@ export default function DriveImportButton({ projectId }: { projectId: string }) 
       const res = await fetch('/api/drive/import', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ project_id: projectId }),
+        body: JSON.stringify(
+          recordKind === 'project' ? { project_id: projectId } : { opportunity_id: projectId }
+        ),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? 'Import failed')
@@ -39,8 +54,13 @@ export default function DriveImportButton({ projectId }: { projectId: string }) 
       ].filter(Boolean)
       toast.success(parts.length ? parts.join(' · ') : 'Nothing new in the folder')
       if (data.errors?.length) toast.error(String(data.errors[0]))
-      // Indexing happened server-side; the list needs re-reading to show it.
-      if (data.added > 0 || data.updated > 0) router.refresh()
+      /*
+        ⚠ `refiled` TOO. A file somebody dragged into the right folder in Drive
+        changes nothing but its path, so `added` and `updated` are both 0 and
+        the list would keep showing the old shelf until a reload — which is the
+        whole gesture this button exists to confirm.
+      */
+      if (data.added > 0 || data.updated > 0 || data.refiled > 0) router.refresh()
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Import failed')
     } finally {

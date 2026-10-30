@@ -506,7 +506,7 @@ export async function promoteLead(
       // outage costs this import and nothing else. The nightly drive-sync pass
       // picks up whatever did not land.
       try {
-        const imported = await importDriveFolder({ folderId: lead.drive_folder_id, projectId: id })
+        const imported = await importDriveFolder({ folderId: lead.drive_folder_id, target: { kind: 'project', id } })
         driveImported = imported.added + imported.updated
         documentsCopied += driveImported
       } catch (err) {

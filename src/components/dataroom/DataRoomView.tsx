@@ -5,6 +5,7 @@ import { Chip } from '@/components/ui/chip'
 import { Panel, PanelHeader } from '@/components/ui/card'
 import { StatTile } from '@/components/ui/stat'
 import { folderUrl } from '@/lib/integrations/google-drive-write'
+import DriveImportButton from '@/components/shared/DriveImportButton'
 import { isOpenStatus, type RoomStatus, type SectionStatus } from '@/lib/dataroom/status'
 import SectionSignoff from './SectionSignoff'
 import type { Tone } from '@/lib/ui/tone'
@@ -161,6 +162,16 @@ export default function DataRoomView({ status }: { status: RoomStatus }) {
             <span className="whitespace-nowrap">00.2 — Master Document Index</span>.
           </p>
         </div>
+        <div className="flex items-center gap-2">
+          {/*
+            Drive is the source of truth, so "pull it in now" belongs beside the
+            room rather than only on the Documents tab. The nightly sync is
+            03:15 and the hourly watch runs 08:20–18:20; this is for wanting it
+            before then — a file dragged into its section at 19:00, say.
+          */}
+          {status.driveFolderId ? (
+            <DriveImportButton projectId={status.recordId} recordKind={status.kind} />
+          ) : null}
         {status.driveFolderId ? (
           <Link
             href={folderUrl(status.driveFolderId)}
@@ -173,6 +184,7 @@ export default function DataRoomView({ status }: { status: RoomStatus }) {
             <ExternalLink className="size-3.5 opacity-70" />
           </Link>
         ) : null}
+        </div>
       </div>
 
       {/*

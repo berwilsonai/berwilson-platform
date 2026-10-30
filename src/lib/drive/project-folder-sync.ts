@@ -47,6 +47,11 @@ interface ProjectRow {
   drive_source_folder_id: string | null
 }
 
+/** A project or an opportunity, once both are swept. */
+interface RecordRow extends ProjectRow {
+  kind: 'project' | 'opportunity'
+}
+
 
 /**
  * The update posted after a run that changed something.
@@ -157,7 +162,43 @@ export async function syncProjectFolders(
   // The local 'closed'/'lost' set this used to carry became the shared
   // definition in src/lib/records/live.ts, which also covers on_hold. Four
   // places ask this question and they had drifted apart; now they cannot.
-  const rows = ((data ?? []) as ProjectRow[]).filter((r) => isProjectLive(r.status))
+  const rows: RecordRow[] = ((data ?? []) as ProjectRow[])
+    .filter((r) => isProjectLive(r.status))
+    .map((r) => ({ ...r, kind: 'project' as const }))
+
+  /**
+   * ⚠ OPPORTUNITIES TOO, AND THEY HAD NEVER BEEN SWEPT AT ALL.
+   *
+   * Seven of them carry a linked `drive_source_folder_id` and nothing had ever
+   * read one — measured 2026-10-30 while answering whether Drive and Ber
+   * Intelligence mirror each other. They did not: an opportunity's documents
+   * arrived from the mail sweep only, so its room and its record drifted the
+   * moment anybody added a file in Drive, with nothing reporting it. GridEdge
+   * is among them, on the data-room template, with 49 files in its room.
+   *
+   * `deal_folder_id` has no opportunity equivalent (it is the website deal
+   * form's folder, adopted at promotion into a PROJECT), so only the linked
+   * source folder is read. Status is not filtered the way a project's is —
+   * `isProjectLive` reads a project's vocabulary, and an opportunity's
+   * `status` is a different set (`evaluating`, `negotiating`, …); filtering it
+   * through the wrong enumeration is how rows go quietly missing (§12), so
+   * every linked opportunity is swept.
+   */
+  const { data: opps, error: oppErr } = await supabase
+    .from('opportunities')
+    .select('id, name, status, drive_source_folder_id')
+    .not('drive_source_folder_id', 'is', null)
+  if (oppErr) throw new Error(`Could not load opportunity Drive folders: ${oppErr.message}`)
+  for (const o of opps ?? []) {
+    rows.push({
+      id: o.id,
+      name: o.name ?? '',
+      status: o.status,
+      deal_folder_id: null,
+      drive_source_folder_id: o.drive_source_folder_id,
+      kind: 'opportunity',
+    })
+  }
 
   for (const row of rows) {
     // Both can be set and be the same folder once a web-form deal's folder is
@@ -181,8 +222,8 @@ export async function syncProjectFolders(
         // Per-folder slice of what is left, so one large folder cannot consume
         // the whole budget and starve every project behind it.
         const imported = await importDriveFolder({
+          target: { kind: row.kind, id: row.id },
           folderId: folderId as string,
-          projectId: row.id,
           budgetMs: Math.max(30_000, deadline - Date.now()),
         })
         result.added += imported.added
@@ -205,12 +246,34 @@ export async function syncProjectFolders(
       }
     }
 
-    await postArrivalUpdate(row.id, row.name, arrivals, superseded)
+    /**
+     * ⚠ THE FEED LINE IS A PROJECT'S, AND AN OPPORTUNITY HAS NO ARM HERE.
+     * `postArrivalUpdate` inserts into `updates` with `project_id`, so calling
+     * it for an opportunity would either violate the FK or — worse — write a
+     * project id that is really an opportunity id and put the notice on a feed
+     * it does not belong to. An opportunity's running commentary is
+     * `opportunity_notes`, a different table with a different shape, so the
+     * honest thing is to import the documents (which is the point) and skip the
+     * notice rather than invent a provenance. §12: when a function branches on
+     * where something came from, every source that can reach it needs an arm —
+     * and a trailing `else` is how a missing one becomes a write against
+     * another table's route.
+     */
+    if (row.kind === 'project') {
+      await postArrivalUpdate(row.id, row.name, arrivals, superseded)
+    }
     // The feed update tells the project what arrived; this tells the PEOPLE.
     // Retirements are deliberately not announced — a document someone dragged
     // into Archive is a decision they already made, not news for them.
     await notifyArrivals(
-      { label: row.name, href: `/projects/${row.id}/documents`, projectId: row.id },
+      {
+        label: row.name,
+        href: `/${row.kind === 'project' ? 'projects' : 'opportunities'}/${row.id}/documents`,
+        // Containment is keyed on a PROJECT id; an opportunity has none, and
+        // passing its id here would ask the filter a question about the wrong
+        // table.
+        projectId: row.kind === 'project' ? row.id : undefined,
+      },
       arrivals
     )
     if (result.outOfTime) break

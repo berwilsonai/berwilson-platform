@@ -170,19 +170,45 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
   })
 }
 
-export async function DELETE(_request: NextRequest, { params }: RouteContext) {
+export async function DELETE(request: NextRequest, { params }: RouteContext) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { id } = await params
 
-  // Fetch the document to get its storage path
+  /**
+   * ⚠ WHICH TABLE. An opportunity's documents are their OWN TABLE (§4 —
+   * `documents` has no `opportunity_id`), so this handler could only ever
+   * delete half the corpus: a delete aimed at an opportunity document answered
+   * "Document not found" and the row stayed. Found while building the Outliers
+   * panel, where 21 of GridEdge's 22 outliers are opportunity documents — every
+   * one of them undeletable.
+   *
+   * Named by the caller rather than guessed, and validated against the two
+   * known values: `DocumentSource` is the same discriminator `refile.ts` takes,
+   * for the same reason and defaulting the same way, so every existing caller
+   * keeps working untouched.
+   */
+  const source = request.nextUrl.searchParams.get('source') === 'opportunity_documents'
+    ? 'opportunity_documents'
+    : 'documents'
+
   const { data: doc, error: fetchError } = await supabase
-    .from('documents')
-    .select('id, storage_path, project_id, meeting_id')
+    .from(source)
+    .select(
+      source === 'documents'
+        ? 'id, storage_path, project_id, meeting_id'
+        : 'id, storage_path, opportunity_id'
+    )
     .eq('id', id)
-    .single()
+    .single<{
+      id: string
+      storage_path: string | null
+      project_id?: string | null
+      meeting_id?: string | null
+      opportunity_id?: string | null
+    }>()
 
   if (fetchError || !doc) {
     return Response.json({ error: 'Document not found' }, { status: 404 })
@@ -190,11 +216,22 @@ export async function DELETE(_request: NextRequest, { params }: RouteContext) {
 
   // Scoped users may only delete documents on their granted projects / meetings.
   const viewer = await getViewer()
-  if (!viewer || (!viewer.isAdmin && !(await canViewerAccessDoc(viewer, doc, createAdminClient())))) {
+  if (
+    !viewer ||
+    (!viewer.isAdmin &&
+      !(await canViewerAccessDoc(
+        viewer,
+        { project_id: doc.project_id ?? null, meeting_id: doc.meeting_id ?? null },
+        createAdminClient()
+      )))
+  ) {
     return forbiddenJson()
   }
 
-  const denied = await requireProjectAccess(doc.project_id)
+  // ⚠ Containment still applies and is keyed on the PROJECT, so an opportunity
+  // document passes it vacuously — correct, because `confidential` lives on
+  // `projects` and an opportunity has no equivalent.
+  const denied = await requireProjectAccess(doc.project_id ?? null)
   if (denied) return denied
 
   // Delete the DB record first (cascades the document's chunks, so the
@@ -202,7 +239,7 @@ export async function DELETE(_request: NextRequest, { params }: RouteContext) {
   // the real user. Storage cleanup comes after — if the row delete fails we
   // must not have already destroyed the file.
   const { error: dbError } = await supabase
-    .from('documents')
+    .from(source)
     .delete()
     .eq('id', id)
 
@@ -212,9 +249,12 @@ export async function DELETE(_request: NextRequest, { params }: RouteContext) {
 
   // Remove from Supabase Storage (admin needed to bypass storage RLS)
   const admin = await actorAdminClient()
-  const { error: storageError } = await admin.storage
-    .from('documents')
-    .remove([doc.storage_path])
+  // A row can legitimately have no stored object — a Drive-sourced document
+  // whose bytes were never copied in. Nothing to remove, and asking Storage to
+  // remove `null` is an error that would log as a failure.
+  const { error: storageError } = doc.storage_path
+    ? await admin.storage.from('documents').remove([doc.storage_path])
+    : { error: null }
 
   if (storageError) {
     // Log but don't block — the record (and its index chunks) are gone
