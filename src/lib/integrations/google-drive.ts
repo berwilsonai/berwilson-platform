@@ -738,3 +738,32 @@ export async function folderAncestry(
 
   return chain.reverse()
 }
+
+/**
+ * HAS A FILE MOVED BETWEEN FOLDERS SINCE IT WAS IMPORTED?
+ *
+ * ⚠ PROVED, NOT ASSUMED: A DRIVE MOVE DOES NOT CHANGE `modifiedTime`. Three
+ * Riverdale documents re-parented on 2026-10-29 still reported a `modifiedTime`
+ * of 8 October — because a move changes a file's PARENTS and `modifiedTime` is
+ * the content clock. Both importers short-circuit on
+ * {@link driveFileUnchanged} alone, so a human dragging a file into the right
+ * section was invisible: `drive_folder_path` stayed stale forever, and that
+ * column is the ONLY thing `sectionOf` reads to decide which data-room section
+ * a document is in.
+ *
+ * That made the whole filing-by-dragging workflow silently inert, and it is the
+ * foundation a per-section sign-off sits on — a checkbox reading "verified" on a
+ * folder whose contents the platform has wrong is worse than no checkbox.
+ *
+ * Compared on the TRIMMED strings because a Drive folder name can carry a
+ * trailing space (16 of 233 on this drive do), and a path that differs only by
+ * whitespace is the same shelf.
+ */
+export function driveFolderMoved(
+  storedPath: string | null | undefined,
+  file: Pick<DriveFile, 'path'>
+): boolean {
+  const before = (storedPath ?? '').trim()
+  const now = (file.path ?? '').trim()
+  return before !== now
+}

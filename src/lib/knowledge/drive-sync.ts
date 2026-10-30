@@ -28,6 +28,7 @@ import {
   fetchDriveFile,
   driveKnowledgeFolderIds,
   driveFileUnchanged,
+  driveFolderMoved,
   getFolderName,
   type DriveFile,
 } from '@/lib/integrations/google-drive'
@@ -48,6 +49,8 @@ export interface DriveSyncProgress {
   added: number
   updated: number
   unchanged: number
+  /** Moved between folders in Drive — path corrected, bytes untouched. */
+  refiled: number
   skipped: number
   /**
    * WHY each skipped file was skipped, counted by reason.
@@ -77,6 +80,8 @@ interface KnownDoc extends KnownDriveDoc {
   excluded_at: string | null
   /** A retirement the sync may not undo — see the `retired` set below. */
   superseded_by_hand: boolean | null
+  /** Where it was last seen. Read to notice a MOVE — see `driveFolderMoved`. */
+  drive_folder_path: string | null
 }
 
 export async function syncDriveKnowledge(
@@ -99,6 +104,7 @@ export async function syncDriveKnowledge(
     added: 0,
     updated: 0,
     unchanged: 0,
+    refiled: 0,
     skipped: 0,
     skippedReasons: {},
     failed: 0,
@@ -148,7 +154,7 @@ export async function syncDriveKnowledge(
   const { data: existingRows, error: existingErr } = await supabase
     .from('documents')
     .select(
-      'id, storage_path, drive_file_id, drive_modified_at, superseded_at, is_company, embedding_status, excluded_at, superseded_by_hand'
+      'id, storage_path, drive_file_id, drive_modified_at, superseded_at, is_company, embedding_status, excluded_at, superseded_by_hand, drive_folder_path'
     )
     .not('drive_file_id', 'is', null)
   if (existingErr) {
@@ -261,9 +267,33 @@ export async function syncDriveKnowledge(
     // including the Tooele Army Depot LOI and two patents.
     const stranded = !!prior && needsAnotherPass(prior.embedding_status)
 
-    // Drive's modifiedTime changes on any edit — same instant means nothing to do.
+    /**
+     * Drive's modifiedTime changes on any edit — same instant means the BYTES
+     * are untouched.
+     *
+     * ⚠ A MOVE DOES NOT TOUCH `modifiedTime`, so this swallowed every shelf
+     * change somebody made in Drive. Same fix as the project importer, and it
+     * belongs in both for the reason §12 gives: a rule about how to read a KIND
+     * of thing means reaching every reader of it. `backfill-company-folder-paths.mts`
+     * exists because these paths went stale — this is why they did.
+     */
+    const moved = !!prior && driveFolderMoved(prior.drive_folder_path, file)
     if (prior && !returning && !stranded && driveFileUnchanged(prior.drive_modified_at, file)) {
-      progress.unchanged++
+      if (!moved) {
+        progress.unchanged++
+        continue
+      }
+      // Bytes identical: one UPDATE, no download, no re-extract, no re-embed.
+      const { error: moveErr } = await supabase
+        .from('documents')
+        .update({ drive_folder_path: file.path ?? null })
+        .eq('id', prior.id)
+      if (moveErr) {
+        progress.failed++
+        progress.errors.push(`${file.name}: ${moveErr.message}`)
+      } else {
+        progress.refiled++
+      }
       continue
     }
 

@@ -23,6 +23,7 @@ import {
   listFolder,
   fetchDriveFile,
   driveFileUnchanged,
+  driveFolderMoved,
   type DriveFile,
 } from '@/lib/integrations/google-drive'
 import {
@@ -43,6 +44,8 @@ export interface DriveImportResult {
   added: number
   updated: number
   unchanged: number
+  /** Moved between folders in Drive — path corrected, bytes untouched. */
+  refiled: number
   skipped: number
   failed: number
   /** Documents retired because they are no longer in the folder. */
@@ -77,6 +80,8 @@ interface KnownDoc extends KnownDriveDoc {
   embedding_status: string | null
   /** A retirement this importer may not undo — see the `retired` set below. */
   superseded_by_hand: boolean | null
+  /** Where it was last seen. Read to notice a MOVE — see `driveFolderMoved`. */
+  drive_folder_path: string | null
 }
 
 /** Google Docs arrive as an unsupported mime but export to text — keep them. */
@@ -103,6 +108,7 @@ export async function importDriveFolder(opts: {
     added: 0,
     updated: 0,
     unchanged: 0,
+    refiled: 0,
     skipped: 0,
     failed: 0,
     superseded: 0,
@@ -126,7 +132,7 @@ export async function importDriveFolder(opts: {
   const { data: existingRows } = await supabase
     .from('documents')
     .select(
-      'id, drive_file_id, drive_modified_at, superseded_at, embedding_status, superseded_by_hand'
+      'id, drive_file_id, drive_modified_at, superseded_at, embedding_status, superseded_by_hand, drive_folder_path'
     )
     .eq('project_id', projectId)
     .not('drive_file_id', 'is', null)
@@ -235,9 +241,34 @@ export async function importDriveFolder(opts: {
 
     const stranded = !!prior && needsAnotherPass(prior.embedding_status)
 
-    // Drive's modifiedTime changes on any edit — same instant means nothing to do.
+    /**
+     * Drive's modifiedTime changes on any edit — same instant means the BYTES
+     * are untouched.
+     *
+     * ⚠ BUT IT DOES NOT CHANGE WHEN A FILE IS MOVED, so this short-circuit used
+     * to swallow every re-filing a human did in Drive. `driveFolderMoved` is
+     * checked alongside it, and a move is handled with ONE UPDATE: the bytes are
+     * identical, so there is nothing to download, nothing to re-extract and
+     * nothing to re-embed. Dragging a document into its section is the whole
+     * filing gesture for anyone without a platform login, and until this it did
+     * not reach the platform at all.
+     */
+    const moved = !!prior && driveFolderMoved(prior.drive_folder_path, file)
     if (prior && !returning && !stranded && driveFileUnchanged(prior.drive_modified_at, file)) {
-      result.unchanged++
+      if (!moved) {
+        result.unchanged++
+        continue
+      }
+      const { error: moveErr } = await supabase
+        .from('documents')
+        .update({ drive_folder_path: file.path || null })
+        .eq('id', prior.id)
+      if (moveErr) {
+        result.failed++
+        result.errors.push(`${file.name}: ${moveErr.message}`)
+      } else {
+        result.refiled++
+      }
       continue
     }
 
