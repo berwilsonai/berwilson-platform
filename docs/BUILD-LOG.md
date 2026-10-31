@@ -6,6 +6,83 @@ This file is **not** auto-loaded into a Claude Code session. It is the archive: 
 
 Split out of `CLAUDE.md` on 2026-09-23, when that file reached 606k characters against a 150k limit above which it is silently truncated — meaning the project's own operating instructions had begun to risk not reaching the sessions that need them. The entries below are **verbatim and unedited**.
 
+**Done 2026-10-30 (the checklist first — and the screenshot harness that had not parsed since yesterday):**
+
+Richard: *"The checklist is a really important part of each project. I would
+like it towards the top and displayed beautifully, cleanly and clearly. maybe a
+collapsable section."*
+
+### ⚠ WHAT MADE IT UNCLEAR WAS NOT THE STYLING, IT WAS THE DEPTH
+
+Every section had its own Panel with all of its expected-document lines rendered
+inline — **nineteen panels and 119 rows**, sitting below a progress panel and
+four stat tiles. So the one number you came for was scrolled off, and the rows
+you came to tick opened under the fold. A checklist you cannot take in at a
+glance is not a checklist; it is a document.
+
+`DiligenceChecklist` is nineteen sections at ONE line each, grouped under
+00/01/02 with each group's own tally, and the 119 requirement lines behind each
+row's own disclosure — which is where detail belongs when the summary is the
+point. It sits at the top of the Data room tab, above the counts, because the
+counts are a readout ABOUT the checklist.
+
+ONE component used twice, because a checklist that disagrees with itself between
+the Overview and its own tab is worse than one place to look: `collapsible`
+folds it to its heading and bar for the project Overview, where it goes above
+the narrative brief (prose somebody reads once, against the thing they come back
+to) and costs four lines until somebody wants nineteen.
+
+⚠ **AND THE MEANINGLESS-NUMBER BUG HAD COME BACK ONE LEVEL DOWN.** Every row
+carried "N outstanding", where N was simply that section's own expected-document
+count: `00.4 Financial Model & Funding` read *"9 on file · 9 outstanding"*,
+which reads as though the nine files were the problem. It is the identical
+failure that had `openItems` reading 112 on every room in the portfolio, and it
+recurred because the rule was fixed in one READER rather than in the shape. Both
+now count only what a person has recorded.
+
+### ⚠ THE DOCUMENTED SCREENSHOT HARNESS DID NOT PARSE, AND HAD NOT SINCE 10-29
+
+`scripts/ui/shoot.mjs` is what §12 calls the only way to see this app, because
+every route is behind auth. Its own docblock contained the gitignore pattern
+`/.next-*/` — and the `*/` inside it **CLOSES THE BLOCK COMMENT**, so every line
+below was parsed as JavaScript and the file threw `SyntaxError: Unexpected
+identifier 'member'` on import.
+
+The comment explaining the trap contained a trap, and it was added by the very
+session that documented it (the paragraph says *"Verified 2026-10-29"*). Which
+means the UI session that wrote it could not have run it either.
+
+⚠ **AND IT WAS IN THE LINT BASELINE THE WHOLE TIME**, as
+`scripts/ui/shoot.mjs 42:6 error Parsing error: ';' expected` — read three times
+this week, each time filed under "the standing pre-existing noise" and never
+opened. A baseline is a list of things you have decided not to look at, and that
+is exactly where a real failure goes to hide. Fixing it took lint from 24 to 22.
+
+So this is the first UI change in some time that was actually LOOKED at, in both
+themes — the failure §12 records four consecutive sessions committing, each
+shipping palette and layout work the user could not see.
+
+⚠ **Rendering it needed a dev server and port 3001 was taken** — by an ORPHANED
+`next-server`, ppid 1, thirty hours old, answering 500, 64MB resident. Not
+killed: that is a decision rather than a cleanup, and 3002 was free.
+`BW_DIST_DIR=.next-dev` throughout, and the production `.next` was checked
+afterwards for a `dev/` directory inside it: none.
+
+⚠ **`tsconfig.json` CAME BACK MODIFIED** and was restored before the deploy —
+§12 already records that a `BW_DIST_DIR` build rewrites it, which is why the
+runbook pairs the two.
+
+### What was NOT done, and why
+
+A demo of the signed and stale states was refused by the permission layer as a
+write of fake data attributed to Richard and Eric into the live record — and it
+was right to. The unsigned state was verified in both themes, and the signed,
+stale and replaced states are covered by the fourteen unit tests on the
+staleness logic plus the end-to-end run that took a real sign-off through
+fresh → stale → tracker and put it back.
+
+917 tests, lint 22.
+
 **Done 2026-10-30 (Drive is the source of truth — Outliers, and the seven opportunities the importer had never reached):**
 
 Richard, after the sign-off shipped: *"As long as the drive will resync as it
