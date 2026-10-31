@@ -26,6 +26,7 @@ import {
   pipelineValue,
   portfolioTotal,
 } from '@/lib/records/pipeline-value'
+import { readPhaseRows } from '@/lib/records/power-read'
 import { fetchOpenTasks } from '@/lib/tasks/queries'
 import { getViewer } from '@/lib/auth/viewer'
 import { dropHidden } from '@/lib/security/confidential'
@@ -325,6 +326,10 @@ export default async function DashboardPage({ searchParams }: PageProps) {
   // counted twice — latent only because `parent_project_id` was used by 0 of 14
   // rows. `portfolioTotal` keeps the leaves: a deal's value lives on leaves,
   // and a program's value is what the work inside it adds up to.
+  // The ramp schedules for the cards. Read over `activeProjects`, which is
+  // already past the access and confidential filters above.
+  const phaseRows = await readPhaseRows(activeProjects.map((p) => p.id))
+
   const pipeline = portfolioTotal(activeProjects)
   const pipelineValueTotal = pipeline.amount
   // The same leaf set, or the weighted figure disagrees with the one above it.
@@ -555,6 +560,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
             <DashboardProjects
               projects={sorted}
               counts={countMap}
+              phases={phaseRows}
               sortControl={
                 <Suspense>
                   <SortControls current={sort} />

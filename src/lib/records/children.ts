@@ -47,6 +47,7 @@
 
 import type { FieldKind, FieldSpec } from '@/lib/registry/fields'
 import { COMPLIANCE_STATUSES, DD_STATUSES, SEVERITIES } from '@/lib/utils/constants'
+import { MAX_POWER_PHASES } from '@/lib/records/power'
 
 /**
  * How a row names the record it belongs to.
@@ -93,6 +94,20 @@ export interface ChildSpec extends FieldSpec {
    * reader can hit by mis-clicking. Absent = the row cannot collide.
    */
   conflict?: string
+  /**
+   * What a 23514 means in words, keyed by the constraint's own name.
+   *
+   * ⚠ A CHECK CONSTRAINT IS A VALIDATION THE EDGE CANNOT SEE. `normalizePayload`
+   * knows a column's TYPE and its enum membership; it has no idea that
+   * `megawatts` must be positive or that `phase_no` stops at six, because those
+   * live in the schema where they belong (the database is the only thing a
+   * direct SQL write, an import or an agent also has to get past). Without this
+   * map Postgres's raw text — `new row for relation "power_phases" violates
+   * check constraint "power_phases_megawatts_check"` — reaches the reader as a
+   * 500, which is the same mistake §12 records against `dd_items.severity`
+   * surfacing a 22P02 as a server error.
+   */
+  checks?: Record<string, string>
   /**
    * Whether DELETE is offered. Four of these six had a delete route and two did
    * not; the registry keeps that surface identical rather than quietly granting
@@ -212,6 +227,36 @@ export const CHILDREN: Record<string, ChildSpec> = {
       notes: TEXT,
     },
     conflict: 'That person is already on this record in that role.',
+    deletable: true,
+  },
+
+  'power-phases': {
+    table: 'power_phases',
+    label: 'ramp phase',
+    parent: 'record',
+    required: ['phase_no', 'megawatts'],
+    touchUpdatedAt: true,
+    fields: {
+      // 1..6. The schema CHECKs the range; `checks` below says what a breach
+      // means. An `int`, so "2" from a <select> and 2 from a script agree.
+      phase_no: 'int',
+      // `money` is the coercion, not the meaning — it is the kind that strips
+      // the separators a person types ("1,200") and keeps the decimals a
+      // behind-the-meter tranche needs (12.5). There is no `number` kind and
+      // adding one that behaves identically would be a second spelling of the
+      // same coercion, which is the fork §12 warns about.
+      megawatts: 'money',
+      target_date: 'date',
+      label: TEXT,
+      note: TEXT,
+    },
+    conflict: 'That phase number is already on this record. Edit the existing phase instead.',
+    checks: {
+      power_phases_phase_no_check: `A ramp schedule holds at most ${MAX_POWER_PHASES} phases, numbered 1 to ${MAX_POWER_PHASES}.`,
+      power_phases_megawatts_check:
+        'A phase must bring some capacity online. For a dated step that adds no megawatts, use a milestone instead.',
+      power_phases_scope_check: 'A ramp phase belongs to exactly one project or opportunity.',
+    },
     deletable: true,
   },
 

@@ -4,6 +4,8 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { getViewer, canAccessOpportunity } from '@/lib/auth/viewer'
 import { formatValue, formatDate, SECTOR_LABELS } from '@/lib/utils/constants'
 import type { ProjectSector } from '@/lib/supabase/types'
+import PowerRamp from '@/components/records/PowerRamp'
+import { readRecordPhases } from '@/lib/records/power-read'
 
 interface PageProps {
   params: Promise<{ id: string }>
@@ -33,6 +35,8 @@ export default async function OpportunityOverviewPage({ params }: PageProps) {
 
   const viewer = await getViewer()
   if (viewer && !viewer.isAdmin && !canAccessOpportunity(viewer, id)) notFound()
+
+  const rampPhases = await readRecordPhases('opportunity', id)
 
   return (
     <div className="space-y-6">
@@ -74,6 +78,14 @@ export default async function OpportunityOverviewPage({ params }: PageProps) {
           />
         </dl>
       </div>
+
+      {/*
+        The ramp-up schedule — the same editor, the same table and the same
+        rules as a project's. §4's shared-children convention is what makes
+        that one component rather than two that drift (§12: a fork is hardest
+        to see as two sibling modules written days apart).
+      */}
+      <PowerRamp kind="opportunity" recordId={id} phases={rampPhases} />
 
       {/* Description */}
       {opportunity.description && (

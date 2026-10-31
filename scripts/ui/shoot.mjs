@@ -51,6 +51,7 @@
  *   node scripts/ui/shoot.mjs                     # default pages, both themes
  *   node scripts/ui/shoot.mjs /projects /tasks    # specific pages
  *   BW_SHOOT_THEMES=dark node scripts/ui/shoot.mjs
+ *   BW_SHOOT_SCROLL_TO='Ramp-up schedule' node scripts/ui/shoot.mjs /projects/<id>
  *
  * Output: `.ui-shots/<page>.<theme>.png` (git-ignored).
  */
@@ -66,6 +67,8 @@ const PORT = Number(process.env.BW_SHOOT_CDP_PORT ?? 9333)
 const [W, H] = (process.env.BW_SHOOT_SIZE ?? '1512,950').split(',').map(Number)
 const THEMES = (process.env.BW_SHOOT_THEMES ?? 'light,dark').split(',').filter(Boolean)
 const DENSITY = process.env.BW_SHOOT_DENSITY ?? 'comfortable'
+/** Optional: a CSS selector or heading text to scroll into view before capturing. */
+const SCROLL_TO = process.env.BW_SHOOT_SCROLL_TO ?? ''
 
 const DEFAULT_PAGES = ['/dashboard', '/projects', '/contacts', '/tasks']
 const pages = process.argv.slice(2).filter((a) => a.startsWith('/'))
@@ -170,8 +173,51 @@ for (const theme of THEMES) {
       console.error(`  ! ${p}: asked for ${theme}, page is ${applied.result.value} — NOT SHOT`)
       continue
     }
+    /*
+      Optionally scroll a panel into view before capturing.
+
+      ⚠ ADDED BECAUSE A VIEWPORT SHOT CONFIRMS ONLY THE TOP OF A PAGE, which
+      is the same failure this file's own header describes one level down: a
+      harness that can only render the happy path confirms what you already
+      believe. A record page here is several screens long, so anything added
+      below the brief — a new panel, a new editor — is unscreenshotable and
+      ships unseen.
+
+      `BW_SHOOT_SCROLL_TO` takes a CSS selector OR plain text. Text is matched
+      against headings, because that is what a new panel reliably has and a
+      selector on a utility-class component is a string that rots.
+
+          BW_SHOOT_SCROLL_TO='Ramp-up schedule' node scripts/ui/shoot.mjs /projects/<id>
+
+      A miss is reported and the shot is still taken from the top, never
+      skipped — a screenshot of the wrong place beats none, as long as it says
+      so.
+    */
+    if (SCROLL_TO) {
+      const found = await cdp.send('Runtime.evaluate', {
+        expression: `(() => {
+          const want = ${JSON.stringify(SCROLL_TO)}
+          let el = null
+          try { el = document.querySelector(want) } catch (e) { el = null }
+          if (!el) {
+            const nodes = [...document.querySelectorAll('h1,h2,h3,h4,[class*="label-caps"]')]
+            el = nodes.find((n) => (n.textContent || '').trim().toLowerCase().includes(want.toLowerCase())) || null
+          }
+          if (!el) return false
+          el.scrollIntoView({ block: 'center' })
+          return true
+        })()`,
+        returnByValue: true,
+      })
+      if (found.result.value !== true) {
+        console.error(`  ! ${p}: "${SCROLL_TO}" not found — shot from the top`)
+      }
+      await new Promise((r) => setTimeout(r, 250))
+    }
     const { data } = await cdp.send('Page.captureScreenshot', { format: 'png' })
-    const suffix = DENSITY === 'comfortable' ? '' : `.${DENSITY}`
+    const suffix =
+      (DENSITY === 'comfortable' ? '' : `.${DENSITY}`) +
+      (SCROLL_TO ? `.${SCROLL_TO.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}` : '')
     const name = `${p === '/' ? 'root' : p.replace(/^\//, '').replace(/\//g, '-')}${suffix}.${theme}.png`
     writeFileSync(join(OUT, name), Buffer.from(data, 'base64'))
     console.log(`  ✓ ${OUT}/${name}`)

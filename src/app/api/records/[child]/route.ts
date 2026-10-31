@@ -65,6 +65,18 @@ export async function POST(
     if (error.code === '23505' && spec.conflict) {
       return NextResponse.json({ error: spec.conflict }, { status: 409 })
     }
+    // A CHECK the edge cannot see — a range, a positivity rule, the
+    // exactly-one-parent constraint. Postgres names the constraint in
+    // `error.message`; the spec says what it means to a reader. Unmapped, it
+    // falls through to the 500 below, which is the honest answer for a
+    // constraint nobody has written words for yet.
+    if (error.code === '23514' && spec.checks) {
+      for (const [constraint, message] of Object.entries(spec.checks)) {
+        if (error.message.includes(constraint)) {
+          return NextResponse.json({ error: message }, { status: 400 })
+        }
+      }
+    }
     console.error(`[records/${child}] insert failed:`, error.message)
     return NextResponse.json({ error: error.message }, { status: 500 })
   }

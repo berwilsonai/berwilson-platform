@@ -10,6 +10,8 @@
  */
 
 import { strict as assert } from 'node:assert'
+import { readFileSync, readdirSync } from 'node:fs'
+import { join } from 'node:path'
 import { test } from 'node:test'
 
 import { applyStamp, CHILD_PATHS, CHILDREN, getChild } from './children'
@@ -65,6 +67,39 @@ test('every path is distinguishable by prefix, so the role gate can name one', (
     }
   }
   assert.ok(CHILD_PATHS.includes('/api/records/milestones'))
+})
+
+test('every `checks` key names a constraint that really exists in a migration', () => {
+  /*
+    ⚠ A MESSAGE KEYED ON A CONSTRAINT NAME IS A STRING MATCH AGAINST POSTGRES'S
+    OWN TEXT, AND NOTHING ELSE CHECKS IT. Misspell the key, or rename the
+    constraint in a later migration, and the friendly 400 silently becomes the
+    raw 500 it was added to prevent — green through typecheck, build and every
+    other test here, because a lookup that misses is not an error. §12: a
+    hand-written enumeration beside a registry drifts, and a workaround's
+    recorded reason must be re-tested rather than inherited.
+
+    So it reads the real artifact: the migration files themselves.
+  */
+  const dir = join(process.cwd(), 'supabase', 'migrations')
+  const sql = readdirSync(dir)
+    .filter((f) => f.endsWith('.sql'))
+    .map((f) => readFileSync(join(dir, f), 'utf8'))
+    .join('\n')
+
+  let checked = 0
+  for (const [name, spec] of SPECS) {
+    for (const constraint of Object.keys(spec.checks ?? {})) {
+      assert.ok(
+        sql.includes(constraint),
+        `${name}: no migration declares a constraint named "${constraint}"`
+      )
+      checked += 1
+    }
+  }
+  // An empty population passes vacuously behind the same tick (§12), so say
+  // what was actually examined.
+  assert.ok(checked >= 3, `expected to check some constraints, checked ${checked}`)
 })
 
 test('an unknown child name resolves to nothing', () => {
