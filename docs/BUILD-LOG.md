@@ -6,6 +6,145 @@ This file is **not** auto-loaded into a Claude Code session. It is the archive: 
 
 Split out of `CLAUDE.md` on 2026-09-23, when that file reached 606k characters against a 150k limit above which it is silently truncated — meaning the project's own operating instructions had begun to risk not reaching the sessions that need them. The entries below are **verbatim and unedited**.
 
+**Done 2026-10-31 (the same six asks, re-sent — and the one that had been built backwards):**
+
+Richard re-sent, verbatim, the five-ask message of 10-30. The right first move
+was not to build: it was to ask **which of these is actually not done**, and
+the answer was one of six.
+
+### FIVE OF SIX HAD SHIPPED — AND THE SIXTH HAD BEEN BUILT BACKWARDS
+
+Checked each against the running code rather than against the log, since the
+log is written by the session that believes it finished:
+
+| Ask | State |
+|---|---|
+| Six stages (Prospecting … Lost) | shipped 10-30, `deal_stage` |
+| Win probability Low/Medium/High | shipped, `WIN_BAND_VALUE` |
+| Double-click to edit, not the Edit button | shipped, `InlineField` line 181 |
+| Executive summary too wordy | shipped, budget-per-section prompt |
+| Junk attachments / one-click dismissal | shipped, `attachment-hygiene.ts` |
+| **Get rid of decision, NTP, substantial completion** | **inverted** |
+
+⚠ **THE 10-30 SESSION READ *"get rid of"* AS *"make easier to set"*.** Its own
+note says so plainly: *"the only way to set an NTP date was the Edit form,
+which is the trip being removed. They all render now and name the absence in
+words."* It cited §12 — a surface hidden because it is empty is hidden exactly
+when somebody needs to fill it — and applied it to three fields Richard had
+just asked to be rid of. The rule is about a field somebody WANTS to fill. It
+is not a reason to keep one nobody has ever filled, and the question it cannot
+answer is the one that was asked: **is this field wanted at all?**
+
+So the three came back more prominent than before, which is why the message
+was re-sent.
+
+### MEASURED BEFORE REMOVING — AND THE MEASUREMENT SETTLED IT
+
+Over all 24 projects:
+
+```
+ntp_date                      0 non-null
+substantial_completion_date   0 non-null
+bid_decision                  22 'undecided', 2 'pursue', 0 'no_bid'
+```
+
+Neither date had been filled **once in the life of the platform**. Ber Wilson
+tracks delivery on `milestones` — a table with a stage, an owner and a target
+date — not two scalars hanging off the deal.
+
+⚠ **`bid_decision` WAS A SECOND ANSWER TO A QUESTION `deal_stage` OWNS.** §4
+states the rule for the pair it replaced on 10-30: STAGE OWNS THE OUTCOME, and
+two fields answering one question is one-quantity-two-definitions. A project
+sitting in `in_discussions` while its Decision chip reads "Go / No-Go Pending"
+is precisely that contradiction, and **22 of 24 projects read exactly that
+way**. The 2 `pursue` rows say nothing their stage does not already say.
+
+Richard was asked how far "get rid of" should go and chose full removal,
+columns and all; and asked whether `award_date` — in the same card, equally
+empty at 0 of 24 — should go too, and chose to keep it.
+
+### ⚠ THE DROP WOULD HAVE 42703'd THE DEAL-PIPELINE REPORT, GREEN ALL THE WAY
+
+§12: a `.select()` column list is a STRING, so dropping a column breaks its
+readers and `tsc` sees nothing — and a 42703 fails the WHOLE query, not the
+column. Grepped the name before writing the migration rather than after, and
+`src/lib/reports/deals.ts` held `substantial_completion_date` inside its
+`PROJECT_COLUMNS` literal. The reports screen had shipped **the same morning**
+(`0e0ea58`), so the failure would have been a brand-new feature returning
+nothing, with typecheck, build and 1,018 tests all green.
+
+Both report selects were then exercised against live PostgREST — projects 200,
+opportunities 200 — because the fix for a string is only provable by running it.
+
+`targetDate` is now null for every project, which is **not** a regression: the
+column it read was null on 24 of 24, so that report field had been empty in
+every report ever run. An opportunity still has a real `target_close_date`.
+
+Twenty files, one migration. `bid_decision`'s whole vocabulary left
+`constants.ts` — `BidDecision`, `BID_DECISIONS`, three label/badge maps and the
+`bidDecision()` normalizer — along with its inline-field spec, its Edit-form
+select, its agent-tool field list, its proposal-intake prompt slot and its row
+in the brief's evidence pack.
+
+### VERIFIED BY RENDERING IT, NOT BY BUILDING IT
+
+⚠ Behind auth a curl cannot tell an answer from a throw (§12): `/projects/[id]`
+returns the same redirect whether the rail renders or crashes. So
+`scripts/verify-snapshot-render.tsx` renders `PursuitSnapshot` directly over
+three shapes — a full project, one with **nothing set** (the shape that tempted
+the first pass into rendering empty rows), and a closed one, where `isOpen`
+takes its other branch — asserting none of the five banned strings reaches the
+markup and no `NaN`/`undefined`/`Infinity` does either. 36 assertions, 0 failed.
+
+⚠ It needed an `AppRouterContext` stub to render at all: `InlineField` calls
+`useRouter`, so the rail throws `invariant expected app router to be mounted`
+under `renderToStaticMarkup`. Worth recording because it is the obstacle that
+makes a session give up on rendering and trust the build instead.
+
+Then screenshot in both themes against a dev server on its own dist
+(`BW_DIST_DIR=.next-dev`, §12 — a bare `next dev` writes into production's).
+The rail now reads: Win Probability · Estimated deal value · Weighted · Capture
+Lead, then Key Dates with Bid Due and Award. Nothing else.
+
+1,018 tests, tsc clean, lint at the frozen 23. **DEPLOYED** — build, kickstart,
+`tailnet-setup.sh` and `lmstudio-check.sh` all green.
+
+### ⚠ AND THE SCREENSHOT CAUGHT THE THING NOBODY ASKED ABOUT
+
+Steelton's Executive Brief in that shot reads *"infrastructure · **capture** ·
+$270 million"* — `capture` being a stage member retired the day before — and
+ran **6,460 characters**, the longest brief in the database, written 10-27.
+
+Which is almost certainly what Richard was looking at when he wrote *"the
+executive summary is way too wordy"* the first time. §12: fixing a generator
+changes nothing the reader sees — the old rows carry the old text.
+
+Measured rather than assumed: 131 stored briefs, 119 written before the 10-30
+rewrite, **29 printing a retired stage in their header line**. But the surface
+**self-heals**: `ProjectNarrativeBrief` refreshes on mount whenever the stored
+brief is not from today, so a record opened today is rewritten by the new
+prompt. Confirmed on the rows themselves — every brief written **today** runs
+**1,948–2,708 characters** (seven of them), against the 5,402 / 5,748 / 6,080
+written on 10-30 before that deploy landed. The budget works in production.
+
+**No action taken, deliberately:** regenerating 119 briefs is 119 serialized
+model calls on a box currently at 135MB free with 26.5GB of swap in use, to
+rewrite rows that rewrite themselves on the next open. Recorded here instead.
+
+### ⚠ FOUND IN PASSING, NOT FIXED: `scripts/seed.ts` CANNOT RUN
+
+It carries **23 stage values from the retired seven-member enum** —
+`'pursuit'`, `'capture'`, `'bid'`, `'award'`, `'mobilization'`, `'execution'`,
+`'closeout'` — every one of which is `22P02` against `deal_stage` and fails the
+whole insert. Missed by the 10-30 rename sweep that found seven live bugs,
+because §12 is exact about why: **`npx tsc --noEmit` does not cover
+`scripts/*.mts`** — they are outside the tsconfig, so running the script IS its
+typecheck, and nothing runs this one. Left alone because remapping
+`mobilization`/`closeout`/`execution` onto six stages is a judgement about
+demo data, not a mechanical fix, and it is outside what was asked.
+
+---
+
 **Done 2026-10-30 (one stage vocabulary, win bands, inline editing, a shorter brief, and the attachment door):**
 
 Five asks in one message from Richard. Each was measured before it was built,
