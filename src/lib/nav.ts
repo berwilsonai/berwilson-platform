@@ -22,6 +22,7 @@ import {
   Wrench,
   type LucideIcon,
   Handshake,
+  BarChart3,
 } from 'lucide-react'
 
 /**
@@ -133,6 +134,15 @@ export const NAV_ITEMS: NavItem[] = [
   { href: '/leads', label: 'Leads', title: 'Inbound Leads', icon: Radar, group: 'records', keywords: 'inbound bids invitations itb ifb rfp rfq solicitations plan room prospects enquiries info inbox scored triage', badge: 'leads' },
   { href: '/investors', label: 'Investors', icon: HandCoins, group: 'records', keywords: 'capital raise fundraising equity commitments funding money lp' },
   { href: '/objectives', label: 'Objectives', icon: Target, group: 'records', keywords: 'priorities goals strategy steering now soon possibly focus' },
+  /*
+    ⚠ IN `records`, NOT `intelligence`, AND NOT UNDER `system`. A report is a
+    view of the portfolio, so it belongs beside the records it reads — and the
+    one thing that would make it unfindable is filing it with the settings. The
+    `alsoMatches` claim is deliberately ABSENT: /reports owns every path under
+    itself, and §12 is explicit that `alsoMatches` may only name paths with no
+    nav item of their own.
+  */
+  { href: '/reports', label: 'Reports', title: 'Reports', icon: BarChart3, group: 'records', keywords: 'report export excel xlsx spreadsheet pdf print pipeline summary megawatts capacity ramp data room readiness deal team relationships activity quiet branded letterhead share send board investor lender download' },
   { href: '/map', label: 'Map', title: 'Project Map', icon: MapIcon, group: 'records', keywords: 'map geography utah locations sites markers rail corridors presentation visualize' },
   { href: '/steel', label: 'Steel CRM', icon: Factory, group: 'units', keywords: 'prefab steel sales deals quotes square feet sqft plant manufacturing buildings customers' },
   { href: '/dino', label: 'Dino', title: 'Dino Service Pros', icon: Wrench, group: 'units', hideWhenEmpty: 'dino', keywords: 'dino service pros plumbing hvac mechanical revenue operating company internal trades payments' },

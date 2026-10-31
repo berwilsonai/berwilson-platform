@@ -157,9 +157,27 @@ export default async function RootLayout({
     <html
       lang="en"
       suppressHydrationWarning
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      /*
+        ⚠ `print:h-auto` ON BOTH, AND ON THE SHELL AND `<main>` BELOW — WITHOUT
+        IT EVERY PDF THIS APP MAKES IS ONE PAGE LONG.
+
+        The shell is a full-height flex column whose `<main>` is the scroller.
+        On screen that is right: the chrome stays put and the content scrolls
+        under it. In print it is fatal — Chrome lays out a `height: 100%` body
+        as exactly one page and renders only the visible slice of an
+        `overflow-y-auto` child, so everything below the fold is silently gone.
+        The PDF opens perfectly and is a fragment.
+
+        Measured 2026-10-31 by printing to PDF over the DevTools Protocol:
+        `/reports/weekly/print` (45 open tasks across the team) and
+        `/objectives/print` BOTH came out at 1 page, and had done since the
+        shell took this shape. Four print routes shipped over four months and
+        nobody printed one — §12: *"A listed route is not an answering one"*,
+        and a screenshot cannot see this because the page scrolls fine.
+      */
+      className={`${geistSans.variable} ${geistMono.variable} h-full print:h-auto antialiased`}
     >
-      <body className="h-full bg-background text-foreground">
+      <body className="h-full print:h-auto bg-background text-foreground">
         {/*
           ⚠ LIGHT IS THE DEFAULT AND THE SYSTEM PREFERENCE NO LONGER DECIDES
           (2026-10-27, Richard: *"It doesn't need to be dark themed"*).
@@ -187,11 +205,14 @@ export default async function RootLayout({
           }}
         />
         {showShell ? (
-          <div className="flex h-full">
+          <div className="flex h-full print:block print:h-auto">
             <AppSidebar pendingReviewCount={pendingReviewCount} attentionCount={attentionCount} leadCounts={leadCounts} openDevNoteCount={openDevNoteCount} role={role} emptyModules={emptyModules} leadLanes={leadLanes} />
             <div className="flex flex-1 flex-col min-w-0">
               <AppHeader email={viewer?.email ?? ""} role={role} />
-              <main className="flex-1 overflow-y-auto overflow-x-hidden p-5 sm:p-6 pb-24 md:pb-6 scrollbar-thin animate-fade-in-up">
+              {/* ⚠ `print:overflow-visible` is the half that matters — see the
+                  ⚠ on <html>. `animate-fade-in-up` is dropped for print too: a
+                  transform mid-animation is what the print snapshot captures. */}
+              <main className="flex-1 overflow-y-auto overflow-x-hidden p-5 sm:p-6 pb-24 md:pb-6 scrollbar-thin animate-fade-in-up print:overflow-visible print:h-auto print:p-0 print:animate-none">
                 {children}
                 {/* Mobile footer disclaimer */}
                 <footer className="md:hidden mt-10 mb-2 pt-4 border-t border-border text-center">

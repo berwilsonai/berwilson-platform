@@ -35,14 +35,24 @@ export default function MobileNav({ pendingCount = 0, role = 'admin', emptyModul
       {/* More drawer overlay */}
       {moreOpen && (
         <div
-          className="md:hidden fixed inset-0 z-40 bg-black/50"
+          className="print:hidden md:hidden fixed inset-0 z-40 bg-black/50"
           onClick={() => setMoreOpen(false)}
         />
       )}
 
       {/* More drawer */}
       <div
-        className={`md:hidden fixed inset-x-0 z-50 bg-sidebar border-t border-sidebar-border transition-transform duration-200 ease-in-out ${
+        /*
+          ⚠ `print:hidden`, LIKE THE BAR BELOW. Two of this component's three
+          fixed elements were missing it, and a `fixed` element prints — the
+          closed drawer is only off-screen because of `translate-y-full`, which
+          a printed page has no screen to be off. Both the backdrop and this
+          drawer came out across the foot of page 1 of every PDF the app makes,
+          with a stray "MORE ✕" bar over the first table row. Found 2026-10-31
+          by printing to PDF rather than screenshotting; it had been there as
+          long as the print routes have.
+        */
+        className={`print:hidden md:hidden fixed inset-x-0 z-50 bg-sidebar border-t border-sidebar-border transition-transform duration-200 ease-in-out ${
           moreOpen ? 'translate-y-0' : 'translate-y-full'
         }`}
         style={{
