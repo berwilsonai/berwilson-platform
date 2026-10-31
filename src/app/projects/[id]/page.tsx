@@ -18,6 +18,8 @@ import {
 } from '@/lib/utils/constants'
 import PursuitSnapshot from '@/components/projects/PursuitSnapshot'
 import { coverageNote, pipelineTotal, pipelineValue } from '@/lib/records/pipeline-value'
+import DiligenceChecklist from '@/components/dataroom/DiligenceChecklist'
+import { readRoomStatus } from '@/lib/dataroom/status'
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params
@@ -124,6 +126,17 @@ export default async function ProjectOverviewPage({ params }: PageProps) {
 
   if (!project) notFound()
 
+  /**
+   * The diligence checklist, for the collapsed card at the top of the left
+   * column. ⚠ Caught rather than thrown: a database hiccup must cost one card,
+   * never the whole Overview — and `readRoomStatus` returns null for a record
+   * that is not on the data-room template, which is the normal case for 17 of
+   * the 33 records.
+   */
+  const room = project.data_room_template === 'data_center'
+    ? await readRoomStatus('project', id).catch(() => null)
+    : null
+
   // Fetch parent project name if this is a child
   let parentProject: Pick<Project, 'id' | 'name'> | null = null
   if (project.parent_project_id) {
@@ -187,6 +200,30 @@ export default async function ProjectOverviewPage({ params }: PageProps) {
       {/* Two-column: detail (left) + pursuit snapshot rail (right) */}
       <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_300px] gap-8 items-start">
         <div className="space-y-8 min-w-0">
+
+      {/*
+        THE DILIGENCE CHECKLIST, COLLAPSED, ABOVE THE BRIEF.
+
+        Richard, 10-30: *"The checklist is a really important part of each
+        project. I would like it towards the top."* On the Overview that means
+        the first thing in the left column — above the narrative brief, which is
+        prose somebody reads once, where this is the thing they come back to.
+        Collapsed to its heading and bar by default so it costs four lines until
+        somebody wants the nineteen; the full surface is one click away and the
+        heading says so.
+
+        ⚠ Only for a record on the data-room template. A 0/19 bar on a plumbing
+        acquisition is a scheme that does not apply there announcing itself as a
+        failure.
+      */}
+      {room ? (
+        <DiligenceChecklist
+          status={room}
+          collapsible
+          defaultOpen={false}
+          href={`/projects/${id}/data-room`}
+        />
+      ) : null}
 
       {/* Narrative brief — AI-generated executive summary */}
       <ProjectNarrativeBrief

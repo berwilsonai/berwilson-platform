@@ -34,7 +34,12 @@
  * launchd job is `KeepAlive: true` — so a restart during that window boots the
  * platform off a dist a dev server is mutating. Verified 2026-10-29: a bare
  * run put `dev/` inside the production dist; with `BW_DIST_DIR` set, `.next`
- * was untouched. `/.next-*/` is already gitignored, and that entry's own
+ * was untouched. `/.next-*` (with a trailing slash) is already gitignored, and
+ * ⚠ THAT PATTERN MUST NOT BE WRITTEN OUT IN FULL IN A BLOCK COMMENT: the `*`
+ * followed by `/` CLOSES the comment, so everything below became code and this
+ * script stopped parsing the moment this paragraph was added (2026-10-29). The
+ * documented way to screenshot the app was broken for a day by its own
+ * documentation. Its own
  * comment records the OTHER half of this trap — an un-ignored build dir
  * becomes a Tailwind source and feeds its compiled output back into
  * globals.css.

@@ -1,14 +1,12 @@
 import Link from 'next/link'
-import { ExternalLink, FileText, FolderOpen } from 'lucide-react'
+import { ExternalLink, FolderOpen } from 'lucide-react'
 
-import { Chip } from '@/components/ui/chip'
 import { Panel, PanelHeader } from '@/components/ui/card'
 import { StatTile } from '@/components/ui/stat'
 import { folderUrl } from '@/lib/integrations/google-drive-write'
 import DriveImportButton from '@/components/shared/DriveImportButton'
-import { isOpenStatus, type RoomStatus, type SectionStatus } from '@/lib/dataroom/status'
-import SectionSignoff from './SectionSignoff'
-import type { Tone } from '@/lib/ui/tone'
+import type { RoomStatus } from '@/lib/dataroom/status'
+import DiligenceChecklist from './DiligenceChecklist'
 
 /**
  * The data room, read from the platform's side.
@@ -23,134 +21,7 @@ import type { Tone } from '@/lib/ui/tone'
  * `dd_items` and which these rows are drawn from.
  */
 
-/**
- * ⚠ A STATUS TONE IS A NAME, NEVER A CLASS STRING, and the map is exhaustive
- * over Richard's vocabulary with a neutral fallback for a value somebody typed.
- * §12, 10-29: a tone typed `string` let `amber` through, which `Chip` passes
- * along as class names, so it rendered unstyled and green.
- */
-const STATUS_TONE: Record<string, Tone> = {
-  Missing: 'critical',
-  Expired: 'critical',
-  Requested: 'caution',
-  Draft: 'caution',
-  'Signed—Conditional': 'caution',
-  'In Progress': 'info',
-  Effective: 'positive',
-  Final: 'positive',
-  Approved: 'positive',
-  'Not Applicable': 'neutral',
-}
-
-function statusTone(status: string): Tone {
-  return STATUS_TONE[status] ?? 'neutral'
-}
-
-function SectionBlock({
-  section,
-  recordKind,
-  recordId,
-}: {
-  section: SectionStatus
-  recordKind: 'project' | 'opportunity'
-  recordId: string
-}) {
-  const { section: meta, documents, drafts, rows } = section
-  const open = rows.filter((r) => isOpenStatus(String(r.status))).length
-
-  return (
-    <Panel className="p-0 overflow-hidden">
-      <div className="flex items-start gap-3 px-4 py-3 border-b border-border">
-        <SectionSignoff
-          recordKind={recordKind}
-          recordId={recordId}
-          sectionKey={meta.key}
-          sectionLabel={`${meta.key} ${meta.label}`}
-          signoff={section.signoff}
-          canSign
-        />
-        <div className="min-w-0 flex-1">
-          <h3 className="text-sm font-medium flex items-center gap-2">
-            <span className="text-muted-foreground tabular-nums">{meta.key}</span>
-            <span className="truncate">{meta.label}</span>
-            {meta.optional ? <Chip tone="neutral">optional</Chip> : null}
-          </h3>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            {documents.length === 0
-              ? 'Nothing on file'
-              : `${documents.length} on file${drafts ? `, ${drafts} draft` : ''}`}
-            {open ? ` · ${open} outstanding` : null}
-          </p>
-        </div>
-      </div>
-
-      <ul className="divide-y divide-border">
-        {rows.map((row) => (
-          <li key={row.expected} className="px-4 py-2.5 flex items-start gap-3">
-            <Chip tone={statusTone(String(row.status))} className="shrink-0 mt-0.5">
-              {row.status}
-            </Chip>
-            <div className="min-w-0 flex-1">
-              <p className="text-sm">{row.expected}</p>
-              {/*
-                ⚠ WHERE THE STATUS CAME FROM IS PART OF THE STATUS. "Missing"
-                because nobody has looked is a different claim from "Missing"
-                because somebody checked and recorded it, and a diligence index
-                that cannot tell them apart invites the reader to trust the
-                first as if it were the second.
-              */}
-              {row.derived ? (
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  Read from the folder — nobody has recorded a decision
-                </p>
-              ) : (
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  {[
-                    row.responsible && `Owner: ${row.responsible}`,
-                    row.counterparty && `With: ${row.counterparty}`,
-                    row.expiresOn && `Expires ${row.expiresOn}`,
-                    row.dueDate && `Due ${row.dueDate}`,
-                  ]
-                    .filter(Boolean)
-                    .join(' · ') || 'Recorded by a person'}
-                </p>
-              )}
-              {row.outstandingAction ? (
-                <p className="text-xs text-caution mt-1">{row.outstandingAction}</p>
-              ) : null}
-            </div>
-          </li>
-        ))}
-      </ul>
-
-      {documents.length ? (
-        <details className="border-t border-border">
-          <summary className="px-4 py-2 text-xs text-muted-foreground cursor-pointer hover:text-foreground">
-            <FileText className="inline size-3.5 mr-1.5 -mt-0.5" />
-            {documents.length} document{documents.length === 1 ? '' : 's'} on file
-          </summary>
-          <ul className="px-4 pb-3 space-y-1.5">
-            {documents.map((doc) => (
-              <li key={doc.id} className="text-xs flex items-start gap-2">
-                {doc.draft ? <Chip tone="caution">DRAFT</Chip> : null}
-                <span className="min-w-0 truncate">{doc.fileName}</span>
-              </li>
-            ))}
-          </ul>
-        </details>
-      ) : null}
-    </Panel>
-  )
-}
-
 export default function DataRoomView({ status }: { status: RoomStatus }) {
-  const parents = ['00', '01', '02']
-  const label: Record<string, string> = {
-    '00': 'Start Here',
-    '01': 'Power & Property',
-    '02': 'Capacity Commitment',
-  }
-
   return (
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-4 flex-wrap">
@@ -188,53 +59,14 @@ export default function DataRoomView({ status }: { status: RoomStatus }) {
       </div>
 
       {/*
-        THE COMPLETION INDICATOR — the answer to "where are we and what is
-        outstanding".
-
-        ⚠ SIGNED-OFF AND STALE ARE DRAWN APART AND NEVER SUMMED. A stale tick is
-        not progress: somebody verified a set of documents that has since
-        changed. Summing them would overstate completeness in exactly the
-        direction a diligence index must not, and §12 is explicit that two
-        different quantities must be named apart and never added.
+        ⚠ THE CHECKLIST IS FIRST, AND THAT IS THE WHOLE POINT OF THE TAB.
+        Richard, 10-30: *"The checklist is a really important part of each
+        project. I would like it towards the top."* It was below a progress
+        panel and four stat tiles, so the nineteen rows a person came to work
+        opened below the fold. The counts are a readout ABOUT the checklist;
+        they belong under it.
       */}
-      <Panel>
-        <div className="flex items-baseline justify-between gap-3 flex-wrap">
-          <PanelHeader label="Sections verified" />
-          <p className="text-metric tabular-nums">
-            {status.signedOff}
-            <span className="text-muted-foreground text-base"> / {status.sectionCount}</span>
-          </p>
-        </div>
-        <div
-          className="mt-2 flex h-2 w-full overflow-hidden rounded-full bg-muted"
-          role="img"
-          aria-label={`${status.signedOff} of ${status.sectionCount} sections verified${
-            status.staleSignoffs ? `, ${status.staleSignoffs} needing a re-check` : ''
-          }`}
-        >
-          <div
-            className="bg-foreground"
-            style={{ width: `${(status.signedOff / Math.max(status.sectionCount, 1)) * 100}%` }}
-          />
-          <div
-            className="bg-caution"
-            style={{ width: `${(status.staleSignoffs / Math.max(status.sectionCount, 1)) * 100}%` }}
-          />
-        </div>
-        <p className="mt-2 text-sm text-muted-foreground">
-          {status.signedOff === 0 && status.staleSignoffs === 0
-            ? 'Nothing verified yet. Tick a section once you have checked that what is in it is the right, current set.'
-            : [
-                `${status.signedOff} verified`,
-                status.staleSignoffs
-                  ? `${status.staleSignoffs} needing a re-check since documents changed`
-                  : null,
-                `${status.sectionCount - status.signedOff - status.staleSignoffs} outstanding`,
-              ]
-                .filter(Boolean)
-                .join(' · ')}
-        </p>
-      </Panel>
+      <DiligenceChecklist status={status} />
 
       {/*
         ⚠ EVERY TILE IS A DIFFERENT QUANTITY AND IS NAMED APART. §12: three
@@ -294,27 +126,6 @@ export default function DataRoomView({ status }: { status: RoomStatus }) {
         </Panel>
       ) : null}
 
-      {parents.map((parent) => {
-        const sections = status.sections.filter((s) => s.section.parent === parent)
-        if (!sections.length) return null
-        return (
-          <section key={parent} className="space-y-3">
-            <h3 className="label-caps text-muted-foreground">
-              {parent} — {label[parent]}
-            </h3>
-            <div className="grid gap-3">
-              {sections.map((s) => (
-                <SectionBlock
-                  key={s.section.key}
-                  section={s}
-                  recordKind={status.kind}
-                  recordId={status.recordId}
-                />
-              ))}
-            </div>
-          </section>
-        )
-      })}
     </div>
   )
 }
